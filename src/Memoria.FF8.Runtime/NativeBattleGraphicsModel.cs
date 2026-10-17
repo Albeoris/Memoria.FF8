@@ -53,8 +53,10 @@ public static class NativeBattleGraphicsModels
         return Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 0)).ToArray();
     }
 
-    public static NativeBattleGraphicsModel CompleteLoad(NativeBattleGraphicsModel model, byte modelId, uint projectedStatusFlags, ref NativeGlobalRandomState random)
+    public static NativeBattleGraphicsModel CompleteLoad(NativeBattleGraphicsModel model, byte modelId, uint projectedStatusFlags, ref NativeGlobalRandomState random, byte? information246 = null)
     {
+        //5027D0 initializes BYTE145 from model identity and48B9F0's original information BYTE246.
+        byte sequenceByte145 = modelId < 16 ? (byte)0 : InitializeSequenceByte145(information246 ?? throw new InvalidDataException("Native5027D0 requires the enemy's original information BYTE246."));
         //5027D0 establishes Flags0=3,Flags2=4,Kind5=0,Flags8=0 then50A070 applies saved status projection.
         //505BC0(8) selects the original entry sequence and writes resourceWORD44=1.
         random = random.Draw(out ushort frame);
@@ -69,7 +71,20 @@ public static class NativeBattleGraphicsModels
             }
         }
         //5027D0 copies resourceDWORD100 to originalDWORD104, ending any temporary magic-resource override.
-        return model with { Flags0 = 3, Flags2 = 4, ModelId4 = modelId, Kind5 = 0, Phase6 = null, Alpha7 = null, MinimumY146 = 0, CameraSequence130 = (byte)(frame % 6), CameraAccumulator131 = (byte)appearance, HasLinkedModelRing140 = false, LinkedModelIndex140 = null, BlinkCountdown144 = (byte)(blink % 45 + 15), Flags8 = projectedStatusFlags, Flags8KnownMask = 0, Flags8KnownBits = 0, StatusTimers = timers, Rotation12 = 0, Rotation14 = model.Index >= 3 ? (short)2048 : (short)0, Rotation16 = 0, ResourceFlags44 = 1, ResourceMagicId = null, Sequence = 8, SequenceFrame = 0 };
+        return model with { Flags0 = 3, Flags2 = 4, ModelId4 = modelId, Kind5 = 0, Phase6 = null, Alpha7 = null, MinimumY146 = 0, CameraSequence130 = (byte)(frame % 6), CameraAccumulator131 = (byte)appearance, HasLinkedModelRing140 = false, LinkedModelIndex140 = null, BlinkCountdown144 = (byte)(blink % 45 + 15), SequenceByte145 = sequenceByte145, Flags8 = projectedStatusFlags, Flags8KnownMask = 0, Flags8KnownBits = 0, StatusTimers = timers, Rotation12 = 0, Rotation14 = model.Index >= 3 ? (short)2048 : (short)0, Rotation16 = 0, ResourceFlags44 = 1, ResourceMagicId = null, Sequence = 8, SequenceFrame = 0 };
+    }
+
+    private static byte InitializeSequenceByte145(byte information246)
+    {
+        if ((information246 & 8) != 0)
+        {
+            return 5;
+        }
+        if ((information246 & 4) != 0)
+        {
+            return 4;
+        }
+        return unchecked((byte)(3 - information246));
     }
 
     public static NativeBattleGraphicsModel SelectSequence(NativeBattleGraphicsModel model, byte sequence, bool overrideStatus = false)

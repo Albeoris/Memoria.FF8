@@ -18,7 +18,7 @@ public sealed class NativeBattleControlGraphicsTests
         BattleCombatantDefinition[] actors =
         [
             new() { Id = "party", Name = "Party", IsPlayer = true, ModelId = 0, WeaponId = 0, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 },
-            new() { Id = "enemy", Name = "Enemy", ModelId = 61, SceneSlot = formation.Enemies.First(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
+            new() { Id = "enemy", Name = "Enemy", Information246 = assets.ReadEnemyNativeInformation246(61), ModelId = 61, SceneSlot = formation.Enemies.First(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
         ];
         NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicFixture.Prepare(game, formation.Id);
         BattleDefinition definition = new()

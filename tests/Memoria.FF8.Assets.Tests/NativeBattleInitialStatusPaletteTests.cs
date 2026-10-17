@@ -17,7 +17,7 @@ public sealed class NativeBattleInitialStatusPaletteTests
         [
             new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, NativeStatus0 = 4, NativeDeathCount = 0 },
             new() { Id = "neighbor", Name = "Zell", IsPlayer = true, ModelId = 1, WeaponId = neighborWeapon, NativeDeathCount = 0 },
-            new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = encounter.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
+            new() { Id = "enemy", Name = "Ifrit", Information246 = assets.ReadEnemyNativeInformation246(61), ModelId = 61, SceneSlot = encounter.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
         ];
         NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicFixture.Prepare(game, encounter.Id);
         BattleSession session = new(new()

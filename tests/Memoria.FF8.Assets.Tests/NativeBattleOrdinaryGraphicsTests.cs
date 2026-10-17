@@ -22,7 +22,7 @@ public sealed class NativeBattleOrdinaryGraphicsTests
         BattleCombatantDefinition[] actors =
         [
             new() { Id = "party", Name = "Party", IsPlayer = true, ModelId = 0, WeaponId = 0, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 },
-            new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = formation.Enemies.First(enemy => enemy.ModelId == 61).Slot, Speed = 1, NativeAi = original with { Scripts = [[4, 200, 5, ability.Sequence, 7, checked((byte)ability.Id), 6, 0], [0], [0], [0], [0]] }, NativeCombatantFlags = 0x10 }
+            new() { Id = "enemy", Name = "Ifrit", Information246 = assets.ReadEnemyNativeInformation246(61), ModelId = 61, SceneSlot = formation.Enemies.First(enemy => enemy.ModelId == 61).Slot, Speed = 1, NativeAi = original with { Scripts = [[4, 200, 5, ability.Sequence, 7, checked((byte)ability.Id), 6, 0], [0], [0], [0], [0]] }, NativeCombatantFlags = 0x10 }
         ];
         NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicFixture.Prepare(game, formation.Id);
         BattleDefinition definition = new()

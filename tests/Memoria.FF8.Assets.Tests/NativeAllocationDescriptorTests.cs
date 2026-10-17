@@ -244,7 +244,7 @@ public sealed class NativeAllocationDescriptorTests
         BattleCombatantDefinition[] actors =
         [
             new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, Speed = 1 },
-            new() { Id = "caller", Name = "Caller", ModelId = 61, SceneSlot = 0, Speed = 1, NativeCombatantFlags = 0x10, NativeAi = caller },
+            new() { Id = "caller", Name = "Caller", Information246 = assets.ReadEnemyNativeInformation246(61), ModelId = 61, SceneSlot = 0, Speed = 1, NativeCombatantFlags = 0x10, NativeAi = caller },
             new() { Id = "prototype", Name = "Bite Bug", ModelId = 21, SceneSlot = 6, InitialActive = false, Speed = 1, NativeCombatantFlags = assets.ReadEnemyNativeCombatantFlags(21), NativeAi = spawned, NativeTemplate = assets.ReadEnemyTemplate(21, 5) }
         ];
         NativeBattleGraphicsDefinition graphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94));

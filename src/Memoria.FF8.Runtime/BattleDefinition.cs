@@ -79,6 +79,7 @@ public sealed record BattleStatusEffectDefinition
 
 public sealed record BattleCombatantDefinition
 {
+    public byte? Information246 { get; init; }
     public BattleNativeEnemySpecial? NativeSpecial { get; init; }
     public BattleNativeCharacterGrowth? NativeGrowth { get; init; }
     public ushort[]? GuardianForceCompatibility { get; init; }

@@ -28,6 +28,12 @@ internal static class NativeBattleComponentInputs
 
     internal static BattleDefinition PrepareMusic(BattleDefinition definition, string gameDirectory, byte sourceBank, byte music203, int primaryChannel)
     {
+        // Fresh installed-resource components supply the participant metadata required by5027D0.
+        if (definition.Combatants.Any(actor => !actor.IsPlayer && actor.Information246 is null && actor.NativeTemplate?.Information246 is null))
+        {
+            using BattleAssets assets = new(gameDirectory);
+            definition = definition with { Combatants = definition.Combatants.Select(actor => !actor.IsPlayer && actor.Information246 is null && actor.NativeTemplate?.Information246 is null ? actor with { Information246 = assets.ReadEnemyNativeInformation246(actor.ModelId) } : actor).ToArray() };
+        }
         // Independent components declare their source selector and channel; the actual entry producer owns the resulting buffers and return selector.
         NativeMusicProcessState buffers = new(1, null, null, null, sourceBank, null);
         NativeGlobalSoundProcess sound = definition.NativeGlobalSoundProcess ?? throw new InvalidOperationException("The component must supply its physical sound process before music entry.");

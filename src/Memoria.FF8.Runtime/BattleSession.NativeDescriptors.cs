@@ -326,7 +326,7 @@ public sealed partial class BattleSession
         NativeGlobalRandomState randomState = nativeGlobalRandom ?? throw new NotSupportedException("Native103 requires saved534AA0 random state.");
         uint flags = definition.NativeGraphics!.Rules.Project(NativeSavedStatusBits(actor), NativeBattleStatusBits(actor));
         byte loadedModelId = graphics.Models[index].ModelId4 ?? throw new NotSupportedException("Native103 requires its actually loaded model BYTE4.");
-        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(graphics.Models[index], loadedModelId, 0, ref randomState);
+        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(graphics.Models[index], loadedModelId, 0, ref randomState, actor.NativeInformation246);
         if (!actor.IsPlayer)
         {
             if (model.EffectCounter97 != 2 || model.ActiveResourceRow100 is null || model.BodyTextureSlots is null)

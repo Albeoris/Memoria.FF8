@@ -87,7 +87,7 @@ public sealed class NativeBattleRestorationPresentationTests
         [
             new() { Id = "caster", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, MaximumHp = 1000, CurrentHp = 1000, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 },
             new() { Id = "target", Name = "Zell", IsPlayer = true, ModelId = 1, WeaponId = assets.WeaponDefinitions.First(weapon => weapon.CharacterId == 1).Id, MaximumHp = targetMaximumHp, CurrentHp = targetHp, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 },
-            new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = formation.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
+            new() { Id = "enemy", Name = "Ifrit", Information246 = assets.ReadEnemyNativeInformation246(61), ModelId = 61, SceneSlot = formation.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
         ];
         //This fresh component declares the same source selectors as the battle-music entry fixture.
         //52CE30 transfers the original selected bank; no old snapshot's missing music is reconstructed.

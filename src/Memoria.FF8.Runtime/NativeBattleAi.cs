@@ -18,6 +18,7 @@ public sealed record NativeBattleEnemyLevel(int MaximumHp, int Strength, int Vit
 }
 public sealed record NativeBattleEnemyTemplate(byte SceneLevel, NativeBattleEnemyLevel[] Levels)
 {
+    public byte? Information246 { get; init; }
     public NativeBattleDrawSlot[][]? NativeDrawTables { get; init; }
     public byte? Information254 { get; init; }
     public NativeBattleMugDefinition? NativeMug { get; init; }

@@ -5,6 +5,49 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleGraphicsModelTests
 {
+    [Theory]
+    [InlineData(0, 0, 0)]
+    [InlineData(15, 255, 0)]
+    [InlineData(16, 0, 3)]
+    [InlineData(77, 1, 2)]
+    [InlineData(77, 2, 1)]
+    [InlineData(77, 3, 0)]
+    [InlineData(77, 4, 4)]
+    [InlineData(77, 8, 5)]
+    [InlineData(77, 12, 5)]
+    [InlineData(77, 16, 243)]
+    [InlineData(77, 255, 5)]
+    public void LoadingInitializesByte145FromTheModelIdentityAndCompleteInformationByte(byte modelId, byte information246, byte expected)
+    {
+        NativeGlobalRandomState random = new(0);
+        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(new(0, 0), modelId, 0, ref random, information246);
+        Assert.Equal(expected, model.SequenceByte145);
+        Assert.Equal((short)0, model.MinimumY146);
+        Assert.InRange(model.BlinkCountdown144!.Value, (byte)15, (byte)59);
+    }
+
+    [Fact]
+    public void ReloadResetsByte145AndPartyIdentityIgnoresThePhysicalSlotAndMissingEnemyMetadata()
+    {
+        NativeGlobalRandomState random = new(0);
+        NativeBattleGraphicsModel prior = new(6, 3) { SequenceByte145 = 200 };
+        NativeBattleGraphicsModel enemy = NativeBattleGraphicsModels.CompleteLoad(prior, 77, 0, ref random, 2);
+        Assert.Equal((byte)1, enemy.SequenceByte145);
+        NativeBattleGraphicsModel party = NativeBattleGraphicsModels.CompleteLoad(enemy with { SequenceByte145 = 90 }, 15, 0, ref random);
+        Assert.Equal((byte)0, party.SequenceByte145);
+    }
+
+    [Fact]
+    public void UnknownEnemyInformationFailsBeforeAdvancingTheSharedRandomState()
+    {
+        NativeGlobalRandomState random = new(1234);
+        NativeGlobalRandomState before = random;
+        NativeBattleGraphicsModel model = new(3, 3) { SequenceByte145 = 5 };
+        Assert.Throws<InvalidDataException>(() => NativeBattleGraphicsModels.CompleteLoad(model, 77, 0, ref random));
+        Assert.Equal(before, random);
+        Assert.Equal((byte)5, model.SequenceByte145);
+    }
+
     private static NativeBattleGraphicsRemoval AdvanceRemoval(NativeBattleGraphicsModel model, bool frozen, bool soundBusy, byte camera) => NativeBattleGraphicsModels.AdvanceRemoval(model, frozen, soundBusy, camera, new(0x00464B6E, 0x32808080, 1f / 4096, 4503601774854144d) { LinearFadeSourceB8BA94 = 0x00808080 });
 
     [Theory]
@@ -29,7 +72,7 @@ public sealed class NativeBattleGraphicsModelTests
         Assert.All(bank, model => Assert.Equal((ushort)0, model.Flags0));
         Assert.All(bank, model => Assert.Null(model.ResourceFlags44));
         NativeGlobalRandomState random = new(0);
-        NativeBattleGraphicsModel loaded = NativeBattleGraphicsModels.CompleteLoad(bank[3] with { ResourceMagicId = 160 }, 77, 0x80, ref random);
+        NativeBattleGraphicsModel loaded = NativeBattleGraphicsModels.CompleteLoad(bank[3] with { ResourceMagicId = 160 }, 77, 0x80, ref random, 0);
         Assert.Equal((ushort)3, loaded.Flags0);
         Assert.Equal((byte)8, loaded.Sequence);
         Assert.Equal((ushort)1, loaded.ResourceFlags44);
@@ -47,7 +90,7 @@ public sealed class NativeBattleGraphicsModelTests
     public void BlockedKindFiveCleanupRetainsItsNativeFadeFallthroughAndCanRepeatTheIdempotentRelease()
     {
         NativeGlobalRandomState random = new(0);
-        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.StartService(NativeBattleGraphicsModels.CompleteLoad(new(3, 0), 77, 0, ref random), 5);
+        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.StartService(NativeBattleGraphicsModels.CompleteLoad(new(3, 0), 77, 0, ref random, 0), 5);
         NativeBattleGraphicsRemoval first = AdvanceRemoval(model, false, true, 1);
         Assert.True(first.ReleaseParticipant);
         Assert.Equal((byte)2, first.Model.Phase6);
@@ -70,7 +113,7 @@ public sealed class NativeBattleGraphicsModelTests
     public void NativeRemovalReleasesTheAllocationBeforeGraphicalCleanupAndOnlyOnce(byte kind)
     {
         NativeGlobalRandomState random = new(0);
-        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.StartRemoval(NativeBattleGraphicsModels.CompleteLoad(new(3, 0), 77, 0, ref random), kind);
+        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.StartRemoval(NativeBattleGraphicsModels.CompleteLoad(new(3, 0), 77, 0, ref random, 0), kind);
         NativeBattleGraphicsModel paused = AdvanceRemoval(model, true, false, 0).Model;
         Assert.Equal((byte)0, paused.Phase6);
         for (int callback = 0; callback < 15; callback++)

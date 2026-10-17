@@ -142,7 +142,7 @@ public sealed class NativeBattleMusicSessionPresentationTests
         BattleCombatantDefinition[] actors =
         [
             new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, MaximumHp = 1000, CurrentHp = 1000, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 },
-            new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = formation.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
+            new() { Id = "enemy", Name = "Ifrit", Information246 = assets.ReadEnemyNativeInformation246(61), ModelId = 61, SceneSlot = formation.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
         ];
         //Controlled sourceBYTE201=0; both old buffer identities and unrelated pending fields remain unknown.
         //Actual52CE30 loads only selected bank1 from original B8EE6C resources and establishes the return selectors.
