@@ -11,6 +11,29 @@ namespace Memoria.FF8.App.Tests;
 [Collection("GPU rendering")]
 public sealed class GpuFieldBackgroundAtlasTests
 {
+    [Theory]
+    [InlineData(264)]
+    [InlineData(821)]
+    public void Installed_large_background_keeps_pixels_and_resident_textures(int fieldId)
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        FieldAssets field = assets.LoadField(fieldId);
+        FieldRenderer renderer = new(field, 960, 720);
+        Dictionary<int, int> states = field.Background.Where(tile => tile.AnimationId != 255).GroupBy(tile => tile.AnimationId).ToDictionary(group => group.Key, group => (int)group.First().AnimationState);
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer gpu = new(device.Device);
+        renderer.TriangleRenderer = new SeparateTileTextures(gpu);
+        renderer.Render(states, [], TimeSpan.Zero);
+        Color[] expected = GpuTestDevice.Read(gpu.Target);
+        renderer.TriangleRenderer = gpu;
+        renderer.Render(states, [], TimeSpan.Zero);
+        Assert.Equal(expected, GpuTestDevice.Read(gpu.Target));
+        renderer.Render(states, [], TimeSpan.Zero);
+        Assert.Equal(0, gpu.FrameTextureUploads);
+        Assert.InRange(gpu.FrameDrawCalls, 1, 2);
+        Assert.Equal(expected, GpuTestDevice.Read(gpu.Target));
+    }
+
     [Fact]
     public void Patterned_tiles_keep_point_sampling_boundaries_at_fractional_vertical_scale()
     {

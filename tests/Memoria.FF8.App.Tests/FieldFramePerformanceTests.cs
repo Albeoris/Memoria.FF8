@@ -14,34 +14,46 @@ namespace Memoria.FF8.App.Tests;
 [Collection("GPU rendering")]
 public sealed class FieldFramePerformanceTests
 {
-    [Fact]
-    public void Named_standalone_runs_inside_the_complete_field_graphics_host()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public void Named_standalone_runs_inside_the_complete_field_graphics_host(int speed)
     {
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_FIELD_PERFORMANCE_SNAPSHOT");
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_FIELD_PERFORMANCE_OUTPUT");
         Assert.SkipUnless(Environment.GetEnvironmentVariable("MEMORIA_FF8_FIELD_HOST_PERFORMANCE") == "1" && source is not null && File.Exists(source) && output is not null, "An optional standalone, output directory and interactive graphics diagnostic opt-in are required.");
-        Directory.CreateDirectory(output!);
+        output = Path.Combine(output!, $"host-x{speed}");
+        Directory.CreateDirectory(output);
         GameSession session = new(GameSession.Load(source!));
-        GameWorld world = new(session, TestResources.GameDirectory);
-        world.EnsureField();
-        long initialFrame = world.Events.Frame;
-        int initialField = world.Field!.Id;
+        using GameWorld initial = new(new GameSession(GameSession.Load(source!)), TestResources.GameDirectory);
+        initial.EnsureField();
+        long initialFrame = initial.Events.Frame;
+        int initialField = initial.Field!.Id;
         string directory = TestResources.ArtifactFile("field-host");
         Directory.CreateDirectory(directory);
-        LaunchOptions options = new() { GameDirectory = TestResources.GameDirectory, InitialState = session.State, StatePath = source, SavePath = Path.Combine(directory, "unused.json"), MuteAudio = true, ExitAfterSeconds = 8, ResolutionSpecified = true, Width = 960, Height = 720 };
+        bool audio = Environment.GetEnvironmentVariable("MEMORIA_FF8_FIELD_PERFORMANCE_AUDIO") == "1";
+        LaunchOptions options = new() { GameDirectory = TestResources.GameDirectory, MediaToolsDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_MEDIA_TOOLS"), InitialState = session.State, StatePath = source, SavePath = Path.Combine(directory, "unused.json"), MuteAudio = !audio, ExitAfterSeconds = 12, ResolutionSpecified = true, Width = 960, Height = 720 };
         using RecreateGame game = new(options, session);
-        Set(game, "world", world);
         Set(game, "globalSettings", new GlobalSettingsPaths(directory));
         Set(game, "uiPreferences", new UiPreferences { WindowWidth = 960, WindowHeight = 720, VSync = false });
+        if (speed == 3)
+        {
+            Get<GameplayClock>(game, "gameplayClock").ToggleSpeed();
+        }
         game.Run();
+        GameWorld world = Get<GameWorld>(game, "world");
         GameLoopSample? sample = Get<GameLoopMetrics>(game, "metrics").Latest;
         session.SetEventState(world.Events.Capture());
         session.Save(Path.Combine(output!, "host-after.json"));
-        File.WriteAllText(Path.Combine(output!, "host-measurement.json"), JsonSerializer.Serialize(new { InitialFrame = initialFrame, FinalFrame = world.Events.Frame, Sample = sample }, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(Path.Combine(output!, "host-measurement.json"), JsonSerializer.Serialize(new { Field = initialField, Speed = speed, Audio = audio, InitialFrame = initialFrame, FinalFrame = world.Events.Frame, Sample = sample }, new JsonSerializerOptions { WriteIndented = true }));
         Assert.NotNull(sample);
         Assert.False(Get<bool>(game, "fieldFaulted"), Get<string?>(game, "error"));
+        if (audio)
+        {
+            Assert.Null(Get<FieldAudioPresentation>(game, "fieldAudio").Error);
+        }
         Assert.Equal(initialField, world.Field!.Id);
-        Assert.True(world.Events.Frame > initialFrame + 100);
+        Assert.True(world.Events.Frame > initialFrame + 100 * speed);
     }
 
     private static T Get<T>(RecreateGame game, string name)
@@ -59,6 +71,8 @@ public sealed class FieldFramePerformanceTests
     [InlineData(133)]
     [InlineData(134)]
     [InlineData(135)]
+    [InlineData(264)]
+    [InlineData(821)]
     public void Installed_background_submission_reports_draws_uploads_and_cpu_time(int fieldId)
     {
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_FIELD_PERFORMANCE_OUTPUT");
@@ -82,6 +96,10 @@ public sealed class FieldFramePerformanceTests
                 renderer.Render(states, [], TimeSpan.Zero, backgroundScrollOffsets: new Dictionary<int, System.Numerics.Vector2> { [1] = new(frame, 0) });
                 uploads += gpu.FrameTextureUploads;
                 draws += gpu.FrameDrawCalls;
+                if (block > 0 || frame > 0)
+                {
+                    Assert.Equal(0, gpu.FrameTextureUploads);
+                }
             }
             samples.Add(new { Block = block, RenderMilliseconds = Stopwatch.GetElapsedTime(start).TotalMilliseconds / 30, AllocatedBytesPerFrame = (GC.GetAllocatedBytesForCurrentThread() - allocated) / 30, UploadsPerFrame = uploads / 30d, DrawsPerFrame = draws / 30d });
         }
@@ -112,7 +130,7 @@ public sealed class FieldFramePerformanceTests
             for (int tick = 0; tick < 30; tick++)
             {
                 long start = Stopwatch.GetTimestamp();
-                Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
+                world.Events.Step();
                 update += Stopwatch.GetElapsedTime(start).TotalMilliseconds;
                 Assert.Null(world.Events.LastFault);
                 start = Stopwatch.GetTimestamp();
@@ -134,8 +152,8 @@ public sealed class FieldFramePerformanceTests
         restored.EnsureField();
         restored.SetRenderSize(960, 720);
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
-        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
-        Assert.True(restored.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
+        world.Events.Step();
+        restored.Events.Step();
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
         Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));
         Assert.Equal(initialFrame + 121, world.Events.Frame);
