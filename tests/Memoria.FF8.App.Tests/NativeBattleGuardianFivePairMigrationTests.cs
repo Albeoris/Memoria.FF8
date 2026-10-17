@@ -27,7 +27,7 @@ public sealed class NativeBattleGuardianFivePairMigrationTests
         Assert.Null(retained.Ribbon!.SecondaryBank);
         using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
         NativeBattleQuezacotlResources authenticated = game.ReadNativeQuezacotlResources();
-        Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(authenticated with { Frame209Sound = null, Frame229FlashColor = retained.Frame229FlashColor, Paths = retained.Paths, Ribbon = authenticated.Ribbon! with { SecondaryBank = null } }));
+        Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(authenticated with { Frame209Sound = null, Frame277Sound = retained.Frame277Sound, Frame229FlashColor = retained.Frame229FlashColor, Paths = retained.Paths, Ribbon = authenticated.Ribbon! with { SecondaryBank = null } }));
         Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(original.Definition.NativeEffectCatalog[115].NativeQuezacotlResources));
         JsonNode originalNode = JsonNode.Parse(originalBytes)!;
         JsonNode migratedNode = originalNode.DeepClone();

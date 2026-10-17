@@ -5,6 +5,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleEsunaMeshContext(uint Flags, uint? FarColor, int? Fade, int DepthBias, ushort UOffset, ushort VOffset, NativeBattleTextureWindow WindowBefore, NativeBattleTextureWindow WindowAfter, int TableBaseBucket, byte DepthShift);
 public sealed record NativeBattleFullLifeMeshContext(uint Flags, uint? FarColor, int? Fade, ushort? TexturePage, ushort? Clut, uint? UvOffset, int TableBaseBucket, byte DepthShift);
 public sealed record NativeBattleEsunaMeshPreparation(NativeBattleModulePoolTask Task, NativeBattleEsunaMeshContext Context);
+public sealed record NativeBattleEsunaMeshOperands(ushort NextUvCounter, NativeBattleEsunaMeshContext Context);
 
 /// <summary>The original restoration context operands and thin wrappers over the normalized physical mesh packet leaves.</summary>
 public static class NativeBattleRestorationMeshPackets
@@ -15,6 +16,16 @@ public static class NativeBattleRestorationMeshPackets
         {
             throw new InvalidDataException("Native88E090 requires its own original generic context task.");
         }
+        NativeBattleEsunaMeshOperands prepared = Prepare88E090(task.ReadWord(0x34 + 0x2A), sourceIndex, sourceWord3A, fade, farColor);
+        if (sourceIndex is 1 or 2)
+        {
+            task = task.WriteWord(0x34 + 0x2A, prepared.NextUvCounter);
+        }
+        return new(task, prepared.Context);
+    }
+
+    public static NativeBattleEsunaMeshOperands Prepare88E090(ushort currentUvCounter, sbyte sourceIndex, short sourceWord3A, short fade, uint? farColor)
+    {
         uint flags = sourceWord3A == 0 ? 0x30u : 0;
         if (fade != 0)
         {
@@ -23,13 +34,14 @@ public static class NativeBattleRestorationMeshPackets
         NativeBattleTextureWindow full = new(0, 0, 256, 256);
         NativeBattleTextureWindow window = full;
         ushort vertical = 0;
+        ushort next = currentUvCounter;
         if (sourceIndex is 1 or 2)
         {
-            vertical = (ushort)((unchecked((byte)task.ReadWord(0x34 + 0x2A)) + 2) & 0x7F);
-            task = task.WriteWord(0x34 + 0x2A, vertical);
+            vertical = (ushort)((unchecked((byte)currentUvCounter) + 2) & 0x7F);
+            next = vertical;
             window = new(0, 0, 128, 128);
         }
-        return new(task, new(flags, fade != 0 ? farColor : null, fade != 0 ? fade : null, 0, 0, vertical, full, window, 17, 2));
+        return new(next, new(flags, fade != 0 ? farColor : null, fade != 0 ? fade : null, 0, 0, vertical, full, window, 17, 2));
     }
 
     public static NativeBattleGfGeometryBatch EmitFt3_88E820(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, NativeBattleEsunaMeshContext context, NativeBattleSummonColors? colors = null, int byteOffset = 0)

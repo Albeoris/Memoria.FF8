@@ -12,6 +12,8 @@ public sealed partial record NativeBattleQuezacotlResources(NativeBattleEffectIn
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public uint? Frame209Sound { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public uint? Frame277Sound { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public uint? Frame229FlashColor { get; init; }
     public ImmutableArray<uint>? FlashColors { get; init; }
 }

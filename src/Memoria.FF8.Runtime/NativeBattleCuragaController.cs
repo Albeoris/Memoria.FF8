@@ -24,7 +24,7 @@ public sealed record NativeBattleCuragaState([property: JsonRequired] int Source
 public sealed record NativeBattleCuragaFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleCuragaState State);
 public sealed record NativeBattleCuragaControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource)
 {
-    public Action<int>? ApplyContact { get; init; }
+    public Func<NativeBattleCuragaFrame, int, NativeBattleCuragaFrame>? ApplyContact { get; init; }
 }
 public sealed record NativeBattleCuragaLeafStep(NativeBattleCuragaFrame Frame, int Result);
 public sealed record NativeBattleCuragaControllerStep(NativeBattleCuragaFrame Frame, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
@@ -236,7 +236,10 @@ public static class NativeBattleCuragaController
                         int header = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
                         int first = inputs.Packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Native882F00 requires its selected group's contact pointer.");
                         int contact = checked(first + unchecked((sbyte)task.ReadByte(0x2B)));
-                        inputs.ApplyContact?.Invoke(contact);
+                        if (inputs.ApplyContact is { } applyContact)
+                        {
+                            current = applyContact(current, contact);
+                        }
                         contacts.Add(contact);
                         state = state.Write(address, task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 1)));
                         state = Next(state, address);

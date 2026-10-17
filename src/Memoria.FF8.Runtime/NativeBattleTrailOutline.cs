@@ -5,19 +5,20 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Shared6C8DE0/6C8620 projected ribbon outline, retaining each call's actual width/depth bias.</summary>
 internal static class NativeBattleTrailOutline
 {
-    public static void Expand(IReadOnlyList<Point> outline, ImmutableArray<byte> distanceBytes16384, int depthBias)
+    public static uint? Expand(IReadOnlyList<Point> outline, ImmutableArray<byte> distanceBytes16384, int depthBias, uint? incomingDirectionDword = null)
     {
         if (outline.Count < 2 || distanceBytes16384.IsDefault || distanceBytes16384.Length != 16384 || depthBias is not (512 or 1024))
         {
             throw new InvalidDataException("Native trail outline requires its reached chain, original distance bytes and actual depth bias.");
         }
-        (short X, short Y)? direction = null;
+        (short X, short Y)? direction = incomingDirectionDword is uint prior ? (unchecked((short)prior), unchecked((short)(prior >> 16))) : null;
         ExpandPoint(0, 1, false);
         for (int index = 1; index < outline.Count - 1; index++)
         {
             ExpandPoint(index, index + 1, true);
         }
         ExpandPoint(outline.Count - 1, null, true);
+        return direction is { } final ? (ushort)final.X | ((uint)(ushort)final.Y << 16) : null;
 
         void ExpandPoint(int index, int? nextIndex, bool priorPointer)
         {

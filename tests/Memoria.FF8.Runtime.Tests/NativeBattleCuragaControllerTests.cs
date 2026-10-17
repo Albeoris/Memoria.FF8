@@ -64,7 +64,14 @@ public sealed class NativeBattleCuragaControllerTests
         NativeBattleCuragaFrame frame = fixture.Frame;
         List<int> applied = [];
         List<NativeBattleModuleSound> sounds = [];
-        NativeBattleCuragaControllerInputs inputs = fixture.Inputs with { ApplyContact = applied.Add };
+        NativeBattleCuragaControllerInputs inputs = fixture.Inputs with
+        {
+            ApplyContact = (current, index) =>
+            {
+                applied.Add(index);
+                return current;
+            }
+        };
         NativeBattleCuragaLeafStep Leaf(NativeBattleCuragaFrame current, uint _) => new(current, 0);
         for (int callback = 1; callback <= 35; callback++)
         {
@@ -81,6 +88,58 @@ public sealed class NativeBattleCuragaControllerTests
         Assert.Equal(127u, sound.Volume);
         NativeBattleCuragaFrame independent = JsonSerializer.Deserialize<NativeBattleCuragaFrame>(JsonSerializer.Serialize(frame))!;
         Assert.Equal(JsonSerializer.Serialize(NativeBattleCuragaController.Advance87DC50(frame, fixture.Inputs, Resources(), Leaf)), JsonSerializer.Serialize(NativeBattleCuragaController.Advance87DC50(independent, fixture.Inputs, Resources(), Leaf)));
+    }
+
+    [Fact]
+    public void Contact_memory_writes_reach_the_next_leaf_and_final_frame_without_restoring_preclear_bytes()
+    {
+        var fixture = Fixture();
+        NativeBattleCuragaFrame frame = fixture.Frame;
+        int contacts = 0;
+        int leavesAfterContact = 0;
+        NativeBattleCuragaControllerInputs inputs = fixture.Inputs with
+        {
+            ApplyContact = (current, index) =>
+            {
+                Assert.Equal(0, index);
+                Assert.Equal(0, contacts++);
+                AssertCleared(current);
+                NativeBattleEffectTextureState textures = current.Memory.Textures!;
+                return current with { Memory = current.Memory with { Textures = textures.EnqueueCopy505EB0(1, 2, 3, 4, 5, 6) } };
+            }
+        };
+        for (int callback = 0; callback < 35; callback++)
+        {
+            frame = NativeBattleCuragaController.Advance87DC50(frame, inputs, Resources(), (current, _) =>
+            {
+                AssertCleared(current);
+                Assert.Equal(contacts, current.Memory.Textures!.Count);
+                if (contacts != 0)
+                {
+                    leavesAfterContact++;
+                }
+                return new(current, 0);
+            }).Frame;
+        }
+        Assert.Equal(1, contacts);
+        Assert.True(leavesAfterContact > 0);
+        AssertCleared(frame);
+        NativeBattleEffectTimUpload copy = Assert.IsType<NativeBattleEffectTimUpload>(frame.Memory.Textures!.Slots[0]);
+        Assert.Equal((byte)3, copy.Kind);
+        Assert.Equal(new NativeBattleEffectVramCopy(1, 2, 3, 4, 5, 6), copy.Copy);
+        NativeBattleCuragaFrame independent = JsonSerializer.Deserialize<NativeBattleCuragaFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleCuragaLeafStep Leaf(NativeBattleCuragaFrame current, uint _) => new(current, 0);
+        NativeBattleCuragaControllerStep actual = NativeBattleCuragaController.Advance87DC50(frame, inputs, Resources(), Leaf);
+        NativeBattleCuragaControllerStep restored = NativeBattleCuragaController.Advance87DC50(independent, inputs, Resources(), Leaf);
+        Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(restored));
+        Assert.Empty(actual.Contacts);
+        Assert.Equal(1, actual.Frame.Memory.Textures!.Count);
+
+        static void AssertCleared(NativeBattleCuragaFrame current)
+        {
+            int first = current.State.Auxiliary25F8 ?? throw new InvalidDataException("The current controller must clear its emitter pool before a private leaf or contact.");
+            Assert.All(current.Memory.Arena!.Read(first, 0x25F8 + 0x16F80), value => Assert.Equal((byte)0, value));
+        }
     }
 
     [Fact]

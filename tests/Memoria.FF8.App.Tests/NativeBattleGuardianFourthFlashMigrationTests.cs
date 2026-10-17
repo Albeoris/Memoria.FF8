@@ -27,7 +27,7 @@ public sealed class NativeBattleGuardianFourthFlashMigrationTests
         using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
         NativeBattleQuezacotlResources authenticated = game.ReadNativeQuezacotlResources();
         Assert.Equal(0x00505050u, authenticated.Frame229FlashColor);
-        Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(authenticated with { Frame229FlashColor = null, Paths = retained.Paths }));
+        Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(authenticated with { Frame229FlashColor = null, Frame277Sound = retained.Frame277Sound, Paths = retained.Paths }));
         Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(original.Definition.NativeEffectCatalog[115].NativeQuezacotlResources));
         const string property = "Frame229FlashColor";
         JsonNode originalNode = JsonNode.Parse(originalBytes)!;

@@ -35,14 +35,7 @@ public static class NativeBattleCuragaNodes
 
     internal static void AdvanceEmitterLifetime(NativeBattleCuragaNodeMemory memory, int node)
     {
-        short remaining = unchecked((short)(memory.Word(node + 0x64) - 1));
-        memory.Word(node + 0x64, unchecked((ushort)remaining));
-        if (remaining <= 0)
-        {
-            memory.Unlink882960(node);
-            memory.Byte(node + 0x69, 0);
-            memory.ContextWord(0x14, unchecked((ushort)(memory.ContextWord(0x14) - 1)));
-        }
+        NativeBattleEffectNodeLifecycle.AdvanceEmitterLifetime(memory, node);
     }
 
     internal static int? AllocateEmitter(NativeBattleCuragaNodeMemory memory, uint parentPointer, sbyte sourceIndex, sbyte targetIndex)

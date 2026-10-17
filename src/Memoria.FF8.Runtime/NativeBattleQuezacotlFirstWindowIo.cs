@@ -9,11 +9,11 @@ public static class NativeBattleQuezacotlFirstWindowIo
 {
     public static NativeBattleQuezacotlFirstWindowIoStep Advance(NativeBattleEffectMemory memory, ushort phase)
     {
-        if (phase is < 1 or > 276)
+        if (phase is < 1 or > 302)
         {
             throw new ArgumentOutOfRangeException(nameof(phase));
         }
-        if (phase is 30 or 60 or 76 or 85 or 161 or 211 or 256 or 276)
+        if (phase is 30 or 60 or 76 or 85 or 161 or 211 or 256 or 276 or 302)
         {
             NativeBattleEffectIoPoll poll = NativeBattleEffectIo.Poll534270(memory);
             memory = poll.Memory;
@@ -23,6 +23,11 @@ public static class NativeBattleQuezacotlFirstWindowIo
             }
             switch (phase)
             {
+                case 302:
+                    ImmutableArray<uint> secondaryHeads = memory.QuezacotlSecondaryHeads ?? throw new NotSupportedException("Native6C4D3C requires its retained secondary descriptor heads.");
+                    memory = memory with { QuezacotlSecondaryHeads = secondaryHeads.SetItem(0, 0).SetItem(1, 0).SetItem(2, 0) };
+                    memory = NativeBattleEffectIo.Queue5341D0(memory, 527, 0x2108954, 0x10);
+                    break;
                 case 276:
                     NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native6C4CFA requires its current impact-enable DWORD.");
                     ImmutableArray<uint> heads = memory.QuezacotlSecondaryHeads ?? throw new NotSupportedException("Native6C4CE9 requires its retained secondary descriptor head owners.");
@@ -65,5 +70,15 @@ public static class NativeBattleQuezacotlFirstWindowIo
         }
         NativeBattleEffectIoAdvance advance = NativeBattleEffectIo.Advance534210(memory);
         return new(advance.Memory, advance.Request, true);
+    }
+
+    public static NativeBattleOriginalEffectState ResetPools6C4D3C(NativeBattleOriginalEffectState effect)
+    {
+        uint[] descriptors = [0x2521728, 0x2521718, 0x2521708];
+        if (descriptors.Any(descriptor => !effect.Pools.Any(pool => pool.DescriptorAddress == descriptor)))
+        {
+            throw new NotSupportedException("Native6C4D3C requires its current ribbon, particle and path pool owners.");
+        }
+        return effect with { Pools = effect.Pools.Select(pool => descriptors.Contains(pool.DescriptorAddress) ? pool with { Head = null, Tail = null } : pool).ToImmutableArray() };
     }
 }

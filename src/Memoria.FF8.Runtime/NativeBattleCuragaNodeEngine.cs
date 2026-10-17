@@ -61,32 +61,10 @@ public static class NativeBattleCuragaNodeEngine
 
     public static NativeBattleCuragaNodeEngineStep Advance87EC80(NativeBattleCuragaFrame frame, uint contextTask, NativeBattleCuragaNodeEngineInputs inputs)
     {
-        NativeBattleModulePoolTask task = ReadTask();
-        bool complete = false;
-        switch (unchecked((short)task.ReadWord(0x34 + 0x20)))
-        {
-            case 0:
-                WriteTask(task.WriteWord(0x34 + 0x20, unchecked((ushort)(task.ReadWord(0x34 + 0x20) + 1))));
-                break;
-            case 1:
-                frame = inputs.AdvanceBirthUpdateAndDraw(frame, contextTask);
-                task = ReadTask();
-                short counter = unchecked((short)(task.ReadWord(0x34 + 0x18) + 1));
-                task = task.WriteWord(0x34 + 0x18, unchecked((ushort)counter));
-                if (counter >= unchecked((short)task.ReadWord(0x34 + 0x1A)) && task.ReadWord(0x34 + 0x14) == 0 && task.ReadWord(0x34 + 0x16) == 0)
-                {
-                    task = task.WriteWord(0x34 + 0x20, unchecked((ushort)(task.ReadWord(0x34 + 0x20) + 1)));
-                }
-                WriteTask(task);
-                break;
-            case 2:
-                complete = true;
-                break;
-        }
+        var step = NativeBattleEffectNodeLifecycle.AdvanceContext(ReadTask, WriteTask, () => frame = inputs.AdvanceBirthUpdateAndDraw(frame, contextTask));
         ushort emitterCount = frame.State.PassCount26D82EA ?? throw new NotSupportedException("Native87EC80 requires87DC50's actual per-pass emitter-count reset.");
         ushort geometryCount = frame.State.PassCount26D82DA ?? throw new NotSupportedException("Native87EC80 requires87DC50's actual per-pass geometry-count reset.");
-        task = ReadTask();
-        return new(frame with { State = frame.State with { PassCount26D82EA = unchecked((ushort)(emitterCount + task.ReadWord(0x34 + 0x14))), PassCount26D82DA = unchecked((ushort)(geometryCount + task.ReadWord(0x34 + 0x16))) } }, complete);
+        return new(frame with { State = frame.State with { PassCount26D82EA = unchecked((ushort)(emitterCount + step.EmitterCount)), PassCount26D82DA = unchecked((ushort)(geometryCount + step.GeometryCount)) } }, step.Complete);
 
         NativeBattleModulePoolTask ReadTask() => new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(contextTask);
         void WriteTask(NativeBattleModulePoolTask updated)
@@ -106,31 +84,7 @@ public static class NativeBattleCuragaNodeEngine
 
     internal static void Birth(NativeBattleCuragaNodeMemory memory, NativeBattleCuragaExecutableState executable)
     {
-        uint directory = memory.ContextDword(0x224);
-        for (int index = 0; index < 16; index++)
-        {
-            uint source = BinaryPrimitives.ReadUInt32LittleEndian(executable.Read(unchecked(directory + (uint)(index * 4)), 4));
-            if (source == 0 || (memory.ContextWord(0x22) & (1 << index)) != 0)
-            {
-                continue;
-            }
-            byte[] record = executable.Read(source, 0x38);
-            if (record[0x11] is not (0 or 1 or 4) || unchecked((short)(sbyte)record[0x13]) != unchecked((short)memory.ContextWord(0x18)))
-            {
-                continue;
-            }
-            if (record[0x37] == 1)
-            {
-                for (int target = 0; target < unchecked((short)memory.ContextWord(0x1C)); target++)
-                {
-                    NativeBattleCuragaNodes.AllocateEmitter(memory, 0, unchecked((sbyte)index), unchecked((sbyte)target));
-                }
-            }
-            else
-            {
-                NativeBattleCuragaNodes.AllocateEmitter(memory, 0, unchecked((sbyte)index), 0);
-            }
-        }
+        NativeBattleCuragaNodeKinematics.CreateLifecycle(memory, NativeBattleCuragaNodeKinematics.CurrentBank(executable)).Birth();
     }
 
     public static NativeBattleCuragaFrame AdvanceList8804D0(NativeBattleCuragaFrame frame, uint contextTask, Func<NativeBattleCuragaFrame, uint, int, NativeBattleCuragaFrame> advanceEmitter, Func<NativeBattleCuragaFrame, uint, int, NativeBattleCuragaFrame> advanceGeometry)

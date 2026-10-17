@@ -28,7 +28,7 @@ public sealed class NativeBattleGuardianPathMigrationTests
         Assert.Null(retained.Paths);
         using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
         NativeBattleQuezacotlResources authenticated = game.ReadNativeQuezacotlResources();
-        Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(authenticated with { Paths = null }));
+        Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(authenticated with { Paths = null, Frame277Sound = retained.Frame277Sound }));
         Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(original.Definition.NativeEffectCatalog[115].NativeQuezacotlResources));
         Assert.Equal(0, game.ReadColdProcessNativeBattleMemory().EffectMemory!.QuezacotlTargetY1774);
         //Only this named first-GF cold/manual-header lineage is admitted. Entry6C3640 does not reset1774;

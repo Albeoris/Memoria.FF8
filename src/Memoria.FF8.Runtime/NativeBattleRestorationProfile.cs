@@ -45,7 +45,7 @@ public sealed record NativeBattleRestorationLeafStep(NativeBattleRestorationFram
 public sealed record NativeBattleRestorationControllerStep(NativeBattleRestorationFrame Frame, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
 public sealed record NativeBattleRestorationControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource)
 {
-    public Action<int>? ApplyContact { get; init; }
+    public Func<NativeBattleRestorationFrame, int, NativeBattleRestorationFrame>? ApplyContact { get; init; }
 }
 
 public sealed record NativeBattleRestorationContextStep(NativeBattleRestorationFrame Frame, bool Complete);

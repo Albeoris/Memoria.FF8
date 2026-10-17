@@ -16,31 +16,49 @@ public static class NativeBattleQuezacotlLaterCamera
         return camera.WriteEffectGlobals(new(eye, pose.Target, camera.FocalLength, unchecked((short)(camera.Roll + 8))));
     }
 
-    public static NativeBattleCameraState Apply6C4F80(NativeBattleCameraState camera, ushort phase, int targetZ1770)
+    public static NativeBattleCameraState Apply6C4F80(NativeBattleCameraState camera, ushort phase, int targetZ)
     {
         NativeBattleCameraPoint eye;
         NativeBattleCameraPoint target;
         if (phase == 246)
         {
-            eye = new(4313, -885, unchecked((short)(targetZ1770 + 3236)));
-            target = new(-1134, -711, unchecked((short)(targetZ1770 - 264)));
+            eye = new(4313, -885, unchecked((short)(targetZ + 3236)));
+            target = new(-1134, -711, unchecked((short)(targetZ - 264)));
         }
         else if (phase == 256)
         {
-            eye = new(-4000, -4000, unchecked((short)(targetZ1770 + 4000)));
-            target = new(0, 0, unchecked((short)targetZ1770));
+            eye = new(-4000, -4000, unchecked((short)(targetZ + 4000)));
+            target = new(0, 0, unchecked((short)targetZ));
         }
         else if (phase == 276)
         {
-            eye = new(-430, -4188, unchecked((short)(targetZ1770 + 1176)));
-            target = new(-17, -5387, unchecked((short)(targetZ1770 + 304)));
+            eye = new(-430, -4188, unchecked((short)(targetZ + 1176)));
+            target = new(-17, -5387, unchecked((short)(targetZ + 304)));
             short roll = camera.CapturedPose?.Roll ?? throw new NotSupportedException("Native6C506A requires its actual503300 saved rollWORD1D9771C.");
             return camera.WriteEffectGlobals(new(eye, target, camera.FocalLength, roll));
+        }
+        else if (phase == 302)
+        {
+            eye = new(0, -2378, unchecked((short)(targetZ + 3555)));
+            target = new(0, -1291, unchecked((short)(targetZ - 2362)));
         }
         else
         {
             throw new ArgumentOutOfRangeException(nameof(phase));
         }
+        return camera.WriteEffectGlobals(new(eye, target, camera.FocalLength, camera.Roll));
+    }
+
+    public static NativeBattleCameraState Shift6C4685(NativeBattleCameraState camera, int localFrame)
+    {
+        if (localFrame is < 20 or >= 46)
+        {
+            throw new ArgumentOutOfRangeException(nameof(localFrame));
+        }
+        NativeBattleCameraPose pose = camera.CurrentPose ?? throw new NotSupportedException("Native6C4685 requires its current EyeY and TargetY globals.");
+        int delta = localFrame < 38 ? -64 : 384;
+        NativeBattleCameraPoint eye = pose.Eye with { Y = unchecked((short)(pose.Eye.Y + delta)) };
+        NativeBattleCameraPoint target = pose.Target with { Y = unchecked((short)(pose.Target.Y + delta)) };
         return camera.WriteEffectGlobals(new(eye, target, camera.FocalLength, camera.Roll));
     }
 }

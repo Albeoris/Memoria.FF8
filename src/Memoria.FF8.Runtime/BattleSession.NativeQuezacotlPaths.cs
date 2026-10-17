@@ -14,6 +14,8 @@ public sealed partial class BattleSession
         {
             return graphics;
         }
+        //508420 reuses one native stack depth for all path tasks; nothing from another pool or frame is assumed.
+        uint? outlineDirection = null;
         NativeBattleEffectTaskStep stepped = before.Advance((current, index) =>
         {
             if (current.Slots[index].Callback != 0x6C7800)
@@ -21,10 +23,11 @@ public sealed partial class BattleSession
                 throw new NotSupportedException($"Native Quezacotl path callback{current.Slots[index].Callback:X} is not implemented.");
             }
             NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native6C7800 requires its current ordering table.");
-            NativeBattleQuezacotlPathStep path = NativeBattleQuezacotlPathCallbacks.Advance6C7800(memory, effect, current, index, frame.Pending, NativeCamera?.Projection ?? throw new NotSupportedException("Native6C7800 requires its prior projection registers."), depthTrace.DepthFifo4);
+            NativeBattleQuezacotlPathStep path = NativeBattleQuezacotlPathCallbacks.Advance6C7800(memory, effect, current, index, frame.Pending, NativeCamera?.Projection ?? throw new NotSupportedException("Native6C7800 requires its prior projection registers."), depthTrace.DepthFifo4, outlineDirection);
             memory = path.Memory;
             effect = path.Effect;
             depthTrace.ObserveFinal(path.DepthFifo4);
+            outlineDirection = path.FinalOutlineDirectionDword;
             graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = path.Ordering } };
             NativeEffectMemory = memory;
             NativeGraphics = graphics;

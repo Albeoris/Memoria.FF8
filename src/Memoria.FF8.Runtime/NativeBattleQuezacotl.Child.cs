@@ -13,9 +13,9 @@ public static class NativeBattleQuezacotlChild
         NativeBattleQuezacotlState state = (effect.Quezacotl ?? throw new InvalidDataException("Native6C3940 lost its initialized Quezacotl globals.")) with { Intensity17A4 = 2400 };
         if (phase != 0)
         {
-            if (phase == 277)
+            if (phase == 303)
             {
-                throw new NotSupportedException("Native Quezacotl6C3940 phase277 requires its original4BC-byte executable workspace129F4E8 and current129CD84 source; this storage contract is not implemented.");
+                throw new NotSupportedException("Native Quezacotl6C3940 phase303 requires its original32x2C pool25216E8,6C6660 callbacks and124-byte child workspace from current12A9664; this producer contract is not implemented.");
             }
             throw new NotSupportedException($"Native Quezacotl6C3940 phase{phase} requires original7016B0 model workspace and701970/6C6060 geometry callbacks; full GF animation is not implemented.");
         }

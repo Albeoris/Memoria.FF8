@@ -156,6 +156,64 @@ public sealed class NativeBattleQuezacotlPathControllerTests
         Assert.Equal((short)-1, I16(failed.Memory, Row));
         Assert.NotEqual(spawned.Effect.Quezacotl!.Random17A0, failed.Effect.Quezacotl!.Random17A0);
         Assert.Empty(failed.Ordering.Packets);
+        Assert.Equal(0x006C78B8u, failed.FinalOutlineDirectionDword);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Branch_call_saves_EBX_two_in_outline_scratch_even_when_producer_fails_or_current_task_releases_before_drawing(bool exhaustRows)
+    {
+        var (memory, effect, paths) = Fixture();
+        byte[] data = paths.Data.ToArray();
+        short[] branch = [-2, 5, short.MaxValue, short.MaxValue];
+        for (int index = 0; index < branch.Length; index++)
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(data.AsSpan(84 + index * 2), branch[index]);
+        }
+        paths = paths with { Data = data.ToImmutableArray() };
+        effect = effect with { Binding = effect.Binding with { NativeQuezacotlResources = effect.Binding.NativeQuezacotlResources! with { Paths = paths } } };
+        NativeBattleQuezacotlPathSpawn spawned = NativeBattleQuezacotlPathProducer.Spawn6C76C0(memory, effect, paths, 0);
+        memory = exhaustRows ? spawned.Memory with { Arena = spawned.Memory.Arena!.Write(Row + 28, new byte[511 * 28]) } : spawned.Memory;
+        NativeBattleQuezacotlPathStep released = NativeBattleQuezacotlPathCallbacks.Advance6C7800(memory, spawned.Effect, spawned.Effect.Pools[0], 0, NativeBattleLogicalOrdering.Clear(), new(null, 216, 160, 108), default, 0xDEADBEEF);
+        Assert.Equal(2, released.Returned);
+        Assert.Equal(2u, released.FinalOutlineDirectionDword);
+        Assert.Empty(released.Ordering.Packets);
+    }
+
+    [Fact]
+    public void Allocator_return_address_replaces_branch_saved_direction_before_degenerate_outline_and_trim_preserves_it()
+    {
+        var (memory, effect, paths) = Fixture();
+        byte[] data = paths.Data.ToArray();
+        short[] branch = [-4, 5, 6, short.MaxValue, 1, 2, 3, 4, 5, 6];
+        for (int index = 0; index < branch.Length; index++)
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(data.AsSpan(84 + index * 2), branch[index]);
+        }
+        paths = paths with { Data = data.ToImmutableArray() };
+        NativeBattleQuezacotlResources resources = effect.Binding.NativeQuezacotlResources!;
+        effect = effect with { Binding = effect.Binding with { NativeQuezacotlResources = resources with { Paths = paths, Ribbon = resources.Ribbon! with { DistanceBytes16384 = new byte[16384].ToImmutableArray() } } } };
+        NativeBattleQuezacotlPathSpawn spawned = NativeBattleQuezacotlPathProducer.Spawn6C76C0(memory, effect, paths, 0);
+        NativeBattleQuezacotlPathStep step = Step(spawned.Memory, spawned.Effect);
+        Assert.Equal(0x006C78B8u, step.FinalOutlineDirectionDword);
+        Assert.Equal((ushort)5, step.Pool.Slots[0].ReadWord(12));
+        Assert.NotEmpty(step.Ordering.Packets);
+    }
+
+    [Fact]
+    public void Paused_path_without_any_prior_scratch_write_stays_strict_and_reports_exact_task_context()
+    {
+        var (memory, effect, paths) = Fixture();
+        NativeBattleQuezacotlPathSpawn spawned = NativeBattleQuezacotlPathProducer.Spawn6C76C0(memory, effect, paths, 0);
+        NativeBattleQuezacotlPathStep first = Step(spawned.Memory, spawned.Effect);
+        NativeBattleQuezacotlResources resources = first.Effect.Binding.NativeQuezacotlResources!;
+        effect = first.Effect with { Binding = first.Effect.Binding with { NativeQuezacotlResources = resources with { Ribbon = resources.Ribbon! with { DistanceBytes16384 = new byte[16384].ToImmutableArray() } } } };
+        NotSupportedException error = Assert.Throws<NotSupportedException>(() => Step(first.Memory with { QuezacotlPause = 1 }, effect));
+        Assert.Contains("task0", error.Message);
+        Assert.Contains("count5", error.Message);
+        Assert.Contains("directionunknown", error.Message);
+        Assert.IsType<NotSupportedException>(error.InnerException);
     }
 
     [Fact]

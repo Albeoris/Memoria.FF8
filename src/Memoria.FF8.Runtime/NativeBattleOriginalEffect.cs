@@ -25,6 +25,8 @@ public sealed record NativeBattleOriginalEffectState([property: JsonRequired] us
     public NativeBattleCureState? Cure { get; init; }
     public NativeBattleCuraState? Cura { get; init; }
     public NativeBattleCuragaState? Curaga { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleRestorationState? Restoration { get; init; }
 
     public void Validate()
     {

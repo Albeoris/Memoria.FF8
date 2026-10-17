@@ -71,10 +71,22 @@ public sealed class NativeBattleRestorationControllerTests
         NativeBattleRestorationFrame frame = fixture.Frame;
         List<NativeBattleModuleSound> sounds = [];
         List<int> applied = [];
-        NativeBattleRestorationControllerInputs inputs = fixture.Inputs with { ApplyContact = applied.Add };
+        NativeBattleRestorationControllerInputs inputs = fixture.Inputs with
+        {
+            ApplyContact = (current, index) =>
+            {
+                applied.Add(index);
+                NativeBattleEffectTextureState textures = current.Memory.Textures!;
+                return current with { Memory = current.Memory with { Textures = textures.EnqueueCopy505EB0(1, 2, 3, 4, 5, 6) } };
+            }
+        };
         for (int callback = 1; callback <= 35; callback++)
         {
-            NativeBattleRestorationControllerStep step = NativeBattleRestorationController.Advance(frame, inputs, Resources(effect), (current, _) => new(current, 0));
+            NativeBattleRestorationControllerStep step = NativeBattleRestorationController.Advance(frame, inputs, Resources(effect), (current, _) =>
+            {
+                Assert.Equal(applied.Count, current.Memory.Textures!.Count);
+                return new(current, 0);
+            });
             frame = step.Frame;
             sounds.AddRange(step.Sounds);
             Assert.Equal(callback == contactCallback ? new[] { 0 } : [], step.Contacts);
@@ -88,6 +100,9 @@ public sealed class NativeBattleRestorationControllerTests
             }
         }
         Assert.Equal(new[] { 0 }, applied);
+        NativeBattleEffectTimUpload copy = Assert.IsType<NativeBattleEffectTimUpload>(frame.Memory.Textures!.Slots[0]);
+        Assert.Equal((byte)3, copy.Kind);
+        Assert.Equal(new NativeBattleEffectVramCopy(1, 2, 3, 4, 5, 6), copy.Copy);
         NativeBattleModuleSound sound = Assert.Single(sounds);
         Assert.Equal(Resources(effect).Sound, sound.Sound);
         Assert.Equal(0u, sound.Flags);

@@ -116,6 +116,8 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
     public NativeBattleCureResources? CureResources { get; init; }
     public NativeBattleCuraResources? CuraResources { get; init; }
     public NativeBattleCuragaResources? CuragaResources { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleRestorationResources? RestorationResources { get; init; }
 }
 
 public sealed record NativeBattleEffectInitializerAsset(string Name, System.Collections.Immutable.ImmutableArray<byte> Data);

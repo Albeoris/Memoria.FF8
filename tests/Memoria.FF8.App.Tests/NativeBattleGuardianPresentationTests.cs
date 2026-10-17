@@ -133,7 +133,7 @@ public sealed class NativeBattleGuardianPresentationTests
         Assert.True(boundary is not null, diagnostic);
         Assert.True(sawEntry, diagnostic);
         Assert.NotNull(boundary);
-        Assert.Contains("phase277 requires its original4BC-byte executable workspace129F4E8 and current129CD84 source", boundary.Message);
+        Assert.Contains("phase303 requires its original32x2C pool25216E8,6C6660 callbacks and124-byte child workspace", boundary.Message);
         Assert.True(sawGeometry);
         Assert.True(sawNativeFlash);
         Assert.Equal((ushort)116, battle.NativeGraphics!.OriginalEffect!.Binding.Effect);
@@ -141,13 +141,16 @@ public sealed class NativeBattleGuardianPresentationTests
         Assert.Contains(battle.NativeGraphics.OriginalEffect.Pools, pool => pool.DescriptorAddress == 0x2521738 && pool.Stride == 0x8D0 && pool.Slots.Single().Callback == 0x6C3940);
         Assert.Equal((byte?)0, battle.NativeEffectMemory!.GuardianCasterBank);
         ushort boundaryPhase = battle.NativeGraphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12);
-        Assert.Equal((ushort)277, boundaryPhase);
+        Assert.Equal((ushort)303, boundaryPhase);
         //6C3A42..4D selects6574D0(rig=child+28h,2) at238;509440 stores thatBYTE at rig+6Ch=child+94h.
         Assert.Equal((byte)2, battle.NativeEffectMemory!.Arena!.Read(0x94, 1)[0]);
         Assert.Equal(0, battle.NativeGraphics.Models[3].Flags0 & 4);
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240066, Flags: 1, Pan: 128 });
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240069, Flags: 1, Pan: 128 });
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240072, Flags: 1, Pan: 128 });
+        Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240039, Flags: 1, Pan: 128 });
+        Assert.Equal(0, battle.NativeEffectMemory.QuezacotlTargetY1774);
+        Assert.Equal(26, NativeBattleQuezacotlWorkspace.ReadExecutable(battle.NativeEffectMemory).Frame);
         NativeBattleQuezacotlResources streamResources = battle.NativeGraphics.OriginalEffect.Binding.NativeQuezacotlResources!;
         uint playedStream = StreamNumber(510);
         uint loadedStream = StreamNumber(524);

@@ -3,17 +3,21 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleQuezacotlPathStep(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleEffectTaskPool Pool, NativeBattleLogicalOrdering Ordering, int Returned, ImmutableArray<int?> DepthFifo4);
+public sealed record NativeBattleQuezacotlPathStep(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleEffectTaskPool Pool, NativeBattleLogicalOrdering Ordering, int Returned, ImmutableArray<int?> DepthFifo4)
+{
+    public uint? FinalOutlineDirectionDword { get; init; }
+}
 
 /// <summary>6C7800's four source steps, same-pass recursive producers, row decay, draw and head trimming.</summary>
 public static class NativeBattleQuezacotlPathCallbacks
 {
-    public static NativeBattleQuezacotlPathStep Advance6C7800(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleEffectTaskPool pool, int index, NativeBattleLogicalOrdering ordering, NativeBattleCameraProjection projection, ImmutableArray<int?> incomingDepthFifo4 = default)
+    public static NativeBattleQuezacotlPathStep Advance6C7800(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleEffectTaskPool pool, int index, NativeBattleLogicalOrdering ordering, NativeBattleCameraProjection projection, ImmutableArray<int?> incomingDepthFifo4 = default, uint? incomingOutlineDirectionDword = null)
     {
         NativeBattleQuezacotlPathResources? resources = effect.Binding.NativeQuezacotlResources?.Paths;
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native6C7800 requires its retained row and task memory.");
         int address = checked((int)(pool.BankAddress - NativeBattleQuezacotlPathProducer.ArenaAddress) + index * pool.Stride);
         byte[] task = arena.Read(address + 12, 20);
+        uint? outlineDirection = incomingOutlineDirectionDword;
         bool paused = (memory.QuezacotlPause ?? throw new NotSupportedException("Native6C7800 requires its retained pause DWORD.")) != 0;
         if (!paused)
         {
@@ -35,6 +39,9 @@ public static class NativeBattleQuezacotlPathCallbacks
                         throw new InvalidDataException("Native6C7800 path branch source contains a cycle.");
                     }
                     SyncPool();
+                    //6C76E0 saves the caller's EBX=2 into the future6C79A0 direction DWORD (entryESP-36).
+                    
+                    outlineDirection = 2;
                     NativeBattleQuezacotlPathSpawn spawned = NativeBattleQuezacotlPathProducer.Spawn6C76E0(memory with { Arena = arena }, effect, paths, T32(0x14), T16(0xE));
                     memory = spawned.Memory;
                     arena = memory.Arena!;
@@ -61,6 +68,8 @@ public static class NativeBattleQuezacotlPathCallbacks
                 }
                 int width = T16(0xE);
                 short variedWidth = unchecked((short)(((Next() * width) >> 15) + width));
+                //CALL6C7790 at6C78B3 stores this full return DWORD in the same stack slot, even when allocation fails.
+                outlineDirection = 0x006C78B8;
                 NativeBattleQuezacotlParticleRow allocated = NativeBattleQuezacotlPathProducer.Allocate6C7790(memory with { Arena = arena }, vertex, variedWidth, T16(0x10), T16(0x12));
                 memory = allocated.Memory;
                 arena = memory.Arena!;
@@ -90,7 +99,15 @@ public static class NativeBattleQuezacotlPathCallbacks
         {
             NativeBattleActionMatrix captured = memory.QuezacotlCapturedMatrix1780 ?? throw new NotSupportedException("Native6C38C4/6C79A0 requires its retained captured2521780 matrix.");
             ImmutableArray<byte> distance = effect.Binding.NativeQuezacotlResources?.Ribbon?.DistanceBytes16384 ?? throw new NotSupportedException("Native6C7B30 requires its original distance lookup bytes.");
-            NativeBattleQuezacotlPathBatch drawn = NativeBattleQuezacotlPathPackets.Emit6C79A0(T32(0x18), count, (pointer, offset, length) => arena.Read(checked(NativeBattleQuezacotlPathProducer.RowOffset(pointer) + offset), length).ToImmutableArray(), ReadVertex, captured, projection, distance, incomingDepthFifo4);
+            NativeBattleQuezacotlPathBatch drawn;
+            try
+            {
+                drawn = NativeBattleQuezacotlPathPackets.Emit6C79A0(T32(0x18), count, (pointer, offset, length) => arena.Read(checked(NativeBattleQuezacotlPathProducer.RowOffset(pointer) + offset), length).ToImmutableArray(), ReadVertex, captured, projection, distance, incomingDepthFifo4, outlineDirection);
+            }
+            catch (NotSupportedException error)
+            {
+                throw new NotSupportedException($"Native6C7800 task{index}, head0x{T32(0x18):X8}, count{count}, direction{(outlineDirection is uint value ? $"0x{value:X8}" : "unknown")}: {error.Message}", error);
+            }
             NativeBattleGfGeometryBatch writes = new(drawn.RowWrites.Select(write => write.Attempt with { ByteOffsetRelative = NativeBattleQuezacotlPathProducer.RowOffset(write.Address) }).ToImmutableArray(), 0);
             NativeBattleEffectPacketWrite stored = NativeBattleEffectPacketArena.Append(memory with { Arena = arena }, 0, ordering, writes);
             NativeBattleQuezacotlPacketWrite emitted = NativeBattleQuezacotlPacketArena.Append(stored.Memory, effect, stored.Ordering, drawn.EffectPackets);
@@ -99,6 +116,7 @@ public static class NativeBattleQuezacotlPathCallbacks
             effect = emitted.Effect;
             ordering = emitted.Ordering;
             fifo = drawn.FinalDepthFifo4;
+            outlineDirection = drawn.FinalOutlineDirectionDword;
         }
         int returned = 0;
         if (!paused)
@@ -128,7 +146,7 @@ public static class NativeBattleQuezacotlPathCallbacks
             }
         }
         SyncPool();
-        return new(memory with { Arena = arena }, effect, pool, ordering, returned, fifo);
+        return new(memory with { Arena = arena }, effect, pool, ordering, returned, fifo) { FinalOutlineDirectionDword = outlineDirection };
 
         NativeBattleQuezacotlPathStep ReleaseAll()
         {
@@ -138,7 +156,7 @@ public static class NativeBattleQuezacotlPathCallbacks
                 arena = NativeBattleQuezacotlParticleProducer.Word(arena, row, -1);
             }
             SyncPool();
-            return new(memory with { Arena = arena }, effect, pool, ordering, 2, incomingDepthFifo4);
+            return new(memory with { Arena = arena }, effect, pool, ordering, 2, incomingDepthFifo4) { FinalOutlineDirectionDword = outlineDirection };
         }
 
         NativeBattleVector ReadVertex(short selector)

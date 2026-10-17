@@ -203,7 +203,10 @@ public static class NativeBattleRestorationController
                         int header = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
                         int first = inputs.Packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Native892E10/8883C0 requires its selected group's contact pointer.");
                         int contact = checked(first + unchecked((sbyte)task.ReadByte(0x2B)));
-                        inputs.ApplyContact?.Invoke(contact);
+                        if (inputs.ApplyContact is { } applyContact)
+                        {
+                            current = applyContact(current, contact);
+                        }
                         contacts.Add(contact);
                         state = state.Write(address, task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 1)));
                         state = Next(state, address);

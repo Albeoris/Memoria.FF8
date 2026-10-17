@@ -43,11 +43,13 @@ public sealed partial class BattleSession
         NativeEffectMemory = step.Frame.Memory;
         return graphics with { OriginalEffect = step.Frame.Effect with { Curaga = step.Frame.State } };
 
-        void ApplyContact(int index)
+        NativeBattleCuragaFrame ApplyContact(NativeBattleCuragaFrame current, int index)
         {
+            NativeEffectMemory = current.Memory;
             ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
             graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(index)] });
             graphics = graphics with { PendingContacts = pending };
+            return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Curaga contact lost its canonical process memory.") };
         }
 
         NativeBattleCuragaFrame AdvanceNodes(NativeBattleCuragaFrame current, uint address)

@@ -3,12 +3,15 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleQuezacotlPathBatch(ImmutableArray<NativeBattleQuezacotlTrailRowWrite> RowWrites, NativeBattleGfGeometryBatch EffectPackets, ImmutableArray<int?> FinalDepthFifo4);
+public sealed record NativeBattleQuezacotlPathBatch(ImmutableArray<NativeBattleQuezacotlTrailRowWrite> RowWrites, NativeBattleGfGeometryBatch EffectPackets, ImmutableArray<int?> FinalDepthFifo4)
+{
+    public uint? FinalOutlineDirectionDword { get; init; }
+}
 
 /// <summary>6C79A0/6C7B30's actual linked path projection, sparse row stores and effect-heap GT4s.</summary>
 public static class NativeBattleQuezacotlPathPackets
 {
-    public static NativeBattleQuezacotlPathBatch Emit6C79A0(uint head, int count, Func<uint, int, int, ImmutableArray<byte>> readRow, Func<short, NativeBattleVector> readCurrentVertex, NativeBattleActionMatrix capturedMatrix, NativeBattleCameraProjection projection, ImmutableArray<byte> distanceBytes16384, ImmutableArray<int?> incomingDepthFifo4 = default)
+    public static NativeBattleQuezacotlPathBatch Emit6C79A0(uint head, int count, Func<uint, int, int, ImmutableArray<byte>> readRow, Func<short, NativeBattleVector> readCurrentVertex, NativeBattleActionMatrix capturedMatrix, NativeBattleCameraProjection projection, ImmutableArray<byte> distanceBytes16384, ImmutableArray<int?> incomingDepthFifo4 = default, uint? incomingOutlineDirectionDword = null)
     {
         if (count is < 2 or > short.MaxValue)
         {
@@ -54,7 +57,7 @@ public static class NativeBattleQuezacotlPathPackets
             NativeBattleModuleProjectedVertex vertex = projected[index];
             outline[index] = new(vertex.Screen, (short)(vertex.Depth >> 2), () => Read16(selectedAddress, 2));
         }
-        NativeBattleTrailOutline.Expand(outline, distanceBytes16384, 1024);
+        uint? direction = NativeBattleTrailOutline.Expand(outline, distanceBytes16384, 1024, incomingOutlineDirectionDword);
         for (int index = 0; index < count; index++)
         {
             NativeBattleTrailOutline.Point point = outline[index];
@@ -97,7 +100,7 @@ public static class NativeBattleQuezacotlPathPackets
             packets.Add(NativeBattleTrailOutline.Packet(allocated, first.Left, rightA, second.Left, rightB, colorA, colorB, bucket, fifo.Select(depth => depth!.Value).ToImmutableArray()));
             allocated = checked(allocated + 52);
         }
-        return new(writes.ToImmutable(), new(packets.ToImmutable(), allocated), fifo.ToImmutableArray());
+        return new(writes.ToImmutable(), new(packets.ToImmutable(), allocated), fifo.ToImmutableArray()) { FinalOutlineDirectionDword = direction };
 
         short Read16(uint selectedAddress, int offset)
         {

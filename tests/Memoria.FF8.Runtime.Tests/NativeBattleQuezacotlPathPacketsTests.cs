@@ -95,6 +95,41 @@ public sealed class NativeBattleQuezacotlPathPacketsTests
         Apply(rows, batch.RowWrites);
         Assert.Equal(0x0000FFFFu, BinaryPrimitives.ReadUInt32LittleEndian(rows[Head].AsSpan(8)));
         Assert.Equal((byte)0xCC, rows[Head][12]);
+        Assert.Null(batch.FinalOutlineDirectionDword);
+    }
+
+    [Fact]
+    public void Consecutive_native_path_calls_reuse_the_last_written_direction_but_a_new_pass_starts_unknown()
+    {
+        NativeBattleQuezacotlPathBatch first = Emit(Rows(2), 2);
+        Assert.Equal(0x10000000u, first.FinalOutlineDirectionDword);
+        Dictionary<uint, byte[]> degenerate = Rows(3);
+        NativeBattleQuezacotlPathBatch second = NativeBattleQuezacotlPathPackets.Emit6C79A0(Head, 3, (address, offset, length) => Read(degenerate, address, offset, length), _ => new(0, 0, 1024), Captured, Projection, Distances(), Incoming, first.FinalOutlineDirectionDword);
+        Assert.Equal(first.FinalOutlineDirectionDword, second.FinalOutlineDirectionDword);
+        NativeBattleGeometryPrimitive packet = Assert.Single(second.EffectPackets.Attempts).Primitive!;
+        Assert.Equal(XY(0, -1), packet.Words[2]);
+        Assert.Equal(XY(0, 1), packet.Words[5]);
+        Assert.Throws<NotSupportedException>(() => Emit(Rows(3), 3, Incoming, _ => new(0, 0, 1024)));
+    }
+
+    [Theory]
+    [InlineData(0x006C78B8u, -7, 0)]
+    [InlineData(0xF0000000u, 0, 1)]
+    public void Incoming_stack_direction_preserves_both_signed_WORDs_and_first_degenerate_segment_does_not_replace_it(uint direction, int leftX, int leftY)
+    {
+        Dictionary<uint, byte[]> rows = Rows(3);
+        NativeBattleQuezacotlPathBatch batch = NativeBattleQuezacotlPathPackets.Emit6C79A0(Head, 3, (address, offset, length) => Read(rows, address, offset, length), _ => new(0, 0, 1024), Captured, Projection, Distances(), Incoming, direction);
+        Assert.Equal(direction, batch.FinalOutlineDirectionDword);
+        NativeBattleGeometryPrimitive packet = Assert.Single(batch.EffectPackets.Attempts).Primitive!;
+        Assert.Equal(XY(checked((short)leftX), checked((short)leftY)), packet.Words[2]);
+    }
+
+    [Fact]
+    public void Nondegenerate_segment_overwrites_known_incoming_direction_before_the_next_call()
+    {
+        Dictionary<uint, byte[]> rows = Rows(3);
+        NativeBattleQuezacotlPathBatch batch = NativeBattleQuezacotlPathPackets.Emit6C79A0(Head, 3, (address, offset, length) => Read(rows, address, offset, length), selector => new(0, checked((short)(selector * 100)), 1024), Captured, Projection, Distances(), Incoming, 0x006C78B8);
+        Assert.Equal(0x0000F000u, batch.FinalOutlineDirectionDword);
     }
 
     [Fact]

@@ -14,6 +14,7 @@ public sealed class NativeBattleQuezacotlFirstWindowIoTests
     [InlineData(211, new short[] { 521, 522 }, new short[] { 5, 1 }, new uint[] { 0x1298C68, 0x2108954 })]
     [InlineData(256, new short[] { 523, 524 }, new short[] { 1, 3 }, new uint[] { 0x2108954, 0x2108954 })]
     [InlineData(276, new short[] { 525, 526 }, new short[] { 5, 2 }, new uint[] { 0x12A9664, 0x2108954 })]
+    [InlineData(302, new short[] { 527 }, new short[] { 0x10 }, new uint[] { 0x2108954 })]
     public void NativeBatchWaitsForPollThenPreservesOriginalOrderWidthsTypesAndDestinations(ushort phase, short[] files, short[] types, uint[] destinations)
     {
         NativeBattleEffectMemory memory = Memory();
@@ -66,6 +67,45 @@ public sealed class NativeBattleQuezacotlFirstWindowIoTests
         Assert.True(ready.AdvancePhase);
         Assert.Equal(0u, ready.Memory.QuezacotlSecondaryHeads!.Value[3]);
         Assert.Equal(new byte[4], ready.Memory.Arena!.Read(0x28E50, 4));
+    }
+
+    [Fact]
+    public void Phase302WaitsBeforeResettingOnlyThreeHeadsAndPreservesEveryPhysicalTaskAndUnrelatedDescriptor()
+    {
+        NativeBattleEffectMemory memory = Memory();
+        memory = memory with { Arena = memory.Arena!.Write(64, [0, 1, 1, 0, 0]), QuezacotlSecondaryHeads = [11, 22, 33, 44, 55] };
+        NativeBattleQuezacotlFirstWindowIoStep busy = NativeBattleQuezacotlFirstWindowIo.Advance(memory, 302);
+        Assert.False(busy.AdvancePhase);
+        Assert.Equal(new uint[] { 11, 22, 33, 44, 55 }, busy.Memory.QuezacotlSecondaryHeads!.Value);
+        NativeBattleQuezacotlFirstWindowIoStep ready = NativeBattleQuezacotlFirstWindowIo.Advance(busy.Memory, 302);
+        Assert.True(ready.AdvancePhase);
+        Assert.Equal(new uint[] { 0, 0, 0, 44, 55 }, ready.Memory.QuezacotlSecondaryHeads!.Value);
+        Assert.Equal(new NativeBattleEffectFileRequest(527, 0x2108954, 0x6C3580), ready.Request);
+        NativeBattleEffectTaskPool ribbon = Pool(0x2521728);
+        NativeBattleEffectTaskPool particles = Pool(0x2521718);
+        NativeBattleEffectTaskPool paths = Pool(0x2521708);
+        NativeBattleEffectTaskPool unrelated = Pool(0x2521738);
+        NativeBattleOriginalEffectState effect = new(116, 115, new(116, 0x6C3550, 0x6C3560), null, null) { Pools = [ribbon, particles, paths, unrelated] };
+        NativeBattleOriginalEffectState reset = NativeBattleQuezacotlFirstWindowIo.ResetPools6C4D3C(effect);
+        foreach (NativeBattleEffectTaskPool pool in reset.Pools.Take(3))
+        {
+            Assert.Null(pool.Head);
+            Assert.Null(pool.Tail);
+            Assert.Equal(JsonSerializer.Serialize(effect.Pools.Single(before => before.DescriptorAddress == pool.DescriptorAddress).Slots), JsonSerializer.Serialize(pool.Slots));
+            Assert.Equal((ushort)1, pool.Slots[0].Flags);
+            pool.Validate();
+        }
+        Assert.Same(unrelated, reset.Pools[3]);
+        Assert.Equal(JsonSerializer.Serialize(reset), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(JsonSerializer.Serialize(reset))));
+        Assert.Throws<NotSupportedException>(() => NativeBattleQuezacotlFirstWindowIo.ResetPools6C4D3C(effect with { Pools = [ribbon, paths] }));
+
+        static NativeBattleEffectTaskPool Pool(uint descriptor)
+        {
+            NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(descriptor, 0x211ECB8, 32, 2);
+            (pool, _) = pool.Append(0x6C7800);
+            (pool, _) = pool.Append(0x6C7800);
+            return pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(12, 0xA5A5)) };
+        }
     }
 
     private static NativeBattleEffectMemory Memory()
