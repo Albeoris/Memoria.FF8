@@ -118,9 +118,10 @@ public sealed partial class EventEngine
             return;
         }
         NativeActorAnimationHeader header = RequireNativeAnimationHeader(actor);
-        if (header.BoundModelId == -1 && header.EmptyModelTerminal is null)
+        if (header.BoundModelId == -1 && (header.EmptyModelTerminal is null || header.Terminal is null || header.Frame is null || header.Flags is null))
         {
-            // An unrepresented backing WORD12 leaves the empty-body phase opaque.
+            //52B840(1) preserves a non-auto body's terminal even when a fresh empty instance makes WORD12 known.
+            // Either unrepresented terminal leaves the empty-body phase opaque.
             actor.NativeAnimationHeader = header with { Frame = null, Flags = null };
             return;
         }

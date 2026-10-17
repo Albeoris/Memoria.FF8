@@ -17,6 +17,13 @@ public static class NativeBattleGfMatrices
         return Multiply56C090(Multiply56C090(y, x), z);
     }
 
+    /// <summary>56CE30 left-multiplies Z, then X, then Y; each56C090 product rounds before the next operation.</summary>
+    public static NativeBattleActionMatrix Euler56CE30(NativeBattleVector angles)
+    {
+        (NativeBattleActionMatrix x, NativeBattleActionMatrix y, NativeBattleActionMatrix z) = AxisMatrices(angles, true);
+        return Multiply56C090(y, Multiply56C090(x, z));
+    }
+
     /// <summary>56CD50 left-multiplies Z, then Y, then X; each56C090 product rounds before the next operation.</summary>
     public static NativeBattleActionMatrix Euler56CD50(NativeBattleVector angles)
     {
@@ -49,6 +56,13 @@ public static class NativeBattleGfMatrices
         NativeBattleActionMatrix y = new([cy, 0, unchecked((short)-ySine), 0, 4096, 0, ySine, 0, cy], 0, 0, 0, 4096);
         NativeBattleActionMatrix z = new([cz, zSine, 0, unchecked((short)-zSine), cz, 0, 0, 0, 4096], 0, 0, 0, 4096);
         return (x, y, z);
+    }
+
+    public static NativeBattleActionMatrix Compose56C2F0(NativeBattleActionMatrix left, NativeBattleActionMatrix right)
+    {
+        NativeBattleActionMatrix composed = Multiply56C090(left, right);
+        (int x, int y, int z) = RotateLong56C600(left, right.X, right.Y, right.Z);
+        return composed with { X = unchecked(x + left.X), Y = unchecked(y + left.Y), Z = unchecked(z + left.Z) };
     }
 
     public static NativeBattleActionMatrix Multiply56C090(NativeBattleActionMatrix left, NativeBattleActionMatrix right)

@@ -72,6 +72,16 @@ public sealed class NativeMenuBattleHostTests
         Assert.Equal(fieldId, restoredSession.State.FieldId);
         Assert.Equal(count - 1, LampCount(restoredSession));
         Assert.Equal(1, restoredSession.State.CharacterVitals!.GuardianForces[5].Flags & 1);
+        restored.Apply(new PlayerAction(PlayerActionKind.Wait));
+        restored.EnsureField();
+        string returnedSnapshot = TestResources.ArtifactFile("menu-battle-returned-wait1.json");
+        restoredSession.SetEventState(restored.Events.Capture());
+        restoredSession.Save(returnedSnapshot);
+        GameSession returnedSession = new(GameSession.Load(returnedSnapshot));
+        using GameWorld returned = new(returnedSession, game);
+        returned.EnsureField();
+        Assert.Equal(count - 1, LampCount(returnedSession));
+        Assert.True(JsonElement.DeepEquals(restored.Events.Capture(), returned.Events.Capture()));
     }
 
     [Fact]
@@ -82,7 +92,33 @@ public sealed class NativeMenuBattleHostTests
         world.EnsureField();
         Assert.True(world.Apply(new PlayerAction(PlayerActionKind.UseFieldItem, 168, Quantity: 0)).Accepted);
         world.ApplyBattleInput(new BattleInput(BattleInputKind.StartEncounter, NativeSeed: 0));
-        world.ApplyBattleInput(new BattleInput(BattleInputKind.Tick, 1200));
+        bool restoredEffect = false;
+        bool completedEffect = false;
+        for (int callbacks = 0; callbacks < 1200;)
+        {
+            int batch = Math.Min(10, 1200 - callbacks);
+            world.ApplyBattleInput(new BattleInput(BattleInputKind.Tick, batch));
+            callbacks += batch;
+            NativeBattleOriginalEffectState? effect = world.Battle!.NativeGraphics!.OriginalEffect;
+            completedEffect |= restoredEffect && (effect?.Binding.Effect != 107 || effect.ReturnedDescriptor == 0);
+            if (!restoredEffect && effect is { Binding.Effect: 107, Pools.Length: 5 } && effect.Pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadWord(12) is >= 40 and < 70))
+            {
+                string snapshot = TestResources.ArtifactFile("menu-battle-effect107-mid-action.json");
+                session.SetEventState(world.Events.Capture());
+                session.Save(snapshot);
+                GameSession restoredSession = new(GameSession.Load(snapshot));
+                using GameWorld restored = new(restoredSession, TestResources.GameDirectory);
+                restored.EnsureField();
+                Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(world.Battle.Capture()), JsonSerializer.SerializeToElement(restored.Battle!.Capture())));
+                world.ApplyBattleInput(new BattleInput(BattleInputKind.Tick));
+                restored.ApplyBattleInput(new BattleInput(BattleInputKind.Tick));
+                callbacks++;
+                Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(world.Battle.Capture()), JsonSerializer.SerializeToElement(restored.Battle.Capture())));
+                restoredEffect = true;
+            }
+        }
+        Assert.True(restoredEffect, "The original effect107 must reach a mid-action hierarchy and particle frame that survives a cold host restore.");
+        Assert.True(completedEffect, "The original effect107 callback chain must complete after its restored mid-action frame.");
         Assert.True(world.Events.PendingMenuBattle!.Callbacks >= 1200);
         Assert.Equal(BattleOutcome.Active, world.Battle!.Outcome);
         Assert.DoesNotContain(world.Battle.Events, item => item.Kind == "debug-victory");

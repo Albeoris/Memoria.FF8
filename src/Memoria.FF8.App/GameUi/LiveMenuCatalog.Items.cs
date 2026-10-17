@@ -20,4 +20,3 @@ public sealed partial class LiveMenuCatalog
         return new UiImageSource(UiImageKind.Icon, 223 + itemIconKinds[type]);
     }
 }
-

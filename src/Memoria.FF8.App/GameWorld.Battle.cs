@@ -57,10 +57,10 @@ internal sealed partial class GameWorld
         {
             throw new NotSupportedException("Interactive battle requires native495530 sealed-command slot flags and admission; enabled commands cannot substitute for those restrictions.");
         }
-        NativeCharacterVitals entryVitals = (session.State.CharacterVitals ?? throw new NotSupportedException("Battle entry requires the saved GF owner.")).RefreshGuardianForces();
+        NativeCharacterVitals entryVitals = (session.State.CharacterVitals ?? throw new NotSupportedException("Battle entry requires the saved GF owner.")).RebuildParty();
         BattleEncounter encounter = BattleResources.LoadEncounter(encounterId);
         _ = BattleResources.LoadStage(encounter.StageId);
-        List<BattleCombatantDefinition> combatants = [.. CreateBattleParty()];
+        List<BattleCombatantDefinition> combatants = [.. CreateBattleParty(entryVitals)];
         NativeBattleRandomState random = NativeBattleRandomState.Initialize(nativeSeed);
         InitializeNativePartyEntryGauges(combatants, ref random);
         byte[] partyLevels = combatants.Select(actor => checked((byte)actor.Level)).ToArray();
@@ -135,8 +135,13 @@ internal sealed partial class GameWorld
     }
     public BattleCombatantDefinition[] CreateBattleParty()
     {
+        return CreateBattleParty(session.State.CharacterVitals ?? throw new NotSupportedException("Battle party requires its saved character owner."));
+    }
+
+    private BattleCombatantDefinition[] CreateBattleParty(NativeCharacterVitals vitals)
+    {
         battleCatalog ??= LiveMenuCatalog.ReadInstalled(assets);
-        return BattlePartyProjection.Create(session.State, Events.Scene.Names, battleCatalog, BattleResources);
+        return BattlePartyProjection.Create(session.State with { CharacterVitals = vitals }, Events.Scene.Names, battleCatalog, BattleResources);
     }
 
     private void ValidateBattleHostState()
@@ -180,7 +185,7 @@ internal sealed partial class GameWorld
 
     internal static BattleDefinition BindBattleEntryClock(BattleDefinition current, BattleSnapshot saved, NativeExamTimerState? timer)
     {
-        current = current with { NativeGlobalSoundProcess = saved.Definition.NativeGlobalSoundProcess, NativeMusicProcess = saved.Definition.NativeMusicProcess, NativeRetainedMemory = saved.Definition.NativeRetainedMemory, NativeVibrationProcess = saved.Definition.NativeVibrationProcess };
+        current = current with { NativeGlobalSoundProcess = saved.Definition.NativeGlobalSoundProcess, NativeMusicProcess = saved.Definition.NativeMusicProcess, NativeRetainedMemory = saved.Definition.NativeRetainedMemory, NativeVibrationProcess = saved.Definition.NativeVibrationProcess, NativeBattleUiRandom = saved.Definition.NativeBattleUiRandom };
         if (saved.Definition.NativeExamTimerAtEntry is not { } entry)
         {
             return current with { NativeExamTimerAtEntry = null };

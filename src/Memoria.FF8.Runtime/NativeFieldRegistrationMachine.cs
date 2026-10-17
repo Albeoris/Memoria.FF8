@@ -19,7 +19,7 @@ public sealed record NativeFieldRegistrationState(int Version, int FieldId, stri
     {
         retained.Validate();
         NativeBattleFileStaging memory = retained.FileStaging ?? throw new InvalidDataException("Native field registration lost its physical shared memory.");
-        if (Version != 1 || FieldId is < 72 or > ushort.MaxValue || ProgramHash is not { Length: 64 } || OneHash is not { Length: 64 } || PreModelAddress < NativeFieldRegistrationMachine.FieldArena || EndAddress < PreModelAddress || EndAddress > RelocatedSourceAddress || RelocatedSourceLength < 4 || (ulong)RelocatedSourceAddress + (uint)RelocatedSourceLength > NativeFieldRegistrationMachine.Kind3Limit || Resources.IsDefault || Instances.IsDefault || Resources.Length > 64 || Instances.Length > 32 || Resources.Select(resource => resource.ModelId).Distinct().Count() != Resources.Length || Instances.Select(instance => instance.ObjectId).Distinct().Count() != Instances.Length)
+        if (Version != 1 || FieldId is < 72 or > ushort.MaxValue || ProgramHash is not { Length: 64 } || OneHash is not { Length: 64 } || PreModelAddress < NativeFieldRegistrationMachine.FieldArena || EndAddress < PreModelAddress || EndAddress > NativeFieldRegistrationMachine.Kind3Limit || RelocatedSourceAddress < PreModelAddress || RelocatedSourceLength < 4 || (ulong)RelocatedSourceAddress + (uint)RelocatedSourceLength > NativeFieldRegistrationMachine.Kind3Limit || Resources.IsDefault || Instances.IsDefault || Resources.Length > 64 || Instances.Length > 32 || Resources.Select(resource => resource.ModelId).Distinct().Count() != Resources.Length || Instances.Select(instance => instance.ObjectId).Distinct().Count() != Instances.Length)
         {
             throw new InvalidDataException("Native field registration has invalid source identities, allocation layout or retained bindings.");
         }
@@ -267,9 +267,10 @@ public static partial class NativeFieldRegistrationMachine
             }
             instances.Add(new(actor.ObjectId, actor.ModelId, address, actor.ModelId < 0 ? memory.ReadOptional16(address + 12) : null));
         }
-        if (cursor > relocated)
+        //532A40 constructs into the same arena after relocating its input. Consumed source bytes can be reused.
+        if (cursor > Kind3Limit)
         {
-            throw new NotSupportedException("Native field constructed resources overlap their relocated original input slab.");
+            throw new NotSupportedException("Native field constructed resources exceed their original kind3 arena.");
         }
         NativeFieldRegistrationState state = new(1, source.FieldId, source.ProgramHash, source.One.Sha256, preModel, relocated, sourceLength, cursor, resources.ToImmutableArray(), instances.ToImmutableArray());
         NativeBattleRetainedMemory result = retained with { FileStaging = memory.Finish(), EffectMemory = context.Effects, ModelCpuResources = memory.ReconcileCpuBanks(retained.ModelCpuResources) };
