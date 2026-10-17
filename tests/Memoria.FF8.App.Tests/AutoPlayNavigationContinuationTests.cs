@@ -6,6 +6,40 @@ namespace Memoria.FF8.App.Tests;
 public sealed class AutoPlayNavigationContinuationTests
 {
     [Fact]
+    public void AnActualCanonicalChoiceReturnCanRepeatItsAuthenticatedEdgeAfterSourceObservationChanges()
+    {
+        string manifest = TestResources.FixturePath("App.Tests.AutoPlayNavigationContinuationTests.3");
+        byte[] originalManifest = File.ReadAllBytes(manifest);
+        AutoPlayRunState saved = JsonSerializer.Deserialize<AutoPlayRunState>(originalManifest, AutoPlayController.JsonOptions)!;
+        string snapshot = Path.Combine(Path.GetDirectoryName(manifest)!, saved.Snapshot!);
+        byte[] originalSnapshot = File.ReadAllBytes(snapshot);
+        string source = Assert.IsType<string>(saved.ActiveNavigationKey);
+        Assert.Equal("127:line:16", saved.ActiveEvent);
+        AutoPlayEvent observed = saved.Coverage.NavigationVisits.Single(visit => visit.Key == source).Events.Single(item => item.Id == saved.ActiveEvent);
+        Assert.NotEqual(saved.ActiveConditionSignature, observed.ConditionSignature);
+        AutoPlayNavigationRoute route = Assert.Single(saved.Coverage.NavigationRoutes, edge => edge.SourceKey == source && edge.EventId == saved.ActiveEvent && edge.Route.ConditionSignature == saved.ActiveConditionSignature && edge.Route.TargetId == saved.ActiveTargetId && edge.Route.Selections!.SequenceEqual(saved.ActiveSelections!));
+        string history = JsonSerializer.Serialize(saved.Coverage.NavigationRetirements, AutoPlayController.JsonOptions);
+        using InstalledRun run = new();
+        run.Controller.ResumeFrom(manifest);
+        run.Controller.Advance(1);
+
+        Assert.Null(run.Controller.Error);
+        Assert.Equal(saved.Steps + 1, run.Controller.State.Steps);
+        Assert.Equal(saved.Coverage.NavigationRoutes.Count, run.Controller.State.Coverage.NavigationRoutes.Count);
+        Assert.Equal(JsonSerializer.Serialize(route, AutoPlayController.JsonOptions), JsonSerializer.Serialize(run.Controller.State.Coverage.NavigationRoutes.Single(edge => edge.SourceKey == route.SourceKey && edge.DestinationKey == route.DestinationKey && edge.EventId == route.EventId && edge.Route.ConditionSignature == route.Route.ConditionSignature && edge.Route.TargetId == route.Route.TargetId && edge.Route.Selections!.SequenceEqual(route.Route.Selections!)), AutoPlayController.JsonOptions));
+        Assert.Equal(JsonSerializer.Serialize(observed, AutoPlayController.JsonOptions), JsonSerializer.Serialize(run.Controller.State.Coverage.NavigationVisits.Single(visit => visit.Key == source).Events.Single(item => item.Id == saved.ActiveEvent), AutoPlayController.JsonOptions));
+        Assert.Equal(history, JsonSerializer.Serialize(run.Controller.State.Coverage.NavigationRetirements, AutoPlayController.JsonOptions));
+        run.Controller.SaveAndStop();
+        using InstalledRun cold = new();
+        cold.Controller.ResumeFrom(run.Controller.ReproductionPath!);
+        cold.Controller.Advance(1);
+        Assert.Null(cold.Controller.Error);
+        Assert.Equal(history, JsonSerializer.Serialize(cold.Controller.State.Coverage.NavigationRetirements, AutoPlayController.JsonOptions));
+        Assert.Equal(originalManifest, File.ReadAllBytes(manifest));
+        Assert.Equal(originalSnapshot, File.ReadAllBytes(snapshot));
+    }
+
+    [Fact]
     public void AnActualChangedArrivalRetiresItsObsoleteNavigationEndpointAndColdResumes()
     {
         string manifest = TestResources.FixturePath("App.Tests.AutoPlayNavigationContinuationTests.2");

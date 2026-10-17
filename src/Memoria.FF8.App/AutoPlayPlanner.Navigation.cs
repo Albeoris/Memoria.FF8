@@ -38,7 +38,9 @@ internal sealed partial class AutoPlayPlanner
         AutoPlayNavigationVisit destination = FindNavigationVisit(destinationKey);
         AutoPlayEvent? observed = source.Events.SingleOrDefault(item => item.Id == eventId);
         AutoPlayEventCoverage aggregate = FindEvent(source.VisitKey, eventId);
-        if (observed is null || observed.ConditionSignature != route.ConditionSignature || route.TargetId is string target && !(observed.Variants is { Count: > 0 } variants ? variants : [observed.Id]).Contains(target, StringComparer.Ordinal) || destination.VisitKey != route.DestinationVisitKey || !aggregate.Routes.Any(known => SameTravelRoute(known, route)))
+        bool observedSource = observed is not null && observed.ConditionSignature == route.ConditionSignature && (route.TargetId is not string target || (observed.Variants is { Count: > 0 } variants ? variants : [observed.Id]).Contains(target, StringComparer.Ordinal));
+        bool recordedSource = State.NavigationRoutes.Any(known => known.SourceKey == sourceKey && known.DestinationKey == destinationKey && known.EventId == eventId && SameTravelRoute(known.Route, route));
+        if (!observedSource && !recordedSource || destination.VisitKey != route.DestinationVisitKey || !aggregate.Routes.Any(known => SameTravelRoute(known, route)))
         {
             throw new InvalidOperationException("A navigation edge requires its exact observed source and actual recorded aggregate route and destination.");
         }

@@ -331,6 +331,64 @@ public sealed class AutoPlayNavigationPlannerTests
     }
 
     [Fact]
+    public void RepeatingAnAuthenticatedEdgeAfterSourceObservationChangesIsIdempotentAndDoesNotMakeItTraversable()
+    {
+        AutoPlayPlanner planner = CreateTwoComponents();
+        AutoPlayNavigationRoute previous = planner.State.NavigationRoutes.Single(edge => edge.SourceKey == "main");
+        AutoPlayEvent changed = Event(planner, "165:142", previous.EventId) with { ConditionSignature = "changed-input" };
+        planner.Observe(new("165:142", "garden"), [changed, Event(planner, "165:142", "165:gateway:3")]);
+        planner.ObserveNavigation("165:142", "main", [changed]);
+        planner.Completed("165:142", previous.EventId);
+        string before = JsonSerializer.Serialize(planner.State);
+
+        planner.RecordNavigationRoute(previous.SourceKey, previous.DestinationKey, previous.EventId, previous.Route);
+        planner.RecordNavigationRoute(previous.SourceKey, previous.DestinationKey, previous.EventId, previous.Route);
+
+        Assert.Equal(before, JsonSerializer.Serialize(planner.State));
+        Assert.Null(planner.PlanNavigation("main"));
+        Assert.Equal(0, planner.ReachableNavigationFrontierCount("main"));
+        Assert.Equal("changed-input", Event(planner, "165:142", previous.EventId).ConditionSignature);
+        Assert.Equal("changed-input", planner.State.NavigationVisits.Single(visit => visit.Key == "main").Events.Single().ConditionSignature);
+    }
+
+    [Fact]
+    public void AChangedSourceObservationCannotAuthenticateANewEndpointForAnOldCondition()
+    {
+        AutoPlayPlanner planner = CreateTwoComponents();
+        AutoPlayNavigationRoute previous = planner.State.NavigationRoutes.Single(edge => edge.SourceKey == "main");
+        AutoPlayEvent changed = Event(planner, "165:142", previous.EventId) with { ConditionSignature = "changed-input" };
+        planner.ObserveNavigation("165:142", "main", [changed]);
+        planner.ObserveNavigation("172:142", "destination-new", [Event(planner, "172:142", "pending")]);
+        string before = JsonSerializer.Serialize(planner.State);
+
+        Assert.Throws<InvalidOperationException>(() => planner.RecordNavigationRoute("main", "destination-new", previous.EventId, previous.Route));
+
+        Assert.Equal(before, JsonSerializer.Serialize(planner.State));
+    }
+
+    [Fact]
+    public void AnAuthenticatedDuplicateWithChangedSourceStillRetiresContradictoryEndpoints()
+    {
+        AutoPlayPlanner planner = CreateTwoComponents();
+        AutoPlayNavigationRoute previous = planner.State.NavigationRoutes.Single(edge => edge.SourceKey == "main");
+        planner.ObserveNavigation("172:142", "destination-new", [Event(planner, "172:142", "pending")]);
+        planner.RecordNavigationRoute("main", "destination-new", previous.EventId, previous.Route);
+        planner.State.NavigationRoutes.Add(previous);
+        planner.ObserveNavigation("165:142", "main", [Event(planner, "165:142", previous.EventId) with { ConditionSignature = "changed-input" }]);
+        string aggregateBefore = JsonSerializer.Serialize(planner.State.Visits);
+
+        planner.RecordNavigationRoute("main", "destination-new", previous.EventId, previous.Route);
+        string after = JsonSerializer.Serialize(planner.State);
+        planner.RecordNavigationRoute("main", "destination-new", previous.EventId, previous.Route);
+
+        Assert.Equal(after, JsonSerializer.Serialize(planner.State));
+        Assert.Equal(aggregateBefore, JsonSerializer.Serialize(planner.State.Visits));
+        Assert.Single(planner.State.NavigationRetirements);
+        Assert.Single(planner.State.NavigationRoutes, edge => edge.SourceKey == "main");
+        Assert.DoesNotContain(planner.State.NavigationRoutes, edge => edge.SourceKey == "main" && edge.DestinationKey == "destination");
+    }
+
+    [Fact]
     public void AReplacedNavigationEndpointAndItsHistorySurviveColdRestore()
     {
         AutoPlayPlanner planner = CreateTwoComponents();
