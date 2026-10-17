@@ -30,13 +30,74 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Native action clock callback differs from47DDA0/47DE70.");
         }
         BattleActionPresentation? presentation = CaptureNativeEventPresentation();
+        BattleAttackCommand[] queuedPresentations = CaptureNativeQueuedEventPresentations();
         NativeGraphics = graphics;
         bool completed = CompleteNativeActionEvent(callback);
-        if (completed && presentation is not null && ReferenceEquals(ActiveAction, presentation))
+        if (completed)
         {
-            CompleteActionPresentation(presentation, "Native action event completed.");
+            //One original event can publish several104 headers before its single final10.
+            //Remove only those current mirrors, before computing the actor's remaining busy owner.
+            if (queuedPresentations.Length != 0)
+            {
+                HashSet<BattleAttackCommand> acknowledged = new(queuedPresentations, ReferenceEqualityComparer.Instance);
+                BattleAttackCommand[] remaining = actions.Where(command => !acknowledged.Contains(command)).ToArray();
+                actions.Clear();
+                foreach (BattleAttackCommand command in remaining)
+                {
+                    actions.Enqueue(command);
+                }
+            }
+            if (presentation is not null && ReferenceEquals(ActiveAction, presentation))
+            {
+                CompleteActionPresentation(presentation, "Native action event completed.");
+            }
+            foreach (BattleAttackCommand command in queuedPresentations)
+            {
+                CompleteActionPresentation(NativeCommandPresentation(command), "Native action event completed.", false);
+            }
         }
         return NativeGraphics ?? throw new InvalidDataException("Native completion lost its graphical descriptor owner.");
+    }
+
+    private bool HasCurrentNativeQueuedPresentation()
+    {
+        if (!actions.TryPeek(out BattleAttackCommand? command) || command.NativeHeaderIndex is null)
+        {
+            return false;
+        }
+        ValidateCurrentNativeQueuedHeader(command);
+        return true;
+    }
+
+    private void ValidateCurrentNativeQueuedHeader(BattleAttackCommand command)
+    {
+        int header = command.NativeHeaderIndex ?? throw new InvalidDataException("Native queued presentation lacks its factual header.");
+        ValidateNativeHeaderReference(GetActor(command.ActorId), header);
+        if (header >= nativeActionPackets.ActionCount)
+        {
+            throw new InvalidDataException("Native queued presentation refers to an already released event header.");
+        }
+    }
+
+    private BattleAttackCommand[] CaptureNativeQueuedEventPresentations()
+    {
+        List<BattleAttackCommand> captured = [];
+        byte? eventActor = null;
+        foreach (BattleAttackCommand command in actions)
+        {
+            if (command.NativeHeaderIndex is null)
+            {
+                continue;
+            }
+            eventActor ??= nativeActionScratch.EventActorB0F ?? throw new NotSupportedException("Native queued completion requires its actual event actor BYTE B0F.");
+            if (GetActor(command.ActorId).NativeIndex != eventActor)
+            {
+                continue;
+            }
+            ValidateCurrentNativeQueuedHeader(command);
+            captured.Add(command);
+        }
+        return captured.ToArray();
     }
 
     private BattleActionPresentation? CaptureNativeEventPresentation()

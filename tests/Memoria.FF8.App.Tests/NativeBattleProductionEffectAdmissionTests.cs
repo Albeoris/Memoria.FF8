@@ -38,10 +38,13 @@ public sealed class NativeBattleProductionEffectAdmissionTests
         string? requested = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_CALLBACKS");
         int callbacks = requested is null ? 512 : int.Parse(requested, System.Globalization.CultureInfo.InvariantCulture);
         Assert.InRange(callbacks, 1, 4096);
-        ResumeNamedCheckpoint(callbacks);
+        string? minimum = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_MIN_COMPLETIONS");
+        int completions = minimum is null ? 0 : int.Parse(minimum, System.Globalization.CultureInfo.InvariantCulture);
+        Assert.InRange(completions, 0, 4096);
+        ResumeNamedCheckpoint(callbacks, completions);
     }
 
-    private static void ResumeNamedCheckpoint(int callbacks)
+    private static void ResumeNamedCheckpoint(int callbacks, int minimumCompletions = 0)
     {
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_SNAPSHOT");
         Assert.SkipUnless(source is not null && File.Exists(source), "A concrete production-host standalone checkpoint is required.");
@@ -51,6 +54,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
         GameSession independent = new(GameSession.Load(source!));
         using GameWorld clone = RestoreWorld(independent, directory);
         long callback = world.Battle!.NativeGraphics!.Callback;
+        int initialCompletions = world.Battle.Events.Count(item => item.Kind == "ActionComplete");
         string id = "production-resume-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff");
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_EVIDENCE");
         int completed = 0;
@@ -66,6 +70,8 @@ public sealed class NativeBattleProductionEffectAdmissionTests
                     Assert.Equal(RenderBattle(world), RenderBattle(clone));
                 }
             }
+            int newCompletions = world.Battle.Events.Count(item => item.Kind == "ActionComplete") - initialCompletions;
+            Assert.True(newCompletions >= minimumCompletions, $"Expected at least {minimumCompletions} native action completions during {callbacks} callbacks; observed {newCompletions}.");
         }
         catch (Exception exception)
         {

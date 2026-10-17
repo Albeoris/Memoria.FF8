@@ -483,7 +483,7 @@ public sealed partial class BattleSession
         }
         if (ActiveAction is null)
         {
-            if (NativeGraphics is { Requests.IsEmpty: false })
+            if (NativeGraphics is { Requests.IsEmpty: false } && !HasCurrentNativeQueuedPresentation())
             {
                 return;
             }
@@ -497,6 +497,10 @@ public sealed partial class BattleSession
                         return;
                     }
                     BattleCombatant actor = byId[command.ActorId];
+                    if (command.NativeHeaderIndex is not null)
+                    {
+                        ValidateCurrentNativeQueuedHeader(command);
+                    }
                     if (command.NativeHeaderIndex is null)
                     {
                         command = PrepareNativeQueuedCommand(actor, command);
@@ -594,13 +598,16 @@ public sealed partial class BattleSession
         CompleteActionPresentation(action, "Attack recovery completed.");
     }
 
-    private void CompleteActionPresentation(BattleActionPresentation action, string message)
+    private void CompleteActionPresentation(BattleActionPresentation action, string message, bool completeActiveAction = true)
     {
-        byId[action.ActorId].IsBusy = CompleteNativeDuelAction(action) || CompleteNativeShotAction(action) || QueuedActions.Any(command => command.NativeCallback is null && command.ActorId == action.ActorId);
+        byId[action.ActorId].IsBusy = CompleteNativeDuelAction(action) || CompleteNativeShotAction(action) || QueuedActions.Any(command => command.NativeCallback is null && command.ActorId == action.ActorId) || !completeActiveAction && ActiveAction?.ActorId == action.ActorId;
         PublishNativeDrawComponentResult(action);
         CompleteNativeComponentPacketPresentation(action);
-        ActiveAction = null;
-        CompleteNativeGraphicsAction();
+        if (completeActiveAction)
+        {
+            ActiveAction = null;
+            CompleteNativeGraphicsAction();
+        }
         Log("ActionComplete", action.ActorId, action.TargetId, 0, message);
     }
 

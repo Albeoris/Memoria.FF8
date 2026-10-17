@@ -90,7 +90,9 @@ public sealed class NativeBattleDescriptorActionCompletionTests
         Complete(fixture.Session, post, 0x47E120);
         Assert.Null(fixture.Session.ActiveAction);
         Assert.Equal(0u, fixture.Session.Capture().NativeClock!.ActionPause);
-        Assert.Single(fixture.Session.Events, item => item.Kind == "ActionComplete");
+        //The original presentation and its already-produced0/6 mirror share the final event.
+        Assert.Equal(2, fixture.Session.Events.Count(item => item.Kind == "ActionComplete"));
+        Assert.Empty(fixture.Session.QueuedActions);
     }
 
     [Fact]
