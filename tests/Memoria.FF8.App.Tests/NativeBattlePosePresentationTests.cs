@@ -28,7 +28,7 @@ public sealed class NativeBattlePosePresentationTests
         BattleSnapshot saved = session.Capture();
         session = BattleSession.Restore(saved with { NativeGraphics = saved.NativeGraphics! with { ModuleEffects = saved.NativeGraphics.ModuleEffects.AppendModelResource(0, definition.NativeModuleResources[39], 0x100027) } });
         List<NativeBattleModuleSound> heard = [];
-        BattleAudioPresentation audio = new(() => { }, _ => { }, _ => { }, playModule: heard.Add);
+        BattleAudioPresentation audio = new(_ => { }, playModule: heard.Add);
         audio.Update(session);
         NativeBattleCameraProjection projection = session.NativeCamera!.Projection!;
         for (int callback = 0; callback < 3; callback++)
@@ -80,7 +80,7 @@ public sealed class NativeBattlePosePresentationTests
         NativeBattleContactPacket contact = new(new(checked((byte)index), 5, 0x40, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0));
         session = BattleSession.Restore(saved with { NativeGraphics = saved.NativeGraphics with { PendingContacts = [contact] } });
         List<NativeBattleModuleSound> heard = [];
-        BattleAudioPresentation audio = new(() => { }, _ => { }, _ => { }, playModule: heard.Add);
+        BattleAudioPresentation audio = new(_ => { }, playModule: heard.Add);
         audio.Update(session);
 
         session.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30));

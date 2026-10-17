@@ -39,6 +39,8 @@ public sealed record NativeBattleRetainedMemory([property: JsonRequired] NativeB
     public NativeBattleCameraState? Camera { get; init; }
     public NativeBattleFileIoState? FileIo { get; init; }
     public NativeVibrationProcessState? VibrationProcess { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleMusicProcessState? MusicProcess { get; init; }
     [JsonRequired]
     public NativeBattleActionMemory ActionMemory { get; init; } = NativeBattleActionMemory.Unknown();
 
@@ -55,7 +57,7 @@ public sealed record NativeBattleRetainedMemory([property: JsonRequired] NativeB
     public static NativeBattleRetainedMemory Capture(BattleSnapshot snapshot, string? coldExecutableSha256)
     {
         NativeBattleActionScratch scratch = snapshot.NativeActionScratch ?? throw new InvalidDataException("Native retained memory requires its actual action scratch owner.");
-        NativeBattleRetainedMemory result = new(snapshot.NativeActionPackets ?? throw new InvalidDataException("Native retained memory requires the actual action packet owner."), snapshot.NativeScriptState.AllocationControl, snapshot.NativePartyStatusMirrors ?? throw new InvalidDataException("Native retained memory requires its actual party status mirrors."), scratch with { ComponentCompletion = null }, snapshot.NativeEffectIoResult, coldExecutableSha256) { ElementAttack = snapshot.NativeElementAttack, EffectMemory = snapshot.NativeEffectMemory, Stage = snapshot.NativeStage, ModelTextureCache = snapshot.NativeModelTextureCache, ModelLoader = snapshot.NativeModelLoader, ModelCpuResources = snapshot.NativeModelCpuResources, Camera = snapshot.NativeCamera, FileIo = snapshot.NativeFileIo, VibrationProcess = snapshot.NativeVibrationProcess, ActionMemory = snapshot.NativeActionMemory ?? throw new InvalidDataException("Native retained action memory is missing.") };
+        NativeBattleRetainedMemory result = new(snapshot.NativeActionPackets ?? throw new InvalidDataException("Native retained memory requires the actual action packet owner."), snapshot.NativeScriptState.AllocationControl, snapshot.NativePartyStatusMirrors ?? throw new InvalidDataException("Native retained memory requires its actual party status mirrors."), scratch with { ComponentCompletion = null }, snapshot.NativeEffectIoResult, coldExecutableSha256) { ElementAttack = snapshot.NativeElementAttack, EffectMemory = snapshot.NativeEffectMemory, Stage = snapshot.NativeStage, ModelTextureCache = snapshot.NativeModelTextureCache, ModelLoader = snapshot.NativeModelLoader, ModelCpuResources = snapshot.NativeModelCpuResources, Camera = snapshot.NativeCamera, FileIo = snapshot.NativeFileIo, VibrationProcess = snapshot.NativeVibrationProcess, MusicProcess = snapshot.NativeMusicProcess, ActionMemory = snapshot.NativeActionMemory ?? throw new InvalidDataException("Native retained action memory is missing.") };
         result.Validate();
         return result;
     }
@@ -78,5 +80,6 @@ public sealed record NativeBattleRetainedMemory([property: JsonRequired] NativeB
         Camera?.Validate();
         FileIo?.Validate();
         VibrationProcess?.Validate();
+        MusicProcess?.Validate();
     }
 }

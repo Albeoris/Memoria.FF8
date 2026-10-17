@@ -1,37 +1,7 @@
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Runtime;
-using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Events;
-
-public enum NativeMusicBufferProducer
-{
-    Field52CD10,
-    WorldWmset5306E0,
-    WorldFile543340
-}
-
-public sealed record NativeMusicBufferIdentity([property: JsonRequired] byte EncodedAkaoId, [property: JsonRequired] NativeMusicBufferProducer Producer)
-{
-    public void Validate()
-    {
-        if (!Enum.IsDefined(Producer))
-        {
-            throw new InvalidDataException("Native music buffer lost its actual load producer.");
-        }
-    }
-}
-
-public sealed record NativeMusicPlaybackDecision([property: JsonRequired] int Channel, [property: JsonRequired] int? MusicId, [property: JsonRequired] bool PlayRequested, [property: JsonRequired] bool StopRequested, [property: JsonRequired] bool ConcertRequested, [property: JsonRequired] int? PlayGain, [property: JsonRequired] int? FinalGain)
-{
-    public void Validate()
-    {
-        if ((uint)Channel > 1 || PlayRequested && (MusicId is null || PlayGain is null || !StopRequested || ConcertRequested) || ConcertRequested && (Channel != 0 || MusicId != 43 || !StopRequested || PlayGain is not null || FinalGain is not null))
-        {
-            throw new InvalidDataException("Native music decision lost its physical channel, decoded ID or actual stop/play/concert branch.");
-        }
-    }
-}
 
 public sealed partial class EventEngine
 {
@@ -49,7 +19,7 @@ public sealed partial class EventEngine
 
     private ushort ReadMusicCurrentField()
     {
-        if (NativeRuntimeProfile is not { IsVerified: true } || FieldId < 72 || FieldId > ushort.MaxValue)
+        if (NativeRuntimeProfile is not { IsVerified: true } || FieldId < 72 || FieldId > ushort.MaxValue || Scene.NativeFieldInitialization is not { } proof || proof.FieldId != FieldId || proof.ProgramHash != programHash)
         {
             throw new NotSupportedException("Native music remap requires the authenticated current-field WORD.");
         }
@@ -182,7 +152,11 @@ public sealed partial class EventEngine
     {
         try
         {
-            _ = PrepareMusicPlayback(fiber, opcode, out _);
+            NativeGlobalSoundProcess? prepared = PrepareMusicPlayback(fiber, opcode, out _);
+            if (prepared is not null && (opcode is Jsm.Opcode.MUSICCHANGE or Jsm.Opcode.MUSICSKIP or Jsm.Opcode.CROSSMUSIC or Jsm.Opcode.DUALMUSIC or Jsm.Opcode.CHOICEMUSIC or Jsm.Opcode.MUSICREPLAY) && !services.CanStoreNativeEventOwners)
+            {
+                return "Native music play requires atomic control/global-playback publication.";
+            }
             if (opcode == Jsm.Opcode.MUSICLOAD && Scene.MusicChannel112?.ChannelId == -1 && Scene.MusicProcess?.Bank201 is not (0 or 1))
             {
                 return "Native MUSICLOAD requires its actual destination bank selector before loading a buffer.";
@@ -202,5 +176,17 @@ public sealed partial class EventEngine
             PublishGlobalSoundProcess(fiber, process);
         }
         return decision;
+    }
+
+    private void PublishMusicPlaybackOwners(Fiber fiber, NativeWorldControlState controls, NativeGlobalSoundProcess process)
+    {
+        try
+        {
+            services.SetNativeEventOwners(controls, globalSoundProcess: process);
+        }
+        catch (NotSupportedException exception)
+        {
+            throw NativeOwnerPublicationFault(fiber, exception);
+        }
     }
 }

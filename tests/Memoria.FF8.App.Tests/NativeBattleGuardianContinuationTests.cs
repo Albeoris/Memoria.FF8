@@ -38,6 +38,7 @@ public sealed class NativeBattleGuardianContinuationTests
             }
             catch (NotSupportedException exception)
             {
+                Console.WriteLine($"Reached stable frame{before.Frame}/callback{before.NativeGraphics.Callback}/phase{phase}: {exception.Message}; combatants={string.Join(", ", before.Combatants.Select(actor => $"{actor.Id}:HP{actor.CurrentHp}/ATB{actor.Atb}"))}");
                 BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(before))!);
                 Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(clone.Capture()));
                 NotSupportedException repeated = Assert.Throws<NotSupportedException>(() => clone.AdvanceNativeGraphicsPresentation(callback));

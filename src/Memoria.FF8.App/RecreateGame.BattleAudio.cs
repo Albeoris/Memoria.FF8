@@ -12,11 +12,8 @@ internal sealed partial class RecreateGame
         {
             return;
         }
-        battleAudio ??= new BattleAudioPresentation(fieldAudio.StopAll, fieldAudio.PlayBattleMusic, fieldAudio.PlayBattleImpact, fieldAudio.PlayBattleSequenceSound, fieldAudio.PlayBattleModuleSound, fieldAudio.StopSounds);
+        battleAudio ??= new BattleAudioPresentation(fieldAudio.PlayBattleImpact, fieldAudio.PlayBattleSequenceSound, fieldAudio.PlayBattleModuleSound, fieldAudio.StopSounds);
         BattleSession? active = ActiveBattle;
-        if (battleAudio.Update(active, active is not null && presentedBattle == active ? battleScene?.CollectSounds(active) : null))
-        {
-            resumeFieldMusic = true;
-        }
+        battleAudio.Update(active, active is not null && presentedBattle == active ? battleScene?.CollectSounds(active) : null);
     }
 }

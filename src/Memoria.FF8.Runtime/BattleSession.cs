@@ -49,6 +49,7 @@ public sealed partial class BattleSession
         nativeGlobalRandom = this.definition.NativeGlobalRandom;
         ValidateDefinition(this.definition);
         NativeGlobalSoundProcess = this.definition.NativeGlobalSoundProcess;
+        NativeMusicProcess = this.definition.NativeMusicProcess;
         InitializeNativeRetainedMemory();
         nativeScannedModels = this.definition.NativeScannedModels;
         nativeKnownMagic = this.definition.NativeKnownMagic;
@@ -283,6 +284,7 @@ public sealed partial class BattleSession
             NativeFileIo = NativeFileIo,
             NativeVibrationProcess = NativeVibrationProcess,
             NativeGlobalSoundProcess = NativeGlobalSoundProcess,
+            NativeMusicProcess = NativeMusicProcess,
             NativeEffectMemory = NativeEffectMemory,
             NativeStage = NativeStage,
             NativeModelTextureCache = NativeModelTextureCache,
@@ -870,6 +872,7 @@ public sealed partial class BattleSession
     private void ValidateDefinition(BattleDefinition source)
     {
         source.NativeGlobalSoundProcess?.Validate();
+        source.NativeMusicProcess?.Validate();
         source.NativeScannedModels?.Validate();
         source.NativeKnownMagic?.Validate();
         source.NativeExamTimerAtEntry?.Validate();
@@ -971,6 +974,8 @@ public sealed partial class BattleSession
         NativeVibrationProcess = snapshot.NativeVibrationProcess;
         snapshot.NativeGlobalSoundProcess?.Validate();
         NativeGlobalSoundProcess = snapshot.NativeGlobalSoundProcess;
+        snapshot.NativeMusicProcess?.Validate();
+        NativeMusicProcess = snapshot.NativeMusicProcess;
         snapshot.NativeEffectMemory?.Validate();
         NativeEffectMemory = snapshot.NativeEffectMemory;
         snapshot.NativeStage?.Validate();
@@ -993,7 +998,7 @@ public sealed partial class BattleSession
             actor.RestoreDrawSlots(saved.NativeDrawSlots ?? throw new InvalidDataException("Battle snapshot lacks its physical Draw bank; migrate it explicitly."));
             actor.ReprojectNativePlayerStatistics();
             bool deferredTimedRecipient = snapshot.NativeTimedAction?.Command.TargetId == saved.Id && nativeActionScratch.DeferredEffectsE00 == true;
-            bool invalidHp = actor.NativeAi is null && (saved.CurrentHp < 0 || saved.CurrentHp > actor.MaximumHp || saved.CurrentHp == 0 && saved.Atb != 0 && NativeGraphics is null && !deferredTimedRecipient);
+            bool invalidHp = actor.NativeAi is null && (saved.CurrentHp < 0 || saved.CurrentHp > actor.MaximumHp || saved.CurrentHp == 0 && saved.Atb != 0 && snapshot.NativeGraphics is null && !deferredTimedRecipient);
             if (!restored.Add(saved.Id) || invalidHp || saved.Atb is < 0 or > AtbMaximum || saved.StatusEffects is null)
             {
                 throw new InvalidDataException("Invalid battle combatant state.");
@@ -1261,6 +1266,7 @@ public sealed partial class BattleSession
         NativeFileIo = candidate.NativeFileIo;
         NativeVibrationProcess = candidate.NativeVibrationProcess;
         NativeGlobalSoundProcess = candidate.NativeGlobalSoundProcess;
+        NativeMusicProcess = candidate.NativeMusicProcess;
         NativeEffectMemory = candidate.NativeEffectMemory;
         NativeStage = candidate.NativeStage;
         NativeModelTextureCache = candidate.NativeModelTextureCache;

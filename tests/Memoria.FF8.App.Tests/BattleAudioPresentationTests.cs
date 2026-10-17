@@ -10,7 +10,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class BattleAudioPresentationTests
 {
     [Fact]
-    public void NewDamageAndOutcomePlayOnceAndReturnStopsBattleOutput()
+    public void NewDamagePlaysOnceAndManagedOutcomeOrReturnDoesNotChooseMusic()
     {
         List<string> cues = [];
         BattleAudioPresentation output = Output(cues);
@@ -25,11 +25,11 @@ public sealed class BattleAudioPresentationTests
         Assert.Equal(state, JsonSerializer.Serialize(battle.Capture()));
         Assert.True(output.Update(null));
         Assert.False(output.Update(null));
-        Assert.Equal(new[] { "stop", "music:5", "impact:0", "music:1", "stop" }, cues);
+        Assert.Equal(new[] { "impact:0" }, cues);
     }
 
     [Fact]
-    public void RestoredBattleStartsCurrentMusicWithoutRepeatingHistoricalEffects()
+    public void RestoredBattleAndReplacementKeepHistoricalEffectsSilent()
     {
         BattleSession battle = Battle();
         battle.QueueAttack("party", "enemy");
@@ -39,15 +39,15 @@ public sealed class BattleAudioPresentationTests
         BattleAudioPresentation output = Output(cues);
         output.Update(restored);
         output.Update(restored);
-        Assert.Equal(new[] { "stop", "music:5" }, cues);
+        Assert.Empty(cues);
         BattleSession replacement = Battle(enemyHp: 10);
         replacement.InstantVictory();
         output.Update(replacement);
-        Assert.Equal(new[] { "stop", "music:5", "stop", "music:1" }, cues);
+        Assert.Empty(cues);
     }
 
     [Fact]
-    public void EnemyDamageUsesNativeActorIdentityAndDefeatChangesMusic()
+    public void EnemyDamageUsesNativeActorIdentityWhileDefeatDoesNotChooseMusic()
     {
         BattleSession battle = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true, MaximumHp = 1, CurrentHp = 1, NativeDeathCount = 0 }, new() { Id = "enemy", Name = "Enemy", ModelId = 1, InitialAtb = BattleSession.AtbMaximum }] }, BattleAtbMode.Normal);
         List<string> cues = [];
@@ -56,7 +56,7 @@ public sealed class BattleAudioPresentationTests
         TickAttack(battle);
         output.Update(battle);
         Assert.Equal(BattleOutcome.Defeat, battle.Outcome);
-        Assert.Equal(new[] { "stop", "music:5", "impact:17", "music:0" }, cues);
+        Assert.Equal(new[] { "impact:17" }, cues);
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public sealed class BattleAudioPresentationTests
     {
         BattleSession battle = Battle();
         List<int> played = [];
-        BattleAudioPresentation output = new(() => { }, _ => { }, _ => { }, (_, cue) => played.Add(cue.SoundId));
+        BattleAudioPresentation output = new(_ => { }, (_, cue) => played.Add(cue.SoundId));
         BattleSequenceSoundCue old = new("party", 0, 0, 2, true, 0);
         output.Update(battle, [old]);
         BattleSequenceSoundCue current = new("party", 1, 0, 3, true, 0);
@@ -125,7 +125,7 @@ public sealed class BattleAudioPresentationTests
                 string tools = new MovieClock(GameSession.CreateColdProcess(), directory).ToolsDirectory;
                 using FieldAudioPresentation presentation = new(GetDesktopWindow(), directory, tools);
                 presentation.SetOutputPreferences(0, 0);
-                presentation.PlayBattleMusic(5);
+                presentation.ResumeMusic(NativeMusicPlaybackState.FromColdProcess().PlayEncoded46B530(0, 6, 127));
                 Assert.Null(presentation.Error);
                 presentation.PlayBattleImpact(0);
                 Assert.Null(presentation.Error);
@@ -139,7 +139,7 @@ public sealed class BattleAudioPresentationTests
                 presentation.PlayUiSound(MenuSound.Confirm);
                 presentation.PlayUiSound(MenuSound.Cancel);
                 Assert.Null(presentation.Error);
-                presentation.PlayBattleMusic(1);
+                presentation.ResumeMusic(NativeMusicPlaybackState.FromColdProcess().PlayEncoded46B530(0, 2, 127));
                 Assert.Null(presentation.Error);
                 presentation.StopAll();
             }
@@ -157,7 +157,7 @@ public sealed class BattleAudioPresentationTests
         }
     }
 
-    private static BattleAudioPresentation Output(List<string> cues) => new(() => cues.Add("stop"), track => cues.Add($"music:{track}"), actor => cues.Add($"impact:{actor}"));
+    private static BattleAudioPresentation Output(List<string> cues) => new(actor => cues.Add($"impact:{actor}"));
 
     private static BattleSession Battle(int enemyHp = 1000) => new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Squall", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Attack = 30, NativeDeathCount = 0 }, new() { Id = "enemy", Name = "Enemy", MaximumHp = enemyHp, CurrentHp = enemyHp, Speed = 1 }] }, BattleAtbMode.Normal);
 

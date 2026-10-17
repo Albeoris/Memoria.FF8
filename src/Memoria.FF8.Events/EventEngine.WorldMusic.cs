@@ -184,7 +184,7 @@ public sealed partial class EventEngine
                 throw new InvalidOperationException("Prepared world music no longer matches its current native owner.");
             }
             services.SetGlobalSoundProcess(nextSound);
-            Scene.MusicProcess = loaded with { Bank201 = nextBank };
+            Scene.MusicProcess = loaded with { Bank201 = nextBank, SelectionAuthority = NativeMusicSelectionAuthority.World };
             if (kind == NativeWorldMusicOperation.Play)
             {
                 Scene.MusicChannel108 = new NativeMusicChannelState(0, music);
@@ -271,7 +271,7 @@ public sealed partial class EventEngine
             }
             expectedMusic = NativeWorldMusicResource.FileMusic(index);
         }
-        if (load.Version != 1 || load.SourceFieldId < 72 || load.SourceFrame < 0 || !Enum.IsDefined(load.Operation) || load.PriorBank > 1 || load.Bank != (play ? load.PriorBank ^ 1 : load.PriorBank) || load.Bank != saved.Scene.MusicProcess?.Bank201 || play != (load.Resource is not null) || play && (load.Music != load.Resource!.MusicId || load.Music != expectedMusic || (file ? load.InitialVolume is not null : load.InitialVolume != 0) || load.DurationMilliseconds != 60) || !play && (load.InitialVolume != 127 || load.DurationMilliseconds != 0) || load.Operation == NativeWorldMusicOperation.Keep && (load.RequestedMusic != unchecked((sbyte)load.PriorMusic) || load.Music != load.PriorMusic || PendingWorldMusicSelection(entity, load.RequestedMusic, load.PriorMusic) >= 0) || load.Operation == NativeWorldMusicOperation.Stop && load.RequestedMusic != 0 || load.TargetVolume != 127 || (load.Operation == NativeWorldMusicOperation.Stop) != (load.Music is null))
+        if (load.Version != 1 || load.SourceFieldId < 72 || load.SourceFrame < 0 || !Enum.IsDefined(load.Operation) || load.PriorBank > 1 || load.Bank != (play ? load.PriorBank ^ 1 : load.PriorBank) || saved.Scene.MusicProcess?.SelectionAuthority == NativeMusicSelectionAuthority.World && load.Bank != saved.Scene.MusicProcess.Bank201 || play != (load.Resource is not null) || play && (load.Music != load.Resource!.MusicId || load.Music != expectedMusic || (file ? load.InitialVolume is not null : load.InitialVolume != 0) || load.DurationMilliseconds != 60) || !play && (load.InitialVolume != 127 || load.DurationMilliseconds != 0) || load.Operation == NativeWorldMusicOperation.Keep && (load.RequestedMusic != unchecked((sbyte)load.PriorMusic) || load.Music != load.PriorMusic || PendingWorldMusicSelection(entity, load.RequestedMusic, load.PriorMusic) >= 0) || load.Operation == NativeWorldMusicOperation.Stop && load.RequestedMusic != 0 || load.TargetVolume != 127 || (load.Operation == NativeWorldMusicOperation.Stop) != (load.Music is null))
         {
             throw new InvalidDataException("Saved world music load lost its native bank/resource/gain authority.");
         }

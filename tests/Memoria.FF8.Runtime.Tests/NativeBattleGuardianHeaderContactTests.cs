@@ -92,11 +92,22 @@ public sealed class NativeBattleGuardianHeaderContactTests
         }
     }
 
+    [Fact]
+    public void LethalHeaderRecomputationDoesNotInventAnUnobservedRemainingHitByte()
+    {
+        BattleSnapshot saved = Create(0, 14).Capture();
+        BattleSnapshot lethal = saved with { Combatants = saved.Combatants.Select(actor => actor.Id == "target-first" ? actor with { CurrentHp = 1 } : actor).ToArray() };
+        BattleSession battle = BattleSession.Restore(lethal);
+        Assert.Null(battle.Capture().Combatants.Single(actor => actor.Id == "target-first").NativeParticipant!.RemainingHits);
+        NotSupportedException exception = Assert.Throws<NotSupportedException>(() => Recompute(battle, 100));
+        Assert.Contains("48EB40 remaining-hit", exception.Message);
+    }
+
     private static BattleSession Create(byte actor, byte sequence)
     {
         BattleNativeAction native = new(254, 64, 2, 0) { MagicId = 116, AttackType = 11, Power = 44, HitCount = 1, TargetFlags = 72, AttackFlags = 33, DamagePresentation = 5, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = 0, LevelModifier = 60, RawRecord = ImmutableArray.CreateRange(new byte[132]), SupplementalRecord = [] };
         BattleActionDefinition action = new(BattleAbility.GuardianForce, 0, "Synthetic kernel-layout GF", BattleActionEffect.Native, 44, false, Level: 12, DamagePercent: 20) { NativeAction = native, NativeGuardianBoostAvailable = false };
-        BattleSession battle = new(new() { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = [native], ActionDefinitions = [action], Combatants = [new() { Id = "party-0", IsPlayer = true }, new() { Id = "party-1", IsPlayer = true }, new() { Id = "target-second", MaximumHp = 10000, CurrentHp = 10000, Spirit = 35 }, new() { Id = "target-first", MaximumHp = 10000, CurrentHp = 10000, Spirit = 5 }] }, BattleAtbMode.TurnBased);
+        BattleSession battle = new(new() { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = [native], ActionDefinitions = [action], Combatants = [new() { Id = "party-0", Name = "First party actor", IsPlayer = true }, new() { Id = "party-1", Name = "Second party actor", IsPlayer = true }, new() { Id = "target-second", Name = "Second contact", MaximumHp = 10000, CurrentHp = 10000, Spirit = 35 }, new() { Id = "target-first", Name = "First contact", MaximumHp = 10000, CurrentHp = 10000, Spirit = 5 }] }, BattleAtbMode.TurnBased);
         BattleSnapshot saved = battle.Capture();
         NativeBattleActionPacketsState packets = saved.NativeActionPackets!;
         (packets, _) = packets.Prepare(new(actor, 254, sequence, -1, 64, 116, null));

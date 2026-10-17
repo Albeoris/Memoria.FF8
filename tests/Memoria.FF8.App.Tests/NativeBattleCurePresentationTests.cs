@@ -77,7 +77,7 @@ public sealed class NativeBattleCurePresentationTests
         battle = BattleSession.Restore(before with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } });
         BattleScenePresentation scene = new(assets, definition, true);
         List<NativeBattleModuleSound> heard = [];
-        BattleAudioPresentation audio = new(() => { }, _ => { }, _ => { }, playModule: heard.Add);
+        BattleAudioPresentation audio = new(_ => { }, playModule: heard.Add);
         audio.Update(battle);
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_CURE_EVIDENCE");
         string evidenceId = "cure-casting-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N")[..8];

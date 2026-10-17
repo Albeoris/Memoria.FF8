@@ -53,6 +53,7 @@ public sealed record NativeGlobalSoundProcess
     public void Validate()
     {
         Spu?.Validate();
+        MusicPlayback?.Validate();
         if (Version != 1 || Rule != CurrentRule || Backend != NativeGlobalSoundBackend.Bufferless || Rotation is >= 6 || OriginalEffectIds.IsDefault || OriginalEffectIds.Length != 32)
         {
             throw new InvalidDataException("Global sound requires the current explicit bufferless process and32 known-or-unknown physical effect IDs; native buffered availability is unsupported.");

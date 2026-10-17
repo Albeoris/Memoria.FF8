@@ -297,7 +297,7 @@ internal sealed partial class RecreateGame : Game
         }
         if (resumeFieldMusic && world?.Field is not null)
         {
-            fieldAudio?.ResumeMusic(world.Events.Scene, world.Field.Id, session.State.Scene == SceneKind.WorldMap);
+            fieldAudio?.ResumeMusic(session.State.GlobalSoundProcess?.MusicPlayback);
             resumeFieldMusic = false;
         }
         fieldAudio?.Update();

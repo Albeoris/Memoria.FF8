@@ -81,25 +81,13 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         next.AudioCommandExecuted += Execute;
     }
 
-    public void ResumeMusic(SceneEventState scene, int fieldId, bool worldMap = false)
+    public void ResumeMusic(NativeMusicPlaybackState? playback)
     {
-        // TODO(TD-009): Exact resume requires the retained1CD2388/C mode owners and native replay lifecycle
-        // Saved native channel authority proves the track identity, not its device phase.
-        // Resume from the original segment's start; never synthesize effect-buffer activity.
-        NativeMusicChannelState? secondary = scene.MusicChannel112;
-        NativeMusicChannelState? primary = scene.MusicChannel108;
-        if (primary is { ChannelId: >= 0, MusicId: byte first } && first != 255)
+        TryOutput(() => DispatchNativeMusicResume(playback, (slot, id, gain) =>
         {
-            TryOutput(() =>
-            {
-                RequireOrdinaryMusicOutput(primary.ChoiceMask);
-                PlayMusic(first, 0, worldMap ? scene.WorldMusicLoad?.TargetVolume ?? throw new NotSupportedException("World music resume requires its executed native loader receipt.") : scene.SoundMusicVolume197, fieldId, worldMap ? scene.WorldMusicLoad!.StartPoint : 0);
-            });
-        }
-        if (secondary is { ChannelId: >= 0, MusicId: byte second } && second != 255)
-        {
-            TryOutput(() => PlayMusic(second, 1, scene.SoundMusicVolume198, fieldId));
-        }
+            // TODO(TD-009): Device phase is not retained; restart the proved selection at its segment start
+            PlayMusic(id, slot, gain, -1, forceRestart: true, identityResolved: true);
+        }));
     }
 
     internal void Execute(object command)
@@ -108,6 +96,9 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         {
             switch (command)
             {
+                case NativeBattleMusicEntryReceipt entry:
+                    ExecuteBattleMusicEntry(entry);
+                    break;
                 case NativeWorldMusicLoad world:
                     ExecuteMusicPlayback(world.Playback, world.SourceFieldId, world.StartPoint, world.DurationMilliseconds, world.Operation == NativeWorldMusicOperation.Play ? world.InitialVolume : null);
                     break;
@@ -231,11 +222,6 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
             voices.Remove(voiceId);
             throw;
         }
-    }
-
-    public void PlayBattleMusic(int track)
-    {
-        TryOutput(() => PlayMusic(track, 0, 127, -1));
     }
 
     public void PlayStartupMusic()

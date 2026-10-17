@@ -48,6 +48,26 @@ public sealed class NativeMusicCatalog
     public int SoundPan(int pan) => Table(0xB7ED10, pan);
     public int MusicVolume(int volume) => Table(0xB7F92C, volume);
 
+    public NativeBattleMusicEntryResources ReadBattleEntryResources()
+    {
+        ImmutableArray<byte> template = image.AsSpan(Offset(0xB8EE6C), 36).ToArray().ToImmutableArray();
+        int musicOffset = BinaryPrimitives.ReadInt32LittleEndian(image.AsSpan(Offset(0xB8EE68), 4));
+        ReadOnlySpan<byte> table = image.AsSpan(Offset(0xB80F9C), 0x58);
+        if (BinaryPrimitives.ReadUInt16LittleEndian(table[^2..]) != ushort.MaxValue)
+        {
+            throw new InvalidDataException("Native47CC70 encounter table lost its original FFFF terminator.");
+        }
+        ImmutableArray<ushort>.Builder encounters = ImmutableArray.CreateBuilder<ushort>(43);
+        for (int offset = 0; offset < table.Length - 2; offset += 2)
+        {
+            encounters.Add(BinaryPrimitives.ReadUInt16LittleEndian(table.Slice(offset, 2)));
+        }
+        NativeBattleMusicEntryResources resources = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, template, musicOffset, encounters.MoveToImmutable());
+        resources.Validate();
+        _ = resources.SelectPayload(255);
+        return resources;
+    }
+
     public string WorldMusicFile(int index)
     {
         _ = NativeWorldMusicResource.FileMusic(index);
@@ -106,28 +126,7 @@ public sealed class NativeMusicCatalog
 
     public string MusicFileResolved(int music)
     {
-        string? stream = music switch
-        {
-            3 => "003-combat.wav",
-            6 => "006-funsui.wav",
-            10 => "010-ante.wav",
-            11 => "011-wind.wav",
-            30 => "030-flangchorus.wav",
-            31 => "031-dubchorus.wav",
-            32 => "032-solochorus.wav",
-            33 => "033-femalechorus.wav",
-            34 => "034-chorus.wav",
-            37 => "037-reet.wav",
-            38 => "038-soyo.wav",
-            39 => "039-rouka.wav",
-            40 => "040-night.wav",
-            44 => "044-sea.wav",
-            74 => "074-train.wav",
-            87 => "087-mdmotor.wav",
-            94 => "094-laswhite.wav",
-            95 => "095-lasbl.wav",
-            _ => null
-        };
+        string? stream = NativeMusicRouting.GetStreamFileName(music);
         if (stream is not null)
         {
             return Path.Combine("Data", "Music", "stream", stream);

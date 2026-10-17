@@ -1,0 +1,52 @@
+using System.Collections.Immutable;
+using System.Text.Json.Serialization;
+
+namespace Memoria.FF8.Runtime;
+
+/// <summary>The original Esuna88CF70 and Full-life883110 controller operands; their private resource banks are distinct.</summary>
+public sealed record NativeBattleRestorationProfile(ushort Effect, uint Entry, uint Initializer, uint InitializerGlobal, uint MainCallback, uint TargetCallback, uint GenericCallback, uint FadeInCallback, uint FadeOutCallback, uint ExecutableAddress, int DrawBankBytes, int EmitterBytes, int GeometryBytes, ushort TargetReleaseCounter, ushort RootWait, ImmutableArray<uint> Descriptors, ImmutableArray<uint> Banks)
+{
+    public static NativeBattleRestorationProfile Esuna { get; } = new(24, 0x88CF70, 0x88CF50, 0x2700470, 0x88D0A0, 0x88D3B0, 0x88D4C0, 0x88D290, 0x892ED0, 0x17E48E4, 0xA000, 0x10E0, 0x10680, 20, 20, [0x2700560, 0x2701010, 0x2700D70, 0x2701000], [0x2700498, 0x2701020, 0x2700580, 0x2700D80]);
+    public static NativeBattleRestorationProfile FullLife { get; } = new(27, 0x883110, 0x8830F0, 0x26D8308, 0x883240, 0x883550, 0x883660, 0x883430, 0x888480, 0x17DE100, 0x6000, 0x1518, 0x16F80, 30, 10, [0x26D83F8, 0x26D8EA8, 0x26D8C08, 0x26D8E98], [0x26D8330, 0x26D8EB8, 0x26D8418, 0x26D8C18]);
+
+    public static NativeBattleRestorationProfile ForEffect(ushort effect)
+    {
+        return effect switch
+        {
+            24 => Esuna,
+            27 => FullLife,
+            _ => throw new NotSupportedException("The shared88CF70/883110 controller requires an original Esuna or Full-life binding.")
+        };
+    }
+}
+
+public sealed record NativeBattleRestorationResources(ushort Effect, NativeBattleEffectHeapAllocation Animation, uint Sound)
+{
+    public ImmutableArray<byte> OriginalExecutableDirectory { get; init; } = [];
+    public NativeBattleRestorationExecutableSource? Executable { get; init; }
+}
+
+public sealed record NativeBattleRestorationState([property: JsonRequired] int SourceArenaOffset, [property: JsonRequired] int? PrimaryDrawCursor, [property: JsonRequired] int? SecondaryDrawCursor, [property: JsonRequired] int AuxiliaryCursor, [property: JsonRequired] NativeBattleActionMatrix? CopiedCamera)
+{
+    public int EntryCounterA { get; init; }
+    public int EntryCounterB { get; init; }
+    public int? Emitters { get; init; }
+    public int? Geometry { get; init; }
+    public ushort? EmitterScanCursor { get; init; }
+    public ushort? GeometryScanCursor { get; init; }
+    public ushort? EmitterResetWord { get; init; }
+    public ushort? GeometryResetWord { get; init; }
+    public ushort? PassEmitterCount { get; init; }
+    public ushort? PassGeometryCount { get; init; }
+}
+
+public sealed record NativeBattleRestorationFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleRestorationState State);
+public sealed record NativeBattleRestorationLeafStep(NativeBattleRestorationFrame Frame, int Result);
+public sealed record NativeBattleRestorationControllerStep(NativeBattleRestorationFrame Frame, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
+public sealed record NativeBattleRestorationControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource)
+{
+    public Action<int>? ApplyContact { get; init; }
+}
+
+public sealed record NativeBattleRestorationContextStep(NativeBattleRestorationFrame Frame, bool Complete);
+public sealed record NativeBattleRestorationGenericInputs(Func<NativeBattleRestorationFrame, uint, NativeBattleRestorationFrame> InitializeContext, Func<NativeBattleRestorationFrame, uint, NativeBattleRestorationContextStep> AdvanceContext);

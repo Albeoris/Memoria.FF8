@@ -21,6 +21,7 @@ internal static partial class Program
 
     private static void NativeMusicLoadContract()
     {
+        NativeBattleMusicEntryContract();
         NativeMusicSkipContract();
         byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 300), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.FADENONE, 0), (Jsm.Opcode.MUSICCHANGE, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
         (GameSession Session, EventEngine Engine) Fresh(byte[]? bytes = null)
@@ -114,9 +115,12 @@ internal static partial class Program
         first.Step();
         Require(session.State.Variables[510] == first.Scene.MusicProcess!.Bank201 && session.State.Variables[511] == -1 && session.State.Variables[515] == 44 && session.State.Variables[516] == 1, "Virtual music reads lost their owner or signed BYTE202 projection.");
 
-        byte[] pending = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 26), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.MUSICCHANGE, 0), (Jsm.Opcode.RET, 0));
+        byte[] pending = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 26), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.MUSICCHANGE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
         (GameSession pendingSession, EventEngine pendingEngine) = Fresh(pending);
-        pendingEngine.Step();
+        while (pendingEngine.Scene.MusicLoadRequest is null && pendingEngine.Frame < 4)
+        {
+            pendingEngine.Step();
+        }
         Require(pendingSession.WorldControls is { EventFlags104: 0x418, MusicKeep207: 1 } && pendingEngine.Scene.MusicProcess is { Pending: true, Requested213: 26, Complete214: 1, Bank201: 0 }, "Synchronous music load lost its pending receipt before play.");
         (GameSession pendingResumedSession, EventEngine pendingResumed) = Fresh(pending);
         pendingResumed.Restore(pendingEngine.Capture());
@@ -150,9 +154,12 @@ internal static partial class Program
         }
         Require(ambiguousFade.FieldFade is null && ambiguousFadeSession.State.Variables[213] == 26, "Unknown fade refusal changed memory.");
 
-        byte[] dual = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PHSPOWER, 0), (Jsm.Opcode.PSHN_L, 26), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.DUALMUSIC, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 44), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.DUALMUSIC, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 501), (Jsm.Opcode.RET, 0));
+        byte[] dual = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PHSPOWER, 0), (Jsm.Opcode.PSHN_L, 26), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.DUALMUSIC, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 44), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.DUALMUSIC, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 501), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
         (GameSession dualSession, EventEngine dualEngine) = Fresh(dual);
-        dualEngine.Step();
+        while (dualEngine.Scene.MusicPlayRequest is null && dualEngine.Frame < 4)
+        {
+            dualEngine.Step();
+        }
         Require(dualEngine.Scene.MusicPlayRequest is { Opcode: "DUALMUSIC", ConsumedPending: true, Channel: 1, Volume: 127, PriorBank: 0, Bank: 0, PriorKeepBit400: true } && dualEngine.Scene.MusicChannel108 is { ChannelId: -1, MusicId: 255 } && dualEngine.Scene.MusicChannel112 is { ChannelId: 1, MusicId: 26 } && dualSession.WorldControls is { EventFlags104: 0x218, MusicKeep207: 0 } && dualEngine.Scene.MusicProcess is { Pending: false }, "DUALMUSIC lost its secondary return, bank selection, byte identity or keep-bit branch.");
         Require(!dualEngine.Scene.MusicPlaying && !dualSession.State.Variables.ContainsKey(500) && dualEngine.Scene.SoundMusicVolume197 == 127 && dualEngine.Scene.SoundMusicVolume198 == 127, "Secondary playback changed primary state, volume bytes or native yield.");
         NativeWorldControlState dualControls = dualSession.State.WorldControls!;
@@ -187,7 +194,10 @@ internal static partial class Program
             const uint originalFlags = 0xABCDF618;
             NativeWorldControlState originalControls = preservedSession.WorldControls! with { EventFlags104 = originalFlags, MusicKeep207 = keep, Menu209 = 0xE1 };
             preservedSession.SetWorldControls(originalControls);
-            preserved.Step();
+            while (preserved.Scene.MusicLoadRequest is null && preserved.Frame < 4)
+            {
+                preserved.Step();
+            }
             uint loadedFlags = keep == 0 ? originalFlags | 0x400u : originalFlags & ~0x400u;
             Require(preservedSession.WorldControls == originalControls with { EventFlags104 = loadedFlags, MusicKeep207 = 1 } && preserved.Scene.MusicLoadRequest!.PriorKeep207 == keep, "MUSICLOAD did not use the current full BYTE207 or preserve every unrelated104 bit/menu byte.");
             preserved.Step();
@@ -195,12 +205,21 @@ internal static partial class Program
         }
         foreach (bool play in new[] { false, true })
         {
-            byte[] rejectedContent = play ? SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 26), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.CROSSMUSIC, 0), (Jsm.Opcode.RET, 0)) : SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 26), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.RET, 0));
+            (Jsm.Opcode Opcode, int Parameter)[] body = play
+                ? [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 26), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.CROSSMUSIC, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]
+                : [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 26), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
+            byte[] rejectedContent = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.RET, 8)], body]);
             (GameSession sourceSession, EventEngine sourceEngine) = Fresh(rejectedContent);
-            sourceEngine.Step();
-            (GameSession rejectedSession, _) = Fresh(rejectedContent);
+            bool waiting = false;
+            sourceEngine.CommandExecuted += command => waiting |= command.Name == "WAIT";
+            while (!waiting && sourceEngine.Frame < 4)
+            {
+                sourceEngine.Step();
+            }
+            Require(waiting, "Control-rejection fixture did not reach its ordinary-script pre-operation wait.");
+            GameSession rejectedSession = CloneMusicSession(sourceSession.State);
             RejectingMusicControlServices service = new(rejectedSession);
-            EventEngine rejected = new(service);
+            EventEngine rejected = new(service) { AnimationFrameCount = (_, _) => 4 };
             rejected.LoadField(74, rejectedContent, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             rejected.Restore(sourceEngine.Capture());
             NativeWorldControlState beforeControls = rejectedSession.WorldControls!;
@@ -208,6 +227,7 @@ internal static partial class Program
             NativeMusicLoadRequest? beforeLoad = rejected.Scene.MusicLoadRequest;
             NativeMusicPlayRequest? beforePlay = rejected.Scene.MusicPlayRequest;
             NativeMusicChannelState? beforeChannel = rejected.Scene.MusicChannel108;
+            NativeGlobalSoundProcess? beforeSound = rejectedSession.GlobalSoundProcess;
             service.Reject = true;
             try
             {
@@ -217,22 +237,26 @@ internal static partial class Program
             catch (EventScriptException)
             {
             }
-            JsonElement rejectedFiber = rejected.Capture().GetProperty("Fibers")[0];
-            Require(rejected.LastFault?.Opcode == (play ? "CROSSMUSIC" : "MUSICLOAD") && rejectedFiber.GetProperty("Position").GetInt32() == (play ? 7 : 4) && rejectedFiber.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(play ? new[] { 3, 255 } : new[] { 26 }) && rejectedSession.WorldControls == beforeControls && rejected.Scene.MusicProcess == beforeProcess && rejected.Scene.MusicLoadRequest == beforeLoad && rejected.Scene.MusicPlayRequest == beforePlay && rejected.Scene.MusicChannel108 == beforeChannel, "Rejected music control publication changed PC/operands, canonical flags, pending phase, request or channel.");
+            JsonElement rejectedFiber = rejected.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
+            Require(rejected.LastFault is { } rejection && rejection.Opcode == (play ? "CROSSMUSIC" : "MUSICLOAD") && rejectedFiber.GetProperty("Position").GetInt32() == rejection.Operation && rejectedFiber.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(play ? new[] { 3, 255 } : new[] { 26 }) && rejectedSession.WorldControls == beforeControls && rejectedSession.GlobalSoundProcess == beforeSound && rejected.Scene.MusicProcess == beforeProcess && rejected.Scene.MusicLoadRequest == beforeLoad && rejected.Scene.MusicPlayRequest == beforePlay && rejected.Scene.MusicChannel108 == beforeChannel, "Rejected music control publication changed PC/operands, canonical flags, pending phase, request or channel.");
         }
 
         GameSession unknownSession = new(new GameState());
-        EventEngine unknown = new(unknownSession);
+        EventEngine unknown = new(unknownSession) { AnimationFrameCount = (_, _) => 4 };
         unknown.LoadField(100, content, []);
         try
         {
-            unknown.Step();
+            while (unknown.Frame < 4)
+            {
+                unknown.Step();
+            }
             throw new InvalidOperationException("Unknown second music channel acquired a default pending-load branch.");
         }
         catch (EventScriptException) when (unknown.LastFault?.Opcode == "MUSICLOAD")
         {
         }
-        Require(unknown.Scene.MusicLoadRequest is null && unknown.Capture().GetProperty("Fibers")[0].GetProperty("Stack")[0].GetInt32() == 300, "Unknown music load consumed its operand or selected a default channel.");
+        JsonElement unknownFiber = unknown.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
+        Require(unknown.Scene.MusicLoadRequest is null && unknownFiber.GetProperty("Stack")[0].GetInt32() == 300, "Unknown music load consumed its operand or selected a default channel.");
 
         GameSession unknownDualSession = new(new GameState());
         EventEngine unknownDual = new(unknownDualSession);
@@ -271,6 +295,9 @@ internal static partial class Program
         public NativeFieldFadeState? FieldFade => session.FieldFade;
         public bool CanStoreFieldFade => true;
         public void SetFieldFade(NativeFieldFadeState state) => session.SetFieldFade(state);
+        public NativeFieldBarsState? FieldBars => session.FieldBars;
+        public bool CanStoreFieldBars => true;
+        public void SetFieldBars(NativeFieldBarsState state) => session.SetFieldBars(state);
         public NativeDiscProcessState? DiscProcess => session.DiscProcess;
         public bool CanStoreDiscProcess => true;
         public void SetDiscProcess(NativeDiscProcessState state) => session.SetDiscProcess(state);
@@ -302,7 +329,14 @@ internal static partial class Program
         public void SetSeeD(NativeSeeDState state) => session.SetSeeD(state);
         public void SetMessageVariables(NativeMessageVariables state) => session.SetMessageVariables(state);
         public void SetCardInventory(NativeCardInventory state) => session.SetCardInventory(state);
-        public void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null, NativeEventMemory? eventMemory = null, NativeInputConfiguration? inputConfiguration = null) => session.SetNativeEventOwners(controls, seeD, timer, characterVitals, economy, globalSoundProcess, salaryPresentation, eventRandom, vibrationProcess, fieldFade, eventMemory, inputConfiguration);
+        public void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null, NativeEventMemory? eventMemory = null, NativeInputConfiguration? inputConfiguration = null)
+        {
+            if (Reject && globalSoundProcess is not null && globalSoundProcess != session.GlobalSoundProcess)
+            {
+                throw new NotSupportedException("Test atomic canonical music control/global publication rejection.");
+            }
+            session.SetNativeEventOwners(controls, seeD, timer, characterVitals, economy, globalSoundProcess, salaryPresentation, eventRandom, vibrationProcess, fieldFade, eventMemory, inputConfiguration);
+        }
 
         public void SetWorldControls(NativeWorldControlState controls)
         {

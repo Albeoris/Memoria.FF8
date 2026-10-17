@@ -39,42 +39,9 @@ public sealed record NativeBattleCuragaExecutableState([property: JsonRequired] 
         {
             throw new InvalidDataException("Native Curaga first-use materialization requires the authenticated uninitialized17D5F4C resource.");
         }
-        byte[] data = (Data ?? source.Data).ToArray();
-        for (int table = 0; table < 4; table++)
-        {
-            for (int index = 0; index < 16; index++)
-            {
-                int offset = 4 + table * 64 + index * 4;
-                uint pointer = Read(offset);
-                if (pointer != 0)
-                {
-                    Write(offset, unchecked(pointer + Address));
-                }
-            }
-        }
-        for (int index = 0; index < 16; index++)
-        {
-            uint pointer = Read(4 + index * 4);
-            if (pointer == 0)
-            {
-                continue;
-            }
-            if (pointer < Address || pointer - Address > Length - 0x148)
-            {
-                throw new InvalidDataException("Native87EA20 fixed node leaves the original executable resource.");
-            }
-            int node = checked((int)(pointer - Address));
-            for (int field = 0xC8; field <= 0x144; field += 4)
-            {
-                //Unlike the four directories, the32 node channel pointers are all relocated, including zero values.
-                Write(node + field, unchecked(Read(node + field) + Address));
-            }
-        }
-        Write(0, 1);
+        byte[] data = NativeBattleEffectNodeBankFixups.Relocate(Data ?? source.Data, Address);
+        BinaryPrimitives.WriteUInt32LittleEndian(data, 1);
         return new(1, data.ToImmutableArray());
-
-        uint Read(int offset) => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(offset));
-        void Write(int offset, uint value) => BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(offset), value);
     }
 
     public byte[] Read(uint address, int count)

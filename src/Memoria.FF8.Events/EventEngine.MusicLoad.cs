@@ -4,26 +4,6 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Events;
 
-public sealed record NativeMusicBootstrap(int Version, string Rule, string ExecutableHash);
-public sealed record NativeMusicProcessState(int Version, bool? Pending, byte? Requested213, byte? Complete214, byte? Bank201, [property: JsonRequired] byte? Bank202, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeMusicBootstrap? Bootstrap = null)
-{
-    // Names follow the BYTE201 value selecting the buffer, not the opposite load destination.
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeMusicBufferIdentity? Buffer0 { get; init; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeMusicBufferIdentity? Buffer1 { get; init; }
-
-    public NativeMusicBufferIdentity ReadBuffer(byte bank)
-    {
-        return (bank switch { 0 => Buffer0, 1 => Buffer1, _ => throw new NotSupportedException("Native music buffer selection requires BYTE201 zero or one.") }) ?? throw new NotSupportedException("Native music playback requires the selected buffer's retained AKAO identity; historical requests cannot establish it.");
-    }
-
-    public NativeMusicProcessState LoadBuffer(byte bank, NativeMusicBufferIdentity identity)
-    {
-        identity.Validate();
-        return bank switch { 0 => this with { Buffer0 = identity }, 1 => this with { Buffer1 = identity }, _ => throw new NotSupportedException("Native music load requires BYTE201 zero or one.") };
-    }
-}
 public sealed record NativeMusicLoadRequest(int Version, int FieldId, int ObjectId, int ScriptId, int Operation, long Frame, int RawMusic, byte Music, int PriorSecondChannel, byte? PriorKeep207, bool Loaded, GlobalSoundBackendStatus BackendStatus);
 public sealed record NativeMusicPlayRequest(int Version, int FieldId, int ObjectId, int ScriptId, int Operation, long Frame, string Opcode, bool ConsumedPending, byte? Music, byte? PriorBank, byte? Bank, bool? PriorKeepBit400, int? Volume, int? Duration, int? Channel, GlobalSoundBackendStatus BackendStatus, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? SkipPosition = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] uint? ChoiceMask = null)
 {
@@ -62,6 +42,7 @@ public sealed partial class EventEngine
             services.SetWorldControls(controls.WithNormalFieldLoad());
         }
         Scene.MusicProcess = previous.MusicProcess;
+        Scene.NativeBattleMusicEntry = previous.NativeBattleMusicEntry;
         Scene.NativeBattleMusic203 = previous.NativeBattleMusic203;
         Scene.MusicLoadRequest = previous.MusicLoadRequest;
         Scene.MusicPlayRequest = previous.MusicPlayRequest;
@@ -216,7 +197,7 @@ public sealed partial class EventEngine
 
     private int[] ExecuteNativeMusicPlay(Fiber fiber, Jsm.Opcode opcode)
     {
-        NativeMusicPlaybackDecision? playback = CommitMusicPlayback(fiber, opcode);
+        NativeGlobalSoundProcess? sound = PrepareMusicPlayback(fiber, opcode, out NativeMusicPlaybackDecision? playback);
         bool secondary = opcode == Jsm.Opcode.DUALMUSIC;
         bool skip = opcode == Jsm.Opcode.MUSICSKIP;
         bool choice = opcode == Jsm.Opcode.CHOICEMUSIC;
@@ -235,14 +216,14 @@ public sealed partial class EventEngine
         {
             NativeWorldControlState controls = services.WorldControls!;
             NativeWorldControlState next = controls with { MusicKeep207 = (byte)((controls.EventFlags104 & 0x400) == 0 ? 1 : 0), EventFlags104 = controls.EventFlags104 & ~0x400u };
-            SetNativeWorldControls(fiber, next);
+            PublishMusicPlaybackOwners(fiber, next, sound ?? throw new InvalidDataException("Consumed native music play lost its prepared global process."));
         }
         Pop(fiber, count);
         if (consumed)
         {
             Scene.WorldMusicLoad = null;
             byte music = prior.Requested213 ?? throw new InvalidDataException("Native pending music has no executed requested byte.");
-            Scene.MusicProcess = prior with { Pending = false, Bank201 = bank };
+            Scene.MusicProcess = prior with { Pending = false, Bank201 = bank, SelectionAuthority = NativeMusicSelectionAuthority.Field };
             if (secondary)
             {
                 // 51FB00 selects the opposite buffer without52CCE0's bank toggle;
@@ -272,6 +253,8 @@ public sealed partial class EventEngine
     {
         ValidateWorldMusicCheckpoint(saved);
         NativeMusicProcessState? process = saved.Scene.MusicProcess;
+        process?.Validate();
+        saved.Scene.NativeBattleMusicEntry?.Validate();
         process?.Buffer0?.Validate();
         process?.Buffer1?.Validate();
         if (process is not null && (process.Version != 1 || process.Pending == true && (process.Requested213 is null || process.Complete214 != 1)))
@@ -310,7 +293,7 @@ public sealed partial class EventEngine
                 throw new InvalidDataException("Saved music decision differs from its source's decoded/remapped AKAO identity.");
             }
             bool secondary = play.Opcode == nameof(Jsm.Opcode.DUALMUSIC);
-            if (play.Version != 1 || play.Opcode is not (nameof(Jsm.Opcode.MUSICCHANGE) or nameof(Jsm.Opcode.MUSICSKIP) or nameof(Jsm.Opcode.CHOICEMUSIC) or nameof(Jsm.Opcode.CROSSMUSIC) or nameof(Jsm.Opcode.DUALMUSIC)) || (play.Opcode == nameof(Jsm.Opcode.MUSICSKIP)) != (play.SkipPosition is not null) || (play.Opcode == nameof(Jsm.Opcode.CHOICEMUSIC)) != (play.ChoiceMask is not null) || play.ChoiceMask > 0x03FFFFFFu || play.ChoiceMask is not null && (play.Volume is not null || play.Duration is not null) || play.Channel != (play.ConsumedPending ? secondary ? 1 : 0 : null) || play.ConsumedPending && play.Music is null || play.Bank != (play.ConsumedPending && !secondary && play.PriorBank is byte bank ? unchecked((byte)(bank ^ 1)) : play.PriorBank) || saved.Scene.WorldMusicLoad is null && process?.Bank201 != play.Bank || secondary && (play.Volume is null or < 0 or > 127 || play.Duration is not null) || play.BackendStatus != GlobalSoundBackendStatus.Muted)
+            if (play.Version != 1 || play.Opcode is not (nameof(Jsm.Opcode.MUSICCHANGE) or nameof(Jsm.Opcode.MUSICSKIP) or nameof(Jsm.Opcode.CHOICEMUSIC) or nameof(Jsm.Opcode.CROSSMUSIC) or nameof(Jsm.Opcode.DUALMUSIC)) || (play.Opcode == nameof(Jsm.Opcode.MUSICSKIP)) != (play.SkipPosition is not null) || (play.Opcode == nameof(Jsm.Opcode.CHOICEMUSIC)) != (play.ChoiceMask is not null) || play.ChoiceMask > 0x03FFFFFFu || play.ChoiceMask is not null && (play.Volume is not null || play.Duration is not null) || play.Channel != (play.ConsumedPending ? secondary ? 1 : 0 : null) || play.ConsumedPending && play.Music is null || play.Bank != (play.ConsumedPending && !secondary && play.PriorBank is byte bank ? unchecked((byte)(bank ^ 1)) : play.PriorBank) || process?.SelectionAuthority == NativeMusicSelectionAuthority.Field && process.Bank201 != play.Bank || secondary && (play.Volume is null or < 0 or > 127 || play.Duration is not null) || play.BackendStatus != GlobalSoundBackendStatus.Muted)
             {
                 throw new InvalidDataException("Saved native music play lost its pending branch/channel/bank authority.");
             }

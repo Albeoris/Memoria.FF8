@@ -15,12 +15,20 @@ public sealed partial record NativeBattleEffectMemory([property: JsonRequired] N
     public short? CuraContextF4 { get; init; }
     public int? CuraSceneFade { get; init; }
     public NativeBattleCuragaExecutableState? CuragaExecutable { get; init; }
+    public NativeBattleRestorationExecutableState? EsunaExecutable { get; init; }
+    public NativeBattleRestorationExecutableState? FullLifeExecutable { get; init; }
 
-    public static NativeBattleEffectMemory FromColdProcess() => new(null, 0, 0, ImmutableArray.CreateRange(new NativeBattleEffectHeapAllocation?[256]), 0, 0, 0, 0) { Textures = NativeBattleEffectTextureState.FromColdProcess(), Parameter80 = 0, CureContextF4 = 0, CuraContextF4 = 0, CuraSceneFade = 0, CuragaExecutable = NativeBattleCuragaExecutableState.FromColdProcess(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), GuardianWorkBuffer = NativeBattleGuardianWorkBuffer.FromColdProcess(), EffectIo = NativeBattleEffectIoState.FromColdProcess(), GuardianCasterBank = 0, QuezacotlPause = 0, QuezacotlSecondaryHeads = [0, 0, 0, 0, 0], SummonStream = NativeBattleSummonStreamState.FromColdProcess() };
+    public static NativeBattleEffectMemory FromColdProcess() => new(null, 0, 0, ImmutableArray.CreateRange(new NativeBattleEffectHeapAllocation?[256]), 0, 0, 0, 0) { Textures = NativeBattleEffectTextureState.FromColdProcess(), Parameter80 = 0, CureContextF4 = 0, CuraContextF4 = 0, CuraSceneFade = 0, CuragaExecutable = NativeBattleCuragaExecutableState.FromColdProcess(), EsunaExecutable = NativeBattleRestorationExecutableState.FromColdProcess(24), FullLifeExecutable = NativeBattleRestorationExecutableState.FromColdProcess(27), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), GuardianWorkBuffer = NativeBattleGuardianWorkBuffer.FromColdProcess(), EffectIo = NativeBattleEffectIoState.FromColdProcess(), GuardianCasterBank = 0, QuezacotlPause = 0, QuezacotlSecondaryHeads = [0, 0, 0, 0, 0], SummonStream = NativeBattleSummonStreamState.FromColdProcess() };
 
     public void Validate()
     {
         CuragaExecutable?.Validate();
+        EsunaExecutable?.Validate();
+        FullLifeExecutable?.Validate();
+        if (EsunaExecutable is { Effect: not 24 } || FullLifeExecutable is { Effect: not 27 })
+        {
+            throw new InvalidDataException("Native restoration executable owners cannot be exchanged between spells.");
+        }
         if (Cursor is < 0 or > NativeBattleEffectArena.Length || AllocationCount is < 0 or > 256 || Active is not (0 or 1) || SelectedIndex is < 0 or >= 400 || Allocations.IsDefault || Allocations.Length != 256 || Allocations.Any(allocation => allocation is not null && (string.IsNullOrEmpty(allocation.Identity) || allocation.Data.IsDefault)))
         {
             throw new InvalidDataException("Native effect allocator requires its retained cursor, count and256 physical heap slots.");

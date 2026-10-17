@@ -16,6 +16,11 @@ internal static partial class Program
         return session;
     }
 
+    private static GameSession CloneMusicSession(GameState state)
+    {
+        return new GameSession(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(state))!);
+    }
+
     // Controlled protocol fixtures explicitly declare event channel routing, independently of global playback history.
     private static void SetControlledMusicChannels(EventEngine engine, int first = 0, int second = 1)
     {
@@ -125,7 +130,7 @@ internal static partial class Program
             if (cross)
             {
                 engine.Step();
-                Require(session.GlobalSoundProcess!.MusicPlayback == new NativeMusicPlaybackState(127, null, 3, null), "Cross did not establish only its real stop/play writes from unknown global playback.");
+                Require(session.GlobalSoundProcess!.MusicPlayback == new NativeMusicPlaybackState(127, null, 3, null) { Mode0 = NativeMusicPlaybackMode.Wave }, "Cross did not establish only its real stop/play writes from unknown global playback.");
             }
             else
             {

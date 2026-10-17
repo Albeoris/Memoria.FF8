@@ -69,7 +69,7 @@ public sealed class WorldMusicTests
         {
             using var audio = new FieldAudioPresentation(GetDesktopWindow(), game, new MovieClock(session, game).ToolsDirectory);
             audio.SetOutputPreferences(0, 0);
-            audio.ResumeMusic(engine.Scene, engine.FieldId, worldMap: true);
+            audio.ResumeMusic(session.State.GlobalSoundProcess?.MusicPlayback);
             Assert.Null(audio.Error);
             Assert.Equal(41, audio.PrimaryMusicId);
             Assert.Equal(127, audio.PrimaryMusicVolume);
@@ -103,7 +103,7 @@ public sealed class WorldMusicTests
         using var audio = new FieldAudioPresentation(GetDesktopWindow(), game, new MovieClock(session, game).ToolsDirectory);
         audio.SetOutputPreferences(0, 0);
         audio.Attach(world.Events);
-        audio.ResumeMusic(world.Events.Scene, world.Events.FieldId);
+        audio.ResumeMusic(session.State.GlobalSoundProcess?.MusicPlayback);
         Assert.Equal(26, audio.PrimaryMusicId);
         List<NativeWorldMusicLoad> requests = [];
         world.Events.AudioCommandExecuted += command =>
@@ -148,14 +148,15 @@ public sealed class WorldMusicTests
         }
         GameState recreated = GameSession.Load(path);
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(current), JsonSerializer.SerializeToElement(recreated)));
-        using var restored = new GameWorld(new GameSession(recreated), game);
+        var restoredSession = new GameSession(recreated);
+        using var restored = new GameWorld(restoredSession, game);
         restored.EnsureField();
         restored.SetRenderSize(320, 224);
         using (var resumedAudio = new FieldAudioPresentation(GetDesktopWindow(), game, new MovieClock(new GameSession(recreated), game).ToolsDirectory))
         {
             resumedAudio.SetOutputPreferences(0, 0);
             resumedAudio.Attach(restored.Events);
-            resumedAudio.ResumeMusic(restored.Events.Scene, restored.Events.FieldId, worldMap: true);
+            resumedAudio.ResumeMusic(restoredSession.State.GlobalSoundProcess?.MusicPlayback);
             var resumeDeadline = Stopwatch.StartNew();
             while (!resumedAudio.IsMidiPlaying && resumeDeadline.ElapsedMilliseconds < 3000)
             {

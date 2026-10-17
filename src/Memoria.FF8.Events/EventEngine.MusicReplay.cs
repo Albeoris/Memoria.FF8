@@ -53,12 +53,12 @@ public sealed partial class EventEngine
 
     private void ExecuteNativeMusicReplay(Fiber fiber)
     {
-        NativeMusicPlaybackDecision? playback = CommitMusicPlayback(fiber, Jsm.Opcode.MUSICREPLAY);
+        NativeGlobalSoundProcess? sound = PrepareMusicPlayback(fiber, Jsm.Opcode.MUSICREPLAY, out NativeMusicPlaybackDecision? playback);
         byte bank = Scene.MusicProcess!.Bank201!.Value;
         (byte music, string owner) = ReadNativeReplayResource(bank);
         NativeWorldControlState controls = services.WorldControls!;
         bool priorKeep = (controls.EventFlags104 & 0x400) != 0;
-        SetNativeWorldControls(fiber, controls with { MusicKeep207 = priorKeep ? (byte)0 : (byte)1, EventFlags104 = controls.EventFlags104 & ~0x400u });
+        PublishMusicPlaybackOwners(fiber, controls with { MusicKeep207 = priorKeep ? (byte)0 : (byte)1, EventFlags104 = controls.EventFlags104 & ~0x400u }, sound ?? throw new InvalidDataException("Native music replay lost its prepared global process."));
         //51F880 replaces DWORD108 but does not write the retained music BYTE199.
         Scene.MusicChannel108 = Scene.MusicChannel108! with { ChannelId = 0 };
         Scene.MusicPlaying = true;

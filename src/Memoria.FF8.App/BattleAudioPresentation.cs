@@ -3,11 +3,10 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8;
 
 /// <summary>Transient audio follows committed battle events without becoming saved simulation state.</summary>
-internal sealed class BattleAudioPresentation(Action stop, Action<int> playMusic, Action<int> playImpact, Action<BattleCombatant, BattleSequenceSoundCue>? playSequence = null, Action<NativeBattleModuleSound>? playModule = null, Action? stopSounds = null)
+internal sealed class BattleAudioPresentation(Action<int> playImpact, Action<BattleCombatant, BattleSequenceSoundCue>? playSequence = null, Action<NativeBattleModuleSound>? playModule = null, Action? stopSounds = null)
 {
     private BattleSession? battle;
     private int consumedEvents;
-    private BattleOutcome? outcome;
     private readonly HashSet<(string Actor, long Frame, int Index)> sequenceSounds = [];
     private bool sequenceInitialized;
 
@@ -17,10 +16,8 @@ internal sealed class BattleAudioPresentation(Action stop, Action<int> playMusic
         bool changed = !ReferenceEquals(battle, active);
         if (changed)
         {
-            stop();
             battle = active;
             consumedEvents = active?.Events.Count ?? 0;
-            outcome = null;
             sequenceSounds.Clear();
             sequenceInitialized = false;
         }
@@ -63,13 +60,6 @@ internal sealed class BattleAudioPresentation(Action stop, Action<int> playMusic
         if (sounds is not null)
         {
             sequenceInitialized = true;
-        }
-        if (outcome != active.Outcome)
-        {
-            // TODO(TD-009): Default Battle/Win/Lose tracks are presentation selection until native encounter music/flag routing is recovered.
-            int track = active.Outcome switch { BattleOutcome.Active or BattleOutcome.ScriptedExit => 5, BattleOutcome.Victory => 1, BattleOutcome.Defeat => 0, _ => throw new InvalidOperationException("Unknown battle outcome.") };
-            playMusic(track);
-            outcome = active.Outcome;
         }
         return ended;
     }

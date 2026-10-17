@@ -34,13 +34,6 @@ public static partial class NativeBattleCuragaParticles
         }
         return new(frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } }, complete ? 2 : 0);
 
-        int Phase() => unchecked((sbyte)task.ReadByte(0x29));
-        void Next() => task = task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1)));
-        void Complete()
-        {
-            task = task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 1));
-            Next();
-        }
         void Execute(NativeBattleCuragaOperation operation)
         {
             hierarchy = hierarchy.Write(address, task);
@@ -48,53 +41,15 @@ public static partial class NativeBattleCuragaParticles
             hierarchy = new(frame.Effect.Pools);
             task = hierarchy.Read(address);
         }
-        void FadeIn()
+        void FadeIn() => Fade(true);
+        void FadeOut() => Fade(false);
+        void Fade(bool fadeIn)
         {
-            switch (Phase())
+            NativeBattleStageFadeStep step = NativeBattleStageFadeTask.Advance(task, fadeIn);
+            task = step.Task;
+            if (step.Write is { } write)
             {
-                case 0:
-                    task = task.WriteWord(0x1C, 0);
-                    Execute(new NativeBattleCuragaStageFadeOperation(0, true));
-                    Next();
-                    break;
-                case 1:
-                    task = task.WriteWord(0x1C, unchecked((ushort)(task.ReadWord(0x1C) + 256)));
-                    if (Word(task, 0x1C) >= 1024)
-                    {
-                        task = task.WriteWord(0x1C, 1024);
-                        Complete();
-                    }
-                    Execute(new NativeBattleCuragaStageFadeOperation(Word(task, 0x1C), false));
-                    break;
-                case 2:
-                    break;
-                default:
-                    InvalidPhase();
-                    break;
-            }
-        }
-        void FadeOut()
-        {
-            switch (Phase())
-            {
-                case 0:
-                    task = task.WriteWord(0x1C, 1024);
-                    Next();
-                    break;
-                case 1:
-                    task = task.WriteWord(0x1C, unchecked((ushort)(task.ReadWord(0x1C) - 256)));
-                    if (Word(task, 0x1C) <= 0)
-                    {
-                        task = task.WriteWord(0x1C, 0);
-                        Complete();
-                    }
-                    Execute(new NativeBattleCuragaStageFadeOperation(Word(task, 0x1C), false));
-                    break;
-                case 2:
-                    break;
-                default:
-                    InvalidPhase();
-                    break;
+                Execute(new NativeBattleCuragaStageFadeOperation(write.Fade, write.ClearRgb));
             }
         }
         void Flash()
@@ -139,7 +94,6 @@ public static partial class NativeBattleCuragaParticles
                 return resources.FlashProgram[offset];
             }
         }
-        void InvalidPhase() => throw new InvalidDataException("Native Curaga signed fade phase exceeds its three original callbacks.");
     }
 
     private static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));

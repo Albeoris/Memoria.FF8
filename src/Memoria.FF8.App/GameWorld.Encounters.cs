@@ -100,7 +100,7 @@ internal sealed partial class GameWorld
                 {
                     throw new InvalidOperationException("A random battle is already active.");
                 }
-                battle = CreateLiveBattleSession(CreateEncounterBattle(request.Formation, input.NativeSeed!.Value, 0), session.State.GameplayPreferences with { AtbMode = input.Mode });
+                battle = StartNativeBattleSession(request.Formation, 0, input.NativeSeed!.Value, input.Mode);
             }
             else
             {
@@ -133,7 +133,7 @@ internal sealed partial class GameWorld
                     }
                 }
             }
-            session.SetBattle(battle?.Capture());
+            PublishBattleSnapshot(battle);
         }
         if (request.Scene == SceneKind.WorldMap && Field is not null)
         {

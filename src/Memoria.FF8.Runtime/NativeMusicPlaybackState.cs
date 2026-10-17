@@ -5,13 +5,22 @@ namespace Memoria.FF8.Runtime;
 /// <summary>The signed native 1CD2380 gain latches and 1CD2394 current IDs; no device handles, audible clock or AKAO resource bank is implied.</summary>
 public sealed record NativeMusicPlaybackState([property: JsonRequired] int? Gain0, [property: JsonRequired] int? Gain1, [property: JsonRequired] int? CurrentMusicId0, [property: JsonRequired] int? CurrentMusicId1)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeMusicPlaybackMode? Mode0 { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeMusicPlaybackMode? Mode1 { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? BattleFirstLoadB8B7D4 { get; init; }
+
     [JsonIgnore]
     public bool IsColdProcess => this == FromColdProcess();
 
     public static NativeMusicPlaybackState FromColdProcess()
     {
-        // All four DWORDs are in the authenticated executable's loader-zero BSS tail.
-        return new(0, 0, 0, 0);
+        // The gain, ID and mode DWORDs are in the authenticated executable's loader-zero BSS tail.
+        // B8B7D4 is an initialized PE.data BYTE1; only501A70 clears it after the first process-lifetime battle music load.
+        return new(0, 0, 0, 0) { Mode0 = NativeMusicPlaybackMode.Stopped, Mode1 = NativeMusicPlaybackMode.Stopped, BattleFirstLoadB8B7D4 = true };
     }
 
     public static NativeMusicPlaybackState Unknown()
@@ -19,10 +28,31 @@ public sealed record NativeMusicPlaybackState([property: JsonRequired] int? Gain
         return new(null, null, null, null);
     }
 
+    public void Validate()
+    {
+        if (Mode0 is { } first && !Enum.IsDefined(first) || Mode1 is { } second && !Enum.IsDefined(second))
+        {
+            throw new InvalidDataException("Native music mode must retain the original stopped/MIDI/WAV route or remain unknown.");
+        }
+    }
+
     public int ReadGain(int channel)
     {
         ValidateChannel(channel);
         return (channel == 0 ? Gain0 : Gain1) ?? throw new NotSupportedException($"Native music channel {channel} requires its retained 1CD2380 gain latch; the prior value is unknown.");
+    }
+
+    public NativeMusicPlaybackMode ReadMode(int channel)
+    {
+        ValidateChannel(channel);
+        Validate();
+        return (channel == 0 ? Mode0 : Mode1) ?? throw new NotSupportedException($"Native music channel {channel} requires its retained 1CD2388 mode; current ID alone does not establish stopped or MIDI/WAV state.");
+    }
+
+    public NativeMusicPlaybackState ConsumeBattleFirstLoad501A70(out bool toggleReturnBank)
+    {
+        toggleReturnBank = BattleFirstLoadB8B7D4 ?? throw new NotSupportedException("Native501A70 requires its process-lifetime B8B7D4 first-load BYTE; an older music request cannot establish it.");
+        return toggleReturnBank ? this with { BattleFirstLoadB8B7D4 = false } : this;
     }
 
     public NativeMusicPlaybackState SetGain46BB40(uint channel, int gain)
@@ -48,7 +78,7 @@ public sealed record NativeMusicPlaybackState([property: JsonRequired] int? Gain
     public NativeMusicPlaybackState Stop46C060(int channel)
     {
         ValidateChannel(channel);
-        return channel == 0 ? this with { CurrentMusicId0 = 0 } : this with { CurrentMusicId1 = 0 };
+        return channel == 0 ? this with { CurrentMusicId0 = 0, Mode0 = NativeMusicPlaybackMode.Stopped } : this with { CurrentMusicId1 = 0, Mode1 = NativeMusicPlaybackMode.Stopped };
     }
 
     public NativeMusicPlaybackState Stop46B800(uint channel)
@@ -96,7 +126,8 @@ public sealed record NativeMusicPlaybackState([property: JsonRequired] int? Gain
             return this;
         }
         // Native46C060 precedes both writes; on this pure owner it clears only the ID replaced below.
-        return channel == 0 ? this with { Gain0 = gain, CurrentMusicId0 = id } : this with { Gain1 = gain, CurrentMusicId1 = id };
+        NativeMusicPlaybackMode mode = NativeMusicRouting.Mode46B530(id);
+        return channel == 0 ? this with { Gain0 = gain, CurrentMusicId0 = id, Mode0 = mode } : this with { Gain1 = gain, CurrentMusicId1 = id, Mode1 = mode };
     }
 
     public NativeMusicPlaybackState Play46B510(ReadOnlySpan<byte> resource, Func<ushort>? readCurrentField = null)
@@ -122,7 +153,7 @@ public sealed record NativeMusicPlaybackState([property: JsonRequired] int? Gain
             return this;
         }
         // Every remaining concert mask stops channel0 and writes ID43 before device selection.
-        return this with { CurrentMusicId0 = 43 };
+        return this with { CurrentMusicId0 = 43, Mode0 = NativeMusicPlaybackMode.Midi };
     }
 
     private static ushort ReadCurrentField(Func<ushort>? readCurrentField)

@@ -51,6 +51,9 @@ public sealed class SceneEventState
     public NativeMusicProcessState? MusicProcess { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleMusicEntryReceipt? NativeBattleMusicEntry { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeMusicLoadRequest? MusicLoadRequest { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

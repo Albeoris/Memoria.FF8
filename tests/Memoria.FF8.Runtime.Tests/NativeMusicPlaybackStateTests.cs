@@ -40,8 +40,10 @@ public sealed class NativeMusicPlaybackStateTests
     [InlineData(uint.MaxValue, 0, 0)]
     public void Stop_establishes_only_selected_IDs_and_preserves_unknown_gains(uint channel, int? id0, int? id1)
     {
-        Assert.Equal(new NativeMusicPlaybackState(null, null, id0, id1), NativeMusicPlaybackState.Unknown().Stop46B800(channel));
-        Assert.Equal(new NativeMusicPlaybackState(300, -1, id0, id1), new NativeMusicPlaybackState(300, -1, null, null).Stop46B800(channel));
+        NativeMusicPlaybackMode? mode0 = channel == 1 ? null : NativeMusicPlaybackMode.Stopped;
+        NativeMusicPlaybackMode? mode1 = channel == 0 ? null : NativeMusicPlaybackMode.Stopped;
+        Assert.Equal(new NativeMusicPlaybackState(null, null, id0, id1) { Mode0 = mode0, Mode1 = mode1 }, NativeMusicPlaybackState.Unknown().Stop46B800(channel));
+        Assert.Equal(new NativeMusicPlaybackState(300, -1, id0, id1) { Mode0 = mode0, Mode1 = mode1 }, new NativeMusicPlaybackState(300, -1, null, null).Stop46B800(channel));
     }
 
     [Fact]
@@ -49,8 +51,8 @@ public sealed class NativeMusicPlaybackStateTests
     {
         NativeMusicPlaybackState initial = new(null, -40, 3, 4);
         Assert.Same(initial, initial.Play46B530(0, Akao(4), 127));
-        Assert.Equal(new NativeMusicPlaybackState(300, -40, 5, 4), initial.Play46B530(0, Akao(6), 300));
-        Assert.Equal(new NativeMusicPlaybackState(null, -7, 3, 6), initial.Dual46B870(Akao(7), -7));
+        Assert.Equal(new NativeMusicPlaybackState(300, -40, 5, 4) { Mode0 = NativeMusicPlaybackMode.Midi }, initial.Play46B530(0, Akao(6), 300));
+        Assert.Equal(new NativeMusicPlaybackState(null, -7, 3, 6) { Mode1 = NativeMusicPlaybackMode.Wave }, initial.Dual46B870(Akao(7), -7));
         Assert.Throws<NotSupportedException>(() => NativeMusicPlaybackState.Unknown().Play46B530(0, Akao(4), 127));
     }
 
@@ -76,11 +78,11 @@ public sealed class NativeMusicPlaybackStateTests
     public void AKAO_zero_decodes_minus_one_and_cross_stops_before_the_same_ID_comparison()
     {
         NativeMusicPlaybackState state = new(77, -12, 8, 9);
-        Assert.Equal(new NativeMusicPlaybackState(127, -12, -1, 9), state.Play46B530(0, Akao(0), 127));
-        Assert.Equal(new NativeMusicPlaybackState(77, -12, 0, 9), state.Cross46B850(Akao(1), 127));
-        Assert.Equal(new NativeMusicPlaybackState(127, -12, 8, 9), state.Cross46B850(Akao(9), 127));
-        Assert.Equal(new NativeMusicPlaybackState(77, -12, 0, 9), state.Cross46B850("12345678"u8, 127));
-        Assert.Equal(new NativeMusicPlaybackState(127, null, 3, null), NativeMusicPlaybackState.Unknown().Cross46B850(Akao(4), 127));
+        Assert.Equal(new NativeMusicPlaybackState(127, -12, -1, 9) { Mode0 = NativeMusicPlaybackMode.Midi }, state.Play46B530(0, Akao(0), 127));
+        Assert.Equal(new NativeMusicPlaybackState(77, -12, 0, 9) { Mode0 = NativeMusicPlaybackMode.Stopped }, state.Cross46B850(Akao(1), 127));
+        Assert.Equal(new NativeMusicPlaybackState(127, -12, 8, 9) { Mode0 = NativeMusicPlaybackMode.Midi }, state.Cross46B850(Akao(9), 127));
+        Assert.Equal(new NativeMusicPlaybackState(77, -12, 0, 9) { Mode0 = NativeMusicPlaybackMode.Stopped }, state.Cross46B850("12345678"u8, 127));
+        Assert.Equal(new NativeMusicPlaybackState(127, null, 3, null) { Mode0 = NativeMusicPlaybackMode.Wave }, NativeMusicPlaybackState.Unknown().Cross46B850(Akao(4), 127));
     }
 
     [Fact]
@@ -101,7 +103,7 @@ public sealed class NativeMusicPlaybackStateTests
     public void Plain_play_reads_retained_gain_and_unknown_partial_state_cannot_infer_it_from_IDs()
     {
         NativeMusicPlaybackState state = new(300, null, 0, null);
-        Assert.Equal(new NativeMusicPlaybackState(300, null, 3, null), state.Play46B510(Akao(4)));
+        Assert.Equal(new NativeMusicPlaybackState(300, null, 3, null) { Mode0 = NativeMusicPlaybackMode.Wave }, state.Play46B510(Akao(4)));
         Assert.Throws<NotSupportedException>(() => NativeMusicPlaybackState.Unknown().Stop46C060(0).Play46B510(Akao(4)));
         Assert.Throws<NotSupportedException>(() => state.ReadGain(-1));
         Assert.Throws<NotSupportedException>(() => state.Play46B530(2, Akao(4), 127));
@@ -114,7 +116,7 @@ public sealed class NativeMusicPlaybackStateTests
     [InlineData(0x400000u)]
     public void Concert_non_sentinel_masks_write_ID43_without_field_or_gain_reads(uint mask)
     {
-        Assert.Equal(new NativeMusicPlaybackState(null, -1, 43, null), new NativeMusicPlaybackState(null, -1, null, null).Concert46B990(mask, () => throw new InvalidOperationException()));
+        Assert.Equal(new NativeMusicPlaybackState(null, -1, 43, null) { Mode0 = NativeMusicPlaybackMode.Midi }, new NativeMusicPlaybackState(null, -1, null, null).Concert46B990(mask, () => throw new InvalidOperationException()));
     }
 
     [Fact]
@@ -122,7 +124,7 @@ public sealed class NativeMusicPlaybackStateTests
     {
         NativeMusicPlaybackState unknown = NativeMusicPlaybackState.Unknown();
         Assert.Same(unknown, unknown.Concert46B990(4095, () => 633));
-        Assert.Equal(new NativeMusicPlaybackState(null, null, 43, null), unknown.Concert46B990(4095, () => 634));
+        Assert.Equal(new NativeMusicPlaybackState(null, null, 43, null) { Mode0 = NativeMusicPlaybackMode.Midi }, unknown.Concert46B990(4095, () => 634));
         Assert.Throws<NotSupportedException>(() => unknown.Concert46B990(4095));
     }
 
@@ -143,7 +145,7 @@ public sealed class NativeMusicPlaybackStateTests
         Assert.DoesNotContain("MusicPlayback", JsonSerializer.Serialize(restoredLegacy));
         NativeGlobalSoundProcess partial = cold with { MusicPlayback = NativeMusicPlaybackState.Unknown().Stop46C060(1).SetGain46BB40(0, 300) };
         NativeGlobalSoundProcess restored = JsonSerializer.Deserialize<NativeGlobalSoundProcess>(JsonSerializer.Serialize(partial))!;
-        Assert.Equal(new NativeMusicPlaybackState(300, null, null, 0), restored.MusicPlayback);
+        Assert.Equal(new NativeMusicPlaybackState(300, null, null, 0) { Mode1 = NativeMusicPlaybackMode.Stopped }, restored.MusicPlayback);
         Assert.False(restored.IsColdProcess);
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeMusicPlaybackState>("{}"));
     }

@@ -109,10 +109,11 @@ internal static partial class Program
         first.Step();
         Require(first.Scene.PartyBindingMemory == new NativePartyBindingMemory(1, 0, 1, 255), "Original REFRESHPARTY did not record independently typed save BYTE194..196 authority.");
         first.LoadField(101, secondField, []);
-        first.Step();
+        // Save before initialization: serial init executes WAIT synchronously, so a post-Step save is already after allocation.
         JsonElement paused = first.Capture();
+        GameState pausedRoot = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
         Require(first.Scene.NativeActorLayoutVersion == 0 && first.Scene.FieldPartyNativeActorIds.Count == 0 && first.Scene.PartyBindingMemory == new NativePartyBindingMemory(1, 0, 1, 255), "Field allocation confused retained global BYTE authority with current compact actor bindings.");
-        GameSession restoredSession = CreateControlledMusicSession();
+        GameSession restoredSession = CloneMusicSession(pausedRoot);
         EventEngine restored = new(restoredSession);
         restored.LoadField(101, secondField, []);
         restored.Restore(paused);
@@ -136,6 +137,10 @@ internal static partial class Program
             {
             }
         }
+        // Branch from the complete original root; do not rewind timer state beneath advanced playtime.
+        restoredSession = CloneMusicSession(pausedRoot);
+        restored = new EventEngine(restoredSession);
+        restored.LoadField(101, secondField, []);
         restored.Restore(paused);
         JsonElement beforeAlias = restored.Capture();
         try

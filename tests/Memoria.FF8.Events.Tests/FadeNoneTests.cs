@@ -41,6 +41,9 @@ internal static partial class Program
         byte[] direct = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.FADENONE, 0), (Jsm.Opcode.FADEBLACK, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
         EventEngine changed = Create(direct);
         changed.Step();
+        // Synchronous52C650 initialization issues commands without a4767B0/47B980 drawing callback.
+        Require(changed.FieldFade is { Physical.Mode: 4, Saved.Mode: 4, Draw.Mode: NativeFadeDrawMode.None }, "FADEBLACK did not issue its physical/saved mode during synchronous initialization.");
+        changed.Step();
         Require(changed.FieldFade is { Physical.Mode: 4, Saved.Mode: 4, Draw.Mode: NativeFadeDrawMode.Black }, "FADEBLACK did not replace the sole physical mode and drawing sample.");
         byte[] overlap = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.FADENONE, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_L, 215), (Jsm.Opcode.RET, 0));
         EventEngine refused = Create(overlap);

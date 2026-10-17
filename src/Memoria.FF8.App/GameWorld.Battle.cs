@@ -35,6 +35,7 @@ internal sealed partial class GameWorld
         {
             try
             {
+                _ = Events.PrepareNativeBattleMusicEntry(encounter, flags, BattleMusicEntryResources, session.State.NativeBattleMemory?.MusicProcess?.ReturnChannel);
                 BattleDefinition definition = CreateEncounterBattle(encounter, activeFlags: flags);
                 _ = new BattleSession(definition, BattleAtbMode.Normal);
                 return null;
@@ -143,6 +144,7 @@ internal sealed partial class GameWorld
         {
             return;
         }
+        ValidateBattleMusicHostState(battle);
         if (session.State.RandomEncounters?.Pending is not null)
         {
             ValidateRandomBattleHostState();
@@ -168,6 +170,7 @@ internal sealed partial class GameWorld
 
     internal static BattleDefinition BindBattleEntryClock(BattleDefinition current, BattleSnapshot saved, NativeExamTimerState? timer)
     {
+        current = current with { NativeGlobalSoundProcess = saved.Definition.NativeGlobalSoundProcess, NativeMusicProcess = saved.Definition.NativeMusicProcess, NativeRetainedMemory = saved.Definition.NativeRetainedMemory, NativeVibrationProcess = saved.Definition.NativeVibrationProcess };
         if (saved.Definition.NativeExamTimerAtEntry is not { } entry)
         {
             return current with { NativeExamTimerAtEntry = null };
@@ -232,8 +235,7 @@ internal sealed partial class GameWorld
             {
                 throw new InvalidOperationException("Start Encounter requires one suspended interactive BATTLE request.");
             }
-            battle = CreateLiveBattleSession(CreateEncounterBattle(request.Encounter, input.NativeSeed!.Value, request.Flags), session.State.GameplayPreferences with { AtbMode = input.Mode });
-            session.SetBattle(battle.Capture());
+            battle = StartNativeBattleSession(request.Encounter, request.Flags, input.NativeSeed!.Value, input.Mode);
             return 0;
         }
         BattleSession active = battle ?? throw new InvalidOperationException("No interactive battle is active.");
@@ -246,7 +248,7 @@ internal sealed partial class GameWorld
             }
             CompleteBattle(active);
             battle = null;
-            session.SetBattle(null);
+            PublishBattleSnapshot(null);
             return 0;
         }
         ExecuteBattleCommand(active, input);
@@ -255,7 +257,7 @@ internal sealed partial class GameWorld
         {
             Events.AdvanceInteractiveBattleCallbacks(advanced);
         }
-        session.SetBattle(active.Capture());
+        PublishBattleSnapshot(active);
         return advanced;
     }
     internal static int ExecuteBattleCommand(BattleSession active, BattleInput input)

@@ -29,7 +29,7 @@ public sealed class BattleSoundFeedbackTests
         BattleDefinition definition = new() { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "dummy", Name = "Dummy", ModelId = -1, InitialAtb = BattleSession.AtbMaximum }] };
         BattleSession battle = new(definition, BattleAtbMode.Normal);
         List<int> impactActors = [];
-        BattleAudioPresentation audio = new(() => { }, _ => { }, impactActors.Add);
+        BattleAudioPresentation audio = new(impactActors.Add);
         audio.Update(battle);
         for (int frame = 0; frame < BattleSession.AttackWindupFrames + 2; frame++)
         {
