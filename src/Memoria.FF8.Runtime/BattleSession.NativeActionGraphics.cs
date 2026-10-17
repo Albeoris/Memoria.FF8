@@ -24,6 +24,18 @@ public sealed partial class BattleSession
     private (NativeBattleGraphicsState Graphics, byte Phase, bool Complete) PollNativeActionGraphics(NativeBattleGraphicsState graphics, byte phase)
     {
         NativeBattleActionGraphicsState context = graphics.ActionGraphics ?? throw new InvalidDataException("Native104 callback lost its50BF90 action globals.");
+        if (context.Callback is 0x50BEE0 or 0x50BDC0)
+        {
+            return PollNativeDirectGraphics(graphics, context, phase);
+        }
+        if (context.Callback == 0x50BC20)
+        {
+            return PollNativeUnsequencedGraphics(graphics, context, phase);
+        }
+        if (context.Callback == 0x50B830)
+        {
+            return PollNativeIndependentSummonGraphics(graphics, context, phase);
+        }
         if (context.Callback == 0x50BB00)
         {
             return PollNativeOrdinaryGraphics(graphics, context, phase);

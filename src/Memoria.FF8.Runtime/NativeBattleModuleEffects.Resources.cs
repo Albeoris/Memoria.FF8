@@ -11,6 +11,7 @@ public sealed partial record NativeBattleModuleInputs
     public Func<int, NativeBattleModuleAnchor>? ReadModelAnchor { get; init; }
     public Func<int, short>? ReadModelRotation14 { get; init; }
     public Func<int, byte, short, NativeBattleVector>? ReadModelBone { get; init; }
+    public Func<int, NativeBattleVector, NativeBattleVector>? TransformModelPosition { get; init; }
     public NativeCrtRandomState? CrtRandom { get; init; }
 }
 
@@ -43,6 +44,20 @@ public sealed partial record NativeBattleModuleDraw
 
 public sealed partial record NativeBattleModuleState
 {
+    public NativeBattleModuleState AppendPositionResource(int model, NativeBattleVector local, NativeBattleModuleResource resource, uint packedParameters)
+    {
+        NativeBattleModuleState state = AppendModelResource(model, resource, packedParameters);
+        int slot = state.Tail!.Value;
+        byte[] payload = state.Slots[slot].Payload.ToArray();
+        BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(2), 4);
+        BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(4), local.X);
+        BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(6), local.Y);
+        BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(8), local.Z);
+        BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(10), 0);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(12), ModelAddress(model));
+        return state with { Slots = state.Slots.SetItem(slot, state.Slots[slot] with { Payload = payload.ToImmutableArray() }) };
+    }
+
     public NativeBattleModuleState AppendModelResource(int model, NativeBattleModuleResource resource, uint packedParameters)
     {
         if ((uint)model >= 7 || (byte)packedParameters != resource.Id)
@@ -68,7 +83,7 @@ public sealed partial record NativeBattleModuleState
     {
         NativeBattleModuleTask task = Slots[slot];
         short placement = S16(task.Payload, 2);
-        int model = ModelIndex(U32(task.Payload, 4));
+        int model = ModelIndex(U32(task.Payload, placement == 4 ? 12 : 4));
         NativeBattleModuleAnchor anchor;
         if (placement == 1)
         {
@@ -79,6 +94,12 @@ public sealed partial record NativeBattleModuleState
             short fraction = S16(task.Payload, 14);
             NativeBattleVector point = (inputs.ReadModelBone ?? throw new NotSupportedException("Native570CC0 placement3 requires its actual502170 bone."))(model, checked((byte)S16(task.Payload, 12)), (short)(fraction & 0x7FFF));
             anchor = new(point.X, fraction < 0 ? (short)0 : point.Y, point.Z, 0);
+        }
+        else if (placement == 4)
+        {
+            NativeBattleVector local = new(S16(task.Payload, 4), S16(task.Payload, 6), S16(task.Payload, 8));
+            NativeBattleVector point = (inputs.TransformModelPosition ?? throw new NotSupportedException("Native570CC0 placement4 requires its actual model matrix at callback time."))(model, local);
+            anchor = new(point.X, point.Y, point.Z, 0);
         }
         else
         {

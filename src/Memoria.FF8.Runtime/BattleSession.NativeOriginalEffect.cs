@@ -2,13 +2,13 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState BeginNativeOriginalEffect(NativeBattleGraphicsState graphics, ushort effect)
+    private NativeBattleGraphicsState BeginNativeOriginalEffect(NativeBattleGraphicsState graphics, ushort effect, bool destination21DFEC0 = false)
     {
         NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(effect, definition.NativeEffectCatalog);
         selected = NativeBattleEffectResourceResolver.MaterializeSelected(selected, nativeEffectResourceResolver);
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native50AF20 requires its retained571870 allocator owner; migrate the standalone snapshot explicitly.");
         (memory, selected) = NativeBattleOriginalEffects.Initialize(memory, selected);
-        NativeEffectMemory = memory;
+        NativeEffectMemory = memory.PublishEntry50AF20(selected.Binding, destination21DFEC0);
         return graphics with { OriginalEffect = selected };
     }
 
@@ -22,7 +22,7 @@ public sealed partial class BattleSession
 
     private NativeBattleEffectParameters CreateNativeOriginalEffectParameters(NativeBattleActionGraphicsState context, byte parameterFlags = 0)
     {
-        return new(context.ActorIndex, (byte)(context.HitFlags | parameterFlags), context.TargetMask, context.HeaderIndex, 0, 0) { Parameter80 = NativeEffectMemory?.Parameter80 };
+        return new(context.ActorIndex, (byte)(context.HitFlags | parameterFlags), context.TargetMask, context.HeaderIndex, 0, 0) { Parameter80 = NativeEffectMemory?.Parameter80, Parameter82 = NativeEffectMemory?.Parameter82 };
     }
 
     private NativeBattleGraphicsState InvokeNativeOriginalEffect(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context, byte parameterFlags = 0)

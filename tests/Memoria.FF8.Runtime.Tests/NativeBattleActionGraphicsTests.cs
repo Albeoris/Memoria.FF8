@@ -5,6 +5,57 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleActionGraphicsTests
 {
+    [Fact]
+    public void First_header_target_count_is_copied_by_normalize_and_retained_in_snapshots()
+    {
+        NativeBattleActionGraphicsState action = NativeBattleActionGraphics.Normalize(Prepare(1, count: 1), 0);
+        Assert.Equal(1, NativeBattleActionGraphics.ReadFirstHeaderTargetCount5044B0(action));
+        NativeBattleActionGraphicsState restored = JsonSerializer.Deserialize<NativeBattleActionGraphicsState>(JsonSerializer.Serialize(action))!;
+        Assert.Equal(1, NativeBattleActionGraphics.ReadFirstHeaderTargetCount5044B0(restored));
+        Assert.Throws<NotSupportedException>(() => NativeBattleActionGraphics.ReadFirstHeaderTargetCount5044B0(action with { FirstHeaderTargetCount = null }));
+        Assert.Throws<NotSupportedException>(() => NativeBattleActionGraphics.ReadFirstHeaderTargetCount5044B0(null));
+        Assert.Equal(0, NativeBattleActionGraphics.ReadFirstHeaderTargetCount5044B0(NativeBattleActionGraphics.Normalize(Prepare(1), 0, action)));
+    }
+
+    [Theory]
+    [InlineData(33)]
+    [InlineData(45)]
+    [InlineData(48)]
+    [InlineData(49)]
+    [InlineData(50)]
+    [InlineData(52)]
+    public void Target_expression_writes_its_exact_word_without_clobbering_neighbor_fields(byte variable)
+    {
+        NativeBattleGraphicsModel model = new(3, 2) { Rotation12 = 10, Rotation14 = 20, Rotation16 = 30, Transform = new(new(1, 2, 3), new(4, 5, 6), 7, 8, 9) { Scale148 = new(11, 12, 13) } };
+        NativeBattleGraphicsModel expected = variable switch
+        {
+            33 or 48 => model with { Rotation12 = -2 },
+            49 => model with { Rotation14 = -2 },
+            50 => model with { Rotation16 = -2 },
+            45 => model with { Transform = model.Transform with { Scale148 = new(11, -2, 13) } },
+            52 => model with { Transform = model.Transform with { Position28 = new(4, -2, 6) } },
+            _ => throw new InvalidDataException()
+        };
+        Assert.Equal(expected, NativeBattleActionGraphics.WriteSequenceTarget5048E0(model, variable, 0x1FFFE));
+    }
+
+    [Theory]
+    [InlineData(0, 0, 0, 0, 0)]
+    [InlineData(2, 0, 0, 0, 1)]
+    [InlineData(2, 0, 0, 0x40, 0)]
+    [InlineData(2, 0, 1, 0x40, 1)]
+    [InlineData(10, 0, 1, 0, 0)]
+    [InlineData(2, 2, 1, 0, 0)]
+    [InlineData(2, 8, 1, 0, 0)]
+    [InlineData(2, 16, 1, 0, 0)]
+    public void Sequence_busy_query_uses_508540_and_excludes_the_current_model(int flags0, uint flags8, byte kind, ushort resourceFlags, short expected)
+    {
+        NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearBank();
+        models[0] = new(0, 2) { Flags8 = 0, Kind5 = 1 };
+        models[3] = new(3, (ushort)flags0) { Flags8 = flags8, Kind5 = kind, ResourceFlags44 = resourceFlags };
+        Assert.Equal(expected, NativeBattleActionGraphics.AnyOtherModelBusy5044B0(models, 0));
+    }
+
     [Theory]
     [InlineData(0, 0)]
     [InlineData(1, 0)]
@@ -12,26 +63,32 @@ public sealed class NativeBattleActionGraphicsTests
     [InlineData(3, 2)]
     [InlineData(0xFD, 0)]
     [InlineData(0xFF, 2)]
-    public void Sequence_camera_flag_reads_only_bit_one_of_the_active_physical_header(int cameraChoice, int expected)
+    public void Sequence_flag_reads_current_physical_contact_not_header_camera_bits(byte contactFlags, short expected)
     {
-        NativeBattleActionPacketsState packets = Prepare();
-        (packets, _) = packets.Prepare(new(3, 1, 13, unchecked((sbyte)cameraChoice), 0, 0, null));
-        (packets, _) = packets.Publish(0);
-        packets = packets.ActivateHeader(1);
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
+        (packets, _) = packets.Prepare(new(0, 1, 13, (sbyte)(contactFlags ^ 2), 0, 0, null));
+        (packets, _) = packets.AppendContact(Contact(3, 0, contactFlags));
+        (packets, _) = packets.AppendContact(Contact(4, 0, (byte)(contactFlags ^ 2)));
+        (packets, _) = packets.Publish(2);
+        packets = packets.ActivateHeader(0);
         Assert.Equal(expected, NativeBattleActionGraphics.ReadCameraFlag50A6E0(packets));
+        Assert.Equal(expected ^ 2, NativeBattleActionGraphics.ReadCameraFlag50A6E0(packets.AdvanceContact50A690()));
         NativeBattleActionPacketsState restored = JsonSerializer.Deserialize<NativeBattleActionPacketsState>(JsonSerializer.Serialize(packets))!;
         Assert.Equal(expected, NativeBattleActionGraphics.ReadCameraFlag50A6E0(restored));
-        Assert.Equal(2, NativeBattleActionGraphics.ReadCameraFlag50A6E0(packets.ActivateHeader(0)));
     }
 
     [Fact]
-    public void Sequence_camera_flag_requires_a_known_active_header_byte()
+    public void Zero_target_header_preserves_physical_contact_pointer_and_reads_retained_bytes()
     {
-        NativeBattleActionPacketsState packets = Prepare();
-        Assert.Throws<NotSupportedException>(() => NativeBattleActionGraphics.ReadCameraFlag50A6E0(packets));
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[32 * 20], new byte[49 * 24]);
+        (packets, _) = packets.Prepare(new(0, 1, 13, 2, 0, 0, null));
+        (packets, _) = packets.Publish(0);
         packets = packets.ActivateHeader(0);
-        NativeBattleActionHeaderSlot unknown = packets.Headers[0] with { UnknownByteMask = packets.Headers[0].UnknownByteMask | 8 };
-        Assert.Throws<NotSupportedException>(() => NativeBattleActionGraphics.ReadCameraFlag50A6E0(packets with { Headers = packets.Headers.SetItem(0, unknown) }));
+        Assert.Equal(0, packets.ActiveContactIndex);
+        Assert.Equal(0, NativeBattleActionGraphics.ReadCameraFlag50A6E0(packets));
+        Assert.Equal(0, NativeBattleActionGraphics.ReadCameraFlag50A6E0(packets.ResetCounts()));
+        Assert.Throws<NotSupportedException>(() => NativeBattleActionGraphics.ReadCameraFlag50A6E0(packets with { ActiveContactIndex = null }));
+        Assert.Throws<NotSupportedException>(() => NativeBattleActionGraphics.ReadCameraFlag50A6E0(packets with { Contacts = packets.Contacts.SetItem(0, null) }));
     }
 
     [Theory]

@@ -20,6 +20,7 @@ public sealed class HostedAutomaticBattleTests
         world.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigurePlaythrough, FullCombat: true));
         // Formation 34 is a supported early world encounter; this synthetic owner isolates policy timing.
         world.Events.LoadField(999, Program(34), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        NativeBattleComponentInputs.ConfigureFieldMusic(world.Events, Program(34), 0, 5, -1);
         world.Events.Step();
         world.Events.Step();
         Assert.NotNull(world.Events.PendingInteractiveBattle);
@@ -142,7 +143,7 @@ public sealed class HostedAutomaticBattleTests
         session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
         session.InitializeNewGameGlobalRandom(assets.ReadNewGameGlobalRandom());
         session.InitializeNewGameKnownMagic(assets.ReadNewGameKnownMagic());
-        session.Restore(session.State with { Scene = SceneKind.Field, FieldId = 999, FieldName = "synthetic-automatic-battle-component" });
+        session.Restore(session.State with { Scene = SceneKind.Field, FieldId = 999, FieldLoadContext = null, FieldRequestPacket = null, FieldName = "synthetic-automatic-battle-component" });
         return (session, learning.LearningIndex);
     }
 

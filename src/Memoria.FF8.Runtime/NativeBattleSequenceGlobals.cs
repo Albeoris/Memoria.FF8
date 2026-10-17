@@ -4,6 +4,7 @@ public sealed partial record NativeBattleEffectMemory
 {
     public short? SequenceSine { get; init; }
     public short? SequenceCosine { get; init; }
+    public byte? SequenceParticlePreviousBone { get; init; }
 
     public short ReadSequenceGlobal5044B0(byte variable)
     {

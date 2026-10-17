@@ -185,7 +185,7 @@ public sealed class BattleIntegrationTests
         session.StartNewGame();
         session.InitializeNewGameCharacterVitals(InitialVitals.Value.DeepCopy());
         // Declare the synthetic component's field owner; no original visit is claimed.
-        session.Restore(session.State with { FieldId = FixtureField, FieldName = "synthetic-interactive-battle-component" });
+        session.Restore(session.State with { FieldId = FixtureField, FieldLoadContext = null, FieldRequestPacket = null, FieldName = "synthetic-interactive-battle-component" });
         EventEngine engine = CreateEngine(session);
         engine.LoadField(FixtureField, source, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         engine.Step();

@@ -89,14 +89,14 @@ public sealed class NativeBattleEffectResourceResolverTests
         NativeBattleGraphicsState graphics = new([], [], 0, 0) { OriginalEffect = previous };
         string requestBefore = JsonSerializer.Serialize(graphics);
         MethodInfo begin = typeof(BattleSession).GetMethod("BeginNativeOriginalEffect", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => begin.Invoke(session, [graphics, (ushort)144]));
+        TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => begin.Invoke(session, [graphics, (ushort)144, false]));
         Assert.IsType<NotSupportedException>(error.InnerException);
         Assert.Equal(1, calls);
         Assert.Equal(before, JsonSerializer.Serialize(session.Capture()));
         Assert.Equal(requestBefore, JsonSerializer.Serialize(graphics));
         Assert.Same(previous, graphics.OriginalEffect);
         session.AttachNativeEffectResourceResolver(effect => Catalog()[effect - 1] with { InitializerAsset = new("fixture.tim", [0xA7]) });
-        NativeBattleGraphicsState admitted = (NativeBattleGraphicsState)begin.Invoke(session, [graphics, (ushort)144])!;
+        NativeBattleGraphicsState admitted = (NativeBattleGraphicsState)begin.Invoke(session, [graphics, (ushort)144, false])!;
         Assert.Equal((ushort)144, admitted.OriginalEffect!.Binding.Effect);
         Assert.Equal(143, session.NativeEffectMemory!.SelectedIndex);
         Assert.Equal(new byte[] { 0xA7 }, session.NativeEffectMemory.Arena!.Read(0, 1));

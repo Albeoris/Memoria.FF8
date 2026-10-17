@@ -57,6 +57,7 @@ public sealed class NativeBattleBlizzardPresentationTests
         };
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_BLIZZARD_EVIDENCE");
         string id = "blizzard144-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N")[..8];
+        definition = NativeBattleComponentInputs.PrepareMusic(definition, game.GameDirectory, 0, 5, -1);
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         BattleSnapshot entry = battle.Capture();
         Publish(evidence, id + "-before-entry", entry, null);

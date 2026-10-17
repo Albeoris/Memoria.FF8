@@ -7,7 +7,7 @@ public sealed record NativeBattleTextureCopy(short SourceX, short SourceY, short
 
 public static class NativeBattleTextureMotion
 {
-    public static NativeBattleTextureCopy? Plan50C780(ImmutableArray<byte>? source, ushort? allocationMask, byte selector, byte variant)
+    public static NativeBattleTextureCopy? Plan50C780(ImmutableArray<byte>? source, ushort? allocationMask, byte selector, int variant)
     {
         ImmutableArray<byte> table = source ?? throw new NotSupportedException("Native50C780 requires its original resource DWORD48 texture-motion table; unknown is distinct from a NULL table.");
         if (table.IsDefault)
@@ -28,7 +28,8 @@ public static class NativeBattleTextureMotion
         {
             return null;
         }
-        if (offset > table.Length - 10 - 2 * variant)
+        long variantOffset = offset + 8L + 2L * variant;
+        if (offset > table.Length - 5 || variantOffset < 0 || variantOffset > table.Length - 2)
         {
             throw new InvalidDataException("Native50C780 texture variant leaves its original byte descriptor.");
         }
@@ -50,6 +51,6 @@ public static class NativeBattleTextureMotion
         }
         int x = (selected / 2 + 10) * 64;
         int y = (selected & 1) * 128;
-        return new(checked((short)(x + data[8 + 2 * variant])), checked((short)(y + data[9 + 2 * variant])), data[3], data[4], checked((short)(x + data[1])), checked((short)(y + data[2])));
+        return new(checked((short)(x + table[(int)variantOffset])), checked((short)(y + table[(int)variantOffset + 1])), data[3], data[4], checked((short)(x + data[1])), checked((short)(y + data[2])));
     }
 }

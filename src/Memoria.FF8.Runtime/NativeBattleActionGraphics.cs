@@ -12,6 +12,9 @@ public sealed record NativeBattleActionGraphicsState([property: JsonRequired] in
     public ushort? ReflectionWatchdog4A { get; init; }
     public ushort? CastingWatchdog8E { get; init; }
     public NativeBattleGuardianServiceState? Guardian { get; init; }
+    public byte? FirstHeaderTargetCount { get; init; }
+    public byte? IndependentSummonPartyMask6C { get; init; }
+    public byte? ActorSelector56 { get; init; }
 }
 public sealed record NativeBattleGuardianServiceState(byte HiddenPartyMask47, byte CameraSelector4E, ushort Control44, byte? Neighbor70 = null);
 public sealed record NativeBattleActionServiceSelection(uint Callback, uint SetGraphicsFlags = 0, byte? Sequence = null);
@@ -20,8 +23,42 @@ public static class NativeBattleActionGraphics
 {
     public static short ReadCameraFlag50A6E0(NativeBattleActionPacketsState packets)
     {
-        int active = packets.ActiveHeaderIndex ?? throw new NotSupportedException("Native50A6E0 requires its active104 action header.");
-        return (short)(packets.Headers[active].ReadByte(3) & 2);
+        return (short)(packets.ReadActiveContact().Primary.HitFlags3 & 2);
+    }
+
+    public static int ReadFirstHeaderTargetCount5044B0(NativeBattleActionGraphicsState? action)
+    {
+        return action?.FirstHeaderTargetCount ?? throw new NotSupportedException("Native sequence count requires its50BF90 cached first-header BYTE16; migrate the standalone snapshot explicitly.");
+    }
+
+    public static NativeBattleGraphicsModel WriteSequenceTarget5048E0(NativeBattleGraphicsModel target, byte variable, int value)
+    {
+        short word = unchecked((short)value);
+        return variable switch
+        {
+            33 or 48 => target with { Rotation12 = word },
+            49 => target with { Rotation14 = word },
+            50 => target with { Rotation16 = word },
+            45 => target with { Transform = (target.Transform ?? throw new NotSupportedException("Native sequence target scale requires its WORD150 owner.")) with { Scale148 = target.Transform.Scale148 with { Y = word } } },
+            52 => target with { Transform = (target.Transform ?? throw new NotSupportedException("Native sequence target position requires its WORD30 owner.")) with { Position28 = target.Transform.Position28 with { Y = word } } },
+            _ => throw new NotSupportedException($"Native sequence write{variable:X2} is not a target model WORD write.")
+        };
+    }
+
+    public static short AnyOtherModelBusy5044B0(IReadOnlyList<NativeBattleGraphicsModel> models, int currentIndex)
+    {
+        if (models.Count != 7 || (uint)currentIndex >= 7)
+        {
+            throw new InvalidDataException("Native sequence busy query requires its seven graphics records and current model identity.");
+        }
+        for (int index = 0; index < models.Count; index++)
+        {
+            if (index != currentIndex && (models[index].Flags0 & 2) != 0 && IsModelBusy(models[index], 0x40))
+            {
+                return 1;
+            }
+        }
+        return 0;
     }
 
     public static bool IsModelBusy(NativeBattleGraphicsModel model, ushort resourceMask)
@@ -76,7 +113,7 @@ public static class NativeBattleActionGraphics
         byte firstCount = first.ReadByte(16);
         byte? firstTarget = firstCount != 0 ? packets.ReadContact(firstContact).Primary.ActorIndex : previous?.FirstTarget;
         NativeBattleActionServiceSelection selection = SelectService(first);
-        return new(headerIndex, actor, firstContact, targets, cover, source, firstTarget, flags, first.Data, selection.Callback);
+        return new(headerIndex, actor, firstContact, targets, cover, source, firstTarget, flags, first.Data, selection.Callback) { ActorSelector56 = actor, FirstHeaderTargetCount = first.ReadByte(16) };
     }
 
     public static NativeBattleActionServiceSelection SelectService(NativeBattleActionHeaderSlot header)

@@ -25,6 +25,7 @@ public sealed class BalambEncounterStartupTests
             FieldName = "synthetic-balamb-encounter-startup-component",
             CharacterVitals = assets.ReadNewGameCharacterVitals().Rest(),
             CharacterAppearance = assets.ReadNewGameCharacterAppearance(),
+            InputConfiguration = assets.ReadNewGameInputConfiguration(),
             Economy = assets.ReadNewGameEconomy(),
             BattleVariables = NativeBattleVariableState.CreateNewGame(),
             GlobalRandom = assets.ReadNewGameGlobalRandom(),

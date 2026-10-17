@@ -21,6 +21,7 @@ public sealed class NativeTrainingDrawIntegrationTests
             FieldName = "installed-training-draw-component",
             CharacterVitals = assets.ReadNewGameCharacterVitals().RebuildParty().Rest(),
             CharacterAppearance = assets.ReadNewGameCharacterAppearance(),
+            InputConfiguration = assets.ReadNewGameInputConfiguration(),
             Economy = assets.ReadNewGameEconomy(),
             BattleVariables = NativeBattleVariableState.CreateNewGame(),
             LimitProgress = assets.ReadNewGameLimitProgress(),

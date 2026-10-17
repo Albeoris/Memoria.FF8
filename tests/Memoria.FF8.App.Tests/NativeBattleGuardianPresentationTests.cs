@@ -51,6 +51,7 @@ public sealed class NativeBattleGuardianPresentationTests
         };
         BattleActionDefinition guardian = Assert.Single(definition.ActionDefinitions, action => action.Ability == BattleAbility.GuardianForce && action.Id == 0);
         Assert.Equal((ushort)116, guardian.NativeAction!.MagicId);
+        definition = NativeBattleComponentInputs.PrepareMusic(definition, game.GameDirectory, 0, 5, -1);
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         for (int callback = 0; callback < 200 && !battle.NativeEntryReady; callback++)
         {
@@ -87,7 +88,7 @@ public sealed class NativeBattleGuardianPresentationTests
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         //The declared cold/manual-header component never invokes48E830/48EB40. This explicit input preserves native actor3's authenticated BSS byte; old snapshots receive no default.
         BattleSnapshot pendingSource = before with { Combatants = coldActors, NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
-        Assert.True(pendingSource.Definition.NativeGlobalSoundProcess!.IsColdProcess);
+        Assert.Equal(new uint[] { 0x84, 0x85, 0x86 }, pendingSource.Definition.NativeMusicProcess!.Entry!.Sounds.Select(sound => sound.Sound));
         Assert.NotNull(pendingSource.NativeGlobalSoundProcess!.Rotation);
         Assert.All(pendingSource.NativeGlobalSoundProcess.OriginalEffectIds, value => Assert.NotNull(value));
         string sourceOutput = Environment.GetEnvironmentVariable("MEMORIA_FF8_GF_FRESH_SOURCE_OUTPUT") ?? Path.Combine(Path.GetTempPath(), "memoria-ff8-gf-fresh-" + Guid.NewGuid().ToString("N") + ".battle.json");

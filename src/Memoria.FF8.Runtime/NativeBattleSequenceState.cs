@@ -50,6 +50,7 @@ public enum NativeBattleSequenceCueKind
 public sealed record NativeBattleSequenceCue(NativeBattleSequenceCueKind Kind, int First = 0, int Second = 0, int Third = 0)
 {
     public BattleNativeRenzokukenBlock? TriggerWindow { get; init; }
+    public bool OverrideSoundOnContact4 { get; init; }
 }
 public sealed record NativeBattleSequenceStep(NativeBattleGraphicsModel Model, ImmutableArray<NativeBattleSequenceCue> Cues);
 
@@ -57,12 +58,17 @@ public sealed record NativeBattleSequenceInputs(byte? EntryAdvantage, ushort? Ca
 {
     public NativeBattleGraphicsResource? OriginalResource { get; init; }
     public Func<ushort>? GlobalRandom { get; init; }
-    public Func<byte, short>? ReadExternal { get; init; }
+    public Func<byte, int>? ReadExternal { get; init; }
+    public Func<NativeBattleGraphicsModel, byte, int>? ReadModelExternal { get; init; }
     public Action<byte, int>? WriteExternal { get; init; }
+    public Func<NativeBattleGraphicsModel, byte, int, NativeBattleGraphicsModel>? WriteModelExternal { get; init; }
     public Action<NativeBattleAuxiliaryProgram, bool, byte>? ScheduleSoundParticle { get; init; }
     public Func<NativeBattleGraphicsModel, NativeBattleGraphicsModel>? ApplyActionContacts { get; init; }
+    public Func<NativeBattleGraphicsModel, NativeBattleGraphicsModel>? ApplyNextContact { get; init; }
     public Action<NativeBattleGraphicsModel, NativeBattleSequenceCue>? PlaySound { get; init; }
     public Action<NativeBattleAuxiliaryProgram, byte>? ScheduleTextureAnimation { get; init; }
-    public Action<byte, byte>? ApplyTexture { get; init; }
+    public Action<byte, int>? ApplyTexture { get; init; }
     public Action<byte>? ScheduleModelEffect { get; init; }
+    public Func<NativeBattleGraphicsModel, NativeBattleAuxiliaryProgram, (NativeBattleGraphicsModel Model, int Offset)>? ScheduleContactEffect { get; init; }
+    public Func<NativeBattleGraphicsModel, NativeBattleAuxiliaryProgram, (NativeBattleGraphicsModel Model, int Offset)>? ScheduleModelParticle { get; init; }
 }

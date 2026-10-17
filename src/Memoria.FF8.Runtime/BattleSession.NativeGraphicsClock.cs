@@ -149,13 +149,41 @@ public sealed partial class BattleSession
                 {
                     OriginalResource = binding.Resource,
                     GlobalRandom = NextNativeGlobalRandom,
-                    ReadExternal = variable => ReadNativeGraphicsSequenceVariable(graphics, variable),
+                    ReadModelExternal = (current, variable) => ReadNativeGraphicsSequenceVariable(graphics with { Models = models.SetItem(index, current) }, index, variable),
                     WriteExternal = WriteNativeGraphicsSequenceVariable,
+                    ScheduleContactEffect = (current, program) =>
+                    {
+                        graphics = graphics with { Models = models.SetItem(index, current) };
+                        (graphics, int offset) = ScheduleNativeSequenceParticle(graphics, index, program, true);
+                        models = graphics.Models;
+                        return (models[index], offset);
+                    },
+                    ScheduleModelParticle = (current, program) =>
+                    {
+                        graphics = graphics with { Models = models.SetItem(index, current) };
+                        (graphics, int offset) = ScheduleNativeSequenceParticle(graphics, index, program, false);
+                        models = graphics.Models;
+                        return (models[index], offset);
+                    },
+                    WriteModelExternal = (current, variable, value) =>
+                    {
+                        int target = (graphics.ActionContext ?? throw new NotSupportedException("Native sequence target write requires its50D300 target identity.")).TargetIndex ?? throw new NotSupportedException("Native sequence target write requires its physical target identity.");
+                        models = models.SetItem(index, current);
+                        models = models.SetItem(target, NativeBattleActionGraphics.WriteSequenceTarget5048E0(models[target], variable, value));
+                        graphics = graphics with { Models = models };
+                        return models[index];
+                    },
                     ScheduleSoundParticle = (program, soundTwo, bone) => graphics = ScheduleNativeSoundParticle(graphics, index, program, soundTwo, bone),
                     PlaySound = (current, cue) => PublishNativeSequenceSound(graphics with { Models = models.SetItem(index, current) }, current, GraphicsActor(graphics, index), cue),
                     ScheduleTextureAnimation = (program, sequence) => graphics = ScheduleNativeTextureAnimation(graphics, index, program, sequence),
                     ScheduleModelEffect = effect => graphics = ScheduleNativeModelEffect(graphics, index, effect),
                     ApplyTexture = (selector, variant) => ApplyNativeTextureMotion(graphics, index, selector, variant),
+                    ApplyNextContact = current =>
+                    {
+                        graphics = ApplyNativeNextSequenceContact(graphics with { Models = models.SetItem(index, current) });
+                        models = graphics.Models;
+                        return models[index];
+                    },
                     ApplyActionContacts = current =>
                     {
                         models = models.SetItem(index, current);
@@ -319,19 +347,8 @@ public sealed partial class BattleSession
         }
         if (!plan.Secondary && (graphics.Flags & 0x10) == 0 && (half.HitFlags3 & 8) != 0)
         {
-            int sourceIndex = half.HitFlags3 >> 6;
-            NativeBattleGraphicsModel source = graphics.Models[sourceIndex];
-            NativeBattleVector position = source.Transform?.Position28 ?? throw new NotSupportedException("Native Cover source requires its current positionWORD28/32.");
-            NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Cover recipient requires its current positionWORD28/32.");
-            model = NativeBattleGraphicsModels.SelectSequence(model with { Transform = transform with { Position28 = transform.Position28 with { X = position.X, Z = position.Z } } }, 22);
-            if (sourceIndex == index)
-            {
-                model = NativeBattleGraphicsModels.StartService(model, 9);
-            }
-            else
-            {
-                graphics = graphics with { Models = graphics.Models.SetItem(sourceIndex, NativeBattleGraphicsModels.StartService(source, 9)) };
-            }
+            graphics = ApplyNativeSequenceCover5065B0(graphics with { Models = graphics.Models.SetItem(index, model) }, half);
+            model = graphics.Models[index];
         }
         NativeBattleEffectsState effects = NativeBattleContactEffects.ProduceTasks(graphics.Effects, half, plan);
         return graphics with { Models = graphics.Models.SetItem(index, model), Effects = effects };

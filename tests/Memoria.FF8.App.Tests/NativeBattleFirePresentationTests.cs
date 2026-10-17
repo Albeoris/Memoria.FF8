@@ -57,6 +57,7 @@ public sealed class NativeBattleFirePresentationTests
             NativeBattleGraphicsResource resource = definition.NativeGraphics!.Bindings[0].Resource;
             Assert.Equal(Convert.FromHexString("C308D40002E57FC100CB7FE90DC308DC0002E508E607E602A1E6E5"), resource.SequenceSection.AsSpan().Slice(resource.SequenceStart(11) + 0x38, 27).ToArray());
         }
+        definition = NativeBattleComponentInputs.PrepareMusic(definition, game.GameDirectory, 0, 5, -1);
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         for (int callback = 0; callback < 200 && !battle.NativeEntryReady; callback++)
         {

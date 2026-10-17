@@ -24,6 +24,8 @@ public sealed record NativeBattleActionHeaderSlot([property: JsonRequired] Immut
 /// <summary>Canonical C0/C1 counts and adjacent physical header/contact arenas. Resetting counts does not erase storage.</summary>
 public sealed record NativeBattleActionPacketsState([property: JsonRequired] byte ActionCount, [property: JsonRequired] byte ContactCount, [property: JsonRequired] ImmutableArray<NativeBattleActionHeaderSlot> Headers, [property: JsonRequired] ImmutableArray<NativeBattleContactPacket?> Contacts, [property: JsonRequired] int? ActiveHeaderIndex)
 {
+    public int? ActiveContactIndex { get; init; }
+
     public const int HeaderCapacity = 32;
     public const int ContactCapacity = 49;
     private const uint ContactBase = 0x1D28344;
@@ -55,7 +57,7 @@ public sealed record NativeBattleActionPacketsState([property: JsonRequired] byt
 
     public void Validate()
     {
-        if (ActionCount > HeaderCapacity || ContactCount > ContactCapacity || Headers.IsDefault || Headers.Length != HeaderCapacity || Contacts.IsDefault || Contacts.Length != ContactCapacity || ActiveHeaderIndex is < 0 or >= HeaderCapacity)
+        if (ActionCount > HeaderCapacity || ContactCount > ContactCapacity || Headers.IsDefault || Headers.Length != HeaderCapacity || Contacts.IsDefault || Contacts.Length != ContactCapacity || ActiveHeaderIndex is < 0 or >= HeaderCapacity || ActiveContactIndex is < 0 or > ContactCapacity)
         {
             throw new InvalidDataException("Native action packets require their original counts and32-header/49-contact physical arenas.");
         }
@@ -171,7 +173,22 @@ public sealed record NativeBattleActionPacketsState([property: JsonRequired] byt
         Validate();
         RequirePrepared(index);
         _ = Headers[index].ReadByte(16);
-        return this with { ActiveHeaderIndex = index };
+        return this with { ActiveHeaderIndex = index, ActiveContactIndex = Headers[index].FirstContactIndex };
+    }
+
+    public NativeBattleContactPacket ReadActiveContact()
+    {
+        return ReadContact(ActiveContactIndex ?? throw new NotSupportedException("Native current contact pointer1D99A60 requires its retained physical cursor; migrate the standalone snapshot explicitly."));
+    }
+
+    public NativeBattleActionPacketsState AdvanceContact50A690()
+    {
+        int index = ActiveContactIndex ?? throw new NotSupportedException("Native50A690 requires its retained physical contact cursor.");
+        if (index >= ContactCapacity)
+        {
+            throw new NotSupportedException("Native50A690 cursor leaves its retained physical contact arena.");
+        }
+        return this with { ActiveContactIndex = index + 1 };
     }
 
     public NativeBattleActionPacketsState ResetCounts()

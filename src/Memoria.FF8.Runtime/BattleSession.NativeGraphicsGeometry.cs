@@ -56,7 +56,7 @@ public sealed partial class BattleSession
         return PrepareNativeActionMatrices(graphics with { Models = graphics.Models.SetItem(actorIndex, model with { Rotation14 = actorYaw }), ActionContext = context });
     }
 
-    private short ReadNativeGraphicsActionVariable(NativeBattleGraphicsState graphics, byte variable)
+    private int ReadNativeGraphicsActionVariable(NativeBattleGraphicsState graphics, byte variable)
     {
         if (variable == 25)
         {
@@ -65,8 +65,8 @@ public sealed partial class BattleSession
         NativeBattleActionGeometry context = graphics.ActionContext ?? throw new NotSupportedException("Native model expression requires its50D300 action geometry owner.");
         return variable switch
         {
-            16 => unchecked((short)(context.UnadjustedDistance ?? throw new NotSupportedException("Native action distance requires its resolved physical target packet."))),
-            17 => unchecked((short)(context.ContactDistance ?? throw new NotSupportedException("Native contact distance requires its resolved physical target packet."))),
+            16 => context.UnadjustedDistance ?? throw new NotSupportedException("Native action distance requires its resolved physical target packet."),
+            17 => context.ContactDistance ?? throw new NotSupportedException("Native contact distance requires its resolved physical target packet."),
             24 => context.TargetIndex ?? throw new NotSupportedException("Native current target requires its resolved physical graphics identity."),
             26 => (short)((context.TargetYaw ?? throw new NotSupportedException("Native current target requires its50D300 rotation.")) & 4095),
             _ => throw new NotSupportedException($"Native model variable{variable:X2} requires its original graphics service owner.")

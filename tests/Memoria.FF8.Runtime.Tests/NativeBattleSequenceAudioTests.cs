@@ -6,6 +6,21 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleSequenceAudioTests
 {
+    [Theory]
+    [InlineData(true, 0, 77)]
+    [InlineData(true, 4, 31)]
+    [InlineData(false, 0, 6)]
+    [InlineData(false, 4, 31)]
+    public void Conditional_97_98_sound_reads_current_contact_bit4_after_pan_and_preserves_mask(bool actorSound, byte contactFlags, uint expected)
+    {
+        NativeBattleSequenceSound source = new(6, actorSound, 6, 0xFF00) { OverrideOnContact4 = true };
+        NativeBattleModuleSound sound = NativeBattleSequenceAudio.Resolve505AB0(source, 0, null, _ => 0, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), Enumerable.Repeat(77u, 1120).ToImmutableArray(), contactFlags)!;
+        Assert.Equal(expected, sound.Sound);
+        Assert.Equal((byte)128, sound.Pan);
+        Assert.Equal(0xFF00u, sound.Flags);
+        Assert.Throws<NotSupportedException>(() => NativeBattleSequenceAudio.Resolve505AB0(source, 0, null, _ => 0, _ => default, _ => 128, null));
+    }
+
     [Fact]
     public void Source_metadata_keeps_the_legacy_JSON_field_names_without_treating_attributes_as_volume()
     {
@@ -85,6 +100,8 @@ public sealed class NativeBattleSequenceAudioTests
     }
 
     [Theory]
+    [InlineData(0x97, true)]
+    [InlineData(0x98, false)]
     [InlineData(0xB5, true)]
     [InlineData(0xB6, true)]
     [InlineData(0xB8, false)]
@@ -101,6 +118,7 @@ public sealed class NativeBattleSequenceAudioTests
             PlaySound = (current, cue) =>
             {
                 Assert.Equal(3, current.Index);
+                Assert.Equal(cue.First == 6 && opcode is 0x97 or 0x98, cue.OverrideSoundOnContact4);
                 calls.Add($"sound:{cue.First}");
                 NativeBattleSequenceSound source = new((byte)cue.First, cue.Kind == NativeBattleSequenceCueKind.ActorSound, (byte)cue.Second, (ushort)cue.Third);
                 NativeBattleModuleSound resolved = NativeBattleSequenceAudio.Resolve505AB0(source, 3, null, _ => 77, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), Enumerable.Repeat(123u, 1120).ToImmutableArray())!;

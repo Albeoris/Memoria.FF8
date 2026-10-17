@@ -18,6 +18,7 @@ public sealed class NativeBattleFactoryBindingTests
             FieldId = 999,
             CharacterVitals = vitals,
             CharacterAppearance = assets.ReadNewGameCharacterAppearance(),
+            InputConfiguration = assets.ReadNewGameInputConfiguration(),
             Economy = assets.ReadNewGameEconomy(),
             BattleVariables = NativeBattleVariableState.CreateNewGame(),
             LimitProgress = assets.ReadNewGameLimitProgress(),

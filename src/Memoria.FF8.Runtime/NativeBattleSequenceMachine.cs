@@ -153,6 +153,9 @@ public static class NativeBattleSequenceMachine
                 }
                 switch (opcode)
                 {
+                    case 0x82:
+                        model = model with { Flags2 = (ushort)(RequireFlags2() | 0x40) };
+                        break;
                     case 0x85:
                         model = model with { Flags0 = (ushort)(model.Flags0 & ~0x10) };
                         break;
@@ -165,6 +168,9 @@ public static class NativeBattleSequenceMachine
                     case 0x94:
                         model = model with { Flags0 = (ushort)(model.Flags0 ^ 0x20) };
                         break;
+                    case 0x95:
+                        model = model with { Transform = RequireTransform() with { Position28 = RequireTransform().Position28 with { X = RequireTransform().Initial20.X, Z = RequireTransform().Initial20.Z } } };
+                        break;
                     case 0x99:
                     case 0xB1:
                         byte particleBone = ReadByte();
@@ -172,8 +178,13 @@ public static class NativeBattleSequenceMachine
                         (inputs.ScheduleSoundParticle ?? throw new NotSupportedException("Native B1/99 requires its shared506BF0 auxiliary task producer."))(particleProgram, opcode == 0xB1, particleBone);
                         position = NativeBattleAuxiliaryState.SkipSoundParticleProgram(resource.SequenceSection, position);
                         break;
+                    case 0x9B:
+                        byte variableTextureSelector = ReadByte();
+                        int variableTextureVariant = ReadVariable(ReadByte());
+                        (inputs.ApplyTexture ?? throw new NotSupportedException("Native9B requires its actual50C780 texture rectangle copy owner."))(variableTextureSelector, variableTextureVariant);
+                        break;
                     case 0x9C:
-                        model = model with { Flags2 = (ushort)(RequireFlags2() | 0x40) };
+                        model = model with { Flags2 = (ushort)(RequireFlags2() | 1) };
                         break;
                     case 0x9D:
                         cues.Add(new(NativeBattleSequenceCueKind.SuspendParticipant));
@@ -270,12 +281,40 @@ public static class NativeBattleSequenceMachine
                         //AC returns a null PC;504290 immediately re-enters the restored selected sequence in this callback.
                         flags = 0;
                         break;
+                    case 0xB2:
+                        model = (inputs.ApplyNextContact ?? throw new NotSupportedException("Native B2 requires its50A690 physical contact receipt and pointer advance."))(model with { Sequence = sequence, ResourceFlags44 = flags, SequenceState = state });
+                        state = model.SequenceState ?? throw new InvalidDataException("Native B2 lost its sequence owner.");
+                        flags = model.ResourceFlags44 ?? throw new InvalidDataException("Native B2 lost its resource WORD44.");
+                        if (model.Sequence != sequence)
+                        {
+                            throw new NotSupportedException("Native B2 changed its currently executing sequence.");
+                        }
+                        break;
+                    case 0xB0:
+                    case 0xB4:
+                        NativeBattleAuxiliaryProgram contactProgram = new(resource.SequenceSection, position);
+                        (NativeBattleGraphicsModel contactModel, int contactOffset) = ((opcode == 0xB4 ? inputs.ScheduleContactEffect : inputs.ScheduleModelParticle) ?? throw new NotSupportedException($"Native {opcode:X2} requires its original505900 graphical producer and contact ownership."))(model with { Sequence = sequence, ResourceFlags44 = flags, SequenceState = state }, contactProgram);
+                        if (contactOffset < position || contactOffset > resource.SequenceEnd(sequence))
+                        {
+                            throw new InvalidDataException("Native particle cursor exceeds its original bounded program.");
+                        }
+                        model = contactModel;
+                        state = model.SequenceState ?? throw new InvalidDataException("Native particle callback lost its resource-header sequence owner.");
+                        flags = model.ResourceFlags44 ?? throw new InvalidDataException("Native particle callback lost its resource WORD44.");
+                        if (model.Sequence != sequence)
+                        {
+                            throw new NotSupportedException("Native particle callback changed its currently executing sequence.");
+                        }
+                        position = contactOffset;
+                        break;
+                    case 0x97:
+                    case 0x98:
                     case 0xB5:
                     case 0xB6:
                     case 0xB8:
                         byte sound = ReadByte();
                         byte attribute = ReadByte();
-                        NativeBattleSequenceCue soundCue = new(opcode == 0xB8 ? NativeBattleSequenceCueKind.SystemSound : NativeBattleSequenceCueKind.ActorSound, sound, attribute, (attribute & 2) != 0 ? ReadByte() << 8 : 0);
+                        NativeBattleSequenceCue soundCue = new(opcode is 0x98 or 0xB8 ? NativeBattleSequenceCueKind.SystemSound : NativeBattleSequenceCueKind.ActorSound, sound, attribute, (attribute & 2) != 0 ? ReadByte() << 8 : 0) { OverrideSoundOnContact4 = opcode is 0x97 or 0x98 };
                         cues.Add(soundCue);
                         inputs.PlaySound?.Invoke(model with { Sequence = sequence, ResourceFlags44 = flags, SequenceState = state }, soundCue);
                         break;
@@ -287,6 +326,9 @@ public static class NativeBattleSequenceMachine
                         break;
                     case 0xBB:
                         cues.Add(new(NativeBattleSequenceCueKind.CommandTitle));
+                        break;
+                    case 0xBC:
+                        ReadByte();
                         break;
                     case 0xBD:
                         byte textureSelector = ReadByte();
@@ -316,7 +358,7 @@ public static class NativeBattleSequenceMachine
                 }
                 return variable switch
                 {
-                    8 => unchecked((short)flags),
+                    8 => flags,
                     9 => state.PoseFrame114 ?? throw new InvalidDataException("Native sequence lacks its current pose frame."),
                     10 => state.PoseLimit115 ?? throw new InvalidDataException("Native sequence lacks its current pose limit."),
                     11 => state.Default2,
@@ -327,9 +369,9 @@ public static class NativeBattleSequenceMachine
                     23 => (model.Rotation14 ?? throw new InvalidDataException("Native sequence lacks its model rotationWORD14.")) & 0xFFF,
                     27 => model.Index,
                     28 => model.Index >= 3 ? 2048 : ((model.Rotation14 ?? throw new InvalidDataException("Native sequence lacks its model rotationWORD14.")) & 0xFFF) <= 2048 ? 0 : 4096,
-                    31 => unchecked((short)(model.Flags8 ?? throw new InvalidDataException("Native sequence lacks projected model flags."))),
+                    31 => unchecked((int)(model.Flags8 ?? throw new InvalidDataException("Native sequence lacks projected model flags."))),
                     34 => inputs.EntryAdvantage ?? throw new InvalidDataException("Native sequence lacks48AFD0 entry advantage."),
-                    35 => unchecked((short)(inputs.CameraTasks ?? throw new InvalidDataException("Native sequence lacks actual camera task flags."))),
+                    35 => (inputs.CameraTasks ?? throw new InvalidDataException("Native sequence lacks actual camera task flags.")),
                     36 => RequireTransform().Scale154,
                     37 => RequireTransform().Scale148.X,
                     38 => RequireTransform().Scale148.Y,
@@ -337,7 +379,7 @@ public static class NativeBattleSequenceMachine
                     42 => RequireTransform().Scale38,
                     44 => RequireTransform().Initial20.Z,
                     55 => model.Flags0 & 4,
-                    _ when variable is 13 or 14 or 15 or 16 or 17 or 18 or 19 or 20 or 21 or 22 or 24 or 25 or 26 or 36 or 37 or 38 or 39 or 40 or 41 or 42 or 44 or 46 or 51 or 53 or 54 => (inputs.ReadExternal ?? throw new NotSupportedException($"Native sequence variable{variable:X2} requires its original owner."))(variable),
+                    _ when variable is 13 or 14 or 15 or 16 or 17 or 18 or 19 or 20 or 21 or 22 or 24 or 25 or 26 or 36 or 37 or 38 or 39 or 40 or 41 or 42 or 44 or 46 or 51 or 53 or 54 => inputs.ReadModelExternal is { } readModel ? readModel(model with { Sequence = sequence, ResourceFlags44 = flags, SequenceState = state }, variable) : (inputs.ReadExternal ?? throw new NotSupportedException($"Native sequence variable{variable:X2} requires its original owner."))(variable),
                     _ => 0
                 };
             }
@@ -402,7 +444,10 @@ public static class NativeBattleSequenceMachine
                         case 44:
                             model = model with { Transform = RequireTransform() with { Initial20 = RequireTransform().Initial20 with { Z = unchecked((short)value) }, Position28 = RequireTransform().Position28 with { Z = unchecked((short)value) } } };
                             break;
-                        case 18 or 19 or 20 or 21 or 22 or 33 or 43 or 45 or 47 or 48 or 49 or 50 or 52:
+                        case 33 or 45 or 48 or 49 or 50 or 52:
+                            model = (inputs.WriteModelExternal ?? throw new NotSupportedException($"Native sequence write{variable:X2} requires its original target model owner."))(model, variable, value);
+                            break;
+                        case 18 or 19 or 20 or 21 or 22 or 43 or 47:
                             (inputs.WriteExternal ?? throw new NotSupportedException($"Native sequence write{variable:X2} requires its original owner."))(variable, value);
                             break;
                     }

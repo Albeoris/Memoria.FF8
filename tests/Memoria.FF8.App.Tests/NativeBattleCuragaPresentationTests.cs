@@ -146,6 +146,7 @@ public sealed class NativeBattleCuragaPresentationTests
             NativeStageCameraSelectors = [formation.PrimaryCamera, formation.AlternativeCamera],
             NativeStageCameraControl = stage.NativeCameraControl
         };
+        definition = NativeBattleComponentInputs.PrepareMusic(definition, game.GameDirectory, 0, 5, -1);
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         for (int callback = 0; callback < 200 && !battle.NativeEntryReady; callback++)
         {

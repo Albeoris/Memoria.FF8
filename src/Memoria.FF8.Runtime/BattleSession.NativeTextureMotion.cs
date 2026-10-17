@@ -7,7 +7,7 @@ public sealed partial class BattleSession
         return graphics with { Auxiliary = graphics.Auxiliary.AppendTextureAnimation(index, sequence, program) };
     }
 
-    private void ApplyNativeTextureMotion(NativeBattleGraphicsState graphics, int index, byte selector, byte variant)
+    private void ApplyNativeTextureMotion(NativeBattleGraphicsState graphics, int index, byte selector, int variant)
     {
         NativeBattleGraphicsModel model = graphics.Models[index];
         if ((model.Flags0 & 2) == 0)
