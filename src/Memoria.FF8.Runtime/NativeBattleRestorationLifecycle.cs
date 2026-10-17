@@ -10,7 +10,7 @@ public static class NativeBattleRestorationLifecycle
     public static NativeBattleRestorationPresentationStep AdvanceAndDraw(NativeBattleRestorationFrame frame, uint contextTask, NativeCrtRandomState random, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors? colors = null)
     {
         NativeBattleRestorationNodeMemory memory = new(frame, contextTask);
-        NativeBattleRestorationExecutableState retained = (memory.Profile.Effect == 24 ? frame.Memory.EsunaExecutable : frame.Memory.FullLifeExecutable) ?? throw new NotSupportedException("Native restoration node lifecycle requires its own retained executable bank.");
+        NativeBattleRestorationExecutableState retained = frame.Memory.GetRestorationExecutable(memory.Profile.Effect) ?? throw new NotSupportedException("Native restoration node lifecycle requires its own retained executable bank.");
         retained.Validate();
         NativeBattleEffectNodeBank bank = new(memory.Profile.ExecutableAddress, retained.Data ?? throw new NotSupportedException("Native restoration node lifecycle requires its executed context resource initialization."));
         NativeBattleEffectNodeInputs inputs = new(frame.State.CopiedCamera, readModel, AllocateEmitter, AllocateGeometry);
@@ -18,7 +18,7 @@ public static class NativeBattleRestorationLifecycle
         NativeBattleGfGeometryBatch batch = lifecycle.AdvanceAndDraw(ref random, projection, cameraRoll, PrepareMesh);
         NativeBattleRestorationFrame result = memory.Flush();
         NativeBattleRestorationExecutableState written = retained with { Data = bank.Data };
-        result = result with { Memory = memory.Profile.Effect == 24 ? result.Memory with { EsunaExecutable = written } : result.Memory with { FullLifeExecutable = written } };
+        result = result with { Memory = result.Memory.WithRestorationExecutable(written) };
         if (!batch.Attempts.IsEmpty)
         {
             int cursor = result.State.PrimaryDrawCursor ?? throw new NotSupportedException("Native restoration drawing requires its actual primary packet cursor.");
@@ -49,7 +49,7 @@ public static class NativeBattleRestorationLifecycle
             short sourceFlags = BinaryPrimitives.ReadInt16LittleEndian(source.AsSpan(0x3A));
             short fade = unchecked((short)memory.Word(node + 0x1CE));
             uint? farColor = fade == 0 ? null : memory.Dword(node + 0x16C);
-            if (memory.Profile.Effect == 24)
+            if (memory.Profile.UsesEsunaMesh)
             {
                 sbyte sourceIndex = unchecked((sbyte)memory.Byte(node + 0x1D6));
                 NativeBattleEsunaMeshOperands prepared = NativeBattleRestorationMeshPackets.Prepare88E090(memory.ContextWord(0x2A), sourceIndex, sourceFlags, fade, farColor);

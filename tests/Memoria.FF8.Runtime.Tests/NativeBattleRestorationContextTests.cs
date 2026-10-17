@@ -9,6 +9,8 @@ public sealed class NativeBattleRestorationContextTests
     [Theory]
     [InlineData((ushort)24)]
     [InlineData((ushort)27)]
+    [InlineData((ushort)57)]
+    [InlineData((ushort)67)]
     public void Initial_context_uses_actual_model_WORD36_bounds_WORD60_and_Q16_anchors_without_consuming_random_state(ushort effect)
     {
         var fixture = Fixture(effect);
@@ -39,8 +41,14 @@ public sealed class NativeBattleRestorationContextTests
     [InlineData((ushort)24, 3)]
     [InlineData((ushort)24, 4)]
     [InlineData((ushort)27, 1)]
+    [InlineData((ushort)57, 1)]
+    [InlineData((ushort)67, 1)]
     [InlineData((ushort)27, 3)]
+    [InlineData((ushort)57, 3)]
+    [InlineData((ushort)67, 3)]
     [InlineData((ushort)27, 4)]
+    [InlineData((ushort)57, 4)]
+    [InlineData((ushort)67, 4)]
     public void Original_context_mode_selectors_copy_their_actual_four_DWORD_vectors(ushort effect, ushort mode)
     {
         var fixture = Fixture(effect);
@@ -71,6 +79,8 @@ public sealed class NativeBattleRestorationContextTests
     [Theory]
     [InlineData((ushort)24)]
     [InlineData((ushort)27)]
+    [InlineData((ushort)57)]
+    [InlineData((ushort)67)]
     public void Stack_VECTOR_mode_is_unknown_and_a_missing_retained_executable_owner_is_not_seeded(ushort effect)
     {
         var fixture = Fixture(effect);
@@ -78,7 +88,7 @@ public sealed class NativeBattleRestorationContextTests
         hierarchy = hierarchy.Write(fixture.Address, hierarchy.Read(fixture.Address).WriteWord(0x29C, 2));
         NativeBattleRestorationFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };
         Assert.Throws<NotSupportedException>(() => NativeBattleRestorationContext.Initialize(frame, fixture.Address, Resources(effect), fixture.Inputs));
-        Assert.Throws<NotSupportedException>(() => NativeBattleRestorationContext.Initialize(fixture.Frame with { Memory = effect == 24 ? fixture.Frame.Memory with { EsunaExecutable = null } : fixture.Frame.Memory with { FullLifeExecutable = null } }, fixture.Address, Resources(effect), fixture.Inputs));
+        Assert.Throws<NotSupportedException>(() => NativeBattleRestorationContext.Initialize(fixture.Frame with { Memory = fixture.Frame.Memory with { EsunaExecutable = null, FullLifeExecutable = null, Effect57Executable = null, RemedyExecutable = null } }, fixture.Address, Resources(effect), fixture.Inputs));
     }
 
     private static void AssertVector(NativeBattleModulePoolTask task, int offset, int x, int y, int z)
@@ -88,20 +98,20 @@ public sealed class NativeBattleRestorationContextTests
         Assert.Equal(unchecked((uint)(z << 16)), task.ReadDword(0x34 + offset + 8));
     }
 
-    private static NativeBattleRestorationExecutableState? Bank(NativeBattleEffectMemory memory, ushort effect) => effect == 24 ? memory.EsunaExecutable : memory.FullLifeExecutable;
-    private static NativeBattleRestorationResources Resources(ushort effect) => new(effect, new("skipped-registration", []), effect == 24 ? 0x49442u : 0x49445u) { Executable = new(effect, new byte[NativeBattleRestorationExecutableState.Length(effect)].ToImmutableArray()) };
+    private static NativeBattleRestorationExecutableState? Bank(NativeBattleEffectMemory memory, ushort effect) => memory.GetRestorationExecutable(effect);
+    private static NativeBattleRestorationResources Resources(ushort effect) => new(effect, new("skipped-registration", []), effect == 27 ? 0x49445u : 0x49442u) { Executable = new(effect, new byte[NativeBattleRestorationExecutableState.Length(effect)].ToImmutableArray()) };
 
     private static (NativeBattleRestorationFrame Frame, uint Address, NativeBattleRestorationControllerInputs Inputs) Fixture(ushort effect)
     {
         NativeBattleRestorationProfile profile = NativeBattleRestorationProfile.ForEffect(effect);
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(2, 2, 11, 0, effect == 24 ? (ushort)27 : (ushort)25, effect, null));
+        (packets, _) = packets.Prepare(new(2, 2, 11, 0, effect == 27 ? (ushort)25 : (ushort)27, effect, null));
         (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
         (packets, _) = packets.AppendContact(new(new(4, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
         packets = packets.WritePlayerRepeatMode(0, 1);
         (packets, _) = packets.Publish(2);
         NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(2, 1, 24, 0, 0, 0), null) { ResourcePointers = [new(profile.InitializerGlobal, 0)] };
-        NativeBattleRestorationFrame frame = NativeBattleRestorationController.Initialize(NativeBattleEffectMemory.FromColdProcess().BeginLoad(effect - 1), selected, packets, Resources(effect));
+        NativeBattleRestorationFrame frame = NativeBattleRestorationController.Initialize(NativeBattleEffectMemory.FromColdProcess().WithRestorationExecutable(NativeBattleRestorationExecutableState.FromColdProcess(effect)).BeginLoad(effect - 1), selected, packets, Resources(effect));
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         NativeBattleEffectHierarchyAppend first = hierarchy.Append8DC540(1, profile.TargetCallback, 88, hierarchy.Address(0, 0), (_, _, _) => new(2, 3));
         NativeBattleEffectHierarchyAppend child = first.Hierarchy.Append8DC540(2, profile.GenericCallback, 676, first.Address, (_, _, _) => new(2, 3));

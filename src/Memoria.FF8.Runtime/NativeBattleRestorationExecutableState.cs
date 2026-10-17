@@ -15,12 +15,7 @@ public sealed record NativeBattleRestorationExecutableState([property: JsonRequi
         return new(effect, 0, null);
     }
 
-    public static int Length(ushort effect) => effect switch
-    {
-        24 => 0x5C0C,
-        27 => 0x67E4,
-        _ => throw new NotSupportedException("Native restoration executable extent requires its original effect.")
-    };
+    public static int Length(ushort effect) => NativeBattleRestorationProfile.ForEffect(effect).ExecutableLength;
 
     public void Validate()
     {

@@ -9,6 +9,8 @@ public sealed class NativeBattleRestorationExecutableTests
     [Theory]
     [InlineData((ushort)24)]
     [InlineData((ushort)27)]
+    [InlineData((ushort)57)]
+    [InlineData((ushort)67)]
     public void Sparse_directories_and_unconditional_channels_fix_once_in_their_own_retained_bank(ushort effect)
     {
         uint address = NativeBattleRestorationProfile.ForEffect(effect).ExecutableAddress;

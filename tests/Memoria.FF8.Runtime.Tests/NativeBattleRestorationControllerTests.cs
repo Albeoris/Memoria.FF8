@@ -9,6 +9,8 @@ public sealed class NativeBattleRestorationControllerTests
     [Theory]
     [InlineData((ushort)24, 0xA000, 0x10E0, 0x10680)]
     [InlineData((ushort)27, 0x6000, 0x1518, 0x16F80)]
+    [InlineData((ushort)57, 0xA000, 0x10E0, 0x10680)]
+    [InlineData((ushort)67, 0xA000, 0x10E0, 0x10680)]
     public void Original_entry_keeps_distinct_physical_pools_banks_and_auxiliary_capacities(ushort effect, int bankBytes, int emitterBytes, int geometryBytes)
     {
         var fixture = Fixture(effect, 0);
@@ -30,6 +32,8 @@ public sealed class NativeBattleRestorationControllerTests
     [Theory]
     [InlineData((ushort)24)]
     [InlineData((ushort)27)]
+    [InlineData((ushort)57)]
+    [InlineData((ushort)67)]
     public void Clear_precedes_leaf_and_first_generic_child_keeps_own_bank_zero_delay_and_duration45(ushort effect)
     {
         var fixture = Fixture(effect);
@@ -65,6 +69,8 @@ public sealed class NativeBattleRestorationControllerTests
     [Theory]
     [InlineData((ushort)24, 20, 20, 34)]
     [InlineData((ushort)27, 30, 10, 35)]
+    [InlineData((ushort)57, 20, 20, 34)]
+    [InlineData((ushort)67, 20, 20, 34)]
     public void Target_release_and_root_wait_are_spell_specific_contact_uses_signed30_and_sound_once(ushort effect, int releaseCounter, int rootWait, int contactCallback)
     {
         var fixture = Fixture(effect);
@@ -112,6 +118,8 @@ public sealed class NativeBattleRestorationControllerTests
     [Theory]
     [InlineData((ushort)24)]
     [InlineData((ushort)27)]
+    [InlineData((ushort)57)]
+    [InlineData((ushort)67)]
     public void Missing_private_leaf_and_unknown_initialization_owner_fail_without_aliasing_another_spell(ushort effect)
     {
         var fixture = Fixture(effect);
@@ -131,6 +139,8 @@ public sealed class NativeBattleRestorationControllerTests
     [Theory]
     [InlineData((ushort)24)]
     [InlineData((ushort)27)]
+    [InlineData((ushort)57)]
+    [InlineData((ushort)67)]
     public void Generic_signed_delay_initializes_before_first_update_and_defers_completion_until_next_phase(ushort effect)
     {
         var fixture = Fixture(effect);
@@ -168,11 +178,13 @@ public sealed class NativeBattleRestorationControllerTests
         Assert.Equal(0, NativeBattleRestorationGeneric.Advance(waiting, address).Result);
     }
 
-    private static NativeBattleRestorationResources Resources(ushort effect) => new(effect, new("skipped-original-animation", []), effect == 24 ? 0x49442u : 0x49445u);
+    private static NativeBattleRestorationResources Resources(ushort effect) => new(effect, new("skipped-original-animation", []), effect == 27 ? 0x49445u : 0x49442u);
 
     [Theory]
     [InlineData((ushort)24)]
     [InlineData((ushort)27)]
+    [InlineData((ushort)57)]
+    [InlineData((ushort)67)]
     public void Root_repeat_compares_signed_group_and_decremented_timer_before_appending_its_own_fade_out(ushort effect)
     {
         var fixture = Fixture(effect);
@@ -197,7 +209,7 @@ public sealed class NativeBattleRestorationControllerTests
     {
         NativeBattleRestorationProfile profile = NativeBattleRestorationProfile.ForEffect(effect);
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(2, 2, 11, 0, effect == 24 ? (ushort)27 : (ushort)25, effect, null));
+        (packets, _) = packets.Prepare(new(2, 2, 11, 0, effect == 27 ? (ushort)25 : (ushort)27, effect, null));
         (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
         packets = packets.WritePlayerRepeatMode(0, 1);
         (packets, _) = packets.Publish(targets);

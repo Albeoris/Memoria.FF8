@@ -12,11 +12,11 @@ public static class NativeBattleRestorationContext
         {
             throw new InvalidDataException("Native restoration context requires its own original callback and executable pointer.");
         }
-        NativeBattleRestorationExecutableState retained = (resources.Effect == 24 ? frame.Memory.EsunaExecutable : frame.Memory.FullLifeExecutable) ?? throw new NotSupportedException("Native restoration context requires its own retained initialization owner.");
+        NativeBattleRestorationExecutableState retained = frame.Memory.GetRestorationExecutable(resources.Effect) ?? throw new NotSupportedException("Native restoration context requires its own retained initialization owner.");
         NativeBattleRestorationExecutableState executable = retained.Initialize(resources.Executable ?? throw new NotSupportedException("Native restoration context requires its authenticated original executable resource."));
         task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Native restoration context requires50AFC0 parameters."), inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, profile.ExecutableAddress);
         hierarchy = hierarchy.Write(address, task);
-        NativeBattleEffectMemory memory = resources.Effect == 24 ? frame.Memory with { EsunaExecutable = executable } : frame.Memory with { FullLifeExecutable = executable };
+        NativeBattleEffectMemory memory = frame.Memory.WithRestorationExecutable(executable);
         return frame with { Memory = memory, Effect = frame.Effect with { Pools = hierarchy.Pools } };
     }
 }

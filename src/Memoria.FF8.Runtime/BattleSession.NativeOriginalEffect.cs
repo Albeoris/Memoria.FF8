@@ -66,7 +66,7 @@ public sealed partial class BattleSession
         {
             return EnterNativeCuraga87DB10(graphics);
         }
-        if (effect.Binding.Entry is 0x88CF70 or 0x883110)
+        if (effect.Binding.Entry is 0x88CF70 or 0x883110 or 0x7FD150 or 0x7DEA20)
         {
             return EnterNativeRestoration(graphics);
         }

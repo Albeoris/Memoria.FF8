@@ -167,7 +167,7 @@ public sealed partial class GameAssets
                 binding = binding with { CuragaResources = ReadNativeCuragaResources() };
                 catalog = catalog.SetItem(index, binding);
             }
-            if (binding.Entry is 0x88CF70 or 0x883110)
+            if (binding.Entry is 0x88CF70 or 0x883110 or 0x7FD150 or 0x7DEA20)
             {
                 binding = binding with { RestorationResources = ReadNativeRestorationResources(binding.Effect) };
                 catalog = catalog.SetItem(index, binding);

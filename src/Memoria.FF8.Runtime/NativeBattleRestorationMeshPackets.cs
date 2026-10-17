@@ -12,7 +12,7 @@ public static class NativeBattleRestorationMeshPackets
 {
     public static NativeBattleEsunaMeshPreparation Prepare88E090(NativeBattleModulePoolTask task, sbyte sourceIndex, short sourceWord3A, short fade, uint? farColor)
     {
-        if (task.Callback != NativeBattleRestorationProfile.Esuna.GenericCallback)
+        if (task.Callback != NativeBattleRestorationProfile.Esuna.GenericCallback && task.Callback != NativeBattleRestorationProfile.Effect57.GenericCallback && task.Callback != NativeBattleRestorationProfile.Remedy.GenericCallback)
         {
             throw new InvalidDataException("Native88E090 requires its own original generic context task.");
         }

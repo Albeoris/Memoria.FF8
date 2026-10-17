@@ -12,29 +12,44 @@ public sealed class NativeBattleRestorationPresentationTests
     private static readonly TimeSpan Callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
 
     [Theory]
-    [InlineData((ushort)24, "Esuna", 27)]
-    [InlineData((ushort)27, "Full-life", 25)]
-    public void Installed_restoration_cast_completes_original_nodes_pixels_sound_and_one_status_contact_through_restore(ushort effect, string name, int actionId)
+    [InlineData((ushort)24, "Esuna", 27, (byte)2)]
+    [InlineData((ushort)27, "Full-life", 25, (byte)2)]
+    [InlineData((ushort)67, "Remedy", 16, (byte)4)]
+    public void Installed_restoration_cast_completes_original_nodes_pixels_sound_and_one_status_contact_through_restore(ushort effect, string name, int actionId, byte command)
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original restoration resources are required.");
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
-        BattleActionDefinition action = Assert.Single(assets.ActionDefinitions, action => action.NativeAction is { Command: 2 } native && native.MagicId == effect);
+        BattleActionDefinition action = Assert.Single(assets.ActionDefinitions, action => action.Id == actionId && action.NativeAction is { } native && native.Command == command && native.MagicId == effect);
         Assert.Equal(name, action.Name);
         Assert.Equal(actionId, action.Id);
         BattleSession component = PrepareComponent(game, assets, action, effect);
-        RunCurrentCast(component.Capture(), assets, effect, true);
+        RunCurrentCast(component.Capture(), assets, effect, command == 2);
+    }
+
+    [Fact]
+    public void Installed_unnamed_effect57_completes_its_controlled_original_descriptor_without_claiming_a_kernel_action()
+    {
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Installed original effect57 resources are required.");
+        using GameAssets game = new(directory);
+        using BattleAssets assets = new(directory);
+        BattleActionDefinition shell = Assert.Single(assets.ActionDefinitions, action => action.NativeAction is { Command: 2, MagicId: 24 });
+        //No original kernel reference for57 is known. Only the post-formula presentation header selects57;
+        //the original Esuna command shell supplies its existing sequence/actor/contact layout, without running a formula.
+        BattleSession component = PrepareComponent(game, assets, shell, 57, descriptorEffect: 57);
+        RunCurrentCast(component.Capture(), assets, 57, true);
     }
 
     [Fact]
     public void Named_standalone_restoration_current_cast_resumes_without_formula_or_travel_replay()
     {
         string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_RESTORATION_SNAPSHOT");
-        Assert.SkipUnless(!string.IsNullOrWhiteSpace(path), "Set MEMORIA_FF8_NATIVE_RESTORATION_SNAPSHOT to a concrete controlled Esuna/Full-life cast.");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(path), "Set MEMORIA_FF8_NATIVE_RESTORATION_SNAPSHOT to a concrete controlled restoration cast.");
         BattleSnapshot source = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(path!))!;
         NativeBattleEffectBinding binding = source.NativeGraphics?.OriginalEffect?.Binding ?? Assert.Single(source.Definition.NativeEffectCatalog, binding => binding.RestorationResources is not null);
-        Assert.True(binding.Effect is 24 or 27);
+        Assert.True(binding.Effect is 24 or 27 or 57 or 67);
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
         RunCurrentCast(source, assets, binding.Effect, false);
     }
@@ -47,18 +62,20 @@ public sealed class NativeBattleRestorationPresentationTests
         BattleSnapshot source = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(path!))!;
         BattleSession first = BattleSession.Restore(source);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(source))!);
-        Assert.True(source.NativeGraphics!.OriginalEffect!.Binding.Effect is 24 or 27);
+        Assert.True(source.NativeGraphics!.OriginalEffect!.Binding.Effect is 24 or 27 or 57 or 67);
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(first.Capture()));
         first.AdvanceNativeGraphicsPresentation(Callback);
         second.AdvanceNativeGraphicsPresentation(Callback);
         Assert.Equal(source.NativeGraphics.Callback + 1, first.NativeGraphics!.Callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
-        Assert.Equal(new BattleScenePresentation(assets, source.Definition, true).Render(first, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition, true).Render(second, 320, 224).ToArray());
+        byte[] pixels = new BattleScenePresentation(assets, source.Definition, true).Render(first, 320, 224).ToArray();
+        Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition, true).Render(second, 320, 224).ToArray());
+        Publish(Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_RESTORATION_EVIDENCE"), "restoration-next-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff"), first.Capture(), pixels);
         Console.WriteLine($"Restoration checkpoint effect{source.NativeGraphics.OriginalEffect.Binding.Effect}, saved{source.Frame}/{source.NativeGraphics.Callback}; actual nextcallback{first.NativeGraphics.Callback}, wholeJSON/copiedpixels agree.");
     }
 
-    internal static BattleSession PrepareComponent(GameAssets game, BattleAssets assets, BattleActionDefinition action, ushort effect, bool applyKernelStatuses = false)
+    internal static BattleSession PrepareComponent(GameAssets game, BattleAssets assets, BattleActionDefinition action, ushort effect, bool applyKernelStatuses = false, ushort? descriptorEffect = null)
     {
         BattleEncounter formation = assets.LoadEncounter(94);
         BattleStage stage = assets.LoadStage(formation.StageId);
@@ -123,7 +140,7 @@ public sealed class NativeBattleRestorationPresentationTests
         Assert.Equal((ushort)0, status.Saved);
         //Controlled post-formula boundary: B90 already holds the successful result. B92 and the HP cache retain the prior display.
         //Esuna's prior poison bit is2; revival's prior KO bit is1. This does not run or admit either formula.
-        ushort priorSaved = applyKernelStatuses ? status.Saved : effect == 24 ? (ushort)2 : (ushort)1;
+        ushort priorSaved = applyKernelStatuses ? status.Saved : effect is 24 or 57 or 67 ? (ushort)2 : (ushort)1;
         uint priorBattle = status.Battle;
         if (applyKernelStatuses)
         {
@@ -138,7 +155,7 @@ public sealed class NativeBattleRestorationPresentationTests
         before = before with { Combatants = before.Combatants.Select(actor => actor.Id == target.Id ? target : actor).ToArray(), NativePartyPresentation = party, NativePartyStatusMirrors = before.NativePartyStatusMirrors!.Observe(1, priorSaved, priorBattle) };
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
         byte sequence = definition.NativeCommandSequences[native.Command];
-        (packets, int header) = packets.Prepare(new(0, native.Command, sequence, -1, native.ActionId, native.MagicId, null));
+        (packets, int header) = packets.Prepare(new(0, native.Command, sequence, -1, native.ActionId, descriptorEffect ?? native.MagicId, null));
         (packets, _) = packets.AppendContact(new(new(1, native.DamagePresentation, 0, resurrection ? (byte)1 : (byte)0, status.Saved, resurrection ? checked((ushort)targetHp) : (ushort)0, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
         (packets, _) = packets.Publish(1);
         NativeBattleGraphicsState graphics = before.NativeGraphics!;
@@ -241,7 +258,7 @@ public sealed class NativeBattleRestorationPresentationTests
                 ushort? currentStatus = after.Combatants.Single(actor => actor.Id == "target").NativeStatus!.Presentation.Saved;
                 if (priorStatus != currentStatus)
                 {
-                    Assert.Equal(effect == 24 ? (ushort)2 : (ushort)1, priorStatus);
+                    Assert.Equal(initial.Combatants.Single(actor => actor.Id == "target").NativeStatus!.Presentation.Saved, priorStatus);
                     Assert.Equal((ushort)0, currentStatus);
                     Assert.Equal(0u, graphics.Models[1].Flags8!.Value & initial.Definition.NativeGraphics!.Rules.Project(priorStatus!.Value, 0));
                     if (expectedContactCopy is { } copy)
@@ -288,9 +305,11 @@ public sealed class NativeBattleRestorationPresentationTests
                 }
                 if (rgb > 0 && !clonePassed && clone is null)
                 {
-                    clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(after))!);
-                    Assert.Equal(visible, new BattleScenePresentation(assets, initial.Definition, true).Render(clone, 320, 224));
                     Publish(evidence, id + "-mid", after, visible);
+                    string json = string.IsNullOrWhiteSpace(evidence) ? JsonSerializer.Serialize(after) : File.ReadAllText(Path.Combine(evidence, id + "-mid.battle.json"));
+                    clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
+                    Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(clone.Capture()));
+                    Assert.Equal(visible, new BattleScenePresentation(assets, initial.Definition, true).Render(clone, 320, 224));
                 }
             }
             catch (Exception error)
