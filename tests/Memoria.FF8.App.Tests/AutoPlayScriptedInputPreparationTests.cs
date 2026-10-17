@@ -37,6 +37,7 @@ public sealed class AutoPlayScriptedInputPreparationTests
         string manifest = TestResources.FixturePath("App.Tests.AutoPlayAcceptanceTests.5");
         using InstalledRun run = new();
         run.Controller.ResumeFrom(manifest);
+        AutoPlayAcceptanceTests.ScopeNativeInputCoverageToWardrobe(run.Controller);
         AutoPlayChoiceCoverage? inputChoice = null;
         for (int step = 0; step < 16 && inputChoice is null; step++)
         {

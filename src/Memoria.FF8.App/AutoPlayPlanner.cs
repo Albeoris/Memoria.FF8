@@ -266,8 +266,8 @@ internal sealed class AutoPlayPlanner
         return item.Event.Variants is { Count: > 0 } variants ? variants : [item.Event.Id];
     }
 
-    /// <summary>Returns null when no observed frontier is reachable without crossing a completed story edge.</summary>
-    public AutoPlayPlanStep? Plan(string currentVisitKey)
+    /// <summary>Uses recorded routes for frontiers and optional remote refreshes; returns null when neither is reachable.</summary>
+    public AutoPlayPlanStep? Plan(string currentVisitKey, Func<AutoPlayVisit, bool>? needsRefresh = null)
     {
         AutoPlayVisitCoverage current = FindVisit(currentVisitKey);
         Dictionary<string, AutoPlayPlanStep?> routes = new(StringComparer.Ordinal) { [currentVisitKey] = null };
@@ -293,7 +293,7 @@ internal sealed class AutoPlayPlanner
             }
         }
         var candidates = routes.Keys.SelectMany(key => OrderedEvents(FindVisit(key)).Where(NeedsExecution).Select(item => new { Visit = FindVisit(key), Coverage = item }));
-        var selected = candidates.OrderBy(item => progressionOrder(item.Visit.Visit, item.Coverage.Event))
+        var ordered = candidates.OrderBy(item => progressionOrder(item.Visit.Visit, item.Coverage.Event))
             .ThenBy(item => item.Coverage.Event.ChangesStory)
             .ThenBy(item => phaseOrder(item.Visit.Visit, item.Coverage.Event))
             .ThenBy(item => item.Visit.Visit.Region != current.Visit.Region)
@@ -301,8 +301,29 @@ internal sealed class AutoPlayPlanner
             .ThenBy(item => item.Coverage.Event.Kind)
             .ThenBy(item => distances[item.Visit.Visit.Key])
             .ThenBy(item => item.Visit.Visit.Key, StringComparer.Ordinal)
-            .ThenBy(item => item.Coverage.Event.Id, StringComparer.Ordinal)
-            .FirstOrDefault();
+            .ThenBy(item => item.Coverage.Event.Id, StringComparer.Ordinal);
+        var selected = ordered.FirstOrDefault();
+        if (needsRefresh is not null)
+        {
+            var ordinary = ordered.FirstOrDefault(item => !item.Coverage.Event.ChangesStory && progressionOrder(item.Visit.Visit, item.Coverage.Event) <= 0);
+            if (ordinary is not null)
+            {
+                selected = ordinary;
+            }
+            else
+            {
+                string? refresh = routes.Keys.Where(key => key != currentVisitKey && needsRefresh(FindVisit(key).Visit))
+                    .OrderBy(key => phaseOrder(FindVisit(key).Visit, routes[key]!.Event))
+                    .ThenBy(key => FindVisit(key).Visit.Region != current.Visit.Region)
+                    .ThenBy(key => distances[key])
+                    .ThenBy(key => key, StringComparer.Ordinal)
+                    .FirstOrDefault();
+                if (refresh is not null)
+                {
+                    return routes[refresh];
+                }
+            }
+        }
         if (selected is null)
         {
             return null;
@@ -310,7 +331,7 @@ internal sealed class AutoPlayPlanner
         return routes[selected.Visit.Visit.Key] ?? new AutoPlayPlanStep(selected.Visit.Visit.Key, selected.Coverage.Event, false);
     }
 
-    public int ReachableFrontierCount(string currentVisitKey, string? excludedVisit = null, string? excludedEvent = null)
+    public int ReachableFrontierCount(string currentVisitKey, string? excludedVisit = null, string? excludedEvent = null, Func<AutoPlayVisit, bool>? needsRefresh = null)
     {
         HashSet<string> reached = [];
         Queue<string> pending = new();
@@ -326,6 +347,10 @@ internal sealed class AutoPlayPlanner
             if (visit is null)
             {
                 continue;
+            }
+            if (key != currentVisitKey && key != excludedVisit && needsRefresh?.Invoke(visit.Visit) == true)
+            {
+                count++;
             }
             foreach (AutoPlayEventCoverage item in OrderedEvents(visit))
             {

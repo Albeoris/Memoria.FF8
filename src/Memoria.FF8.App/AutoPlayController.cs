@@ -48,6 +48,7 @@ internal sealed class AutoPlayRunState
     public HashSet<string> ObservedScenes { get; set; } = new(StringComparer.Ordinal);
     public HashSet<string> ObservedMessages { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, NativePlayerAbsenceReceipt> UnavailabilityGuards { get; set; } = new(StringComparer.Ordinal);
+    public Dictionary<string, AutoPlayVisitGuard> VisitGuards { get; set; } = new(StringComparer.Ordinal);
 }
 
 /// <summary>The graphics host and command line drive this same autonomous, deterministic controller.</summary>
@@ -472,7 +473,11 @@ internal sealed class AutoPlayController
             run.ActiveAbsenceGuardKey = null;
             run.ActiveAvailabilityFingerprint = null;
         }
-        AutoPlayPlanStep? next = planner.Plan(visit);
+        if (world.CaptureAutoPlayVisitGuard(targets) is { } guard)
+        {
+            run.VisitGuards[visit] = guard;
+        }
+        AutoPlayPlanStep? next = planner.Plan(visit, candidate => NeedsVisitRefresh(world, candidate));
         if (next is null)
         {
             WaitForNativeFrontier();
@@ -1122,7 +1127,7 @@ internal sealed class AutoPlayController
     private int ContinuationFrontier()
     {
         string visit = session.State.Scene == SceneKind.WorldMap ? "world:" + session.State.Variables.GetValueOrDefault(256) : VisitKey();
-        return planner.ReachableFrontierCount(visit, run.ActiveVisit, run.ActiveEvent);
+        return planner.ReachableFrontierCount(visit, run.ActiveVisit, run.ActiveEvent, session.State.Scene == SceneKind.Field ? candidate => NeedsVisitRefresh(getWorld(), candidate, includeUnknown: false) : null);
     }
 
     private void RefreshUnavailable(GameWorld world)
@@ -1146,6 +1151,23 @@ internal sealed class AutoPlayController
         {
             planner.RefreshUnavailable(visit.Visit.Key, fingerprints);
         }
+    }
+
+    private bool NeedsVisitRefresh(GameWorld world, AutoPlayVisit visit, bool includeUnknown = true)
+    {
+        if (!int.TryParse(visit.Key.Split(':')[0], out int field))
+        {
+            return false;
+        }
+        if (!run.VisitGuards.TryGetValue(visit.Key, out AutoPlayVisitGuard? guard))
+        {
+            return includeUnknown;
+        }
+        if (guard.Version != 1 || guard.FieldId != field)
+        {
+            throw new InvalidDataException("The visited field eligibility receipt has an unsupported version or field identity.");
+        }
+        return world.ReadAutoPlayFieldProgramHash(field) != guard.ProgramHash || world.Events.ReadPersistentPredicateFingerprint(guard.Reads) != guard.Fingerprint;
     }
 
     internal static string ReadUnavailableGuard(NativePlayerAbsenceReceipt receipt, string actualProgramHash, Func<IReadOnlyList<NativePersistentPredicateRead>, string?> readPersistent)

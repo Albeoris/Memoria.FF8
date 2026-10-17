@@ -13,6 +13,7 @@ public sealed class AutoPlayAcceptanceTests
         string manifest = TestResources.FixturePath("App.Tests.AutoPlayAcceptanceTests.5");
         using InstalledRun run = new(gameDirectory);
         run.Controller.ResumeFrom(manifest);
+        ScopeNativeInputCoverageToWardrobe(run.Controller);
         for (int step = 0; step < 8 && run.Controller.State.ActiveObservedInput is null; step++)
         {
             run.Controller.Advance(1);
@@ -33,6 +34,7 @@ public sealed class AutoPlayAcceptanceTests
         string manifest = TestResources.FixturePath("App.Tests.AutoPlayAcceptanceTests.5");
         using InstalledRun run = new(gameDirectory);
         run.Controller.ResumeFrom(manifest);
+        ScopeNativeInputCoverageToWardrobe(run.Controller);
         bool sawWardrobe = false;
         bool choseGetChanged = false;
         bool WardrobeChoicesFinished() => run.Controller.State.Coverage.Choices.Where(choice => choice.Key.StartsWith("240:", StringComparison.Ordinal) || choice.Key.StartsWith("input:240:", StringComparison.Ordinal)).All(choice => choice.Finished);
@@ -53,6 +55,13 @@ public sealed class AutoPlayAcceptanceTests
         Assert.Null(run.Controller.State.PrimaryContinuation);
         Assert.Equal(34, run.Variables.GetValueOrDefault(256));
         Assert.Equal(1, run.Variables.GetValueOrDefault(720));
+    }
+
+    internal static void ScopeNativeInputCoverageToWardrobe(AutoPlayController controller)
+    {
+        // These native input regressions isolate the current field; remote legacy visit refresh has separate coverage.
+        Assert.Contains(controller.State.Coverage.Visits, visit => visit.Visit.Key == "240:33");
+        controller.State.Coverage.Visits.RemoveAll(visit => visit.Visit.Key != "240:33");
     }
 
     [Fact]

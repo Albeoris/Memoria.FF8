@@ -1,12 +1,18 @@
+using System.Collections.Immutable;
+using System.Security.Cryptography;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Events;
 
 namespace Memoria.FF8;
 
+internal sealed record AutoPlayVisitGuard(int Version, int FieldId, string ProgramHash, ImmutableArray<NativePersistentPredicateRead> Reads, string Fingerprint);
+
 internal sealed partial class GameWorld
 {
     private byte[]? autoPlayConditionSource;
     private JsmProgram? autoPlayConditionProgram;
+    private string? autoPlayConditionProgramHash;
+    private int[] autoPlayInitializationConditionReads = [];
     private readonly Dictionary<(string Event, int Object), int[]> autoPlayConditionReads = [];
 
     internal EventPredicateState ReadAutoPlayConditions(string eventId, int objectId)
@@ -15,18 +21,58 @@ internal sealed partial class GameWorld
         {
             return Events.ReadPredicateState([]);
         }
-        if (!ReferenceEquals(autoPlayConditionSource, Field.Jsm))
+        EnsureAutoPlayConditionSource();
+        return Events.ReadPredicateState(ReadAutoPlayConditionOperations(eventId, objectId));
+    }
+
+    internal AutoPlayVisitGuard? CaptureAutoPlayVisitGuard(IReadOnlyList<AutoPlayTarget> targets)
+    {
+        ArgumentNullException.ThrowIfNull(targets);
+        if (Field is null || !HasCurrentFieldAllocation)
         {
-            autoPlayConditionSource = Field.Jsm;
-            autoPlayConditionProgram = JsmProgram.Read(Field.Jsm);
-            autoPlayConditionReads.Clear();
+            return null;
         }
+        EnsureAutoPlayConditionSource();
+        IEnumerable<int> reads = autoPlayInitializationConditionReads.Concat(targets.SelectMany(target => ReadAutoPlayConditionOperations(target.CoverageId, target.ObjectId)));
+        return CaptureAutoPlayVisitGuard(Events, autoPlayConditionProgramHash!, reads);
+    }
+
+    internal static AutoPlayVisitGuard? CaptureAutoPlayVisitGuard(EventEngine events, byte[] originalJsm, IReadOnlyList<AutoPlayTarget> targets)
+    {
+        JsmProgram program = JsmProgram.Read(originalJsm);
+        IEnumerable<int> reads = DiscoverAutoPlayInitializationConditionReads(program).Concat(targets.SelectMany(target => DiscoverAutoPlayConditionReads(program, target.CoverageId, target.ObjectId)));
+        return CaptureAutoPlayVisitGuard(events, Convert.ToHexString(SHA256.HashData(originalJsm)), reads);
+    }
+
+    private static AutoPlayVisitGuard? CaptureAutoPlayVisitGuard(EventEngine events, string programHash, IEnumerable<int> operations)
+    {
+        EventPredicateState represented = events.ReadPredicateState(operations.Distinct().ToArray(), includeParty: false);
+        ImmutableArray<NativePersistentPredicateRead> reads = represented.Values.Select(value => new NativePersistentPredicateRead(value.Opcode, value.Address, value.Width)).Distinct().Where(read => events.ReadPersistentPredicateFingerprint([read]) is not null).OrderBy(read => read.Address).ThenBy(read => read.Width).ThenBy(read => read.Opcode, StringComparer.Ordinal).ToImmutableArray();
+        string? fingerprint = events.ReadPersistentPredicateFingerprint(reads);
+        return fingerprint is null ? null : new AutoPlayVisitGuard(1, events.FieldId, programHash, reads, fingerprint);
+    }
+
+    private void EnsureAutoPlayConditionSource()
+    {
+        if (ReferenceEquals(autoPlayConditionSource, Field!.Jsm))
+        {
+            return;
+        }
+        autoPlayConditionSource = Field.Jsm;
+        autoPlayConditionProgram = JsmProgram.Read(Field.Jsm);
+        autoPlayConditionProgramHash = Convert.ToHexString(SHA256.HashData(Field.Jsm));
+        autoPlayInitializationConditionReads = DiscoverAutoPlayInitializationConditionReads(autoPlayConditionProgram);
+        autoPlayConditionReads.Clear();
+    }
+
+    private int[] ReadAutoPlayConditionOperations(string eventId, int objectId)
+    {
         if (!autoPlayConditionReads.TryGetValue((eventId, objectId), out int[]? operations))
         {
             operations = DiscoverAutoPlayConditionReads(autoPlayConditionProgram!, eventId, objectId);
             autoPlayConditionReads[(eventId, objectId)] = operations;
         }
-        return Events.ReadPredicateState(operations);
+        return operations;
     }
 
     internal static int[] DiscoverAutoPlayConditionReads(JsmProgram program, string eventId, int objectId)
@@ -49,6 +95,16 @@ internal sealed partial class GameWorld
                 }
             }
         }
+        return DiscoverAutoPlayConditionReads(program, roots);
+    }
+
+    private static int[] DiscoverAutoPlayInitializationConditionReads(JsmProgram program)
+    {
+        return DiscoverAutoPlayConditionReads(program, program.Objects.Where(obj => obj.Scripts.Count != 0).Select(obj => obj.Scripts[0]));
+    }
+
+    private static int[] DiscoverAutoPlayConditionReads(JsmProgram program, IEnumerable<EventScript> roots)
+    {
         return roots.SelectMany(root => AutoPlayScriptClosure(program, root)).Distinct().Where(index => program.Operations[index].Opcode is Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.PSHSM_L).Where(index => !IsAutoPlaySelfUpdateRead(program, index)).Order().ToArray();
     }
 
