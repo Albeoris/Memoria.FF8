@@ -4,6 +4,7 @@ public sealed record LaunchOptions
 {
     public static string ConfiguredGameDirectory => Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? Environment.GetEnvironmentVariable("FF8_GAME_DIRECTORY") ?? string.Empty;
     public string GameDirectory { get; init; } = ConfiguredGameDirectory;
+    public string? ModsDirectory { get; init; }
     public string? StatePath { get; init; }
     public string SavePath { get; init; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoria.FF8", "checkpoint.json");
     public string? MediaToolsDirectory { get; init; }
@@ -41,6 +42,7 @@ public sealed record LaunchOptions
             options = argument switch
             {
                 "--game-dir" => options with { GameDirectory = Path.GetFullPath(Value()) },
+                "--mods-dir" => options with { ModsDirectory = Path.GetFullPath(Value()) },
                 "--state" => options with { StatePath = Path.GetFullPath(Value()) },
                 "--save-state" => options with { SavePath = Path.GetFullPath(Value()) },
                 "--media-tools" => options with { MediaToolsDirectory = Path.GetFullPath(Value()) },

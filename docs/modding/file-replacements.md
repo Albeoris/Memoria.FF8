@@ -2,13 +2,13 @@
 
 Junction packages provide static Data-relative replacements. The current application connects movie AVI/CAM consumers. An importer accepting an address does not establish that every asset reader consumes that overlay. Junction packages are compatible with Classic game data only.
 
-Place a standalone `.iroj` or unpacked package directory under `Mods/Junction` in the selected game directory or application directory. Both roots use the [shared mod policy, ordering and reload lifecycle](texture-mods.md). The game-directory copy wins duplicate package IDs. Archives need no manual extraction; installed game files are not overwritten.
+Place a standalone `.iroj` or unpacked package directory under `Mods/Junction` in the selected game directory or beside `Memoria.Launcher.exe`. Direct application starts can select a mod root with `--mods-dir <directory>`; its `Junction` subdirectory is used. Without that option, the application uses its adjacent `Mods` directory. Both roots use the [shared mod policy, ordering and reload lifecycle](texture-mods.md). The game-directory copy wins duplicate package IDs. Archives need no manual extraction; installed game files are not overwritten.
 
 ## Manifest and configuration
 
 The importer reads IROS versions 1.0–1.2 with uncompressed, LZS and LZMA entries. It parses root `mod.xml`, selects static `ModFolder` mappings using declared `ConfigOption` defaults and the English game language, and publishes case-insensitive Data-relative addresses. Root mappings follow the importer's Junction fallback rules. `movies/` and `lang-en/movies/` remain distinct. Metadata, previews and readme files are not replacements.
 
-The Mods menu enables or disables the whole package; individual manifest options use declared defaults. Archive enablement lives in `<archive>.iroj.ini`; directory packages use `mod.ini`. Global policy remains application-base `Mods/mods.ini`.
+The Mods menu enables or disables the whole package; individual manifest options use declared defaults. Archive enablement lives in `<archive>.iroj.ini`; directory packages use `mod.ini`. Global policy lives in `mods.ini` under the selected mod root.
 
 Only `FFNxConfig/enable_ffmpeg_videos` is ignored, with a diagnostic, because Memoria already uses FFmpeg. Every other FFNx setting fails import, including in disabled packages. HEXT, executable/library/plugin/helper declarations, executable payloads, dynamic game-variable conditions and unsupported manifest behavior also fail import. Rejected packages show `Reload failed`, contribute no files and leave unrelated packages available. Package code is never executed.
 

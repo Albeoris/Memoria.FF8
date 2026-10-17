@@ -5,6 +5,54 @@ public sealed class ModRuntimeTests : IDisposable
     private readonly string root = Path.Combine(Path.GetTempPath(), "ff8-mod-runtime-" + Guid.NewGuid().ToString("N"));
 
     [Fact]
+    public void ExplicitModsDirectoryUsesItsOwnPolicyAndRetainsGameDirectoryPriority()
+    {
+        string gameRoot = Path.Combine(root, "game");
+        string customRoot = Path.Combine(root, "Custom package", "Texture packs");
+        Directory.CreateDirectory(customRoot);
+        File.WriteAllText(Path.Combine(customRoot, "mods.ini"), "auto_enable_new_mods = 0\n");
+        WriteAt(gameRoot, "Demaster/shared/test.png", "game");
+        WriteAt(gameRoot, "Demaster/shared/mod.ini", "enabled = 1\n");
+        string customPackage = Path.Combine(customRoot, "Demaster", "shared");
+        Directory.CreateDirectory(customPackage);
+        File.WriteAllText(Path.Combine(customPackage, "test.png"), "custom");
+        Write("Demaster/ignored/test.png", "application");
+        using ModRuntime runtime = new(root, watch: false, additionalBaseDirectories: [gameRoot], modsDirectory: customRoot + Path.DirectorySeparatorChar);
+        Publish(runtime);
+        Assert.Equal(new[] { Path.Combine(gameRoot, "Mods"), customRoot }, runtime.ModsDirectories);
+        Assert.False(runtime.AutoEnableNewMods);
+        Assert.Equal("game", System.Text.Encoding.UTF8.GetString(Assert.Single(runtime.Catalog.Files).ReadBytes()));
+        Assert.DoesNotContain(runtime.Catalog.Packages, package => package.Id == "Demaster/ignored");
+        Assert.True(runtime.SetAutoEnableNewMods(true).Success);
+        Assert.Contains("auto_enable_new_mods = 1", File.ReadAllText(Path.Combine(customRoot, "mods.ini")));
+        Assert.False(File.Exists(Path.Combine(root, "Mods", "mods.ini")));
+        Directory.Delete(Path.Combine(gameRoot, "Mods", "Demaster", "shared"), true);
+        runtime.RequestRefresh();
+        Publish(runtime);
+        Assert.Equal("custom", System.Text.Encoding.UTF8.GetString(Assert.Single(runtime.Catalog.Files).ReadBytes()));
+    }
+
+    [Fact]
+    public void WatcherDiscoversMissingExplicitModsDirectoryWithCustomName()
+    {
+        Directory.CreateDirectory(root);
+        string customRoot = Path.Combine(root, "Custom package", "Texture packs");
+        using ModRuntime runtime = new(root, watch: true, debounce: TimeSpan.Zero, modsDirectory: customRoot);
+        Publish(runtime);
+        Assert.False(Directory.Exists(customRoot));
+        string package = Path.Combine(customRoot, "Demaster", "example");
+        Directory.CreateDirectory(package);
+        string texture = Path.Combine(package, "test.png");
+        File.WriteAllText(texture, "original");
+        WaitFor(() => runtime.IsReloadPending);
+        PumpUntilPublished(runtime, snapshot => snapshot.Files.Count == 1);
+        Assert.Equal("original", System.Text.Encoding.UTF8.GetString(Assert.Single(runtime.Catalog.Files).ReadBytes()));
+        File.WriteAllText(texture, "updated content");
+        WaitFor(() => runtime.IsReloadPending);
+        PumpUntilPublished(runtime, snapshot => snapshot.Files.Count == 1 && System.Text.Encoding.UTF8.GetString(snapshot.Files[0].ReadBytes()) == "updated content");
+    }
+
+    [Fact]
     public void VirtualNamespaceRetainsCandidatesInPackageAndPathOrder()
     {
         Write("Tonberry/zeta/textures/Test.png", "second");

@@ -5,6 +5,15 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class SessionTests
 {
     [Fact]
+    public void Mods_directory_argument_accepts_paths_with_spaces_and_requires_a_value()
+    {
+        string directory = Path.Combine("Custom package", "Texture packs");
+        Assert.Null(LaunchOptions.Parse([]).ModsDirectory);
+        Assert.Equal(Path.GetFullPath(directory), LaunchOptions.Parse(["--mods-dir", directory]).ModsDirectory);
+        Assert.Throws<ArgumentException>(() => LaunchOptions.Parse(["--mods-dir"]));
+    }
+
+    [Fact]
     public void New_game_movie_completion_and_field_transition_preserve_story_variables()
     {
         var session = GameSession.CreateColdProcess();

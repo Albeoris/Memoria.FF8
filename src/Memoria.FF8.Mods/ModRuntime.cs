@@ -12,13 +12,12 @@ public sealed partial class ModRuntime : IModService, IDisposable
     private readonly object gate = new();
     private readonly int ownerThread = Environment.CurrentManagedThreadId;
     private readonly string modsRoot;
-    private readonly string applicationRoot;
     private readonly Func<ModFormat, bool> isCompatible;
     private readonly Func<ModCatalogSnapshot, ModPreparationResult> prepare;
     private readonly TimeSpan debounce;
     private readonly List<Action<ModCatalogSnapshot>> subscribers = [];
     private readonly Dictionary<string, FileEntry> fileEntries = new(StringComparer.Ordinal);
-    private readonly List<(string BaseDirectory, FileSystemWatcher Watcher)> watchers = [];
+    private readonly List<(string ModsDirectory, FileSystemWatcher Watcher)> watchers = [];
     private readonly Queue<string> watcherErrors = [];
     private ModCatalogSnapshot catalog = new(0, [], []);
     private ModCatalogSnapshot? pending;
@@ -36,21 +35,18 @@ public sealed partial class ModRuntime : IModService, IDisposable
     private string? lastIdentity;
     private string? pendingIdentity;
 
-    public ModRuntime(string? applicationBaseDirectory = null, Func<ModFormat, bool>? isCompatible = null, Func<ModCatalogSnapshot, ModPreparationResult>? prepare = null, bool watch = true, TimeSpan? debounce = null, IEnumerable<string>? additionalBaseDirectories = null)
+    public ModRuntime(string? applicationBaseDirectory = null, Func<ModFormat, bool>? isCompatible = null, Func<ModCatalogSnapshot, ModPreparationResult>? prepare = null, bool watch = true, TimeSpan? debounce = null, IEnumerable<string>? additionalBaseDirectories = null, string? modsDirectory = null)
     {
-        applicationRoot = Path.GetFullPath(applicationBaseDirectory ?? AppContext.BaseDirectory);
-        modsRoot = Path.Combine(applicationRoot, "Mods");
-        string[] baseDirectories = (additionalBaseDirectories ?? []).Append(applicationRoot).Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-        ModsDirectories = Array.AsReadOnly(baseDirectories.Select(directory => Path.Combine(directory, "Mods")).ToArray());
+        modsRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(modsDirectory ?? Path.Combine(applicationBaseDirectory ?? AppContext.BaseDirectory, "Mods")));
+        ModsDirectories = Array.AsReadOnly((additionalBaseDirectories ?? []).Select(directory => Path.Combine(directory, "Mods")).Append(modsRoot).Select(directory => Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory))).Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
         this.isCompatible = isCompatible ?? (_ => true);
         this.prepare = prepare ?? (_ => ModPreparationResult.Accepted);
         this.debounce = debounce ?? TimeSpan.FromMilliseconds(250);
         if (watch)
         {
-            foreach (string directory in baseDirectories)
+            foreach (string directory in ModsDirectories)
             {
-                string root = Path.Combine(directory, "Mods");
-                FileSystemWatcher watcher = new(Directory.Exists(root) ? root : directory)
+                FileSystemWatcher watcher = new(ExistingWatchDirectory(directory))
                 {
                     NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite | NotifyFilters.Size
                 };
@@ -581,20 +577,30 @@ public sealed partial class ModRuntime : IModService, IDisposable
 
     private void ConfigureWatcher()
     {
-        foreach ((string directory, FileSystemWatcher watcher) in watchers)
+        foreach ((string root, FileSystemWatcher watcher) in watchers)
         {
-            string root = Path.Combine(directory, "Mods");
             bool exists = Directory.Exists(root);
-            string path = exists ? root : directory;
-            if (!watcher.EnableRaisingEvents || !watcher.Path.Equals(path, StringComparison.OrdinalIgnoreCase) || watcher.IncludeSubdirectories != exists)
+            string path = ExistingWatchDirectory(root);
+            bool recursive = exists || !string.Equals(Path.GetDirectoryName(root), path, StringComparison.OrdinalIgnoreCase);
+            string filter = recursive ? "*" : Path.GetFileName(root);
+            if (!watcher.EnableRaisingEvents || !watcher.Path.Equals(path, StringComparison.OrdinalIgnoreCase) || watcher.IncludeSubdirectories != recursive || watcher.Filter != filter)
             {
                 watcher.EnableRaisingEvents = false;
                 watcher.Path = path;
-                watcher.IncludeSubdirectories = exists;
-                watcher.Filter = exists ? "*" : "Mods";
+                watcher.IncludeSubdirectories = recursive;
+                watcher.Filter = filter;
                 watcher.EnableRaisingEvents = true;
             }
         }
+    }
+
+    private static string ExistingWatchDirectory(string directory)
+    {
+        while (!Directory.Exists(directory))
+        {
+            directory = Path.GetDirectoryName(directory) ?? throw new DirectoryNotFoundException($"No existing parent directory for mod path: {directory}");
+        }
+        return directory;
     }
 
     private void OnFileChanged(object sender, FileSystemEventArgs args)

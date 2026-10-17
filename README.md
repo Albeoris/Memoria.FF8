@@ -46,12 +46,18 @@ From a source checkout, use Windows, PowerShell 7 and the .NET 10 SDK:
 ./Build.ps1 -Test
 ```
 
-The result is `artifacts/Memoria-FF8-win-x64.zip`, with exactly two entries at its root:
+The result is `artifacts/Memoria-FF8-win-x64.zip`, with this layout:
 
 ```text
 Memoria.Launcher.exe
 Data/
+Mods/
+  Tonberry/
+  Demaster/
+  Junction/
 ```
+
+The three mod directories are empty in the release archive and ready for user-installed mods.
 
 The required Albeoris.Frameworks source is [vendored](vendor/Albeoris.Frameworks/README.md). No sibling repository or submodule is needed. See [Build and test](docs/developers/building-and-testing.md) for development builds, test projects and optional local inputs.
 

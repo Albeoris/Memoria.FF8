@@ -10,28 +10,39 @@ public sealed class GameResourceHostTests : IDisposable
     private readonly string root = Path.Combine(Path.GetTempPath(), "ff8-resource-host-" + Guid.NewGuid().ToString("N"));
     private static readonly Rgba32 BaseColor = new(24, 48, 72);
 
-    [Fact]
-    public void InstalledGamePackagesTakePriorityOverApplicationCopies()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InstalledGamePackagesTakePriorityOverApplicationCopies(bool explicitModsDirectory)
     {
         WriteImage("Demaster/installed/textures/world/dat/texl/texl_001_0.png", MagickColors.Red);
         string application = Path.Combine(root, "application");
-        Directory.CreateDirectory(Path.Combine(application, "Mods/Demaster/installed"));
-        Directory.CreateDirectory(Path.Combine(application, "Mods/Demaster/portable"));
-        using GameResourceHost host = new(root, application, watch: false);
-        Assert.Equal(new[] { Path.Combine(root, "Mods"), Path.Combine(application, "Mods") }, host.Mods.ModsDirectories);
+        string mods = Path.Combine(application, explicitModsDirectory ? "Custom packs" : "Mods");
+        Directory.CreateDirectory(Path.Combine(mods, "Demaster/installed"));
+        Directory.CreateDirectory(Path.Combine(mods, "Demaster/portable"));
+        using GameResourceHost host = new(root, application, watch: false, modsDirectory: explicitModsDirectory ? mods : null);
+        Assert.Equal(new[] { Path.Combine(root, "Mods"), mods }, host.Mods.ModsDirectories);
         Assert.Equal(new[] { "Demaster/installed", "Demaster/portable" }, host.Mods.Catalog.Packages.Select(package => package.Id));
         Assert.Equal(new Rgba32(255, 0, 0), host.Resources.GetTexture(Context(host)).Value.Image[0, 0]);
         Assert.True(host.Mods.SetEnabled("Demaster/installed", false).Success);
         Assert.True(File.Exists(Path.Combine(root, "Mods/Demaster/installed/mod.ini")));
-        Assert.False(File.Exists(Path.Combine(application, "Mods/Demaster/installed/mod.ini")));
+        Assert.False(File.Exists(Path.Combine(mods, "Demaster/installed/mod.ini")));
     }
 
-    [Fact]
-    public void ApplicationPackagesRemainAvailableWithoutAnInstalledModsDirectory()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ApplicationPackagesRemainAvailableWithoutAnInstalledModsDirectory(bool explicitModsDirectory)
     {
         WriteImage("Demaster/portable/textures/world/dat/texl/texl_001_0.png", MagickColors.Red);
-        using GameResourceHost host = Host();
-        Assert.Contains(Path.Combine(root, "Mods"), host.Mods.ModsDirectories);
+        string mods = Path.Combine(root, "Mods");
+        string customMods = Path.Combine(root, "Custom packs");
+        if (explicitModsDirectory)
+        {
+            Directory.Move(mods, customMods);
+        }
+        using GameResourceHost host = new(Path.Combine(root, "empty-classic-game"), root, watch: false, modsDirectory: explicitModsDirectory ? customMods : null);
+        Assert.Contains(explicitModsDirectory ? customMods : mods, host.Mods.ModsDirectories);
         Assert.Equal("Demaster/portable", Assert.Single(host.Mods.Catalog.Packages).Id);
         Assert.Equal(new Rgba32(255, 0, 0), host.Resources.GetTexture(Context(host)).Value.Image[0, 0]);
     }

@@ -16,7 +16,8 @@ The script publishes a self-contained x64 launcher and engine, plus the x86 Dire
 | --- | --- |
 | `artifacts/package/Memoria.Launcher.exe` | Start the local packaged application. |
 | `artifacts/package/Data/` | Engine, runtimes, audio host and distribution notices. |
-| `artifacts/Memoria-FF8-win-x64.zip` | The distributable archive; its only root entries are the launcher and `Data/`. |
+| `artifacts/package/Mods/` | Empty `Tonberry/`, `Demaster/` and `Junction/` directories for user-installed mods. |
+| `artifacts/Memoria-FF8-win-x64.zip` | The distributable archive; its root contains the launcher, `Data/` and `Mods/`. |
 
 `Build.ps1` replaces its generated package directory on a successful build. Keep personal saves, mod packages and independently installed tools outside disposable build outputs, or preserve them before rebuilding.
 

@@ -27,7 +27,11 @@ $package = Join-Path $artifacts 'package'
 $staging = Join-Path $artifacts ('staging-' + [Guid]::NewGuid().ToString('N'))
 $data = Join-Path $staging 'Data'
 $launcher = Join-Path $staging 'launcher'
+$modDirectories = @('Tonberry', 'Demaster', 'Junction')
 New-Item -ItemType Directory -Force -Path $data, $launcher | Out-Null
+foreach ($directory in $modDirectories) {
+    New-Item -ItemType Directory -Path (Join-Path $staging "Mods/$directory") | Out-Null
+}
 
 Push-Location $root
 try {
@@ -99,7 +103,23 @@ try {
     }
     Move-Item -LiteralPath $staging -Destination $package
     $archive = Join-Path $artifacts 'Memoria-FF8-win-x64.zip'
-    Compress-Archive -LiteralPath (Join-Path $package 'Memoria.Launcher.exe'), (Join-Path $package 'Data') -DestinationPath $archive -Force
+    Compress-Archive -LiteralPath (Join-Path $package 'Memoria.Launcher.exe'), (Join-Path $package 'Data'), (Join-Path $package 'Mods') -DestinationPath $archive -Force
+    $zip = [IO.Compression.ZipFile]::OpenRead($archive)
+    try {
+        foreach ($directory in $modDirectories) {
+            if ($null -eq $zip.GetEntry("Mods/$directory/")) {
+                throw "Incomplete distribution archive: Mods/$directory/ is missing."
+            }
+        }
+        foreach ($entry in $zip.Entries) {
+            if ($entry.FullName.StartsWith('Mods/', [StringComparison]::Ordinal) -and !$entry.FullName.EndsWith('/', [StringComparison]::Ordinal)) {
+                throw "The distribution archive contains a file in Mods: $($entry.FullName)."
+            }
+        }
+    }
+    finally {
+        $zip.Dispose()
+    }
     Write-Host "Distribution: $package"
     Write-Host "Archive: $archive"
 }

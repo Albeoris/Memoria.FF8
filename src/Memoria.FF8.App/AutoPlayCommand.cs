@@ -48,7 +48,7 @@ internal static class AutoPlayCommand
         }
         output ??= resume is null ? Path.Combine(Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!, "autoplay") : Directory.GetParent(Path.GetDirectoryName(resume)!)!.FullName;
         GameSession session = GameWorld.CreateColdProcess(options.GameDirectory);
-        using GameResourceHost resources = new(options.GameDirectory, watch: false);
+        using GameResourceHost resources = new(options.GameDirectory, watch: false, modsDirectory: options.ModsDirectory);
         GameWorld? world = null;
         GameWorld GetWorld() => world ??= new(session, options.GameDirectory, new MovieClock(session, options.GameDirectory, options.MediaToolsDirectory, resources.ResolveGameFile), resources.Resources, validateWorldPresentation: false, resolveGameFile: resources.ResolveGameFile);
         void Restore(GameState state)

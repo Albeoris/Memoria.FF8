@@ -91,6 +91,8 @@ internal static class GameInstallationSelection
         };
         result.ArgumentList.Add("--game-dir");
         result.ArgumentList.Add(Path.GetFullPath(gameDirectory));
+        result.ArgumentList.Add("--mods-dir");
+        result.ArgumentList.Add(Path.GetFullPath(Path.Combine(packageDirectory, "Mods")));
         result.ArgumentList.Add("--media-tools");
         result.ArgumentList.Add(MediaToolsInstallation.ResolveDirectory());
         return result;
