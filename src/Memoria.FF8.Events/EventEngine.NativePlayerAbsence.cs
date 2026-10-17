@@ -31,7 +31,7 @@ public sealed partial class EventEngine
         {
             return null;
         }
-        if (services.SeeD is NativeSeeDState seeD && ((controls.EventFlags104 & 8) == 0 || unchecked((short)seeD.SalaryDisplayCountdown184) >= 0 || services.SalaryPresentation is not { Phase: 9 } || Scene.NativeSalaryMovementUnits != 0))
+        if (services.SeeD is NativeSeeDState seeD && ((controls.EventFlags104 & 8) == 0 && services.CharacterVitals is not { DreamEnabled: true } || unchecked((short)seeD.SalaryDisplayCountdown184) >= 0 || services.SalaryPresentation is not { Phase: 9 } || Scene.NativeSalaryMovementUnits != 0))
         {
             return null;
         }
@@ -64,8 +64,9 @@ public sealed partial class EventEngine
     public string? ReadPersistentPredicateFingerprint(IReadOnlyList<NativePersistentPredicateRead> reads)
     {
         ArgumentNullException.ThrowIfNull(reads);
-        StringBuilder identity = new("native-persistent-predicate-v1|party:");
+        StringBuilder identity = new("native-persistent-predicate-v2|party:");
         identity.AppendJoin(',', Scene.Party);
+        identity.Append("|dream:").Append(services.CharacterVitals is { } vitals ? vitals.DreamEnabled ? "1" : "0" : "?");
         foreach (NativePersistentPredicateRead descriptor in reads.Distinct().OrderBy(read => read.Address).ThenBy(read => read.Width).ThenBy(read => read.Opcode, StringComparer.Ordinal))
         {
             if (!TryPersistentPredicateOperation(descriptor, out JsmOperation? operation))
@@ -290,7 +291,7 @@ public sealed partial class EventEngine
                         return false;
                     }
                 }
-                else if (!IsAbsenceMemoryRead(operation.Opcode) && operation.Opcode is not (Jsm.Opcode.LBL or Jsm.Opcode.NOP or Jsm.Opcode.RET or Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHI_L or Jsm.Opcode.CAL or Jsm.Opcode.JMP or Jsm.Opcode.JPF or Jsm.Opcode.SETMODEL or Jsm.Opcode.BASEANIME or Jsm.Opcode.SETPC or Jsm.Opcode.ISPARTY or Jsm.Opcode.UNUSE or Jsm.Opcode.POLYCOLORALL or Jsm.Opcode.FADEIN or Jsm.Opcode.MUSICVOLTRANS or Jsm.Opcode.EFFECTLOAD or Jsm.Opcode.SET3 or Jsm.Opcode.SETLINE or Jsm.Opcode.RND))
+                else if (!IsAbsenceMemoryRead(operation.Opcode) && operation.Opcode is not (Jsm.Opcode.LBL or Jsm.Opcode.NOP or Jsm.Opcode.RET or Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHI_L or Jsm.Opcode.CAL or Jsm.Opcode.JMP or Jsm.Opcode.JPF or Jsm.Opcode.SETMODEL or Jsm.Opcode.BASEANIME or Jsm.Opcode.SETPC or Jsm.Opcode.ISPARTY or Jsm.Opcode.UNUSE or Jsm.Opcode.POLYCOLORALL or Jsm.Opcode.FADEIN or Jsm.Opcode.MUSICVOLTRANS or Jsm.Opcode.EFFECTLOAD or Jsm.Opcode.SET3 or Jsm.Opcode.SETLINE or Jsm.Opcode.RND or Jsm.Opcode.HIDE or Jsm.Opcode.DIR or Jsm.Opcode.THROUGHOFF or Jsm.Opcode.TALKON or Jsm.Opcode.PUSHRADIUS or Jsm.Opcode.SESTOP or Jsm.Opcode.SETPLACE or Jsm.Opcode.THROUGHON))
                 {
                     // Requests, indirect publishers and unknown native effects cannot be omitted from an entry guard proof.
                     return false;

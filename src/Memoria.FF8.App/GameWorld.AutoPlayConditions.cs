@@ -5,7 +5,10 @@ using Memoria.FF8.Events;
 
 namespace Memoria.FF8;
 
-internal sealed record AutoPlayVisitGuard(int Version, int FieldId, string ProgramHash, ImmutableArray<NativePersistentPredicateRead> Reads, string Fingerprint);
+internal sealed record AutoPlayVisitGuard(int Version, int FieldId, string ProgramHash, ImmutableArray<NativePersistentPredicateRead> Reads, string Fingerprint)
+{
+    internal const int CurrentVersion = 2;
+}
 
 internal sealed partial class GameWorld
 {
@@ -49,7 +52,7 @@ internal sealed partial class GameWorld
         EventPredicateState represented = events.ReadPredicateState(operations.Distinct().ToArray(), includeParty: false);
         ImmutableArray<NativePersistentPredicateRead> reads = represented.Values.Select(value => new NativePersistentPredicateRead(value.Opcode, value.Address, value.Width)).Distinct().Where(read => events.ReadPersistentPredicateFingerprint([read]) is not null).OrderBy(read => read.Address).ThenBy(read => read.Width).ThenBy(read => read.Opcode, StringComparer.Ordinal).ToImmutableArray();
         string? fingerprint = events.ReadPersistentPredicateFingerprint(reads);
-        return fingerprint is null ? null : new AutoPlayVisitGuard(1, events.FieldId, programHash, reads, fingerprint);
+        return fingerprint is null ? null : new AutoPlayVisitGuard(AutoPlayVisitGuard.CurrentVersion, events.FieldId, programHash, reads, fingerprint);
     }
 
     private void EnsureAutoPlayConditionSource()

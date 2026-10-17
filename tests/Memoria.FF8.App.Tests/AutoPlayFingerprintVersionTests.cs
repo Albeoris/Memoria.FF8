@@ -1,0 +1,29 @@
+using System.Reflection;
+using Memoria.FF8.Runtime;
+
+namespace Memoria.FF8.App.Tests;
+
+public sealed class AutoPlayFingerprintVersionTests
+{
+    [Fact]
+    public void LegacyPredicateDomainsRequestARefreshWithoutEarningChangedFrontierCredit()
+    {
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.NativeDreamPlayerAbsenceTests.2")));
+        using GameWorld world = new(session, TestResources.GameDirectory, validateWorldPresentation: false);
+        world.EnsureField();
+        AutoPlayController controller = new(session, () => world, _ => throw new InvalidOperationException("This read-only guard comparison cannot restore gameplay."), TestResources.ArtifactDirectory);
+        AutoPlayVisit visit = new("742:223", "city");
+        MethodInfo needsRefresh = typeof(AutoPlayController).GetMethod("NeedsVisitRefresh", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        string hash = world.ReadAutoPlayFieldProgramHash(742);
+        string fingerprint = world.Events.ReadPersistentPredicateFingerprint([])!;
+        controller.State.VisitGuards[visit.Key] = new(1, 742, hash, [], "legacy-fingerprint");
+
+        Assert.False(Assert.IsType<bool>(needsRefresh.Invoke(controller, [world, visit, false])));
+        Assert.True(Assert.IsType<bool>(needsRefresh.Invoke(controller, [world, visit, true])));
+
+        controller.State.VisitGuards[visit.Key] = new(2, 742, hash, [], fingerprint);
+        Assert.False(Assert.IsType<bool>(needsRefresh.Invoke(controller, [world, visit, false])));
+        controller.State.VisitGuards[visit.Key] = new(2, 742, hash, [], "changed-current-domain");
+        Assert.True(Assert.IsType<bool>(needsRefresh.Invoke(controller, [world, visit, false])));
+    }
+}

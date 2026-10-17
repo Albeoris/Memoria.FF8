@@ -1023,7 +1023,7 @@ internal sealed class AutoPlayController
             SaveGame(Path.Combine(runDirectory!, continuation), CaptureState());
             int story = session.State.Variables.GetValueOrDefault(256);
             int frontier = ContinuationFrontier();
-            bool conditionsChanged = run.ActiveVisit is string sourceVisit && run.VisitGuards.TryGetValue(sourceVisit, out AutoPlayVisitGuard? sourceGuard) && getWorld().Events.ReadPersistentPredicateFingerprint(sourceGuard.Reads) is string currentConditions && currentConditions != sourceGuard.Fingerprint;
+            bool conditionsChanged = run.ActiveVisit is string sourceVisit && run.VisitGuards.TryGetValue(sourceVisit, out AutoPlayVisitGuard? sourceGuard) && sourceGuard.Version == AutoPlayVisitGuard.CurrentVersion && getWorld().Events.ReadPersistentPredicateFingerprint(sourceGuard.Reads) is string currentConditions && currentConditions != sourceGuard.Fingerprint;
             if (run.PrimaryContinuation is null || story > run.PrimaryStory || story == run.PrimaryStory && (frontier > run.PrimaryFrontier || frontier == run.PrimaryFrontier && conditionsChanged && !run.PrimaryConditionsChanged))
             {
                 run.PrimaryContinuation = continuation;
@@ -1167,9 +1167,13 @@ internal sealed class AutoPlayController
         {
             return includeUnknown;
         }
-        if (guard.Version != 1 || guard.FieldId != field)
+        if (guard.Version is not (1 or AutoPlayVisitGuard.CurrentVersion) || guard.FieldId != field)
         {
             throw new InvalidDataException("The visited field eligibility receipt has an unsupported version or field identity.");
+        }
+        if (guard.Version != AutoPlayVisitGuard.CurrentVersion)
+        {
+            return includeUnknown;
         }
         return world.ReadAutoPlayFieldProgramHash(field) != guard.ProgramHash || world.Events.ReadPersistentPredicateFingerprint(guard.Reads) != guard.Fingerprint;
     }
