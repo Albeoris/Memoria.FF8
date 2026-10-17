@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Buffers.Binary;
 using System.Security.Cryptography;
 using Albeoris.Games.FF8.Imaging;
 
@@ -69,6 +70,33 @@ public sealed class NativeMenuArtworkTests
         Assert.Throws<ArgumentOutOfRangeException>(() => artwork.GetIcon(-1));
         Assert.Throws<ArgumentOutOfRangeException>(() => artwork.GetIcon(artwork.IconCount));
         Assert.Throws<ArgumentOutOfRangeException>(() => artwork.GetIcon(0, 16));
+    }
+
+    [Fact]
+    public void Native_countdown_digits_format_original_parts_without_font_or_battle_ot_substitution()
+    {
+        NativeMenuArtwork artwork = NativeMenuArtwork.Load(InstalledGameDirectory());
+        HashSet<string> packetHashes = [];
+        for (int digit = 0; digit < 10; digit++)
+        {
+            var opaque = artwork.EncodeNativeIconPackets(0x18 + digit, -12, 19, 0xFFFFFF);
+            var semi = artwork.EncodeNativeIconPackets(0x18 + digit, -12, 19, 0x04FFFFFF);
+            Assert.NotEmpty(opaque);
+            Assert.Equal(0, opaque.Length % 24);
+            Assert.Equal(opaque.Length, semi.Length);
+            Assert.True(packetHashes.Add(Convert.ToHexString(SHA256.HashData(opaque.AsSpan()))));
+            for (int offset = 0; offset < opaque.Length; offset += 24)
+            {
+                Assert.Equal(0x05000000u, BinaryPrimitives.ReadUInt32LittleEndian(opaque.AsSpan(offset, 4)));
+                Assert.Equal(0xE100041Eu, BinaryPrimitives.ReadUInt32LittleEndian(opaque.AsSpan(offset + 4, 4)));
+                Assert.Equal(0x64FFFFFFu, BinaryPrimitives.ReadUInt32LittleEndian(opaque.AsSpan(offset + 8, 4)));
+                Assert.Equal(0x66FFFFFFu, BinaryPrimitives.ReadUInt32LittleEndian(semi.AsSpan(offset + 8, 4)));
+                Assert.True(opaque.AsSpan(offset + 12, 12).SequenceEqual(semi.AsSpan(offset + 12, 12)));
+            }
+            Assert.NotEmpty(artwork.GetIcon(0x18 + digit).Pixels);
+        }
+        Assert.Throws<NotSupportedException>(() => artwork.EncodeNativeIconPackets(128, 0, 0, 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => artwork.EncodeNativeIconPackets(artwork.IconCount, 0, 0, 0));
     }
 
     private static string InstalledGameDirectory()

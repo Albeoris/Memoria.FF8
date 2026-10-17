@@ -8,8 +8,11 @@ public sealed record NativeBattleGraphicsRules(string ExecutableSha256, Immutabl
     public NativeBattleSummonColors? SummonColors { get; init; }
     public NativeBattleShadowSource? ShadowSource { get; init; }
     public ImmutableArray<uint>? ActorSounds1120 { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleStatusIconResources? StatusIcons { get; init; }
     public void Validate()
     {
+        StatusIcons?.Validate();
         if (ActorSounds1120 is { } sounds && (sounds.IsDefault || sounds.Length != 160 * 7))
         {
             throw new InvalidDataException("Native5015A0 requires the complete B8A418 seven-DWORD table for160 actor identities.");

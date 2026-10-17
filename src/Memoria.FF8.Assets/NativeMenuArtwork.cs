@@ -1,8 +1,10 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 using Albeoris.Games.FF8.FlArchives;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Albeoris.Games.FF8.Imaging;
 using Albeoris.Games.FF8.Imaging.Tex;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
 
@@ -87,6 +89,18 @@ public sealed class NativeMenuArtwork
         return new NativeMenuArtwork(characters, guardianForces, palettes, ReadEntry(menu, "icon.sp1"));
     }
 
+    /// <summary>Formats the original current ICON.SP1 parts for the separate native PC UI-immediate path.</summary>
+    public ImmutableArray<byte> EncodeNativeIconPackets(int index, int x, int y, uint color, int paletteOffset = 0)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(index);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, IconCount);
+        if (index is >= 128 and < 140)
+        {
+            throw new NotSupportedException("Native4B76A0 icons128..139 require original4A2F80 current input bindings.");
+        }
+        return NativeMenuIconPackets.Encode4B76A0(ReadIconParts(iconIndex, index), x, y, color, paletteOffset);
+    }
+
     private static PixelImage DecodePortrait(PixelImage[] atlases, ReadOnlySpan<byte> index, int id)
     {
         int count = ReadCount(index);
@@ -114,19 +128,15 @@ public sealed class NativeMenuArtwork
 
     private static PixelImage DecodeIcon(PixelImage[] palettes, ReadOnlySpan<byte> index, int id, int paletteOffset)
     {
-        int offset = BinaryPrimitives.ReadUInt16LittleEndian(index[(4 + id * 4)..]);
-        int count = BinaryPrimitives.ReadUInt16LittleEndian(index[(6 + id * 4)..]);
-        if (count == 0 || offset < 4 + ReadCount(index) * 4 || count > (index.Length - offset) / 8)
-        {
-            throw new InvalidDataException("Original menu icon lacks bounded sprite parts.");
-        }
+        ReadOnlySpan<byte> parts = ReadIconParts(index, id);
+        int count = parts.Length / 8;
         int left = int.MaxValue;
         int top = int.MaxValue;
         int right = int.MinValue;
         int bottom = int.MinValue;
         for (int i = 0; i < count; i++)
         {
-            ReadOnlySpan<byte> part = index.Slice(offset + i * 8, 8);
+            ReadOnlySpan<byte> part = parts.Slice(i * 8, 8);
             int x = unchecked((sbyte)part[5]);
             int y = unchecked((sbyte)part[7]);
             left = Math.Min(left, x);
@@ -137,7 +147,7 @@ public sealed class NativeMenuArtwork
         PixelImage result = new(right - left, bottom - top);
         for (int i = 0; i < count; i++)
         {
-            ReadOnlySpan<byte> part = index.Slice(offset + i * 8, 8);
+            ReadOnlySpan<byte> part = parts.Slice(i * 8, 8);
             int palette = ((BinaryPrimitives.ReadUInt16LittleEndian(part[2..]) >> 6) & 15) + paletteOffset;
             if ((uint)palette >= palettes.Length)
             {
@@ -165,6 +175,17 @@ public sealed class NativeMenuArtwork
             }
         }
         return result;
+    }
+
+    private static ReadOnlySpan<byte> ReadIconParts(ReadOnlySpan<byte> index, int id)
+    {
+        int offset = BinaryPrimitives.ReadUInt16LittleEndian(index[(4 + id * 4)..]);
+        int count = BinaryPrimitives.ReadUInt16LittleEndian(index[(6 + id * 4)..]);
+        if (count == 0 || offset < 4 + ReadCount(index) * 4 || count > (index.Length - offset) / 8)
+        {
+            throw new InvalidDataException("Original menu icon lacks bounded sprite parts.");
+        }
+        return index.Slice(offset, count * 8);
     }
 
     private static int ReadCount(ReadOnlySpan<byte> index)

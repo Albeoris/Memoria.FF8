@@ -60,22 +60,19 @@ public static class NativeBattleModelColors
         (pending, model) = pending.Consume50A0CD(model);
         if ((model.Flags0 & 0x2000) == 0 && (statuses & 0x804) != 0 && (flags2 & 8) == 0)
         {
-            throw new NotSupportedException("Native50A0A0 reached50A370 status rotation; its selected pose/matrix writer is not implemented.");
+            model = NativeBattleModelStatusMotion.Advance50A370(model);
         }
         if ((model.Flags0 & 0x1000) == 0 && (statuses & 0x200) != 0 && (flags2 & 8) == 0)
         {
-            throw new NotSupportedException("Native50A0A0 reached50A5F0 float motion; its retained status phase and WORD34 writer are not implemented.");
+            model = NativeBattleModelStatusMotion.Advance50A5F0(model);
         }
         if ((graphicsFlags & 0x410) == 0)
         {
             if ((model.Flags0 & 0x4004) == 0 && (statuses & 0x82000) != 0)
             {
-                throw new NotSupportedException("Native50A0A0 reached50A410 status particles; their actual shared module producer is not implemented.");
+                throw new NotSupportedException("Native50A0A0 reached50A410 Doom/Petrify countdown text; its actual shared module producer is not implemented.");
             }
-            if ((model.Flags0 & 4) == 0 && (statuses & 0x11E0) != 0)
-            {
-                throw new NotSupportedException("Native50A0A0 reached5711C0 status icons; their original callback and retained timer result are not implemented.");
-            }
+            //5711C0 draws into the current common packet heap; the Session invokes it here before50C110/body submission.
         }
         return new(model, pending);
     }

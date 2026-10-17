@@ -102,7 +102,40 @@ public sealed class NativeBattleRestorationPresentationTests
         NativeBattleGraphicsState graphics = before.NativeGraphics!;
         NativeBattleGraphicsModel targetModel = graphics.Models[1];
         uint priorFlags = definition.NativeGraphics!.Rules.Project(priorSaved, status.Battle);
-        graphics = graphics with { Models = graphics.Models.SetItem(1, targetModel with { Flags8 = priorFlags }) };
+        //Controlled prior display status is newly added to this healthy-entry model:509D30..47 resets exactly its added timer bytes.
+        uint addedPriorFlags = priorFlags & ~(targetModel.Flags8 ?? throw new InvalidDataException("Controlled prior status requires its existing graphics status."));
+        ImmutableArray<byte?> priorTimers = targetModel.StatusTimers;
+        for (int bit = 0; bit < 32; bit++)
+        {
+            if ((addedPriorFlags & (1u << bit)) != 0)
+            {
+                priorTimers = priorTimers.SetItem(bit, 0);
+            }
+        }
+        graphics = graphics with { Models = graphics.Models.SetItem(1, targetModel with { Flags8 = priorFlags, StatusTimers = priorTimers }) };
+        if (effect == 24)
+        {
+            BattleSession idle = BattleSession.Restore(before with { NativeActionPackets = packets, NativeGraphics = graphics });
+            BattleScenePresentation idleScene = new(assets, definition, true);
+            string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_RESTORATION_EVIDENCE");
+            string id = "restoration-poison-idle-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N")[..8];
+            Publish(evidence, id + "-before", idle.Capture(), idleScene.Render(idle, 320, 224));
+            idle.AdvanceNativeGraphicsPresentation(Callback);
+            before = idle.Capture();
+            graphics = before.NativeGraphics!;
+            byte[] withIcons = idleScene.Render(idle, 320, 224).ToArray();
+            Publish(evidence, id + "-after", before, withIcons);
+            Assert.Equal(0u, graphics.Flags & 0x410);
+            NativeBattleModuleDraw icon = Assert.Single(graphics.ModuleDraws, draw => draw.Resource?.Address == 0xC7EA38);
+            int iconIndex = graphics.ModuleDraws.IndexOf(icon);
+            NativeBattlePrimitiveFrame iconFrame = graphics.PrimitiveFrame!;
+            Assert.Contains(iconFrame.LastCommands, command => command.Command.ModuleDraw == iconIndex);
+            NativeBattlePrimitiveFrame plainFrame = iconFrame with { LastCommands = iconFrame.LastCommands.Where(command => command.Command.ModuleDraw != iconIndex).ToImmutableArray() };
+            BattleSession plain = BattleSession.Restore(before with { NativeGraphics = graphics with { PrimitiveFrame = plainFrame } });
+            int iconRgb = DifferentRgb(withIcons, idleScene.Render(plain, 320, 224));
+            PublishJson(evidence, id + "-details", new { before.Frame, graphics.Callback, PoisonIconRgbPixels = iconRgb });
+            Assert.True(iconRgb > 0, "Original poison icon packets changed no RGB pixels in the ordinary callback before104.");
+        }
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         return BattleSession.Restore(before with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } });
     }
@@ -193,6 +226,10 @@ public sealed class NativeBattleRestorationPresentationTests
                     clone = null;
                 }
                 NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame!;
+                if ((graphics.Flags & 0x410) != 0)
+                {
+                    Assert.DoesNotContain(graphics.ModuleDraws, draw => draw.Resource?.Address == 0xC7EA38);
+                }
                 if (!frame.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
                 {
                     continue;

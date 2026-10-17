@@ -10,4 +10,7 @@ public sealed partial record NativeBattleModuleDraw
     public ImmutableArray<byte> SpritePaletteOffsets { get; init; } = [];
     /// <summary>Optional native world-space3x3 matrix, before the original camera composition.</summary>
     public ImmutableArray<short> SpriteWorldRotation { get; init; } = [];
+    /// <summary>5710D0's camera-space translation DWORDs, added after571BC0 normalizes and applies depth displacement.</summary>
+    public int SpriteCameraXOffset { get; init; }
+    public int SpriteCameraYOffset { get; init; }
 }

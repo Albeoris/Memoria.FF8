@@ -83,6 +83,8 @@ public static partial class NativeBattlePoseMatrices
         x = unchecked(x + (draw.DepthOffset * direction.X >> 12));
         y = unchecked(y + (draw.DepthOffset * direction.Y >> 12));
         z = unchecked(z + (draw.DepthOffset * direction.Z >> 12));
+        x = unchecked(x + draw.SpriteCameraXOffset);
+        y = unchecked(y + draw.SpriteCameraYOffset);
         Matrix main = draw.SpriteWorldRotation.IsEmpty ? new([unchecked((short)draw.Scale), 0, 0, 0, unchecked((short)draw.Scale), 0, 0, 0, unchecked((short)draw.Scale)]) : Multiply(view, new(draw.SpriteWorldRotation.ToArray()));
         int angle = (draw.SpriteFlags & 1) != 0 ? draw.Rotation - cameraRoll : (draw.SpriteFlags & 0x200) == 0 ? -cameraRoll : 0;
         if (angle != 0)

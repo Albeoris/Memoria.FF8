@@ -119,10 +119,7 @@ public sealed class NativeBattleModelColorsTests
     }
 
     [Theory]
-    [InlineData(4u, 0u, 0, "50A370")]
-    [InlineData(0x200u, 0u, 0, "50A5F0")]
     [InlineData(0x80000u, 0u, 0, "50A410")]
-    [InlineData(0x20u, 0u, 0, "5711C0")]
     public void Unowned_status_motion_or_icon_callback_is_named_at_its_actual_guard(uint statuses, uint graphicsFlags, ushort flags2, string function)
     {
         NativeBattleGraphicsModel model = Model with { Flags8 = statuses, Flags2 = flags2 };

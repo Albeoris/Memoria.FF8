@@ -24,6 +24,15 @@ public static class NativeBattleGfMatrices
         return Multiply56C090(x, Multiply56C090(y, z));
     }
 
+    /// <summary>56D020/56C270 accepts a full DWORD angle and replaces only the existing matrix's rotation, preserving its translation.</summary>
+    public static NativeBattleActionMatrix RotateY56D020(NativeBattleActionMatrix matrix, int angle)
+    {
+        short sine = unchecked((short)NativeBattleCameraMath.Sine(angle));
+        short cosine = unchecked((short)NativeBattleCameraMath.Cosine(angle));
+        NativeBattleActionMatrix axis = new([cosine, 0, sine, 0, 4096, 0, unchecked((short)-sine), 0, cosine], 0, 0, 0, 4096);
+        return matrix with { Rotation = Multiply56C090(axis, matrix).Rotation };
+    }
+
     private static (NativeBattleActionMatrix X, NativeBattleActionMatrix Y, NativeBattleActionMatrix Z) AxisMatrices(NativeBattleVector angles, bool native56CD50 = false)
     {
         short sx = unchecked((short)NativeBattleCameraMath.Sine(angles.X));
