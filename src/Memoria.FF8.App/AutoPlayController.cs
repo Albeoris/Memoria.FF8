@@ -1195,7 +1195,7 @@ internal sealed partial class AutoPlayController
         if (coverage.ActiveOption is not null || coverage.Finished)
         {
             int previous = run.DialogueSelections.GetValueOrDefault(key, coverage.ActiveOption ?? first);
-            int repeated = dialogue.CancelChoice ?? first + (previous - first + 1) % (last - first + 1);
+            int repeated = first + (previous - first + 1) % (last - first + 1);
             run.DialogueSelections[key] = repeated;
             run.ActiveSelections?.Add(new(key, repeated));
             ApplyDialogueSelection(repeated);
