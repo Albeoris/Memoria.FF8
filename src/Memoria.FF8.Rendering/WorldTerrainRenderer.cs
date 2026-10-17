@@ -342,8 +342,9 @@ public sealed partial class WorldTerrainRenderer
 
     private void Draw(Vertex a, Vertex b, Vertex c, PixelImage texture, bool transparent)
     {
-        Vertex[] input = [Transform(a), Transform(b), Transform(c)];
-        List<Vertex> clipped = [];
+        ReadOnlySpan<Vertex> input = [Transform(a), Transform(b), Transform(c)];
+        Span<Vertex> clipped = stackalloc Vertex[4];
+        int clippedCount = 0;
         Vertex previous = input[^1];
         foreach (Vertex current in input)
         {
@@ -352,15 +353,15 @@ public sealed partial class WorldTerrainRenderer
             if (currentInside != previousInside)
             {
                 float fraction = (1 - previous.Position.Z) / (current.Position.Z - previous.Position.Z);
-                clipped.Add(new Vertex(Vector3.Lerp(previous.Position, current.Position, fraction), Vector2.Lerp(previous.Uv, current.Uv, fraction)));
+                clipped[clippedCount++] = new Vertex(Vector3.Lerp(previous.Position, current.Position, fraction), Vector2.Lerp(previous.Uv, current.Uv, fraction));
             }
             if (currentInside)
             {
-                clipped.Add(current);
+                clipped[clippedCount++] = current;
             }
             previous = current;
         }
-        for (int i = 1; i + 1 < clipped.Count; i++)
+        for (int i = 1; i + 1 < clippedCount; i++)
         {
             ScreenVertex first = Project(clipped[0]);
             ScreenVertex second = Project(clipped[i]);

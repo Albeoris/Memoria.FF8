@@ -301,9 +301,12 @@ public sealed partial class NativeWorldPathProjectionCertificate
             {
                 Range coefficient = matrix[row, column];
                 Range coordinate = point[column];
-                long[] products = [(long)coefficient.Low * coordinate.Low, (long)coefficient.Low * coordinate.High, (long)coefficient.High * coordinate.Low, (long)coefficient.High * coordinate.High];
-                low += products.Min();
-                high += products.Max();
+                long a = (long)coefficient.Low * coordinate.Low;
+                long b = (long)coefficient.Low * coordinate.High;
+                long c = (long)coefficient.High * coordinate.Low;
+                long d = (long)coefficient.High * coordinate.High;
+                low += Math.Min(Math.Min(a, b), Math.Min(c, d));
+                high += Math.Max(Math.Max(a, b), Math.Max(c, d));
             }
             result[row] = Round(low / 4096d, high / 4096d);
         }

@@ -10,12 +10,28 @@ internal readonly record struct NativeTerrainScreenBounds(int MinimumX, int Maxi
 
 public sealed partial class NativeWorldPathProjectionCertificate
 {
+    // Terrain certificates are created for one camera callback. Shared vertices reuse
+    // their projection only within that certificate, including bounded refusals.
+    private readonly Dictionary<(NativeWorldPathPosition Position, bool GroundReference, bool Fast), NativeTerrainScreenBounds?> terrainOcclusionProjections = [];
+
     internal NativeTerrainScreenBounds? ProjectTerrainOcclusion(NativeWorldPathPosition position, bool groundReference = false, bool fast = false)
+    {
+        var key = (position, groundReference, fast);
+        if (!terrainOcclusionProjections.TryGetValue(key, out NativeTerrainScreenBounds? result))
+        {
+            result = ProjectTerrainOcclusionUncached(position, groundReference, fast);
+            terrainOcclusionProjections.Add(key, result);
+        }
+        return result;
+    }
+
+    private NativeTerrainScreenBounds? ProjectTerrainOcclusionUncached(NativeWorldPathPosition position, bool groundReference, bool fast)
     {
         NativeWorldPathWords relative = Relative(position);
         Range[] point = [Word(Add(Range.Exact(relative.X), offset[0])), Word(Add(Range.Exact(relative.Y), offset[1])), Word(Add(Range.Exact(relative.Z), offset[2]))];
         Range initialDepth = Rotate(view, point)[2];
-        HashSet<short> heights = [];
+        int minimumHeight;
+        int maximumHeight;
         if (groundReference)
         {
             NativeWorldPathNodeProjection? reference = ProjectNode(position);
@@ -23,7 +39,8 @@ public sealed partial class NativeWorldPathProjectionCertificate
             {
                 return null;
             }
-            heights.Add(reference.Words.Y);
+            minimumHeight = reference.Words.Y;
+            maximumHeight = minimumHeight;
         }
         else
         {
@@ -33,15 +50,19 @@ public sealed partial class NativeWorldPathProjectionCertificate
             {
                 return null;
             }
+            minimumHeight = short.MaxValue;
+            maximumHeight = short.MinValue;
             for (int depth = low; depth <= high; depth++)
             {
                 int curve = (depth >> 2) - curveThreshold;
                 //4022D0/5513A0 use signed >>12 here, unlike5470E0's two divisions.
                 int height = curve < 0 ? relative.Y : unchecked(((4096 - curve) * relative.Y) >> 12) + (curve >> 6) * (curve >> 6);
-                heights.Add(unchecked((short)height));
+                short wrappedHeight = unchecked((short)height);
+                minimumHeight = Math.Min(minimumHeight, wrappedHeight);
+                maximumHeight = Math.Max(maximumHeight, wrappedHeight);
             }
         }
-        point[1] = Word(Add(new Range(heights.Min(), heights.Max()), offset[1]));
+        point[1] = Word(Add(new Range(minimumHeight, maximumHeight), offset[1]));
         if (fast)
         {
             return ProjectFastTerrain(point);
@@ -54,9 +75,23 @@ public sealed partial class NativeWorldPathProjectionCertificate
 
     private NativeTerrainScreenBounds? ProjectFastTerrain(Range[] point)
     {
-        if (!precision53 || point.Any(value => !value.Unique) || view.Cast<Range>().Any(value => !value.Unique))
+        if (!precision53)
         {
             return null;
+        }
+        foreach (Range value in point)
+        {
+            if (!value.Unique)
+            {
+                return null;
+            }
+        }
+        foreach (Range value in view)
+        {
+            if (!value.Unique)
+            {
+                return null;
+            }
         }
         double Dot(int row) => ((double)view[row, 2].Low * point[2].Low + (double)view[row, 1].Low * point[1].Low + (double)view[row, 0].Low * point[0].Low) / 4096;
         //4023D0 stores its X/Y accumulations as FLOAT before perspective.
@@ -192,6 +227,7 @@ public sealed partial class WorldAssets
         int blocks = 0;
         int polygons = 0;
         string? uncertain = null;
+        NativeTerrainScreenBounds[] points = new NativeTerrainScreenBounds[3];
         //544490's6144 displacement spans3 cells; renderer proximity spans5.
         //One extra cell covers the current signed-WORD movement at a cell edge.
         //This superset may refuse an irrelevant triangle, but cannot certify a missed latch.
@@ -218,16 +254,24 @@ public sealed partial class WorldAssets
                     continue;
                 }
                 blocks++;
-                foreach (WorldTriangle triangle in segment.Triangles.Where(triangle => triangle.NativeBlockIndex == block))
+                foreach (WorldTriangle triangle in segment.Triangles)
                 {
+                    if (triangle.NativeBlockIndex != block)
+                    {
+                        continue;
+                    }
                     polygons++;
-                    NativeTerrainScreenBounds?[] projected = new[] { triangle.A, triangle.B, triangle.C }.Select(position => projection.ProjectTerrainOcclusion(NativeTerrainPosition(position), fast: !direct)).ToArray();
-                    if (projected.Any(point => point is null))
+                    NativeTerrainScreenBounds? a = projection.ProjectTerrainOcclusion(NativeTerrainPosition(triangle.A), fast: !direct);
+                    NativeTerrainScreenBounds? b = projection.ProjectTerrainOcclusion(NativeTerrainPosition(triangle.B), fast: !direct);
+                    NativeTerrainScreenBounds? c = projection.ProjectTerrainOcclusion(NativeTerrainPosition(triangle.C), fast: !direct);
+                    if (a is null || b is null || c is null)
                     {
                         uncertain ??= $"Native terrain vertex projection exceeds the bounded rounding envelope at map{map}/block{block}/polygon{triangle.NativePolygonIndex}.";
                         continue;
                     }
-                    NativeTerrainScreenBounds[] points = projected.Select(point => point!.Value).ToArray();
+                    points[0] = a.Value;
+                    points[1] = b.Value;
+                    points[2] = c.Value;
                     //The fast renderer compares eighth-depth buckets against a
                     //halved quarter-depth threshold, including its lost low bit.
                     bool depthExcluded = direct ? points.Max(point => point.MinimumDepth) >> 2 >= threshold : points.Max(point => point.MinimumDepth) >> 3 >= threshold >> 1;
@@ -320,8 +364,13 @@ public sealed partial class WorldAssets
 
     private static bool? FacesCamera(IReadOnlyList<NativeTerrainScreenBounds> points)
     {
-        (int Low, int High)[] x = points.Select(point => SignedScreenWords(point.MinimumX, point.MaximumX)).ToArray();
-        (int Low, int High)[] y = points.Select(point => SignedScreenWords(point.MinimumY, point.MaximumY)).ToArray();
+        Span<(int Low, int High)> x = stackalloc (int, int)[3];
+        Span<(int Low, int High)> y = stackalloc (int, int)[3];
+        for (int index = 0; index < 3; index++)
+        {
+            x[index] = SignedScreenWords(points[index].MinimumX, points[index].MaximumX);
+            y[index] = SignedScreenWords(points[index].MinimumY, points[index].MaximumY);
+        }
         long low = 0;
         long high = 0;
         for (int index = 0; index < 3; index++)
@@ -331,9 +380,12 @@ public sealed partial class WorldAssets
             (int Low, int High) last = y[(index + 2) % 3];
             long differenceLow = (long)next.Low - last.High;
             long differenceHigh = (long)next.High - last.Low;
-            long[] products = [(long)first.Low * differenceLow, (long)first.Low * differenceHigh, (long)first.High * differenceLow, (long)first.High * differenceHigh];
-            low += products.Min();
-            high += products.Max();
+            long a = (long)first.Low * differenceLow;
+            long b = (long)first.Low * differenceHigh;
+            long c = (long)first.High * differenceLow;
+            long d = (long)first.High * differenceHigh;
+            low += Math.Min(Math.Min(a, b), Math.Min(c, d));
+            high += Math.Max(Math.Max(a, b), Math.Max(c, d));
         }
         //Native determinant arithmetic wraps DWORD. A wrapping interval remains
         //unknown rather than manufacturing a backface rejection.
@@ -353,7 +405,11 @@ public sealed partial class WorldAssets
 
     private static bool? Straddles(IReadOnlyList<NativeTerrainScreenBounds> points, int threshold, bool horizontal, bool direct)
     {
-        (int Low, int High)[] values = points.Select(point => horizontal ? SignedScreenWords(point.MinimumX, point.MaximumX) : SignedScreenWords(point.MinimumY, point.MaximumY)).ToArray();
+        Span<(int Low, int High)> values = stackalloc (int, int)[3];
+        for (int index = 0; index < 3; index++)
+        {
+            values[index] = horizontal ? SignedScreenWords(points[index].MinimumX, points[index].MaximumX) : SignedScreenWords(points[index].MinimumY, points[index].MaximumY);
+        }
         bool maySet = false;
         bool mayClear = false;
         for (int mask = 0; mask < 8; mask++)

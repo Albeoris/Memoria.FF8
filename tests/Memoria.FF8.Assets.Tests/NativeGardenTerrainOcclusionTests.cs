@@ -14,6 +14,28 @@ public sealed class NativeGardenTerrainOcclusionTests
     }
 
     [Fact]
+    public void TerrainProjectionReusePreservesAlternatingCameraResultsWithinAllocationBudget()
+    {
+        using WorldAssets assets = new(TestResources.GameDirectory);
+        NativeWorldFootCameraState forestCamera = new(26919, -28895, -608, 26867, -28862, -835, 639, -238, -341, -7168);
+        NativeWorldFootCameraState positiveCamera = new(17850, -23780, 0, 17845, -23745, -259, 529, -112, -341, -7168);
+        IReadOnlyDictionary<int, int> replacements = WorldTerrainSelection.Replacements(285);
+        WorldNativeTerrainOcclusionResult expectedForest = new(false, 121, 5763, null);
+        WorldNativeTerrainOcclusionResult expectedPositive = new(true, 81, 4568, null);
+        Assert.Equal(expectedForest, assets.CertifyNativeTerrainCameraOcclusion(forestCamera, 928, replacements, 0));
+        Assert.Equal(expectedPositive, assets.CertifyNativeTerrainCameraOcclusion(positiveCamera, 0, replacements, 0));
+        for (int index = 0; index < 3; index++)
+        {
+            long started = GC.GetAllocatedBytesForCurrentThread();
+            WorldNativeTerrainOcclusionResult forest = assets.CertifyNativeTerrainCameraOcclusion(forestCamera, 928, replacements, 0);
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - started;
+            Assert.Equal(expectedForest, forest);
+            Assert.True(allocated <= 2_000_000, $"Warm terrain callback allocated {allocated} bytes.");
+            Assert.Equal(expectedPositive, assets.CertifyNativeTerrainCameraOcclusion(positiveCamera, 0, replacements, 0));
+        }
+    }
+
+    [Fact]
     public void ActualBalambFootCandidateUsesFloatStoresBeforeUnsignedFastClipping()
     {
         //Recorded b3ed5338 candidate: original4023D0 produces screenY

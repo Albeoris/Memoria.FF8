@@ -114,6 +114,38 @@ public sealed class GpuWorldRenderingTests
         Assert.True(actual.Distinct().Count() > 32, "The GPU frame must contain textured terrain and models.");
     }
 
+    [Fact]
+    public void InstalledWorldGeometryPreparationKeepsWarmAllocationsBelowOneMegabyte()
+    {
+        using WorldAssets assets = new(TestResources.GameDirectory);
+        WorldTerrainRenderer renderer = new(assets, 960, 672) { TriangleRenderer = new DiscardingRenderer() };
+        WorldCamera camera = WorldCamera.Foot(512, 2048);
+        renderer.Render(Position, MathF.PI, 0, 0, camera, Replacements);
+        for (int index = 0; index < 3; index++)
+        {
+            long started = GC.GetAllocatedBytesForCurrentThread();
+            renderer.Render(Position, MathF.PI, 0, 0, camera, Replacements);
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - started;
+            Assert.True(renderer.DrawnTriangles > 100);
+            Assert.True(allocated <= 1_000_000, $"Warm world geometry preparation allocated {allocated} bytes.");
+        }
+    }
+
+    private sealed class DiscardingRenderer : ITriangleRenderer
+    {
+        public void Begin(int width, int height, Vector4 clearColor, float clearDepth = 1)
+        {
+        }
+
+        public void Draw(in TriangleVertex a, in TriangleVertex b, in TriangleVertex c, in TriangleMaterial material)
+        {
+        }
+
+        public void End()
+        {
+        }
+    }
+
     private static byte[] SoftwarePixels(WorldTerrainRenderer renderer)
     {
         return (byte[])typeof(WorldTerrainRenderer).GetField("pixels", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(renderer)!;
