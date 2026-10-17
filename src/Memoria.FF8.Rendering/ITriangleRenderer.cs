@@ -62,4 +62,3 @@ public interface ITriangleRenderer
     void Draw(in TriangleVertex a, in TriangleVertex b, in TriangleVertex c, in TriangleMaterial material);
     void End();
 }
-

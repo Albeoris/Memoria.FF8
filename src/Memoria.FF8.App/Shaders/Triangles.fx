@@ -89,4 +89,3 @@ technique TriangleTechnique
         PixelShader = compile ps_4_0 PixelMain();
     }
 }
-
