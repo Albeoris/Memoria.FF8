@@ -782,26 +782,83 @@ internal sealed partial class AutoPlayController
             return;
         }
         GameState checkpoint = CaptureState();
+        bool controlled = world.Events.IsUserControlEnabled;
+        int? player = world.Events.PlayerActor?.ObjectId;
+        DialogueState? dialogue = world.CurrentDialogue;
+        ScriptCommand? matchedQuery = null;
         bool queried = false;
+        int callbacks = 0;
+        long queryBeforeFrame = world.Events.Frame;
+        bool HasProbeOwner()
+        {
+            return HasScriptedInputOwner(world, field, allowControlled) && world.Events.FieldId == field && world.HasCurrentFieldAllocation && world.Events.IsUserControlEnabled == controlled && world.Events.PlayerActor?.ObjectId == player && (objectId is null || world.Events.HasPendingPlayerInteraction(objectId.Value)) && Equals(world.CurrentDialogue, dialogue) && world.CurrentDialogue is not { CanConfirm: true } && world.PendingEntityName is null && !world.Events.HasPendingBattle && world.Events.PendingTripleTriad is null && world.Events.LastFault is null && world.NextTrigger.Kind is not (PlayerTriggerKind.Faulted or PlayerTriggerKind.Unloaded or PlayerTriggerKind.Movie or PlayerTriggerKind.FieldTransition or PlayerTriggerKind.WorldMap or PlayerTriggerKind.Battle);
+        }
+        bool HasMatchedQueryOwner()
+        {
+            return HasScriptedInputOwner(world, field, allowControlled) && world.Events.FieldId == field && world.HasCurrentFieldAllocation && world.Events.IsUserControlEnabled == controlled && world.Events.PlayerActor?.ObjectId == player && world.CurrentDialogue is not { CanConfirm: true } && world.PendingEntityName is null && !world.Events.HasPendingBattle && world.Events.PendingTripleTriad is null && world.Events.LastFault is null;
+        }
         void ObserveQuery(ScriptCommand command)
         {
-            queried |= command.FieldId == field && command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON" && (objectId is null || command.ObjectId == objectId) && input.Queries.Any(query => query.ObjectId == command.ObjectId && query.ScriptId == command.ScriptId && query.Operation == command.Operation && query.Opcode == command.Name);
+            if (command.FieldId == field && command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON" or "KEYOFF")
+            {
+                queried = true;
+                if (matchedQuery is null && (objectId is null || command.ObjectId == objectId) && input.Queries.Any(query => query.ObjectId == command.ObjectId && query.ScriptId == command.ScriptId && query.Operation == command.Operation && query.Opcode == command.Name))
+                {
+                    matchedQuery = command;
+                }
+            }
         }
         world.Events.CommandExecuted += ObserveQuery;
         try
         {
-            world.AdvanceAutoPlayInputFrame();
+            while (callbacks < 300 && HasProbeOwner())
+            {
+                queryBeforeFrame = world.Events.Frame;
+                world.AdvanceAutoPlayInputFrame();
+                callbacks++;
+                if (queried || !HasProbeOwner())
+                {
+                    break;
+                }
+            }
         }
         finally
         {
             world.Events.CommandExecuted -= ObserveQuery;
         }
-        if (queried && HasScriptedInputOwner(world, field, allowControlled) && world.CurrentDialogue is not { CanConfirm: true } && PrepareScriptedInput(allowControlled))
+        if (matchedQuery is not null && HasMatchedQueryOwner() && PrepareScriptedInput(allowControlled) && HasMatchedQueryOwner())
         {
-            // A neutral callback proves the real query. Replay its genuine before-state so preparation cannot consume the input window.
+            // Replay only the proven neutral prefix so the actual query's before-state owns its choice checkpoint.
             restore(checkpoint);
-            getWorld().EnsureField();
-            DriveScriptedInput(input, allowControlled, prepared: true);
+            world = getWorld();
+            world.EnsureField();
+            queried = false;
+            world.Events.CommandExecuted += ObserveQuery;
+            try
+            {
+                for (int callback = 1; callback < callbacks; callback++)
+                {
+                    if (!HasProbeOwner())
+                    {
+                        throw new InvalidOperationException("The native neutral input prefix changed its owner during checkpoint replay.");
+                    }
+                    world.AdvanceAutoPlayInputFrame();
+                    if (queried || !HasProbeOwner())
+                    {
+                        throw new InvalidOperationException("The native neutral input prefix changed its query or ownership boundary during checkpoint replay.");
+                    }
+                }
+            }
+            finally
+            {
+                world.Events.CommandExecuted -= ObserveQuery;
+            }
+            ScriptedInputMetadata? current = world.Events.DiscoverScriptedInput(objectId);
+            if (!HasProbeOwner() || world.Events.Frame != queryBeforeFrame || current is not { Masks.Count: > 0 } || !current.Queries.Any(query => query.ObjectId == matchedQuery.ObjectId && query.ScriptId == matchedQuery.ScriptId && query.Operation == matchedQuery.Operation && query.Opcode == matchedQuery.Name))
+            {
+                throw new NotSupportedException("The observed native input query has no supported metadata at its exact replayed before-callback checkpoint.");
+            }
+            DriveScriptedInput(current, allowControlled, prepared: true);
         }
     }
 
