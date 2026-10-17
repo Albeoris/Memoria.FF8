@@ -152,7 +152,12 @@ public sealed partial class MenuController
             >= 33 and <= 42 => _nameTarget.Subject - 32,
             _ => null
         };
-        UiImage portrait = _nameTarget?.Subject is >= 16 and <= 31 ? Artwork(UiImageKind.GuardianForcePortrait, _nameTarget.Subject - 16) : Artwork(UiImageKind.CharacterPortrait, portraitId);
+        UiImage portrait = _nameTarget?.Subject switch
+        {
+            2 => Artwork(UiImageKind.AngeloPortrait, 0),
+            >= 16 and <= 31 => Artwork(UiImageKind.GuardianForcePortrait, _nameTarget.Subject - 16),
+            _ => Artwork(UiImageKind.CharacterPortrait, portraitId)
+        };
         Place(page, portrait, 1, 0);
         UiGrid identity = Grid([1, 1.4f], [1], 3);
         Place(identity, Panel("HELP", Label(_nameTarget?.Subject is >= 16 and <= 31 ? "Name the Guardian Force" : "Name the character", 24)), 0);

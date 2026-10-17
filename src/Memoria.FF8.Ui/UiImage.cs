@@ -11,7 +11,8 @@ public enum UiImageKind
     Magazine,
     MagazineButton,
     CardFace,
-    CardElement
+    CardElement,
+    AngeloPortrait
 }
 
 /// <summary>Stable artwork identity, independent of translated or player-assigned display names.</summary>

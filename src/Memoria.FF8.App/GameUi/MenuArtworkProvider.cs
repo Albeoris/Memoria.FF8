@@ -24,6 +24,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory)
         {
             UiImageKind.CharacterPortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory)).GetCharacterPortrait(source.Id),
             UiImageKind.GuardianForcePortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory)).GetGuardianForcePortrait(source.Id),
+            UiImageKind.AngeloPortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory)).AngeloPortrait,
             UiImageKind.Card => (cards ??= CardArtwork.Load(gameDirectory)).GetFront(source.Id),
             UiImageKind.CardElement => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory)).GetElement((TripleTriadElement)source.Id),
             UiImageKind.CardFace => ReadCardFace(source.Id, source.Palette, fontFamily),

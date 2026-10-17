@@ -135,6 +135,9 @@ public sealed class NameInputWindowTests
 
     [Theory]
     [InlineData(640, 448, 0)]
+    [InlineData(640, 448, 2)]
+    [InlineData(1280, 896, 2)]
+    [InlineData(1920, 1080, 2)]
     [InlineData(1280, 896, 16)]
     [InlineData(1920, 1080, 43)]
     public void Name_window_uses_nonoverlapping_retained_controls_and_subject_artwork(int width, int height, int subject)
@@ -162,7 +165,7 @@ public sealed class NameInputWindowTests
             }
         }
         UiImage image = Assert.Single(elements.OfType<UiImage>());
-        Assert.Equal(subject == 43 ? null : new UiImageSource(subject == 16 ? UiImageKind.GuardianForcePortrait : UiImageKind.CharacterPortrait, 0), image.Source);
+        Assert.Equal(subject == 43 ? null : new UiImageSource(subject == 2 ? UiImageKind.AngeloPortrait : subject == 16 ? UiImageKind.GuardianForcePortrait : UiImageKind.CharacterPortrait, 0), image.Source);
         UiButton letter = buttons.Single(button => button.Id == "letter-0");
         string before = menus.NameDraft;
         float scale = Math.Min(width / view.DesignWidth, height / view.DesignHeight);
