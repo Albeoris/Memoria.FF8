@@ -281,7 +281,7 @@ public sealed partial class EventEngine
                         return null;
                     }
                 }
-                else if (operation.Opcode is not (Jsm.Opcode.LBL or Jsm.Opcode.NOP or Jsm.Opcode.RET or Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHI_L or Jsm.Opcode.CAL or Jsm.Opcode.JMP or Jsm.Opcode.JPF or Jsm.Opcode.SETMODEL or Jsm.Opcode.BASEANIME or Jsm.Opcode.SETPC or Jsm.Opcode.ISPARTY or Jsm.Opcode.UNUSE))
+                else if (operation.Opcode is not (Jsm.Opcode.LBL or Jsm.Opcode.NOP or Jsm.Opcode.RET or Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHI_L or Jsm.Opcode.CAL or Jsm.Opcode.JMP or Jsm.Opcode.JPF or Jsm.Opcode.SETMODEL or Jsm.Opcode.BASEANIME or Jsm.Opcode.LADDERANIME or Jsm.Opcode.SETPC or Jsm.Opcode.ISPARTY or Jsm.Opcode.UNUSE))
                 {
                     return null;
                 }
@@ -298,15 +298,17 @@ public sealed partial class EventEngine
             foreach (int index in obj.Scripts[0].ReachableOperations)
             {
                 JsmOperation operation = program.Operations[index];
-                if (operation.Opcode is Jsm.Opcode.POPM_B or Jsm.Opcode.POPM_W or Jsm.Opcode.POPM_L)
+                if (operation.Opcode is Jsm.Opcode.POPM_B or Jsm.Opcode.POPM_W or Jsm.Opcode.POPM_L or Jsm.Opcode.SETDRAWPOINT or Jsm.Opcode.Unknown16)
                 {
-                    int width = NativeMemoryWidth(operation.Opcode);
-                    if (reads.Any(read => operation.Parameter < read.Address + read.Width && read.Address < operation.Parameter + width))
+                    // 523030 publishes bytes240/241; 5230A0 publishes byte242.
+                    int address = operation.Opcode == Jsm.Opcode.SETDRAWPOINT ? 240 : operation.Opcode == Jsm.Opcode.Unknown16 ? 242 : operation.Parameter;
+                    int width = operation.Opcode == Jsm.Opcode.SETDRAWPOINT ? 2 : operation.Opcode == Jsm.Opcode.Unknown16 ? 1 : NativeMemoryWidth(operation.Opcode);
+                    if (reads.Any(read => address < read.Address + read.Width && read.Address < address + width))
                     {
                         return false;
                     }
                 }
-                else if (!IsAbsenceMemoryRead(operation.Opcode) && operation.Opcode is not (Jsm.Opcode.LBL or Jsm.Opcode.NOP or Jsm.Opcode.RET or Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHI_L or Jsm.Opcode.CAL or Jsm.Opcode.JMP or Jsm.Opcode.JPF or Jsm.Opcode.SETMODEL or Jsm.Opcode.BASEANIME or Jsm.Opcode.SETPC or Jsm.Opcode.ISPARTY or Jsm.Opcode.UNUSE or Jsm.Opcode.POLYCOLORALL or Jsm.Opcode.FADEIN or Jsm.Opcode.MUSICVOLTRANS or Jsm.Opcode.EFFECTLOAD or Jsm.Opcode.SET3 or Jsm.Opcode.SETLINE or Jsm.Opcode.LINEON or Jsm.Opcode.LINEOFF or Jsm.Opcode.PREMAPJUMP or Jsm.Opcode.RND or Jsm.Opcode.HIDE or Jsm.Opcode.DIR or Jsm.Opcode.THROUGHOFF or Jsm.Opcode.TALKON or Jsm.Opcode.TALKOFF or Jsm.Opcode.PUSHON or Jsm.Opcode.PUSHOFF or Jsm.Opcode.PUSHRADIUS or Jsm.Opcode.SESTOP or Jsm.Opcode.SETPLACE or Jsm.Opcode.THROUGHON))
+                else if (!IsAbsenceMemoryRead(operation.Opcode) && operation.Opcode is not (Jsm.Opcode.LBL or Jsm.Opcode.NOP or Jsm.Opcode.RET or Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHI_L or Jsm.Opcode.CAL or Jsm.Opcode.JMP or Jsm.Opcode.JPF or Jsm.Opcode.SETMODEL or Jsm.Opcode.BASEANIME or Jsm.Opcode.LADDERANIME or Jsm.Opcode.SETPC or Jsm.Opcode.ISPARTY or Jsm.Opcode.UNUSE or Jsm.Opcode.POLYCOLORALL or Jsm.Opcode.FADEIN or Jsm.Opcode.MUSICVOLTRANS or Jsm.Opcode.EFFECTLOAD or Jsm.Opcode.EFFECTPLAY or Jsm.Opcode.SET3 or Jsm.Opcode.SETLINE or Jsm.Opcode.LINEON or Jsm.Opcode.LINEOFF or Jsm.Opcode.PREMAPJUMP or Jsm.Opcode.RND or Jsm.Opcode.HIDE or Jsm.Opcode.DIR or Jsm.Opcode.SHADELEVEL or Jsm.Opcode.THROUGHOFF or Jsm.Opcode.TALKON or Jsm.Opcode.TALKOFF or Jsm.Opcode.PUSHON or Jsm.Opcode.PUSHOFF or Jsm.Opcode.PUSHRADIUS or Jsm.Opcode.SESTOP or Jsm.Opcode.SETPLACE or Jsm.Opcode.THROUGHON))
                 {
                     // Requests, indirect publishers and unknown native effects cannot be omitted from an entry guard proof.
                     return false;
