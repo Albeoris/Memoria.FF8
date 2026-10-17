@@ -401,6 +401,11 @@ public sealed partial class EventEngine
         {
             return previousWorldAccess;
         }
+        string? fieldLoadReasonAccess = UnsupportedFieldLoadReasonAccess(fiber, operation);
+        if (fieldLoadReasonAccess is not null)
+        {
+            return fieldLoadReasonAccess;
+        }
         if (operation.Opcode is Jsm.Opcode.SETDRAWPOINT or Jsm.Opcode.Unknown16)
         {
             return UnsupportedDrawPointSetup(fiber, operation);

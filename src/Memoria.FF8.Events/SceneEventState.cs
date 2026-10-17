@@ -69,6 +69,9 @@ public sealed class SceneEventState
     public byte? PreviousWorldEntityByte86 { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? FieldLoadReasonByte87 { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeFieldCallbackClock? FieldCallbackClock { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

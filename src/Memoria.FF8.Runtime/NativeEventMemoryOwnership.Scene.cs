@@ -16,7 +16,8 @@ public enum NativeEventSceneMemoryOwners
     MusicProcess = 1 << 7,
     WorldMusicSelection = 1 << 8,
     DrawPointDisplay = 1 << 9,
-    DrawPointIndex = 1 << 10
+    DrawPointIndex = 1 << 10,
+    FieldLoadReason = 1 << 11
 }
 
 public static partial class NativeEventMemoryOwnership
@@ -24,7 +25,7 @@ public static partial class NativeEventMemoryOwnership
     /// <summary>Canonical scene owner spans shared by live execution and persisted-state validation.</summary>
     public static IReadOnlyList<NativeEventMemoryRegion> SceneRegions(NativeEventSceneMemoryOwners owners)
     {
-        const NativeEventSceneMemoryOwners all = NativeEventSceneMemoryOwners.PreviousField | NativeEventSceneMemoryOwners.PreviousWorldEntity | NativeEventSceneMemoryOwners.PrimaryChannel | NativeEventSceneMemoryOwners.SecondaryChannel | NativeEventSceneMemoryOwners.PartyBindings | NativeEventSceneMemoryOwners.MusicVolume | NativeEventSceneMemoryOwners.SoundVolume | NativeEventSceneMemoryOwners.MusicProcess | NativeEventSceneMemoryOwners.WorldMusicSelection | NativeEventSceneMemoryOwners.DrawPointDisplay | NativeEventSceneMemoryOwners.DrawPointIndex;
+        const NativeEventSceneMemoryOwners all = NativeEventSceneMemoryOwners.PreviousField | NativeEventSceneMemoryOwners.PreviousWorldEntity | NativeEventSceneMemoryOwners.PrimaryChannel | NativeEventSceneMemoryOwners.SecondaryChannel | NativeEventSceneMemoryOwners.PartyBindings | NativeEventSceneMemoryOwners.MusicVolume | NativeEventSceneMemoryOwners.SoundVolume | NativeEventSceneMemoryOwners.MusicProcess | NativeEventSceneMemoryOwners.WorldMusicSelection | NativeEventSceneMemoryOwners.DrawPointDisplay | NativeEventSceneMemoryOwners.DrawPointIndex | NativeEventSceneMemoryOwners.FieldLoadReason;
         if ((owners & ~all) != NativeEventSceneMemoryOwners.None)
         {
             throw new InvalidDataException("Unrecognized native event scene memory owner flags.");
@@ -37,6 +38,10 @@ public static partial class NativeEventMemoryOwnership
         if (owners.HasFlag(NativeEventSceneMemoryOwners.PreviousWorldEntity))
         {
             regions.Add(new(86, 1, NativeEventMemoryOwner.PreviousWorldEntity));
+        }
+        if (owners.HasFlag(NativeEventSceneMemoryOwners.FieldLoadReason))
+        {
+            regions.Add(new(87, 1, NativeEventMemoryOwner.FieldLoadReason));
         }
         if (owners.HasFlag(NativeEventSceneMemoryOwners.PrimaryChannel))
         {
@@ -97,6 +102,7 @@ public static partial class NativeEventMemoryOwnership
         }
         Include("PreviousFieldWord84", NativeEventSceneMemoryOwners.PreviousField);
         Include("PreviousWorldEntityByte86", NativeEventSceneMemoryOwners.PreviousWorldEntity);
+        Include("FieldLoadReasonByte87", NativeEventSceneMemoryOwners.FieldLoadReason);
         Include("MusicChannel108", NativeEventSceneMemoryOwners.PrimaryChannel);
         Include("MusicChannel112", NativeEventSceneMemoryOwners.SecondaryChannel);
         Include("PartyBindingMemory", NativeEventSceneMemoryOwners.PartyBindings);

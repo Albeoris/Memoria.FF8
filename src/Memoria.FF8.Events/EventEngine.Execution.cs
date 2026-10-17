@@ -17,9 +17,9 @@ public sealed partial class EventEngine
         RestoreCore(snapshot, restoreSharedState: false);
     }
 
-    public void LoadField(int fieldId, byte[] jsm, IReadOnlyList<string> fieldMessages, FieldTransition? arrival = null, int? previousFieldId = null, NativeFieldRuntimeProfile? nativeRuntimeProfile = null, JsonElement? worldEntityAllocationContext = null, ushort? inheritedPlaceId = null, bool restoringCheckpoint = false)
+    public void LoadField(int fieldId, byte[] jsm, IReadOnlyList<string> fieldMessages, FieldTransition? arrival = null, int? previousFieldId = null, NativeFieldRuntimeProfile? nativeRuntimeProfile = null, JsonElement? worldEntityAllocationContext = null, ushort? inheritedPlaceId = null, bool restoringCheckpoint = false, byte? fieldLoadReason = null)
     {
-        LoadFieldCore(fieldId, jsm, fieldMessages, arrival, previousFieldId, nativeRuntimeProfile, worldEntityAllocationContext, inheritedPlaceId, restoringCheckpoint);
+        LoadFieldCore(fieldId, jsm, fieldMessages, arrival, previousFieldId, nativeRuntimeProfile, worldEntityAllocationContext, inheritedPlaceId, restoringCheckpoint, fieldLoadReason);
         if (!restoringCheckpoint)
         {
             OperationCompleted?.Invoke();

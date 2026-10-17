@@ -186,6 +186,7 @@ public sealed partial class EventEngine
             throw new InvalidDataException("Saved dialogue lacks native confirmability; the snapshot is missing required native state");
         }
         ValidatePreviousFieldCheckpoint(saved);
+        ValidateFieldLoadReasonCheckpoint(saved);
         ValidatePreviousWorldEntityCheckpoint(saved, IsDormantWorldReturnCheckpoint(snapshot));
         saved.ExamTimer?.Validate();
         if (services.ExamTimer is not null && saved.ExamTimer is null)

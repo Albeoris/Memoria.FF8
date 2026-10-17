@@ -74,7 +74,7 @@ public sealed partial class EventEngine
     public NativeFieldRuntimeProfile? NativeRuntimeProfile { get; private set; }
     public event Action<ScriptCommand>? CommandExecuted;
 
-    private void LoadFieldCore(int fieldId, byte[] jsm, IReadOnlyList<string> fieldMessages, FieldTransition? arrival = null, int? previousFieldId = null, NativeFieldRuntimeProfile? nativeRuntimeProfile = null, System.Text.Json.JsonElement? worldEntityAllocationContext = null, ushort? inheritedPlaceId = null, bool restoringCheckpoint = false)
+    private void LoadFieldCore(int fieldId, byte[] jsm, IReadOnlyList<string> fieldMessages, FieldTransition? arrival = null, int? previousFieldId = null, NativeFieldRuntimeProfile? nativeRuntimeProfile = null, System.Text.Json.JsonElement? worldEntityAllocationContext = null, ushort? inheritedPlaceId = null, bool restoringCheckpoint = false, byte? fieldLoadReason = null)
     {
         if (program is not null && !restoringCheckpoint)
         {
@@ -88,6 +88,11 @@ public sealed partial class EventEngine
         {
             throw new ArgumentException("Coordinate arrival must match the loaded field and contain a valid native spawn.", nameof(arrival));
         }
+        if (restoringCheckpoint && fieldLoadReason is not null)
+        {
+            throw new InvalidOperationException("A frozen allocation cannot publish a new native field-entry reason.");
+        }
+        ValidateFieldLoadReasonLoad(fieldLoadReason);
         ValidatePreviousFieldLoad(previousFieldId);
         ValidatePreviousWorldEntityLoad(fieldId, jsm, worldEntityAllocationContext);
         ValidateNativeMusicFieldLoad(nativeRuntimeProfile);
@@ -177,6 +182,7 @@ public sealed partial class EventEngine
         CopyNativeMediaHistory(previousScene);
         CopyNativeMusicLoad(previousScene, nativeRuntimeProfile);
         InitializePreviousField(previousFieldId);
+        InitializeFieldLoadReason(fieldLoadReason);
         InitializePreviousWorldEntity();
         // Native52BC00 clears B240/241 before normal init; B242 persists globally.
         Scene.DrawPointFieldStateVersion = fieldId >= 72 ? 1 : 0;

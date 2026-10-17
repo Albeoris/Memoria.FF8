@@ -8,7 +8,7 @@ public sealed partial class EventEngine
     private bool IsKnownNativeByteAlias(int address, int value)
     {
         bool party = address is >= 194 and <= 196 && (Scene.NativeActorLayoutVersion == 1 && Scene.FieldPartyNativeActorIds.Count == 3 && Scene.FieldPartyNativeActorIds[address - 194] == value || Scene.PartyBindingMemory is { Version: 1 } memory && memory.At(address - 194) == value);
-        return party || address == 86 && Scene.PreviousWorldEntityByte86 is byte entity && value == entity || TryReadSoundVolumeByte(address, out int volume) && volume == value || address is 199 or 200 && ReadMusicChannel(address - 199)?.MusicId == value || TryReadNativeMusicByte(address, out int music) && music == value || address == 204 && services.DiscProcess?.SavedDisc204 == value;
+        return party || address == 86 && Scene.PreviousWorldEntityByte86 is byte entity && value == entity || address == 87 && Scene.FieldLoadReasonByte87 is byte reason && value == reason || TryReadSoundVolumeByte(address, out int volume) && volume == value || address is 199 or 200 && ReadMusicChannel(address - 199)?.MusicId == value || TryReadNativeMusicByte(address, out int music) && music == value || address == 204 && services.DiscProcess?.SavedDisc204 == value;
     }
 
     private static int NativeMemoryWidth(Jsm.Opcode opcode)

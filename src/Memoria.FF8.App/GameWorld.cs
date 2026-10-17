@@ -283,7 +283,16 @@ internal sealed partial class GameWorld : IDisposable
         };
         Events.InitInputAxisDirection = next.Information?.ControlDirection ?? 0;
         ushort? inheritedPlaceId = !restoreDeparting && snapshot is null && HasWorldPlaceArrival(Events.Scene, session.State) ? unchecked((ushort)(worldLocations ??= WorldMapLocations.ReadInstalled(assets.GameDirectory)).GetPlaceId(session.State.DepartingWorldState!.X, session.State.DepartingWorldState.Z)) : null;
-        Events.LoadField(next.Id, next.Jsm, next.Messages, arrival, previousFieldId: snapshot is null ? session.State.PreviousFieldId : null, nativeRuntimeProfile: assets.NativeRuntimeProfile, worldEntityAllocationContext: snapshot, inheritedPlaceId: inheritedPlaceId, restoringCheckpoint: snapshot is not null);
+        NativeFieldLoadContext? loadContext = snapshot is null ? session.State.FieldLoadContext : null;
+        if (loadContext is not null)
+        {
+            loadContext.Validate();
+            if (loadContext.FieldId != next.Id)
+            {
+                throw new InvalidDataException("The native field allocation request does not match the selected original resource.");
+            }
+        }
+        Events.LoadField(next.Id, next.Jsm, next.Messages, arrival, previousFieldId: snapshot is null ? session.State.PreviousFieldId : null, nativeRuntimeProfile: assets.NativeRuntimeProfile, worldEntityAllocationContext: snapshot, inheritedPlaceId: inheritedPlaceId, restoringCheckpoint: snapshot is not null, fieldLoadReason: loadContext?.Reason);
         if (next.Information is FieldInformation information)
         {
             Events.InfGateways = information.Gateways.Select((gateway, index) => (Gateway: gateway, Index: index)).Where(item => item.Gateway.Defined || item.Gateway.DestinationField < 72).Select(item => CreateInfGateway(item.Gateway, item.Index)).ToArray();

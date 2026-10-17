@@ -23,6 +23,10 @@ public sealed partial class EventEngine
         {
             owners |= NativeEventSceneMemoryOwners.PreviousWorldEntity;
         }
+        if (scene.FieldLoadReasonByte87 is not null)
+        {
+            owners |= NativeEventSceneMemoryOwners.FieldLoadReason;
+        }
         if (scene.MusicChannel108 is not null)
         {
             owners |= NativeEventSceneMemoryOwners.PrimaryChannel;
@@ -116,6 +120,10 @@ public sealed partial class EventEngine
         int address = operation.Parameter;
         int width = NativeMemoryWidth(operation.Opcode);
         bool signed = operation.Opcode is Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHSM_W;
+        if (NativeRuntimeProfile is { IsVerified: true } && address <= 87 && (long)address + width > 87 && Scene.FieldLoadReasonByte87 is null)
+        {
+            throw new NotSupportedException("Native field-load BYTE87 requires an explicit field-allocation reason.");
+        }
         NativeEventMemoryOwner owner = ResolveMemoryOwner(address, width);
         if (owner == NativeEventMemoryOwner.Generic)
         {
@@ -133,6 +141,10 @@ public sealed partial class EventEngine
             if (owner == NativeEventMemoryOwner.PreviousWorldEntity && Scene.PreviousWorldEntityByte86 is byte entity)
             {
                 value = entity;
+            }
+            else if (owner == NativeEventMemoryOwner.FieldLoadReason && Scene.FieldLoadReasonByte87 is byte reason)
+            {
+                value = reason;
             }
             else if (owner == NativeEventMemoryOwner.PartyBindings && Scene.PartyBindingMemory is { } bindings)
             {
@@ -184,6 +196,7 @@ public sealed partial class EventEngine
         }
         Add(84, Scene.PreviousFieldWord84);
         Add(86, Scene.PreviousWorldEntityByte86);
+        Add(87, Scene.FieldLoadReasonByte87);
         Add(108, Scene.MusicChannel108?.ChannelId);
         Add(112, Scene.MusicChannel112?.ChannelId);
         for (int slot = 0; slot < 3; slot++)

@@ -63,7 +63,7 @@ public sealed partial class GameSession : IEventServices
         NativeVibrationProcessState vibration = State.VibrationProcess ?? throw new NotSupportedException("New Game requires the current native vibration process.");
         NativeFieldFadeState fieldFade = State.FieldFade ?? throw new NotSupportedException("New Game requires its current native physical/saved fade process.");
         NativeMenuRandomState menuRandom = State.MenuRandom ?? throw new NotSupportedException("New Game requires the existing native menu random process.");
-        Change(new GameState { NativeBattleMemory = State.NativeBattleMemory, Playtime = State.Playtime?.ClearSavedStateForNewGame(), CrtRandom = State.CrtRandom, BattleVariables = NativeBattleVariableState.CreateNewGame(), DiscProcess = NativeDiscProcessState.CreateNewGame(), MenuRandom = menuRandom, FieldFade = fieldFade.ClearSavedForNewGame(), VibrationProcess = vibration, EventRandom = random.ClearSavedStateForNewGame(), FieldButtonInput = State.FieldButtonInput, WorldProcess = State.WorldProcess, WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame(), FieldBars = NativeFieldBarsState.CreateHidden(), FieldShake = State.FieldShake, MessageVariables = State.MessageVariables, GlobalSoundProcess = State.GlobalSoundProcess, SalaryPresentation = State.SalaryPresentation, Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), SeeD = NativeSeeDState.CreateNewGame(State.SeeD), ExamTimer = reset });
+        Change(new GameState { NativeBattleMemory = State.NativeBattleMemory, Playtime = State.Playtime?.ClearSavedStateForNewGame(), CrtRandom = State.CrtRandom, BattleVariables = NativeBattleVariableState.CreateNewGame(), DiscProcess = NativeDiscProcessState.CreateNewGame(), MenuRandom = menuRandom, FieldFade = fieldFade.ClearSavedForNewGame(), VibrationProcess = vibration, EventRandom = random.ClearSavedStateForNewGame(), FieldButtonInput = State.FieldButtonInput, WorldProcess = State.WorldProcess, WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame(), FieldBars = NativeFieldBarsState.CreateHidden(), FieldShake = State.FieldShake, MessageVariables = State.MessageVariables, GlobalSoundProcess = State.GlobalSoundProcess, SalaryPresentation = State.SalaryPresentation, Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", FieldLoadContext = NativeFieldLoadContext.NewGame(), SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), SeeD = NativeSeeDState.CreateNewGame(State.SeeD), ExamTimer = reset });
     }
 
     public void Restore(GameState state)
@@ -124,7 +124,7 @@ public sealed partial class GameSession : IEventServices
         }
         string name = fieldId switch { 74 => "start0", 179 => "bghoke_1", 180 => "bghoke_2", 181 => "bghoke_3", 229 => "bgroad_6", 232 => "bgroom_1", _ => $"field_{fieldId}" };
         Dialog = null;
-        Change(State with { Scene = SceneKind.Field, FieldId = fieldId, PreviousFieldId = previousFieldId, FieldName = name, EntryPoint = entryPoint, X = 0, Y = 0, EventState = null, DepartingFieldState = null, DialogueDraft = null, FieldArrival = null, WorldArrival = null, World = null, DebugView = null, WorldControls = State.WorldControls?.WithNormalFieldLoad(), VibrationProcess = State.VibrationProcess?.EndFieldCallback() });
+        Change(State with { Scene = SceneKind.Field, FieldId = fieldId, PreviousFieldId = previousFieldId, FieldLoadContext = NativeFieldLoadContext.FromFieldRequest(fieldId), FieldName = name, EntryPoint = entryPoint, X = 0, Y = 0, EventState = null, DepartingFieldState = null, DialogueDraft = null, FieldArrival = null, WorldArrival = null, World = null, DebugView = null, WorldControls = State.WorldControls?.WithNormalFieldLoad(), VibrationProcess = State.VibrationProcess?.EndFieldCallback() });
     }
 
     public void RequestField(FieldTransition transition)
@@ -169,6 +169,7 @@ public sealed partial class GameSession : IEventServices
         {
             Scene = SceneKind.Field,
             FieldId = transition.FieldId,
+            FieldLoadContext = NativeFieldLoadContext.FromWorldReturn(transition.FieldId),
             PreviousFieldId = receipt.LastFieldId,
             FieldName = name,
             EntryPoint = 0,
@@ -558,6 +559,11 @@ public sealed partial class GameSession : IEventServices
 
     private static void Validate(GameState state)
     {
+        state.FieldLoadContext?.Validate();
+        if (state.Scene == SceneKind.Field && state.FieldLoadContext is { } loadContext && loadContext.FieldId != state.FieldId)
+        {
+            throw new InvalidDataException("The saved native field allocation request has a different destination.");
+        }
         if (state.GameplayPreferences is null)
         {
             throw new InvalidDataException("Saved gameplay preferences cannot be null.");

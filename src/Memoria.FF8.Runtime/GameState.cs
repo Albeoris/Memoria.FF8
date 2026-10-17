@@ -46,6 +46,8 @@ public sealed record GameState
     [JsonRequired]
     public NativeMovieSource? MovieSource { get; init; }
     public FieldTransition? FieldArrival { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeFieldLoadContext? FieldLoadContext { get; init; }
     public WorldTransition? WorldArrival { get; init; }
     public WorldState? World { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]

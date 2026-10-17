@@ -20,6 +20,7 @@ public sealed partial class GameSession
         {
             Scene = SceneKind.Field,
             FieldId = transition.FieldId,
+            FieldLoadContext = NativeFieldLoadContext.FromWorldReturn(transition.FieldId),
             PreviousFieldId = receipt.LastFieldId,
             FieldName = $"field_{transition.FieldId}",
             EntryPoint = 0,

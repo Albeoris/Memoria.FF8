@@ -42,7 +42,7 @@ public sealed partial class EventEngine
             {
                 NativeEventMemoryOwner owner = ResolveMemoryOwner(operation.Parameter, width);
                 bool represented = owner == NativeEventMemoryOwner.Generic && HasExactPredicateBytes(cells, operation.Parameter, width);
-                bool canonical = owner is NativeEventMemoryOwner.PartyBindings or NativeEventMemoryOwner.WorldEntry or NativeEventMemoryOwner.WorldControls or NativeEventMemoryOwner.Disc or NativeEventMemoryOwner.PreviousField or NativeEventMemoryOwner.PreviousWorldEntity or NativeEventMemoryOwner.Economy or NativeEventMemoryOwner.Cards or NativeEventMemoryOwner.Junction or NativeEventMemoryOwner.BattleMode or NativeEventMemoryOwner.SeeD or NativeEventMemoryOwner.DrawPoints;
+                bool canonical = owner is NativeEventMemoryOwner.PartyBindings or NativeEventMemoryOwner.WorldEntry or NativeEventMemoryOwner.WorldControls or NativeEventMemoryOwner.Disc or NativeEventMemoryOwner.PreviousField or NativeEventMemoryOwner.PreviousWorldEntity or NativeEventMemoryOwner.FieldLoadReason or NativeEventMemoryOwner.Economy or NativeEventMemoryOwner.Cards or NativeEventMemoryOwner.Junction or NativeEventMemoryOwner.BattleMode or NativeEventMemoryOwner.SeeD or NativeEventMemoryOwner.DrawPoints;
                 if (represented || canonical)
                 {
                     NativeScalarValue read = ReadEventMemory(operation);

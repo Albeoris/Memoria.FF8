@@ -105,6 +105,12 @@ public sealed partial class EventEngine
                     SetPreviousFieldWord(unchecked((ushort)args[0]));
                     break;
                 }
+                if (opcode == Jsm.Opcode.POPM_B && parameter == 87 && (NativeRuntimeProfile is { IsVerified: true } || Scene.FieldLoadReasonByte87 is not null))
+                {
+                    args = Pop(fiber, 1);
+                    Scene.FieldLoadReasonByte87 = unchecked((byte)args[0]);
+                    break;
+                }
                 if (opcode == Jsm.Opcode.POPM_B && parameter is 197 or 198)
                 {
                     args = Pop(fiber, 1);
