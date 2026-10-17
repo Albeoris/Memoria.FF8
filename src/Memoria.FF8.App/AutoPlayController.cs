@@ -453,18 +453,22 @@ internal sealed class AutoPlayController
         AutoPlayTarget[] variants = targets.Where(item => item.CoverageId == next.Event.Id).OrderBy(item => item.Order).ThenBy(item => item.Id, StringComparer.Ordinal).ToArray();
         AutoPlayTarget target = variants.FirstOrDefault() ?? throw new InvalidDataException("Planned event is no longer available in the current field.");
         SaveBundle($"event-{run.Steps:D10}", CaptureState());
-        planner.BeginEvent(visit, target.CoverageId);
-        run.ActiveVisit = visit;
-        run.ActiveEvent = target.CoverageId;
-        run.ActiveField = session.State.FieldId;
-        run.ActiveStory = session.State.Variables.GetValueOrDefault(256);
-        run.ActiveObjectId = target.ObjectId;
-        run.ActiveObservedInput = null;
-        run.ObserveContactInput = target.Kind != AutoPlayTargetKind.Talk;
-        run.ObservedControlLoss = false;
-        run.SettleFrames = 0;
+        void ActivateTarget()
+        {
+            planner.BeginEvent(visit, target.CoverageId);
+            run.ActiveVisit = visit;
+            run.ActiveEvent = target.CoverageId;
+            run.ActiveField = world.Events.FieldId;
+            run.ActiveStory = world.Events.Variables.GetValueOrDefault(256);
+            run.ActiveObjectId = target.ObjectId;
+            run.ActiveObservedInput = null;
+            run.ObserveContactInput = target.Kind != AutoPlayTargetKind.Talk;
+            run.ObservedControlLoss = false;
+            run.SettleFrames = 0;
+        }
         if (target.Kind == AutoPlayTargetKind.Talk)
         {
+            ActivateTarget();
             bool accepted = false;
             foreach (AutoPlayTarget variant in variants)
             {
@@ -489,11 +493,28 @@ internal sealed class AutoPlayController
             bool triggered = false;
             foreach (AutoPlayTarget variant in variants)
             {
+                FieldTeleportPosition? approach = null;
                 if (variant.ApproachX is float approachX && variant.ApproachY is float approachY)
                 {
-                    world.Events.TeleportPlayer(approachX, approachY, variant.ApproachZ ?? variant.Z, variant.ApproachTriangle ?? variant.Triangle, variant.Direction);
+                    approach = new(approachX, approachY, variant.ApproachZ ?? variant.Z, variant.ApproachTriangle ?? variant.Triangle, variant.Direction);
                 }
-                bool contacted = world.Events.TeleportPlayer(variant.X, variant.Y, variant.Z, variant.Triangle, variant.Direction, true);
+                FieldTeleportContactResult placement = world.Events.TeleportPlayerAndDispatchContacts(new(variant.X, variant.Y, variant.Z, variant.Triangle, variant.Direction), approach);
+                if (placement.NativeInterrupted)
+                {
+                    run.ActiveVisit = null;
+                    run.ActiveEvent = null;
+                    run.ActiveStory = null;
+                    run.ActiveObjectId = -1;
+                    run.ActiveObservedInput = null;
+                    run.ObserveContactInput = false;
+                    Apply(new(PlayerActionKind.Wait));
+                    return;
+                }
+                if (run.ActiveEvent is null)
+                {
+                    ActivateTarget();
+                }
+                bool contacted = placement.ContactTriggered;
                 if (variant.RequiresConfirm)
                 {
                     Apply(new(PlayerActionKind.Confirm));

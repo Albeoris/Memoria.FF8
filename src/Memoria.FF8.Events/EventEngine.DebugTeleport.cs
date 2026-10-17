@@ -2,19 +2,91 @@ using System.Numerics;
 
 namespace Memoria.FF8.Events;
 
+public readonly record struct FieldTeleportPosition(float X, float Y, float Z, int Triangle, int Direction = 0);
+public readonly record struct FieldTeleportContactResult(bool PlacementApplied, bool ContactTriggered, bool NativeInterrupted);
+
 public sealed partial class EventEngine
 {
     /// <summary>Explicit diagnostic placement. Contact dispatch uses the current field's normal geometric queries; it never requests a script directly.</summary>
     public bool TeleportPlayer(float x, float y, float z, int triangle, int direction = 0, bool dispatchContacts = false)
     {
-        if (!float.IsFinite(x) || !float.IsFinite(y) || !float.IsFinite(z) || x is < short.MinValue or > short.MaxValue || y is < short.MinValue or > short.MaxValue || z is < short.MinValue or > short.MaxValue || triangle is < 0 or > short.MaxValue || direction is < 0 or > byte.MaxValue)
+        if (dispatchContacts)
         {
-            throw new ArgumentOutOfRangeException(nameof(x), "Diagnostic placement requires bounded field coordinates, triangle and direction.");
+            return TeleportPlayerAndDispatchContacts(new(x, y, z, triangle, direction)).ContactTriggered;
         }
-        if (program is null || transitionRequested || !CanAcceptFieldMovement || HasPendingBattle || PendingTripleTriad is not null || Scene.NativeMenuTutorial is not null || PlayerActor is not ActorState player || NativePlayerHasScriptedMode(player))
+        return PlaceDiagnosticPlayer(x, y, z, triangle, direction, false, out _);
+    }
+
+    /// <summary>Runs the current native callback before applying diagnostic placement at the ordinary player-input boundary.</summary>
+    public FieldTeleportContactResult TeleportPlayerAndDispatchContacts(FieldTeleportPosition target, FieldTeleportPosition? approach = null)
+    {
+        ValidateDiagnosticPosition(target);
+        if (approach is FieldTeleportPosition initialApproach)
+        {
+            ValidateDiagnosticPosition(initialApproach);
+        }
+        if (!HasDiagnosticPlayerOwner())
         {
             throw new InvalidOperationException("Diagnostic placement requires a free controlled field leader.");
         }
+        if (pendingNativePlayerInput is not null)
+        {
+            throw new InvalidOperationException("Diagnostic placement cannot replace an already staged player input.");
+        }
+        bool applied = false;
+        bool triggered = false;
+        Action? commitContacts = null;
+        Action placement = () =>
+        {
+            if (!HasDiagnosticPlayerOwner() || Scene.LockedTriangles.Contains(target.Triangle) || approach is FieldTeleportPosition prior && Scene.LockedTriangles.Contains(prior.Triangle))
+            {
+                return;
+            }
+            if (approach is FieldTeleportPosition previous)
+            {
+                PlaceDiagnosticPlayer(previous.X, previous.Y, previous.Z, previous.Triangle, previous.Direction, false, out _);
+            }
+            triggered = PlaceDiagnosticPlayer(target.X, target.Y, target.Z, target.Triangle, target.Direction, true, out commitContacts);
+            applied = true;
+        };
+        pendingNativePlayerInput = placement;
+        try
+        {
+            Step();
+        }
+        finally
+        {
+            if (ReferenceEquals(pendingNativePlayerInput, placement))
+            {
+                pendingNativePlayerInput = null;
+            }
+        }
+        commitContacts?.Invoke();
+        return new FieldTeleportContactResult(applied, triggered, !applied);
+    }
+
+    private static void ValidateDiagnosticPosition(FieldTeleportPosition position)
+    {
+        if (!float.IsFinite(position.X) || !float.IsFinite(position.Y) || !float.IsFinite(position.Z) || position.X is < short.MinValue or > short.MaxValue || position.Y is < short.MinValue or > short.MaxValue || position.Z is < short.MinValue or > short.MaxValue || position.Triangle is < 0 or > short.MaxValue || position.Direction is < 0 or > byte.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(position), "Diagnostic placement requires bounded field coordinates, triangle and direction.");
+        }
+    }
+
+    private bool HasDiagnosticPlayerOwner()
+    {
+        return program is not null && !transitionRequested && CanAcceptFieldMovement && !HasPendingBattle && PendingTripleTriad is null && Scene.NativeMenuTutorial is null && PlayerActor is ActorState player && !NativePlayerHasScriptedMode(player);
+    }
+
+    private bool PlaceDiagnosticPlayer(float x, float y, float z, int triangle, int direction, bool dispatchContacts, out Action? commitContacts)
+    {
+        commitContacts = null;
+        ValidateDiagnosticPosition(new(x, y, z, triangle, direction));
+        if (!HasDiagnosticPlayerOwner())
+        {
+            throw new InvalidOperationException("Diagnostic placement requires a free controlled field leader.");
+        }
+        ActorState player = PlayerActor!;
         FieldFixedPosition raw = new(checked((int)MathF.Round(x * 4096)), checked((int)MathF.Round(y * 4096)), checked((int)MathF.Round(z * 4096)));
         x = raw.X / 4096f;
         y = raw.Y / 4096f;
@@ -40,11 +112,14 @@ public sealed partial class EventEngine
             }
             IReadOnlyList<NativeLineContactChange> lines = MovePlayerCore(x, y, z, triangle, raw, direction, true, raw);
             triggered = transitionRequested || contacts.Length > 0 || actors.Any(actor => actor.DoorLineEntryPending) || lines.Any(line => NativeDoorRequestedLocals(line.PendingEvents, line.Contact).Any(local => !EmptyNativeLineScript(actors[line.ObjectId], local)));
-            foreach (int objectId in contacts)
+            commitContacts = () =>
             {
-                actors[objectId].NativePushContactPending = true;
-            }
-            CommitNativeLineMovement(lines);
+                foreach (int objectId in contacts)
+                {
+                    actors[objectId].NativePushContactPending = true;
+                }
+                CommitNativeLineMovement(lines);
+            };
             Scene.NativePlayerMovementVersion = 1;
             Scene.NativePlayerEarlyRetryState = 0;
         }
