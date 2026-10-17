@@ -32,7 +32,7 @@ Without a mode selector, the engine opens the game window. With no `--state` and
 | `--entry NUMBER` | Only `0` is supported. Nonzero entries fail. |
 | `--movie INDEX` | Select Movie scene and movie index. |
 | `--movie-time SECONDS` | Initial movie position. Use a snapshot to retain related event state. |
-| `--resolution WIDTHxHEIGHT` | Positive window dimensions; default `960x720`. |
+| `--resolution WIDTHxHEIGHT` | Positive initial window dimensions; overrides `WindowWidth` and `WindowHeight` in `%LOCALAPPDATA%/Memoria/FF8/ui-settings.json`. Default `1024x768`. |
 | `--world-render-limit PIXELS` | World render longest-side cap, `64..4096`; default `2048`. |
 | `--mute-audio` | Disable host audio. Audio is also disabled when `--control-dir` is present or a debugger is attached. |
 | `--validate` | Check that the game directory exists, load the requested state and print its scene/field. Does not initialize gameplay, rendering, media tools or installed asset compatibility. |

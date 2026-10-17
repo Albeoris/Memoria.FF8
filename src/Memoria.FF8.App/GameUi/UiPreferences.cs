@@ -6,6 +6,8 @@ namespace Memoria.FF8.GameUi;
 /// <summary>Local presentation preferences and battle settings applied to the running game.</summary>
 internal sealed record UiPreferences
 {
+    public int WindowWidth { get; init; } = 1024;
+    public int WindowHeight { get; init; } = 768;
     public bool VSync { get; init; } = true;
     public int FieldFps { get; init; } = 60;
     public int BattleFps { get; init; } = 60;
@@ -26,6 +28,11 @@ internal sealed record UiPreferences
     public bool RareCardMarkers { get; init; } = true;
     public bool CursorMemory { get; init; }
     public int FieldMessageSpeed { get; init; } = 3;
+
+    public (int Width, int Height) WindowSize(LaunchOptions options)
+    {
+        return options.ResolutionSpecified ? (options.Width, options.Height) : (WindowWidth, WindowHeight);
+    }
 
     public BattleInput[] CreateBattleSettingsInputs()
     {
@@ -180,6 +187,10 @@ internal sealed record UiPreferences
 
     private void Validate()
     {
+        if (WindowWidth < 1 || WindowHeight < 1)
+        {
+            throw new InvalidDataException("Window dimensions must be positive.");
+        }
         if (!ValidFps(FieldFps) || !ValidFps(BattleFps) || !ValidFps(MenuFps) || MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100 || TextScale is not (100 or 125 or 150) || FieldMessageSpeed is < 1 or > 5 || UiFontSize is < 6 or > 48 || DialogueFontSize is < 6 or > 48 || string.IsNullOrWhiteSpace(UiFontFamily) || string.IsNullOrWhiteSpace(DialogueFontFamily) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode) || BattlePolicy is not ("ResearchInstantVictory" or "NewGameFullCombat"))
         {
             throw new InvalidDataException("UI presentation preferences are outside their supported ranges.");

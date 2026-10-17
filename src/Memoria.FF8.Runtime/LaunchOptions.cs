@@ -13,8 +13,9 @@ public sealed record LaunchOptions
     public string? CaptureFramePath { get; init; }
     public double CaptureAfterSeconds { get; init; } = 2;
     public int? ExitAfterFrames { get; init; }
-    public int Width { get; init; } = 960;
-    public int Height { get; init; } = 720;
+    public int Width { get; init; } = 1024;
+    public int Height { get; init; } = 768;
+    public bool ResolutionSpecified { get; init; }
     public string? ControlDirectory { get; init; }
     public bool ControlStep { get; init; }
     public bool MuteAudio { get; init; }
@@ -96,6 +97,6 @@ public sealed record LaunchOptions
         {
             throw new ArgumentException("Resolution must be positive WIDTHxHEIGHT.");
         }
-        return options with { Width = width, Height = height };
+        return options with { Width = width, Height = height, ResolutionSpecified = true };
     }
 }

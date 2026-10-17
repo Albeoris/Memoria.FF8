@@ -31,8 +31,6 @@ internal sealed partial class RecreateGame
     private void InitializeGameUi()
     {
         uiCanvas = new MonoGameUiCanvas(GraphicsDevice, batch, pixel, text, options.GameDirectory);
-        globalSettings.ImportLegacyFiles(options.SavePath);
-        uiPreferences = UiPreferences.Load(UiPreferencesPath);
         if (!File.Exists(UiPreferencesPath))
         {
             uiPreferences.Save(UiPreferencesPath);

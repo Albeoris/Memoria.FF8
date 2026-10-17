@@ -6,6 +6,27 @@ namespace Memoria.FF8.App.Tests;
 public sealed class ConfigSettingsTests
 {
     [Fact]
+    public void Window_size_uses_defaults_config_or_explicit_launch_resolution()
+    {
+        Assert.Equal((1024, 768), new UiPreferences().WindowSize(Memoria.FF8.Runtime.LaunchOptions.Parse([])));
+        UiPreferences preferences = new() { WindowWidth = 1280, WindowHeight = 960 };
+        Assert.Equal((1280, 960), preferences.WindowSize(Memoria.FF8.Runtime.LaunchOptions.Parse([])));
+        Assert.Equal((1024, 768), preferences.WindowSize(Memoria.FF8.Runtime.LaunchOptions.Parse(["--resolution", "1024x768"])));
+        string path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+        try
+        {
+            preferences.Save(path);
+            Assert.Equal(preferences, UiPreferences.Load(path));
+            Assert.Throws<InvalidDataException>(() => (preferences with { WindowWidth = 0 }).Save(path));
+            Assert.Throws<InvalidDataException>(() => (preferences with { WindowHeight = -1 }).Save(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void Live_config_exposes_supported_settings_and_global_control_editors()
     {
         MenuData data = new();

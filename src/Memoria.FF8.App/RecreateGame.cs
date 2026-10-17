@@ -68,7 +68,10 @@ internal sealed partial class RecreateGame : Game
         playerSaves = new PlayerSaveStore(options.SavePath);
         saveMenu = new PlayerSaveMenu(playerSaves);
         saveMenu.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
-        graphics = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = options.Width, PreferredBackBufferHeight = options.Height, SynchronizeWithVerticalRetrace = true, GraphicsProfile = GraphicsProfile.HiDef, PreferMultiSampling = true };
+        globalSettings.ImportLegacyFiles(options.SavePath);
+        uiPreferences = GameUi.UiPreferences.Load(UiPreferencesPath);
+        (int width, int height) = uiPreferences.WindowSize(options);
+        graphics = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = width, PreferredBackBufferHeight = height, SynchronizeWithVerticalRetrace = uiPreferences.VSync, GraphicsProfile = GraphicsProfile.HiDef, PreferMultiSampling = true };
         Window.Title = "Memoria - Final Fantasy VIII";
         Window.AllowUserResizing = true;
         IsMouseVisible = true;
