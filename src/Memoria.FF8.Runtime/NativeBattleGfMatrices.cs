@@ -72,6 +72,13 @@ public static class NativeBattleGfMatrices
         return RotateLong56C600(matrix, point.X, point.Y, point.Z);
     }
 
+    /// <summary>56C4F0 stores the low WORD of each56C3D0 dot product, without translation or signed IR saturation.</summary>
+    public static NativeBattleVector RotateShort56C4F0(NativeBattleActionMatrix matrix, NativeBattleVector point)
+    {
+        (int x, int y, int z) = Rotate56C3D0(matrix, point);
+        return new(unchecked((short)x), unchecked((short)y), unchecked((short)z));
+    }
+
     /// <summary>56C600 uses DWORD vector components with the same three biased-rounded dot products as56C3D0; it ignores translation and writes XYZ only.</summary>
     public static (int X, int Y, int Z) RotateLong56C600(NativeBattleActionMatrix matrix, int x, int y, int z)
     {

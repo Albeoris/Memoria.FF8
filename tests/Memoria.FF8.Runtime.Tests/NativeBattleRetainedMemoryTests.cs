@@ -76,6 +76,60 @@ public sealed class NativeBattleRetainedMemoryTests
         Assert.True(memory.ActionScratch.FinisherPendingE03);
         Assert.Null(memory.ActionScratch.ComponentCompletion);
         Assert.Equal((uint)0x47DE70, scratch.ComponentCompletion);
+        GameSession restored = new(new GameState { Scene = SceneKind.Field, Battle = snapshot with { NativeActionScratch = scratch }, NativeBattleMemory = memory });
+        Assert.Equal((uint)0x47DE70, restored.State.Battle!.NativeActionScratch!.ComponentCompletion);
+        Assert.Null(restored.State.NativeBattleMemory!.ActionScratch.ComponentCompletion);
+    }
+
+    [Fact]
+    public void In_process_checkpoint_shares_physical_owners_and_record_equality_implies_identical_JSON()
+    {
+        GameSession process = PhysicalCheckpoint();
+        GameState source = process.State;
+        NativeBattleRetainedMemory memory = source.NativeBattleMemory!;
+        NativeBattleRetainedMemory observed = NativeBattleRetainedMemory.Capture(source.Battle!, memory.ColdExecutableSha256);
+        Assert.Same(source.Battle!.NativeEffectMemory, memory.EffectMemory);
+        Assert.Same(memory.EffectMemory, observed.EffectMemory);
+        Assert.Equal(memory, observed);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(memory), JsonSerializer.SerializeToElement(observed)));
+        Assert.NotNull(new GameSession(source).State.Battle);
+    }
+
+    [Fact]
+    public void Independent_JSON_owners_use_structural_fallback_when_backing_arrays_are_distinct()
+    {
+        GameState source = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(PhysicalCheckpoint().State))!;
+        NativeBattleRetainedMemory memory = source.NativeBattleMemory!;
+        NativeBattleRetainedMemory observed = NativeBattleRetainedMemory.Capture(source.Battle!, memory.ColdExecutableSha256);
+        Assert.NotEqual(memory, observed);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(memory), JsonSerializer.SerializeToElement(observed)));
+        Assert.NotNull(new GameSession(source).State.Battle);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Distinct_retained_physical_byte_or_unknown_mask_still_rejects_the_checkpoint(bool changeUnknownMask)
+    {
+        GameState source = PhysicalCheckpoint().State;
+        NativeBattleRetainedMemory memory = source.NativeBattleMemory!;
+        NativeBattleEffectArena arena = memory.EffectMemory!.Arena!;
+        NativeBattleEffectArena changed = changeUnknownMask ? arena with { UnknownRegions = [new(17, 1)] } : arena.Write(17, [0xA5]);
+        NativeBattleRetainedMemory contradictory = memory with { EffectMemory = memory.EffectMemory with { Arena = changed } };
+        contradictory.Validate();
+        Assert.NotEqual(memory, contradictory);
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => new GameSession(source with { NativeBattleMemory = contradictory }));
+        Assert.Contains("physical owners", error.Message);
+    }
+
+    private static GameSession PhysicalCheckpoint()
+    {
+        NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.FromColdProcess();
+        retained = retained with { EffectMemory = retained.EffectMemory! with { Arena = NativeBattleEffectArena.Clear().Write(16, [1, 2, 3]) } };
+        BattleSession battle = new(Definition() with { NativeRetainedMemory = retained }, BattleAtbMode.Normal);
+        GameSession process = new(new GameState { Scene = SceneKind.Field });
+        process.SetBattle(battle.Capture());
+        return process;
     }
 
     private static BattleDefinition Definition() => new()

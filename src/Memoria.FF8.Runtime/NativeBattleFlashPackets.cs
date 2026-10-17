@@ -27,7 +27,7 @@ public static class NativeBattleFlashPackets
         {
             throw new NotSupportedException("Native fullscreen packet requires its original command, vertices and physical arena owner.");
         }
-        NativeBattleGeometryPrimitive primitive = new(bucket, words, []) { PhysicalWriteMask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, words.Length * 4).ToImmutableArray() };
+        NativeBattleGeometryPrimitive primitive = new(bucket, words, [0, 0, 0, 0]) { PhysicalWriteMask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, words.Length * 4).ToImmutableArray() };
         return new([new(primitive, 0, 1)], words.Length * 4);
     }
 }

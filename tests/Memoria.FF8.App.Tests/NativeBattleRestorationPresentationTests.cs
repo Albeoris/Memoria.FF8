@@ -58,7 +58,7 @@ public sealed class NativeBattleRestorationPresentationTests
         Console.WriteLine($"Restoration checkpoint effect{source.NativeGraphics.OriginalEffect.Binding.Effect}, saved{source.Frame}/{source.NativeGraphics.Callback}; actual nextcallback{first.NativeGraphics.Callback}, wholeJSON/copiedpixels agree.");
     }
 
-    internal static BattleSession PrepareComponent(GameAssets game, BattleAssets assets, BattleActionDefinition action, ushort effect)
+    internal static BattleSession PrepareComponent(GameAssets game, BattleAssets assets, BattleActionDefinition action, ushort effect, bool applyKernelStatuses = false)
     {
         BattleEncounter formation = assets.LoadEncounter(94);
         BattleStage stage = assets.LoadStage(formation.StageId);
@@ -103,7 +103,7 @@ public sealed class NativeBattleRestorationPresentationTests
             NativeStageCameraControl = stage.NativeCameraControl
         };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        string? entryEvidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_RESTORATION_EVIDENCE") ?? (effect is 5 or 35 ? Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_LIFE_EVIDENCE") : null);
+        string? entryEvidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_RESTORATION_EVIDENCE") ?? Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_EFFECT_PRESENTATION_EVIDENCE") ?? (effect is 5 or 35 ? Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_LIFE_EVIDENCE") : null);
         string entryId = $"restoration{effect}-native-entry-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N")[..8];
         BattleSnapshot entrySource = battle.Capture();
         Publish(entryEvidence, entryId + "-before", entrySource, null);
@@ -117,18 +117,25 @@ public sealed class NativeBattleRestorationPresentationTests
         BattleSnapshot before = battle.Capture();
         Publish(entryEvidence, entryId + "-after", before, new BattleScenePresentation(assets, definition, true).Render(battle, 320, 224));
         BattleCombatantSnapshot target = before.Combatants.Single(actor => actor.Id == "target");
+        BattleNativeAction native = action.NativeAction!;
         NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("Restoration component lacks its current target status words.");
         //494360 adds saved0300 below one-quarter HP. Half HP for Esuna and full HP for Full-life keep this controlled result clear.
         Assert.Equal((ushort)0, status.Saved);
         //Controlled post-formula boundary: B90 already holds the successful result. B92 and the HP cache retain the prior display.
         //Esuna's prior poison bit is2; revival's prior KO bit is1. This does not run or admit either formula.
-        ushort priorSaved = effect == 24 ? (ushort)2 : (ushort)1;
-        target = target with { NativeStatus = status with { Presentation = new(priorSaved, status.Battle) } };
+        ushort priorSaved = applyKernelStatuses ? status.Saved : effect == 24 ? (ushort)2 : (ushort)1;
+        uint priorBattle = status.Battle;
+        if (applyKernelStatuses)
+        {
+            Assert.True(native.Statuses0 != 0 || native.Statuses1 != 0);
+            //Controlled successful post-formula status result; this fixture does not execute the formula or its resistance roll.
+            status = status with { Saved = (ushort)(status.Saved | native.Statuses0), Battle = status.Battle | native.Statuses1 };
+        }
+        target = target with { NativeStatus = status with { Presentation = new(priorSaved, priorBattle) } };
         NativeBattlePartyPresentation party = before.NativePartyPresentation!;
         NativeBattlePartyPresentedVital targetRow = party.Rows[1]!;
         party = party with { Rows = party.Rows.SetItem(1, targetRow with { HitPoints = resurrection ? (ushort)0 : targetRow.HitPoints }) };
-        before = before with { Combatants = before.Combatants.Select(actor => actor.Id == target.Id ? target : actor).ToArray(), NativePartyPresentation = party, NativePartyStatusMirrors = before.NativePartyStatusMirrors!.Observe(1, priorSaved, status.Battle) };
-        BattleNativeAction native = action.NativeAction!;
+        before = before with { Combatants = before.Combatants.Select(actor => actor.Id == target.Id ? target : actor).ToArray(), NativePartyPresentation = party, NativePartyStatusMirrors = before.NativePartyStatusMirrors!.Observe(1, priorSaved, priorBattle) };
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
         byte sequence = definition.NativeCommandSequences[native.Command];
         (packets, int header) = packets.Prepare(new(0, native.Command, sequence, -1, native.ActionId, native.MagicId, null));
@@ -136,7 +143,7 @@ public sealed class NativeBattleRestorationPresentationTests
         (packets, _) = packets.Publish(1);
         NativeBattleGraphicsState graphics = before.NativeGraphics!;
         NativeBattleGraphicsModel targetModel = graphics.Models[1];
-        uint priorFlags = definition.NativeGraphics!.Rules.Project(priorSaved, status.Battle);
+        uint priorFlags = definition.NativeGraphics!.Rules.Project(priorSaved, priorBattle);
         //Controlled prior display status is newly added to this healthy-entry model:509D30..47 resets exactly its added timer bytes.
         uint addedPriorFlags = priorFlags & ~(targetModel.Flags8 ?? throw new InvalidDataException("Controlled prior status requires its existing graphics status."));
         ImmutableArray<byte?> priorTimers = targetModel.StatusTimers;

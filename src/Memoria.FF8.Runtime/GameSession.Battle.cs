@@ -12,7 +12,7 @@ public sealed partial class GameSession
         if (state.NativeBattleMemory is { } memory && state.Battle is { } battle)
         {
             NativeBattleRetainedMemory observed = NativeBattleRetainedMemory.Capture(battle, memory.ColdExecutableSha256);
-            if (!System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(memory), System.Text.Json.JsonSerializer.SerializeToElement(observed)))
+            if (memory != observed && !System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(memory), System.Text.Json.JsonSerializer.SerializeToElement(observed)))
             {
                 throw new InvalidDataException("Retained battle memory contradicts the active battle's physical owners.");
             }

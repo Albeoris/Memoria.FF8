@@ -25,6 +25,7 @@ public sealed partial record NativeBattleEffectMemory([property: JsonRequired] N
     public void Validate()
     {
         ExecutionStack?.Validate();
+        DoubleMorph?.Validate();
         ModelColorOverrides?.Validate();
         CuragaExecutable?.Validate();
         EsunaExecutable?.Validate();
