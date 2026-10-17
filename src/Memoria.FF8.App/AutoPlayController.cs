@@ -50,6 +50,8 @@ internal sealed class AutoPlayRunState
     public HashSet<string> ObservedMessages { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, NativePlayerAbsenceReceipt> UnavailabilityGuards { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, AutoPlayVisitGuard> VisitGuards { get; set; } = new(StringComparer.Ordinal);
+    public HashSet<string> InspectedVisitsSinceProgress { get; set; } = new(StringComparer.Ordinal);
+    public string? RefreshTargetVisit { get; set; }
     public bool ParticipantPolicyDiagnosticOnly { get; set; }
     public string? ParticipantPolicyResumeChoice { get; set; }
 }
@@ -286,6 +288,8 @@ internal sealed partial class AutoPlayController
                 int score = run.ObservedScenes.Count + run.ObservedMessages.Count + run.Coverage.Visits.Count + run.Coverage.Choices.Count + run.Coverage.Visits.Sum(visit => visit.Events.Count(item => item.Completed) + visit.Events.Sum(item => item.UnavailableAttempts.Count + item.ParticipantPolicyDeferrals.Count)) + run.Coverage.Choices.Sum(choice => choice.CompletedOptions.Count);
                 if (score != run.LastProgressScore)
                 {
+                    run.InspectedVisitsSinceProgress.Clear();
+                    run.RefreshTargetVisit = null;
                     run.LastProgressScore = score;
                     run.LastProgressStep = run.Steps;
                     ResetIdleDeadline();
@@ -492,6 +496,7 @@ internal sealed partial class AutoPlayController
         }).ToArray());
         RefreshUnavailable(world);
         RefreshParticipantPolicies(world);
+        InspectSurveyVisit(visit);
         if (FinishChoices())
         {
             return;
@@ -514,7 +519,8 @@ internal sealed partial class AutoPlayController
         {
             run.VisitGuards[visit] = guard;
         }
-        AutoPlayPlanStep? next = planner.Plan(visit, candidate => NeedsVisitRefresh(world, candidate));
+        AutoPlayPlanStep? next = planner.Plan(visit, candidate => NeedsVisitRefresh(world, candidate), run.RefreshTargetVisit);
+        run.RefreshTargetVisit = next?.RefreshVisitKey;
         if (next is null)
         {
             WaitForNativeFrontier();
@@ -916,6 +922,7 @@ internal sealed partial class AutoPlayController
         IReadOnlyList<WorldAutoPlayTarget> targets = world.DiscoverAutoPlayWorldTargets();
         planner.Observe(new(visit, "world"), targets.Select(target => new AutoPlayEvent(target.Id, AutoPlayEventKind.Transition, Order: target.Order, ConditionSignature: signature)).ToArray());
         RefreshUnavailable(world);
+        InspectSurveyVisit(visit);
         if (FinishChoices())
         {
             return;
@@ -935,7 +942,8 @@ internal sealed partial class AutoPlayController
         run.ActiveAbsenceGuardKey = null;
         run.ActiveAvailabilityFingerprint = null;
         run.SceneFrames = 0;
-        AutoPlayPlanStep next = planner.Plan(visit) ?? throw new NotSupportedException("Reachable world frontier exhausted before the ending.");
+        AutoPlayPlanStep next = planner.Plan(visit, run.RefreshTargetVisit is null ? null : _ => false, run.RefreshTargetVisit) ?? throw new NotSupportedException("Reachable world frontier exhausted before the ending.");
+        run.RefreshTargetVisit = next.RefreshVisitKey;
         WorldAutoPlayTarget target = targets.Single(item => item.Id == next.Event.Id);
         string beforeCheckpoint = $"world-{run.Steps:D10}.json";
         SaveBundle(Path.GetFileNameWithoutExtension(beforeCheckpoint), CaptureState());
@@ -1249,6 +1257,12 @@ internal sealed partial class AutoPlayController
 
     private bool NeedsVisitRefresh(GameWorld world, AutoPlayVisit visit, bool includeUnknown = true)
     {
+        // Refreshes are a finite survey between genuine coverage gains. INIT may legitimately
+        // change persistent NPC flags; those changes must not starve already known frontiers.
+        if (run.InspectedVisitsSinceProgress.Contains(visit.Key))
+        {
+            return false;
+        }
         if (!int.TryParse(visit.Key.Split(':')[0], out int field))
         {
             return false;
@@ -1266,6 +1280,18 @@ internal sealed partial class AutoPlayController
             return includeUnknown;
         }
         return world.ReadAutoPlayFieldProgramHash(field) != guard.ProgramHash || world.Events.ReadPersistentPredicateFingerprint(guard.Reads) != guard.Fingerprint;
+    }
+
+    private void InspectSurveyVisit(string visit)
+    {
+        if (run.InspectedVisitsSinceProgress.Add(visit))
+        {
+            ResetIdleDeadline();
+        }
+        if (run.RefreshTargetVisit == visit)
+        {
+            run.RefreshTargetVisit = null;
+        }
     }
 
     internal static string ReadUnavailableGuard(NativePlayerAbsenceReceipt receipt, string actualProgramHash, Func<IReadOnlyList<NativePersistentPredicateRead>, string?> readPersistent)

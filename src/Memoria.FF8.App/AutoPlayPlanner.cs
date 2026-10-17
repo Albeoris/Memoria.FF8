@@ -22,7 +22,7 @@ internal sealed class AutoPlayConditionCoverage
 
 internal sealed record AutoPlayChoiceSelection(string Key, int Selection);
 internal sealed record AutoPlayEventRoute(string DestinationVisitKey, string? ConditionSignature, bool? ObservedStoryChanged, IReadOnlyList<AutoPlayChoiceSelection>? Selections, string? TargetId = null);
-internal sealed record AutoPlayPlanStep(string VisitKey, AutoPlayEvent Event, bool IsTravel, AutoPlayEventRoute? Route = null);
+internal sealed record AutoPlayPlanStep(string VisitKey, AutoPlayEvent Event, bool IsTravel, AutoPlayEventRoute? Route = null, string? RefreshVisitKey = null);
 internal sealed record AutoPlayUnavailableAttempt(string SourceConditionSignature, string DestinationVisitKey, string GuardKey, string GuardFingerprint, string? TargetId = null);
 
 internal sealed class AutoPlayEventCoverage
@@ -276,7 +276,7 @@ internal sealed class AutoPlayPlanner
     }
 
     /// <summary>Uses recorded routes for frontiers and optional remote refreshes; returns null when neither is reachable.</summary>
-    public AutoPlayPlanStep? Plan(string currentVisitKey, Func<AutoPlayVisit, bool>? needsRefresh = null)
+    public AutoPlayPlanStep? Plan(string currentVisitKey, Func<AutoPlayVisit, bool>? needsRefresh = null, string? refreshVisitKey = null)
     {
         AutoPlayVisitCoverage current = FindVisit(currentVisitKey);
         Dictionary<string, AutoPlayPlanStep?> routes = new(StringComparer.Ordinal) { [currentVisitKey] = null };
@@ -321,7 +321,7 @@ internal sealed class AutoPlayPlanner
             }
             else
             {
-                string? refresh = routes.Keys.Where(key => key != currentVisitKey && needsRefresh(FindVisit(key).Visit))
+                string? refresh = refreshVisitKey is not null && refreshVisitKey != currentVisitKey && routes.ContainsKey(refreshVisitKey) ? refreshVisitKey : routes.Keys.Where(key => key != currentVisitKey && needsRefresh(FindVisit(key).Visit))
                     .OrderBy(key => phaseOrder(FindVisit(key).Visit, routes[key]!.Event))
                     .ThenBy(key => FindVisit(key).Visit.Region != current.Visit.Region)
                     .ThenBy(key => distances[key])
@@ -329,7 +329,7 @@ internal sealed class AutoPlayPlanner
                     .FirstOrDefault();
                 if (refresh is not null)
                 {
-                    return routes[refresh];
+                    return routes[refresh]! with { RefreshVisitKey = refresh };
                 }
             }
         }
