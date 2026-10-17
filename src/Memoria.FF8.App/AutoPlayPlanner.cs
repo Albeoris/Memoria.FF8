@@ -91,6 +91,7 @@ internal sealed class AutoPlayPlannerState
     public List<AutoPlayChoiceCoverage> Choices { get; set; } = [];
     public List<AutoPlayNavigationVisit> NavigationVisits { get; set; } = [];
     public List<AutoPlayNavigationRoute> NavigationRoutes { get; set; } = [];
+    public List<AutoPlayRetiredNavigationRoute> NavigationRetirements { get; set; } = [];
 }
 
 /// <summary>A deterministic frontier planner with stable visit graphs and separately consumed event conditions.</summary>

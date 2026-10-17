@@ -2,6 +2,7 @@ namespace Memoria.FF8;
 
 internal sealed record AutoPlayNavigationVisit(string Key, string VisitKey, IReadOnlyList<AutoPlayEvent> Events);
 internal sealed record AutoPlayNavigationRoute(string SourceKey, string DestinationKey, string EventId, AutoPlayEventRoute Route);
+internal sealed record AutoPlayRetiredNavigationRoute(AutoPlayNavigationRoute Route, string ActualDestinationKey);
 
 internal sealed partial class AutoPlayPlanner
 {
@@ -40,6 +41,14 @@ internal sealed partial class AutoPlayPlanner
         if (observed is null || observed.ConditionSignature != route.ConditionSignature || route.TargetId is string target && !(observed.Variants is { Count: > 0 } variants ? variants : [observed.Id]).Contains(target, StringComparer.Ordinal) || destination.VisitKey != route.DestinationVisitKey || !aggregate.Routes.Any(known => SameTravelRoute(known, route)))
         {
             throw new InvalidOperationException("A navigation edge requires its exact observed source and actual recorded aggregate route and destination.");
+        }
+        foreach (AutoPlayNavigationRoute previous in State.NavigationRoutes.Where(known => known.SourceKey == sourceKey && known.DestinationKey != destinationKey && known.EventId == eventId && SameTravelRoute(known.Route, route)).ToArray())
+        {
+            if (!State.NavigationRetirements.Any(retired => retired.ActualDestinationKey == destinationKey && retired.Route.SourceKey == previous.SourceKey && retired.Route.DestinationKey == previous.DestinationKey && retired.Route.EventId == previous.EventId && SameTravelRoute(retired.Route.Route, previous.Route)))
+            {
+                State.NavigationRetirements.Add(new(previous, destinationKey));
+            }
+            State.NavigationRoutes.Remove(previous);
         }
         if (!State.NavigationRoutes.Any(known => known.SourceKey == sourceKey && known.DestinationKey == destinationKey && known.EventId == eventId && SameTravelRoute(known.Route, route)))
         {

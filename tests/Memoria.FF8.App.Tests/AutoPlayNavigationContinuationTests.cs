@@ -6,6 +6,49 @@ namespace Memoria.FF8.App.Tests;
 public sealed class AutoPlayNavigationContinuationTests
 {
     [Fact]
+    public void AnActualChangedArrivalRetiresItsObsoleteNavigationEndpointAndColdResumes()
+    {
+        string manifest = TestResources.FixturePath("App.Tests.AutoPlayNavigationContinuationTests.2");
+        byte[] originalManifest = File.ReadAllBytes(manifest);
+        AutoPlayRunState saved = JsonSerializer.Deserialize<AutoPlayRunState>(originalManifest, AutoPlayController.JsonOptions)!;
+        string snapshot = Path.Combine(Path.GetDirectoryName(manifest)!, saved.Snapshot!);
+        byte[] originalSnapshot = File.ReadAllBytes(snapshot);
+        string source = Assert.IsType<string>(saved.ActiveNavigationKey);
+        string oldGoal = Assert.IsType<string>(saved.RefreshTargetVisit);
+        Assert.Equal("102:gateway:3", saved.ActiveEvent);
+        Assert.Empty(saved.Coverage.NavigationRetirements);
+        Assert.Contains(saved.Coverage.NavigationRoutes, route => route.SourceKey == source && route.DestinationKey == oldGoal && route.EventId == saved.ActiveEvent);
+        using InstalledRun run = new();
+        run.Controller.ResumeFrom(manifest);
+        for (int tick = 0; tick < 64 && run.Controller.State.Coverage.NavigationRetirements.Count == 0 && run.Controller.Error is null; tick++)
+        {
+            run.Controller.Advance(1);
+        }
+
+        Assert.Null(run.Controller.Error);
+        AutoPlayRetiredNavigationRoute retired = Assert.Single(run.Controller.State.Coverage.NavigationRetirements);
+        Assert.Equal(source, retired.Route.SourceKey);
+        Assert.Equal(oldGoal, retired.Route.DestinationKey);
+        Assert.Equal(saved.ActiveEvent, retired.Route.EventId);
+        Assert.NotEqual(oldGoal, retired.ActualDestinationKey);
+        Assert.Contains(run.Controller.State.Coverage.NavigationRoutes, route => route.SourceKey == source && route.DestinationKey == retired.ActualDestinationKey && route.EventId == saved.ActiveEvent);
+        Assert.DoesNotContain(run.Controller.State.Coverage.NavigationRoutes, route => route.SourceKey == source && route.DestinationKey == oldGoal && route.EventId == saved.ActiveEvent);
+        Assert.DoesNotContain(oldGoal, run.Controller.State.InspectedVisitsSinceProgress);
+        Assert.NotEqual(oldGoal, run.Controller.State.RefreshTargetVisit);
+        Assert.Equal(saved.Coverage.Choices.Count, run.Controller.State.Coverage.Choices.Count);
+        Assert.Equal(saved.Coverage.Choices.Sum(choice => choice.CompletedOptions.Count), run.Controller.State.Coverage.Choices.Sum(choice => choice.CompletedOptions.Count));
+        string history = JsonSerializer.Serialize(run.Controller.State.Coverage.NavigationRetirements, AutoPlayController.JsonOptions);
+        run.Controller.SaveAndStop();
+        using InstalledRun cold = new();
+        cold.Controller.ResumeFrom(run.Controller.ReproductionPath!);
+        cold.Controller.Advance(1);
+        Assert.Null(cold.Controller.Error);
+        Assert.Equal(history, JsonSerializer.Serialize(cold.Controller.State.Coverage.NavigationRetirements, AutoPlayController.JsonOptions));
+        Assert.Equal(originalManifest, File.ReadAllBytes(manifest));
+        Assert.Equal(originalSnapshot, File.ReadAllBytes(snapshot));
+    }
+
+    [Fact]
     public void AnUnscopedHistoricalGraphLearnsItsFirstActualNavigationEdgeAndSurvivesColdResume()
     {
         string manifest = TestResources.FixturePath("App.Tests.AutoPlayNavigationContinuationTests.1");

@@ -270,6 +270,103 @@ public sealed class AutoPlayNavigationPlannerTests
         Assert.Equal(before, JsonSerializer.Serialize(restored.State));
     }
 
+    [Fact]
+    public void AnActualNewEndpointMakesTheOldStickyGoalUnreachableWithoutChangingAggregateCoverage()
+    {
+        AutoPlayPlanner planner = CreateTwoComponents();
+        planner.Completed("172:142", "pending");
+        planner.ObserveNavigation("172:142", "destination-new", [Event(planner, "172:142", "pending")]);
+        AutoPlayNavigationRoute previous = planner.State.NavigationRoutes.Single(edge => edge.SourceKey == "main");
+        string aggregateBefore = JsonSerializer.Serialize(planner.State.Visits);
+        Assert.Equal("destination", planner.PlanNavigation("main", visit => visit.Key == "destination", "destination")!.RefreshVisitKey);
+
+        planner.RecordNavigationRoute("main", "destination-new", previous.EventId, previous.Route);
+
+        Assert.DoesNotContain(planner.State.NavigationRoutes, edge => edge.SourceKey == "main" && edge.DestinationKey == "destination");
+        AutoPlayRetiredNavigationRoute retired = Assert.Single(planner.State.NavigationRetirements);
+        Assert.Equal(previous, retired.Route);
+        Assert.Equal("destination-new", retired.ActualDestinationKey);
+        AutoPlayPlanStep refresh = planner.PlanNavigation("main", visit => visit.Key is "destination" or "destination-new", "destination")!;
+        Assert.Equal("destination-new", refresh.RefreshVisitKey);
+        Assert.Equal("172:142", refresh.Route!.DestinationVisitKey);
+        Assert.Equal(1, planner.ReachableNavigationFrontierCount("main", needsRefresh: visit => visit.Key is "destination" or "destination-new"));
+        Assert.Equal(aggregateBefore, JsonSerializer.Serialize(planner.State.Visits));
+    }
+
+    [Fact]
+    public void EndpointReplacementPreservesOtherSourceComponentsAndRecordedSelections()
+    {
+        AutoPlayPlanner planner = CreateTwoComponents();
+        AutoPlayNavigationRoute previous = planner.State.NavigationRoutes.Single(edge => edge.SourceKey == "main");
+        planner.ObserveNavigation("165:142", "other-source", [Event(planner, "165:142", previous.EventId)]);
+        planner.ObserveNavigation("172:142", "destination-new", [Event(planner, "172:142", "pending")]);
+        planner.RecordNavigationRoute("other-source", "destination", previous.EventId, previous.Route);
+        planner.Completed("165:142", previous.EventId, "172:142", observedStoryChanged: false, selections: [new("actual-choice", 2)]);
+        AutoPlayEventRoute otherSelection = planner.State.Visits.Single(visit => visit.Visit.Key == "165:142").Events.Single(item => item.Event.Id == previous.EventId).Routes.Single(route => route.Selections!.Count == 1);
+        planner.RecordNavigationRoute("main", "destination", previous.EventId, otherSelection);
+
+        planner.RecordNavigationRoute("main", "destination-new", previous.EventId, previous.Route);
+
+        Assert.Contains(planner.State.NavigationRoutes, edge => edge.SourceKey == "other-source" && edge.DestinationKey == "destination");
+        Assert.Contains(planner.State.NavigationRoutes, edge => edge.SourceKey == "main" && edge.DestinationKey == "destination" && edge.Route.Selections!.SequenceEqual(otherSelection.Selections!));
+        Assert.Contains(planner.State.NavigationRoutes, edge => edge.SourceKey == "west" && edge.DestinationKey == "outside");
+        Assert.Single(planner.State.NavigationRetirements);
+    }
+
+    [Fact]
+    public void AnAlreadyKnownActualEndpointStillRetiresContradictionsWithoutDuplicatingHistory()
+    {
+        AutoPlayPlanner planner = CreateTwoComponents();
+        AutoPlayNavigationRoute previous = planner.State.NavigationRoutes.Single(edge => edge.SourceKey == "main");
+        planner.ObserveNavigation("172:142", "destination-new", [Event(planner, "172:142", "pending")]);
+        planner.RecordNavigationRoute("main", "destination-new", previous.EventId, previous.Route);
+        planner.State.NavigationRoutes.Add(previous);
+
+        planner.RecordNavigationRoute("main", "destination-new", previous.EventId, previous.Route);
+        planner.RecordNavigationRoute("main", "destination-new", previous.EventId, previous.Route);
+
+        Assert.Single(planner.State.NavigationRetirements);
+        Assert.Single(planner.State.NavigationRoutes, edge => edge.SourceKey == "main");
+        Assert.DoesNotContain(planner.State.NavigationRoutes, edge => edge.SourceKey == "main" && edge.DestinationKey == "destination");
+    }
+
+    [Fact]
+    public void AReplacedNavigationEndpointAndItsHistorySurviveColdRestore()
+    {
+        AutoPlayPlanner planner = CreateTwoComponents();
+        AutoPlayNavigationRoute previous = planner.State.NavigationRoutes.Single(edge => edge.SourceKey == "main");
+        planner.ObserveNavigation("172:142", "destination-new", [Event(planner, "172:142", "pending")]);
+        planner.RecordNavigationRoute("main", "destination-new", previous.EventId, previous.Route);
+        planner.Completed("172:142", "pending");
+        string before = JsonSerializer.Serialize(planner.State);
+
+        AutoPlayPlanner restored = new(JsonSerializer.Deserialize<AutoPlayPlannerState>(before)!);
+
+        Assert.Single(restored.State.NavigationRetirements);
+        Assert.Null(restored.PlanNavigation("main", visit => visit.Key == "destination", "destination"));
+        Assert.Equal("destination-new", restored.PlanNavigation("main", visit => visit.Key == "destination-new", "destination")!.RefreshVisitKey);
+        Assert.Equal(before, JsonSerializer.Serialize(restored.State));
+    }
+
+    [Theory]
+    [InlineData("wrong-source")]
+    [InlineData("wrong-destination")]
+    [InlineData("unrecorded-route")]
+    public void InvalidActualEndpointProofDoesNotRetireOrChangeAnyNavigationHistory(string reason)
+    {
+        AutoPlayPlanner planner = CreateTwoComponents();
+        AutoPlayNavigationRoute previous = planner.State.NavigationRoutes.Single(edge => edge.SourceKey == "main");
+        planner.ObserveNavigation("172:142", "destination-new", [Event(planner, "172:142", "pending")]);
+        string source = reason == "wrong-source" ? "west" : "main";
+        string destination = reason == "wrong-destination" ? "outside" : "destination-new";
+        AutoPlayEventRoute route = reason == "unrecorded-route" ? previous.Route with { Selections = [new("unknown-choice", 1)] } : previous.Route;
+        string before = JsonSerializer.Serialize(planner.State);
+
+        Assert.Throws<InvalidOperationException>(() => planner.RecordNavigationRoute(source, destination, previous.EventId, route));
+
+        Assert.Equal(before, JsonSerializer.Serialize(planner.State));
+    }
+
     private static AutoPlayEvent Event(AutoPlayPlanner planner, string visit, string eventId)
     {
         return planner.State.Visits.Single(item => item.Visit.Key == visit).Events.Single(item => item.Event.Id == eventId).Event;
