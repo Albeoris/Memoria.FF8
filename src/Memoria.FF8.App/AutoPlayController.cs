@@ -668,12 +668,14 @@ internal sealed class AutoPlayController
 
     private void ExploreWorld(GameWorld world)
     {
-        if (session.State.World is { NativeScriptedRuntime: not null } or { NativeTrainRuntime: not null })
+        WorldState current = session.State.World ?? throw new InvalidDataException("Automatic world exploration requires its current world owner.");
+        int waitFrames = WorldControlWaitFrames(current);
+        if (waitFrames > 0)
         {
-            run.SceneFrames += Apply(new(PlayerActionKind.Wait, Frames: 300)).FramesAdvanced;
+            run.SceneFrames += Apply(new(PlayerActionKind.Wait, Frames: waitFrames)).FramesAdvanced;
             if (run.SceneFrames > 180000)
             {
-                throw new TimeoutException("The scripted world owner did not return within 180000 callbacks.");
+                throw new TimeoutException("The native world owner did not return control within 180000 callbacks.");
             }
             return;
         }
@@ -682,20 +684,23 @@ internal sealed class AutoPlayController
             return;
         }
         string visit = "world:" + session.State.Variables.GetValueOrDefault(256);
-        IReadOnlyList<WorldAutoPlayTarget> targets = world.DiscoverAutoPlayWorldTargets();
-        planner.Observe(new(visit, "world"), targets.Select(target => new AutoPlayEvent(target.Id, AutoPlayEventKind.Transition, Order: target.Order)).ToArray());
         if (run.ActiveVisit is not null && run.ActiveEvent is not null)
         {
-            planner.Completed(run.ActiveVisit, run.ActiveEvent, visit, observedStoryChanged: ObserveStoryChange(run.ActiveStory, run.ActiveVisit, session.State.Variables.GetValueOrDefault(256)));
+            RecordWorldControlReturn(planner, run.ActiveVisit, run.ActiveEvent, visit, run.ActiveStory, session.State.Variables.GetValueOrDefault(256));
         }
         run.ActiveVisit = null;
         run.ActiveEvent = null;
         run.ActiveStory = null;
         run.ActiveObservedInput = null;
         run.ObserveContactInput = false;
+        run.SceneFrames = 0;
+        string signature = WorldConditionSignature(session.State);
+        IReadOnlyList<WorldAutoPlayTarget> targets = world.DiscoverAutoPlayWorldTargets();
+        planner.Observe(new(visit, "world"), targets.Select(target => new AutoPlayEvent(target.Id, AutoPlayEventKind.Transition, Order: target.Order, ConditionSignature: signature)).ToArray());
         AutoPlayPlanStep next = planner.Plan(visit) ?? throw new NotSupportedException("Reachable world frontier exhausted before the ending.");
         WorldAutoPlayTarget target = targets.Single(item => item.Id == next.Event.Id);
         SaveBundle($"world-{run.Steps:D10}", CaptureState());
+        planner.BeginEvent(visit, target.Id);
         run.ActiveVisit = visit;
         run.ActiveEvent = target.Id;
         run.ActiveField = session.State.FieldId;
@@ -704,6 +709,71 @@ internal sealed class AutoPlayController
         run.ObservedControlLoss = false;
         run.SettleFrames = 0;
         world.ExecuteAutoPlayWorldTarget(target);
+    }
+
+    internal static int WorldControlWaitFrames(WorldState world)
+    {
+        if (world.NativeScriptedRuntime is not null || world.NativeTrainRuntime is not null)
+        {
+            return 300;
+        }
+        NativeWorldEventUi ui = world.EventUi ?? throw new NotSupportedException("Automatic world control requires its executed native UI state.");
+        ui.Validate();
+        int entryDelay = NativeWorldEntryControl.DelayAfterCallback(world.Frame, 0);
+        if (entryDelay > 0)
+        {
+            return entryDelay;
+        }
+        return ui.ScriptMode != 0 || !ui.Windows.IsEmpty ? 1 : 0;
+    }
+
+    internal static void RecordWorldControlReturn(AutoPlayPlanner planner, string activeVisit, string eventId, string currentVisit, int? entryStory, int story)
+    {
+        if (activeVisit.StartsWith("world:", StringComparison.Ordinal))
+        {
+            planner.Block(activeVisit, eventId, "The native world event returned control without entering the requested field.");
+            return;
+        }
+        planner.Completed(activeVisit, eventId, currentVisit, observedStoryChanged: ObserveStoryChange(entryStory, activeVisit, story));
+    }
+
+    internal static string WorldConditionSignature(GameState state)
+    {
+        NativeWorldEntryMemory entry = state.WorldEntryMemory ?? throw new NotSupportedException("World conditions require their typed native entry memory.");
+        entry.Validate();
+        NativeSavedWorldState saved = state.SavedWorld ?? throw new NotSupportedException("World conditions require their native saved-world owner.");
+        saved.WorldEventFlags116?.Validate();
+        WorldState world = state.World ?? throw new InvalidDataException("World conditions require their actual current entity owner.");
+        var conditions = new
+        {
+            EntryBytes = entry.Bytes,
+            saved.WorldEventFlags116,
+            saved.WorldEventVariable124,
+            saved.WorldEventVariable125,
+            Slot4 = saved.Slot4.ShapeId,
+            Slot5 = saved.Slot5.ShapeId,
+            HasGardenPose = saved.GardenPose3 is not null,
+            HasRagnarokPose = saved.RagnarokPose2 is not null,
+            FootEntity = world.NativeFootRuntime?.EntityType,
+            CarEntity = world.NativeCarRuntime?.EntityType,
+            HasGardenOwner = world.NativeGardenRuntime is not null,
+            HasRagnarokOwner = world.NativeRagnarokRuntime is not null,
+            SavedFlag109 = WorldFlag109Domain(state.EventMemory)
+        };
+        return Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(conditions)));
+    }
+
+    private static int[]? WorldFlag109Domain(NativeEventMemory memory)
+    {
+        foreach ((int address, NativeMemoryValue cell) in memory.Cells)
+        {
+            if (address <= 271 && 271 < address + cell.Width)
+            {
+                int shift = (271 - address) * 8;
+                return cell.Value.Values.Select(value => (int)((uint)value >> shift & byte.MaxValue)).Distinct().Order().ToArray();
+            }
+        }
+        return null;
     }
 
     private void HandleDialogue(DialogueState dialogue)

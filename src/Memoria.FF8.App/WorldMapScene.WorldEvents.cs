@@ -5,7 +5,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class WorldMapScene
 {
-    private WorldFieldSelection? SelectWorldCallback(WorldState accepted, WorldState cameraState, byte scriptMode, ref NativeWorldSalaryState salary, uint currentButtons, uint? previousButtons, bool? activity = null)
+    private WorldFieldSelection? SelectWorldCallback(WorldState accepted, WorldState cameraState, byte scriptMode, ref NativeWorldSalaryState salary, uint currentButtons, bool? activity = null)
     {
         if (NativeWorldEntryControl.DelayAfterCallback(accepted.Frame, 0) > 0)
         {
@@ -16,8 +16,18 @@ internal sealed partial class WorldMapScene
         NativeWorldEventFlags flags = saved.WorldEventFlags116 ?? new NativeWorldEventFlags(0, 0);
         int entityType = accepted.NativeFootRuntime?.EntityType ?? accepted.NativeCarRuntime?.EntityType ?? accepted.NativeTrainRuntime?.EntityType ?? accepted.NativeScriptedRuntime?.Path.EntityType ?? (accepted.NativeRagnarokRuntime is not null ? 50 : 48);
         ushort story = staged.WorldEntryMemory?.StoryWord ?? WorldEntryVariables.Read(session.State).StoryWord;
+        NativeWorldInputHistory history = staged.InputHistory ?? throw new NotSupportedException("World event input requires its actual shared input callback publication.");
+        if (history.CurrentButtons != currentButtons)
+        {
+            throw new InvalidDataException("World event input differs from the actual sampled callback.");
+        }
+        if (activity is null && (staged.EventUi?.ScriptMode ?? scriptMode) != 0)
+        {
+            // The input callback resets activity; ordinary action writers require script mode zero.
+            activity = false;
+        }
         //PlayerAction is the digital input adapter; no analog controller axes are submitted.
-        WorldFieldInputContext callbackInput = new(currentButtons, previousButtons, activity, -1, -1, -1, -1);
+        WorldFieldInputContext callbackInput = new(currentButtons, history.PreviousButtons, activity, -1, -1, -1, -1);
         WorldFieldSelectionInput input = new(accepted.X, accepted.Z, story, entityType);
         WorldFieldSelection? selected = assets.WorldEvents.SelectWorldEvent(input, shape => IsNearWorldEventShape(accepted, cameraState, shape), flags, (opcode, operand) => EvaluateWorldEventPredicate(accepted, scriptMode, staged.SavedWorldEvents!, opcode, operand, callbackInput, staged.EventUi), (opcode, operand) => staged = staged.WithWorldEventCommand(opcode, operand, opcode == 0xFF1F ? assets.ReadNativeWorldMessage(unchecked((sbyte)operand), unchecked((byte)(operand >> 8))) : null));
         byte modeAfterCommands = accepted.NativeRagnarokRuntime?.Transfer is not null ? scriptMode : staged.EventUi?.ScriptMode ?? scriptMode;

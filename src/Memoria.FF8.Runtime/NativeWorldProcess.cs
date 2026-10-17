@@ -15,6 +15,9 @@ public sealed record NativeWorldProcess([property: JsonRequired] int Version, [p
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? ForcedAnimationC76628 { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeWorldInputHistory? InputHistory { get; init; }
+
     [JsonIgnore]
     public bool IsColdProcess => MainLoopCounter == 0 && MainLoopCallbacks == 0 && CameraCooldown == 0 && CarCameraFollowSpeed == 0;
 
@@ -27,7 +30,8 @@ public sealed record NativeWorldProcess([property: JsonRequired] int Version, [p
     public void Validate()
     {
         VerticalBias204DADC?.Validate();
-        if (Version != 1 || Rule != CurrentRule || MainLoopCallbacks < 0 || MainLoopCounter != unchecked((uint)MainLoopCallbacks) || CarCameraFollowSpeed is < 0 or > 128 || ForcedAnimationC76628 is not (null or -1 or 0 or 4))
+        InputHistory?.Validate();
+        if (Version != 1 || Rule != CurrentRule || MainLoopCallbacks < 0 || MainLoopCounter != unchecked((uint)MainLoopCallbacks) || InputHistory?.Samples > MainLoopCallbacks || CarCameraFollowSpeed is < 0 or > 128 || ForcedAnimationC76628 is not (null or -1 or 0 or 4))
         {
             throw new InvalidDataException("Native world process state lacks its exact cold-process callback history.");
         }

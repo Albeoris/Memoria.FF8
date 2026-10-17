@@ -321,6 +321,10 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             throw new ArgumentOutOfRangeException(nameof(action), "Native world digital button masks require an unsigned WORD.");
         }
+        if (ragnarokButtons && (action.Value & 0x800) != 0)
+        {
+            throw new NotSupportedException("The ordinary world menu button requires its native menu transition and buffered input mutation owner.");
+        }
         if (State.NativeRagnarokRuntime is not null && State.NativeFootRuntime is null && action.Kind == PlayerActionKind.Move && (action.Horizontal is not (-1 or 0 or 1) || action.Vertical is not (-1 or 0 or 1)))
         {
             throw new NotSupportedException("Ragnarok Move adapts only digital throttle/steering; submit WorldButtons for exact ordinary vertical controls.");
@@ -350,6 +354,7 @@ internal sealed partial class WorldMapScene : IDisposable
                     buttons |= action.Vertical == -1 ? 0x80u : action.Vertical == 1 ? 0x10u : 0;
                     buttons |= action.Horizontal == -1 ? 0x2000u : action.Horizontal == 1 ? 0x8000u : 0;
                 }
+                salary = salary.WithWorldInputSample(buttons);
                 WorldState callbackStart = candidate;
                 candidate = Step(candidate, action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0, action.CameraHorizontal, priorGraphics, buttons, salary.WorldEntryMemory, ref salary, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out fieldEntry, out uint movementUnits, out int graphicsSpeed);
                 if (consumeGardenRequest)
@@ -367,7 +372,7 @@ internal sealed partial class WorldMapScene : IDisposable
                     byte scriptMode = ragnarokFootBoardingTarget is not null ? (byte)6 : callbackStart.NativeScriptedRuntime?.Path.Mode ?? (callbackStart.NativeTrainRuntime is not null ? (byte)3 : (byte)0);
                     //54A7F0 sets2040A40 before54D7E0 for either admitted boarding action; Garden leaves2036B70 unchanged.
                     bool? activity = boardingTarget is not null || ragnarokFootBoardingTarget is not null ? true : null;
-                    fieldEntry = SelectWorldCallback(candidate, callbackStart, scriptMode, ref salary, buttons, callbackStart.NativeRagnarokRuntime?.PreviousButtons ?? callbackStart.NativeGardenRuntime?.Buttons.LastObservedButtons, activity) ?? fieldEntry;
+                    fieldEntry = SelectWorldCallback(candidate, callbackStart, scriptMode, ref salary, buttons, activity) ?? fieldEntry;
                 }
                 if (stationChoice && fieldEntry is null)
                 {

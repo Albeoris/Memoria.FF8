@@ -53,7 +53,7 @@ internal sealed partial class WorldMapScene
         graphicsSpeed = NativeWorldVectorMagnitude.Truncate(motor.MotionX, 0, motor.MotionGraphicsZ);
         //53FAC0 excludes entity50 from6519D0 movement aging and salary distance.
         movementUnits = 0;
-        fieldEntry = SelectWorldCallback(after, cameraState, scriptMode, ref salary, buttons, previous, activity);
+        fieldEntry = SelectWorldCallback(after, cameraState, scriptMode, ref salary, buttons, activity);
         if (fieldEntry is null)
         {
             if (landingPlacement is not null)
