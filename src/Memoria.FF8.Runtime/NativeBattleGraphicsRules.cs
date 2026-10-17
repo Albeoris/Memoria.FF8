@@ -2,8 +2,11 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
+public sealed record NativeBattleVictoryModelSection(byte Model, byte Section);
+
 public sealed record NativeBattleGraphicsRules(string ExecutableSha256, ImmutableArray<sbyte> SavedStatusMap, ImmutableArray<sbyte> BattleStatusMap)
 {
+    public ImmutableArray<NativeBattleVictoryModelSection>? VictoryModelSections { get; init; }
     public uint? UiPublicationDuration { get; init; }
     public NativeBattleSummonColors? SummonColors { get; init; }
     public NativeBattleShadowSource? ShadowSource { get; init; }
@@ -13,6 +16,10 @@ public sealed record NativeBattleGraphicsRules(string ExecutableSha256, Immutabl
     public void Validate()
     {
         StatusIcons?.Validate();
+        if (VictoryModelSections is { } victory && (victory.IsDefault || victory.Length != 6 || victory.Any(row => row is null || row.Model >= 16 || row.Section is < 2 or > 7) || victory.Select(row => row.Model).Distinct().Count() != 6))
+        {
+            throw new InvalidDataException("Native503040 requires its six authenticated model/section BYTE pairs.");
+        }
         if (ActorSounds1120 is { } sounds && (sounds.IsDefault || sounds.Length != 160 * 7))
         {
             throw new InvalidDataException("Native5015A0 requires the complete B8A418 seven-DWORD table for160 actor identities.");

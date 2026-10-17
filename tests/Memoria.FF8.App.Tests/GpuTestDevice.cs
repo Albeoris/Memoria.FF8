@@ -14,18 +14,40 @@ internal sealed class GpuTestDevice : IDisposable
     public GpuTestDevice()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "The GPU rendering checks require Windows and a graphics device.");
+        RequirePresentationOutput();
+        GraphicsAdapter adapter = GraphicsAdapter.DefaultAdapter;
         window = CreateWindowExW(0, "STATIC", "Memoria offscreen triangle validation", 0, 0, 0, 64, 64, 0, 0, 0, 0);
         Assert.True(window != 0, $"Cannot create hidden render window: {Marshal.GetLastWin32Error()}.");
-        Device = new GraphicsDevice(GraphicsAdapter.DefaultAdapter, GraphicsProfile.HiDef, new PresentationParameters
+        try
         {
-            DeviceWindowHandle = window,
-            BackBufferWidth = 64,
-            BackBufferHeight = 64,
-            BackBufferFormat = SurfaceFormat.Color,
-            DepthStencilFormat = DepthFormat.Depth24,
-            IsFullScreen = false,
-            PresentationInterval = PresentInterval.Immediate
-        });
+            Device = new GraphicsDevice(adapter, GraphicsProfile.HiDef, new PresentationParameters
+            {
+                DeviceWindowHandle = window,
+                BackBufferWidth = 64,
+                BackBufferHeight = 64,
+                BackBufferFormat = SurfaceFormat.Color,
+                DepthStencilFormat = DepthFormat.Depth24,
+                IsFullScreen = false,
+                PresentationInterval = PresentInterval.Immediate
+            });
+        }
+        catch
+        {
+            DestroyWindow(window);
+            throw;
+        }
+    }
+
+    private static void RequirePresentationOutput()
+    {
+        using SharpDX.DXGI.Factory1 factory = new();
+        int outputs = 0;
+        for (int index = 0; index < factory.GetAdapterCount(); index++)
+        {
+            using SharpDX.DXGI.Adapter1 adapter = factory.GetAdapter1(index);
+            outputs += adapter.GetOutputCount();
+        }
+        Assert.SkipUnless(outputs != 0, "MonoGame WindowsDX exposes adapters only for DXGI presentation outputs; none are accessible in this process. GPU rendering was not verified.");
     }
 
     public GraphicsDevice Device { get; }
@@ -45,8 +67,14 @@ internal sealed class GpuTestDevice : IDisposable
 
     public void Dispose()
     {
-        Device.Dispose();
-        DestroyWindow(window);
+        try
+        {
+            Device.Dispose();
+        }
+        finally
+        {
+            DestroyWindow(window);
+        }
     }
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]

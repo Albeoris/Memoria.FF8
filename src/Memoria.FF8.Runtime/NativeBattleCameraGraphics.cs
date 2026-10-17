@@ -28,6 +28,7 @@ public static class NativeBattleCameraGraphics
         return variable switch
         {
             19 => graphics.Models.Take(3).Count(model => (model.Flags0 & 2) != 0 && ((model.Flags8 ?? throw new InvalidDataException("Native camera requires loaded model status flags.")) & 2) == 0),
+            21 => graphics.Models[Action().TargetIndex ?? throw new NotSupportedException("Native camera BYTE145 query requires its retained physical recipient.")].SequenceByte145 ?? throw new NotSupportedException("Native camera BYTE145 query requires its observed model byte."),
             22 => TargetFlags(graphics),
             24 => Action().ActorIndex,
             25 => Action().TargetIndex ?? throw new NotSupportedException("Native camera target variable requires its resolved physical recipient."),

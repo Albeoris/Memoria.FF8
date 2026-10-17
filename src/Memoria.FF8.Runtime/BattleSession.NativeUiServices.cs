@@ -33,9 +33,14 @@ public sealed partial class BattleSession
                 {
                     ready.UnionWith(DispatchFrame(advanceGraphics: false));
                 }
+                if (Outcome == BattleOutcome.Victory && DebugOutcome is null && NativeGraphics.NativeOutcome?.FadeDurationB0C == 0)
+                {
+                    return ready;
+                }
                 //47CCB0 calls48D0C0 once after outer action/AI producers and immediately before500900.
                 PumpNativeFileIo482590();
                 AdvanceNativeGraphicsFrame();
+                AdvanceNativeOutcomeCountdown47CCB0();
                 if (NativeGraphics.UiServices is { } services && (NativeGraphics.Flags & 4) != 0)
                 {
                     uint duration = definition.NativeGraphics!.Rules.UiPublicationDuration ?? throw new NotSupportedException("Native500900 publication requires its original B8A3E4 duration DWORD.");
@@ -68,7 +73,7 @@ public sealed partial class BattleSession
         {
             return;
         }
-        (NativeBattleUiCommands commands, uint readyMask, bool selectMenu) = services.Commands.Dispatch(services.ReadyMask);
+        (NativeBattleUiCommands commands, uint readyMask, bool selectMenu) = services.Commands.Dispatch(services.ReadyMask, mask => services = services.SetFlags(0, mask));
         if (selectMenu)
         {
             //4BB840 resets the command widget;4ADDB0's mismatched-owner path calls4A7160(0).

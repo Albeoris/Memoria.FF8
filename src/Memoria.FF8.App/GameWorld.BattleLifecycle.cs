@@ -1,3 +1,4 @@
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -65,25 +66,28 @@ internal sealed partial class GameWorld
     {
         BattleEncounterOccurrence occurrence = session.State.PendingBattleEncounter ?? throw new InvalidOperationException("A live battle has no owned encounter occurrence.");
         RequireNativeBattleReturnBranch(occurrence.SourceScene, occurrence.ScriptedOwner is not null);
-        if (occurrence.ScriptedOwner is not null)
-        {
-            if (Events.Scene.NativeBattleFieldReload is null)
-            {
-                _ = Events.ExecuteNativeBattleFieldCacheReset(Field?.NativeRegistration ?? throw new NotSupportedException("Native kind3 requires the current original field ONE/MCH registration inputs."), active.NativeResult ?? throw new InvalidOperationException("Active battle has no native return result."));
-            }
-            // No current producer completes registration: refuse before rewards, music or the suspended VM change.
-            _ = Events.RequireNativeBattleFieldReload(active.NativeResult ?? throw new InvalidOperationException("Active battle has no native return result."));
-        }
         BattleResult result = CaptureBattleOutcome(active, occurrence);
         PublishBattleSnapshot(active);
+        NativeBattleRetainedMemory? reloadedMemory = null;
+        FieldAssets? reloadedField = null;
+        if (occurrence.ScriptedOwner is not null)
+        {
+            FieldAssets currentField = Field ?? throw new NotSupportedException("Native kind3 requires its current original field resources.");
+            NativeBattleRetainedMemory retained = session.State.NativeBattleMemory ?? throw new NotSupportedException("Native kind3 requires its actual retained battle process memory.");
+            reloadedMemory = Events.ExecuteNativeBattleFieldResourceReload(currentField.NativeRegistration ?? throw new NotSupportedException("Native kind3 requires the current original field ONE/MCH registration inputs."), active.NativeResult ?? throw new InvalidOperationException("Active battle has no native return result."), retained);
+            Events.ValidateNativeBattleFieldRegistrationMemory(reloadedMemory);
+            reloadedField = assets.BindNativeRegisteredTextures(currentField, Events.Scene.NativeFieldRegistration ?? throw new InvalidDataException("Native kind3 did not publish its actual registered field resource addresses."), reloadedMemory.EffectMemory?.Textures ?? throw new NotSupportedException("Native kind3 requires its retained texture memory."));
+            _ = Events.RequireNativeBattleFieldReload(active.NativeResult ?? throw new InvalidOperationException("Active battle has no native return result."));
+        }
         if (occurrence.ScriptedOwner is not null)
         {
             Events.ReturnFromInteractiveBattle(checked((int)active.Frame), () =>
             {
                 ApplyBattleResult(occurrence, result);
-                EventEngine.PreparedNativeBattleFieldReturn prepared = Events.PrepareNativeBattleFieldReturn(active.NativeMusicProcess ?? throw new NotSupportedException("Native battle return requires its live physical music owner."), active.Capture().Definition.NativeFlags, active.NativeResult!.Value, BattleMusicEntryResources);
+                EventEngine.PreparedNativeBattleFieldReturn prepared = Events.PrepareNativeBattleFieldReturn(active.NativeMusicProcess ?? throw new NotSupportedException("Native battle return requires its live physical music owner."), active.Capture().Definition.NativeFlags, active.NativeResult!.Value, BattleMusicEntryResources, reloadedMemory);
                 Events.CommitNativeBattleFieldReturn(prepared);
             }, active.NativeResult!.Value);
+            Field = reloadedField;
         }
         else
         {

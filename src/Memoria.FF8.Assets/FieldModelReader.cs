@@ -19,7 +19,7 @@ internal static class FieldModelReader
         {
             int offset = checked((int)reader.ReadUInt32() + 4);
             int size = checked((int)reader.ReadUInt32());
-            reader.ReadUInt32();
+            uint sourceWord8 = reader.ReadUInt32();
             uint flag = reader.ReadUInt32();
             List<int> textures = [];
             List<uint> rawTextureWords = [];
@@ -49,13 +49,14 @@ internal static class FieldModelReader
                 }
                 modelOffset = checked((int)reader.ReadUInt32());
             }
-            string name = System.Text.Encoding.ASCII.GetString(reader.ReadBytes(8)).TrimEnd('\0');
+            byte[] rawName = reader.ReadBytes(8);
+            string name = System.Text.Encoding.ASCII.GetString(rawName).TrimEnd('\0');
             reader.ReadUInt32();
             if (offset < 0 || size > one.Length - offset)
             {
                 throw new InvalidDataException($"ONE model {name} lies outside its container.");
             }
-            NativeFieldOneModelEntry entry = new(offset, size, flag, modelOffset, textures.ToImmutableArray(), name) { RawTextureWords = rawTextureWords.ToImmutableArray() };
+            NativeFieldOneModelEntry entry = new(offset, size, flag, modelOffset, textures.ToImmutableArray(), name) { RawTextureWords = rawTextureWords.ToImmutableArray(), SourceWord8 = sourceWord8, RawName = rawName.ToImmutableArray() };
             headers.Add(entry);
             retainEntry?.Invoke(entry);
         }

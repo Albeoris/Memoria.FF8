@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         NativeBattleLifeProfile profile = NativeBattleLifeProfile.ForEntry(effect.Binding.Entry);
         if (profile.RegistersAnimation && (effect.Parameters!.Flags79 & 1) == 0)
         {
-            NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native Life requires its actual camera owner.")) with { ControlResource = frame.Memory.Textures!.Animation, ControlCursor = 0 };
+            NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native Life requires its actual camera owner.")).RegisterControlResource(frame.Memory.Textures!.Animation);
         }
         return graphics with { OriginalEffect = frame.Effect with { Life = frame.State } };
     }

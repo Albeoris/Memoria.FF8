@@ -5,6 +5,27 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleActionMatrixTests
 {
+    [Fact]
+    public void Geometry_bone_matrices_use_the_published_model_bank_after_inline_model_changes()
+    {
+        NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearBank();
+        models[0] = new(0, 3) { Transform = new(new(100, 0, 0), new(100, 0, 0), 0, 0, 4096), Rotation12 = 0, Rotation14 = 0, Rotation16 = 0 };
+        models[3] = new(3, 3) { Transform = new(new(6000, 0, 0), new(6000, 0, 0), 0, 0, 4096) };
+        NativeBattleGraphicsState stale = new(models.ToImmutableArray(), ["actor", null, null, "target", null, null, null], 0, 0) { ActionContext = new(0, 8) { PhysicalTargetMask = 8, TargetIndex = 3 } };
+        NativeBattleGraphicsState published = stale with { Models = stale.Models.SetItem(0, stale.Models[0] with { Transform = stale.Models[0].Transform! with { Position28 = new(1000, 0, 0) } }) };
+        List<int> reads = [];
+        NativeBattleGraphicsState actual = NativeBattleActionGeometryRules.PrepareMatrices50D300(published, (bank, index, bone, fraction) =>
+        {
+            Assert.Same(published, bank);
+            Assert.Equal((short)2048, fraction);
+            reads.Add(index);
+            NativeBattleVector position = bank.Models[index].Transform!.Position28;
+            return position with { Y = bone == 240 ? (short)100 : (short)200 };
+        });
+        Assert.Equal(new[] { 0, 0, 3, 3 }, reads);
+        Assert.Equal(3500, actual.ActionContext!.Matrices!.Value[1].X);
+    }
+
     [Theory]
     [InlineData(0, 0, 5000, 110, 220, 2830)]
     [InlineData(5000, 0, 0, 2630, 220, 290)]

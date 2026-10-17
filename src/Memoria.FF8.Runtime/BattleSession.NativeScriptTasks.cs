@@ -36,6 +36,9 @@ public sealed partial class BattleSession
                     }
                     task = task.WriteWord(8, unchecked((ushort)(delay - 1)));
                     break;
+                case 0x47E030:
+                    task = PollNativeOutcome47E030(task);
+                    break;
                 case 0x48E620:
                     task = PollNativeGuardianScriptTask(task) ? task.WriteByte(15, 1) : task;
                     break;

@@ -62,6 +62,9 @@ public sealed partial class BattleSession
             NativeBattleDescriptorTaskKind kind;
             switch (packet.Command)
             {
+                case 4:
+                    graphics = BeginNativeOutcomeFade501E10(graphics);
+                    return new(graphics.Descriptors, 15);
                 case 1:
                     graphics = graphics with { Flags = graphics.Flags | 4 };
                     return new(graphics.Descriptors, 15);
@@ -119,6 +122,9 @@ public sealed partial class BattleSession
                     }
                     graphics = graphics with { Models = graphics.Models.SetItem(cancelledIndex, cancelled) };
                     return new(graphics.Descriptors, 15);
+                case 115:
+                    kind = NativeBattleDescriptorTaskKind.Victory503040;
+                    break;
                 case 1002:
                     kind = NativeBattleDescriptorTaskKind.Stage506CF0;
                     break;
@@ -257,6 +263,9 @@ public sealed partial class BattleSession
                 case NativeBattleDescriptorTaskKind.Action104:
                     (graphics, phase, completed) = PollNativeActionGraphics(graphics, phase);
                     break;
+                case NativeBattleDescriptorTaskKind.Victory503040:
+                    (graphics, phase, completed) = PollNativeVictory503040(graphics, taskSlot, phase);
+                    break;
                 default:
                     throw new NotSupportedException("Native descriptor callback requires its original task owner.");
             }
@@ -279,6 +288,8 @@ public sealed partial class BattleSession
             0x47DD80 => graphics with { EntryLifecycle = 1 },
             0x4A94B0 => graphics with { UiServices = (graphics.UiServices ?? throw new NotSupportedException("Native4A94B0 requires its initialized942 menu owner.")).SetFlags(8) },
             0x47DD70 => graphics with { EntryLifecycle = 3, EntryReady = false },
+            0x47DF60 => BeginNativeOutcome47DF60(graphics),
+            0x47DFC0 => BeginNativeOutcomeWait47DFC0(graphics),
             0x48AD10 => CompleteNativeAllocationStatistics(graphics),
             0x487670 => CompleteNativeActivation(graphics, checked((int)argument)),
             0x4876B0 => CompleteNativeAllocationDescriptor(graphics),

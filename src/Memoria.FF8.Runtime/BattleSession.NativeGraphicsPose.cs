@@ -9,6 +9,10 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Native graphics pose has no allocated resource owner.");
         }
         NativeBattleGraphicsBinding binding = FindNativeGraphicsBinding(actorId) ?? throw new InvalidDataException("Native graphics pose lost its original model resource.");
+        if (graphics.Models[index].ActiveStagedResourceRow100 is not null)
+        {
+            return NativeBattleVictoryResources.Resolve(NativeFileStaging ?? throw new NotSupportedException("Native staged graphics requires its actual shared file bytes."), NativeModelCpuResources ?? throw new NotSupportedException("Native staged graphics requires its current CPU skeleton/geometry references."), graphics.Models[index], binding.Resource);
+        }
         return graphics.Models[index].ResourceMagicId is ushort magic ? definition.NativeRenzokukenResources.Single(resource => resource.MagicId == magic).BindGraphicsResource(binding.Resource.PoseSource ?? throw new NotSupportedException("Embedded native pose requires its original skeleton owner."), binding.Resource.LinkedPoseSource) with { Geometry = binding.Resource.Geometry, LinkedGeometry = binding.Resource.LinkedGeometry, LinkedGeometryUsesBodySkeleton = binding.Resource.LinkedGeometryUsesBodySkeleton, LinkedTexturePack = binding.Resource.LinkedTexturePack } : binding.Resource;
     }
 

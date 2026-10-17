@@ -33,7 +33,8 @@ public enum NativeBattleDescriptorTaskKind
     Texture506DE0,
     Map500AC0,
     Appearance500B60,
-    Action104
+    Action104,
+    Victory503040
 }
 
 public sealed record NativeBattleDescriptorTask([property: JsonRequired] ushort Flags, [property: JsonRequired] ushort State, [property: JsonRequired] int? Next, [property: JsonRequired] NativeBattleDescriptorTaskKind Kind, [property: JsonRequired] ImmutableArray<byte> Payload)
@@ -176,8 +177,8 @@ public sealed partial record NativeBattleDescriptorState([property: JsonRequired
         {
             BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4), PacketAddress(owner));
         }
-        //502F30 does not initialize its retained phase byte;102/105 explicitly clear BYTE13.
-        if (kind is NativeBattleDescriptorTaskKind.Load502670 or NativeBattleDescriptorTaskKind.Remove502ED0 or NativeBattleDescriptorTaskKind.Stage506CF0 or NativeBattleDescriptorTaskKind.Texture506DE0 or NativeBattleDescriptorTaskKind.Map500AC0 or NativeBattleDescriptorTaskKind.Appearance500B60 or NativeBattleDescriptorTaskKind.Action104)
+        //500DD0 clears BYTE13 for every allocated descriptor callback, including502F30 and503040.
+        if (kind is NativeBattleDescriptorTaskKind.Load502670 or NativeBattleDescriptorTaskKind.Remove502ED0 or NativeBattleDescriptorTaskKind.Stage506CF0 or NativeBattleDescriptorTaskKind.Texture506DE0 or NativeBattleDescriptorTaskKind.Map500AC0 or NativeBattleDescriptorTaskKind.Appearance500B60 or NativeBattleDescriptorTaskKind.Action104 or NativeBattleDescriptorTaskKind.Callback502F30 or NativeBattleDescriptorTaskKind.Victory503040)
         {
             payload[1] = 0;
         }

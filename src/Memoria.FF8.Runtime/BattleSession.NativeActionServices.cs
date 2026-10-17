@@ -69,16 +69,15 @@ public sealed partial class BattleSession
         return graphics;
     }
 
-    private NativeBattleGraphicsState SelectNativeHeaderSequence(NativeBattleGraphicsState graphics, byte index, ushort requestedSequence)
+    private NativeBattleGraphicsState SelectNativeHeaderSequence(NativeBattleGraphicsState graphics, byte index, int requestedSequence)
     {
-        bool overrideStatus = (requestedSequence & 0x1000) != 0;
-        if ((requestedSequence & ~0x10FF) != 0)
+        if (requestedSequence == 0)
         {
-            throw new NotSupportedException("Native505C00 reached sequence argument bits outside the observed byte and1000 override.");
+            return graphics;
         }
-        byte sequence = (byte)requestedSequence;
+        bool overrideStatus = (requestedSequence & 0x1000) != 0;
         NativeBattleGraphicsModel model = graphics.Models[index];
-        if (!overrideStatus && ((model.Flags8 ?? throw new InvalidDataException("Native505C00 requires its model DWORD8.")) & 0x18) != 0 || model.ModelId4 == 0x8F || sequence == 0)
+        if (!overrideStatus && ((model.Flags8 ?? throw new InvalidDataException("Native505C00 requires its model DWORD8.")) & 0x18) != 0)
         {
             return graphics;
         }
@@ -86,8 +85,13 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException("Native505C00 linked-model selection requires the original505C70 auxiliary callback.");
         }
+        if (model.ModelId4 == 0x8F)
+        {
+            return graphics;
+        }
         NativeBattleGraphicsResource resource = NativeActionResource(graphics, index);
-        model = resource.Contains(sequence) ? NativeBattleGraphicsModels.SelectSequence(model, sequence, overrideStatus) : model with { ResourceFlags44 = (ushort)((model.ResourceFlags44 ?? throw new InvalidDataException("Native505BC0 lacks its resource WORD44.")) | 0x40) };
+        int selected = requestedSequence & ~0x1000;
+        model = NativeBattleSequenceSelections.SelectResource505BC0(model, resource, selected);
         return graphics with { Models = graphics.Models.SetItem(index, model) };
     }
 

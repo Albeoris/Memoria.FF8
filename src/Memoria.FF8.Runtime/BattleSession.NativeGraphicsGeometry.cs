@@ -47,7 +47,7 @@ public sealed partial class BattleSession
         NativeBattleGraphicsModel recipient = graphics.Models[recipientIndex];
         NativeBattleModelTransform recipientTransform = recipient.Transform ?? throw new NotSupportedException("Native50D300 action geometry requires its recipient position/scale WORDs.");
         NativeBattleVector first = new(transform.Position28.X, transform.Angle36, transform.Position28.Z);
-        NativeBattleVector second = recipient.ModelId4 is 96 or 97 ? ReadNativeGraphicsBone(recipientIndex, 241, 2048) : new(recipientTransform.Position28.X, recipientTransform.Angle36, recipientTransform.Position28.Z);
+        NativeBattleVector second = recipient.ModelId4 is 96 or 97 ? ReadNativeGraphicsBone(graphics, recipientIndex, 241, 2048) : new(recipientTransform.Position28.X, recipientTransform.Angle36, recipientTransform.Position28.Z);
         second = second with { Y = recipientTransform.Angle36 };
         short scale = NativeBattleActionGeometryRules.DistanceScale(first, second);
         short? yaw = actorIndex == recipientIndex ? context.TargetYaw : unchecked((short)NativeWorldScriptedPathMath.NativeAngle(second.X - first.X, second.Z - first.Z));

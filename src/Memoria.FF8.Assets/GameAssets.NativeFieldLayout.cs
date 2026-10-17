@@ -24,6 +24,16 @@ public sealed partial class GameAssets
         {
             return cached;
         }
+        int cursor = ReadNativeFieldAllocationPrefix(fieldId);
+        using IFlArchive archive = OpenNested(fieldNames[fieldId]);
+        cursor = ReadNativeProgramAllocationEnd(Read(archive, fieldNames[fieldId] + ".jsm"), cursor);
+        cursor = checked(cursor + Read(archive, fieldNames[fieldId] + ".pcb").Length);
+        nativePreModelCursors[fieldId] = cursor;
+        return cursor;
+    }
+
+    private int ReadNativeFieldAllocationPrefix(int fieldId)
+    {
         if ((uint)fieldId >= fieldNames.Length || string.IsNullOrWhiteSpace(fieldNames[fieldId]))
         {
             throw new ArgumentOutOfRangeException(nameof(fieldId));
@@ -70,10 +80,6 @@ public sealed partial class GameAssets
         {
             cursor = checked(cursor + 24356);
         }
-        byte[] program = Read(archive, name + ".jsm");
-        cursor = ReadNativeProgramAllocationEnd(program, cursor);
-        cursor = checked(cursor + Read(archive, name + ".pcb").Length);
-        nativePreModelCursors[fieldId] = cursor;
         return cursor;
     }
 

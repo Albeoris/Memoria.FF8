@@ -18,6 +18,7 @@ public sealed record NativeBattleAuxiliaryProgram([property: JsonRequired] Immut
 public sealed record NativeBattleAuxiliaryEmission(int Model, byte Bone, byte Size, bool Particle, ushort? Sound, NativeBattleVector? SoundAnchor, byte? Pan);
 public sealed record NativeBattleAuxiliaryInputs
 {
+    public Action<byte, bool>? ApplyScreenFade501D10 { get; init; }
     public Func<int, byte, short, NativeBattleVector>? ReadBone { get; init; }
     public Func<NativeBattleVector, byte>? ReadPan { get; init; }
     public Func<int, NativeBattleGraphicsModel>? ReadModel { get; init; }

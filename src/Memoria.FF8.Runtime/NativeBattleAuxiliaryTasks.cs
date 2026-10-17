@@ -10,7 +10,8 @@ public enum NativeBattleAuxiliaryKind
     SoundParticle50F830,
     TextureAnimation5057D0,
     MusicLoad501A70,
-    CommonTextureLoad508660
+    CommonTextureLoad508660,
+    OutcomeFade501D10
 }
 
 public sealed record NativeBattleAuxiliaryTask([property: JsonRequired] ushort Flags, [property: JsonRequired] ushort State, [property: JsonRequired] int? Next, [property: JsonRequired] NativeBattleAuxiliaryKind Kind, [property: JsonRequired] ImmutableArray<byte> Payload)
@@ -53,6 +54,10 @@ public sealed partial record NativeBattleAuxiliaryState([property: JsonRequired]
                 {
                     throw new InvalidDataException("Native50F830 lacks its written counter/model/operand/size fields.");
                 }
+            }
+            else if (Slots[index].Kind == NativeBattleAuxiliaryKind.OutcomeFade501D10 && (Slots[index].UnknownByteMask & 0x3F) != 0)
+            {
+                throw new InvalidDataException("Native501D10 lacks its written counter/duration/start/target fields.");
             }
             else if (Slots[index].Kind == NativeBattleAuxiliaryKind.CameraBlend509930 && (Slots[index].UnknownByteMask & 3) != 0)
             {
@@ -116,7 +121,11 @@ public sealed partial record NativeBattleAuxiliaryState([property: JsonRequired]
         {
             NativeBattleAuxiliaryTask task = slots[index];
             bool release;
-            if (task.Kind == NativeBattleAuxiliaryKind.CommonTextureLoad508660)
+            if (task.Kind == NativeBattleAuxiliaryKind.OutcomeFade501D10)
+            {
+                (task, release) = AdvanceOutcomeFade501D10(task, inputs);
+            }
+            else if (task.Kind == NativeBattleAuxiliaryKind.CommonTextureLoad508660)
             {
                 (task, release) = AdvanceCommonTextureLoad508660(task, inputs);
             }

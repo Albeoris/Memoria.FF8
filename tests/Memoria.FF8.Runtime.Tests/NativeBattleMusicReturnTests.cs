@@ -136,8 +136,13 @@ public sealed class NativeBattleMusicReturnTests
         GameState before = host.State;
         Assert.Throws<InvalidDataException>(() => host.SetNativeBattleFieldReturn(owners with { Music = returned with { MusicProcess = returned.MusicProcess with { ReturnBank = 2 } } }));
         Assert.Same(before, host.State);
+        NativeBattleRetainedMemory reloaded = host.State.NativeBattleMemory! with { FileStaging = NativeBattleFileStaging.Unknown().Write(0x18DD018, [1, 2, 3, 4]) };
+        Assert.Throws<InvalidDataException>(() => host.SetNativeBattleFieldReturn(owners with { ReloadedMemory = reloaded with { EffectIoResult = 19 } }));
+        Assert.Same(before, host.State);
+        owners = owners with { ReloadedMemory = reloaded };
         host.SetNativeBattleFieldReturn(owners);
         Assert.Null(host.State.Battle);
+        Assert.Same(reloaded.FileStaging, host.State.NativeBattleMemory!.FileStaging);
         Assert.Same(returned.MusicProcess, host.State.NativeBattleMemory!.MusicProcess);
         Assert.Same(returned.SoundProcess, host.GlobalSoundProcess);
         Assert.Same(owners.Vibration, host.State.NativeBattleMemory.VibrationProcess);

@@ -117,7 +117,7 @@ public sealed partial class BattleSession
     public BattleAtbMode Mode { get; private set; }
     public long Frame { get; private set; }
     public BattleOutcome Outcome { get; private set; }
-    public byte? NativeResult => Outcome switch { BattleOutcome.Active => null, BattleOutcome.Victory => 4, BattleOutcome.Defeat or BattleOutcome.ScriptedExit => 1, _ => throw new InvalidOperationException("Unknown native battle outcome.") };
+    public byte? NativeResult => DebugOutcome is null && NativeGraphics?.NativeOutcome?.ResultByte6E7 == 4 ? (byte)4 : Outcome switch { BattleOutcome.Active => null, BattleOutcome.Victory => 4, BattleOutcome.Defeat or BattleOutcome.ScriptedExit => 1, _ => throw new InvalidOperationException("Unknown native battle outcome.") };
     public bool CanReturnToField => Outcome == BattleOutcome.Victory || Outcome == BattleOutcome.ScriptedExit && ((definition.NativeFieldBattleMode ?? throw new NotSupportedException("Native scripted exit requires the actual field battle-mode WORD182.")) & 0x200) != 0;
     public IReadOnlyList<BattleCombatant> Combatants { get; }
     public IReadOnlyList<BattleEvent> Events => events.AsReadOnly();
@@ -245,6 +245,7 @@ public sealed partial class BattleSession
             enemy.NativeStatus0 |= 1;
             enemy.Atb = 0;
         }
+        DebugOutcome = BattleOutcome.Victory;
         Log("debug-victory", null, null, 0, "Debug shortcut: all enemies defeated.");
         CompleteBattleIfNeeded();
     }
@@ -261,6 +262,7 @@ public sealed partial class BattleSession
             actor.NativeStatus0 |= 1;
             actor.Atb = 0;
         }
+        DebugOutcome = BattleOutcome.Defeat;
         Log("debug-defeat", null, null, 0, "Debug shortcut: all party members defeated.");
         CompleteBattleIfNeeded();
     }
@@ -303,6 +305,7 @@ public sealed partial class BattleSession
             GunbladeMode = GunbladeMode,
             Frame = Frame,
             Outcome = Outcome,
+            DebugOutcome = DebugOutcome,
             Combatants = combatants.Select(actor => new BattleCombatantSnapshot(actor.Id, actor.CurrentHp, actor.Atb, actor.StatusEffects.ToArray()) { NativeAtb = actor.NativeAtb, GuardianForceCompatibility = actor.GuardianForceCompatibility?.ToArray(), NativeMagicInventory = actor.NativeMagicInventory.ToArray(), NativeDrawSlots = actor.NativeDrawSlots.ToArray(), NativeParticipant = CaptureNativeParticipant(actor), NativeStatus = CaptureNativeStatus(actor) }).ToArray(),
             NativeAllocations = nativeAllocations.ToArray(),
             QueuedActions = actions.ToArray(),
@@ -355,6 +358,18 @@ public sealed partial class BattleSession
         }
         if (DispatchNativeEntryCore() || NativeGraphics is { EntryReady: false })
         {
+            return becameReady;
+        }
+        if (HasPendingNativeVictory)
+        {
+            if (NativeGraphics!.NativeOutcome!.FadeDurationB0C == 0)
+            {
+                Outcome = BattleOutcome.Victory;
+                CompleteBattleIfNeeded();
+                return becameReady;
+            }
+            DispatchNativeScriptTasks();
+            CompleteBattleIfNeeded();
             return becameReady;
         }
         if (NativeGraphics is null || nativeUiForceGaugeAdvance || !WaitingForTurnBasedDecision)
@@ -435,7 +450,7 @@ public sealed partial class BattleSession
         }
         CancelDeadActions();
         CompleteBattleIfNeeded();
-        if (Outcome != BattleOutcome.Active)
+        if (Outcome != BattleOutcome.Active || HasPendingNativeVictory)
         {
             return becameReady;
         }
@@ -797,6 +812,14 @@ public sealed partial class BattleSession
 
     private BattleOutcome DetermineOutcome()
     {
+        if (DebugOutcome is BattleOutcome requested)
+        {
+            return requested;
+        }
+        if (NativeGraphics?.NativeOutcome is { ResultByte6E7: 4 } victory)
+        {
+            return Outcome == BattleOutcome.Victory && victory.FadeDurationB0C == 0 ? BattleOutcome.Victory : BattleOutcome.Active;
+        }
         if (!NativeEntryReady || NativeScriptAllocationPending || nativeTimedAction is not null || ActiveAction?.NativeHeaderIndex is not null || IsNativeSupportInvocation(ActiveAction?.NativePlayerReaction) || IsNativeReturnDamageAction(ActiveAction?.NativeAction) || QueuedActions.Any(command => command.NativeHeaderIndex is not null || IsNativeReturnDamageAction(command.NativeAction) || IsNativeSupportInvocation(command.NativePlayerReaction) || IsNativeSupportCallback(command.NativeCallback)))
         {
             return BattleOutcome.Active;
@@ -823,7 +846,12 @@ public sealed partial class BattleSession
         {
             return;
         }
-        if (outcome == BattleOutcome.Defeat && nativeSupport is { EntryInitialized: true })
+        if (DebugOutcome is null && outcome == BattleOutcome.Victory && NativeGraphics is { } graphics && graphics.NativeOutcome?.ResultByte6E7 != 4)
+        {
+            BeginNativeVictory486500();
+            return;
+        }
+        if (DebugOutcome is null && outcome == BattleOutcome.Defeat && nativeSupport is { EntryInitialized: true })
         {
             if (nativeActionCommitDepth != 0 || flushingNativeReactions)
             {
@@ -1120,6 +1148,8 @@ public sealed partial class BattleSession
         nativeReactionOrder = snapshot.NativeReactionOrder;
         RestoreNativeTimedAction(snapshot.NativeTimedAction);
         ActiveAction = snapshot.ActiveAction;
+        RestoreDebugOutcome(snapshot);
+        Outcome = snapshot.Outcome;
         if (snapshot.Outcome != DetermineOutcome() || (snapshot.Outcome != BattleOutcome.Active && busy.Count != 0))
         {
             throw new InvalidDataException("Battle outcome contradicts living actors or outstanding actions.");
@@ -1281,6 +1311,7 @@ public sealed partial class BattleSession
         Frame = candidate.Frame;
         GunbladeMode = candidate.GunbladeMode;
         Outcome = candidate.Outcome;
+        DebugOutcome = candidate.DebugOutcome;
         ActiveAction = candidate.ActiveAction;
         RestoreNativeItems(candidate.nativeItems);
         nativeScannedModels = candidate.nativeScannedModels;

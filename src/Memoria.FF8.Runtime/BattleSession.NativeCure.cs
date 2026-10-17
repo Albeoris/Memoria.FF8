@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         if ((effect.Parameters!.Flags79 & 1) == 0)
         {
             NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Native8D6A00 requires its5099A0 registration.");
-            NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native8D6A00 requires the original camera owner.")) with { ControlResource = textures.Animation, ControlCursor = 0 };
+            NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native8D6A00 requires the original camera owner.")).RegisterControlResource(textures.Animation);
         }
         return graphics with { OriginalEffect = frame.Effect with { Cure = frame.State } };
     }

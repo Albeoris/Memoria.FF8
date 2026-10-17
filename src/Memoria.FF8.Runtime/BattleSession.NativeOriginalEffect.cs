@@ -96,7 +96,7 @@ public sealed partial class BattleSession
                 NativeBattleEffectInitializerAsset asset = effect.Binding.InitializerAsset ?? throw new InvalidDataException("Native Fire lost its loaded mag001.tim resource.");
                 (textures, _) = textures.EnqueueTim505E30(new(asset.Name, asset.Data));
                 NativeEffectMemory = memory with { Textures = textures };
-                NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native Fire camera registration requires its actual camera owner.")) with { ControlResource = textures.Animation, ControlCursor = 0 };
+                NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native Fire camera registration requires its actual camera owner.")).RegisterControlResource(textures.Animation);
             }
             return graphics with { OriginalEffect = NativeBattleFireEffect.InitializePools(effect, nativeActionPackets) };
         }
@@ -110,7 +110,7 @@ public sealed partial class BattleSession
                 textures = textures.Register5099A0(resources.Animation);
                 (textures, _) = textures.EnqueueTim505E30(resources.Texture);
                 NativeEffectMemory = memory with { Textures = textures };
-                NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native effect3 requires its camera owner.")) with { ControlResource = textures.Animation, ControlCursor = 0 };
+                NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native effect3 requires its camera owner.")).RegisterControlResource(textures.Animation);
             }
             return graphics with { OriginalEffect = NativeBattleEffect3.InitializePools(effect) };
         }
@@ -124,8 +124,8 @@ public sealed partial class BattleSession
 
     private bool NativeOriginalEffectBusy(NativeBattleGraphicsState graphics)
     {
-        //ResourceMagicId is the logical owner of a replacement DWORD100; null denotes the loaded original DWORD104.
-        if (graphics.Models.Any(model => (model.Flags0 & 2) != 0 && model.ResourceMagicId is not null))
+        //A replacement DWORD100 can reference an effect resource or a row in the current shared file staging.
+        if (graphics.Models.Any(model => (model.Flags0 & 2) != 0 && (model.ResourceMagicId is not null || model.ActiveStagedResourceRow100 is not null)))
         {
             return true;
         }

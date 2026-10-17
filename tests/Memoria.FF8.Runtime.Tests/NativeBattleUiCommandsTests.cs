@@ -5,6 +5,20 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleUiCommandsTests
 {
     [Fact]
+    public void Outcome_command65_clears_only_ui_bit40_when_the_original_queue_is_consumed()
+    {
+        NativeBattleUiServices ui = NativeBattleUiServices.Initialize() with { Flags942 = 0xFFFF };
+        NativeBattleUiCommands commands = ui.Commands.Enqueue(0, 65);
+        commands.Validate(0);
+        Assert.Equal((ushort)0xFFFF, ui.Flags942);
+        (commands, uint mask, bool select) = commands.Dispatch(0, clear => ui = ui.SetFlags(0, clear));
+        Assert.Equal((ushort)0xFFBF, ui.Flags942);
+        Assert.Equal(0u, mask);
+        Assert.False(select);
+        Assert.Empty(commands.Queue);
+    }
+
+    [Fact]
     public void Ready_commands_wait_for_the_next_service_and_preserve_order_across_restore()
     {
         NativeBattleUiCommands state = NativeBattleUiCommands.Clear().Enqueue(2, 17).Enqueue(0, 17).Enqueue(2, 17);

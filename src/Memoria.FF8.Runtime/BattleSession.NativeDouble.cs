@@ -10,7 +10,7 @@ public sealed partial class BattleSession
         NativeEffectMemory = frame.Memory;
         if ((effect.Parameters!.Flags79 & 1) == 0)
         {
-            NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native Double requires its current camera owner.")) with { ControlResource = frame.Memory.Textures!.Animation, ControlCursor = 0 };
+            NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native Double requires its current camera owner.")).RegisterControlResource(frame.Memory.Textures!.Animation);
         }
         return graphics with { OriginalEffect = frame.Effect with { Double = frame.State } };
     }

@@ -78,7 +78,12 @@ public static class NativeBattleSequenceMachine
         {
             if (state.LinkedPose is { } linked)
             {
-                state = state with { LinkedPose = linked.Advance() };
+                NativeBattlePoseProgress nextLinked = linked.Advance();
+                state = state with { LinkedPose = nextLinked };
+                if (resource.LinkedPoseSource is { } linkedSource && nextLinked.Frame != 0 && nextLinked != linked)
+                {
+                    state = state with { LinkedDecodedPose = linkedSource.Sample(nextLinked.Pose, nextLinked.Frame, nextLinked.Flags) };
+                }
             }
             byte frame = state.PoseFrame114 ?? throw new InvalidDataException("Native sequence reads a pose counter before its original selection.");
             byte limit = state.PoseLimit115 ?? throw new InvalidDataException("Native sequence reads a pose limit before its original selection.");
@@ -88,6 +93,10 @@ public static class NativeBattleSequenceMachine
             }
             NativeBattlePoseProgress progress = new NativeBattlePoseProgress(state.Pose ?? 0, frame, limit, state.PoseFlags109).Advance();
             state = state with { PoseFrame114 = progress.Frame, PoseFlags109 = progress.Flags };
+            if (resource.PoseSource is { } poseSource && progress.Frame != 0)
+            {
+                state = state with { DecodedPose = poseSource.Sample(progress.Pose, progress.Frame, progress.Flags) };
+            }
             return false;
         }
 
@@ -162,8 +171,25 @@ public static class NativeBattleSequenceMachine
                     case 0x86:
                         model = model with { Flags0 = (ushort)(model.Flags0 | 0x10) };
                         break;
+                    case >= 0x87 and <= 0x8F:
+                    case 0xB3:
+                        break;
                     case 0x91:
                         cues.Add(new(NativeBattleSequenceCueKind.Text, ReadByte(), ReadByte()));
+                        break;
+                    case 0x92:
+                        model = (inputs.RebindActionGeometry ?? throw new NotSupportedException("Native92 requires its original50D300 geometry producer."))(model with { Sequence = sequence, ResourceFlags44 = flags, SequenceState = state }, ReadByte());
+                        state = model.SequenceState ?? throw new InvalidDataException("Native92 lost its current sequence owner.");
+                        flags = model.ResourceFlags44 ?? throw new InvalidDataException("Native92 lost its resource WORD44.");
+                        break;
+                    case 0x93:
+                        byte modelSelector = ReadByte();
+                        byte modelSequence = ReadByte();
+                        ApplySelectedModelSequence(opcode, modelSelector, modelSequence);
+                        break;
+                    case 0xAF:
+                    case 0xBF:
+                        ApplySelectedModelSequence(opcode, 0, ReadByte());
                         break;
                     case 0x94:
                         model = model with { Flags0 = (ushort)(model.Flags0 ^ 0x20) };
@@ -275,11 +301,20 @@ public static class NativeBattleSequenceMachine
                         cues.Add(new(NativeBattleSequenceCueKind.RestoreStanding, 1));
                         RestoreStanding();
                         resource = inputs.OriginalResource ?? throw new InvalidDataException("Native AC requires its original resource-pointer owner.");
-                        model = model with { ResourceMagicId = null, Flags2 = (ushort)(RequireFlags2() & ~8) };
+                        model = model with { ResourceMagicId = null, ActiveStagedResourceRow100 = null, LinkedStagedResourceRow = null, ActiveResourceRow100 = model.ActiveStagedResourceRow100 is not null ? model.OriginalResourceRow104 ?? throw new NotSupportedException("Native AC requires its actual original resource row104 before restoring a staged row.") : model.ActiveResourceRow100, Flags2 = (ushort)(RequireFlags2() & ~8) };
                         state = state with { Pending3 = 0, Callback42 = 0 };
                         SwitchSequence(restored);
                         //AC returns a null PC;504290 immediately re-enters the restored selected sequence in this callback.
                         flags = 0;
+                        break;
+                    case 0xB7:
+                        model = (inputs.ApplyCurrentContact ?? throw new NotSupportedException("Native B7 requires its50A6C0 current physical contact receipt."))(model with { Sequence = sequence, ResourceFlags44 = flags, SequenceState = state });
+                        state = model.SequenceState ?? throw new InvalidDataException("Native B7 lost its sequence owner.");
+                        flags = model.ResourceFlags44 ?? throw new InvalidDataException("Native B7 lost its resource WORD44.");
+                        if (model.Sequence != sequence)
+                        {
+                            throw new NotSupportedException("Native B7 changed its currently executing sequence.");
+                        }
                         break;
                     case 0xB2:
                         model = (inputs.ApplyNextContact ?? throw new NotSupportedException("Native B2 requires its50A690 physical contact receipt and pointer advance."))(model with { Sequence = sequence, ResourceFlags44 = flags, SequenceState = state });
@@ -345,6 +380,17 @@ public static class NativeBattleSequenceMachine
                 }
             }
             throw new InvalidDataException("Native graphics sequence exceeded the bounded instruction budget without a callback yield.");
+
+            void ApplySelectedModelSequence(byte opcode, byte selector, byte selectedSequence)
+            {
+                model = (inputs.SelectModelSequence ?? throw new NotSupportedException($"Native {opcode:X2} requires its505C00 physical model sequence selector."))(model with { Sequence = sequence, ResourceFlags44 = flags, SequenceState = state }, opcode, selector, selectedSequence);
+                state = model.SequenceState ?? throw new InvalidDataException("Native model selector lost its sequence owner.");
+                flags = model.ResourceFlags44 ?? throw new InvalidDataException("Native model selector lost its resource WORD44.");
+                if (model.Sequence != sequence)
+                {
+                    throw new NotSupportedException("Native model selection changed the currently executing sequence and requires its original cross-program cursor alias.");
+                }
+            }
 
             int ReadVariable(byte variable)
             {
@@ -441,13 +487,16 @@ public static class NativeBattleSequenceMachine
                         case 42:
                             model = model with { Transform = RequireTransform() with { Scale38 = unchecked((short)value) } };
                             break;
+                        case 43:
+                            model = model with { SequenceByte145 = unchecked((byte)value) };
+                            break;
                         case 44:
                             model = model with { Transform = RequireTransform() with { Initial20 = RequireTransform().Initial20 with { Z = unchecked((short)value) }, Position28 = RequireTransform().Position28 with { Z = unchecked((short)value) } } };
                             break;
                         case 33 or 45 or 48 or 49 or 50 or 52:
                             model = (inputs.WriteModelExternal ?? throw new NotSupportedException($"Native sequence write{variable:X2} requires its original target model owner."))(model, variable, value);
                             break;
-                        case 18 or 19 or 20 or 21 or 22 or 43 or 47:
+                        case 18 or 19 or 20 or 21 or 22 or 47:
                             (inputs.WriteExternal ?? throw new NotSupportedException($"Native sequence write{variable:X2} requires its original owner."))(variable, value);
                             break;
                     }

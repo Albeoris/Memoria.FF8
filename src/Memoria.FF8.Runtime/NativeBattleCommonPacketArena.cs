@@ -41,6 +41,7 @@ public static class NativeBattleCommonPacketArena
             throw new InvalidDataException("Native common packet receipts require their bounded aligned final allocation.");
         }
         int acceptedEnd = 0;
+        NativeBattleLogicalOrdering.Builder links = new(ordering);
         ImmutableArray<NativeBattleCommonPacketStore>.Builder stores = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
         foreach (NativeBattleGfGeometryAttempt attempt in batch.Attempts)
         {
@@ -59,8 +60,8 @@ public static class NativeBattleCommonPacketArena
             {
                 throw new InvalidDataException("Native linked common packet leaves its accepted allocation.");
             }
-            bool linked = ordering.Proxies.Length < NativeBattlePrimitiveOrdering.ProxyCapacity;
-            ordering = ordering.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, address), primitive.Words, flags20, primitive.VertexPayload4, moduleDraw);
+            bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
+            links.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, address), primitive.Words, flags20, primitive.VertexPayload4, moduleDraw);
             if (linked)
             {
                 stores.Add(new(address, [0, 0, 0], [NativeBattleGfPacketByteState.Unknown, NativeBattleGfPacketByteState.Unknown, NativeBattleGfPacketByteState.Unknown]));
@@ -71,6 +72,6 @@ public static class NativeBattleCommonPacketArena
         {
             throw new InvalidDataException("Native common packet accepted extent differs from its final physical cursor.");
         }
-        return new(process.ApplyCommonWrites(stores.ToImmutable()) with { ByteCursor = checked(start + batch.AllocationBytes) }, ordering);
+        return new(process.ApplyCommonWrites(stores.ToImmutable()) with { ByteCursor = checked(start + batch.AllocationBytes) }, links.ToImmutable());
     }
 }

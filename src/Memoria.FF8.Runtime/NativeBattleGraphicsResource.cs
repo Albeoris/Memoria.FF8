@@ -25,6 +25,21 @@ public sealed partial record NativeBattleGraphicsResource(ImmutableArray<byte> S
         }
     }
 
+    public bool ContainsNativeIndex505850(int index)
+    {
+        Validate();
+        short count = BinaryPrimitives.ReadInt16LittleEndian(SequenceSection.AsSpan());
+        if (count < index)
+        {
+            return false;
+        }
+        if (index < 0)
+        {
+            throw new NotSupportedException("Native505850 negative directory index requires storage preceding its sequence section.");
+        }
+        return BinaryPrimitives.ReadUInt16LittleEndian(SequenceSection.AsSpan().Slice(index * 2)) != 0;
+    }
+
     public bool Contains(byte sequence)
     {
         Validate();

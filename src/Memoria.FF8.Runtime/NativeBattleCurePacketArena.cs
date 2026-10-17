@@ -28,7 +28,8 @@ public static partial class NativeBattleEffectPacketArena
 {
     public static NativeBattleEffectPacketWrite Append(NativeBattleEffectMemory memory, int cursor, NativeBattleLogicalOrdering ordering, NativeBattleModulePacketBatch batch, NativeBattleEffectGouraudWrites gouraudWrites, int? moduleDraw = null)
     {
-        NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native effect packet writes require the571870 effect arena.");
+        NativeBattleEffectArenaWriter arena = new(memory.Arena ?? throw new NotSupportedException("Native effect packet writes require the571870 effect arena."));
+        NativeBattleLogicalOrdering.Builder links = new(ordering);
         if (gouraudWrites is not (NativeBattleEffectGouraudWrites.FullDword or NativeBattleEffectGouraudWrites.RgbBytes))
         {
             throw new ArgumentOutOfRangeException(nameof(gouraudWrites));
@@ -114,8 +115,8 @@ public static partial class NativeBattleEffectPacketArena
                 arena = arena.Write(checked(address + offset), bytes.AsSpan(offset, end - offset));
                 offset = end;
             }
-            bool linked = ordering.Proxies.Length < NativeBattlePrimitiveOrdering.ProxyCapacity;
-            ordering = ordering.Prepend(primitive.Bucket, new("20DFAB8", 0, address), primitive.Words, allocation.Flags20, primitive.VertexPayload4, moduleDraw);
+            bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
+            links.Prepend(primitive.Bucket, new("20DFAB8", 0, address), primitive.Words, allocation.Flags20, primitive.VertexPayload4, moduleDraw);
             if (linked)
             {
                 arena = arena.MarkUnknown(address, 3);
@@ -123,6 +124,6 @@ public static partial class NativeBattleEffectPacketArena
 
             void Preserve(int first, int count) => Array.Fill(written, false, first, count);
         }
-        return new(memory with { Arena = arena }, checked(cursor + batch.AllocationBytes), ordering);
+        return new(memory with { Arena = arena.Freeze() }, checked(cursor + batch.AllocationBytes), links.ToImmutable());
     }
 }

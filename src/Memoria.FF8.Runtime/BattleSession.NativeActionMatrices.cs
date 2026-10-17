@@ -6,6 +6,14 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState PrepareNativeActionMatrices(NativeBattleGraphicsState graphics)
     {
+        return NativeBattleActionGeometryRules.PrepareMatrices50D300(graphics, ReadNativeGraphicsBone);
+    }
+}
+
+public static partial class NativeBattleActionGeometryRules
+{
+    public static NativeBattleGraphicsState PrepareMatrices50D300(NativeBattleGraphicsState graphics, Func<NativeBattleGraphicsState, int, byte, short, NativeBattleVector> readBone)
+    {
         NativeBattleActionGeometry context = graphics.ActionContext ?? throw new InvalidDataException("Native action matrices lack their50D300 context.");
         if (context.PhysicalTargetMask is not ushort mask || mask == 0)
         {
@@ -15,8 +23,8 @@ public sealed partial class BattleSession
         NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
         NativeBattleModelTransform transform = actor.Transform ?? throw new NotSupportedException("Native action matrices require actor position WORDs.");
         NativeBattleVector actorPosition = new(transform.Position28.X, transform.Angle36, transform.Position28.Z);
-        NativeBattleVector actorFirst = ReadNativeGraphicsBone(actorIndex, 240, 2048);
-        NativeBattleVector actorSecond = ReadNativeGraphicsBone(actorIndex, 241, 2048);
+        NativeBattleVector actorFirst = readBone(graphics, actorIndex, 240, 2048);
+        NativeBattleVector actorSecond = readBone(graphics, actorIndex, 241, 2048);
         NativeBattleVector targetPosition;
         NativeBattleVector targetFirst;
         NativeBattleVector targetSecond;
@@ -25,8 +33,8 @@ public sealed partial class BattleSession
             int targetIndex = context.TargetIndex ?? throw new InvalidDataException("Native single-target matrices lack their physical recipient.");
             NativeBattleGraphicsModel target = graphics.Models[targetIndex];
             NativeBattleModelTransform targetTransform = target.Transform ?? throw new NotSupportedException("Native action matrices require target position WORDs.");
-            targetFirst = ReadNativeGraphicsBone(targetIndex, 240, 2048);
-            targetSecond = ReadNativeGraphicsBone(targetIndex, 241, 2048);
+            targetFirst = readBone(graphics, targetIndex, 240, 2048);
+            targetSecond = readBone(graphics, targetIndex, 241, 2048);
             targetPosition = target.ModelId4 is 96 or 97 ? targetSecond : targetTransform.Position28;
             targetPosition = new(targetPosition.X, targetTransform.Angle36, targetPosition.Z);
         }

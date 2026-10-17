@@ -225,6 +225,7 @@ public sealed partial class EventEngine
                 actors[^1].NativePartyFlags = new NativeActorPartyFlags(false, false);
                 actors[^1].NativeOperandMemory = NativeActorOperandMemory.Allocated();
                 actors[^1].NativeTurnMode580 = 0;
+                actors[^1].NativeRendererMode599 = 17;
                 actors[^1].NativeSavedCollisionDisabled16 = false;
                 actors[^1].NativeActorWord398 = 0;
                 // 52BC00 clears base bytes591..593; its42 stores target the unrelated bytes568..570.

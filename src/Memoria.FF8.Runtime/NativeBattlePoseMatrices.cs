@@ -56,7 +56,7 @@ public static partial class NativeBattlePoseMatrices
             throw new NotSupportedException("Native model8F bone selectors require its B8B6EC source table.");
         }
         NativeBattleSequenceState state = model.SequenceState ?? throw new NotSupportedException("Native502170 requires a decoded model pose.");
-        NativeBattleDecodedPose pose = source.Sample(state.Pose ?? throw new NotSupportedException("Native502170 pose selector is not initialized."), state.PoseFrame114 ?? throw new NotSupportedException("Native502170 pose frame is not initialized."), state.PoseFlags109);
+        NativeBattleDecodedPose pose = ReadDecodedPose(state, source);
         Matrix[] bones = BoneMatrices(source, pose);
         int bone = selector;
         if (selector >= 240)
@@ -93,7 +93,7 @@ public static partial class NativeBattlePoseMatrices
         }
         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native actor-relative camera requires its position/scale WORD owners.");
         NativeBattleSequenceState state = model.SequenceState ?? throw new NotSupportedException("Native actor-relative camera requires its decoded model pose.");
-        NativeBattleDecodedPose pose = source.Sample(state.Pose ?? throw new NotSupportedException("Native camera actor has no selected pose."), state.PoseFrame114 ?? throw new NotSupportedException("Native camera actor has no decoded frame."), state.PoseFlags109);
+        NativeBattleDecodedPose pose = ReadDecodedPose(state, source);
         Matrix matrix = ModelMatrix(model, transform, BoneMatrices(source, pose)[0]);
         if (lowNibble != 15)
         {

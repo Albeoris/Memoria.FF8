@@ -16,7 +16,7 @@ public sealed partial class BattleSession
             int source = effect.ResourcePointers.Single(pointer => pointer.GlobalAddress == 0x24BECB8).ArenaOffset;
             textures = textures.EnqueueArenaTim505E30(memory.Arena!, source).State;
             NativeEffectMemory = memory with { Textures = textures };
-            NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native61ABA0 requires its original camera state.")) with { ControlResource = textures.Animation, ControlCursor = 0 };
+            NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native61ABA0 requires its original camera state.")).RegisterControlResource(textures.Animation);
         }
         return graphics with { OriginalEffect = NativeBattleBlizzardController.Initialize61ABA0(effect, nativeActionPackets) };
     }

@@ -4,7 +4,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
 
-/// <summary>Completion authority supplied only by an actual471F70 kind3 resource reload. No live producer is implemented yet.</summary>
+/// <summary>Completion authority supplied only by an actual471F70 kind3 resource reload.</summary>
 public sealed record NativeBattleFieldReloadCompletion([property: JsonRequired] int Version, [property: JsonRequired] string ExecutableHash, [property: JsonRequired] int FieldId, [property: JsonRequired] string ProgramHash, [property: JsonRequired] long BattleEntryFrame, [property: JsonRequired] byte NativeResult)
 {
     public void Validate()
@@ -68,7 +68,7 @@ public sealed partial class EventEngine
         return reload;
     }
 
-    public PreparedNativeBattleFieldReturn PrepareNativeBattleFieldReturn(NativeBattleMusicProcessState process, ushort flags, byte nativeResult, NativeBattleMusicEntryResources resources)
+    public PreparedNativeBattleFieldReturn PrepareNativeBattleFieldReturn(NativeBattleMusicProcessState process, ushort flags, byte nativeResult, NativeBattleMusicEntryResources resources, NativeBattleRetainedMemory? reloadedMemory = null)
     {
         NativeBattleFieldReloadCompletion reload = RequireNativeBattleFieldReload(nativeResult);
         if (!services.CanStoreNativeBattleFieldReturn || !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(process.Buffers), JsonSerializer.SerializeToElement(Scene.MusicProcess)))
@@ -87,7 +87,7 @@ public sealed partial class EventEngine
         NativeFieldActorAnimation[] animations = PrepareNativeFieldAnimations(Scene.NativeActorObjectIds.Where(objectId => (actors[objectId].NativePartyFlags ?? throw new NotSupportedException("Native52B9F0 animation restore requires actual actor DWORD352.")).AutoAnimation4).ToArray());
         return new()
         {
-            Owners = new(music, tail.Controls, tail.SeeD, tail.Timer, tail.Salary, tail.Vibration, tail.Fade, tail.Memory), Reload = reload,
+            Owners = new(music, tail.Controls, tail.SeeD, tail.Timer, tail.Salary, tail.Vibration, tail.Fade, tail.Memory) { ReloadedMemory = reloadedMemory }, Reload = reload,
             SourceScene = Scene, SourceFrame = Frame, SourceBuffers = Scene.MusicProcess!, SourceSound = sound, Tail = tail,
             Battle = battle, PersistentFlags = persistent, SourceChannel = Scene.MusicChannel108, SourceGain = Scene.SoundMusicVolume197,
             SourceControls = services.WorldControls!, SourceSeeD = services.SeeD!, SourceTimer = services.ExamTimer!, SourceSalary = services.SalaryPresentation!, SourceVibration = vibration, SourceFade = fade, SourceVitals = services.CharacterVitals!, SourceMemory = EventMemory,

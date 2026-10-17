@@ -33,7 +33,6 @@ public static class NativeBattleVictoryMusicLoader
                 NativeBattleMusicProcessState playing = RequireMusic(music).QueueGain501B10(0, 127);
                 NativeBattleFileStaging source = staging ?? throw new NotSupportedException("Native503040 phase3 requires its current shared resource directory.");
                 uint rows = unchecked(NativeBattleFileStaging.Address + BinaryPrimitives.ReadUInt32LittleEndian(source.Read(NativeBattleFileStaging.Address + 0x24, 4)));
-                // TODO(TD-009): Native115 stays closed until its caller performs5022C0/505C00/5064F0 with these physical rows.
                 return new(phase, playing, ResourceRows: rows);
             default:
                 return new(phase, music);

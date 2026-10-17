@@ -72,6 +72,7 @@ public sealed partial class BattleSession
         NativeBattleLogicalOrdering ordering = frame.Pending;
         // TODO(TD-009): Logical module words do not establish every physical padding byte.
         ImmutableArray<NativeBattleCommonPacketStore>.Builder stores = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
+        NativeBattleLogicalOrdering.Builder links = new(ordering);
         if (batch.AllocationBytes != 0)
         {
             stores.Add(new(cursor, new byte[batch.AllocationBytes].ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Unknown, batch.AllocationBytes).ToImmutableArray()));
@@ -84,11 +85,11 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Native module primitive leaves its original packet allocation.");
             }
             int address = checked(cursor + allocated.ByteOffset);
-            bool linked = ordering.Proxies.Length < NativeBattlePrimitiveOrdering.ProxyCapacity;
-            ordering = ordering.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, address), primitive.Words, allocated.Flags20, primitive.VertexPayload4, moduleDraw);
+            bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
+            links.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, address), primitive.Words, allocated.Flags20, primitive.VertexPayload4, moduleDraw);
             stores.AddRange(NativeBattleCommonPacketArena.PrimitiveStores(address, primitive, linked));
         }
         NativeEffectMemory = memory with { PrimitiveProcess = process.ApplyCommonWrites(stores.ToImmutable()) with { ByteCursor = next } };
-        return graphics with { PrimitiveFrame = frame with { Pending = ordering } };
+        return graphics with { PrimitiveFrame = frame with { Pending = links.ToImmutable() } };
     }
 }

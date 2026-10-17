@@ -25,6 +25,21 @@ public sealed record NativeBattleEffectTextureDrain(NativeBattleEffectTextureSta
 /// <summary>505E30/505D20's32 physical16-byte slots and45BD30's retained1024x51216-bit VRAM.</summary>
 public sealed record NativeBattleEffectTextureState([property: JsonRequired] ImmutableArray<NativeBattleEffectTimUpload?> Slots, [property: JsonRequired] int Count, [property: JsonRequired] NativeBattleEffectAnimationRegisters? Animation, [property: JsonRequired] ImmutableArray<NativeBattleEffectMemoryRegion> VramRegions)
 {
+    public NativeBattleEffectTextureState Upload45BD30(short x, short y, short width, short height, ReadOnlySpan<byte> bytes)
+    {
+        Validate();
+        if (x < 0 || y < 0 || width < 0 || height < 0 || x + width > 1024 || y + height > 512 || bytes.Length != 2 * width * height)
+        {
+            throw new InvalidDataException("Native45BD30 upload requires its exact bounded VRAM rectangle and source words.");
+        }
+        NativeBattleEffectArena memory = new(VramRegions);
+        for (int row = 0; row < height; row++)
+        {
+            memory = memory.Write(2 * ((y + row) * 1024 + x), bytes.Slice(2 * row * width, 2 * width));
+        }
+        return this with { VramRegions = memory.Regions };
+    }
+
     public static NativeBattleEffectTextureState FromColdProcess() => new(ImmutableArray.CreateRange(new NativeBattleEffectTimUpload?[32]), 0, null, []);
 
     public NativeBattleEffectTextureState Initialize500400()

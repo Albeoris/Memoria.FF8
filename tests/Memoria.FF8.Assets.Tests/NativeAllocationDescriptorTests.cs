@@ -5,6 +5,69 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeAllocationDescriptorTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ExplicitDebugOutcomeAtFrameZeroSurvivesRestoreWithoutCompletingNativeEntry(bool victory)
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession battle = Create(game, assets, [0]);
+        NativeBattleGraphicsState before = battle.NativeGraphics!;
+        Assert.False(battle.NativeEntryReady);
+        if (victory)
+        {
+            battle.InstantVictory();
+        }
+        else
+        {
+            battle.InstantDefeat();
+        }
+        BattleOutcome expected = victory ? BattleOutcome.Victory : BattleOutcome.Defeat;
+        Assert.Equal(expected, battle.Outcome);
+        Assert.Equal(expected, battle.DebugOutcome);
+        Assert.Equal(0, battle.Frame);
+        Assert.False(battle.NativeEntryReady);
+        Assert.Equal(before.EntryLifecycle, battle.NativeGraphics!.EntryLifecycle);
+        Assert.Equal(before.Callback, battle.NativeGraphics.Callback);
+        string json = JsonSerializer.Serialize(battle.Capture());
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
+        Assert.Equal(json, JsonSerializer.Serialize(restored.Capture()));
+        Assert.False(restored.NativeEntryReady);
+        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(battle.Capture() with { DebugOutcome = BattleOutcome.Active }));
+        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(battle.Capture() with { DebugOutcome = null }));
+    }
+
+    [Fact]
+    public void NativeZeroCountdownRemainsAnActiveStandaloneBoundaryUntilTheNextOuterFrameReturns()
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession battle = Create(game, assets, [0]);
+        for (int callback = 0; callback < 300 && !battle.NativeEntryReady; callback++)
+        {
+            battle.Tick();
+        }
+        Assert.True(battle.NativeEntryReady);
+        BattleSnapshot before = battle.Capture();
+        NativeBattleGraphicsState graphics = before.NativeGraphics! with { NativeOutcome = new() { ResultByte6E7 = 4, VictoryQueuedDFE = 1, FadeDurationB0C = 0 } };
+        battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(before with { NativeGraphics = graphics }))!);
+        Assert.Equal(BattleOutcome.Active, battle.Outcome);
+        long callbackBefore = battle.NativeGraphics!.Callback;
+        battle.Tick();
+        Assert.Equal(BattleOutcome.Victory, battle.Outcome);
+        Assert.Equal(callbackBefore, battle.NativeGraphics!.Callback);
+        Assert.Equal(before.Frame, battle.Frame);
+        Assert.Single(battle.Events, item => item.Kind == "Outcome");
+        string completed = JsonSerializer.Serialize(battle.Capture());
+        battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(completed)!);
+        Assert.Equal(completed, JsonSerializer.Serialize(battle.Capture()));
+        battle.Tick();
+        Assert.Equal(BattleOutcome.Victory, battle.Outcome);
+        Assert.Equal(callbackBefore, battle.NativeGraphics!.Callback);
+        Assert.Single(battle.Events, item => item.Kind == "Outcome");
+    }
+
     [Fact]
     public void GuardianCancellation114ClearsTheGraphicsCastingFlagAndRefreshesThePendingStandingSequence()
     {

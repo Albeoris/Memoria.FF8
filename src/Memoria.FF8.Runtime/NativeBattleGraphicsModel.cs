@@ -16,6 +16,7 @@ public sealed partial record NativeBattleGraphicsModel(int Index, ushort Flags0)
     public byte? CameraAccumulator131 { get; init; }
     public bool? HasLinkedModelRing140 { get; init; }
     public byte? BlinkCountdown144 { get; init; }
+    public byte? SequenceByte145 { get; init; }
     public ushort? Flags2 { get; init; }
     public uint? Flags8 { get; init; }
     public short? Rotation12 { get; init; }

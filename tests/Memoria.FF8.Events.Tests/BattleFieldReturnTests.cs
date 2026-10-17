@@ -14,6 +14,7 @@ internal static partial class Program
     private static void NativeBattleFieldReturnContract()
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? throw new InvalidOperationException("Set MEMORIA_FF8_GAME_DIR to the installed game directory.");
+        NativeBattleFieldRegistrationContract(directory);
         NativeBattleMusicEntryResources resources = new NativeMusicCatalog(directory).ReadBattleEntryResources();
         GameSession session = CreateNativeMusicSession();
         byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.BATTLEMODE, 0), (Jsm.Opcode.PSHN_L, 94), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.BATTLE, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_W, 800), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
@@ -105,5 +106,62 @@ internal static partial class Program
         {
         }
         Require(JsonElement.DeepEquals(resetSaved, resetClone.Capture()), "Rejected missing reset owner changed the VM.");
+    }
+
+    private static void NativeBattleFieldRegistrationContract(string directory)
+    {
+        using GameAssets assets = new(directory);
+        FieldAssets field = assets.LoadField(74);
+        // A controlled retained BATTLE program uses original model/PCB/placement inputs. It does not replay an original field route.
+        byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.BATTLEMODE, 0), (Jsm.Opcode.PSHN_L, 94), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.BATTLE, 0), (Jsm.Opcode.POPM_W, 800), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
+        string hash = Convert.ToHexString(SHA256.HashData(content));
+        NativeFieldRegistrationResources source = field.NativeRegistration! with
+        {
+            ProgramHash = hash,
+            Loader = field.NativeRegistration!.Loader! with { Program = new("controlled/retained.jsm", hash, content.ToImmutableArray()) }
+        };
+        foreach (byte result in new byte[] { 2, 4 })
+        {
+            GameSession session = CreateNativeMusicSession();
+            EventEngine Create(GameSession owner)
+            {
+                EventEngine engine = new(owner)
+                {
+                    UseInteractiveBattle = (_, _) => true,
+                    ValidateInteractiveBattle = (_, _) => null,
+                    AnimationFrameCount = field.GetAnimationFrameCount,
+                    ReadNativeModelParts = model => field.Models[model].NativeParts,
+                    ReadNativeEyes = model => field.Models[model].NativeEyes
+                };
+                engine.LoadField(74, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+                return engine;
+            }
+            EventEngine live = Create(session);
+            for (int frame = 0; frame < 8 && live.PendingInteractiveBattle is null; frame++)
+            {
+                live.Step();
+            }
+            Require(live.PendingInteractiveBattle is not null, "Registration fixture never suspended its actual BATTLE fiber.");
+            JsonElement suspended = live.Capture();
+            EventEngine restored = Create(CloneMusicSession(session.State));
+            restored.Restore(suspended);
+            NativeBattleRetainedMemory memory = assets.ReadColdProcessNativeBattleMemory();
+            NativeBattleRetainedMemory first = live.ExecuteNativeBattleFieldResourceReload(source, result, memory);
+            NativeBattleRetainedMemory second = restored.ExecuteNativeBattleFieldResourceReload(source, result, JsonSerializer.Deserialize<NativeBattleRetainedMemory>(JsonSerializer.Serialize(memory))!);
+            Require(JsonSerializer.Serialize(first) == JsonSerializer.Serialize(second) && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Actual kind3 registration diverged across independent suspended roots.");
+            live.ValidateNativeBattleFieldRegistrationMemory(first);
+            Require(live.RequireNativeBattleFieldReload(result) == live.Scene.NativeBattleFieldReload && live.Scene.NativeFieldRegistration is not null && live.Scene.NativeBattleFieldReloadState is null, "Executed registration did not own its physical completion.");
+            Require(JsonElement.DeepEquals(suspended.GetProperty("Fibers"), live.Capture().GetProperty("Fibers")) && live.Frame == suspended.GetProperty("Frame").GetInt64() && !session.State.Variables.ContainsKey(800), "Kind3 reset retained PCs, stacks, waits or advanced the suspended script.");
+            string completed = live.Capture().GetRawText();
+            try
+            {
+                live.ExecuteNativeBattleFieldResourceReload(source, result, memory);
+                throw new InvalidOperationException("Completed registration accepted stale pre-reload physical memory.");
+            }
+            catch (NotSupportedException)
+            {
+            }
+            Require(completed == live.Capture().GetRawText(), "Repeated registration refusal mutated a completed Scene.");
+        }
     }
 }

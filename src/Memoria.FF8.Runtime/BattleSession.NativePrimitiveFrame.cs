@@ -142,7 +142,7 @@ public sealed partial class BattleSession
             NativeBattlePcTextureWindowCache cache = process.TextureWindowCache ?? throw new NotSupportedException("Native500900 requires its retained PC window-cache owner; explicitly reset it in a separately named snapshot migration.");
             var pass = NativeBattleLogicalPasses.Execute(frame.Pending, tables, new(process.TexturePage) { TextureWindowBits = process.TextureWindowBits }, 1, cache);
             commands = pass.Commands;
-            process = process with { TexturePage = pass.Final.TexturePage, TextureWindowBits = pass.Final.TextureWindowBits, TextureWindowCache = pass.Cache };
+            process = process with { PublicationState03A = process.PublicationState03A is byte state ? state <= 16 ? (byte)0 : (byte)(state - 16) : null, TexturePage = pass.Final.TexturePage, TextureWindowBits = pass.Final.TextureWindowBits, TextureWindowCache = pass.Cache };
         }
         ImmutableArray<int?>.Builder blends = ImmutableArray.CreateBuilder<int?>(graphics.ModuleDraws.Length);
         for (int index = 0; index < graphics.ModuleDraws.Length; index++)

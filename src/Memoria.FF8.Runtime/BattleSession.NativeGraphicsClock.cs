@@ -178,6 +178,24 @@ public sealed partial class BattleSession
                     ScheduleTextureAnimation = (program, sequence) => graphics = ScheduleNativeTextureAnimation(graphics, index, program, sequence),
                     ScheduleModelEffect = effect => graphics = ScheduleNativeModelEffect(graphics, index, effect),
                     ApplyTexture = (selector, variant) => ApplyNativeTextureMotion(graphics, index, selector, variant),
+                    RebindActionGeometry = (current, selector) =>
+                    {
+                        graphics = RebindNativeSequenceGeometry92(graphics with { Models = models.SetItem(index, current) }, index, selector);
+                        models = graphics.Models;
+                        return models[index];
+                    },
+                    ApplyCurrentContact = current =>
+                    {
+                        graphics = ApplyNativeCurrentSequenceContact(graphics with { Models = models.SetItem(index, current) });
+                        models = graphics.Models;
+                        return models[index];
+                    },
+                    SelectModelSequence = (current, opcode, selector, selected) =>
+                    {
+                        graphics = SelectNativeSequenceModels(graphics with { Models = models.SetItem(index, current) }, index, opcode, selector, selected);
+                        models = graphics.Models;
+                        return models[index];
+                    },
                     ApplyNextContact = current =>
                     {
                         graphics = ApplyNativeNextSequenceContact(graphics with { Models = models.SetItem(index, current) });

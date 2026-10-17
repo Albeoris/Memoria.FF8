@@ -8,6 +8,92 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleSequenceMachineTests
 {
     [Fact]
+    public void Opcode92_publishes_current_model_before_rebinding_and_reads_new_external_geometry_inline()
+    {
+        int calls = 0;
+        int distance = 0;
+        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(Model(1) with { Rotation14 = 0 }, Resource((1, "C03412E51792FFC310E500A1")), new(null, null)
+        {
+            RebindActionGeometry = (current, selector) =>
+            {
+                calls++;
+                Assert.Equal((byte)255, selector);
+                Assert.Equal((short)0x1234, current.Rotation14);
+                Assert.Equal((byte)1, current.Sequence);
+                distance = 12345;
+                return current with { Rotation14 = 2048 };
+            },
+            ReadExternal = variable => variable == 16 ? distance : throw new InvalidDataException()
+        });
+        Assert.Equal(1, calls);
+        Assert.Equal((short)12345, step.Model.SequenceState!.Locals[0]);
+        Assert.Equal((short)2048, step.Model.Rotation14);
+        Assert.Throws<NotSupportedException>(() => NativeBattleSequenceMachine.Advance(Model(1), Resource((1, "9200A1")), new(null, null)));
+    }
+
+    [Fact]
+    public void Native_default_command_arms_are_operandless_no_ops()
+    {
+        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(Model(1), Resource((1, "8788898A8B8C8D8E8FB3C207E500A1")), new(null, null));
+        Assert.Equal((short)7, step.Model.SequenceState!.Locals[0]);
+        Assert.Equal((ushort)3, step.Model.Flags0);
+        Assert.Empty(step.Cues);
+    }
+
+    [Fact]
+    public void Sequence_write43_stores_only_the_retained_model_byte145()
+    {
+        NativeBattleGraphicsModel model = Model(1) with { BlinkCountdown144 = 21, MinimumY146 = 1234 };
+        Assert.Null(model.SequenceByte145);
+        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(model, Resource((1, "C0FEFFE52BA1")), new(null, null));
+        Assert.Equal((byte)254, step.Model.SequenceByte145);
+        Assert.Equal((byte)21, step.Model.BlinkCountdown144);
+        Assert.Equal((short)1234, step.Model.MinimumY146);
+        NativeBattleGraphicsModel restored = JsonSerializer.Deserialize<NativeBattleGraphicsModel>(JsonSerializer.Serialize(step.Model))!;
+        Assert.Equal((byte)254, restored.SequenceByte145);
+    }
+
+    [Theory]
+    [InlineData("93FEFFA1", 0x93, 254, 255)]
+    [InlineData("AFFFA1", 0xAF, 0, 255)]
+    [InlineData("BFFFA1", 0xBF, 0, 255)]
+    public void Shared_model_sequence_commands_decode_unsigned_operands_and_continue_inline(string program, byte expectedOpcode, byte expectedSelector, byte expectedSequence)
+    {
+        int calls = 0;
+        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(Model(1), Resource((1, program)), new(null, null)
+        {
+            SelectModelSequence = (current, opcode, selector, sequence) =>
+            {
+                calls++;
+                Assert.Equal(expectedOpcode, opcode);
+                Assert.Equal(expectedSelector, selector);
+                Assert.Equal(expectedSequence, sequence);
+                return current with { Flags8 = 0x1234 };
+            }
+        });
+        Assert.Equal(1, calls);
+        Assert.Equal(0x1234u, step.Model.Flags8);
+    }
+
+    [Fact]
+    public void B7_consumes_current_contact_inline_without_selecting_the_advance_callback()
+    {
+        int calls = 0;
+        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(Model(1), Resource((1, "B7C31FE500A1")), new(null, null)
+        {
+            ApplyCurrentContact = current =>
+            {
+                calls++;
+                return current with { Flags8 = 0x4321 };
+            },
+            ApplyNextContact = _ => throw new InvalidDataException("B7 does not advance the physical contact pointer.")
+        });
+        Assert.Equal(1, calls);
+        Assert.Equal((short)0x4321, step.Model.SequenceState!.Locals[0]);
+        Assert.Throws<NotSupportedException>(() => NativeBattleSequenceMachine.Advance(Model(1), Resource((1, "B7A1")), new(null, null)));
+    }
+
+    [Fact]
     public void B2_applies_and_advances_the_current_contact_inline_before_following_expression()
     {
         int calls = 0;

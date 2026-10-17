@@ -26,6 +26,8 @@ public static class NativeBattleGraphicsRulesReader
         rules = rules with { ShadowSource = NativeBattleShadowSourceReader.Read(executable) };
         rules = rules with { ActorSounds1120 = NativeMusicCatalog.ReadBattleActorSounds(executable) };
         rules = rules with { StatusIcons = NativeBattleStatusIconResourcesReader.Read(executable) };
+        byte[] victoryPairs = At(0xB8B7E0, 12).ToArray();
+        rules = rules with { VictoryModelSections = Enumerable.Range(0, 6).Select(index => new NativeBattleVictoryModelSection(victoryPairs[index * 2], victoryPairs[index * 2 + 1])).ToImmutableArray() };
         rules.Validate();
         return rules;
 

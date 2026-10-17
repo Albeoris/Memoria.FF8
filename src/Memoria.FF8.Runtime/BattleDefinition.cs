@@ -158,6 +158,7 @@ public sealed record BattleDefinition
     public NativeBattleEffectInitializerAsset? NativeCommonEffectTexture { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleArchiveFile? NativeEntryWaveFile { get; init; }
+    public NativeBattleArchiveFile? NativeVictoryFile { get; init; }
     public NativeBattleActionCameraRules? NativeActionCameraRules { get; init; }
     public NativeBattleCameraBank? NativeStageCameraBank { get; init; }
     public NativeBattleStageSource? NativeStageSource { get; init; }
@@ -345,6 +346,7 @@ public sealed record BattleSnapshot
     public BattleGunbladeMode GunbladeMode { get; init; }
     public long Frame { get; init; }
     public BattleOutcome Outcome { get; init; }
+    public BattleOutcome? DebugOutcome { get; init; }
     public BattleCombatantSnapshot[] Combatants { get; init; } = [];
     public NativeBattleEnemyAllocation[] NativeAllocations { get; init; } = [];
     public BattleAttackCommand[] QueuedActions { get; init; } = [];

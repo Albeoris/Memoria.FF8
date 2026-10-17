@@ -4,19 +4,45 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-/// <summary>Observed bytes at B6D08C's shared199B018 resource staging address. Unobserved tails stay unknown.</summary>
-public sealed record NativeBattleFileStaging([property: JsonRequired] ImmutableArray<NativeBattleEffectMemoryRegion> KnownRanges)
+/// <summary>Observed bytes in the shared field/battle resource memory. Unobserved tails stay unknown.</summary>
+public sealed partial record NativeBattleFileStaging([property: JsonRequired] ImmutableArray<NativeBattleEffectMemoryRegion> KnownRanges)
 {
     public const uint Address = 0x199B018;
+    // Prior snapshots encode offsets from199B018. Rebasing changes coordinates while preserving every absolute byte.
+    public uint BaseAddress { get; init; } = Address;
     public static NativeBattleFileStaging Unknown() => new([]);
 
-    public void Validate() => NativeKnownByteRanges.Validate(KnownRanges);
+    public void Validate()
+    {
+        if (BaseAddress > Address)
+        {
+            throw new InvalidDataException("Native shared staging origin cannot exclude its original battle resource address.");
+        }
+        NativeKnownByteRanges.Validate(KnownRanges, checked((int)Math.Min(int.MaxValue, (ulong)uint.MaxValue - BaseAddress + 1)));
+        ValidateResourcePointers();
+    }
+
+    public NativeBattleFileStaging Rebase(uint lowerAddress)
+    {
+        Validate();
+        if (lowerAddress > BaseAddress)
+        {
+            throw new ArgumentOutOfRangeException(nameof(lowerAddress));
+        }
+        if (lowerAddress == BaseAddress)
+        {
+            return this;
+        }
+        int shift = checked((int)(BaseAddress - lowerAddress));
+        return this with { KnownRanges = KnownRanges.Select(range => range with { Offset = checked(range.Offset + shift) }).ToImmutableArray(), BaseAddress = lowerAddress };
+    }
 
     public byte[] Read(uint address, int length) => NativeKnownByteRanges.Read(KnownRanges, Offset(address), length);
 
     public NativeBattleFileStaging Write(uint address, ReadOnlySpan<byte> bytes)
     {
-        return new(NativeKnownByteRanges.Write(KnownRanges, Offset(address), bytes));
+        NativeBattleFileStaging current = address < BaseAddress ? Rebase(address) : this;
+        return (current with { KnownRanges = NativeKnownByteRanges.Write(current.KnownRanges, current.Offset(address), bytes) }).InvalidateResourcePointers(address, bytes.Length);
     }
 
     public ImmutableArray<byte> ReadDat(uint address)
@@ -36,12 +62,12 @@ public sealed record NativeBattleFileStaging([property: JsonRequired] ImmutableA
         return bytes;
     }
 
-    private static int Offset(uint address)
+    private int Offset(uint address)
     {
-        if (address < Address || address - Address > int.MaxValue)
+        if (address < BaseAddress || address - BaseAddress > int.MaxValue)
         {
-            throw new NotSupportedException("Native staging access requires an owned original address at or after199B018.");
+            throw new NotSupportedException("Native staging access requires an address within its explicit shared memory origin.");
         }
-        return checked((int)(address - Address));
+        return checked((int)(address - BaseAddress));
     }
 }

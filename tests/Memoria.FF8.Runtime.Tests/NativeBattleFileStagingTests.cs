@@ -6,6 +6,28 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleFileStagingTests
 {
     [Fact]
+    public void Lower_field_arena_rebases_coordinates_without_changing_prior_absolute_bytes_or_unknown_gaps()
+    {
+        uint battle = NativeBattleFileStaging.Address;
+        const uint field = 0x18DD018;
+        NativeBattleFileStaging original = NativeBattleFileStaging.Unknown().Write(battle + 8, new byte[] { 2, 3 });
+        NativeBattleFileStaging rebased = original.Write(field, new byte[] { 9, 7 });
+        Assert.Equal(field, rebased.BaseAddress);
+        Assert.Equal(new byte[] { 9, 7 }, rebased.Read(field, 2));
+        Assert.Equal(original.Read(battle + 8, 2), rebased.Read(battle + 8, 2));
+        Assert.Throws<NotSupportedException>(() => rebased.Read(field + 2, 1));
+        Assert.Throws<NotSupportedException>(() => rebased.Read(battle, 1));
+        Assert.Equal(battle, original.BaseAddress);
+        NativeBattleFileStaging restored = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(rebased))!;
+        Assert.Equal(rebased.Read(battle + 8, 2), restored.Read(battle + 8, 2));
+        Assert.Equal(rebased.Read(field, 2), restored.Read(field, 2));
+        string prior = "{\"KnownRanges\":[{\"Offset\":8,\"Data\":[2,3]}]}";
+        NativeBattleFileStaging historical = JsonSerializer.Deserialize<NativeBattleFileStaging>(prior)!;
+        Assert.Equal(battle, historical.BaseAddress);
+        Assert.Equal(new byte[] { 2, 3 }, historical.Read(battle + 8, 2));
+    }
+
+    [Fact]
     public void Unknown_gaps_and_unwritten_tails_refuse_and_shorter_writes_preserve_the_previous_suffix()
     {
         uint address = NativeBattleFileStaging.Address;

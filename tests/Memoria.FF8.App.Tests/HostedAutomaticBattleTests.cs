@@ -13,7 +13,7 @@ public sealed class HostedAutomaticBattleTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void CurrentPolicyCanFinishAPendingOrActiveBattleImmediatelyWithoutAdvancingCombat(bool alreadyStarted)
+    public void Component_policy_can_finish_combat_immediately_but_a_synthetic_field_cannot_supply_native_return_resources(bool alreadyStarted)
     {
         (GameSession session, _) = Fixture();
         using GameWorld world = new(session, TestResources.GameDirectory);
@@ -43,10 +43,11 @@ public sealed class HostedAutomaticBattleTests
         Assert.Equal(BattleOutcome.Victory, restored.State.Battle!.Outcome);
         Assert.False(restored.State.FullBattlePlaythrough == true);
         Assert.NotNull(restored.State.PendingBattleEncounter);
-        world.ApplyBattleInput(new BattleInput(BattleInputKind.Return));
-        Assert.Null(world.Battle);
-        Assert.Equal(42, session.State.Variables[800]);
-        Assert.Single(session.State.AppliedBattleResultIds);
+        Assert.Throws<NotSupportedException>(() => world.ApplyBattleInput(new BattleInput(BattleInputKind.Return)));
+        Assert.NotNull(world.Battle);
+        Assert.NotNull(world.Events.PendingInteractiveBattle);
+        Assert.False(session.State.Variables.ContainsKey(800));
+        Assert.Empty(session.State.AppliedBattleResultIds);
     }
 
     [Fact]
@@ -140,6 +141,7 @@ public sealed class HostedAutomaticBattleTests
         session.StartNewGame();
         session.InitializeNewGameCharacterVitals(vitals);
         session.InitializeNewGameCharacterAppearance(assets.ReadNewGameCharacterAppearance());
+        session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
         session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
         session.InitializeNewGameGlobalRandom(assets.ReadNewGameGlobalRandom());
         session.InitializeNewGameKnownMagic(assets.ReadNewGameKnownMagic());
