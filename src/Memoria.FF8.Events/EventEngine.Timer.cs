@@ -112,6 +112,12 @@ public sealed partial class EventEngine
         {
             return;
         }
+        NativeFieldRequestPacket? packet = services.FieldRequestPacket;
+        packet?.Validate();
+        if (packet?.Kind is 1 or 3 or 4 or 5 or 6 or 7 or 8)
+        {
+            return;
+        }
         // 477069 evaluates expiry after 529FF0, so SET/KILL in this VM tick can suppress it.
         if (timer.Alternatives.Any(item => item.Remaining != 0))
         {
@@ -121,6 +127,23 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Native timer expiry requires proved DWORD104 mask40 and byte183 mask1; no field transition published.");
         }
-        throw new NotSupportedException("Native timer expired: field75 kind1 triangle7FFF requires preserved original X/Y/direction packet globals; no fabricated arrival published.");
+        if (packet is null)
+        {
+            throw new NotSupportedException("Native timer expiry to field75 requires its preserved original request packet; no fabricated arrival published.");
+        }
+        if (packet.Kind is null)
+        {
+            throw new NotSupportedException("Native timer expiry requires its actual request-kind arbitration; an unknown kind cannot select the ordinary field branch.");
+        }
+        if (packet.Kind != 0)
+        {
+            throw new NotSupportedException("Native timer expiry competing with this request kind requires its original transition arbitration.");
+        }
+        if (!services.CanStoreFieldRequestPacket)
+        {
+            throw new NotSupportedException("Native timer expiry requires atomic original request-packet publication.");
+        }
+        services.RequestTimerExpiredField(packet);
+        transitionRequested = true;
     }
 }

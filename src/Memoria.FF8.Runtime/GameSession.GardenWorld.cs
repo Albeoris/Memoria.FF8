@@ -47,6 +47,7 @@ public sealed partial class GameSession
             DepartingFieldState = departure.DepartingFieldState ?? departure.EventState,
             DialogueDraft = null,
             FieldArrival = transition,
+            FieldRequestPacket = (departure.FieldRequestPacket ?? new()).WithWorldReturn(transition),
             WorldArrival = null,
             World = null,
             DepartingWorldState = finalWorld,

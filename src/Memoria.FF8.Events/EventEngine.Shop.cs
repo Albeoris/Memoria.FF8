@@ -19,6 +19,7 @@ public sealed partial class EventEngine
         }
         try
         {
+            ValidateNativeFieldRequestPacketStorage();
             int raw = fiber.Stack.Peek();
             NativeShopDefinitions definitions = ResolveNativeShopDefinitions();
             definitions.Validate();
@@ -51,6 +52,7 @@ public sealed partial class EventEngine
         NativeShopDefinitions definitions = ResolveNativeShopDefinitions!();
         NativeFieldMenuKind kind = definitions.ArgumentMap[unchecked((byte)raw)] == 21 ? NativeFieldMenuKind.WeaponShop : NativeFieldMenuKind.Shop;
         NativePartyMenuState request = new(FieldId, programHash, NativeRuntimeProfile!.ExecutableHash, Frame, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, fiber.Sequence, NativePartyMenuPhase.Requested, 0, null, 0, 0, 0, null, kind, unchecked((byte)raw), 0, raw, null, null, null, null);
+        PublishNativeScriptMenuRequest(23);
         int[] operands = Pop(fiber, 1);
         partyMenu = request;
         fiber.WaitReason = WaitReason.NativePartyMenu;

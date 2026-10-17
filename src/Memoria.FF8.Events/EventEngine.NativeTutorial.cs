@@ -57,6 +57,7 @@ public sealed partial class EventEngine
         }
         NativeTutorialRequest request = Scene.NativeTutorial ?? throw new InvalidOperationException("No native tutorial owns the suspended field VM.");
         Fiber fiber = fibers.SingleOrDefault(fiber => fiber.Sequence == request.FiberSequence && !fiber.Complete && fiber.WaitReason == WaitReason.NativeTutorial && fiber.ObjectId == request.ObjectId && fiber.Script.Id == request.ScriptId && fiber.Position == request.Operation + 1) ?? throw new InvalidDataException("Native tutorial lost its suspended issuing fiber.");
+        ConsumeNativeFieldRequestPacket();
         Scene.NativeTutorial = null;
         Scene.NativeTutorialPlayback = null;
         fiber.WaitReason = WaitReason.None;
@@ -67,6 +68,7 @@ public sealed partial class EventEngine
     private void RequestNativeTutorial(Fiber fiber, Jsm.Opcode opcode, int argument)
     {
         bool browser = opcode == Jsm.Opcode.MENUTUTO;
+        PublishNativeScriptMenuRequest(browser ? (ushort)26 : (ushort)29);
         Scene.NativeTutorial = new NativeTutorialRequest(1, FieldId, programHash, Frame, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, fiber.Sequence, argument, browser ? 26 : 29, browser ? null : unchecked((byte)argument));
         // Native return3 has consumed its operand and advanced its PC. The menu owns
         // the field until explicit close; elapsed field callbacks cannot satisfy it.

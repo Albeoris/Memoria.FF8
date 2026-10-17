@@ -64,7 +64,7 @@ public sealed partial class GameSession : IEventServices
         NativeVibrationProcessState vibration = State.VibrationProcess ?? throw new NotSupportedException("New Game requires the current native vibration process.");
         NativeFieldFadeState fieldFade = State.FieldFade ?? throw new NotSupportedException("New Game requires its current native physical/saved fade process.");
         NativeMenuRandomState menuRandom = State.MenuRandom ?? throw new NotSupportedException("New Game requires the existing native menu random process.");
-        Change(new GameState { NativeBattleMemory = State.NativeBattleMemory, Playtime = State.Playtime?.ClearSavedStateForNewGame(), CrtRandom = State.CrtRandom, BattleVariables = NativeBattleVariableState.CreateNewGame(), DiscProcess = NativeDiscProcessState.CreateNewGame(), MenuRandom = menuRandom, FieldFade = fieldFade.ClearSavedForNewGame(), VibrationProcess = vibration, EventRandom = random.ClearSavedStateForNewGame(), FieldButtonInput = State.FieldButtonInput, WorldProcess = State.WorldProcess, WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame(), FieldBars = NativeFieldBarsState.CreateHidden(), FieldShake = State.FieldShake, MessageVariables = State.MessageVariables, GlobalSoundProcess = State.GlobalSoundProcess, SalaryPresentation = State.SalaryPresentation, Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", FieldLoadContext = NativeFieldLoadContext.NewGame(), SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), SeeD = NativeSeeDState.CreateNewGame(State.SeeD), ExamTimer = reset });
+        Change(new GameState { NativeBattleMemory = State.NativeBattleMemory, Playtime = State.Playtime?.ClearSavedStateForNewGame(), FieldRequestPacket = State.FieldRequestPacket, CrtRandom = State.CrtRandom, BattleVariables = NativeBattleVariableState.CreateNewGame(), DiscProcess = NativeDiscProcessState.CreateNewGame(), MenuRandom = menuRandom, FieldFade = fieldFade.ClearSavedForNewGame(), VibrationProcess = vibration, EventRandom = random.ClearSavedStateForNewGame(), FieldButtonInput = State.FieldButtonInput, WorldProcess = State.WorldProcess, WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame(), FieldBars = NativeFieldBarsState.CreateHidden(), FieldShake = State.FieldShake, MessageVariables = State.MessageVariables, GlobalSoundProcess = State.GlobalSoundProcess, SalaryPresentation = State.SalaryPresentation, Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", FieldLoadContext = NativeFieldLoadContext.NewGame(), SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), SeeD = NativeSeeDState.CreateNewGame(State.SeeD), ExamTimer = reset });
     }
 
     public void Restore(GameState state)
@@ -109,6 +109,13 @@ public sealed partial class GameSession : IEventServices
 
     public void RequestField(int fieldId, int entryPoint)
     {
+        GameState candidate = PrepareFieldRequest(fieldId, entryPoint);
+        Dialog = null;
+        Change(candidate);
+    }
+
+    private GameState PrepareFieldRequest(int fieldId, int entryPoint)
+    {
         if (fieldId is < 0 or > ushort.MaxValue)
         {
             throw new ArgumentOutOfRangeException(nameof(fieldId));
@@ -124,19 +131,26 @@ public sealed partial class GameSession : IEventServices
             throw new InvalidDataException("The departing field cannot be represented by the native previous-field WORD.");
         }
         string name = fieldId switch { 74 => "start0", 179 => "bghoke_1", 180 => "bghoke_2", 181 => "bghoke_3", 229 => "bgroad_6", 232 => "bgroom_1", _ => $"field_{fieldId}" };
-        Dialog = null;
-        Change(State with { Scene = SceneKind.Field, FieldId = fieldId, PreviousFieldId = previousFieldId, FieldLoadContext = NativeFieldLoadContext.FromFieldRequest(fieldId), FieldName = name, EntryPoint = entryPoint, X = 0, Y = 0, EventState = null, DepartingFieldState = null, DialogueDraft = null, FieldArrival = null, WorldArrival = null, World = null, DebugView = null, WorldControls = State.WorldControls?.WithNormalFieldLoad(), VibrationProcess = State.VibrationProcess?.EndFieldCallback() });
+        return State with { Scene = SceneKind.Field, FieldId = fieldId, PreviousFieldId = previousFieldId, FieldLoadContext = NativeFieldLoadContext.FromFieldRequest(fieldId), FieldName = name, EntryPoint = entryPoint, X = 0, Y = 0, EventState = null, DepartingFieldState = null, DialogueDraft = null, FieldArrival = null, WorldArrival = null, World = null, DebugView = null, WorldControls = State.WorldControls?.WithNormalFieldLoad(), VibrationProcess = State.VibrationProcess?.EndFieldCallback() };
     }
 
     public void RequestField(FieldTransition transition)
+    {
+        ArgumentNullException.ThrowIfNull(transition);
+        RequestField(transition, transition.DiscJump?.NativeFacingWord ?? checked((ushort)transition.Direction));
+    }
+
+    public void RequestField(FieldTransition transition, ushort rawDirection)
     {
         ArgumentNullException.ThrowIfNull(transition);
         if (transition.DiscJump is NativeDiscJumpTransition discJump)
         {
             discJump.Validate(State.DiscProcess?.SavedDisc204 ?? throw new NotSupportedException("DISCJUMP requires its actual disc process owner."));
         }
-        RequestField(transition.FieldId, 0);
-        Change(State with { X = transition.X, Y = transition.Y, FieldArrival = transition });
+        NativeFieldRequestPacket packet = (State.FieldRequestPacket ?? new()).WithFieldRequest(transition, rawDirection);
+        GameState candidate = PrepareFieldRequest(transition.FieldId, 0) with { X = transition.X, Y = transition.Y, FieldArrival = transition, FieldRequestPacket = packet };
+        Dialog = null;
+        Change(candidate);
     }
 
     public void CommitPreparedWorldFieldEntry(GameState expectedDeparture, WorldState finalWorldState, FieldTransition transition, NativeSavedWorldFootReturn receipt, NativeWorldSalaryState salary, Action<GameState> validatePrepared)
@@ -180,6 +194,7 @@ public sealed partial class GameSession : IEventServices
             DepartingFieldState = departure.DepartingFieldState ?? departure.EventState,
             DialogueDraft = null,
             FieldArrival = transition,
+            FieldRequestPacket = (departure.FieldRequestPacket ?? new()).WithWorldReturn(transition),
             WorldArrival = null,
             World = null,
             DepartingWorldState = finalWorldState,
@@ -213,7 +228,7 @@ public sealed partial class GameSession : IEventServices
     {
         ArgumentNullException.ThrowIfNull(transition);
         Dialog = null;
-        Change(State with { Scene = SceneKind.WorldMap, WorldArrival = transition, World = null, FieldArrival = null, DialogueDraft = null, DebugView = null, WorldConfiguration = NativeWorldConfiguration.FromFieldPacket(transition, State.FieldId) });
+        Change(State with { Scene = SceneKind.WorldMap, WorldArrival = transition, World = null, FieldArrival = null, DialogueDraft = null, DebugView = null, WorldConfiguration = NativeWorldConfiguration.FromFieldPacket(transition, State.FieldId), FieldRequestPacket = (State.FieldRequestPacket ?? new()).WithWorldRequest(transition).WithConsumedRequest() });
     }
 
     /// <summary>Commits live world owners. The field action must finish and capture its VM mirror before a standalone save, as with other native owner writes.</summary>
@@ -242,7 +257,7 @@ public sealed partial class GameSession : IEventServices
         {
             throw new InvalidOperationException("Prepared world event memory differs from its authenticated native selector consumption.");
         }
-        GameState candidate = departure with { Scene = SceneKind.WorldMap, WorldArrival = transition, World = initialState, FieldArrival = null, DialogueDraft = null, DebugView = null, WorldControls = expectedControls.WithWorldEntryMenuFlag(), SavedWorld = saved, EventMemory = memory, WorldConfiguration = NativeWorldConfiguration.FromFieldPacket(transition, departure.FieldId), VibrationProcess = departure.VibrationProcess is NativeVibrationProcessState queue ? queue.EndFieldCallback() with { GraphicsSpeed20409F0 = 0 } : null };
+        GameState candidate = departure with { Scene = SceneKind.WorldMap, WorldArrival = transition, World = initialState, FieldArrival = null, FieldRequestPacket = (departure.FieldRequestPacket ?? new()).WithWorldRequest(transition).WithConsumedRequest(), DialogueDraft = null, DebugView = null, WorldControls = expectedControls.WithWorldEntryMenuFlag(), SavedWorld = saved, EventMemory = memory, WorldConfiguration = NativeWorldConfiguration.FromFieldPacket(transition, departure.FieldId), VibrationProcess = departure.VibrationProcess is NativeVibrationProcessState queue ? queue.EndFieldCallback() with { GraphicsSpeed20409F0 = 0 } : null };
         candidate = AdvanceNativePlaytime(candidate);
         Validate(candidate);
         validatePrepared(candidate);
@@ -548,6 +563,7 @@ public sealed partial class GameSession : IEventServices
         ValidateMessageVariableCheckpoint(state, currentVm);
         ValidateInputConfigurationCheckpoint(state, currentVm);
         ValidatePartyMenuOwnersCheckpoint(state, currentVm);
+        ValidateFieldRequestPacketCheckpoint(state, state.Scene == SceneKind.WorldMap ? null : state.EventState);
         ValidateBattleFactsCheckpoint(state);
         return state;
     }
@@ -566,6 +582,7 @@ public sealed partial class GameSession : IEventServices
     private static void Validate(GameState state)
     {
         state.FieldLoadContext?.Validate();
+        state.FieldRequestPacket?.Validate();
         if (state.Scene == SceneKind.Field && state.FieldLoadContext is { } loadContext && loadContext.FieldId != state.FieldId)
         {
             throw new InvalidDataException("The saved native field allocation request has a different destination.");

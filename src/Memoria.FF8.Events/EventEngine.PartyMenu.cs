@@ -52,6 +52,7 @@ public sealed partial class EventEngine
         }
         try
         {
+            ValidateNativeFieldRequestPacketStorage();
             if (opcode == Jsm.Opcode.MENUNORMAL && services.WorldControls is null)
             {
                 return "MENUNORMAL requires its actual saved menu BYTE209 entry selection";
@@ -94,8 +95,36 @@ public sealed partial class EventEngine
     {
         NativeFieldMenuKind kind = opcode switch { Jsm.Opcode.MENUNORMAL => NativeFieldMenuKind.Normal, Jsm.Opcode.MENUSAVE => NativeFieldMenuKind.Save, _ => NativeFieldMenuKind.PartySelection };
         byte selection = kind == NativeFieldMenuKind.Normal ? services.WorldControls!.Menu209 : kind == NativeFieldMenuKind.Save ? (byte)1 : (byte)2;
+        PublishNativeScriptMenuRequest(kind == NativeFieldMenuKind.Normal ? (ushort)0 : kind == NativeFieldMenuKind.Save ? (ushort)24 : (ushort)1);
         partyMenu = new NativePartyMenuState(FieldId, programHash, NativeRuntimeProfile!.ExecutableHash, Frame, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, fiber.Sequence, NativePartyMenuPhase.Requested, 0, null, 0, 0, 0, null, kind, selection, 0, null, null, null, null, null);
         fiber.WaitReason = WaitReason.NativePartyMenu;
+    }
+
+    private void ValidateNativeFieldRequestPacketStorage()
+    {
+        services.FieldRequestPacket?.Validate();
+        if (services.FieldRequestPacket is not null && !services.CanStoreFieldRequestPacket)
+        {
+            throw new NotSupportedException("An executed native request cannot leave its retained physical packet unchanged through an unsupported service.");
+        }
+    }
+
+    private void PublishNativeScriptMenuRequest(ushort menuId)
+    {
+        ValidateNativeFieldRequestPacketStorage();
+        if (services.CanStoreFieldRequestPacket)
+        {
+            services.SetFieldRequestPacket((services.FieldRequestPacket ?? new NativeFieldRequestPacket()).WithScriptMenuRequest(menuId));
+        }
+    }
+
+    private void ConsumeNativeFieldRequestPacket()
+    {
+        ValidateNativeFieldRequestPacketStorage();
+        if (services.CanStoreFieldRequestPacket)
+        {
+            services.SetFieldRequestPacket((services.FieldRequestPacket ?? new NativeFieldRequestPacket()).WithConsumedRequest());
+        }
     }
 
     private NativeFieldLocation CaptureNativeMenuFieldLocation(NativePartyMenuState request)

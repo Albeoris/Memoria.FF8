@@ -800,13 +800,13 @@ public sealed partial class EventEngine
             case Jsm.Opcode.MAPJUMP:
                 args = Pop(fiber, 4);
                 transitionRequested = true;
-                services.RequestField(new Memoria.FF8.Runtime.FieldTransition((ushort)args[0], (short)args[1], (short)args[2], (ushort)parameter, (byte)args[3]));
+                services.RequestField(new Memoria.FF8.Runtime.FieldTransition((ushort)args[0], (short)args[1], (short)args[2], (ushort)parameter, (byte)args[3]), (ushort)args[3]);
                 break;
             case Jsm.Opcode.MAPJUMP3:
                 args = Pop(fiber, 5);
                 transitionRequested = true;
                 // Native 0x521B1D writes this extra word; field arrival derives height from its triangle instead.
-                services.RequestField(new Memoria.FF8.Runtime.FieldTransition((ushort)args[0], (short)args[1], (short)args[2], (ushort)parameter, (byte)args[4], (short)args[3]));
+                services.RequestField(new Memoria.FF8.Runtime.FieldTransition((ushort)args[0], (short)args[1], (short)args[2], (ushort)parameter, (byte)args[4], (short)args[3]), (ushort)args[4]);
                 break;
             case Jsm.Opcode.DISCJUMP:
                 args = ExecuteNativeDiscJump(fiber, parameter);
@@ -876,12 +876,17 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.MENUNAME:
                 int nativeNameArgument = fiber.Stack.Peek();
-                if (TryNativeGuardianForceName(nativeNameArgument, out _, out int namingGuardianForce))
+                if (TryNativeGuardianForceName(nativeNameArgument, out int namingMenuId, out int namingGuardianForce))
                 {
                     // Native521DA0 acquires through47E480 at issue, before the naming menu returns.
                     // Only flag1 changes; existing saved HP and every other GF input remain owned.
                     CommitSavedCharacters(fiber, services.CharacterVitals!.AcquireGuardianForce(namingGuardianForce), opcode);
                 }
+                else
+                {
+                    namingMenuId = nativeNameArgument switch { 0 or 1 or 2 => nativeNameArgument + 2, 20 => 28, _ => throw new NotSupportedException("Native naming requires its original supported menu selector.") };
+                }
+                PublishNativeScriptMenuRequest((ushort)namingMenuId);
                 string defaultName = GameNames.DefaultName(NativeNamingSubject(nativeNameArgument));
                 args = Pop(fiber, 1);
                 nameEntity = NativeNamingSubject(args[0]);

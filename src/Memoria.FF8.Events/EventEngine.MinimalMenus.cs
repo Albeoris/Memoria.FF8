@@ -16,6 +16,17 @@ public sealed partial class EventEngine
 {
     private string? UnsupportedMinimalMenu(Fiber fiber, JsmOperation operation)
     {
+        if (operation.Opcode is Jsm.Opcode.TUTO or Jsm.Opcode.MENUTUTO or Jsm.Opcode.MENUNAME)
+        {
+            try
+            {
+                ValidateNativeFieldRequestPacketStorage();
+            }
+            catch (Exception exception) when (exception is NotSupportedException or InvalidDataException)
+            {
+                return exception.Message;
+            }
+        }
         if (operation.Opcode is Jsm.Opcode.TUTO or Jsm.Opcode.MENUTUTO)
         {
             if (Scene.NativeTutorial is not null || PendingTripleTriad is not null || HasPendingBattle || transitionRequested || services.IsMoviePlaying || partyMenu is not null || synchronousFieldInitialization)

@@ -120,6 +120,7 @@ public sealed partial class EventEngine
         {
             try
             {
+                ValidateNativeFieldRequestPacketStorage();
                 _ = NeedsNativeSalaryTransitionReset();
                 int[] operands = fiber.Stack.Take(2).Reverse().ToArray();
                 if (UseInteractiveBattle?.Invoke(unchecked((ushort)operands[0]), unchecked((ushort)operands[1])) == true)
@@ -131,7 +132,7 @@ public sealed partial class EventEngine
                     return ValidateInteractiveBattle?.Invoke(unchecked((ushort)operands[0]), unchecked((ushort)operands[1]));
                 }
             }
-            catch (NotSupportedException exception)
+            catch (Exception exception) when (exception is NotSupportedException or InvalidDataException)
             {
                 return exception.Message;
             }
@@ -148,16 +149,25 @@ public sealed partial class EventEngine
             // Accepted native battle-scene entry5225A0 resets a live salary UI;523270's suppressed branch does not enter it.
             ResetNativeSalaryForTransition(fiber);
         }
-        if (!suppressed && services.ExamTimer is Memoria.FF8.Runtime.NativeExamTimerState timer)
+        if (!suppressed)
         {
             try
             {
-                services.SetExamTimer(timer with { SaveGlobalMask4 = (unchecked((ushort)operands[1]) & 4) != 0 });
+                NativeExamTimerState? timer = services.ExamTimer is NativeExamTimerState currentTimer ? currentTimer with { SaveGlobalMask4 = (unchecked((ushort)operands[1]) & 4) != 0 } : null;
+                if (services.CanStoreFieldRequestPacket)
+                {
+                    NativeFieldRequestPacket packet = (services.FieldRequestPacket ?? new NativeFieldRequestPacket()).WithBattleRequest(unchecked((ushort)operands[0]));
+                    services.SetNativeBattleEntryOwners(timer, packet);
+                }
+                else if (timer is not null)
+                {
+                    services.SetExamTimer(timer);
+                }
             }
             catch (NotSupportedException exception)
             {
                 fiber.Position--;
-                string message = "Native BATTLE timer service rejected its active flags WORD write; PC and operands preserved.";
+                string message = "Native BATTLE service rejected its flags or request-packet update; PC and operands preserved.";
                 LastFault = new EventFault(FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position, Jsm.Opcode.BATTLE.ToString(), message);
                 throw new EventScriptException(message, exception);
             }
@@ -196,6 +206,42 @@ public sealed partial class EventEngine
         return operands;
     }
 
+    private void PublishNativeBattleRequestPacketAfterVm()
+    {
+        NativeBattleCompletion? request = Scene.NativeBattleCompletions?.LastOrDefault(item => !item.Suppressed && item.Frame == Frame && item.ReturnFrame is null);
+        if (request is null || !services.CanStoreFieldRequestPacket || services.FieldRequestPacket is not NativeFieldRequestPacket packet)
+        {
+            return;
+        }
+        if (packet.Kind is null)
+        {
+            // Unknown arbitration cannot retain coordinates that a possible battle entry replaces.
+            services.SetFieldRequestPacket(packet.WithBattleRequest(request.Encounter, null, null, null));
+            return;
+        }
+        if (packet.Kind is not (3 or 8))
+        {
+            return;
+        }
+        short? x = null;
+        short? y = null;
+        ushort? triangle = null;
+        if (PlayerActor is ActorState leader)
+        {
+            if (ReadNativeScriptPosition(leader) is FieldFixedPosition position)
+            {
+                //4767B0 uses signed division toward zero;470250's saved pose uses SAR12.
+                x = unchecked((short)(position.X / 4096));
+                y = unchecked((short)(position.Y / 4096));
+            }
+            if (leader.WalkmeshTriangle is >= 0 and <= ushort.MaxValue)
+            {
+                triangle = (ushort)leader.WalkmeshTriangle;
+            }
+        }
+        services.SetFieldRequestPacket(packet.WithBattleRequest(request.Encounter, x, y, triangle));
+    }
+
     private void CompleteNativeBattleReturnBeforeVm()
     {
         if (Scene.NativeBattleWaits is null)
@@ -218,6 +264,10 @@ public sealed partial class EventEngine
             if (hosted && result is null)
             {
                 continue;
+            }
+            if (!request.Suppressed)
+            {
+                ConsumeNativeFieldRequestPacket();
             }
             Scene.NativeBattleCompletions[index] = request with { ReturnFrame = Frame, Result = result };
             if (result is byte outcome)

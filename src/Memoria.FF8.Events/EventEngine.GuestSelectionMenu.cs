@@ -7,6 +7,7 @@ public sealed partial class EventEngine
 {
     private void RequestGuestSelectionMenu(Fiber fiber, int argument, byte flags)
     {
+        PublishNativeScriptMenuRequest(22);
         partyMenu = new NativePartyMenuState(FieldId, programHash, NativeRuntimeProfile!.ExecutableHash, Frame, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, fiber.Sequence, NativePartyMenuPhase.Requested, 0, null, 0, 0, 0, null, NativeFieldMenuKind.GuestSelection, flags, 0, null, null, null, null, null, JunctionRawArgument: argument);
         fiber.WaitReason = WaitReason.NativePartyMenu;
     }

@@ -300,6 +300,10 @@ internal sealed partial class GameWorld : IDisposable
                 throw new InvalidDataException("The native field allocation request does not match the selected original resource.");
             }
         }
+        if (snapshot is null && session.FieldRequestPacket is { } requestPacket)
+        {
+            session.SetFieldRequestPacket(requestPacket.WithConsumedRequest());
+        }
         Events.LoadField(next.Id, next.Jsm, next.Messages, arrival, previousFieldId: snapshot is null ? session.State.PreviousFieldId : null, nativeRuntimeProfile: assets.NativeRuntimeProfile, worldEntityAllocationContext: snapshot, inheritedPlaceId: inheritedPlaceId, restoringCheckpoint: snapshot is not null, fieldLoadReason: loadContext?.Reason);
         if (next.Information is FieldInformation information)
         {

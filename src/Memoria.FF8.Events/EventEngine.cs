@@ -419,6 +419,7 @@ public sealed partial class EventEngine
         StepNativeNormalBackgroundScrollCenter();
         PublishNativeLayerZeroScrollCurrent();
         Scene.NativeBackgroundScrollCurrents = CaptureNativeBackgroundScrollCurrents(Scene, true);
+        PublishNativeBattleRequestPacketAfterVm();
         // Native4767B0 calls472B30 after VM, physical bodies and background scroll.
         if (NativeModelDrawEnabled(Scene, services.MovieSource, Frame, false))
         {
@@ -495,6 +496,10 @@ public sealed partial class EventEngine
         }
         RecordDialogueOutcome(dialogue, dialogue.FirstChoice is null ? null : choice ?? dialogue.InitialChoice ?? dialogue.FirstChoice, dialogue.IsNamePrompt ? Scene.Names[nameEntity] : null);
         CloseDialogue(dialogue.Channel);
+        if (dialogue.IsNamePrompt)
+        {
+            ConsumeNativeFieldRequestPacket();
+        }
     }
 
     public bool TalkTo(int objectId, bool cardChallenge = false)

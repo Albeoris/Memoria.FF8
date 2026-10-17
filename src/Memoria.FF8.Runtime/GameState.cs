@@ -47,6 +47,8 @@ public sealed record GameState
     public NativeMovieSource? MovieSource { get; init; }
     public FieldTransition? FieldArrival { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeFieldRequestPacket? FieldRequestPacket { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeFieldLoadContext? FieldLoadContext { get; init; }
     public WorldTransition? WorldArrival { get; init; }
     public WorldState? World { get; init; }
@@ -322,6 +324,24 @@ public interface IEventServices
     void RequestField(FieldTransition transition)
     {
         throw new NotSupportedException("Coordinate field transitions are not implemented by this event service.");
+    }
+    void RequestField(FieldTransition transition, ushort rawDirection)
+    {
+        RequestField(transition);
+    }
+    NativeFieldRequestPacket? FieldRequestPacket => null;
+    bool CanStoreFieldRequestPacket => false;
+    void SetFieldRequestPacket(NativeFieldRequestPacket packet)
+    {
+        throw new NotSupportedException("Native retained field request packet ownership is not implemented by this event service.");
+    }
+    void RequestTimerExpiredField(NativeFieldRequestPacket expected)
+    {
+        throw new NotSupportedException("Atomic native timer-expiry field requests are not implemented by this event service.");
+    }
+    void SetNativeBattleEntryOwners(NativeExamTimerState? timer, NativeFieldRequestPacket packet)
+    {
+        throw new NotSupportedException("Atomic native battle entry request ownership is not implemented by this event service.");
     }
     void ShowDialog(string text);
     void DismissDialog()

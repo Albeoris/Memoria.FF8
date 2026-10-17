@@ -71,6 +71,7 @@ public sealed partial class EventEngine
         NativeFieldFadeState restoredFade = (services.FieldFade ?? throw new NotSupportedException("Native52B9F0 requires saved/physical fade words.")).ResumeKind6();
         //4767B0's first resumed callback clears4905 and marks port0 pending before529FF0/VM.
         NativeVibrationProcessState resumedController = (services.VibrationProcess ?? throw new NotSupportedException("Native4767B0 resume requires its actual controller owner.")).MarkControllerPending(0);
+        ConsumeNativeFieldRequestPacket();
         CompleteNativeMenuFieldTail(restoredFade.SetMapFadeDisabled(false), resumedController);
         foreach (int objectId in Scene.NativeActorObjectIds)
         {
