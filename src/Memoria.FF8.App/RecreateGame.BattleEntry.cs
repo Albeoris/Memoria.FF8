@@ -24,7 +24,7 @@ internal sealed partial class RecreateGame
     private void BeginBattleEntry()
     {
         ushort flags = world!.CaptureBattleEntryFlags();
-        battleEntryTransition = world.CreateBattleEntryTransition();
+        NativeBattleEntryTransition transition = world.CreateBattleEntryTransition();
         int formation = session.State.PendingBattleEncounter!.Formation;
         NativeBattleMusicEntryPreparation music = world.BeginBattleEntryMusic(formation, flags);
         BattleAtbMode mode = session.State.GameplayPreferences.AtbMode;
@@ -59,6 +59,7 @@ internal sealed partial class RecreateGame
             EnsureLiveMenuCatalog();
             return new PreparedBattlePresentation(prepared, scene, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         });
+        battleEntryTransition = transition;
     }
 
     private void UpdateBattleEntry(GameTime gameTime)
@@ -102,7 +103,7 @@ internal sealed partial class RecreateGame
             SynchronizeBattleAudio();
             Console.WriteLine(FormattableString.Invariant($"battle-entry preparation-ms={prepared.PreparationMilliseconds:F3} transition-ms={Stopwatch.GetElapsedTime(battleEntryStarted).TotalMilliseconds:F3}"));
         }
-        catch (Exception exception) when (exception is Memoria.FF8.Events.EventScriptException or NotSupportedException or InvalidDataException or InvalidOperationException)
+        catch (Exception exception) when (exception is Memoria.FF8.Events.EventScriptException or NotSupportedException or IOException or InvalidDataException or InvalidOperationException or ArgumentException)
         {
             fieldFaulted = true;
             error = exception.Message;
@@ -120,9 +121,9 @@ internal sealed partial class RecreateGame
 
     private void DrawBattleEntry(GameTime gameTime)
     {
-        if (battleEntryRenderedCounter != battleEntryTransition!.Counter)
+        while (battleEntryRenderedCounter < battleEntryTransition!.Counter)
         {
-            RenderBattleEntryCallback();
+            RenderBattleEntryCallback(battleEntryTransition.Sample(battleEntryRenderedCounter + 1));
         }
         Rectangle bounds = GraphicsDevice.Viewport.Bounds;
         PixelBounds fit = ViewportLayout.Fit(640, 480, bounds.Width, bounds.Height);
@@ -135,9 +136,8 @@ internal sealed partial class RecreateGame
         metrics.Draw();
     }
 
-    private void RenderBattleEntryCallback()
+    private void RenderBattleEntryCallback(NativeBattleEntryTransitionFrame frame)
     {
-        NativeBattleEntryTransitionFrame frame = battleEntryTransition!.Current;
         RenderTargetBinding[] previousTargets = GraphicsDevice.GetRenderTargets();
         Rectangle previousScissor = GraphicsDevice.ScissorRectangle;
         GraphicsDevice.SetRenderTarget(battleEntryNext);

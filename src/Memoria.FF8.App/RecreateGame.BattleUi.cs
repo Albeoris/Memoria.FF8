@@ -57,7 +57,7 @@ internal sealed partial class RecreateGame
         {
             return UpdateBattleCore(elapsed, input);
         }
-        catch (Exception exception) when (exception is Memoria.FF8.Events.EventScriptException or NotSupportedException or InvalidDataException or InvalidOperationException)
+        catch (Exception exception) when (exception is Memoria.FF8.Events.EventScriptException or NotSupportedException or IOException or InvalidDataException or InvalidOperationException or ArgumentException)
         {
             fieldFaulted = true;
             error = exception.Message;

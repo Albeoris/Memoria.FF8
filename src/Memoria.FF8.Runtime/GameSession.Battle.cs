@@ -101,12 +101,13 @@ public sealed partial class GameSession
 
     public void PublishNativeBattleEntryMusic(NativeBattleMusicEntryPreparation entry)
     {
-        if (State.PendingBattleEncounter is null || State.Battle is not null)
+        if (State.PendingBattleEncounter is not { } pending || entry.Receipt.Encounter != pending.Formation || State.Battle is not null)
         {
             throw new InvalidOperationException("Battle entry music requires its pending encounter before combat publication.");
         }
         entry.MusicProcess.Validate();
         entry.SoundProcess.Validate();
+        entry.Receipt.Validate();
         NativeBattleRetainedMemory memory = State.NativeBattleMemory ?? throw new NotSupportedException("Battle entry music requires its retained process memory.");
         State = State with { NativeBattleMemory = memory with { MusicProcess = entry.MusicProcess }, GlobalSoundProcess = entry.SoundProcess };
     }
