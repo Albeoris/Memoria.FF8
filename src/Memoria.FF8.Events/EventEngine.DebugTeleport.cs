@@ -87,7 +87,20 @@ public sealed partial class EventEngine
             throw new InvalidOperationException("Diagnostic placement requires a free controlled field leader.");
         }
         ActorState player = PlayerActor!;
-        FieldFixedPosition raw = new(checked((int)MathF.Round(x * 4096)), checked((int)MathF.Round(y * 4096)), checked((int)MathF.Round(z * 4096)));
+        int fixedX = checked((int)MathF.Round(x * 4096));
+        int fixedY = checked((int)MathF.Round(y * 4096));
+        int fixedZ = checked((int)MathF.Round(z * 4096));
+        if (Scene.NativePartyTraceVersion == 1)
+        {
+            int height = ResolveNativeTriangleHeight?.Invoke(triangle, fixedX / 4096, fixedY / 4096) ?? throw new NotSupportedException("Native diagnostic placement requires the selected original triangle plane.");
+            if (height is < short.MinValue or > short.MaxValue)
+            {
+                throw new NotSupportedException("Native diagnostic placement requires a signed-WORD plane height.");
+            }
+            // Native player ground placement retains fixed XY and publishes the integer47A680 plane height.
+            fixedZ = height << 12;
+        }
+        FieldFixedPosition raw = new(fixedX, fixedY, fixedZ);
         x = raw.X / 4096f;
         y = raw.Y / 4096f;
         z = raw.Z / 4096f;
