@@ -155,14 +155,6 @@ public static class NativeBattleCuragaNodeEngine
 
     internal static void WalkList(Func<NativeBattleCuragaNodeMemory> readMemory, Action<int, short> advance)
     {
-        NativeBattleCuragaNodeMemory memory = readMemory();
-        uint pointer = memory.ContextDword(0x2C);
-        while (pointer != 0)
-        {
-            int node = memory.Offset(pointer);
-            advance(node, unchecked((short)memory.Word(node + 8)));
-            memory = readMemory();
-            pointer = memory.Dword(node + 4);
-        }
+        NativeBattleEffectNodeAllocation.WalkList(() => readMemory(), advance);
     }
 }

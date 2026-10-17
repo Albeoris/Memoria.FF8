@@ -22,6 +22,7 @@ internal static partial class Program
     private static void NativeMusicLoadContract()
     {
         NativeBattleMusicEntryContract();
+        NativeBattleFieldReturnContract();
         NativeMusicSkipContract();
         byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 300), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.FADENONE, 0), (Jsm.Opcode.MUSICCHANGE, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
         (GameSession Session, EventEngine Engine) Fresh(byte[]? bytes = null)

@@ -178,7 +178,7 @@ public sealed class NativeBattleRestorationControllerTests
         Assert.Contains(frame.Effect.Pools[3].Slots, task => task.Callback == profile.FadeOutCallback);
     }
 
-    private static (NativeBattleRestorationFrame Frame, NativeBattleRestorationControllerInputs Inputs) Fixture(ushort effect, byte targets = 1)
+    internal static (NativeBattleRestorationFrame Frame, NativeBattleRestorationControllerInputs Inputs) Fixture(ushort effect, byte targets = 1)
     {
         NativeBattleRestorationProfile profile = NativeBattleRestorationProfile.ForEffect(effect);
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();

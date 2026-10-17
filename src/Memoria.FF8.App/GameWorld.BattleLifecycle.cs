@@ -64,11 +64,21 @@ internal sealed partial class GameWorld
     private void CompleteBattle(BattleSession active)
     {
         BattleEncounterOccurrence occurrence = session.State.PendingBattleEncounter ?? throw new InvalidOperationException("A live battle has no owned encounter occurrence.");
+        if (occurrence.ScriptedOwner is not null)
+        {
+            // No current producer publishes this completion: refuse before rewards, music or the suspended VM change.
+            _ = Events.RequireNativeBattleFieldReload(active.NativeResult ?? throw new InvalidOperationException("Active battle has no native return result."));
+        }
         BattleResult result = CaptureBattleOutcome(active, occurrence);
         PublishBattleSnapshot(active);
         if (occurrence.ScriptedOwner is not null)
         {
-            Events.ReturnFromInteractiveBattle(checked((int)active.Frame), () => ApplyBattleResult(occurrence, result), active.NativeResult!.Value);
+            Events.ReturnFromInteractiveBattle(checked((int)active.Frame), () =>
+            {
+                ApplyBattleResult(occurrence, result);
+                EventEngine.PreparedNativeBattleFieldReturn prepared = Events.PrepareNativeBattleFieldReturn(active.NativeMusicProcess ?? throw new NotSupportedException("Native battle return requires its live physical music owner."), active.Capture().Definition.NativeFlags, active.NativeResult!.Value, BattleMusicEntryResources);
+                Events.CommitNativeBattleFieldReturn(prepared);
+            }, active.NativeResult!.Value);
         }
         else
         {

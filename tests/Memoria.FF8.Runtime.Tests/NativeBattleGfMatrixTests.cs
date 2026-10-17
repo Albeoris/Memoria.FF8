@@ -38,7 +38,7 @@ public sealed class NativeBattleGfMatrixTests
         NativeBattleActionMatrix direct = NativeBattleGfMatrices.Compose6C6060(Node(0x200, new(0, 0, 0), new(4096, 4096, 4096)), view, null, new(1, 2, 3));
         Assert.Equal((113, 222, 329), (direct.X, direct.Y, direct.Z));
         Assert.Equal(Identity.Rotation.ToArray(), direct.Rotation.ToArray());
-        Assert.Throws<NotSupportedException>(() => NativeBattleGfMatrices.Compose6C6060(Node(0x40000, new(0, 0, 0), new(4096, 4096, 4096)), Identity, Identity, new(0, 0, 0)));
+        Assert.Equal(Identity.Rotation.ToArray(), NativeBattleGfMatrices.Compose6C6060(Node(0x40000, new(0, 0, 0), new(4096, 4096, 4096)), Identity, Identity, new(0, 0, 0)).Rotation.ToArray());
     }
 
     [Fact]

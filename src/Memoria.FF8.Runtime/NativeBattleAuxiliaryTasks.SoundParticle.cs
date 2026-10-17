@@ -23,6 +23,7 @@ public sealed record NativeBattleAuxiliaryInputs
     public Func<int, NativeBattleGraphicsModel>? ReadModel { get; init; }
     public Action<int, byte, byte>? ApplyTexture { get; init; }
     public Action<int>? RestoreTextureBlink { get; init; }
+    public Func<byte, uint, (byte Phase, bool Completed)>? AdvanceMusicLoad501A70 { get; init; }
 }
 
 public sealed partial record NativeBattleAuxiliaryState

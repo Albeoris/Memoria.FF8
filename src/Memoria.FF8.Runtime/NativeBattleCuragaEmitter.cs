@@ -10,7 +10,7 @@ public static partial class NativeBattleCuragaNodeKinematics
     {
         NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
         byte[] source = ReadSource(memory, frame.Memory, unchecked((sbyte)memory.Byte(node + 0x6A)));
-        InitializeEmitter(memory, node, source, readModel);
+        InitializeEmitter(memory, node, source, readModel, frame.Memory.CuragaExecutable!);
         return memory.Flush();
     }
 
@@ -22,7 +22,7 @@ public static partial class NativeBattleCuragaNodeKinematics
         return memory.Flush();
     }
 
-    internal static void InitializeEmitter(NativeBattleCuragaNodeMemory memory, int node, ReadOnlySpan<byte> source, Func<int, NativeBattleGraphicsModel> readModel)
+    internal static void InitializeEmitter(NativeBattleCuragaNodeMemory memory, int node, ReadOnlySpan<byte> source, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCuragaExecutableState bank)
     {
         memory.Byte(node + 0x68, source[0x11]);
         uint parentPointer = memory.Dword(node + 0x5C);
@@ -66,7 +66,8 @@ public static partial class NativeBattleCuragaNodeKinematics
                 FollowParent(memory, node, source);
                 break;
             case 4:
-                throw new NotSupportedException("Native8822A0 requires its original two animated anchor channels and interpolation contract.");
+                FollowAnimatedAnchor(memory, node, source, bank);
+                break;
         }
         memory.Word(node + 0x64, unchecked((ushort)(short)(sbyte)source[0x12]));
     }

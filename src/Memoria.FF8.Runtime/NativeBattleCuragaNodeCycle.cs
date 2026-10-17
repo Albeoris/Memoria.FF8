@@ -43,7 +43,7 @@ public static partial class NativeBattleCuragaNodeKinematics
     {
         if (memory.Word(node + 0x62) == 0)
         {
-            InitializeEmitter(memory, node, source, readModel);
+            InitializeEmitter(memory, node, source, readModel, bank);
             memory.Word(node + 0x62, unchecked((ushort)(memory.Word(node + 0x62) + 1)));
         }
         switch (memory.Byte(node + 0x68))
@@ -52,7 +52,8 @@ public static partial class NativeBattleCuragaNodeKinematics
                 FollowParent(memory, node, source);
                 break;
             case 4:
-                throw new NotSupportedException("Native8817A0 mode4 requires8822A0's original animated anchor owner.");
+                FollowAnimatedAnchor(memory, node, source, bank);
+                break;
         }
         EmitGeometry(memory, node, source, bank, ref random);
         memory.Word(node + 0x60, unchecked((ushort)(memory.Word(node + 0x60) + 1)));

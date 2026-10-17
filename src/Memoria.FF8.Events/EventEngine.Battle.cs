@@ -279,6 +279,13 @@ public sealed partial class EventEngine
 
     private void ValidateNativeBattleCheckpoint(Checkpoint saved, IReadOnlyDictionary<long, Fiber> bySequence)
     {
+        saved.Scene.NativeBattleFieldReload?.Validate();
+        saved.Scene.NativeBattleFieldReturn?.Reload.Validate();
+        saved.Scene.NativeBattleFieldReturn?.Music.Validate();
+        if (saved.Scene.NativeBattleFieldReload is { } reload && (reload.FieldId != saved.FieldId || reload.ProgramHash != saved.ProgramHash || saved.Scene.NativeBattleCompletions?.Count(completion => completion.Backend == NativeBattleBackend.Interactive && completion.ReturnFrame is null && completion.Result is null && completion.Frame == reload.BattleEntryFrame) != 1))
+        {
+            throw new InvalidDataException("Native kind3 reload completion lost its actual suspended field/battle source.");
+        }
         ValidateNativeBattleModeCheckpoint(saved);
         if (saved.Scene.NativeBattleCompletions is null)
         {

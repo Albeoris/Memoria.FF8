@@ -4,6 +4,25 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleQuezacotlRibbonProducerTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void SecondaryBankUsesTheActualPairControlAndNarrowProducerOperands(int pair)
+    {
+        var (memory, effect) = Fixture();
+        NativeBattleQuezacotlRibbonSpawn spawned = NativeBattleQuezacotlRibbonProducer.Spawn6C87B0(memory, effect, checked(0x12AF800u + (uint)pair * 8), 0x12AF828, 44, 35, -17);
+        byte[] task = spawned.Memory.Arena!.Read(0x3BA5C, 128);
+        Assert.Equal(checked(0x12AF800u + (uint)pair * 8), BinaryPrimitives.ReadUInt32LittleEndian(task.AsSpan(0x14)));
+        Assert.Equal(0x12AF828u, BinaryPrimitives.ReadUInt32LittleEndian(task.AsSpan(0x18)));
+        Assert.Equal((short)-17, BinaryPrimitives.ReadInt16LittleEndian(task.AsSpan(0x10)));
+        Assert.Equal((byte)44, task[0x12]);
+        Assert.Equal((byte)35, task[0x13]);
+        Assert.Equal(0x20DFB7Cu, BinaryPrimitives.ReadUInt32LittleEndian(task.AsSpan(0x1C)));
+    }
+
     [Fact]
     public void ProducerWritesEveryFinalByteWithoutReadingUnknownOldPayload()
     {

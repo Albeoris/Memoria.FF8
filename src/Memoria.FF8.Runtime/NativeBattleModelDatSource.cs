@@ -8,26 +8,7 @@ public sealed record NativeBattleModelDatSource(byte ModelId, bool Linked, byte 
 {
     public int Section(int index)
     {
-        if (Bytes.IsDefault || Bytes.Length < 8)
-        {
-            throw new InvalidDataException("Native model loader requires its complete original DAT.");
-        }
-        int count = BinaryPrimitives.ReadInt32LittleEndian(Bytes.AsSpan());
-        if (count is < 1 or > 16 || Bytes.Length < 8 + count * 4 || BinaryPrimitives.ReadInt32LittleEndian(Bytes.AsSpan().Slice(4 + count * 4)) != Bytes.Length || index < 0 || index > count)
-        {
-            throw new InvalidDataException("Native model DAT directory is unbounded or its declared length disagrees.");
-        }
-        int previous = 8 + count * 4;
-        for (int section = 0; section < count; section++)
-        {
-            int offset = BinaryPrimitives.ReadInt32LittleEndian(Bytes.AsSpan().Slice(4 + section * 4));
-            if (offset < previous || offset > Bytes.Length)
-            {
-                throw new InvalidDataException("Native model DAT has an invalid section offset.");
-            }
-            previous = offset;
-        }
-        return index == count ? Bytes.Length : BinaryPrimitives.ReadInt32LittleEndian(Bytes.AsSpan().Slice(4 + index * 4));
+        return NativeBattleDatDirectory.Section(Bytes.AsSpan(), index);
     }
 
     public NativeBattleEffectHeapAllocation TexturePack(uint callback)

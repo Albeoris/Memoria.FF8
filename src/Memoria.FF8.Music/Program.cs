@@ -28,6 +28,12 @@ internal static class MusicProgram
                         case "Stop":
                             output.Stop();
                             break;
+                        case "Pause":
+                            output.Pause();
+                            break;
+                        case "Resume":
+                            output.Resume();
+                            break;
                         case "Playing":
                             Reply(output.IsPlaying);
                             continue;

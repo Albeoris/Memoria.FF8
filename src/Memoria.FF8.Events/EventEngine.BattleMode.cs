@@ -9,7 +9,8 @@ public enum NativeBattleFlagWriter
     Battle,
     FieldLoad,
     DisplayTimer,
-    KillTimer
+    KillTimer,
+    FieldBattleReturn
 }
 
 public sealed record NativeBattleFlagWrite(int Version, NativeBattleFlagWriter Writer, int FieldId, string ProgramHash, long Frame, int ObjectId, int ScriptId, int Operation, int? RawOperand, ushort PersistentFlags, ushort ActiveFlags);
@@ -139,7 +140,7 @@ public sealed partial class EventEngine
                 persistent = prior.PersistentFlags;
                 active = unchecked((ushort)rawBattle);
             }
-            else if (write.Writer == NativeBattleFlagWriter.FieldLoad)
+            else if (write.Writer is NativeBattleFlagWriter.FieldLoad or NativeBattleFlagWriter.FieldBattleReturn && write.RawOperand is null)
             {
                 persistent = active = prior.PersistentFlags;
             }
@@ -169,6 +170,7 @@ public sealed partial class EventEngine
             {
                 NativeBattleFlagWriter.BattleMode => Jsm.Opcode.BATTLEMODE,
                 NativeBattleFlagWriter.Battle => Jsm.Opcode.BATTLE,
+                NativeBattleFlagWriter.FieldBattleReturn => Jsm.Opcode.BATTLE,
                 NativeBattleFlagWriter.DisplayTimer => Jsm.Opcode.DISPTIMER,
                 _ => Jsm.Opcode.KILLTIMER
             };

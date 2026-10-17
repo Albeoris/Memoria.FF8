@@ -44,10 +44,17 @@ public sealed class NativeBattleGuardianContinuationTests
                 NotSupportedException repeated = Assert.Throws<NotSupportedException>(() => clone.AdvanceNativeGraphicsPresentation(callback));
                 Assert.Equal(exception.Message, repeated.Message);
                 Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-                Assert.True(before.Frame > snapshot.Frame, "The standalone continuation must make progress before its next unsupported boundary.");
+                Assert.True(before.NativeGraphics.Callback > snapshot.NativeGraphics.Callback && before.Frame >= snapshot.Frame, "The standalone continuation must advance actual graphics callbacks without rolling back the battle frame before its next unsupported boundary.");
                 if (snapshot.NativeGraphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12) <= 73 && phase > 73)
                 {
                     Assert.True(sawPhase73Flash);
+                }
+                if (snapshot.NativeGraphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12) == 207 && phase > 212)
+                {
+                    BattleEvent[] newEvents = battle.Events.Skip(snapshot.Events.Length).ToArray();
+                    Assert.Single(newEvents, item => item.NativeModuleSound is { Sound: 240072, Flags: 1, Pan: 128 });
+                    int loadedStream = snapshot.NativeEffectMemory!.SummonStream!.Number!.Value;
+                    Assert.DoesNotContain(newEvents, item => item.NativeModuleSound is { Flags: 0 } sound && sound.Sound == unchecked((uint)loadedStream));
                 }
                 using FileStream stream = new(output!, FileMode.CreateNew, FileAccess.Write);
                 JsonSerializer.Serialize(stream, before);

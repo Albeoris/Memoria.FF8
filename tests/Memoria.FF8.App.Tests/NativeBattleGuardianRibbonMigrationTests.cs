@@ -29,7 +29,7 @@ public sealed class NativeBattleGuardianRibbonMigrationTests
         NativeBattleQuezacotlResources authenticated = game.ReadNativeQuezacotlResources();
         Assert.NotNull(authenticated.Ribbon);
         authenticated.Ribbon.Validate();
-        Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(authenticated with { Ribbon = null, AnchorVertexIndices11 = retained.AnchorVertexIndices11 }));
+        Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(authenticated with { Ribbon = null, AnchorVertexIndices11 = retained.AnchorVertexIndices11, Frame209Sound = retained.Frame209Sound }));
         int index = effect.Binding.Effect - 1;
         NativeBattleEffectBinding catalog = original.Definition.NativeEffectCatalog[index];
         Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(catalog.NativeQuezacotlResources));

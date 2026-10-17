@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.Text;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
@@ -38,15 +37,8 @@ public sealed partial class BattleAssets
         {
             throw new NotSupportedException("Native party file selector has no nonnegative original resource ID.");
         }
-        uint nameAddress = BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleEffectStaticResourcesReader.Read(executable, checked(0xB84CCC + (uint)fileId * 4), 4).AsSpan());
-        byte[] nameBytes = NativeBattleEffectStaticResourcesReader.Read(executable, nameAddress, 128).ToArray();
-        int end = Array.IndexOf(nameBytes, (byte)0);
-        if (end <= 0)
-        {
-            throw new InvalidDataException("Native model file-name table lacks a bounded original name.");
-        }
-        string name = Encoding.ASCII.GetString(nameBytes, 0, end).ToLowerInvariant();
-        NativeBattleModelDatSource result = new(modelId, linked, observedSelector, fileId, name, System.Collections.Immutable.ImmutableArray.CreateRange(Read(name)));
+        NativeBattleArchiveFile file = ReadNativeBattleFile(checked((ushort)fileId));
+        NativeBattleModelDatSource result = new(modelId, linked, observedSelector, fileId, file.Name, file.Bytes);
         _ = result.Section(0);
         return result;
     }

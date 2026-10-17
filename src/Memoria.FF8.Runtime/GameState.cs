@@ -175,6 +175,12 @@ public interface IEventServices
         throw new NotSupportedException("Native saved shop history ownership is not implemented by this service.");
     }
 
+    bool CanStoreNativeBattleFieldReturn => false;
+    void SetNativeBattleFieldReturn(NativeBattleFieldReturnOwners owners)
+    {
+        throw new NotSupportedException("This service cannot atomically publish native battle field-return owners.");
+    }
+
     NativeFieldFadeState? FieldFade => null;
     bool CanStoreFieldFade => false;
     void SetFieldFade(NativeFieldFadeState fade)

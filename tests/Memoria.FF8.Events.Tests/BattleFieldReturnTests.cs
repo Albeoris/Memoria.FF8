@@ -1,0 +1,62 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Assets;
+using Memoria.FF8.Events;
+using Memoria.FF8.Runtime;
+
+namespace Memoria.FF8.Events.Tests;
+
+internal static partial class Program
+{
+    private static void NativeBattleFieldReturnContract()
+    {
+        NativeBattleMusicEntryResources resources = new NativeMusicCatalog(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII").ReadBattleEntryResources();
+        GameSession session = CreateNativeMusicSession();
+        byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.BATTLEMODE, 0), (Jsm.Opcode.PSHN_L, 94), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.BATTLE, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_W, 800), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
+        EventEngine engine = new(session) { UseInteractiveBattle = (_, _) => true, ValidateInteractiveBattle = (_, _) => null };
+        engine.LoadField(74, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        while (engine.PendingInteractiveBattle is null && engine.Frame < 4)
+        {
+            engine.Step();
+        }
+        NativeBattleCompletion battle = engine.PendingInteractiveBattle ?? throw new InvalidOperationException("Return protocol fixture did not suspend BATTLE.");
+        string before = engine.Capture().GetRawText();
+        try
+        {
+            engine.RequireNativeBattleFieldReload(4);
+            throw new InvalidOperationException("Paused VM was treated as actual kind3 resource completion.");
+        }
+        catch (NotSupportedException exception) when (exception.Message.Contains("actual471F70", StringComparison.Ordinal))
+        {
+        }
+        Require(engine.Capture().GetRawText() == before && !session.State.Variables.ContainsKey(800), "Missing actual kind3 producer changed the suspended VM.");
+        PreparedNativeBattleMusicEntry entry = engine.PrepareNativeBattleMusicEntry(94, 0, resources);
+        engine.CommitNativeBattleMusicEntry(entry, candidate => session.SetGlobalSoundProcess(candidate.SoundProcess));
+        JsonNode declared = JsonNode.Parse(engine.Capture().GetRawText())!;
+        // Controlled post-loader protocol component only: no claim that the unimplemented live kind3 loader executed.
+        declared["Scene"]!["NativeBattleFieldReload"] = JsonSerializer.SerializeToNode(new NativeBattleFieldReloadCompletion(1, NativeFieldRuntimeProfile.FF8EnExecutableHash, 74, declared["ProgramHash"]!.GetValue<string>(), battle.Frame, 4));
+        declared["Scene"]!["MusicChannel108"] = JsonSerializer.SerializeToNode(new NativeMusicChannelState(-1, 7));
+        engine.Restore(JsonSerializer.SerializeToElement(declared));
+        int output = 0;
+        engine.AudioCommandExecuted += command =>
+        {
+            if (command is NativeBattleMusicReturnReceipt)
+            {
+                output++;
+            }
+        };
+        EventEngine.PreparedNativeBattleFieldReturn prepared = engine.PrepareNativeBattleFieldReturn(entry.Native.MusicProcess, 0, 4, resources);
+        engine.CommitNativeBattleFieldReturn(prepared);
+        Require(output == 1 && engine.Scene.MusicChannel108 is { ChannelId: 0, MusicId: 7 } && engine.Scene.NativeBattleFieldReload is null && ReferenceEquals(engine.Scene.MusicProcess, session.State.NativeBattleMemory!.MusicProcess!.Buffers) && !session.State.Variables.ContainsKey(800), "Prepared return lost atomic root/Scene ownership,199, or ran VM before publication.");
+        JsonElement paused = engine.Capture();
+        GameSession independent = CloneMusicSession(session.State);
+        EventEngine clone = new(independent) { UseInteractiveBattle = (_, _) => true, ValidateInteractiveBattle = (_, _) => null };
+        clone.LoadField(74, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        clone.Restore(paused);
+        Require(JsonElement.DeepEquals(paused, clone.Capture()), "Committed field-return protocol did not preserve its exact independent snapshot.");
+        engine.ReturnFromInteractiveBattle(0, nativeResult: 4);
+        clone.ReturnFromInteractiveBattle(0, nativeResult: 4);
+        Require(session.State.Variables[800] == 77 && JsonElement.DeepEquals(engine.Capture(), clone.Capture()) && output == 1, "VM did not resume after committed return or restore replayed output.");
+    }
+}

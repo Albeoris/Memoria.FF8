@@ -7,6 +7,18 @@ public static class NativeBattleGfMatrices
 {
     public static NativeBattleActionMatrix Euler701310(NativeBattleVector angles)
     {
+        (NativeBattleActionMatrix x, NativeBattleActionMatrix y, NativeBattleActionMatrix z) = AxisMatrices(angles);
+        return Multiply56C090(Multiply56C090(z, x), y);
+    }
+
+    public static NativeBattleActionMatrix Euler7015B0(NativeBattleVector angles)
+    {
+        (NativeBattleActionMatrix x, NativeBattleActionMatrix y, NativeBattleActionMatrix z) = AxisMatrices(angles);
+        return Multiply56C090(Multiply56C090(y, x), z);
+    }
+
+    private static (NativeBattleActionMatrix X, NativeBattleActionMatrix Y, NativeBattleActionMatrix Z) AxisMatrices(NativeBattleVector angles)
+    {
         short sx = unchecked((short)NativeBattleCameraMath.Sine(angles.X));
         short cx = unchecked((short)NativeBattleCameraMath.Cosine(angles.X));
         short sy = unchecked((short)NativeBattleCameraMath.Sine(-(int)angles.Y));
@@ -16,7 +28,7 @@ public static class NativeBattleGfMatrices
         NativeBattleActionMatrix x = new([4096, 0, 0, 0, cx, sx, 0, unchecked((short)-sx), cx], 0, 0, 0, 4096);
         NativeBattleActionMatrix y = new([cy, 0, unchecked((short)-sy), 0, 4096, 0, sy, 0, cy], 0, 0, 0, 4096);
         NativeBattleActionMatrix z = new([cz, sz, 0, unchecked((short)-sz), cz, 0, 0, 0, 4096], 0, 0, 0, 4096);
-        return Multiply56C090(Multiply56C090(z, x), y);
+        return (x, y, z);
     }
 
     public static NativeBattleActionMatrix Multiply56C090(NativeBattleActionMatrix left, NativeBattleActionMatrix right)
@@ -56,12 +68,8 @@ public static class NativeBattleGfMatrices
     }
     public static NativeBattleActionMatrix Compose6C6060(NativeBattleGfAnimationNode node, NativeBattleActionMatrix view, NativeBattleActionMatrix? billboard, NativeBattleVector basePosition)
     {
-        if ((node.Header & 0x40000) != 0)
-        {
-            throw new NotSupportedException("Native6C6060 quaternion node requires its original7015B0 rotation contract.");
-        }
         NativeBattleActionMatrix basis = (node.Header & 0x1000) != 0 ? billboard ?? throw new NotSupportedException("Native6C6060 billboard node requires its executed67AAE0 matrix.") : view;
-        NativeBattleActionMatrix rotation = Euler701310(node.Vector16);
+        NativeBattleActionMatrix rotation = (node.Header & 0x40000) != 0 ? Euler7015B0(node.Vector16) : Euler701310(node.Vector16);
         NativeBattleVector scale = node.Vector24;
         if (scale is not { X: 4096, Y: 4096, Z: 4096 })
         {
@@ -91,16 +99,20 @@ public static class NativeBattleGfMatrices
         return rotation with { X = unchecked(Row(0) + view.X), Y = unchecked(Row(1) + view.Y), Z = unchecked(Row(2) + view.Z) };
     }
 
+    public static NativeBattleActionMatrix LaterWindowContext6C64C0(NativeBattleActionMatrix view, int pitch, int yaw, NativeBattleVector target)
+    {
+        NativeBattleActionMatrix local = Multiply56C090(Euler701310(new(0, unchecked((short)yaw), 0)), Euler701310(new(unchecked((short)pitch), 0, 0)));
+        NativeBattleActionMatrix rotation = Multiply56C090(view, local);
+        (int x, int y, int z) = RotateLong56C600(view, target.X, target.Y, target.Z);
+        return rotation with { X = unchecked(view.X + x), Y = unchecked(view.Y + y), Z = unchecked(view.Z + z) };
+    }
+
     public static NativeBattleActionMatrix Compose6C53A0(NativeBattleGfAnimationNode node, NativeBattleActionMatrix context, NativeBattleActionMatrix? billboard)
     {
-        if ((node.Header & 0x40000) != 0)
-        {
-            throw new NotSupportedException("Native6C53A0 quaternion node requires its original7015B0 rotation contract.");
-        }
         bool billboardNode = (node.Header & 0x1000) != 0;
         bool direct = !billboardNode && (node.Header & 0x200) != 0;
         NativeBattleActionMatrix basis = billboardNode ? billboard ?? throw new NotSupportedException("Native6C53A0 billboard node requires its executed67AAE0 matrix.") : context;
-        NativeBattleActionMatrix rotation = Euler701310(node.Vector16);
+        NativeBattleActionMatrix rotation = (node.Header & 0x40000) != 0 ? Euler7015B0(node.Vector16) : Euler701310(node.Vector16);
         if (!direct && (node.Header & 0x8000) == 0)
         {
             rotation = Multiply56C090(basis, rotation);

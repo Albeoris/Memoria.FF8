@@ -25,7 +25,8 @@ public static class NativeBattleQuezacotlRibbonResourcesReader
         ImmutableArray<byte> particleScale = NativeBattleEffectStaticResourcesReader.Read(executable, 0x12B4770, 8192);
         NativeBattleQuezacotlRibbonResources resources = new(pairs, NativeBattleEffectStaticResourcesReader.Read(executable, 0x12AE840, checked(maximum * 24)), Enumerable.Range(0, 256).Select(index => BinaryPrimitives.ReadUInt16LittleEndian(squareRoot.AsSpan().Slice(index * 2))).ToImmutableArray(), NativeBattleEffectStaticResourcesReader.Read(executable, 0x12B05F0, 0x4000))
         {
-            ParticleScaleWords4096 = Enumerable.Range(0, 4096).Select(index => BinaryPrimitives.ReadInt16LittleEndian(particleScale.AsSpan().Slice(index * 2))).ToImmutableArray()
+            ParticleScaleWords4096 = Enumerable.Range(0, 4096).Select(index => BinaryPrimitives.ReadInt16LittleEndian(particleScale.AsSpan().Slice(index * 2))).ToImmutableArray(),
+            SecondaryBank = new(0x12AF800, 0x12AF828, NativeBattleEffectStaticResourcesReader.Read(executable, 0x12AF800, 40), NativeBattleEffectStaticResourcesReader.Read(executable, 0x12AF828, 65 * 24))
         };
         resources.Validate();
         return resources;

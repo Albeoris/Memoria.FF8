@@ -30,6 +30,8 @@ internal sealed class DirectMusicOutput : IDisposable
     public void Play(string path, int volume, int startPoint = 0) => Send(new { Command = "Play", Path = path, Volume = volume, StartPoint = startPoint });
     public void Volume(int hundredthDecibels) => Send(new { Command = "Volume", Volume = hundredthDecibels });
     public void Stop() => Send(new { Command = "Stop" });
+    public void Pause() => Send(new { Command = "Pause" });
+    public void Resume() => Send(new { Command = "Resume" });
     public bool IsPlaying => Send(new { Command = "Playing" });
 
     private bool Send(object command)

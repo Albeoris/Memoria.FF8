@@ -43,6 +43,7 @@ public sealed partial class EventEngine
         }
         Scene.MusicProcess = previous.MusicProcess;
         Scene.NativeBattleMusicEntry = previous.NativeBattleMusicEntry;
+        Scene.NativeBattleFieldReturn = previous.NativeBattleFieldReturn;
         Scene.NativeBattleMusic203 = previous.NativeBattleMusic203;
         Scene.MusicLoadRequest = previous.MusicLoadRequest;
         Scene.MusicPlayRequest = previous.MusicPlayRequest;

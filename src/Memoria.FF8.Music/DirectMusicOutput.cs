@@ -9,6 +9,8 @@ internal sealed class DirectMusicOutput : IDisposable
     private nint performance;
     private nint collection;
     private nint segment;
+    private nint segmentState;
+    private bool paused;
     private bool uninitialize;
 
     public DirectMusicOutput(nint window, string directory)
@@ -45,11 +47,41 @@ internal sealed class DirectMusicOutput : IDisposable
         WindowsAudioCom.Check(WindowsAudioCom.Method<ObjectArgument>(segment, 29)(segment, performance));
         WindowsAudioCom.Check(WindowsAudioCom.Method<IntegerArgument>(segment, 21)(segment, startPoint));
         Volume(volume);
-        WindowsAudioCom.Check(WindowsAudioCom.Method<PlaySegment>(performance, 4)(performance, segment, 2048, 0, out nint state));
-        WindowsAudioCom.Release(ref state);
+        WindowsAudioCom.Check(WindowsAudioCom.Method<PlaySegment>(performance, 4)(performance, segment, 2048, 0, out segmentState));
     }
 
     public bool IsPlaying => segment != 0 && WindowsAudioCom.Method<Playing>(performance, 14)(performance, segment, 0) == 0;
+
+    public void Pause()
+    {
+        if (segment == 0 || paused)
+        {
+            return;
+        }
+        if (segmentState == 0)
+        {
+            throw new InvalidOperationException("DirectMusic pause requires the current segment state.");
+        }
+        //46F300 retains the musical cursor on the segment before releasing its current state.
+        WindowsAudioCom.Check(WindowsAudioCom.Method<ReadMusicTime>(segmentState, 5)(segmentState, out int startTime));
+        WindowsAudioCom.Check(WindowsAudioCom.Method<ReadMusicTime>(segmentState, 7)(segmentState, out int startPoint));
+        WindowsAudioCom.Check(WindowsAudioCom.Method<StopSegment>(performance, 5)(performance, 0, 0, 0, 0));
+        WindowsAudioCom.Check(WindowsAudioCom.Method<GetTime>(performance, 15)(performance, 0, out int currentTime));
+        WindowsAudioCom.Check(WindowsAudioCom.Method<IntegerArgument>(segment, 21)(segment, unchecked(currentTime - startTime + startPoint)));
+        WindowsAudioCom.Release(ref segmentState);
+        paused = true;
+    }
+
+    public void Resume()
+    {
+        if (segment == 0 || !paused)
+        {
+            return;
+        }
+        //46F4F0 starts the retained segment at46F300's saved musical cursor.
+        WindowsAudioCom.Check(WindowsAudioCom.Method<PlaySegment>(performance, 4)(performance, segment, 0x4000, 0, out segmentState));
+        paused = false;
+    }
 
     public void Volume(int hundredthDecibels)
     {
@@ -65,6 +97,8 @@ internal sealed class DirectMusicOutput : IDisposable
             WindowsAudioCom.Check(WindowsAudioCom.Method<ObjectArgument>(segment, 30)(segment, performance));
             WindowsAudioCom.Release(ref segment);
         }
+        WindowsAudioCom.Release(ref segmentState);
+        paused = false;
     }
 
     public void Dispose()
@@ -92,6 +126,8 @@ internal sealed class DirectMusicOutput : IDisposable
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int PlaySegment(nint self, nint segment, uint flags, long start, out nint state);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int StopSegment(nint self, nint segment, nint state, int time, uint flags);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int Playing(nint self, nint segment, nint state);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int ReadMusicTime(nint self, out int time);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int GetTime(nint self, nint referenceTime, out int musicTime);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int GlobalParameter(nint self, ref Guid type, ref int value, uint bytes);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int NoArguments(nint self);
 

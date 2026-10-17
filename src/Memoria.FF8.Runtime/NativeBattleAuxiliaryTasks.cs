@@ -8,7 +8,8 @@ public enum NativeBattleAuxiliaryKind
     None,
     CameraBlend509930,
     SoundParticle50F830,
-    TextureAnimation5057D0
+    TextureAnimation5057D0,
+    MusicLoad501A70
 }
 
 public sealed record NativeBattleAuxiliaryTask([property: JsonRequired] ushort Flags, [property: JsonRequired] ushort State, [property: JsonRequired] int? Next, [property: JsonRequired] NativeBattleAuxiliaryKind Kind, [property: JsonRequired] ImmutableArray<byte> Payload)
@@ -64,6 +65,10 @@ public sealed partial record NativeBattleAuxiliaryState([property: JsonRequired]
                     throw new InvalidDataException("Native5057D0 lacks its model pointer, toggle, sequence and elapsed WORD.");
                 }
             }
+            else if (Slots[index].Kind == NativeBattleAuxiliaryKind.MusicLoad501A70 && (Slots[index].UnknownByteMask & 0xF1) != 0)
+            {
+                throw new InvalidDataException("Native501A70 lacks its written phase BYTE and caller completion pointer.");
+            }
         }
     }
 
@@ -106,7 +111,11 @@ public sealed partial record NativeBattleAuxiliaryState([property: JsonRequired]
         {
             NativeBattleAuxiliaryTask task = slots[index];
             bool release;
-            if (task.Kind == NativeBattleAuxiliaryKind.TextureAnimation5057D0)
+            if (task.Kind == NativeBattleAuxiliaryKind.MusicLoad501A70)
+            {
+                (task, release) = AdvanceMusicLoad(task, inputs);
+            }
+            else if (task.Kind == NativeBattleAuxiliaryKind.TextureAnimation5057D0)
             {
                 (task, release) = AdvanceTextureAnimation(task, inputs);
             }

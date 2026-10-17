@@ -4,7 +4,9 @@ namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
-    private void CompleteNativeMenuFieldTail(NativeFieldFadeState fieldFade, NativeVibrationProcessState vibration)
+    internal sealed record NativeFieldResumeTail(NativeWorldControlState Controls, NativeSeeDState SeeD, NativeExamTimerState Timer, NativeSalaryPresentation Salary, NativeVibrationProcessState Vibration, NativeFieldFadeState Fade, NativeEventMemory Memory, ushort? DrawPointMask, NativeMusicProcessState Music);
+
+    private NativeFieldResumeTail PrepareNativeFieldResumeTail(NativeFieldFadeState fieldFade, NativeVibrationProcessState vibration, NativeMusicProcessState music)
     {
         NativeWorldControlState controls = services.WorldControls ?? throw new NotSupportedException("Menu52B4F0(2) requires its complete eventDWORD104 owner.");
         NativeCharacterVitals vitals = services.CharacterVitals ?? throw new NotSupportedException("Menu52B4F0(2) requires actual495EF0 ability inputs.");
@@ -34,16 +36,27 @@ public sealed partial class EventEngine
             salary = salary.StartPayment(oldRank, newRank, table.Pay(oldRank), table.Pay(newRank));
             seeD = seeD with { SalaryDisplayCountdown184 = 90 };
         }
-        services.SetNativeEventOwners(controls, seeD: seeD, timer: timer, salaryPresentation: salary, vibrationProcess: vibration, fieldFade: fieldFade, eventMemory: memory);
-        Scene.MusicProcess = Scene.MusicProcess with { Complete214 = 1 };
+        return new(controls, seeD, timer, salary, vibration, fieldFade, memory, drawPointMask, music.Complete214 == 1 ? music : music with { Complete214 = 1 });
+    }
+
+    private void PublishNativeFieldResumeScene(NativeFieldResumeTail tail)
+    {
+        Scene.MusicProcess = tail.Music;
         //52B4F0's common tail calls4747A0 only when B240 is nonzero;
         //it preserves B240/241/242 and never calls the eight-anchor reset474750.
-        Scene.NativeDrawPointDisplayMask = drawPointMask;
+        Scene.NativeDrawPointDisplayMask = tail.DrawPointMask;
         //52B9F0 writes only primary mode/leader/flags; ratios/offsets and other seven records remain.
         Scene.BackgroundScrollPositions.Remove(0);
         Scene.ActorBackgroundScroll = null;
         Scene.NormalBackgroundScrollCenter = null;
         //495EF0 cleared1CFF6D8; the proved absent78..82 branch produced typed BYTE88 above.
+    }
+
+    private void CompleteNativeMenuFieldTail(NativeFieldFadeState fieldFade, NativeVibrationProcessState vibration)
+    {
+        NativeFieldResumeTail tail = PrepareNativeFieldResumeTail(fieldFade, vibration, Scene.MusicProcess ?? throw new NotSupportedException("Menu52B4F0(2) requires its physical music buffers."));
+        services.SetNativeEventOwners(tail.Controls, seeD: tail.SeeD, timer: tail.Timer, salaryPresentation: tail.Salary, vibrationProcess: tail.Vibration, fieldFade: tail.Fade, eventMemory: tail.Memory);
+        PublishNativeFieldResumeScene(tail);
     }
 
     private void StepScriptMenuFieldReturn(NativePartyMenuState current)

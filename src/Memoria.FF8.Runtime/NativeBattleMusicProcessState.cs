@@ -25,6 +25,8 @@ public sealed partial record NativeBattleMusicProcessState([property: JsonRequir
     public NativeBattleMusicEffectCache? EffectCache { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleMusicEntryReceipt? Entry { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleMusicReturnReceipt? Return { get; init; }
 
     public void Validate()
     {
@@ -35,6 +37,7 @@ public sealed partial record NativeBattleMusicProcessState([property: JsonRequir
         Buffers.Validate();
         EffectCache?.Validate();
         Entry?.Validate();
+        Return?.Validate();
         ValidateCommands();
     }
 

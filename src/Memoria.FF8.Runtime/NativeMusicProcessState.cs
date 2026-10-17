@@ -7,14 +7,16 @@ public enum NativeMusicBufferProducer
     Field52CD10,
     WorldWmset5306E0,
     WorldFile543340,
-    Battle52CE30
+    Battle52CE30,
+    Battle501A70
 }
 
 public enum NativeMusicSelectionAuthority
 {
     Field,
     World,
-    Battle
+    Battle,
+    BattleReturn
 }
 
 public sealed record NativeMusicBufferIdentity([property: JsonRequired] byte EncodedAkaoId, [property: JsonRequired] NativeMusicBufferProducer Producer)

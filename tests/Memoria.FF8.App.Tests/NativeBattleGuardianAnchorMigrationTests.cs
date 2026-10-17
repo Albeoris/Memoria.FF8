@@ -29,7 +29,7 @@ public sealed class NativeBattleGuardianAnchorMigrationTests
         using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
         NativeBattleQuezacotlResources authenticated = game.ReadNativeQuezacotlResources();
         Assert.Equal(new short[] { 93, 33, 696, 562, 578, 450, 9, 240, 388, 408, 265 }, authenticated.AnchorVertexIndices11!.Value.ToArray());
-        Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(authenticated with { AnchorVertexIndices11 = null }));
+        Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(authenticated with { AnchorVertexIndices11 = null, Frame209Sound = retained.Frame209Sound, Ribbon = authenticated.Ribbon! with { SecondaryBank = retained.Ribbon?.SecondaryBank } }));
         int index = effect.Binding.Effect - 1;
         NativeBattleEffectBinding catalog = original.Definition.NativeEffectCatalog[index];
         Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(catalog.NativeQuezacotlResources));

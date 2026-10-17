@@ -14,6 +14,11 @@ public static class NativeBattleQuezacotlRibbonProducer
         {
             throw new ArgumentOutOfRangeException(nameof(localFrame));
         }
+        return Spawn6C87B0(memory, effect, checked(0x12AE7F0u + (uint)(localFrame % 10) * 8), 0x12AE840, 12, 7, 256);
+    }
+
+    public static NativeBattleQuezacotlRibbonSpawn Spawn6C87B0(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, uint pairAddress, uint controlAddress, byte tangentShift, byte decayShift, short step)
+    {
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native6C87B0 requires its initialized effect arena.");
         NativeBattleEffectTaskPool pool = effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521728);
         pool.Validate();
@@ -37,11 +42,11 @@ public static class NativeBattleQuezacotlRibbonProducer
         BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(8), 0x6C8850);
         BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(0xC), 0);
         BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(0xE), 0);
-        BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(0x10), 256);
-        raw[0x12] = 12;
-        raw[0x13] = 7;
-        BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(0x14), checked(0x12AE7F0u + (uint)(localFrame % 10) * 8));
-        BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(0x18), 0x12AE840);
+        BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(0x10), step);
+        raw[0x12] = tangentShift;
+        raw[0x13] = decayShift;
+        BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(0x14), pairAddress);
+        BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(0x18), controlAddress);
         arena.Read(0x8C, 4).CopyTo(raw, 0x1C);
         for (int point = 0; point < 16; point++)
         {

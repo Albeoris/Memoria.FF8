@@ -10,15 +10,20 @@ public static class NativeBattleQuezacotlRibbon
 {
     public static NativeBattleQuezacotlRibbonStep Advance6C8850(ImmutableArray<byte> task128, NativeBattleQuezacotlRibbonResources resources, int pairIndex, Func<int, NativeBattleActionMatrix> readBoneMatrix, ImmutableArray<short> currentEnvelope16, ushort random17A0, bool paused, NativeBattleActionMatrix view, NativeBattleCameraProjection projection)
     {
-        if (task128.IsDefault || task128.Length != 128 || resources.Pairs80.IsDefault || resources.Pairs80.Length != 80 || (uint)pairIndex >= 10 || currentEnvelope16.IsDefault || currentEnvelope16.Length != 16 || random17A0 >= 0x8000)
+        return Advance6C8850(task128, resources, resources.PrimaryBank, pairIndex, readBoneMatrix, currentEnvelope16, random17A0, paused, view, projection);
+    }
+
+    public static NativeBattleQuezacotlRibbonStep Advance6C8850(ImmutableArray<byte> task128, NativeBattleQuezacotlRibbonResources resources, NativeBattleQuezacotlRibbonBank bank, int pairIndex, Func<int, NativeBattleActionMatrix> readBoneMatrix, ImmutableArray<short> currentEnvelope16, ushort random17A0, bool paused, NativeBattleActionMatrix view, NativeBattleCameraProjection projection)
+    {
+        if (task128.IsDefault || task128.Length != 128 || bank.Pairs.IsDefault || bank.Pairs.Length % 8 != 0 || (uint)pairIndex >= bank.Pairs.Length / 8 || currentEnvelope16.IsDefault || currentEnvelope16.Length != 16 || random17A0 >= 0x8000)
         {
             throw new InvalidDataException("Native6C8850 requires its actual128-byte task, endpoint pair, current envelope and15-bit private random owner.");
         }
         short ReadTask(int offset) => BinaryPrimitives.ReadInt16LittleEndian(task128.AsSpan().Slice(offset));
-        ReadOnlySpan<byte> pair = resources.Pairs80.AsSpan().Slice(pairIndex * 8, 8);
+        ReadOnlySpan<byte> pair = bank.Pairs.AsSpan().Slice(pairIndex * 8, 8);
         short progress = ReadTask(0x0E);
-        NativeBattleQuezacotlRibbonSample first = NativeBattleQuezacotlRibbonMath.Sample6C8F70(resources.ControlTriangles, BinaryPrimitives.ReadInt16LittleEndian(pair), BinaryPrimitives.ReadInt16LittleEndian(pair[2..]), progress, readBoneMatrix, resources.SqrtWords256);
-        NativeBattleQuezacotlRibbonSample second = NativeBattleQuezacotlRibbonMath.Sample6C8F70(resources.ControlTriangles, BinaryPrimitives.ReadInt16LittleEndian(pair[4..]), BinaryPrimitives.ReadInt16LittleEndian(pair[6..]), progress, readBoneMatrix, resources.SqrtWords256);
+        NativeBattleQuezacotlRibbonSample first = NativeBattleQuezacotlRibbonMath.Sample6C8F70(bank.ControlTriangles, BinaryPrimitives.ReadInt16LittleEndian(pair), BinaryPrimitives.ReadInt16LittleEndian(pair[2..]), progress, readBoneMatrix, resources.SqrtWords256);
+        NativeBattleQuezacotlRibbonSample second = NativeBattleQuezacotlRibbonMath.Sample6C8F70(bank.ControlTriangles, BinaryPrimitives.ReadInt16LittleEndian(pair[4..]), BinaryPrimitives.ReadInt16LittleEndian(pair[6..]), progress, readBoneMatrix, resources.SqrtWords256);
         int distanceQ12 = NativeBattleQuezacotlRibbonMath.SqrtQ12(NativeBattleQuezacotlRibbonMath.SquaredLength(second.Position.X - first.Position.X, second.Position.Y - first.Position.Y, second.Position.Z - first.Position.Z), resources.SqrtWords256);
         int distance = distanceQ12 >> 12;
         int tangentWeight = distanceQ12 >> task128[0x12];

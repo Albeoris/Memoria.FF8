@@ -14,6 +14,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
     private DirectSoundOutput? sound;
     private DirectMusicOutput? music;
     private DirectSoundOutput.Buffer? streamedMusic;
+    private bool streamedMusicPaused;
     private EventEngine? engine;
     private readonly int[] musicIds = [-1, -1];
     private readonly MusicKind[] musicKinds = [MusicKind.None, MusicKind.None];
@@ -98,6 +99,12 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
             {
                 case NativeBattleMusicEntryReceipt entry:
                     ExecuteBattleMusicEntry(entry);
+                    break;
+                case NativeBattleMusicReturnReceipt returned:
+                    ExecuteBattleMusicReturn(returned);
+                    break;
+                case NativeBattleMusicCommandReceipt battleMusic:
+                    ExecuteBattleMusicCommand(battleMusic);
                     break;
                 case NativeWorldMusicLoad world:
                     ExecuteMusicPlayback(world.Playback, world.SourceFieldId, world.StartPoint, world.DurationMilliseconds, world.Operation == NativeWorldMusicOperation.Play ? world.InitialVolume : null);
@@ -340,6 +347,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
             PcmAudio pcm = PcmAudioDecoder.ReadFile(toolsDirectory, path);
             streamedMusic?.Dispose();
             streamedMusic = Sound.Create(pcm.Bytes, pcm.SampleRate, pcm.Channels);
+            streamedMusicPaused = false;
             streamedMusic.Volume(OutputGain(Catalog.SoundVolume(volume.Value), musicPreference));
             streamedMusic.Play(true);
             musicKinds[slot] = MusicKind.Stream;
@@ -519,6 +527,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         {
             streamedMusic?.Dispose();
             streamedMusic = null;
+            streamedMusicPaused = false;
             streamRamp = null;
         }
         musicKinds[slot] = MusicKind.None;

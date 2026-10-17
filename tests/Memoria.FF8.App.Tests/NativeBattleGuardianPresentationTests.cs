@@ -8,7 +8,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleGuardianPresentationTests
 {
     [Fact]
-    public void Installed_Quezacotl_runs_original_guardian_service_entry_and_stops_at_the_unowned_five_pair_bank()
+    public void Installed_Quezacotl_runs_original_guardian_service_entry_and_stops_at_the_unowned_next_workspace()
     {
         using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
@@ -133,7 +133,7 @@ public sealed class NativeBattleGuardianPresentationTests
         Assert.True(boundary is not null, diagnostic);
         Assert.True(sawEntry, diagnostic);
         Assert.NotNull(boundary);
-        Assert.Contains("phase207 requires the original5-pair12AF800 ribbon directory", boundary.Message);
+        Assert.Contains("phase227 requires its original1D8 workspace and fourth12AE7EC flash color", boundary.Message);
         Assert.True(sawGeometry);
         Assert.True(sawNativeFlash);
         Assert.Equal((ushort)116, battle.NativeGraphics!.OriginalEffect!.Binding.Effect);
@@ -141,11 +141,12 @@ public sealed class NativeBattleGuardianPresentationTests
         Assert.Contains(battle.NativeGraphics.OriginalEffect.Pools, pool => pool.DescriptorAddress == 0x2521738 && pool.Stride == 0x8D0 && pool.Slots.Single().Callback == 0x6C3940);
         Assert.Equal((byte?)0, battle.NativeEffectMemory!.GuardianCasterBank);
         ushort boundaryPhase = battle.NativeGraphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12);
-        Assert.Equal((ushort)207, boundaryPhase);
+        Assert.Equal((ushort)227, boundaryPhase);
         Assert.Equal((byte)1, battle.NativeEffectMemory!.Arena!.Read(0x94, 1)[0]);
-        Assert.Equal(4, battle.NativeGraphics.Models[3].Flags0 & 4);
+        Assert.Equal(0, battle.NativeGraphics.Models[3].Flags0 & 4);
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240066, Flags: 1, Pan: 128 });
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240069, Flags: 1, Pan: 128 });
+        Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240072, Flags: 1, Pan: 128 });
         NativeBattleQuezacotlResources streamResources = battle.NativeGraphics.OriginalEffect.Binding.NativeQuezacotlResources!;
         uint playedStream = StreamNumber(510);
         uint loadedStream = StreamNumber(520);

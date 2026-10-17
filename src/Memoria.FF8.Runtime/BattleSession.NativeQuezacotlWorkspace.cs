@@ -9,15 +9,15 @@ public sealed partial class BattleSession
         effect = effect with { Quezacotl = (effect.Quezacotl ?? throw new InvalidDataException("Native6C3940 lost its intensity global.")) with { Intensity17A4 = 2400 } };
         NativeBattleEffectTaskPool originalChild = effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738);
         ushort phase = originalChild.Slots[0].ReadWord(12);
-        if (phase is < 1 or > 206)
+        if (phase is < 1 or > 226)
         {
-            throw new InvalidOperationException("Native Quezacotl workspace owner requires actual phase1..206.");
+            throw new InvalidOperationException("Native Quezacotl workspace owner requires actual phase1..226.");
         }
         if (phase == 86)
         {
             ApplyRig(NativeBattleQuezacotlRig86.InitializeBeforeSecondWindow(memory, effect));
         }
-        if (phase is >= 86 and <= 206)
+        if (phase is >= 86 and <= 226)
         {
             if (phase == 118)
             {
@@ -104,6 +104,59 @@ public sealed partial class BattleSession
             NativeBattleQuezacotlParticleSpawn particle = NativeBattleQuezacotlParticleFlight.Spawn6C41BF(memory, effect);
             ApplyRig(new(particle.Memory, particle.Effect));
         }
+        if (phase is >= 207 and < 227)
+        {
+            NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native6C4290 requires its current camera globals.");
+            NativeBattleCameraPose pose = camera.CurrentPose ?? throw new NotSupportedException("Native6C4290 requires its initialized camera coordinates.");
+            if (phase == 207)
+            {
+                pose = pose with { Eye = new(677, -3571, unchecked((short)(effect.Quezacotl!.TargetZ1778 - 200))) };
+            }
+            NativeBattleQuezacotlAnchor anchor = NativeBattleQuezacotlRig86.ReadMeshAnchor6C6440(memory, effect, 0, 50);
+            ApplyRig(new(anchor.Memory, anchor.Effect));
+            pose = pose with { Target = new(anchor.Position.X, anchor.Position.Y, anchor.Position.Z) };
+            NativeCamera = camera.WriteEffectGlobals(new(pose.Eye, pose.Target, camera.FocalLength, camera.Roll));
+            if (memory.QuezacotlPause == 0)
+            {
+                NativeBattleQuezacotlRibbonBank bank = effect.Binding.NativeQuezacotlResources?.Ribbon?.SecondaryBank ?? throw new NotSupportedException("Native6C4300 requires the authenticated5-pair12AF800/12AF828 bank; explicitly migrate the named standalone metadata.");
+                bank.Validate();
+                NativeBattleQuezacotlRibbonSpawn spawned = NativeBattleQuezacotlRibbonProducer.Spawn6C87B0(memory, effect, checked(bank.PairAddress + (uint)((phase - 207) % 5) * 8), bank.ControlAddress, 12, 7, 256);
+                ApplyRig(new(spawned.Memory, spawned.Effect));
+            }
+        }
+        if (phase is >= 212 and < 227)
+        {
+            NativeBattleGfAnimationSource source = NativeBattleQuezacotlWorkspace.Source(memory, 0x12A1164);
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleQuezacotlWorkspace.Read(memory, NativeBattleQuezacotlWorkspace.FourthLength);
+            if (phase == 212)
+            {
+                workspace = workspace.Initialize7016B0(source, NativeBattleQuezacotlWorkspace.FourthLength);
+                Persist(workspace);
+            }
+            NativeBattleGfAnimationAdvance stepped = workspace.Advance701970(source, memory.QuezacotlPause ?? throw new NotSupportedException("Native701970 requires its retained pause DWORD."), (current, node) =>
+            {
+                Persist(current);
+                if (NativeBattleQuezacotlWorkspace.SkipsGeometry6C6060(node))
+                {
+                    return current;
+                }
+                NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native6C43AD requires its prior projection owner.");
+                NativeBattleCameraPoint target = NativeCamera?.CurrentPose?.Target ?? throw new NotSupportedException("Native6C4345 requires its actual global camera TargetXYZ.");
+                short yaw = System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(memory.Arena!.Read(0x36, 2));
+                NativeBattleActionMatrix context = NativeBattleGfMatrices.LaterWindowContext6C64C0(projection.View ?? throw new NotSupportedException("Native6C43AD requires its prior view matrix."), -128, -(int)yaw, new(target.X, target.Y, target.Z));
+                NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native6C53A0 requires its authenticated PC color rules.");
+                NativeBattleQuezacotlGeometryStep emitted = NativeBattleQuezacotlGeometry.Emit6C53A0(memory, effect, node, projection, colors, context, false, 0, 0x12A1164);
+                NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native6C53A0 requires its current logical OT frame.");
+                NativeBattleQuezacotlPacketWrite written = NativeBattleQuezacotlPacketArena.Append(emitted.Memory, effect, frame.Pending, emitted.Batch);
+                memory = written.Memory;
+                effect = written.Effect;
+                graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = written.Ordering } };
+                NativeEffectMemory = memory;
+                NativeGraphics = graphics;
+                return current;
+            });
+            Persist(stepped.Workspace);
+        }
         if (phase == 86)
         {
             NativeBattleQuezacotlRigWrite rig = NativeBattleQuezacotlRig86.InitializeAfterSecondWindow(memory, effect, NativeCamera ?? throw new NotSupportedException("Native86 requires its retained camera owner."));
@@ -148,9 +201,24 @@ public sealed partial class BattleSession
             NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native6C4F07 requires its actual retained camera globals.");
             NativeCamera = camera.WriteEffectGlobals(new(new(-1809, -356, unchecked((short)(z + 2276))), new(0, -652, unchecked((short)z)), camera.FocalLength, camera.Roll));
         }
+        else if (phase == 209)
+        {
+            uint sound = effect.Binding.NativeQuezacotlResources?.Frame209Sound ?? throw new NotSupportedException("Native6C4F54/501330 requires its authenticated12AE4F8 sound DWORD; explicitly migrate the named standalone metadata.");
+            PublishNativeModuleSound(new(sound, 1, null) { Pan = 128 });
+        }
         if (phase == 126)
         {
             graphics = SetNativeQuezacotlTargets6C5300(graphics, effect, true);
+        }
+        else if (phase == 212)
+        {
+            graphics = SetNativeQuezacotlTargets6C5300(graphics, effect, false);
+        }
+        else if (phase == 226)
+        {
+            int z = effect.Quezacotl!.TargetZ1778;
+            NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native6C4FCC requires its current camera globals.");
+            NativeCamera = camera.WriteEffectGlobals(new(new(2857, -553, unchecked((short)(z + 2568))), new(-83, -1604, unchecked((short)(z - 2098))), camera.FocalLength, camera.Roll));
         }
         NativeBattleEffectTaskPool child = effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738);
         ushort nextPhase = unchecked((ushort)(phase + 1));

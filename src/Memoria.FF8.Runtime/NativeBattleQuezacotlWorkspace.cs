@@ -10,12 +10,13 @@ public static class NativeBattleQuezacotlWorkspace
     public const int Length = 0x7D4;
     public const int SecondLength = 0x7FC;
     public const int ThirdLength = 0x158;
+    public const int FourthLength = 0x1A0;
 
     public static NativeBattleGfAnimationSource Source(NativeBattleEffectMemory memory, uint address = NativeBattleQuezacotlExecutableMemory.Address)
     {
         NativeBattleQuezacotlExecutableMemory executable = memory.QuezacotlExecutableMemory ?? throw new NotSupportedException("Native Quezacotl701970 requires its current executable model bytes.");
         executable.Validate();
-        if (address is not (NativeBattleQuezacotlExecutableMemory.Address or 0x12A9664))
+        if (address is not (NativeBattleQuezacotlExecutableMemory.Address or 0x12A9664 or 0x12A1164))
         {
             throw new NotSupportedException("Native Quezacotl animation source requires its observed executable region.");
         }
@@ -26,9 +27,9 @@ public static class NativeBattleQuezacotlWorkspace
 
     public static NativeBattleQuezacotlWorkspaceWrite Write(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleGfAnimationWorkspace workspace)
     {
-        if (workspace.Data.IsDefault || workspace.Data.Length is not (Length or SecondLength or ThirdLength))
+        if (workspace.Data.IsDefault || workspace.Data.Length is not (Length or SecondLength or ThirdLength or FourthLength))
         {
-            throw new InvalidDataException("Native Quezacotl workspace must fit its actual7D4/7FC/158-byte child workspace.");
+            throw new InvalidDataException("Native Quezacotl workspace must fit its actual7D4/7FC/158/1A0-byte child workspace.");
         }
         NativeBattleEffectTaskPool child = effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738);
         NativeBattleEffectArena arena = (memory.Arena ?? throw new NotSupportedException("Native Quezacotl701970 requires its actual child-task arena bytes.")).Write(Offset, workspace.Data.AsSpan());

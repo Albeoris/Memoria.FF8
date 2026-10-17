@@ -27,6 +27,7 @@ public sealed partial record NativeBattleMusicProcessState
     partial void ValidateCommands()
     {
         Commands?.Validate();
+        LoadSource?.Validate();
     }
 
     public NativeBattleMusicProcessState InitializeCommands501C60()
