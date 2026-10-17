@@ -133,6 +133,11 @@ internal sealed partial class AutoPlayPlanner
     private AutoPlayPlanner CreateNavigationView(Func<AutoPlayNavigationVisit, bool>? isCurrent)
     {
         AutoPlayPlannerState view = new();
+        Dictionary<string, AutoPlayNavigationVisit[]> navigationByKey = State.NavigationVisits.GroupBy(visit => visit.Key, StringComparer.Ordinal).ToDictionary(group => group.Key, group => group.ToArray(), StringComparer.Ordinal);
+        AutoPlayNavigationVisit? Navigation(string key)
+        {
+            return navigationByKey.TryGetValue(key, out AutoPlayNavigationVisit[]? matches) ? matches.SingleOrDefault() : null;
+        }
         HashSet<string> valid = State.NavigationVisits.Where(visit => isCurrent?.Invoke(visit) != false).Select(visit => visit.Key).ToHashSet(StringComparer.Ordinal);
         foreach (AutoPlayNavigationVisit observation in State.NavigationVisits.Where(visit => valid.Contains(visit.Key)))
         {
@@ -170,15 +175,16 @@ internal sealed partial class AutoPlayPlanner
             }
             view.Visits.Add(scoped);
         }
+        Dictionary<string, AutoPlayVisitCoverage[]> scopedByKey = view.Visits.GroupBy(visit => visit.Visit.Key, StringComparer.Ordinal).ToDictionary(group => group.Key, group => group.ToArray(), StringComparer.Ordinal);
         foreach (AutoPlayNavigationRoute edge in State.NavigationRoutes)
         {
-            AutoPlayNavigationVisit? source = State.NavigationVisits.SingleOrDefault(visit => visit.Key == edge.SourceKey);
-            AutoPlayNavigationVisit? destination = State.NavigationVisits.SingleOrDefault(visit => visit.Key == edge.DestinationKey);
+            AutoPlayNavigationVisit? source = Navigation(edge.SourceKey);
+            AutoPlayNavigationVisit? destination = Navigation(edge.DestinationKey);
             if (source is null || destination is null || !valid.Contains(source.Key) || !valid.Contains(destination.Key) || edge.Route.DestinationVisitKey != destination.VisitKey)
             {
                 continue;
             }
-            AutoPlayEventCoverage? scoped = view.Visits.Single(visit => visit.Visit.Key == edge.SourceKey).Events.SingleOrDefault(item => item.Event.Id == edge.EventId);
+            AutoPlayEventCoverage? scoped = scopedByKey.GetValueOrDefault(edge.SourceKey, []).Single().Events.SingleOrDefault(item => item.Event.Id == edge.EventId);
             AutoPlayEventCoverage shared = FindEvent(source.VisitKey, edge.EventId);
             if (scoped is null || !shared.Routes.Any(route => SameTravelRoute(route, edge.Route)) || !NavigationTravelRoutes(source, scoped).Any(route => SameTravelRoute(route, edge.Route)))
             {
@@ -186,7 +192,12 @@ internal sealed partial class AutoPlayPlanner
             }
             scoped.Routes.Add(edge.Route with { DestinationVisitKey = destination.Key });
         }
-        return new(view, (visit, item) => phaseOrder(FindVisit(FindNavigationVisit(visit.Key).VisitKey).Visit, item), (visit, item) => progressionOrder(FindVisit(FindNavigationVisit(visit.Key).VisitKey).Visit, item), normalizeLegacyRoutes: false);
+        AutoPlayVisit AggregateVisit(AutoPlayVisit visit)
+        {
+            AutoPlayNavigationVisit navigation = Navigation(visit.Key) ?? throw new InvalidOperationException($"Unknown navigation visit '{visit.Key}'.");
+            return FindVisit(navigation.VisitKey).Visit;
+        }
+        return new(view, (visit, item) => phaseOrder(AggregateVisit(visit), item), (visit, item) => progressionOrder(AggregateVisit(visit), item), normalizeLegacyRoutes: false);
     }
 
     private IEnumerable<AutoPlayEventRoute> UnconfirmedNavigationRoutes(AutoPlayNavigationVisit observation, AutoPlayEventCoverage scoped, IReadOnlySet<string> valid)

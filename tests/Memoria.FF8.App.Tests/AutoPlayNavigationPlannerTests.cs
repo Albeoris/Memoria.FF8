@@ -425,6 +425,39 @@ public sealed class AutoPlayNavigationPlannerTests
         Assert.Equal(before, JsonSerializer.Serialize(planner.State));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void IndexedEndpointLookupsStillRejectDuplicateVerticesEvenWhenTheirResourceIsExcluded(bool excludeResource)
+    {
+        AutoPlayPlanner planner = CreateTwoComponents();
+        AutoPlayNavigationVisit destination = planner.State.NavigationVisits.Single(visit => visit.Key == "destination");
+        planner.State.NavigationVisits.Add(destination);
+        string before = JsonSerializer.Serialize(planner.State);
+
+        Assert.Throws<InvalidOperationException>(() => planner.PlanNavigation("main", isCurrent: visit => !excludeResource || visit.Key != destination.Key));
+
+        Assert.Equal(before, JsonSerializer.Serialize(planner.State));
+    }
+
+    [Theory]
+    [InlineData("source")]
+    [InlineData("destination")]
+    public void IndexedEndpointLookupsKeepIgnoringEdgesWithUnknownVertices(string missing)
+    {
+        AutoPlayPlanner planner = CreateTwoComponents();
+        AutoPlayNavigationRoute edge = planner.State.NavigationRoutes.Single(item => item.SourceKey == "main");
+        planner.State.NavigationRoutes.Add(edge with { SourceKey = missing == "source" ? "unknown-source" : edge.SourceKey, DestinationKey = missing == "destination" ? "unknown-destination" : edge.DestinationKey });
+        string before = JsonSerializer.Serialize(planner.State);
+
+        AutoPlayPlanStep plan = planner.PlanNavigation("main")!;
+
+        Assert.Equal(edge.EventId, plan.Event.Id);
+        Assert.Equal(edge.Route.DestinationVisitKey, plan.Route!.DestinationVisitKey);
+        Assert.Equal(1, planner.ReachableNavigationFrontierCount("main"));
+        Assert.Equal(before, JsonSerializer.Serialize(planner.State));
+    }
+
     private static AutoPlayEvent Event(AutoPlayPlanner planner, string visit, string eventId)
     {
         return planner.State.Visits.Single(item => item.Visit.Key == visit).Events.Single(item => item.Event.Id == eventId).Event;
