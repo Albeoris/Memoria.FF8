@@ -29,6 +29,8 @@ internal sealed class BattleScenePresentation
     private NativeBattleEffectTextureState? renderedTextures;
     private NativeBattlePcTextureWindowCache? renderedTextureWindows;
     private byte[]? renderedPixels;
+    private GpuTriangleRenderer? renderedGpu;
+    private long renderedGpuVersion;
 
     public BattleScenePresentation(BattleAssets assets, BattleDefinition definition, bool useEncounter)
     {
@@ -98,6 +100,7 @@ internal sealed class BattleScenePresentation
         {
             renderer = new BattleRenderer(width, height);
             renderedPixels = null;
+            renderedGpu = null;
         }
         renderer.TriangleRenderer = triangleRenderer;
         BattleCamera? selectedCamera = camera;
@@ -110,16 +113,28 @@ internal sealed class BattleScenePresentation
             NativeBattlePrimitiveFrame frame = rawGraphics.PrimitiveFrame ?? throw new NotSupportedException("Native battle presentation requires its executed original primitive frame; migrate the named standalone snapshot explicitly.");
             NativeBattleEffectTextureState? textures = session.NativeEffectMemory?.Textures;
             NativeBattlePcTextureWindowCache? windows = session.NativeEffectMemory?.PrimitiveProcess?.TextureWindowCache;
-            if (triangleRenderer is null && renderedPixels is not null && ReferenceEquals(renderedPrimitiveFrame, frame) && ReferenceEquals(renderedTextures, textures) && ReferenceEquals(renderedTextureWindows, windows) && renderedCamera == selectedCamera)
+            bool unchanged = ReferenceEquals(renderedPrimitiveFrame, frame) && ReferenceEquals(renderedTextures, textures) && ReferenceEquals(renderedTextureWindows, windows) && renderedCamera == selectedCamera;
+            if (triangleRenderer is null && renderedPixels is not null && unchanged)
             {
                 return renderedPixels;
+            }
+            if (triangleRenderer is GpuTriangleRenderer gpu && ReferenceEquals(renderedGpu, gpu) && renderedGpuVersion == gpu.PresentationVersion && !gpu.Target.IsDisposed && unchanged)
+            {
+                return [];
             }
             if (triangleRenderer is not null)
             {
                 renderedPixels = null;
+                byte[] result = renderer.RenderNativePrimitiveFrame(frame, textures, selectedCamera, primitiveCapabilities, windows);
+                renderedPrimitiveFrame = frame;
+                renderedTextures = textures;
+                renderedTextureWindows = windows;
                 renderedCamera = selectedCamera;
-                return renderer.RenderNativePrimitiveFrame(frame, textures, selectedCamera, primitiveCapabilities, windows);
+                renderedGpu = triangleRenderer as GpuTriangleRenderer;
+                renderedGpuVersion = renderedGpu?.PresentationVersion ?? 0;
+                return result;
             }
+            renderedGpu = null;
             renderedPixels = renderer.RenderNativePrimitiveFrame(frame, textures, selectedCamera, primitiveCapabilities, windows);
             renderedPrimitiveFrame = frame;
             renderedTextures = textures;

@@ -38,6 +38,7 @@ public sealed class GpuTriangleRenderer : ITriangleRenderer, IDisposable
     }
 
     public RenderTarget2D Target => target ?? throw new InvalidOperationException("No scene has been rendered.");
+    internal long PresentationVersion { get; private set; }
 
     public void Begin(int width, int height, Vector4N clearColor, float clearDepth = 1)
     {
@@ -148,6 +149,7 @@ public sealed class GpuTriangleRenderer : ITriangleRenderer, IDisposable
             RestoreDevice();
         }
         (target, workingTarget) = (workingTarget, target);
+        PresentationVersion++;
         foreach (PixelImage image in textures.Keys.Where(image => !usedTextures.Contains(image)).ToArray())
         {
             textures[image].Dispose();
@@ -158,6 +160,7 @@ public sealed class GpuTriangleRenderer : ITriangleRenderer, IDisposable
     /// <summary>Invalidate mutable source pixels explicitly before their next use.</summary>
     public void InvalidateTexture(PixelImage image)
     {
+        PresentationVersion++;
         if (textures.Remove(image, out Texture2D? texture))
         {
             texture.Dispose();

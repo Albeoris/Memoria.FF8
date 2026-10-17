@@ -7,6 +7,29 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleSequenceMachineTests
 {
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(1, 0)]
+    [InlineData(2, 2)]
+    [InlineData(3, 2)]
+    public void Sequence_variable_19_reads_the_current_action_header_camera_bit(int cameraChoice, int expected)
+    {
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
+        (packets, _) = packets.Prepare(new(0, 1, 13, (sbyte)cameraChoice, 0, 0, null));
+        (packets, _) = packets.Publish(0);
+        packets = packets.ActivateHeader(0);
+        NativeBattleSequenceInputs inputs = new(null, null)
+        {
+            ReadExternal = variable =>
+            {
+                Assert.Equal((byte)25, variable);
+                return NativeBattleActionGraphics.ReadCameraFlag50A6E0(packets);
+            }
+        };
+        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(Model(1), Resource((1, "C319E500A1")), inputs);
+        Assert.Equal((short)expected, step.Model.SequenceState!.Locals[0]);
+    }
+
     [Fact]
     public void A5_reads_one_unsigned_selector_and_dispatches_571840_before_the_next_instruction()
     {

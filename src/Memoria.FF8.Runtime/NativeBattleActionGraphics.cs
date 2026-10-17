@@ -18,6 +18,12 @@ public sealed record NativeBattleActionServiceSelection(uint Callback, uint SetG
 
 public static class NativeBattleActionGraphics
 {
+    public static short ReadCameraFlag50A6E0(NativeBattleActionPacketsState packets)
+    {
+        int active = packets.ActiveHeaderIndex ?? throw new NotSupportedException("Native50A6E0 requires its active104 action header.");
+        return (short)(packets.Headers[active].ReadByte(3) & 2);
+    }
+
     public static bool IsModelBusy(NativeBattleGraphicsModel model, ushort resourceMask)
     {
         return (model.Flags0 & 8) == 0 && ((model.Flags8 ?? throw new NotSupportedException("Native508540 requires its reached model DWORD8.")) & 26) == 0 && ((model.Kind5 ?? throw new NotSupportedException("Native508540 requires its reached model BYTE5.")) != 0 || ((model.ResourceFlags44 ?? throw new NotSupportedException("Native508540 requires its reached resource WORD44.")) & resourceMask) == 0);

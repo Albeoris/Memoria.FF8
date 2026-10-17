@@ -58,6 +58,10 @@ public sealed partial class BattleSession
 
     private short ReadNativeGraphicsActionVariable(NativeBattleGraphicsState graphics, byte variable)
     {
+        if (variable == 25)
+        {
+            return NativeBattleActionGraphics.ReadCameraFlag50A6E0(nativeActionPackets);
+        }
         NativeBattleActionGeometry context = graphics.ActionContext ?? throw new NotSupportedException("Native model expression requires its50D300 action geometry owner.");
         return variable switch
         {

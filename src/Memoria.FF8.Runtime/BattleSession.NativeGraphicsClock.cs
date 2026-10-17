@@ -149,7 +149,8 @@ public sealed partial class BattleSession
                 {
                     OriginalResource = binding.Resource,
                     GlobalRandom = NextNativeGlobalRandom,
-                    ReadExternal = variable => ReadNativeGraphicsActionVariable(graphics, variable),
+                    ReadExternal = variable => ReadNativeGraphicsSequenceVariable(graphics, variable),
+                    WriteExternal = WriteNativeGraphicsSequenceVariable,
                     ScheduleSoundParticle = (program, soundTwo, bone) => graphics = ScheduleNativeSoundParticle(graphics, index, program, soundTwo, bone),
                     PlaySound = (current, cue) => PublishNativeSequenceSound(graphics with { Models = models.SetItem(index, current) }, current, GraphicsActor(graphics, index), cue),
                     ScheduleTextureAnimation = (program, sequence) => graphics = ScheduleNativeTextureAnimation(graphics, index, program, sequence),

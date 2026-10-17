@@ -6,6 +6,35 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleActionGraphicsTests
 {
     [Theory]
+    [InlineData(0, 0)]
+    [InlineData(1, 0)]
+    [InlineData(2, 2)]
+    [InlineData(3, 2)]
+    [InlineData(0xFD, 0)]
+    [InlineData(0xFF, 2)]
+    public void Sequence_camera_flag_reads_only_bit_one_of_the_active_physical_header(int cameraChoice, int expected)
+    {
+        NativeBattleActionPacketsState packets = Prepare();
+        (packets, _) = packets.Prepare(new(3, 1, 13, unchecked((sbyte)cameraChoice), 0, 0, null));
+        (packets, _) = packets.Publish(0);
+        packets = packets.ActivateHeader(1);
+        Assert.Equal(expected, NativeBattleActionGraphics.ReadCameraFlag50A6E0(packets));
+        NativeBattleActionPacketsState restored = JsonSerializer.Deserialize<NativeBattleActionPacketsState>(JsonSerializer.Serialize(packets))!;
+        Assert.Equal(expected, NativeBattleActionGraphics.ReadCameraFlag50A6E0(restored));
+        Assert.Equal(2, NativeBattleActionGraphics.ReadCameraFlag50A6E0(packets.ActivateHeader(0)));
+    }
+
+    [Fact]
+    public void Sequence_camera_flag_requires_a_known_active_header_byte()
+    {
+        NativeBattleActionPacketsState packets = Prepare();
+        Assert.Throws<NotSupportedException>(() => NativeBattleActionGraphics.ReadCameraFlag50A6E0(packets));
+        packets = packets.ActivateHeader(0);
+        NativeBattleActionHeaderSlot unknown = packets.Headers[0] with { UnknownByteMask = packets.Headers[0].UnknownByteMask | 8 };
+        Assert.Throws<NotSupportedException>(() => NativeBattleActionGraphics.ReadCameraFlag50A6E0(packets with { Headers = packets.Headers.SetItem(0, unknown) }));
+    }
+
+    [Theory]
     [InlineData(0, 0, 0, 0, 0x50BD00)]
     [InlineData(0, 0, 0, 1, 0x50BD80)]
     [InlineData(0x26, 1, 0, 0, 0x50B2A0)]
