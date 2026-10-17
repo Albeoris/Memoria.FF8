@@ -140,6 +140,6 @@ public sealed partial class GameSession
     private void SetOwnedBattle(BattleSnapshot? owned)
     {
         NativeBattleRetainedMemory? memory = owned is null ? State.NativeBattleMemory : NativeBattleRetainedMemory.Capture(owned, State.NativeBattleMemory?.ColdExecutableSha256 ?? owned.Definition.NativeRetainedMemory?.ColdExecutableSha256);
-        State = State with { Battle = owned, NativeBattleMemory = memory, ExamTimer = owned?.NativeExamTimer ?? State.ExamTimer, VibrationProcess = owned?.NativeVibrationProcess ?? State.VibrationProcess, GlobalSoundProcess = owned?.NativeGlobalSoundProcess ?? State.GlobalSoundProcess };
+        State = AdvanceNativePlaytime(State with { Battle = owned, NativeBattleMemory = memory, ExamTimer = owned?.NativeExamTimer ?? State.ExamTimer, VibrationProcess = owned?.NativeVibrationProcess ?? State.VibrationProcess, GlobalSoundProcess = owned?.NativeGlobalSoundProcess ?? State.GlobalSoundProcess });
     }
 }
