@@ -33,6 +33,7 @@ public sealed partial class EventEngine
         {
             throw new InvalidOperationException("Diagnostic placement cannot replace an already staged player input.");
         }
+        ValidateDiagnosticPartyOwners();
         bool applied = false;
         bool triggered = false;
         Action? commitContacts = null;
@@ -105,10 +106,13 @@ public sealed partial class EventEngine
         y = raw.Y / 4096f;
         z = raw.Z / 4096f;
         WalkmeshPosition position = new(new Vector3(x, y, z), triangle);
+        PartyTraceState? diagnosticTrace = null;
         if (Scene.NativePartyTraceVersion == 1)
         {
             ReadNativePartyPlayerPosition(player);
-            PreparePartyTraceFollowers(position, direction, true);
+            ValidateDiagnosticPartyOwners();
+            diagnosticTrace = PrepareDiagnosticPartyTrace(raw, triangle, direction);
+            PreparePartyTraceFollowers(position, direction, true, diagnosticTrace);
         }
         int[] contacts = [];
         bool triggered = false;
@@ -123,7 +127,7 @@ public sealed partial class EventEngine
             {
                 ValidateNativePushDispatch(actors[objectId]);
             }
-            IReadOnlyList<NativeLineContactChange> lines = MovePlayerCore(x, y, z, triangle, raw, direction, true, raw);
+            IReadOnlyList<NativeLineContactChange> lines = MovePlayerCore(x, y, z, triangle, raw, direction, true, raw, diagnosticTrace);
             triggered = transitionRequested || contacts.Length > 0 || actors.Any(actor => actor.DoorLineEntryPending) || lines.Any(line => NativeDoorRequestedLocals(line.PendingEvents, line.Contact).Any(local => !EmptyNativeLineScript(actors[line.ObjectId], local)));
             commitContacts = () =>
             {
@@ -146,7 +150,7 @@ public sealed partial class EventEngine
             player.NativeMotionAuthority = new NativeMotionAuthority(1, (byte)direction, 0);
             if (Scene.NativePartyTraceVersion == 1)
             {
-                ApplyPartyTraceMovement(player, raw, direction, true);
+                ApplyPartyTraceMovement(player, raw, direction, true, diagnosticTrace);
             }
             else
             {
@@ -154,6 +158,32 @@ public sealed partial class EventEngine
             }
         }
         return triggered;
+    }
+
+    private void ValidateDiagnosticPartyOwners()
+    {
+        if (partyJoin is not null || partySplit is not null)
+        {
+            throw new NotSupportedException("Diagnostic party placement cannot replace an active native join or split owner.");
+        }
+        for (int slot = 1; slot < 3; slot++)
+        {
+            ActorState? follower = ResolvePartyActor(slot);
+            if (follower is not null && (follower.NativeScriptMovement is { Active: true } || follower.NativeJump is { Active: true } || follower.NativeLadder is { Active: true } || follower.NativeLadderMode3 is { Active: true } || follower.MovementTarget is not null || follower.MovementActorId is not null))
+            {
+                throw new NotSupportedException("Diagnostic party placement cannot replace an attached follower's independent native movement owner.");
+            }
+        }
+    }
+
+    private PartyTraceState PrepareDiagnosticPartyTrace(FieldFixedPosition position, int triangle, int direction)
+    {
+        PartyTraceState trace = Scene.PartyTrace ?? throw new NotSupportedException("Diagnostic party placement requires its current native trace.");
+        PartyTraceSample? Relocate(PartyTraceSample? sample)
+        {
+            return sample is null ? null : sample with { X = checked((short)(position.X / 4096)), Y = checked((short)(position.Y / 4096)), Z = checked((short)(position.Z / 4096)), Triangle = triangle, Direction = direction };
+        }
+        return trace with { FirstTrail = trace.FirstTrail.Select(Relocate).ToArray(), SecondTrail = trace.SecondTrail.Select(Relocate).ToArray() };
     }
 
     /// <summary>A source interaction can remain active while ordinary player control is enabled.</summary>

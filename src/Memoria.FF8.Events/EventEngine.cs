@@ -531,7 +531,7 @@ public sealed partial class EventEngine
         return true;
     }
 
-    private IReadOnlyList<NativeLineContactChange> MovePlayerCore(float x, float y, float z, int walkmeshTriangle, FieldFixedPosition? nativePosition = null, int? nativeDirection = null, bool nativeMovement = false, FieldFixedPosition? nativeTriggerPosition = null)
+    private IReadOnlyList<NativeLineContactChange> MovePlayerCore(float x, float y, float z, int walkmeshTriangle, FieldFixedPosition? nativePosition = null, int? nativeDirection = null, bool nativeMovement = false, FieldFixedPosition? nativeTriggerPosition = null, PartyTraceState? diagnosticTrace = null)
     {
         if (program is null || transitionRequested || !IsUserControlEnabled || IsMovementBlockedByDialogue || services.IsMoviePlaying)
         {
@@ -587,7 +587,7 @@ public sealed partial class EventEngine
         player.WalkmeshTriangle = walkmeshTriangle;
         if (nativePosition is not null)
         {
-            ApplyPartyTraceMovement(player, nativePosition, direction, deltaX != 0 || deltaY != 0);
+            ApplyPartyTraceMovement(player, nativePosition, direction, deltaX != 0 || deltaY != 0, diagnosticTrace);
         }
         if (!nativeLines)
         {

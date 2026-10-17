@@ -508,9 +508,9 @@ public sealed partial class EventEngine
         return position;
     }
 
-    private (ActorState Actor, PartyTraceSample Animation, PartyTraceSample Position)[] PreparePartyTraceFollowers(WalkmeshPosition position, int direction, bool moved)
+    private (ActorState Actor, PartyTraceSample Animation, PartyTraceSample Position)[] PreparePartyTraceFollowers(WalkmeshPosition position, int direction, bool moved, PartyTraceState? diagnosticTrace = null)
     {
-        PartyTraceState trace = Scene.PartyTrace ?? throw new NotSupportedException("Native party trace is unavailable.");
+        PartyTraceState trace = diagnosticTrace ?? Scene.PartyTrace ?? throw new NotSupportedException("Native party trace is unavailable.");
         ActorState player = ResolvePartyActor(0) ?? throw new NotSupportedException("Native party trace has no leader binding.");
         int playerAnimation = moved ? NativePlayerWalking ? player.WalkAnimationId : player.RunAnimationId : player.BaseAnimationId;
         if (!HasNativeEmptyAnimationModel(player) && AnimationFrameCount?.Invoke(player.RenderModelId, playerAnimation) is not > 0)
@@ -542,23 +542,30 @@ public sealed partial class EventEngine
         return followers.ToArray();
     }
 
-    private void ApplyPartyTraceMovement(ActorState player, FieldFixedPosition position, int direction, bool moved)
+    private void ApplyPartyTraceMovement(ActorState player, FieldFixedPosition position, int direction, bool moved, PartyTraceState? diagnosticTrace = null)
     {
-        PartyTraceState trace = Scene.PartyTrace!;
+        PartyTraceState trace = diagnosticTrace ?? Scene.PartyTrace!;
         WalkmeshPosition display = new(new Vector3(position.X / 4096f, position.Y / 4096f, position.Z / 4096f), player.WalkmeshTriangle);
-        var followers = PreparePartyTraceFollowers(display, direction, moved);
+        var followers = PreparePartyTraceFollowers(display, direction, moved, diagnosticTrace);
         player.NativeLadder = null;
         player.NativeLadderMode3 = null;
-        int animationMode = moved ? NativePlayerWalking ? 0 : 1 : trace.FirstTrail[trace.Cursor]?.Animation ?? -1;
-        int recordedDirection = moved ? direction : trace.FirstTrail[trace.Cursor]?.Direction ?? -1;
-        PartyTraceSample sample = new((short)(position.X / 4096), (short)(position.Y / 4096), (short)(position.Z / 4096), player.WalkmeshTriangle, recordedDirection, animationMode);
-        PartyTraceSample?[] first = (PartyTraceSample?[])trace.FirstTrail.Clone();
-        PartyTraceSample?[] second = (PartyTraceSample?[])trace.SecondTrail.Clone();
-        first[trace.Cursor] = sample;
-        second[trace.Cursor] = moved ? sample : sample with { Animation = trace.SecondTrail[trace.Cursor]?.Animation ?? -1, Direction = trace.SecondTrail[trace.Cursor]?.Direction ?? -1 };
-        Scene.PartyTrace = trace with { Cursor = moved ? (trace.Cursor + 1) & 63 : trace.Cursor, FirstTrail = first, SecondTrail = second };
+        if (diagnosticTrace is not null)
+        {
+            Scene.PartyTrace = diagnosticTrace;
+        }
+        else
+        {
+            int animationMode = moved ? NativePlayerWalking ? 0 : 1 : trace.FirstTrail[trace.Cursor]?.Animation ?? -1;
+            int recordedDirection = moved ? direction : trace.FirstTrail[trace.Cursor]?.Direction ?? -1;
+            PartyTraceSample sample = new((short)(position.X / 4096), (short)(position.Y / 4096), (short)(position.Z / 4096), player.WalkmeshTriangle, recordedDirection, animationMode);
+            PartyTraceSample?[] first = (PartyTraceSample?[])trace.FirstTrail.Clone();
+            PartyTraceSample?[] second = (PartyTraceSample?[])trace.SecondTrail.Clone();
+            first[trace.Cursor] = sample;
+            second[trace.Cursor] = moved ? sample : sample with { Animation = trace.SecondTrail[trace.Cursor]?.Animation ?? -1, Direction = trace.SecondTrail[trace.Cursor]?.Direction ?? -1 };
+            Scene.PartyTrace = trace with { Cursor = moved ? (trace.Cursor + 1) & 63 : trace.Cursor, FirstTrail = first, SecondTrail = second };
+        }
         Scene.NativePlayerPosition = position;
-        if (moved)
+        if (moved && diagnosticTrace is null)
         {
             player.MovementSpeed = (NativePlayerWalking ? 69020 : 203000) * 20 >> 9;
         }
@@ -600,7 +607,7 @@ public sealed partial class EventEngine
             follower.Actor.Z = follower.Position.Z;
             follower.Actor.WalkmeshTriangle = follower.Position.Triangle;
             follower.Actor.NativeMovementGroundContact600 = unchecked((byte)follower.Position.FirstFlag);
-            if (moved)
+            if (moved || diagnosticTrace is not null)
             {
                 follower.Actor.Direction = follower.Animation.Direction;
                 follower.Actor.CollisionEnabled = false;
