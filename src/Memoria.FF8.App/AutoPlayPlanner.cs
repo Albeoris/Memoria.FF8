@@ -9,7 +9,7 @@ internal enum AutoPlayEventKind
 internal sealed record AutoPlayVisit(string Key, string Region);
 
 /// <summary>ChangesStory is supplied by script-write analysis; Order permits explicit policy overrides.</summary>
-internal sealed record AutoPlayEvent(string Id, AutoPlayEventKind Kind, string? DestinationVisitKey = null, bool ChangesStory = false, int Order = 0, string? ConditionSignature = null);
+internal sealed record AutoPlayEvent(string Id, AutoPlayEventKind Kind, string? DestinationVisitKey = null, bool ChangesStory = false, int Order = 0, string? ConditionSignature = null, IReadOnlyList<string>? Variants = null);
 
 internal sealed class AutoPlayConditionCoverage
 {
@@ -21,8 +21,9 @@ internal sealed class AutoPlayConditionCoverage
 }
 
 internal sealed record AutoPlayChoiceSelection(string Key, int Selection);
-internal sealed record AutoPlayEventRoute(string DestinationVisitKey, string? ConditionSignature, bool? ObservedStoryChanged, IReadOnlyList<AutoPlayChoiceSelection>? Selections);
+internal sealed record AutoPlayEventRoute(string DestinationVisitKey, string? ConditionSignature, bool? ObservedStoryChanged, IReadOnlyList<AutoPlayChoiceSelection>? Selections, string? TargetId = null);
 internal sealed record AutoPlayPlanStep(string VisitKey, AutoPlayEvent Event, bool IsTravel, AutoPlayEventRoute? Route = null);
+internal sealed record AutoPlayUnavailableAttempt(string SourceConditionSignature, string DestinationVisitKey, string GuardKey, string GuardFingerprint, string? TargetId = null);
 
 internal sealed class AutoPlayEventCoverage
 {
@@ -34,6 +35,11 @@ internal sealed class AutoPlayEventCoverage
     public bool? ObservedStoryChanged { get; set; }
     public string? ObservedConditionSignature { get; set; }
     public List<AutoPlayEventRoute> Routes { get; set; } = [];
+    public List<AutoPlayUnavailableAttempt> UnavailableAttempts { get; set; } = [];
+    public bool Unavailable { get; set; }
+    public HashSet<string> UnavailableVariants { get; set; } = new(StringComparer.Ordinal);
+    public string? AvailabilityFingerprint { get; set; }
+    public HashSet<string> CompletedAvailabilityFingerprints { get; set; } = new(StringComparer.Ordinal);
 }
 
 internal sealed class AutoPlayVisitCoverage
@@ -125,6 +131,16 @@ internal sealed class AutoPlayPlanner
                 }
                 previous.Event = item with { DestinationVisitKey = item.DestinationVisitKey ?? previous.Event.DestinationVisitKey, Kind = previous.Event.DestinationVisitKey is not null ? AutoPlayEventKind.Transition : item.Kind };
                 previous.Available = true;
+                if (!previous.UnavailableAttempts.Any(attempt => attempt.SourceConditionSignature == item.ConditionSignature))
+                {
+                    previous.Unavailable = false;
+                    previous.UnavailableVariants.Clear();
+                    previous.AvailabilityFingerprint = null;
+                }
+                else
+                {
+                    previous.Unavailable = ObservedVariants(previous).All(previous.UnavailableVariants.Contains);
+                }
                 if (item.ConditionSignature is string signature)
                 {
                     if (previous.Conditions is null)
@@ -155,19 +171,25 @@ internal sealed class AutoPlayPlanner
         }
     }
 
-    public void Completed(string visitKey, string eventId, string? destinationVisitKey = null, string? exitSignature = null, bool? observedStoryChanged = null, IReadOnlyList<AutoPlayChoiceSelection>? selections = null, string? entrySignature = null, bool entrySignatureAuthoritative = false)
+    public void Completed(string visitKey, string eventId, string? destinationVisitKey = null, string? exitSignature = null, bool? observedStoryChanged = null, IReadOnlyList<AutoPlayChoiceSelection>? selections = null, string? entrySignature = null, bool entrySignatureAuthoritative = false, string? entryAvailabilityFingerprint = null, bool availabilityFingerprintAuthoritative = false, string? targetId = null)
     {
         AutoPlayEventCoverage item = FindEvent(visitKey, eventId);
         item.Completed = true;
         item.BlockedReason = null;
+        item.Unavailable = false;
+        string? completedAvailability = availabilityFingerprintAuthoritative ? entryAvailabilityFingerprint : item.AvailabilityFingerprint;
+        if (completedAvailability is string availability)
+        {
+            item.CompletedAvailabilityFingerprints.Add(availability);
+        }
         item.ObservedStoryChanged = observedStoryChanged;
         string? entry = entrySignatureAuthoritative ? entrySignature : entrySignature ?? item.Conditions?.ActiveEntry ?? item.Event.ConditionSignature;
         item.ObservedConditionSignature = observedStoryChanged is null ? null : entry;
         ConsumeConditions(item, exitSignature, entry, entrySignatureAuthoritative: true);
         if (destinationVisitKey is not null)
         {
-            AutoPlayEventRoute route = new(destinationVisitKey, entry, observedStoryChanged, selections?.ToArray());
-            item.Routes.RemoveAll(previous => previous.DestinationVisitKey == route.DestinationVisitKey && previous.ConditionSignature == route.ConditionSignature && (previous.Selections is null ? route.Selections is null : route.Selections is not null && previous.Selections.SequenceEqual(route.Selections)));
+            AutoPlayEventRoute route = new(destinationVisitKey, entry, observedStoryChanged, selections?.ToArray(), targetId);
+            item.Routes.RemoveAll(previous => previous.DestinationVisitKey == route.DestinationVisitKey && previous.ConditionSignature == route.ConditionSignature && previous.TargetId == route.TargetId && (previous.Selections is null ? route.Selections is null : route.Selections is not null && previous.Selections.SequenceEqual(route.Selections)));
             item.Routes.Add(route);
             item.Event = item.Event with { DestinationVisitKey = destinationVisitKey, Kind = AutoPlayEventKind.Transition };
         }
@@ -183,6 +205,63 @@ internal sealed class AutoPlayPlanner
         AutoPlayEventCoverage item = FindEvent(visitKey, eventId);
         item.BlockedReason = reason;
         ConsumeConditions(item, null);
+    }
+
+    public void MarkUnavailable(string visitKey, string eventId, AutoPlayUnavailableAttempt attempt)
+    {
+        AutoPlayEventCoverage item = FindEvent(visitKey, eventId);
+        string targetId = attempt.TargetId ?? item.Event.Id;
+        if (item.Event.ConditionSignature != attempt.SourceConditionSignature || string.IsNullOrWhiteSpace(attempt.GuardKey) || string.IsNullOrWhiteSpace(attempt.GuardFingerprint) || !ObservedVariants(item).Contains(targetId, StringComparer.Ordinal))
+        {
+            throw new InvalidOperationException("Native unavailability requires its exact current source condition and a known destination guard.");
+        }
+        attempt = attempt with { TargetId = targetId };
+        if (!item.UnavailableAttempts.Contains(attempt))
+        {
+            item.UnavailableAttempts.Add(attempt);
+        }
+        item.UnavailableVariants.Add(targetId);
+        item.Unavailable = ObservedVariants(item).All(item.UnavailableVariants.Contains);
+        if (item.Conditions is not null)
+        {
+            item.Conditions.ActiveEntry = null;
+        }
+    }
+
+    public void RefreshUnavailable(string visitKey, IReadOnlyDictionary<string, string> guardFingerprints)
+    {
+        AutoPlayVisitCoverage visit = FindVisit(visitKey);
+        List<(AutoPlayEventCoverage Event, HashSet<string> Variants, string? Fingerprint)> updates = [];
+        foreach (AutoPlayEventCoverage item in visit.Events.Where(item => item.Available))
+        {
+            AutoPlayUnavailableAttempt[] attempts = item.UnavailableAttempts.Where(attempt => attempt.SourceConditionSignature == item.Event.ConditionSignature && ObservedVariants(item).Contains(attempt.TargetId ?? item.Event.Id, StringComparer.Ordinal)).ToArray();
+            if (attempts.Length == 0)
+            {
+                updates.Add((item, [], null));
+                continue;
+            }
+            foreach (string key in attempts.Select(attempt => attempt.GuardKey).Distinct(StringComparer.Ordinal))
+            {
+                if (!guardFingerprints.TryGetValue(key, out string? fingerprint) || string.IsNullOrWhiteSpace(fingerprint))
+                {
+                    throw new InvalidOperationException("A destination eligibility dependency is unknown; native unavailability cannot be refreshed.");
+                }
+            }
+            HashSet<string> unavailable = attempts.Where(attempt => guardFingerprints[attempt.GuardKey] == attempt.GuardFingerprint).Select(attempt => attempt.TargetId ?? item.Event.Id).Where(target => ObservedVariants(item).Contains(target, StringComparer.Ordinal)).ToHashSet(StringComparer.Ordinal);
+            string signature = item.Event.ConditionSignature + "|" + string.Join('|', attempts.Select(attempt => attempt.GuardKey).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).Select(key => key + "=" + guardFingerprints[key]));
+            updates.Add((item, unavailable, signature));
+        }
+        foreach (var update in updates)
+        {
+            update.Event.UnavailableVariants = update.Variants;
+            update.Event.Unavailable = ObservedVariants(update.Event).All(update.Variants.Contains);
+            update.Event.AvailabilityFingerprint = update.Fingerprint;
+        }
+    }
+
+    private static IReadOnlyList<string> ObservedVariants(AutoPlayEventCoverage item)
+    {
+        return item.Event.Variants is { Count: > 0 } variants ? variants : [item.Event.Id];
     }
 
     /// <summary>Returns null when no observed frontier is reachable without crossing a completed story edge.</summary>
@@ -345,17 +424,18 @@ internal sealed class AutoPlayPlanner
 
     private static IOrderedEnumerable<AutoPlayEventCoverage> OrderedEvents(AutoPlayVisitCoverage visit)
     {
-        return visit.Events.Where(item => item.Available && item.BlockedReason is null).OrderBy(item => item.Event.Order).ThenBy(item => item.Event.Kind).ThenBy(item => item.Event.Id, StringComparer.Ordinal);
+        return visit.Events.Where(item => item.Available && !item.Unavailable && item.BlockedReason is null).OrderBy(item => item.Event.Order).ThenBy(item => item.Event.Kind).ThenBy(item => item.Event.Id, StringComparer.Ordinal);
     }
 
     private static bool NeedsExecution(AutoPlayEventCoverage item)
     {
-        return item.Event.ConditionSignature is string signature && item.Conditions is not null ? !item.Conditions.Contains(signature) : !item.Completed;
+        bool conditionsChanged = item.Event.ConditionSignature is string signature && item.Conditions is not null ? !item.Conditions.Contains(signature) : !item.Completed;
+        return conditionsChanged || item.AvailabilityFingerprint is string availability && !item.CompletedAvailabilityFingerprints.Contains(availability);
     }
 
     private static IEnumerable<AutoPlayEventRoute> TravelRoutes(AutoPlayEventCoverage item)
     {
-        return item.Routes.Where(route => item.Completed && StringComparer.Ordinal.Equals(route.ConditionSignature, item.Event.ConditionSignature) && !(route.ObservedStoryChanged ?? item.Event.ChangesStory)).OrderBy(route => route.DestinationVisitKey, StringComparer.Ordinal).ThenBy(route => route.Selections is null ? string.Empty : string.Join('|', route.Selections.Select(selection => $"{selection.Key}={selection.Selection}")), StringComparer.Ordinal);
+        return item.Routes.Where(route => item.Completed && StringComparer.Ordinal.Equals(route.ConditionSignature, item.Event.ConditionSignature) && !(route.ObservedStoryChanged ?? item.Event.ChangesStory) && (route.TargetId is null ? item.UnavailableVariants.Count == 0 : ObservedVariants(item).Contains(route.TargetId, StringComparer.Ordinal) && !item.UnavailableVariants.Contains(route.TargetId))).OrderBy(route => route.DestinationVisitKey, StringComparer.Ordinal).ThenBy(route => route.TargetId, StringComparer.Ordinal).ThenBy(route => route.Selections is null ? string.Empty : string.Join('|', route.Selections.Select(selection => $"{selection.Key}={selection.Selection}")), StringComparer.Ordinal);
     }
 
     private static void NormalizeLegacyRoute(AutoPlayEventCoverage item)

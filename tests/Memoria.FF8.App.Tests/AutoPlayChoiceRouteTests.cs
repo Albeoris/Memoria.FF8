@@ -167,6 +167,8 @@ public sealed class AutoPlayChoiceRouteTests
             travel.ActiveEvent = null;
             travel.ActiveStory = null;
             travel.ActiveTravelRoute = null;
+            travel.ActiveBeforeCheckpoint = null;
+            travel.ActiveTargetId = null;
             travel.ActiveSelections = [];
             travel.ActiveObservedInput = null;
             travel.ObserveContactInput = false;

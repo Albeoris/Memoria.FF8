@@ -22,6 +22,10 @@ internal sealed class AutoPlayRunState
     public string? ActiveConditionSignature { get; set; }
     public List<AutoPlayChoiceSelection>? ActiveSelections { get; set; } = [];
     public AutoPlayEventRoute? ActiveTravelRoute { get; set; }
+    public string? ActiveBeforeCheckpoint { get; set; }
+    public string? ActiveTargetId { get; set; }
+    public string? ActiveAbsenceGuardKey { get; set; }
+    public string? ActiveAvailabilityFingerprint { get; set; }
     public ScriptedInputMetadata? ActiveObservedInput { get; set; }
     public bool ObserveContactInput { get; set; }
     public bool ObservedControlLoss { get; set; }
@@ -44,6 +48,7 @@ internal sealed class AutoPlayRunState
     public int LastProgressScore { get; set; }
     public HashSet<string> ObservedScenes { get; set; } = new(StringComparer.Ordinal);
     public HashSet<string> ObservedMessages { get; set; } = new(StringComparer.Ordinal);
+    public Dictionary<string, NativePlayerAbsenceReceipt> UnavailabilityGuards { get; set; } = new(StringComparer.Ordinal);
 }
 
 /// <summary>The graphics host and command line drive this same autonomous, deterministic controller.</summary>
@@ -229,6 +234,7 @@ internal sealed class AutoPlayController
             }
         }
         saved.PrimaryContinuation = ImportCheckpoint(saved.PrimaryContinuation);
+        saved.ActiveBeforeCheckpoint = ImportCheckpoint(saved.ActiveBeforeCheckpoint);
         run = saved;
         run.Error = null;
         run.LastProgressStep = run.Steps;
@@ -263,7 +269,7 @@ internal sealed class AutoPlayController
                 CheckIdleDeadline();
                 Tick();
                 run.Steps++;
-                int score = run.ObservedScenes.Count + run.ObservedMessages.Count + run.Coverage.Visits.Count + run.Coverage.Choices.Count + run.Coverage.Visits.Sum(visit => visit.Events.Count(item => item.Completed)) + run.Coverage.Choices.Sum(choice => choice.CompletedOptions.Count);
+                int score = run.ObservedScenes.Count + run.ObservedMessages.Count + run.Coverage.Visits.Count + run.Coverage.Choices.Count + run.Coverage.Visits.Sum(visit => visit.Events.Count(item => item.Completed) + visit.Events.Sum(item => item.UnavailableAttempts.Count)) + run.Coverage.Choices.Sum(choice => choice.CompletedOptions.Count);
                 if (score != run.LastProgressScore)
                 {
                     run.LastProgressScore = score;
@@ -396,6 +402,10 @@ internal sealed class AutoPlayController
             ExploreWorld(world);
             return;
         }
+        if (world.Events.PlayerActor is null && run.ActiveField != session.State.FieldId && TryBacktrackNativeUnavailable(world))
+        {
+            return;
+        }
         if (!world.Events.IsUserControlEnabled && session.State.FieldButtonInput is { PhysicalHeld: 0 } buttons && (buttons.PendingPulse != 0 || buttons.RawHeld != 0))
         {
             world.AdvanceAutoPlayInputFrame();
@@ -438,7 +448,12 @@ internal sealed class AutoPlayController
         run.ScriptedInputSteps = 0;
         string visit = VisitKey();
         IReadOnlyList<AutoPlayTarget> targets = world.DiscoverAutoPlayTargets();
-        planner.Observe(new(visit, world.AutoPlayRegion), targets.GroupBy(target => target.CoverageId).Select(group => group.First()).Select(target => new AutoPlayEvent(target.CoverageId, target.Kind == AutoPlayTargetKind.Gateway || target.DestinationField is not null ? AutoPlayEventKind.Transition : AutoPlayEventKind.Interaction, ChangesStory: target.ChangesStory, Order: target.Order, ConditionSignature: world.ReadAutoPlayConditions(target.CoverageId, target.ObjectId).Fingerprint)).ToArray());
+        planner.Observe(new(visit, world.AutoPlayRegion), targets.GroupBy(target => target.CoverageId).Select(group =>
+        {
+            AutoPlayTarget target = group.First();
+            return new AutoPlayEvent(target.CoverageId, target.Kind == AutoPlayTargetKind.Gateway || target.DestinationField is not null ? AutoPlayEventKind.Transition : AutoPlayEventKind.Interaction, ChangesStory: target.ChangesStory, Order: target.Order, ConditionSignature: world.ReadAutoPlayConditions(target.CoverageId, target.ObjectId).Fingerprint, Variants: group.Select(variant => variant.Id).Order(StringComparer.Ordinal).ToArray());
+        }).ToArray());
+        RefreshUnavailable(world);
         if (FinishChoices())
         {
             return;
@@ -452,6 +467,10 @@ internal sealed class AutoPlayController
             run.ActiveObservedInput = null;
             run.ObserveContactInput = false;
             run.ActiveTravelRoute = null;
+            run.ActiveBeforeCheckpoint = null;
+            run.ActiveTargetId = null;
+            run.ActiveAbsenceGuardKey = null;
+            run.ActiveAvailabilityFingerprint = null;
         }
         AutoPlayPlanStep? next = planner.Plan(visit);
         if (next is null)
@@ -464,31 +483,49 @@ internal sealed class AutoPlayController
             throw new NotSupportedException("Reachable event frontier exhausted before the authenticated ending. Missing conditional event, graph edge or progression policy; coverage is saved.");
         }
         run.IdleFrames = 0;
-        AutoPlayTarget[] variants = targets.Where(item => item.CoverageId == next.Event.Id).OrderBy(item => item.Order).ThenBy(item => item.Id, StringComparer.Ordinal).ToArray();
+        AutoPlayEventCoverage currentEvent = run.Coverage.Visits.Single(item => item.Visit.Key == visit).Events.Single(item => item.Event.Id == next.Event.Id);
+        AutoPlayTarget[] variants = targets.Where(item => item.CoverageId == next.Event.Id && !currentEvent.UnavailableVariants.Contains(item.Id) && (next.Route?.TargetId is not string recordedTarget || item.Id == recordedTarget)).OrderBy(item => item.Order).ThenBy(item => item.Id, StringComparer.Ordinal).ToArray();
         AutoPlayTarget target = variants.FirstOrDefault() ?? throw new InvalidDataException("Planned event is no longer available in the current field.");
-        SaveBundle($"event-{run.Steps:D10}", CaptureState());
-        void ActivateTarget()
+        string beforeCheckpoint = $"event-{run.Steps:D10}.json";
+        SaveBundle(Path.GetFileNameWithoutExtension(beforeCheckpoint), CaptureState());
+        int variantAttempt = 0;
+        string BeforeVariant()
         {
-            planner.BeginEvent(visit, target.CoverageId);
+            if (variantAttempt++ == 0)
+            {
+                return beforeCheckpoint;
+            }
+            string name = $"event-{run.Steps:D10}-attempt-{variantAttempt}";
+            SaveBundle(name, CaptureState());
+            return name + ".json";
+        }
+        void ActivateTarget(AutoPlayTarget selected, string checkpoint)
+        {
+            RefreshUnavailable(world);
+            planner.BeginEvent(visit, selected.CoverageId);
             run.ActiveVisit = visit;
-            run.ActiveEvent = target.CoverageId;
+            run.ActiveEvent = selected.CoverageId;
             run.ActiveField = world.Events.FieldId;
             run.ActiveStory = world.Events.Variables.GetValueOrDefault(256);
-            run.ActiveObjectId = target.ObjectId;
-            run.ActiveConditionSignature = world.ReadAutoPlayConditions(target.CoverageId, target.ObjectId).Fingerprint;
+            run.ActiveObjectId = selected.ObjectId;
+            run.ActiveConditionSignature = world.ReadAutoPlayConditions(selected.CoverageId, selected.ObjectId).Fingerprint;
             run.ActiveSelections = [];
             run.ActiveTravelRoute = next.Route;
+            run.ActiveBeforeCheckpoint = checkpoint;
+            run.ActiveTargetId = selected.Id;
+            run.ActiveAbsenceGuardKey = null;
+            run.ActiveAvailabilityFingerprint = run.Coverage.Visits.Single(item => item.Visit.Key == visit).Events.Single(item => item.Event.Id == selected.CoverageId).AvailabilityFingerprint;
             run.ActiveObservedInput = null;
-            run.ObserveContactInput = target.Kind != AutoPlayTargetKind.Talk;
+            run.ObserveContactInput = selected.Kind != AutoPlayTargetKind.Talk;
             run.ObservedControlLoss = false;
             run.SettleFrames = 0;
         }
         if (target.Kind == AutoPlayTargetKind.Talk)
         {
-            ActivateTarget();
             bool accepted = false;
             foreach (AutoPlayTarget variant in variants)
             {
+                ActivateTarget(variant, BeforeVariant());
                 world.Events.TeleportPlayer(variant.X, variant.Y, variant.Z, variant.Triangle, variant.Direction);
                 PlayerActionResult result = world.Apply(new(PlayerActionKind.Interact, variant.ObjectId));
                 if (result.Accepted)
@@ -503,6 +540,8 @@ internal sealed class AutoPlayController
                 run.ActiveVisit = null;
                 run.ActiveEvent = null;
                 run.ActiveStory = null;
+                run.ActiveBeforeCheckpoint = null;
+                run.ActiveTargetId = null;
             }
         }
         else
@@ -510,6 +549,7 @@ internal sealed class AutoPlayController
             bool triggered = false;
             foreach (AutoPlayTarget variant in variants)
             {
+                string checkpoint = BeforeVariant();
                 FieldTeleportPosition? approach = null;
                 if (variant.ApproachX is float approachX && variant.ApproachY is float approachY)
                 {
@@ -521,16 +561,15 @@ internal sealed class AutoPlayController
                     run.ActiveVisit = null;
                     run.ActiveEvent = null;
                     run.ActiveStory = null;
+                    run.ActiveBeforeCheckpoint = null;
+                    run.ActiveTargetId = null;
                     run.ActiveObjectId = -1;
                     run.ActiveObservedInput = null;
                     run.ObserveContactInput = false;
                     Apply(new(PlayerActionKind.Wait));
                     return;
                 }
-                if (run.ActiveEvent is null)
-                {
-                    ActivateTarget();
-                }
+                ActivateTarget(variant, checkpoint);
                 bool contacted = placement.ContactTriggered;
                 if (variant.RequiresConfirm)
                 {
@@ -549,6 +588,8 @@ internal sealed class AutoPlayController
                 run.ActiveVisit = null;
                 run.ActiveEvent = null;
                 run.ActiveStory = null;
+                run.ActiveBeforeCheckpoint = null;
+                run.ActiveTargetId = null;
                 run.ActiveObjectId = -1;
             }
             Apply(new(PlayerActionKind.Wait));
@@ -751,6 +792,7 @@ internal sealed class AutoPlayController
         string signature = WorldConditionSignature(session.State);
         IReadOnlyList<WorldAutoPlayTarget> targets = world.DiscoverAutoPlayWorldTargets();
         planner.Observe(new(visit, "world"), targets.Select(target => new AutoPlayEvent(target.Id, AutoPlayEventKind.Transition, Order: target.Order, ConditionSignature: signature)).ToArray());
+        RefreshUnavailable(world);
         if (FinishChoices())
         {
             return;
@@ -765,10 +807,15 @@ internal sealed class AutoPlayController
         run.ActiveObservedInput = null;
         run.ObserveContactInput = false;
         run.ActiveTravelRoute = null;
+        run.ActiveBeforeCheckpoint = null;
+        run.ActiveTargetId = null;
+        run.ActiveAbsenceGuardKey = null;
+        run.ActiveAvailabilityFingerprint = null;
         run.SceneFrames = 0;
         AutoPlayPlanStep next = planner.Plan(visit) ?? throw new NotSupportedException("Reachable world frontier exhausted before the ending.");
         WorldAutoPlayTarget target = targets.Single(item => item.Id == next.Event.Id);
-        SaveBundle($"world-{run.Steps:D10}", CaptureState());
+        string beforeCheckpoint = $"world-{run.Steps:D10}.json";
+        SaveBundle(Path.GetFileNameWithoutExtension(beforeCheckpoint), CaptureState());
         planner.BeginEvent(visit, target.Id);
         run.ActiveVisit = visit;
         run.ActiveEvent = target.Id;
@@ -778,6 +825,10 @@ internal sealed class AutoPlayController
         run.ActiveConditionSignature = signature;
         run.ActiveSelections = [];
         run.ActiveTravelRoute = next.Route;
+        run.ActiveBeforeCheckpoint = beforeCheckpoint;
+        run.ActiveTargetId = target.Id;
+        run.ActiveAbsenceGuardKey = null;
+        run.ActiveAvailabilityFingerprint = run.Coverage.Visits.Single(item => item.Visit.Key == visit).Events.Single(item => item.Event.Id == target.Id).AvailabilityFingerprint;
         run.ObservedControlLoss = false;
         run.SettleFrames = 0;
         world.ExecuteAutoPlayWorldTarget(target);
@@ -799,7 +850,7 @@ internal sealed class AutoPlayController
         return ui.ScriptMode != 0 || !ui.Windows.IsEmpty ? 1 : 0;
     }
 
-    internal static void RecordWorldControlReturn(AutoPlayPlanner planner, string activeVisit, string eventId, string currentVisit, int? entryStory, int story, IReadOnlyList<AutoPlayChoiceSelection>? selections = null, string? entrySignature = null, bool hasChoiceOutcome = false, bool entrySignatureAuthoritative = false)
+    internal static void RecordWorldControlReturn(AutoPlayPlanner planner, string activeVisit, string eventId, string currentVisit, int? entryStory, int story, IReadOnlyList<AutoPlayChoiceSelection>? selections = null, string? entrySignature = null, bool hasChoiceOutcome = false, bool entrySignatureAuthoritative = false, string? entryAvailabilityFingerprint = null, bool availabilityFingerprintAuthoritative = false, string? targetId = null)
     {
         AutoPlayEventCoverage item = planner.State.Visits.Single(visit => visit.Visit.Key == activeVisit).Events.Single(item => item.Event.Id == eventId);
         if (activeVisit.StartsWith("world:", StringComparison.Ordinal) && !hasChoiceOutcome && selections is not { Count: > 0 } && item.Routes.Count == 0)
@@ -807,7 +858,7 @@ internal sealed class AutoPlayController
             planner.Block(activeVisit, eventId, "The native world event returned control without entering the requested field.");
             return;
         }
-        planner.Completed(activeVisit, eventId, activeVisit == currentVisit ? null : currentVisit, observedStoryChanged: ObserveStoryChange(entryStory, activeVisit, story), selections: selections, entrySignature: entrySignature, entrySignatureAuthoritative: entrySignatureAuthoritative);
+        planner.Completed(activeVisit, eventId, activeVisit == currentVisit ? null : currentVisit, observedStoryChanged: ObserveStoryChange(entryStory, activeVisit, story), selections: selections, entrySignature: entrySignature, entrySignatureAuthoritative: entrySignatureAuthoritative, entryAvailabilityFingerprint: entryAvailabilityFingerprint, availabilityFingerprintAuthoritative: availabilityFingerprintAuthoritative, targetId: targetId);
     }
 
     internal static string WorldConditionSignature(GameState state)
@@ -1046,6 +1097,130 @@ internal sealed class AutoPlayController
         return planner.ReachableFrontierCount(visit, run.ActiveVisit, run.ActiveEvent);
     }
 
+    private void RefreshUnavailable(GameWorld world)
+    {
+        if (session.State.Scene != SceneKind.Field)
+        {
+            return;
+        }
+        Dictionary<string, string> fingerprints = new(StringComparer.Ordinal);
+        AutoPlayVisitCoverage[] visits = run.Coverage.Visits.Where(visit => visit.Events.Any(item => item.Available && item.UnavailableAttempts.Any(attempt => attempt.SourceConditionSignature == item.Event.ConditionSignature))).ToArray();
+        foreach (string key in visits.SelectMany(visit => visit.Events.Where(item => item.Available).SelectMany(item => item.UnavailableAttempts.Where(attempt => attempt.SourceConditionSignature == item.Event.ConditionSignature))).Select(attempt => attempt.GuardKey).Distinct(StringComparer.Ordinal))
+        {
+            if (!run.UnavailabilityGuards.TryGetValue(key, out NativePlayerAbsenceReceipt? receipt))
+            {
+                throw new InvalidDataException("The native unavailable attempt lacks its persisted destination eligibility receipt.");
+            }
+            string program = world.ReadAutoPlayFieldProgramHash(receipt.FieldId);
+            fingerprints[key] = ReadUnavailableGuard(receipt, program, world.Events.ReadPersistentPredicateFingerprint);
+        }
+        foreach (AutoPlayVisitCoverage visit in visits)
+        {
+            planner.RefreshUnavailable(visit.Visit.Key, fingerprints);
+        }
+    }
+
+    internal static string ReadUnavailableGuard(NativePlayerAbsenceReceipt receipt, string actualProgramHash, Func<IReadOnlyList<NativePersistentPredicateRead>, string?> readPersistent)
+    {
+        if (receipt.Version != 1)
+        {
+            throw new InvalidDataException("The destination eligibility receipt has an unsupported native proof version.");
+        }
+        return actualProgramHash != receipt.ProgramHash ? "changed-program:" + actualProgramHash : readPersistent(receipt.Reads) ?? throw new NotSupportedException("Destination eligibility dependencies cannot be read exactly from their persistent native owners.");
+    }
+
+    private bool TryBacktrackNativeUnavailable(GameWorld world)
+    {
+        NativePlayerAbsenceReceipt? receipt = world.Events.InspectNativePlayerAbsence();
+        if (receipt is null)
+        {
+            return false;
+        }
+        ValidateNativeBacktrack(run);
+        string sourceVisit = run.ActiveVisit!;
+        string eventId = run.ActiveEvent!;
+        string sourceSignature = run.ActiveConditionSignature!;
+        string beforeCheckpoint = run.ActiveBeforeCheckpoint!;
+        if (receipt.FieldId != session.State.FieldId || world.ReadAutoPlayFieldProgramHash(receipt.FieldId) != receipt.ProgramHash)
+        {
+            throw new InvalidDataException("Native unavailability does not identify the currently loaded original destination program.");
+        }
+        string guardKey = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(receipt, JsonOptions)));
+        run.UnavailabilityGuards[guardKey] = receipt;
+        run.ActiveAbsenceGuardKey = guardKey;
+        GameState unavailable = CaptureState();
+        string destinationVisit = VisitKey();
+        SaveBundle($"unavailable-{run.Steps:D10}", unavailable);
+        GameState before = GameSession.Load(Path.Combine(runDirectory!, beforeCheckpoint));
+        try
+        {
+            restore(before);
+            GameWorld source = getWorld();
+            source.EnsureField();
+            if (session.State.Scene != SceneKind.Field || session.State.FieldId != run.ActiveField || VisitKey() != sourceVisit || !source.Events.CanAcceptMovementInput || run.Coverage.Visits.Single(visit => visit.Visit.Key == sourceVisit).Events.Single(item => item.Event.Id == eventId).Event.ConditionSignature != sourceSignature)
+            {
+                throw new NotSupportedException("The saved pre-event state does not retain the exact available source condition of the native unavailable attempt.");
+            }
+            if (!source.CanCacheAutoPlayUnavailableSource(eventId, run.ActiveObjectId))
+            {
+                throw new NotSupportedException("The source event contains native inputs not represented by the unavailable-attempt signature; automatic backtracking cannot suppress it.");
+            }
+            ValidateNativeBacktrackPredicates(sourceSignature, source.ReadAutoPlayConditions(eventId, run.ActiveObjectId), receipt.Fingerprint, source.Events.ReadPersistentPredicateFingerprint(receipt.Reads));
+        }
+        catch
+        {
+            restore(unavailable);
+            throw;
+        }
+        planner.MarkUnavailable(sourceVisit, eventId, new(sourceSignature, destinationVisit, guardKey, receipt.Fingerprint, run.ActiveTargetId));
+        RefreshUnavailable(getWorld());
+        run.ActiveVisit = null;
+        run.ActiveEvent = null;
+        run.ActiveStory = null;
+        run.ActiveObjectId = -1;
+        run.ActiveConditionSignature = null;
+        run.ActiveSelections = [];
+        run.ActiveTravelRoute = null;
+        run.ActiveBeforeCheckpoint = null;
+        run.ActiveTargetId = null;
+        run.ActiveAbsenceGuardKey = null;
+        run.ActiveAvailabilityFingerprint = null;
+        run.ActiveObservedInput = null;
+        run.ObserveContactInput = false;
+        run.ObservedControlLoss = false;
+        run.SettleFrames = 4;
+        run.SceneFrames = 0;
+        run.ScriptedInputSteps = 0;
+        run.IdleFrames = 0;
+        SaveBundle($"unavailable-return-{run.Steps:D10}", CaptureState());
+        Status = "Restored the actual pre-event checkpoint; the native unavailable destination is deferred under its observed conditions.";
+        return true;
+    }
+
+    internal static void ValidateNativeBacktrack(AutoPlayRunState state)
+    {
+        if (state.ActiveVisit is null || state.ActiveEvent is null || state.ActiveConditionSignature is null || state.ActiveBeforeCheckpoint is null || state.ActiveTargetId is null)
+        {
+            throw new NotSupportedException("Native unavailability requires its actual pre-event standalone checkpoint and exact source condition; legacy active attempts cannot be reconstructed.");
+        }
+        if (state.SceneChoices.Count != 0 || state.PrimaryContinuation is not null || state.Coverage.Choices.Any(choice => choice.ActiveOption is not null) || state.ActiveSelections is not { Count: 0 })
+        {
+            throw new NotSupportedException("Automatic native-unavailability backtracking currently requires a proved empty choice path; conditional alternatives are not completed or skipped.");
+        }
+    }
+
+    internal static void ValidateNativeBacktrackPredicates(string sourceSignature, EventPredicateState source, string destinationGuard, string? sourceGuard)
+    {
+        if (source.DeferredOperations.Count != 0 || source.Fingerprint != sourceSignature)
+        {
+            throw new NotSupportedException("The pre-event source has unknown or changed native predicate inputs; automatic backtracking cannot suppress it.");
+        }
+        if (sourceGuard is null || sourceGuard != destinationGuard)
+        {
+            throw new NotSupportedException("Destination eligibility inputs are unknown or changed across the native event; automatic backtracking cannot suppress it.");
+        }
+    }
+
     internal void RecordActiveControlReturn()
     {
         if (run.ActiveVisit is not string source || run.ActiveEvent is not string eventId)
@@ -1065,11 +1240,11 @@ internal sealed class AutoPlayController
         string? exitSignature = run.ActiveField == session.State.FieldId && session.State.Scene == SceneKind.Field ? world.ReadAutoPlayConditions(eventId, run.ActiveObjectId).Fingerprint : null;
         if (destination.StartsWith("world:", StringComparison.Ordinal))
         {
-            RecordWorldControlReturn(planner, source, eventId, destination, run.ActiveStory, session.State.Variables.GetValueOrDefault(256), run.ActiveSelections, run.ActiveConditionSignature, run.SceneChoices.Count > 0, entrySignatureAuthoritative: true);
+            RecordWorldControlReturn(planner, source, eventId, destination, run.ActiveStory, session.State.Variables.GetValueOrDefault(256), run.ActiveSelections, run.ActiveConditionSignature, run.SceneChoices.Count > 0, entrySignatureAuthoritative: true, entryAvailabilityFingerprint: run.ActiveAvailabilityFingerprint, availabilityFingerprintAuthoritative: true, targetId: run.ActiveTargetId);
         }
         else
         {
-            planner.Completed(source, eventId, source == destination ? null : destination, exitSignature, ObserveStoryChange(run.ActiveStory, source, session.State.Variables.GetValueOrDefault(256)), run.ActiveSelections, run.ActiveConditionSignature, entrySignatureAuthoritative: true);
+            planner.Completed(source, eventId, source == destination ? null : destination, exitSignature, ObserveStoryChange(run.ActiveStory, source, session.State.Variables.GetValueOrDefault(256)), run.ActiveSelections, run.ActiveConditionSignature, entrySignatureAuthoritative: true, entryAvailabilityFingerprint: run.ActiveAvailabilityFingerprint, availabilityFingerprintAuthoritative: true, targetId: run.ActiveTargetId);
         }
     }
 
