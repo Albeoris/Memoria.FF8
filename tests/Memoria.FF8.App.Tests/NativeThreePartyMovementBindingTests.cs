@@ -62,7 +62,7 @@ public sealed class NativeThreePartyMovementBindingTests
     }
 
     [Fact]
-    public void ThreeSlotAdmissionRetainsDynamicLeaderAndCanonicalPartyBounds()
+    public void ThreeSlotAdmissionRetainsDynamicPhysicalLeaderIndependentlyOfCanonicalPartyIdentities()
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
@@ -70,16 +70,22 @@ public sealed class NativeThreePartyMovementBindingTests
         FieldAssets field = assets.LoadField(260);
         SceneEventState scene = SyntheticScene([1, 255, 255]);
         scene.NativeActorObjectIds[1] = 4;
-        Assert.True(NativePlayerMovementAdapter.Supports(field, scene, SyntheticPlayer(4)));
-        Assert.False(NativePlayerMovementAdapter.Supports(field, scene, SyntheticPlayer(0)));
-        scene.Party.Add(3);
-        Assert.False(NativePlayerMovementAdapter.Supports(field, scene, SyntheticPlayer(4)));
-        scene.Party.RemoveAt(3);
-        scene.Party[2] = 1;
-        Assert.False(NativePlayerMovementAdapter.Supports(field, scene, SyntheticPlayer(4)));
-        scene.Party.RemoveAt(2);
-        scene.Party.RemoveAt(1);
+        int[][] canonicalParties = [[0, 1, 6], [5, 255, 6], [6, 1, 255]];
+        foreach (int[] party in canonicalParties)
+        {
+            for (int slot = 0; slot < 3; slot++)
+            {
+                scene.Party[slot] = party[slot];
+            }
+            string before = JsonSerializer.Serialize(scene);
+            Assert.True(NativePlayerMovementAdapter.Supports(field, scene, SyntheticPlayer(4)));
+            Assert.False(NativePlayerMovementAdapter.Supports(field, scene, SyntheticPlayer(0)));
+            Assert.Equal(before, JsonSerializer.Serialize(scene));
+            Assert.Equal(new NativePartyBindingMemory(1, 0, 1, 2), scene.PartyBindingMemory);
+        }
         scene.FieldPartyNativeActorIds[2] = 2;
+        Assert.True(NativePlayerMovementAdapter.Supports(field, scene, SyntheticPlayer(4)));
+        scene.FieldPartyNativeActorIds[0] = 3;
         Assert.False(NativePlayerMovementAdapter.Supports(field, scene, SyntheticPlayer(4)));
     }
 

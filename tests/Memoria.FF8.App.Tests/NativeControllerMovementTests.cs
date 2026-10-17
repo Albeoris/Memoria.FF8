@@ -44,7 +44,7 @@ public sealed class NativeControllerMovementTests
         Assert.Equal((24576, -29406), (scene.State.X, scene.State.Z));
         GameSession independent = new(before);
         using WorldMapScene replay = new(independent, GameDirectory());
-        Assert.Equal(scene.State.Frame, replay.Apply(input).FramesAdvanced);
+        Assert.Equal(scene.State.Frame - before.World!.Frame, replay.Apply(input).FramesAdvanced);
         Assert.Equal(JsonSerializer.Serialize(session.State), JsonSerializer.Serialize(independent.State));
         for (int tick = 0; tick < 18; tick++)
         {
@@ -75,7 +75,7 @@ public sealed class NativeControllerMovementTests
     [InlineData(-0.5f, 0.5f, -16, -1)]
     public void Car_keeps_fractional_native_steering_and_throttle_and_ignores_camera_in_variant_zero(float horizontal, float vertical, int yawDelta, int speed)
     {
-        GameSession session = FootSession();
+        GameSession session = WorldEntrySession();
         // Declared native component bank.
         NativeWorldEntryMemory memory = session.State.WorldEntryMemory!.WriteBytes(256, 2, 40).WriteBytes(265, 1, 128);
         session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), WorldEntryMemory = memory });
@@ -94,7 +94,7 @@ public sealed class NativeControllerMovementTests
     [InlineData(-0.5f, 0.5f, -16, -1)]
     public void Secondary_stick_routes_fractional_vehicle_axes_to_the_existing_native_motor(float horizontal, float vertical, int yawDelta, int speed)
     {
-        GameSession session = FootSession();
+        GameSession session = WorldEntrySession();
         NativeWorldEntryMemory memory = session.State.WorldEntryMemory!.WriteBytes(256, 2, 40).WriteBytes(265, 1, 128);
         session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), WorldEntryMemory = memory });
         using WorldMapScene scene = new(session, GameDirectory());
@@ -128,19 +128,11 @@ public sealed class NativeControllerMovementTests
     [Fact]
     public void World_snapshot_restores_and_continues_fractional_movement_and_manual_camera()
     {
-        GameSession fresh = GameSession.CreateColdProcess();
-        fresh.StartNewGame();
-        using (GameWorld route = new(fresh, GameDirectory()))
-        {
-            WorldMusicTests.ReachGardenGate(route, fresh);
-            IfritCausalRecreationTests.WalkGateway(route, fresh, 0, worldExit: true);
-            route.EnsureField();
-        }
+        GameSession fresh = FootSession();
         GameState source = fresh.State;
         GameState recreated = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(source))!;
         GameSession session = new(recreated);
-        using GameWorld world = new(session, GameDirectory());
-        world.EnsureField();
+        using WorldMapScene world = new(session, GameDirectory());
         foreach (PlayerAction action in new PlayerAction[] { new(PlayerActionKind.Wait, CameraHorizontal: 0.5f), new(PlayerActionKind.Move, Horizontal: 0.75f, Vertical: -0.25f, CameraHorizontal: -0.4f) })
         {
             Assert.True(world.Apply(action).Accepted);
@@ -149,22 +141,35 @@ public sealed class NativeControllerMovementTests
         GameState replayed = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(final))!;
         Assert.Equal(JsonSerializer.Serialize(final), JsonSerializer.Serialize(replayed));
         GameSession independent = new(replayed);
-        using GameWorld restored = new(independent, GameDirectory());
-        restored.EnsureField();
-        world.SetRenderSize(640, 448);
-        restored.SetRenderSize(640, 448);
-        Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));
+        using WorldMapScene restored = new(independent, GameDirectory());
+        Assert.Equal(world.Render(640, 448), restored.Render(640, 448));
         PlayerAction next = new(PlayerActionKind.Move, Horizontal: -0.25f, Vertical: 0.75f, CameraHorizontal: 1);
         Assert.Equal(world.Apply(next), restored.Apply(next));
         Assert.Equal(JsonSerializer.Serialize(session.State), JsonSerializer.Serialize(independent.State));
-        Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));
+        Assert.Equal(world.Render(640, 448), restored.Render(640, 448));
     }
 
     private static GameSession FootSession()
     {
+        GameSession session = WorldEntrySession();
+        using WorldMapScene scene = new(session, GameDirectory());
+        // Component input begins only after the original loader's ordinary zero-input callbacks.
+        while (NativeWorldEntryControl.DelayAfterCallback(scene.State.Frame + 1, 0) > 0)
+        {
+            Assert.Equal(1, scene.Apply(new PlayerAction(PlayerActionKind.Wait)).FramesAdvanced);
+        }
+        Assert.Equal(23, scene.State.Frame);
+        Assert.Equal((24576, -29406), (scene.State.X, scene.State.Z));
+        Assert.Null(scene.CurrentDialogue);
+        return session;
+    }
+
+    private static GameSession WorldEntrySession()
+    {
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         using GameWorld initialization = new(session, GameDirectory());
+        // Declared isolated world component entry; this does not reconstruct a field journey.
         session.Restore(session.State with { Scene = SceneKind.WorldMap, WorldArrival = new WorldTransition(0, 0, 0) });
         return session;
     }
