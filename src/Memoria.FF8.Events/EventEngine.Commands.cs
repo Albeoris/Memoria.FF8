@@ -915,7 +915,7 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.MESMODE:
                 args = Pop(fiber, 3);
-                Scene.MessageMode = args[2];
+                Scene.MessageChannelStyles[args[0]] = DialogueChannelStyle.FromOperands(args[1], args[2]);
                 break;
             case Jsm.Opcode.SETMESSPEED:
                 args = PrepareNativeMessageSpeed(fiber);

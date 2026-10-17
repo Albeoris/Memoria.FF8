@@ -44,7 +44,7 @@ internal static class DialogueLayout
             float headingHeight = speaker is null ? 0 : lineHeight * speakerScale + SpeakerGap;
             int screenLines = Math.Max(1, (int)MathF.Floor((240 - 2 * ScreenPadding - 2 * DialoguePresentation.Padding - headingHeight) / lineHeight));
             int scriptLines = (int)MathF.Floor(((window?.Height ?? 0) - 2 * DialoguePresentation.Padding - headingHeight) / lineHeight);
-            int capacity = Math.Max(1, Math.Min(screenLines, Math.Max(8, scriptLines)));
+            int capacity = window is null ? screenLines : Math.Max(1, Math.Min(screenLines, Math.Max(8, scriptLines)));
             List<DialogueVisualLine> lines = [];
             foreach (var line in sourcePage.Lines.Where(line => !line.IsSpeaker))
             {

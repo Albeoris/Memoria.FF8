@@ -11,6 +11,7 @@ public sealed class UiTheme
     public UiColor SliderFill { get; init; } = new(144, 104, 224);
     public UiColor SliderLight { get; init; } = new(232, 216, 255);
     public UiColor SliderDark { get; init; } = new(40, 20, 104);
+    public byte PanelBackgroundAlpha { get; init; } = 255;
     public float FontSize { get; init; } = 16;
 
     public void Panel(IUiCanvas canvas, UiRect bounds, string? caption = null, float captionFontSize = 0)
@@ -29,7 +30,7 @@ public sealed class UiTheme
                 byte shade = (byte)(112 - index * 40 / (bands - 1));
                 float left = bounds.X + bounds.Width * index / bands;
                 float rightEdge = bounds.X + bounds.Width * (index + 1) / bands;
-                canvas.Fill(new UiRect(left, bounds.Y, rightEdge - left, bounds.Height), new UiColor(shade, shade, shade));
+                canvas.Fill(new UiRect(left, bounds.Y, rightEdge - left, bounds.Height), new UiColor(shade, shade, shade, PanelBackgroundAlpha));
             }
 
             float right = bounds.Right - 1;

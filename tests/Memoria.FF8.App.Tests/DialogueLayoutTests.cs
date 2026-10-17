@@ -35,11 +35,11 @@ public sealed class DialogueLayoutTests
     }
 
     [Fact]
-    public void Long_vertical_text_grows_to_eight_lines_then_keeps_explicit_boundary()
+    public void Long_vertical_text_uses_screen_height_then_keeps_explicit_boundary()
     {
-        string source = string.Join("{Line}", Enumerable.Range(0, 19).Select(index => "Line " + index)) + "{Page}Final";
+        string source = string.Join("{Line}", Enumerable.Range(0, 26).Select(index => "Line " + index)) + "{Page}Final";
         var pages = Layout(source);
-        Assert.Equal(new[] { 8, 8, 3, 1 }, pages.Select(page => page.Lines.Count));
+        Assert.Equal(new[] { 20, 6, 1 }, pages.Select(page => page.Lines.Count));
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public sealed class DialogueLayoutTests
     [Fact]
     public void Speaker_repeats_with_separation_and_quote_hanging_indent_survives_wrapping()
     {
-        var pages = Layout("Squall{Line}«" + new string('x', 300) + "{Line}  aligned»");
+        var pages = Layout("Squall{Line}«" + new string('x', 700) + "{Line}  aligned»");
         Assert.True(pages.Count > 1);
         Assert.All(pages, page => Assert.Equal("Squall", page.Speaker));
         var lines = pages.SelectMany(page => page.Lines).ToArray();
@@ -74,8 +74,8 @@ public sealed class DialogueLayoutTests
         string source = intro + "{Line}" + string.Join("{Line}", Enumerable.Range(0, 24).Select(index => option + index));
         var dialogue = new DialogueState(0, 1, source, 30, 40, FirstChoice: 9, LastChoice: 32);
         var pages = Layout(source, dialogue);
-        Assert.Equal(3, pages.Count);
-        Assert.Equal(new[] { 8, 1, 24 }, pages.Select(page => page.Lines.Count));
+        Assert.Equal(2, pages.Count);
+        Assert.Equal(new[] { 9, 24 }, pages.Select(page => page.Lines.Count));
         Assert.All(pages[^1].Lines, line => Assert.True(line.IsChoice));
         Assert.Equal(Enumerable.Range(9, 24), pages[^1].Lines.Select(line => line.SourceLineIndex));
         Assert.All(pages[^1].Lines, line => Assert.True(line.Width > 288));
@@ -86,10 +86,10 @@ public sealed class DialogueLayoutTests
     public void Unicode_graphemes_and_semantic_styles_survive_automatic_pagination()
     {
         const string cluster = "👩🏽‍🚀";
-        string source = "{Color Red}" + string.Concat(Enumerable.Repeat(cluster, 250));
+        string source = "{Color Red}" + string.Concat(Enumerable.Repeat(cluster, 650));
         var pages = Layout(source);
         Assert.True(pages.Count > 1);
-        Assert.Equal(string.Concat(Enumerable.Repeat(cluster, 250)), string.Concat(pages.SelectMany(page => page.Lines).SelectMany(line => line.Runs).Select(run => run.Run.Text)));
+        Assert.Equal(string.Concat(Enumerable.Repeat(cluster, 650)), string.Concat(pages.SelectMany(page => page.Lines).SelectMany(line => line.Runs).Select(run => run.Run.Text)));
         Assert.All(pages.SelectMany(page => page.Lines).SelectMany(line => line.Runs), run => Assert.NotEqual(Color.White, run.Run.Color));
     }
 

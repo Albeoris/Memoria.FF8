@@ -136,7 +136,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
 
     public void Fill(UiRect bounds, UiColor color)
     {
-        Rectangle rectangle = Rectangle.Intersect(RectangleFor(bounds), CurrentClip);
+        Rectangle rectangle = Rectangle.Intersect(FillRectangleFor(bounds), CurrentClip);
         if (rectangle.Width > 0 && rectangle.Height > 0)
         {
             batch.Draw(pixel, rectangle, ColorFor(color));
@@ -261,6 +261,15 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
         start += original * lower;
         delta = original * (upper - lower);
         return true;
+    }
+
+    internal static Rectangle FillRectangleFor(UiRect bounds)
+    {
+        int left = (int)MathF.Round(bounds.X);
+        int top = (int)MathF.Round(bounds.Y);
+        int right = (int)MathF.Round(bounds.Right);
+        int bottom = (int)MathF.Round(bounds.Bottom);
+        return new Rectangle(left, top, Math.Max(0, right - left), Math.Max(0, bottom - top));
     }
 
     private static Rectangle RectangleFor(UiRect bounds)

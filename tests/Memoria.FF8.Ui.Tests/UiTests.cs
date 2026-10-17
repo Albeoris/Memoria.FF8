@@ -5,6 +5,21 @@ namespace Memoria.FF8.Ui.Tests;
 public sealed class UiTests
 {
     [Fact]
+    public void Translucent_panel_bands_do_not_blend_twice_at_shared_pixel_edges()
+    {
+        RecordingCanvas canvas = new();
+        UiTheme theme = new() { PanelBackgroundAlpha = 127 };
+        theme.Panel(canvas, new UiRect(0.25f, 0, 733.5f, 400));
+        Assert.Equal(128, canvas.Fills.Count);
+        Assert.All(canvas.Fills, fill => Assert.Equal(127, fill.Color.A));
+        for (int index = 1; index < canvas.Fills.Count; index++)
+        {
+            Assert.Equal(canvas.Fills[index - 1].Bounds.Right, canvas.Fills[index].Bounds.X);
+        }
+        Assert.True(canvas.Lines > 0);
+    }
+
+    [Fact]
     public void Paginated_lists_keep_fixed_page_offsets_and_clamp_rows_on_the_last_page()
     {
         UiList list = At(new UiList { Paginated = true, RowHeight = 20, Items = Enumerable.Range(0, 8).Select(index => index.ToString()).ToList() }, new UiRect(0, 0, 160, 84));

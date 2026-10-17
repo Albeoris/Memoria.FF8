@@ -86,19 +86,24 @@ internal sealed partial class RecreateGame
         var page = presentation.Pages[presentation.Pager.PageIndex];
         DialogueWindow? window = dialogue.X == 0 && dialogue.Y == 0 ? events!.Scene.DialogueWindows.GetValueOrDefault(dialogue.Channel) : null;
         PixelBounds panelBounds = DialoguePresentation.Bounds(dialogue, window, viewport, page.Width * scale, page.Height * scale);
-        // Script-owned positions become viewport anchors; templates never assign pixel coordinates.
-        var anchors = new UiAnchors((panelBounds.X - viewport.X) / (float)viewport.Width, (panelBounds.Y - viewport.Y) / (float)viewport.Height, (panelBounds.X + panelBounds.Width - viewport.X) / (float)viewport.Width, (panelBounds.Y + panelBounds.Height - viewport.Y) / (float)viewport.Height);
-        string key = anchors.ToString();
-        if (!dialogueUiViews.TryGetValue(dialogue.Channel, out var cached) || cached.Key != key)
+        DialogueChannelStyle style = events?.Scene.MessageChannelStyles.GetValueOrDefault(dialogue.Channel) ?? DialogueChannelStyle.Default;
+        if (style.HasPanel)
         {
-            var root = new UiAnchorPanel();
-            var panel = new UiPanel { Anchors = anchors, CaptionHeight = 0, Padding = new UiThickness(DialoguePresentation.Padding) };
-            root.Children.Add(panel);
-            cached = (key, new UiView(root) { DesignWidth = 320, DesignHeight = 240 });
-            dialogueUiViews[dialogue.Channel] = cached;
+            // Script-owned positions become viewport anchors; templates never assign pixel coordinates.
+            var anchors = new UiAnchors((panelBounds.X - viewport.X) / (float)viewport.Width, (panelBounds.Y - viewport.Y) / (float)viewport.Height, (panelBounds.X + panelBounds.Width - viewport.X) / (float)viewport.Width, (panelBounds.Y + panelBounds.Height - viewport.Y) / (float)viewport.Height);
+            string key = anchors.ToString();
+            if (!dialogueUiViews.TryGetValue(dialogue.Channel, out var cached) || cached.Key != key)
+            {
+                var root = new UiAnchorPanel();
+                var panel = new UiPanel { Anchors = anchors, CaptionHeight = 0, Padding = new UiThickness(DialoguePresentation.Padding) };
+                root.Children.Add(panel);
+                cached = (key, new UiView(root) { DesignWidth = 320, DesignHeight = 240 });
+                dialogueUiViews[dialogue.Channel] = cached;
+            }
+            cached.View.Resize(bounds.Width, bounds.Height);
+            // TODO(TD-003): Match the complete native UI material and device profile.
+            cached.View.Draw(uiCanvas!, new UiTheme { FontSize = 8, PanelBackgroundAlpha = style.BackgroundAlpha });
         }
-        cached.View.Resize(bounds.Width, bounds.Height);
-        cached.View.Draw(uiCanvas!, new UiTheme { FontSize = 8 });
         float fontSize = uiPreferences.DialogueFontSize * scale;
         string family = uiPreferences.DialogueFontFamily;
         float lineHeight = SystemTextLayout.LineHeight(uiPreferences.DialogueFontSize, family) * scale;

@@ -1,10 +1,77 @@
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
+using Memoria.FF8.GameUi;
+using Memoria.FF8.Ui;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class DialogueWindowTests
 {
+    [Theory]
+    [InlineData(1.375f)]
+    [InlineData(3.5f)]
+    [InlineData(4.003125f)]
+    public void Translucent_fill_edges_share_one_pixel_boundary_after_fractional_scaling(float scale)
+    {
+        const float offset = 0.25f;
+        int previousRight = MonoGameUiCanvas.FillRectangleFor(new UiRect(offset, 0, 0, 10)).Right;
+        for (int index = 0; index < 128; index++)
+        {
+            float left = offset + 183.375f * index / 128 * scale;
+            float right = offset + 183.375f * (index + 1) / 128 * scale;
+            var rectangle = MonoGameUiCanvas.FillRectangleFor(new UiRect(left, 0, right - left, 10));
+            Assert.Equal(previousRight, rectangle.Left);
+            previousRight = rectangle.Right;
+        }
+    }
+
+    [Fact]
+    public void Original_unpaginated_document_fits_one_default_font_page()
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        FieldAssets field = assets.LoadField(91);
+        string source = field.Messages[0];
+        DialogueState dialogue = new(1, 0, source, 30, 15);
+        using var measure = SystemTextLayout.CreateMeasurer(8, "Arial");
+        DialogueDocument document = DialogueTextFormatter.Parse(source);
+        Assert.Single(document.Pages);
+        DialogueVisualPage page = Assert.Single(DialogueLayout.Create(document, dialogue, null, measure.LineHeight, measure.Measure));
+        Assert.Equal(document.Pages[0].Lines.Count, page.Lines.Count);
+    }
+
+    [Fact]
+    public void Unpaginated_message_reveals_all_twelve_lines_in_one_screen_area()
+    {
+        string source = string.Join("{Line}", Enumerable.Range(0, 12).Select(index => $"Line {index}")) + "{End}";
+        DialogueState dialogue = new(1, 0, source, 30, 15);
+        using var measure = SystemTextLayout.CreateMeasurer(8, "Arial");
+        DialogueVisualPage page = Assert.Single(DialogueLayout.Create(DialogueTextFormatter.Parse(source), dialogue, null, measure.LineHeight, measure.Measure));
+        Assert.Equal(12, page.Lines.Count);
+        DialoguePager pager = new();
+        pager.UpdateReveal(TimeSpan.FromSeconds(0.1), page, 3);
+        int initial = pager.VisibleCharacters;
+        pager.UpdateReveal(TimeSpan.FromSeconds(1), page, 3);
+        Assert.True(pager.VisibleCharacters > initial);
+        Assert.Equal(0, pager.PageIndex);
+        Assert.False(pager.Advance(1));
+    }
+
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(1, true)]
+    [InlineData(2, false)]
+    [InlineData(4, false)]
+    [InlineData(6, true)]
+    [InlineData(258, true)]
+    public void Native_style_flags_control_both_frame_and_background(int operand, bool hasPanel)
+    {
+        Assert.Equal(hasPanel, DialogueChannelStyle.FromOperands(operand, 4096).HasPanel);
+        Assert.Equal(127, DialogueChannelStyle.FromOperands(1, 4096).BackgroundAlpha);
+        Assert.Equal(255, DialogueChannelStyle.FromOperands(0, 4096).BackgroundAlpha);
+        Assert.True(DialogueChannelStyle.Default.HasPanel);
+    }
+
     [Fact]
     public void Lower_channel_prompt_covers_overlapping_persistent_hints()
     {

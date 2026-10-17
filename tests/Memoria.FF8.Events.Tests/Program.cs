@@ -89,6 +89,7 @@ internal static partial class Program
                         NativeCosineScrollAndSyncBoundary(selectedGameDirectory);
                     },
                     ["dialogue-channels"] = DialogueChannelContract,
+                    ["dialogue-channel-style"] = DialogueChannelStyleContract,
                     ["native-script-move"] = () => NativeScriptMovementAndBoundary(selectedGameDirectory),
                     ["native-rfmove"] = () =>
                     {

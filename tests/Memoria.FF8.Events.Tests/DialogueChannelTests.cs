@@ -10,6 +10,7 @@ internal static partial class Program
     private static void DialogueChannelContract()
     {
         DialogueChannelReuseContract();
+        DialogueChannelStyleContract();
         byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 16), (Jsm.Opcode.PSHN_L, 16), (Jsm.Opcode.AMES, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 160), (Jsm.Opcode.PSHN_L, 120), (Jsm.Opcode.RAMESW, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 32), (Jsm.Opcode.PSHN_L, 180), (Jsm.Opcode.RAMESW, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.WINCLOSE, 0), (Jsm.Opcode.RET, 0));
         GameSession session = new(new GameState());
         EventEngine engine = new(session);
@@ -47,6 +48,27 @@ internal static partial class Program
         }
         engine.Restore(System.Text.Json.JsonSerializer.SerializeToElement(legacy));
         Require(!engine.Dialogues.Single(dialogue => dialogue.Channel == 0).CanConfirm && engine.Dialogues.Single(dialogue => dialogue.Channel == 1).CanConfirm, "Legacy checkpoint inference changed original AMES/RAMESW confirmation modes.");
+    }
+
+    private static void DialogueChannelStyleContract()
+    {
+        byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 4096), (Jsm.Opcode.MESMODE, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 0x18000), (Jsm.Opcode.MESMODE, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WINCLOSE, 0), (Jsm.Opcode.RET, 0));
+        EventEngine Create()
+        {
+            EventEngine engine = new(new GameSession(new GameState()));
+            engine.LoadField(100, content, []);
+            return engine;
+        }
+        EventEngine live = Create();
+        live.Step();
+        Require(live.Scene.MessageChannelStyles[1] == new DialogueChannelStyle(8, 4096) && !live.Scene.MessageChannelStyles[1].HasPanel, "MESMODE or WINCLOSE lost the retained borderless channel style.");
+        Require(live.Scene.MessageChannelStyles[2] == new DialogueChannelStyle(11, -32768) && live.Scene.MessageChannelStyles[2].BackgroundAlpha == 127, "MESMODE lost independent transparency flags or signed mode width.");
+        EventEngine restored = Create();
+        restored.Restore(live.Capture());
+        Require(live.Capture().GetRawText() == restored.Capture().GetRawText(), "Channel style state changed after restore.");
+        live.Step();
+        restored.Step();
+        Require(live.Capture().GetRawText() == restored.Capture().GetRawText(), "Restored MESMODE continuation diverged.");
     }
 
     private static void DialogueChannelReuseContract()

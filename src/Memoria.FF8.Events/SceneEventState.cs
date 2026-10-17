@@ -23,6 +23,20 @@ public sealed record NativeFieldEntryStackReceipt(int Version, string WalkmeshHa
 public sealed record BackgroundShadeLoop(int ObjectId, int ModuleIndex, int FadeFirst, int FadeSecond, Vector3 FirstColor, Vector3 SecondColor, int HoldFirst, int HoldSecond, bool FirstToSecond, int Elapsed, int Remaining, int HoldRemaining, Vector3 CurrentColor);
 public sealed record BackgroundShade(int FadeFrames, Vector3 FirstColor, Vector3 SecondColor, long StartFrame, int ModuleIndex = 0);
 public sealed record DialogueWindow(int Channel, int X, int Y, int Width, int Height);
+public sealed record DialogueChannelStyle(byte Flags, short Mode)
+{
+    public static DialogueChannelStyle Default { get; } = new(14, 4096);
+    [JsonIgnore]
+    public byte BackgroundAlpha => (Flags & 1) != 0 ? (byte)127 : (byte)255;
+    [JsonIgnore]
+    public bool HasPanel => (Flags & 10) == 10;
+
+    public static DialogueChannelStyle FromOperands(int style, int mode)
+    {
+        int flags = style switch { 0 => 2, 1 => 3, 2 => 0, _ => style };
+        return new DialogueChannelStyle(unchecked((byte)(flags | 8)), unchecked((short)mode));
+    }
+}
 
 [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
 public sealed class SceneEventState
@@ -257,8 +271,7 @@ public sealed class SceneEventState
     public int PartyPower { get; internal set; }
     [JsonInclude]
     public int PreparedField { get; internal set; } = -1;
-    [JsonInclude]
-    public int MessageMode { get; internal set; }
+    public Dictionary<int, DialogueChannelStyle> MessageChannelStyles { get; } = [];
     public Dictionary<int, NativeMessageChannelTiming> MessageChannelTiming { get; } = [];
     public Dictionary<int, SoundResourceRequest> LoadedSoundEffects { get; } = [];
     public List<SoundRequest> SoundRequests { get; } = [];
