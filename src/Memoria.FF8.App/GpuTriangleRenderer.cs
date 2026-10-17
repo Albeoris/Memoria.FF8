@@ -39,6 +39,8 @@ public sealed class GpuTriangleRenderer : ITriangleRenderer, IDisposable
 
     public RenderTarget2D Target => target ?? throw new InvalidOperationException("No scene has been rendered.");
     internal long PresentationVersion { get; private set; }
+    internal int FrameDrawCalls { get; private set; }
+    internal int FrameTextureUploads { get; private set; }
 
     public void Begin(int width, int height, Vector4N clearColor, float clearDepth = 1)
     {
@@ -60,6 +62,8 @@ public sealed class GpuTriangleRenderer : ITriangleRenderer, IDisposable
         usedTextures.Clear();
         dynamicUploads.Clear();
         vertexCount = 0;
+        FrameDrawCalls = 0;
+        FrameTextureUploads = 0;
         previousTargets = device.GetRenderTargets();
         previousViewport = device.Viewport;
         active = true;
@@ -130,6 +134,7 @@ public sealed class GpuTriangleRenderer : ITriangleRenderer, IDisposable
             pass.Apply();
             device.SamplerStates[0] = sampler;
             device.DrawUserPrimitives(PrimitiveType.TriangleList, vertices, 0, vertexCount / 3);
+            FrameDrawCalls++;
         }
         vertexCount = 0;
     }
@@ -175,6 +180,7 @@ public sealed class GpuTriangleRenderer : ITriangleRenderer, IDisposable
             if (refresh)
             {
                 texture.SetData(image.Pixels);
+                FrameTextureUploads++;
             }
             return texture;
         }
@@ -186,6 +192,7 @@ public sealed class GpuTriangleRenderer : ITriangleRenderer, IDisposable
         }
         texture = new Texture2D(device, image.Width, image.Height, false, SurfaceFormat.Color);
         texture.SetData(image.Pixels);
+        FrameTextureUploads++;
         textures.Add(image, texture);
         return texture;
     }

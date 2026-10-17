@@ -22,11 +22,11 @@ public sealed partial class FieldRenderer
         return new TriangleVertex(new Vector2(point.X, point.Y), depthOverride ?? point.Depth, perspective ? 1 / point.Depth : 1, uv, color);
     }
 
-    private void GpuQuad(Vector2 origin, Vector2 size, float depth, Vector4 color, TriangleMaterial material, Vector2 uvEnd)
+    private void GpuQuad(Vector2 origin, Vector2 size, float depth, Vector4 color, TriangleMaterial material, Vector2 uvEnd, Vector2 uvStart = default)
     {
-        TriangleVertex a = new(origin, depth, 1, Vector2.Zero, color);
-        TriangleVertex b = new(origin + new Vector2(size.X, 0), depth, 1, new Vector2(uvEnd.X, 0), color);
-        TriangleVertex c = new(origin + new Vector2(0, size.Y), depth, 1, new Vector2(0, uvEnd.Y), color);
+        TriangleVertex a = new(origin, depth, 1, uvStart, color);
+        TriangleVertex b = new(origin + new Vector2(size.X, 0), depth, 1, new Vector2(uvEnd.X, uvStart.Y), color);
+        TriangleVertex c = new(origin + new Vector2(0, size.Y), depth, 1, new Vector2(uvStart.X, uvEnd.Y), color);
         TriangleVertex d = new(origin + size, depth, 1, uvEnd, color);
         TriangleRenderer!.Draw(a, b, c, material);
         TriangleRenderer.Draw(b, d, c, material);
@@ -48,12 +48,13 @@ public sealed partial class FieldRenderer
             MapBlendMode.QuarterAdd => TriangleBlend.QuarterAdd,
             _ => TriangleBlend.Replace
         };
-        TriangleMaterial material = GpuMaterial(tile.ResolvedImage, blend, !translucentPass) with
+        BackgroundAtlasRegion region = GpuBackgroundRegion(tile.ResolvedImage);
+        TriangleMaterial material = GpuMaterial(region.Image, blend, !translucentPass) with
         {
             MinimumAlpha = blended && !translucentPass ? 0.75f : 1f / 255,
             MaximumAlpha = translucentPass ? 0.75f : 1
         };
-        GpuQuad(raster.Origin, raster.Size, raster.Depth, new Vector4(shade / 128, 1), material, Vector2.One);
+        GpuQuad(raster.Origin, raster.Size, raster.Depth, new Vector4(shade / 128, 1), material, region.End, region.Start);
     }
 
     private void DrawGpuFade(NativeFadeDraw? fade)

@@ -48,6 +48,7 @@ public sealed partial class FieldRenderer
     private FieldNativeBackgroundWrapFrame? backgroundWrapFrame;
     private int backgroundCameraIndex;
     private Vector2 backgroundJitter;
+    private bool backgroundHardwareLayout;
     private Vector2 actorScrollOffset;
     private ProjectedPoint[] projected = [];
 
@@ -81,7 +82,7 @@ public sealed partial class FieldRenderer
         clipTop = Math.Clamp((int)MathF.Ceiling(offsetY - 0.5f), 0, outputHeight);
         clipRight = Math.Clamp((int)MathF.Ceiling(offsetX + Width * scale - 0.5f), 0, outputWidth);
         clipBottom = Math.Clamp((int)MathF.Ceiling(offsetY + presentationHeight * scale - 0.5f), 0, outputHeight);
-        background = field.Background.Select(tile => CreateTileRaster(tile, Vector2.Zero)).ToArray();
+        background = field.Background.Select(tile => CreateTileRaster(tile, Vector2.Zero, prepareSoftware: true)).ToArray();
         backgroundPublication = field.Background.Select(tile => tile.Texture).FirstOrDefault(texture => texture is not null);
         backgroundTextureGeneration = backgroundPublication?.Generation ?? 0;
         renderBackground = PrepareBackgroundRasters(EmptyScrollOffsets, null, Vector2.Zero);
@@ -120,7 +121,7 @@ public sealed partial class FieldRenderer
         backgroundColor = backgroundShade ?? new Vector3(128);
         moduleColors = backgroundModuleShades;
         this.actorScrollOffset = actorScrollOffset + jitter;
-        bool layoutChanged = false;
+        bool layoutChanged = backgroundHardwareLayout != (TriangleRenderer is not null);
         if (backgroundPublication is not null && backgroundPublication.Generation != backgroundTextureGeneration)
         {
             for (int index = 0; index < background.Length; index++)
@@ -129,7 +130,7 @@ public sealed partial class FieldRenderer
                 PixelImage image = raster.Tile.ResolvedImage;
                 if (image.Width != raster.SourceWidth || image.Height != raster.SourceHeight)
                 {
-                    background[index] = CreateTileRaster(raster.Tile, Vector2.Zero);
+                    background[index] = CreateTileRaster(raster.Tile, Vector2.Zero, prepareSoftware: true);
                     layoutChanged = true;
                 }
             }
@@ -143,6 +144,7 @@ public sealed partial class FieldRenderer
             backgroundCameraIndex = cameraIndex;
             backgroundJitter = jitter;
             renderBackground = nextBackground;
+            backgroundHardwareLayout = TriangleRenderer is not null;
         }
         if (TriangleRenderer is not null)
         {
@@ -280,9 +282,15 @@ public sealed partial class FieldRenderer
         return rasters.AsEnumerable().Reverse().OrderByDescending(raster => raster.Tile.Z).ToArray();
     }
 
-    private TileRaster CreateTileRaster(BackgroundTile tile, Vector2 scrollOffset)
+    private TileRaster CreateTileRaster(BackgroundTile tile, Vector2 scrollOffset, bool prepareSoftware = false)
     {
         PixelImage image = tile.ResolvedImage;
+        Vector2 origin = new(offsetX + (tile.X + drawingOrigin.X + scrollOffset.X) * scale, offsetY + (tile.Y + drawingOrigin.Y + scrollOffset.Y) * verticalScale);
+        Vector2 size = new(16 * scale, 16 * verticalScale);
+        if (TriangleRenderer is not null && !prepareSoftware)
+        {
+            return new TileRaster(tile, [], []) { Origin = origin, Size = size };
+        }
         // Cover sample centers in [origin, origin + 16). Adjacent MAP tiles
         // share an edge, so fractional scaling must not blend that row twice.
         int startX = Math.Clamp((int)MathF.Ceiling(offsetX + (tile.X + drawingOrigin.X + scrollOffset.X) * scale - 0.5f), clipLeft, clipRight);
@@ -301,8 +309,8 @@ public sealed partial class FieldRenderer
         });
         return new TileRaster(tile, columns, rows)
         {
-            Origin = new Vector2(offsetX + (tile.X + drawingOrigin.X + scrollOffset.X) * scale, offsetY + (tile.Y + drawingOrigin.Y + scrollOffset.Y) * verticalScale),
-            Size = new Vector2(16 * scale, 16 * verticalScale)
+            Origin = origin,
+            Size = size
         };
     }
 
