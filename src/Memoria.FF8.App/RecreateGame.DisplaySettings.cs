@@ -26,9 +26,6 @@ internal sealed partial class RecreateGame
         }
         if (graphics.SynchronizeWithVerticalRetrace != uiPreferences.VSync)
         {
-            Rectangle bounds = Window.ClientBounds;
-            graphics.PreferredBackBufferWidth = bounds.Width;
-            graphics.PreferredBackBufferHeight = bounds.Height;
             graphics.SynchronizeWithVerticalRetrace = uiPreferences.VSync;
             graphics.ApplyChanges();
         }
