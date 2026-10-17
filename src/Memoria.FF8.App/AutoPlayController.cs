@@ -395,10 +395,11 @@ internal sealed class AutoPlayController
         }
         string visit = VisitKey();
         IReadOnlyList<AutoPlayTarget> targets = world.DiscoverAutoPlayTargets();
-        planner.Observe(new(visit, world.AutoPlayRegion), targets.GroupBy(target => target.CoverageId).Select(group => group.First()).Select(target => new AutoPlayEvent(target.CoverageId, target.Kind == AutoPlayTargetKind.Gateway || target.DestinationField is not null ? AutoPlayEventKind.Transition : AutoPlayEventKind.Interaction, ChangesStory: target.ChangesStory, Order: target.Order)).ToArray());
+        planner.Observe(new(visit, world.AutoPlayRegion), targets.GroupBy(target => target.CoverageId).Select(group => group.First()).Select(target => new AutoPlayEvent(target.CoverageId, target.Kind == AutoPlayTargetKind.Gateway || target.DestinationField is not null ? AutoPlayEventKind.Transition : AutoPlayEventKind.Interaction, ChangesStory: target.ChangesStory, Order: target.Order, ConditionSignature: world.ReadAutoPlayConditions(target.CoverageId, target.ObjectId).Fingerprint)).ToArray());
         if (run.ActiveVisit is not null && run.ActiveEvent is not null)
         {
-            planner.Completed(run.ActiveVisit, run.ActiveEvent, run.ActiveVisit == visit ? null : visit);
+            string? exitSignature = run.ActiveField == session.State.FieldId ? world.ReadAutoPlayConditions(run.ActiveEvent, run.ActiveObjectId).Fingerprint : null;
+            planner.Completed(run.ActiveVisit, run.ActiveEvent, run.ActiveVisit == visit ? null : visit, exitSignature);
             run.ActiveVisit = null;
             run.ActiveEvent = null;
         }
@@ -416,6 +417,7 @@ internal sealed class AutoPlayController
         AutoPlayTarget[] variants = targets.Where(item => item.CoverageId == next.Event.Id).OrderBy(item => item.Order).ThenBy(item => item.Id, StringComparer.Ordinal).ToArray();
         AutoPlayTarget target = variants.FirstOrDefault() ?? throw new InvalidDataException("Planned event is no longer available in the current field.");
         SaveBundle($"event-{run.Steps:D10}", CaptureState());
+        planner.BeginEvent(visit, target.CoverageId);
         run.ActiveVisit = visit;
         run.ActiveEvent = target.CoverageId;
         run.ActiveField = session.State.FieldId;

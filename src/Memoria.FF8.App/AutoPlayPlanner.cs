@@ -9,7 +9,16 @@ internal enum AutoPlayEventKind
 internal sealed record AutoPlayVisit(string Key, string Region);
 
 /// <summary>ChangesStory is supplied by script-write analysis; Order permits explicit policy overrides.</summary>
-internal sealed record AutoPlayEvent(string Id, AutoPlayEventKind Kind, string? DestinationVisitKey = null, bool ChangesStory = false, int Order = 0);
+internal sealed record AutoPlayEvent(string Id, AutoPlayEventKind Kind, string? DestinationVisitKey = null, bool ChangesStory = false, int Order = 0, string? ConditionSignature = null);
+
+internal sealed class AutoPlayConditionCoverage
+{
+    public HashSet<string> ConsumedEntries { get; set; } = new(StringComparer.Ordinal);
+    public HashSet<string> ConsumedExits { get; set; } = new(StringComparer.Ordinal);
+    public string? ActiveEntry { get; set; }
+
+    public bool Contains(string signature) => ConsumedEntries.Contains(signature) || ConsumedExits.Contains(signature);
+}
 
 internal sealed record AutoPlayPlanStep(string VisitKey, AutoPlayEvent Event, bool IsTravel);
 
@@ -19,6 +28,7 @@ internal sealed class AutoPlayEventCoverage
     public bool Available { get; set; }
     public bool Completed { get; set; }
     public string? BlockedReason { get; set; }
+    public AutoPlayConditionCoverage? Conditions { get; set; }
 }
 
 internal sealed class AutoPlayVisitCoverage
@@ -56,7 +66,7 @@ internal sealed class AutoPlayPlannerState
     public List<AutoPlayChoiceCoverage> Choices { get; set; } = [];
 }
 
-/// <summary>A deterministic frontier planner. Visit keys include the adapter's relevant story-state fingerprint.</summary>
+/// <summary>A deterministic frontier planner with stable visit graphs and separately consumed event conditions.</summary>
 internal sealed class AutoPlayPlanner
 {
     private readonly Func<AutoPlayVisit, AutoPlayEvent, int> phaseOrder;
@@ -93,20 +103,47 @@ internal sealed class AutoPlayPlanner
             AutoPlayEventCoverage? previous = coverage.Events.SingleOrDefault(candidate => candidate.Event.Id == item.Id);
             if (previous is null)
             {
-                coverage.Events.Add(new AutoPlayEventCoverage { Event = item, Available = true });
+                coverage.Events.Add(new AutoPlayEventCoverage { Event = item, Available = true, Conditions = item.ConditionSignature is null ? null : new AutoPlayConditionCoverage() });
             }
             else
             {
                 previous.Event = item with { DestinationVisitKey = item.DestinationVisitKey ?? previous.Event.DestinationVisitKey, Kind = previous.Event.DestinationVisitKey is not null ? AutoPlayEventKind.Transition : item.Kind };
                 previous.Available = true;
+                if (item.ConditionSignature is string signature)
+                {
+                    if (previous.Conditions is null)
+                    {
+                        previous.Conditions = new AutoPlayConditionCoverage();
+                        if (previous.Completed || previous.BlockedReason is not null)
+                        {
+                            // Legacy manifests establish a baseline instead of replaying their completed frontier.
+                            previous.Conditions.ConsumedExits.Add(signature);
+                        }
+                    }
+                    else if (!previous.Conditions.Contains(signature))
+                    {
+                        previous.BlockedReason = null;
+                    }
+                }
             }
         }
     }
 
-    public void Completed(string visitKey, string eventId, string? destinationVisitKey = null)
+    public void BeginEvent(string visitKey, string eventId)
+    {
+        AutoPlayEventCoverage item = FindEvent(visitKey, eventId);
+        if (item.Event.ConditionSignature is string signature)
+        {
+            item.Conditions ??= new AutoPlayConditionCoverage();
+            item.Conditions.ActiveEntry = signature;
+        }
+    }
+
+    public void Completed(string visitKey, string eventId, string? destinationVisitKey = null, string? exitSignature = null)
     {
         AutoPlayEventCoverage item = FindEvent(visitKey, eventId);
         item.Completed = true;
+        ConsumeConditions(item, exitSignature);
         if (destinationVisitKey is not null)
         {
             item.Event = item.Event with { DestinationVisitKey = destinationVisitKey, Kind = AutoPlayEventKind.Transition };
@@ -116,7 +153,9 @@ internal sealed class AutoPlayPlanner
     public void Block(string visitKey, string eventId, string reason)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
-        FindEvent(visitKey, eventId).BlockedReason = reason;
+        AutoPlayEventCoverage item = FindEvent(visitKey, eventId);
+        item.BlockedReason = reason;
+        ConsumeConditions(item, null);
     }
 
     /// <summary>Returns null when no observed frontier is reachable without crossing a completed story edge.</summary>
@@ -142,7 +181,7 @@ internal sealed class AutoPlayPlanner
                 pending.Enqueue(destination);
             }
         }
-        var candidates = routes.Keys.SelectMany(key => OrderedEvents(FindVisit(key)).Where(item => !item.Completed).Select(item => new { Visit = FindVisit(key), Coverage = item }));
+        var candidates = routes.Keys.SelectMany(key => OrderedEvents(FindVisit(key)).Where(NeedsExecution).Select(item => new { Visit = FindVisit(key), Coverage = item }));
         var selected = candidates.OrderBy(item => item.Coverage.Event.ChangesStory)
             .ThenBy(item => phaseOrder(item.Visit.Visit, item.Coverage.Event))
             .ThenBy(item => item.Visit.Visit.Region != current.Visit.Region)
@@ -245,6 +284,27 @@ internal sealed class AutoPlayPlanner
     private static IOrderedEnumerable<AutoPlayEventCoverage> OrderedEvents(AutoPlayVisitCoverage visit)
     {
         return visit.Events.Where(item => item.Available && item.BlockedReason is null).OrderBy(item => item.Event.Order).ThenBy(item => item.Event.Kind).ThenBy(item => item.Event.Id, StringComparer.Ordinal);
+    }
+
+    private static bool NeedsExecution(AutoPlayEventCoverage item)
+    {
+        return item.Event.ConditionSignature is string signature && item.Conditions is not null ? !item.Conditions.Contains(signature) : !item.Completed;
+    }
+
+    private static void ConsumeConditions(AutoPlayEventCoverage item, string? exitSignature)
+    {
+        if (item.Event.ConditionSignature is not string current)
+        {
+            return;
+        }
+        item.Conditions ??= new AutoPlayConditionCoverage();
+        item.Conditions.ConsumedEntries.Add(item.Conditions.ActiveEntry ?? current);
+        if (exitSignature is not null)
+        {
+            // Exit states suppress scheduler self-repetition; they are not executed branch coverage.
+            item.Conditions.ConsumedExits.Add(exitSignature);
+        }
+        item.Conditions.ActiveEntry = null;
     }
 
     private AutoPlayVisitCoverage FindVisit(string key)
