@@ -9,17 +9,19 @@ public sealed partial class BattleSession
         effect = effect with { Quezacotl = (effect.Quezacotl ?? throw new InvalidDataException("Native6C3940 lost its intensity global.")) with { Intensity17A4 = 2400 } };
         NativeBattleEffectTaskPool originalChild = effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738);
         ushort phase = originalChild.Slots[0].ReadWord(12);
-        if (phase is < 1 or > 76)
+        if (phase is < 1 or > 85)
         {
-            throw new InvalidOperationException("Native Quezacotl first-window owner requires actual phase1..76.");
+            throw new InvalidOperationException("Native Quezacotl workspace owner requires actual phase1..85.");
         }
-        NativeBattleGfAnimationSource source = NativeBattleQuezacotlWorkspace.Source(memory);
-        NativeBattleGfAnimationWorkspace workspace = NativeBattleQuezacotlWorkspace.Read(memory);
-        if (phase == 1)
+        bool secondWindow = phase >= 77;
+        int workspaceLength = secondWindow ? NativeBattleQuezacotlWorkspace.SecondLength : NativeBattleQuezacotlWorkspace.Length;
+        NativeBattleGfAnimationSource source = NativeBattleQuezacotlWorkspace.Source(memory, secondWindow ? 0x12A9664u : NativeBattleQuezacotlExecutableMemory.Address);
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleQuezacotlWorkspace.Read(memory, workspaceLength);
+        if (phase is 1 or 77)
         {
-            workspace = workspace.Initialize7016B0(source, NativeBattleQuezacotlWorkspace.Length);
+            workspace = workspace.Initialize7016B0(source, workspaceLength);
             Persist(workspace);
-            NativeStage = NativeBattleQuezacotlWorkspace.SetStageVisibility6C6500(NativeStage ?? throw new NotSupportedException("Native6C6500 requires its retained four stage rows."), 0);
+            NativeStage = NativeBattleQuezacotlWorkspace.SetStageVisibility6C6500(NativeStage ?? throw new NotSupportedException("Native6C6500 requires its retained four stage rows."), secondWindow ? 1 : 0);
         }
         NativeBattleGfAnimationAdvance stepped = workspace.Advance701970(source, memory.QuezacotlPause ?? throw new NotSupportedException("Native701970 requires the retained Quezacotl pause DWORD."), (current, node) =>
         {
@@ -30,9 +32,11 @@ public sealed partial class BattleSession
             }
             NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native6C6060 requires its prior projection/register owner.");
             NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native6C6060 depth cue requires its authenticated PC color rules.");
-            NativeBattleQuezacotlGeometryStep emitted = NativeBattleQuezacotlGeometry.Emit6C6060(memory, effect, node, projection, colors);
+            NativeBattleQuezacotlGeometryStep emitted = secondWindow
+                ? NativeBattleQuezacotlGeometry.Emit6C53A0(memory, effect, node, projection, colors, NativeBattleGfMatrices.SecondWindowContext6C3C47(projection.View ?? throw new NotSupportedException("Native6C3C99 requires its prior native view matrix."), effect.Quezacotl!.TargetZ1778), false, 0)
+                : NativeBattleQuezacotlGeometry.Emit6C6060(memory, effect, node, projection, colors);
             NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native6C6060 requires its original logical OT frame.");
-            NativeBattleQuezacotlPacketWrite written = NativeBattleQuezacotlPacketArena.Append(emitted.Memory, effect, frame.Pending, emitted.Batch);
+            NativeBattleQuezacotlPacketWrite written = emitted.CapturedPackets ? NativeBattleQuezacotlPacketArena.AppendCaptured6C5710(emitted.Memory, effect, frame.Pending, emitted.Batch) : NativeBattleQuezacotlPacketArena.Append(emitted.Memory, effect, frame.Pending, emitted.Batch);
             memory = written.Memory;
             effect = written.Effect;
             graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = written.Ordering } };

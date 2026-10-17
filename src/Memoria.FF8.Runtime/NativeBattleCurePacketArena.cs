@@ -9,8 +9,30 @@ public static class NativeBattleCurePacketArena
 {
     public static NativeBattleCurePacketWrite AppendPrimary(NativeBattleEffectMemory memory, NativeBattleCureState state, NativeBattleLogicalOrdering ordering, NativeBattleModulePacketBatch batch)
     {
-        NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native Cure packet writes require the571870 effect arena.");
         int cursor = state.PrimaryDrawCursor ?? throw new NotSupportedException("Native Cure packet writes require the executed8D6B30 primary cursor.");
+        NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(memory, cursor, ordering, batch, NativeBattleEffectGouraudWrites.RgbBytes);
+        return new(written.Memory, state with { PrimaryDrawCursor = written.Cursor }, written.Ordering);
+    }
+}
+
+public enum NativeBattleEffectGouraudWrites
+{
+    FullDword,
+    RgbBytes
+}
+
+public sealed record NativeBattleEffectPacketWrite(NativeBattleEffectMemory Memory, int Cursor, NativeBattleLogicalOrdering Ordering);
+
+/// <summary>Native effect packet stores in20DFAB8, with producer-specific secondary Gouraud color writes and retained logical OT links.</summary>
+public static class NativeBattleEffectPacketArena
+{
+    public static NativeBattleEffectPacketWrite Append(NativeBattleEffectMemory memory, int cursor, NativeBattleLogicalOrdering ordering, NativeBattleModulePacketBatch batch, NativeBattleEffectGouraudWrites gouraudWrites)
+    {
+        NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native effect packet writes require the571870 effect arena.");
+        if (gouraudWrites is not (NativeBattleEffectGouraudWrites.FullDword or NativeBattleEffectGouraudWrites.RgbBytes))
+        {
+            throw new ArgumentOutOfRangeException(nameof(gouraudWrites));
+        }
         if (batch.Primitives.IsDefault || batch.AllocationBytes < 0 || cursor < 0 || (cursor & 3) != 0 || cursor > NativeBattleEffectArena.Length - batch.AllocationBytes)
         {
             throw new InvalidDataException("Native Cure packets leave their original aligned effect arena.");
@@ -32,6 +54,8 @@ public static class NativeBattleCurePacketArena
             bool[] written = Enumerable.Repeat(true, length).ToArray();
             switch (command & 0xFC)
             {
+                case 0x28 when length == 24:
+                    break;
                 case 0x24 when length == 32:
                     Preserve(30, 2);
                     break;
@@ -47,13 +71,19 @@ public static class NativeBattleCurePacketArena
                     Preserve(50, 2);
                     break;
                 case 0x30 when length == 28:
-                    Preserve(15, 1);
-                    Preserve(23, 1);
+                    if (gouraudWrites == NativeBattleEffectGouraudWrites.RgbBytes)
+                    {
+                        Preserve(15, 1);
+                        Preserve(23, 1);
+                    }
                     break;
                 case 0x38 when length == 36:
-                    Preserve(15, 1);
-                    Preserve(23, 1);
-                    Preserve(31, 1);
+                    if (gouraudWrites == NativeBattleEffectGouraudWrites.RgbBytes)
+                    {
+                        Preserve(15, 1);
+                        Preserve(23, 1);
+                        Preserve(31, 1);
+                    }
                     break;
                 case 0xE0 when command == 0xE1 && length is 8 or 12:
                     break;
@@ -85,6 +115,6 @@ public static class NativeBattleCurePacketArena
 
             void Preserve(int first, int count) => Array.Fill(written, false, first, count);
         }
-        return new(memory with { Arena = arena }, state with { PrimaryDrawCursor = checked(cursor + batch.AllocationBytes) }, ordering);
+        return new(memory with { Arena = arena }, checked(cursor + batch.AllocationBytes), ordering);
     }
 }

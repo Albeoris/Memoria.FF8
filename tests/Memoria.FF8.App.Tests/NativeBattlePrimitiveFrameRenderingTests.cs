@@ -68,7 +68,7 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         BattleRenderer renderer = new(320, 216);
         NativeBattleLogicalResolvedCommand background = Quad(0x28, 10, 100, 1);
         NativeBattleLogicalCommand textured = new(new("off_B6D070", 0, 20), 1, 0x2E, [0x2E808080, Point(10, 10), 0x40000000, Point(30, 10), 0x00200000, Point(10, 30), 0, Point(30, 30), 0], 1, [], null) { OrderingBucket = 50 };
-        NativeBattleLogicalResolvedCommand effect = new(textured, new(0x20), 2);
+        NativeBattleLogicalResolvedCommand effect = new(textured, TexturedMode(0x20, clut: 0x4000), 2);
         byte[] first = renderer.RenderNativePrimitiveFrame(Frame([background, effect]), Texture(3)).ToArray();
         byte[] second = renderer.RenderNativePrimitiveFrame(Frame([background, effect]), Texture(0x8003)).ToArray();
         Assert.Equal(first, second);
@@ -83,7 +83,7 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         BattleRenderer renderer = new(320, 216);
         NativeBattleLogicalResolvedCommand background = Quad(0x28, 100, 100, 1);
         NativeBattleLogicalCommand textured = new(new("off_B6D070", 0, 20), 1, 0x2E, [0x2E808080, Point(10, 10), 0x40000000, Point(30, 10), 0x00400000, Point(10, 30), 0, Point(30, 30), 0], 1, [], null) { OrderingBucket = 50 };
-        NativeBattlePrimitiveFrame frame = Frame([background, new(textured, new(0x40), 2)]);
+        NativeBattlePrimitiveFrame frame = Frame([background, new(textured, TexturedMode(0x40, clut: 0x4000), 2)]);
         frame = frame with { LastColorState = frame.LastColorState! with { AlternatePaletteShift = shift } };
         byte[] pixels = renderer.RenderNativePrimitiveFrame(frame, Texture(31));
         Assert.Equal(expectedRed, pixels[4 * (20 * 320 + 20)]);
@@ -152,7 +152,7 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
     public void Direct_texture_rasterization_uses_the_explicit_format_without_an_indexed_palette(NativeBattlePcDirectTextureFormat format, byte maximumGreen)
     {
         NativeBattleLogicalCommand command = new(new("off_B6D070", 0, 0), 1, 0x2C, [0x2C808080, Point(10, 10), 0, Point(30, 10), 0x01000000, Point(10, 30), 0, Point(30, 30), 0], 1, [], null) { OrderingBucket = 50 };
-        NativeBattlePrimitiveFrame frame = Frame([new(command, new(0x100), 1)]);
+        NativeBattlePrimitiveFrame frame = Frame([new(command, TexturedMode(0x100), 1)]);
         NativeBattleEffectTextureState texture = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(0, ImmutableArray.Create((byte)0xE0, (byte)0x03))] };
         BattleRenderer renderer = new(320, 216);
         Assert.Throws<NotSupportedException>(() => renderer.RenderNativePrimitiveFrame(frame, texture));
@@ -161,6 +161,50 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
     }
 
     private static NativeBattlePrimitiveFrame Frame(ImmutableArray<NativeBattleLogicalResolvedCommand> commands) => new(NativeBattleLogicalOrdering.Clear(), commands, []) { LastDescriptorPerspective = false, LastDepthState = NativeBattlePrimitiveDepthState.FromColdProcess(), LastColorState = NativeBattlePrimitiveColorState.FromColdProcess() };
+
+    [Theory]
+    [InlineData(0x41310u, 255, 1, 159, 65)]
+    [InlineData(0x400u, 255, 0, 15, 0)]
+    [InlineData(0x400u, 248, 0, 8, 0)]
+    public void E2_crops_then_wraps_raw_UV_without_subtracting_the_window_origin(uint window, byte u, byte v, int texelX, int texelY)
+    {
+        uint uv = (uint)(u | v << 8);
+        NativeBattleLogicalCommand command = new(new("off_B6D070", 0, 0), 1, 0x2C, [0x2C808080, Point(10, 10), uv, Point(30, 10), 0x01000000 | uv, Point(10, 30), uv, Point(30, 30), uv], 1, [], null) { OrderingBucket = 50 };
+        NativeBattlePrimitiveDrawMode mode = TexturedMode(0x100, window);
+        NativeBattlePrimitiveFrame frame = Frame([new(command, mode, 1)]);
+        NativeBattleEffectTextureState texture = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(2 * (texelY * 1024 + texelX), ImmutableArray.Create((byte)31, (byte)0))] };
+        BattleRenderer renderer = new(320, 216);
+        byte[] pixels = renderer.RenderNativePrimitiveFrame(frame, texture, capabilities: NativeBattlePrimitiveCapabilities.PrimaryRgba8());
+        Assert.Equal(new byte[] { 255, 0, 0, 255 }, pixels.AsSpan(4 * (20 * 320 + 20), 4).ToArray());
+        Assert.Throws<NotSupportedException>(() => renderer.RenderNativePrimitiveFrame(Frame([new(command, mode with { TextureWindowBits = null }, 1)]), texture, capabilities: NativeBattlePrimitiveCapabilities.PrimaryRgba8()));
+        Assert.Throws<NotSupportedException>(() => renderer.RenderNativePrimitiveFrame(Frame([new(command, mode with { TextureSelection = null }, 1)]), texture, capabilities: NativeBattlePrimitiveCapabilities.PrimaryRgba8()));
+    }
+
+    private static NativeBattlePrimitiveDrawMode TexturedMode(ushort page, uint window = 0, ushort clut = 0)
+    {
+        NativeBattlePcTextureWindowCache cache = NativeBattlePcTextureWindowCache.Reset4647A0(null).Preprocess462F90(page, clut).Prepare464BD0().Cache;
+        return new(page) { TextureWindowBits = window, TextureSelection = cache.Resolve465CE0(page, clut, window).Selection };
+    }
+
+    [Fact]
+    public void Exhausted_window_cache_renders_the_full_page_using_the_retained_crop_scale()
+    {
+        const ushort page = 0x100;
+        NativeBattlePcTextureWindowCache cache = NativeBattlePcTextureWindowCache.Reset4647A0(null).Preprocess462F90(page, 0).Prepare464BD0().Cache;
+        for (int index = 1; index <= 7; index++)
+        {
+            uint bits = NativeBattleQuezacotlGeometryPackets.TextureWindowCommand(new((short)(8 * index), 0, 64, 32)) & 0xFFFFFF;
+            cache = cache.Resolve465CE0(page, 0, bits).Cache;
+        }
+        uint missing = NativeBattleQuezacotlGeometryPackets.TextureWindowCommand(new(80, 0, 64, 32)) & 0xFFFFFF;
+        NativeBattlePcTextureWindowSelection selection = cache.Resolve465CE0(page, 0, missing).Selection;
+        Assert.True(selection.Fallback);
+        NativeBattlePrimitiveDrawMode mode = new(page) { TextureWindowBits = missing, TextureSelection = selection };
+        NativeBattleLogicalCommand command = new(new("off_B6D070", 0, 0), 1, 0x2C, [0x2C808080, Point(10, 10), 16, Point(30, 10), 0x01000010, Point(10, 30), 16, Point(30, 30), 16], 1, [], null) { OrderingBucket = 50 };
+        NativeBattleEffectTextureState texture = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(2 * 64, ImmutableArray.Create((byte)31, (byte)0))] };
+        byte[] pixels = new BattleRenderer(320, 216).RenderNativePrimitiveFrame(Frame([new(command, mode, 1)]), texture, capabilities: NativeBattlePrimitiveCapabilities.PrimaryRgba8());
+        Assert.Equal(new byte[] { 255, 0, 0, 255 }, pixels.AsSpan(4 * (20 * 320 + 20), 4).ToArray());
+    }
 
     private static NativeBattleLogicalResolvedCommand Quad(byte opcode, uint color, int bucket, byte pass)
     {
@@ -174,7 +218,7 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
     {
         ushort page = checked((ushort)(mode << 5));
         NativeBattleLogicalCommand command = new(new("off_B6D070", 0, 20), 1, 0x2E, [0x2E808080, Point(10, 10), 0x40000000, Point(30, 10), (uint)page << 16, Point(10, 30), 0, Point(30, 30), 0], 1, [], null) { OrderingBucket = 50 };
-        return new(command, new(page), 2);
+        return new(command, TexturedMode(page, clut: 0x4000), 2);
     }
 
     private static NativeBattleEffectTextureState Texture(ushort color)

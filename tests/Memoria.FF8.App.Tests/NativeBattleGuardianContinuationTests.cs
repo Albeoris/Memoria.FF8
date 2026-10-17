@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
@@ -16,6 +17,9 @@ public sealed class NativeBattleGuardianContinuationTests
         BattleSession battle = BattleSession.Restore(snapshot);
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(battle.Capture()));
         Assert.Equal((ushort)116, snapshot.NativeGraphics!.OriginalEffect!.Binding.Effect);
+        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        BattleScenePresentation scene = new(assets, snapshot.Definition, true);
+        Assert.Equal(320 * 224 * 4, scene.Render(battle, 320, 224).Length);
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         bool sawPhase73Flash = false;
         for (int index = 0; index < 512; index++)
@@ -25,6 +29,7 @@ public sealed class NativeBattleGuardianContinuationTests
             try
             {
                 battle.AdvanceNativeGraphicsPresentation(callback);
+                Assert.Equal(320 * 224 * 4, scene.Render(battle, 320, 224).Length);
                 if (phase == 73)
                 {
                     Assert.Contains(battle.NativeGraphics!.PrimitiveFrame!.LastCommands, command => command.Pass > 0 && command.Command.Packet.Bank == "20DFAB8" && command.Command.Opcode == 0x2A && command.Command.OrderingBucket == 8);

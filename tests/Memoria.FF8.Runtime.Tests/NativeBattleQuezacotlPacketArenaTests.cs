@@ -44,6 +44,32 @@ public sealed class NativeBattleQuezacotlPacketArenaTests
         Assert.Empty(written.Ordering.Packets);
     }
 
+    [Fact]
+    public void CapturedPacketsPreserveInterleavedStoresAndLinksAtNonsequentialAddresses()
+    {
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(116);
+        memory = memory with { Arena = memory.Arena!.Write(128, Enumerable.Repeat((byte)0xA5, 104).ToArray()) };
+        NativeBattleOriginalEffectState effect = new(116, 115, new(116, 0x6C3550, 0x6C3560), null, null) { DrawArenaOffset = 128 };
+        NativeBattleGeometryPrimitive gt = new(20, [0x09000000, 0x34010203, 1, 2, 3, 4, 5, 6, 7, 8], [100, 110, 120, 0]);
+        NativeBattleGeometryPrimitive e2 = new(20, [0x02000000, 0xE2000000, 0], [0, 0, 0, 0]);
+        NativeBattleGfGeometryAttempt stored = Known(0, gt) with { Primitive = null };
+        NativeBattleGfGeometryAttempt linked = Known(0, gt) with { WriteMask = Enumerable.Repeat(NativeBattleGfPacketByteState.Untouched, 40).ToImmutableArray() };
+        NativeBattleGfGeometryBatch batch = new([stored, Known(40, e2), linked, Known(52, e2), Rejected(64, 40)], 64);
+        NativeBattleQuezacotlPacketWrite written = NativeBattleQuezacotlPacketArena.AppendCaptured6C5710(memory, effect, NativeBattleLogicalOrdering.Clear(), batch);
+        Assert.Equal(192, written.Effect.DrawArenaOffset);
+        Assert.Equal(new[] { 168, 128, 180 }, written.Ordering.Proxies.Select(proxy => proxy.Packet.ByteOffset));
+        Assert.Equal(new[] { 100, 110, 120, 0 }, written.Ordering.Proxies[1].VertexPayload4);
+        foreach (int address in new[] { 128, 168, 180 })
+        {
+            Assert.Throws<NotSupportedException>(() => written.Memory.Arena!.Read(address, 3));
+        }
+        Assert.Equal(stored.Data.AsSpan().Slice(4).ToArray(), written.Memory.Arena!.Read(132, 36));
+        Assert.Equal(Enumerable.Repeat((byte)0xA5, 32), written.Memory.Arena.Read(200, 32));
+        NativeBattleQuezacotlPacketWrite restored = JsonSerializer.Deserialize<NativeBattleQuezacotlPacketWrite>(JsonSerializer.Serialize(written))!;
+        Assert.Equal(JsonSerializer.Serialize(written), JsonSerializer.Serialize(restored));
+        Assert.Throws<NotSupportedException>(() => restored.Memory.Arena!.Read(128, 3));
+    }
+
     private static NativeBattleGfGeometryAttempt Known(int offset, NativeBattleGeometryPrimitive primitive)
     {
         byte[] bytes = new byte[primitive.Words.Length * 4];

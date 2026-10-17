@@ -14,6 +14,10 @@ public sealed partial class BattleSession
         {
             return AdvanceNativeCure8D6B30(graphics);
         }
+        if (effect.Binding.Entry == 0x889D60)
+        {
+            return AdvanceNativeCura889E40(graphics);
+        }
         if (effect.Binding.Entry == 0x6C3550)
         {
             NativeBattleQuezacotlPreparation prepared = NativeBattleQuezacotl.Prepare6C3760(NativeEffectMemory ?? throw new NotSupportedException("Native Quezacotl callbacks require retained effect memory."), effect, NativeVibrationProcess, NativeCamera?.Projection?.View);
@@ -24,7 +28,7 @@ public sealed partial class BattleSession
             {
                 NativeGraphics = graphics;
                 NativeBattleEffectTaskPool childPool = prepared.Effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738);
-                if (childPool.Slots[0].ReadWord(12) is >= 1 and <= 76)
+                if (childPool.Slots[0].ReadWord(12) is >= 1 and <= 85)
                 {
                     graphics = AdvanceNativeQuezacotlFirstWindow(graphics);
                     NativeBattleStageState childStage = NativeStage ?? throw new NotSupportedException("Native5713E0 requires its retained stage rows.");

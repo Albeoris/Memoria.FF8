@@ -118,7 +118,7 @@ public sealed record NativeBattlePrimitiveTables(ImmutableArray<byte> WordLength
 
 public static class NativeBattleLogicalPasses
 {
-    public static (NativeBattlePrimitiveDrawMode Final, ImmutableArray<NativeBattleLogicalResolvedCommand> Commands) Execute(NativeBattleLogicalOrdering ordering, NativeBattlePrimitiveTables tables, NativeBattlePrimitiveDrawMode initial, uint drawFlags)
+    public static (NativeBattlePrimitiveDrawMode Final, ImmutableArray<NativeBattleLogicalResolvedCommand> Commands, NativeBattlePcTextureWindowCache? Cache) Execute(NativeBattleLogicalOrdering ordering, NativeBattlePrimitiveTables tables, NativeBattlePrimitiveDrawMode initial, uint drawFlags, NativeBattlePcTextureWindowCache? cache = null)
     {
         tables.Validate();
         ImmutableArray<NativeBattleLogicalCommand> commands = ordering.Traverse(tables.WordLengths);
@@ -134,9 +134,58 @@ public static class NativeBattleLogicalPasses
                     continue;
                 }
                 mode = mode.ExecuteWords(command.Opcode, command.Words);
+                mode = mode with { TextureSelection = null };
                 executed.Add(new(command, mode, pass));
             }
         }
-        return (mode, executed.ToImmutable());
+        if (cache is null)
+        {
+            return (mode, executed.ToImmutable(), null);
+        }
+        var selected = SelectTextures(executed.ToImmutable(), cache);
+        return (mode, selected.Commands, selected.Cache);
+    }
+
+    /// <summary>Apply PC resource preparation and selection to an executed OT; also supports a declared cache-reset migration without advancing simulation.</summary>
+    public static (ImmutableArray<NativeBattleLogicalResolvedCommand> Commands, NativeBattlePcTextureWindowCache Cache) SelectTextures(ImmutableArray<NativeBattleLogicalResolvedCommand> commands, NativeBattlePcTextureWindowCache cache)
+    {
+        if (commands.IsDefault || commands.Any(command => command.Pass > 2))
+        {
+            throw new InvalidDataException("Native texture selection requires the three actual executed OT passes.");
+        }
+        ImmutableArray<NativeBattleLogicalResolvedCommand>.Builder selected = ImmutableArray.CreateBuilder<NativeBattleLogicalResolvedCommand>();
+        for (byte pass = 0; pass < 3; pass++)
+        {
+            if (pass == 1)
+            {
+                cache = cache.Prepare464BD0().Cache;
+            }
+            foreach (NativeBattleLogicalResolvedCommand command in commands.Where(command => command.Pass == pass))
+            {
+                NativeBattlePrimitiveDrawMode mode = command.DrawMode with { TextureSelection = null };
+                if ((command.Command.Opcode & 0xE4) == 0x24)
+                {
+                    ushort page = mode.TexturePage ?? throw new NotSupportedException("Native textured pass requires its executed texture page.");
+                    ushort clut = unchecked((ushort)(command.Command.Words[2] >> 16));
+                    if (pass == 0)
+                    {
+                        cache = cache.Preprocess462F90(page, clut);
+                    }
+                    else
+                    {
+                        uint window = mode.TextureWindowBits ?? throw new NotSupportedException("Native465CE0 requires its retained E2 window bits.");
+                        NativeBattlePcTextureWindowResolve resolved = cache.Resolve465CE0(page, clut, window);
+                        cache = resolved.Cache;
+                        mode = mode with { TextureSelection = resolved.Selection };
+                    }
+                }
+                selected.Add(command with { DrawMode = mode });
+            }
+            if (pass == 1)
+            {
+                cache = cache.Flush465930();
+            }
+        }
+        return (selected.ToImmutable(), cache);
     }
 }

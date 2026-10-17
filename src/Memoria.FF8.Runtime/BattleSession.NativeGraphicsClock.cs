@@ -210,7 +210,17 @@ public sealed partial class BattleSession
             effectMemory = effectMemory.PublishSound();
             if ((graphics.Flags & 8) != 0 && effectMemory.Textures is { } textures)
             {
-                effectMemory = effectMemory with { Textures = textures.Drain505D20(effectMemory.Arena).State };
+                NativeBattleEffectTextureDrain drain = textures.Drain505D20(effectMemory.Arena);
+                NativeBattlePrimitiveProcess? process = effectMemory.PrimitiveProcess;
+                if (process?.TextureWindowCache is { } cache)
+                {
+                    foreach (NativeBattleEffectVramUpload upload in drain.Uploads)
+                    {
+                        cache = cache.Invalidate464850(upload.X, upload.Y, upload.X + upload.Width - 1, upload.Y + upload.Height - 1);
+                    }
+                    process = process with { TextureWindowCache = cache };
+                }
+                effectMemory = effectMemory with { Textures = drain.State, PrimitiveProcess = process };
             }
             NativeEffectMemory = effectMemory;
         }

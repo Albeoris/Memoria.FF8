@@ -36,6 +36,23 @@ public sealed class NativeBattleCureActorAssemblyTests
         Assert.Equal(body[0].Primitive.VertexPayload4.ToArray(), body[1].Primitive.VertexPayload4.ToArray());
     }
 
+    [Fact]
+    public void Cura_uses_the_proved_shared_actor_assembly_with_its_own_overlay_color_and_texture_projection()
+    {
+        var fixture = Fixture();
+        NativeBattleGraphicsResource resource = fixture.Resource with { Geometry = [Mesh(11)], LinkedGeometry = [] };
+        NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 20000, 4096);
+        NativeBattleCureActorPacketBatch cure = NativeBattleCureActorAssembly.Emit8D7110(fixture.Model, resource, camera, new(camera, 216, 20, 15), new(0, 0, 0), 0, 0);
+        NativeBattleCureActorPacketBatch cura = NativeBattleCureActorAssembly.Emit88BDA0(fixture.Model, resource, camera, new(camera, 216, 20, 15), new(0, 0, 0), 0, 0);
+        Assert.Equal(cure.ProcessAllocationBytes, cura.ProcessAllocationBytes);
+        Assert.Equal(cure.Primitives.Where(item => item.Bank == NativeBattleCurePacketBank.Process).Select(item => item.Primitive.Words.ToArray()), cura.Primitives.Where(item => item.Bank == NativeBattleCurePacketBank.Process).Select(item => item.Primitive.Words.ToArray()));
+        NativeBattleGeometryPrimitive overlay = Assert.Single(cura.Primitives.Where(item => item.Bank == NativeBattleCurePacketBank.EffectPrimary)).Primitive;
+        NativeBattleCureTextureProjection texture = NativeBattleCureActorPackets.TextureProjection8D7050(640, 448, 320, 244, 128, 64);
+        Assert.Equal(0x404040u, overlay.Words[1] & 0xFFFFFF);
+        Assert.Equal(texture.Clut, unchecked((ushort)(overlay.Words[3] >> 16)));
+        Assert.Equal(texture.TexturePage, unchecked((ushort)(overlay.Words[6] >> 16)));
+    }
+
     private static NativeBattleCureActorPacketBatch Emit(NativeBattleGraphicsModel model, NativeBattleGraphicsResource resource)
     {
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 20000, 4096);

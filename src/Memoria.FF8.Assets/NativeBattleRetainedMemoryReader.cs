@@ -61,6 +61,8 @@ public static class NativeBattleRetainedMemoryReader
         RequireSingle(0xB7CEE0, 1f / 65536);
         RequireSingle(0xB7CEE4, 0.99f);
         RequireSingle(0x1CA9E9C, 0);
+        RequireSingle(0x1CB6038, 0);
+        RequireSingle(0x1CB603C, 0);
         if (BitConverter.ToDouble(ReadLoaderBytes(0xB695E8, 8)) != 0.9985 || BitConverter.ToDouble(ReadLoaderBytes(0xB695F0, 8)) != 1d / 65536 || BitConverter.ToDouble(ReadLoaderBytes(0xB69610, 8)) != 0.99999999 || BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1CFF834, 4)) != 0 || BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1CA8A00, 4)) != 0 || BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1CA89E8, 4)) != 0)
         {
             throw new InvalidDataException("Authenticated cold primitive depth/OT reset globals contradict the executable profile.");
@@ -68,12 +70,14 @@ public static class NativeBattleRetainedMemoryReader
         NativeBattleEffectMemory effectMemory = NativeBattleEffectMemory.FromColdProcess() with
         {
             CureContextF4 = BinaryPrimitives.ReadInt16LittleEndian(ReadLoaderBytes(0x278C8DC, 2)),
+            CuraContextF4 = BinaryPrimitives.ReadInt16LittleEndian(ReadLoaderBytes(0x270046C, 2)),
+            CuraSceneFade = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x2700360, 4)),
             QuezacotlExecutableMemory = new(ReadLoaderBytes(NativeBattleQuezacotlExecutableMemory.Address, NativeBattleQuezacotlExecutableMemory.Length).ToImmutableArray()),
             Active = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x1D99A64, 4)),
             SelectedIndex = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x1D99A68, 4)),
             SoundPendingFlags = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1D96DB4, 4)),
             SoundPublishedFlags = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1D96DB8, 4)),
-            PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess() with { TexturePage = BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(0x1C48818, 2)), Buffer80 = ReadLoaderBytes(0x1D96A80, 1)[0] }
+            PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess() with { TexturePage = BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(0x1C48818, 2)), Buffer80 = ReadLoaderBytes(0x1D96A80, 1)[0], TextureWindowBits = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1CA8848, 4)) }
         };
         if (ReadLoaderBytes(0x209FAB8, NativeBattleGuardianWorkBuffer.Length).Any(value => value != 0) || ReadLoaderBytes(0x1DCD6E4, 12).Any(value => value != 0) || ReadLoaderBytes(0x1D96DC4, 4).Any(value => value != 0) || ReadLoaderBytes(0x25216DC, 4).Any(value => value != 0) || ReadLoaderBytes(0x1D96DB0, 4).Any(value => value != 0) || ReadLoaderBytes(0x1D96DC0, 4).Any(value => value != 0) || new uint[] { 0x2521728, 0x2521718, 0x2521708, 0x25216F8, 0x25216E8 }.Any(address => ReadLoaderBytes(address, 4).Any(value => value != 0)))
         {

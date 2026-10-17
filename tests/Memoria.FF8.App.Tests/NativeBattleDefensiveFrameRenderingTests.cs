@@ -27,7 +27,7 @@ public sealed class NativeBattleDefensiveFrameRenderingTests
             ordering = ordering.Prepend(primitive.Bucket, new("off_B6D070", 0, allocation.ByteOffset), primitive.Words, allocation.Flags20, primitive.VertexPayload4, 0);
         }
         //This isolated frame supplies an explicit inherited additive page; no live battle history is reconstructed.
-        var (_, commands) = NativeBattleLogicalPasses.Execute(ordering, assets.ReadNativePrimitiveTables(), new(0x20), 1);
+        var (_, commands, _) = NativeBattleLogicalPasses.Execute(ordering, assets.ReadNativePrimitiveTables(), new(0x20), 1);
         Assert.Contains(commands, command => command.Pass == 2);
         NativeBattlePrimitiveFrame frame = new(NativeBattleLogicalOrdering.Clear(), commands, [])
         {

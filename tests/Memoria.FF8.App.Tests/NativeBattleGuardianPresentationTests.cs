@@ -119,7 +119,7 @@ public sealed class NativeBattleGuardianPresentationTests
         Assert.True(sawEntry, diagnostic);
         Assert.NotNull(boundary);
         Assert.Contains("6C3940", boundary.Message);
-        Assert.Contains("phase77 requires original7016B0 source12A9664 and701970/6C53A0", boundary.Message);
+        Assert.Contains("phase86 requires original6EC060/6574D0", boundary.Message);
         Assert.True(sawGeometry);
         Assert.True(sawNativeFlash);
         Assert.Equal((ushort)116, battle.NativeGraphics!.OriginalEffect!.Binding.Effect);
@@ -127,7 +127,7 @@ public sealed class NativeBattleGuardianPresentationTests
         Assert.Contains(battle.NativeGraphics.OriginalEffect.Pools, pool => pool.DescriptorAddress == 0x2521738 && pool.Stride == 0x8D0 && pool.Slots.Single().Callback == 0x6C3940);
         Assert.Equal((byte?)0, battle.NativeEffectMemory!.GuardianCasterBank);
         ushort boundaryPhase = battle.NativeGraphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12);
-        Assert.Equal((ushort)77, boundaryPhase);
+        Assert.Equal((ushort)86, boundaryPhase);
         Assert.Equal(0, battle.NativeGraphics.Models[3].Flags0 & 4);
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240066, Flags: 1, Pan: 128 });
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240069, Flags: 1, Pan: 128 });
@@ -146,7 +146,7 @@ public sealed class NativeBattleGuardianPresentationTests
         Assert.Equal(boundary.Message, restoredBoundary.Message);
         Assert.Equal(battle.NativeGraphics.Callback, boundaryClone.NativeGraphics!.Callback);
         Assert.Equal(boundaryBefore.NativeGraphics!.OriginalEffect!.ReturnedDescriptor, boundaryClone.NativeGraphics.OriginalEffect!.ReturnedDescriptor);
-        Assert.Equal(battle.NativeEffectMemory!.Arena!.Read(NativeBattleQuezacotlWorkspace.Offset, NativeBattleQuezacotlWorkspace.Length), boundaryClone.NativeEffectMemory!.Arena!.Read(NativeBattleQuezacotlWorkspace.Offset, NativeBattleQuezacotlWorkspace.Length));
+        Assert.Equal(battle.NativeEffectMemory!.Arena!.Read(NativeBattleQuezacotlWorkspace.Offset, NativeBattleQuezacotlWorkspace.SecondLength), boundaryClone.NativeEffectMemory!.Arena!.Read(NativeBattleQuezacotlWorkspace.Offset, NativeBattleQuezacotlWorkspace.SecondLength));
         Assert.Equal(JsonSerializer.Serialize(battle.NativeFileIo), JsonSerializer.Serialize(boundaryClone.NativeFileIo));
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_GF_EVIDENCE");
         if (!string.IsNullOrEmpty(evidence))

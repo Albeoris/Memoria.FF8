@@ -114,6 +114,7 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
     public NativeBattleEffect3Resources? Effect3Resources { get; init; }
     public NativeBattleQuezacotlResources? NativeQuezacotlResources { get; init; }
     public NativeBattleCureResources? CureResources { get; init; }
+    public NativeBattleCuraResources? CuraResources { get; init; }
 }
 
 public sealed record NativeBattleEffectInitializerAsset(string Name, System.Collections.Immutable.ImmutableArray<byte> Data);

@@ -230,6 +230,11 @@ public sealed class NativeBattleFirePresentationTests
         BattleScenePresentation scene = new(assets, snapshot.Definition, true);
         Assert.Equal(320 * 224 * 4, scene.Render(battle, 320, 224).Length);
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(battle.Capture()));
+        string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_SNAPSHOT_EVIDENCE");
+        if (!string.IsNullOrWhiteSpace(evidence))
+        {
+            PublishEvidence(evidence, "native-snapshot-" + Guid.NewGuid().ToString("N"), battle, scene.Render(battle, 320, 224));
+        }
     }
 
     private static bool HasActionDescriptor(BattleSession battle)

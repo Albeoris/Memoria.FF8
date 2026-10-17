@@ -23,6 +23,7 @@ public sealed record NativeBattleOriginalEffectState([property: JsonRequired] us
     public int? DrawArenaOffset { get; init; }
     public NativeBattleQuezacotlState? Quezacotl { get; init; }
     public NativeBattleCureState? Cure { get; init; }
+    public NativeBattleCuraState? Cura { get; init; }
 
     public void Validate()
     {

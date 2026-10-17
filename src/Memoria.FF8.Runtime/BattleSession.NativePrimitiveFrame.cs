@@ -134,9 +134,10 @@ public sealed partial class BattleSession
         if ((graphics.Flags & 4) != 0)
         {
             //500400 initializes both original battle drawenvs to(0,0,320,216);45B660→45B6F0 publishes flags1.
-            var pass = NativeBattleLogicalPasses.Execute(frame.Pending, tables, new(process.TexturePage), 1);
+            NativeBattlePcTextureWindowCache cache = process.TextureWindowCache ?? throw new NotSupportedException("Native500900 requires its retained PC window-cache owner; explicitly reset it in a separately named snapshot migration.");
+            var pass = NativeBattleLogicalPasses.Execute(frame.Pending, tables, new(process.TexturePage) { TextureWindowBits = process.TextureWindowBits }, 1, cache);
             commands = pass.Commands;
-            process = process with { TexturePage = pass.Final.TexturePage };
+            process = process with { TexturePage = pass.Final.TexturePage, TextureWindowBits = pass.Final.TextureWindowBits, TextureWindowCache = pass.Cache };
         }
         ImmutableArray<int?>.Builder blends = ImmutableArray.CreateBuilder<int?>(graphics.ModuleDraws.Length);
         for (int index = 0; index < graphics.ModuleDraws.Length; index++)

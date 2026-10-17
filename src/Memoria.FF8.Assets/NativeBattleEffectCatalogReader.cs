@@ -142,6 +142,11 @@ public sealed partial class GameAssets
                 binding = binding with { CureResources = ReadNativeCureResources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Entry == 0x889D60)
+            {
+                binding = binding with { CuraResources = ReadNativeCuraResources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Initializer == 0 || binding.InitializerIsRet == true || binding.InitializerAsset is not null)
             {
                 continue;

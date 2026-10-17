@@ -41,6 +41,33 @@ public sealed class NativeBattleGfMatrixTests
         Assert.Throws<NotSupportedException>(() => NativeBattleGfMatrices.Compose6C6060(Node(0x40000, new(0, 0, 0), new(4096, 4096, 4096)), Identity, Identity, new(0, 0, 0)));
     }
 
+    [Fact]
+    public void SecondWindowContextUsesFullDwordTranslationAndFullPriorViewComposition()
+    {
+        NativeBattleActionMatrix context = NativeBattleGfMatrices.SecondWindowContext6C3C47(Identity, 40000);
+        Assert.Equal(new short[] { -4096, 0, 0, 0, 4096, 0, 0, 0, -4096 }, context.Rotation.ToArray());
+        Assert.Equal((600, 200, 40300), (context.X, context.Y, context.Z));
+        NativeBattleActionMatrix view = NativeBattleGfMatrices.Euler701310(new(0, 1024, 0)) with { X = 100, Y = 200, Z = 300 };
+        context = NativeBattleGfMatrices.SecondWindowContext6C3C47(view, 40000);
+        Assert.Equal((40100, 200, -200), (context.X, context.Y, context.Z));
+    }
+
+    [Fact]
+    public void SecondCallbackScalesAfterCompositionAndAddsOnlyPassedContextTranslation()
+    {
+        NativeBattleActionMatrix context = NativeBattleGfMatrices.Euler701310(new(0, 1024, 0)) with { X = 1000, Y = 2000, Z = 3000 };
+        NativeBattleActionMatrix rows = NativeBattleGfMatrices.Compose6C53A0(Node(0, new(0, 0, 0), new(5120, 4096, 8192)), context, null);
+        Assert.Equal(new short[] { 0, 0, 5120, 0, 4096, 0, -8192, 0, 0 }, rows.Rotation.ToArray());
+        Assert.Equal((1030, 2020, 2990), (rows.X, rows.Y, rows.Z));
+        NativeBattleActionMatrix columns = NativeBattleGfMatrices.Compose6C53A0(Node(0x100, new(0, 0, 0), new(5120, 4096, 8192)), context, null);
+        Assert.Equal(new short[] { 0, 0, 8192, 0, 4096, 0, -5120, 0, 0 }, columns.Rotation.ToArray());
+        NativeBattleActionMatrix billboard = NativeBattleGfMatrices.Compose6C53A0(Node(0x1000, new(0, 0, 0), new(4096, 4096, 4096)), context, Identity);
+        Assert.Equal((1010, 2020, 3030), (billboard.X, billboard.Y, billboard.Z));
+        NativeBattleActionMatrix billboardPriority = NativeBattleGfMatrices.Compose6C53A0(Node(0x1200, new(0, 0, 0), new(4096, 4096, 4096)), context, context);
+        Assert.Equal((1030, 2020, 2990), (billboardPriority.X, billboardPriority.Y, billboardPriority.Z));
+        Assert.Equal(context.Rotation.ToArray(), billboardPriority.Rotation.ToArray());
+    }
+
     private static NativeBattleGfAnimationNode Node(uint header, NativeBattleVector angles, NativeBattleVector scale)
     {
         byte[] bytes = new byte[44];

@@ -10,6 +10,8 @@ public sealed record NativeBattlePrimitiveResolvedCommand(NativeBattlePrimitiveC
 public sealed record NativeBattlePrimitivePassResult(NativeBattlePrimitiveDrawMode DrawMode, ImmutableArray<NativeBattlePrimitiveResolvedCommand> Commands);
 public sealed record NativeBattlePrimitiveDrawMode([property: JsonRequired] ushort? TexturePage)
 {
+    public uint? TextureWindowBits { get; init; }
+    public NativeBattlePcTextureWindowSelection? TextureSelection { get; init; }
     public int? BlendMode => TexturePage is ushort page ? (page >> 5) & 3 : null;
 
     public NativeBattlePrimitivePassResult ExecutePass(ImmutableArray<NativeBattlePrimitiveCommand> commands, ImmutableArray<uint> nativeHandlers)
@@ -39,6 +41,14 @@ public sealed record NativeBattlePrimitiveDrawMode([property: JsonRequired] usho
 
     public NativeBattlePrimitiveDrawMode ExecuteWords(byte opcode, ImmutableArray<uint> words)
     {
+        if (opcode == 0xE2)
+        {
+            if (words.Length != 1)
+            {
+                throw new InvalidDataException("Native45BC60 requires the original single E2 command DWORD.");
+            }
+            return this with { TextureWindowBits = words[0] & 0xFFFFFF };
+        }
         int pageWord = opcode == 0xE1 ? 0 : (opcode & 0xFC) switch
         {
             0x24 or 0x2C => 4,

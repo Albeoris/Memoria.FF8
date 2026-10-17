@@ -36,6 +36,17 @@ public sealed record NativeBattleGfAnimationWorkspace([property: JsonRequired] I
 
     public NativeBattleGfAnimationWorkspace Initialize7016B0(NativeBattleGfAnimationSource source, int sizeBytes)
     {
+        return Initialize(source, sizeBytes);
+    }
+
+    /// <summary>88A7D0 is instruction-equivalent to7016B0 except its DWORD-clear function address.</summary>
+    public NativeBattleGfAnimationWorkspace Initialize88A7D0(NativeBattleGfAnimationSource source, int sizeBytes)
+    {
+        return Initialize(source, sizeBytes);
+    }
+
+    private NativeBattleGfAnimationWorkspace Initialize(NativeBattleGfAnimationSource source, int sizeBytes)
+    {
         Validate(source);
         if (sizeBytes < 0 || (sizeBytes >> 2) > Data.Length / 4)
         {
@@ -67,6 +78,17 @@ public sealed record NativeBattleGfAnimationWorkspace([property: JsonRequired] I
     }
 
     public NativeBattleGfAnimationAdvance Advance701970(NativeBattleGfAnimationSource source, int frozen, Func<NativeBattleGfAnimationWorkspace, NativeBattleGfAnimationNode, NativeBattleGfAnimationWorkspace> emit)
+    {
+        return Advance(source, frozen, false, emit);
+    }
+
+    /// <summary>88A980 always integrates and advances; its exact-frame morph keys use DWORD-spaced frame selectors.</summary>
+    public NativeBattleGfAnimationAdvance Advance88A980(NativeBattleGfAnimationSource source, Func<NativeBattleGfAnimationWorkspace, NativeBattleGfAnimationNode, NativeBattleGfAnimationWorkspace> emit)
+    {
+        return Advance(source, 0, true, emit);
+    }
+
+    private NativeBattleGfAnimationAdvance Advance(NativeBattleGfAnimationSource source, int frozen, bool curaMorphKeys, Func<NativeBattleGfAnimationWorkspace, NativeBattleGfAnimationNode, NativeBattleGfAnimationWorkspace> emit)
     {
         Validate(source);
         ArgumentNullException.ThrowIfNull(emit);
@@ -166,10 +188,11 @@ public sealed record NativeBattleGfAnimationWorkspace([property: JsonRequired] I
                 if (key >= 0)
                 {
                     workspace.Short(cache, resource.Short(key + 4));
-                    workspace.Short(cache + 2, resource.Short(key + 6));
-                    workspace.Int(cache + 4, resource.Int(key + 8));
-                    workspace.Int(cache + 8, resource.Int(key + 12));
-                    workspace.Int(cache + 12, resource.Int(key + 16));
+                    workspace.Short(cache + 2, resource.Short(key + (curaMorphKeys ? 8 : 6)));
+                    int values = key + (curaMorphKeys ? 12 : 8);
+                    workspace.Int(cache + 4, resource.Int(values));
+                    workspace.Int(cache + 8, resource.Int(values + 4));
+                    workspace.Int(cache + 12, resource.Int(values + 8));
                 }
                 output.Short(40, workspace.Short(cache));
                 output.Short(42, workspace.Short(cache + 2));

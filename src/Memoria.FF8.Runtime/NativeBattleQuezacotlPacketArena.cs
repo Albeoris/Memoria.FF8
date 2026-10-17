@@ -66,4 +66,60 @@ public static class NativeBattleQuezacotlPacketArena
         }
         return new(memory with { Arena = arena }, effect with { DrawArenaOffset = cursor }, ordering);
     }
+
+    public static NativeBattleQuezacotlPacketWrite AppendCaptured6C5710(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleLogicalOrdering ordering, NativeBattleGfGeometryBatch batch)
+    {
+        NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native6C5710 requires its actual effect-arena packet bytes.");
+        int start = effect.DrawArenaOffset ?? throw new NotSupportedException("Native6C5710 requires its executed6C3760 draw-buffer pointer.");
+        if (batch.Attempts.IsDefault || batch.AllocationBytes < 0 || (batch.AllocationBytes & 3) != 0 || (start & 3) != 0)
+        {
+            throw new InvalidDataException("Native6C5710 requires its actual ordered store/link receipts and aligned allocation.");
+        }
+        int acceptedEnd = 0;
+        foreach (NativeBattleGfGeometryAttempt attempt in batch.Attempts)
+        {
+            if (attempt is null || attempt.Data.IsDefaultOrEmpty || attempt.WriteMask.IsDefault || attempt.WriteMask.Length != attempt.Data.Length || attempt.ByteOffsetRelative < 0 || (attempt.ByteOffsetRelative & 3) != 0 || (attempt.PacketLength & 3) != 0)
+            {
+                throw new InvalidDataException("Native6C5710 attempt lacks its actual bounded stores/link address.");
+            }
+            int address = checked(start + attempt.ByteOffsetRelative);
+            for (int offset = 0; offset < attempt.PacketLength;)
+            {
+                NativeBattleGfPacketByteState state = attempt.WriteMask[offset];
+                int end = offset + 1;
+                while (end < attempt.PacketLength && attempt.WriteMask[end] == state)
+                {
+                    end++;
+                }
+                arena = state switch
+                {
+                    NativeBattleGfPacketByteState.Known => arena.Write(checked(address + offset), attempt.Data.AsSpan().Slice(offset, end - offset)),
+                    NativeBattleGfPacketByteState.Unknown => arena.MarkUnknown(checked(address + offset), end - offset),
+                    NativeBattleGfPacketByteState.Untouched => arena,
+                    _ => throw new InvalidDataException("Native6C5710 attempt has an unknown byte-write state.")
+                };
+                offset = end;
+            }
+            if (attempt.Primitive is { } primitive)
+            {
+                int end = checked(attempt.ByteOffsetRelative + attempt.PacketLength);
+                if (primitive.Words.Length * 4 != attempt.PacketLength || end > batch.AllocationBytes)
+                {
+                    throw new InvalidDataException("Native6C5710 linked packet leaves its accepted allocation.");
+                }
+                acceptedEnd = Math.Max(acceptedEnd, end);
+                bool linked = ordering.Proxies.Length < NativeBattlePrimitiveOrdering.ProxyCapacity;
+                ordering = ordering.Prepend(primitive.Bucket, new("20DFAB8", 0, address), primitive.Words, 0, primitive.VertexPayload4);
+                if (linked)
+                {
+                    arena = arena.MarkUnknown(address, 3);
+                }
+            }
+        }
+        if (acceptedEnd != batch.AllocationBytes)
+        {
+            throw new InvalidDataException("Native6C5710 accepted extent differs from its original final cursor.");
+        }
+        return new(memory with { Arena = arena }, effect with { DrawArenaOffset = checked(start + batch.AllocationBytes) }, ordering);
+    }
 }

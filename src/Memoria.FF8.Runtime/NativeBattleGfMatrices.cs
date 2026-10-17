@@ -70,4 +70,37 @@ public static class NativeBattleGfMatrices
         (int baseX, int baseY, int baseZ) = Rotate56C3D0(view, basePosition);
         return rotation with { X = unchecked(baseX + basis.X + x), Y = unchecked(baseY + basis.Y + y), Z = unchecked(baseZ + basis.Z + z) };
     }
+
+    public static NativeBattleActionMatrix SecondWindowContext6C3C47(NativeBattleActionMatrix view, int targetZ1778)
+    {
+        NativeBattleActionMatrix local = Euler701310(new(0, -2048, 0));
+        NativeBattleActionMatrix rotation = Multiply56C090(view, local);
+        int Row(int row) => NativePrecision53.RoundInteger(view.Rotation[row * 3 + 2] * (targetZ1778 / 4096d) + view.Rotation[row * 3] * (500 / 4096d));
+        return rotation with { X = unchecked(Row(0) + view.X), Y = unchecked(Row(1) + view.Y), Z = unchecked(Row(2) + view.Z) };
+    }
+
+    public static NativeBattleActionMatrix Compose6C53A0(NativeBattleGfAnimationNode node, NativeBattleActionMatrix context, NativeBattleActionMatrix? billboard)
+    {
+        if ((node.Header & 0x40000) != 0)
+        {
+            throw new NotSupportedException("Native6C53A0 quaternion node requires its original7015B0 rotation contract.");
+        }
+        bool billboardNode = (node.Header & 0x1000) != 0;
+        bool direct = !billboardNode && (node.Header & 0x200) != 0;
+        NativeBattleActionMatrix basis = billboardNode ? billboard ?? throw new NotSupportedException("Native6C53A0 billboard node requires its executed67AAE0 matrix.") : context;
+        NativeBattleActionMatrix rotation = Euler701310(node.Vector16);
+        if (!direct && (node.Header & 0x8000) == 0)
+        {
+            rotation = Multiply56C090(basis, rotation);
+        }
+        NativeBattleVector scale = node.Vector24;
+        if (scale is not { X: 4096, Y: 4096, Z: 4096 })
+        {
+            rotation = (node.Header & 0x100) != 0
+                ? Multiply56C090(rotation, new([scale.X, 0, 0, 0, scale.Y, 0, 0, 0, scale.Z], 0, 0, 0, 4096))
+                : rotation with { Rotation = rotation.Rotation.Select((word, index) => unchecked((short)(word * (index / 3 == 0 ? scale.X : index / 3 == 1 ? scale.Y : scale.Z) >> 12))).ToImmutableArray() };
+        }
+        (int x, int y, int z) = direct ? (node.Vector8.X, node.Vector8.Y, node.Vector8.Z) : Rotate56C3D0(basis, node.Vector8);
+        return rotation with { X = unchecked(context.X + x), Y = unchecked(context.Y + y), Z = unchecked(context.Z + z) };
+    }
 }

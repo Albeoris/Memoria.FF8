@@ -28,10 +28,10 @@ public sealed partial class BattleRenderer
         {
             pixels[index] = 255;
         }
-        Dictionary<(ushort Page, ushort Clut, byte? AlternateShift), PixelImage> pages = [];
+        Dictionary<(ushort Page, ushort Clut, byte? AlternateShift, int X, int Y, int Width, int Height), PixelImage> pages = [];
         foreach (NativeBattleLogicalResolvedCommand resolved in frame.LastCommands)
         {
-            if (resolved.Pass == 0 || resolved.Command.Opcode == 0xE1)
+            if (resolved.Pass == 0 || resolved.Command.Opcode is 0xE1 or 0xE2)
             {
                 continue;
             }
@@ -68,6 +68,9 @@ public sealed partial class BattleRenderer
             if (textured)
             {
                 ushort page = resolved.DrawMode.TexturePage ?? throw new NotSupportedException("Native textured polygon requires its executed texture page.");
+                _ = resolved.DrawMode.TextureWindowBits ?? throw new NotSupportedException("Native465CE0 requires its retained45BC60 texture-window owner; explicitly migrate the named snapshot.");
+                NativeBattlePcTextureWindowSelection window = resolved.DrawMode.TextureSelection ?? throw new NotSupportedException("Native465CE0 requires its executed PC window-cache selection; explicitly migrate the named snapshot.");
+                window.Validate();
                 ushort clut = (ushort)(command.Words[2] >> 16);
                 byte? alternateShift = null;
                 if (resolved.DrawMode.BlendMode == 2)
@@ -78,10 +81,10 @@ public sealed partial class BattleRenderer
                     }
                     alternateShift = colorState.AlternatePaletteShift ?? throw new NotSupportedException("Native PC ABR2 requires its retained45B540 alternate-palette shift.");
                 }
-                if (!pages.TryGetValue((page, clut, alternateShift), out texture))
+                if (!pages.TryGetValue((page, clut, alternateShift, window.X, window.Y, window.Width, window.Height), out texture))
                 {
-                    texture = NativeBattleEffectTextureReader.DecodePcRegion(textures ?? throw new NotSupportedException("Native polygon texture sampling requires its retained VRAM owner."), page, clut, 0, 0, 256, 256, alternateShift, capabilities?.DirectTextureFormat);
-                    pages.Add((page, clut, alternateShift), texture);
+                    texture = NativeBattleEffectTextureReader.DecodePcRegion(textures ?? throw new NotSupportedException("Native polygon texture sampling requires its retained VRAM owner."), page, clut, window.X, window.Y, window.Width, window.Height, alternateShift, capabilities?.DirectTextureFormat);
+                    pages.Add((page, clut, alternateShift, window.X, window.Y, window.Width, window.Height), texture);
                 }
             }
             PrimitiveVertex At(int corner)
@@ -92,8 +95,14 @@ public sealed partial class BattleRenderer
                 int mode = resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native polygon diffuse color requires its executed ABR.");
                 NativeBattlePrimitiveColor diffuse = textured ? colorState.Textured(color, semi, mode, (command.Opcode & 1) != 0) : colorState.Untextured(color, semi, mode);
                 uint uv = textured ? command.Words[coordinateWord + 1] : 0;
+                Vector2 coordinates = new((byte)uv, (byte)(uv >> 8));
+                if (textured)
+                {
+                    NativeBattlePcTextureWindowSelection window = resolved.DrawMode.TextureSelection!;
+                    coordinates *= new Vector2(window.ScaleU, window.ScaleV);
+                }
                 float unit = (command.Flags20 & 1) != 0 ? 1 : 0.125f;
-                return new(unchecked((short)coordinate) * unit * Width / 320, unchecked((short)(coordinate >> 16)) * unit * Height / 216, projected[corner].Depth, projected[corner].ReciprocalW, new((byte)uv, (byte)(uv >> 8)), diffuse.Rgb, diffuse.Alpha);
+                return new(unchecked((short)coordinate) * unit * Width / 320, unchecked((short)(coordinate >> 16)) * unit * Height / 216, projected[corner].Depth, projected[corner].ReciprocalW, coordinates, diffuse.Rgb, diffuse.Alpha);
             }
             int blend = semi && resolved.Pass == 2 ? resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native semi-transparent polygon requires its inherited ABR.") : -1;
             PrimitiveVertex a = At(0);
@@ -186,7 +195,9 @@ public sealed partial class BattleRenderer
                         continue;
                     }
                     Vector2 uv = (a.Uv * (a.ReciprocalW * wa) + b.Uv * (b.ReciprocalW * wb) + c.Uv * (c.ReciprocalW * wc)) / rhw;
-                    Rgba32 texel = texture[Math.Clamp((int)MathF.Floor(uv.X), 0, 255), Math.Clamp((int)MathF.Floor(uv.Y), 0, 255)];
+                    int u = (int)MathF.Floor(uv.X * texture.Width) % texture.Width;
+                    int v = (int)MathF.Floor(uv.Y * texture.Height) % texture.Height;
+                    Rgba32 texel = texture[u < 0 ? u + texture.Width : u, v < 0 ? v + texture.Height : v];
                     if (texel.A == 0 || pass == 1 && texel.A < 112 || pass == 2 && blend == 0 && texel.A < 122)
                     {
                         continue;

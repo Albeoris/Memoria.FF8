@@ -34,7 +34,7 @@ public static class NativeBattleDefensivePackets
 public static partial class NativeBattleModulePackets
 {
     /// <summary>572BE0's G3 emission, including native AVSZ3 and zero fourth proxy payload.</summary>
-    public static NativeBattleGeometryPrimitive? EmitGouraudTriangle572BE0(ReadOnlySpan<byte> face, IReadOnlyList<NativeBattleProjectedVertex> vertices, uint flags, int fade, int tableBaseBucket, byte depthShift)
+    public static NativeBattleGeometryPrimitive? EmitGouraudTriangle572BE0(ReadOnlySpan<byte> face, IReadOnlyList<NativeBattleProjectedVertex> vertices, uint flags, int fade, int tableBaseBucket, byte depthShift, uint depthColor = 0)
     {
         if (face.Length != 20 || vertices.Count != 3 || depthShift > 31)
         {
@@ -68,7 +68,7 @@ public static partial class NativeBattleModulePackets
             uint color = corner == 0 ? first : BinaryPrimitives.ReadUInt32LittleEndian(face[(8 + corner * 4)..]);
             if ((flags & 0x80) != 0)
             {
-                color = Fade(color, fade);
+                color = Fade(color, fade, depthColor);
                 if (corner != 0)
                 {
                     //572BE0 loads FIFO colors1/2/0;45E120 takes the modified first packet color as RGBC.

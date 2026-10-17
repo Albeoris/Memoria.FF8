@@ -4,6 +4,8 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattlePrimitiveProcess(ushort? TexturePage, byte? Buffer80, string? PacketBank, byte PacketBuffer, int? ByteCursor)
 {
+    public uint? TextureWindowBits { get; init; }
+    public NativeBattlePcTextureWindowCache? TextureWindowCache { get; init; }
     public ImmutableArray<bool?> TablePerspective { get; init; } = [null, null];
     public bool? DisableTableReset { get; init; }
     public NativeBattlePrimitiveDepthState? Depth { get; init; }
@@ -11,13 +13,14 @@ public sealed record NativeBattlePrimitiveProcess(ushort? TexturePage, byte? Buf
 
     public void Validate()
     {
-        if (Buffer80 is > 1 || PacketBuffer > 1 || TablePerspective.IsDefault || TablePerspective.Length != 2 || (PacketBank is null) != (ByteCursor is null) || PacketBank is not (null or "off_B6D070" or "off_B6D094") || ByteCursor is < 0 || ByteCursor is int cursor && (cursor & 3) != 0 || PacketBank == "off_B6D070" && ByteCursor is > 114688 || PacketBank == "off_B6D094" && ByteCursor is > 147456 || Depth is { } depth && (!float.IsFinite(depth.BucketMix) || !float.IsFinite(depth.RemainingWeight) || depth.BucketMix is < 0 or > 1 || depth.RemainingWeight is < 0 or > 1))
+        TextureWindowCache?.Validate();
+        if (TextureWindowBits is > 0xFFFFFF || Buffer80 is > 1 || PacketBuffer > 1 || TablePerspective.IsDefault || TablePerspective.Length != 2 || (PacketBank is null) != (ByteCursor is null) || PacketBank is not (null or "off_B6D070" or "off_B6D094") || ByteCursor is < 0 || ByteCursor is int cursor && (cursor & 3) != 0 || PacketBank == "off_B6D070" && ByteCursor is > 114688 || PacketBank == "off_B6D094" && ByteCursor is > 147456 || Depth is { } depth && (!float.IsFinite(depth.BucketMix) || !float.IsFinite(depth.RemainingWeight) || depth.BucketMix is < 0 or > 1 || depth.RemainingWeight is < 0 or > 1))
         {
             throw new InvalidDataException("Native primitive process requires bounded logical banks, original per-bank descriptors and finite retained GPU depth state.");
         }
     }
 
-    public static NativeBattlePrimitiveProcess FromColdProcess() => new(0, 0, null, 0, null) { DisableTableReset = false, Depth = NativeBattlePrimitiveDepthState.FromColdProcess(), Color = NativeBattlePrimitiveColorState.FromColdProcess() };
+    public static NativeBattlePrimitiveProcess FromColdProcess() => new(0, 0, null, 0, null) { TextureWindowBits = 0, TextureWindowCache = NativeBattlePcTextureWindowCache.Reset4647A0(null) with { ScaleU = 0, ScaleV = 0 }, DisableTableReset = false, Depth = NativeBattlePrimitiveDepthState.FromColdProcess(), Color = NativeBattlePrimitiveColorState.FromColdProcess() };
     public NativeBattlePrimitiveProcess Initialize500400() => this with { PacketBank = "off_B6D070", PacketBuffer = 0, ByteCursor = 0, TablePerspective = TablePerspective.SetItem(0, false) };
 
     public NativeBattlePrimitiveProcess Reset500900(uint flags)
