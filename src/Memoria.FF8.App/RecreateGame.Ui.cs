@@ -449,14 +449,7 @@ internal sealed partial class RecreateGame
         }
         if (input.Confirm || keyboard.UiConfirmRequested)
         {
-            if (gameMenus.IsEditingName && keyboard.LastInputDevice == ControlDevice.Keyboard)
-            {
-                gameMenus.Execute(new MenuAction("name-save"));
-            }
-            else
-            {
-                gameMenus.Navigate(MenuInput.Confirm);
-            }
+            gameMenus.Navigate(MenuInput.Confirm);
         }
         if (input.Cancel || keyboard.UiCancelRequested)
         {

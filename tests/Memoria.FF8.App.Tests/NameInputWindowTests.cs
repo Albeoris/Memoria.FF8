@@ -150,6 +150,8 @@ public sealed class NameInputWindowTests
         Assert.True(helpText.Bounds.Bottom <= help.Bounds.Bottom - help.Padding.Bottom);
         UiButton[] buttons = elements.OfType<UiButton>().Where(button => button.Enabled).ToArray();
         Assert.All(buttons, button => Assert.True(button.Bounds.Width > 0 && button.Bounds.Height > 0));
+        UiLabel[] commands = buttons.Where(button => button.Id?.StartsWith("name-command-", StringComparison.Ordinal) == true).Select(button => Assert.Single(button.Children.OfType<UiLabel>())).ToArray();
+        Assert.All(commands, command => Assert.Equal(commands[0].Bounds.X, command.Bounds.X));
         for (int first = 0; first < buttons.Length; first++)
         {
             for (int second = first + 1; second < buttons.Length; second++)
