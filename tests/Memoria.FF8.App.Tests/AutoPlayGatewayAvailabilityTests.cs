@@ -28,7 +28,8 @@ public sealed class AutoPlayGatewayAvailabilityTests
 
         IReadOnlyList<AutoPlayTarget> targets = world.DiscoverAutoPlayTargets();
         Assert.DoesNotContain(targets, target => target.CoverageId == "159:gateway:2");
-        Assert.Contains(targets, target => target.CoverageId == "159:line:13");
+        Assert.DoesNotContain(targets, target => target.CoverageId == "159:line:13");
+        Assert.Contains(targets, target => target.CoverageId == "159:gateway:1" && target.DestinationField == 220);
         Assert.Equal(state, session.State);
         Assert.True(JsonElement.DeepEquals(before, JsonSerializer.SerializeToElement(world.Events.Capture())));
         Assert.False(world.Events.Scene.MapJumpDisabled);

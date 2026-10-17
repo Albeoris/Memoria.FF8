@@ -41,7 +41,7 @@ internal sealed partial class AutoPlayController
         }
         GameWorld world = getWorld();
         AutoPlayChoiceSelection[] prefix = run.ActiveSelections?.ToArray() ?? throw new NotSupportedException("Participant-policy choice exploration requires its authentic ordered selection prefix.");
-        string? persistent = run.VisitGuards.TryGetValue(visit, out AutoPlayVisitGuard? guard) && guard.Version == AutoPlayVisitGuard.CurrentVersion ? world.Events.ReadPersistentPredicateFingerprint(guard.Reads) : null;
+        string? persistent = run.VisitGuards.TryGetValue(run.ActiveNavigationKey ?? visit, out AutoPlayVisitGuard? guard) && guard.Version == AutoPlayVisitGuard.CurrentVersion ? world.Events.ReadPersistentPredicateFingerprint(guard.Reads) : null;
         var scope = new { visit, eventId, target, run.ActiveConditionSignature, persistent, Bindings = Enumerable.Range(0, 3).Select(slot => world.Events.Scene.PartyBindingMemory?.At(slot)).ToArray(), Retained = world.Events.Scene.NativeActorObjectIds, Characters = world.Events.Scene.NativeActorObjectIds.Select(id => world.Events.Actors[id].CharacterId).ToArray(), prefix };
         string scopeKey = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(scope)));
         int[] deferred = item.ParticipantPolicyDeferrals.Where(attempt => attempt.TargetId == target && attempt.SourceConditionSignature == run.ActiveConditionSignature && attempt.ChoiceKey == choice.Key && attempt.Selections.Count == prefix.Length + 1 && attempt.Selections.Take(prefix.Length).SequenceEqual(prefix) && world.ReadAutoPlayParticipantPolicyFingerprint(attempt.Guard) == attempt.Guard.Fingerprint).Select(attempt => attempt.Selections[^1].Selection).Distinct().ToArray();
@@ -50,7 +50,7 @@ internal sealed partial class AutoPlayController
 
     private void DeferParticipantAction(NativePartyActionRequest request)
     {
-        if (run.ActiveVisit is not string visit || run.ActiveEvent is not string eventId || run.ActiveTargetId is not string target || run.ActiveBeforeCheckpoint is not string beforeEvent || run.ActiveConditionSignature is not string signature || run.ActiveSelections is null || request.FieldId != run.ActiveField || request.CallerObjectId != run.ActiveObjectId || request.PhysicalCodeObjectId == request.ReceiverObjectId || !run.VisitGuards.TryGetValue(visit, out AutoPlayVisitGuard? sourceGuard))
+        if (run.ActiveVisit is not string visit || run.ActiveEvent is not string eventId || run.ActiveTargetId is not string target || run.ActiveBeforeCheckpoint is not string beforeEvent || run.ActiveConditionSignature is not string signature || run.ActiveSelections is null || request.FieldId != run.ActiveField || request.CallerObjectId != run.ActiveObjectId || request.PhysicalCodeObjectId == request.ReceiverObjectId || !run.VisitGuards.TryGetValue(run.ActiveNavigationKey ?? visit, out AutoPlayVisitGuard? sourceGuard))
         {
             throw new NotSupportedException("The reached foreign participant action has no exact active interaction, original source guard or authentic pre-event checkpoint.");
         }
@@ -179,6 +179,7 @@ internal sealed partial class AutoPlayController
     private void ClearParticipantPolicyAttempt()
     {
         run.ActiveVisit = null;
+        run.ActiveNavigationKey = null;
         run.ActiveEvent = null;
         run.ActiveStory = null;
         run.ActiveObjectId = -1;

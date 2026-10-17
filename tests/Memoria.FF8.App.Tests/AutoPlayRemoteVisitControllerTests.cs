@@ -29,8 +29,8 @@ public sealed class AutoPlayRemoteVisitControllerTests
         Assert.Null(run.Controller.Error);
         Assert.True(run.Controller.Running);
         Assert.Equal(221, run.Session.State.FieldId);
-        Assert.True(run.Controller.State.VisitGuards.ContainsKey("241:145"));
-        Assert.True(run.Controller.State.VisitGuards.ContainsKey("243:145"));
+        Assert.Contains(run.Controller.State.VisitGuards.Keys, key => key.StartsWith("241:145:nav:", StringComparison.Ordinal));
+        Assert.Contains(run.Controller.State.VisitGuards.Keys, key => key.StartsWith("243:145:nav:", StringComparison.Ordinal));
         Assert.Contains(243, visitedFields);
         Assert.Equal(243, visitedFields.First(field => field != 241));
         Assert.Contains(run.Commands, command => command is { FieldId: 243, ObjectId: 13, ScriptId: 63, Name: "REQEW" });

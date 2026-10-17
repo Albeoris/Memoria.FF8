@@ -6,7 +6,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class AutoPlayRefreshSweepIntegrationTests
 {
     [Fact]
-    public void ActualGardenRefreshPersistsItsPendingGoalAndReachesNewProgressWithoutCompletionCreditForInspection()
+    public void ActualGardenSurveyPersistsComponentObservationsAndReachesNewProgressWithoutCompletionCreditForInspection()
     {
         string manifest = TestResources.FixturePath("App.Tests.AutoPlayRefreshSweepIntegrationTests.1");
         byte[] originalManifest = File.ReadAllBytes(manifest);
@@ -25,22 +25,24 @@ public sealed class AutoPlayRefreshSweepIntegrationTests
 
         Assert.Null(run.Controller.Error);
         Assert.Equal(completed, CompletedCount(run));
-        for (int tick = 0; tick < 128 && (run.Controller.State.InspectedVisitsSinceProgress.Count == 0 || run.Controller.State.RefreshTargetVisit is null) && run.Controller.Error is null; tick++)
+        for (int tick = 0; tick < 128 && (run.Controller.State.InspectedVisitsSinceProgress.Count == 0 || run.Controller.State.Coverage.NavigationRoutes.Count == 0) && run.Controller.Error is null; tick++)
         {
             run.Controller.Advance(1);
         }
         Assert.Null(run.Controller.Error);
         Assert.True(run.Controller.Running);
         Assert.NotEmpty(run.Controller.State.InspectedVisitsSinceProgress);
-        string target = Assert.IsType<string>(run.Controller.State.RefreshTargetVisit);
-        Assert.DoesNotContain(target, run.Controller.State.InspectedVisitsSinceProgress);
+        Assert.NotEmpty(run.Controller.State.Coverage.NavigationRoutes);
+        string navigation = JsonSerializer.Serialize(run.Controller.State.Coverage.NavigationVisits, AutoPlayController.JsonOptions);
+        string routes = JsonSerializer.Serialize(run.Controller.State.Coverage.NavigationRoutes, AutoPlayController.JsonOptions);
         string[] inspected = run.Controller.State.InspectedVisitsSinceProgress.Order(StringComparer.Ordinal).ToArray();
         run.Controller.SaveAndStop();
         using InstalledRun cold = new();
         cold.Controller.ResumeFrom(run.Controller.ReproductionPath!);
         cold.World.EnsureField();
         Assert.Equal(inspected, cold.Controller.State.InspectedVisitsSinceProgress.Order(StringComparer.Ordinal));
-        Assert.Equal(target, cold.Controller.State.RefreshTargetVisit);
+        Assert.Equal(navigation, JsonSerializer.Serialize(cold.Controller.State.Coverage.NavigationVisits, AutoPlayController.JsonOptions));
+        Assert.Equal(routes, JsonSerializer.Serialize(cold.Controller.State.Coverage.NavigationRoutes, AutoPlayController.JsonOptions));
         Assert.True(JsonElement.DeepEquals(run.World.Events.Capture(), cold.World.Events.Capture()));
         int beforeScore = cold.Controller.State.LastProgressScore;
         long beforeStep = cold.Controller.State.Steps;
@@ -48,10 +50,6 @@ public sealed class AutoPlayRefreshSweepIntegrationTests
         for (int tick = 0; tick < 2048 && cold.Controller.State.LastProgressScore == beforeScore && cold.Controller.Error is null; tick++)
         {
             cold.Controller.Advance(1);
-            if (cold.Controller.State.InspectedVisitsSinceProgress.Contains(target))
-            {
-                Assert.NotEqual(target, cold.Controller.State.RefreshTargetVisit);
-            }
         }
 
         Assert.Null(cold.Controller.Error);

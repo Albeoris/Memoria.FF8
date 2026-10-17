@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
@@ -18,6 +19,16 @@ public sealed class AutoPlaySurveyInitializationIntegrationTests
         run.World.EnsureField();
         Assert.Equal(174, run.Session.State.FieldId);
         Assert.False(run.Controller.State.SurveyInvalidationUnknown);
+        AutoPlayTarget exit = run.World.DiscoverAutoPlayTargets().First(target => target.CoverageId == "174:line:26");
+        FieldTeleportPosition approach = new(exit.ApproachX!.Value, exit.ApproachY!.Value, exit.ApproachZ!.Value, exit.ApproachTriangle!.Value, exit.Direction);
+        FieldTeleportContactResult contact = run.World.Events.TeleportPlayerAndDispatchContacts(new(exit.X, exit.Y, exit.Z, exit.Triangle, exit.Direction), approach);
+        Assert.True(contact.ContactTriggered);
+        for (int callback = 0; callback < 16 && run.Session.State.FieldId == 174; callback++)
+        {
+            Assert.True(run.World.Apply(new(PlayerActionKind.Wait)).Accepted);
+        }
+        Assert.Equal(224, run.Session.State.FieldId);
+        Assert.Equal(174, run.World.Events.FieldId);
         for (int tick = 0; tick < 16 && !run.FirstDefaultSeen && run.Controller.Error is null; tick++)
         {
             run.Controller.Advance(1);

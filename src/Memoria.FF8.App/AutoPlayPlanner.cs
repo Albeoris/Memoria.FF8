@@ -89,24 +89,33 @@ internal sealed class AutoPlayPlannerState
 {
     public List<AutoPlayVisitCoverage> Visits { get; set; } = [];
     public List<AutoPlayChoiceCoverage> Choices { get; set; } = [];
+    public List<AutoPlayNavigationVisit> NavigationVisits { get; set; } = [];
+    public List<AutoPlayNavigationRoute> NavigationRoutes { get; set; } = [];
 }
 
 /// <summary>A deterministic frontier planner with stable visit graphs and separately consumed event conditions.</summary>
-internal sealed class AutoPlayPlanner
+internal sealed partial class AutoPlayPlanner
 {
     private readonly Func<AutoPlayVisit, AutoPlayEvent, int> phaseOrder;
     private readonly Func<AutoPlayVisit, AutoPlayEvent, int> progressionOrder;
 
     public AutoPlayPlannerState State { get; }
 
-    public AutoPlayPlanner(AutoPlayPlannerState? state = null, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder = null, Func<AutoPlayVisit, AutoPlayEvent, int>? progressionOrder = null)
+    public AutoPlayPlanner(AutoPlayPlannerState? state = null, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder = null, Func<AutoPlayVisit, AutoPlayEvent, int>? progressionOrder = null) : this(state, phaseOrder, progressionOrder, normalizeLegacyRoutes: true)
+    {
+    }
+
+    private AutoPlayPlanner(AutoPlayPlannerState? state, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder, Func<AutoPlayVisit, AutoPlayEvent, int>? progressionOrder, bool normalizeLegacyRoutes)
     {
         State = state ?? new AutoPlayPlannerState();
         this.phaseOrder = phaseOrder ?? ((_, _) => 0);
         this.progressionOrder = progressionOrder ?? ((_, _) => 0);
-        foreach (AutoPlayEventCoverage item in State.Visits.SelectMany(visit => visit.Events))
+        if (normalizeLegacyRoutes)
         {
-            NormalizeLegacyRoute(item);
+            foreach (AutoPlayEventCoverage item in State.Visits.SelectMany(visit => visit.Events))
+            {
+                NormalizeLegacyRoute(item);
+            }
         }
     }
 
@@ -314,7 +323,7 @@ internal sealed class AutoPlayPlanner
     }
 
     /// <summary>Uses recorded routes for frontiers and optional remote refreshes; returns null when neither is reachable.</summary>
-    public AutoPlayPlanStep? Plan(string currentVisitKey, Func<AutoPlayVisit, bool>? needsRefresh = null, string? refreshVisitKey = null)
+    public AutoPlayPlanStep? Plan(string currentVisitKey, Func<AutoPlayVisit, bool>? needsRefresh = null, string? refreshVisitKey = null, Func<AutoPlayVisit, AutoPlayEvent, int>? frontierPriority = null)
     {
         AutoPlayVisitCoverage current = FindVisit(currentVisitKey);
         Dictionary<string, AutoPlayPlanStep?> routes = new(StringComparer.Ordinal) { [currentVisitKey] = null };
@@ -342,6 +351,7 @@ internal sealed class AutoPlayPlanner
         var candidates = routes.Keys.SelectMany(key => OrderedEvents(FindVisit(key)).Where(NeedsExecution).Select(item => new { Visit = FindVisit(key), Coverage = item }));
         var ordered = candidates.OrderBy(item => progressionOrder(item.Visit.Visit, item.Coverage.Event))
             .ThenBy(item => item.Coverage.Event.ChangesStory)
+            .ThenBy(item => frontierPriority?.Invoke(item.Visit.Visit, item.Coverage.Event) ?? 0)
             .ThenBy(item => phaseOrder(item.Visit.Visit, item.Coverage.Event))
             .ThenBy(item => item.Visit.Visit.Region != current.Visit.Region)
             .ThenBy(item => item.Coverage.Event.Order)

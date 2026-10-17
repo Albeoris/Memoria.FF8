@@ -6,17 +6,29 @@ namespace Memoria.FF8.Assets;
 public sealed partial class GameAssets
 {
     private readonly Dictionary<int, string> fieldProgramHashes = [];
-    private long fieldProgramGeneration = -1;
+    private readonly Dictionary<int, string> fieldWalkmeshHashes = [];
+    private long fieldResourceHashGeneration = -1;
 
     public string ReadFieldProgramHash(int fieldId)
     {
+        return ReadFieldResourceHash(fieldId, ".jsm", fieldProgramHashes);
+    }
+
+    public string ReadFieldWalkmeshHash(int fieldId)
+    {
+        return ReadFieldResourceHash(fieldId, ".id", fieldWalkmeshHashes);
+    }
+
+    private string ReadFieldResourceHash(int fieldId, string extension, Dictionary<int, string> hashes)
+    {
         long generation = resources?.Generation ?? 0;
-        if (fieldProgramGeneration != generation)
+        if (fieldResourceHashGeneration != generation)
         {
             fieldProgramHashes.Clear();
-            fieldProgramGeneration = generation;
+            fieldWalkmeshHashes.Clear();
+            fieldResourceHashGeneration = generation;
         }
-        if (overrides is null && fieldProgramHashes.TryGetValue(fieldId, out string? cached))
+        if (overrides is null && hashes.TryGetValue(fieldId, out string? cached))
         {
             return cached;
         }
@@ -26,8 +38,11 @@ public sealed partial class GameAssets
         }
         string name = fieldNames[fieldId];
         using IFlArchive nested = OpenNested(name);
-        string hash = Convert.ToHexString(SHA256.HashData(Read(nested, name + ".jsm")));
-        fieldProgramHashes[fieldId] = hash;
+        string hash = Convert.ToHexString(SHA256.HashData(Read(nested, name + extension)));
+        if (overrides is null)
+        {
+            hashes[fieldId] = hash;
+        }
         return hash;
     }
 }
