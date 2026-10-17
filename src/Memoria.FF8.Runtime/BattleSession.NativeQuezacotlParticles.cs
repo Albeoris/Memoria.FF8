@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState AdvanceNativeQuezacotlParticles(NativeBattleGraphicsState graphics)
+    private NativeBattleGraphicsState AdvanceNativeQuezacotlParticles(NativeBattleGraphicsState graphics, NativeBattleGteDepthTrace depthTrace)
     {
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native6C7EA0 requires its retained effect memory.");
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new InvalidDataException("Native6C7EA0 lost its current module.");
@@ -21,7 +21,7 @@ public sealed partial class BattleSession
                 throw new NotSupportedException($"Native Quezacotl particle callback{current.Slots[index].Callback:X} is not implemented.");
             }
             NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native6C7EA0 requires its current ordering table.");
-            NativeBattleQuezacotlParticleStep particle = NativeBattleQuezacotlParticleCallbacks.Advance6C7EA0(memory, effect, current, index, frame.Pending, NativeCamera?.Projection ?? throw new NotSupportedException("Native6C7EA0 requires its prior projection."));
+            NativeBattleQuezacotlParticleStep particle = NativeBattleQuezacotlParticleCallbacks.Advance6C7EA0(memory, effect, current, index, frame.Pending, NativeCamera?.Projection ?? throw new NotSupportedException("Native6C7EA0 requires its prior projection."), depthTrace);
             memory = particle.Memory;
             effect = particle.Effect;
             graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = particle.Ordering } };

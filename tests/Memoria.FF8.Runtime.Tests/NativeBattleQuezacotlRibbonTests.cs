@@ -79,6 +79,23 @@ public sealed class NativeBattleQuezacotlRibbonTests
     }
 
     [Fact]
+    public void Ribbon_pushes_all_sixteen_actual_full_depths_even_when_every_segment_is_behind_the_camera()
+    {
+        NativeBattleActionMatrix behind = Identity with { Z = -10000 };
+        List<ushort> depths = [];
+        NativeBattleGteDepthTrace trace = new([111, 222, 333, 444]);
+        NativeBattleGfGeometryBatch batch = NativeBattleQuezacotlRibbonPackets.Emit6C8C50(Points(), behind, Projection, DistanceFixture(), depth =>
+        {
+            depths.Add(depth);
+            trace.Push(depth);
+        });
+        Assert.Equal(16, depths.Count);
+        Assert.All(depths, depth => Assert.Equal((ushort)0, depth));
+        Assert.Equal(new int?[] { 0, 0, 0, 0 }, trace.DepthFifo4);
+        Assert.Empty(batch.Attempts);
+    }
+
+    [Fact]
     public void Degenerate_first_direction_keeps_uninitialized_scratch_strict_and_missing_distance_table_is_rejected()
     {
         ImmutableArray<NativeBattleQuezacotlRibbonPoint> points = Enumerable.Repeat(new NativeBattleQuezacotlRibbonPoint(new(0, 0, 1000), 64, 128), 16).ToImmutableArray();

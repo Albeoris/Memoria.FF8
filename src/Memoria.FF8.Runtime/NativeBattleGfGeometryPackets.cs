@@ -30,7 +30,7 @@ public static class NativeBattleGfGeometryPackets
         return EmitBatch7043B0(source, geometryOffset, selectedVertices, matrix, projection, context, colors).Attempts.Where(attempt => attempt.Primitive is not null).Select(attempt => attempt.Primitive!).ToImmutableArray();
     }
 
-    public static NativeBattleGfGeometryBatch EmitBatch7043B0(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleGfGeometryContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null)
+    public static NativeBattleGfGeometryBatch EmitBatch7043B0(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleGfGeometryContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null)
     {
         if (source.IsDefault || context.DepthShift > 31)
         {
@@ -68,7 +68,7 @@ public static class NativeBattleGfGeometryPackets
                     offsets[corner] = BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(4 + corner * 2));
                 }
                 ProjectedCorners corners = new(offsets, Project);
-                NativeBattleGfGeometryAttempt attempt = EmitAttempt7043B0(face, corners, group, context, colors, allocated);
+                NativeBattleGfGeometryAttempt attempt = EmitAttempt7043B0(face, corners, group, context, colors, allocated, observeDepth);
                 attempts.Add(attempt);
                 if (attempt.Primitive is not null)
                 {
@@ -110,7 +110,7 @@ public static class NativeBattleGfGeometryPackets
         return EmitAttempt7043B0(face, vertices, group, context, colors).Primitive;
     }
 
-    public static NativeBattleGfGeometryAttempt EmitAttempt7043B0(ReadOnlySpan<byte> face, IReadOnlyList<NativeBattleModuleProjectedVertex> vertices, int group, NativeBattleGfGeometryContext context, NativeBattleSummonColors? colors = null, int byteOffsetRelative = 0)
+    public static NativeBattleGfGeometryAttempt EmitAttempt7043B0(ReadOnlySpan<byte> face, IReadOnlyList<NativeBattleModuleProjectedVertex> vertices, int group, NativeBattleGfGeometryContext context, NativeBattleSummonColors? colors = null, int byteOffsetRelative = 0, Action<ushort>? observeDepth = null)
     {
         bool quad = (group & 1) != 0;
         bool textured = (group & 2) != 0;
@@ -121,7 +121,13 @@ public static class NativeBattleGfGeometryPackets
             throw new InvalidDataException("Native7043B0 requires the selected original group record, native projected vertices and depth shift.");
         }
         // NativeRTPT precedes the packet prefix stores; missing first-three sources cannot publish a prefix attempt.
-        uint firstFlags = vertices[0].Flags | vertices[1].Flags | vertices[2].Flags;
+        NativeBattleModuleProjectedVertex first = vertices[0];
+        NativeBattleModuleProjectedVertex second = vertices[1];
+        NativeBattleModuleProjectedVertex third = vertices[2];
+        observeDepth?.Invoke(first.Depth);
+        observeDepth?.Invoke(second.Depth);
+        observeDepth?.Invoke(third.Depth);
+        uint firstFlags = first.Flags | second.Flags | third.Flags;
         int length = gouraud ? 1 + count * (textured ? 3 : 2) : 2 + count * (textured ? 2 : 1);
         PacketWrites writes = new(length, byteOffsetRelative);
         writes.Word(0, (uint)(length - 1) << 24);
@@ -189,6 +195,7 @@ public static class NativeBattleGfGeometryPackets
         if (quad)
         {
             // The fourth RTPS occurs only after first-three near and NCLIP admission.
+            observeDepth?.Invoke(vertices[3].Depth);
             writes.Word(ScreenWord(3), vertices[3].Screen);
         }
         if (vertices.All(vertex => unchecked((ushort)vertex.Screen) > 0xA00) || vertices.All(vertex => (vertex.Screen >> 16) > 0x6C0))

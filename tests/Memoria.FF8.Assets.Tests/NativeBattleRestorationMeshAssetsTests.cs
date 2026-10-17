@@ -59,7 +59,7 @@ public sealed class NativeBattleRestorationMeshAssetsTests
     [Theory]
     [InlineData(8, 0x2A6C3D31u)]
     [InlineData(9, 0x2A563964u)]
-    public void Actual_Full_life_flat_face_keeps_original_color_while_the_unported_G4_is_explicit(int index, uint color)
+    public void Actual_Full_life_meshes_keep_their_original_F4_G4_colors_ordered_packets_and_JSON(int index, uint color)
     {
         using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
         NativeBattleRestorationExecutableState bank = NativeBattleRestorationExecutableState.FromColdProcess(27).Initialize(game.ReadNativeRestorationResources(27).Executable!);
@@ -75,7 +75,23 @@ public sealed class NativeBattleRestorationMeshAssetsTests
         NativeBattleGfGeometryBatch batch = NativeBattleRestorationMeshPackets.EmitF4_8846C0(face, corner => vertices[corner], new(0x30, null, null, null, null, null, 17, 2));
         Assert.Equal(color, Assert.Single(batch.Attempts).Primitive!.Words[1]);
         Assert.Equal(24, batch.AllocationBytes);
-        Assert.Throws<NotSupportedException>(() => NativeBattleRestorationMeshPackets.EmitBatch884370(mesh, matrix, projection, new(0x30, null, null, null, null, null, 17, 2)));
+        NativeBattleGfGeometryBatch complete = NativeBattleRestorationMeshPackets.EmitBatch884370(mesh, matrix, projection, new(0x30, null, null, null, null, null, 17, 2));
+        Assert.Equal(60, complete.AllocationBytes);
+        Assert.Equal(new[] { 0, 24 }, complete.Attempts.Select(attempt => attempt.ByteOffsetRelative));
+        Assert.Equal(new[] { 24, 36 }, complete.Attempts.Select(attempt => attempt.PacketLength));
+        Assert.All(complete.Attempts.SelectMany(attempt => attempt.WriteMask), state => Assert.Equal(NativeBattleGfPacketByteState.Known, state));
+        NativeBattleGeometryPrimitive gouraud = complete.Attempts[1].Primitive!;
+        Assert.Equal(color | 0x10000000, gouraud.Words[1]);
+        Assert.Equal(0u, gouraud.Words[3]);
+        Assert.Equal(color & 0xFFFFFF, gouraud.Words[5]);
+        Assert.Equal(0u, gouraud.Words[7]);
+        NativeBattleRestorationExecutableState restored = JsonSerializer.Deserialize<NativeBattleRestorationExecutableState>(JsonSerializer.Serialize(bank))!;
+        Assert.Equal(JsonSerializer.Serialize(complete), JsonSerializer.Serialize(NativeBattleRestorationMeshPackets.EmitBatch884370(ReadMesh(restored, index), matrix, projection, new(0x30, null, null, null, null, null, 17, 2))));
+        NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeBattleEffectMemory.FromColdProcess().BeginLoad(26), 128, NativeBattleLogicalOrdering.Clear(), complete);
+        Assert.Equal(188, written.Cursor);
+        using BattleAssets assets = new(game.GameDirectory);
+        NativeBattleLogicalOrdering restoredOrdering = JsonSerializer.Deserialize<NativeBattleLogicalOrdering>(JsonSerializer.Serialize(written.Ordering))!;
+        Assert.Equal(new byte[] { 0x3A, 0x2A }, restoredOrdering.Traverse(assets.ReadNativePrimitiveTables().WordLengths).Select(command => command.Opcode));
     }
 
     internal static ImmutableArray<byte> ReadMesh(NativeBattleRestorationExecutableState bank, int index)

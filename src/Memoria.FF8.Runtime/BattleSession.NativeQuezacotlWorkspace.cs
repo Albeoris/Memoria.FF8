@@ -9,9 +9,10 @@ public sealed partial class BattleSession
         effect = effect with { Quezacotl = (effect.Quezacotl ?? throw new InvalidDataException("Native6C3940 lost its intensity global.")) with { Intensity17A4 = 2400 } };
         NativeBattleEffectTaskPool originalChild = effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738);
         ushort phase = originalChild.Slots[0].ReadWord(12);
-        if (phase is < 1 or > 256)
+        NativeBattleGteDepthTrace depthTrace = new();
+        if (phase is < 1 or > 276)
         {
-            throw new InvalidOperationException("Native Quezacotl workspace owner requires actual phase1..256.");
+            throw new InvalidOperationException("Native Quezacotl workspace owner requires actual phase1..276.");
         }
         if (phase == 86)
         {
@@ -36,6 +37,17 @@ public sealed partial class BattleSession
             {
                 ApplyRig(NativeBattleQuezacotlRig86.AddFrameCounter(memory, effect, localFrame));
             }
+        }
+        if (phase is >= 257 and <= 276)
+        {
+            if ((memory.QuezacotlPause ?? throw new NotSupportedException("Native6C3AE0 requires its retained pause DWORD.")) == 0)
+            {
+                NativeCamera = NativeBattleQuezacotlLaterCamera.Orbit6C3AEC(NativeCamera ?? throw new NotSupportedException("Native6C3AEC requires its current camera globals."), phase - 257, effect.Quezacotl!.TargetZ1770);
+            }
+            ApplyRig(NativeBattleQuezacotlRig86.PreparePose6C3A1E(memory, effect, phase));
+            graphics = SubmitNativeQuezacotlPathModel6A79B0(graphics with { OriginalEffect = effect });
+            memory = NativeEffectMemory!;
+            effect = graphics.OriginalEffect!;
         }
         if (phase <= 164)
         {
@@ -63,8 +75,8 @@ public sealed partial class BattleSession
                 NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native6C6060 requires its prior projection/register owner.");
                 NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native6C6060 depth cue requires its authenticated PC color rules.");
                 NativeBattleQuezacotlGeometryStep emitted = secondWindow
-                    ? NativeBattleQuezacotlGeometry.Emit6C53A0(memory, effect, node, projection, colors, NativeBattleGfMatrices.SecondWindowContext6C3C47(projection.View ?? throw new NotSupportedException("Native6C3C99 requires its prior native view matrix."), effect.Quezacotl!.TargetZ1778), false, 0)
-                    : NativeBattleQuezacotlGeometry.Emit6C6060(memory, effect, node, projection, colors, thirdWindow ? new(0, 0, unchecked((short)effect.Quezacotl!.TargetZ1778)) : new(0, -5000, 0));
+                    ? NativeBattleQuezacotlGeometry.Emit6C53A0(memory, effect, node, projection, colors, NativeBattleGfMatrices.SecondWindowContext6C3C47(projection.View ?? throw new NotSupportedException("Native6C3C99 requires its prior native view matrix."), effect.Quezacotl!.TargetZ1778), false, 0, observeDepth: depthTrace.Push)
+                    : NativeBattleQuezacotlGeometry.Emit6C6060(memory, effect, node, projection, colors, thirdWindow ? new(0, 0, unchecked((short)effect.Quezacotl!.TargetZ1778)) : new(0, -5000, 0), observeDepth: depthTrace.Push);
                 NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native6C6060 requires its original logical OT frame.");
                 NativeBattleQuezacotlPacketWrite written = emitted.CapturedPackets ? NativeBattleQuezacotlPacketArena.AppendCaptured6C5710(emitted.Memory, effect, frame.Pending, emitted.Batch) : NativeBattleQuezacotlPacketArena.Append(emitted.Memory, effect, frame.Pending, emitted.Batch);
                 memory = written.Memory;
@@ -181,9 +193,43 @@ public sealed partial class BattleSession
                     context = NativeBattleGfMatrices.LaterWindowContext6C64C0(projection.View ?? throw new NotSupportedException("Native6C43AD requires its prior view matrix."), -128, -(int)yaw, translation);
                 }
                 NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native6C53A0 requires its authenticated PC color rules.");
-                NativeBattleQuezacotlGeometryStep emitted = NativeBattleQuezacotlGeometry.Emit6C53A0(memory, effect, node, projection, colors, context, false, 0, sourceAddress);
+                NativeBattleQuezacotlGeometryStep emitted = NativeBattleQuezacotlGeometry.Emit6C53A0(memory, effect, node, projection, colors, context, false, 0, sourceAddress, depthTrace.Push);
                 NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native6C53A0 requires its current logical OT frame.");
                 NativeBattleQuezacotlPacketWrite written = NativeBattleQuezacotlPacketArena.Append(emitted.Memory, effect, frame.Pending, emitted.Batch);
+                memory = written.Memory;
+                effect = written.Effect;
+                graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = written.Ordering } };
+                NativeEffectMemory = memory;
+                NativeGraphics = graphics;
+                return current;
+            });
+            Persist(stepped.Workspace);
+        }
+        if (phase is >= 257 and <= 276)
+        {
+            NativeBattleQuezacotlPathSpawn spawned = NativeBattleQuezacotlPathProducer.SpawnFour6C45AA(memory, effect);
+            ApplyRig(new(spawned.Memory, spawned.Effect));
+            NativeBattleGfAnimationSource source = NativeBattleQuezacotlWorkspace.Source(memory, 0x1299718);
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleQuezacotlWorkspace.Read(memory, NativeBattleQuezacotlWorkspace.SeventhLength);
+            if (phase == 257)
+            {
+                workspace = workspace.Initialize7016B0(source, NativeBattleQuezacotlWorkspace.SeventhLength);
+                Persist(workspace);
+            }
+            int baseY = memory.QuezacotlTargetY1774 ?? throw new NotSupportedException("Native6C45F0 requires its retained2521774 DWORD; explicitly migrate only this standalone's proved cold owner.");
+            NativeBattleGfAnimationAdvance stepped = workspace.Advance701970(source, memory.QuezacotlPause ?? throw new NotSupportedException("Native701970 requires its retained pause DWORD."), (current, node) =>
+            {
+                Persist(current);
+                if (NativeBattleQuezacotlWorkspace.SkipsGeometry6C6060(node))
+                {
+                    return current;
+                }
+                NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native6C6060 requires its prior projection registers.");
+                NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native6C6060 requires its authenticated PC color rules.");
+                NativeBattleVector position = new(0, unchecked((short)baseY), unchecked((short)effect.Quezacotl!.TargetZ1770));
+                NativeBattleQuezacotlGeometryStep emitted = NativeBattleQuezacotlGeometry.Emit6C6060(memory, effect, node, projection, colors, position, true, unchecked((byte)(phase - 257)), -128, 0x1299718, depthTrace.Push);
+                NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native6C6060 requires its current ordering table.");
+                NativeBattleQuezacotlPacketWrite written = emitted.CapturedPackets ? NativeBattleQuezacotlPacketArena.AppendCaptured6C5710(emitted.Memory, effect, frame.Pending, emitted.Batch) : NativeBattleQuezacotlPacketArena.Append(emitted.Memory, effect, frame.Pending, emitted.Batch);
                 memory = written.Memory;
                 effect = written.Effect;
                 graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = written.Ordering } };
@@ -256,9 +302,13 @@ public sealed partial class BattleSession
             NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native6C4FCC requires its current camera globals.");
             NativeCamera = camera.WriteEffectGlobals(new(new(2857, -553, unchecked((short)(z + 2568))), new(-83, -1604, unchecked((short)(z - 2098))), camera.FocalLength, camera.Roll));
         }
-        else if (phase is 246 or 256)
+        else if (phase is 246 or 256 or 276)
         {
             NativeCamera = NativeBattleQuezacotlLaterCamera.Apply6C4F80(NativeCamera ?? throw new NotSupportedException("Native Quezacotl camera tail requires its current globals."), phase, effect.Quezacotl!.TargetZ1770);
+            if (phase == 276)
+            {
+                memory = memory with { QuezacotlTargetY1774 = -4096 };
+            }
         }
         NativeBattleQuezacotlWorkspaceWrite advancedPhase = NativeBattleQuezacotlWorkspace.AdvancePhase6C51F1(memory, effect);
         ApplyRig(new(advancedPhase.Memory, advancedPhase.Effect));
@@ -268,17 +318,23 @@ public sealed partial class BattleSession
         {
             if (phase >= 87)
             {
-                graphics = AdvanceNativeQuezacotlRibbon(graphics with { OriginalEffect = effect });
+                graphics = AdvanceNativeQuezacotlRibbon(graphics with { OriginalEffect = effect }, depthTrace);
                 memory = NativeEffectMemory!;
                 effect = graphics.OriginalEffect!;
             }
             if (phase >= 88)
             {
-                graphics = AdvanceNativeQuezacotlParticles(graphics with { OriginalEffect = effect });
+                graphics = AdvanceNativeQuezacotlParticles(graphics with { OriginalEffect = effect }, depthTrace);
                 memory = NativeEffectMemory!;
                 effect = graphics.OriginalEffect!;
             }
-            effect = NativeBattleQuezacotlChild.FinishMain6C3760(memory, effect, phase >= 87, phase >= 88);
+            if (phase >= 257)
+            {
+                graphics = AdvanceNativeQuezacotlPaths(graphics with { OriginalEffect = effect }, depthTrace);
+                memory = NativeEffectMemory!;
+                effect = graphics.OriginalEffect!;
+            }
+            effect = NativeBattleQuezacotlChild.FinishMain6C3760(memory, effect, phase >= 87, phase >= 88, phase >= 257);
             return graphics with { OriginalEffect = effect };
         }
         void Persist(NativeBattleGfAnimationWorkspace current)

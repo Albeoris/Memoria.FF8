@@ -54,6 +54,11 @@ public sealed class NativeBattleQuezacotlRig86Tests
         NativeBattleQuezacotlRigWrite composed = NativeBattleQuezacotlRig86.Compose5095B0(advanced.Memory, advanced.Effect);
         Assert.Equal(before.Z + 3690, NativeBattleQuezacotlRig86.ReadBoneMatrix(composed.Memory, 0).Z);
         NativeBattleActionMatrix identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
+        NativeBattleQuezacotlRigWrite pathBones = NativeBattleQuezacotlRig86.ComposePathModel5095B0(advanced.Memory, advanced.Effect, identity);
+        NativeBattleQuezacotlPathModelBatch pathModel = NativeBattleQuezacotlPathModelPackets.Emit6A79B0(file.Data.AsSpan().Slice(0x8F8, 0x6DF0 - 0x8F8).ToArray().ToImmutableArray(), selector => NativeBattleQuezacotlRig86.ReadBoneMatrix(pathBones.Memory, selector), new(identity, 216, 160, 108), 0x808080, 1);
+        Assert.NotEmpty(pathModel.VertexScratchWrites);
+        Assert.All(pathModel.VertexScratchWrites, write => Assert.Equal(8, write.Data.Length));
+        Console.WriteLine($"Actual MAG115_H.07 ordinary6A79B0: scratch={pathModel.VertexScratchWrites.Length}, primitives={pathModel.Primitives.Length}");
         NativeBattleQuezacotlSkinBatch skin = NativeBattleQuezacotlRig86.Emit6C6770(composed.Memory, composed.Effect, new(identity, 216, 160, 108), new(0, 0, 1f / 4096, 4503601774854144d), -70);
         Assert.Contains(skin.Writes, write => write.Bank == NativeBattleQuezacotlSkinBank.VertexScratch);
         Console.WriteLine($"Actual MAG115_H.07 frame2 skin: writes={skin.Writes.Length}, common={skin.CommonAllocationBytes}, effect={skin.EffectAllocationBytes}");

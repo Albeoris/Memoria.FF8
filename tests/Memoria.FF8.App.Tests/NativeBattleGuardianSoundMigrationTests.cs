@@ -33,7 +33,7 @@ public sealed class NativeBattleGuardianSoundMigrationTests
         {
             Assert.Equal(authenticated.FlashColors!.Value, colors);
         }
-        Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(authenticated with { Frame65Sound = retained.Frame65Sound, FlashColors = retained.FlashColors, Ribbon = retained.Ribbon, AnchorVertexIndices11 = retained.AnchorVertexIndices11, Frame209Sound = retained.Frame209Sound, Frame229FlashColor = retained.Frame229FlashColor }));
+        Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(authenticated with { Frame65Sound = retained.Frame65Sound, FlashColors = retained.FlashColors, Ribbon = retained.Ribbon, AnchorVertexIndices11 = retained.AnchorVertexIndices11, Frame209Sound = retained.Frame209Sound, Frame229FlashColor = retained.Frame229FlashColor, Paths = retained.Paths }));
         int index = effect.Binding.Effect - 1;
         Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(original.Definition.NativeEffectCatalog[index].NativeQuezacotlResources));
         NativeBattleQuezacotlResources migratedResources = retained with { Frame65Sound = authenticated.Frame65Sound, FlashColors = authenticated.FlashColors };

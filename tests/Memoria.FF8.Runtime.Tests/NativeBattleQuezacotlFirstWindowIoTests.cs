@@ -13,6 +13,7 @@ public sealed class NativeBattleQuezacotlFirstWindowIoTests
     [InlineData(161, new short[] { 516, 517, 518, 519, 520 }, new short[] { 0, 5, 1, 1, 3 }, new uint[] { 0x2108954, 0x12A9664, 0x2108954, 0x2108954, 0x2108954 })]
     [InlineData(211, new short[] { 521, 522 }, new short[] { 5, 1 }, new uint[] { 0x1298C68, 0x2108954 })]
     [InlineData(256, new short[] { 523, 524 }, new short[] { 1, 3 }, new uint[] { 0x2108954, 0x2108954 })]
+    [InlineData(276, new short[] { 525, 526 }, new short[] { 5, 2 }, new uint[] { 0x12A9664, 0x2108954 })]
     public void NativeBatchWaitsForPollThenPreservesOriginalOrderWidthsTypesAndDestinations(ushort phase, short[] files, short[] types, uint[] destinations)
     {
         NativeBattleEffectMemory memory = Memory();
@@ -50,6 +51,21 @@ public sealed class NativeBattleQuezacotlFirstWindowIoTests
         Assert.True(defaultBranch.AdvancePhase);
         Assert.Null(defaultBranch.Request);
         Assert.Equal(new byte[] { 0, 0, 1, 0, 0 }, defaultBranch.Memory.Arena!.Read(64, 5));
+    }
+
+    [Fact]
+    public void Phase276ResetsItsActualHeadAndImpactFlagOnlyAfterPollIsReady()
+    {
+        NativeBattleEffectMemory memory = Memory();
+        memory = memory with { Arena = memory.Arena!.Write(0x28E50, [7, 0, 0, 0]).Write(64, [0, 1, 1, 0, 0]), QuezacotlSecondaryHeads = memory.QuezacotlSecondaryHeads!.Value.SetItem(3, 0x12345678) };
+        NativeBattleQuezacotlFirstWindowIoStep busy = NativeBattleQuezacotlFirstWindowIo.Advance(memory, 276);
+        Assert.False(busy.AdvancePhase);
+        Assert.Equal(0x12345678u, busy.Memory.QuezacotlSecondaryHeads!.Value[3]);
+        Assert.Equal((byte)7, busy.Memory.Arena!.Read(0x28E50, 1)[0]);
+        NativeBattleQuezacotlFirstWindowIoStep ready = NativeBattleQuezacotlFirstWindowIo.Advance(busy.Memory, 276);
+        Assert.True(ready.AdvancePhase);
+        Assert.Equal(0u, ready.Memory.QuezacotlSecondaryHeads!.Value[3]);
+        Assert.Equal(new byte[4], ready.Memory.Arena!.Read(0x28E50, 4));
     }
 
     private static NativeBattleEffectMemory Memory()

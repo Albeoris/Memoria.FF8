@@ -12,7 +12,7 @@ public sealed record NativeBattleQuezacotlGeometryContext(uint FarColor, int Dep
 /// <summary>6C5710/6C5750/6C5B50's original captured-geometry GT3/GT4 and ordered texture-window packets.</summary>
 public static class NativeBattleQuezacotlGeometryPackets
 {
-    public static NativeBattleGfGeometryBatch EmitBatch6C5710(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleQuezacotlGeometryContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null)
+    public static NativeBattleGfGeometryBatch EmitBatch6C5710(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleQuezacotlGeometryContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null)
     {
         if (source.IsDefault || selectedVertices.IsDefault && readSelectedVertex is null || context.DepthShift > 31)
         {
@@ -36,7 +36,7 @@ public static class NativeBattleQuezacotlGeometryPackets
                 {
                     offsets[corner] = BinaryPrimitives.ReadUInt16LittleEndian(face[(4 + corner * 2)..]);
                 }
-                NativeBattleGfGeometryBatch batch = EmitPolygon(face, new ProjectedCorners(offsets, Project), group != 0, context, colors, allocated);
+                NativeBattleGfGeometryBatch batch = EmitPolygon(face, new ProjectedCorners(offsets, Project), group != 0, context, colors, allocated, observeDepth);
                 attempts.AddRange(batch.Attempts);
                 allocated = checked(allocated + batch.AllocationBytes);
                 cursor = checked(cursor + recordLength);
@@ -65,14 +65,14 @@ public static class NativeBattleQuezacotlGeometryPackets
         }
     }
 
-    public static NativeBattleGfGeometryBatch EmitTriangle6C5750(ReadOnlySpan<byte> face, IReadOnlyList<NativeBattleModuleProjectedVertex> vertices, NativeBattleQuezacotlGeometryContext context, NativeBattleSummonColors? colors = null, int byteOffsetRelative = 0)
+    public static NativeBattleGfGeometryBatch EmitTriangle6C5750(ReadOnlySpan<byte> face, IReadOnlyList<NativeBattleModuleProjectedVertex> vertices, NativeBattleQuezacotlGeometryContext context, NativeBattleSummonColors? colors = null, int byteOffsetRelative = 0, Action<ushort>? observeDepth = null)
     {
-        return EmitPolygon(face, vertices, false, context, colors, byteOffsetRelative);
+        return EmitPolygon(face, vertices, false, context, colors, byteOffsetRelative, observeDepth);
     }
 
-    public static NativeBattleGfGeometryBatch EmitQuad6C5B50(ReadOnlySpan<byte> face, IReadOnlyList<NativeBattleModuleProjectedVertex> vertices, NativeBattleQuezacotlGeometryContext context, NativeBattleSummonColors? colors = null, int byteOffsetRelative = 0)
+    public static NativeBattleGfGeometryBatch EmitQuad6C5B50(ReadOnlySpan<byte> face, IReadOnlyList<NativeBattleModuleProjectedVertex> vertices, NativeBattleQuezacotlGeometryContext context, NativeBattleSummonColors? colors = null, int byteOffsetRelative = 0, Action<ushort>? observeDepth = null)
     {
-        return EmitPolygon(face, vertices, true, context, colors, byteOffsetRelative);
+        return EmitPolygon(face, vertices, true, context, colors, byteOffsetRelative, observeDepth);
     }
 
     public static uint TextureWindowCommand(NativeBattleTextureWindow window)
@@ -80,7 +80,7 @@ public static class NativeBattleQuezacotlGeometryPackets
         return NativeBattleEffectTextureWindows.Encode(window);
     }
 
-    private static NativeBattleGfGeometryBatch EmitPolygon(ReadOnlySpan<byte> face, IReadOnlyList<NativeBattleModuleProjectedVertex> vertices, bool quad, NativeBattleQuezacotlGeometryContext context, NativeBattleSummonColors? colors, int byteOffsetRelative)
+    private static NativeBattleGfGeometryBatch EmitPolygon(ReadOnlySpan<byte> face, IReadOnlyList<NativeBattleModuleProjectedVertex> vertices, bool quad, NativeBattleQuezacotlGeometryContext context, NativeBattleSummonColors? colors, int byteOffsetRelative, Action<ushort>? observeDepth)
     {
         int count = quad ? 4 : 3;
         int length = quad ? 52 : 40;
@@ -89,7 +89,13 @@ public static class NativeBattleQuezacotlGeometryPackets
             throw new InvalidDataException("Native6C5750/6C5B50 requires its original GT3/GT4 record and projected vertex inputs.");
         }
         //RTPT executes before these stores; fourth RTPS is conditional on only the first three near flags.
-        uint firstFlags = vertices[0].Flags | vertices[1].Flags | vertices[2].Flags;
+        NativeBattleModuleProjectedVertex first = vertices[0];
+        NativeBattleModuleProjectedVertex second = vertices[1];
+        NativeBattleModuleProjectedVertex third = vertices[2];
+        observeDepth?.Invoke(first.Depth);
+        observeDepth?.Invoke(second.Depth);
+        observeDepth?.Invoke(third.Depth);
+        uint firstFlags = first.Flags | second.Flags | third.Flags;
         Writes packet = new(length, byteOffsetRelative);
         packet.Word(0, (uint)(length / 4 - 1) << 24);
         packet.Word(4, BinaryPrimitives.ReadUInt32LittleEndian(face));
@@ -103,6 +109,10 @@ public static class NativeBattleQuezacotlGeometryPackets
         if ((firstFlags & 0x60000) != 0)
         {
             return new([packet.Attempt(null)], 0);
+        }
+        if (quad)
+        {
+            observeDepth?.Invoke(vertices[3].Depth);
         }
         for (int corner = 0; corner < count; corner++)
         {

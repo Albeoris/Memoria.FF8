@@ -8,7 +8,7 @@ public sealed record NativeBattleQuezacotlParticleStep(NativeBattleEffectMemory 
 /// <summary>6C7EA0's eight native subdivisions, linked trail rows and same-pass child task appends.</summary>
 public static class NativeBattleQuezacotlParticleCallbacks
 {
-    public static NativeBattleQuezacotlParticleStep Advance6C7EA0(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleEffectTaskPool pool, int index, NativeBattleLogicalOrdering ordering, NativeBattleCameraProjection projection)
+    public static NativeBattleQuezacotlParticleStep Advance6C7EA0(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleEffectTaskPool pool, int index, NativeBattleLogicalOrdering ordering, NativeBattleCameraProjection projection, NativeBattleGteDepthTrace? depthTrace = null)
     {
         NativeBattleQuezacotlRibbonResources resources = effect.Binding.NativeQuezacotlResources?.Ribbon ?? throw new NotSupportedException("Native6C7EA0 requires its actual immutable particle and trail resources.");
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native6C7EA0 requires its current linked row bank.");
@@ -129,19 +129,20 @@ public static class NativeBattleQuezacotlParticleCallbacks
             }
         }
         List<int> chain = Chain();
-        List<int> depths = new(chain.Count);
+        NativeBattleGteDepthTrace trace = depthTrace ?? new();
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native6C7EA0 requires its prior current view matrix.");
         foreach (int row in chain)
         {
             NativeBattleModuleProjectedVertex projected = NativeBattleModuleProjection.Project45FE10(view, RVec(row), projection);
             arena = NativeBattleQuezacotlParticleProducer.Dword(arena, row + 0x10, projected.Screen);
             arena = NativeBattleQuezacotlParticleProducer.Dword(arena, row + 0x14, (uint)(projected.Depth >> 2));
-            depths.Add(projected.Depth);
+            trace.Push(projected.Depth);
         }
         int count = T16(0xE);
         if (count >= 2)
         {
-            ImmutableArray<int> fifo = depths.Count >= 4 ? depths.TakeLast(4).ToImmutableArray() : [];
+            ImmutableArray<int?> actualDepths = trace.DepthFifo4;
+            ImmutableArray<int> fifo = actualDepths.All(depth => depth.HasValue) ? actualDepths.Select(depth => depth!.Value).ToImmutableArray() : [];
             NativeBattleQuezacotlTrailBatch trail = NativeBattleQuezacotlTrailPackets.Emit6C84C0(T32(0x10), count, (pointer, offset, length) => arena.Read(checked(NativeBattleQuezacotlParticleProducer.RowOffset(pointer) + offset), length).ToImmutableArray(), resources.DistanceBytes16384, fifo);
             NativeBattleGfGeometryBatch rowStores = new(trail.RowWrites.Select(write => write.Attempt with { ByteOffsetRelative = NativeBattleQuezacotlParticleProducer.RowOffset(write.Address) }).ToImmutableArray(), 0);
             NativeBattleEffectPacketWrite stored = NativeBattleEffectPacketArena.Append(memory with { Arena = arena }, 0, ordering, rowStores);

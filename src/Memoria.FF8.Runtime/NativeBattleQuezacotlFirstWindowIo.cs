@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleQuezacotlFirstWindowIoStep(NativeBattleEffectMemory Memory, NativeBattleEffectFileRequest? Request, bool AdvancePhase);
@@ -7,11 +9,11 @@ public static class NativeBattleQuezacotlFirstWindowIo
 {
     public static NativeBattleQuezacotlFirstWindowIoStep Advance(NativeBattleEffectMemory memory, ushort phase)
     {
-        if (phase is < 1 or > 256)
+        if (phase is < 1 or > 276)
         {
             throw new ArgumentOutOfRangeException(nameof(phase));
         }
-        if (phase is 30 or 60 or 76 or 85 or 161 or 211 or 256)
+        if (phase is 30 or 60 or 76 or 85 or 161 or 211 or 256 or 276)
         {
             NativeBattleEffectIoPoll poll = NativeBattleEffectIo.Poll534270(memory);
             memory = poll.Memory;
@@ -21,6 +23,13 @@ public static class NativeBattleQuezacotlFirstWindowIo
             }
             switch (phase)
             {
+                case 276:
+                    NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native6C4CFA requires its current impact-enable DWORD.");
+                    ImmutableArray<uint> heads = memory.QuezacotlSecondaryHeads ?? throw new NotSupportedException("Native6C4CE9 requires its retained secondary descriptor head owners.");
+                    memory = memory with { Arena = arena.Write(0x28E50, [0, 0, 0, 0]), QuezacotlSecondaryHeads = heads.SetItem(3, 0) };
+                    memory = NativeBattleEffectIo.Queue5341D0(memory, 525, 0x12A9664, 5);
+                    memory = NativeBattleEffectIo.Queue5341D0(memory, 526, 0x2108954, 2);
+                    break;
                 case 256:
                     memory = NativeBattleEffectIo.Queue5341D0(memory, 523, 0x2108954, 1);
                     memory = NativeBattleEffectIo.Queue5341D0(memory, 524, 0x2108954, 3);

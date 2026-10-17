@@ -47,6 +47,7 @@ public sealed class NativeBattleQuezacotlLaterWindowTests
     [InlineData(0x1A0, 0x12A1164u)]
     [InlineData(0x1D8, 0x12A9664u)]
     [InlineData(0x128, 0x129BA94u)]
+    [InlineData(0xB4, 0x1299718u)]
     public void LaterWorkspaceReadsCurrentSubregionAndWritesOnlyItsActualPrefix(int length, uint address)
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(116);

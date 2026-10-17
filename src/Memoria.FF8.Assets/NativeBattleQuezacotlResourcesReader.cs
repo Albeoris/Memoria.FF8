@@ -62,7 +62,8 @@ public static class NativeBattleQuezacotlResourcesReader
             Frame209Sound = BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleEffectStaticResourcesReader.Read(executable, 0x12AE4F8, 4).AsSpan()),
             Frame229FlashColor = BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleEffectStaticResourcesReader.Read(executable, 0x12AE7EC, 4).AsSpan()),
             FlashColors = Enumerable.Range(0, 3).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleEffectStaticResourcesReader.Read(executable, checked(0x12AE7E0u + 4u * (uint)index), 4).AsSpan())).ToImmutableArray(),
-            Ribbon = NativeBattleQuezacotlRibbonResourcesReader.Read(executable)
+            Ribbon = NativeBattleQuezacotlRibbonResourcesReader.Read(executable),
+            Paths = NativeBattleQuezacotlPathResourcesReader.Read(executable)
         };
     }
 }

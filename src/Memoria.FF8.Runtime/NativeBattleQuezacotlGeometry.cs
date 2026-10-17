@@ -11,17 +11,17 @@ public sealed record NativeBattleQuezacotlGeometryStep(NativeBattleEffectMemory 
 /// <summary>Reached6C6060 generic first-window model draw, using current executable vertices and actual arena morph scratch.</summary>
 public static class NativeBattleQuezacotlGeometry
 {
-    public static NativeBattleQuezacotlGeometryStep Emit6C6060(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleGfAnimationNode node, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleVector basePosition)
+    public static NativeBattleQuezacotlGeometryStep Emit6C6060(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleGfAnimationNode node, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleVector basePosition, bool capturePrimary = false, byte control = 0, int depthBias = 0, uint sourceAddress = NativeBattleQuezacotlExecutableMemory.Address, Action<ushort>? observeDepth = null)
     {
-        return Emit(memory, effect, node, projection, colors, NativeBattleQuezacotlExecutableMemory.Address, null, false, 0, basePosition);
+        return Emit(memory, effect, node, projection, colors, sourceAddress, null, capturePrimary, control, basePosition, depthBias, observeDepth);
     }
 
-    public static NativeBattleQuezacotlGeometryStep Emit6C53A0(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleGfAnimationNode node, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleActionMatrix contextMatrix, bool capturePrimary, byte control, uint sourceAddress = 0x12A9664)
+    public static NativeBattleQuezacotlGeometryStep Emit6C53A0(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleGfAnimationNode node, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleActionMatrix contextMatrix, bool capturePrimary, byte control, uint sourceAddress = 0x12A9664, Action<ushort>? observeDepth = null)
     {
-        return Emit(memory, effect, node, projection, colors, sourceAddress, contextMatrix, capturePrimary, control, default);
+        return Emit(memory, effect, node, projection, colors, sourceAddress, contextMatrix, capturePrimary, control, default, observeDepth: observeDepth);
     }
 
-    private static NativeBattleQuezacotlGeometryStep Emit(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleGfAnimationNode node, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint sourceAddress, NativeBattleActionMatrix? contextMatrix, bool capturePrimary, byte control, NativeBattleVector basePosition)
+    private static NativeBattleQuezacotlGeometryStep Emit(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleGfAnimationNode node, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint sourceAddress, NativeBattleActionMatrix? contextMatrix, bool capturePrimary, byte control, NativeBattleVector basePosition, int depthBias = 0, Action<ushort>? observeDepth = null)
     {
         if (NativeBattleQuezacotlWorkspace.SkipsGeometry6C6060(node))
         {
@@ -75,11 +75,11 @@ public static class NativeBattleQuezacotlGeometry
         {
             memory = memory with { QuezacotlCapturedMatrix1780 = matrix };
             NativeBattleQuezacotlGeometryContext capturedContext = new(node.Color32, node.Scalar36, (ushort)((control & 7) << 4), new(0, 0, 256, 256), new(128, 128, 256, 128), 17, 2);
-            return new(memory, NativeBattleQuezacotlGeometryPackets.EmitBatch6C5710(source, geometry, vertices, matrix, projection, capturedContext, colors, readMorphedVertex)) { CapturedPackets = true };
+            return new(memory, NativeBattleQuezacotlGeometryPackets.EmitBatch6C5710(source, geometry, vertices, matrix, projection, capturedContext, colors, readMorphedVertex, observeDepth)) { CapturedPackets = true };
         }
         bool cue = node.Scalar36 != 0;
-        NativeBattleGfGeometryContext context = new(cue ? 0x20F0u : 0x2030u, cue ? node.Color32 : 0, node.Scalar36, null, null, 0, 17, 2);
-        return new(memory, NativeBattleGfGeometryPackets.EmitBatch7043B0(source, geometry, vertices, matrix, projection, context, colors, readMorphedVertex));
+        NativeBattleGfGeometryContext context = new(cue ? 0x20F0u : 0x2030u, cue ? node.Color32 : 0, node.Scalar36, null, null, depthBias, 17, 2);
+        return new(memory, NativeBattleGfGeometryPackets.EmitBatch7043B0(source, geometry, vertices, matrix, projection, context, colors, readMorphedVertex, observeDepth));
     }
 
     private static ReadOnlySpan<byte> Read(ImmutableArray<byte> bytes, int offset, int length)

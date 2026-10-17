@@ -56,8 +56,4 @@ public static partial class NativeBattleCuragaMeshPackets
         return new(context.Flags, context.FarColor, context.Fade, context.TexturePage, context.Clut, uvOffset, true, null, context.TableBaseBucket, context.DepthShift);
     }
 
-    private static bool Outside(short value, int end)
-    {
-        return value < 0 || value > end;
-    }
 }

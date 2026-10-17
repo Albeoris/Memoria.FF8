@@ -34,6 +34,17 @@ public sealed class NativeBattleQuezacotlParticleCallbacksTests
     }
 
     [Fact]
+    public void Short_paused_chain_preserves_prior_full_depth_registers_and_pushes_its_actual_projection()
+    {
+        var (memory, effect) = Fixture(0, 0);
+        memory = memory with { QuezacotlPause = 1 };
+        NativeBattleGteDepthTrace trace = new([111, 222, 333, 444]);
+        NativeBattleActionMatrix view = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, -10000, 4096);
+        NativeBattleQuezacotlParticleCallbacks.Advance6C7EA0(memory, effect, effect.Pools[0], 0, NativeBattleLogicalOrdering.Clear(), new(view, 216, 160, 108), trace);
+        Assert.Equal(new int?[] { 222, 333, 444, 0 }, trace.DepthFifo4);
+    }
+
+    [Fact]
     public void CompletionOnlyReadsTheImpactEnableOwnerWhenTheActualModeRequiresIt()
     {
         var (memory, effect) = Fixture(3840, 0);

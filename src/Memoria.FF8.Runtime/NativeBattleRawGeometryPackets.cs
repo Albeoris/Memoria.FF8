@@ -21,14 +21,25 @@ public static class NativeBattleRawGeometryPackets
             NativeBattleRawMesh mesh = meshes[index];
             mesh.Validate();
             NativeBattleProjectedVertex[] projected = mesh.Vertices.Select(vertex => NativeBattleGeometryProjection.Project50F900(vertex.Bone < matrices.Count ? matrices[vertex.Bone] : throw new InvalidDataException("Native5099D0 lacks the original selected bone matrix."), vertex.Position, projection, new(0, 0, 320, 216))).ToArray();
-            foreach (NativeBattleRawPolygon polygon in mesh.Polygons)
+            result.AddRange(EmitProjected5099D0(mesh.Polygons, projected, colorFlags28, tableBaseBucket, depthShift, colorDepth36, textureBinding, colorRules));
+        }
+        return result.ToImmutable();
+    }
+
+    public static ImmutableArray<NativeBattleGeometryPrimitive> EmitProjected5099D0(ImmutableArray<NativeBattleRawPolygon> polygons, IReadOnlyList<NativeBattleProjectedVertex> projected, uint colorFlags28, int tableBaseBucket, byte depthShift, short? colorDepth36, NativeBattleModelTextureBinding? textureBinding = null, NativeBattleSummonColors? colorRules = null)
+    {
+        if (polygons.IsDefault)
+        {
+            throw new NotSupportedException("Native5099D0 requires its actual four-group polygon records.");
+        }
+        ImmutableArray<NativeBattleGeometryPrimitive>.Builder result = ImmutableArray.CreateBuilder<NativeBattleGeometryPrimitive>();
+        foreach (NativeBattleRawPolygon polygon in polygons)
+        {
+            ImmutableArray<byte> source = textureBinding is null ? polygon.Bytes : Relocate507550(polygon, textureBinding);
+            NativeBattleGeometryPrimitive? primitive = NativeBattleGeometryPackets.EmitRaw50FDF0(source.AsSpan(), projected, polygon.Quad, colorFlags28, tableBaseBucket, depthShift, colorDepth36, colorRules);
+            if (primitive is not null)
             {
-                ImmutableArray<byte> source = textureBinding is null ? polygon.Bytes : Relocate507550(polygon, textureBinding);
-                NativeBattleGeometryPrimitive? primitive = NativeBattleGeometryPackets.EmitRaw50FDF0(source.AsSpan(), projected, polygon.Quad, colorFlags28, tableBaseBucket, depthShift, colorDepth36, colorRules);
-                if (primitive is not null)
-                {
-                    result.Add(primitive);
-                }
+                result.Add(primitive);
             }
         }
         return result.ToImmutable();

@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 internal sealed record NativeBattleEffectMeshWindow(ushort U, ushort V, NativeBattleTextureWindow Before, NativeBattleTextureWindow After);
 internal sealed record NativeBattleEffectMeshPacketContext(uint Flags, uint? FarColor, int? Fade, ushort? TexturePage, ushort? Clut, uint PackedUvOffset, bool MaterialOverrides, int? DepthBias, int TableBaseBucket, byte DepthShift, NativeBattleEffectMeshWindow? Window = null);
 
-/// <summary>Shared normalized flat/textured stores of87F200/87F480/87F6C0/8800B0,8846C0 and88E820/88ECA0/88FC50.</summary>
+/// <summary>Shared normalized flat, textured and Gouraud mesh stores used by Curaga, Esuna and Full-life.</summary>
 internal static class NativeBattleEffectMeshPackets
 {
     internal static NativeBattleGfGeometryBatch EmitTextured(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, bool quad, bool gouraud, NativeBattleEffectMeshPacketContext context, NativeBattleSummonColors? colors, int byteOffset)
@@ -170,6 +170,67 @@ internal static class NativeBattleEffectMeshPackets
         }
         int bucket = checked(context.TableBaseBucket + (Average(vertices) >> context.DepthShift));
         return new([packet.Attempt(new(bucket, packet.Words(), Payload(vertices, color)))], 24);
+
+        NativeBattleGfGeometryBatch Rejected()
+        {
+            return new([packet.Attempt(null)], 0);
+        }
+    }
+
+    internal static NativeBattleGfGeometryBatch EmitGouraud(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, bool quad, NativeBattleEffectMeshPacketContext context, NativeBattleSummonColors? colors, int byteOffset)
+    {
+        if (face.Length != (quad ? 24 : 20) || context.DepthShift > 31)
+        {
+            throw new InvalidDataException("Native87F960/87FB90/885050 requires its original G3/G4 face and depth shift.");
+        }
+        NativeBattleModuleProjectedVertex[] vertices = new NativeBattleModuleProjectedVertex[quad ? 4 : 3];
+        for (int corner = 0; corner < 3; corner++)
+        {
+            vertices[corner] = readCorner(corner);
+        }
+        uint firstColor = Command(BinaryPrimitives.ReadUInt32LittleEndian(face), context.Flags, true);
+        int length = quad ? 36 : 28;
+        SkinWrites packet = new(length, byteOffset);
+        packet.Word(0, (uint)(length / 4 - 1) << 24);
+        packet.Word(4, firstColor);
+        if (((vertices[0].Flags | vertices[1].Flags | vertices[2].Flags) & 0x60000) != 0)
+        {
+            return Rejected();
+        }
+        if (NativeBattleModulePackets.Nclip(vertices[0].Screen, vertices[1].Screen, vertices[2].Screen) < 0 && (context.Flags & 0x20) == 0)
+        {
+            return Rejected();
+        }
+        for (int corner = 0; corner < 3; corner++)
+        {
+            packet.Word(8 + corner * 8, vertices[corner].Screen);
+        }
+        if (quad)
+        {
+            vertices[3] = readCorner(3);
+            packet.Word(32, vertices[3].Screen);
+        }
+        if (OutsideScreen(vertices))
+        {
+            return Rejected();
+        }
+        ImmutableArray<uint>.Builder colorValues = ImmutableArray.CreateBuilder<uint>(vertices.Length);
+        colorValues.Add(firstColor);
+        for (int corner = 1; corner < vertices.Length; corner++)
+        {
+            colorValues.Add(BinaryPrimitives.ReadUInt32LittleEndian(face[(8 + corner * 4)..]));
+        }
+        ImmutableArray<uint> vertexColors = colorValues.MoveToImmutable();
+        if ((context.Flags & 0x80) != 0)
+        {
+            vertexColors = NativeBattleGteColorInterpolation.Gouraud45F4C0(vertexColors, quad, RequiredFade(context), RequiredFar(context), RequiredConstants(colors));
+        }
+        for (int corner = 0; corner < vertices.Length; corner++)
+        {
+            packet.Word(4 + corner * 8, vertexColors[corner]);
+        }
+        int bucket = checked(context.TableBaseBucket + (Average(vertices) >> context.DepthShift));
+        return new([packet.Attempt(new(bucket, packet.Words(), Payload(vertices, vertexColors[0])))], length);
 
         NativeBattleGfGeometryBatch Rejected()
         {

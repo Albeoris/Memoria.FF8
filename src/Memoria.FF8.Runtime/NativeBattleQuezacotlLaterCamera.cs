@@ -2,6 +2,20 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleQuezacotlLaterCamera
 {
+    public static NativeBattleCameraState Orbit6C3AEC(NativeBattleCameraState camera, int localFrame, int targetZ1770)
+    {
+        if (localFrame is < 0 or >= 20)
+        {
+            throw new ArgumentOutOfRangeException(nameof(localFrame));
+        }
+        NativeBattleCameraPose pose = camera.CurrentPose ?? throw new NotSupportedException("Native6C3AEC requires its current global eye coordinates.");
+        short angle = unchecked((short)(NativeBattleCameraMath.Sine(localFrame * 4096 / 40) >> 7));
+        NativeBattleVector relative = new(pose.Eye.X, pose.Eye.Y, unchecked((short)(pose.Eye.Z - targetZ1770)));
+        (int x, int y, int z) = NativeBattleGfMatrices.Rotate56C3D0(NativeBattleGfMatrices.Euler701310(new(0, angle, 0)), relative);
+        NativeBattleCameraPoint eye = new(unchecked((short)x), unchecked((short)y), unchecked((short)(z + targetZ1770)));
+        return camera.WriteEffectGlobals(new(eye, pose.Target, camera.FocalLength, unchecked((short)(camera.Roll + 8))));
+    }
+
     public static NativeBattleCameraState Apply6C4F80(NativeBattleCameraState camera, ushort phase, int targetZ1770)
     {
         NativeBattleCameraPoint eye;
@@ -15,6 +29,13 @@ public static class NativeBattleQuezacotlLaterCamera
         {
             eye = new(-4000, -4000, unchecked((short)(targetZ1770 + 4000)));
             target = new(0, 0, unchecked((short)targetZ1770));
+        }
+        else if (phase == 276)
+        {
+            eye = new(-430, -4188, unchecked((short)(targetZ1770 + 1176)));
+            target = new(-17, -5387, unchecked((short)(targetZ1770 + 304)));
+            short roll = camera.CapturedPose?.Roll ?? throw new NotSupportedException("Native6C506A requires its actual503300 saved rollWORD1D9771C.");
+            return camera.WriteEffectGlobals(new(eye, target, camera.FocalLength, roll));
         }
         else
         {
