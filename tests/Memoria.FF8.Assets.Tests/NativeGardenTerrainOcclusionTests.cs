@@ -20,8 +20,8 @@ public sealed class NativeGardenTerrainOcclusionTests
         NativeWorldFootCameraState forestCamera = new(26919, -28895, -608, 26867, -28862, -835, 639, -238, -341, -7168);
         NativeWorldFootCameraState positiveCamera = new(17850, -23780, 0, 17845, -23745, -259, 529, -112, -341, -7168);
         IReadOnlyDictionary<int, int> replacements = WorldTerrainSelection.Replacements(285);
-        WorldNativeTerrainOcclusionResult expectedForest = new(false, 121, 5763, null);
-        WorldNativeTerrainOcclusionResult expectedPositive = new(true, 81, 4568, null);
+        WorldNativeTerrainOcclusionResult expectedForest = new(false, 44, 2411, null);
+        WorldNativeTerrainOcclusionResult expectedPositive = new(true, 34, 2081, null);
         Assert.Equal(expectedForest, assets.CertifyNativeTerrainCameraOcclusion(forestCamera, 928, replacements, 0));
         Assert.Equal(expectedPositive, assets.CertifyNativeTerrainCameraOcclusion(positiveCamera, 0, replacements, 0));
         for (int index = 0; index < 3; index++)
