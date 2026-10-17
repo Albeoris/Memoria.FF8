@@ -8,7 +8,7 @@ public sealed partial class MenuController
     {
         get
         {
-            if (IsHostSettingsScreen || ScreenId == "debug-room" || IsNamingScreen || UseHostControls)
+            if (IsHostSettingsScreen || ScreenId is "debug-room" or "debug-autoplay" || IsNamingScreen || UseHostControls)
             {
                 UiPreferences preferences = _readPreferences?.Invoke() ?? new UiPreferences();
                 return preferences.TextScale / 100f * preferences.UiFontSize / 24f;
@@ -20,6 +20,7 @@ public sealed partial class MenuController
     }
     public UiView BuildView()
     {
+        RefreshAutoPlayView();
         if (_viewControllerPresentation != CurrentControllerPresentation || _viewControlDevice != CurrentControlDevice)
         {
             _view = null;

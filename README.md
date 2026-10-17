@@ -61,6 +61,26 @@ To also run the resource-independent launcher, UI and runtime tests:
 
 Open `Memoria.FF8.slnx` for development. Individual test executables support the xUnit command line through `dotnet run --project tests/<project>`. Tests that use original resources require `MEMORIA_FF8_GAME_DIR`. Optional saved-state fixtures use `MEMORIA_FF8_TEST_FIXTURE_CATALOG`, a JSON object mapping the resource IDs in the tests to external file paths. Relative catalog paths resolve against `MEMORIA_FF8_TEST_FIXTURES`, or the catalog's directory when that variable is absent. Tests skip when their optional resources are unconfigured. Generated test artifacts use temporary storage. External acceptance checks require a recording workspace through `MEMORIA_FF8_RECOMP_WORKSPACE` and the `recomp` tool (or its executable path in `RECOMP`).
 
+## Automatic exploration
+
+Open Debug Room (F2) → Automatic play → Start a new game, or run the engine without a window:
+
+```powershell
+dotnet run --project src/Memoria.FF8.App -c Release -- --auto-play --game-dir "$env:MEMORIA_FF8_GAME_DIR" --output ./autoplay-runs
+```
+
+The same controller runs both modes. It starts with native cold-process random seed 1, skips movie presentation while executing movie callbacks, confirms dialogue immediately, uses automatic battle victories and teleports the controlled player between discovered event coordinates. Scripted movement retains its normal engine owner. The controller runs independently until an error, an exhausted frontier or the ending. Pause, resume, stop and failure replay are available in Debug Room. `--max-steps <count>` bounds a diagnostic headless run and saves its stopping point.
+
+Field candidates come from active actors, lines, areas and native gateways on the reachable walkmesh. World entrances come from the connected land component and the original entrance predicates. A deterministic graph prioritizes available events in the current region, explores reachable nonstory frontiers before story-changing events, and remembers completed events. Script analysis follows bounded requests and defers writes to the story progress word; the early world policy orders Garden, Balamb and Fire Cavern. Dynamic script behavior and unsupported world owners can still stop exploration. This experimental mode does not yet establish complete coverage of the game or every conditional event.
+
+Each choice gets a standalone snapshot. Alternatives run individually to the next settled control-return boundary; nested choices do not produce a Cartesian product. After checking alternatives, the controller keeps a continuation that advances the story or exposes more unfinished events, retaining the first continuation on a tie. Pending native requests also guard against starting a second event before the first scene has begun. Scripted screens enumerate the original key-query masks with sampled physical press/release edges. Every minute of running wall time produces a new standalone save and a companion `.run.json` containing traversal and choice coverage. Event boundaries and failures also save checkpoints. Keep the run directories, including referenced choice snapshots. Replaying creates a separate run directory and preserves the source snapshots:
+
+```powershell
+dotnet run --project src/Memoria.FF8.App -c Release -- --auto-play --game-dir "$env:MEMORIA_FF8_GAME_DIR" --resume ./autoplay-runs/<run>/failure-<step>.run.json
+```
+
+Failures return exit code 1 and print the exact reproduction command. The pre-failure save reproduces the failing controller step; the fault save preserves the diagnostic state when it remains serializable. Unit tests cover planning, choice coverage, UI controls and checkpoint handling. Installed-resource smoke tests are enabled by `MEMORIA_FF8_GAME_DIR`. Set `MEMORIA_FF8_AUTOPLAY_ACCEPTANCE=1` to additionally enable the full New Game-to-ending acceptance test; it fails on the first unsupported contract or traversal failure.
+
 The required Albeoris.Frameworks source closure is vendored, with its upstream revision and retained changes documented in [vendor/Albeoris.Frameworks/README.md](vendor/Albeoris.Frameworks/README.md). Building needs no sibling repository or submodule. Package versions are centralized in `Directory.Packages.props`. Ordinary builds use the checked-in compiled title shader; its project README describes shader regeneration.
 
 ## Automated builds

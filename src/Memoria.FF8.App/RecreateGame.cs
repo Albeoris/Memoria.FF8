@@ -104,6 +104,7 @@ internal sealed partial class RecreateGame : Game
 
     protected override void Update(GameTime gameTime)
     {
+        autoPlayAdvancedThisFrame = false;
         ApplyDisplaySettings();
         resourceHost?.Pump();
         gameMenus?.RefreshModView();
@@ -120,7 +121,10 @@ internal sealed partial class RecreateGame : Game
     private void UpdateGameFrame(GameTime gameTime)
     {
         long updateStarted = Stopwatch.GetTimestamp();
-        SynchronizeNativeNamePrompt();
+        if (autoPlay?.Running != true && !autoPlayFailureHeld)
+        {
+            SynchronizeNativeNamePrompt();
+        }
         KeyboardState keys = Microsoft.Xna.Framework.Input.Keyboard.GetState();
         GamePadState pad = controller!.Read();
         keyboard.ControllerPresentation = controller.Presentation;
@@ -146,7 +150,21 @@ internal sealed partial class RecreateGame : Game
         }
         if (keyboard.PauseRequested && !saveMenu.IsOpen && gameMenus?.IsOpen != true)
         {
-            userPaused = !userPaused;
+            if (autoPlay?.Running == true)
+            {
+                if (autoPlay.Paused)
+                {
+                    autoPlay.Resume();
+                }
+                else
+                {
+                    autoPlay.Pause();
+                }
+            }
+            else
+            {
+                userPaused = !userPaused;
+            }
             SynchronizeUiMoviePause();
         }
         if (userPaused)
@@ -175,6 +193,12 @@ internal sealed partial class RecreateGame : Game
             Exit();
         }
         saveNoticeSeconds = Math.Max(0, saveNoticeSeconds - gameTime.ElapsedGameTime.TotalSeconds);
+        if (UpdateAutoPlay(gameTime, input))
+        {
+            base.Update(gameTime);
+            metrics.Update(updateStarted);
+            return;
+        }
         if (UpdateStartup(gameTime.ElapsedGameTime, input))
         {
             base.Update(gameTime);
@@ -991,13 +1015,13 @@ internal sealed partial class RecreateGame : Game
         {
             DrawStartup(bounds);
         }
-        else if (world?.ActiveTripleTriad is { } cards)
+        else if (!autoPlayFailureHeld && world?.ActiveTripleTriad is { } cards)
         {
             Memoria.FF8.Ui.UiView view = cards.BuildView();
             view.Resize(bounds.Width, bounds.Height);
             view.Draw(uiCanvas!, uiTheme);
         }
-        else if (ActiveBattle is not null)
+        else if (!autoPlayFailureHeld && ActiveBattle is not null)
         {
             DrawBattle(bounds);
         }
@@ -1062,6 +1086,7 @@ internal sealed partial class RecreateGame : Game
             DrawNoticeUi(bounds, saveNotice, false);
         }
         DrawGameUi(bounds);
+        DrawAutoPlayStatus(bounds);
         if (userPaused)
         {
             DrawNoticeUi(bounds, "Paused", true);

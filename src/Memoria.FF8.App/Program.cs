@@ -10,6 +10,10 @@ internal static class Program
         Console.SetError(new ConsoleErrorWriter(Console.Error, !Console.IsErrorRedirected));
         try
         {
+            if (args.Length > 0 && args[0] == "--auto-play")
+            {
+                return AutoPlayCommand.Run(args[1..]);
+            }
             if (args.Length > 0 && args[0] == "--triple-triad")
             {
                 return TripleTriadPractice.Run(args[1..]);

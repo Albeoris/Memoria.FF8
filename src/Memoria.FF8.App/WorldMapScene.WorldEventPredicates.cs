@@ -22,8 +22,12 @@ internal sealed partial class WorldMapScene
                 return projection.IsNear(position) && (projection.ProjectNode(position) ?? throw new NotSupportedException(projection.UnsupportedReason)).Visible;
             });
         }
-        NativeTrainWorldAllocation allocation = WorldEventStaticAllocation(accepted);
         RequireWorldEventShapeAllocation(accepted, shape);
+        if (IsAbsentFromOriginalFootAllocation(accepted, shape))
+        {
+            return false;
+        }
+        NativeTrainWorldAllocation allocation = WorldEventStaticAllocation(accepted);
         NativeWorldPathProjectionCertificate? context = null;
         for (int index = 1; index < allocation.Objects.Length; index++)
         {
@@ -51,7 +55,7 @@ internal sealed partial class WorldMapScene
         return false;
     }
 
-    private bool? EvaluateWorldEventPredicate(WorldState state, byte scriptMode, NativeSavedWorldState saved, ushort opcode, ushort operand, WorldFieldInputContext? callbackInput = null, NativeWorldEventUi? eventUi = null)
+    internal bool? EvaluateWorldEventPredicate(WorldState state, byte scriptMode, NativeSavedWorldState saved, ushort opcode, ushort operand, WorldFieldInputContext? callbackInput = null, NativeWorldEventUi? eventUi = null)
     {
         switch (opcode)
         {
@@ -78,8 +82,12 @@ internal sealed partial class WorldMapScene
                 }
                 else
                 {
-                    NativeTrainWorldAllocation allocation = WorldEventStaticAllocation(state);
                     RequireWorldEventShapeAllocation(state, operand);
+                    if (IsAbsentFromOriginalFootAllocation(state, operand))
+                    {
+                        return false;
+                    }
+                    NativeTrainWorldAllocation allocation = WorldEventStaticAllocation(state);
                     if (!allocation.Objects.Any(item => unchecked((sbyte)item.ShapeId) == operand))
                     {
                         return false;
@@ -137,6 +145,22 @@ internal sealed partial class WorldMapScene
     private static NativeTrainWorldAllocation WorldEventStaticAllocation(WorldState state)
     {
         return state.NativeFootRuntime?.NormalObjects?.Allocation ?? state.NativeFootRuntime?.StationTrains?.Load.Allocation ?? state.NativeCarRuntime?.Allocation ?? state.NativeTrainRuntime?.Load.Allocation ?? throw new NotSupportedException("World shape predicates require the executed dense allocation; this runtime retains only a partial loader receipt.");
+    }
+
+    private bool IsAbsentFromOriginalFootAllocation(WorldState state, ushort shape)
+    {
+        if (state.NativeFootRuntime is not { EntityType: 0 or 1, NormalObjects: null, StationTrains: null } || state.NativeGardenRuntime is not null || state.NativeRagnarokRuntime is not null)
+        {
+            return false;
+        }
+        WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
+        NativeWorldAllocationClause clause = assets.ReadWorldAllocationClause(inputs.StoryWord);
+        NativeSavedWorldState saved = session.State.SavedWorld!;
+        //544860 selects section9 and can append the saved car; the separate94/79/80 producers are checked by the caller.
+        //Native shape comparisons sign-extend the allocated byte before comparing the predicate's WORD operand.
+        bool declared = shape <= sbyte.MaxValue && clause.ContainsShape((byte)shape);
+        bool savedCar = shape <= sbyte.MaxValue && saved.Slot4.ShapeId == shape && NativeTrainWorldObject.ClassifyShape(saved.Slot4.ShapeId) is >= 32 and <= 40 or 132;
+        return !declared && !savedCar;
     }
 
     private void RequireWorldEventShapeAllocation(WorldState state, ushort shape)

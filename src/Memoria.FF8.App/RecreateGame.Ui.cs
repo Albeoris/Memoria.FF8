@@ -41,6 +41,7 @@ internal sealed partial class RecreateGame
         text.FontFamily = uiPreferences.UiFontFamily;
         fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume);
         gameMenus = new MenuController(ReadLiveMenuData, ApplyLiveMenuAction);
+        InitializeAutoPlayUi();
         ConnectNativeTutorialUi();
         gameMenus.ScreenOpened += screen =>
         {
@@ -335,9 +336,9 @@ internal sealed partial class RecreateGame
         }
     }
 
-    private bool UpdateGameUi(TimeSpan elapsed, InputFrame input)
+    private bool UpdateGameUi(TimeSpan elapsed, InputFrame input, bool hostOnly = false)
     {
-        if (UpdateNativeTutorialUi(elapsed, input))
+        if (!hostOnly && UpdateNativeTutorialUi(elapsed, input))
         {
             return true;
         }
@@ -345,12 +346,15 @@ internal sealed partial class RecreateGame
         {
             return false;
         }
-        SynchronizeNativeNamePrompt();
-        if (!gameMenus.IsOpen && !saveMenu.IsOpen && IsNativeGridMenuActive)
+        if (!hostOnly)
+        {
+            SynchronizeNativeNamePrompt();
+        }
+        if (!hostOnly && !gameMenus.IsOpen && !saveMenu.IsOpen && IsNativeGridMenuActive)
         {
             gameMenus.Open(IsNativeWeaponShopActive ? "shop-junk" : IsNativeShopActive ? "shop" : "main", false);
         }
-        bool nativeMainWasOpen = IsNativeGridMenuActive && gameMenus.IsOpen && !gameMenus.IsDemo && !gameMenus.IsNamePrompt;
+        bool nativeMainWasOpen = !hostOnly && IsNativeGridMenuActive && gameMenus.IsOpen && !gameMenus.IsDemo && !gameMenus.IsNamePrompt;
         bool menuWasOpen = gameMenus.IsOpen;
         MouseState mouse = Mouse.GetState();
         bool mousePressed = IsActive && mouse.LeftButton == ButtonState.Pressed;
@@ -396,7 +400,7 @@ internal sealed partial class RecreateGame
             }
             if (drainUiButtons && (keyboard.HeldFieldButtons & 0xF0) != 0)
             {
-                if (events?.PartyMenu is not null)
+                if (!hostOnly && events?.PartyMenu is not null)
                 {
                     UpdatePartyMenu(gameplayClock.Advance(elapsed, session.State.Scene, events?.IsScriptedInterface == true), default);
                 }
@@ -473,7 +477,7 @@ internal sealed partial class RecreateGame
             drainUiButtons = true;
             CompleteNativeNormalMenu(nativeMainWasOpen);
         }
-        else if (!gameMenus.IsNamePrompt && !gameMenus.IsDemo && IsNativeGridMenuActive)
+        else if (!hostOnly && !gameMenus.IsNamePrompt && !gameMenus.IsDemo && IsNativeGridMenuActive)
         {
             UpdatePartyMenu(gameplayClock.Advance(elapsed, session.State.Scene, events?.IsScriptedInterface == true), default);
         }
@@ -650,6 +654,6 @@ internal sealed partial class RecreateGame
 
     private object? GameUiStatus()
     {
-        return gameMenus is null ? null : new { gameMenus.IsOpen, gameMenus.IsDemo, gameMenus.ScreenId, gameMenus.Message, gameMenus.ScreenIds, Entries = gameMenus.Entries.Select(entry => new { entry.Id, entry.Label, entry.Enabled }).ToArray(), gameMenus.SelectedIndex, Tutorial = world?.Tutorial?.Status };
+        return gameMenus is null ? null : new { gameMenus.IsOpen, gameMenus.IsDemo, gameMenus.ScreenId, gameMenus.Message, gameMenus.ScreenIds, Entries = gameMenus.Entries.Select(entry => new { entry.Id, entry.Label, entry.Enabled }).ToArray(), gameMenus.SelectedIndex, AutomaticPlay = ReadAutoPlayMenuState(), Tutorial = world?.Tutorial?.Status };
     }
 }

@@ -489,6 +489,10 @@ public sealed partial class MenuController
         {
             return;
         }
+        if (ExecuteAutoPlayAction(action))
+        {
+            return;
+        }
         if (ExecuteControlsAction(action))
         {
             return;
