@@ -41,6 +41,7 @@ internal sealed class AutoPlayRunState
     public string? Snapshot { get; set; }
     public string? Error { get; set; }
     public bool ReachedEnding { get; set; }
+    public AutoPlayDirectCodeEntryState DirectCodeEntry { get; set; } = new();
     public Dictionary<string, int> ScriptedInputs { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, ScriptedInputMetadata> ScriptedChoiceInputs { get; set; } = new(StringComparer.Ordinal);
     public AutoPlayInputSearch? InputSearch { get; set; }
@@ -98,6 +99,8 @@ internal sealed partial class AutoPlayController
         {
             using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("World.Get");
             GameWorld world = getWorld();
+            world.Events.AutoPlayCodeEntry = advancing ? request => AutoPlayDirectCodeEntry.Answer(run.DirectCodeEntry, request) : null;
+            world.Events.AutoPlayTrainRetryPending = advancing && run.DirectCodeEntry.TrainRetryCheckpoint is not null;
             if (advancing && watchedWorlds.Add(world))
             {
                 world.Events.OperationCompleted += CheckIdleDeadline;
@@ -306,6 +309,11 @@ internal sealed partial class AutoPlayController
         ImportInputSearch(saved, directory, ImportCheckpoint, document.RootElement);
         saved.PrimaryContinuation = ImportCheckpoint(saved.PrimaryContinuation);
         saved.ActiveBeforeCheckpoint = ImportCheckpoint(saved.ActiveBeforeCheckpoint);
+        saved.DirectCodeEntry.TrainRetryCheckpoint = ImportCheckpoint(saved.DirectCodeEntry.TrainRetryCheckpoint);
+        if (saved.DirectCodeEntry.TrainRetryContext is { } directRetryContext)
+        {
+            directRetryContext.BeforeCheckpoint = ImportCheckpoint(directRetryContext.BeforeCheckpoint);
+        }
         restore(GameSession.Load(Path.Combine(directory, saved.Snapshot)));
         run = saved;
         if (!document.RootElement.TryGetProperty(nameof(AutoPlayRunState.SurveyBaseline), out _) && run.ActiveEvent is not null)
@@ -398,6 +406,8 @@ internal sealed partial class AutoPlayController
                 foreach (GameWorld watched in watchedWorlds)
                 {
                     watched.Events.OperationCompleted -= CheckIdleDeadline;
+                    watched.Events.AutoPlayCodeEntry = null;
+                    watched.Events.AutoPlayTrainRetryPending = false;
                     watched.Events.OperationCompleted -= ObserveSurveyOperation;
                     watched.Events.BeforeNativePartyActionRequest -= ObserveParticipantAction;
                     watched.BeforeFieldAllocation -= ObserveSurveySegmentChanges;
@@ -451,8 +461,69 @@ internal sealed partial class AutoPlayController
             ObserveSurveySegmentChanges(world);
         }
         world.EnsureField();
+        AutoPlayDirectCodeEntryState direct = run.DirectCodeEntry;
+        if (session.State.NativeGameOver is not null && direct.TrainRetryCheckpoint is not null)
+        {
+            SaveBundle($"direct-train-loss-{run.Steps:D10}", CaptureState());
+            direct.TrainNativeLosses++;
+            restore(GameSession.Load(Path.Combine(runDirectory!, direct.TrainRetryCheckpoint)));
+            AutoPlayInputSearchContext context = direct.TrainRetryContext!;
+            run.ActiveVisit = context.Visit;
+            run.ActiveNavigationKey = context.Navigation;
+            run.ActiveEvent = context.Event;
+            run.ActiveField = context.Field;
+            run.ActiveStory = context.Story;
+            run.ActiveObjectId = context.ObjectId;
+            run.ActiveConditionSignature = context.Conditions;
+            run.ActiveBeforeCheckpoint = context.BeforeCheckpoint;
+            run.ActiveTargetId = context.Target;
+            run.ActiveAbsenceGuardKey = context.AbsenceGuard;
+            run.ActiveAvailabilityFingerprint = context.Availability;
+            run.ObservedControlLoss = context.ObservedControlLoss;
+            run.SceneChoices = context.SceneChoices.ToList();
+            run.ActiveSelections = direct.TrainRetrySelections?.ToList();
+            run.SettleFrames = 0;
+            run.SceneFrames = 0;
+            return;
+        }
+        if (session.State.Scene == SceneKind.Field && session.State.FieldId == 902 && world.Events.IsUserControlEnabled && direct.TrainRetryCheckpoint is not null && world.Events.EventMemory.Read(1038, 1).RequireExact() == 3)
+        {
+            direct.TrainCodeSequencesCompleted++;
+            direct.TrainRetryCheckpoint = null;
+            direct.TrainRetryContext = null;
+            direct.TrainRetrySelections = null;
+        }
+        if (session.State.Scene == SceneKind.Field && session.State.FieldId == 902 && !world.Events.IsUserControlEnabled && direct.TrainRetryCheckpoint is null)
+        {
+            direct.TrainRetryCheckpoint = $"direct-train-before-{run.Steps:D10}.json";
+            direct.TrainRetryContext = CaptureInputSearchContext();
+            direct.TrainRetrySelections = run.ActiveSelections?.ToList();
+            SaveGame(Path.Combine(runDirectory!, direct.TrainRetryCheckpoint), CaptureState());
+            world.Events.AutoPlayTrainRetryPending = true;
+        }
         if (RecoverNativeInputSearchLoss())
         {
+            return;
+        }
+        if (world.Events.LastFault is { } directEntryFault)
+        {
+            throw new EventScriptException(directEntryFault.Message);
+        }
+        if (world.Events.TryApplyAutoPlayDirectCodeEntry())
+        {
+            return;
+        }
+        if ((world.Events.HasDirectAutoPlayCodeScene && !world.Events.IsUserControlEnabled || session.State.FieldId == 75 && direct.TrainRetryCheckpoint is not null) && world.CurrentDialogue?.CanConfirm != true)
+        {
+            int directField = session.State.FieldId;
+            for (int callback = 0; callback < 256 && session.State.Scene == SceneKind.Field && session.State.FieldId == directField && (directField == 75 || !world.Events.IsUserControlEnabled) && world.CurrentDialogue?.CanConfirm != true && session.State.NativeGameOver is null; callback++)
+            {
+                AdvanceInputFrame(world);
+                if (world.Events.LastFault is { } directStepFault)
+                {
+                    throw new EventScriptException(directStepFault.Message);
+                }
+            }
             return;
         }
         ObserveSurveyInitialization(world);

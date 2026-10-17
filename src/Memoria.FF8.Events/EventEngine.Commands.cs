@@ -397,7 +397,10 @@ public sealed partial class EventEngine
                     break;
                 }
                 args = Pop(fiber, 2);
-                Request(fiber, parameter, args[1], args[0], opcode);
+                if (!TryApplyAutoPlayTrainDigit(fiber, parameter, args[1], args[0], opcode))
+                {
+                    Request(fiber, parameter, args[1], args[0], opcode);
+                }
                 break;
             case Jsm.Opcode.PREQ:
             case Jsm.Opcode.PREQSW:
@@ -861,6 +864,11 @@ public sealed partial class EventEngine
                 }
                 args = Pop(fiber, 8);
                 ShowDialogue(fiber, Message(args[0], args[1], args[6], args[7]) with { FirstChoice = args[2], LastChoice = args[3], InitialChoice = args[4], CancelChoice = args[5] }, true);
+                DialogueState shownChoice = dialogues[args[0]];
+                if (!TryApplyAutoPlayTrainDialogue(shownChoice))
+                {
+                    ApplyAutoPlayDelingCode(fiber, shownChoice);
+                }
                 break;
             case Jsm.Opcode.WINCLOSE:
                 args = Pop(fiber, 1);
@@ -989,7 +997,7 @@ public sealed partial class EventEngine
             case Jsm.Opcode.KEYON:
                 ushort buttonWord = opcode == Jsm.Opcode.KEYSCAN2 ? ButtonInput!.RawHeld : (opcode == Jsm.Opcode.KEYON ? ButtonInput!.Pressed : ButtonInput!.Held) ?? throw new NotSupportedException("Mapped input configuration is unknown.");
                 args = Pop(fiber, 1);
-                fiber.Results[0] = (unchecked((uint)args[0]) & buttonWord) != 0 ? 1 : 0;
+                fiber.Results[0] = TryApplyAutoPlayTrainNavigation(fiber, opcode, args[0], out int automaticInput) ? automaticInput : (unchecked((uint)args[0]) & buttonWord) != 0 ? 1 : 0;
                 break;
             case Jsm.Opcode.SETVIBRATE:
                 args = ExecuteVibrationRequest(fiber);
