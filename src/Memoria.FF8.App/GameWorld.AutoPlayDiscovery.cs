@@ -60,13 +60,8 @@ internal sealed partial class GameWorld
         List<AutoPlayTarget> targets = [];
         bool Resolve(float x, float y, float z, out Vector3 position, out int triangle)
         {
-            if (field.Walkmesh.TryPosition(x, y, out position, out triangle, excluded) && Math.Abs(position.Z - z) < 256)
-            {
-                return true;
-            }
-            return field.Walkmesh.TryPosition(x, y, out position, out triangle, events.Scene.LockedTriangles) && Math.Abs(position.Z - z) < 256;
+            return field.Walkmesh.TryPosition(x, y, out position, out triangle, excluded) && Math.Abs(position.Z - z) < 256;
         }
-        int Order(int variant, int triangle, int? approachTriangle = null) => variant + (reachable.Contains(triangle) && (approachTriangle is null || reachable.Contains(approachTriangle.Value)) ? 0 : 100000);
         foreach (int objectId in events.Scene.NativeActorObjectIds)
         {
             ActorState actor = events.Actors[objectId];
@@ -146,7 +141,7 @@ internal sealed partial class GameWorld
                     approach = resolved;
                     approachTriangle = resolvedTriangle;
                 }
-                targets.Add(new AutoPlayTarget($"{field.Id}:{label}:{actor.ObjectId}:{side}", kind, position.X, position.Y, position.Z, triangle, actor.ObjectId, AutoPlayScriptDestination(program, script), AutoPlayScriptChangesStory(program, script), Order(side, triangle, approachTriangle), approach?.X, approach?.Y, approach?.Z, approachTriangle, AutoPlayDirection(position, new Vector3(actor.X, actor.Y, actor.Z))));
+                targets.Add(new AutoPlayTarget($"{field.Id}:{label}:{actor.ObjectId}:{side}", kind, position.X, position.Y, position.Z, triangle, actor.ObjectId, AutoPlayScriptDestination(program, script), AutoPlayScriptChangesStory(program, script), side, approach?.X, approach?.Y, approach?.Z, approachTriangle, AutoPlayDirection(position, new Vector3(actor.X, actor.Y, actor.Z))));
             }
         }
 
@@ -169,7 +164,7 @@ internal sealed partial class GameWorld
                     {
                         continue;
                     }
-                    targets.Add(new AutoPlayTarget($"{field.Id}:{id}:{sample}:{side}", kind, position.X, position.Y, position.Z, triangle, objectId, destination ?? scripts.Select(script => AutoPlayScriptDestination(program, script)).FirstOrDefault(value => value is not null), scripts.Any(script => AutoPlayScriptChangesStory(program, script)), Order(sample * 2 + side, triangle, approachTriangle), approach.X, approach.Y, approach.Z, approachTriangle, AutoPlayDirection(approach, position), requiresConfirm));
+                    targets.Add(new AutoPlayTarget($"{field.Id}:{id}:{sample}:{side}", kind, position.X, position.Y, position.Z, triangle, objectId, destination ?? scripts.Select(script => AutoPlayScriptDestination(program, script)).FirstOrDefault(value => value is not null), scripts.Any(script => AutoPlayScriptChangesStory(program, script)), sample * 2 + side, approach.X, approach.Y, approach.Z, approachTriangle, AutoPlayDirection(approach, position), requiresConfirm));
                 }
             }
         }

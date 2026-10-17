@@ -335,7 +335,7 @@ public sealed class AutoPlayDiscoveryTests
     }
 
     [Fact]
-    public void CoordinateDiscoveryAllowsAnUnlockedNativeExitOutsideTheCurrentWalkmeshComponent()
+    public void CoordinateDiscoveryExcludesNativeExitCandidatesOutsideTheCurrentWalkmeshComponent()
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
@@ -343,34 +343,35 @@ public sealed class AutoPlayDiscoveryTests
         using var world = new GameWorld(session, directory);
         world.EnsureField();
         JsonElement before = world.Events.Capture();
+        GameState state = session.State;
+        int executedCommands = 0;
+        world.Events.CommandExecuted += _ => executedCommands++;
         IReadOnlyList<AutoPlayTarget> targets = world.DiscoverAutoPlayTargets();
         Assert.True(JsonElement.DeepEquals(before, world.Events.Capture()));
-        AutoPlayTarget exit = targets.First(target => target.Kind == AutoPlayTargetKind.Gateway && target.DestinationField == 139);
-        Assert.True(exit.Order >= 100000);
+        Assert.Same(state, session.State);
+        Assert.Equal(0, executedCommands);
         Assert.NotEmpty(targets);
         HashSet<int> reachable = GameWorld.AutoPlayReachableTriangles(world.Field!.Walkmesh, world.Events.PlayerActor!.WalkmeshTriangle, world.Events.Scene.LockedTriangles);
         Assert.All(targets, target =>
         {
+            Assert.Contains(target.Triangle, reachable);
             Assert.DoesNotContain(target.Triangle, world.Events.Scene.LockedTriangles);
             if (target.ApproachTriangle is int approach)
             {
+                Assert.Contains(approach, reachable);
                 Assert.DoesNotContain(approach, world.Events.Scene.LockedTriangles);
             }
         });
-        Assert.DoesNotContain(exit.Triangle, reachable);
-        Assert.Contains(targets, candidate => candidate.Order < 100000);
-        world.Events.TeleportPlayer(exit.ApproachX!.Value, exit.ApproachY!.Value, exit.ApproachZ!.Value, exit.ApproachTriangle!.Value, exit.Direction);
-        Assert.True(world.Events.TeleportPlayer(exit.X, exit.Y, exit.Z, exit.Triangle, exit.Direction, true));
-        Assert.Equal(139, session.State.FieldId);
-        world.EnsureField();
+        Assert.All(targets, target => Assert.InRange(target.Order, 0, 99999));
         Assert.Null(world.Events.LastFault);
     }
 
     [Fact]
-    public void CoordinateDiscoveryAllowsUnlockedIslandsButNeverLockedGatewayPositions()
+    public void CoordinateDiscoveryRequiresConnectedUnlockedGatewayTargetsAndApproaches()
     {
         byte[] source = Program([(Jsm.Opcode.NOP, 0)]);
-        EventEngine events = new(new GameSession(new GameState()));
+        GameSession session = new(new GameState());
+        EventEngine events = new(session);
         events.LoadField(600, source, []);
         events.Scene.LockedTriangles.Add(1);
         events.InfGateways =
@@ -380,24 +381,67 @@ public sealed class AutoPlayDiscoveryTests
             new(new Vector3(530, 50, 0), new Vector3(580, 50, 0), new FieldTransition(603, 0, 0, 0, 0))
         ];
         WalkmeshTriangle first = new(new Vector3(0, 0, 0), new Vector3(200, 0, 0), new Vector3(0, 200, 0), 1, -1, -1);
-        WalkmeshTriangle connected = new(new Vector3(200, 0, 0), new Vector3(200, 200, 0), new Vector3(0, 200, 0), 0, -1, -1);
+        WalkmeshTriangle connected = new(new Vector3(200, 0, 0), new Vector3(200, 200, 0), new Vector3(0, 200, 0), -1, 0, -1);
         WalkmeshTriangle disconnected = new(new Vector3(500, 0, 0), new Vector3(700, 0, 0), new Vector3(500, 200, 0), -1, -1, -1);
         FieldWalkmesh walkmesh = new([first, connected, disconnected]);
         FieldCamera camera = new(Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ, Vector3.Zero, Vector2.Zero, 1);
         FieldAssets field = new(600, "component", source, [], [], camera, walkmesh, []);
         ActorState player = new(0, 0);
         JsonElement before = events.Capture();
+        GameState state = session.State;
+        int executedCommands = 0;
+        events.CommandExecuted += _ => executedCommands++;
         IReadOnlyList<AutoPlayTarget> targets = GameWorld.DiscoverAutoPlayTargets(field, events, player);
         Assert.Contains(targets, target => target.DestinationField == 601);
         Assert.DoesNotContain(targets, target => target.DestinationField == 602);
-        Assert.Contains(targets, target => target.DestinationField == 603 && target.Order >= 100000);
+        Assert.DoesNotContain(targets, target => target.DestinationField == 603);
+        Assert.All(targets, target => Assert.Equal(0, target.Triangle));
+        Assert.All(targets, target => Assert.Equal(0, target.ApproachTriangle));
         Assert.All(targets, target => Assert.DoesNotContain(target.Triangle, events.Scene.LockedTriangles));
         Assert.All(targets.Where(target => target.ApproachTriangle is not null), target => Assert.DoesNotContain(target.ApproachTriangle!.Value, events.Scene.LockedTriangles));
         Assert.True(JsonElement.DeepEquals(before, events.Capture()));
+        Assert.Same(state, session.State);
+        Assert.Equal(0, executedCommands);
         events.Scene.LockedTriangles.Clear();
+        before = events.Capture();
         targets = GameWorld.DiscoverAutoPlayTargets(field, events, player);
         Assert.Contains(targets, target => target.DestinationField == 602);
-        Assert.Contains(targets, target => target.DestinationField == 603 && target.Order >= 100000);
+        Assert.DoesNotContain(targets, target => target.DestinationField == 603);
+        Assert.All(targets, target => Assert.InRange(target.Triangle, 0, 1));
+        Assert.All(targets, target => Assert.InRange(target.ApproachTriangle!.Value, 0, 1));
+        Assert.True(JsonElement.DeepEquals(before, events.Capture()));
+        Assert.Same(state, session.State);
+        Assert.Equal(0, executedCommands);
+    }
+
+    [Fact]
+    public void AReachableContactSideCannotUseAnApproachAcrossADisconnectedNeighbor()
+    {
+        byte[] source = Program([(Jsm.Opcode.NOP, 0)]);
+        GameSession session = new(new GameState());
+        EventEngine events = new(session);
+        events.LoadField(600, source, []);
+        events.InfGateways = [new(new Vector3(60, 140, 0), new Vector3(140, 60, 0), new FieldTransition(601, 0, 0, 0, 0))];
+        WalkmeshTriangle first = new(Vector3.Zero, new Vector3(200, 0, 0), new Vector3(0, 200, 0), -1, -1, -1);
+        WalkmeshTriangle neighbor = new(new Vector3(200, 0, 0), new Vector3(200, 200, 0), new Vector3(0, 200, 0), -1, -1, -1);
+        FieldCamera camera = new(Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ, Vector3.Zero, Vector2.Zero, 1);
+        FieldAssets field = new(600, "component", source, [], [], camera, new([first, neighbor]), []);
+        ActorState player = new(0, 0);
+        JsonElement before = events.Capture();
+        GameState state = session.State;
+        int executedCommands = 0;
+        events.CommandExecuted += _ => executedCommands++;
+
+        Assert.Empty(GameWorld.DiscoverAutoPlayTargets(field, events, player));
+
+        FieldAssets connected = field with { Walkmesh = new([first with { NeighborA = 1 }, neighbor with { NeighborB = 0 }]) };
+        IReadOnlyList<AutoPlayTarget> targets = GameWorld.DiscoverAutoPlayTargets(connected, events, player);
+        Assert.Equal(6, targets.Count);
+        Assert.Contains(targets, target => target.Triangle == 0 && target.ApproachTriangle == 1);
+        Assert.Contains(targets, target => target.Triangle == 1 && target.ApproachTriangle == 0);
+        Assert.True(JsonElement.DeepEquals(before, events.Capture()));
+        Assert.Same(state, session.State);
+        Assert.Equal(0, executedCommands);
     }
 
     [Fact]
