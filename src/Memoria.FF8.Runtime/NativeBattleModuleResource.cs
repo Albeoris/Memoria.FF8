@@ -39,6 +39,15 @@ public sealed record NativeBattleModuleResource(byte Id, uint Address, uint Wrap
         {
             throw new InvalidDataException("Native sprite phase does not identify an original resource frame.");
         }
+        return ProjectedFrame571C80(phase);
+    }
+
+    public NativeBattleModuleSpriteFrame ProjectedFrame571C80(int phase)
+    {
+        if (Bytes.Length < 12 || (uint)phase >= BinaryPrimitives.ReadUInt16LittleEndian(Bytes.AsSpan().Slice(8)))
+        {
+            throw new InvalidDataException("Native571C80 sprite phase leaves its original frame directory.");
+        }
         int offset = BinaryPrimitives.ReadUInt16LittleEndian(Bytes.AsSpan().Slice(10 + phase * 2));
         short next = BinaryPrimitives.ReadInt16LittleEndian(Bytes.AsSpan().Slice(12 + phase * 2));
         if (offset + 4L > Bytes.Length)

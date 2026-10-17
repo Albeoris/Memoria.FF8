@@ -11,6 +11,12 @@ public static class NativeBattleGfMatrices
         return Multiply56C090(Multiply56C090(z, x), y);
     }
 
+    public static NativeBattleActionMatrix Euler701430(NativeBattleVector angles)
+    {
+        (NativeBattleActionMatrix x, NativeBattleActionMatrix y, NativeBattleActionMatrix z) = AxisMatrices(angles);
+        return Multiply56C090(Multiply56C090(z, y), x);
+    }
+
     public static NativeBattleActionMatrix Euler7015B0(NativeBattleVector angles)
     {
         (NativeBattleActionMatrix x, NativeBattleActionMatrix y, NativeBattleActionMatrix z) = AxisMatrices(angles);

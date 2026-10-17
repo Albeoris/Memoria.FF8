@@ -109,6 +109,10 @@ public sealed partial class BattleSession
                 {
                     graphics = graphics with { Descriptors = graphics.Descriptors.WriteCompletion501A70(address, value) };
                 }
+                else if (TryWriteNativeEffect311Completion(graphics, address, value, out NativeBattleGraphicsState completed))
+                {
+                    graphics = completed;
+                }
                 else
                 {
                     WriteNativeAuxiliaryCompletionByte(address, value);

@@ -30,6 +30,7 @@ public sealed record NativeBattleOriginalEffectState([property: JsonRequired] us
     public NativeBattleDoubleState? Double { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleTripleState? Triple { get; init; }
+    public NativeBattleEffect311State? Gravija { get; init; }
     public NativeBattleCuraState? Cura { get; init; }
     public NativeBattleCuragaState? Curaga { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

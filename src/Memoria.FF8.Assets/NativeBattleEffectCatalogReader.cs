@@ -137,6 +137,11 @@ public sealed partial class GameAssets
                 catalog = catalog.SetItem(index, binding with { NativeQuezacotlResources = ReadNativeQuezacotlResources() });
                 continue;
             }
+            if (binding.Entry == 0x6652C0)
+            {
+                binding = binding with { Effect311Resources = ReadNativeEffect311Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Entry == 0x6D1310)
             {
                 binding = binding with { Effect107Resources = ReadNativeEffect107Resources() };
