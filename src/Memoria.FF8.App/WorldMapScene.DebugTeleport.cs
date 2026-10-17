@@ -9,10 +9,10 @@ internal sealed partial class WorldMapScene
     private IReadOnlyList<WorldAutoPlayTarget>? autoPlayEntrances;
     private GameState? autoPlayEntranceState;
 
-    /// <summary>Only native active entrances in the current connected walkable terrain component become automatic frontiers.</summary>
+    /// <summary>Native active entrances in the current owner's connected terrain component become automatic frontiers.</summary>
     public IReadOnlyList<WorldAutoPlayTarget> DiscoverAutoPlayEntrances()
     {
-        RequireAutoPlayFoot();
+        int entityType = RequireAutoPlayOwner();
         WorldState before = State;
         ushort story = WorldEntryVariables.Read(session.State).StoryWord;
         if (autoPlayEntrances is not null && ReferenceEquals(autoPlayEntranceState, session.State))
@@ -28,7 +28,7 @@ internal sealed partial class WorldMapScene
         int startIndex = terrain.FindIndex(item => item.Identity == start.Identity);
         if (startIndex < 0)
         {
-            throw new NotSupportedException("The current world polygon is outside the walkable discovery component.");
+            throw new NotSupportedException("The current world polygon is outside its owner's traversable discovery component.");
         }
         HashSet<int> component = [];
         Queue<int> pending = new();
@@ -77,11 +77,24 @@ internal sealed partial class WorldMapScene
             int x = (int)MathF.Round((triangle.A.X + triangle.B.X + triangle.C.X) / 3);
             int z = (int)MathF.Round((triangle.A.Z + triangle.B.Z + triangle.C.Z) / 3);
             WorldGroundSelection? native = assets.LookupNativeGround(x, z, replacements, []);
-            if (native?.Identity != terrain[index].Identity)
+            if (native is null || native.Identity != terrain[index].Identity)
             {
                 continue;
             }
-            WorldFieldSelection? selection = SelectAutoPlayEntrance(x, z, triangle.TextureFlags, story);
+            WorldState candidate;
+            if (before.NativeCarRuntime is not null)
+            {
+                if (!TryPrepareCurrentCarPlacement(x, z, out WorldState? carCandidate))
+                {
+                    continue;
+                }
+                candidate = carCandidate;
+            }
+            else
+            {
+                candidate = PrepareAutoPlayFootPlacement(before, native, x, z);
+            }
+            WorldFieldSelection? selection = SelectAutoPlayEntrance(candidate, triangle.TextureFlags, story, entityType);
             if (selection is null)
             {
                 continue;
@@ -107,7 +120,7 @@ internal sealed partial class WorldMapScene
                 return;
             }
             WorldSegment segment = assets.GetSegment(mapId, replacements);
-            foreach (WorldTriangle triangle in segment.Triangles.Where(item => item.Walkable))
+            foreach (WorldTriangle triangle in segment.Triangles.Where(item => AutoPlayCanTraverse(item, entityType)))
             {
                 int index = terrain.Count;
                 terrain.Add((triangle, new NativeWorldGroundIdentity(segment.MapId, segment.SourceId, triangle.NativeBlockIndex, triangle.NativePolygonIndex)));
@@ -125,51 +138,79 @@ internal sealed partial class WorldMapScene
         }
     }
 
-    /// <summary>Relocates the debug-controlled foot pose; the ordinary callback still owns field entry and saved return state.</summary>
+    /// <summary>Relocates the current debug-controlled owner; ordinary callbacks retain field-entry and saved-return ownership.</summary>
     public void DebugTeleportToEntrance(WorldAutoPlayTarget target)
     {
-        RequireAutoPlayFoot();
+        int entityType = RequireAutoPlayOwner();
+        GameState departure = session.State;
         WorldState before = State;
-        NativeFootWorldRuntimeState foot = before.NativeFootRuntime!;
         WorldGroundSelection ground = assets.LookupNativeGround(target.X, target.RawZ, replacements, []) ?? throw new InvalidOperationException("World teleport requires an actual native ground polygon.");
         ushort story = WorldEntryVariables.Read(session.State).StoryWord;
-        WorldFieldSelection? selection = SelectAutoPlayEntrance(target.X, target.RawZ, ground.Ground.Triangle.TextureFlags, story);
-        if (selection?.Entry.FieldId != target.DestinationField || !ground.Ground.Triangle.Walkable)
+        if (!AutoPlayCanTraverse(ground.Ground.Triangle, entityType))
+        {
+            throw new InvalidOperationException("World teleport destination is not traversable by the current native owner.");
+        }
+        WorldState relocated = before.NativeCarRuntime is not null ? PrepareCurrentCarPlacement(target.X, target.RawZ) : PrepareAutoPlayFootPlacement(before, ground, target.X, target.RawZ);
+        WorldFieldSelection? selection = SelectAutoPlayEntrance(relocated, ground.Ground.Triangle.TextureFlags, story, entityType);
+        if (selection?.Entry.FieldId != target.DestinationField)
         {
             throw new InvalidOperationException("World teleport destination no longer resolves to the requested native entrance.");
         }
+        if (relocated.NativeFootRuntime is not null)
+        {
+            EnsureContactCertificate(relocated);
+        }
+        if (!ReferenceEquals(session.State, departure))
+        {
+            throw new InvalidOperationException("The current world state changed before diagnostic entrance placement publication.");
+        }
+        session.SetWorldState(relocated);
+    }
+
+    private static WorldState PrepareAutoPlayFootPlacement(WorldState before, WorldGroundSelection ground, int x, int rawZ)
+    {
+        NativeFootWorldRuntimeState foot = before.NativeFootRuntime!;
         int height = NativeWorldTerrain.ResolveHeight(foot.EntityType, -(int)ground.Ground.Height, ground.Ground.Triangle.GroundType, before.NativeHeight).Height;
         NativeWorldGroundCacheState cache = NativeWorldGroundCacheState.CreateFresh(ground.Identity, foot.GroundCache);
-        WorldState relocated = before with
+        return before with
         {
-            X = target.X,
-            Z = target.RawZ,
+            X = x,
+            Z = rawZ,
             NativeHeight = height,
             CameraVelocity = 0,
-            CameraTargetX = target.X,
-            CameraTargetZ = target.RawZ,
+            CameraTargetX = x,
+            CameraTargetZ = rawZ,
             CameraTargetNativeHeight = height - 256,
             GroundType = ground.Ground.Triangle.GroundType,
             NativeFootRuntime = foot with { GroundCache = cache, PreviousHorizontalInput = 0 }
         };
-        EnsureContactCertificate(relocated);
-        session.SetWorldState(relocated);
     }
 
-    private WorldFieldSelection? SelectAutoPlayEntrance(int x, int rawZ, byte textureFlags, ushort story)
+    private WorldFieldSelection? SelectAutoPlayEntrance(WorldState candidate, byte textureFlags, ushort story, int entityType)
     {
         NativeSavedWorldState saved = session.State.SavedWorld ?? throw new NotSupportedException("World entrance discovery requires saved-world authority.");
-        WorldState probe = State with { X = x, Z = rawZ };
-        return assets.FieldEntries.Select(new WorldFieldSelectionInput(x, rawZ, story, State.NativeFootRuntime!.EntityType), textureFlags, (opcode, operand) => EvaluateWorldEventPredicate(probe, 0, saved, opcode, operand, eventUi: State.EventUi));
+        return assets.FieldEntries.Select(new WorldFieldSelectionInput(candidate.X, candidate.Z, story, entityType), textureFlags, (opcode, operand) => EvaluateWorldEventPredicate(candidate, 0, saved, opcode, operand, eventUi: candidate.EventUi));
     }
 
-    private void RequireAutoPlayFoot()
+    private int RequireAutoPlayOwner()
     {
+        if (State.NativeCarRuntime is { EntityType: 33, Speed: 0, MovementMagnitude20409F4: 0, TerrainTiltBlend: 0 } car && State.NativeFootRuntime is null && State.NativeGardenRuntime is null && State.NativeRagnarokRuntime is null && State.NativeTrainRuntime is null && State.NativeScriptedRuntime is null)
+        {
+            car.Validate();
+            return car.EntityType;
+        }
         if (State.NativeFootRuntime is not { EntityType: 0 or 1, StationTrains: null, NormalObjects: null } || State.NativeCarRuntime is not null || State.NativeGardenRuntime is not null || State.NativeRagnarokRuntime is not null || State.NativeTrainRuntime is not null || State.NativeScriptedRuntime is not null)
         {
-            throw new NotSupportedException("Automatic coordinate travel currently requires ordinary foot with no vehicle, rail or auxiliary object callback owner.");
+            throw new NotSupportedException("Automatic coordinate travel requires ordinary foot without auxiliary objects, or the current stationary type33 car.");
         }
         State.NativeFootRuntime.RequireNativeGroundState();
+        return State.NativeFootRuntime.EntityType;
+    }
+
+    private static bool AutoPlayCanTraverse(WorldTriangle triangle, int entityType)
+    {
+        uint flags = triangle.GroundType | (uint)triangle.TextureFlags << 8 | (uint)triangle.VertexFlags << 16;
+        return NativeWorldTerrain.CanTraverse(flags, entityType);
     }
 
     private static long SquaredDistance(int x, int z, int targetX, int targetZ)

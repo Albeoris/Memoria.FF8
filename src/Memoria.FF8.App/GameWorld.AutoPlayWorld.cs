@@ -27,7 +27,7 @@ internal sealed partial class GameWorld
             throw new InvalidOperationException("The requested world entrance differs from its current discovery.");
         }
         scene.DebugTeleportToEntrance(target);
-        int frames = checked((int)Math.Max(1, 24 - scene.State.Frame));
+        int frames = Math.Max(1, NativeWorldEntryControl.DelayAfterCallback(scene.State.Frame, 0));
         PlayerActionResult result = Apply(new PlayerAction(PlayerActionKind.Wait, Frames: frames));
         if (result.Trigger.Kind != PlayerTriggerKind.FieldTransition || result.Trigger.FieldId != target.DestinationField)
         {
