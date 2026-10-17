@@ -544,7 +544,8 @@ public sealed partial class BattleSession
         int remaining;
         if (action.Phase == BattleActionPhase.Windup && NativeGraphics is { } graphics)
         {
-            remaining = graphics.ActionCallbackReady ? 0 : 1;
+            //Factual104 headers complete at their successful descriptor10 event; AA is a contact signal, not event completion.
+            remaining = action.NativeHeaderIndex is not null ? 1 : graphics.ActionCallbackReady ? 0 : 1;
         }
         else if (action.Phase == BattleActionPhase.Windup && NativeGraphics is null && nativeGuardianBoost is not null && action.NativeQueuedCommand == 254)
         {
@@ -580,12 +581,17 @@ public sealed partial class BattleSession
             ActiveAction = action with { Phase = BattleActionPhase.Recovery, RemainingFrames = AttackRecoveryFrames };
             return;
         }
+        CompleteActionPresentation(action, "Attack recovery completed.");
+    }
+
+    private void CompleteActionPresentation(BattleActionPresentation action, string message)
+    {
         byId[action.ActorId].IsBusy = CompleteNativeDuelAction(action) || CompleteNativeShotAction(action) || QueuedActions.Any(command => command.NativeCallback is null && command.ActorId == action.ActorId);
         PublishNativeDrawComponentResult(action);
         CompleteNativeComponentPacketPresentation(action);
         ActiveAction = null;
         CompleteNativeGraphicsAction();
-        Log("ActionComplete", action.ActorId, action.TargetId, 0, "Attack recovery completed.");
+        Log("ActionComplete", action.ActorId, action.TargetId, 0, message);
     }
 
     private void EnqueueAttack(BattleCombatant actor, BattleCombatant target)

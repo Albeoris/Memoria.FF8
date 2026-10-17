@@ -132,8 +132,12 @@ public sealed class NativeBattleProductionEffectAdmissionTests
         {
             if (startEncounter)
             {
-                world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 7));
+                world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.Normal, NativeSeed: 7));
             }
+            // Normal host ticks expose individual frames; diagnostic TurnBased ticks may wait through an entire event.
+            world.ApplyBattleInput(new(BattleInputKind.SetMode, Mode: BattleAtbMode.Normal));
+            session.SetEventState(world.Events.Capture());
+            Publish(evidence, id + "-before-current-cast", session.State);
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
             Assert.NotNull(battle.NativeGraphics);
             Assert.NotNull(battle.NativeMusicProcess!.Commands);
@@ -187,6 +191,11 @@ public sealed class NativeBattleProductionEffectAdmissionTests
             Assert.True(restored);
             Assert.Equal(0u, battle.NativeGraphics!.OriginalEffect!.ReturnedDescriptor);
             Assert.Single(battle.Events, item => item.NativeModuleSound?.Sound == 300012);
+            for (int callback = 0; callback < 64 && battle.ActiveAction is { Ability: BattleAbility.Magic, ActionId: 4 }; callback++)
+            {
+                world.ApplyBattleInput(new(BattleInputKind.Tick));
+            }
+            Assert.False(battle.ActiveAction is { Ability: BattleAbility.Magic, ActionId: 4 }, "Native event completion left its managed action pending.");
             session.SetEventState(world.Events.Capture());
             Publish(evidence, id + "-after", session.State);
         }

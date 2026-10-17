@@ -29,9 +29,26 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native action clock callback differs from47DDA0/47DE70.");
         }
+        BattleActionPresentation? presentation = CaptureNativeEventPresentation();
         NativeGraphics = graphics;
-        CompleteNativeActionEvent(callback);
+        bool completed = CompleteNativeActionEvent(callback);
+        if (completed && presentation is not null && ReferenceEquals(ActiveAction, presentation))
+        {
+            CompleteActionPresentation(presentation, "Native action event completed.");
+        }
         return NativeGraphics ?? throw new InvalidDataException("Native completion lost its graphical descriptor owner.");
+    }
+
+    private BattleActionPresentation? CaptureNativeEventPresentation()
+    {
+        if (ActiveAction is not { NativeHeaderIndex: int headerIndex } action || headerIndex >= nativeActionPackets.ActionCount)
+        {
+            return null;
+        }
+        BattleCombatant actor = GetActor(action.ActorId);
+        ValidateNativeHeaderReference(actor, headerIndex);
+        byte eventActor = nativeActionScratch.EventActorB0F ?? throw new NotSupportedException("Native event presentation completion requires its actual event actor BYTE B0F.");
+        return actor.NativeIndex == eventActor ? action : null;
     }
 
     private void RunNativePlayerReaction(BattleCombatant actor, int stage)

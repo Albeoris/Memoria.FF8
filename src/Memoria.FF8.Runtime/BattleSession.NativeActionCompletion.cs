@@ -13,11 +13,11 @@ public sealed partial class BattleSession
         }
     }
 
-    private void CompleteNativeActionEvent(uint callback)
+    private bool CompleteNativeActionEvent(uint callback)
     {
         if (callback == 0x47DE70 && ProduceNativePostActionEffects())
         {
-            return;
+            return false;
         }
         if (nativeBattleClock is not null)
         {
@@ -37,6 +37,7 @@ public sealed partial class BattleSession
         }
         RefreshNativeKnownMagicStocks();
         RefreshNativeEnemyDrawSlots();
+        return true;
     }
 
     private bool ProduceNativePostActionEffects()
