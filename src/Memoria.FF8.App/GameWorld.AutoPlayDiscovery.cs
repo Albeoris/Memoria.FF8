@@ -88,11 +88,11 @@ internal sealed partial class GameWorld
                 EventScript[] contacts = obj.Scripts.Skip(3).Take(5).Where(script => AutoPlayHasBody(program, script)).ToArray();
                 if (contacts.Length > 0)
                 {
-                    AddSegment($"line:{obj.Index}", AutoPlayTargetKind.Contact, start, end, obj.Index, contacts, null);
+                    AddSegment($"line:{obj.Index}", AutoPlayTargetKind.Contact, start, end, obj.Index, contacts, null, allowSameSideFacing: obj.Scripts.Count > 3 && AutoPlayHasBody(program, obj.Scripts[3]));
                 }
                 if (obj.Scripts.Count > 2 && AutoPlayHasBody(program, obj.Scripts[2]))
                 {
-                    AddSegment($"line-action:{obj.Index}", AutoPlayTargetKind.Contact, start, end, obj.Index, [obj.Scripts[2]], null, true);
+                    AddSegment($"line-action:{obj.Index}", AutoPlayTargetKind.Contact, start, end, obj.Index, [obj.Scripts[2]], null, true, true);
                 }
             }
         }
@@ -146,7 +146,7 @@ internal sealed partial class GameWorld
             }
         }
 
-        void AddSegment(string id, AutoPlayTargetKind kind, Vector3 start, Vector3 end, int objectId, IReadOnlyList<EventScript> scripts, int? destination, bool requiresConfirm = false)
+        void AddSegment(string id, AutoPlayTargetKind kind, Vector3 start, Vector3 end, int objectId, IReadOnlyList<EventScript> scripts, int? destination, bool requiresConfirm = false, bool allowSameSideFacing = false)
         {
             Vector2 segment = new(end.X - start.X, end.Y - start.Y);
             if (segment.LengthSquared() == 0)
@@ -161,11 +161,20 @@ internal sealed partial class GameWorld
                 for (int side = 0; side < 2; side++)
                 {
                     Vector2 offset = normal * distance * (side == 0 ? 1 : -1);
-                    if (!Resolve(MathF.Round(midpoint.X + offset.X), MathF.Round(midpoint.Y + offset.Y), midpoint.Z, out Vector3 position, out int triangle) || !Resolve(MathF.Round(midpoint.X - offset.X), MathF.Round(midpoint.Y - offset.Y), midpoint.Z, out Vector3 approach, out int approachTriangle))
+                    if (!Resolve(MathF.Round(midpoint.X + offset.X), MathF.Round(midpoint.Y + offset.Y), midpoint.Z, out Vector3 position, out int triangle))
                     {
                         continue;
                     }
-                    targets.Add(new AutoPlayTarget($"{field.Id}:{id}:{sample}:{side}", kind, position.X, position.Y, position.Z, triangle, objectId, destination ?? scripts.Select(script => AutoPlayScriptDestination(program, script)).FirstOrDefault(value => value is not null), scripts.Any(script => AutoPlayScriptChangesStory(program, script)), sample * 2 + side, approach.X, approach.Y, approach.Z, approachTriangle, AutoPlayDirection(approach, position), requiresConfirm));
+                    string suffix = string.Empty;
+                    if (!Resolve(MathF.Round(midpoint.X - offset.X), MathF.Round(midpoint.Y - offset.Y), midpoint.Z, out Vector3 approach, out int approachTriangle))
+                    {
+                        if (!allowSameSideFacing || !Resolve(MathF.Round(midpoint.X + offset.X * 2), MathF.Round(midpoint.Y + offset.Y * 2), midpoint.Z, out approach, out approachTriangle))
+                        {
+                            continue;
+                        }
+                        suffix = ":facing";
+                    }
+                    targets.Add(new AutoPlayTarget($"{field.Id}:{id}:{sample}:{side}{suffix}", kind, position.X, position.Y, position.Z, triangle, objectId, destination ?? scripts.Select(script => AutoPlayScriptDestination(program, script)).FirstOrDefault(value => value is not null), scripts.Any(script => AutoPlayScriptChangesStory(program, script)), sample * 2 + side, approach.X, approach.Y, approach.Z, approachTriangle, AutoPlayDirection(approach, position), requiresConfirm));
                 }
             }
         }
