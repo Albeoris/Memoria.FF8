@@ -23,7 +23,7 @@ internal sealed partial class WorldMapScene
             });
         }
         RequireWorldEventShapeAllocation(accepted, shape);
-        if (IsAbsentFromOriginalFootAllocation(accepted, shape))
+        if (IsAbsentFromOriginalAllocation(accepted, shape))
         {
             return false;
         }
@@ -83,7 +83,7 @@ internal sealed partial class WorldMapScene
                 else
                 {
                     RequireWorldEventShapeAllocation(state, operand);
-                    if (IsAbsentFromOriginalFootAllocation(state, operand))
+                    if (IsAbsentFromOriginalAllocation(state, operand))
                     {
                         return false;
                     }
@@ -147,9 +147,11 @@ internal sealed partial class WorldMapScene
         return state.NativeFootRuntime?.NormalObjects?.Allocation ?? state.NativeFootRuntime?.StationTrains?.Load.Allocation ?? state.NativeCarRuntime?.Allocation ?? state.NativeTrainRuntime?.Load.Allocation ?? throw new NotSupportedException("World shape predicates require the executed dense allocation; this runtime retains only a partial loader receipt.");
     }
 
-    private bool IsAbsentFromOriginalFootAllocation(WorldState state, ushort shape)
+    private bool IsAbsentFromOriginalAllocation(WorldState state, ushort shape)
     {
-        if (state.NativeFootRuntime is not { EntityType: 0 or 1, NormalObjects: null, StationTrains: null } || state.NativeGardenRuntime is not null || state.NativeRagnarokRuntime is not null)
+        bool sparseFoot = state.NativeFootRuntime is { EntityType: 0 or 1, NormalObjects: null, StationTrains: null };
+        bool sparseCar = state.NativeCarRuntime is { EntityType: 33, Allocation: null } && state.NativeFootRuntime is null;
+        if ((!sparseFoot && !sparseCar) || state.NativeGardenRuntime is not null || state.NativeRagnarokRuntime is not null)
         {
             return false;
         }

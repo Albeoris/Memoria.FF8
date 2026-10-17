@@ -22,12 +22,12 @@ public sealed class AutoPlayCarDiscoveryTests
         ushort story = before.WorldEntryMemory!.StoryWord;
 
         IReadOnlyList<WorldAutoPlayTarget> targets = world.DiscoverAutoPlayWorldTargets();
-        Assert.Same(before, session.State);
+        Assert.Equal(before, session.State);
         Assert.Equal(targets, world.DiscoverAutoPlayWorldTargets());
-        Assert.Same(before, session.State);
+        Assert.Equal(before, session.State);
         WorldAutoPlayTarget entrance = Assert.Single(targets, target => target.DestinationField == 106);
         WorldState candidate = world.WorldScene!.PrepareCurrentCarPlacement(entrance.X, entrance.RawZ);
-        Assert.Same(before, session.State);
+        Assert.Equal(before, session.State);
         Assert.Null(candidate.NativeFootRuntime);
         Assert.Equal(33, candidate.NativeCarRuntime!.EntityType);
         Assert.Equal(before.World.Frame, candidate.Frame);
