@@ -5,6 +5,12 @@ namespace Memoria.FF8;
 /// <summary>Traversal priorities and prerequisites for diagnostic coordinate exploration.</summary>
 internal static class AutoPlayTraversalPolicy
 {
+    public static int ProgressionEntryOrder(AutoPlayVisit visit, AutoPlayEvent item)
+    {
+        // NG-009: This authored entry follows the other reachable Garden frontiers.
+        return visit.Key == "137:142" && item.Id == "137:line:15" ? 1 : 0;
+    }
+
     public static int PhaseOrder(string region, int eventOrder = 0)
     {
         return region switch

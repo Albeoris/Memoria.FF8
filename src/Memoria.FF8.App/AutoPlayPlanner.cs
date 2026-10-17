@@ -83,13 +83,15 @@ internal sealed class AutoPlayPlannerState
 internal sealed class AutoPlayPlanner
 {
     private readonly Func<AutoPlayVisit, AutoPlayEvent, int> phaseOrder;
+    private readonly Func<AutoPlayVisit, AutoPlayEvent, int> progressionOrder;
 
     public AutoPlayPlannerState State { get; }
 
-    public AutoPlayPlanner(AutoPlayPlannerState? state = null, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder = null)
+    public AutoPlayPlanner(AutoPlayPlannerState? state = null, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder = null, Func<AutoPlayVisit, AutoPlayEvent, int>? progressionOrder = null)
     {
         State = state ?? new AutoPlayPlannerState();
         this.phaseOrder = phaseOrder ?? ((_, _) => 0);
+        this.progressionOrder = progressionOrder ?? ((_, _) => 0);
         foreach (AutoPlayEventCoverage item in State.Visits.SelectMany(visit => visit.Events))
         {
             NormalizeLegacyRoute(item);
@@ -291,7 +293,8 @@ internal sealed class AutoPlayPlanner
             }
         }
         var candidates = routes.Keys.SelectMany(key => OrderedEvents(FindVisit(key)).Where(NeedsExecution).Select(item => new { Visit = FindVisit(key), Coverage = item }));
-        var selected = candidates.OrderBy(item => item.Coverage.Event.ChangesStory)
+        var selected = candidates.OrderBy(item => progressionOrder(item.Visit.Visit, item.Coverage.Event))
+            .ThenBy(item => item.Coverage.Event.ChangesStory)
             .ThenBy(item => phaseOrder(item.Visit.Visit, item.Coverage.Event))
             .ThenBy(item => item.Visit.Visit.Region != current.Visit.Region)
             .ThenBy(item => item.Coverage.Event.Order)

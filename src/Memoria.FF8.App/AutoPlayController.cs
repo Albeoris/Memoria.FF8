@@ -105,7 +105,7 @@ internal sealed class AutoPlayController
         cold.StartNewGame();
         restore(cold.State);
         run = new();
-        planner = new(run.Coverage, (visit, item) => AutoPlayTraversalPolicy.PhaseOrder(visit.Region, item.Order));
+        planner = new(run.Coverage, (visit, item) => AutoPlayTraversalPolicy.PhaseOrder(visit.Region, item.Order), AutoPlayTraversalPolicy.ProgressionEntryOrder);
         runDirectory = Path.Combine(outputDirectory, time.GetUtcNow().ToString("yyyyMMdd-HHmmss-fffffff"));
         Directory.CreateDirectory(runDirectory);
         Running = true;
@@ -238,7 +238,7 @@ internal sealed class AutoPlayController
         run = saved;
         run.Error = null;
         run.LastProgressStep = run.Steps;
-        planner = new(run.Coverage, (visit, item) => AutoPlayTraversalPolicy.PhaseOrder(visit.Region, item.Order));
+        planner = new(run.Coverage, (visit, item) => AutoPlayTraversalPolicy.PhaseOrder(visit.Region, item.Order), AutoPlayTraversalPolicy.ProgressionEntryOrder);
         Running = true;
         Paused = false;
         Error = null;
