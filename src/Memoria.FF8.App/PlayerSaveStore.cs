@@ -83,7 +83,7 @@ internal sealed class PlayerSaveStore
         }
         if (slot != 0)
         {
-            session.Save(GetPath(slot), compact: false, validateContinuation);
+            session.Save(GetPath(slot), compact: true, validateContinuation);
             return;
         }
         List<QuickSaveFile> files = FindQuickSaves();
@@ -101,7 +101,7 @@ internal sealed class PlayerSaveStore
         {
             savedAt = files[0].SavedAtUtc.AddMilliseconds(1);
         }
-        session.Save(path, compact: false, candidate =>
+        session.Save(path, compact: true, candidate =>
         {
             validateContinuation?.Invoke(candidate);
             File.SetLastWriteTimeUtc(path + ".tmp", savedAt);

@@ -32,7 +32,7 @@ internal sealed partial class WorldMapScene
             if (State.EventUi?.Windows.LastOrDefault() is { } nativeMessage)
             {
                 NativeWorldMessage prepared = assets.ReadNativeWorldMessage(nativeMessage.WindowId, nativeMessage.MessageId);
-                if (prepared != (nativeMessage with { TextComplete = false }))
+                if (prepared != (nativeMessage with { TextComplete = false, Text = null }) || nativeMessage.Text is { } text && !text.Bytes.AsSpan().SequenceEqual(assets.ReadWorldMessageBytes(nativeMessage.MessageId)))
                 {
                     throw new InvalidDataException("The saved world message differs from its installed source.");
                 }

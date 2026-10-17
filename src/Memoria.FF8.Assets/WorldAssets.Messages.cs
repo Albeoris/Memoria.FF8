@@ -38,6 +38,29 @@ public sealed partial class WorldAssets
 
     public string ReadWorldMessage(int message)
     {
+        byte[] bytes = ReadWorldMessageBytes(message);
+        return FF8Encoding.CreateEuropean().GetString(bytes.AsSpan(0, bytes.Length - 1));
+    }
+
+    public short ReadWorldMessageSpeed(byte speed)
+    {
+        if (speed > 4)
+        {
+            throw new NotSupportedException("World message speed requires the original settings index0..4.");
+        }
+        byte[] executable = contactExecutable ??= GameDataResources.ReadNativeExecutable(resources);
+        if (Convert.ToHexString(SHA256.HashData(executable)) != NativeFieldRuntimeProfile.FF8EnExecutableHash)
+        {
+            throw new InvalidDataException("World text timing requires its authenticated original speed table.");
+        }
+        using PEReader reader = new(new MemoryStream(executable));
+        int rva = checked((int)(0xB8EE94 - reader.PEHeaders.PEHeader!.ImageBase) + 2 * speed);
+        SectionHeader section = reader.PEHeaders.SectionHeaders.Single(section => rva >= section.VirtualAddress && rva + 2 <= section.VirtualAddress + section.SizeOfRawData);
+        return BinaryPrimitives.ReadInt16LittleEndian(executable.AsSpan(rva - section.VirtualAddress + section.PointerToRawData, 2));
+    }
+
+    public byte[] ReadWorldMessageBytes(int message)
+    {
         //542DA0 binds20400C4 to zero-based section13;5438D0 reads its relative DWORD offsets.
         ReadOnlySpan<byte> section = wmset.AsSpan(sections[13], sections[14] - sections[13]);
         int tableBytes = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(section));
@@ -46,11 +69,15 @@ public sealed partial class WorldAssets
             throw new InvalidDataException("Original world message index or pointer table is invalid.");
         }
         int start = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(section.Slice(message * 4, 4)));
+        if (start < tableBytes || start >= section.Length)
+        {
+            throw new InvalidDataException("Original world message pointer is outside its text section.");
+        }
         int end = section.Slice(start).IndexOf((byte)0);
-        if (start < tableBytes || end < 0)
+        if (end < 0)
         {
             throw new InvalidDataException("Original world message has no bounded text terminator.");
         }
-        return FF8Encoding.CreateEuropean().GetString(section.Slice(start, end));
+        return section.Slice(start, end + 1).ToArray();
     }
 }

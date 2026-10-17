@@ -78,7 +78,7 @@ public sealed partial record NativeWorldSalaryState
         {
             throw new InvalidDataException("World callback lost a current salary process owner or its native movement bound.");
         }
-        return this with { Callbacks = checked(Callbacks + 1), MovementUnits = checked(MovementUnits + movementUnits), SeeD = result?.SeeD ?? SeeD, Economy = result?.Economy ?? Economy, Presentation = presentation, SoundProcess = soundProcess, VibrationProcess = vibration };
+        return this with { Callbacks = checked(Callbacks + 1), MovementUnits = checked(MovementUnits + movementUnits), SeeD = result?.SeeD ?? SeeD, Economy = result?.Economy ?? Economy, Presentation = presentation, SoundProcess = soundProcess, VibrationProcess = vibration, EventUi = EventUi?.AdvanceText(uiTicks) };
     }
 
     public GameState ApplyTo(GameState candidate, WorldState finalWorld)

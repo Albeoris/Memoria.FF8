@@ -29,7 +29,7 @@ internal sealed partial class WorldMapScene
         //PlayerAction is the digital input adapter; no analog controller axes are submitted.
         WorldFieldInputContext callbackInput = new(currentButtons, history.PreviousButtons, activity, -1, -1, -1, -1);
         WorldFieldSelectionInput input = new(accepted.X, accepted.Z, story, entityType);
-        WorldFieldSelection? selected = assets.WorldEvents.SelectWorldEvent(input, shape => IsNearWorldEventShape(accepted, cameraState, shape), flags, (opcode, operand) => EvaluateWorldEventPredicate(accepted, scriptMode, staged.SavedWorldEvents!, opcode, operand, callbackInput, staged.EventUi), (opcode, operand) => staged = staged.WithWorldEventCommand(opcode, operand, opcode == 0xFF1F ? assets.ReadNativeWorldMessage(unchecked((sbyte)operand), unchecked((byte)(operand >> 8))) : null));
+        WorldFieldSelection? selected = assets.WorldEvents.SelectWorldEvent(input, shape => IsNearWorldEventShape(accepted, cameraState, shape), flags, (opcode, operand) => EvaluateWorldEventPredicate(accepted, scriptMode, staged.SavedWorldEvents!, opcode, operand, callbackInput, staged.EventUi), (opcode, operand) => staged = staged.WithWorldEventCommand(opcode, operand, opcode == 0xFF1F ? PrepareWorldMessage(unchecked((sbyte)operand), unchecked((byte)(operand >> 8))) : null));
         byte modeAfterCommands = accepted.NativeRagnarokRuntime?.Transfer is not null ? scriptMode : staged.EventUi?.ScriptMode ?? scriptMode;
         if (selected is null && modeAfterCommands == 0)
         {
@@ -48,5 +48,18 @@ internal sealed partial class WorldMapScene
         }
         salary = staged;
         return selected;
+    }
+
+    private NativeWorldMessage PrepareWorldMessage(int window, int message)
+    {
+        byte speed = session.State.InputConfiguration?.FieldMessageSpeedByte ?? throw new NotSupportedException("World text requires its saved native field-message speed; migrate the historical input configuration explicitly.");
+        NativeWorldMessage binding = assets.ReadNativeWorldMessage(window, message);
+        byte[] bytes = assets.ReadWorldMessageBytes(message);
+        // TODO(TD-003): world page waits require the native focused-channel input owner.
+        if (bytes.Any(value => value is 1 or 7))
+        {
+            throw new NotSupportedException("World message pages require their executed native channel focus and input owner.");
+        }
+        return binding with { Text = NativeWorldTextState.Create(System.Collections.Immutable.ImmutableArray.CreateRange(bytes), assets.ReadWorldMessageSpeed(speed)) };
     }
 }

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Memoria.FF8.Runtime;
 using Microsoft.Xna.Framework.Input;
 
@@ -36,6 +37,31 @@ public sealed class PlayerSaveTests : IDisposable
         Assert.False(File.Exists(store.GetPath(emptySlot) + ".tmp"));
         store.Save(slot, session, candidate => Assert.Equal(20, candidate.X));
         Assert.Equal(20, store.Load(slot).X);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void Player_saves_compact_retained_memory_without_changing_roundtrip_state(int slot)
+    {
+        PlayerSaveStore store = CreateStore();
+        byte[] bytes = Enumerable.Range(0, 16384).Select(index => (byte)(index % 256)).ToArray();
+        NativeBattleRetainedMemory memory = NativeBattleRetainedMemory.FromColdProcess() with { FileStaging = NativeBattleFileStaging.Unknown().Write(NativeBattleFileStaging.Address, bytes) };
+        GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 180, FieldName = "bghoke_2", X = 12.5f, Y = 41, NativeBattleMemory = memory });
+        string indentedPath = Path.Combine(directory, "indented.json");
+        session.Save(indentedPath);
+        int validations = 0;
+        store.Save(slot, session, candidate =>
+        {
+            validations++;
+            Assert.Equal(JsonSerializer.Serialize(session.State), JsonSerializer.Serialize(candidate));
+        });
+        GameState restored = store.Load(slot);
+        Assert.Equal(1, validations);
+        Assert.Equal(JsonSerializer.Serialize(session.State), JsonSerializer.Serialize(restored));
+        Assert.Equal(bytes, restored.NativeBattleMemory!.FileStaging!.Read(NativeBattleFileStaging.Address, bytes.Length));
+        Assert.True(new FileInfo(store.GetPath(slot)).Length < new FileInfo(indentedPath).Length / 2);
+        Assert.False(File.Exists(store.GetPath(slot) + ".tmp"));
     }
 
     [Fact]
