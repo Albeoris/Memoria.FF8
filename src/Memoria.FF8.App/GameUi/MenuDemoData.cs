@@ -170,7 +170,7 @@ public static class MenuSettings
         new("Battle ATB mode", "Classic uses continuous ATB. Turn Based advances idle gauges when a turn is requested. Saved with the game; Title sets the new-game default.", ["Classic", "Turn Based"]),
         new("Gunblade trigger", "Automatic assists Squall/Seifer gunblade hits. Manual uses the Gunblade / Rotate right binding at contact (default G / RB).", ["Automatic", "Manual"]),
         new("Battle policy", "Apply immediately: instant victory wins encounters automatically; full combat enables playable battles.", ["Instant victory", "Full combat"]),
-        new("Rare card markers", "Show a small rotating card above opponents who can currently offer a unique card.", ["On", "Off"]),
+        new("Rare card markers", "Show a rotating card above opponents who can currently offer a rare Triple Triad card. On by default; shared by all saves.", ["On", "Off"]),
         new("Random encounters", "Enable or disable random encounters immediately in the running game.", ["On", "Off"]),
         new("Battle speed", "Original battle speed slider.", ["1", "2", "3", "4", "5"]),
         new("Battle message", "Original battle message speed slider.", ["1", "2", "3", "4", "5"]),

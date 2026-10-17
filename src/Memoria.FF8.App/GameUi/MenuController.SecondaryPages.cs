@@ -58,13 +58,13 @@ public sealed partial class MenuController
     private UiElement BuildSecondaryConfig()
     {
         bool newGame = ScreenId == "new-game-options";
-        var page = Grid([1.4f * TextScale, newGame ? 2.5f : 6.85f], [1], 8);
+        var page = Grid([1.4f * TextScale, newGame ? 3.5f : 6.85f], [1], 8);
         var header = Grid([1], [3.7f, 1.3f], 5);
-        string help = Message.Length > 0 ? Message : newGame ? "Choose your ATB mode. This choice is saved with the game." : SelectedEntry?.Help ?? "Select a setting.";
+        string help = Message.Length > 0 ? Message : SelectedEntry?.Help ?? CurrentScreen.Help;
         Place(header, Panel("HELP", new UiLabel { Text = help, FontSize = 18 * TextScale }), 0);
         Place(header, Panel(null, Label(ScreenId == "new-game-options" ? "New Game" : "Config", 27)), 0, 1);
         Place(page, header, 0);
-        int count = ScreenId == "new-game-options" ? 2 : ConfigRowsPerPage;
+        int count = newGame ? Entries.Count : ConfigRowsPerPage;
         int first = SelectedIndex / count * count;
         var content = Grid(newGame ? [1] : [1, 0.055f], [1], 4);
         var rows = new UiGrid { Columns = 1, Gap = 0 };
@@ -86,7 +86,7 @@ public sealed partial class MenuController
         if (newGame)
         {
             UiAnchorPanel modal = new();
-            page.Anchors = new UiAnchors(0.08f, 0.31f, 0.92f, 0.69f);
+            page.Anchors = new UiAnchors(0.08f, 0.25f, 0.92f, 0.75f);
             modal.Children.Add(page);
             return modal;
         }

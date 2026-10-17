@@ -35,7 +35,7 @@ public sealed partial class MenuController
         List<MenuEntry> entries = [];
         foreach (MenuSetting setting in MenuSettings.Definitions)
         {
-            if (ScreenId == "new-game-options" ? setting.Id != "Battle ATB mode" : ConfigCategory(setting.Id) != ScreenId["config-".Length..])
+            if (ScreenId == "new-game-options" ? setting.Id is not ("Battle ATB mode" or "Rare card markers") : ConfigCategory(setting.Id) != ScreenId["config-".Length..])
             {
                 continue;
             }
@@ -58,7 +58,7 @@ public sealed partial class MenuController
         }
         if (ScreenId == "new-game-options")
         {
-            entries.Add(new MenuEntry("begin", "Begin", "Start a new game with the selected ATB mode.", Action: new MenuAction("new-game-start")));
+            entries.Add(new MenuEntry("begin", "Begin", "Start a new game with the selected ATB mode and rare card markers. More settings are available in Config.", Action: new MenuAction("new-game-start")));
         }
         return entries;
     }

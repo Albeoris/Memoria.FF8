@@ -106,21 +106,50 @@ public sealed class ConfigSettingsTests
     }
 
     [Fact]
-    public void New_game_only_offers_atb_and_begin_and_does_not_start_on_selection()
+    public void New_game_offers_atb_and_card_markers_and_only_starts_on_begin()
     {
         MenuData data = new();
         data.Settings["Battle ATB mode"] = "Classic";
-        data.SupportedActions.UnionWith(["config:Battle ATB mode", "new-game-start"]);
+        data.Settings["Rare card markers"] = "On";
+        data.SupportedActions.UnionWith(["config:Battle ATB mode", "config:Rare card markers", "new-game-start"]);
         List<MenuAction> actions = [];
         MenuController controller = new(() => data, actions.Add);
         controller.Open("new-game-options");
-        Assert.Equal(["Battle ATB mode", "begin"], controller.Entries.Select(entry => entry.Id));
+        Assert.Equal(["Battle ATB mode", "Rare card markers", "begin"], controller.Entries.Select(entry => entry.Id));
         controller.Navigate(MenuInput.Right);
         Assert.Equal("Turn Based", Assert.Single(actions).Value);
         controller.Navigate(MenuInput.Down);
+        Assert.Contains("Triple Triad", controller.SelectedEntry!.Help);
+        controller.Navigate(MenuInput.Right);
+        Assert.Equal("Rare card markers", actions.Last().SubjectId);
+        Assert.Equal("Off", actions.Last().Value);
+        Assert.DoesNotContain(actions, action => action.Kind == "new-game-start");
+        controller.Navigate(MenuInput.Down);
         controller.Navigate(MenuInput.Confirm);
-        Assert.Equal(1, controller.SelectedIndex);
+        Assert.Equal(2, controller.SelectedIndex);
         Assert.Equal("new-game-start", actions.Last().Kind);
+    }
+
+    [Theory]
+    [InlineData("100%", 640, 448)]
+    [InlineData("150%", 1920, 1080)]
+    public void New_game_shows_both_settings_and_begin_together(string scale, int width, int height)
+    {
+        MenuController controller = new();
+        controller.Open("new-game-options", demo: true);
+        controller.Data.Settings["Text scale"] = scale;
+        UiView view = controller.BuildView();
+        view.Resize(width, height);
+        UiChoiceRow[] rows = Descendants(view.Root).OfType<UiChoiceRow>().ToArray();
+        Assert.Equal(["Battle ATB mode", "Rare card markers"], rows.Select(row => row.Id));
+        UiButton begin = Assert.Single(Descendants(view.Root).OfType<UiButton>(), button => button.Id == "begin");
+        foreach (UiElement row in rows.Cast<UiElement>().Append(begin))
+        {
+            Assert.True(row.Bounds.Height >= 24 * controller.TextScale);
+            Assert.True(row.Bounds.Y >= view.Root.Bounds.Y);
+            Assert.True(row.Bounds.Bottom <= view.Root.Bounds.Bottom);
+        }
+        Assert.True(rows[1].Bounds.Bottom <= begin.Bounds.Y);
     }
 
     [Fact]

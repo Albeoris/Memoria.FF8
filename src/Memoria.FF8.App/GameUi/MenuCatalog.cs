@@ -98,7 +98,7 @@ public static class MenuCatalog
         {
             Add("config-" + category.Item1, category.Item2, "Select a setting.", c => c.ConfigEntries());
         }
-        Add("new-game-options", "New Game", "Choose the battle rules for this game. Other options are available in Config.", c => c.ConfigEntries());
+        Add("new-game-options", "New Game", "Choose your ATB mode and whether to show rare Triple Triad card owners. More settings are available in Config.", c => c.ConfigEntries());
         controller.RegisterControlsScreens();
 
         Add("tutorial", "Tutorial", "Reference topics and SeeD test entry.", _ => [Link("tutorial-junction", "Junction", "GF, magic and ability junction concepts."), Link("tutorial-battle", "Battle", "Battle command concepts."), Link("tutorial-gf", "GF", "GF learning and junction concepts."), Link("tutorial-card", "Card", "Triple Triad concepts."), Link("tutorial-menu", "Menu", "Menu control reference."), Link("tutorial-seed", "SeeD test", "Original test bank is unsupported; isolated demo questions available.")], _ => ["Concept reference pages are rewritten summaries.", "These pages do not reproduce original tutorial scripts."], main: true);
