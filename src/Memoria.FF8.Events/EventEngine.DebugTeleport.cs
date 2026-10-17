@@ -3,7 +3,10 @@ using System.Numerics;
 namespace Memoria.FF8.Events;
 
 public readonly record struct FieldTeleportPosition(float X, float Y, float Z, int Triangle, int Direction = 0);
-public readonly record struct FieldTeleportContactResult(bool PlacementApplied, bool ContactTriggered, bool NativeInterrupted);
+public readonly record struct FieldTeleportContactResult(bool PlacementApplied, bool ContactTriggered, bool NativeInterrupted)
+{
+    public int? AdmittedGatewayIndex { get; init; }
+}
 
 public sealed partial class EventEngine
 {
@@ -36,6 +39,7 @@ public sealed partial class EventEngine
         ValidateDiagnosticPartyOwners();
         bool applied = false;
         bool triggered = false;
+        int? admittedGatewayIndex = null;
         Action? commitContacts = null;
         Action placement = () =>
         {
@@ -50,6 +54,8 @@ public sealed partial class EventEngine
             triggered = PlaceDiagnosticPlayer(target.X, target.Y, target.Z, target.Triangle, target.Direction, true, out commitContacts);
             applied = true;
         };
+        Action<int>? previousGatewayObserver = observeInfGatewayAdmission;
+        observeInfGatewayAdmission = index => admittedGatewayIndex = index;
         pendingNativePlayerInput = placement;
         try
         {
@@ -57,13 +63,14 @@ public sealed partial class EventEngine
         }
         finally
         {
+            observeInfGatewayAdmission = previousGatewayObserver;
             if (ReferenceEquals(pendingNativePlayerInput, placement))
             {
                 pendingNativePlayerInput = null;
             }
         }
         commitContacts?.Invoke();
-        return new FieldTeleportContactResult(applied, triggered, !applied);
+        return new FieldTeleportContactResult(applied, triggered, !applied) { AdmittedGatewayIndex = admittedGatewayIndex };
     }
 
     private static void ValidateDiagnosticPosition(FieldTeleportPosition position)

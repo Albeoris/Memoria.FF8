@@ -8,6 +8,8 @@ public sealed record InfAreaTrigger(Vector3 Start, Vector3 End, int AreaIndex, b
 
 public sealed partial class EventEngine
 {
+    private Action<int>? observeInfGatewayAdmission;
+
     public IReadOnlyList<InfGateway> InfGateways { get; set; } = [];
     public IReadOnlyList<InfAreaTrigger> InfAreaTriggers { get; set; } = [];
 
@@ -22,8 +24,11 @@ public sealed partial class EventEngine
         int radius = (ushort)player.PushRadius;
         int radiusSquared = radius * radius;
         InfGateway? selectedGateway = null;
+        int selectedGatewayIndex = -1;
+        int gatewayIndex = -1;
         foreach (InfGateway gateway in Scene.MapJumpDisabled ? [] : InfGateways)
         {
+            gatewayIndex++;
             if (gateway.Destination.FieldId == 0x7FFF || gateway.Destination.FieldId >= 72 && gateway.Destination.Triangle == 0xFFFF)
             {
                 continue;
@@ -38,6 +43,7 @@ public sealed partial class EventEngine
                 throw new NotSupportedException("Reached INF gateway requires an unproved world or sentinel arrival contract; movement and transition packet preserved.");
             }
             selectedGateway = gateway;
+            selectedGatewayIndex = gatewayIndex;
         }
         Action? gatewayCommit = selectedGateway is null ? null : PrepareInfGatewayAdmission(selectedGateway);
         List<(ActorState Actor, bool Contact, bool Entry, int InfIndex)> changes = [];
@@ -97,6 +103,7 @@ public sealed partial class EventEngine
         if (selectedGateway?.Destination.FieldId < 72)
         {
             gatewayCommit?.Invoke();
+            observeInfGatewayAdmission?.Invoke(selectedGatewayIndex);
         }
         foreach ((ActorState area, bool contact, bool entry, int infIndex) in changes)
         {
@@ -105,6 +112,7 @@ public sealed partial class EventEngine
         if (selectedGateway?.Destination.FieldId >= 72)
         {
             gatewayCommit?.Invoke();
+            observeInfGatewayAdmission?.Invoke(selectedGatewayIndex);
         }
     }
 

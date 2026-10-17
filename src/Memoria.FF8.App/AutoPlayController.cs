@@ -53,6 +53,7 @@ internal sealed class AutoPlayRunState
     public Dictionary<string, AutoPlayWorldAbsenceReceipt> WorldUnavailabilityGuards { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, AutoPlayVisitGuard> VisitGuards { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, AutoPlayNavigationReceipt> NavigationReceipts { get; set; } = new(StringComparer.Ordinal);
+    public List<AutoPlayContactInterruption> ContactInterruptions { get; set; } = [];
     public HashSet<string> InspectedVisitsSinceProgress { get; set; } = new(StringComparer.Ordinal);
     public string? RefreshTargetVisit { get; set; }
     public AutoPlaySurveyBaseline? SurveyBaseline { get; set; }
@@ -532,6 +533,10 @@ internal sealed partial class AutoPlayController
         run.ScriptedInputSteps = 0;
         string visit = VisitKey();
         IReadOnlyList<AutoPlayTarget> targets = world.DiscoverAutoPlayTargets();
+        if (run.ContactInterruptions.Count != 0)
+        {
+            targets = FilterInterruptedContactTargets(world, visit, CurrentNavigationKey(world, visit), targets);
+        }
         planner.Observe(new(visit, world.AutoPlayRegion), targets.GroupBy(target => target.CoverageId).Select(group =>
         {
             AutoPlayTarget target = group.First();
@@ -579,6 +584,7 @@ internal sealed partial class AutoPlayController
         int variantAttempt = 0;
         string BeforeVariant()
         {
+            RefreshUnavailable(world);
             BeginSurveySegment(world);
             if (variantAttempt++ == 0)
             {
@@ -588,23 +594,22 @@ internal sealed partial class AutoPlayController
             SaveBundle(name, CaptureState());
             return name + ".json";
         }
-        void ActivateTarget(AutoPlayTarget selected, string checkpoint)
+        void ActivateTarget(AutoPlayTarget selected, string checkpoint, AutoPlayContactSource source)
         {
-            RefreshUnavailable(world);
             planner.BeginEvent(visit, selected.CoverageId);
             run.ActiveVisit = visit;
             run.ActiveNavigationKey = navigation;
             run.ActiveEvent = selected.CoverageId;
-            run.ActiveField = world.Events.FieldId;
-            run.ActiveStory = world.Events.Variables.GetValueOrDefault(256);
+            run.ActiveField = source.FieldId;
+            run.ActiveStory = source.Story;
             run.ActiveObjectId = selected.ObjectId;
-            run.ActiveConditionSignature = world.ReadAutoPlayConditions(selected.CoverageId, selected.ObjectId).Fingerprint;
+            run.ActiveConditionSignature = source.ConditionSignature;
             run.ActiveSelections = [];
             run.ActiveTravelRoute = next.Route;
             run.ActiveBeforeCheckpoint = checkpoint;
             run.ActiveTargetId = selected.Id;
             run.ActiveAbsenceGuardKey = null;
-            run.ActiveAvailabilityFingerprint = run.Coverage.Visits.Single(item => item.Visit.Key == visit).Events.Single(item => item.Event.Id == selected.CoverageId).AvailabilityFingerprint;
+            run.ActiveAvailabilityFingerprint = source.AvailabilityFingerprint;
             run.ActiveObservedInput = null;
             run.ObserveContactInput = selected.Kind != AutoPlayTargetKind.Talk;
             run.ObservedControlLoss = false;
@@ -615,7 +620,8 @@ internal sealed partial class AutoPlayController
             bool accepted = false;
             foreach (AutoPlayTarget variant in variants)
             {
-                ActivateTarget(variant, BeforeVariant());
+                string checkpoint = BeforeVariant();
+                ActivateTarget(variant, checkpoint, CaptureContactSource(world, visit, navigation, variant));
                 world.Events.TeleportPlayer(variant.X, variant.Y, variant.Z, variant.Triangle, variant.Direction);
                 PlayerActionResult result = world.Apply(new(PlayerActionKind.Interact, variant.ObjectId));
                 if (result.Accepted)
@@ -638,9 +644,16 @@ internal sealed partial class AutoPlayController
         else
         {
             bool triggered = false;
+            bool skippedInterruptedVariant = false;
             foreach (AutoPlayTarget variant in variants)
             {
                 string checkpoint = BeforeVariant();
+                AutoPlayContactSource source = CaptureContactSource(world, visit, navigation, variant);
+                if (IsContactInterrupted(source, run.ContactInterruptions))
+                {
+                    skippedInterruptedVariant = true;
+                    continue;
+                }
                 FieldTeleportPosition? approach = null;
                 if (variant.ApproachX is float approachX && variant.ApproachY is float approachY)
                 {
@@ -661,7 +674,13 @@ internal sealed partial class AutoPlayController
                     Apply(new(PlayerActionKind.Wait));
                     return;
                 }
-                ActivateTarget(variant, checkpoint);
+                if (placement.AdmittedGatewayIndex is int gatewayIndex && !IsPlannedGateway(variant, gatewayIndex))
+                {
+                    RecordContactInterruption(world, source, gatewayIndex);
+                    Apply(new(PlayerActionKind.Wait));
+                    return;
+                }
+                ActivateTarget(variant, checkpoint, source);
                 bool contacted = placement.ContactTriggered;
                 if (variant.RequiresConfirm)
                 {
@@ -676,7 +695,10 @@ internal sealed partial class AutoPlayController
             }
             if (!triggered)
             {
-                planner.Block(visit, target.CoverageId, "None of the discovered coordinate approaches activated a native contact callback.");
+                if (!skippedInterruptedVariant)
+                {
+                    planner.Block(visit, target.CoverageId, "None of the discovered coordinate approaches activated a native contact callback.");
+                }
                 run.ActiveVisit = null;
                 run.ActiveNavigationKey = null;
                 run.ActiveEvent = null;

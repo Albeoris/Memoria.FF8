@@ -236,16 +236,50 @@ internal static partial class Program
             if (refuse)
             {
                 Require(refusedBefore is JsonElement before && JsonElement.DeepEquals(before, gate.Capture()) && session.State.WorldArrival is null && session.WorldControls == gateControls, "World gateway refusal mutated field contacts, XYZ or flags.");
+                gate.PrepareWorldTransition = original;
+                FieldTeleportContactResult retry = gate.TeleportPlayerAndDispatchContacts(new(1, 0, 0, 0, 64));
+                Require(retry is { PlacementApplied: true, NativeInterrupted: false, AdmittedGatewayIndex: 0 }, "A refused gateway left diagnostic admission state or pending input behind for a later successful call.");
             }
             else
             {
                 Require(prepares == 1 && session.State.WorldArrival == new WorldTransition(0, 0, 0) && gate.Actors[1].DoorLineEntryPending && gate.Scene.WorldTransitionRequest?.Gateway?.NativeRecord is not null && gate.NextTrigger.Kind == PlayerTriggerKind.WorldMap, "World gateway failed to commit original packet and deferred area contact: " + JsonSerializer.Serialize(new { prepares, transfer, playerBefore, gate.PlayerActor!.X, gate.PlayerActor.Y, gate.Scene.MapJumpDisabled, session.State.WorldArrival, Player = gate.PlayerActor.ObjectId, gate.IsUserControlEnabled, AreaPending = gate.Actors[1].DoorLineEntryPending, gate.NextTrigger }));
+                Require(transfer.AdmittedGatewayIndex == 0 && gate.Scene.WorldTransitionRequest?.Gateway?.NativeIndex == 2, "Diagnostic admission confused list index zero with missing admission or the original native gateway index.");
+                Require(!gate.Capture().GetRawText().Contains(nameof(FieldTeleportContactResult.AdmittedGatewayIndex), StringComparison.Ordinal), "Diagnostic gateway admission leaked into the native checkpoint schema.");
                 (EventEngine restored, _) = Create(gateProgram, known, contacts: true);
                 restored.InfGateways = [gateway];
                 restored.Restore(gate.Capture());
                 Require(JsonElement.DeepEquals(gate.Capture(), restored.Capture()), "INF request/full original record did not survive independent checkpoint restore.");
             }
         }
+        (EventEngine duplicateGate, GameSession duplicateSession) = Create(gateProgram, known, contacts: true);
+        duplicateGate.Step();
+        duplicateGate.InfGateways = [gateway, gateway with { NativeIndex = 7 }];
+        FieldTeleportContactResult duplicateTransfer = duplicateGate.TeleportPlayerAndDispatchContacts(new(1, 0, 0, 0, 64));
+        Require(duplicateTransfer.AdmittedGatewayIndex == 1 && duplicateSession.State.WorldArrival == new WorldTransition(0, 0, 0) && duplicateGate.Scene.WorldTransitionRequest?.Gateway?.NativeIndex == 7, "Diagnostic admission did not retain the last matching list index for identical packets with distinct original gateway indices.");
+
+        (EventEngine fieldGate, GameSession fieldSession) = Create(gateProgram, known, contacts: true);
+        fieldGate.Step();
+        byte[] fieldRaw = raw.ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(fieldRaw.AsSpan(18), 601);
+        fieldGate.InfGateways = [gateway with { Destination = new FieldTransition(601, 0, 0, 0, 0), NativeRecord = fieldRaw }];
+        FieldTeleportContactResult fieldTransfer = fieldGate.TeleportPlayerAndDispatchContacts(new(1, 0, 0, 0, 64));
+        Require(fieldTransfer.AdmittedGatewayIndex == 0 && fieldSession.State.FieldArrival?.FieldId == 601 && fieldGate.NextTrigger.Kind == PlayerTriggerKind.FieldTransition, "A successful ordinary field gateway did not report its actual list index after commit.");
+
+        byte[] scriptDeparture = SyntheticObjects([(16 << 7) | 2, 1],
+        [
+            player,
+            [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.WORLDMAPJUMP, 0), (Jsm.Opcode.RET, 0)],
+            [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.RET, 0)],
+            [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)],
+            [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.RET, 0)]
+        ]);
+        scriptDeparture[0] = 1;
+        scriptDeparture[3] = 1;
+        (EventEngine interrupted, GameSession interruptedSession) = Create(scriptDeparture, known, contacts: true);
+        interrupted.InfGateways = [gateway];
+        FieldTeleportContactResult interruptedTransfer = interrupted.TeleportPlayerAndDispatchContacts(new(1, 0, 0, 0, 64));
+        Require(interruptedTransfer is { PlacementApplied: false, NativeInterrupted: true, AdmittedGatewayIndex: null } && interruptedSession.State.Scene == SceneKind.WorldMap && interrupted.Scene.WorldTransitionRequest?.Origin == NativeWorldTransitionOrigin.Script && interrupted.PlayerActor?.X == -2, "An earlier scripted departure was misreported as the planned diagnostic gateway admission.");
+
         byte[] negativeMode = raw.ToArray();
         BinaryPrimitives.WriteInt16LittleEndian(negativeMode.AsSpan(16), -1);
         (EventEngine negativeGate, _) = Create(gateProgram, known, contacts: true);
@@ -279,7 +313,7 @@ internal static partial class Program
         disabledGate.InfAreaTriggers = [trigger];
         FieldTransition? originalArrival = disabledGateSession.State.FieldArrival;
         FieldTeleportContactResult disabledTransfer = disabledGate.TeleportPlayerAndDispatchContacts(new(1, 0, 0, 0, 64));
-        Require(disabledTransfer is { PlacementApplied: true, ContactTriggered: true, NativeInterrupted: false } && disabledGate.Scene.MapJumpDisabled && disabledGateSession.State.WorldArrival is null && disabledGateSession.State.FieldArrival == originalArrival && disabledGate.Actors[1].DoorLineEntryPending, "MAPJUMPOFF failed to suppress the entire world/field gateway scan while preserving the incoming packet and areas.");
+        Require(disabledTransfer is { PlacementApplied: true, ContactTriggered: true, NativeInterrupted: false, AdmittedGatewayIndex: null } && disabledGate.Scene.MapJumpDisabled && disabledGateSession.State.WorldArrival is null && disabledGateSession.State.FieldArrival == originalArrival && disabledGate.Actors[1].DoorLineEntryPending, "MAPJUMPOFF failed to suppress the entire world/field gateway scan while preserving the incoming packet and areas.");
         Console.WriteLine("Native world transitions: enabled low-WORD script packet with atomic preflight and two flag stages; disabled sticky issuing-PC wait survives later enable/restore; full indexed INF record, gateway refusal and disabled scan preserve area/field transaction boundaries.");
     }
 }
