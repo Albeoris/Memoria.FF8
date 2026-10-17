@@ -80,11 +80,25 @@ public sealed record NativeDrawPointParticles([property: JsonRequired] int Versi
         }
     }
 
-    /// <summary>471F70's4745D0 followed by474740; previous anchors are process memory, cold process anchors are zero.</summary>
+    /// <summary>Creates an inactive pool; previous anchors are process memory, cold process anchors are zero.</summary>
     public static NativeDrawPointParticles Initialize(NativeDrawPointParticles? previous, byte phase, NativeDrawPointParticleTables tables)
     {
         previous?.Validate();
         return new NativeDrawPointParticles(1, Enumerable.Range(0, 8).Select(index => Spawn(index, previous?.Sparks[index].Anchor ?? default, phase, tables) with { Status = 0 }).ToImmutableArray(), previous?.Palette ?? 0);
+    }
+
+    public NativeDrawPointParticles ClearForFieldLoad()
+    {
+        Validate();
+        return this with { Sparks = Sparks.Select(spark => spark with { Status = 0, RenderStatus = 0 }).ToImmutableArray(), Drawings = [] };
+    }
+
+    public NativeDrawPointParticles InitializeCurves(byte phase, NativeDrawPointParticleTables tables)
+    {
+        Validate();
+        // 471F70 initializes curves after 52BC00 has executed the field init scripts.
+        // 4745D0 retains the statuses and anchors written by SETDRAWPOINT.
+        return this with { Sparks = Sparks.Select((spark, index) => Spawn(index, spark.Anchor, phase, tables) with { Status = spark.Status }).ToImmutableArray(), Drawings = [] };
     }
 
     public NativeDrawPointParticles ResetAnchors(int x, int y, int z)

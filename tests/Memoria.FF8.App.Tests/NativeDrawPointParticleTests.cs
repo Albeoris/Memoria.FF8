@@ -11,6 +11,43 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeDrawPointParticleTests
 {
+    [Theory]
+    [InlineData(0, 0, 0)]
+    [InlineData(1495, 1261, 24)]
+    public void FieldLoadInitializesTrailsAfterTheSetupScriptWithoutClearingItsStatus(int previousX, int previousY, int previousZ)
+    {
+        NativeDrawPointParticleTables tables = Tables();
+        GameSession session = new(new GameState());
+        session.SetExamTimer(NativeExamTimerState.FromColdProcess());
+        EventEngine engine = new(session) { DrawPointParticleTables = tables };
+        engine.RestartNativeDrawPointPresentationForMigration();
+        engine.LoadField(133, Program((Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, previousX), (Jsm.Opcode.PSHN_L, previousY), (Jsm.Opcode.PSHN_L, previousZ), (Jsm.Opcode.SET3, 3), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SETDRAWPOINT, 0), (Jsm.Opcode.RET, 0)), []);
+        engine.Step();
+        engine.LoadField(134, Program((Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 1495), (Jsm.Opcode.PSHN_L, 1261), (Jsm.Opcode.PSHN_L, 24), (Jsm.Opcode.SET3, 3), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SETDRAWPOINT, 0), (Jsm.Opcode.RET, 0)), []);
+        Assert.All(engine.Scene.NativeDrawPointParticles!.Sparks, spark => Assert.Equal(0, spark.Status));
+        engine.Step();
+        Assert.Null(engine.LastFault);
+        NativeDrawPointParticles particles = engine.Scene.NativeDrawPointParticles!;
+        NativeSparkPoint anchor = new(1495, 1261, 24);
+        Assert.Empty(particles.Drawings);
+        Assert.All(particles.Sparks, spark =>
+        {
+            Assert.Equal(1, spark.Status);
+            Assert.Equal(anchor, spark.Anchor);
+            Assert.Equal(new NativeSparkPoint(1495, 1261, 152), spark.Target);
+            Assert.Equal(88, spark.Control.Z);
+            Assert.Equal(0, spark.Counter);
+            Assert.All(spark.FirstEdge, point => Assert.Equal(anchor, point));
+            Assert.All(spark.SecondEdge, point => Assert.Equal(anchor, point));
+        });
+        NativeDrawPointParticles restored = JsonSerializer.Deserialize<NativeDrawPointParticles>(JsonSerializer.Serialize(particles))!;
+        Assert.Equal(JsonSerializer.Serialize(particles.Step(30, tables)), JsonSerializer.Serialize(restored.Step(30, tables)));
+        engine.LoadField(135, Program((Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)), []);
+        engine.Step();
+        Assert.All(engine.Scene.NativeDrawPointParticles!.Sparks, spark => Assert.Equal(0, spark.Status));
+        Assert.Empty(engine.Scene.NativeDrawPointParticles!.Step(30, tables).Drawings);
+    }
+
     [Fact]
     public void SetupChangesOnlyAnchorsAndStatusWhileLaunchOwnsTheExactNativeFlight()
     {

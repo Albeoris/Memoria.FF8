@@ -32,7 +32,7 @@ public sealed partial class EventEngine
     {
         if (DrawPointParticleTables is not null && (previousScene.NativeDrawPointParticles is not null || coldProcess))
         {
-            Scene.NativeDrawPointParticles = NativeDrawPointParticles.Initialize(previousScene.NativeDrawPointParticles, DrawPointParticlePhase(), DrawPointParticleTables);
+            Scene.NativeDrawPointParticles = previousScene.NativeDrawPointParticles?.ClearForFieldLoad() ?? NativeDrawPointParticles.Initialize(null, DrawPointParticlePhase(), DrawPointParticleTables);
         }
     }
 
