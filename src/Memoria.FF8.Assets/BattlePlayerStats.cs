@@ -7,7 +7,7 @@ namespace Memoria.FF8.Assets;
 public sealed record BattlePlayerStats(int Strength, int Vitality, int Magic, int Spirit, int Speed, int Luck, int Hit, int Evasion, int[] ElementDefenses, int ElementAttack, int ElementAttackPercent);
 
 /// <summary>Copies original kernel inputs for the shared native runtime player-stat projector.</summary>
-internal sealed class BattlePlayerStatReader(byte[] kernel)
+public sealed class BattlePlayerStatReader(byte[] kernel)
 {
     public BattlePlayerStats Read(NativeCharacterVitals vitals, int row)
     {
@@ -21,7 +21,7 @@ internal sealed class BattlePlayerStatReader(byte[] kernel)
     {
         vitals.Validate();
         NativeCharacterVital character = vitals.Records[row];
-        int weapon = character.CharacterId >= 8 ? vitals.DreamWeapons[character.CharacterId - 8] : character.Weapon;
+        int weapon = vitals.DreamEnabled && character.CharacterId >= 8 ? vitals.DreamWeapons[character.CharacterId - 8] : character.Weapon;
         BattleNativePlayerStatRules rules = new(character.CharacterId, NativeStatDefinitions.Level(character.Experience, vitals.Definitions.Characters[character.CharacterId]), Record(6, character.CharacterId, 36).ToArray().ToImmutableArray(), Record(4, weapon, 12).ToArray().ToImmutableArray(), Enumerable.Range(0, 57).Select(index => Record(1, index, 60).ToArray().ToImmutableArray()).ToImmutableArray(), Enumerable.Range(0, 19).Select(index => Record(13, index, 8).ToArray().ToImmutableArray()).ToImmutableArray(), character.Junction.MagicJunctions.ToImmutableArray(), character.Junction.Abilities, vitals.Definitions);
         uint statusPassiveFlags = 0;
         for (int slot = 0; slot < 4; slot++)

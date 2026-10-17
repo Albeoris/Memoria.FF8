@@ -608,7 +608,7 @@ public sealed partial class MenuController
                 Message = $"Unsupported native contract: {action.Kind}. This view remains read-only.";
                 return;
             }
-            if (action.Kind is "junction-gf" or "junction-command" or "junction-ability" or "junction-magic" or "junction-off" && Character is null)
+            if (action.Kind is "junction-gf" or "junction-command" or "junction-ability" or "junction-magic" or "junction-off" or "junction-auto" && Character is null)
             {
                 Message = "Selected character data is unavailable.";
                 return;
@@ -618,6 +618,7 @@ public sealed partial class MenuController
                 "item-use" => action with { SubjectId = Item?.Id ?? "" },
                 "junction-gf" => action with { TargetId = Character?.Id ?? "" },
                 "junction-off" => action with { TargetId = Character?.Id ?? "" },
+                "junction-auto" => action with { TargetId = Character?.Id ?? "" },
                 "junction-command" => action with { TargetId = Character?.Id ?? "", Value = (_commandSlot - 1).ToString(System.Globalization.CultureInfo.InvariantCulture) },
                 "junction-ability" => action with { TargetId = Character?.Id ?? "", Value = _abilitySlot.ToString(System.Globalization.CultureInfo.InvariantCulture) },
                 "junction-magic" => action with { TargetId = Character?.Id ?? "", Value = _junctionSlot },
@@ -639,7 +640,13 @@ public sealed partial class MenuController
                 ScreenId = "item-use";
                 _itemId = "";
             }
-            Message = action.Kind == "config" ? "" : "Request sent to the live owner.";
+            if (action.Kind is "junction-magic" or "junction-auto")
+            {
+                ScreenId = _history.TryPop(out string? previous) ? previous : action.Kind == "junction-auto" ? "junction" : "junction-magic";
+                ScreenOpened?.Invoke(ScreenId);
+                _view = null;
+            }
+            Message = action.Kind is "config" or "junction-magic" or "junction-gf" or "junction-off" or "junction-auto" ? "" : "Request sent to the live owner.";
             return;
         }
         ApplyDemo(action);

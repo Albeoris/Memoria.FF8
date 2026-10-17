@@ -56,6 +56,8 @@ public sealed class MenuCharacter
     public int AbilitySlots { get; set; } = 2;
     public HashSet<string> AvailableJunctionSlots { get; } = new(StringComparer.Ordinal);
     public List<string> GuardianForceIds { get; } = [];
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Func<string, string, IReadOnlyDictionary<string, int>>? JunctionPreview { get; set; }
     public Dictionary<string, int> Stats { get; } = new(StringComparer.Ordinal);
     public Dictionary<string, string> Junctions { get; } = new(StringComparer.Ordinal);
     public List<MenuLimitMove> LimitMoves { get; } = [];
@@ -83,6 +85,7 @@ public sealed class MenuGuardianForce
     public int? CurrentHp { get; set; }
     public int? MaximumHp { get; set; }
     public int? Experience { get; set; }
+    public int? NextLevelExperience { get; set; }
     public int? AbilityPoints { get; set; }
     public string Learning { get; set; } = "Unavailable";
     public string Element { get; set; } = "Unavailable";
@@ -156,6 +159,7 @@ public sealed class MenuBattleTarget
 public sealed class MenuBattleRewards
 {
     public Dictionary<string, int> CharacterExperience { get; } = new(StringComparer.Ordinal);
+    public int? NextLevelExperience { get; set; }
     public int? AbilityPoints { get; set; }
     public int? Currency { get; set; }
     public List<MenuItem> Items { get; } = [];

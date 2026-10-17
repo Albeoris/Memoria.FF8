@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using Memoria.FF8.Assets;
 using Albeoris.Games.FF8.FlArchives;
@@ -48,6 +49,52 @@ public sealed class BattleEnemyNativeStatsTests
         Assert.Equal(10, BattleEnemyNativeStats.ResolveLevel(254, [9, 10, 11], roll));
     }
 
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(99, 100)]
+    [InlineData(100, 1)]
+    [InlineData(199, 100)]
+    [InlineData(255, 56)]
+    public void UniformRandomLevelDoesNotRequireOrReadPartyLevels(byte roll, int expected)
+    {
+        Assert.Equal(expected, BattleEnemyNativeStats.ResolveLevel(252, [], roll));
+        Assert.Equal(expected, BattleEnemyNativeStats.ResolveLevel(252, [0, 255], roll));
+    }
+
+    [Theory]
+    [InlineData(254, 0, 0, 1)]
+    [InlineData(255, 0, 0, 1)]
+    [InlineData(255, 1, 0, 1)]
+    [InlineData(251, 0, 3, 1)]
+    [InlineData(253, 1, 255, 1)]
+    public void MinimumPartyLevelPreservesNativeOneFloor(byte code, byte first, byte second, int expected)
+    {
+        Assert.Equal(expected, BattleEnemyNativeStats.ResolveLevel(code, [1], first, second));
+    }
+
+    [Theory]
+    [InlineData(255, 0, 0, 80)]
+    [InlineData(255, 1, 0, 100)]
+    [InlineData(251, 0, 3, 65)]
+    [InlineData(251, 1, 3, 65)]
+    [InlineData(253, 1, 199, 99)]
+    [InlineData(253, 0, 159, 79)]
+    [InlineData(201, 1, 0, 100)]
+    public void MaximumPartyLevelPreservesCapsAndExclusiveRemainder(byte code, byte first, byte second, int expected)
+    {
+        Assert.Equal(expected, BattleEnemyNativeStats.ResolveLevel(code, [100], first, second));
+    }
+
+    [Fact]
+    public void PartyAverageTruncatesOnceBeforeVariationAndCountsEveryPresentMember()
+    {
+        Assert.Equal(10, BattleEnemyNativeStats.ResolveLevel(254, [9, 10, 13], 0));
+        Assert.Equal(8, BattleEnemyNativeStats.ResolveLevel(255, [9, 10, 13], 0));
+        Assert.Equal(12, BattleEnemyNativeStats.ResolveLevel(255, [9, 10, 13], 1));
+        Assert.Equal(6, BattleEnemyNativeStats.ResolveLevel(254, [1, 12], 0));
+        Assert.Equal(4, BattleEnemyNativeStats.ResolveLevel(254, [4], 0));
+    }
+
     [Fact]
     public void NativeRowsPreserveEveryIntegerDivisionAndElementScale()
     {
@@ -61,6 +108,45 @@ public sealed class BattleEnemyNativeStatsTests
         Assert.Equal(81, result.Speed);
         Assert.Equal(100, result.Evasion);
         Assert.Equal(stats.ElementDefenses, result.ElementDefenses);
+    }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(11)]
+    public void OriginalDirectoriesSelectInformationRowsAndScaleElementBytes(int sectionCount)
+    {
+        const int information = 64;
+        byte[] dat = new byte[information + 360];
+        BinaryPrimitives.WriteInt32LittleEndian(dat, sectionCount);
+        BinaryPrimitives.WriteInt32LittleEndian(dat.AsSpan(sectionCount == 11 ? 28 : 4), information);
+        dat[information + 24] = 2;
+        dat[information + 25] = 3;
+        dat[information + 26] = 4;
+        dat[information + 27] = 5;
+        for (int index = 0; index < 24; index++)
+        {
+            dat[information + 28 + index] = (byte)(index + 1);
+        }
+        new byte[] { 0, 80, 90, 100, 120, 150, 200, 255 }.CopyTo(dat, information + 352);
+
+        BattleEnemyNativeStats stats = BattleEnemyNativeStats.ReadMonster(dat);
+
+        Assert.Equal(new byte[] { 2, 3, 4, 5 }, stats.HpCoefficients);
+        Assert.Equal(Enumerable.Range(1, 24).Select(value => (byte)value), stats.StatCoefficients);
+        Assert.Equal(new short[] { 0, 800, 900, 1000, 1200, 1500, 2000, 2550 }, stats.ElementDefenses);
+        Assert.Equal(9060, stats.Project(10).MaximumHp);
+    }
+
+    [Fact]
+    public void MaximumNativeCoefficientsPreserveDwordHpAndUpperByteStatCaps()
+    {
+        BattleEnemyNativeStats stats = new([255, 255, 255, 255], Enumerable.Repeat((byte)255, 24).ToImmutableArray(), Enumerable.Repeat((short)800, 8).ToImmutableArray());
+
+        BattleEnemyNativeProjection result = stats.Project(100);
+
+        Assert.Equal(2960550, result.MaximumHp);
+        Assert.Equal(new[] { 255, 255, 255, 255, 255, 255 }, result.BaseStatistics);
+        Assert.Equal(new[] { 255, 255, 255, 255, 255, 255 }, new[] { result.Strength, result.Vitality, result.Magic, result.Spirit, result.Speed, result.Evasion });
     }
 
     [Theory]

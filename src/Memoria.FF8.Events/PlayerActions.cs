@@ -36,7 +36,8 @@ public enum PlayerActionKind
     TriadTradeCard,
     RemoveJunctions,
     UseFieldMagic,
-    TransferMagic
+    TransferMagic,
+    AutoJunction
 }
 
 public enum PlayerTriggerKind

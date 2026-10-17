@@ -81,6 +81,10 @@ public sealed partial class MenuController
 
     private UiElement BuildJunction()
     {
+        if (ScreenId is "junction-magic" or "junction-stock" or "junction-element" or "junction-status")
+        {
+            return BuildMagicJunction();
+        }
         var page = Grid([1.45f, 2.7f, 1.8f], [1], 4);
         UiElement tabs;
         if (ScreenId == "junction")
@@ -135,6 +139,49 @@ public sealed partial class MenuController
             Place(selection, Panel(null, JunctionSelectionDetails()), 0, 1);
             Place(page, selection, 2);
         }
+        return page;
+    }
+
+    private UiElement BuildMagicJunction()
+    {
+        var page = Grid([1.35f, 0.8f, 5.5f], [1], 4);
+        Place(page, NativeMenuHeader("Junction", Label("Magic", 25)), 0);
+        Place(page, Panel(null, Label($"{Character?.Name ?? "--"}    Lv {Number(Character?.Level)}    HP {(Character is null ? "--" : Hp(Character))}", 24)), 1);
+        var body = Grid([1], [1, 1], 4);
+        Place(page, body, 2);
+        bool choosingSpell = ScreenId == "junction-stock";
+        Place(body, Panel(choosingSpell ? "MAGIC STOCK" : "JUNCTION", Commands(29, 21)), 0, choosingSpell ? 1 : 0);
+        IReadOnlyDictionary<string, int>? preview = choosingSpell && SelectedEntry is { Enabled: true, Action.Kind: "junction-magic" } entry ? Character?.JunctionPreview?.Invoke(_junctionSlot, entry.Action.SubjectId) : null;
+        var details = Grid([0.7f, 5, 0.65f], [1], 2);
+        string selection = choosingSpell ? $"{_junctionSlot}    {SelectedEntry?.Label ?? "--"}" : SelectedEntry?.Label ?? "--";
+        Place(details, Label(selection, 21), 0);
+        var stats = Grid(Enumerable.Repeat(1f, 9).ToArray(), [1], 0);
+        string[] names = ["HP", "Str", "Vit", "Mag", "Spr", "Spd", "Eva", "Hit", "Luck"];
+        for (int index = 0; index < names.Length; index++)
+        {
+            string name = names[index];
+            var row = Grid([1], [0.7f, 1.8f, 2.1f], 3);
+            Place(stats, row, index);
+            Place(row, Label(name, 21), 0);
+            Place(row, Label(Character?.Junctions.GetValueOrDefault(name, "----") ?? "----", 20), 0, 1);
+            int? current = name == "HP" ? Character?.MaximumHp : Character?.Stats.TryGetValue(name, out int value) == true ? value : null;
+            int? projected = preview?.TryGetValue(name, out int next) == true ? next : null;
+            string display = Number(current);
+            if (projected is int after && current is int before && after != before)
+            {
+                display += $" → {after}";
+            }
+            UiLabel label = Label(display, 20);
+            label.Id = "junction-value-" + name;
+            if (projected is int changed && current is int previous && changed != previous)
+            {
+                label.Color = changed > previous ? new UiColor(120, 190, 255) : new UiColor(255, 120, 120);
+            }
+            Place(row, label, 0, 2);
+        }
+        Place(details, stats, 1);
+        Place(details, Label(choosingSpell ? "Current → Preview    Confirm to apply" : "Select a stat to choose its magic", 17), 2);
+        Place(body, Panel("STATUS", details), 0, choosingSpell ? 0 : 1);
         return page;
     }
 

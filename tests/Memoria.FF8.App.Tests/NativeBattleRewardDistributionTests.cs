@@ -67,6 +67,27 @@ public sealed class NativeBattleRewardDistributionTests
     }
 
     [Fact]
+    public void DefeatedGuardianForceLosesItsKillerExperienceAndStillCountsInTheSharedDivisor()
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).AcquireGuardianForce(1).ToggleGuardianForceJunction(0, 0).ToggleGuardianForceJunction(0, 1).RebuildParty().Rest();
+        byte level = NativeStatDefinitions.Level(vitals.Records[0].Experience, vitals.Definitions.Characters[vitals.Records[0].CharacterId]);
+        NativeGuardianForceVital[] guardianForces = vitals.GuardianForces.ToArray();
+        guardianForces[0] = guardianForces[0] with { HitPoints = 0 };
+        vitals = vitals with { GuardianForces = guardianForces };
+        uint beforeExperience = vitals.GuardianForces[0].Experience;
+        BattleEnemyDefeat defeat = new(0, level, BattleDefeatCredit.GuardianForce, 0, 0, false, -1) { NativeCommand = 254 };
+
+        BattleExperienceAwards awards = NativeBattleRewardDistribution.Experience([defeat], vitals, new Dictionary<int, BattleEnemyRewardDefinition> { [0] = Definition() }, false);
+
+        Assert.Equal((ushort)80, awards.Characters[0]);
+        Assert.False(awards.GuardianForces.ContainsKey(0));
+        Assert.Equal((ushort)40, awards.GuardianForces[1]);
+        Assert.Equal(new[] { 1 }, BattleResultProjection.EligibleGuardianForces(vitals));
+        Assert.Equal(beforeExperience, vitals.GuardianForces[0].Experience);
+    }
+
+    [Fact]
     public void SelectedCurrentItemAndCardRewardsUseCanonicalCapsAndLeaveSourceOwnersUntouched()
     {
         using GameAssets assets = new(TestResources.GameDirectory);

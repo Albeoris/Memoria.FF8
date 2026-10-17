@@ -34,7 +34,7 @@ public sealed partial class MenuController
         Place(identity, Artwork(UiImageKind.GuardianForcePortrait, GuardianForce?.NativeId), 0, 0);
         Place(identity, Lines([GuardianForce?.Name ?? "--", $"Lv    {Number(GuardianForce?.Level)}", $"HP    {Number(GuardianForce?.CurrentHp)}/{Number(GuardianForce?.MaximumHp)}"], 25), 0, 1);
         Place(summary, identity, 0);
-        Place(summary, Lines([$"Current EXP    {Number(GuardianForce?.Experience)}", "Next LEVEL    --"], 24), 1);
+        Place(summary, Lines([$"Current EXP    {Number(GuardianForce?.Experience)}", $"Next LEVEL    {Number(GuardianForce?.NextLevelExperience)}"], 24), 1);
         MenuAbilityChoice? learning = GuardianForce?.LearningChoices.FirstOrDefault(choice => choice.Name == GuardianForce.Learning);
         Place(summary, Lines(["Learning", GuardianForce?.Learning ?? "--", learning is null ? $"AP    {Number(GuardianForce?.AbilityPoints)}" : $"{learning.Progress} / {learning.RequiredPoints} AP"], 25), 2);
         Place(body, summary, 0, 0);

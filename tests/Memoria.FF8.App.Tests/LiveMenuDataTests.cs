@@ -128,7 +128,10 @@ public sealed class LiveMenuDataTests
         Assert.Null(squall.CurrentHp);
         Assert.Equal("1..10", squall.HpDisplay);
         Assert.Equal(vitals.Definitions.CharacterMaximum(rows[0]), squall.MaximumHp);
-        Assert.Empty(squall.Stats);
+        Assert.Equal(9, squall.Stats.Count);
+        Assert.Equal(squall.MaximumHp, squall.Stats["HP"]);
+        Assert.NotNull(squall.NextLevelExperience);
+        Assert.NotNull(data.GuardianForces.Single().NextLevelExperience);
         Assert.Equal("Zell", data.Characters.Single(character => character.Id == "character-1").Name);
         NativeCharacterVitals allMembers = vitals.WithMemberFlags(2, true).WithMemberFlags(4, true);
         MenuData namedParty = LiveMenuData.Build(state with { CharacterVitals = allMembers }, new Dictionary<int, string> { [1] = "Renamed Rinoa", [2] = "Renamed Angelo" }, catalog);

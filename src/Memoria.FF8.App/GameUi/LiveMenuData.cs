@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Albeoris.Games.FF8.FlArchives;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Albeoris.Games.FF8.KernelBin;
@@ -66,7 +67,7 @@ public static class LiveMenuData
                     HpDisplay = native.HitPoints.Minimum == native.HitPoints.Maximum ? native.HitPoints.Minimum.ToString(System.Globalization.CultureInfo.InvariantCulture) : $"{native.HitPoints.Minimum}..{native.HitPoints.Maximum}",
                     MaximumHp = vitals.Definitions.CharacterMaximum(native),
                     Experience = native.Experience <= int.MaxValue ? (int)native.Experience : null,
-                    Weapon = catalog?.WeaponName(native.CharacterId >= 8 ? vitals.DreamWeapons[native.CharacterId - 8] : native.Weapon) ?? $"Weapon {(native.CharacterId >= 8 ? vitals.DreamWeapons[native.CharacterId - 8] : native.Weapon)}"
+                    Weapon = catalog?.WeaponName(vitals.DreamEnabled && native.CharacterId >= 8 ? vitals.DreamWeapons[native.CharacterId - 8] : native.Weapon) ?? $"Weapon {(vitals.DreamEnabled && native.CharacterId >= 8 ? vitals.DreamWeapons[native.CharacterId - 8] : native.Weapon)}"
                 };
                 if (native.Status != 0)
                 {
@@ -103,7 +104,27 @@ public static class LiveMenuData
                         character.AvailableAbilities.Add(choice);
                     }
                 }
-                // Non-HP combat formulas are outside the proved native contract; empty stats render as unavailable.
+                character.NextLevelExperience = ExperienceToNextLevel(native.Experience, vitals.Definitions.Characters[native.CharacterId]);
+                if (catalog is not null)
+                {
+                    int characterRow = row;
+                    foreach (var stat in Statistics(catalog.ReadStatRules(vitals, row), native))
+                    {
+                        character.Stats.Add(stat.Key, stat.Value);
+                    }
+                    character.JunctionPreview = (slotName, spellId) =>
+                    {
+                        int slot = Enumerable.Range(0, 19).Single(index => JunctionSlotName(index) == slotName);
+                        string prefix = $"magic-{characterRow}-";
+                        if (spellId != "0" && !spellId.StartsWith(prefix, StringComparison.Ordinal))
+                        {
+                            throw new ArgumentException("Junction preview requires the selected character's stock.", nameof(spellId));
+                        }
+                        int spell = spellId == "0" ? 0 : int.Parse(spellId.AsSpan(prefix.Length), System.Globalization.CultureInfo.InvariantCulture);
+                        NativeCharacterVitals preview = vitals.SetJunctionMagic(characterRow, slot, spell);
+                        return Statistics(catalog.ReadStatRules(preview, characterRow), preview.Records[characterRow]);
+                    };
+                }
                 for (int slot = 0; slot < native.Junction.MagicJunctions.Length; slot++)
                 {
                     if (vitals.JunctionMagicSlotAvailable(row, slot))
@@ -144,6 +165,7 @@ public static class LiveMenuData
                     CurrentHp = native.HitPoints,
                     MaximumHp = vitals.Definitions.GuardianForceMaximum(id, native),
                     Experience = native.Experience <= int.MaxValue ? (int)native.Experience : null,
+                    NextLevelExperience = ExperienceToNextLevel(native.Experience, vitals.Definitions.GuardianForces[id]),
                     Learning = native.Learning == 0 ? "--" : catalog?.AbilityName(native.Learning) ?? $"Ability {native.Learning}"
                 };
                 foreach (NativeGuardianForceAbility entry in vitals.GuardianForceAbilities(id))
@@ -162,7 +184,7 @@ public static class LiveMenuData
             }
             if (state.Scene is SceneKind.Field or SceneKind.WorldMap)
             {
-                result.SupportedActions.UnionWith(["junction-gf", "junction-command", "junction-ability", "junction-magic", "junction-off", "gf-learn", "magic-transfer"]);
+                result.SupportedActions.UnionWith(["junction-gf", "junction-command", "junction-ability", "junction-magic", "junction-off", "junction-auto", "gf-learn", "magic-transfer"]);
             }
         }
         if (state.CardInventory is { } cards)
@@ -209,6 +231,29 @@ public static class LiveMenuData
     }
 
     private static string Rank(int value) => value == 10 ? "A" : value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    internal static int ExperienceToNextLevel(uint experience, NativeStatCurve curve)
+    {
+        int level = NativeStatDefinitions.Level(experience, curve);
+        return level == 100 ? 0 : checked((int)(10L * level * curve.ExperienceStep + (long)level * level * curve.ExperienceFraction / 256 - experience));
+    }
+
+    private static Dictionary<string, int> Statistics(BattleNativePlayerStatRules rules, NativeCharacterVital character)
+    {
+        BattleNativePlayerStatistics stats = rules.Project(character.MagicInventory, new BattleNativeCharacterGrowth(character.HitPointBonus, character.StatBonuses.ToImmutableArray()));
+        return new(StringComparer.Ordinal)
+        {
+            ["HP"] = stats.MaximumHp,
+            ["Str"] = stats.Strength,
+            ["Vit"] = stats.Vitality,
+            ["Mag"] = stats.Magic,
+            ["Spr"] = stats.Spirit,
+            ["Spd"] = stats.Speed,
+            ["Eva"] = stats.Evasion,
+            ["Hit"] = stats.Hit,
+            ["Luck"] = stats.Luck
+        };
+    }
 
     internal static string JunctionSlotName(int slot)
     {
@@ -260,6 +305,7 @@ public static class LiveMenuData
 public sealed partial class LiveMenuCatalog
 {
     private readonly KernelData kernel;
+    private readonly BattlePlayerStatReader statistics;
     private readonly string[] guardianForceNames;
     private readonly string?[] abilityNames;
     private readonly string?[] abilityDescriptions;
@@ -269,9 +315,10 @@ public sealed partial class LiveMenuCatalog
     private NativeSolomonRingDefinition? solomonRing;
     private readonly TripleTriadCatalog tripleTriad;
 
-    private LiveMenuCatalog(KernelData kernel, string[] guardianForceNames, string[] cardNames, string[] cardDescriptions, byte[] fieldItems, TripleTriadCatalog tripleTriad)
+    private LiveMenuCatalog(byte[] kernelBytes, KernelData kernel, string[] guardianForceNames, string[] cardNames, string[] cardDescriptions, byte[] fieldItems, TripleTriadCatalog tripleTriad)
     {
         this.kernel = kernel;
+        statistics = new BattlePlayerStatReader(kernelBytes);
         this.guardianForceNames = guardianForceNames;
         this.cardNames = cardNames;
         this.cardDescriptions = cardDescriptions;
@@ -280,6 +327,8 @@ public sealed partial class LiveMenuCatalog
         abilityNames = [.. kernel.JunctionAbilities.Select(ability => ability.Name), .. kernel.CommandAbilities.Select(ability => ability.Name), .. kernel.CharacterStatAbilities.Select(ability => ability.Name), .. kernel.CharacterAbilities.Select(ability => ability.Name), .. kernel.PartyAbilities.Select(ability => ability.Name), .. kernel.GuardianAbilities.Select(ability => ability.Name), .. kernel.MenuAbilities.Select(ability => ability.Name)];
         abilityDescriptions = [.. kernel.JunctionAbilities.Select(ability => FormatDescription(ability.Description)), .. kernel.CommandAbilities.Select(ability => FormatDescription(ability.Description)), .. kernel.CharacterStatAbilities.Select(ability => FormatDescription(ability.Description)), .. kernel.CharacterAbilities.Select(ability => FormatDescription(ability.Description)), .. kernel.PartyAbilities.Select(ability => FormatDescription(ability.Description)), .. kernel.GuardianAbilities.Select(ability => FormatDescription(ability.Description)), .. kernel.MenuAbilities.Select(ability => FormatDescription(ability.Description))];
     }
+
+    public BattleNativePlayerStatRules ReadStatRules(NativeCharacterVitals vitals, int row) => statistics.ReadRules(vitals, row);
 
     public static LiveMenuCatalog ReadInstalled(GameAssets assets)
     {
@@ -305,7 +354,8 @@ public sealed partial class LiveMenuCatalog
             int end = Array.IndexOf(initial, (byte)0, start, 12);
             return encoding.GetString(initial, start, end < 0 ? 12 : end - start);
         }).ToArray();
-        KernelData kernel = KernelData.ReadFromArray(Read("kernel.bin"), encoding);
+        byte[] kernelBytes = Read("kernel.bin");
+        KernelData kernel = KernelData.ReadFromArray(kernelBytes, encoding);
         using IFlArchive menu = FlArchive.OpenForRead(Path.Combine(assets.GameDirectory, "Data", "lang-en", "menu.fs"), FlArchiveRepresentation.Files);
         byte[] ReadMenu(string name)
         {
@@ -337,7 +387,7 @@ public sealed partial class LiveMenuCatalog
         {
             throw new InvalidDataException("Original field item metadata requires complete four-byte rows.");
         }
-        LiveMenuCatalog catalog = new(kernel, guardianForceNames, cardNames, cardDescriptions, fieldItems, TripleTriadCatalog.Load(assets.GameDirectory));
+        LiveMenuCatalog catalog = new(kernelBytes, kernel, guardianForceNames, cardNames, cardDescriptions, fieldItems, TripleTriadCatalog.Load(assets.GameDirectory));
         catalog.ReadLocations(ReadMenu("areames.dc1"), encoding, WorldMapLocations.ReadInstalled(assets.GameDirectory));
         catalog.solomonRing = assets.ReadNativeSolomonRingDefinition();
         catalog.ReadMagazines(ReadMenu("mmag.bin"), textArchive.GetSection<MngrpStringTableSection>(87).Table, assets.ReadNativeWeaponShopDefinitions(), textArchive.GetSection<MngrpOpaqueSection>(7).Content, ReadMenu("magita.TEX"), NativeMagazineArtwork.ReadItemIconKinds(File.ReadAllBytes(Path.Combine(assets.GameDirectory, "FF8_EN.exe"))));

@@ -11,6 +11,10 @@ public static class NativeBattleEnemyLevelRules
         {
             return sceneLevel;
         }
+        if (sceneLevel == 252)
+        {
+            return originalBattleRoll % 100 + 1;
+        }
         if (RandomByteCount(sceneLevel) == 2 && secondBattleRoll is null)
         {
             throw new InvalidDataException("Native enemy level code requires its second original battle random byte.");
@@ -45,7 +49,6 @@ public static class NativeBattleEnemyLevelRules
         return sceneLevel switch
         {
             251 => Math.Clamp(average + ((originalBattleRoll & 1) != 0 ? secondBattleRoll!.Value & 3 : -(secondBattleRoll!.Value & 3)), 1, 65),
-            252 => originalBattleRoll % 100 + 1,
             253 => Math.Max(1, secondBattleRoll!.Value % varied),
             255 => varied,
             _ => throw new InvalidDataException("Invalid native level dispatch.")

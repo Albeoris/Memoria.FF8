@@ -19,7 +19,7 @@ public sealed partial class BattleAssets
             throw new ArgumentOutOfRangeException(nameof(row));
         }
         NativeCharacterVital character = vitals.Records[row];
-        int weaponId = character.CharacterId >= 8 ? vitals.DreamWeapons[character.CharacterId - 8] : character.Weapon;
+        int weaponId = vitals.DreamEnabled && character.CharacterId >= 8 ? vitals.DreamWeapons[character.CharacterId - 8] : character.Weapon;
         ImmutableArray<byte> weapon = NativeKernelRecords.Single(record => record.Section == 4 && record.Index == weaponId).Bytes;
         int spellId = character.Junction.MagicJunctions[10];
         ImmutableArray<byte> spell = NativeKernelRecords.Single(record => record.Section == 1 && record.Index == spellId).Bytes;

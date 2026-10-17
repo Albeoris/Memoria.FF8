@@ -196,9 +196,16 @@ public static class NativeBattleRewardDistribution
                 continue;
             }
             int[] assigned = character.Junction.GuardianForceAssignments.ToArray();
-            foreach (int id in assigned.Where(id => vitals.GuardianForces[id].HitPoints > 0))
+            foreach (int id in assigned)
             {
-                guardian[checked((byte)id)] = unchecked((ushort)(guardian.GetValueOrDefault(checked((byte)id)) + shared / assigned.Length));
+                byte guardianId = checked((byte)id);
+                if (vitals.GuardianForces[id].HitPoints == 0)
+                {
+                    // The result distributor clears a defeated GF's finishing-blow bank as well as withholding its shared EXP.
+                    guardian.Remove(guardianId);
+                    continue;
+                }
+                guardian[guardianId] = unchecked((ushort)(guardian.GetValueOrDefault(guardianId) + shared / assigned.Length));
             }
         }
         return noExperience ? new BattleExperienceAwards(new Dictionary<byte, ushort>(), new Dictionary<byte, ushort>()) : new BattleExperienceAwards(characters, guardian);

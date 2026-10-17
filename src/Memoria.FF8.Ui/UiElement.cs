@@ -173,6 +173,7 @@ public sealed class UiLabel : UiElement
     public string Text { get; set; } = string.Empty;
     public float FontSize { get; set; } = 16;
     public bool Muted { get; set; }
+    public UiColor? Color { get; set; }
 
     public override UiSize Measure(UiSize available)
     {
@@ -182,7 +183,7 @@ public sealed class UiLabel : UiElement
 
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
     {
-        canvas.Text(Text, FontSize, Bounds, Muted || !Enabled ? theme.Muted : theme.Foreground);
+        canvas.Text(Text, FontSize, Bounds, Muted || !Enabled ? theme.Muted : Color ?? theme.Foreground);
     }
 }
 

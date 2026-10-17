@@ -6,6 +6,30 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativePlayerStatReprojectionTests
 {
+    [Theory]
+    [InlineData(8)]
+    [InlineData(9)]
+    [InlineData(10)]
+    public void Dream_weapon_override_requires_the_saved_dream_flag(byte identity)
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        NativeCharacterVitals original = game.ReadNewGameCharacterVitals();
+        NativeCharacterVital character = original.Records[0] with { CharacterId = identity };
+        NativeCharacterVitals regular = original with { DreamEnabled = false, Records = [character, .. original.Records.Skip(1)] };
+        NativeCharacterVitals dream = regular with { DreamEnabled = true };
+        BattleNativePlayerStatRules regularRules = assets.ReadPlayerNativeStatRules(regular, 0);
+        BattleNativePlayerStatRules dreamRules = assets.ReadPlayerNativeStatRules(dream, 0);
+        BattleNativeAction regularAttack = assets.ReadPlayerNativeAttackData(regular, 0);
+        BattleNativeAction dreamAttack = assets.ReadPlayerNativeAttackData(dream, 0);
+
+        Assert.Equal(character.Weapon, regularAttack.KernelIndex);
+        Assert.Equal(original.DreamWeapons[identity - 8], dreamAttack.KernelIndex);
+        Assert.Equal(regularRules.WeaponRecord, regularAttack.RawRecord);
+        Assert.Equal(dreamRules.WeaponRecord, dreamAttack.RawRecord);
+        Assert.NotEqual(regularRules.WeaponRecord, dreamRules.WeaponRecord);
+    }
+
     [Fact]
     public void Status_resistance_reuses_the_original_junction_formula_after_stock_changes()
     {

@@ -49,6 +49,29 @@ public sealed class NativeBattleExperienceTests
     }
 
     [Fact]
+    public void LevelOneHundredAwardsStayCappedWithoutApplyingFurtherEquippedGrowthBonuses()
+    {
+        using GameAssets assets = InstalledAssets();
+        NativeCharacterVitals source = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0);
+        NativeBattleExperienceDefinition definition = assets.ReadNativeBattleExperienceDefinition();
+        NativeStatCurve characterCurve = source.Definitions.Characters[0];
+        NativeStatCurve guardianCurve = source.Definitions.GuardianForces[0];
+        NativeCharacterVital[] records = source.Records.ToArray();
+        uint abilities = Ability(definition, 0x80) | (uint)Ability(definition, 0x100) << 8;
+        records[0] = records[0] with { Experience = Threshold(characterCurve, 100), HitPointBonus = 10, StatBonuses = [1, 2, 3, 4, 5, 6], Junction = records[0].Junction with { Abilities = abilities } };
+        NativeGuardianForceVital[] guardianForces = source.GuardianForces.ToArray();
+        guardianForces[0] = guardianForces[0] with { Experience = Threshold(guardianCurve, 100) };
+        source = source with { Records = records, GuardianForces = guardianForces };
+
+        NativeCharacterVitals result = source.AwardBattleExperience(new Dictionary<byte, ushort> { [0] = ushort.MaxValue }, new Dictionary<byte, ushort> { [0] = ushort.MaxValue }, definition);
+
+        Assert.Equal(Threshold(characterCurve, 100), result.Records[0].Experience);
+        Assert.Equal((ushort)10, result.Records[0].HitPointBonus);
+        Assert.Equal(records[0].StatBonuses, result.Records[0].StatBonuses);
+        Assert.Equal(Threshold(guardianCurve, 100), result.GuardianForces[0].Experience);
+    }
+
+    [Fact]
     public void NativeExperienceCapsUseThePhysicalCharacterRowAndActualGfCurveAndRejectForeignDefinitions()
     {
         using GameAssets assets = InstalledAssets();

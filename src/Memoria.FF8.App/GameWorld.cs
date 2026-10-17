@@ -98,6 +98,7 @@ internal sealed partial class GameWorld : IDisposable
         Events.ReadFieldMagicStatRules = (vitals, row) => BattleResources.ReadPlayerNativeStatRules(vitals, row);
         Events.ResolveNativeFieldItem = id => FieldItemCatalog.FieldItem(id);
         Events.ResolveNativeFieldItemStatRules = assets.ReadFieldItemStatRules;
+        Events.ResolveNativeAutoJunction = (vitals, row, priority) => assets.ReadNativeTutorialCatalog().AutoJunction(vitals, row, priority);
         ConfigureTripleTriadHost();
         ConfigureBattleHost();
         ConfigureRandomEncounterHost();
@@ -187,6 +188,7 @@ internal sealed partial class GameWorld : IDisposable
             }
             worldScene = new WorldMapScene(session, assets.GameDirectory, resources);
             worldScene.ReadFieldMagicStatRules = (vitals, row) => BattleResources.ReadPlayerNativeStatRules(vitals, row);
+            worldScene.ResolveNativeAutoJunction = (vitals, row, priority) => assets.ReadNativeTutorialCatalog().AutoJunction(vitals, row, priority);
             worldScene.PrepareFieldEntry = PrepareNativeWorldFieldEntry;
             ConfigureWorldSalaryEffects(worldScene);
             if (session.State.DepartingFieldState is System.Text.Json.JsonElement frozenDeparture)
