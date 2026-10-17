@@ -61,17 +61,17 @@ internal static partial class BattleResourceReader
         IReadOnlyList<BattleMesh> meshes = Geometry(reader, offsets[1], bones.Length, textures);
         IReadOnlyList<BattleAnimation> animations = Animations(reader, offsets[2], bones.Length);
         //5077B0 retains the ordinary body camera at DAT DWORD5 when a linked weapon replaces its sequence.
-        int cameraSection = offsets.Length is 7 or 8 ? 4 : offsets.Length is 9 or 10 ? 6 : -1;
-        int bodyTextureSection = offsets.Length is 7 or 8 ? 5 : offsets.Length is 9 or 10 ? 8 : -1;
+        int cameraSection = offsets.Length == 11 ? 5 : offsets.Length is 7 or 8 ? 4 : offsets.Length is 9 or 10 ? 6 : -1;
+        int bodyTextureSection = offsets.Length == 11 ? 10 : offsets.Length is 7 or 8 ? 5 : offsets.Length is 9 or 10 ? 8 : -1;
         int bodyTextureEnd = bodyTextureSection >= 0 && bodyTextureSection + 1 < offsets.Length ? offsets[bodyTextureSection + 1] : bytes.Length;
         return new BattleModel(name, bones, meshes, textures.Select(texture => texture.Image).ToArray(), animations, scale)
         {
             TextureRegions = textures.Select(texture => new TextureSourceRegion(texture.Tim.X, texture.Tim.Y, 0, texture.Image.Width, texture.Image.Height)).ToArray(),
             NativePoseSource = new(bytes.AsSpan(offsets[0], 16 + boneCount * 48).ToArray().ToImmutableArray(), bytes.AsSpan(offsets[2], offsets.Where(offset => offset > offsets[2]).DefaultIfEmpty(bytes.Length).Min() - offsets[2]).ToArray().ToImmutableArray()),
             NativeActionCameraBank = cameraSection >= 0 && offsets[cameraSection] != offsets[cameraSection + 1] ? new(bytes.AsSpan(offsets[cameraSection], offsets[cameraSection + 1] - offsets[cameraSection]).ToArray().ToImmutableArray()) : null,
-            NativeTextureAnimations = offsets.Length is 7 or 8 ? bytes.AsSpan(offsets[3], offsets[4] - offsets[3]).ToArray().ToImmutableArray() : null,
+            NativeTextureAnimations = offsets.Length is 7 or 8 or 11 ? bytes.AsSpan(offsets[3], offsets[4] - offsets[3]).ToArray().ToImmutableArray() : null,
             NativeBodyTexturePack = bodyTextureSection >= 0 ? new(name + ":body-textures", bytes.AsSpan(offsets[bodyTextureSection], bodyTextureEnd - offsets[bodyTextureSection]).ToArray().ToImmutableArray()) : null,
-            Sequences = name.StartsWith("c0m", StringComparison.OrdinalIgnoreCase) ? Sequences(bytes, offsets, 3) : offsets.Length is 9 or 10 ? Sequences(bytes, offsets, 5) : null
+            Sequences = name.StartsWith("c0m", StringComparison.OrdinalIgnoreCase) ? Sequences(bytes, offsets, 4) : offsets.Length is 9 or 10 ? Sequences(bytes, offsets, 5) : null
         };
     }
 

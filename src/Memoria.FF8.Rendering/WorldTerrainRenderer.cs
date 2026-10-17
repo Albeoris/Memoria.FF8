@@ -73,6 +73,8 @@ public readonly record struct NativeWorldStaticModelPose(Vector3 Anchor, NativeW
 
 public readonly record struct NativeWorldStaticModelDraw(WorldStaticModel Model, NativeWorldStaticModelPose Pose);
 
+public readonly record struct NativeWorldAnimatedModelDraw(FieldModel Model, Vector3 Position, float Heading, int AnimationId, float AnimationFrame);
+
 /// <summary>Perspective rasterizer for selected original WMX terrain and world Squall; no installed resources are altered.</summary>
 public sealed partial class WorldTerrainRenderer
 {
@@ -107,7 +109,7 @@ public sealed partial class WorldTerrainRenderer
     public int DrawnTriangles { get; private set; }
     public ITriangleRenderer? TriangleRenderer { get; set; }
 
-    public byte[] Render(Vector3 position, float heading, int animationId, float animationFrame, WorldCamera camera, IReadOnlyDictionary<int, int>? replacements = null, WorldSky? skyOverride = null, bool avatarVisible = true, FieldModel? avatarModel = null, IReadOnlyList<NativeWorldStaticModelDraw>? staticModels = null, NativeWorldForestState? forest = null)
+    public byte[] Render(Vector3 position, float heading, int animationId, float animationFrame, WorldCamera camera, IReadOnlyDictionary<int, int>? replacements = null, WorldSky? skyOverride = null, bool avatarVisible = true, FieldModel? avatarModel = null, IReadOnlyList<NativeWorldStaticModelDraw>? staticModels = null, NativeWorldForestState? forest = null, IReadOnlyList<NativeWorldAnimatedModelDraw>? animatedModels = null)
     {
         if (camera.Distance <= 0 || camera.Height <= 0 || camera.FieldOfView <= 0 || camera.FieldOfView >= MathF.PI || camera.FarDistance <= camera.Distance)
         {
@@ -172,6 +174,13 @@ public sealed partial class WorldTerrainRenderer
         if (avatarVisible)
         {
             DrawAvatar(avatarModel ?? assets.Squall, position, heading, animationId, animationFrame);
+        }
+        if (animatedModels is not null)
+        {
+            foreach (NativeWorldAnimatedModelDraw draw in animatedModels)
+            {
+                DrawAvatar(draw.Model, draw.Position, draw.Heading, draw.AnimationId, draw.AnimationFrame);
+            }
         }
         if (staticModels is not null)
         {

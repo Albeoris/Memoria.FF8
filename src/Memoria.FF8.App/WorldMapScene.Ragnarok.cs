@@ -92,18 +92,25 @@ internal sealed partial class WorldMapScene
 
     private byte[] RenderRagnarok(WorldState state)
     {
-        if (state.NativeFootRuntime is not null)
-        {
-            throw new NotSupportedException("Parked Ragnarok rendering requires both actual animated foot and ship instances.");
-        }
+        NativeFootWorldRuntimeState? foot = state.NativeFootRuntime;
         NativeRagnarokWorldRuntimeState runtime = state.NativeRagnarokRuntime!;
         runtime.RequireSceneState();
         NativeWorldPathProjectionCertificate projection = RagnarokProjection(state);
         var models = new List<NativeWorldStaticModelDraw>();
+        List<NativeWorldAnimatedModelDraw> animated = [];
         foreach (NativeRagnarokWorldObject item in runtime.Objects)
         {
-            if (item.ShapeId is 0 or 1 or 3 || !projection.IsNear(item.Position))
+            if (item.ShapeId is 0 or 3 || item.ShapeId == 1 && foot is null || !projection.IsNear(item.Position))
             {
+                continue;
+            }
+            if (item.ShapeId == 1)
+            {
+                NativeWorldPathNodeProjection ship = projection.ProjectNode(item.Position) ?? throw new NotSupportedException(projection.UnsupportedReason);
+                if (ship.Visible)
+                {
+                    animated.Add(new(assets.GetRagnarokModel(), projection.CanonicalModelAnchor(ship), item.Yaw * MathF.Tau / 4096, 0, 0));
+                }
                 continue;
             }
             if (item.ShapeId < 64 || item.ShapeId == 94)
@@ -118,8 +125,9 @@ internal sealed partial class WorldMapScene
             }
         }
         NativeWorldFootCameraState words = runtime.ProjectionCamera!;
-        WorldCamera camera = WorldCamera.Foot(state.CameraYaw, 2048) with { TargetPosition = new(state.CameraTargetX, -state.CameraTargetNativeHeight, state.CameraTargetZ), NativePitch = runtime.Motor.CameraPitch, NativeOffsetY = words.OffsetY, NativeOffsetZ = words.OffsetZ };
+        WorldCamera camera = foot is not null ? FootCamera(state) : WorldCamera.Foot(state.CameraYaw, 2048) with { TargetPosition = new(state.CameraTargetX, -state.CameraTargetNativeHeight, state.CameraTargetZ), NativePitch = runtime.Motor.CameraPitch, NativeOffsetY = words.OffsetY, NativeOffsetZ = words.OffsetZ };
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
-        return renderer!.Render(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, 0, 0, camera, replacements, sky, avatarModel: assets.GetRagnarokModel(), staticModels: models);
+        bool avatarVisible = foot is null || state.GroundType is null or > 5;
+        return renderer!.Render(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, foot is null ? 0 : state.AnimationId, foot is null ? 0 : state.AnimationCounter >> 4, camera, replacements, sky, avatarVisible, avatarModel: foot is null ? assets.GetRagnarokModel() : assets.GetFootModel(foot.EntityType), staticModels: models, forest: foot?.Forest, animatedModels: animated);
     }
 }

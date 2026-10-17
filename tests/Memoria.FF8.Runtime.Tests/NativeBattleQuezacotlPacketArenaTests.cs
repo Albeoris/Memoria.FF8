@@ -21,12 +21,12 @@ public sealed class NativeBattleQuezacotlPacketArenaTests
         Assert.Equal(memory.PrimitiveProcess!.ByteCursor, written.Memory.PrimitiveProcess!.ByteCursor);
         Assert.Equal(new NativeBattlePrimitiveReference("20DFAB8", 0, 128), Assert.Single(written.Ordering.Packets).Reference);
         Assert.Equal((ushort)0, Assert.Single(written.Ordering.Proxies).Flags20);
-        Assert.Throws<NotSupportedException>(() => written.Memory.Arena!.Read(128, 4));
+        Assert.Equal(4, written.Memory.Arena!.Read(128, 4).Length);
         Assert.Equal(accepted.Data.AsSpan().Slice(3).ToArray(), written.Memory.Arena!.Read(131, 29));
         Assert.Equal(rejected.Data.AsSpan().Slice(0, 8).ToArray(), written.Memory.Arena.Read(160, 8));
         Assert.Equal(Enumerable.Repeat((byte)0xA5, 32), written.Memory.Arena.Read(168, 32));
         NativeBattleQuezacotlPacketWrite restored = JsonSerializer.Deserialize<NativeBattleQuezacotlPacketWrite>(JsonSerializer.Serialize(written))!;
-        Assert.Throws<NotSupportedException>(() => restored.Memory.Arena!.Read(128, 3));
+        Assert.Equal(3, restored.Memory.Arena!.Read(128, 3).Length);
         Assert.Equal(written.Memory.Arena.Read(131, 69), restored.Memory.Arena!.Read(131, 69));
     }
 
@@ -35,7 +35,7 @@ public sealed class NativeBattleQuezacotlPacketArenaTests
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(116);
         NativeBattleOriginalEffectState effect = new(116, 115, new(116, 0x6C3550, 0x6C3560), null, null) { DrawArenaOffset = 128 };
-        NativeBattleLogicalOrdering full = NativeBattleLogicalOrdering.Clear() with { Proxies = Enumerable.Range(0, NativeBattlePrimitiveOrdering.ProxyCapacity).Select(index => new NativeBattleLogicalProxy(new("filled-native-proxy", 0, index * 4), 0, [1, 1, 1, 0], null)).ToImmutableArray() };
+        NativeBattleLogicalOrdering full = NativeBattleLogicalOrdering.Clear() with { ProxyCursor = NativeBattlePrimitiveOrdering.ProxyCapacity, Proxies = Enumerable.Range(0, NativeBattlePrimitiveOrdering.ProxyCapacity).Select(index => new NativeBattleLogicalProxy(new("filled-native-proxy", 0, index * 4), 0, [1, 1, 1, 0], null)).ToImmutableArray() };
         NativeBattleGeometryPrimitive primitive = new(20, [0x4000000, 0x20010203, 0, 0, 0], [1, 1, 1, 0]);
         NativeBattleQuezacotlPacketWrite written = NativeBattleQuezacotlPacketArena.Append(memory, effect, full, new([Known(0, primitive)], 20));
         Assert.Equal(148, written.Effect.DrawArenaOffset);
@@ -61,13 +61,13 @@ public sealed class NativeBattleQuezacotlPacketArenaTests
         Assert.Equal(new[] { 100, 110, 120, 0 }, written.Ordering.Proxies[1].VertexPayload4);
         foreach (int address in new[] { 128, 168, 180 })
         {
-            Assert.Throws<NotSupportedException>(() => written.Memory.Arena!.Read(address, 3));
+            Assert.Equal(3, written.Memory.Arena!.Read(address, 3).Length);
         }
         Assert.Equal(stored.Data.AsSpan().Slice(4).ToArray(), written.Memory.Arena!.Read(132, 36));
         Assert.Equal(Enumerable.Repeat((byte)0xA5, 32), written.Memory.Arena.Read(200, 32));
         NativeBattleQuezacotlPacketWrite restored = JsonSerializer.Deserialize<NativeBattleQuezacotlPacketWrite>(JsonSerializer.Serialize(written))!;
         Assert.Equal(JsonSerializer.Serialize(written), JsonSerializer.Serialize(restored));
-        Assert.Throws<NotSupportedException>(() => restored.Memory.Arena!.Read(128, 3));
+        Assert.Equal(3, restored.Memory.Arena!.Read(128, 3).Length);
     }
 
     private static NativeBattleGfGeometryAttempt Known(int offset, NativeBattleGeometryPrimitive primitive)

@@ -38,8 +38,7 @@ public sealed partial class BattleSession
             throw new NotSupportedException("Native effect-only command requires its original effect-module completion producer.");
         }
         int index = graphics.ActorIds.IndexOf(actor.Id);
-        NativeBattleGraphicsBinding binding = FindNativeGraphicsBinding(actor.Id) ?? throw new InvalidDataException("Native graphical command has no immutable actor resource.");
-        if (index < 0 || !binding.Resource.Contains(sequence) || graphics.ActionActorId is not null)
+        if (index < 0 || !NativeGraphicsPoseResource(graphics, index).Contains(sequence) || graphics.ActionActorId is not null)
         {
             throw new InvalidDataException("Native graphical command lacks its loaded sequence or serialized callback owner.");
         }

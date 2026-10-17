@@ -33,12 +33,18 @@ public sealed partial class BattleAssets
     public NativeBattleGraphicsResource ReadEnemyNativeGraphicsResource(int model)
     {
         byte[] bytes = Read($"c0m{model:000}.dat");
+        NativeBattleModelDatSource dat = ReadNativeModelDatSource(checked((byte)(model + 16)), false, 0);
+        if (model == 127)
+        {
+            NativeBattleGraphicsResource shared = ReadEnemyNativeGraphicsResource(126);
+            return shared with { Geometry = [], TextureAnimations = [], BodyTexturePack = null, ModelLoadSources = [dat] };
+        }
         int sections = BinaryPrimitives.ReadInt32LittleEndian(bytes);
         if (sections != 11)
         {
             throw new NotSupportedException("A native graphics model requires its original eleven-section DAT.");
         }
-        int start = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(16));
+        int start = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(20));
         int end = Enumerable.Range(0, sections).Select(index => BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(4 + 4 * index))).Where(offset => offset > start).DefaultIfEmpty(bytes.Length).Min();
         int animationStart = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(12));
         int animationCount = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(animationStart));
@@ -61,8 +67,9 @@ public sealed partial class BattleAssets
         int cameraStart = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(24));
         int cameraEnd = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(28));
         int textureStart = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(44));
-        NativeBattleGraphicsResource resource = new(bytes.AsSpan(start, end - start).ToArray().ToImmutableArray()) { AnimationFrames = frames.MoveToImmutable(), PoseSource = new(bytes.AsSpan(skeletonStart, 16 + bytes[skeletonStart] * 48).ToArray().ToImmutableArray(), bytes.AsSpan(animationStart, start - animationStart).ToArray().ToImmutableArray()), HasActionCamera = cameraStart != cameraEnd, ActionCameraBank = cameraStart == cameraEnd ? null : new(bytes.AsSpan(cameraStart, cameraEnd - cameraStart).ToArray().ToImmutableArray()), BodyTexturePack = new($"c0m{model:000}.dat:body-textures", bytes.AsSpan(textureStart).ToArray().ToImmutableArray()), Geometry = NativeBattleGeometryMetadata.FromMeshes(LoadEnemy(model).Meshes), LinkedGeometry = [], LinkedGeometryUsesBodySkeleton = false };
+        int motionStart = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(16));
+        NativeBattleGraphicsResource resource = new(bytes.AsSpan(start, end - start).ToArray().ToImmutableArray()) { AnimationFrames = frames.MoveToImmutable(), PoseSource = new(bytes.AsSpan(skeletonStart, 16 + bytes[skeletonStart] * 48).ToArray().ToImmutableArray(), bytes.AsSpan(animationStart, motionStart - animationStart).ToArray().ToImmutableArray()), HasActionCamera = cameraStart != cameraEnd, ActionCameraBank = cameraStart == cameraEnd ? null : new(bytes.AsSpan(cameraStart, cameraEnd - cameraStart).ToArray().ToImmutableArray()), BodyTexturePack = new($"c0m{model:000}.dat:body-textures", bytes.AsSpan(textureStart).ToArray().ToImmutableArray()), TextureAnimations = bytes.AsSpan(motionStart, start - motionStart).ToArray().ToImmutableArray(), ModelLoadSources = [dat], Geometry = NativeBattleGeometryMetadata.FromMeshes(LoadEnemy(model).Meshes), LinkedGeometry = [], LinkedGeometryUsesBodySkeleton = false };
         resource.Validate();
-        return resource;
+        return model == 126 ? resource with { ModelLoadSources = [dat, ReadNativeModelDatSource(143, false, 0)] } : resource;
     }
 }

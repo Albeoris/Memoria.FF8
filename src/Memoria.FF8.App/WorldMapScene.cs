@@ -36,6 +36,7 @@ internal sealed partial class WorldMapScene : IDisposable
             throw new InvalidOperationException("A world scene requires its original field-to-world transition.");
         }
         bool battleMode2 = battleReload is not null || session.State.World?.NativeFootRuntime?.Rule == NativeFootWorldRuntimeState.BattleReloadRule;
+        battleReload ??= battleMode2 ? session.State.World?.NativeFootRuntime is { Rule: NativeFootWorldRuntimeState.BattleReloadRule } ? session.State.SavedWorld?.FootReturn : null : null;
         bool car = !battleMode2 && unchecked((byte)arrival.Mode) is 32 or 33;
         bool garden = !battleMode2 && (unchecked((byte)arrival.Mode) == 48 || session.State.World is { NativeGardenRuntime: not null, NativeFootRuntime: null });
         bool ragnarok = !battleMode2 && unchecked((byte)arrival.Mode) == 50;
@@ -43,6 +44,14 @@ internal sealed partial class WorldMapScene : IDisposable
         bool ridingTrain = IsRidingTrainPacket(arrival) && !stationFoot;
         bool scripted = !battleMode2 && (IsSupportedScriptedPacket(arrival) || ridingTrain);
         byte footEntityType = battleMode2 ? battleReload?.EntityType105 ?? session.State.World!.NativeFootRuntime!.EntityType : stationFoot ? session.State.World!.NativeFootRuntime!.EntityType : unchecked((byte)arrival.Mode);
+        if (!car && !garden && !ragnarok && !scripted && session.State.World is { } restoredFoot)
+        {
+            NativeFootWorldRuntimeState runtime = restoredFoot.NativeFootRuntime ?? throw new NotSupportedException("Native foot restoration requires executed entity-type loader authority.");
+            if (arrival.EntryIndex == 62 && runtime.Rule is not (NativeFootWorldRuntimeState.SavedReloadRule or NativeFootWorldRuntimeState.BattleReloadRule))
+            {
+                throw new NotSupportedException("Historical entry62 world state has no proved native foot-reload authority.");
+            }
+        }
         if (footEntityType is not (0 or 1 or 2) && !car && !garden && !ragnarok && !scripted)
         {
             throw new NotSupportedException($"World entity type {unchecked((sbyte)arrival.Mode)} has no implemented original model/control path.");
@@ -61,10 +70,6 @@ internal sealed partial class WorldMapScene : IDisposable
             //544860 establishes vehicle indexes from the selected clause's objects; loader-initialized pose2/3 do not establish vehicle presence.
             bool parkedRagnarok = footClause?.ContainsShape(1) == true;
             bool parkedGarden = !parkedRagnarok && footClause?.ContainsShape(64) == true && footClause.ContainsShape(65);
-            if (battleMode2 && (parkedGarden || parkedRagnarok))
-            {
-                throw new NotSupportedException("World battle reload requires the actual parked vehicle reconstruction before this allocation can complete.");
-            }
             if (!scripted && !stationFoot && !car && !garden && !ragnarok && !parkedGarden && !parkedRagnarok && (footEntityType == 2 ? inputs.StoryWord is < 2140 or >= 2500 : footEntityType == 1 ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord is >= 34 and < 205 or >= 392))
             {
                 throw new NotSupportedException("World entry story lies outside this entity's proved native object/contact clause.");
@@ -132,16 +137,12 @@ internal sealed partial class WorldMapScene : IDisposable
                 {
                     throw new InvalidDataException("The restored native foot entity type differs from its world packet.");
                 }
-                if (entry == 62 && session.State.World.NativeFootRuntime?.Rule is not (NativeFootWorldRuntimeState.SavedReloadRule or NativeFootWorldRuntimeState.BattleReloadRule))
-                {
-                    throw new NotSupportedException("Historical entry62 world state has no proved native foot-reload authority.");
-                }
             }
             storyByte = inputs.StoryByte;
             if (parkedRagnarok)
             {
                 replacements = WorldTerrainSelection.Replacements(session.State.World?.ReplacementMask ?? WorldTerrainSelection.ReplacementMask(inputs.ReplacementFlags, storyByte));
-                InitializeParkedRagnarokFoot(arrival, inputs);
+                InitializeParkedRagnarokFoot(arrival, inputs, battleReload);
                 return;
             }
             if (garden)
@@ -221,7 +222,7 @@ internal sealed partial class WorldMapScene : IDisposable
                 };
                 if (!car)
                 {
-                    initial = parkedGarden ? InitializeParkedGarden(initial, arrival, inputs, unchecked((short)-(int)ground!.Value.Height)) : InitializeNormalFootObjects(initial, inputs);
+                    initial = parkedGarden ? InitializeParkedGarden(initial, arrival, inputs, unchecked((short)-(int)ground!.Value.Height), battleReload) : InitializeNormalFootObjects(initial, inputs);
                 }
                 EnsureContactCertificate(initial);
                 session.SetWorldState(initial);
@@ -241,7 +242,7 @@ internal sealed partial class WorldMapScene : IDisposable
                 }
                 if (parkedGarden)
                 {
-                    ValidateParkedGarden(State, arrival, inputs);
+                    ValidateParkedGarden(State, arrival, inputs, battleReload);
                 }
                 EnsureContactCertificate(State);
                 if (State.NativeFootRuntime?.NormalObjects is not null)

@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -53,7 +53,7 @@ public sealed record NativeBattleRetainedMemory([property: JsonRequired] NativeB
     {
         //Authenticated FF8_EN .data zero-fill: packet arenas, DF9/DFD/E01 and the three party E30/E38 mirrors.
         NativeBattleActionScratch scratch = new() { DeferredEffectsE00 = false, GuardianFormulaE1E = false, GuardianBoostPercent = 0, FinisherPendingE03 = false, LastPublishedTargetCountE05 = 0, FinisherActionIndexE2E = 0, ActorIndex = 0, Command = 0, Action = 0, EventActorB0F = 0, EventLane = 0 };
-        return new(NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]), new(0, false, false), new([0, 0, 0], [0u, 0u, 0u]), scratch, 0, NativeFieldRuntimeProfile.FF8EnExecutableHash) { ElementAttack = [0, 0, 0, 0, 0, 0, 0], EffectMemory = NativeBattleEffectMemory.FromColdProcess(), Stage = NativeBattleStageState.FromColdProcess(), ModelTextureCache = NativeBattleModelTextureCache.FromColdProcess(), ModelCpuResources = NativeBattleModelCpuResources.FromColdProcess(), Camera = NativeBattleCameraState.FromColdProcess(), FileIo = NativeBattleFileIoState.FromColdProcess(), ActionMemory = NativeBattleActionMemory.FromLoaderBytes(new byte[56]) };
+        return new(NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]), new(0, false, false), new([0, 0, 0], [0u, 0u, 0u]), scratch, 0, NativeFieldRuntimeProfile.FF8EnExecutableHash) { ElementAttack = [0, 0, 0, 0, 0, 0, 0], EffectMemory = NativeBattleEffectMemory.FromColdProcess(), Stage = NativeBattleStageState.FromColdProcess(), ModelTextureCache = NativeBattleModelTextureCache.FromColdProcess(), ModelCpuResources = NativeBattleModelCpuResources.FromColdProcess(), FileStaging = NativeBattleFileStaging.Unknown().Write(0x1D999C0, new byte[4]), Camera = NativeBattleCameraState.FromColdProcess(), FileIo = NativeBattleFileIoState.FromColdProcess(), ActionMemory = NativeBattleActionMemory.FromLoaderBytes(new byte[56]) };
     }
 
     public static NativeBattleRetainedMemory Capture(BattleSnapshot snapshot, string? coldExecutableSha256)

@@ -304,6 +304,11 @@ internal sealed partial class GameWorld : IDisposable
         {
             session.SetFieldRequestPacket(requestPacket.WithConsumedRequest());
         }
+        if (snapshot is null && loadContext?.Origin == NativeFieldLoadOrigin.BattleDefeat)
+        {
+            NativeBattleAbandonment abandoned = session.State.AbandonedNativeBattles is { Length: > 0 } history ? history[^1] : throw new InvalidDataException("Fresh defeat allocation lost its actual result1 writer.");
+            Events.BindNativeFreshDefeatOutcome(abandoned);
+        }
         Events.LoadField(next.Id, next.Jsm, next.Messages, arrival, previousFieldId: snapshot is null ? session.State.PreviousFieldId : null, nativeRuntimeProfile: assets.NativeRuntimeProfile, worldEntityAllocationContext: snapshot, inheritedPlaceId: inheritedPlaceId, restoringCheckpoint: snapshot is not null, fieldLoadReason: loadContext?.Reason);
         if (next.Information is FieldInformation information)
         {

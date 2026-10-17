@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleModelCpuReference(byte Bank, int Offset);
+public sealed partial record NativeBattleModelCpuReference(byte Bank, int Offset);
 
 /// <summary>One mutable64KB party bank. Unwritten heap bytes are unknown, unlike the cleared effect arena.</summary>
 public sealed record NativeBattleModelCpuBank(ImmutableArray<NativeBattleEffectMemoryRegion> KnownRanges)

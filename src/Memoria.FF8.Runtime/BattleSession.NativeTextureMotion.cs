@@ -21,7 +21,13 @@ public sealed partial class BattleSession
         NativeBattleModelTextureCacheRow row = cache.Rows[index];
         if (row.Kind == 3)
         {
-            return row.ModelId is byte enemy && cache.EnemyTextureMotion.TryGetValue(enemy, out ImmutableArray<byte> table) ? table : throw new NotSupportedException("Native enemy texture motion requires its actually loaded shared heap table; migrate the named snapshot explicitly.");
+            NativeBattleModelCpuResources enemyCpu = NativeModelCpuResources ?? throw new NotSupportedException("Native enemy texture motion requires its actual physical heap row.");
+            NativeBattleModelCpuResourceRow enemyRow = enemyCpu.Rows[index];
+            if (!enemyRow.Fields.TryGetValue(48, out NativeBattleModelCpuReference? motion))
+            {
+                throw new NotSupportedException("Native enemy texture motion requires its actually loaded shared heap table; migrate the named snapshot explicitly.");
+            }
+            return motion is null ? [] : NativeBattleModelEnemyHeap.Read(enemyCpu, NativeFileStaging ?? throw new NotSupportedException("Native enemy texture motion requires its shared physical memory."), motion, enemyRow.Lengths.TryGetValue(48, out int length) ? length : throw new NotSupportedException("Native enemy texture table extent remains unknown.")).ToImmutableArray();
         }
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native texture motion requires its retained party CPU banks.");
         NativeBattleModelCpuResourceRow descriptor = cpu.Rows[index];
@@ -52,7 +58,8 @@ public sealed partial class BattleSession
             NativeBattleModelTextureCacheRow row = cache.Rows[index];
             if (row.Kind == 3)
             {
-                NativeModelTextureCache = cache with { EnemyTextureMotion = cache.EnemyTextureMotion.SetItem(row.ModelId!.Value, step.Source) };
+                NativeBattleModelCpuReference target = NativeModelCpuResources!.Rows[index].Require(48);
+                NativeFileStaging = NativeFileStaging!.Write(target.SharedAddress, step.Source.AsSpan());
             }
             else
             {

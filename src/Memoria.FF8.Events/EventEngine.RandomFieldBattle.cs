@@ -2,7 +2,11 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
 
-public sealed record NativeRandomFieldBattleOwner(RandomEncounterRequest Request, long AllocationClockCalls, long CallbackBase, int Callbacks, ushort Flags, byte? Result, long? ReturnFrame, long? BattleClockCallsAtEntry = null, NativeBattleDefeatReturnBranch? DefeatBranch = null);
+public sealed record NativeRandomFieldBattleOwner(RandomEncounterRequest Request, long AllocationClockCalls, long CallbackBase, int Callbacks, ushort Flags, byte? Result, long? ReturnFrame, long? BattleClockCallsAtEntry = null, NativeBattleDefeatReturnBranch? DefeatBranch = null)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleAbandonment? Abandonment { get; init; }
+}
 
 public sealed partial class EventEngine
 {
@@ -12,7 +16,7 @@ public sealed partial class EventEngine
         {
             throw new InvalidOperationException("Native random field entry requires its actual suspended encounter and initialized field.");
         }
-        if (Scene.NativeRandomFieldBattle is { Result: null } existing)
+        if (Scene.NativeRandomFieldBattle is { Result: null, Abandonment: null } existing)
         {
             if (existing.Request != request)
             {
@@ -31,18 +35,18 @@ public sealed partial class EventEngine
     {
         if (PendingInteractiveBattle is { } scripted)
         {
-            if (Scene.NativeRandomFieldBattle is { Result: null })
+            if (Scene.NativeRandomFieldBattle is { Result: null, Abandonment: null })
             {
                 throw new InvalidDataException("Scripted and random encounters cannot both own field return.");
             }
             return scripted.Frame;
         }
-        return Scene.NativeRandomFieldBattle is { Result: null, ReturnFrame: null } random ? random.Request.Frame : throw new NotSupportedException("Native kind3 requires its actual suspended scripted or random field encounter.");
+        return Scene.NativeRandomFieldBattle is { Result: null, ReturnFrame: null, Abandonment: null } random ? random.Request.Frame : throw new NotSupportedException("Native kind3 requires its actual suspended scripted or random field encounter.");
     }
 
     public void ReturnFromNativeRandomFieldBattle(int callbacks, byte result, Action publishOutcome)
     {
-        NativeRandomFieldBattleOwner owner = Scene.NativeRandomFieldBattle is { Result: null, ReturnFrame: null } pending ? pending : throw new InvalidOperationException("No random encounter owns the suspended field.");
+        NativeRandomFieldBattleOwner owner = Scene.NativeRandomFieldBattle is { Result: null, ReturnFrame: null, Abandonment: null } pending ? pending : throw new InvalidOperationException("No random encounter owns the suspended field.");
         if (callbacks != owner.Callbacks || !SupportsNativeFieldReturnResult(result) || Scene.FieldCallbackClock?.RandomBattleCallbacks != owner.CallbackBase + callbacks)
         {
             throw new InvalidDataException("Native random battle return disagrees with its actual callbacks or result.");
@@ -54,8 +58,8 @@ public sealed partial class EventEngine
 
     private static int CountPendingNativeFieldOwners(SceneEventState scene, long frame)
     {
-        int scripted = scene.NativeBattleCompletions?.Count(completion => completion.Backend == NativeBattleBackend.Interactive && completion.ReturnFrame is null && completion.Result is null && completion.Frame == frame) ?? 0;
-        return scripted + (scene.NativeRandomFieldBattle is { Result: null, ReturnFrame: null } random && random.Request.Frame == frame ? 1 : 0);
+        int scripted = scene.NativeBattleCompletions?.Count(completion => completion.Backend == NativeBattleBackend.Interactive && completion.ReturnFrame is null && completion.Result is null && completion.Abandonment is null && completion.Frame == frame) ?? 0;
+        return scripted + (scene.NativeRandomFieldBattle is { Result: null, ReturnFrame: null, Abandonment: null } random && random.Request.Frame == frame ? 1 : 0);
     }
 
     private static void ValidateNativeRandomFieldBattleCheckpoint(Checkpoint saved)
@@ -64,8 +68,20 @@ public sealed partial class EventEngine
         {
             return;
         }
+        if (random.Abandonment is { } abandoned)
+        {
+            abandoned.Validate();
+            if (random.Result is not null || random.ReturnFrame is not null || abandoned.Encounter.ScriptedOwner is not null || abandoned.Encounter.SourceScene != SceneKind.Field || abandoned.Encounter.SourceFieldId != random.Request.FieldId || abandoned.Encounter.SourceHash != random.Request.SourceHash || abandoned.Encounter.SourceFrame != random.Request.Frame || abandoned.Encounter.Formation != random.Request.Formation || abandoned.EntryClockCalls != random.BattleClockCallsAtEntry || abandoned.CombatCallbacks != random.Callbacks)
+            {
+                throw new InvalidDataException("Abandoned random encounter changed its original entry or executed callback interval.");
+            }
+        }
+        if (random.BattleClockCallsAtEntry is long entry && (entry < random.AllocationClockCalls || saved.ExamTimer is null || entry + 4L * random.Callbacks > saved.ExamTimer.ClockCalls) || random.Result != 1 && random.DefeatBranch is not null)
+        {
+            throw new InvalidDataException("Random battle clock or defeat return provenance is contradictory.");
+        }
         bool current = random.Request.FieldId == saved.FieldId && random.Request.SourceHash == saved.ProgramHash && random.AllocationClockCalls == saved.Scene.NativeFieldInitialization?.TimerClockCallsAtAllocation;
-        if (random.Request.Scene != SceneKind.Field || random.Request.FieldId < 0 || random.Request.Frame < 0 || random.Request.SourceHash is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit) || random.AllocationClockCalls < 0 || random.CallbackBase < 0 || random.Callbacks < 0 || (random.Result is null) != (random.ReturnFrame is null) || random.Result is not (null or 2 or 4) && (random.Result != 1 || random.DefeatBranch is not { ResumePreviousScene: true }) || random.Result is null && (!current || random.Request.Frame > saved.Frame) || current && saved.Scene.FieldCallbackClock?.RandomBattleCallbacks != random.CallbackBase + random.Callbacks || random.ReturnFrame is long returned && returned < random.Request.Frame)
+        if (random.Request.Scene != SceneKind.Field || random.Request.FieldId < 0 || random.Request.Frame < 0 || random.Request.SourceHash is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit) || random.AllocationClockCalls < 0 || random.CallbackBase < 0 || random.Callbacks < 0 || (random.Result is null) != (random.ReturnFrame is null) || random.Result is not (null or 2 or 4) && (random.Result != 1 || random.DefeatBranch is not { ResumePreviousScene: true }) || random.Abandonment is null && random.Result is null && (!current || random.Request.Frame > saved.Frame) || current && saved.Scene.FieldCallbackClock?.RandomBattleCallbacks != random.CallbackBase + random.Callbacks || random.ReturnFrame is long returned && returned < random.Request.Frame)
         {
             throw new InvalidDataException("Saved random field battle lost its actual encounter, callback or return owner.");
         }

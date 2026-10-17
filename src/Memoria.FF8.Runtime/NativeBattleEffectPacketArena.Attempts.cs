@@ -19,6 +19,7 @@ public static partial class NativeBattleEffectPacketArena
                 throw new InvalidDataException("Native effect packet attempt lacks its actual bounded stores or link address.");
             }
             int address = checked(cursor + attempt.ByteOffsetRelative);
+            links.InvalidatePacketRange(new("20DFAB8", 0, address), attempt.PacketLength);
             if (address > NativeBattleEffectArena.Length - attempt.PacketLength)
             {
                 throw new InvalidDataException("Native effect packet stores leave the original1MB arena.");
@@ -53,7 +54,7 @@ public static partial class NativeBattleEffectPacketArena
                 links.Prepend(primitive.Bucket, new("20DFAB8", 0, address), primitive.Words, flags20, primitive.VertexPayload4, moduleDraw);
                 if (linked)
                 {
-                    arena = arena.MarkUnknown(address, 3);
+                    arena = arena.Write(address, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink));
                 }
             }
         }

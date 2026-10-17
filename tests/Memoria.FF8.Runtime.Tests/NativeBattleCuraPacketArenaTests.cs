@@ -17,7 +17,7 @@ public sealed class NativeBattleCuraPacketArenaTests
         Assert.Equal(new byte[] { 0x98 }, written.Memory.Arena.Read(0x12000 + 24 + 31, 1));
         Assert.Equal(new[] { 0x12000, 0x12018 }, written.Ordering.Proxies.Select(proxy => proxy.Packet.ByteOffset));
         Assert.All(written.Ordering.Proxies, proxy => Assert.Equal("20DFAB8", proxy.Packet.Bank));
-        Assert.Throws<NotSupportedException>(() => written.Memory.Arena.Read(0x12000, 3));
-        Assert.Throws<NotSupportedException>(() => written.Memory.Arena.Read(0x12018, 3));
+        Assert.Equal(3, written.Memory.Arena.Read(0x12000, 3).Length);
+        Assert.Equal(3, written.Memory.Arena.Read(0x12018, 3).Length);
     }
 }

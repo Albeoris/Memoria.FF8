@@ -91,7 +91,7 @@ public sealed class NativeBattleEffectOverlayPacketsTests
         Assert.Equal(new[] { 0, 0, 0, 0 }, proxy.VertexPayload4.ToArray());
         NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(written.Memory))!;
         NativeBattleEffectArena actualArena = restored.Arena!;
-        Assert.Throws<NotSupportedException>(() => actualArena.Read(cursor, 3));
+        Assert.Equal(3, actualArena.Read(cursor, 3).Length);
         Assert.Equal(new byte[] { 9 }, actualArena.Read(cursor + 3, 1));
         Assert.Equal(new byte[] { 0x2F }, actualArena.Read(cursor + 7, 1));
         foreach (int offset in new[] { 4, 5, 6, 30, 31, 38, 39 })

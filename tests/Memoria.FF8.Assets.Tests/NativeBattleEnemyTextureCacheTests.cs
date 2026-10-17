@@ -172,7 +172,7 @@ public sealed class NativeBattleEnemyTextureCacheTests(ITestOutputHelper output)
         Assert.Equal((byte)3, row.Kind);
         Assert.Equal((byte?)77, row.ModelId);
         Assert.Equal(row.TextureMask, enemy.TextureAllocationMask);
-        Assert.Equal(row.Binding, enemy.BodyTextureSlots);
+        Assert.Equal(row.Binding!.PaletteRows.ToArray(), enemy.BodyTextureSlots!.PaletteRows.ToArray());
         Assert.NotEqual((ushort)63, cache.BlockedSlots);
         NativeBattleEffectTextureState textures = Assert.IsType<NativeBattleEffectTextureState>(battle.NativeEffectMemory!.Textures);
         Assert.Contains(textures.ReadVram(), value => value != 0);

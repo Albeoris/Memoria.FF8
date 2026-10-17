@@ -34,18 +34,15 @@ public sealed partial record NativeBattlePrimitiveProcess(ushort? TexturePage, b
             throw new InvalidDataException("Native battle primitive buffer exceeds its two physical banks.");
         }
         bool disable = DisableTableReset ?? throw new NotSupportedException("Native500900 requires its retained1CFF834 OT-reset gate.");
-        if (disable)
-        {
-            throw new NotSupportedException("Native500900 retained OT links require their physical proxy-bank reuse owner when1CFF834 disables table reset.");
-        }
         //45D550→45CC80 clears only the selected bank and publishes its descriptor DWORD8=1.
-        return this with { PacketBank = (flags & 0x80) == 0 ? "off_B6D070" : "off_B6D094", PacketBuffer = buffer, ByteCursor = 0, TablePerspective = TablePerspective.SetItem(buffer, true) };
+        return this with { PacketBank = (flags & 0x80) == 0 ? "off_B6D070" : "off_B6D094", PacketBuffer = buffer, ByteCursor = 0, TablePerspective = disable ? TablePerspective : TablePerspective.SetItem(buffer, true) };
     }
 }
 
 public sealed partial record NativeBattleEffectMemory
 {
     public NativeBattlePrimitiveProcess? PrimitiveProcess { get; init; }
+    public byte? ActionPhaseDEA { get; init; }
 }
 
 public sealed record NativeBattlePrimitiveFrame(NativeBattleLogicalOrdering Pending, ImmutableArray<NativeBattleLogicalResolvedCommand> LastCommands, ImmutableArray<int?> LastModuleBlendModes)

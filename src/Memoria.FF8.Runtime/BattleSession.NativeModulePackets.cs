@@ -75,6 +75,7 @@ public sealed partial class BattleSession
         NativeBattleLogicalOrdering.Builder links = new(ordering);
         if (batch.AllocationBytes != 0)
         {
+            links.InvalidatePacketRange(new(bank, process.PacketBuffer, cursor), batch.AllocationBytes);
             stores.Add(new(cursor, new byte[batch.AllocationBytes].ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Unknown, batch.AllocationBytes).ToImmutableArray()));
         }
         foreach (NativeBattleAllocatedPrimitive allocated in batch.Primitives)
@@ -85,9 +86,14 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Native module primitive leaves its original packet allocation.");
             }
             int address = checked(cursor + allocated.ByteOffset);
+            links.InvalidatePacketRange(new(bank, process.PacketBuffer, address), primitive.Words.Length * 4);
             bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
             links.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, address), primitive.Words, allocated.Flags20, primitive.VertexPayload4, moduleDraw);
             stores.AddRange(NativeBattleCommonPacketArena.PrimitiveStores(address, primitive, linked));
+            if (linked)
+            {
+                stores.Add(new(address, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink).ToImmutableArray(), [NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known]));
+            }
         }
         NativeEffectMemory = memory with { PrimitiveProcess = process.ApplyCommonWrites(stores.ToImmutable()) with { ByteCursor = next } };
         return graphics with { PrimitiveFrame = frame with { Pending = links.ToImmutable() } };

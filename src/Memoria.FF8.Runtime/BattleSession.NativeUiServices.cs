@@ -28,7 +28,18 @@ public sealed partial class BattleSession
             }
             if (NativeGraphics.UiServices is { } initial)
             {
-                bool requestPause = NativeGraphics.EntryReady && (initial.Flags942 & 2) != 0;
+                bool requestPause = (initial.Flags942 & 2) != 0 && (NativeEffectMemory?.ActionPhaseDEA ?? throw new NotSupportedException("Native47CF60 pause admission requires its actual retained process BYTE DEA.")) != 0;
+                NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native47CF60 pause transition requires its retained primitive process.");
+                NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native47CF60 pause transition requires its retained OT reset gate.");
+                bool wasPaused = process.DisableTableReset ?? throw new NotSupportedException("Native47CF60 pause transition requires its actual prior1CFF834.");
+                if (!requestPause && wasPaused)
+                {
+                    byte buffer = process.Buffer80 ?? throw new NotSupportedException("Native5003A0 requires its retained OT bank selector.");
+                    NativeBattlePrimitiveFrame frame = NativeGraphics.PrimitiveFrame ?? throw new NotSupportedException("Native5003A0 requires its retained physical OT roots.");
+                    NativeGraphics = NativeGraphics with { PrimitiveFrame = frame with { Pending = frame.Pending.SelectTable(buffer).ClearRoots45D550() } };
+                    process = process with { TablePerspective = process.TablePerspective.SetItem(buffer, true) };
+                }
+                NativeEffectMemory = memory with { PrimitiveProcess = process with { DisableTableReset = requestPause } };
                 NativeGraphics = NativeGraphics with { UiServices = initial with { PauseDE9 = requestPause && initial.PauseDE9 } };
             }
             for (int pre = 0; pre < 3; pre++)
@@ -58,7 +69,8 @@ public sealed partial class BattleSession
             DispatchNativeUiService();
             if (NativeGraphics.UiServices is { } final)
             {
-                NativeGraphics = NativeGraphics with { UiServices = final with { PauseDE9 = NativeGraphics.EntryReady && (final.Flags942 & 2) != 0 } };
+                bool retained = NativeEffectMemory?.PrimitiveProcess?.DisableTableReset ?? throw new NotSupportedException("Native47CF60 pause completion requires its actual1CFF834 owner.");
+                NativeGraphics = NativeGraphics with { UiServices = final with { PauseDE9 = retained } };
             }
             return ready;
         }

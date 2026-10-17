@@ -21,6 +21,11 @@ public sealed partial class BattleAssets
     /// <summary>5077B0/507BF0's exact file ID selection from observed model BYTE129/128, without kernel-order inference.</summary>
     public NativeBattleModelDatSource ReadNativeModelDatSource(byte modelId, bool linked, byte observedSelector)
     {
+        if (modelId >= 16 && !linked)
+        {
+            NativeBattleArchiveFile enemy = ReadNativeBattleFile(checked((ushort)(modelId + 150)));
+            return new(modelId, false, 0, checked((short)enemy.FileId), enemy.Name, enemy.Bytes);
+        }
         if (modelId >= 11 || linked && modelId == 7)
         {
             throw new NotSupportedException("Native party file-table selection requires its original model0..10 and an existing linked callback.");

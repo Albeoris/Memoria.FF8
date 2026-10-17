@@ -245,6 +245,12 @@ public sealed class SceneEventState
     public byte? NativeBattleResult { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleAbandonment? NativeAbandonedBattleOutcome { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeWorldBattleOutcome? NativeWorldBattleOutcome { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<NativeBattleFlagWrite>? NativeBattleFlagWrites { get; internal set; }
     public Dictionary<int, string> Names { get; } = [];
     [JsonInclude]

@@ -20,6 +20,7 @@ public sealed record NativeBattleRawMesh(ImmutableArray<NativeBattleRawVertex> V
 
 public sealed partial record NativeBattleGraphicsResource
 {
+    public bool GeometryRelocated507550 { get; init; }
     public ImmutableArray<NativeBattleRawMesh>? Geometry { get; init; }
     public ImmutableArray<NativeBattleRawMesh>? LinkedGeometry { get; init; }
     public bool? LinkedGeometryUsesBodySkeleton { get; init; }

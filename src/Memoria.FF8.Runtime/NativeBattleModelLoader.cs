@@ -19,6 +19,7 @@ public sealed partial record NativeBattleGraphicsModel
 
 public sealed record NativeBattleModelLoadTask(byte ModelId, byte PhysicalIndex, uint Argument, byte Selector, uint Callback, byte Phase)
 {
+    public int? EnemyResourceIndex { get; init; }
     public NativeBattleModelFileSelection? File { get; init; }
     public NativeBattleModelTextureBinding? TextureBinding { get; init; }
     public NativeBattleEffectHeapAllocation? OriginalTexturePack { get; init; }
@@ -40,7 +41,7 @@ public sealed record NativeBattleModelLoader(NativeBattleModelLoadTask? Task)
         {
             return;
         }
-        if (task.ModelId >= 16 || task.PhysicalIndex >= 3 || task.Callback is not (0x5077B0 or 0x5079B0 or 0x507BF0 or 0x507E20) || task.Phase > (task.Callback == 0x5079B0 ? 3 : 2) || task.Phase != 0 && task.File is null || task.Phase >= 2 && (task.TextureBinding is null || task.OriginalTexturePack is null))
+        if (task.PhysicalIndex >= (task.Callback is 0x507120 or 0x507F80 ? 7 : 3) || task.Callback is not (0x507120 or 0x507F80 or 0x5077B0 or 0x5079B0 or 0x507BF0 or 0x507E20) || task.Phase > (task.Callback == 0x5079B0 ? 3 : 2) || task.Phase != 0 && task.File is null || task.Phase >= 2 && (task.TextureBinding is null || task.OriginalTexturePack is null))
         {
             throw new InvalidDataException("Native507070 requires its original bounded task and staging owners.");
         }
@@ -55,22 +56,26 @@ public sealed record NativeBattleModelLoader(NativeBattleModelLoadTask? Task)
 
     public static NativeBattleModelLoader Queue507080(ushort request, byte physicalIndex, uint argument, byte linkedSelector128, byte bodySelector129)
     {
-        if (physicalIndex >= 3)
+        if (physicalIndex >= 7)
         {
             throw new NotSupportedException("Native model reload currently requires a physical party CPU bank0..2.");
         }
         bool linked = request >= 0x1000;
         int model = linked ? request - 0x1000 : request;
-        if (model >= 16)
+        if (model >= 16 && !linked)
         {
-            throw new NotSupportedException("Native507080 enemy/8F reload requires its original resource-copy callback.");
+            return new(Task: new(unchecked((byte)model), physicalIndex, argument, 0, model == 143 ? 0x507F80u : 0x507120u, 0));
+        }
+        if (physicalIndex >= 3)
+        {
+            throw new NotSupportedException("Native party model reload requires its physical CPU bank0..2.");
         }
         uint callback = linked ? model is 1 or 9 ? 0x507E20u : 0x507BF0u : model == 7 ? 0x5079B0u : 0x5077B0u;
         //507080 reinitializes the one-slot list even when model7's linked request appends no callback.
         return new(Task: linked && model == 7 ? null : new((byte)model, physicalIndex, argument, linked ? linkedSelector128 : bodySelector129, callback, 0));
     }
 
-    public NativeBattleModelLoadStep Poll507070(int signed508470Result, IReadOnlyList<NativeBattleModelDatSource> sources, NativeBattleFileStaging staging)
+    public NativeBattleModelLoadStep Poll507070(int signed508470Result, IReadOnlyList<NativeBattleModelDatSource> sources, NativeBattleFileStaging staging, ushort enemyBlockedSlots = 63)
     {
         Validate();
         staging.Validate();
@@ -99,7 +104,11 @@ public sealed record NativeBattleModelLoader(NativeBattleModelLoadTask? Task)
                 return new(this, staging, 1, null, null, null);
             }
             NativeBattleModelDatSource source = ReadCurrentStaging(task, staging);
-            ushort mask = task.Callback is 0x5077B0 or 0x5079B0 ? (ushort)(3 << (2 * task.PhysicalIndex)) : (ushort)(1 << (task.PhysicalIndex + 12));
+            if (task.Callback == 0x507F80)
+            {
+                throw new InvalidOperationException("Native507F80 resource copy must execute against its actual model142 row and enemy heap.");
+            }
+            ushort mask = task.Callback == 0x507120 ? unchecked((ushort)~enemyBlockedSlots) : task.Callback is 0x5077B0 or 0x5079B0 ? (ushort)(3 << (2 * task.PhysicalIndex)) : (ushort)(1 << (task.PhysicalIndex + 12));
             NativeBattleEffectHeapAllocation pack = source.TexturePack(task.Callback);
             NativeBattleModelTextureLoad upload = NativeBattleModelTextures.Prepare507400(pack, unchecked((ushort)~mask));
             NativeBattleModelDatSource relocated = source.Relocate507400(task.Callback, upload);

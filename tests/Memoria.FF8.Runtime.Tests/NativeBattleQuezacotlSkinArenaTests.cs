@@ -23,7 +23,7 @@ public sealed class NativeBattleQuezacotlSkinArenaTests
         Assert.Equal(148, written.Effect.DrawArenaOffset);
         Assert.Equal(new[] { "20DFAB8", "off_B6D070" }, written.Ordering.Proxies.Select(proxy => proxy.Packet.Bank));
         Assert.Equal(new[] { 128, 64 }, written.Ordering.Proxies.Select(proxy => proxy.Packet.ByteOffset));
-        Assert.Throws<NotSupportedException>(() => written.Memory.PrimitiveProcess.ReadCommonPacket(64, 3));
+        Assert.Equal(3, written.Memory.PrimitiveProcess.ReadCommonPacket(64, 3).Length);
         Assert.Equal(stored.Data.AsSpan().Slice(3).ToArray(), written.Memory.PrimitiveProcess.ReadCommonPacket(67, 17));
         Assert.Throws<NotSupportedException>(() => written.Memory.PrimitiveProcess.ReadCommonPacket(84, 1));
         Assert.Throws<NotSupportedException>(() => written.Memory.Arena!.Read(0x8D9, 1));
@@ -31,7 +31,7 @@ public sealed class NativeBattleQuezacotlSkinArenaTests
         Assert.Equal(Enumerable.Repeat((byte)0xA5, 19), written.Memory.Arena.Read(149, 19));
         NativeBattleQuezacotlPacketWrite restored = JsonSerializer.Deserialize<NativeBattleQuezacotlPacketWrite>(JsonSerializer.Serialize(written))!;
         Assert.Equal(JsonSerializer.Serialize(written), JsonSerializer.Serialize(restored));
-        Assert.Throws<NotSupportedException>(() => restored.Memory.PrimitiveProcess!.ReadCommonPacket(64, 3));
+        Assert.Equal(3, restored.Memory.PrimitiveProcess!.ReadCommonPacket(64, 3).Length);
     }
 
     private static NativeBattleGfGeometryAttempt Packet(NativeBattleGeometryPrimitive primitive)

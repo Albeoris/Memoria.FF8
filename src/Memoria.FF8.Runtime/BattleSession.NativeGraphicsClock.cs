@@ -134,7 +134,12 @@ public sealed partial class BattleSession
                 if ((model.Flags0 & 2) == 0 && beforeRemoval.ModelId4 != 143)
                 {
                     NativeBattleModelTextureCache cache = NativeModelTextureCache ?? throw new NotSupportedException("Native5080D0 requires its original resource-row texture owner.");
-                    NativeModelTextureCache = cache.Release5080D0(beforeRemoval.TextureResourceIndex ?? throw new NotSupportedException("Native5080D0 requires the original model DWORD100 resource-row binding."));
+                    int releasedRow = beforeRemoval.TextureResourceIndex ?? throw new NotSupportedException("Native5080D0 requires the original model DWORD100 resource-row binding.");
+                    if (cache.Rows[releasedRow].Kind == 3)
+                    {
+                        (NativeModelCpuResources, NativeFileStaging) = NativeBattleModelEnemyHeap.Release(NativeModelCpuResources ?? throw new NotSupportedException("Native5080D0 requires its actual retained heap rows."), NativeFileStaging ?? throw new NotSupportedException("Native5080D0 requires its actual shared heap bytes."), cache, releasedRow);
+                    }
+                    NativeModelTextureCache = cache.Release5080D0(releasedRow);
                 }
                 if (removal.ReleaseParticipant)
                 {
@@ -158,7 +163,7 @@ public sealed partial class BattleSession
                 NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
                 NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(model, resource, new(NativeEntryAdvantage, NativeCamera?.Mask)
                 {
-                    OriginalResource = binding.Resource,
+                    OriginalResource = model.ModelId4 >= 16 ? model.OriginalResourceRow104 == model.ActiveResourceRow100 ? resource : ResolveNativeEnemyResource(model.OriginalResourceRow104 ?? throw new NotSupportedException("Native enemy original resource row remains unknown."), binding.Resource) : binding.Resource,
                     GlobalRandom = NextNativeGlobalRandom,
                     BindModelRing90 = (current, selector) =>
                     {

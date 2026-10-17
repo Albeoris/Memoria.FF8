@@ -137,6 +137,7 @@ public sealed class NativeAllocationDescriptorTests
         Assert.True(battle.NativeEntryReady);
         BattleCombatant player = battle.Combatants.Single(actor => actor.IsPlayer);
         typeof(BattleCombatant).GetProperty(nameof(BattleCombatant.CurrentHp))!.SetValue(player, 0);
+        typeof(BattleCombatant).GetProperty("NativeStatus0", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)!.SetValue(player, (ushort)1);
         battle.Tick();
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
         Assert.Equal((byte?)1, battle.NativeResult);

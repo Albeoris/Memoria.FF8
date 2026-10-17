@@ -43,7 +43,7 @@ public sealed class NativeBattleFlashPacketsTests
         Assert.Equal(offset + 24, written.Cursor);
         Assert.Equal(JsonSerializer.Serialize(original.PrimitiveProcess), JsonSerializer.Serialize(written.Memory.PrimitiveProcess));
         Assert.Throws<NotSupportedException>(() => original.Arena!.Read(offset, 24));
-        Assert.Throws<NotSupportedException>(() => written.Memory.Arena!.Read(offset, 3));
+        Assert.Equal(3, written.Memory.Arena!.Read(offset, 3).Length);
         Assert.Equal(5, written.Memory.Arena!.Read(offset + 3, 1)[0]);
         byte[] body = written.Memory.Arena!.Read(offset + 4, 20);
         Assert.Equal(0x2A808080u, BinaryPrimitives.ReadUInt32LittleEndian(body));

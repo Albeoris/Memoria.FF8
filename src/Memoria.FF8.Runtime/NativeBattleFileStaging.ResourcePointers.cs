@@ -18,7 +18,7 @@ public sealed partial record NativeBattleFileStaging
         }
         foreach ((uint address, NativeBattleResourcePointer? pointer) in ResourcePointers)
         {
-            if (address < BaseAddress || (ulong)address + 4 > (ulong)BaseAddress + int.MaxValue || pointer is { Length: < 0 } || pointer is not null && (pointer.Cpu is not null) == (pointer.StagingAddress is not null) || pointer?.Cpu is { } cpu && (cpu.Bank >= 3 || cpu.Offset is < 0 or > NativeBattleModelCpuBank.Length))
+            if (address < BaseAddress || (ulong)address + 4 > (ulong)BaseAddress + int.MaxValue || pointer is { Length: < 0 } || pointer is not null && (pointer.Cpu is not null) == (pointer.StagingAddress is not null) || pointer?.Cpu is { } cpu && (cpu.Bank > 4 || cpu.Offset < 0 || cpu.Bank < 3 && cpu.Offset > NativeBattleModelCpuBank.Length))
             {
                 throw new InvalidDataException("Native resource pointer field has an invalid physical address or source reference.");
             }

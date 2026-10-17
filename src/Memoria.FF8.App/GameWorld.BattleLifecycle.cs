@@ -80,7 +80,9 @@ internal sealed partial class GameWorld
                 ? Events.CaptureNativeBattleAbandonment(occurrence, callbacks)
                 : new(occurrence, Events.ReadNativeDefeatReturnBranch4706B0(), active.Capture().Definition.NativeExamTimerAtEntry?.ClockCalls ?? throw new NotSupportedException("World defeat requires its actual entry clock."), session.ExamTimer!.ClockCalls, callbacks);
             abandoned.Validate();
+            Events.RequireNativeBattleAbandonment(abandoned);
             ApplyBattleResult(occurrence, result);
+            Events.CommitNativeBattleAbandonment(abandoned);
             session.EnterNativeDefeatField75(abandoned);
             battle = null;
             worldScene?.Dispose();
@@ -91,9 +93,17 @@ internal sealed partial class GameWorld
         }
         if (occurrence.SourceScene == SceneKind.WorldMap)
         {
+            NativeWorldBattleOutcome physical = new(occurrence, active.NativeResult!.Value, active.Capture().Definition.NativeExamTimerAtEntry?.ClockCalls ?? throw new NotSupportedException("World outcome requires its actual entry clock."), session.ExamTimer!.ClockCalls) { DefeatBranch = active.NativeResult == 1 ? Events.ReadNativeDefeatReturnBranch4706B0() : null };
+            Events.RequireNativeWorldBattleOutcome(physical);
             Action publishWorld = PrepareNativeWorldBattleReturn(active, occurrence);
             ApplyBattleResult(occurrence, result);
             publishWorld();
+            Events.PublishNativeWorldBattleOutcome(physical);
+            session.SetEventState(Events.Capture());
+            if (session.State.DepartingFieldState is not null)
+            {
+                session.SetDepartingFieldState(Events.Capture());
+            }
             RandomEncounterSessionState encounters = session.State.RandomEncounters ?? throw new InvalidOperationException("World outcome lost its playthrough owner.");
             session.SetRandomEncounters(encounters with { Pending = null });
             return;

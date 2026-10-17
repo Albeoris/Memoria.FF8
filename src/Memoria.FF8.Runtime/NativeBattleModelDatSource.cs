@@ -13,7 +13,7 @@ public sealed record NativeBattleModelDatSource(byte ModelId, bool Linked, byte 
 
     public NativeBattleEffectHeapAllocation TexturePack(uint callback)
     {
-        int section = callback switch { 0x5077B0 => 5, 0x5079B0 => 8, 0x507BF0 => 6, 0x507E20 => 4, _ => throw new NotSupportedException("Native model loader lacks this callback's DAT layout.") };
+        int section = callback switch { 0x507120 => 10, 0x5077B0 => 5, 0x5079B0 => 8, 0x507BF0 => 6, 0x507E20 => 4, _ => throw new NotSupportedException("Native model loader lacks this callback's DAT layout.") };
         int start = Section(section);
         return new(Name + ":loader-textures", Bytes.Slice(start, Section(section + 1) - start));
     }
@@ -21,7 +21,7 @@ public sealed record NativeBattleModelDatSource(byte ModelId, bool Linked, byte 
     public NativeBattleModelDatSource Relocate507400(uint callback, NativeBattleModelTextureLoad load)
     {
         byte[] bytes = Bytes.ToArray();
-        int texture = callback switch { 0x5077B0 => 5, 0x5079B0 => 8, 0x507BF0 => 6, 0x507E20 => 4, _ => throw new NotSupportedException("Native model loader lacks this callback's DAT layout.") };
+        int texture = callback switch { 0x507120 => 10, 0x5077B0 => 5, 0x5079B0 => 8, 0x507BF0 => 6, 0x507E20 => 4, _ => throw new NotSupportedException("Native model loader lacks this callback's DAT layout.") };
         load.Source.Data.AsSpan().CopyTo(bytes.AsSpan(Section(texture), Section(texture + 1) - Section(texture)));
         int geometry = Section(callback == 0x507E20 ? 0 : 1);
         int objects = Read32(geometry);

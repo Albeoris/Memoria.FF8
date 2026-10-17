@@ -50,6 +50,7 @@ public static class NativeBattleCommonPacketArena
                 throw new InvalidDataException("Native common packet receipt lacks its original aligned stores and mask.");
             }
             int address = checked(start + attempt.ByteOffsetRelative);
+            links.InvalidatePacketRange(new(bank, process.PacketBuffer, address), attempt.PacketLength);
             stores.Add(new(address, attempt.Data, attempt.WriteMask));
             if (attempt.Primitive is not { } primitive)
             {
@@ -64,7 +65,7 @@ public static class NativeBattleCommonPacketArena
             links.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, address), primitive.Words, flags20, primitive.VertexPayload4, moduleDraw);
             if (linked)
             {
-                stores.Add(new(address, [0, 0, 0], [NativeBattleGfPacketByteState.Unknown, NativeBattleGfPacketByteState.Unknown, NativeBattleGfPacketByteState.Unknown]));
+                stores.Add(new(address, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink).ToImmutableArray(), [NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known]));
             }
             acceptedEnd = Math.Max(acceptedEnd, end);
         }

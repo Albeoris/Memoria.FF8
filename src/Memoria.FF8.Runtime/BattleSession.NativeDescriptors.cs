@@ -203,17 +203,12 @@ public sealed partial class BattleSession
                         NativeBattleGraphicsBinding loadingBinding = FindNativeGraphicsBinding(loadingActor.Id) ?? throw new InvalidDataException("Native502670 has no original resource binding.");
                         loading = loading with { Flags0 = (ushort)(loading.Flags0 | 1), ModelId4 = checked((byte)packet.Value), FileSelector128 = loadingBinding.Resource.LinkedFileSelector128, FileSelector129 = loadingBinding.Resource.BodyFileSelector129, EffectCounter97 = 1 };
                         graphics = graphics with { Models = graphics.Models.SetItem(modelIndex, loading), ActorIds = graphics.ActorIds.SetItem(modelIndex, loadingActor.Id), ModelLoadCount = graphics.ModelLoadCount + 1 };
-                        if (!loadingActor.IsPlayer)
-                        {
-                            phase = 2;
-                            break;
-                        }
                         QueueNativeModelResource507080(graphics, checked((ushort)packet.Value), checked((byte)modelIndex), packet.Argument);
                         phase = 1;
                     }
                     if (phase == 1 && PollNativeModelResource507070(ref graphics) == 0)
                     {
-                        if (packet.Value != 7)
+                        if (loadingActor.IsPlayer && packet.Value != 7)
                         {
                             QueueNativeModelResource507080(graphics, checked((ushort)(packet.Value + 0x1000)), checked((byte)modelIndex), packet.Argument);
                         }
@@ -328,26 +323,17 @@ public sealed partial class BattleSession
         int index = RequireDescriptorModel(packet.Index);
         BattleCombatant actor = FindNativeActor(index);
         NativeBattleGraphicsBinding binding = FindNativeGraphicsBinding(actor.Id) ?? throw new InvalidDataException("Native103 has no original allocation/resource binding.");
-        if (binding.ModelId == 143)
-        {
-            throw new NotSupportedException("Native model143 requires its separate507F80 resource producer.");
-        }
         NativeGlobalRandomState randomState = nativeGlobalRandom ?? throw new NotSupportedException("Native103 requires saved534AA0 random state.");
         uint flags = definition.NativeGraphics!.Rules.Project(NativeSavedStatusBits(actor), NativeBattleStatusBits(actor));
-        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(graphics.Models[index], binding.ModelId, 0, ref randomState);
+        byte loadedModelId = graphics.Models[index].ModelId4 ?? throw new NotSupportedException("Native103 requires its actually loaded model BYTE4.");
+        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(graphics.Models[index], loadedModelId, 0, ref randomState);
         if (!actor.IsPlayer)
         {
-            NativeBattleEffectHeapAllocation pack = binding.Resource.BodyTexturePack ?? throw new NotSupportedException("Native507120 requires its original DAT texture pack.");
-            NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native507400 requires the retained process texture-upload owner.");
-            NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native507400 requires observed VRAM and upload slots; migrate the named standalone snapshot explicitly.");
-            NativeBattleModelTextureCache cache = NativeModelTextureCache ?? throw new NotSupportedException("Native model loading requires its original508260 texture-resource owner.");
-            NativeBattleModelTextureCacheLoad textureLoad = cache.LoadEnemy(binding.ModelId, pack);
-            if (textureLoad.Upload is { } upload)
+            if (model.EffectCounter97 != 2 || model.ActiveResourceRow100 is null || model.BodyTextureSlots is null)
             {
-                NativeEffectMemory = memory with { Textures = NativeBattleModelTextures.Enqueue507400(textures, upload) };
+                throw new NotSupportedException("Native enemy103 requires its completed507120/507F80 physical resource load.");
             }
-            NativeModelTextureCache = RegisterNativeEnemyTextureMotion(textureLoad, binding.Resource.TextureAnimations);
-            model = model with { TextureAllocationMask = textureLoad.Cache.Rows[textureLoad.ResourceIndex].TextureMask, TextureResourceIndex = textureLoad.ResourceIndex, BodyTextureSlots = textureLoad.Binding };
+            model = model with { OriginalResourceRow104 = model.ActiveResourceRow100 };
         }
         else
         {
@@ -361,7 +347,7 @@ public sealed partial class BattleSession
         model = model with { Color40 = colors.Color40, Color44 = colors.Color44 };
         if (binding.InitialPosition is NativeBattleVector position)
         {
-            NativeBattlePoseSource pose = binding.Resource.PoseSource ?? throw new NotSupportedException("Native103 transform requires its original skeleton scaleWORD2.");
+            NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics with { Models = graphics.Models.SetItem(index, model) }, index).PoseSource ?? throw new NotSupportedException("Native103 transform requires its actual current skeleton scaleWORD2.");
             short scale = unchecked((short)(System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(pose.Skeleton.AsSpan().Slice(2)) * 4));
             model = model with { Transform = new(position, position, 0, 0, scale) };
         }
@@ -371,6 +357,20 @@ public sealed partial class BattleSession
         model = SetNativeGraphicsFlags(model, flags, graphics with { Models = graphics.Models.SetItem(index, model), ActorIds = graphics.ActorIds.SetItem(index, actor.Id) });
         byte standing = actor.IsPlayer ? NativeStandingSequence(model.Flags8!.Value) : (byte)1;
         model = model with { Flags0 = (packet.Value & 0x100) != 0 ? (ushort)(model.Flags0 | 4) : model.Flags0, SequenceState = new() { Default2 = standing, Pending3 = actor.IsPlayer && standing != 8 ? standing : (byte)0 } };
+        if (loadedModelId == 143)
+        {
+            model = model with { Flags2 = (ushort)(model.Flags2!.Value & ~4), Transform = model.Transform is { } transform ? transform with { Scale38 = 4096 } : throw new NotSupportedException("Native model143 requires its actual initialized transform.") };
+            for (int other = 3; other < 7; other++)
+            {
+                NativeBattleGraphicsModel owner = graphics.Models[other];
+                if ((owner.Flags0 & 2) != 0 && owner.ModelId4 == 142)
+                {
+                    model = model.WriteLinkedModelIndex140(other);
+                    graphics = graphics with { Models = graphics.Models.SetItem(other, owner.WriteLinkedModelIndex140(index)) };
+                    break;
+                }
+            }
+        }
         return graphics with { Models = graphics.Models.SetItem(index, model), ActorIds = graphics.ActorIds.SetItem(index, actor.Id) };
     }
 

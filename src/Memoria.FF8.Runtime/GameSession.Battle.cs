@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed partial class GameSession
@@ -15,10 +17,38 @@ public sealed partial class GameSession
         state.NativeBattleMemory?.Validate();
         foreach (NativeBattleAbandonment abandoned in state.AbandonedNativeBattles ?? [])
         {
+            if (abandoned is null)
+            {
+                throw new InvalidDataException("Abandoned battle history contains a missing receipt.");
+            }
             abandoned.Validate();
-            if (!state.AppliedBattleResultIds.Contains(abandoned.Encounter.OccurrenceId, StringComparer.Ordinal))
+            if (state.AppliedBattleResultIds is null || !state.AppliedBattleResultIds.Contains(abandoned.Encounter.OccurrenceId, StringComparer.Ordinal) || state.ExamTimer is null || abandoned.ExitClockCalls > state.ExamTimer.ClockCalls)
             {
                 throw new InvalidDataException("Abandoned native battle has no applied outcome receipt.");
+            }
+            if (abandoned.Encounter.ScriptedOwner is not null && state.EventState is System.Text.Json.JsonElement vm)
+            {
+                if (vm.ValueKind == JsonValueKind.Object && vm.TryGetProperty("Scene", out JsonElement scene) && scene.ValueKind == JsonValueKind.Object && scene.TryGetProperty("NativeBattleCompletions", out JsonElement completions) && completions.ValueKind == JsonValueKind.Array && completions.EnumerateArray().Any(item => item.TryGetProperty("Abandonment", out JsonElement receipt) && receipt.ValueKind != JsonValueKind.Null && receipt.Deserialize<NativeBattleAbandonment>(JsonOptions)?.Encounter.OccurrenceId == abandoned.Encounter.OccurrenceId && receipt.Deserialize<NativeBattleAbandonment>(JsonOptions) != abandoned))
+                {
+                    throw new InvalidDataException("Abandoned scripted battle root and retained completion history disagree.");
+                }
+            }
+        }
+        if (state.EventState is JsonElement outcomeVm && outcomeVm.ValueKind == JsonValueKind.Object && outcomeVm.TryGetProperty("Scene", out JsonElement outcomeScene) && outcomeScene.ValueKind == JsonValueKind.Object && outcomeScene.TryGetProperty("NativeAbandonedBattleOutcome", out JsonElement outcomeJson) && outcomeJson.ValueKind != JsonValueKind.Null)
+        {
+            NativeBattleAbandonment abandoned = outcomeJson.Deserialize<NativeBattleAbandonment>(JsonOptions) ?? throw new InvalidDataException("Empty abandoned native outcome.");
+            if (state.AbandonedNativeBattles?.Contains(abandoned) != true)
+            {
+                throw new InvalidDataException("Native abandoned outcome lacks its matching root battle receipt.");
+            }
+        }
+        if (state.EventState is JsonElement worldOutcomeVm && worldOutcomeVm.ValueKind == JsonValueKind.Object && worldOutcomeVm.TryGetProperty("Scene", out JsonElement worldOutcomeScene) && worldOutcomeScene.ValueKind == JsonValueKind.Object && worldOutcomeScene.TryGetProperty("NativeWorldBattleOutcome", out JsonElement worldOutcomeJson) && worldOutcomeJson.ValueKind != JsonValueKind.Null)
+        {
+            NativeWorldBattleOutcome outcome = worldOutcomeJson.Deserialize<NativeWorldBattleOutcome>(JsonOptions) ?? throw new InvalidDataException("Empty world native outcome.");
+            outcome.Validate();
+            if (!state.AppliedBattleResultIds.Contains(outcome.Encounter.OccurrenceId, StringComparer.Ordinal) || state.ExamTimer is null || outcome.ExitClockCalls > state.ExamTimer.ClockCalls)
+            {
+                throw new InvalidDataException("World native outcome lost its applied encounter or actual process clock.");
             }
         }
         if (state.NativeBattleMemory is { } memory && state.Battle is { } battle)
@@ -28,6 +58,10 @@ public sealed partial class GameSession
             {
                 throw new InvalidDataException("Retained battle memory contradicts the active battle's physical owners.");
             }
+        }
+        if (state.AbandonedNativeBattles is { } abandonments && abandonments.Select(item => item.Encounter.OccurrenceId).Distinct(StringComparer.Ordinal).Count() != abandonments.Length || state.FieldLoadContext is { Origin: NativeFieldLoadOrigin.BattleDefeat } fresh && (state.AbandonedNativeBattles is not { Length: > 0 } history || history[^1].Branch != fresh.DefeatBranch))
+        {
+            throw new InvalidDataException("Fresh defeat entry lost its unique abandoned battle receipt.");
         }
         ValidateNativeSavedBattleFlagsCheckpoint(state);
         state.BattleVariables?.Validate();

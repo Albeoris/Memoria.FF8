@@ -22,7 +22,7 @@ public sealed class NativeBattleCurePacketArenaTests
         Assert.Equal(new byte[] { 0xCC }, write.Memory.Arena.Read(271, 1));
         Assert.Equal(new byte[] { 0xCC }, write.Memory.Arena.Read(279, 1));
         Assert.Equal(new byte[] { 0, 0, 0, 0 }, write.Memory.Arena.Read(328, 4));
-        Assert.Throws<NotSupportedException>(() => write.Memory.Arena.Read(256, 3));
+        Assert.Equal(3, write.Memory.Arena.Read(256, 3).Length);
         Assert.Equal(new byte[] { 3, 2, 1, 0x32 }, write.Memory.Arena.Read(260, 4));
     }
 

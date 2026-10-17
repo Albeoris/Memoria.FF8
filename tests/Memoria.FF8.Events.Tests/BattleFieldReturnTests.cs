@@ -14,6 +14,7 @@ internal static partial class Program
     private static void NativeBattleFieldReturnContract()
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? throw new InvalidOperationException("Set MEMORIA_FF8_GAME_DIR to the installed game directory.");
+        NativeBattleAbandonmentContract();
         NativeRandomFieldReturnContract(directory);
         NativeBattleFieldRegistrationContract(directory);
         NativeBattleMusicEntryResources resources = new NativeMusicCatalog(directory).ReadBattleEntryResources();

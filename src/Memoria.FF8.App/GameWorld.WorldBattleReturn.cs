@@ -9,7 +9,7 @@ internal sealed partial class GameWorld
     {
         WorldMapScene scene = worldScene ?? throw new NotSupportedException("World combat requires its current original world resource owner.");
         WorldState world = scene.State;
-        if (world.NativeFootRuntime is not { EntityType: 0 or 1 or 2, StationTrains: null } || world.NativeCarRuntime is not null || world.NativeGardenRuntime is not null || world.NativeRagnarokRuntime is not null || world.NativeScriptedRuntime is not null || world.NativeTrainRuntime is not null || request.SourceHash != scene.AllocationProgramSha256)
+        if (world.NativeFootRuntime is not { EntityType: 0 or 1 or 2 } || world.NativeScriptedRuntime is not null || world.NativeTrainRuntime is not null || request.SourceHash != scene.AllocationProgramSha256)
         {
             throw new NotSupportedException("World combat departure requires the implemented normal foot resource and saved-pose contract.");
         }

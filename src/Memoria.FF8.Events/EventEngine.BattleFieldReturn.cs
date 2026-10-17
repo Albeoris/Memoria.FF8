@@ -61,6 +61,10 @@ public sealed partial class EventEngine
         }
         NativeBattleFieldReloadCompletion reload = Scene.NativeBattleFieldReload ?? throw new NotSupportedException("Native kind3 field return requires actual471F70/471010/52BC00 resource-reload completion; the paused field VM or kind6 menu path cannot establish it.");
         reload.Validate();
+        if (nativeResult == 1 && reload.DefeatBranch != ReadNativeDefeatReturnBranch4706B0())
+        {
+            throw new InvalidDataException("Native kind3 result1 changed its saved183 branch since actual resource reload.");
+        }
         if (NativeRuntimeProfile is not { IsVerified: true } || Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } proof || !proof.IsFrom(NativeRuntimeProfile, FieldId, programHash) || reload.FieldId != FieldId || reload.ProgramHash != programHash || reload.BattleEntryFrame != battleEntryFrame || reload.NativeResult != nativeResult)
         {
             throw new InvalidDataException("Native kind3 reload completion disagrees with the actual suspended field and battle return.");

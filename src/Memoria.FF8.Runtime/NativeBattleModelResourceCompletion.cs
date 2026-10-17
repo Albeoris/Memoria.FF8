@@ -5,6 +5,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleModelCpuResourceRow(ImmutableDictionary<int, NativeBattleModelCpuReference?> Fields)
 {
+    public int? PrivateLength4 { get; init; }
+    public int? SharedLength8 { get; init; }
+    public ImmutableDictionary<int, int> Lengths { get; init; } = ImmutableDictionary<int, int>.Empty;
     public byte? LinkedPhysicalIndex36 { get; init; }
     public static NativeBattleModelCpuResourceRow Unknown() => new(ImmutableDictionary<int, NativeBattleModelCpuReference?>.Empty);
     public NativeBattleModelCpuReference Require(int field) => Fields.TryGetValue(field, out NativeBattleModelCpuReference? value) && value is not null ? value : throw new NotSupportedException($"Native resource row DWORD{field} has no observed CPU-bank reference.");
@@ -13,6 +16,10 @@ public sealed record NativeBattleModelCpuResourceRow(ImmutableDictionary<int, Na
 public sealed record NativeBattleModelAnimationCopy(int DestinationOffset, ImmutableArray<byte> Bytes, int HeaderPointerField);
 public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu, ImmutableArray<NativeBattleModelCpuResourceRow> Rows)
 {
+    public const uint EnemyAddress = 0x1939018;
+    public int? EnemyCursor { get; init; }
+    public byte? EnemyLinkedSlots { get; init; }
+    public int? LastModel142Row { get; init; }
     public NativeBattleModelCpuBank Palettes { get; init; } = NativeBattleModelCpuBank.Unknown();
     public NativeBattleModelCpuBank AnimationFrames { get; init; } = NativeBattleModelCpuBank.Unknown();
     public ImmutableDictionary<int, int?> AnimationPointers { get; init; } = ImmutableDictionary<int, int?>.Empty;
@@ -30,7 +37,7 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
         {
             _ = bank.Read(0, 0);
         }
-        if (Rows.Any(row => row.Fields.Any(field => field.Value is { } reference && (reference.Bank >= 3 || reference.Offset is < 0 or > NativeBattleModelCpuBank.Length))))
+        if (EnemyCursor is < 0 || EnemyLinkedSlots > 7 || LastModel142Row is < 0 or >= 11 || Rows.Any(row => row.PrivateLength4 < 0 || row.SharedLength8 < 0 || row.Lengths.Any(item => item.Value < 0) || row.Fields.Any(field => field.Value is { } reference && (reference.Bank > 4 || reference.Offset < 0 || reference.Bank < 3 && reference.Offset > NativeBattleModelCpuBank.Length))))
         {
             throw new InvalidDataException("Native model resource row points outside its known logical bank.");
         }

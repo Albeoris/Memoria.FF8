@@ -9,7 +9,13 @@ public enum NativeBattleBackend
     Interactive
 }
 
-public sealed record NativeBattleCompletion(int Version, int FieldId, string ProgramHash, long Frame, int ObjectId, int ScriptId, int Operation, int RawEncounter, int RawFlags, ushort Encounter, ushort Flags, bool Suppressed, NativeBattleBackend? Backend, long? ReturnFrame, byte? Result, int EmulatedCombatCallbacks, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] NativeBattleFlagConsumerReceipt? FlagConsumer = null, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] long? BattleClockCallsAtEntry = null);
+public sealed record NativeBattleCompletion(int Version, int FieldId, string ProgramHash, long Frame, int ObjectId, int ScriptId, int Operation, int RawEncounter, int RawFlags, ushort Encounter, ushort Flags, bool Suppressed, NativeBattleBackend? Backend, long? ReturnFrame, byte? Result, int EmulatedCombatCallbacks, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] NativeBattleFlagConsumerReceipt? FlagConsumer = null, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] long? BattleClockCallsAtEntry = null)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleAbandonment? Abandonment { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleDefeatReturnBranch? DefeatBranch { get; init; }
+}
 
 public sealed partial class EventEngine
 {
@@ -24,7 +30,7 @@ public sealed partial class EventEngine
         {
             throw new InvalidOperationException("Random combat callbacks require their suspended field owner.");
         }
-        NativeRandomFieldBattleOwner owner = Scene.NativeRandomFieldBattle is { Result: null } random ? random : throw new InvalidOperationException("Random callbacks require their executed native entry owner.");
+        NativeRandomFieldBattleOwner owner = Scene.NativeRandomFieldBattle is { Result: null, Abandonment: null } random ? random : throw new InvalidOperationException("Random callbacks require their executed native entry owner.");
         services.SetExamTimer(services.ExamTimer!.AdvanceCallbacks(NativeTimerCallbackKind.Battle, callbacks));
         services.SetWorldProcess(services.WorldProcess!.AdvanceMainLoopCallbacks(callbacks));
         Scene.FieldCallbackClock = clock with { RandomBattleCallbacks = checked(clock.RandomBattleCallbacks + callbacks) };
@@ -32,8 +38,8 @@ public sealed partial class EventEngine
     }
     public Func<ushort, ushort, bool>? UseInteractiveBattle { get; set; }
     public Func<ushort, ushort, string?>? ValidateInteractiveBattle { get; set; }
-    public NativeBattleCompletion? PendingInteractiveBattle => Scene.NativeBattleCompletions?.LastOrDefault(request => request.Backend == NativeBattleBackend.Interactive && request.ReturnFrame is null && request.Result is null);
-    public NativeBattleCompletion? PendingHostedBattle => Scene.NativeBattleCompletions?.LastOrDefault(request => (request.Backend == NativeBattleBackend.Interactive || HostAutomaticBattles && request.Backend == NativeBattleBackend.AutomaticVictory) && request.ReturnFrame is null && request.Result is null);
+    public NativeBattleCompletion? PendingInteractiveBattle => Scene.NativeBattleCompletions?.LastOrDefault(request => request.Backend == NativeBattleBackend.Interactive && request.ReturnFrame is null && request.Result is null && request.Abandonment is null);
+    public NativeBattleCompletion? PendingHostedBattle => Scene.NativeBattleCompletions?.LastOrDefault(request => (request.Backend == NativeBattleBackend.Interactive || HostAutomaticBattles && request.Backend == NativeBattleBackend.AutomaticVictory) && request.ReturnFrame is null && request.Result is null && request.Abandonment is null);
 
     public void AdvanceInteractiveBattleCallbacks(int callbacks)
     {
@@ -85,9 +91,14 @@ public sealed partial class EventEngine
         {
             throw new InvalidOperationException("Current automatic research victory requires completion version2, native result4 and zero simulated combat callbacks; pending legacy requests require explicit migration.");
         }
+        NativeBattleDefeatReturnBranch? defeat = nativeResult == 1 ? ReadNativeDefeatReturnBranch4706B0() : null;
+        if (defeat is { ResumePreviousScene: false })
+        {
+            throw new InvalidOperationException("Native result1 with saved183 bit2 clear abandons this VM for fresh field75.");
+        }
         publishCombatOutcome?.Invoke();
         int index = Scene.NativeBattleCompletions!.IndexOf(request);
-        Scene.NativeBattleCompletions[index] = request with { Result = nativeResult, EmulatedCombatCallbacks = combatCallbacks };
+        Scene.NativeBattleCompletions[index] = request with { Result = nativeResult, EmulatedCombatCallbacks = combatCallbacks, DefeatBranch = defeat };
         StepCore();
         OperationCompleted?.Invoke();
     }
@@ -295,9 +306,25 @@ public sealed partial class EventEngine
             throw new InvalidDataException("Native kind3 reload completion lost its actual suspended field/battle source.");
         }
         ValidateNativeBattleModeCheckpoint(saved);
+        if (saved.Scene.NativeAbandonedBattleOutcome is { } globalAbandonment)
+        {
+            globalAbandonment.Validate();
+            if (saved.ExamTimer is null || globalAbandonment.ExitClockCalls > saved.ExamTimer.ClockCalls)
+            {
+                throw new InvalidDataException("Abandoned outcome has no actual process-clock provenance.");
+            }
+        }
+        if (saved.Scene.NativeWorldBattleOutcome is { } worldOutcome)
+        {
+            worldOutcome.Validate();
+            if (saved.ExamTimer is null || worldOutcome.ExitClockCalls > saved.ExamTimer.ClockCalls)
+            {
+                throw new InvalidDataException("World result moved beyond the actual process clock.");
+            }
+        }
         if (saved.Scene.NativeBattleCompletions is null)
         {
-            if (saved.Scene.NativeBattleWaits is not null || saved.Scene.NativeBattleResult is not null && saved.Scene.NativeRandomFieldBattle?.Result != saved.Scene.NativeBattleResult || bySequence.Values.Any(fiber => fiber.WaitReason == WaitReason.MinimalBattle))
+            if (saved.Scene.NativeBattleWaits is not null || saved.Scene.NativeBattleResult != ReadLatestNativeBattleResult(saved.Scene) || bySequence.Values.Any(fiber => fiber.WaitReason == WaitReason.MinimalBattle))
             {
                 throw new InvalidDataException("Unknown battle history cannot contain a typed wait or result.");
             }
@@ -307,10 +334,10 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved battle history contains a missing completion.");
         }
-        NativeBattleCompletion[] currentBattles = saved.Scene.NativeFieldInitialization?.TimerClockCallsAtAllocation is long allocationClock ? saved.Scene.NativeBattleCompletions.Where(completion => completion.Backend == NativeBattleBackend.Interactive && completion.BattleClockCallsAtEntry >= allocationClock).ToArray() : [];
+        NativeBattleCompletion[] currentBattles = saved.Scene.NativeFieldInitialization?.TimerClockCallsAtAllocation is long allocationClock ? saved.Scene.NativeBattleCompletions.Where(completion => completion.Backend == NativeBattleBackend.Interactive && completion.Abandonment is null && completion.BattleClockCallsAtEntry >= allocationClock).ToArray() : [];
         long completedBattleCallbacks = currentBattles.Where(completion => completion.ReturnFrame is not null).Sum(completion => (long)completion.EmulatedCombatCallbacks);
         bool pendingInteractive = currentBattles.Any(completion => completion.ReturnFrame is null);
-        if (currentBattles.Length > 0 && (saved.Scene.FieldCallbackClock?.BattleCallbacks is not long callbacks || callbacks < completedBattleCallbacks || !pendingInteractive && callbacks != completedBattleCallbacks) || currentBattles.Length == 0 && (saved.Scene.FieldCallbackClock?.BattleCallbacks is not null || saved.Scene.NativeBattleCompletions.Any(completion => completion.Backend == NativeBattleBackend.Interactive && completion.ReturnFrame is null)))
+        if (currentBattles.Length > 0 && (saved.Scene.FieldCallbackClock?.BattleCallbacks is not long callbacks || callbacks < completedBattleCallbacks || !pendingInteractive && callbacks != completedBattleCallbacks) || currentBattles.Length == 0 && (saved.Scene.FieldCallbackClock?.BattleCallbacks is not null || saved.Scene.NativeBattleCompletions.Any(completion => completion.Backend == NativeBattleBackend.Interactive && completion.ReturnFrame is null && completion.Abandonment is null)))
         {
             throw new InvalidDataException("Interactive battle history lacks its executed native callback clock provenance.");
         }
@@ -332,6 +359,19 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved battle flag consumer has no matching reached persistent-mode writer history.");
             }
+            if (completion.Result == 1 ? completion.DefeatBranch is not { ResumePreviousScene: true } : completion.DefeatBranch is not null)
+            {
+                throw new InvalidDataException("Native result1 BATTLE return requires the actual saved183 bit2 branch.");
+            }
+            if (completion.Abandonment is { } abandoned)
+            {
+                abandoned.Validate();
+                ScriptedBattleOwner? owner = abandoned.Encounter.ScriptedOwner;
+                if (completion.Backend != NativeBattleBackend.Interactive || completion.ReturnFrame is not null || completion.Result is not null || completion.BattleClockCallsAtEntry != abandoned.EntryClockCalls || completion.EmulatedCombatCallbacks != abandoned.CombatCallbacks || owner is null || owner.FieldId != completion.FieldId || owner.ProgramHash != completion.ProgramHash || owner.ObjectId != completion.ObjectId || owner.ScriptId != completion.ScriptId || owner.Operation != completion.Operation || owner.Flags != completion.Flags || abandoned.Encounter.SourceFrame != completion.Frame || abandoned.Encounter.Formation != completion.Encounter)
+                {
+                    throw new InvalidDataException("Abandoned BATTLE history changed its original suspended operation or executed callback interval.");
+                }
+            }
             if (completion.Backend == NativeBattleBackend.AutomaticVictory && completion.Version == 1 && completion.ReturnFrame is null)
             {
                 throw new InvalidDataException("Pending legacy automatic battle requires explicit migration; completed historical result0 facts remain unchanged.");
@@ -345,30 +385,9 @@ public sealed partial class EventEngine
                 throw new InvalidDataException("Saved battle callback clock requires its executed interactive entry provenance.");
             }
         }
-        NativeBattleCompletion? lastScripted = saved.Scene.NativeBattleCompletions.LastOrDefault(completion => !completion.Suppressed && completion.ReturnFrame is not null);
-        byte? lastResult = lastScripted?.Result;
-        if (saved.Scene.NativeRandomFieldBattle is { Result: not null } randomResult)
+        if (saved.Scene.NativeBattleResult != ReadLatestNativeBattleResult(saved.Scene))
         {
-            if (lastScripted is null)
-            {
-                lastResult = randomResult.Result;
-            }
-            else if (randomResult.BattleClockCallsAtEntry is long randomEntry && lastScripted.BattleClockCallsAtEntry is long scriptedEntry)
-            {
-                if (randomEntry == scriptedEntry)
-                {
-                    throw new InvalidDataException("Completed random and scripted battles cannot share one executed entry clock.");
-                }
-                lastResult = randomEntry > scriptedEntry ? randomResult.Result : lastScripted.Result;
-            }
-            else
-            {
-                throw new NotSupportedException("Mixed random/scripted result history requires explicit actual battle-entry clock provenance.");
-            }
-        }
-        if (saved.Scene.NativeBattleResult != lastResult)
-        {
-            throw new InvalidDataException("Saved BATTLERESULT byte lacks its completed reached native battle request.");
+            throw new InvalidDataException("Saved BATTLERESULT byte lacks its latest reached native result writer.");
         }
         foreach ((long sequence, int index) in saved.Scene.NativeBattleWaits)
         {
@@ -377,12 +396,12 @@ public sealed partial class EventEngine
                 throw new InvalidDataException("Saved minimal battle yield has no reached request or original live owner.");
             }
             NativeBattleCompletion completion = saved.Scene.NativeBattleCompletions[index];
-            if (completion.FieldId != saved.FieldId || completion.ProgramHash != saved.ProgramHash || completion.Frame > saved.Frame || completion.ReturnFrame is long returned && returned > saved.Frame || owner.ObjectId != completion.ObjectId || owner.Script.Id != completion.ScriptId || owner.Position != completion.Operation + 1 || owner.WaitUntil != completion.Frame + 1 || (uint)completion.Operation >= program!.Operations.Count || program.Operations[completion.Operation].Opcode != Jsm.Opcode.BATTLE || saved.Scene.NativeBattleWaits.Values.Count(value => value == index) != 1)
+            if (completion.Abandonment is not null || completion.FieldId != saved.FieldId || completion.ProgramHash != saved.ProgramHash || completion.Frame > saved.Frame || completion.ReturnFrame is long returned && returned > saved.Frame || owner.ObjectId != completion.ObjectId || owner.Script.Id != completion.ScriptId || owner.Position != completion.Operation + 1 || owner.WaitUntil != completion.Frame + 1 || (uint)completion.Operation >= program!.Operations.Count || program.Operations[completion.Operation].Opcode != Jsm.Opcode.BATTLE || saved.Scene.NativeBattleWaits.Values.Count(value => value == index) != 1)
             {
                 throw new InvalidDataException("Saved minimal battle yield changed its issuing operation, advanced PC or next-update return.");
             }
         }
-        if (bySequence.Values.Any(fiber => fiber.WaitReason == WaitReason.MinimalBattle && !saved.Scene.NativeBattleWaits.ContainsKey(fiber.Sequence)) || saved.Scene.NativeBattleCompletions.Select((completion, index) => (completion, index)).Any(item => item.completion.ReturnFrame is null && !saved.Scene.NativeBattleWaits.ContainsValue(item.index)))
+        if (bySequence.Values.Any(fiber => fiber.WaitReason == WaitReason.MinimalBattle && !saved.Scene.NativeBattleWaits.ContainsKey(fiber.Sequence)) || saved.Scene.NativeBattleCompletions.Select((completion, index) => (completion, index)).Any(item => item.completion.ReturnFrame is null && item.completion.Abandonment is null && !saved.Scene.NativeBattleWaits.ContainsValue(item.index)))
         {
             throw new InvalidDataException("Saved pending native battle has no preserved typed wait relationship.");
         }

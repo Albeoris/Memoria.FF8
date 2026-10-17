@@ -81,7 +81,7 @@ public static class NativeBattleVictoryResources
         {
             if (pointer.Cpu is { } reference)
             {
-                return cpu.Cpu.Banks[reference.Bank].Read(reference.Offset, length);
+                return NativeBattleModelEnemyHeap.Read(cpu, staging, reference, length);
             }
             return staging.Read(pointer.StagingAddress ?? throw new NotSupportedException("Native resource pointer has no observed address owner."), length);
         }

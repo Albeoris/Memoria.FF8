@@ -37,6 +37,8 @@ public sealed class NativeBattleModelLoaderTests
     [Theory]
     [InlineData(0, 0x5077B0u)]
     [InlineData(7, 0x5079B0u)]
+    [InlineData(16, 0x507120u)]
+    [InlineData(143, 0x507F80u)]
     [InlineData(0x1000, 0x507BF0u)]
     [InlineData(0x1001, 0x507E20u)]
     [InlineData(0x1009, 0x507E20u)]
@@ -44,9 +46,10 @@ public sealed class NativeBattleModelLoaderTests
     {
         NativeBattleModelLoader queue = NativeBattleModelLoader.Queue507080(request, 0, 0, 4, 5);
         Assert.Equal(callback, queue.Task!.Callback);
-        Assert.Equal(request >= 0x1000 ? (byte)4 : (byte)5, queue.Task.Selector);
+        Assert.Equal(request >= 0x1000 ? (byte)4 : request >= 16 ? (byte)0 : (byte)5, queue.Task.Selector);
+        queue.Validate();
         Assert.Null(NativeBattleModelLoader.Queue507080(0x1007, 0, 0, 0, 0).Task);
-        Assert.Throws<NotSupportedException>(() => NativeBattleModelLoader.Queue507080(16, 0, 0, 0, 0));
+        Assert.Throws<NotSupportedException>(() => NativeBattleModelLoader.Queue507080(request, 7, 0, 0, 0));
     }
 
     [Fact]

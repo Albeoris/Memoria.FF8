@@ -8,6 +8,11 @@ public sealed record NativeRagnarokWorldObject([property: JsonRequired] byte Sha
 /// <summary>Original section9 clause14 and544860/548080/548300 dense-object publication, before ground/contact initialization.</summary>
 public sealed record NativeRagnarokWorldAllocation([property: JsonRequired] string ProgramHash, [property: JsonRequired] string CoordinateHash, [property: JsonRequired] string ClauseHash, [property: JsonRequired] ushort Story, [property: JsonRequired] byte ChocoboFlags1536, [property: JsonRequired] byte ReplacementFlags264, [property: JsonRequired] byte GuardianForce13Flags, [property: JsonRequired] ImmutableArray<ushort> ClauseWords, [property: JsonRequired] ImmutableArray<NativeRagnarokWorldObject> Objects, [property: JsonRequired] int RagnarokIndex, [property: JsonRequired] WorldTransition Packet, [property: JsonRequired] NativeSavedWorldPose LoadPose, [property: JsonRequired] ushort CameraYaw, [property: JsonRequired] byte MapDisplayMode)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeSavedWorldFootReturn? BattleReload { get; init; }
+    [JsonIgnore]
+    public byte ControlledEntityType => BattleReload?.EntityType105 ?? unchecked((byte)Packet.Mode);
+
     public const string Rule = "ff8-en-ragnarok-section9-clause14-544860-548080-548300-v1";
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeSavedWorldPose? ParkedRagnarokPose2 { get; init; }
@@ -16,12 +21,20 @@ public sealed record NativeRagnarokWorldAllocation([property: JsonRequired] stri
 
     public void Validate()
     {
+        if (BattleReload is { } battle)
+        {
+            battle.RequireCompleteFootReload();
+            if (battle.WorldMode != 3 || battle.EntityType105 != 0 || battle.Pose0 != LoadPose || battle.CameraYaw96 != CameraYaw || battle.MapDisplayMode110 != MapDisplayMode)
+            {
+                throw new InvalidDataException("World mode2 allocation differs from its actual mode3 foot save.");
+            }
+        }
         static bool Hash(string? value)
         {
             return value is { Length: 64 } && value.All(Uri.IsHexDigit);
         }
         ushort[] expectedClause = [0xFF01, 0, 0xFF02, 3100, 0xFF03, 3900, 0xFF04, 0, 0xFF13, 0, 0xFF13, 2, 0xFF13, 3, 0xFF13, 1, 0xFF13, 64, 0xFF13, 65, 0xFF13, 7514, 0xFF13, 7515, 0xFF05, 0];
-        if (!Hash(ProgramHash) || !Hash(CoordinateHash) || !Hash(ClauseHash) || Story is < 3100 or >= 3900 || ClauseWords.IsDefault || !ClauseWords.AsSpan().SequenceEqual(expectedClause) || Objects.IsDefaultOrEmpty || Objects.Any(item => item is null) || Packet is null || unchecked((byte)Packet.Mode) is not (0 or 50) || unchecked((byte)Packet.Mode) == 0 && ParkedRagnarokPose2 is null || unchecked((byte)Packet.Mode) == 50 && ParkedRagnarokPose2 is not null || unchecked((byte)Packet.Mode) == 50 && unchecked((sbyte)Packet.Extra) != -1 || LoadPose is null || LoadPose.X is < -131072 or >= 131072 || LoadPose.RawZ is < -98304 or >= 98304 || LoadPose.Yaw >= 4096 || CameraYaw >= 4096 || MapDisplayMode > 3)
+        if (!Hash(ProgramHash) || !Hash(CoordinateHash) || !Hash(ClauseHash) || Story is < 3100 or >= 3900 || ClauseWords.IsDefault || !ClauseWords.AsSpan().SequenceEqual(expectedClause) || Objects.IsDefaultOrEmpty || Objects.Any(item => item is null) || Packet is null || ControlledEntityType is not (0 or 50) || ControlledEntityType == 0 && ParkedRagnarokPose2 is null || ControlledEntityType == 50 && ParkedRagnarokPose2 is not null || ControlledEntityType == 50 && unchecked((sbyte)Packet.Extra) != -1 || LoadPose is null || LoadPose.X is < -131072 or >= 131072 || LoadPose.RawZ is < -98304 or >= 98304 || LoadPose.Yaw >= 4096 || CameraYaw >= 4096 || MapDisplayMode > 3)
         {
             throw new InvalidDataException("Ragnarok allocation requires the exact original selected clause, loader packet and published pose owners.");
         }
@@ -48,7 +61,7 @@ public sealed record NativeRagnarokWorldAllocation([property: JsonRequired] stri
             NativeSavedWorldPose pose = item.ShapeId == 1 && ParkedRagnarokPose2 is not null ? ParkedRagnarokPose2 : LoadPose;
             NativeWorldPathPosition expectedPosition = new(pose.X, pose.Height, -pose.RawZ);
             short expectedYaw = unchecked((short)pose.Yaw);
-            if (item.ShapeId == 1 && unchecked((byte)Packet.Mode) == 0 && AuxiliaryEntry?.Relocations.LastOrDefault(row => row.EntityType == 50) is { } parkedRelocation)
+            if (item.ShapeId == 1 && ControlledEntityType == 0 && AuxiliaryEntry?.Relocations.LastOrDefault(row => row.EntityType == 50) is { } parkedRelocation)
             {
                 expectedPosition = parkedRelocation.Position;
                 expectedYaw = parkedRelocation.Yaw;

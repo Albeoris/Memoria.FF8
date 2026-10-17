@@ -5,7 +5,6 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleReturnBranchTests
 {
     [Theory]
-    [InlineData(SceneKind.WorldMap, false)]
     [InlineData(SceneKind.WorldMap, true)]
     public void Missing_return_producers_refuse_before_the_outcome_callback(SceneKind source, bool scripted)
     {
@@ -24,5 +23,11 @@ public sealed class NativeBattleReturnBranchTests
     public void Field_branch_continues_to_the_actual_kind3_resource_preflight(bool scripted)
     {
         GameWorld.RequireNativeBattleReturnBranch(SceneKind.Field, scripted);
+    }
+
+    [Fact]
+    public void Random_world_branch_continues_to_the_actual_mode2_resource_preflight()
+    {
+        GameWorld.RequireNativeBattleReturnBranch(SceneKind.WorldMap, false);
     }
 }

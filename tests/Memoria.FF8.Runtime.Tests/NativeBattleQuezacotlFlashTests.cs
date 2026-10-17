@@ -54,7 +54,7 @@ public sealed class NativeBattleQuezacotlFlashTests
         Assert.Equal(168, effect.DrawArenaOffset);
         Assert.Equal(new[] { 128, 136, 160 }, ordering.Packets.Select(packet => packet.Reference.ByteOffset).ToArray());
         Assert.Equal(new ushort[] { 0, 1, 0 }, ordering.Proxies.Select(proxy => proxy.Flags20).ToArray());
-        Assert.Throws<NotSupportedException>(() => memory.Arena!.Read(128, 3));
+        Assert.Equal(3, memory.Arena!.Read(128, 3).Length);
         NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
         Assert.Equal(memory.Arena!.Read(136 + 4, 20), restored.Arena!.Read(136 + 4, 20));
     }

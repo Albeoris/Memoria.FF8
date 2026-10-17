@@ -7,12 +7,13 @@ namespace Memoria.FF8.Assets;
 
 public static class NativeRagnarokWorldAllocationReader
 {
-    public static NativeRagnarokWorldAllocation Read(ReadOnlySpan<byte> program, ReadOnlySpan<byte> coordinates, WorldTransition packet, NativeWorldEntryMemory entry, NativeEventMemory memory, NativeSavedWorldState saved, byte guardianForce13Flags, NativeWorldPathPosition cactuarLoadPosition, NativeSavedWorldPose loadPose, ushort cameraYaw, byte mapDisplay, NativeSavedWorldPose? parkedRagnarokPose2 = null, NativeWorldAuxiliaryRelocationReceipt? auxiliaryEntry = null)
+    public static NativeRagnarokWorldAllocation Read(ReadOnlySpan<byte> program, ReadOnlySpan<byte> coordinates, WorldTransition packet, NativeWorldEntryMemory entry, NativeEventMemory memory, NativeSavedWorldState saved, byte guardianForce13Flags, NativeWorldPathPosition cactuarLoadPosition, NativeSavedWorldPose loadPose, ushort cameraYaw, byte mapDisplay, NativeSavedWorldPose? parkedRagnarokPose2 = null, NativeWorldAuxiliaryRelocationReceipt? auxiliaryEntry = null, NativeSavedWorldFootReturn? battleReload = null)
     {
+        byte controlledType = battleReload?.EntityType105 ?? unchecked((byte)packet.Mode);
         entry.Validate();
         memory.Validate();
         saved.Validate();
-        if (unchecked((byte)packet.Mode) is not (0 or 50) || unchecked((byte)packet.Mode) == 0 && parkedRagnarokPose2 is null || unchecked((byte)packet.Mode) == 50 && unchecked((sbyte)packet.Extra) != -1 || (entry.ReadBytes(264, 1) & 0x10) != 0 || saved.Slot4.ShapeId is not (0 or 255) || saved.Slot5.ShapeId != 0)
+        if (controlledType is not (0 or 50) || controlledType == 0 && parkedRagnarokPose2 is null || controlledType == 50 && unchecked((sbyte)packet.Extra) != -1 || (entry.ReadBytes(264, 1) & 0x10) != 0 || saved.Slot4.ShapeId is not (0 or 255) || saved.Slot5.ShapeId != 0)
         {
             throw new NotSupportedException("Ragnarok allocation requires ordinary controlled50 and the original unoccupied-car allocation branch.");
         }
@@ -115,7 +116,7 @@ public static class NativeRagnarokWorldAllocationReader
             //receive the final load pose; controlled50 also republishes shape1.
             for (int index = 0; index < objects.Count; index++)
             {
-                if (objects[index].ShapeId is 0 or 3 || objects[index].ShapeId == 1 && unchecked((byte)packet.Mode) == 50)
+                if (objects[index].ShapeId is 0 or 3 || objects[index].ShapeId == 1 && controlledType == 50)
                 {
                     objects[index] = objects[index] with { Position = body, Pitch = 0, Yaw = unchecked((short)loadPose.Yaw), Roll = 0 };
                 }
@@ -129,7 +130,7 @@ public static class NativeRagnarokWorldAllocationReader
                 AddCoordinate(objects, coordinates, 80, 31 + group, 4);
             }
         }
-        var result = new NativeRagnarokWorldAllocation(Hash(program), Hash(coordinates), Hash(selected), story, chocobo, entry.ReplacementFlags264, guardianForce13Flags, expected.ToImmutableArray(), objects.ToImmutable(), ragnarokIndex, packet, loadPose, cameraYaw, mapDisplay) { ParkedRagnarokPose2 = parkedRagnarokPose2, AuxiliaryEntry = auxiliaryEntry };
+        var result = new NativeRagnarokWorldAllocation(Hash(program), Hash(coordinates), Hash(selected), story, chocobo, entry.ReplacementFlags264, guardianForce13Flags, expected.ToImmutableArray(), objects.ToImmutable(), ragnarokIndex, packet, loadPose, cameraYaw, mapDisplay) { ParkedRagnarokPose2 = parkedRagnarokPose2, AuxiliaryEntry = auxiliaryEntry, BattleReload = battleReload };
         result.Validate();
         return result;
     }

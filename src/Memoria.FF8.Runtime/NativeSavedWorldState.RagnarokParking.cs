@@ -14,6 +14,8 @@ public sealed partial record NativeSavedWorldState
         }
         //549E80 saves shape1 to its independent+24 pose2 before publishing
         //the current controlled foot0 pose and auxiliary return fields.
-        return this with { RagnarokPose2 = pose, RagnarokReturn = null };
+        NativeRagnarokWorldObject garden = runtime.Objects.Last(item => item.ShapeId == 64);
+        NativeSavedWorldPose gardenPose = new(garden.Position.X, unchecked(-garden.Position.Z), unchecked((short)garden.Position.Y), unchecked((ushort)garden.Yaw));
+        return this with { RagnarokPose2 = pose, GardenPose3 = gardenPose, RagnarokReturn = null };
     }
 }

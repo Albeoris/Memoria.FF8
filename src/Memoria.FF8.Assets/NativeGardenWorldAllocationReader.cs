@@ -8,12 +8,13 @@ namespace Memoria.FF8.Assets;
 
 public static class NativeGardenWorldAllocationReader
 {
-    public static NativeGardenWorldAllocation Read(ReadOnlySpan<byte> program, ReadOnlySpan<byte> coordinates, WorldTransition packet, NativeWorldEntryMemory entry, NativeEventMemory memory, NativeSavedWorldState saved, byte guardianForce13Flags, NativeWorldPathPosition cactuarLoadPosition, NativeSavedWorldPose loadPose, ushort cameraYaw, byte variant, byte mapDisplay, NativeSavedWorldPose? parkedGardenPose = null, NativeWorldAuxiliaryRelocationReceipt? auxiliaryEntry = null)
+    public static NativeGardenWorldAllocation Read(ReadOnlySpan<byte> program, ReadOnlySpan<byte> coordinates, WorldTransition packet, NativeWorldEntryMemory entry, NativeEventMemory memory, NativeSavedWorldState saved, byte guardianForce13Flags, NativeWorldPathPosition cactuarLoadPosition, NativeSavedWorldPose loadPose, ushort cameraYaw, byte variant, byte mapDisplay, NativeSavedWorldPose? parkedGardenPose = null, NativeWorldAuxiliaryRelocationReceipt? auxiliaryEntry = null, NativeSavedWorldFootReturn? battleReload = null)
     {
+        byte controlledType = battleReload?.EntityType105 ?? unchecked((byte)packet.Mode);
         entry.Validate();
         saved.Validate();
         memory.Validate();
-        if (unchecked((byte)packet.Mode) is not (0 or 48) || unchecked((byte)packet.Mode) == 0 && parkedGardenPose is null || unchecked((byte)packet.Mode) == 48 && unchecked((sbyte)packet.Extra) != -1 || (entry.ReadBytes(264, 1) & 0x10) != 0 || saved.Slot4.ShapeId is not (0 or 255) || saved.Slot5.ShapeId != 0)
+        if (controlledType is not (0 or 48) || controlledType == 0 && parkedGardenPose is null || controlledType == 48 && unchecked((sbyte)packet.Extra) != -1 || (entry.ReadBytes(264, 1) & 0x10) != 0 || saved.Slot4.ShapeId is not (0 or 255) || saved.Slot5.ShapeId != 0)
         {
             throw new NotSupportedException("Garden allocation requires its ordinary packet and the actual unoccupied saved car slots.");
         }
@@ -82,7 +83,7 @@ public static class NativeGardenWorldAllocationReader
             NativeWorldPathPosition body = new(loadPose.X, loadPose.Height, -loadPose.RawZ);
             NativeSavedWorldPose gardenPose = parkedGardenPose ?? loadPose;
             short gardenYaw = unchecked((short)gardenPose.Yaw);
-            if (unchecked((byte)packet.Mode) == 0 && auxiliaryEntry is not null)
+            if (controlledType == 0 && auxiliaryEntry is not null)
             {
                 //54D6A0's ordered writes survive548300 when foot0 is controlled.
                 NativeWorldAuxiliaryRelocation last = auxiliaryEntry.Relocations[^1];
@@ -136,7 +137,7 @@ public static class NativeGardenWorldAllocationReader
                 objects.Add(new NativeGardenWorldObject(79, 0, position, 0, unchecked((short)orientation), unchecked((short)(orientation >> 16))));
                 objects.Add(new NativeGardenWorldObject(80, 4, position, 0, unchecked((short)orientation), unchecked((short)(orientation >> 16))));
             }
-            var allocation = new NativeGardenWorldAllocation(1, NativeGardenWorldAllocation.AllocationRule, Hash(program), Hash(coordinates), Hash(clause), index, minimum, maximum, story, flags265, chocoboFlags, expected.ToImmutableArray(), objects.ToImmutable(), 0, garden64, garden64 + 1, packet, loadPose, gardenPose, cameraYaw, variant, mapDisplay) { ReplacementFlags264 = replacements, GuardianForce13Flags = guardianForce13Flags, CactuarLoadPosition = cactuarLoadPosition };
+            var allocation = new NativeGardenWorldAllocation(1, NativeGardenWorldAllocation.AllocationRule, Hash(program), Hash(coordinates), Hash(clause), index, minimum, maximum, story, flags265, chocoboFlags, expected.ToImmutableArray(), objects.ToImmutable(), 0, garden64, garden64 + 1, packet, loadPose, gardenPose, cameraYaw, variant, mapDisplay) { ReplacementFlags264 = replacements, GuardianForce13Flags = guardianForce13Flags, CactuarLoadPosition = cactuarLoadPosition, BattleReload = battleReload };
             allocation.Validate();
             return allocation;
         }
@@ -272,9 +273,13 @@ public sealed partial class WorldAssets
         }
     }
 
-    public NativeGardenWorldAllocation ReadParkedGardenAllocation(WorldTransition packet, NativeWorldEntryMemory entry, NativeEventMemory memory, NativeSavedWorldState saved, NativeCharacterVitals vitals, NativeWorldAuxiliaryRelocationReceipt? retainedAuxiliary = null)
+    public NativeGardenWorldAllocation ReadParkedGardenAllocation(WorldTransition packet, NativeWorldEntryMemory entry, NativeEventMemory memory, NativeSavedWorldState saved, NativeCharacterVitals vitals, NativeWorldAuxiliaryRelocationReceipt? retainedAuxiliary = null, NativeSavedWorldFootReturn? battleReload = null)
     {
-        if (unchecked((byte)packet.Mode) != 0)
+        if (battleReload is not null && (battleReload.WorldMode != 3 || saved.FootReturn != battleReload))
+        {
+            throw new InvalidDataException("World mode2 requires its actual retained mode3 saved-foot owner.");
+        }
+        if ((battleReload?.EntityType105 ?? unchecked((byte)packet.Mode)) != 0)
         {
             throw new NotSupportedException("Parked Garden allocation requires the actual normal-foot return packet.");
         }
@@ -283,9 +288,9 @@ public sealed partial class WorldAssets
         NativeSavedWorldPose foot;
         ushort camera;
         byte variant;
-        if (spawn == 62)
+        if (battleReload is not null || spawn == 62)
         {
-            NativeSavedWorldFootReturn receipt = saved.FootReturn ?? throw new NotSupportedException("Foot entry62 requires its executed foot return receipt.");
+            NativeSavedWorldFootReturn receipt = battleReload ?? saved.FootReturn ?? throw new NotSupportedException("Foot entry62 requires its executed foot return receipt.");
             receipt.RequireCompleteFootReload();
             foot = receipt.Pose0;
             camera = receipt.CameraYaw96;
@@ -316,6 +321,6 @@ public sealed partial class WorldAssets
         NativeWorldAuxiliaryRelocationReceipt? auxiliaryEntry = ReadGardenAuxiliaryRelocations(packet, memory, foot);
         vitals.Validate();
         NativeWorldPathPosition cactuar = NativeGardenWorldAllocationReader.ReadCactuarLoadPosition(contactExecutable ??= File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe")));
-        return NativeGardenWorldAllocationReader.Read(wmset.AsSpan(sections[9], sections[10] - sections[9]), wmset.AsSpan(sections[10], sections[11] - sections[10]), packet, entry, memory, saved, vitals.GuardianForces[13].Flags, cactuar, foot, camera, variant, saved.ReadMapDisplayModeForFreshFootLoader(), parked, auxiliaryEntry);
+        return NativeGardenWorldAllocationReader.Read(wmset.AsSpan(sections[9], sections[10] - sections[9]), wmset.AsSpan(sections[10], sections[11] - sections[10]), packet, entry, memory, saved, vitals.GuardianForces[13].Flags, cactuar, foot, camera, variant, saved.ReadMapDisplayModeForFreshFootLoader(), parked, auxiliaryEntry, battleReload);
     }
 }

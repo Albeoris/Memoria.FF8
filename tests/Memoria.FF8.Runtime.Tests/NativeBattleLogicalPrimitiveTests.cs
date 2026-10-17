@@ -109,7 +109,7 @@ public sealed class NativeBattleLogicalPrimitiveTests
         Assert.Equal(0, tail.Depth!.BucketMix);
         Assert.Equal(0.99f, tail.Depth.RemainingWeight);
         Assert.Throws<NotSupportedException>(() => (initialized with { DisableTableReset = null }).Reset500900(0));
-        Assert.Throws<NotSupportedException>(() => (initialized with { DisableTableReset = true }).Reset500900(0));
+        Assert.False((initialized with { DisableTableReset = true }).Reset500900(0).TablePerspective[0]);
     }
 
     private static ImmutableArray<uint> Tile(byte intensity) => [0x3000000, 0x62000000u | (uint)(intensity | intensity << 8 | intensity << 16), 0, 216u << 16 | 320];

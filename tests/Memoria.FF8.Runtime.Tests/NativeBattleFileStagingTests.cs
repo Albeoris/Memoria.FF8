@@ -86,7 +86,11 @@ public sealed class NativeBattleFileStagingTests
         NativeBattleFileStaging restored = Assert.IsType<NativeBattleFileStaging>(retained.FileStaging);
         Assert.Equal(new byte[] { 2, 3 }, restored.Read(address + 8, 2));
         Assert.Throws<NotSupportedException>(() => restored.Read(address, 1));
-        Assert.Null(NativeBattleRetainedMemory.FromColdProcess().FileStaging);
+        NativeBattleFileStaging cold = Assert.IsType<NativeBattleFileStaging>(NativeBattleRetainedMemory.FromColdProcess().FileStaging);
+        Assert.Equal(new byte[4], cold.Read(0x1D999C0, 4));
+        Assert.Throws<NotSupportedException>(() => cold.Read(address, 1));
+        Assert.Throws<NotSupportedException>(() => cold.Read(0x1D999BF, 1));
+        Assert.Throws<NotSupportedException>(() => cold.Read(0x1D999C4, 1));
     }
 
     private static byte[] Directory()

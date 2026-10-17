@@ -38,8 +38,13 @@ public sealed partial class BattleSession
                 throw new NotSupportedException("Native primitive packet cursor reaches its original arena capacity.");
             }
             bool linked = ordering.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
+            ordering.InvalidatePacketRange(new(bank, process.PacketBuffer, cursor), primitive.Words.Length * 4);
             stores.AddRange(NativeBattleCommonPacketArena.PrimitiveStores(cursor, primitive, linked));
             ordering.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, cursor), primitive.Words, primitive.VertexPayload4.IsEmpty ? (ushort)1 : (ushort)0, primitive.VertexPayload4, moduleDraw);
+            if (linked)
+            {
+                stores.Add(new(cursor, NativeBattleLogicalOrdering.LinkBytes(ordering.LastHeaderLink).ToImmutableArray(), [NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known]));
+            }
             cursor = next;
         }
         NativeEffectMemory = memory with { PrimitiveProcess = process.ApplyCommonWrites(stores.ToImmutable()) with { ByteCursor = cursor } };
@@ -108,7 +113,7 @@ public sealed partial class BattleSession
         }
         else
         {
-            primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0(geometry, matrices, projection, color, mask, null, 17, 4, binding));
+            primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0(geometry, matrices, projection, color, mask, null, 17, 4, resource.GeometryRelocated507550 ? null : binding));
         }
         if (!shared && !linked.IsEmpty && (model.Flags0 & 0x200) == 0)
         {
@@ -136,14 +141,16 @@ public sealed partial class BattleSession
         bool? descriptor = process.TablePerspective[buffer];
         NativeBattlePrimitiveDepthState? depth = process.Depth;
         NativeBattlePrimitiveColorState? color = process.Color;
+        NativeBattleLogicalOrdering pending = frame.Pending.SelectTable(buffer);
         ImmutableArray<NativeBattleLogicalResolvedCommand> commands = [];
         if ((graphics.Flags & 4) != 0)
         {
             //500400 initializes both original battle drawenvs to(0,0,320,216);45B660→45B6F0 publishes flags1.
             NativeBattlePcTextureWindowCache cache = process.TextureWindowCache ?? throw new NotSupportedException("Native500900 requires its retained PC window-cache owner; explicitly reset it in a separately named snapshot migration.");
-            var pass = NativeBattleLogicalPasses.Execute(frame.Pending, tables, new(process.TexturePage) { TextureWindowBits = process.TextureWindowBits }, 1, cache);
+            var pass = NativeBattleLogicalPasses.Execute(pending, tables, new(process.TexturePage) { TextureWindowBits = process.TextureWindowBits }, 1, cache, (reference, count) => ReadNativePhysicalPrimitive(reference, count));
             commands = pass.Commands;
             process = process with { PublicationState03A = process.PublicationState03A is byte state ? state <= 16 ? (byte)0 : (byte)(state - 16) : null, TexturePage = pass.Final.TexturePage, TextureWindowBits = pass.Final.TextureWindowBits, TextureWindowCache = pass.Cache };
+            pending = pending.ResetAfterDraw45D080();
         }
         ImmutableArray<int?>.Builder blends = ImmutableArray.CreateBuilder<int?>(graphics.ModuleDraws.Length);
         for (int index = 0; index < graphics.ModuleDraws.Length; index++)
@@ -152,6 +159,21 @@ public sealed partial class BattleSession
             blends.Add(modes.Length == 1 ? modes[0] : null);
         }
         NativeEffectMemory = memory with { PrimitiveProcess = process.Reset500900(graphics.Flags) };
-        return graphics with { PrimitiveFrame = frame with { Pending = NativeBattleLogicalOrdering.Clear(), LastCommands = commands, LastModuleBlendModes = blends.ToImmutable(), LastDescriptorPerspective = descriptor, LastDepthState = depth, LastColorState = color } };
+        if (process.DisableTableReset != true)
+        {
+            pending = pending.ClearRoots45D550();
+        }
+        return graphics with { PrimitiveFrame = frame with { Pending = pending, LastCommands = commands, LastModuleBlendModes = blends.ToImmutable(), LastDescriptorPerspective = descriptor, LastDepthState = depth, LastColorState = color } };
+    }
+
+    private byte[] ReadNativePhysicalPrimitive(NativeBattlePrimitiveReference reference, int count)
+    {
+        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native retained packet alias requires its process arena owners.");
+        if (reference.Bank == "20DFAB8" && reference.Buffer == 0)
+        {
+            return (memory.Arena ?? throw new NotSupportedException("Native retained effect packet alias requires its original arena.")).Read(reference.ByteOffset, count);
+        }
+        NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native retained common packet alias requires its physical banks.");
+        return (process with { PacketBank = reference.Bank, PacketBuffer = reference.Buffer }).ReadCommonPacket(reference.ByteOffset, count);
     }
 }

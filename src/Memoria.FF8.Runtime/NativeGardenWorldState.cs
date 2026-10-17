@@ -22,6 +22,11 @@ public sealed record NativeGardenCameraDefaults([property: JsonRequired] string 
 /// <summary>Executed544860/548080 allocation after the fresh loader's dominating548300 pose publication.</summary>
 public sealed record NativeGardenWorldAllocation([property: JsonRequired] int Version, [property: JsonRequired] string Rule, [property: JsonRequired] string ProgramHash, [property: JsonRequired] string CoordinateHash, [property: JsonRequired] string ClauseHash, [property: JsonRequired] int ClauseIndex, [property: JsonRequired] ushort MinimumStory, [property: JsonRequired] ushort MaximumStory, [property: JsonRequired] ushort Story, [property: JsonRequired] byte Flags265, [property: JsonRequired] byte ChocoboFlags1536, [property: JsonRequired] ImmutableArray<ushort> ClauseWords, [property: JsonRequired] ImmutableArray<NativeGardenWorldObject> Objects, [property: JsonRequired] int FootObjectIndex, [property: JsonRequired] int Garden64Index, [property: JsonRequired] int Garden65Index, [property: JsonRequired] WorldTransition Packet, [property: JsonRequired] NativeSavedWorldPose LoadPose, [property: JsonRequired] NativeSavedWorldPose GardenPose, [property: JsonRequired] ushort CameraYaw, [property: JsonRequired] byte AnimationVariant, [property: JsonRequired] byte MapDisplayMode)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeSavedWorldFootReturn? BattleReload { get; init; }
+    [JsonIgnore]
+    public byte ControlledEntityType => BattleReload?.EntityType105 ?? unchecked((byte)Packet.Mode);
+
     public const string AllocationRule = "ff8-en-garden-544860-548080-548300-v1";
     [JsonRequired]
     public byte ReplacementFlags264 { get; init; }
@@ -34,8 +39,16 @@ public sealed record NativeGardenWorldAllocation([property: JsonRequired] int Ve
 
     public void Validate()
     {
+        if (BattleReload is { } battle)
+        {
+            battle.RequireCompleteFootReload();
+            if (battle.WorldMode != 3 || battle.EntityType105 != 0 || battle.Pose0 != LoadPose || battle.CameraYaw96 != CameraYaw || battle.MapDisplayMode110 != MapDisplayMode)
+            {
+                throw new InvalidDataException("World mode2 allocation differs from its actual mode3 foot save.");
+            }
+        }
         static bool Hash(string? value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);
-        if (Version != 1 || Rule != AllocationRule || !Hash(ProgramHash) || !Hash(CoordinateHash) || !Hash(ClauseHash) || ClauseIndex < 0 || MinimumStory >= MaximumStory || Story < MinimumStory || Story >= MaximumStory || ClauseWords.IsDefaultOrEmpty || Objects.IsDefaultOrEmpty || Objects.Length > 64 || Objects.Any(item => item is null) || Packet is null || unchecked((byte)Packet.Mode) is not (0 or 48) || unchecked((byte)Packet.Mode) == 48 && unchecked((sbyte)Packet.Extra) != -1 || LoadPose is null || LoadPose.X is < -131072 or >= 131072 || LoadPose.RawZ is < -98304 or >= 98304 || LoadPose.Yaw >= 4096 || GardenPose is null || GardenPose.X is < -131072 or >= 131072 || GardenPose.RawZ is < -98304 or >= 98304 || GardenPose.Yaw >= 4096 || CameraYaw >= 4096 || AnimationVariant != 0 || MapDisplayMode > 3)
+        if (Version != 1 || Rule != AllocationRule || !Hash(ProgramHash) || !Hash(CoordinateHash) || !Hash(ClauseHash) || ClauseIndex < 0 || MinimumStory >= MaximumStory || Story < MinimumStory || Story >= MaximumStory || ClauseWords.IsDefaultOrEmpty || Objects.IsDefaultOrEmpty || Objects.Length > 64 || Objects.Any(item => item is null) || Packet is null || ControlledEntityType is not (0 or 48) || ControlledEntityType == 48 && unchecked((sbyte)Packet.Extra) != -1 || LoadPose is null || LoadPose.X is < -131072 or >= 131072 || LoadPose.RawZ is < -98304 or >= 98304 || LoadPose.Yaw >= 4096 || GardenPose is null || GardenPose.X is < -131072 or >= 131072 || GardenPose.RawZ is < -98304 or >= 98304 || GardenPose.Yaw >= 4096 || CameraYaw >= 4096 || AnimationVariant != 0 || MapDisplayMode > 3)
         {
             throw new InvalidDataException("Native Garden allocation lacks its original clause, exact loader packet or current pose authority.");
         }

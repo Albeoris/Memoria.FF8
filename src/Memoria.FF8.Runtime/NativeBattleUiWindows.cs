@@ -17,7 +17,7 @@ public sealed record NativeBattleUiWindows(ImmutableArray<NativeBattleUiWindow> 
         rows = rows.SetItem(1, rows[1] with { Update0 = 0x4BB030 });
         rows = rows.SetItem(7, rows[7] with { Update0 = 0x4B0500, Draw8 = 0x4B1740, Current16 = 2, Requested17 = 2, Dirty18 = 1 });
         //4B1B00 initializes state0/progress0 and immediately invokes4B0450.
-        return new(rows, 1, 0, null);
+        return new(rows, 1, 0, new(122, 171, 312, 216));
     }
 
     public void Validate()

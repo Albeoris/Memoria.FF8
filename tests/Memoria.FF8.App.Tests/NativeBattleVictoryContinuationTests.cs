@@ -26,6 +26,7 @@ public sealed class NativeBattleVictoryContinuationTests
         // The declared ordinary-Attack component completed500870 and never loaded/invoked an original effect module.
         Assert.Equal(4, migrated["Battle"]!["NativeGraphics"]!["EntryLifecycle"]!.GetValue<int>());
         Assert.Null(migrated["Battle"]!["NativeGraphics"]!["OriginalEffect"]);
+        Assert.Null(migrated["Battle"]!["NativeGraphics"]!["NativeOutcome"]);
         foreach (JsonNode memory in new[] { migrated["Battle"]!["NativeEffectMemory"]!, migrated["NativeBattleMemory"]!["EffectMemory"]! })
         {
             Assert.Equal(0, memory["Active"]!.GetValue<int>());
@@ -34,6 +35,8 @@ public sealed class NativeBattleVictoryContinuationTests
             Assert.Null(memory["Entry21DFEC4"]);
             Assert.Null(memory["Entry21DFEC8"]);
             memory["ReturnedTaskPointer1D96AAC"] = 0;
+            Assert.Null(memory["ActionPhaseDEA"]);
+            memory["ActionPhaseDEA"] = 1;
         }
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
@@ -45,12 +48,32 @@ public sealed class NativeBattleVictoryContinuationTests
         Assert.Null(ui["Windows"]);
         // Explicitly execute the missing4A94D0 window reset; this is a declared migration, not reconstruction of prior callbacks.
         ui["Windows"] = JsonSerializer.SerializeToNode(NativeBattleUiWindows.Initialize4A94D0());
+        byte buffer = migrated["Battle"]!["NativeEffectMemory"]!["PrimitiveProcess"]!["Buffer80"]!.GetValue<byte>();
+        Assert.Equal((byte)0, buffer);
+        // The completed draw reset the proxy cursor and selected roots; this component has never flipped the other cleared bank.
+        migrated["Battle"]!["NativeGraphics"]!["PrimitiveFrame"]!["Pending"] = JsonSerializer.SerializeToNode(NativeBattleLogicalOrdering.Clear(buffer));
+        string[] enemyPaths = NativeBattleOrdinaryEnemyHeapMigration.Apply(migrated, assets);
         JsonNode stripped = migrated.DeepClone();
         stripped["Battle"]!["Definition"]!.AsObject().Remove("NativeVictoryFile");
         stripped["Battle"]!["Definition"]!["NativeGraphics"]!["Rules"]!.AsObject().Remove("VictoryModelSections");
         stripped["Battle"]!["NativeEffectMemory"]!.AsObject().Remove("ReturnedTaskPointer1D96AAC");
         stripped["NativeBattleMemory"]!["EffectMemory"]!.AsObject().Remove("ReturnedTaskPointer1D96AAC");
         stripped["Battle"]!["NativeGraphics"]!["UiServices"]!.AsObject().Remove("Windows");
+        stripped["Battle"]!["NativeEffectMemory"]!.AsObject().Remove("ActionPhaseDEA");
+        stripped["NativeBattleMemory"]!["EffectMemory"]!.AsObject().Remove("ActionPhaseDEA");
+        stripped["Battle"]!["NativeGraphics"]!["PrimitiveFrame"]!["Pending"] = original["Battle"]!["NativeGraphics"]!["PrimitiveFrame"]!["Pending"]!.DeepClone();
+        foreach (string path in enemyPaths)
+        {
+            string[] parts = path.Split('.');
+            JsonNode target = stripped;
+            JsonNode sourceNode = original;
+            foreach (string part in parts[..^1])
+            {
+                target = target[part]!;
+                sourceNode = sourceNode[part]!;
+            }
+            target[parts[^1]] = sourceNode[parts[^1]]?.DeepClone();
+        }
         Assert.True(JsonNode.DeepEquals(original, stripped));
         string migratedPath = Path.Combine(evidence, prefix + "-resources-migrated.json");
         File.WriteAllText(migratedPath, migrated.ToJsonString());
@@ -60,7 +83,10 @@ public sealed class NativeBattleVictoryContinuationTests
             SourceSha256 = Convert.ToHexString(SHA256.HashData(originalBytes)),
             Migrated = migratedPath,
             MigratedSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(migratedPath))),
-            ChangedPaths = new[] { "Battle.Definition.NativeVictoryFile", "Battle.Definition.NativeGraphics.Rules.VictoryModelSections", "Battle.NativeEffectMemory.ReturnedTaskPointer1D96AAC", "NativeBattleMemory.EffectMemory.ReturnedTaskPointer1D96AAC", "Battle.NativeGraphics.UiServices.Windows" },
+            ChangedPaths = new[] { "Battle.Definition.NativeVictoryFile", "Battle.Definition.NativeGraphics.Rules.VictoryModelSections", "Battle.NativeEffectMemory.ReturnedTaskPointer1D96AAC", "NativeBattleMemory.EffectMemory.ReturnedTaskPointer1D96AAC", "Battle.NativeGraphics.UiServices.Windows", "Battle.NativeEffectMemory.ActionPhaseDEA", "NativeBattleMemory.EffectMemory.ActionPhaseDEA", "Battle.NativeGraphics.PrimitiveFrame.Pending" }.Concat(enemyPaths).ToArray(),
+            EnemyResourceReset = "Explicit508260 enemy heap reset and actual DAT rebind using observed texture-row slots/materials. Gameplay, model poses, sequence PCs and IO retained; empty motion tables and bytecode equality checked. Both canonical memory mirrors updated. No historical allocation-order reconstruction.",
+            ActionPhaseProof = "Declared active case3-completed component:47CCB0 wroteDEA1 and47DF60 has not been admitted. Both physical mirrors receive the same byte.",
+            OrderingResetProof = "Completed flags4 draw45D080 reset the global proxy cursor;500900/45D550 cleared selected roots.500400 cleared the other bank, and no buffer flip occurred. Old unreachable cells are discarded by an explicit declared reset.",
             WindowReset = "Explicit4A94D0 reset and registration; all other UI bytes, flags, queue and callback counters retained. Unknown DWORD4/BYTE19 remain unknown.",
             TaskPointerProof = "Declared ordinary-Attack component: completed500870 clear, inactive effect allocator and no loaded/invoked original module entry; the active and retained physical mirrors therefore both retain NULL.",
             FileId = file.FileId,

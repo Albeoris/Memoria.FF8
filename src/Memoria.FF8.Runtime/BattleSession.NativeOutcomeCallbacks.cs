@@ -9,7 +9,6 @@ public sealed record NativeBattleOutcomeState
     public byte? VictoryQueuedDFE { get; init; }
     public byte? ExitModeDE8 { get; init; }
     public byte? AdmissionDFD { get; init; }
-    public byte? ActionPhaseDEA { get; init; }
     public byte? ActionOwnerB0D { get; init; }
     public byte? FadeDurationB0C { get; init; }
 }
@@ -38,7 +37,8 @@ public sealed partial class BattleSession
         commands = commands.Enqueue(0, 65);
         nativeActionPackets = nativeActionPackets with { ContactCount = 0 };
         SetNativeBattleClockActive(false);
-        return graphics with { NativeOutcome = outcome with { ActionOwnerB0D = 0, ExitModeDE8 = 2, AdmissionDFD = 1, ActionPhaseDEA = 0 }, UiServices = ui with { Commands = commands } };
+        NativeEffectMemory = (NativeEffectMemory ?? throw new NotSupportedException("Native47DF60 requires its retained action-phase process byte.")) with { ActionPhaseDEA = 0 };
+        return graphics with { NativeOutcome = outcome with { ActionOwnerB0D = 0, ExitModeDE8 = 2, AdmissionDFD = 1 }, UiServices = ui with { Commands = commands } };
     }
 
     private NativeBattleGraphicsState BeginNativeOutcomeWait47DFC0(NativeBattleGraphicsState graphics)

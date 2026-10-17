@@ -23,8 +23,16 @@ public sealed class NativeBattleGraphicsRulesTests
         NativeBattleGraphicsResource resource = assets.ReadEnemyNativeGraphicsResource(61);
         Assert.True(resource.Contains(3));
         Assert.True(resource.Contains(8));
-        Assert.False(resource.Contains(0));
+        //505850 index0 tests the actual nonzero count WORD itself.
+        Assert.True(resource.Contains(0));
+        Assert.True(resource.ContainsNativeIndex505850(0));
         Assert.False(resource.Contains(255));
-        Assert.Equal(assets.LoadEnemy(61).Sequences!.NativeResource.SequenceSection, resource.SequenceSection);
+        Assert.Equal(assets.LoadEnemy(61).Sequences!.NativeResource.SequenceSection.ToArray(), resource.SequenceSection.ToArray());
+        NativeBattleModelDatSource source = assets.ReadNativeModelDatSource(77, false, 0);
+        Assert.Equal(source.Section(5) != source.Section(6), resource.HasActionCamera);
+        if (resource.HasActionCamera == true)
+        {
+            Assert.Equal(source.Bytes.Slice(source.Section(5), source.Section(6) - source.Section(5)).ToArray(), resource.ActionCameraBank!.Data.ToArray());
+        }
     }
 }

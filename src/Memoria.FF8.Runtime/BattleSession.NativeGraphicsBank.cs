@@ -37,7 +37,7 @@ public sealed partial class BattleSession
         InitializeNativeMusic501C60();
         InitializeNativePartyPresentation();
         NativeModelTextureCache = NativeBattleModelTextureCache.Initialize508260(NativeModelTextureCache);
-        NativeModelCpuResources = (NativeModelCpuResources ?? NativeBattleModelCpuResources.Unknown()) with { ScratchMaximum = 0 };
+        NativeModelCpuResources = (NativeModelCpuResources ?? NativeBattleModelCpuResources.Unknown()) with { ScratchMaximum = 0, EnemyCursor = 0, EnemyLinkedSlots = 0 };
         NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0);
         graphics = InitializeNativePrimitiveFrame500400(graphics);
         NativeGraphics = QueueNativeEntryLoads(graphics);

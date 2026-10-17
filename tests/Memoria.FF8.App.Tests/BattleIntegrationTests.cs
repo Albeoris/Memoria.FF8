@@ -17,7 +17,7 @@ public sealed class BattleIntegrationTests
     [InlineData(1)]
     public void FieldBattleResultReadsTheActualCompletedNativeByte(byte result)
     {
-        byte[] source = Program((Jsm.Opcode.BATTLERESULT, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_W, 800));
+        byte[] source = EncodeProgram([(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0x200), (Jsm.Opcode.BATTLEMODE, 0), (Jsm.Opcode.PSHN_L, 94), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.BATTLE, 0), (Jsm.Opcode.BATTLERESULT, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_W, 800), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]);
         (GameSession session, EventEngine engine) = Fixture(source);
         engine.Step();
         engine.AdvanceInteractiveBattleCallbacks(3);

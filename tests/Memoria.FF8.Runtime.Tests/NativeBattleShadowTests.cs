@@ -88,7 +88,7 @@ public sealed class NativeBattleShadowTests
         NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400(), NativeBattleLogicalOrdering.Clear(), batch);
         Assert.Equal(16, written.Process.ByteCursor);
         Assert.Equal(2, written.Ordering.Proxies.Length);
-        Assert.Throws<NotSupportedException>(() => written.Process.ReadCommonPacket(8, 3));
+        Assert.Equal(new byte[] { 0x28, 0x88, 0xC4 }, written.Process.ReadCommonPacket(8, 3));
         byte[] expected = new byte[20];
         uint edgeColor = gouraud ? 0u : 0x32506172u;
         uint[] tail = [vertices[0].Screen, edgeColor, vertices[8].Screen, edgeColor, vertices[9].Screen];

@@ -9,7 +9,7 @@ public sealed partial class GameSession
         {
             throw new InvalidOperationException("World combat departure requires its current unconsumed random request and actual saved foot pose.");
         }
-        State = State with { SavedWorld = saved.WithFootReturn(receipt), WorldConfiguration = NativeWorldConfiguration.FromWorldReturn(world, State.FieldId) };
+        State = State with { SavedWorld = PrepareGardenParkingForFootReturn(saved, world).WithFootReturn(receipt), WorldConfiguration = NativeWorldConfiguration.FromWorldReturn(world, State.FieldId) };
     }
 
     public void CommitPreparedWorldBattleReturn(BattleEncounterOccurrence occurrence, WorldState departureWorld, NativeSavedWorldState departureSaved, GameState prepared, Action<GameState> validatePrepared)

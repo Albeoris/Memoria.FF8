@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
 /// <summary>6C68F0's ordered scratch, common heap and effect arena stores use their distinct physical cursors.</summary>
@@ -24,6 +26,8 @@ public static class NativeBattleQuezacotlSkinArena
             if (write.Bank == NativeBattleQuezacotlSkinBank.Common)
             {
                 int address = checked(common + attempt.ByteOffsetRelative);
+                NativeBattleLogicalOrdering.Builder links = new(ordering);
+                links.InvalidatePacketRange(new(bank, process.PacketBuffer, address), attempt.PacketLength);
                 process = process.ApplyCommonWrite(address, attempt.Data, attempt.WriteMask);
                 if (attempt.Primitive is { } primitive)
                 {
@@ -31,13 +35,14 @@ public static class NativeBattleQuezacotlSkinArena
                     {
                         throw new InvalidDataException("Native6C6770 linked common packet leaves its accepted allocation.");
                     }
-                    bool linked = ordering.Proxies.Length < NativeBattlePrimitiveOrdering.ProxyCapacity;
-                    ordering = ordering.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, address), primitive.Words, 0, primitive.VertexPayload4);
+                    bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
+                    links.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, address), primitive.Words, 0, primitive.VertexPayload4);
                     if (linked)
                     {
-                        process = process.MarkCommonUnknown(address, 3);
+                        process = process.ApplyCommonWrite(address, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink).ToImmutableArray(), [NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known]);
                     }
                 }
+                ordering = links.ToImmutable();
             }
             else
             {

@@ -12,7 +12,7 @@ public sealed partial class BattleSession
     {
         NativeBattleGraphicsModel model = graphics.Models[physicalIndex];
         bool linked = request >= 0x1000;
-        byte body = linked ? (byte)0 : model.FileSelector129 ?? throw new NotSupportedException("Native5077B0 requires the observed model BYTE129 costume selector.");
+        byte body = linked || request >= 16 ? (byte)0 : model.FileSelector129 ?? throw new NotSupportedException("Native5077B0 requires the observed model BYTE129 costume selector.");
         byte weapon = !linked || request == 0x1007 ? (byte)0 : model.FileSelector128 ?? throw new NotSupportedException("Native507BF0/507E20 requires the observed model BYTE128 kernel weapon selector.");
         NativeModelLoader = NativeBattleModelLoader.Queue507080(request, physicalIndex, argument, weapon, body);
     }
@@ -20,12 +20,16 @@ public sealed partial class BattleSession
     private int PollNativeModelResource507070(ref NativeBattleGraphicsState graphics)
     {
         NativeBattleModelLoader loader = NativeModelLoader ?? throw new NotSupportedException("Native507070 requires its actually initialized singleton load list.");
+        if (TryPollNativeEnemyModel(ref graphics, loader, out int enemyRemaining))
+        {
+            return enemyRemaining;
+        }
         ImmutableArray<NativeBattleModelDatSource> sources = definition.NativeGraphics!.Bindings.SelectMany(binding => binding.Resource.ModelLoadSources ?? []).ToImmutableArray();
         if (NativeFileStaging is null && loader.Task is { Phase: > 0 })
         {
             throw new NotSupportedException("Native model callback requires its retained shared199B018 staging bytes; migrate an older active load explicitly.");
         }
-        NativeBattleModelLoadStep step = loader.Poll507070(NativeEffectIoResult ?? throw new NotSupportedException("Native507070 requires its retained signed1D999C8 IO result."), sources, NativeFileStaging ?? NativeBattleFileStaging.Unknown());
+        NativeBattleModelLoadStep step = loader.Poll507070(NativeEffectIoResult ?? throw new NotSupportedException("Native507070 requires its retained signed1D999C8 IO result."), sources, NativeFileStaging ?? NativeBattleFileStaging.Unknown(), NativeModelTextureCache?.BlockedSlots ?? 63);
         if (step.FileRequest is not null)
         {
             //508480 writes the result gate before482610's synchronous read and delayed508470 callback.
@@ -49,11 +53,20 @@ public sealed partial class BattleSession
             ApplyNativeModelResourceBind(ref graphics, bind);
         }
         NativeModelLoader = step.State;
+        if (step.TextureUpload is { } enemyUpload && step.State.Task is { Callback: 0x507120 } enemyTask)
+        {
+            ReserveNativeEnemyResource(enemyTask, enemyUpload);
+        }
         return step.Remaining;
     }
 
     private void ApplyNativeModelResourceBind(ref NativeBattleGraphicsState graphics, NativeBattleModelResourceBind bind)
     {
+        if (bind.Task.Callback == 0x507120)
+        {
+            CompleteNativeEnemyResource(ref graphics, bind);
+            return;
+        }
         NativeBattleModelLoadTask task = bind.Task;
         NativeBattleGraphicsModel model = graphics.Models[task.PhysicalIndex];
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native resource completion requires its retained CPU bank/row aliases.");
