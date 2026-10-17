@@ -12,9 +12,15 @@ public static class NativeBattleEffectTextureWindows
 
     public static ImmutableArray<byte> OffsetAxis(IEnumerable<byte> coordinates, ushort offset, byte wrapDimension)
     {
-        int[] values = coordinates.Select(value => value + offset).ToArray();
-        bool wrap = values.Aggregate(0, (combined, value) => combined | value) > 255;
-        return values.Select(value => unchecked((byte)(value - (wrap ? wrapDimension : 0)))).ToImmutableArray();
+        return OffsetAxisSigned(coordinates, offset, wrapDimension);
+    }
+
+    /// <summary>61BDC1's aggregate signed offset: overflow wins over underflow and every coordinate receives the same one-step adjustment.</summary>
+    public static ImmutableArray<byte> OffsetAxisSigned(IEnumerable<byte> coordinates, int offset, short wrapDimension)
+    {
+        int[] values = coordinates.Select(value => unchecked(value + offset)).ToArray();
+        int adjustment = values.Any(value => value >= 256) ? -wrapDimension : values.Any(value => value < 0) ? wrapDimension : 0;
+        return values.Select(value => unchecked((byte)(value + adjustment))).ToImmutableArray();
     }
 
     internal static NativeBattleGfGeometryBatch Bracket(NativeBattleGfGeometryAttempt stores, NativeBattleGeometryPrimitive polygon, NativeBattleTextureWindow before, NativeBattleTextureWindow after)

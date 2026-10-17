@@ -37,12 +37,22 @@ public sealed partial record NativeBattleCameraState
 
     public NativeBattleCameraState PublishProjection(uint graphicsFlags)
     {
+        NativeBattleCameraViewTranslationScratch scratch = ViewTranslationScratch ?? throw new NotSupportedException("Native5033E0 requires its retained view-translation scratch WORDs; restore does not execute5041E0.");
+        (short x, short y, short z) = scratch.Read5033E0();
+        if (CurrentPose is null && (x != 0 || y != 0 || z != 0))
+        {
+            throw new NotSupportedException("Native5033E0 requires the fresh base camera pose before consuming a nonzero view-translation impulse; an old published view cannot be accumulated.");
+        }
         NativeBattleActionMatrix? view = CurrentPose is { } pose ? NativeBattlePoseMatrices.CameraView(pose) : Projection?.View;
+        if (view is not null)
+        {
+            view = NativeBattleCameraViewTranslationScratch.Apply5033E0(view, x, y, z);
+        }
         bool published = (graphicsFlags & 4) != 0;
         NativeBattleCameraProjection? projection = view is null && Projection is null && !published ? null : new(view, published ? FocalLength is short focal ? unchecked((ushort)focal) : null : Projection?.FocalLength, published ? ProjectionOffsetsCleared ? (short)160 : null : Projection?.OffsetX, published ? ProjectionOffsetsCleared ? (short)108 : null : Projection?.OffsetY);
         //500900 writes the screen offsets, then unconditionally clears their
         //two scratch WORDs. Unknown retained first-frame offsets stay unknown.
-        return this with { Projection = projection, ProjectionOffsetsCleared = ProjectionOffsetsCleared || published };
+        return this with { Projection = projection, ProjectionOffsetsCleared = ProjectionOffsetsCleared || published, ViewTranslationScratch = new(0, 0, 0) };
     }
 }
 

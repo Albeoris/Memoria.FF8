@@ -107,6 +107,8 @@ public static class NativeBattleActionGraphics
 
 public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint Initializer)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleBlizzardResources? BlizzardResources { get; init; }
     public bool? InitializerIsRet { get; init; }
     public NativeBattleEffectInitializerAsset? InitializerAsset { get; init; }
     public NativeBattleEffectInitializerResource? InitializerResource { get; init; }

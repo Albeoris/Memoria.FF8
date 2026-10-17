@@ -122,7 +122,7 @@ public static class NativeBattleRetainedMemoryReader
         {
             throw new InvalidDataException("Authenticated camera vector padding contradicts its separate static/BSS WORD owners.");
         }
-        if (ReadLoaderBytes(0x1D97778, 44).Any(value => value != 0) || ReadLoaderBytes(0x1D8E038, 8).Any(value => value != 0) || ReadLoaderBytes(0x1CA92DC, 12).Any(value => value != 0) || camera.CurrentPose!.Eye != ReadPoint(0xB8B7F0) || camera.CurrentPose.Target != ReadPoint(0xB8B7F8))
+        if (ReadLoaderBytes(0x1D97710, 6).Any(value => value != 0) || ReadLoaderBytes(0x1D97778, 44).Any(value => value != 0) || ReadLoaderBytes(0x1D8E038, 8).Any(value => value != 0) || ReadLoaderBytes(0x1CA92DC, 12).Any(value => value != 0) || camera.CurrentPose!.Eye != ReadPoint(0xB8B7F0) || camera.CurrentPose.Target != ReadPoint(0xB8B7F8))
         {
             throw new InvalidDataException("Authenticated cold camera/GTE owners contradict the loader image profile.");
         }

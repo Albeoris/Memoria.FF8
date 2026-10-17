@@ -127,6 +127,11 @@ public sealed partial class GameAssets
         {
             int index = catalog[requestedEffect - 1].Entry == 0 ? 0 : requestedEffect - 1;
             NativeBattleEffectBinding binding = catalog[index];
+            if (binding.Entry == 0x61ABA0)
+            {
+                binding = binding with { BlizzardResources = ReadNativeBlizzardResources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Entry == 0x6C3550 && binding.Initializer == 0x6C3560)
             {
                 catalog = catalog.SetItem(index, binding with { NativeQuezacotlResources = ReadNativeQuezacotlResources() });

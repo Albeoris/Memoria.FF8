@@ -46,6 +46,20 @@ public static class NativeBattleEffectStaticResourcesReader
         Authenticate(executable);
         using PEReader reader = new(new MemoryStream(executable));
         uint address = U32(0xC81678u + 4u * id);
+        return ReadMesh(executable, reader, address, id);
+
+        uint U32(uint location) => BinaryPrimitives.ReadUInt32LittleEndian(Bytes(executable, reader, location, 4));
+    }
+
+    public static NativeBattleStaticMeshResource ReadMesh(byte[] executable, uint address)
+    {
+        Authenticate(executable);
+        using PEReader reader = new(new MemoryStream(executable));
+        return ReadMesh(executable, reader, address, 0);
+    }
+
+    private static NativeBattleStaticMeshResource ReadMesh(byte[] executable, PEReader reader, uint address, byte id)
+    {
         int cursor = checked((int)U32(address));
         int vertices = checked((int)U32(address + 4));
         if (vertices > 4096 || cursor != checked(8 + vertices * 8))

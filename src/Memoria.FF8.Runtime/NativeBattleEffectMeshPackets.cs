@@ -6,10 +6,19 @@ namespace Memoria.FF8.Runtime;
 internal sealed record NativeBattleEffectMeshWindow(ushort U, ushort V, NativeBattleTextureWindow Before, NativeBattleTextureWindow After);
 internal sealed record NativeBattleEffectMeshPacketContext(uint Flags, uint? FarColor, int? Fade, ushort? TexturePage, ushort? Clut, uint PackedUvOffset, bool MaterialOverrides, int? DepthBias, int TableBaseBucket, byte DepthShift, NativeBattleEffectMeshWindow? Window = null);
 
+[Flags]
+internal enum NativeBattleEffectMeshClip
+{
+    None = 0,
+    Backfaces = 1,
+    OutsideScreen = 2,
+    Standard = Backfaces | OutsideScreen
+}
+
 /// <summary>Shared normalized flat, textured and Gouraud mesh stores used by Curaga, Esuna and Full-life.</summary>
 internal static class NativeBattleEffectMeshPackets
 {
-    internal static NativeBattleGfGeometryBatch EmitTextured(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, bool quad, bool gouraud, NativeBattleEffectMeshPacketContext context, NativeBattleSummonColors? colors, int byteOffset)
+    internal static NativeBattleGfGeometryBatch EmitTextured(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, bool quad, bool gouraud, NativeBattleEffectMeshPacketContext context, NativeBattleSummonColors? colors, int byteOffset, NativeBattleEffectMeshClip clip = NativeBattleEffectMeshClip.Standard)
     {
         if (face.Length != (gouraud ? 36 : quad ? 24 : 20) || gouraud && !quad || context.DepthShift > 31)
         {
@@ -61,7 +70,7 @@ internal static class NativeBattleEffectMeshPackets
                 packet.Word16(14, context.Clut ?? throw new NotSupportedException("Native material replacement requires its retained CLUT WORD."));
             }
         }
-        if (NativeBattleModulePackets.Nclip(vertices[0].Screen, vertices[1].Screen, vertices[2].Screen) < 0 && (context.Flags & (gouraud ? 0x20u : 0x10u)) == 0)
+        if ((clip & NativeBattleEffectMeshClip.Backfaces) != 0 && NativeBattleModulePackets.Nclip(vertices[0].Screen, vertices[1].Screen, vertices[2].Screen) < 0 && (context.Flags & (gouraud ? 0x20u : 0x10u)) == 0)
         {
             return Rejected();
         }
@@ -74,7 +83,7 @@ internal static class NativeBattleEffectMeshPackets
             vertices[3] = readCorner(3);
             packet.Word(8 + 3 * screenStride, vertices[3].Screen);
         }
-        if (OutsideScreen(vertices))
+        if ((clip & NativeBattleEffectMeshClip.OutsideScreen) != 0 && OutsideScreen(vertices))
         {
             return Rejected();
         }

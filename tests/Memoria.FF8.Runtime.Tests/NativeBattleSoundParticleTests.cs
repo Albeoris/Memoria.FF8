@@ -100,7 +100,7 @@ public sealed class NativeBattleSoundParticleTests
         NativeBattleActionMatrix view = NativeBattlePoseMatrices.CameraView(pose);
         Assert.Equal(ImmutableArray.Create<short>(4096, 0, 0, 0, 4096, 0, 0, 0, 4096), view.Rotation);
         Assert.Equal(1000, view.Z);
-        NativeBattleCameraState camera = NativeBattleCameraState.Initialize() with { CurrentPose = pose, FocalLength = 320 };
+        NativeBattleCameraState camera = NativeBattleCameraState.Initialize5041E0(null) with { CurrentPose = pose, FocalLength = 320 };
         camera = camera.PublishProjection(4);
         Assert.Throws<NotSupportedException>(() => camera.Projection!.ReadPan(new(0, 0, 0)));
         camera = camera.PublishProjection(4);
