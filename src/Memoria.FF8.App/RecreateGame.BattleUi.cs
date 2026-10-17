@@ -74,7 +74,8 @@ internal sealed partial class RecreateGame
         }
         if (world?.HasPendingBattle == true && world.Battle is null)
         {
-            world.ApplyBattleInput(new BattleInput(BattleInputKind.StartEncounter, Mode: session.State.GameplayPreferences.AtbMode));
+            BeginBattleEntry();
+            return true;
         }
         BattleSession? active = ActiveBattle;
         if (active is null)
@@ -185,13 +186,13 @@ internal sealed partial class RecreateGame
         previousBattleMouse = pressed;
     }
 
-    private void EnsureBattleHud(BattleSession active)
+    private void EnsureBattleHud(BattleSession active, BattleScenePresentation? preparedScene = null)
     {
         if (presentedBattle != active)
         {
             DisposeBattleTextures();
             presentedBattle = active;
-            battleScene = new BattleScenePresentation(PresentationBattleResources, active.Capture().Definition, debugBattle is null);
+            battleScene = preparedScene ?? new BattleScenePresentation(PresentationBattleResources, active.Capture().Definition, debugBattle is null);
             MenuData? rewardNames = debugBattle is null ? ReadLiveMenuData() : null;
             battleHud = new BattleHudController(active, (actor, target) => ApplyBattleCommand(new BattleInput(BattleInputKind.Attack, ActorId: actor, TargetId: target)), OpenBattleDebug, () => ApplyBattleCommand(new BattleInput(BattleInputKind.AdvanceTurn)), CompleteBattleResult, input => ApplyBattleCommand(input), () => debugBattle is null ? world!.PreviewBattleRewards() : null, id => rewardNames?.GuardianForces.FirstOrDefault(guardian => guardian.Id == $"gf-{id}")?.Name ?? liveMenuCatalog?.GuardianForceName(id) ?? $"GF {id}", id => liveMenuCatalog?.ItemName(id) ?? $"Item {id}", id => liveMenuCatalog?.CardName(id) ?? $"Card {id}", world?.Events.Scene.Names);
             battleHud.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);

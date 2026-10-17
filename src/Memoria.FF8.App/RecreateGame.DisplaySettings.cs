@@ -60,6 +60,10 @@ internal sealed partial class RecreateGame
             }
             battleIdleWorkBudget = appliedNativeBattlePacing ? TimeSpan.FromTicks(Math.Max(0, (workBudget - Stopwatch.GetElapsedTime(started)).Ticks)) : null;
             UpdateGameFrame(new GameTime(presentationTiming.SimulationTotal, step, gameTime.IsRunningSlowly));
+            if (battleEntryTransition is not null)
+            {
+                break;
+            }
             if (pendingCapture is not null)
             {
                 break;

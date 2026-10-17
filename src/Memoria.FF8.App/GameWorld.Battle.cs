@@ -36,9 +36,8 @@ internal sealed partial class GameWorld
         {
             try
             {
-                PreparedNativeBattleMusicEntry prepared = Events.PrepareNativeBattleMusicEntry(encounter, flags, BattleMusicEntryResources, session.State.NativeBattleMemory?.MusicProcess?.ReturnChannel);
-                BattleDefinition definition = CreateEncounterBattle(encounter, activeFlags: flags) with { NativeGlobalSoundProcess = prepared.Native.SoundProcess, NativeMusicProcess = prepared.Native.MusicProcess };
-                _ = new BattleSession(definition, BattleAtbMode.Normal);
+                // Resource construction and validation belong to StartEncounter, before its atomic publication.
+                _ = BattleResources.LoadEncounter(encounter);
                 return null;
             }
             catch (Exception exception) when (exception is NotSupportedException or InvalidDataException or FileNotFoundException or ArgumentException)

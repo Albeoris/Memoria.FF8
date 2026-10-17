@@ -84,6 +84,33 @@ public sealed partial class GameSession
         State = State with { PendingBattleEncounter = encounter };
     }
 
+    public void AdvanceNativeBattleEntryRandom(NativeCrtRandomState before, int draws)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(draws);
+        if (State.CrtRandom != before || State.PendingBattleEncounter is null || State.Battle is not null)
+        {
+            throw new InvalidOperationException("Battle entry random draws require the pending encounter and its unchanged CRT owner.");
+        }
+        NativeCrtRandomState after = before;
+        for (int draw = 0; draw < draws; draw++)
+        {
+            after = after.Draw(out _);
+        }
+        State = State with { CrtRandom = after };
+    }
+
+    public void PublishNativeBattleEntryMusic(NativeBattleMusicEntryPreparation entry)
+    {
+        if (State.PendingBattleEncounter is null || State.Battle is not null)
+        {
+            throw new InvalidOperationException("Battle entry music requires its pending encounter before combat publication.");
+        }
+        entry.MusicProcess.Validate();
+        entry.SoundProcess.Validate();
+        NativeBattleRetainedMemory memory = State.NativeBattleMemory ?? throw new NotSupportedException("Battle entry music requires its retained process memory.");
+        State = State with { NativeBattleMemory = memory with { MusicProcess = entry.MusicProcess }, GlobalSoundProcess = entry.SoundProcess };
+    }
+
     public void CommitBattleResult(BattleEncounterOccurrence encounter, NativeCharacterVitals vitals, NativeEconomy economy, NativeCardInventory? cards, NativeBattleVariableState? battleVariables = null, NativeSavedBattleFlags? savedBattleFlags = null, byte? savedBattleFlagsBefore = null, NativeCrtRandomState? crtRandom = null, NativeCrtRandomState? crtRandomBefore = null, byte savedBattleFlagsSetMask = 0, byte savedBattleFlagsClearMask = 0, NativeScannedModels? scannedModelsBefore = null, NativeScannedModels? scannedModelsAfter = null, byte? limitSpecialFlagsBefore = null, byte? limitSpecialFlagsAfter = null, byte limitSpecialSetMask = 0, byte? shotFlagsBefore = null, byte? shotFlagsAfter = null, byte shotFlagsSetMask = 0, NativeGlobalRandomChange? globalRandomChange = null, NativeKnownMagic? knownMagicBefore = null, NativeKnownMagic? knownMagicAfter = null, IReadOnlyList<BattleGuardianForceCounterChange>? guardianForceCounters = null)
     {
         encounter.Validate();

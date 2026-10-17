@@ -90,14 +90,9 @@ internal sealed partial class RecreateGame
         }
         else
         {
-            if (liveMenuCatalog is null)
-            {
-                using var assets = new Memoria.FF8.Assets.GameAssets(options.GameDirectory);
-                liveMenuCatalog = LiveMenuCatalog.ReadInstalled(assets);
-                nativeRefinementDefinitions = assets.ReadNativeRefinementDefinitions();
-            }
-            data = LiveMenuData.Build(session.State, events?.Scene.Names, liveMenuCatalog, placeId: events?.Scene.PlaceId);
-            NativeRefinementMenuProjection.Augment(data, session.State, nativeRefinementDefinitions!, liveMenuCatalog);
+            EnsureLiveMenuCatalog();
+            data = LiveMenuData.Build(session.State, events?.Scene.Names, liveMenuCatalog!, placeId: events?.Scene.PlaceId);
+            NativeRefinementMenuProjection.Augment(data, session.State, nativeRefinementDefinitions!, liveMenuCatalog!);
         }
         data.Settings["Music volume"] = uiPreferences.MusicVolume + "%";
         data.Settings["Cursor"] = uiPreferences.CursorMemory ? "Memory" : "Initial";
@@ -144,6 +139,16 @@ internal sealed partial class RecreateGame
             data.SupportedActions.Add("save");
         }
         return data;
+    }
+
+    private void EnsureLiveMenuCatalog()
+    {
+        if (liveMenuCatalog is null)
+        {
+            using var assets = new Memoria.FF8.Assets.GameAssets(options.GameDirectory);
+            liveMenuCatalog = LiveMenuCatalog.ReadInstalled(assets);
+            nativeRefinementDefinitions = assets.ReadNativeRefinementDefinitions();
+        }
     }
 
     private IReadOnlyList<DebugNameTarget> ReadDebugNames()

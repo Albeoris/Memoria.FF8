@@ -7,6 +7,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class GameWorld
 {
+    internal sealed record PreparedBattleEntry(GameState Source, PreparedNativeBattleMusicEntry? Music, BattleSession Battle);
     private NativeBattleMusicEntryResources? battleMusicEntryResources;
     private long synchronizedNativeBattleCallbacks;
 
@@ -14,19 +15,51 @@ internal sealed partial class GameWorld
 
     private BattleSession StartNativeBattleSession(int encounter, ushort flags, byte seed, BattleAtbMode mode)
     {
-        PreparedNativeBattleMusicEntry prepared = Events.PrepareNativeBattleMusicEntry(checked((ushort)encounter), flags, BattleMusicEntryResources, session.State.NativeBattleMemory?.MusicProcess?.ReturnChannel);
-        BattleDefinition definition = CreateEncounterBattle(encounter, seed, flags) with { NativeGlobalSoundProcess = prepared.Native.SoundProcess, NativeMusicProcess = prepared.Native.MusicProcess };
+        return CommitPreparedBattleEntry(PrepareBattleEntry(encounter, flags, seed, mode));
+    }
+
+    internal PreparedBattleEntry PrepareBattleEntry(int encounter, ushort flags, byte seed, BattleAtbMode mode, NativeBattleMusicEntryPreparation? selectedMusic = null)
+    {
+        GameState source = session.State;
+        PreparedNativeBattleMusicEntry? prepared = selectedMusic is null ? Events.PrepareNativeBattleMusicEntry(checked((ushort)encounter), flags, BattleMusicEntryResources, session.State.NativeBattleMemory?.MusicProcess?.ReturnChannel) : null;
+        NativeBattleMusicEntryPreparation music = selectedMusic ?? prepared!.Native;
+        BattleDefinition definition = CreateEncounterBattle(encounter, seed, flags) with { NativeGlobalSoundProcess = music.SoundProcess, NativeMusicProcess = music.MusicProcess };
         BattleSession candidate = AttachNativeEffectResources(CreateLiveBattleSession(definition, session.State.GameplayPreferences with { AtbMode = mode }));
+        return new(source, prepared, candidate);
+    }
+
+    internal BattleSession CommitPreparedBattleEntry(PreparedBattleEntry entry)
+    {
+        if (!ReferenceEquals(session.State, entry.Source))
+        {
+            throw new InvalidOperationException("Prepared battle entry no longer matches its suspended session.");
+        }
+        BattleSession candidate = entry.Battle;
         synchronizedNativeBattleCallbacks = 0;
-        Events.CommitNativeBattleMusicEntry(prepared, _ =>
+        void Publish()
         {
             //48B7E0 refreshes the active characters and calls495EC0 before publishing the entry banks.
             NativeCharacterVitals vitals = session.State.CharacterVitals!.RebuildParty();
             session.SetCharacterVitals(vitals);
             session.SetBattle(candidate.Capture());
-        });
+        }
+        if (entry.Music is not null)
+        {
+            Events.CommitNativeBattleMusicEntry(entry.Music, _ => Publish());
+        }
+        else
+        {
+            Publish();
+        }
         Events.SynchronizeNativeBattleMusicProcess(candidate.NativeMusicProcess);
         return candidate;
+    }
+
+    internal NativeBattleMusicEntryPreparation BeginBattleEntryMusic(int encounter, ushort flags)
+    {
+        PreparedNativeBattleMusicEntry prepared = Events.PrepareNativeBattleMusicEntry(checked((ushort)encounter), flags, BattleMusicEntryResources, session.State.NativeBattleMemory?.MusicProcess?.ReturnChannel);
+        Events.CommitNativeBattleMusicEntry(prepared, session.PublishNativeBattleEntryMusic);
+        return prepared.Native;
     }
 
     private void PublishBattleSnapshot(BattleSession? active)

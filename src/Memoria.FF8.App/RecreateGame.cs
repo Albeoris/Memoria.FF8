@@ -117,6 +117,11 @@ internal sealed partial class RecreateGame : Game
     protected override void Update(GameTime gameTime)
     {
         autoPlayAdvancedThisFrame = false;
+        if (battleEntryTransition is not null)
+        {
+            UpdateBattleEntry(gameTime);
+            return;
+        }
         ApplyDisplaySettings();
         try
         {
@@ -131,7 +136,10 @@ internal sealed partial class RecreateGame : Game
         }
         finally
         {
-            controllerFeedback?.Update(session.State.VibrationProcess, IsActive && !userPaused && !capturingControls && !fieldFaulted && !fieldRenderFaulted && gameMenus?.IsOpen != true && !saveMenu.IsOpen, keyboard.Profile.Controller.VibrationEnabled);
+            if (battleEntryTransition is null)
+            {
+                controllerFeedback?.Update(session.State.VibrationProcess, IsActive && !userPaused && !capturingControls && !fieldFaulted && !fieldRenderFaulted && gameMenus?.IsOpen != true && !saveMenu.IsOpen, keyboard.Profile.Controller.VibrationEnabled);
+            }
         }
     }
 
@@ -265,7 +273,10 @@ internal sealed partial class RecreateGame : Game
         world?.AdvanceDebug(gameplayElapsed);
         if (UpdateBattle(gameplayElapsed, input))
         {
-            fieldAudio?.Update();
+            if (battleEntryTransition is null)
+            {
+                fieldAudio?.Update();
+            }
             base.Update(gameTime);
             metrics.Update(updateStarted);
             return;
@@ -1002,6 +1013,11 @@ internal sealed partial class RecreateGame : Game
 
     protected override void Draw(GameTime gameTime)
     {
+        if (battleEntryTransition is not null)
+        {
+            DrawBattleEntry(gameTime);
+            return;
+        }
         UpdateLocationWindowTitle();
         // Catch-up updates advance the VM only. Rasterize once for the frame actually presented.
         if (ActiveBattle is null && world?.ActiveTripleTriad is null && gameMenus?.IsOpen != true && !fieldFaulted && !fieldRenderFaulted && world is not null && (session.State.Scene == SceneKind.WorldMap || world.CanPresentCurrentField))
@@ -1152,6 +1168,14 @@ internal sealed partial class RecreateGame : Game
         }
         DrawBattleDebugUi(bounds);
         batch.End();
+        CapturePresentedFrame(gameTime);
+        base.Draw(gameTime);
+        metrics.Draw();
+    }
+
+    private void CapturePresentedFrame(GameTime gameTime)
+    {
+        Rectangle bounds = GraphicsDevice.Viewport.Bounds;
         string? capturePath = pendingCapture ?? (!frameCaptured && gameTime.TotalGameTime.TotalSeconds >= options.CaptureAfterSeconds ? options.CaptureFramePath : null);
         if (capturePath is not null)
         {
@@ -1166,8 +1190,6 @@ internal sealed partial class RecreateGame : Game
             pendingCapture = null;
             Console.WriteLine($"captured={capturePath} frame={updateFrames}");
         }
-        base.Draw(gameTime);
-        metrics.Draw();
     }
 
     private void DrawTitle(Rectangle bounds)
@@ -1184,6 +1206,7 @@ internal sealed partial class RecreateGame : Game
     {
         if (disposing)
         {
+            DisposeBattleEntry();
             DisposeStartup();
             titleArtwork?.Dispose();
             titleScene?.Dispose();

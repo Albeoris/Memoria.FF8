@@ -34,6 +34,37 @@ public sealed class GameAssetsResourceSourceTests
     }
 
     [Fact]
+    public void NativeExecutableImageIsReusedWithinItsResourceServiceAndIsolatedFromOtherSources()
+    {
+        using CatalogSource firstSource = new() { ExecutableBytes = [1, 2, 3] };
+        using CatalogSource secondSource = new() { ExecutableBytes = [4, 5, 6] };
+        ResourceService firstResources = new(firstSource);
+        ResourceService secondResources = new(secondSource);
+        byte[] first = GameDataResources.ReadNativeExecutable(firstResources);
+        byte[] second = GameDataResources.ReadNativeExecutable(secondResources);
+        Assert.Equal(new byte[] { 1, 2, 3 }, first);
+        Assert.Equal(new byte[] { 4, 5, 6 }, second);
+        Assert.NotSame(first, second);
+        Assert.Same(first, GameDataResources.ReadNativeExecutable(firstResources));
+        Assert.Same(second, GameDataResources.ReadNativeExecutable(secondResources));
+        Assert.Equal(new[] { "runtime/native-executable" }, firstSource.ReadKeys);
+        Assert.Equal(new[] { "runtime/native-executable" }, secondSource.ReadKeys);
+    }
+
+    [Fact]
+    public void ProviderAuthenticationFailureIsRetriedAndDoesNotPoisonTheExecutableCache()
+    {
+        using CatalogSource source = new() { ExecutableBytes = [7, 8, 9], ExecutableAuthenticationFailures = 2 };
+        ResourceService resources = new(source);
+        Assert.Throws<NotSupportedException>(() => GameDataResources.ReadNativeExecutable(resources));
+        Assert.Throws<NotSupportedException>(() => GameDataResources.ReadNativeExecutable(resources));
+        byte[] executable = GameDataResources.ReadNativeExecutable(resources);
+        Assert.Equal(new byte[] { 7, 8, 9 }, executable);
+        Assert.Same(executable, GameDataResources.ReadNativeExecutable(resources));
+        Assert.Equal(new[] { "runtime/native-executable", "runtime/native-executable", "runtime/native-executable" }, source.ReadKeys);
+    }
+
+    [Fact]
     public void MissingRuntimeCapabilityRetainsNotSupportedBoundary()
     {
         using CatalogSource source = new();
@@ -162,6 +193,8 @@ public sealed class GameAssetsResourceSourceTests
         public string ArchiveFamily { get; init; } = "field";
         public bool FailEntryEnumeration { get; init; }
         public bool FailMaplist { get; init; }
+        public byte[]? ExecutableBytes { get; init; }
+        public int ExecutableAuthenticationFailures { get; set; }
         public bool RootDisposed { get; private set; }
         public bool Disposed { get; private set; }
 
@@ -178,6 +211,18 @@ public sealed class GameAssetsResourceSourceTests
             if (FailMaplist && key.Path == "field/mapdata/maplist")
             {
                 throw new InvalidDataException("Invalid field catalog.");
+            }
+            if (key.Path == "runtime/native-executable")
+            {
+                if (ExecutableAuthenticationFailures > 0)
+                {
+                    ExecutableAuthenticationFailures--;
+                    throw new NotSupportedException("The provider rejected unauthenticated executable bytes.");
+                }
+                if (ExecutableBytes is byte[] executable)
+                {
+                    return new ResourceContent(key, "bin", 1, "memory", () => new MemoryStream(executable, false));
+                }
             }
             return contents.TryGetValue(key.Path, out byte[]? bytes) ? new ResourceContent(key, "bin", 1, "memory", () => new MemoryStream(bytes, false)) : null;
         }
