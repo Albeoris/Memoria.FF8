@@ -77,7 +77,7 @@ internal sealed class BattleHudElement : UiElement
             }
         }
 
-        IReadOnlyList<BattleCombatant> party = controller.Party;
+        IReadOnlyList<BattleCombatant> party = session.NativeGraphics?.UiServices is { } nativeUi && !(nativeUi.Windows ?? throw new NotSupportedException("Native battle HUD requires its retained UI window bank; migrate the named snapshot explicitly.")).DrawsVitals4B1740(nativeUi.Flags942) ? [] : controller.Party;
         for (int index = 0; index < party.Count; index++)
         {
             BattleCombatant actor = party[index];

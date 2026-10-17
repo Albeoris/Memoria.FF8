@@ -68,6 +68,102 @@ public sealed class NativeAllocationDescriptorTests
         Assert.Single(battle.Events, item => item.Kind == "Outcome");
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void NativeVictoryAdmissionReadsSavedKoOrPetrifyInsteadOfEjectionOrUntargetability(bool untargetable)
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession battle = Create(game, assets, [0]);
+        for (int callback = 0; callback < 300 && !battle.NativeEntryReady; callback++)
+        {
+            battle.Tick();
+        }
+        Assert.True(battle.NativeEntryReady);
+        BattleSnapshot snapshot = battle.Capture();
+        BattleCombatantSnapshot enemy = snapshot.Combatants.Single(actor => actor.Id == "caller");
+        NativeBattleParticipantSnapshot participant = enemy.NativeParticipant!;
+        enemy = untargetable
+            ? enemy with { NativeParticipant = participant with { Untargetable = true, NativeCombatantFlags = participant.NativeCombatantFlags!.Value | 0x40 } }
+            : enemy with { NativeStatus = enemy.NativeStatus! with { Battle = enemy.NativeStatus.Battle | 0x10000 } };
+        BattleCombatantSnapshot[] actors = snapshot.Combatants.Select(actor => actor.Id == enemy.Id ? enemy : actor).ToArray();
+        battle = BattleSession.Restore(snapshot with { Combatants = actors });
+        battle.Tick();
+        Assert.Equal(BattleOutcome.Active, battle.Outcome);
+        Assert.Null(battle.NativeGraphics!.NativeOutcome);
+        Assert.DoesNotContain(battle.NativeGraphics.Descriptors.Packets, packet => packet.Command == 115);
+    }
+
+    [Fact]
+    public void ActualOutcomeCallbackClearsC2AndSubsequentUiServicesCannotGrowParticipantGauges()
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession battle = Create(game, assets, [0]);
+        for (int callback = 0; callback < 300 && !battle.NativeEntryReady; callback++)
+        {
+            battle.Tick();
+        }
+        Assert.True(battle.NativeEntryReady);
+        BattleSnapshot snapshot = battle.Capture();
+        Assert.Equal((byte)1, snapshot.NativeClock!.Active);
+        NativeBattleGraphicsState graphics = snapshot.NativeGraphics!;
+        graphics = graphics with { NativeOutcome = new() { ResultByte6E7 = 4 }, Descriptors = graphics.Descriptors.Enqueue(10, 128, 0x47DF60).State };
+        battle = BattleSession.Restore(snapshot with { NativeGraphics = graphics });
+        for (int callback = 0; callback < 10 && battle.NativeGraphics!.NativeOutcome!.AdmissionDFD != 1; callback++)
+        {
+            battle.Tick();
+        }
+        Assert.Equal((byte?)1, battle.NativeGraphics!.NativeOutcome!.AdmissionDFD);
+        Assert.Equal((byte)0, battle.Capture().NativeClock!.Active);
+        int?[] gauges = battle.Capture().Combatants.Select(actor => actor.NativeAtb?.Current).ToArray();
+        battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        battle.Tick();
+        Assert.Equal(gauges, battle.Capture().Combatants.Select(actor => actor.NativeAtb?.Current).ToArray());
+        Assert.Equal((byte)0, battle.Capture().NativeClock!.Active);
+    }
+
+    [Fact]
+    public void DeclaredPartyKoAdmitsDefeatAndWaitsForTheActualSharedExitCountdownBeforeTerminalCleanup()
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession battle = Create(game, assets, [0]);
+        for (int callback = 0; callback < 300 && !battle.NativeEntryReady; callback++)
+        {
+            battle.Tick();
+        }
+        Assert.True(battle.NativeEntryReady);
+        BattleCombatant player = battle.Combatants.Single(actor => actor.IsPlayer);
+        typeof(BattleCombatant).GetProperty(nameof(BattleCombatant.CurrentHp))!.SetValue(player, 0);
+        battle.Tick();
+        Assert.Equal(BattleOutcome.Active, battle.Outcome);
+        Assert.Equal((byte?)1, battle.NativeResult);
+        Assert.Equal((byte?)3, battle.NativeGraphics!.NativeOutcome!.FadeStyleE01);
+        Assert.DoesNotContain(battle.Events, item => item.Kind == "Outcome");
+        long combatFrame = battle.Frame;
+        battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        for (int callback = 0; callback < 150 && battle.NativeGraphics!.NativeOutcome!.FadeDurationB0C != 0; callback++)
+        {
+            battle.Tick();
+        }
+        Assert.Equal((byte?)0, battle.NativeGraphics!.NativeOutcome!.FadeDurationB0C);
+        Assert.Equal(BattleOutcome.Active, battle.Outcome);
+        Assert.Equal(combatFrame, battle.Frame);
+        Assert.Contains(battle.Events, item => item.Kind == "NativeText" && item.Message == assets.ReadNativeGlobalBattleMessages()[0]);
+        battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        long graphicsFrame = battle.NativeGraphics!.Callback;
+        battle.Tick();
+        Assert.Equal(BattleOutcome.Defeat, battle.Outcome);
+        Assert.Equal((byte?)1, battle.NativeResult);
+        Assert.Equal(graphicsFrame, battle.NativeGraphics!.Callback);
+        Assert.Single(battle.Events, item => item.Kind == "Outcome");
+        Assert.Empty(battle.QueuedActions);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        Assert.Equal(BattleOutcome.Defeat, restored.Outcome);
+    }
+
     [Fact]
     public void GuardianCancellation114ClearsTheGraphicsCastingFlagAndRefreshesThePendingStandingSequence()
     {
@@ -152,7 +248,7 @@ public sealed class NativeAllocationDescriptorTests
         ];
         NativeBattleGraphicsDefinition graphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94));
         NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicFixture.Prepare(game, 94);
-        BattleDefinition definition = new() { EncounterId = 94, StageId = 0, NativeMusicProcess = musicEntry.MusicProcess, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5), NativeGlobalSoundProcess = musicEntry.SoundProcess, NativeClockRules = assets.ReadNativeClockRules(), NativeBattleSpeed = 0, NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeStageSource = assets.LoadStage(0).NativeSource, NativeStageCameraBank = assets.LoadStage(0).NativeCameraBank, NativeStageCameraSelectors = [0, 0], NativeStageCameraControl = assets.LoadStage(0).NativeCameraControl, NativeGraphics = graphics, Combatants = actors };
+        BattleDefinition definition = new() { EncounterId = 94, StageId = 0, NativeMusicProcess = musicEntry.MusicProcess, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5), NativeGlobalSoundProcess = musicEntry.SoundProcess, NativeClockRules = assets.ReadNativeClockRules(), NativeBattleSpeed = 0, NativeFlags = 0x80, NativeMessageSpeed = game.ReadNewGameInputConfiguration().BattleMessageSpeed, NativeGlobalMessages = assets.ReadNativeGlobalBattleMessages(), NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeStageSource = assets.LoadStage(0).NativeSource, NativeStageCameraBank = assets.LoadStage(0).NativeCameraBank, NativeStageCameraSelectors = [0, 0], NativeStageCameraControl = assets.LoadStage(0).NativeCameraControl, NativeGraphics = graphics, Combatants = actors };
         return new(definition, BattleAtbMode.TurnBased);
     }
 }

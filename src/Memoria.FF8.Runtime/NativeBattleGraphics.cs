@@ -90,6 +90,11 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
             {
                 throw new InvalidDataException("Loaded native graphics row lacks its actor, resource or model fields.");
             }
+            if (model.LinkedModelIndex140 is not null)
+            {
+                _ = model.ReadLinkedModelIndex140();
+            }
+            model.ValidatePartialStatus();
             model.SequenceState?.Validate();
             if (model.TextureResourceIndex is < 0 or >= 11)
             {

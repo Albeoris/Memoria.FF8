@@ -102,18 +102,24 @@ public sealed partial class BattleSession
 
     private bool NativeConditionTimerIsZero()
     {
+        if (NativeExamTimer is { } canonical)
+        {
+            bool[] values = canonical.Alternatives.Select(alternative => alternative.Remaining == 0).Distinct().ToArray();
+            return values.Length == 1 ? values[0] : throw new NotSupportedException("Native battle timer condition differs across canonical timer alternatives.");
+        }
         if (definition.NativeExamTimerAtEntry is { } entry)
         {
             NativeExamTimerState current = nativeConditionTimer ?? entry;
-            long remaining = Frame - nativeConditionTimerFrame;
+            long callbacks = NativeGraphics is null ? Frame : NativeHostCallbacks ?? throw new NotSupportedException("Native timer conditions require the executed47CF60 callback ledger; explicitly migrate the named older checkpoint.");
+            long remaining = callbacks - nativeConditionTimerFrame;
             while (remaining > 0)
             {
-                int callbacks = (int)Math.Min(remaining, 30000);
-                current = current.AdvanceCallbacks(NativeTimerCallbackKind.Battle, callbacks);
-                remaining -= callbacks;
+                int batch = (int)Math.Min(remaining, 30000);
+                current = current.AdvanceCallbacks(NativeTimerCallbackKind.Battle, batch);
+                remaining -= batch;
             }
             nativeConditionTimer = current;
-            nativeConditionTimerFrame = Frame;
+            nativeConditionTimerFrame = callbacks;
             bool[] alternatives = current.Alternatives.Select(alternative => alternative.Remaining == 0).Distinct().ToArray();
             return alternatives.Length == 1 ? alternatives[0] : throw new NotSupportedException("Native battle timer condition is ambiguous under its retained clock alternatives.");
         }

@@ -5,6 +5,52 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleOutcomeCallbacksTests
 {
     [Fact]
+    public void OpeningFadeUsesZeroTo128AndInvokesTheTimerAtNativeElapsedFiveWithoutExitPublication()
+    {
+        NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear().AppendOpeningFade501CE0(15);
+        List<byte> colors = [];
+        int timer = 0;
+        NativeBattleAuxiliaryInputs inputs = new()
+        {
+            ApplyScreenFade501D10 = (color, publish) =>
+            {
+                colors.Add(color);
+                Assert.False(publish);
+            },
+            InitializeTimerDisplay47D910 = () =>
+            {
+                Assert.Equal(6, colors.Count);
+                timer++;
+            }
+        };
+        for (int frame = 0; frame <= 15; frame++)
+        {
+            state = state.Advance(inputs).State;
+        }
+        Assert.Equal((byte)0, colors[0]);
+        Assert.Equal((byte)128, colors[^1]);
+        Assert.Equal(1, timer);
+        Assert.Null(state.Head);
+    }
+
+    [Fact]
+    public void DeferredCompletionClearsItsCallerBeforeTheNextSharedAuxiliaryCallbackPublishes255()
+    {
+        List<(uint Address, byte Value)> stores = [];
+        NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear().AppendDeferredCompletion5086C0(0x1D96D26, (address, value) => stores.Add((address, value)));
+        Assert.Equal(new[] { (0x1D96D26u, (byte)0) }, stores);
+        state = JsonSerializer.Deserialize<NativeBattleAuxiliaryState>(JsonSerializer.Serialize(state))!;
+        NativeBattleAuxiliaryInputs inputs = new() { WriteCompletionByte = (address, value) => stores.Add((address, value)) };
+        state = state.Advance(inputs).State;
+        state = state.Advance(inputs).State;
+        Assert.Equal(new[] { (0x1D96D26u, (byte)0), (0x1D96D26u, (byte)255) }, stores);
+        Assert.Null(state.Head);
+        NativeBattleGraphicsModel protectedModel = new(3, 2) { Flags8 = 0x1000, Kind5 = 0, ResourceFlags44 = 0 };
+        Assert.True(NativeBattleActionGraphics.IsModelBusy(protectedModel, 0x40));
+        Assert.False(NativeBattleActionGraphics.IsModelBusy(protectedModel, 0x40, 0x101A));
+    }
+
+    [Fact]
     public void Fade_packet_is_the_native_320_by_216_quad_followed_by_exact_draw_mode_in_bucket1()
     {
         var packets = NativeBattleOutcomeCallbacks.FadePackets501D10(0);

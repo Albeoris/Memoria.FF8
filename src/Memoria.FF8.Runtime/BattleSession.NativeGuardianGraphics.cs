@@ -198,13 +198,9 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState ReapplyNativeGuardianStatus(NativeBattleGraphicsState graphics, byte caster)
     {
         NativeBattleGraphicsModel model = graphics.Models[caster];
-        if (model.HasLinkedModelRing140 ?? throw new NotSupportedException("Native50B810 requires the caster's actual linked-ring pointer."))
-        {
-            throw new NotSupportedException("Native50B810 linked-ring status projection requires its original50A000 auxiliary callback.");
-        }
         uint flags = model.Flags8 ?? throw new InvalidDataException("Native50B810 requires the caster DWORD8.");
-        model = SetNativeGraphicsFlags(model with { Flags8 = flags & ~0x410u }, flags, graphics);
-        return graphics with { Models = graphics.Models.SetItem(caster, model) };
+        graphics = graphics with { Models = graphics.Models.SetItem(caster, model with { Flags8 = flags & ~0x410u }) };
+        return ApplyNativeGraphicsStatus509CD0(graphics, caster, flags);
     }
 
     private NativeBattleGraphicsState RefreshNativeGuardianStandingSequence(NativeBattleGraphicsState graphics, byte caster)

@@ -9,7 +9,7 @@ public sealed partial class BattleSession
         int actorIndex = graphics.ActorIds.IndexOf(actor.Id);
         NativeBattleActionGeometry context = new(checked((byte)actorIndex), command.NativeTargetMask) { CustomMatrix = graphics.ActionContext?.CustomMatrix };
         ushort? physical = null;
-        if (command.NativeTargetMask != 0 && (command.NativeTargetMask & 0xA000) == 0)
+        if ((command.NativeTargetMask & 127) != 0)
         {
             physical = (ushort)(command.NativeTargetMask & 127);
         }
@@ -52,7 +52,8 @@ public sealed partial class BattleSession
         short scale = NativeBattleActionGeometryRules.DistanceScale(first, second);
         short? yaw = actorIndex == recipientIndex ? context.TargetYaw : unchecked((short)NativeWorldScriptedPathMath.NativeAngle(second.X - first.X, second.Z - first.Z));
         short actorYaw = actorIndex == recipientIndex ? actorIndex >= 3 ? (short)2048 : (short)0 : unchecked((short)NativeWorldScriptedPathMath.NativeAngle(first.X - second.X, first.Z - second.Z));
-        context = context with { DistanceScale = scale, UnadjustedDistance = actorIndex == recipientIndex ? 1000 : 5000 * scale >> 12, ContactDistance = actorIndex == recipientIndex ? 1000 : NativeBattleActionGeometryRules.ContactDistance(scale, transform.Scale38, recipientTransform.Scale38), TargetYaw = yaw };
+        bool self = command.NativeTargetMask == 1 << actorIndex;
+        context = context with { DistanceScale = scale, UnadjustedDistance = self ? 1000 : 5000 * scale >> 12, ContactDistance = self ? 1000 : NativeBattleActionGeometryRules.ContactDistance(scale, transform.Scale38, recipientTransform.Scale38), TargetYaw = yaw };
         return PrepareNativeActionMatrices(graphics with { Models = graphics.Models.SetItem(actorIndex, model with { Rotation14 = actorYaw }), ActionContext = context });
     }
 

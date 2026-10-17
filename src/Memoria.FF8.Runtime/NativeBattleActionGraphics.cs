@@ -61,9 +61,11 @@ public static class NativeBattleActionGraphics
         return 0;
     }
 
-    public static bool IsModelBusy(NativeBattleGraphicsModel model, ushort resourceMask)
+    public static bool IsModelBusy(NativeBattleGraphicsModel model, ushort resourceMask) => IsModelBusy(model, resourceMask, 26);
+
+    public static bool IsModelBusy(NativeBattleGraphicsModel model, ushort resourceMask, uint statusMask)
     {
-        return (model.Flags0 & 8) == 0 && ((model.Flags8 ?? throw new NotSupportedException("Native508540 requires its reached model DWORD8.")) & 26) == 0 && ((model.Kind5 ?? throw new NotSupportedException("Native508540 requires its reached model BYTE5.")) != 0 || ((model.ResourceFlags44 ?? throw new NotSupportedException("Native508540 requires its reached resource WORD44.")) & resourceMask) == 0);
+        return (model.Flags0 & 8) == 0 && ((model.Flags8 ?? throw new NotSupportedException("Native508540 requires its reached model DWORD8.")) & statusMask) == 0 && ((model.Kind5 ?? throw new NotSupportedException("Native508540 requires its reached model BYTE5.")) != 0 || ((model.ResourceFlags44 ?? throw new NotSupportedException("Native508540 requires its reached resource WORD44.")) & resourceMask) == 0);
     }
 
     public static NativeBattleActionGraphicsState Normalize(NativeBattleActionPacketsState packets, int headerIndex, NativeBattleActionGraphicsState? previous = null)

@@ -14,13 +14,21 @@ public static class NativeBattleSequenceMachine
         {
             throw new InvalidDataException("Native sequence callback requires a loaded graphics model and selected resource.");
         }
-        if (state.Alternate43 != 0)
-        {
-            throw new NotSupportedException("Native alternate sequence43 requires its separate scratch-bank owner.");
-        }
         NativeBattleGraphicsModel model = source;
         List<NativeBattleSequenceCue> cues = [];
+        bool alternatePass = false;
+        byte executingSequence = sequence;
         int position = resource.SequenceStart(sequence) + state.Offset46;
+        if (state.Alternate43 != 0 && (RequireFlags2() & 8) == 0)
+        {
+            alternatePass = true;
+            executingSequence = state.Alternate43;
+            position = resource.SequenceStart(executingSequence);
+            Execute();
+            alternatePass = false;
+            executingSequence = sequence;
+            position = resource.SequenceStart(sequence) + state.Offset46;
+        }
         if ((flags & 1) != 0)
         {
             flags &= 0xFFFE;
@@ -60,11 +68,7 @@ public static class NativeBattleSequenceMachine
         NativeBattleSequenceStep Finish()
         {
             int offset = position - resource.SequenceStart(sequence);
-            if ((uint)offset > ushort.MaxValue)
-            {
-                throw new InvalidDataException("Native sequence cursor exceeds its WORD owner.");
-            }
-            state = state with { Offset46 = (ushort)offset, Callback42 = unchecked((byte)(state.Callback42 + 1)) };
+            state = state with { Offset46 = unchecked((ushort)offset), Callback42 = unchecked((byte)(state.Callback42 + 1)) };
             if (state.Pending3 != 0 && (flags & 0x40) != 0 && resource.Contains(state.Pending3))
             {
                 sequence = state.Pending3;
@@ -140,6 +144,7 @@ public static class NativeBattleSequenceMachine
         {
             position = resource.SequenceStart(selected);
             sequence = selected;
+            executingSequence = selected;
         }
 
         void Execute()
@@ -162,8 +167,17 @@ public static class NativeBattleSequenceMachine
                 }
                 switch (opcode)
                 {
+                    case 0x80:
+                        (inputs.AdvanceTexture ?? throw new NotSupportedException("Native80 requires its actual50C950 mutable texture descriptor owner."))(model, ReadByte());
+                        break;
                     case 0x82:
                         model = model with { Flags2 = (ushort)(RequireFlags2() | 0x40) };
+                        break;
+                    case 0x81:
+                        (inputs.ScheduleModelGroupFade ?? throw new NotSupportedException("Native81 requires its original model-group fade task."))(ReadByte());
+                        break;
+                    case 0x84:
+                        (inputs.ScheduleStageFade ?? throw new NotSupportedException("Native84 requires its shared stage fade producer."))(ReadByte());
                         break;
                     case 0x85:
                         model = model with { Flags0 = (ushort)(model.Flags0 & ~0x10) };
@@ -173,6 +187,9 @@ public static class NativeBattleSequenceMachine
                         break;
                     case >= 0x87 and <= 0x8F:
                     case 0xB3:
+                        break;
+                    case 0x90:
+                        model = (inputs.BindModelRing90 ?? throw new NotSupportedException("Native90 requires its actual linked-model pointer bank."))(model, ReadByte());
                         break;
                     case 0x91:
                         cues.Add(new(NativeBattleSequenceCueKind.Text, ReadByte(), ReadByte()));
@@ -197,12 +214,18 @@ public static class NativeBattleSequenceMachine
                     case 0x95:
                         model = model with { Transform = RequireTransform() with { Position28 = RequireTransform().Position28 with { X = RequireTransform().Initial20.X, Z = RequireTransform().Initial20.Z } } };
                         break;
+                    case 0x96:
+                        (inputs.ScheduleCameraShake ?? throw new NotSupportedException("Native96 requires its shared auxiliary camera translation producer."))(ReadByte(), ReadByte(), ReadByte());
+                        break;
                     case 0x99:
                     case 0xB1:
                         byte particleBone = ReadByte();
                         NativeBattleAuxiliaryProgram particleProgram = new(resource.SequenceSection, position);
                         (inputs.ScheduleSoundParticle ?? throw new NotSupportedException("Native B1/99 requires its shared506BF0 auxiliary task producer."))(particleProgram, opcode == 0xB1, particleBone);
                         position = NativeBattleAuxiliaryState.SkipSoundParticleProgram(resource.SequenceSection, position);
+                        break;
+                    case 0x9A:
+                        state = state with { Alternate43 = ReadByte() };
                         break;
                     case 0x9B:
                         byte variableTextureSelector = ReadByte();
@@ -214,6 +237,15 @@ public static class NativeBattleSequenceMachine
                         break;
                     case 0x9D:
                         cues.Add(new(NativeBattleSequenceCueKind.SuspendParticipant));
+                        break;
+                    case 0x9E:
+                    case 0xAD:
+                    case 0xAE:
+                        byte motionFirst = ReadByte();
+                        byte motionSecond = opcode == 0xAE ? ReadByte() : (byte)255;
+                        short motionFraction = opcode == 0x9E ? (short)0 : unchecked((short)(ReadByte() | ReadByte() << 8));
+                        byte motionDuration = ReadByte();
+                        model = (inputs.ScheduleModelMotion ?? throw new NotSupportedException("Native model motion requires its shared auxiliary task producer."))(model with { Sequence = sequence, ResourceFlags44 = flags, SequenceState = state }, opcode, motionFirst, motionSecond, motionFraction, motionDuration);
                         break;
                     case 0x9F:
                         NativeBattleAuxiliaryProgram textureProgram = new(resource.SequenceSection, position);
@@ -259,6 +291,14 @@ public static class NativeBattleSequenceMachine
                     case 0xA5:
                         (inputs.ScheduleModelEffect ?? throw new NotSupportedException("NativeA5 requires its actual571840 shared module-pool producer."))(ReadByte());
                         break;
+                    case 0xA6:
+                        byte deformationGroup = ReadByte();
+                        short deformationX = unchecked((short)(ReadByte() | ReadByte() << 8));
+                        short deformationY = unchecked((short)(ReadByte() | ReadByte() << 8));
+                        short deformationZ = unchecked((short)(ReadByte() | ReadByte() << 8));
+                        short deformationAngle = unchecked((short)(ReadByte() | ReadByte() << 8));
+                        model = (inputs.ScheduleModelDeformation ?? throw new NotSupportedException("NativeA6 requires its original shared deformation producer."))(model with { Sequence = sequence, ResourceFlags44 = flags, SequenceState = state }, deformationGroup, new(deformationX, deformationY, deformationZ), deformationAngle);
+                        break;
                     case 0xA7:
                         SwitchSequence(ReadByte());
                         break;
@@ -274,12 +314,7 @@ public static class NativeBattleSequenceMachine
                             model = applyContacts(model with { Sequence = sequence, ResourceFlags44 = flags, SequenceState = state });
                             state = model.SequenceState ?? throw new InvalidDataException("Native AA lost its resource-header sequence owner.");
                             flags = model.ResourceFlags44 ?? throw new InvalidDataException("Native AA lost its resource WORD44.");
-                            byte selected = model.Sequence ?? throw new InvalidDataException("Native AA lost its selected sequence.");
-                            if (selected != sequence)
-                            {
-                                sequence = selected;
-                                position = resource.SequenceStart(sequence) + state.Offset46;
-                            }
+                            sequence = model.Sequence ?? throw new InvalidDataException("Native AA lost its selected sequence.");
                         }
                         else
                         {
@@ -287,10 +322,11 @@ public static class NativeBattleSequenceMachine
                         }
                         break;
                     case 0xAB:
-                        int start = resource.SequenceStart(sequence);
-                        BattleNativeRenzokukenBlock block = NativeBattleRenzokukenRules.ReadBlock(resource.SequenceSection.AsSpan().Slice(start, resource.SequenceEnd(sequence) - start), origin - start, resource.AnimationFrames);
+                        int start = resource.SequenceStart(executingSequence);
+                        BattleNativeRenzokukenBlock physicalBlock = NativeBattleRenzokukenRules.ReadBlock(resource.SequenceSection.AsSpan(), origin, resource.AnimationFrames);
+                        BattleNativeRenzokukenBlock block = physicalBlock with { EndOffset = physicalBlock.EndOffset - start };
                         cues.Add(new(NativeBattleSequenceCueKind.TriggerWindow, sequence, origin - start) { TriggerWindow = block });
-                        position = start + block.EndOffset;
+                        position = physicalBlock.EndOffset;
                         break;
                     case 0xAC:
                         byte restored = ReadByte();
@@ -311,35 +347,26 @@ public static class NativeBattleSequenceMachine
                         model = (inputs.ApplyCurrentContact ?? throw new NotSupportedException("Native B7 requires its50A6C0 current physical contact receipt."))(model with { Sequence = sequence, ResourceFlags44 = flags, SequenceState = state });
                         state = model.SequenceState ?? throw new InvalidDataException("Native B7 lost its sequence owner.");
                         flags = model.ResourceFlags44 ?? throw new InvalidDataException("Native B7 lost its resource WORD44.");
-                        if (model.Sequence != sequence)
-                        {
-                            throw new NotSupportedException("Native B7 changed its currently executing sequence.");
-                        }
+                        sequence = model.Sequence ?? throw new InvalidDataException("Native B7 lost its selected sequence.");
                         break;
                     case 0xB2:
                         model = (inputs.ApplyNextContact ?? throw new NotSupportedException("Native B2 requires its50A690 physical contact receipt and pointer advance."))(model with { Sequence = sequence, ResourceFlags44 = flags, SequenceState = state });
                         state = model.SequenceState ?? throw new InvalidDataException("Native B2 lost its sequence owner.");
                         flags = model.ResourceFlags44 ?? throw new InvalidDataException("Native B2 lost its resource WORD44.");
-                        if (model.Sequence != sequence)
-                        {
-                            throw new NotSupportedException("Native B2 changed its currently executing sequence.");
-                        }
+                        sequence = model.Sequence ?? throw new InvalidDataException("Native B2 lost its selected sequence.");
                         break;
                     case 0xB0:
                     case 0xB4:
                         NativeBattleAuxiliaryProgram contactProgram = new(resource.SequenceSection, position);
                         (NativeBattleGraphicsModel contactModel, int contactOffset) = ((opcode == 0xB4 ? inputs.ScheduleContactEffect : inputs.ScheduleModelParticle) ?? throw new NotSupportedException($"Native {opcode:X2} requires its original505900 graphical producer and contact ownership."))(model with { Sequence = sequence, ResourceFlags44 = flags, SequenceState = state }, contactProgram);
-                        if (contactOffset < position || contactOffset > resource.SequenceEnd(sequence))
+                        if (contactOffset < position || contactOffset > resource.SequenceSection.Length)
                         {
                             throw new InvalidDataException("Native particle cursor exceeds its original bounded program.");
                         }
                         model = contactModel;
                         state = model.SequenceState ?? throw new InvalidDataException("Native particle callback lost its resource-header sequence owner.");
                         flags = model.ResourceFlags44 ?? throw new InvalidDataException("Native particle callback lost its resource WORD44.");
-                        if (model.Sequence != sequence)
-                        {
-                            throw new NotSupportedException("Native particle callback changed its currently executing sequence.");
-                        }
+                        sequence = model.Sequence ?? throw new InvalidDataException("Native particle callback lost its selected sequence.");
                         position = contactOffset;
                         break;
                     case 0x97:
@@ -386,10 +413,7 @@ public static class NativeBattleSequenceMachine
                 model = (inputs.SelectModelSequence ?? throw new NotSupportedException($"Native {opcode:X2} requires its505C00 physical model sequence selector."))(model with { Sequence = sequence, ResourceFlags44 = flags, SequenceState = state }, opcode, selector, selectedSequence);
                 state = model.SequenceState ?? throw new InvalidDataException("Native model selector lost its sequence owner.");
                 flags = model.ResourceFlags44 ?? throw new InvalidDataException("Native model selector lost its resource WORD44.");
-                if (model.Sequence != sequence)
-                {
-                    throw new NotSupportedException("Native model selection changed the currently executing sequence and requires its original cross-program cursor alias.");
-                }
+                sequence = model.Sequence ?? throw new InvalidDataException("Native model selector lost its selected sequence.");
             }
 
             int ReadVariable(byte variable)
@@ -400,7 +424,7 @@ public static class NativeBattleSequenceMachine
                 }
                 if (variable >= 120)
                 {
-                    return state.Scratch[127 - variable] ?? throw new InvalidDataException("Native sequence reads an uninitialized scratch WORD.");
+                    return (alternatePass ? state.AlternateScratch48 : state.Scratch)[127 - variable] ?? throw new InvalidDataException("Native sequence reads an uninitialized scratch WORD.");
                 }
                 return variable switch
                 {
@@ -412,6 +436,9 @@ public static class NativeBattleSequenceMachine
                     13 => state.Header36,
                     14 => state.Header38,
                     15 => state.Header40,
+                    20 => model.LinkedTransform?.Position.X ?? 0,
+                    21 => model.LinkedTransform?.Position.Y ?? 0,
+                    22 => model.LinkedTransform?.Position.Z ?? 0,
                     23 => (model.Rotation14 ?? throw new InvalidDataException("Native sequence lacks its model rotationWORD14.")) & 0xFFF,
                     27 => model.Index,
                     28 => model.Index >= 3 ? 2048 : ((model.Rotation14 ?? throw new InvalidDataException("Native sequence lacks its model rotationWORD14.")) & 0xFFF) <= 2048 ? 0 : 4096,
@@ -425,7 +452,7 @@ public static class NativeBattleSequenceMachine
                     42 => RequireTransform().Scale38,
                     44 => RequireTransform().Initial20.Z,
                     55 => model.Flags0 & 4,
-                    _ when variable is 13 or 14 or 15 or 16 or 17 or 18 or 19 or 20 or 21 or 22 or 24 or 25 or 26 or 36 or 37 or 38 or 39 or 40 or 41 or 42 or 44 or 46 or 51 or 53 or 54 => inputs.ReadModelExternal is { } readModel ? readModel(model with { Sequence = sequence, ResourceFlags44 = flags, SequenceState = state }, variable) : (inputs.ReadExternal ?? throw new NotSupportedException($"Native sequence variable{variable:X2} requires its original owner."))(variable),
+                    _ when variable is 13 or 14 or 15 or 16 or 17 or 18 or 19 or 24 or 25 or 26 or 36 or 37 or 38 or 39 or 40 or 41 or 42 or 44 or 46 or 51 or 53 or 54 => inputs.ReadModelExternal is { } readModel ? readModel(model with { Sequence = sequence, ResourceFlags44 = flags, SequenceState = state }, variable) : (inputs.ReadExternal ?? throw new NotSupportedException($"Native sequence variable{variable:X2} requires its original owner."))(variable),
                     _ => 0
                 };
             }
@@ -438,7 +465,7 @@ public static class NativeBattleSequenceMachine
                 }
                 else if (variable >= 120)
                 {
-                    state = state with { Scratch = state.Scratch.SetItem(127 - variable, unchecked((short)value)) };
+                    state = alternatePass ? state with { AlternateScratch48 = state.AlternateScratch48.SetItem(127 - variable, unchecked((short)value)) } : state with { Scratch = state.Scratch.SetItem(127 - variable, unchecked((short)value)) };
                 }
                 else
                 {
@@ -458,6 +485,21 @@ public static class NativeBattleSequenceMachine
                             break;
                         case 15:
                             state = state with { Header40 = unchecked((short)value) };
+                            break;
+                        case 20:
+                        case 21:
+                        case 22:
+                            if (model.LinkedTransform is { } linkedTransform)
+                            {
+                                NativeBattleVector linkedPosition = linkedTransform.Position;
+                                linkedPosition = variable switch
+                                {
+                                    20 => linkedPosition with { X = unchecked((short)value) },
+                                    21 => linkedPosition with { Y = unchecked((short)value) },
+                                    _ => linkedPosition with { Z = unchecked((short)value) }
+                                };
+                                model = model with { LinkedTransform = linkedTransform with { Position = linkedPosition } };
+                            }
                             break;
                         case 23:
                             model = model with { Rotation14 = unchecked((short)value) };
@@ -496,7 +538,7 @@ public static class NativeBattleSequenceMachine
                         case 33 or 45 or 48 or 49 or 50 or 52:
                             model = (inputs.WriteModelExternal ?? throw new NotSupportedException($"Native sequence write{variable:X2} requires its original target model owner."))(model, variable, value);
                             break;
-                        case 18 or 19 or 20 or 21 or 22 or 47:
+                        case 18 or 19 or 47:
                             (inputs.WriteExternal ?? throw new NotSupportedException($"Native sequence write{variable:X2} requires its original owner."))(variable, value);
                             break;
                     }
@@ -506,7 +548,7 @@ public static class NativeBattleSequenceMachine
 
         byte ReadByte()
         {
-            if (position < resource.SequenceStart(sequence) || position >= resource.SequenceEnd(sequence))
+            if ((uint)position >= resource.SequenceSection.Length)
             {
                 throw new InvalidDataException("Native sequence cursor or operand exceeds its original bounded program.");
             }

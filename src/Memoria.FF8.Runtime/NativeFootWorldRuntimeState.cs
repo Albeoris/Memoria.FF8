@@ -40,6 +40,7 @@ public sealed partial record NativeFootWorldRuntimeState
     public const int CurrentProofVersion = 1;
     public const string FirstLoadRule = "ff8-en-first-foot-542b90-548080-save110-v1";
     public const string SavedReloadRule = "ff8-en-foot-entry62-548080-54a0d0-v1";
+    public const string BattleReloadRule = "ff8-en-foot-mode2-548080-54a0d0-v1";
     public const string TrainDismountRule = "ff8-en-foot-train-dismount-548af0-retained-process-v1";
     public const string GardenDismountRule = NativeWorldGardenDismountReceipt.DismountRule;
     public const string RagnarokDismountRule = NativeWorldRagnarokDismountReceipt.DismountRule;
@@ -182,12 +183,30 @@ public sealed partial record NativeFootWorldRuntimeState
 
     public static NativeFootWorldRuntimeState CreateSavedReload(NativeSavedWorldFootReturn receipt)
     {
+        if (receipt.WorldMode != 0)
+        {
+            throw new InvalidDataException("Entry62 requires its actual mode0 saved-foot authority.");
+        }
+        return CreateSavedReloadCore(receipt, SavedReloadRule);
+    }
+
+    public static NativeFootWorldRuntimeState CreateBattleReload(NativeSavedWorldFootReturn receipt)
+    {
+        if (receipt.WorldMode != 3)
+        {
+            throw new InvalidDataException("World battle mode2 requires its actual549E80 mode3 foot save.");
+        }
+        return CreateSavedReloadCore(receipt, BattleReloadRule);
+    }
+
+    private static NativeFootWorldRuntimeState CreateSavedReloadCore(NativeSavedWorldFootReturn receipt, string rule)
+    {
         ArgumentNullException.ThrowIfNull(receipt);
         receipt.RequireCompleteFootReload();
         var state = new NativeFootWorldRuntimeState
         {
             ProofVersion = CurrentProofVersion,
-            Rule = SavedReloadRule,
+            Rule = rule,
             EntityType = receipt.EntityType105,
             AnimationVariant = receipt.AnimationVariant108!.Value,
             MapDisplayMode = receipt.MapDisplayMode110!.Value,
@@ -257,7 +276,7 @@ public sealed partial record NativeFootWorldRuntimeState
         {
             throw new InvalidDataException("Native foot retained input/yaw exceeds its physical word contract.");
         }
-        if (ProofVersion != CurrentProofVersion || Rule is not (FirstLoadRule or SavedReloadRule or TrainDismountRule or GardenDismountRule or RagnarokDismountRule) || EntityType > 2 || AnimationVariant > 1 || MapDisplayMode > 3 || Rule == FirstLoadRule && (AnimationVariant != 0 || ReloadSourceWorldFrame is not null) || Rule == SavedReloadRule && (ReloadSourceWorldFrame is null or < 0))
+        if (ProofVersion != CurrentProofVersion || Rule is not (FirstLoadRule or SavedReloadRule or BattleReloadRule or TrainDismountRule or GardenDismountRule or RagnarokDismountRule) || EntityType > 2 || AnimationVariant > 1 || MapDisplayMode > 3 || Rule == FirstLoadRule && (AnimationVariant != 0 || ReloadSourceWorldFrame is not null) || Rule is SavedReloadRule or BattleReloadRule && (ReloadSourceWorldFrame is null or < 0))
         {
             throw new InvalidDataException("Invalid native foot-world loader or saved-reload authority.");
         }

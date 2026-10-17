@@ -13,6 +13,12 @@ public static partial class NativeBattlePoseMatrices
         {
             throw new NotSupportedException("Native502D40 billboard geometry requires its original50CDC0 angle owner.");
         }
+        return ModelGroupMatrices50F190(model, source, camera);
+    }
+
+    public static ImmutableArray<NativeBattleActionMatrix> ModelGroupMatrices50F190(NativeBattleGraphicsModel model, NativeBattlePoseSource source, NativeBattleActionMatrix camera)
+    {
+        camera.Validate();
         NativeBattleSequenceState state = model.SequenceState ?? throw new NotSupportedException("Native502D40 requires its decoded pose owner.");
         NativeBattleDecodedPose pose = ReadDecodedPose(state, source);
         Matrix[] bones = BoneMatrices(source, pose);

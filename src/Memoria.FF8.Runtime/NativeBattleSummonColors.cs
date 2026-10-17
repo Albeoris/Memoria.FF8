@@ -3,6 +3,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Authenticated B8B7D8/B8B9A8 colors and45F270 fixed-point interpolation constants.</summary>
 public sealed record NativeBattleSummonColors(uint Transition, uint Normal, float FixedScale, double IntegerBias)
 {
+    public uint? LinearFadeSourceB8BA94 { get; init; }
     public uint Interpolate(uint source, int factor, uint farColor)
     {
         uint result = source & 0xFF000000u;
@@ -20,15 +21,16 @@ public sealed record NativeBattleSummonColors(uint Transition, uint Normal, floa
 
 public static class NativeBattleSummonModels
 {
-    /// <summary>50C110 kind11→50C4D0 and kind12→50C330. They retain distinct pause/increment order.</summary>
+    /// <summary>50C110 kinds11/13→50C4D0 and10/12→50C330, with distinct pause/increment order.</summary>
     public static NativeBattleGraphicsModel Advance(NativeBattleGraphicsModel model, bool frozen, NativeBattleSummonColors colors)
     {
-        if (model.Kind5 is not (11 or 12))
+        if (model.Kind5 is not (10 or 11 or 12 or 13))
         {
             return model;
         }
         byte phase = model.Phase6 ?? throw new InvalidDataException("Native summon model service requires phaseBYTE6.");
-        if (model.Kind5 == 11)
+        bool removeAfterFade = model.Kind5 == 13;
+        if (model.Kind5 is 11 or 13)
         {
             if (phase >= 15)
             {
@@ -55,6 +57,7 @@ public static class NativeBattleSummonModels
                 model = model with { Color40 = (colors.Interpolate(0, progress, current) & 0xFFFFFFu) | 0x02000000u, Color44 = (colors.Interpolate(0, progress, colors.Normal) & 0xFFFFFFu) | 0x32000000u, Alpha7 = 0 };
             }
         }
-        return model with { Phase6 = frozen ? phase : unchecked((byte)(phase + 1)) };
+        model = model with { Phase6 = frozen ? phase : unchecked((byte)(phase + 1)) };
+        return removeAfterFade && model.Kind5 == 0 ? NativeBattleGraphicsModels.StartService(model, 5) : model;
     }
 }

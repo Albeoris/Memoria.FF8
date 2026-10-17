@@ -17,6 +17,7 @@ public sealed record BattleFace(int[] Vertices, Vector2[] Uv, int Texture, Rgba3
 public sealed record BattleMesh(IReadOnlyList<BattleVertex> Vertices, IReadOnlyList<BattleFace> Faces)
 {
     public int? NativeStageGroup { get; init; }
+    public System.Collections.Immutable.ImmutableArray<short>? NativeBoneGroups { get; init; }
 }
 public sealed record BattleBone(int Parent, float Length);
 public sealed record BattlePose(Vector3 Translation, IReadOnlyList<Vector3> Rotations, IReadOnlyList<Vector3> Scales);

@@ -6,6 +6,33 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState AdvanceNativeOriginalEffect(NativeBattleGraphicsState graphics)
     {
+        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native500900 requires its retained returned-task pointer.");
+        if (memory.ReadReturnedTask5044B0() == 0)
+        {
+            return graphics;
+        }
+        NativeBattleOriginalEffectState selected = graphics.OriginalEffect ?? throw new InvalidDataException("Native returned task has no current module selection.");
+        NativeBattleOriginalEffectState task = memory.DetachedReturnedTask ?? selected;
+        if (task.ReturnedDescriptor != memory.ReturnedTaskPointer1D96AAC)
+        {
+            throw new InvalidDataException("Native500900 returned-task pointer disagrees with its actual pool owner.");
+        }
+        NativeBattleGraphicsState advanced = AdvanceNativeOriginalEffectTask(graphics with { OriginalEffect = task });
+        NativeBattleOriginalEffectState current = advanced.OriginalEffect ?? throw new InvalidDataException("Native500900 lost its polled returned-task owner.");
+        memory = NativeEffectMemory!;
+        if (current.ReturnedDescriptor == 0)
+        {
+            NativeEffectMemory = memory with { ReturnedTaskPointer1D96AAC = 0, DetachedReturnedTask = null };
+        }
+        else if (memory.DetachedReturnedTask is not null)
+        {
+            NativeEffectMemory = memory with { DetachedReturnedTask = current };
+        }
+        return memory.DetachedReturnedTask is null ? advanced : advanced with { OriginalEffect = selected };
+    }
+
+    private NativeBattleGraphicsState AdvanceNativeOriginalEffectTask(NativeBattleGraphicsState graphics)
+    {
         if (graphics.OriginalEffect is not { ReturnedDescriptor: > 0 } effect)
         {
             return graphics;

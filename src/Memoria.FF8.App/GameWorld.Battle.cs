@@ -29,6 +29,7 @@ internal sealed partial class GameWorld
     private void ConfigureBattleHost()
     {
         battle = session.State.Battle is null ? null : AttachNativeEffectResources(BattleSession.Restore(session.State.Battle));
+        synchronizedNativeBattleCallbacks = battle?.NativeHostCallbacks ?? battle?.Frame ?? 0;
         Events.HostAutomaticBattles = true;
         Events.UseInteractiveBattle = (_, _) => session.State.FullBattlePlaythrough == true;
         Events.ValidateInteractiveBattle = (encounter, flags) =>
@@ -175,14 +176,15 @@ internal sealed partial class GameWorld
             return current with { NativeExamTimerAtEntry = null };
         }
         NativeExamTimerState advanced = entry;
-        long remaining = saved.Frame;
+        long remaining = saved.NativeGraphics is null ? saved.Frame : saved.NativeHostCallbacks ?? throw new NotSupportedException("Saved native battle requires its executed47CF60 callback ledger before host clock validation.");
         while (remaining > 0)
         {
             int callbacks = (int)Math.Min(remaining, 30000);
             advanced = advanced.AdvanceCallbacks(NativeTimerCallbackKind.Battle, callbacks);
             remaining -= callbacks;
         }
-        if (timer is null || !System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(advanced), System.Text.Json.JsonSerializer.SerializeToElement(timer)))
+        NativeExamTimerState canonical = saved.NativeGraphics is null ? advanced : saved.NativeExamTimer ?? throw new NotSupportedException("Saved native battle requires its canonical timer and display owners; explicitly migrate the named checkpoint.");
+        if (!advanced.HasSameClock(canonical) || timer is null || !System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(canonical), System.Text.Json.JsonSerializer.SerializeToElement(timer)))
         {
             throw new InvalidDataException("Saved battle's entry timer and combat callbacks disagree with the current process timer owner.");
         }
@@ -252,11 +254,8 @@ internal sealed partial class GameWorld
         }
         ExecuteBattleCommand(active, input);
         int advanced = checked((int)(active.Frame - previous));
-        if (advanced > 0)
-        {
-            Events.AdvanceInteractiveBattleCallbacks(advanced);
-        }
         PublishBattleSnapshot(active);
+        CompleteNativeDefeatIfReady();
         return advanced;
     }
     internal static int ExecuteBattleCommand(BattleSession active, BattleInput input)

@@ -7,6 +7,7 @@ public sealed record NativeBattleRawPolygon(bool Quad, ImmutableArray<byte> Byte
 public sealed record NativeBattleRawMesh(ImmutableArray<NativeBattleRawVertex> Vertices, ImmutableArray<NativeBattleRawPolygon> Polygons)
 {
     public int? StageGroup { get; init; }
+    public ImmutableArray<short>? BoneGroups { get; init; }
 
     public void Validate()
     {

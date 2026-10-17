@@ -34,7 +34,9 @@ public enum NativeBattleDescriptorTaskKind
     Map500AC0,
     Appearance500B60,
     Action104,
-    Victory503040
+    Victory503040,
+    DeferredCompletion500BC0,
+    AfterBattle502F90
 }
 
 public sealed record NativeBattleDescriptorTask([property: JsonRequired] ushort Flags, [property: JsonRequired] ushort State, [property: JsonRequired] int? Next, [property: JsonRequired] NativeBattleDescriptorTaskKind Kind, [property: JsonRequired] ImmutableArray<byte> Payload)
@@ -111,6 +113,18 @@ public sealed partial record NativeBattleDescriptorState([property: JsonRequired
     public (NativeBattleDescriptorState State, int Slot) Enqueue(ushort command, byte priority, uint argument, ushort? index = null, ushort? value = null)
     {
         Validate();
+        if (command == 107)
+        {
+            NativeBattleDescriptorState cancelled = this;
+            int count = Queue.Length;
+            for (int current = 0; current < count; current++)
+            {
+                NativeBattleDescriptorPacket candidate = cancelled.Packets[cancelled.Queue[0]];
+                bool remove = candidate.Command is > 100 and < 120 && (candidate.PriorityState & 15) == 0 && candidate.PriorityState <= priority;
+                cancelled = remove ? cancelled.RemoveFirst() : cancelled.Rotate();
+            }
+            return (cancelled, -1);
+        }
         (ImmutableArray<NativeBattleDescriptorPacket> packets, ImmutableArray<NativeBattleDescriptorNode> nodes, int? root, int packet) = NativeBattlePacketQueues.Allocate(Packets, Nodes, Root, 0x1D96AB8, priority);
         byte[] bytes = Packets[packet].Bytes.ToArray();
         bytes[0] = Serial;
@@ -178,7 +192,7 @@ public sealed partial record NativeBattleDescriptorState([property: JsonRequired
             BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4), PacketAddress(owner));
         }
         //500DD0 clears BYTE13 for every allocated descriptor callback, including502F30 and503040.
-        if (kind is NativeBattleDescriptorTaskKind.Load502670 or NativeBattleDescriptorTaskKind.Remove502ED0 or NativeBattleDescriptorTaskKind.Stage506CF0 or NativeBattleDescriptorTaskKind.Texture506DE0 or NativeBattleDescriptorTaskKind.Map500AC0 or NativeBattleDescriptorTaskKind.Appearance500B60 or NativeBattleDescriptorTaskKind.Action104 or NativeBattleDescriptorTaskKind.Callback502F30 or NativeBattleDescriptorTaskKind.Victory503040)
+        if (kind is NativeBattleDescriptorTaskKind.Load502670 or NativeBattleDescriptorTaskKind.Remove502ED0 or NativeBattleDescriptorTaskKind.Stage506CF0 or NativeBattleDescriptorTaskKind.Texture506DE0 or NativeBattleDescriptorTaskKind.Map500AC0 or NativeBattleDescriptorTaskKind.Appearance500B60 or NativeBattleDescriptorTaskKind.Action104 or NativeBattleDescriptorTaskKind.Callback502F30 or NativeBattleDescriptorTaskKind.Victory503040 or NativeBattleDescriptorTaskKind.DeferredCompletion500BC0 or NativeBattleDescriptorTaskKind.AfterBattle502F90)
         {
             payload[1] = 0;
         }

@@ -16,6 +16,7 @@ public sealed record NativeBattleSequenceState
     public short Header40 { get; init; }
     public ImmutableArray<short?> Locals { get; init; } = ImmutableArray.CreateRange(new short?[8]);
     public ImmutableArray<short?> Scratch { get; init; } = ImmutableArray.CreateRange(new short?[8]);
+    public ImmutableArray<short?> AlternateScratch48 { get; init; } = ImmutableArray.CreateRange(new short?[8]);
     public byte? Pose { get; init; }
     public byte PoseFlags109 { get; init; }
     public byte? PoseFrame114 { get; init; }
@@ -29,7 +30,7 @@ public sealed record NativeBattleSequenceState
 
     public void Validate()
     {
-        if (Locals.IsDefault || Locals.Length != 8 || Scratch.IsDefault || Scratch.Length != 8 || PoseFrame114 is byte frame && PoseLimit115 is byte limit && frame > limit || LinkedPose is { } linked && linked.Frame > linked.Limit || DecodedPose is { } decoded && (decoded.Bones.IsDefaultOrEmpty || decoded.Bones.Length > 128) || LinkedDecodedPose is { } linkedDecoded && (linkedDecoded.Bones.IsDefaultOrEmpty || linkedDecoded.Bones.Length > 128))
+        if (Locals.IsDefault || Locals.Length != 8 || Scratch.IsDefault || Scratch.Length != 8 || AlternateScratch48.IsDefault || AlternateScratch48.Length != 8 || PoseFrame114 is byte frame && PoseLimit115 is byte limit && frame > limit || LinkedPose is { } linked && linked.Frame > linked.Limit || DecodedPose is { } decoded && (decoded.Bones.IsDefaultOrEmpty || decoded.Bones.Length > 128) || LinkedDecodedPose is { } linkedDecoded && (linkedDecoded.Bones.IsDefaultOrEmpty || linkedDecoded.Bones.Length > 128))
         {
             throw new InvalidDataException("Native sequence state has invalid local WORD owners or pose counter.");
         }
@@ -69,10 +70,17 @@ public sealed record NativeBattleSequenceInputs(byte? EntryAdvantage, ushort? Ca
     public Func<NativeBattleGraphicsModel, NativeBattleGraphicsModel>? ApplyNextContact { get; init; }
     public Func<NativeBattleGraphicsModel, NativeBattleGraphicsModel>? ApplyCurrentContact { get; init; }
     public Func<NativeBattleGraphicsModel, byte, byte, byte, NativeBattleGraphicsModel>? SelectModelSequence { get; init; }
+    public Func<NativeBattleGraphicsModel, byte, NativeBattleGraphicsModel>? BindModelRing90 { get; init; }
     public Func<NativeBattleGraphicsModel, byte, NativeBattleGraphicsModel>? RebindActionGeometry { get; init; }
+    public Func<NativeBattleGraphicsModel, byte, byte, byte, short, byte, NativeBattleGraphicsModel>? ScheduleModelMotion { get; init; }
+    public Action<byte, byte, byte>? ScheduleCameraShake { get; init; }
+    public Action<byte>? ScheduleStageFade { get; init; }
+    public Action<byte>? ScheduleModelGroupFade { get; init; }
+    public Func<NativeBattleGraphicsModel, byte, NativeBattleVector, short, NativeBattleGraphicsModel>? ScheduleModelDeformation { get; init; }
     public Action<NativeBattleGraphicsModel, NativeBattleSequenceCue>? PlaySound { get; init; }
     public Action<NativeBattleAuxiliaryProgram, byte>? ScheduleTextureAnimation { get; init; }
     public Action<byte, int>? ApplyTexture { get; init; }
+    public Action<NativeBattleGraphicsModel, byte>? AdvanceTexture { get; init; }
     public Action<byte>? ScheduleModelEffect { get; init; }
     public Func<NativeBattleGraphicsModel, NativeBattleAuxiliaryProgram, (NativeBattleGraphicsModel Model, int Offset)>? ScheduleContactEffect { get; init; }
     public Func<NativeBattleGraphicsModel, NativeBattleAuxiliaryProgram, (NativeBattleGraphicsModel Model, int Offset)>? ScheduleModelParticle { get; init; }

@@ -83,11 +83,38 @@ public sealed partial class BattleSession
             ReadBone = (model, bone, fraction) => ReadNativeGraphicsBone(graphics, model, bone, fraction),
             ReadPan = point => (NativeCamera?.Projection ?? throw new NotSupportedException("Native50F830 requires its actual prior5033E0/500900 projection owner.")).ReadPan(point),
             ReadModel = model => graphics.Models[model],
+            ApplyModelRing = (kind, model, argument) => graphics = ApplyNativeModelRingCallback(graphics, kind, model, argument),
+            WriteModel = (model, value) => graphics = graphics with { Models = graphics.Models.SetItem(model, value) },
+            DrawModelGroup50F190 = (model, group, counter, color) => graphics = SubmitNativeModelGroup50F190(graphics, model, group, counter, color),
+            AdvanceModelDeformation50F2E0 = task => AdvanceNativeModelDeformation50F2E0(ref graphics, task),
+            WriteStageColorDepth = value =>
+            {
+                NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native501F90 requires its four retained stage rows.");
+                NativeStage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = value }).ToImmutableArray() };
+            },
+            WriteCameraTranslationY = value =>
+            {
+                NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native50F6C0 requires its camera process.");
+                NativeBattleCameraViewTranslationScratch scratch = camera.ViewTranslationScratch ?? throw new NotSupportedException("Native50F6C0 requires its retained camera translation scratch.");
+                NativeCamera = camera with { ViewTranslationScratch = scratch with { Y = value } };
+            },
             ApplyTexture = (model, selector, variant) => ApplyNativeTextureMotion(graphics, model, selector, variant),
             RequestFile5084B0 = QueueNativeCommonTexture5084B0,
             ReadEffectIoResult508470 = () => NativeEffectIoResult ?? throw new NotSupportedException("Native508660 requires its actual shared signed IO result."),
             EnqueueTexture505E30 = EnqueueNativeCommonTexture505E30,
-            WriteCompletionByte = WriteNativeAuxiliaryCompletionByte,
+            WriteCompletionByte = (address, value) =>
+            {
+                uint relative = unchecked(address - NativeBattleDescriptorState.CompletionAddress503040(0));
+                if (relative < 80 && relative % 20 == 0)
+                {
+                    graphics = graphics with { Descriptors = graphics.Descriptors.WriteCompletion501A70(address, value) };
+                }
+                else
+                {
+                    WriteNativeAuxiliaryCompletionByte(address, value);
+                }
+            },
+            InitializeTimerDisplay47D910 = InitializeNativeTimerDisplay47D910,
             AdvanceMusicLoad501A70 = (phase, address) =>
             {
                 NativeBattleMusicProcessState music = NativeMusicProcess ?? throw new NotSupportedException("Native501A70 requires its current501A20 music process.");

@@ -5,9 +5,9 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState RebindNativeSequenceGeometry92(NativeBattleGraphicsState graphics, int currentIndex, byte selector)
     {
         (byte actorIndex, ushort mask) = NativeBattleSequenceSelections.GeometryArguments92(currentIndex, selector, graphics.ActionContext);
-        if (mask == 0 || (mask & ~127) != 0)
+        if ((mask & 127) == 0)
         {
-            throw new NotSupportedException("Native92 requires its resolved nonempty physical50D300 target mask; flagged masks require their full native distance contract.");
+            throw new InvalidDataException("Native92 target mask has no physical recipient; original5020A0 would dereference its null bounds pointer.");
         }
         BattleCombatant actor = GraphicsActor(graphics, actorIndex);
         return PrepareNativeActionGeometry(graphics, actor, new(actor.Id, actor.Id) { NativeTargetMask = mask });

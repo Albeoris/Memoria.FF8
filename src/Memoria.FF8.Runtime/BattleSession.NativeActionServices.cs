@@ -81,9 +81,9 @@ public sealed partial class BattleSession
         {
             return graphics;
         }
-        if (model.HasLinkedModelRing140 ?? throw new NotSupportedException("Native505C00 requires its actual linked model DWORD140."))
+        if (model.ReadLinkedModelIndex140() is not null)
         {
-            throw new NotSupportedException("Native505C00 linked-model selection requires the original505C70 auxiliary callback.");
+            return ScheduleNativeRingSequence505C00(graphics, index, requestedSequence);
         }
         if (model.ModelId4 == 0x8F)
         {

@@ -28,6 +28,7 @@ public sealed class NativeBattlePoseTests
     {
         NativeBattleGraphicsModel model = new(0, 3) { ModelId4 = 0, Rotation12 = 0, Rotation14 = yaw, Rotation16 = 0, Transform = new(new(100, 200, 300), new(100, 200, 300), 0, 0, 16384), SequenceState = new() { Pose = 0, PoseFrame114 = 1 } };
 
+        model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, Source()) };
         NativeBattleModuleAnchor anchor = NativeBattlePoseMatrices.ReadAnchor(model, Source());
 
         Assert.Equal(new(x, y, z, 8000), anchor);
@@ -54,7 +55,20 @@ public sealed class NativeBattlePoseTests
     {
         NativeBattleGraphicsModel model = new(0, 3) { ModelId4 = 0, Rotation12 = 0, Rotation14 = 0, Rotation16 = 0, Transform = new(new(100, 200, 300), new(100, 200, 300), 0, 0, 2048), SequenceState = new() { Pose = 0, PoseFrame114 = 1 } };
 
+        model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, Source()) };
         Assert.Equal(new NativeBattleVector(x, y, z), NativeBattlePoseMatrices.TransformCameraPoint(model, Source(), alias, new(10, 20, 30), mirror));
+    }
+
+    [Fact]
+    public void BoneAndCameraReadRetainedMatrixUntilTheActualModelPublisherRuns()
+    {
+        NativeBattleGraphicsModel model = new(0, 3) { ModelId4 = 0, Rotation12 = 0, Rotation14 = 0, Rotation16 = 0, Transform = new(new(100, 200, 300), new(100, 200, 300), 0, 0, 2048), SequenceState = new() { Pose = 0, PoseFrame114 = 1 } };
+        Assert.Throws<NotSupportedException>(() => NativeBattlePoseMatrices.ReadBone(model, Source(), 240, 0));
+        model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, Source()) };
+        NativeBattleVector before = NativeBattlePoseMatrices.ReadBone(model, Source(), 240, 0);
+        model = model with { Transform = model.Transform! with { Position28 = new(1000, 2000, 3000) } };
+        Assert.Equal(before, NativeBattlePoseMatrices.ReadBone(model, Source(), 240, 0));
+        Assert.Equal(new NativeBattleVector(110, 220, 330), NativeBattlePoseMatrices.TransformCameraPoint(model, Source(), 15, new(10, 20, 30), false));
     }
 
     private static NativeBattlePoseSource Source()

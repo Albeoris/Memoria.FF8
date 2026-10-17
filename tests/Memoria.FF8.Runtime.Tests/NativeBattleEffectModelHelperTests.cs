@@ -10,6 +10,7 @@ public sealed class NativeBattleEffectModelHelperTests
     {
         NativeBattlePoseSource source = Source(200, new(1, -3, 2));
         NativeBattleGraphicsModel[] models = [Model(0, new(100, 200, 300), -333), Model(1, new(-100, -200, -300), 777)];
+        models = models.Select(model => model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, source) }).ToArray();
         NativeBattleModulePoolTask task = Task().WriteByte(0x2D, 0);
         NativeBattleModulePoolTask target = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, models, _ => source);
         Assert.Equal(new short[] { 116, -333, 332 }, Words(target, 0x30));
@@ -27,7 +28,9 @@ public sealed class NativeBattleEffectModelHelperTests
     {
         NativeBattleModulePoolTask task = Task().WriteByte(0x2D, 0).WriteWord(0x32, 123);
         NativeBattleGraphicsModel model = Model(0, new(0, 0, 0), 0);
-        NativeBattleModulePoolTask loaded = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, [model], _ => Source(-101, new(0, 0, -1)));
+        NativeBattlePoseSource source = Source(-101, new(0, 0, -1));
+        model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, source) };
+        NativeBattleModulePoolTask loaded = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, [model], _ => source);
         Assert.Equal((short)-16, unchecked((short)loaded.ReadWord(0x34)));
         Assert.Equal((short)-17, unchecked((short)loaded.ReadWord(0x44)));
         Assert.Equal((short)-16, unchecked((short)loaded.ReadWord(0x3C)));

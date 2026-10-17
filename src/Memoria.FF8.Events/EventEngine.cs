@@ -206,6 +206,7 @@ public sealed partial class EventEngine
         Scene.NativeBattleCompletions = previousScene.NativeBattleCompletions is null ? null : [.. previousScene.NativeBattleCompletions];
         Scene.NativeBattleWaits = Scene.NativeBattleCompletions is null ? null : [];
         Scene.NativeBattleResult = previousScene.NativeBattleResult;
+        Scene.NativeRandomFieldBattle = previousScene.NativeRandomFieldBattle;
         CopyNativeBattleMode(previousScene);
         Scene.GlobalSoundRequests.AddRange(previousScene.GlobalSoundRequests);
 
@@ -226,6 +227,7 @@ public sealed partial class EventEngine
                 actors[^1].NativeOperandMemory = NativeActorOperandMemory.Allocated();
                 actors[^1].NativeTurnMode580 = 0;
                 actors[^1].NativeRendererMode599 = 17;
+                actors[^1].NativeEyeBlinkParameter611 = 128;
                 actors[^1].NativeSavedCollisionDisabled16 = false;
                 actors[^1].NativeActorWord398 = 0;
                 // 52BC00 clears base bytes591..593; its42 stores target the unrelated bytes568..570.

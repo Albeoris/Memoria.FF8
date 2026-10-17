@@ -14,6 +14,7 @@ internal static partial class Program
     private static void NativeBattleFieldReturnContract()
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? throw new InvalidOperationException("Set MEMORIA_FF8_GAME_DIR to the installed game directory.");
+        NativeRandomFieldReturnContract(directory);
         NativeBattleFieldRegistrationContract(directory);
         NativeBattleMusicEntryResources resources = new NativeMusicCatalog(directory).ReadBattleEntryResources();
         GameSession session = CreateNativeMusicSession();
@@ -108,6 +109,63 @@ internal static partial class Program
         Require(JsonElement.DeepEquals(resetSaved, resetClone.Capture()), "Rejected missing reset owner changed the VM.");
     }
 
+    private static void NativeRandomFieldReturnContract(string directory)
+    {
+        using GameAssets assets = new(directory);
+        FieldAssets field = assets.LoadField(74);
+        NativeBattleMusicEntryResources music = new NativeMusicCatalog(directory).ReadBattleEntryResources();
+        byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 16), (Jsm.Opcode.BATTLEMODE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
+        string hash = Convert.ToHexString(SHA256.HashData(content));
+        NativeFieldRegistrationResources source = field.NativeRegistration! with { ProgramHash = hash, Loader = field.NativeRegistration!.Loader! with { Program = new("controlled/random-return.jsm", hash, content.ToImmutableArray()) } };
+        bool pending = false;
+        EventEngine Create(GameSession owner)
+        {
+            EventEngine engine = new(owner) { HasPendingRandomBattle = () => pending, AnimationFrameCount = field.GetAnimationFrameCount, ReadNativeModelParts = model => field.Models[model].NativeParts, ReadNativeEyes = model => field.Models[model].NativeEyes };
+            engine.LoadField(74, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            return engine;
+        }
+        GameSession session = CreateNativeMusicSession();
+        EventEngine live = Create(session);
+        for (int frame = 0; frame < 8 && live.Scene.NativeBattleFlagWrites?.LastOrDefault()?.ActiveFlags != 16; frame++)
+        {
+            live.Step();
+        }
+        pending = true;
+        RandomEncounterRequest request = new(SceneKind.Field, 74, live.Frame, 94, hash);
+        session.SetRandomEncounters(new(true, NativeRandomEncounterState.FromColdProcess(), request));
+        Require(live.BeginNativeRandomFieldBattle(request) == 16 && live.PendingHostedBattle is null, "Random entry changed retained flags or fabricated a BATTLE owner.");
+        PreparedNativeBattleMusicEntry entry = live.PrepareNativeBattleMusicEntry(94, 16, music);
+        live.CommitNativeBattleMusicEntry(entry, native => session.SetGlobalSoundProcess(native.SoundProcess));
+        live.AdvanceRandomBattleCallbacks(1);
+        JsonElement suspended = live.Capture();
+        GameSession independent = CloneMusicSession(session.State);
+        EventEngine clone = Create(independent);
+        clone.Restore(suspended);
+        Require(JsonElement.DeepEquals(suspended, clone.Capture()), "Random owner/callback count did not survive independent Events restoration.");
+        foreach ((EventEngine engine, GameSession owner) in new[] { (live, session), (clone, independent) })
+        {
+            NativeBattleFieldResourceReloadResult reload = engine.ExecuteNativeBattleFieldResourceReload(source, 4, owner.State.NativeBattleMemory!, owner.State.CrtRandom);
+            engine.ValidateNativeBattleFieldRegistrationMemory(reload.Memory);
+            EventEngine.PreparedNativeBattleFieldReturn prepared = engine.PrepareNativeBattleFieldReturn(entry.Native.MusicProcess, 16, 4, music, reload.Memory, reload.CrtRandomBefore, reload.CrtRandomAfter);
+            Require(prepared.Owners.Music.Receipt.KeptMusic, "Random field return lost the retained keep-music flag.");
+            engine.ReturnFromNativeRandomFieldBattle(1, 4, () => engine.CommitNativeBattleFieldReturn(prepared));
+            owner.SetRandomEncounters(owner.State.RandomEncounters! with { Pending = null });
+            Require(engine.Scene.NativeRandomFieldBattle is { Result: 4, Callbacks: 1 } && engine.Scene.NativeBattleCompletions is not { Count: > 0 } && JsonElement.DeepEquals(suspended.GetProperty("Fibers"), engine.Capture().GetProperty("Fibers")) && engine.Frame == suspended.GetProperty("Frame").GetInt64(), "Random return changed suspended fibers/frame or fabricated a scripted completion.");
+            string returned = engine.Capture().GetRawText();
+            try
+            {
+                engine.ReturnFromNativeRandomFieldBattle(1, 4, () => throw new InvalidOperationException("Duplicate outcome callback ran."));
+                throw new InvalidOperationException("Random return accepted duplicate completion.");
+            }
+            catch (InvalidOperationException exception) when (exception.Message == "No random encounter owns the suspended field.")
+            {
+            }
+            Require(returned == engine.Capture().GetRawText(), "Duplicate random return refusal changed the field.");
+        }
+        pending = false;
+        Require(JsonElement.DeepEquals(live.Capture(), clone.Capture()) && JsonSerializer.Serialize(session.State.NativeBattleMemory) == JsonSerializer.Serialize(independent.State.NativeBattleMemory), "Random field atomic return diverged across independent roots.");
+    }
+
     private static void NativeBattleFieldRegistrationContract(string directory)
     {
         using GameAssets assets = new(directory);
@@ -146,10 +204,10 @@ internal static partial class Program
             EventEngine restored = Create(CloneMusicSession(session.State));
             restored.Restore(suspended);
             NativeBattleRetainedMemory memory = assets.ReadColdProcessNativeBattleMemory();
-            NativeBattleRetainedMemory first = live.ExecuteNativeBattleFieldResourceReload(source, result, memory);
-            NativeBattleRetainedMemory second = restored.ExecuteNativeBattleFieldResourceReload(source, result, JsonSerializer.Deserialize<NativeBattleRetainedMemory>(JsonSerializer.Serialize(memory))!);
+            NativeBattleFieldResourceReloadResult first = live.ExecuteNativeBattleFieldResourceReload(source, result, memory);
+            NativeBattleFieldResourceReloadResult second = restored.ExecuteNativeBattleFieldResourceReload(source, result, JsonSerializer.Deserialize<NativeBattleRetainedMemory>(JsonSerializer.Serialize(memory))!);
             Require(JsonSerializer.Serialize(first) == JsonSerializer.Serialize(second) && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Actual kind3 registration diverged across independent suspended roots.");
-            live.ValidateNativeBattleFieldRegistrationMemory(first);
+            live.ValidateNativeBattleFieldRegistrationMemory(first.Memory);
             Require(live.RequireNativeBattleFieldReload(result) == live.Scene.NativeBattleFieldReload && live.Scene.NativeFieldRegistration is not null && live.Scene.NativeBattleFieldReloadState is null, "Executed registration did not own its physical completion.");
             Require(JsonElement.DeepEquals(suspended.GetProperty("Fibers"), live.Capture().GetProperty("Fibers")) && live.Frame == suspended.GetProperty("Frame").GetInt64() && !session.State.Variables.ContainsKey(800), "Kind3 reset retained PCs, stacks, waits or advanced the suspended script.");
             string completed = live.Capture().GetRawText();

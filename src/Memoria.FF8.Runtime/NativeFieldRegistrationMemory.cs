@@ -11,6 +11,7 @@ internal sealed class NativeFieldRegistrationMemory
     private readonly byte[] bytes;
     private readonly bool[] known;
     private readonly bool[] changed;
+    private const uint PartyCpuAddress = 0x196B018;
 
     internal NativeFieldRegistrationMemory(NativeBattleFileStaging source, uint first, uint end)
     {
@@ -26,6 +27,71 @@ internal sealed class NativeFieldRegistrationMemory
             range.Data.AsSpan().CopyTo(bytes.AsSpan(range.Offset));
             Array.Fill(known, true, range.Offset, range.Data.Length);
         }
+    }
+
+    internal void ObserveCpuBanks(NativeBattleModelCpuResources? cpu)
+    {
+        if (cpu is null)
+        {
+            return;
+        }
+        cpu.Validate();
+        for (int bank = 0; bank < 3; bank++)
+        {
+            int first = Index(checked(PartyCpuAddress + (uint)bank * NativeBattleModelCpuBank.Length), NativeBattleModelCpuBank.Length);
+            Array.Fill(known, false, first, NativeBattleModelCpuBank.Length);
+            foreach (NativeBattleEffectMemoryRegion range in cpu.Cpu.Banks[bank].KnownRanges)
+            {
+                range.Data.AsSpan().CopyTo(bytes.AsSpan(first + range.Offset));
+                Array.Fill(known, true, first + range.Offset, range.Data.Length);
+            }
+        }
+    }
+
+    internal NativeBattleModelCpuResources? ReconcileCpuBanks(NativeBattleModelCpuResources? cpu)
+    {
+        NativeBattleModelCpuResources current = cpu ?? NativeBattleModelCpuResources.Unknown();
+        ImmutableArray<NativeBattleModelCpuBank> banks = current.Cpu.Banks;
+        for (int bank = 0; bank < 3; bank++)
+        {
+            int first = Index(checked(PartyCpuAddress + (uint)bank * NativeBattleModelCpuBank.Length), NativeBattleModelCpuBank.Length);
+            if (!changed.AsSpan(first, NativeBattleModelCpuBank.Length).Contains(true))
+            {
+                continue;
+            }
+            byte[] data = new byte[NativeBattleModelCpuBank.Length];
+            bool[] observed = new bool[data.Length];
+            foreach (NativeBattleEffectMemoryRegion range in banks[bank].KnownRanges)
+            {
+                range.Data.AsSpan().CopyTo(data.AsSpan(range.Offset));
+                Array.Fill(observed, true, range.Offset, range.Data.Length);
+            }
+            for (int offset = 0; offset < data.Length; offset++)
+            {
+                if (changed[first + offset])
+                {
+                    observed[offset] = known[first + offset];
+                    data[offset] = bytes[first + offset];
+                }
+            }
+            ImmutableArray<NativeBattleEffectMemoryRegion>.Builder ranges = ImmutableArray.CreateBuilder<NativeBattleEffectMemoryRegion>();
+            for (int offset = 0; offset < data.Length;)
+            {
+                if (!observed[offset])
+                {
+                    offset++;
+                    continue;
+                }
+                int start = offset++;
+                while (offset < data.Length && observed[offset])
+                {
+                    offset++;
+                }
+                ranges.Add(new(start, data.AsSpan(start, offset - start).ToArray().ToImmutableArray()));
+            }
+            banks = banks.SetItem(bank, new(ranges.ToImmutable()));
+        }
+        return banks.Equals(current.Cpu.Banks) ? cpu : current with { Cpu = current.Cpu with { Banks = banks } };
     }
 
     internal byte Read8(uint address)

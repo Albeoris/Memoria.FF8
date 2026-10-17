@@ -50,7 +50,7 @@ public static partial class NativeBattleActionGeometryRules
         context = context with
         {
             DistanceScale = primary.Scale,
-            UnadjustedDistance = mask == 1 << actorIndex ? 1000 : 5000 * primary.Scale >> 12,
+            UnadjustedDistance = context.SourceTargetMask == 1 << actorIndex ? 1000 : 5000 * primary.Scale >> 12,
             Matrices =
             [
                 primary,

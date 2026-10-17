@@ -77,7 +77,8 @@ public static partial class NativeBattlePoseMatrices
         {
             throw new InvalidDataException("Native502170 bone alias exceeds its original skeleton.");
         }
-        Matrix world = ModelMatrix(model, transform, bones[0]);
+        NativeBattleActionMatrix cached = model.GeometryWorldMatrix ?? throw new NotSupportedException("Native502170 requires its retained502AB0 model matrix.");
+        Matrix world = new(cached.Rotation.ToArray(), cached.X, cached.Y, cached.Z);
         Matrix selected = Compose(world, bones[bone]);
         short parent = ReadWord(source.Skeleton, 16 + bone * 48);
         int distance = parent < 0 ? 0 : fraction * ReadWord(source.Skeleton, 18 + bone * 48) >> 12;
@@ -92,9 +93,8 @@ public static partial class NativeBattlePoseMatrices
             throw new ArgumentOutOfRangeException(nameof(lowNibble));
         }
         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native actor-relative camera requires its position/scale WORD owners.");
-        NativeBattleSequenceState state = model.SequenceState ?? throw new NotSupportedException("Native actor-relative camera requires its decoded model pose.");
-        NativeBattleDecodedPose pose = ReadDecodedPose(state, source);
-        Matrix matrix = ModelMatrix(model, transform, BoneMatrices(source, pose)[0]);
+        NativeBattleActionMatrix cached = model.GeometryWorldMatrix ?? throw new NotSupportedException("Native actor-relative camera requires its retained502AB0 model matrix.");
+        Matrix matrix = new(cached.Rotation.ToArray(), cached.X, cached.Y, cached.Z);
         if (lowNibble != 15)
         {
             NativeBattleVector bone = ReadBone(model, source, (byte)(0xF0 | lowNibble), 2048);

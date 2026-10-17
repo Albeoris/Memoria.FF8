@@ -1,14 +1,26 @@
-﻿namespace Memoria.FF8.Runtime;
+namespace Memoria.FF8.Runtime;
 
 public sealed partial class GameSession
 {
     private static void ValidateBattleFactsCheckpoint(GameState state)
     {
+        if (state.Battle?.NativeExamTimer is { } timer && !System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(timer), System.Text.Json.JsonSerializer.SerializeToElement(state.ExamTimer)))
+        {
+            throw new InvalidDataException("Active battle and game root disagree about the canonical exam timer.");
+        }
         if (state.Battle?.NativeGlobalSoundProcess is { } sound && !System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(sound), System.Text.Json.JsonSerializer.SerializeToElement(state.GlobalSoundProcess)))
         {
             throw new InvalidDataException("Active battle and game root disagree about the canonical global sound process.");
         }
         state.NativeBattleMemory?.Validate();
+        foreach (NativeBattleAbandonment abandoned in state.AbandonedNativeBattles ?? [])
+        {
+            abandoned.Validate();
+            if (!state.AppliedBattleResultIds.Contains(abandoned.Encounter.OccurrenceId, StringComparer.Ordinal))
+            {
+                throw new InvalidDataException("Abandoned native battle has no applied outcome receipt.");
+            }
+        }
         if (state.NativeBattleMemory is { } memory && state.Battle is { } battle)
         {
             NativeBattleRetainedMemory observed = NativeBattleRetainedMemory.Capture(battle, memory.ColdExecutableSha256);
@@ -94,6 +106,6 @@ public sealed partial class GameSession
     private void SetOwnedBattle(BattleSnapshot? owned)
     {
         NativeBattleRetainedMemory? memory = owned is null ? State.NativeBattleMemory : NativeBattleRetainedMemory.Capture(owned, State.NativeBattleMemory?.ColdExecutableSha256 ?? owned.Definition.NativeRetainedMemory?.ColdExecutableSha256);
-        State = State with { Battle = owned, NativeBattleMemory = memory, VibrationProcess = owned?.NativeVibrationProcess ?? State.VibrationProcess, GlobalSoundProcess = owned?.NativeGlobalSoundProcess ?? State.GlobalSoundProcess };
+        State = State with { Battle = owned, NativeBattleMemory = memory, ExamTimer = owned?.NativeExamTimer ?? State.ExamTimer, VibrationProcess = owned?.NativeVibrationProcess ?? State.VibrationProcess, GlobalSoundProcess = owned?.NativeGlobalSoundProcess ?? State.GlobalSoundProcess };
     }
 }

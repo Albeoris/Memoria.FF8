@@ -11,7 +11,17 @@ public enum NativeBattleAuxiliaryKind
     TextureAnimation5057D0,
     MusicLoad501A70,
     CommonTextureLoad508660,
-    OutcomeFade501D10
+    OutcomeFade501D10,
+    MoveToModel50F750,
+    AttachModel50F500,
+    CameraShake50F6C0,
+    ModelSequence505C70,
+    ModelStatus50A000,
+    StageFade501F90,
+    ModelGroupFade50F0E0,
+    ModelDeformation50F2E0,
+    ModelResourceFlags50B080,
+    DeferredCompletion5086E0
 }
 
 public sealed record NativeBattleAuxiliaryTask([property: JsonRequired] ushort Flags, [property: JsonRequired] ushort State, [property: JsonRequired] int? Next, [property: JsonRequired] NativeBattleAuxiliaryKind Kind, [property: JsonRequired] ImmutableArray<byte> Payload)
@@ -54,6 +64,18 @@ public sealed partial record NativeBattleAuxiliaryState([property: JsonRequired]
                 {
                     throw new InvalidDataException("Native50F830 lacks its written counter/model/operand/size fields.");
                 }
+            }
+            else if (Slots[index].Kind is NativeBattleAuxiliaryKind.ModelSequence505C70 or NativeBattleAuxiliaryKind.ModelStatus50A000 or NativeBattleAuxiliaryKind.ModelResourceFlags50B080)
+            {
+                uint mask = Slots[index].Kind switch { NativeBattleAuxiliaryKind.ModelSequence505C70 => 0x20Fu, NativeBattleAuxiliaryKind.ModelResourceFlags50B080 => 0x3Fu, _ => 0xFFu };
+                if ((Slots[index].UnknownByteMask & mask) != 0)
+                {
+                    throw new InvalidDataException("Native linked model callback lacks its written source pointer and operand fields.");
+                }
+            }
+            else if (Slots[index].Kind == NativeBattleAuxiliaryKind.DeferredCompletion5086E0 && (Slots[index].UnknownByteMask & 0xF01) != 0)
+            {
+                throw new InvalidDataException("Native5086E0 lacks its written phase BYTE and caller completion pointer.");
             }
             else if (Slots[index].Kind == NativeBattleAuxiliaryKind.OutcomeFade501D10 && (Slots[index].UnknownByteMask & 0x3F) != 0)
             {
@@ -121,7 +143,38 @@ public sealed partial record NativeBattleAuxiliaryState([property: JsonRequired]
         {
             NativeBattleAuxiliaryTask task = slots[index];
             bool release;
-            if (task.Kind == NativeBattleAuxiliaryKind.OutcomeFade501D10)
+            if (task.Kind is NativeBattleAuxiliaryKind.ModelSequence505C70 or NativeBattleAuxiliaryKind.ModelStatus50A000 or NativeBattleAuxiliaryKind.ModelResourceFlags50B080)
+            {
+                AdvanceModelRing(task, inputs);
+                release = true;
+            }
+            else if (task.Kind == NativeBattleAuxiliaryKind.ModelDeformation50F2E0)
+            {
+                task = (inputs?.AdvanceModelDeformation50F2E0 ?? throw new NotSupportedException("Native50F2E0 requires its shared matrix and group renderer."))(task);
+                release = task.Payload[7] >= 15;
+            }
+            else if (task.Kind == NativeBattleAuxiliaryKind.ModelGroupFade50F0E0)
+            {
+                (task, release) = AdvanceModelGroupFade50F0E0(task, inputs);
+            }
+            else if (task.Kind == NativeBattleAuxiliaryKind.StageFade501F90)
+            {
+                (task, release) = AdvanceStageFade501F90(task, inputs);
+            }
+            else if (task.Kind == NativeBattleAuxiliaryKind.DeferredCompletion5086E0)
+            {
+                (inputs?.WriteCompletionByte ?? throw new NotSupportedException("Native5086E0 requires its actual caller completion BYTE."))(System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan().Slice(8)), 255);
+                release = true;
+            }
+            else if (task.Kind == NativeBattleAuxiliaryKind.CameraShake50F6C0)
+            {
+                (task, release) = AdvanceCameraShake50F6C0(task, inputs);
+            }
+            else if (task.Kind is NativeBattleAuxiliaryKind.MoveToModel50F750 or NativeBattleAuxiliaryKind.AttachModel50F500)
+            {
+                (task, release) = AdvanceModelMotion(task, inputs);
+            }
+            else if (task.Kind == NativeBattleAuxiliaryKind.OutcomeFade501D10)
             {
                 (task, release) = AdvanceOutcomeFade501D10(task, inputs);
             }

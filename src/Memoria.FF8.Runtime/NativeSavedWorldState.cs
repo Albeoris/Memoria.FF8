@@ -21,6 +21,7 @@ public sealed record NativeSavedWorldFootReturn
 {
     public const int CurrentProofVersion = 1;
     public const string SaveRule = "ff8-en-foot-world-return-549e80-mode0-type0-v1";
+    public const string BattleSaveRule = "ff8-en-foot-world-battle-549e80-mode3-v1";
 
     [JsonRequired]
     public required int ProofVersion { get; init; }
@@ -92,9 +93,16 @@ public sealed record NativeSavedWorldFootReturn
         return Create(world, lastFieldId, storyWord, mapLocationId, world.NativeFootRuntime?.AnimationVariant, world.NativeFootRuntime?.MapDisplayMode, world.NativeFootRuntime?.EntityType ?? throw new NotSupportedException("Native foot departure requires its executed world-entry entity type."));
     }
 
+    public static NativeSavedWorldFootReturn RecordBattleDeparture(WorldState world, ushort lastFieldId, ushort storyWord, short mapLocationId)
+    {
+        NativeSavedWorldFootReturn saved = RecordFootDeparture(world, lastFieldId, storyWord, mapLocationId);
+        //549E80 mode3 preserves the same foot writes; only mode1 clears a selected vehicle slot.
+        return saved with { Rule = BattleSaveRule, WorldMode = 3 };
+    }
+
     public void Validate()
     {
-        if (ProofVersion != CurrentProofVersion || Rule != SaveRule || SourceWorldFrame < 0 || WorldMode != 0 || EntityType105 > 2 || Channel106 != 255 || Channel107 != 255)
+        if (ProofVersion != CurrentProofVersion || !(Rule == SaveRule && WorldMode == 0 || Rule == BattleSaveRule && WorldMode == 3) || SourceWorldFrame < 0 || EntityType105 > 2 || Channel106 != 255 || Channel107 != 255)
         {
             throw new InvalidDataException("Unsupported or invalid native foot-return provenance.");
         }

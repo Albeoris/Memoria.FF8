@@ -7,6 +7,7 @@ public sealed partial class BattleSession
         NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(effect, definition.NativeEffectCatalog);
         selected = NativeBattleEffectResourceResolver.MaterializeSelected(selected, nativeEffectResourceResolver);
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native50AF20 requires its retained571870 allocator owner; migrate the standalone snapshot explicitly.");
+        memory = memory.RetainReturnedTaskOnModuleLoad(graphics.OriginalEffect);
         (memory, selected) = NativeBattleOriginalEffects.Initialize(memory, selected);
         NativeEffectMemory = memory.PublishEntry50AF20(selected.Binding, destination21DFEC0);
         return graphics with { OriginalEffect = selected };
@@ -38,7 +39,17 @@ public sealed partial class BattleSession
         return graphics with { Models = graphics.Models.SetItem(actorIndex, actor with { Rotation12 = 0, Rotation14 = actorIndex >= 3 ? (short)2048 : (short)0, Rotation16 = 0 }) };
     }
 
-    private NativeBattleGraphicsState InvokeNativeOriginalEffect(NativeBattleGraphicsState graphics)
+    private NativeBattleGraphicsState InvokeNativeOriginalEffect(NativeBattleGraphicsState graphics, bool assignReturnedTask = true)
+    {
+        NativeBattleGraphicsState entered = InvokeNativeOriginalEffectEntry(graphics);
+        if (assignReturnedTask)
+        {
+            NativeEffectMemory = (NativeEffectMemory ?? throw new NotSupportedException("Native assigned entry requires its process task pointer owner.")).AssignReturnedTask(entered.OriginalEffect ?? throw new InvalidDataException("Native entry lost its returned pool owner."));
+        }
+        return entered;
+    }
+
+    private NativeBattleGraphicsState InvokeNativeOriginalEffectEntry(NativeBattleGraphicsState graphics)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Native effect invocation requires its actual loaded module entry.");
         _ = effect.Parameters ?? throw new InvalidDataException("Native effect entry lacks its50AFC0 parameter block.");
@@ -129,17 +140,16 @@ public sealed partial class BattleSession
         {
             return true;
         }
-        NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new InvalidDataException("Native50AE80 lost its module entry owner.");
-        if ((effect.ReturnedDescriptor ?? throw new InvalidDataException("Native50AE80 reached an effect whose entry has not returned.")) != 0)
+        if ((NativeEffectMemory ?? throw new NotSupportedException("Native50AE80 requires its retained task pointer owner.")).ReadReturnedTask5044B0() != 0)
         {
             return true;
         }
         return NativeCameraTaskMask != 0 || NativeOriginalSoundBusy();
     }
 
-    private static bool NativeOriginalEffectDescriptorReleased(NativeBattleGraphicsState graphics)
+    private bool NativeOriginalEffectDescriptorReleased(NativeBattleGraphicsState graphics)
     {
-        return ((graphics.OriginalEffect ?? throw new NotSupportedException("Native effect completion requires its retained module owner.")).ReturnedDescriptor ?? throw new InvalidDataException("Native effect completion reached an entry that has not returned.")) == 0;
+        return (NativeEffectMemory ?? throw new NotSupportedException("Native effect completion requires its canonical task pointer owner.")).ReadReturnedTask5044B0() == 0;
     }
 
     private NativeBattleGraphicsState PublishNativeOriginalEffectTitle(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context)

@@ -14,6 +14,8 @@ public enum SceneKind
 /// <summary>A recreation checkpoint, not an original FF8 save-file format.</summary>
 public sealed record GameState
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleAbandonment[]? AbandonedNativeBattles { get; init; }
     public GameplayPreferences GameplayPreferences { get; init; } = new();
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public PendingEntityName[]? PendingEntityNames { get; init; }

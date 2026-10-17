@@ -100,6 +100,7 @@ public sealed partial class BattleSession
             {
                 InitializeNativeStageCamera();
             }
+            InitializeNativeBattleTimer47CCB0();
             InitializeNativeEntry();
             InitializeNativeGraphics();
             InitializeNativeParticipants();
@@ -117,7 +118,7 @@ public sealed partial class BattleSession
     public BattleAtbMode Mode { get; private set; }
     public long Frame { get; private set; }
     public BattleOutcome Outcome { get; private set; }
-    public byte? NativeResult => DebugOutcome is null && NativeGraphics?.NativeOutcome?.ResultByte6E7 == 4 ? (byte)4 : Outcome switch { BattleOutcome.Active => null, BattleOutcome.Victory => 4, BattleOutcome.Defeat or BattleOutcome.ScriptedExit => 1, _ => throw new InvalidOperationException("Unknown native battle outcome.") };
+    public byte? NativeResult => DebugOutcome is null && NativeGraphics?.NativeOutcome?.ResultByte6E7 is 1 or 4 ? NativeGraphics!.NativeOutcome!.ResultByte6E7 : Outcome switch { BattleOutcome.Active => null, BattleOutcome.Victory => 4, BattleOutcome.Defeat or BattleOutcome.ScriptedExit => 1, _ => throw new InvalidOperationException("Unknown native battle outcome.") };
     public bool CanReturnToField => Outcome == BattleOutcome.Victory || Outcome == BattleOutcome.ScriptedExit && ((definition.NativeFieldBattleMode ?? throw new NotSupportedException("Native scripted exit requires the actual field battle-mode WORD182.")) & 0x200) != 0;
     public IReadOnlyList<BattleCombatant> Combatants { get; }
     public IReadOnlyList<BattleEvent> Events => events.AsReadOnly();
@@ -168,7 +169,7 @@ public sealed partial class BattleSession
 
     private bool HasPendingTurn => nativeScriptState.WaitCounters.Length != 0 || guardianForceCasts.Count != 0 || QueuedActions.Count != 0 || ActiveAction is not null || nativeTimedAction is not null || nativeActionScratch.ComponentCompletion is not null || NativeScriptAllocationPending || NativeGraphics is { Requests.IsEmpty: false } || NativeGraphics is { Descriptors.Queue.IsEmpty: false };
 
-    private bool CanAutomaticallyAdvanceTurn => Mode == BattleAtbMode.TurnBased && Outcome == BattleOutcome.Active && NativeEntryReady && !HasPendingTurn && !combatants.Any(actor => actor.IsReady) && combatants.Any(actor => IsNativeBattleCapable(actor) && !actor.Suspended);
+    private bool CanAutomaticallyAdvanceTurn => Mode == BattleAtbMode.TurnBased && Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && NativeEntryReady && !HasPendingTurn && !combatants.Any(actor => actor.IsReady) && combatants.Any(actor => IsNativeBattleCapable(actor) && !actor.Suspended);
 
     private void DispatchTurnBasedFrame()
     {
@@ -304,6 +305,8 @@ public sealed partial class BattleSession
             Mode = Mode,
             GunbladeMode = GunbladeMode,
             Frame = Frame,
+            NativeHostCallbacks = NativeHostCallbacks,
+            NativeExamTimer = NativeExamTimer,
             Outcome = Outcome,
             DebugOutcome = DebugOutcome,
             Combatants = combatants.Select(actor => new BattleCombatantSnapshot(actor.Id, actor.CurrentHp, actor.Atb, actor.StatusEffects.ToArray()) { NativeAtb = actor.NativeAtb, GuardianForceCompatibility = actor.GuardianForceCompatibility?.ToArray(), NativeMagicInventory = actor.NativeMagicInventory.ToArray(), NativeDrawSlots = actor.NativeDrawSlots.ToArray(), NativeParticipant = CaptureNativeParticipant(actor), NativeStatus = CaptureNativeStatus(actor) }).ToArray(),
@@ -360,11 +363,11 @@ public sealed partial class BattleSession
         {
             return becameReady;
         }
-        if (HasPendingNativeVictory)
+        if (HasPendingNativeOutcome)
         {
             if (NativeGraphics!.NativeOutcome!.FadeDurationB0C == 0)
             {
-                Outcome = BattleOutcome.Victory;
+                Outcome = PendingNativeOutcome;
                 CompleteBattleIfNeeded();
                 return becameReady;
             }
@@ -450,7 +453,7 @@ public sealed partial class BattleSession
         }
         CancelDeadActions();
         CompleteBattleIfNeeded();
-        if (Outcome != BattleOutcome.Active || HasPendingNativeVictory)
+        if (Outcome != BattleOutcome.Active || HasPendingNativeOutcome)
         {
             return becameReady;
         }
@@ -816,9 +819,10 @@ public sealed partial class BattleSession
         {
             return requested;
         }
-        if (NativeGraphics?.NativeOutcome is { ResultByte6E7: 4 } victory)
+        if (HasPendingNativeOutcome)
         {
-            return Outcome == BattleOutcome.Victory && victory.FadeDurationB0C == 0 ? BattleOutcome.Victory : BattleOutcome.Active;
+            BattleOutcome pending = PendingNativeOutcome;
+            return Outcome == pending && NativeGraphics!.NativeOutcome!.FadeDurationB0C == 0 ? pending : BattleOutcome.Active;
         }
         if (!NativeEntryReady || NativeScriptAllocationPending || nativeTimedAction is not null || ActiveAction?.NativeHeaderIndex is not null || IsNativeSupportInvocation(ActiveAction?.NativePlayerReaction) || IsNativeReturnDamageAction(ActiveAction?.NativeAction) || QueuedActions.Any(command => command.NativeHeaderIndex is not null || IsNativeReturnDamageAction(command.NativeAction) || IsNativeSupportInvocation(command.NativePlayerReaction) || IsNativeSupportCallback(command.NativeCallback)))
         {
@@ -831,6 +835,14 @@ public sealed partial class BattleSession
                 return BattleOutcome.Active;
             }
             return BattleOutcome.ScriptedExit;
+        }
+        if (NativeGraphics is not null)
+        {
+            if (!combatants.Any(actor => actor.NativeIndex is >= 0 and < 3 && (actor.NativeCombatantFlags & 1) != 0 && (NativeSavedStatusBits(actor) & 5) == 0))
+            {
+                return BattleOutcome.Defeat;
+            }
+            return combatants.Any(actor => !actor.IsPlayer && actor.NativeIndex is >= 3 and < 7 && (NativeSavedStatusBits(actor) & 5) == 0) ? BattleOutcome.Active : BattleOutcome.Victory;
         }
         if (!combatants.Any(actor => actor.IsPlayer && IsNativeBattleCapable(actor)))
         {
@@ -851,14 +863,19 @@ public sealed partial class BattleSession
             BeginNativeVictory486500();
             return;
         }
-        if (DebugOutcome is null && outcome == BattleOutcome.Defeat && nativeSupport is { EntryInitialized: true })
+        if (DebugOutcome is null && outcome == BattleOutcome.Defeat && NativeGraphics?.NativeOutcome?.ResultByte6E7 != 1)
         {
             if (nativeActionCommitDepth != 0 || flushingNativeReactions)
             {
                 return;
             }
-            if (TryQueueNativePhoenixRecovery())
+            if (nativeSupport is { EntryInitialized: true } && TryQueueNativePhoenixRecovery())
             {
+                return;
+            }
+            if (NativeGraphics is not null)
+            {
+                BeginNativeDefeat486450();
                 return;
             }
         }
@@ -1172,6 +1189,17 @@ public sealed partial class BattleSession
             byId[id].IsBusy = true;
         }
         Frame = snapshot.Frame;
+        NativeHostCallbacks = snapshot.NativeHostCallbacks;
+        NativeExamTimer = snapshot.NativeExamTimer;
+        NativeExamTimer?.Validate();
+        if (NativeExamTimer is not null && (definition.NativeExamTimerAtEntry is null || NativeHostCallbacks is null || NativeGraphics is null))
+        {
+            throw new InvalidDataException("Native timer snapshot lacks its declared graphical entry and executed host-callback owners.");
+        }
+        if (NativeHostCallbacks < 0)
+        {
+            throw new InvalidDataException("Native host callback ledger cannot be negative.");
+        }
         SetGunbladeMode(snapshot.GunbladeMode);
         Outcome = snapshot.Outcome;
         events.AddRange(snapshot.Events);
@@ -1309,6 +1337,8 @@ public sealed partial class BattleSession
         events.Clear();
         events.AddRange(candidate.events);
         Frame = candidate.Frame;
+        NativeHostCallbacks = candidate.NativeHostCallbacks;
+        NativeExamTimer = candidate.NativeExamTimer;
         GunbladeMode = candidate.GunbladeMode;
         Outcome = candidate.Outcome;
         DebugOutcome = candidate.DebugOutcome;

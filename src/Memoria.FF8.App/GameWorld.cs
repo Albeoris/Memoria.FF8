@@ -321,6 +321,12 @@ internal sealed partial class GameWorld : IDisposable
                 Events.Restore(saved);
             }
         }
+        if (snapshot is not null && session.State.Battle is null && Events.Scene.NativeFieldRegistration is { } registration)
+        {
+            NativeBattleRetainedMemory memory = session.State.NativeBattleMemory ?? throw new InvalidDataException("Registered field restore lost its shared physical resource memory.");
+            Events.ValidateNativeBattleFieldRegistrationMemory(memory);
+            next = assets.BindNativeRegisteredTextures(next, registration, memory.EffectMemory?.Textures ?? throw new InvalidDataException("Registered field restore lost its physical texture memory."));
+        }
         Field = next;
         if (snapshot is null && session.State.RandomEncounters is { } encounter)
         {

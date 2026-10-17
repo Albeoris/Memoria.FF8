@@ -80,7 +80,8 @@ public sealed partial class BattleSession
         NativeBattleEffectsStep effects = graphics.Effects.Advance(models);
         foreach (byte index in effects.ResetModelStatuses)
         {
-            models = models.SetItem(index, SetNativeGraphicsFlags(models[index], 16, graphics with { Models = models }));
+            graphics = ApplyNativeGraphicsStatus509CD0(graphics with { Models = models }, index, 16);
+            models = graphics.Models;
         }
         graphics = graphics with { Models = models, Effects = effects.State };
         for (int index = 0; index < 7; index++)
@@ -100,25 +101,35 @@ public sealed partial class BattleSession
                 model = colorStep.Model;
                 NativeEffectMemory = colorMemory with { ModelColorOverrides = colorStep.Overrides };
                 (graphics, model) = AdvanceNativeStatusIcons(graphics, model);
+                byte? dispatchedKind = model.Kind5;
+                NativeBattleSummonColors lifecycleColors = colorRules with { Transition = modelColors.Color40, Normal = modelColors.Color44 };
                 model = NativeBattleGraphicsModels.AdvanceCover(model);
-                model = NativeBattleGraphicsModels.AdvanceAppearance(model, (flags & 1) != 0);
+                model = NativeBattleGraphicsModels.AdvanceAppearance(model, (flags & 1) != 0, lifecycleColors);
                 if (model.Kind5 == 3)
                 {
                     NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Native50C410 requires its authenticated interpolation constants.");
                     NativeBattleStageColors stageColors = NativeStage?.ModelColors ?? throw new NotSupportedException("Native50C410 requires its retained stage color DWORDs.");
                     model = NativeBattleModelFade.Advance50C410(model, (flags & 1) != 0, colors with { Transition = stageColors.Color40, Normal = stageColors.Color44 });
                 }
-                if (model.Kind5 is 11 or 12)
+                if (model.Kind5 == 4)
+                {
+                    model = NativeBattleModelFade.Advance50C560(model, (flags & 1) != 0, lifecycleColors);
+                }
+                if (model.Kind5 == 8)
+                {
+                    model = NativeBattleModelFade.AdvanceFlash50C670(model, lifecycleColors, NextNativeGlobalRandom);
+                }
+                if (model.Kind5 is 10 or 11 or 12 or 13)
                 {
                     NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Native summon model service requires its authenticated color constants.");
                     NativeBattleStageColors stageColors = NativeStage?.ModelColors ?? throw new NotSupportedException("Native50C4D0/50C330 requires its retained stage color DWORD producers.");
                     colors = colors with { Transition = stageColors.Color40, Normal = stageColors.Color44 };
                     model = NativeBattleSummonModels.Advance(model, (flags & 1) != 0, colors);
                 }
-                byte camera = model.Kind5 == 5 && model.Phase6 > 0 ? NativeCameraTaskMask : (byte)0;
+                byte camera = dispatchedKind == 5 && model.Phase6 > 0 ? NativeCameraTaskMask : (byte)0;
                 NativeBattleGraphicsModel beforeRemoval = model;
-                bool soundBusy = model.Kind5 == 5 && model.Phase6 > 0 && NativeOriginalSoundBusy();
-                NativeBattleGraphicsRemoval removal = NativeBattleGraphicsModels.AdvanceRemoval(model, (flags & 1) != 0, soundBusy, camera);
+                bool soundBusy = dispatchedKind == 5 && model.Phase6 > 0 && NativeOriginalSoundBusy();
+                NativeBattleGraphicsRemoval removal = dispatchedKind is 5 or 6 or 7 ? NativeBattleGraphicsModels.AdvanceRemoval(model, (flags & 1) != 0, soundBusy, camera, lifecycleColors) : new(model, false);
                 model = removal.Model;
                 if ((model.Flags0 & 2) == 0 && beforeRemoval.ModelId4 != 143)
                 {
@@ -149,6 +160,12 @@ public sealed partial class BattleSession
                 {
                     OriginalResource = binding.Resource,
                     GlobalRandom = NextNativeGlobalRandom,
+                    BindModelRing90 = (current, selector) =>
+                    {
+                        models = NativeBattleModelRings.Bind90(models.SetItem(index, current), index, selector);
+                        graphics = graphics with { Models = models };
+                        return models[index];
+                    },
                     ReadModelExternal = (current, variable) => ReadNativeGraphicsSequenceVariable(graphics with { Models = models.SetItem(index, current) }, index, variable),
                     WriteExternal = WriteNativeGraphicsSequenceVariable,
                     ScheduleContactEffect = (current, program) =>
@@ -174,13 +191,43 @@ public sealed partial class BattleSession
                         return models[index];
                     },
                     ScheduleSoundParticle = (program, soundTwo, bone) => graphics = ScheduleNativeSoundParticle(graphics, index, program, soundTwo, bone),
+                    ScheduleCameraShake = (start, end, duration) => graphics = graphics with { Auxiliary = graphics.Auxiliary.AppendCameraShake50F680(start, end, duration) },
+                    ScheduleModelGroupFade = group => graphics = graphics with { Auxiliary = graphics.Auxiliary.AppendModelGroupFade50F0B0(index, group) },
+                    ScheduleModelDeformation = (current, group, velocity, angle) =>
+                    {
+                        graphics = ScheduleNativeModelDeformation50F250(graphics with { Models = models.SetItem(index, current) }, index, group, velocity, angle);
+                        models = graphics.Models;
+                        return models[index];
+                    },
+                    ScheduleStageFade = duration =>
+                    {
+                        NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native501F50 requires its four retained stage rows.");
+                        NativeStage = stage with { Groups = stage.Groups.Select(group => group with { ColorFlags = group.ColorFlags & 0xFF000000u }).ToImmutableArray() };
+                        graphics = graphics with { Auxiliary = graphics.Auxiliary.AppendStageFade501F50(duration) };
+                    },
                     PlaySound = (current, cue) => PublishNativeSequenceSound(graphics with { Models = models.SetItem(index, current) }, current, GraphicsActor(graphics, index), cue),
                     ScheduleTextureAnimation = (program, sequence) => graphics = ScheduleNativeTextureAnimation(graphics, index, program, sequence),
                     ScheduleModelEffect = effect => graphics = ScheduleNativeModelEffect(graphics, index, effect),
                     ApplyTexture = (selector, variant) => ApplyNativeTextureMotion(graphics, index, selector, variant),
+                    AdvanceTexture = AdvanceNativeTextureMotion,
                     RebindActionGeometry = (current, selector) =>
                     {
                         graphics = RebindNativeSequenceGeometry92(graphics with { Models = models.SetItem(index, current) }, index, selector);
+                        models = graphics.Models;
+                        return models[index];
+                    },
+                    ScheduleModelMotion = (current, opcode, first, second, fraction, duration) =>
+                    {
+                        graphics = graphics with { Models = models.SetItem(index, current) };
+                        int target = opcode == 0x9E ? first : (graphics.ActionContext?.TargetIndex ?? throw new NotSupportedException("Native AD/AE requires its retained50D300 target identity."));
+                        (NativeBattleAuxiliaryState auxiliary, bool allocated) = graphics.Auxiliary.AppendModelMotion(opcode, index, target, first, second, fraction, duration);
+                        graphics = graphics with { Auxiliary = auxiliary };
+                        if (allocated && opcode != 0x9E)
+                        {
+                            NativeBattleGraphicsModel targetModel = graphics.Models[target];
+                            ushort targetFlags = targetModel.Flags2 ?? throw new NotSupportedException("Native AD/AE requires its target flagsWORD2.");
+                            graphics = graphics with { Models = graphics.Models.SetItem(target, targetModel with { Flags2 = (ushort)(targetFlags | 0x20) }) };
+                        }
                         models = graphics.Models;
                         return models[index];
                     },
@@ -337,7 +384,8 @@ public sealed partial class BattleSession
             graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash(0, 1, 0, 255) };
         }
         int index = half.ActorIndex;
-        NativeBattleGraphicsModel model = SetNativeGraphicsFlags(graphics.Models[index], plan.ImmediateStatusFlags!.Value, graphics);
+        graphics = ApplyNativeGraphicsStatus509CD0(graphics, index, plan.ImmediateStatusFlags!.Value);
+        NativeBattleGraphicsModel model = graphics.Models[index];
         if (plan.EjectionService7)
         {
             NativeBattleModuleResource resource = RequireNativeModuleResource(21);
@@ -350,12 +398,19 @@ public sealed partial class BattleSession
         }
         if (plan.SelectSequence)
         {
-            model = SelectNativeContactSequence(model, plan.Sequence);
+            if (model.ReadLinkedModelIndex140() is not null)
+            {
+                graphics = SelectNativeRingContactSequence(graphics with { Models = graphics.Models.SetItem(index, model) }, index, plan.Sequence);
+                model = graphics.Models[index];
+            }
+            else
+            {
+                model = SelectNativeContactSequence(model, plan.Sequence);
+            }
             if (model.ModelId4 < 16)
             {
-                NativeBattleSequenceState state = model.SequenceState!;
-                byte standing = NativeStandingSequence(model.Flags8!.Value);
-                model = state.Pending3 != 0 ? model with { SequenceState = state with { Pending3 = standing != model.Sequence ? standing : (byte)0 } } : standing != model.Sequence ? QueueNativeModelSequence(model, standing) : model;
+                graphics = RefreshNativeGuardianStandingSequence(graphics with { Models = graphics.Models.SetItem(index, model) }, checked((byte)index));
+                model = graphics.Models[index];
             }
         }
         if (!plan.Secondary && (half.Flags2 & 0x30) != 0)

@@ -28,20 +28,21 @@ internal sealed partial class WorldMapScene : IDisposable
     public Func<bool>? HasPendingBattle { get; set; }
     public WorldState? LastDeparture { get; private set; }
 
-    public WorldMapScene(GameSession session, string gameDirectory, ResourceService? resources = null)
+    public WorldMapScene(GameSession session, string gameDirectory, ResourceService? resources = null, NativeSavedWorldFootReturn? battleReload = null)
     {
         this.session = session;
         if (session.State.Scene != SceneKind.WorldMap || session.State.WorldArrival is not WorldTransition arrival)
         {
             throw new InvalidOperationException("A world scene requires its original field-to-world transition.");
         }
-        bool car = unchecked((byte)arrival.Mode) is 32 or 33;
-        bool garden = unchecked((byte)arrival.Mode) == 48 || session.State.World is { NativeGardenRuntime: not null, NativeFootRuntime: null };
-        bool ragnarok = unchecked((byte)arrival.Mode) == 50;
-        bool stationFoot = session.State.World?.NativeFootRuntime?.StationTrains is not null;
+        bool battleMode2 = battleReload is not null || session.State.World?.NativeFootRuntime?.Rule == NativeFootWorldRuntimeState.BattleReloadRule;
+        bool car = !battleMode2 && unchecked((byte)arrival.Mode) is 32 or 33;
+        bool garden = !battleMode2 && (unchecked((byte)arrival.Mode) == 48 || session.State.World is { NativeGardenRuntime: not null, NativeFootRuntime: null });
+        bool ragnarok = !battleMode2 && unchecked((byte)arrival.Mode) == 50;
+        bool stationFoot = !battleMode2 && session.State.World?.NativeFootRuntime?.StationTrains is not null;
         bool ridingTrain = IsRidingTrainPacket(arrival) && !stationFoot;
-        bool scripted = IsSupportedScriptedPacket(arrival) || ridingTrain;
-        byte footEntityType = stationFoot ? session.State.World!.NativeFootRuntime!.EntityType : unchecked((byte)arrival.Mode);
+        bool scripted = !battleMode2 && (IsSupportedScriptedPacket(arrival) || ridingTrain);
+        byte footEntityType = battleMode2 ? battleReload?.EntityType105 ?? session.State.World!.NativeFootRuntime!.EntityType : stationFoot ? session.State.World!.NativeFootRuntime!.EntityType : unchecked((byte)arrival.Mode);
         if (footEntityType is not (0 or 1 or 2) && !car && !garden && !ragnarok && !scripted)
         {
             throw new NotSupportedException($"World entity type {unchecked((sbyte)arrival.Mode)} has no implemented original model/control path.");
@@ -60,6 +61,10 @@ internal sealed partial class WorldMapScene : IDisposable
             //544860 establishes vehicle indexes from the selected clause's objects; loader-initialized pose2/3 do not establish vehicle presence.
             bool parkedRagnarok = footClause?.ContainsShape(1) == true;
             bool parkedGarden = !parkedRagnarok && footClause?.ContainsShape(64) == true && footClause.ContainsShape(65);
+            if (battleMode2 && (parkedGarden || parkedRagnarok))
+            {
+                throw new NotSupportedException("World battle reload requires the actual parked vehicle reconstruction before this allocation can complete.");
+            }
             if (!scripted && !stationFoot && !car && !garden && !ragnarok && !parkedGarden && !parkedRagnarok && (footEntityType == 2 ? inputs.StoryWord is < 2140 or >= 2500 : footEntityType == 1 ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord is >= 34 and < 205 or >= 392))
             {
                 throw new NotSupportedException("World entry story lies outside this entity's proved native object/contact clause.");
@@ -94,7 +99,17 @@ internal sealed partial class WorldMapScene : IDisposable
             else if (!garden && !ragnarok && !parkedRagnarok && session.State.World is null)
             {
                 RequireUnaliasedFootAuxiliary(session.State);
-                if (entry == 62)
+                if (battleReload is not null)
+                {
+                    battleReload.RequireCompleteFootReload();
+                    if (session.State.SavedWorld.FootReturn != battleReload)
+                    {
+                        throw new InvalidDataException("World battle reload differs from its actual saved physical foot owner.");
+                    }
+                    reload = battleReload;
+                    initialFootRuntime = NativeFootWorldRuntimeState.CreateBattleReload(battleReload);
+                }
+                else if (entry == 62)
                 {
                     reload = session.State.SavedWorld.FootReturn ?? throw new NotSupportedException("World entry62 requires an executed native foot-save receipt.");
                     if (reload.EntityType105 != footEntityType)
@@ -117,7 +132,7 @@ internal sealed partial class WorldMapScene : IDisposable
                 {
                     throw new InvalidDataException("The restored native foot entity type differs from its world packet.");
                 }
-                if (entry == 62 && session.State.World.NativeFootRuntime?.Rule != NativeFootWorldRuntimeState.SavedReloadRule)
+                if (entry == 62 && session.State.World.NativeFootRuntime?.Rule is not (NativeFootWorldRuntimeState.SavedReloadRule or NativeFootWorldRuntimeState.BattleReloadRule))
                 {
                     throw new NotSupportedException("Historical entry62 world state has no proved native foot-reload authority.");
                 }
@@ -160,11 +175,11 @@ internal sealed partial class WorldMapScene : IDisposable
             }
             if (session.State.World is null)
             {
-                if (entry != 62 && (uint)entry >= assets.Spawns.Count)
+                if (reload is null && entry != 62 && (uint)entry >= assets.Spawns.Count)
                 {
                     throw new InvalidDataException($"Original world spawn {entry} is absent.");
                 }
-                WorldSpawn spawn = entry == 62 ? default : assets.Spawns[entry];
+                WorldSpawn spawn = reload is not null || entry == 62 ? default : assets.Spawns[entry];
                 int x = reload?.Pose0.X ?? spawn.X;
                 int z = reload?.Pose0.RawZ ?? spawn.Z;
                 int height = reload?.Pose0.Height ?? spawn.NativeHeight;

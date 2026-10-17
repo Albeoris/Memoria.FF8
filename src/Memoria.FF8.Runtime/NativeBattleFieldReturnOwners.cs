@@ -4,4 +4,6 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleFieldReturnOwners(NativeBattleMusicReturnPreparation Music, NativeWorldControlState Controls, NativeSeeDState SeeD, NativeExamTimerState Timer, NativeSalaryPresentation Salary, NativeVibrationProcessState Vibration, NativeFieldFadeState Fade, NativeEventMemory Memory)
 {
     public NativeBattleRetainedMemory? ReloadedMemory { get; init; }
+    public NativeCrtRandomState? CrtRandomBefore { get; init; }
+    public NativeCrtRandomState? CrtRandomAfter { get; init; }
 }

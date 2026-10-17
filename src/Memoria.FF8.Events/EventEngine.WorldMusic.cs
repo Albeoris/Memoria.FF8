@@ -44,6 +44,9 @@ public enum NativeWorldMusicOperation
 }
 public sealed record NativeWorldMusicLoad(int Version, int SourceFieldId, long SourceFrame, WorldTransition Packet, byte RequestedMusic, byte PriorMusic, byte PriorBank, byte Bank, NativeWorldMusicOperation Operation, byte? Music, NativeWorldMusicResource? Resource, int? InitialVolume, int TargetVolume, int DurationMilliseconds)
 {
+    public byte LoaderMode { get; init; }
+    public byte? BattleReturnBank { get; init; }
+    public byte? BattleEntityType { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeMusicPlaybackDecision? Playback { get; init; }
     //543340 selects46B890(buffer,13) for file5; other files use46B510.
@@ -76,7 +79,7 @@ public sealed partial class EventEngine
         return true;
     }
 
-    public Action PrepareWorldMusic(WorldTransition packet, Func<byte, NativeWorldMusicResource> resolveResource, Func<int, NativeWorldMusicResource>? resolveFileResource = null)
+    public Action PrepareWorldMusic(WorldTransition packet, Func<byte, NativeWorldMusicResource> resolveResource, Func<int, NativeWorldMusicResource>? resolveFileResource = null, NativeBattleMusicProcessState? battleReturn = null, byte? battleEntityType = null)
     {
         ArgumentNullException.ThrowIfNull(packet);
         ArgumentNullException.ThrowIfNull(resolveResource);
@@ -90,7 +93,8 @@ public sealed partial class EventEngine
         //5420C0/542370 consume the retained channel music and bank, independently
         //of field MUSICLOAD's pending1D9CDE0/B213/B214. World loading neither
         //requires nor clears that pending owner, even when it replaces the bank.
-        if (services.CurrentScene != SceneKind.Field || NativeRuntimeProfile is not { IsVerified: true } || process.Bank201 is not byte bank || bank > 1 || Scene.MusicChannel108?.MusicId is not byte prior || EventMemory.Cells.Any(pair => pair.Key <= 268 && (long)pair.Key + pair.Value.Width > 268))
+        bool mode2 = battleReturn is not null;
+        if (services.CurrentScene != (mode2 ? SceneKind.WorldMap : SceneKind.Field) || mode2 && (battleReturn!.ReturnBank is null or > 1 || !System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(battleReturn.Buffers), System.Text.Json.JsonSerializer.SerializeToElement(process))) || NativeRuntimeProfile is not { IsVerified: true } || process.Bank201 is not byte bank || bank > 1 || Scene.MusicChannel108?.MusicId is not byte prior || EventMemory.Cells.Any(pair => pair.Key <= 268 && (long)pair.Key + pair.Value.Width > 268))
         {
             throw new NotSupportedException("World music requires authenticated native bank, channel and unaliased BYTE268 authority.");
         }
@@ -98,7 +102,7 @@ public sealed partial class EventEngine
         NativeWorldMusicResource? resource = null;
         byte? music = prior;
         byte nextBank = bank;
-        int entity = unchecked((sbyte)packet.Mode);
+        int entity = mode2 ? battleEntityType is <= 2 ? battleEntityType.Value : throw new NotSupportedException("World battle music requires its actual normal-foot entity byte.") : unchecked((sbyte)packet.Mode);
         void PrepareFile(int currentMusic)
         {
             int index = PendingWorldMusicSelection(entity, selection.Music, unchecked((byte)currentMusic));
@@ -116,11 +120,11 @@ public sealed partial class EventEngine
             kind = NativeWorldMusicOperation.Play;
             nextBank ^= 1;
         }
-        if (selection.Music == unchecked((sbyte)prior) && PendingWorldMusicSelection(entity, selection.Music, prior) >= 0)
+        if (!mode2 && selection.Music == unchecked((sbyte)prior) && PendingWorldMusicSelection(entity, selection.Music, prior) >= 0)
         {
             PrepareFile(prior);
         }
-        if (selection.Music != unchecked((sbyte)prior))
+        if (mode2 || selection.Music != unchecked((sbyte)prior))
         {
             bool ordinary = unchecked((uint)entity) < 10 || entity == 48;
             if (selection.Music == 24 || selection.Music == 41 && entity is not (49 or 50) || ordinary && selection.Music is 81 or 89)
@@ -133,7 +137,7 @@ public sealed partial class EventEngine
                     throw new InvalidDataException("World music resource differs from its native loader selection.");
                 }
                 kind = NativeWorldMusicOperation.Play;
-                nextBank ^= 1;
+                nextBank = mode2 ? battleReturn!.ReturnBank!.Value : (byte)(nextBank ^ 1);
             }
             else if (selection.Music == 0)
             {
@@ -147,7 +151,8 @@ public sealed partial class EventEngine
                 PrepareFile(255);
             }
         }
-        var request = new NativeWorldMusicLoad(1, FieldId, Frame, packet, selection.Music, prior, bank, nextBank, kind, music, resource, kind == NativeWorldMusicOperation.Play ? resource?.File is null ? 0 : null : 127, 127, kind == NativeWorldMusicOperation.Play ? 60 : 0);
+        bool immediateCross = mode2 && resource is { File: null, MusicId: 41 };
+        var request = new NativeWorldMusicLoad(1, FieldId, Frame, packet, selection.Music, prior, bank, nextBank, kind, music, resource, kind == NativeWorldMusicOperation.Play ? resource?.File is null ? immediateCross ? 127 : 0 : null : 127, 127, kind == NativeWorldMusicOperation.Play && !immediateCross ? 60 : 0) { LoaderMode = mode2 ? (byte)2 : (byte)0, BattleReturnBank = mode2 ? battleReturn!.ReturnBank : null, BattleEntityType = mode2 ? battleEntityType : null };
         NativeMusicChannelState primary = Scene.MusicChannel108;
         NativeGlobalSoundProcess sound = RequireMusicSoundProcess();
         NativeMusicPlaybackState playback = sound.MusicPlayback ?? NativeMusicPlaybackState.Unknown();
@@ -158,14 +163,18 @@ public sealed partial class EventEngine
             NativeMusicBufferProducer producer = resource!.File is null ? NativeMusicBufferProducer.WorldWmset5306E0 : NativeMusicBufferProducer.WorldFile543340;
             byte encoded = unchecked((byte)(resource.MusicId + 1));
             loaded = process.LoadBuffer(nextBank, new NativeMusicBufferIdentity(encoded, producer));
-            if (resource.File is null)
+            if (resource.File is null && !immediateCross)
             {
                 // 53F310's preloaded WMSET route explicitly writes0 before stop/plain play.
                 playback = playback.SetGain46BB40(0, 0);
             }
             // 543340 stops0 at file load start; its later46B890/46B510 reads the retained gain.
-            playGain = playback.ReadGain(0);
-            playback = playback.Stop46C060(0).PlayEncoded46B530(0, encoded, playGain.Value, ReadMusicCurrentField).FadeGain46BBC0(0, 60, 127);
+            playGain = immediateCross ? 127 : playback.ReadGain(0);
+            playback = playback.Stop46C060(0).PlayEncoded46B530(0, encoded, playGain.Value, ReadMusicCurrentField);
+            if (!immediateCross)
+            {
+                playback = playback.FadeGain46BBC0(0, 60, 127);
+            }
         }
         else if (kind == NativeWorldMusicOperation.Stop)
         {
@@ -176,7 +185,7 @@ public sealed partial class EventEngine
             playback = playback.FadeGain46BBC0(0, 30, 127);
         }
         NativeGlobalSoundProcess nextSound = sound with { MusicPlayback = playback };
-        request = request with { Playback = new NativeMusicPlaybackDecision(0, playback.CurrentMusicId0, kind == NativeWorldMusicOperation.Play && playback.CurrentMusicId0 != 0, kind is NativeWorldMusicOperation.Play or NativeWorldMusicOperation.Stop, false, playGain, kind == NativeWorldMusicOperation.Stop ? null : 127) };
+        request = request with { Playback = new NativeMusicPlaybackDecision(0, playback.CurrentMusicId0, kind == NativeWorldMusicOperation.Play && playback.CurrentMusicId0 != 0, kind is NativeWorldMusicOperation.Play or NativeWorldMusicOperation.Stop, false, playGain, kind == NativeWorldMusicOperation.Stop || immediateCross ? null : 127) };
         return () =>
         {
             if (services is not GameSession session || session.State.Scene != SceneKind.WorldMap || session.State.WorldArrival != packet || !ReferenceEquals(Scene.MusicProcess, process) || Scene.MusicChannel108 != primary || Scene.WorldMusicSelection != selection || !ReferenceEquals(services.GlobalSoundProcess, sound))
@@ -257,13 +266,14 @@ public sealed partial class EventEngine
             throw new InvalidDataException("World music decision must use physical channel0.");
         }
         bool play = load.Operation == NativeWorldMusicOperation.Play;
-        int entity = unchecked((sbyte)load.Packet.Mode);
+        bool mode2 = load.LoaderMode == 2;
+        int entity = mode2 ? load.BattleEntityType is <= 2 ? load.BattleEntityType.Value : throw new InvalidDataException("World battle music lost its actual normal-foot entity byte.") : unchecked((sbyte)load.Packet.Mode);
         bool ordinary = unchecked((uint)entity) < 10 || entity == 48;
         byte? expectedMusic = load.RequestedMusic == 24 ? (byte)24 : load.RequestedMusic == 41 && entity is not (49 or 50) || ordinary && load.RequestedMusic is 81 or 89 ? (byte)41 : null;
         bool file = load.Resource?.File is { };
         if (file)
         {
-            int current = load.RequestedMusic == unchecked((sbyte)load.PriorMusic) ? load.PriorMusic : 255;
+            int current = !mode2 && load.RequestedMusic == unchecked((sbyte)load.PriorMusic) ? load.PriorMusic : 255;
             int index = PendingWorldMusicSelection(entity, load.RequestedMusic, unchecked((byte)current));
             if (index < 0 || load.Resource!.File!.Index != index || expectedMusic is not null && load.RequestedMusic != unchecked((sbyte)load.PriorMusic))
             {
@@ -271,7 +281,9 @@ public sealed partial class EventEngine
             }
             expectedMusic = NativeWorldMusicResource.FileMusic(index);
         }
-        if (load.Version != 1 || load.SourceFieldId < 72 || load.SourceFrame < 0 || !Enum.IsDefined(load.Operation) || load.PriorBank > 1 || load.Bank != (play ? load.PriorBank ^ 1 : load.PriorBank) || saved.Scene.MusicProcess?.SelectionAuthority == NativeMusicSelectionAuthority.World && load.Bank != saved.Scene.MusicProcess.Bank201 || play != (load.Resource is not null) || play && (load.Music != load.Resource!.MusicId || load.Music != expectedMusic || (file ? load.InitialVolume is not null : load.InitialVolume != 0) || load.DurationMilliseconds != 60) || !play && (load.InitialVolume != 127 || load.DurationMilliseconds != 0) || load.Operation == NativeWorldMusicOperation.Keep && (load.RequestedMusic != unchecked((sbyte)load.PriorMusic) || load.Music != load.PriorMusic || PendingWorldMusicSelection(entity, load.RequestedMusic, load.PriorMusic) >= 0) || load.Operation == NativeWorldMusicOperation.Stop && load.RequestedMusic != 0 || load.TargetVolume != 127 || (load.Operation == NativeWorldMusicOperation.Stop) != (load.Music is null))
+        bool immediateCross = mode2 && load.Resource is { File: null, MusicId: 41 };
+        int expectedBank = play ? mode2 && !file ? (int?)load.BattleReturnBank ?? -1 : load.PriorBank ^ 1 : load.PriorBank;
+        if (load.Version != 1 || load.LoaderMode is not (0 or 2) || mode2 != (load.BattleReturnBank is not null) || load.BattleReturnBank > 1 || load.SourceFieldId < 72 || load.SourceFrame < 0 || !Enum.IsDefined(load.Operation) || load.PriorBank > 1 || load.Bank != expectedBank || saved.Scene.MusicProcess?.SelectionAuthority == NativeMusicSelectionAuthority.World && load.Bank != saved.Scene.MusicProcess.Bank201 || play != (load.Resource is not null) || play && (load.Music != load.Resource!.MusicId || load.Music != expectedMusic || (file ? load.InitialVolume is not null : load.InitialVolume != (immediateCross ? 127 : 0)) || load.DurationMilliseconds != (immediateCross ? 0 : 60)) || !play && (load.InitialVolume != 127 || load.DurationMilliseconds != 0) || load.Operation == NativeWorldMusicOperation.Keep && (mode2 || load.RequestedMusic != unchecked((sbyte)load.PriorMusic) || load.Music != load.PriorMusic || PendingWorldMusicSelection(entity, load.RequestedMusic, load.PriorMusic) >= 0) || load.Operation == NativeWorldMusicOperation.Stop && load.RequestedMusic != 0 || load.TargetVolume != 127 || (load.Operation == NativeWorldMusicOperation.Stop) != (load.Music is null))
         {
             throw new InvalidDataException("Saved world music load lost its native bank/resource/gain authority.");
         }

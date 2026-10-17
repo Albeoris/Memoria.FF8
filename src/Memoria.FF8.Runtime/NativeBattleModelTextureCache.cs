@@ -10,6 +10,7 @@ public sealed record NativeBattleModelTextureCacheLoad(NativeBattleModelTextureC
 /// <summary>508260's eleven resource rows and1D98B54 allocation mask, restricted to original texture ownership.</summary>
 public sealed record NativeBattleModelTextureCache([property: JsonRequired] ImmutableArray<NativeBattleModelTextureCacheRow> Rows, [property: JsonRequired] ushort BlockedSlots)
 {
+    public ImmutableDictionary<byte, ImmutableArray<byte>> EnemyTextureMotion { get; init; } = ImmutableDictionary<byte, ImmutableArray<byte>>.Empty;
     public static NativeBattleModelTextureCache FromColdProcess() => new(Enumerable.Range(0, 11).Select(_ => new NativeBattleModelTextureCacheRow(0, 0, 0, null)).ToImmutableArray(), 0);
 
     public static NativeBattleModelTextureCache Initialize508260(NativeBattleModelTextureCache? retained) => retained?.Reset508260() ?? new(Enumerable.Range(0, 11).Select(_ => new NativeBattleModelTextureCacheRow(0, null, null, null)).ToImmutableArray(), 63);
@@ -22,7 +23,7 @@ public sealed record NativeBattleModelTextureCache([property: JsonRequired] Immu
 
     public void Validate()
     {
-        if (Rows.IsDefault || Rows.Length != 11 || Rows.Any(row => row is null || row.Kind > 3 || row.Kind != 0 && (row.ModelId is null || row.Binding is null) || row.Kind is 1 or 3 && row.TextureMask is null || row.Binding is { } binding && (binding.PaletteRows.IsDefault || binding.PaletteRows.Length != 16 || binding.PaletteRows.Any(value => value is >= 15))))
+        if (EnemyTextureMotion is null || EnemyTextureMotion.Values.Any(table => table.IsDefault) || Rows.IsDefault || Rows.Length != 11 || Rows.Any(row => row is null || row.Kind > 3 || row.Kind != 0 && (row.ModelId is null || row.Binding is null) || row.Kind is 1 or 3 && row.TextureMask is null || row.Binding is { } binding && (binding.PaletteRows.IsDefault || binding.PaletteRows.Length != 16 || binding.PaletteRows.Any(value => value is >= 15))))
         {
             throw new InvalidDataException("Native texture cache requires its eleven physical resource rows, actual row types and known material bindings for allocated rows.");
         }
@@ -81,7 +82,7 @@ public sealed record NativeBattleModelTextureCache([property: JsonRequired] Immu
         ImmutableArray<NativeBattleModelTextureCacheRow> rows = Rows.SetItem(resourceIndex, row with { Kind = 0 });
         bool shared = rows.Any(candidate => candidate.Kind == 3 && candidate.ModelId == row.ModelId);
         ushort mask = row.TextureMask ?? throw new InvalidDataException("Native5080D0 lost its original resource texture WORD2.");
-        return this with { Rows = rows, BlockedSlots = shared ? BlockedSlots : (ushort)(BlockedSlots & ~mask) };
+        return this with { Rows = rows, BlockedSlots = shared ? BlockedSlots : (ushort)(BlockedSlots & ~mask), EnemyTextureMotion = shared ? EnemyTextureMotion : EnemyTextureMotion.Remove(row.ModelId!.Value) };
     }
 
     private int ExistingOrFree(byte kind, byte modelId)

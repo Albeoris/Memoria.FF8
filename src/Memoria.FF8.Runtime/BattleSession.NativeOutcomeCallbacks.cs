@@ -37,6 +37,7 @@ public sealed partial class BattleSession
         }
         commands = commands.Enqueue(0, 65);
         nativeActionPackets = nativeActionPackets with { ContactCount = 0 };
+        SetNativeBattleClockActive(false);
         return graphics with { NativeOutcome = outcome with { ActionOwnerB0D = 0, ExitModeDE8 = 2, AdmissionDFD = 1, ActionPhaseDEA = 0 }, UiServices = ui with { Commands = commands } };
     }
 

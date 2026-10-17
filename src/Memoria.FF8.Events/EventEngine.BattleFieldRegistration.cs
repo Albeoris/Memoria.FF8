@@ -4,11 +4,11 @@ namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
-    public NativeBattleRetainedMemory ExecuteNativeBattleFieldResourceReload(NativeFieldRegistrationResources resources, byte nativeResult, NativeBattleRetainedMemory retained)
+    public NativeBattleFieldResourceReloadResult ExecuteNativeBattleFieldResourceReload(NativeFieldRegistrationResources resources, byte nativeResult, NativeBattleRetainedMemory retained, NativeCrtRandomState? crtRandom = null)
     {
-        NativeBattleCompletion battle = PendingInteractiveBattle ?? throw new NotSupportedException("Native kind3 requires the actually suspended scripted BATTLE owner.");
+        long battleEntryFrame = RequireNativeBattleFieldReloadEntryFrame();
         resources.Validate();
-        if (nativeResult is not (2 or 4) || NativeRuntimeProfile is not { IsVerified: true } profile || Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } initialized || !initialized.IsFrom(profile, FieldId, programHash) || resources.FieldId != FieldId || resources.ProgramHash != programHash || Scene.NativeActorLayoutVersion != 1 || Scene.NativeBattleFieldReload is not null)
+        if (!SupportsNativeFieldReturnResult(nativeResult) || NativeRuntimeProfile is not { IsVerified: true } profile || Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } initialized || !initialized.IsFrom(profile, FieldId, programHash) || resources.FieldId != FieldId || resources.ProgramHash != programHash || Scene.NativeActorLayoutVersion != 1 || Scene.NativeBattleFieldReload is not null)
         {
             throw new NotSupportedException("Native kind3 resource reload requires the same retained initialized field/program and ordinary result2/4.");
         }
@@ -38,7 +38,7 @@ public sealed partial class EventEngine
                 throw new InvalidDataException("Native kind3 actor RGB is outside its physical byte domain.");
             }
             NativeActorEyes eyes = actor.NativeEyes ?? throw new NotSupportedException("Native52B840 requires the retained actor eye mode.");
-            return new NativeFieldRetainedPresentation(objectId, header.AnimationId, header.Frame, flags.AutoAnimation4, checked((byte)actor.BaseAnimationId), actor.Visible, mode, actor.RootTranslationZ, (byte)color.X, (byte)color.Y, (byte)color.Z, actor.AdditionalControlDisabled, actor.PrimitiveTransparencyEnabled, eyes.Mode);
+            return new NativeFieldRetainedPresentation(objectId, header.AnimationId, header.Frame, flags.AutoAnimation4, checked((byte)actor.BaseAnimationId), actor.Visible, mode, actor.RootTranslationZ, (byte)color.X, (byte)color.Y, (byte)color.Z, actor.AdditionalControlDisabled, actor.PrimitiveTransparencyEnabled, eyes.Mode) { EyeBlinkParameter611 = actor.NativeEyeBlinkParameter611 };
         }).ToArray();
         if (Scene.NativeBattleFieldReloadState is null)
         {
@@ -46,13 +46,13 @@ public sealed partial class EventEngine
         }
         NativeBattleFieldReloadState pending = Scene.NativeBattleFieldReloadState!;
         pending.Validate();
-        if (pending.FieldId != FieldId || pending.ProgramHash != programHash || pending.BattleEntryFrame != battle.Frame || pending.NativeResult != nativeResult || pending.OneHash != resources.One.Sha256)
+        if (pending.FieldId != FieldId || pending.ProgramHash != programHash || pending.BattleEntryFrame != battleEntryFrame || pending.NativeResult != nativeResult || pending.OneHash != resources.One.Sha256)
         {
             throw new InvalidDataException("Native kind3 pending reset disagrees with the retained battle/source.");
         }
         NativeFieldRegistrationStep step = NativeFieldRegistrationMachine.ReloadKind3(resources, actorsToBind, retained);
-        NativeBattleRetainedMemory result = NativeFieldRegistrationMachine.RestoreRetainedPresentation(step.State, step.Memory, presentation);
-        step.State.Validate(result);
+        NativeBattleFieldResourceReloadResult result = NativeFieldRegistrationMachine.RestoreRetainedPresentation(step.State, step.Memory, presentation, crtRandom);
+        step.State.Validate(result.Memory);
         Dictionary<int, NativeModelPartResourceState> parts = [];
         foreach (NativeFieldRegisteredResource resource in step.State.Resources)
         {
@@ -73,8 +73,9 @@ public sealed partial class EventEngine
             if (eyes.Mode != 0 && instance.ModelId >= 0)
             {
                 NativeFieldEyeDefinition definition = ReadNativeEyes?.Invoke(instance.ModelId) ?? throw new NotSupportedException("Native retained eyes require their reloaded original eye definition.");
-                NativeEyeCopy? copy = definition.Copy(eyes.Mode == 0x200000);
-                eyes = new(1, eyes.Mode, instance.ModelId, copy is null ? null : eyes.Mode == 0x200000 ? (byte)0x20 : (byte)0x40, copy);
+                NativeEyeCopy? copy = eyes.Mode == 0x80000 ? null : definition.Copy(eyes.Mode == 0x200000);
+                byte? backend = definition.Bank.Length == 0 ? null : eyes.Mode == 0x80000 ? (byte)0x10 : eyes.Mode == 0x200000 ? (byte)0x20 : (byte)0x40;
+                eyes = new(1, eyes.Mode, instance.ModelId, backend, copy);
             }
             eyesToBind.Add(actor.ObjectId, eyes);
         }
@@ -87,7 +88,7 @@ public sealed partial class EventEngine
         }
         Scene.NativeFieldRegistration = step.State;
         Scene.NativeBattleFieldReloadState = null;
-        Scene.NativeBattleFieldReload = new(1, profile.ExecutableHash, FieldId, programHash, battle.Frame, nativeResult);
+        Scene.NativeBattleFieldReload = new(1, profile.ExecutableHash, FieldId, programHash, battleEntryFrame, nativeResult, nativeResult == 1 ? ReadNativeDefeatReturnBranch4706B0() : null);
         return result;
     }
 

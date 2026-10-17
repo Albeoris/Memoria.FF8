@@ -88,6 +88,14 @@ internal sealed partial class RecreateGame
             ApplyBattleCommand(new BattleInput(BattleInputKind.GuardianBoost));
         }
         active.AdvanceNativeGraphicsPresentation(elapsed);
+        if (ReferenceEquals(active, world?.Battle))
+        {
+            world.SynchronizeBattlePresentation();
+            if (world.Battle is null)
+            {
+                return true;
+            }
+        }
         active.AdvanceComponentGuardianBoostPresentation(elapsed);
         battleScene!.AdvancePresentation(elapsed);
         battleHud!.AdvancePresentation(elapsed);

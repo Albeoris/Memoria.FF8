@@ -37,6 +37,8 @@ public sealed class ActorState
     [JsonInclude]
     public byte? NativeRendererMode599 { get; internal set; }
     [JsonInclude]
+    public byte? NativeEyeBlinkParameter611 { get; internal set; }
+    [JsonInclude]
     public float X { get; internal set; }
     [JsonInclude]
     public float Y { get; internal set; }

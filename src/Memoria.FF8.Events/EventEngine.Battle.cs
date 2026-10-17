@@ -24,9 +24,11 @@ public sealed partial class EventEngine
         {
             throw new InvalidOperationException("Random combat callbacks require their suspended field owner.");
         }
+        NativeRandomFieldBattleOwner owner = Scene.NativeRandomFieldBattle is { Result: null } random ? random : throw new InvalidOperationException("Random callbacks require their executed native entry owner.");
         services.SetExamTimer(services.ExamTimer!.AdvanceCallbacks(NativeTimerCallbackKind.Battle, callbacks));
         services.SetWorldProcess(services.WorldProcess!.AdvanceMainLoopCallbacks(callbacks));
         Scene.FieldCallbackClock = clock with { RandomBattleCallbacks = checked(clock.RandomBattleCallbacks + callbacks) };
+        Scene.NativeRandomFieldBattle = owner with { Callbacks = checked(owner.Callbacks + callbacks) };
     }
     public Func<ushort, ushort, bool>? UseInteractiveBattle { get; set; }
     public Func<ushort, ushort, string?>? ValidateInteractiveBattle { get; set; }
@@ -279,22 +281,23 @@ public sealed partial class EventEngine
 
     private void ValidateNativeBattleCheckpoint(Checkpoint saved, IReadOnlyDictionary<long, Fiber> bySequence)
     {
+        ValidateNativeRandomFieldBattleCheckpoint(saved);
         saved.Scene.NativeBattleFieldReload?.Validate();
         saved.Scene.NativeBattleFieldReloadState?.Validate();
-        if (saved.Scene.NativeBattleFieldReloadState is { } pending && (saved.Scene.NativeBattleFieldReload is not null || pending.FieldId != saved.FieldId || pending.ProgramHash != saved.ProgramHash || saved.Scene.NativeBattleCompletions?.Count(completion => completion.Backend == NativeBattleBackend.Interactive && completion.ReturnFrame is null && completion.Result is null && completion.Frame == pending.BattleEntryFrame) != 1))
+        if (saved.Scene.NativeBattleFieldReloadState is { } pending && (saved.Scene.NativeBattleFieldReload is not null || pending.FieldId != saved.FieldId || pending.ProgramHash != saved.ProgramHash || CountPendingNativeFieldOwners(saved.Scene, pending.BattleEntryFrame) != 1))
         {
             throw new InvalidDataException("Pending kind3 cache reset lost its actual suspended battle or resource continuation.");
         }
         saved.Scene.NativeBattleFieldReturn?.Reload.Validate();
         saved.Scene.NativeBattleFieldReturn?.Music.Validate();
-        if (saved.Scene.NativeBattleFieldReload is { } reload && (reload.FieldId != saved.FieldId || reload.ProgramHash != saved.ProgramHash || saved.Scene.NativeBattleCompletions?.Count(completion => completion.Backend == NativeBattleBackend.Interactive && completion.ReturnFrame is null && completion.Result is null && completion.Frame == reload.BattleEntryFrame) != 1))
+        if (saved.Scene.NativeBattleFieldReload is { } reload && (reload.FieldId != saved.FieldId || reload.ProgramHash != saved.ProgramHash || CountPendingNativeFieldOwners(saved.Scene, reload.BattleEntryFrame) != 1))
         {
             throw new InvalidDataException("Native kind3 reload completion lost its actual suspended field/battle source.");
         }
         ValidateNativeBattleModeCheckpoint(saved);
         if (saved.Scene.NativeBattleCompletions is null)
         {
-            if (saved.Scene.NativeBattleWaits is not null || saved.Scene.NativeBattleResult is not null || bySequence.Values.Any(fiber => fiber.WaitReason == WaitReason.MinimalBattle))
+            if (saved.Scene.NativeBattleWaits is not null || saved.Scene.NativeBattleResult is not null && saved.Scene.NativeRandomFieldBattle?.Result != saved.Scene.NativeBattleResult || bySequence.Values.Any(fiber => fiber.WaitReason == WaitReason.MinimalBattle))
             {
                 throw new InvalidDataException("Unknown battle history cannot contain a typed wait or result.");
             }
@@ -342,7 +345,27 @@ public sealed partial class EventEngine
                 throw new InvalidDataException("Saved battle callback clock requires its executed interactive entry provenance.");
             }
         }
-        byte? lastResult = saved.Scene.NativeBattleCompletions.LastOrDefault(completion => !completion.Suppressed && completion.ReturnFrame is not null)?.Result;
+        NativeBattleCompletion? lastScripted = saved.Scene.NativeBattleCompletions.LastOrDefault(completion => !completion.Suppressed && completion.ReturnFrame is not null);
+        byte? lastResult = lastScripted?.Result;
+        if (saved.Scene.NativeRandomFieldBattle is { Result: not null } randomResult)
+        {
+            if (lastScripted is null)
+            {
+                lastResult = randomResult.Result;
+            }
+            else if (randomResult.BattleClockCallsAtEntry is long randomEntry && lastScripted.BattleClockCallsAtEntry is long scriptedEntry)
+            {
+                if (randomEntry == scriptedEntry)
+                {
+                    throw new InvalidDataException("Completed random and scripted battles cannot share one executed entry clock.");
+                }
+                lastResult = randomEntry > scriptedEntry ? randomResult.Result : lastScripted.Result;
+            }
+            else
+            {
+                throw new NotSupportedException("Mixed random/scripted result history requires explicit actual battle-entry clock provenance.");
+            }
+        }
         if (saved.Scene.NativeBattleResult != lastResult)
         {
             throw new InvalidDataException("Saved BATTLERESULT byte lacks its completed reached native battle request.");

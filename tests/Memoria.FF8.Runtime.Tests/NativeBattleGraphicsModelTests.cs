@@ -5,6 +5,8 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleGraphicsModelTests
 {
+    private static NativeBattleGraphicsRemoval AdvanceRemoval(NativeBattleGraphicsModel model, bool frozen, bool soundBusy, byte camera) => NativeBattleGraphicsModels.AdvanceRemoval(model, frozen, soundBusy, camera, new(0x00464B6E, 0x32808080, 1f / 4096, 4503601774854144d) { LinearFadeSourceB8BA94 = 0x00808080 });
+
     [Theory]
     [InlineData(false, 8)]
     [InlineData(true, 3)]
@@ -46,20 +48,20 @@ public sealed class NativeBattleGraphicsModelTests
     {
         NativeGlobalRandomState random = new(0);
         NativeBattleGraphicsModel model = NativeBattleGraphicsModels.StartService(NativeBattleGraphicsModels.CompleteLoad(new(3, 0), 77, 0, ref random), 5);
-        NativeBattleGraphicsRemoval first = NativeBattleGraphicsModels.AdvanceRemoval(model, false, true, 1);
+        NativeBattleGraphicsRemoval first = AdvanceRemoval(model, false, true, 1);
         Assert.True(first.ReleaseParticipant);
         Assert.Equal((byte)2, first.Model.Phase6);
         model = first.Model;
         for (int callback = 0; callback < 13; callback++)
         {
-            NativeBattleGraphicsRemoval step = NativeBattleGraphicsModels.AdvanceRemoval(model, false, true, 1);
+            NativeBattleGraphicsRemoval step = AdvanceRemoval(model, false, true, 1);
             Assert.False(step.ReleaseParticipant);
             model = step.Model;
         }
         Assert.Equal((byte)15, model.Phase6);
-        model = NativeBattleGraphicsModels.AdvanceRemoval(model, false, true, 1).Model;
+        model = AdvanceRemoval(model, false, true, 1).Model;
         Assert.Equal((byte)0, model.Phase6);
-        Assert.True(NativeBattleGraphicsModels.AdvanceRemoval(model, false, true, 1).ReleaseParticipant);
+        Assert.True(AdvanceRemoval(model, false, true, 1).ReleaseParticipant);
     }
 
     [Theory]
@@ -69,25 +71,25 @@ public sealed class NativeBattleGraphicsModelTests
     {
         NativeGlobalRandomState random = new(0);
         NativeBattleGraphicsModel model = NativeBattleGraphicsModels.StartRemoval(NativeBattleGraphicsModels.CompleteLoad(new(3, 0), 77, 0, ref random), kind);
-        NativeBattleGraphicsModel paused = NativeBattleGraphicsModels.AdvanceRemoval(model, true, false, 0).Model;
+        NativeBattleGraphicsModel paused = AdvanceRemoval(model, true, false, 0).Model;
         Assert.Equal((byte)0, paused.Phase6);
         for (int callback = 0; callback < 15; callback++)
         {
-            NativeBattleGraphicsRemoval step = NativeBattleGraphicsModels.AdvanceRemoval(model, false, false, 0);
+            NativeBattleGraphicsRemoval step = AdvanceRemoval(model, false, false, 0);
             Assert.False(step.ReleaseParticipant);
             model = step.Model;
         }
         Assert.Equal(kind, model.Kind5);
         Assert.Equal((byte)15, model.Phase6);
-        model = NativeBattleGraphicsModels.AdvanceRemoval(model, false, false, 0).Model;
+        model = AdvanceRemoval(model, false, false, 0).Model;
         Assert.Equal((byte)5, model.Kind5);
-        NativeBattleGraphicsRemoval release = NativeBattleGraphicsModels.AdvanceRemoval(model, false, true, 1);
+        NativeBattleGraphicsRemoval release = AdvanceRemoval(model, false, true, 1);
         Assert.True(release.ReleaseParticipant);
         Assert.NotEqual((ushort)0, release.Model.Flags0);
-        NativeBattleGraphicsRemoval pending = NativeBattleGraphicsModels.AdvanceRemoval(release.Model, false, true, 0);
+        NativeBattleGraphicsRemoval pending = AdvanceRemoval(release.Model, false, true, 0);
         Assert.False(pending.ReleaseParticipant);
         Assert.Equal((byte)5, pending.Model.Kind5);
-        NativeBattleGraphicsRemoval complete = NativeBattleGraphicsModels.AdvanceRemoval(pending.Model, false, false, 0);
+        NativeBattleGraphicsRemoval complete = AdvanceRemoval(pending.Model, false, false, 0);
         Assert.False(complete.ReleaseParticipant);
         Assert.Equal((ushort)0, complete.Model.Flags0);
         Assert.Equal((byte)0, complete.Model.Kind5);

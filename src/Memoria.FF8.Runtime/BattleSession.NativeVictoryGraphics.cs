@@ -43,12 +43,8 @@ public sealed partial class BattleSession
             {
                 continue;
             }
-            if (model.HasLinkedModelRing140 == true)
-            {
-                throw new NotSupportedException("Native509CD0 requires its actual linked model ring traversal.");
-            }
-            model = SetNativeGraphicsFlags(model, status & 0x400, graphics);
-            graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
+            graphics = ApplyNativeGraphicsStatus509CD0(graphics, index, status & 0x400);
+            model = graphics.Models[index];
             ImmutableArray<NativeBattleVictoryModelSection> mappings = definition.NativeGraphics!.Rules.VictoryModelSections ?? throw new NotSupportedException("Native503040 requires its six original B8B7E0 model/section pairs.");
             NativeBattleVictoryModelSection? selected = mappings.FirstOrDefault(candidate => candidate.Model == model.ModelId4);
             if (selected is null)

@@ -18,6 +18,14 @@ public sealed partial class BattleSession
         nativeUiForceGaugeAdvance = forceGauge;
         try
         {
+            if (Outcome == BattleOutcome.Active && NativeHostCallbacks is long callbacks)
+            {
+                NativeHostCallbacks = checked(callbacks + 1);
+                if (NativeExamTimer is { } timer)
+                {
+                    NativeExamTimer = timer.AdvanceCallbacks(NativeTimerCallbackKind.Battle, 1);
+                }
+            }
             if (NativeGraphics.UiServices is { } initial)
             {
                 bool requestPause = NativeGraphics.EntryReady && (initial.Flags942 & 2) != 0;
@@ -33,7 +41,7 @@ public sealed partial class BattleSession
                 {
                     ready.UnionWith(DispatchFrame(advanceGraphics: false));
                 }
-                if (Outcome == BattleOutcome.Victory && DebugOutcome is null && NativeGraphics.NativeOutcome?.FadeDurationB0C == 0)
+                if ((Outcome is BattleOutcome.Victory or BattleOutcome.Defeat) && DebugOutcome is null && NativeGraphics.NativeOutcome?.FadeDurationB0C == 0)
                 {
                     return ready;
                 }
@@ -73,7 +81,7 @@ public sealed partial class BattleSession
         {
             return;
         }
-        (NativeBattleUiCommands commands, uint readyMask, bool selectMenu) = services.Commands.Dispatch(services.ReadyMask, mask => services = services.SetFlags(0, mask));
+        (NativeBattleUiCommands commands, uint readyMask, bool selectMenu) = services.Commands.Dispatch(services.ReadyMask, mask => services = services.SetFlags(0, mask), command => services = services.ApplyWindowCommand4AD400(command));
         if (selectMenu)
         {
             //4BB840 resets the command widget;4ADDB0's mismatched-owner path calls4A7160(0).
@@ -83,10 +91,19 @@ public sealed partial class BattleSession
         NativeGraphics = NativeGraphics with { UiServices = services };
         if ((services.Flags942 & 0x40) != 0)
         {
+            NativeBattleUiWindows windows = services.Windows ?? throw new NotSupportedException("Native UI callbacks require their retained physical window bank; migrate the named snapshot explicitly.");
+            services = services with { Windows = windows.AdvanceVitals4B0450().CommitDraw4B9DB0(services.Frame33 == true, services.Flags942) };
+            NativeGraphics = NativeGraphics with { UiServices = services };
             AdvanceNativeTriggerWidget();
             AdvanceNativeGuardianBoost();
         }
         AdvanceNativeUiAtbService();
+        services = NativeGraphics.UiServices!;
+        if ((services.Flags942 & 8) != 0)
+        {
+            services = services with { Commands = services.Commands.Enqueue(0, 80) };
+            NativeGraphics = NativeGraphics with { UiServices = services.SetFlags(0, 8) };
+        }
     }
 
     private void RemoveNativeUiReady(BattleCombatant actor)

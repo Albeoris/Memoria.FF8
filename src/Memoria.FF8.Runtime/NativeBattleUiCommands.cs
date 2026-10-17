@@ -18,9 +18,9 @@ public sealed record NativeBattleUiCommands([property: JsonRequired] ImmutableAr
 
     public NativeBattleUiCommands Enqueue(byte actor, ushort command)
     {
-        if (actor >= 3 || command is not (0x11 or 0x12 or 0x41))
+        if (actor >= 3 || command is not (0x11 or 0x12 or 0x40 or 0x41 or 0x50))
         {
-            throw new InvalidDataException("Native UI ready commands require a player physical slot and command17/18/65.");
+            throw new InvalidDataException("Native UI commands require a player physical slot and command17/18/64/65/80.");
         }
         (ImmutableArray<NativeBattleDescriptorPacket> packets, ImmutableArray<NativeBattleDescriptorNode> nodes, int? root, int slot) = NativeBattlePacketQueues.Allocate(Packets, Nodes, Root, 0x1D75258, 0x80);
         byte[] bytes = packets[slot].Bytes.ToArray();
@@ -30,7 +30,7 @@ public sealed record NativeBattleUiCommands([property: JsonRequired] ImmutableAr
         return this with { Packets = packets.SetItem(slot, new(bytes.ToImmutableArray()) { UnknownByteMask = 0xF00 }), Nodes = nodes, Root = root };
     }
 
-    public (NativeBattleUiCommands Commands, uint ReadyMask, bool SelectMenu) Dispatch(uint readyMask, Action<ushort>? clearUiFlags = null)
+    public (NativeBattleUiCommands Commands, uint ReadyMask, bool SelectMenu) Dispatch(uint readyMask, Action<ushort>? clearUiFlags = null, Action<ushort>? windowCommand = null)
     {
         NativeBattleUiCommands state = this;
         bool selectMenu = false;
@@ -104,6 +104,10 @@ public sealed record NativeBattleUiCommands([property: JsonRequired] ImmutableAr
                     selectMenu = true;
                 }
             }
+            else if (packet.Command is 0x40 or 0x50)
+            {
+                (windowCommand ?? throw new NotSupportedException("Native UI64/80 requires its physical window bank owner."))(packet.Command);
+            }
             else if (packet.Command == 0x41)
             {
                 (clearUiFlags ?? throw new NotSupportedException("Native UI65 requires its original UI WORD942 owner."))(0x40);
@@ -127,7 +131,7 @@ public sealed record NativeBattleUiCommands([property: JsonRequired] ImmutableAr
         HashSet<int> packets = [];
         foreach (int slot in Queue)
         {
-            if (!packets.Add(slot) || Packets[slot].UnknownByteMask != 0xF00 || Packets[slot].PriorityState != 0x80 || Packets[slot].Bytes[0] >= 3 || Packets[slot].Command is not (0x11 or 0x12 or 0x41))
+            if (!packets.Add(slot) || Packets[slot].UnknownByteMask != 0xF00 || Packets[slot].PriorityState != 0x80 || Packets[slot].Bytes[0] >= 3 || Packets[slot].Command is not (0x11 or 0x12 or 0x40 or 0x41 or 0x50))
             {
                 throw new InvalidDataException("Native UI command queue contains a duplicate, free or invalid ready packet.");
             }

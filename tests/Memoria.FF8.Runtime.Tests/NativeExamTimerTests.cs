@@ -6,19 +6,45 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeExamTimerTests
 {
     [Fact]
+    public void NativeUiWritersPreserveCountdownCorrelationsAndUnknownBlinkStopsOnlyTheVisualConsumer()
+    {
+        NativeExamTimerState timer = NativeExamTimerState.FromReachedSet(600) with { Alternatives = [new(0, 0, 599), new(131071, 131071, 600)] };
+        timer = timer.SetDisplayIntensity4A6CB0(4096).SetDisplayEnabled4A6CC0(true);
+        Assert.Null(timer.SaveGlobalMask4);
+        Assert.Null(timer.Event182Mask4);
+        Assert.Equal((byte)128, timer.ReadDisplayColor4A6EB0());
+        Assert.All(timer.Alternatives, item => Assert.Equal(unchecked((byte)item.Remaining), item.DisplayBlink!.CachedRemaining817));
+        timer = timer.AdvanceCallbacks(NativeTimerCallbackKind.Menu, 1).AdvanceDisplay4A6D00();
+        Assert.Equal(2, timer.Alternatives.Length);
+        Assert.Equal(new ulong[] { 1, 2 }, timer.Alternatives.Select(item => item.DisplayBlink!.PhaseMask0To63).Order());
+        timer = JsonSerializer.Deserialize<NativeExamTimerState>(JsonSerializer.Serialize(timer))!;
+        timer.Validate();
+        NativeExamTimerState unknown = NativeExamTimerState.FromReachedSet(10).AdvanceDisplay4A6D00();
+        Assert.Equal(ulong.MaxValue, Assert.Single(unknown.Alternatives).DisplayBlink!.PhaseMask0To63);
+        Assert.Throws<NotSupportedException>(() => unknown.ReadDisplayColon4A6EB0());
+        for (int callback = 0; callback < 30; callback++)
+        {
+            unknown = unknown.AdvanceDisplay4A6D00();
+        }
+        Assert.False(unknown.ReadDisplayColon4A6EB0());
+        Assert.Equal(0, unknown.ClockCalls);
+        Assert.Equal(10, unknown.RequireRemaining());
+    }
+
+    [Fact]
     public void ExplicitColdProcessTracksPreSetCallbacksAndWarmNewGamePreservesItsClockAndUi()
     {
         GameSession session = GameSession.CreateColdProcess();
-        Assert.Equal(new NativeTimerAlternative(0, 0, 0), Assert.Single(session.ExamTimer!.Alternatives));
+        Assert.Equal(new NativeTimerAlternative(0, 0, 0) { DisplayBlink = new(1, false, 0) }, Assert.Single(session.ExamTimer!.Alternatives));
         session.StartNewGame();
         NativeExamTimerState running = session.ExamTimer!.AdvanceCallbacks(NativeTimerCallbackKind.NormalField, 100).AdvanceCallbacks(NativeTimerCallbackKind.World, 3).AdvanceCallbacks(NativeTimerCallbackKind.MovieField, 2);
         Assert.False(running.TimerMemoryActivated);
         uint phase = unchecked(214u * 2191);
-        Assert.Equal(new NativeTimerAlternative(phase, phase, 0), Assert.Single(running.Alternatives));
+        Assert.Equal(new NativeTimerAlternative(phase, phase, 0) { DisplayBlink = new(1, false, 0) }, Assert.Single(running.Alternatives));
         NativeExamTimerState set = running.SetRemaining(60).Display(250, 10);
-        Assert.Equal(new NativeTimerAlternative(phase, phase, 60), Assert.Single(set.Alternatives));
+        Assert.Equal(new NativeTimerAlternative(phase, phase, 60) { DisplayBlink = new(1, false, 60) }, Assert.Single(set.Alternatives));
         NativeExamTimerState ticked = set.AdvanceCallbacks(NativeTimerCallbackKind.Menu, 1);
-        Assert.Equal(new NativeTimerAlternative(unchecked(phase + 2191) & 0xFFFF, unchecked(phase + 2191) & 0xFFFF, 59), Assert.Single(ticked.Alternatives));
+        Assert.Equal(new NativeTimerAlternative(unchecked(phase + 2191) & 0xFFFF, unchecked(phase + 2191) & 0xFFFF, 59) { DisplayBlink = new(1, false, 60) }, Assert.Single(ticked.Alternatives));
         session.SetExamTimer(ticked);
         session.StartNewGame();
         Assert.Equal(ticked.ClockCalls, session.ExamTimer!.ClockCalls);
@@ -53,7 +79,7 @@ public sealed class NativeExamTimerTests
         initial.Validate();
         Assert.Equal(new NativeTimerAlternative(0, uint.MaxValue, 600), Assert.Single(initial.Alternatives));
         NativeExamTimerState displayed = initial.Display(250, 10);
-        Assert.Equal(initial.Alternatives, displayed.Alternatives);
+        Assert.Equal(initial.Alternatives.Select(item => (item.FirstPhase, item.LastPhase, item.Remaining)), displayed.Alternatives.Select(item => (item.FirstPhase, item.LastPhase, item.Remaining)));
         Assert.Equal((ushort)250, displayed.DisplayX);
         Assert.Equal((byte)10, displayed.DisplayY);
         Assert.True(displayed.SaveGlobalMask4);

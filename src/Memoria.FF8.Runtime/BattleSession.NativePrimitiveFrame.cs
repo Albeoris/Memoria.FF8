@@ -120,6 +120,7 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState FinishNativePrimitiveFrame500900(NativeBattleGraphicsState graphics)
     {
+        AdvanceNativeTimerDisplay4A9160(graphics);
         if (definition.NativeGraphics?.PrimitiveTables is not { } tables)
         {
             return graphics;

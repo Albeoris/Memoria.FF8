@@ -4,7 +4,12 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeFieldRetainedActor(int ObjectId, int ModelId, int FirstScript, int LastScript);
-public sealed record NativeFieldRetainedPresentation(int ObjectId, byte Animation, ushort? Frame, bool AutoAnimation, byte BaseAnimation, bool Visible, byte RendererMode, short RootTranslationZ, byte Red, byte Green, byte Blue, bool AdditionalControlDisabled, bool PrimitiveTransparency, uint EyeMode);
+public sealed record NativeFieldRetainedPresentation(int ObjectId, byte Animation, ushort? Frame, bool AutoAnimation, byte BaseAnimation, bool Visible, byte RendererMode, short RootTranslationZ, byte Red, byte Green, byte Blue, bool AdditionalControlDisabled, bool PrimitiveTransparency, uint EyeMode)
+{
+    public byte? EyeBlinkParameter611 { get; init; }
+}
+
+public sealed record NativeBattleFieldResourceReloadResult(NativeBattleRetainedMemory Memory, NativeCrtRandomState? CrtRandomBefore, NativeCrtRandomState? CrtRandomAfter);
 public sealed record NativeFieldRegisteredTexture(byte Mode, short X, short Y, short WidthWords, short Height, short PaletteX, short PaletteY, ushort TexturePage, ushort Clut);
 public sealed record NativeFieldRegisteredResource(int ModelId, int Index, uint Address, uint GeometryAddress, uint AnimationAddress, byte Scale, string SourceHash, int SourceOffset, ImmutableArray<NativeFieldRegisteredTexture> Textures);
 public sealed record NativeFieldRegisteredInstance(int ObjectId, int ModelId, uint Address, ushort? EmptyTerminal);
@@ -100,6 +105,7 @@ public static partial class NativeFieldRegistrationMachine
         }
         NativeBattleFileStaging staging = retained.FileStaging ?? NativeBattleFileStaging.Unknown();
         NativeFieldRegistrationMemory memory = new(staging, FieldArena, 0x1DCD6E4);
+        memory.ObserveCpuBanks(retained.ModelCpuResources);
         Context context = new(memory, retained.EffectMemory ?? throw new NotSupportedException("Native kind3 requires the retained shared VRAM and texture process."));
         memory.Fill(CacheRows, 0xC00, 0);
         memory.Fill(ResourcePointers, 0x100, 0);
@@ -266,7 +272,7 @@ public static partial class NativeFieldRegistrationMachine
             throw new NotSupportedException("Native field constructed resources overlap their relocated original input slab.");
         }
         NativeFieldRegistrationState state = new(1, source.FieldId, source.ProgramHash, source.One.Sha256, preModel, relocated, sourceLength, cursor, resources.ToImmutableArray(), instances.ToImmutableArray());
-        NativeBattleRetainedMemory result = retained with { FileStaging = memory.Finish(), EffectMemory = context.Effects };
+        NativeBattleRetainedMemory result = retained with { FileStaging = memory.Finish(), EffectMemory = context.Effects, ModelCpuResources = memory.ReconcileCpuBanks(retained.ModelCpuResources) };
         state.Validate(result);
         return new(state, result, context.Uploads.ToImmutableArray());
     }

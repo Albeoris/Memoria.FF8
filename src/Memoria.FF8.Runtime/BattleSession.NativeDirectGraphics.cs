@@ -22,7 +22,7 @@ public sealed partial class BattleSession
             NativeBattleOriginalEffectState current = graphics.OriginalEffect!;
             uint? descriptor = current.ReturnedDescriptor;
             graphics = graphics with { OriginalEffect = current with { Parameters = current.Parameters! with { Parameter80 = memory.Parameter80, Parameter82 = memory.Parameter82 } } };
-            graphics = InvokeNativeOriginalEffect(graphics);
+            graphics = InvokeNativeOriginalEffect(graphics, assignReturnedTask: false);
             graphics = graphics with { OriginalEffect = graphics.OriginalEffect! with { ReturnedDescriptor = descriptor } };
             return (graphics with { Flags = graphics.Flags | 0x10 }, 1, false);
         }

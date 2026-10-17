@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeFieldRegistrationMachine
 {
-    public static NativeBattleRetainedMemory RestoreRetainedPresentation(NativeFieldRegistrationState state, NativeBattleRetainedMemory retained, IReadOnlyList<NativeFieldRetainedPresentation> actors)
+    public static NativeBattleFieldResourceReloadResult RestoreRetainedPresentation(NativeFieldRegistrationState state, NativeBattleRetainedMemory retained, IReadOnlyList<NativeFieldRetainedPresentation> actors, NativeCrtRandomState? crtRandom = null)
     {
         if (!state.Instances.Select(instance => instance.ObjectId).SequenceEqual(actors.Select(actor => actor.ObjectId)))
         {
@@ -10,6 +10,7 @@ public static partial class NativeFieldRegistrationMachine
         }
         NativeFieldRegistrationMemory memory = new(retained.FileStaging ?? throw new InvalidDataException("Native field registration lost its shared memory."), FieldArena, 0x1DCD6E4);
         Context context = new(memory, retained.EffectMemory ?? throw new InvalidDataException("Native field registration lost its shared VRAM."));
+        NativeCrtRandomState? random = crtRandom;
         for (int index = 0; index < actors.Count; index++)
         {
             NativeFieldRetainedPresentation actor = actors[index];
@@ -34,7 +35,7 @@ public static partial class NativeFieldRegistrationMachine
             }
             if (instance.ModelId >= 0 && actor.EyeMode != 0)
             {
-                RestoreEyes(context, address, actor.EyeMode);
+                RestoreEyes(context, address, actor.EyeMode, actor.EyeBlinkParameter611, ref random);
             }
             memory.Write8(address + 96, actor.Visible ? (byte)0 : (byte)1);
             memory.Write16(address + 98, unchecked((ushort)actor.RootTranslationZ));
@@ -80,7 +81,7 @@ public static partial class NativeFieldRegistrationMachine
                 memory.Write32(0x1DC6010, uint.MaxValue);
             }
         }
-        return retained with { FileStaging = memory.Finish(), EffectMemory = context.Effects };
+        return new(retained with { FileStaging = memory.Finish(), EffectMemory = context.Effects, ModelCpuResources = memory.ReconcileCpuBanks(retained.ModelCpuResources) }, crtRandom, random);
     }
 
     private static void SelectAnimation532890(NativeFieldRegistrationMemory memory, uint instance, byte animation)
@@ -104,7 +105,7 @@ public static partial class NativeFieldRegistrationMachine
         memory.Write16(instance + 124, ushort.MaxValue);
     }
 
-    private static void RestoreEyes(Context context, uint instance, uint mode)
+    private static void RestoreEyes(Context context, uint instance, uint mode, byte? blinkParameter, ref NativeCrtRandomState? random)
     {
         NativeFieldRegistrationMemory memory = context.Memory;
         uint resource = memory.Read32(instance);
@@ -112,11 +113,33 @@ public static partial class NativeFieldRegistrationMachine
         {
             return;
         }
+        uint eyes = memory.Read32(resource + 20);
+        if (mode == 0x80000)
+        {
+            if (memory.ReadSigned16(eyes + 10) < 0)
+            {
+                memory.Copy(eyes + 10, instance + 102, 1);
+                memory.Copy(eyes + 10, instance + 116, 1);
+            }
+            else
+            {
+                byte parameter = blinkParameter ?? throw new NotSupportedException("Native retained blink requires its actual actor BYTE611.");
+                NativeCrtRandomState current = random ?? throw new NotSupportedException("Native retained blink requires the current55CBD2 CRT random owner.");
+                memory.Write16(eyes + 10, parameter);
+                current = current.Draw(out ushort first);
+                current = current.Draw(out ushort second);
+                random = current;
+                memory.Write8(instance + 102, (byte)(first % 8 + 1));
+                memory.Write8(instance + 116, (byte)(second % 8 + 1));
+            }
+            memory.Write8(instance + 114, (byte)(memory.Read8(instance + 114) & 15 | 0x10));
+            memory.Copy(eyes + 5, instance + 103, 1);
+            return;
+        }
         if (mode is not (0x100000 or 0x200000))
         {
-            throw new NotSupportedException("Native retained blink mode requires its actual RNG and physical eye timer owners.");
+            throw new InvalidDataException("Native retained eye mode is outside its implemented physical mask.");
         }
-        uint eyes = memory.Read32(resource + 20);
         uint source = mode == 0x200000 ? eyes + 12 : checked(eyes + 8 + 4u * memory.Read8(eyes + 5));
         short sourceX = unchecked((short)memory.Read16(source));
         short sourceY = unchecked((short)memory.Read16(source + 2));

@@ -2,7 +2,14 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private bool HasPendingNativeVictory => DebugOutcome is null && NativeGraphics is { NativeOutcome.ResultByte6E7: 4 };
+    private bool HasPendingNativeOutcome => DebugOutcome is null && NativeGraphics is { NativeOutcome.ResultByte6E7: 1 or 4 };
+
+    private BattleOutcome PendingNativeOutcome => NativeGraphics?.NativeOutcome?.ResultByte6E7 switch
+    {
+        1 => BattleOutcome.Defeat,
+        4 => BattleOutcome.Victory,
+        _ => throw new InvalidOperationException("Native outcome completion requires its admitted result BYTE1 or4.")
+    };
 
     private void BeginNativeVictory486500()
     {

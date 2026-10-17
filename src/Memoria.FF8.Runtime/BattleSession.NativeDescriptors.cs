@@ -62,6 +62,15 @@ public sealed partial class BattleSession
             NativeBattleDescriptorTaskKind kind;
             switch (packet.Command)
             {
+                case 2:
+                    PublishNativeGraphics500590();
+                    return new(graphics.Descriptors, 15);
+                case 3:
+                    graphics = graphics with { Auxiliary = graphics.Auxiliary.AppendOpeningFade501CE0(15) };
+                    return new(graphics.Descriptors, 15);
+                case 14:
+                    kind = NativeBattleDescriptorTaskKind.DeferredCompletion500BC0;
+                    break;
                 case 4:
                     graphics = BeginNativeOutcomeFade501E10(graphics);
                     return new(graphics.Descriptors, 15);
@@ -101,8 +110,8 @@ public sealed partial class BattleSession
                     break;
                 case 106:
                     int index = RequireDescriptorModel(packet.Index);
-                    NativeBattleGraphicsModel model = SetNativeGraphicsFlags(graphics.Models[index], 0, graphics);
-                    graphics = graphics with { Models = graphics.Models.SetItem(index, NativeBattleGraphicsModels.SelectSequence(model, 3)) };
+                    graphics = ApplyNativeGraphicsStatus509CD0(graphics, index, 0);
+                    graphics = SelectNativeHeaderSequence(graphics, checked((byte)index), 3);
                     return new(graphics.Descriptors, 15);
                 case 112:
                     kind = NativeBattleDescriptorTaskKind.Barrier5085F0;
@@ -110,18 +119,19 @@ public sealed partial class BattleSession
                 case 113:
                     kind = NativeBattleDescriptorTaskKind.Callback502F30;
                     break;
+                case 108:
+                case 109:
+                case 110:
+                case 111:
                 case 114:
-                    //502380 ->503190(index,23,0) ->509CD0 then509C80.
-                    int cancelledIndex = RequireDescriptorModel(packet.Index);
-                    NativeBattleGraphicsModel cancelled = SetNativeGraphicsFlags(graphics.Models[cancelledIndex], graphics.Models[cancelledIndex].Flags8!.Value & ~0x800000u, graphics);
-                    if (cancelled.ModelId4 < 16)
-                    {
-                        NativeBattleSequenceState cancelledState = cancelled.SequenceState ?? throw new InvalidDataException("Native114 requires its loaded player's sequence owner.");
-                        byte standing = NativeStandingSequence(cancelled.Flags8!.Value);
-                        cancelled = cancelledState.Pending3 != 0 ? cancelled with { SequenceState = cancelledState with { Pending3 = standing != cancelled.Sequence ? standing : (byte)0 } } : standing != cancelled.Sequence ? QueueNativeModelSequence(cancelled, standing) : cancelled;
-                    }
-                    graphics = graphics with { Models = graphics.Models.SetItem(cancelledIndex, cancelled) };
+                case 117:
+                case 118:
+                case 119:
+                    graphics = ApplyNativeDescriptorStatus502380(graphics, packet);
                     return new(graphics.Descriptors, 15);
+                case 116:
+                    kind = NativeBattleDescriptorTaskKind.AfterBattle502F90;
+                    break;
                 case 115:
                     kind = NativeBattleDescriptorTaskKind.Victory503040;
                     break;
@@ -263,6 +273,22 @@ public sealed partial class BattleSession
                 case NativeBattleDescriptorTaskKind.Action104:
                     (graphics, phase, completed) = PollNativeActionGraphics(graphics, phase);
                     break;
+                case NativeBattleDescriptorTaskKind.DeferredCompletion500BC0:
+                    if (phase == 0)
+                    {
+                        uint completionAddress = NativeBattleDescriptorState.CompletionAddress503040(taskSlot);
+                        NativeBattleAuxiliaryState auxiliary = graphics.Auxiliary.AppendDeferredCompletion5086C0(completionAddress, (address, value) => graphics = graphics with { Descriptors = graphics.Descriptors.WriteCompletion501A70(address, value) });
+                        graphics = graphics with { Auxiliary = auxiliary };
+                        phase = 1;
+                    }
+                    else if (phase == 1 && task.Payload[2] != 0)
+                    {
+                        completed = true;
+                    }
+                    break;
+                case NativeBattleDescriptorTaskKind.AfterBattle502F90:
+                    (graphics, phase, completed) = PollNativeAfterBattle502F90(graphics, phase);
+                    break;
                 case NativeBattleDescriptorTaskKind.Victory503040:
                     (graphics, phase, completed) = PollNativeVictory503040(graphics, taskSlot, phase);
                     break;
@@ -320,7 +346,7 @@ public sealed partial class BattleSession
             {
                 NativeEffectMemory = memory with { Textures = NativeBattleModelTextures.Enqueue507400(textures, upload) };
             }
-            NativeModelTextureCache = textureLoad.Cache;
+            NativeModelTextureCache = RegisterNativeEnemyTextureMotion(textureLoad, binding.Resource.TextureAnimations);
             model = model with { TextureAllocationMask = textureLoad.Cache.Rows[textureLoad.ResourceIndex].TextureMask, TextureResourceIndex = textureLoad.ResourceIndex, BodyTextureSlots = textureLoad.Binding };
         }
         else

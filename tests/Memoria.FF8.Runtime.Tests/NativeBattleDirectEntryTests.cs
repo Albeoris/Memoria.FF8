@@ -7,6 +7,25 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleDirectEntryTests
 {
     [Fact]
+    public void Read40RetainsTheActualReturnedTaskAcrossModuleSelectionAndIgnoredDirectCalls()
+    {
+        NativeBattleEffectBinding first = new(3, 0x700C10, 0);
+        NativeBattleOriginalEffectState task = NativeBattleEffect3.InitializePools(new(3, 2, first, new(0, 0, 0, 0, 0, 0), null));
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().AssignReturnedTask(task);
+        Assert.Equal(1, memory.ReadReturnedTask5044B0());
+        memory = memory.RetainReturnedTaskOnModuleLoad(task).PublishEntry50AF20(new(2, 0x6298A0, 0x629880), false).SetDirectParameters(0x50BEE0, 0xED, 0, 0);
+        Assert.Equal(task.ReturnedDescriptor, memory.ReturnedTaskPointer1D96AAC);
+        Assert.Same(task, memory.DetachedReturnedTask);
+        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        restored.Validate();
+        Assert.Equal(1, restored.ReadReturnedTask5044B0());
+        Assert.Equal(task.ReturnedDescriptor, restored.DetachedReturnedTask!.ReturnedDescriptor);
+        Assert.Equal(0, restored.AssignReturnedTask(task with { ReturnedDescriptor = 0 }).ReadReturnedTask5044B0());
+        Assert.Equal(0, restored.InitializeReturnedTask500870().ReadReturnedTask5044B0());
+        Assert.Throws<NotSupportedException>(() => (memory with { ReturnedTaskPointer1D96AAC = null, DetachedReturnedTask = null }).ReadReturnedTask5044B0());
+    }
+
+    [Fact]
     public void CallbackDestinationsRemainIndependentAcrossLoadsAndJson()
     {
         NativeBattleEffectBinding first = new(1, 0x8D6A00, 0);

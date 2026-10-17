@@ -100,7 +100,8 @@ internal sealed partial class GameWorld
                 {
                     throw new InvalidOperationException("A random battle is already active.");
                 }
-                battle = StartNativeBattleSession(request.Formation, 0, input.NativeSeed!.Value, input.Mode);
+                ushort flags = request.Scene == SceneKind.Field ? Events.BeginNativeRandomFieldBattle(request) : (ushort)0;
+                battle = StartNativeBattleSession(request.Formation, flags, input.NativeSeed!.Value, input.Mode);
             }
             else
             {
@@ -120,20 +121,9 @@ internal sealed partial class GameWorld
                     ExecuteBattleCommand(active, input);
                 }
                 advanced = checked((int)(active.Frame - previous));
-                if (advanced > 0)
-                {
-                    if (request.Scene == SceneKind.Field)
-                    {
-                        Events.AdvanceRandomBattleCallbacks(advanced);
-                    }
-                    else
-                    {
-                        session.SetExamTimer(session.ExamTimer!.AdvanceCallbacks(NativeTimerCallbackKind.Battle, advanced));
-                        session.SetWorldProcess(session.State.WorldProcess!.AdvanceMainLoopCallbacks(advanced));
-                    }
-                }
             }
             PublishBattleSnapshot(battle);
+            CompleteNativeDefeatIfReady();
         }
         if (request.Scene == SceneKind.WorldMap && Field is not null)
         {
@@ -150,7 +140,17 @@ internal sealed partial class GameWorld
         {
             throw new InvalidDataException("Saved random combat has lost its exploration scene owner.");
         }
-        BattleDefinition current = BindBattleEntryClock(CreateEncounterBattle(request.Formation, battle.Capture().Definition.NativeSeed, 0), battle.Capture(), session.ExamTimer);
+        ushort flags = 0;
+        if (request.Scene == SceneKind.Field)
+        {
+            NativeRandomFieldBattleOwner owner = Events.Scene.NativeRandomFieldBattle ?? throw new InvalidDataException("Saved random field combat has no executed native entry owner.");
+            if (owner.Request != request || owner.Result is not null)
+            {
+                throw new InvalidDataException("Saved random field combat disagrees with its actual suspended encounter.");
+            }
+            flags = owner.Flags;
+        }
+        BattleDefinition current = BindBattleEntryClock(CreateEncounterBattle(request.Formation, battle.Capture().Definition.NativeSeed, flags), battle.Capture(), session.ExamTimer);
         if (!JsonElement.DeepEquals(JsonSerializer.SerializeToElement(current), JsonSerializer.SerializeToElement(battle.Capture().Definition)))
         {
             throw new InvalidDataException("Saved random combat differs from its current installed formation and party.");

@@ -5,6 +5,48 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleDescriptorPoolTests
 {
     [Fact]
+    public void Cancellation107RemovesOnlyUnstartedCommonPacketsAtOrBelowTheOriginalRawPriority()
+    {
+        NativeBattleDescriptorState state = NativeBattleDescriptorState.Clear();
+        state = state.Enqueue(100, 128, 0).State;
+        (state, int removed) = state.Enqueue(104, 128, 0x1234);
+        state = state.Enqueue(118, 64, 0).State;
+        state = state.Enqueue(101, 240, 0).State;
+        (state, int busy) = state.Enqueue(112, 128, 0);
+        state = state.SetPacketState(busy, 0x81);
+        state = state.Enqueue(120, 64, 0).State;
+        byte serial = state.Serial;
+        (state, int result) = state.Enqueue(107, 128, uint.MaxValue);
+        Assert.Equal(-1, result);
+        Assert.Equal(serial, state.Serial);
+        Assert.Equal(new ushort[] { 100, 101, 112, 120 }, state.Queue.Select(slot => state.Packets[slot].Command));
+        Assert.Equal((byte)0, state.Packets[removed].PriorityState);
+        Assert.Equal(0x1234u, state.Packets[removed].Argument);
+        state.Validate();
+    }
+
+    [Fact]
+    public void UnloadedStatusMaskPreservesUnknownDwordBitsAndTheLaterLoaderEstablishesTheWholeDword()
+    {
+        NativeBattleGraphicsModel model = new(2, 0);
+        model = model.WriteRetainedStatusMask(0x1000000, 0x1000000);
+        Assert.Null(model.Flags8);
+        Assert.Equal(0x1000000u, model.Flags8KnownMask);
+        Assert.Equal(0x1000000u, model.Flags8KnownBits);
+        model = JsonSerializer.Deserialize<NativeBattleGraphicsModel>(JsonSerializer.Serialize(model.WriteRetainedStatusMask(0x1000000, 0)))!;
+        model.ValidatePartialStatus();
+        Assert.Null(model.Flags8);
+        Assert.Equal(0x1000000u, model.Flags8KnownMask);
+        Assert.Equal(0u, model.Flags8KnownBits);
+        NativeGlobalRandomState random = new(0);
+        model = NativeBattleGraphicsModels.CompleteLoad(model, 0, 0x400, ref random);
+        Assert.Equal((uint?)0x400, model.Flags8);
+        Assert.Equal(0u, model.Flags8KnownMask);
+        Assert.Equal(0u, model.Flags8KnownBits);
+        model.ValidatePartialStatus();
+    }
+
+    [Fact]
     public void ReusingAPhysicalPacketRetainsTheUnwrittenPayloadWord()
     {
         NativeBattleDescriptorState state = NativeBattleDescriptorState.Clear();

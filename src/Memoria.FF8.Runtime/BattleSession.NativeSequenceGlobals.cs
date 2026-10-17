@@ -4,6 +4,10 @@ public sealed partial class BattleSession
 {
     private int ReadNativeGraphicsSequenceVariable(NativeBattleGraphicsState graphics, int modelIndex, byte variable)
     {
+        if (variable == 40)
+        {
+            return (NativeEffectMemory ?? throw new NotSupportedException("Native read40 requires its process task pointer owner.")).ReadReturnedTask5044B0();
+        }
         if (variable == 41)
         {
             return NativeBattleActionGraphics.ReadFirstHeaderTargetCount5044B0(graphics.ActionGraphics);

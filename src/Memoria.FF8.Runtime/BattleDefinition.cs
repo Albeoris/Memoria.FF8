@@ -294,6 +294,9 @@ public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, 
 
 public sealed record BattleSnapshot
 {
+    public NativeExamTimerState? NativeExamTimer { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public long? NativeHostCallbacks { get; init; }
     public NativeGlobalSoundProcess? NativeGlobalSoundProcess { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleMusicProcessState? NativeMusicProcess { get; init; }

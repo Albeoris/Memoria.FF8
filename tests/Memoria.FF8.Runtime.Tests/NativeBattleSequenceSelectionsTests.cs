@@ -20,7 +20,7 @@ public sealed class NativeBattleSequenceSelectionsTests
     }
 
     [Fact]
-    public void Full_integer_directory_predicate_completes_missing_high_selector_and_rejects_unowned_sequence0_execution()
+    public void Full_integer_directory_predicate_and_byte_header_store_keep_sequence0_directory_ownership()
     {
         NativeBattleGraphicsResource resource = new(ImmutableArray.Create<byte>(1, 0, 4, 0, 0xA1));
         NativeBattleGraphicsModel model = new(0, 3) { ModelId4 = 0, Flags8 = 0, ResourceFlags44 = 0xAB01, Sequence = 1, SequenceState = new() };
@@ -29,7 +29,13 @@ public sealed class NativeBattleSequenceSelectionsTests
         Assert.Equal((ushort)0xAB41, completed.ResourceFlags44);
         Assert.Equal(model.Sequence, completed.Sequence);
         Assert.True(resource.ContainsNativeIndex505850(0));
-        Assert.Throws<NotSupportedException>(() => NativeBattleSequenceSelections.SelectResource505BC0(model, resource, 0));
+        NativeBattleGraphicsModel selectedZero = NativeBattleSequenceSelections.SelectResource505BC0(model, resource, 0);
+        Assert.Equal((byte)0, selectedZero.Sequence);
+        Assert.Equal(1, resource.SequenceStart(0));
+        Assert.Equal((ushort)1, selectedZero.ResourceFlags44);
+        NativeBattleSequenceStep zeroStep = NativeBattleSequenceMachine.Advance(selectedZero, resource with { AnimationFrames = [1] }, new(null, null));
+        Assert.Equal((byte)0, zeroStep.Model.SequenceState!.Pose);
+        Assert.Equal((ushort)1, zeroStep.Model.SequenceState.Offset46);
         Assert.Throws<NotSupportedException>(() => resource.ContainsNativeIndex505850(-1));
         byte[] wide = new byte[1029];
         BinaryPrimitives.WriteInt16LittleEndian(wide, 513);
@@ -37,6 +43,10 @@ public sealed class NativeBattleSequenceSelectionsTests
         NativeBattleGraphicsResource wideResource = new(wide.ToImmutableArray());
         Assert.True(wideResource.ContainsNativeIndex505850(513));
         Assert.Equal((byte)1, NativeBattleSequenceSelections.SelectResource505BC0(model, wideResource, 513).Sequence);
+        BinaryPrimitives.WriteUInt16LittleEndian(wide.AsSpan(512), 1028);
+        wideResource = new(wide.ToImmutableArray());
+        Assert.Equal((byte)0, NativeBattleSequenceSelections.SelectResource505BC0(model, wideResource, 256).Sequence);
+        Assert.Equal(513, wideResource.SequenceStart(0));
     }
 
     [Fact]

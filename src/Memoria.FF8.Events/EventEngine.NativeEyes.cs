@@ -58,7 +58,7 @@ public sealed partial class EventEngine
             {
                 continue;
             }
-            if (eyes.Version != 1 || eyes.Mode is not (0 or 0x100000 or 0x200000) || eyes.Mode == 0 && (eyes.BoundModelId is not null || eyes.BackendHighNibble114 is not null || eyes.Patch is not null))
+            if (eyes.Version != 1 || eyes.Mode is not (0 or 0x80000 or 0x100000 or 0x200000) || eyes.Mode == 0 && (eyes.BoundModelId is not null || eyes.BackendHighNibble114 is not null || eyes.Patch is not null))
             {
                 throw new InvalidDataException("Saved native eye mode is invalid.");
             }
@@ -70,8 +70,9 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved native eye copy lost its original registered resource.");
             }
-            NativeEyeCopy? expected = definition.Copy(eyes.Mode == 0x200000);
-            if (eyes.BackendHighNibble114 != (expected is null ? (byte?)null : eyes.Mode == 0x200000 ? (byte)0x20 : (byte)0x40) || JsonSerializer.Serialize(expected) != JsonSerializer.Serialize(eyes.Patch))
+            NativeEyeCopy? expected = eyes.Mode == 0x80000 ? null : definition.Copy(eyes.Mode == 0x200000);
+            byte? backend = definition.Bank.Length == 0 ? null : eyes.Mode == 0x80000 ? (byte)0x10 : eyes.Mode == 0x200000 ? (byte)0x20 : (byte)0x40;
+            if (eyes.Mode == 0x80000 && actor.NativeEyeBlinkParameter611 is null || eyes.BackendHighNibble114 != backend || JsonSerializer.Serialize(expected) != JsonSerializer.Serialize(eyes.Patch))
             {
                 throw new InvalidDataException("Saved native eye copy disagrees with the authenticated resource rectangle.");
             }

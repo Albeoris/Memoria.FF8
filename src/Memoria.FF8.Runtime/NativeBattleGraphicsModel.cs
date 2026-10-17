@@ -69,7 +69,7 @@ public static class NativeBattleGraphicsModels
             }
         }
         //5027D0 copies resourceDWORD100 to originalDWORD104, ending any temporary magic-resource override.
-        return model with { Flags0 = 3, Flags2 = 4, ModelId4 = modelId, Kind5 = 0, Phase6 = null, Alpha7 = null, MinimumY146 = 0, CameraSequence130 = (byte)(frame % 6), CameraAccumulator131 = (byte)appearance, HasLinkedModelRing140 = false, BlinkCountdown144 = (byte)(blink % 45 + 15), Flags8 = projectedStatusFlags, StatusTimers = timers, Rotation12 = 0, Rotation14 = model.Index >= 3 ? (short)2048 : (short)0, Rotation16 = 0, ResourceFlags44 = 1, ResourceMagicId = null, Sequence = 8, SequenceFrame = 0 };
+        return model with { Flags0 = 3, Flags2 = 4, ModelId4 = modelId, Kind5 = 0, Phase6 = null, Alpha7 = null, MinimumY146 = 0, CameraSequence130 = (byte)(frame % 6), CameraAccumulator131 = (byte)appearance, HasLinkedModelRing140 = false, LinkedModelIndex140 = null, BlinkCountdown144 = (byte)(blink % 45 + 15), Flags8 = projectedStatusFlags, Flags8KnownMask = 0, Flags8KnownBits = 0, StatusTimers = timers, Rotation12 = 0, Rotation14 = model.Index >= 3 ? (short)2048 : (short)0, Rotation16 = 0, ResourceFlags44 = 1, ResourceMagicId = null, Sequence = 8, SequenceFrame = 0 };
     }
 
     public static NativeBattleGraphicsModel SelectSequence(NativeBattleGraphicsModel model, byte sequence, bool overrideStatus = false)
@@ -100,19 +100,15 @@ public static class NativeBattleGraphicsModels
         //50C090's kind6 is redirected to13 when Flags2&10; that different service has its own effect producer.
         if (kind == 6 && (flags2 & 0x10) != 0)
         {
-            throw new NotSupportedException("Native kind13 removal requires the50C4D0 effect owner.");
+            kind = 13;
         }
-        if (kind == 1 && (model.Flags8 & 0x100000) != 0)
+        if (kind == 1 && ((model.Flags8 ?? throw new NotSupportedException("Native50C090 kind1 requires its model status DWORD8.")) & 0x100000) != 0)
         {
-            throw new NotSupportedException("Native kind10 appearance requires the50C330 effect owner.");
+            kind = 10;
         }
         if (kind == 3 && ((model.Flags8 ?? throw new NotSupportedException("Native50C090 kind3 requires its actual model status DWORD8.")) & 0x100000) != 0)
         {
             kind = 11;
-        }
-        if (kind is not (1 or 2 or 3 or 5 or 6 or 7 or 9 or 11 or 12))
-        {
-            throw new NotSupportedException($"Native graphics removal kind{kind} requires its own original service.");
         }
         return model with { Kind5 = kind, Phase6 = 0, Flags0 = kind is 2 or 12 ? (ushort)(model.Flags0 & ~4) : model.Flags0, Flags2 = kind is 2 or 12 ? (ushort)(flags2 & ~0x80) : flags2 };
     }
@@ -151,7 +147,7 @@ public static class NativeBattleGraphicsModels
         return model with { Kind5 = kind, Phase6 = unchecked((byte)(phase + 1)), Transform = transform with { Position28 = position } };
     }
 
-    public static NativeBattleGraphicsModel AdvanceAppearance(NativeBattleGraphicsModel model, bool graphicsFrozen)
+    public static NativeBattleGraphicsModel AdvanceAppearance(NativeBattleGraphicsModel model, bool graphicsFrozen, NativeBattleSummonColors colors)
     {
         if (model.Kind5 is not (1 or 2))
         {
@@ -160,10 +156,20 @@ public static class NativeBattleGraphicsModels
         byte phase = unchecked((byte)((model.Phase6 ?? throw new InvalidDataException("Native appearance lacks phaseBYTE6.")) + 1));
         bool complete = phase >= 15;
         byte alpha = complete ? (byte)0 : (byte)(255 * ((phase << 12) / 15) >> 12);
+        if (complete)
+        {
+            model = model with { Color44 = (colors.Normal & 0xFFFFFFu) | 0x32000000u };
+        }
+        else
+        {
+            int progress = (phase << 12) / 15;
+            uint current = model.Color40 ?? throw new NotSupportedException("Native50C230 requires its retained model color DWORD40.");
+            model = model with { Color40 = (colors.Interpolate(0, NativeBattleCameraMath.Sine(progress / 4), current) & 0xFFFFFFu) | 0x02000000u, Color44 = (colors.Interpolate(0, progress, colors.Normal) & 0xFFFFFFu) | 0x32000000u };
+        }
         return model with { Kind5 = complete ? (byte)0 : model.Kind5, Alpha7 = alpha, Phase6 = graphicsFrozen ? phase : unchecked((byte)(phase + 1)) };
     }
 
-    public static NativeBattleGraphicsRemoval AdvanceRemoval(NativeBattleGraphicsModel model, bool graphicsFrozen, bool soundBusy, byte cameraTaskMask)
+    public static NativeBattleGraphicsRemoval AdvanceRemoval(NativeBattleGraphicsModel model, bool graphicsFrozen, bool soundBusy, byte cameraTaskMask, NativeBattleSummonColors? colors = null)
     {
         if (model.Kind5 is not (5 or 6 or 7))
         {
@@ -191,19 +197,12 @@ public static class NativeBattleGraphicsModels
             }
             //50C110 case5 deliberately falls through50C410 while cleanup remains blocked.
         }
-        if (phase >= 15)
+        NativeBattleSummonColors fadeColors = colors ?? throw new NotSupportedException("Native removal fade requires its authenticated current color producers.");
+        model = model.Kind5 == 7 ? NativeBattleModelFade.Advance50C560(model, graphicsFrozen, fadeColors) : NativeBattleModelFade.Advance50C410(model, graphicsFrozen, fadeColors);
+        if (model.Kind5 == 0)
         {
-            ushort flags2 = model.Flags2 ?? throw new InvalidDataException("Native removal service lacks its model Flags2.");
-            //50C410/50C560 completion clears Kind5, then50C110 selects kind5 and resets phase6.
-            return new(model with { Flags0 = (ushort)(model.Flags0 | 4), Flags2 = (ushort)(flags2 | 0x80), Kind5 = 5, Phase6 = 0 }, release);
+            model = StartService(model, 5);
         }
-        byte? alpha = model.Alpha7;
-        if (model.Kind5 is 5 or 6)
-        {
-            int progress = (phase << 12) / 15;
-            //50C410 writes unsignedBYTE7 after its signedDWORD shift; scale/color services do not change this lifetime.
-            alpha = unchecked((byte)((-255 * progress >> 12) - 1));
-        }
-        return new(model with { Alpha7 = alpha, Phase6 = graphicsFrozen ? phase : (byte)(phase + 1) }, release);
+        return new(model, release);
     }
 }

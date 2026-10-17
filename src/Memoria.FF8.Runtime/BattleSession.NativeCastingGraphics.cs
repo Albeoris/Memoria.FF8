@@ -142,9 +142,10 @@ public sealed partial class BattleSession
     private static NativeBattleGraphicsState SetNativeCastingResourceFlags(NativeBattleGraphicsState graphics, byte index, ushort flags)
     {
         NativeBattleGraphicsModel model = graphics.Models[index];
-        if (model.HasLinkedModelRing140 ?? throw new NotSupportedException("Native50A9A0 requires its model DWORD140 linked-ring owner."))
+        if (model.ReadLinkedModelIndex140() is not null)
         {
-            throw new NotSupportedException("Native50A9A0 linked casting requires the original50B080 auxiliary ring callback.");
+            (NativeBattleAuxiliaryState auxiliary, bool allocated) = graphics.Auxiliary.AppendModelRing(NativeBattleAuxiliaryKind.ModelResourceFlags50B080, index, flags);
+            return allocated ? graphics with { Auxiliary = auxiliary } : throw new InvalidOperationException("Native50A9A0 cannot write its50B080 payload after auxiliary allocation fails.");
         }
         return graphics with { Models = graphics.Models.SetItem(index, model with { ResourceFlags44 = (ushort)(NativeCastingResourceFlags(graphics, index) | flags) }) };
     }

@@ -18,10 +18,17 @@ public sealed record NativeBattleAuxiliaryProgram([property: JsonRequired] Immut
 public sealed record NativeBattleAuxiliaryEmission(int Model, byte Bone, byte Size, bool Particle, ushort? Sound, NativeBattleVector? SoundAnchor, byte? Pan);
 public sealed record NativeBattleAuxiliaryInputs
 {
+    public Action<NativeBattleAuxiliaryKind, int, uint>? ApplyModelRing { get; init; }
+    public Action? InitializeTimerDisplay47D910 { get; init; }
     public Action<byte, bool>? ApplyScreenFade501D10 { get; init; }
     public Func<int, byte, short, NativeBattleVector>? ReadBone { get; init; }
     public Func<NativeBattleVector, byte>? ReadPan { get; init; }
     public Func<int, NativeBattleGraphicsModel>? ReadModel { get; init; }
+    public Action<int, NativeBattleGraphicsModel>? WriteModel { get; init; }
+    public Action<short>? WriteCameraTranslationY { get; init; }
+    public Action<short>? WriteStageColorDepth { get; init; }
+    public Action<int, byte, byte, uint>? DrawModelGroup50F190 { get; init; }
+    public Func<NativeBattleAuxiliaryTask, NativeBattleAuxiliaryTask>? AdvanceModelDeformation50F2E0 { get; init; }
     public Action<int, byte, byte>? ApplyTexture { get; init; }
     public Action<int>? RestoreTextureBlink { get; init; }
     public Func<byte, uint, (byte Phase, bool Completed)>? AdvanceMusicLoad501A70 { get; init; }

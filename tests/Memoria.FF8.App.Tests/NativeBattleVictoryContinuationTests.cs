@@ -9,7 +9,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleVictoryContinuationTests
 {
     [Fact]
-    public void Named_standalone_migrates_only_original_victory_resources_and_reaches_victory_through_ordinary_attacks()
+    public void Named_standalone_migrates_proved_ordinary_attack_owners_and_reaches_victory_through_ordinary_attacks()
     {
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_CAVERN_ATTACK_SNAPSHOT");
         Assert.SkipUnless(source is not null && File.Exists(source), "A named active standalone battle component is required.");
@@ -23,25 +23,46 @@ public sealed class NativeBattleVictoryContinuationTests
         JsonNode rules = definition["NativeGraphics"]!["Rules"]!;
         Assert.Null(definition["NativeVictoryFile"]);
         Assert.Null(rules["VictoryModelSections"]);
+        // The declared ordinary-Attack component completed500870 and never loaded/invoked an original effect module.
+        Assert.Equal(4, migrated["Battle"]!["NativeGraphics"]!["EntryLifecycle"]!.GetValue<int>());
+        Assert.Null(migrated["Battle"]!["NativeGraphics"]!["OriginalEffect"]);
+        foreach (JsonNode memory in new[] { migrated["Battle"]!["NativeEffectMemory"]!, migrated["NativeBattleMemory"]!["EffectMemory"]! })
+        {
+            Assert.Equal(0, memory["Active"]!.GetValue<int>());
+            Assert.False(memory.AsObject().ContainsKey("ReturnedTaskPointer1D96AAC"));
+            Assert.Null(memory["Entry21DFEC0"]);
+            Assert.Null(memory["Entry21DFEC4"]);
+            Assert.Null(memory["Entry21DFEC8"]);
+            memory["ReturnedTaskPointer1D96AAC"] = 0;
+        }
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         NativeBattleArchiveFile file = assets.ReadNativeBattleFile(766);
         NativeBattleGraphicsRules authenticated = game.ReadNativeBattleGraphicsRules();
         definition["NativeVictoryFile"] = JsonSerializer.SerializeToNode(file);
         rules["VictoryModelSections"] = JsonSerializer.SerializeToNode(authenticated.VictoryModelSections);
+        JsonNode ui = migrated["Battle"]!["NativeGraphics"]!["UiServices"]!;
+        Assert.Null(ui["Windows"]);
+        // Explicitly execute the missing4A94D0 window reset; this is a declared migration, not reconstruction of prior callbacks.
+        ui["Windows"] = JsonSerializer.SerializeToNode(NativeBattleUiWindows.Initialize4A94D0());
         JsonNode stripped = migrated.DeepClone();
         stripped["Battle"]!["Definition"]!.AsObject().Remove("NativeVictoryFile");
         stripped["Battle"]!["Definition"]!["NativeGraphics"]!["Rules"]!.AsObject().Remove("VictoryModelSections");
+        stripped["Battle"]!["NativeEffectMemory"]!.AsObject().Remove("ReturnedTaskPointer1D96AAC");
+        stripped["NativeBattleMemory"]!["EffectMemory"]!.AsObject().Remove("ReturnedTaskPointer1D96AAC");
+        stripped["Battle"]!["NativeGraphics"]!["UiServices"]!.AsObject().Remove("Windows");
         Assert.True(JsonNode.DeepEquals(original, stripped));
         string migratedPath = Path.Combine(evidence, prefix + "-resources-migrated.json");
-        File.WriteAllText(migratedPath, migrated.ToJsonString(new() { WriteIndented = true }));
+        File.WriteAllText(migratedPath, migrated.ToJsonString());
         NativeBattleProductionEffectAdmissionTests.Publish(evidence, prefix + "-migration", new
         {
             Source = Path.GetFullPath(source!),
             SourceSha256 = Convert.ToHexString(SHA256.HashData(originalBytes)),
             Migrated = migratedPath,
             MigratedSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(migratedPath))),
-            ChangedPaths = new[] { "Battle.Definition.NativeVictoryFile", "Battle.Definition.NativeGraphics.Rules.VictoryModelSections" },
+            ChangedPaths = new[] { "Battle.Definition.NativeVictoryFile", "Battle.Definition.NativeGraphics.Rules.VictoryModelSections", "Battle.NativeEffectMemory.ReturnedTaskPointer1D96AAC", "NativeBattleMemory.EffectMemory.ReturnedTaskPointer1D96AAC", "Battle.NativeGraphics.UiServices.Windows" },
+            WindowReset = "Explicit4A94D0 reset and registration; all other UI bytes, flags, queue and callback counters retained. Unknown DWORD4/BYTE19 remain unknown.",
+            TaskPointerProof = "Declared ordinary-Attack component: completed500870 clear, inactive effect allocator and no loaded/invoked original module entry; the active and retained physical mirrors therefore both retain NULL.",
             FileId = file.FileId,
             FileSha256 = Convert.ToHexString(SHA256.HashData(file.Bytes.AsSpan())),
             ExecutableSha256 = authenticated.ExecutableSha256
@@ -107,4 +128,3 @@ public sealed class NativeBattleVictoryContinuationTests
         }
     }
 }
-

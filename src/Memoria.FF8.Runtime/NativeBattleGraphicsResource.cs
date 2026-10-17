@@ -43,16 +43,18 @@ public sealed partial record NativeBattleGraphicsResource(ImmutableArray<byte> S
     public bool Contains(byte sequence)
     {
         Validate();
-        return sequence != 0 && sequence <= BinaryPrimitives.ReadUInt16LittleEndian(SequenceSection.AsSpan()) && BinaryPrimitives.ReadUInt16LittleEndian(SequenceSection.AsSpan().Slice(sequence * 2)) != 0;
+        return sequence <= BinaryPrimitives.ReadUInt16LittleEndian(SequenceSection.AsSpan()) && BinaryPrimitives.ReadUInt16LittleEndian(SequenceSection.AsSpan().Slice(sequence * 2)) != 0;
     }
 
     public int SequenceStart(byte sequence)
     {
-        if (!Contains(sequence))
+        Validate();
+        int directoryOffset = sequence * 2;
+        if (directoryOffset + 2 > SequenceSection.Length)
         {
-            throw new InvalidDataException($"Original graphics resource has no sequence{sequence}.");
+            throw new InvalidDataException($"Native sequence{sequence} directory WORD lies outside its original resource.");
         }
-        return BinaryPrimitives.ReadUInt16LittleEndian(SequenceSection.AsSpan().Slice(sequence * 2));
+        return BinaryPrimitives.ReadUInt16LittleEndian(SequenceSection.AsSpan().Slice(directoryOffset));
     }
 
     public int SequenceEnd(byte sequence)

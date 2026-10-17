@@ -115,9 +115,11 @@ internal static partial class BattleResourceReader
             reader.BaseStream.Position = position;
             int groups = Count(reader.ReadUInt16(), 1024, "vertex groups");
             List<BattleVertex> vertices = [];
+            List<short> nativeBoneGroups = [];
             for (int group = 0; group < groups; group++)
             {
                 int bone = reader.ReadUInt16();
+                nativeBoneGroups.Add(unchecked((short)bone));
                 int vertexCount = Count(reader.ReadUInt16(), 8192, "vertices");
                 if (bone >= boneCount)
                 {
@@ -191,7 +193,7 @@ internal static partial class BattleResourceReader
                 }
                 faces.Add(new BattleFace(indices, uv, texture, new Rgba32(128, 128, 128, 255)) { NativeMaterial = new(page, clut, nativeUv), NativePolygon = System.Collections.Immutable.ImmutableArray.CreateRange(nativePolygon) });
             }
-            meshes.Add(new BattleMesh(vertices, faces));
+            meshes.Add(new BattleMesh(vertices, faces) { NativeBoneGroups = System.Collections.Immutable.ImmutableArray.CreateRange(nativeBoneGroups) });
         }
         return meshes;
     }

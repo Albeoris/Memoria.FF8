@@ -14,11 +14,7 @@ public static class NativeBattleSequenceSelections
         {
             return model with { ResourceFlags44 = (ushort)((model.ResourceFlags44 ?? throw new InvalidDataException("Native505BC0 lacks its resource WORD44.")) | 0x40) };
         }
-        if (unchecked((byte)selected) == 0)
-        {
-            throw new NotSupportedException("Native505BC0 selected directory index0 or its BYTE alias; sequence0 program ownership remains unsupported.");
-        }
-        return NativeBattleGraphicsModels.SelectSequence(model, unchecked((byte)selected), overrideStatus: true);
+        return model with { Sequence = unchecked((byte)selected), SequenceFrame = 0, ResourceFlags44 = 1, SequenceState = model.SequenceState is null ? null : model.SequenceState with { Offset46 = 0, Pending3 = 0, Callback42 = 0 } };
     }
 
     public static (byte Actor, ushort TargetMask) GeometryArguments92(int currentIndex, byte selector, NativeBattleActionGeometry? retained)

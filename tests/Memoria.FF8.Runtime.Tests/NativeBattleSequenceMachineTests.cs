@@ -7,6 +7,86 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleSequenceMachineTests
 {
+    [Theory]
+    [InlineData("930001")]
+    [InlineData("AF01")]
+    [InlineData("BF01")]
+    [InlineData("B2")]
+    [InlineData("B7")]
+    [InlineData("AA")]
+    [InlineData("B4FF00")]
+    public void Self_replacement_changes_header_but_retains_physical_PC_across_callbacks(string select)
+    {
+        NativeBattleGraphicsResource resource = Resource((1, "A1"), (2, select + "C02A00E500A1C02B00E501A1"));
+        NativeBattleGraphicsModel Replace(NativeBattleGraphicsModel current) => NativeBattleSequenceSelections.SelectResource505BC0(current, resource, 1);
+        NativeBattleSequenceInputs inputs = new(null, null)
+        {
+            SelectModelSequence = (current, _, _, _) => Replace(current),
+            ApplyNextContact = Replace,
+            ApplyCurrentContact = Replace,
+            ApplyActionContacts = Replace,
+            ScheduleContactEffect = (current, program) => (Replace(current), program.Offset + 2)
+        };
+        NativeBattleSequenceStep first = NativeBattleSequenceMachine.Advance(Model(2), resource, inputs);
+        Assert.Equal((byte)1, first.Model.Sequence);
+        Assert.Equal((short)42, first.Model.SequenceState!.Locals[0]);
+        Assert.Equal((ushort)(1 + select.Length / 2 + 6), first.Model.SequenceState.Offset46);
+        NativeBattleSequenceStep next = NativeBattleSequenceMachine.Advance(first.Model, resource, inputs);
+        Assert.Equal((short)43, next.Model.SequenceState!.Locals[1]);
+        Assert.Equal((byte)1, next.Model.Sequence);
+    }
+
+    [Fact]
+    public void Replaced_header_offset_stores_low_WORD_even_when_old_PC_precedes_new_program()
+    {
+        NativeBattleGraphicsResource resource = Resource((1, "AF02A1A1"), (2, "A1"));
+        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(Model(1), resource, new(null, null)
+        {
+            SelectModelSequence = (current, _, _, selected) => NativeBattleSequenceSelections.SelectResource505BC0(current, resource, selected)
+        });
+        Assert.Equal((byte)2, step.Model.Sequence);
+        Assert.Equal(ushort.MaxValue, step.Model.SequenceState!.Offset46);
+        Assert.Throws<InvalidDataException>(() => NativeBattleSequenceMachine.Advance(step.Model, resource, new(null, null)));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Alternate_pass_restarts_uses_header48_scratch_and_obeys_model_flag8(bool suppressed)
+    {
+        NativeBattleGraphicsResource resource = Resource((1, "C37FE501A1"), (2, "C00100E500C00B00E57FA1"));
+        NativeBattleGraphicsModel model = Model(1);
+        model = model with { Flags2 = suppressed ? (ushort)12 : (ushort)4, SequenceState = model.SequenceState! with { Alternate43 = 2, Scratch = model.SequenceState.Scratch.SetItem(0, 27) } };
+        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(model, resource, new(null, null));
+        Assert.Equal(suppressed ? null : (short?)1, step.Model.SequenceState!.Locals[0]);
+        Assert.Equal((short)27, step.Model.SequenceState.Locals[1]);
+        Assert.Equal(suppressed ? null : (short?)11, step.Model.SequenceState.AlternateScratch48[0]);
+        Assert.Equal((short)27, step.Model.SequenceState.Scratch[0]);
+        Assert.Equal((ushort)5, step.Model.SequenceState.Offset46);
+        Assert.Equal((byte)1, step.Model.SequenceState.Callback42);
+        NativeBattleSequenceStep selected = NativeBattleSequenceMachine.Advance(Model(1), Resource((1, "9A02A1"), (2, "A1")), new(null, null));
+        Assert.Equal((byte)2, selected.Model.SequenceState!.Alternate43);
+        Assert.All(selected.Model.SequenceState.AlternateScratch48, Assert.Null);
+    }
+
+    [Theory]
+    [InlineData(20)]
+    [InlineData(21)]
+    [InlineData(22)]
+    public void Linked_position_selectors_use_signed_words_and_native_null_reads_zero_and_writes_nothing(byte selector)
+    {
+        NativeBattleGraphicsResource resource = Resource((1, $"C0FEFFE5{selector:X2}C3{selector:X2}E500A1"));
+        NativeBattleGraphicsModel model = Model(1) with { LinkedTransform = new(new(4, 5, 6), new(11, 22, 33)) };
+        NativeBattleSequenceStep linked = NativeBattleSequenceMachine.Advance(model, resource, new(null, null));
+        Assert.Equal((short)-2, linked.Model.SequenceState!.Locals[0]);
+        NativeBattleVector expected = selector switch { 20 => new(-2, 22, 33), 21 => new(11, -2, 33), _ => new(11, 22, -2) };
+        Assert.Equal(expected, linked.Model.LinkedTransform!.Position);
+        Assert.Equal(model.LinkedTransform.Rotation, linked.Model.LinkedTransform.Rotation);
+        NativeBattleSequenceStep absent = NativeBattleSequenceMachine.Advance(model with { LinkedTransform = null }, resource, new(null, null));
+        Assert.Null(absent.Model.LinkedTransform);
+        Assert.Equal((short)0, absent.Model.SequenceState!.Locals[0]);
+    }
+
     [Fact]
     public void Opcode92_publishes_current_model_before_rebinding_and_reads_new_external_geometry_inline()
     {
