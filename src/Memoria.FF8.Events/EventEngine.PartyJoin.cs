@@ -562,6 +562,13 @@ public sealed partial class EventEngine
         {
             player.MovementSpeed = (NativePlayerWalking ? 69020 : 203000) * 20 >> 9;
         }
+        if (player.NativeScriptMovement is { } playerMovement)
+        {
+            NativeMotionAuthority? authority = player.NativeMotionAuthority;
+            byte hold = authority?.FacingHold ?? NativeMoveFacingHold(playerMovement);
+            // Ordinary4789A0 placement updates the same physical body retained by a completed MOVE.
+            player.NativeScriptMovement = playerMovement with { FixedX = position.X, FixedY = position.Y, FixedZ = position.Z, Triangle = player.WalkmeshTriangle, Speed = checked((short)player.MovementSpeed), MovementDirection = authority?.MovementDirection ?? playerMovement.MovementDirection, FacingDirection = (byte)player.Direction, FacingHold576 = hold == (playerMovement.HoldsFacing ? 1 : 0) ? null : hold };
+        }
         int playerAnimation = moved ? NativePlayerWalking ? player.WalkAnimationId : player.RunAnimationId : player.BaseAnimationId;
         if (HasNativeEmptyAnimationModel(player))
         {

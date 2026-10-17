@@ -172,6 +172,45 @@ public sealed class AutoPlayDiscoveryTests
     }
 
     [Fact]
+    public void PlayerPlacementUpdatesTheRetainedCompletedNativeMoveBeforeSnapshot()
+    {
+        string directory = TestResources.GameDirectory;
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.AutoPlayDiscoveryTests.10")));
+        using GameWorld world = new(session, directory, validateWorldPresentation: false);
+        world.EnsureField();
+        ActorState player = world.Events.PlayerActor!;
+        NativeScriptMovementState previous = Assert.IsType<NativeScriptMovementState>(player.NativeScriptMovement);
+        Assert.False(previous.Active);
+        Assert.False(previous.Cancelled);
+        Assert.Equal((ushort)2, player.NativeMovementCompletion542);
+        long frame = world.Events.Frame;
+        int direction = ((int)player.Direction + 64) & 255;
+        world.Events.TeleportPlayer(player.X + 1, player.Y + 1, player.Z, player.WalkmeshTriangle, direction);
+        NativeScriptMovementState current = Assert.IsType<NativeScriptMovementState>(player.NativeScriptMovement);
+        Assert.Equal(frame, world.Events.Frame);
+        Assert.Equal(world.Events.Scene.NativePlayerPosition, new FieldFixedPosition(current.FixedX, current.FixedY, current.FixedZ));
+        Assert.Equal(player.WalkmeshTriangle, current.Triangle);
+        Assert.Equal(player.MovementSpeed, current.Speed);
+        Assert.Equal((byte)player.Direction, current.FacingDirection);
+        Assert.Equal(player.NativeMotionAuthority!.MovementDirection, current.MovementDirection);
+        Assert.Equal(previous.TargetX, current.TargetX);
+        Assert.Equal(previous.TargetY, current.TargetY);
+        Assert.Equal(previous.TargetZ, current.TargetZ);
+        Assert.Equal(previous.FiberSequence, current.FiberSequence);
+        Assert.Equal(previous.ScriptId, current.ScriptId);
+        Assert.Equal(previous.Operation, current.Operation);
+        Assert.Equal(previous.Active, current.Active);
+        Assert.Equal(previous.Cancelled, current.Cancelled);
+        Assert.Null(player.MovementTarget);
+        JsonElement saved = world.Events.Capture();
+        using GameWorld restored = new(new GameSession(session.State with { EventState = saved }), directory, validateWorldPresentation: false);
+        restored.EnsureField();
+        Assert.True(JsonElement.DeepEquals(saved, restored.Events.Capture()));
+        Assert.Equal(world.Apply(new PlayerAction(PlayerActionKind.Wait)), restored.Apply(new PlayerAction(PlayerActionKind.Wait)));
+        Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
+    }
+
+    [Fact]
     public void NativeLineReceiptRemainsPendingDuringFreeControlUntilItsSourceScriptReturns()
     {
         string directory = TestResources.GameDirectory;
