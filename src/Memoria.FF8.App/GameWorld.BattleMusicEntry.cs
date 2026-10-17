@@ -22,7 +22,7 @@ internal sealed partial class GameWorld
         {
             //48B7E0 refreshes the active characters and calls495EC0 before publishing the entry banks.
             NativeCharacterVitals vitals = session.State.CharacterVitals!.RebuildParty();
-            session.SetNativePartyMenuOwners(vitals, session.State.Economy!, session.State.ShotAvailability!, session.State.SalaryPresentation!);
+            session.SetCharacterVitals(vitals);
             session.SetBattle(candidate.Capture());
         });
         Events.SynchronizeNativeBattleMusicProcess(candidate.NativeMusicProcess);
