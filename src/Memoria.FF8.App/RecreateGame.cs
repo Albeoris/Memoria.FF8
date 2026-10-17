@@ -210,6 +210,10 @@ internal sealed partial class RecreateGame : Game
             metrics.Update(updateStarted);
             return;
         }
+        if (session.State.Scene == SceneKind.Title)
+        {
+            fieldAudio?.PlayTitleMusic();
+        }
         if (gameMenus?.IsNamePrompt != true && UpdateBattleDebugUi(input))
         {
             movieSkipGesture.Reset();

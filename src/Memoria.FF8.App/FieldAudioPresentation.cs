@@ -236,6 +236,12 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         TryOutput(() => PlayMusic(NativeStartupCredits.MusicId, 0, 127, -1));
     }
 
+    public void PlayTitleMusic()
+    {
+        // The Successor uses the installed game's music catalog and ordinary looping output.
+        TryOutput(() => PlayMusic(96, 0, 127, -1));
+    }
+
     public void PlayBattleImpact(int actorId)
     {
         TryOutput(() =>
