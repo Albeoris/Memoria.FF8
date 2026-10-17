@@ -162,7 +162,7 @@ public sealed class DialogueRichTextTests
         DialoguePage thought = Assert.Single(DialogueTextFormatter.Parse("{Color Red}(Thinking.)").Pages);
         Assert.Null(thought.Speaker);
         Assert.True(thought.Lines[0].IsThought);
-        Assert.All(thought.Lines[0].Runs, run => Assert.Equal(Color.Gray, run.Color));
+        Assert.All(thought.Lines[0].Runs, run => Assert.Equal(new Color(208, 208, 208), run.Color));
     }
 
     [Theory]
@@ -196,8 +196,8 @@ public sealed class DialogueRichTextTests
         Assert.True(document.Pages[0].Lines[0].IsSpeaker);
         Assert.True(document.Pages[0].Lines[1].IsThought);
         Assert.True(document.Pages[0].Lines[2].IsThought);
-        Assert.All(document.Pages[0].Lines.Skip(1).SelectMany(line => line.Runs), run => Assert.Equal(Color.Gray, run.Color));
-        Assert.Equal(new DialogueRun($"last{closing}", Color.Gray, true), document.Pages[1].Lines[0].Runs[0]);
+        Assert.All(document.Pages[0].Lines.Skip(1).SelectMany(line => line.Runs), run => Assert.Equal(new Color(208, 208, 208), run.Color));
+        Assert.Equal(new DialogueRun($"last{closing}", new Color(208, 208, 208), true), document.Pages[1].Lines[0].Runs[0]);
         Assert.Equal(new DialogueRun("Normal", Color.Lime), document.Pages[1].Lines[0].Runs[1]);
     }
 

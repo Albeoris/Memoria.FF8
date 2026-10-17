@@ -7,6 +7,8 @@ namespace Memoria.FF8;
 
 internal static partial class DialogueTextFormatter
 {
+    private static readonly Color GreyTextColor = new(208, 208, 208);
+
     public static string Format(string encoded, IReadOnlyDictionary<int, string>? names = null, NativeMessageVariables? messageVariables = null)
     {
         return Parse(encoded, names, messageVariables).Text;
@@ -180,7 +182,7 @@ internal static partial class DialogueTextFormatter
         return color switch
         {
             TextTagColor.Disabled => (Color.DarkGray, false),
-            TextTagColor.Grey => (Color.Gray, false),
+            TextTagColor.Grey => (GreyTextColor, false),
             TextTagColor.Yellow => (Color.Yellow, false),
             TextTagColor.Red => (Color.Red, false),
             TextTagColor.Green => (Color.Lime, false),
@@ -188,7 +190,7 @@ internal static partial class DialogueTextFormatter
             TextTagColor.Purple => (Color.Violet, false),
             TextTagColor.White => (Color.White, false),
             TextTagColor.DisabledBlink => (Color.DarkGray, true),
-            TextTagColor.GreyBlink => (Color.Gray, true),
+            TextTagColor.GreyBlink => (GreyTextColor, true),
             TextTagColor.YellowBlink => (Color.Yellow, true),
             TextTagColor.RedBlink => (Color.Red, true),
             TextTagColor.GreenBlink => (Color.Lime, true),
@@ -250,7 +252,7 @@ internal static partial class DialogueTextFormatter
                             {
                                 thoughtDepth++;
                             }
-                            AddRun(thoughtRuns, character.ToString(), thoughtDepth > 0 ? Color.Gray : run.Color, run.Blink);
+                            AddRun(thoughtRuns, character.ToString(), thoughtDepth > 0 ? GreyTextColor : run.Color, run.Blink);
                             if (character is ')' or '）' && thoughtDepth > 0)
                             {
                                 thoughtDepth--;
