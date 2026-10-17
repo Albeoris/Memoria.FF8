@@ -128,8 +128,12 @@ public sealed class RemasteredOpeningTests
             Assert.Equal(pixels, restored.Render(TimeSpan.Zero));
             long savedFrame = world.Events.Frame;
             int savedMessage = savedDialogue.MessageId;
-            PlayerAction wait = new(PlayerActionKind.Wait);
-            Assert.Equal(world.Apply(wait), restored.Apply(wait));
+            PlayerAction continuation = new(PlayerActionKind.Confirm);
+            JsonElement beforeContinuation = world.Events.Capture();
+            PlayerActionResult continued = world.Apply(continuation);
+            Assert.True(continued.Accepted);
+            Assert.Equal(continued, restored.Apply(continuation));
+            Assert.False(JsonElement.DeepEquals(beforeContinuation, world.Events.Capture()), "The continuation must advance the ordinary dialogue state.");
             Assert.Null(restored.Events.LastFault);
             Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
             Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));
@@ -145,7 +149,8 @@ public sealed class RemasteredOpeningTests
                 Saved = new { Field = 232, Frame = savedFrame, Camera = 1, Message = savedMessage, NamePrompt = false },
                 Continuation = new { Field = restored.Events.FieldId, restored.Events.Frame, Camera = restored.Events.Scene.CameraIndex, Message = restored.Events.CurrentDialogue?.MessageId },
                 SnapshotRoundTrip = true,
-                NextWaitStateEqual = true,
+                NextInput = continuation.Kind.ToString(),
+                NextInputStateEqual = true,
                 PixelsEqual = true,
                 Limitation = "Engine opening-route and snapshot acceptance; original runtime parity and host audio playback are not established."
             }, new JsonSerializerOptions { WriteIndented = true }));

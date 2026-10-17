@@ -1,3 +1,5 @@
+using System.Buffers.Binary;
+using System.Reflection.PortableExecutable;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Resources;
 using Memoria.FF8.Runtime;
@@ -9,6 +11,7 @@ public sealed partial class RemasteredGameDataSource
     private sealed record ImageBinding(string Path, bool EyeVariants);
     private readonly Dictionary<TextureKey, ImageBinding> imageBindings = [];
     private string[]? fieldNames;
+    private Dictionary<uint, double>? modelVertexDivisors;
 
     private bool UsesAlphaObject(ResourceKey owner)
     {
@@ -30,7 +33,7 @@ public sealed partial class RemasteredGameDataSource
     public IReadOnlyList<FieldModel> ReadModels(ResourceKey owner, byte[] one, Func<string, byte[]> mainCharacter, Action<NativeFieldOneModelEntry>? retainEntry = null)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        IReadOnlyList<FieldModel> models = FieldModelReader.Read(one, mainCharacter, retainEntry);
+        IReadOnlyList<FieldModel> models = FieldModelReader.Read(one, mainCharacter, retainEntry).Select(NormalizeModelVertices).ToArray();
         for (int index = 0; index < models.Count; index++)
         {
             FieldModel model = models[index];
@@ -67,6 +70,52 @@ public sealed partial class RemasteredGameDataSource
             }
         }
         return models;
+    }
+
+    private FieldModel NormalizeModelVertices(FieldModel model)
+    {
+        if (model.Name.Length < 4 || model.Name.Skip(1).Take(3).Any(character => character is < '0' or > '9'))
+        {
+            throw new InvalidDataException("A field model has no native four-character identity.");
+        }
+        uint identity = checked((uint)(model.Name[0] * 1000 + (model.Name[1] - '0') * 100 + (model.Name[2] - '0') * 10 + model.Name[3] - '0'));
+        modelVertexDivisors ??= ReadModelVertexDivisors();
+        double divisor = modelVertexDivisors.GetValueOrDefault(identity, 1d);
+        if (divisor == 1d)
+        {
+            return model;
+        }
+        // Native precision correction divides local coordinates before bone rotation and translation.
+        return model with { Vertices = model.Vertices.Select(vertex => vertex with { Position = new((float)(vertex.Position.X / divisor), (float)(vertex.Position.Y / divisor), (float)(vertex.Position.Z / divisor)) }).ToArray() };
+    }
+
+    private Dictionary<uint, double> ReadModelVertexDivisors()
+    {
+        using FileStream file = OpenAuthenticatedRuntimeCode();
+        using PEReader image = new(file);
+        const uint address = 0x11771CE8;
+        const int recordCount = 142;
+        byte[] records = image.GetSectionData(checked((int)(address - image.PEHeaders.PEHeader!.ImageBase))).GetContent(0, recordCount * 16).ToArray();
+        Dictionary<uint, double> result = [];
+        for (int index = 0; index < recordCount; index++)
+        {
+            ReadOnlySpan<byte> record = records.AsSpan(index * 16, 16);
+            uint identity = BinaryPrimitives.ReadUInt32LittleEndian(record);
+            double divisor = BitConverter.ToDouble(record[8..]);
+            if (identity == uint.MaxValue)
+            {
+                if (index != recordCount - 1 || divisor != 1d)
+                {
+                    throw new InvalidDataException("Native field model precision table has an invalid terminating default.");
+                }
+                return result;
+            }
+            if (!double.IsFinite(divisor) || divisor <= 0 || !result.TryAdd(identity, divisor))
+            {
+                throw new InvalidDataException("Native field model precision table has an invalid identity or divisor.");
+            }
+        }
+        throw new InvalidDataException("Native field model precision table has no terminating default.");
     }
 
     public BattleModel ReadModel(ResourceKey owner, byte[] content)

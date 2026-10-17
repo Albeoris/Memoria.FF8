@@ -44,6 +44,33 @@ public sealed class InstalledRemasteredTests
         Assert.Equal(model.Vertices.Count, model.Pose(0, 0).Length);
     }
 
+    [Theory]
+    [InlineData("d000", 104d)]
+    [InlineData("d002", 75d)]
+    public void FieldModelCoordinatesUseTheirNativePrecisionWithoutScalingTheSkeleton(string name, double divisor)
+    {
+        using RemasteredGameDataSource source = new(InstalledDirectory());
+        ResourceService resources = new(source);
+        string map = FieldName(resources, 179);
+        ResourceKey owner = new($"field/{map}/chara.one");
+        IReadOnlyList<FieldModel> models = source.ReadModels(owner, resources.Read(owner), model => resources.Read(new ResourceKey($"field/main_chr/{model}.mch")));
+        FieldModel model = Assert.Single(models, model => model.Name.StartsWith(name, StringComparison.OrdinalIgnoreCase));
+        byte[] original = resources.Read(new ResourceKey($"field/main_chr/{name}.mch"));
+        int pointer = 0;
+        while (BinaryPrimitives.ReadUInt32LittleEndian(original.AsSpan(pointer)) != uint.MaxValue)
+        {
+            pointer += 4;
+        }
+        int header = BinaryPrimitives.ReadInt32LittleEndian(original.AsSpan(pointer + 4));
+        int vertices = header + BinaryPrimitives.ReadInt32LittleEndian(original.AsSpan(header + 36));
+        int bones = header + BinaryPrimitives.ReadInt32LittleEndian(original.AsSpan(header + 32));
+        Assert.Equal((float)(BinaryPrimitives.ReadInt16LittleEndian(original.AsSpan(vertices)) / divisor), model.Vertices[0].Position.X);
+        Assert.Equal((float)(BinaryPrimitives.ReadInt16LittleEndian(original.AsSpan(vertices + 2)) / divisor), model.Vertices[0].Position.Y);
+        Assert.Equal((float)(BinaryPrimitives.ReadInt16LittleEndian(original.AsSpan(vertices + 4)) / divisor), model.Vertices[0].Position.Z);
+        Assert.Equal(BinaryPrimitives.ReadInt16LittleEndian(original.AsSpan(bones + 64 + 8)), model.Bones[1].Length);
+        Assert.Equal(-58, model.Bones[1].Length);
+    }
+
     [Fact]
     public void FieldLoadKeepsTextureOwnerEncodedBytesAvailableThroughTheService()
     {

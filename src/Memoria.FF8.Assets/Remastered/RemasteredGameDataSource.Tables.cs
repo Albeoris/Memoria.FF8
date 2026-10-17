@@ -27,16 +27,38 @@ public sealed partial class RemasteredGameDataSource : IGameRuntimeSource, IGame
             {
                 return null;
             }
-            if (!runtimeCodeVerified)
-            {
-                using FileStream file = File.OpenRead(Path.Combine(gameDirectory, "FFVIII_EFIGS.dll"));
-                if (Convert.ToHexString(SHA256.HashData(file)) != "B0097E4EDD96FA2C32745B04328939EB8D182C2E89121D51405BC486B13F9108")
-                {
-                    throw new NotImplementedException("Remastered runtime contracts require authenticated translated English code.");
-                }
-                runtimeCodeVerified = true;
-            }
+            RequireRuntimeCode();
             return Memoria.FF8.Runtime.NativeFieldRuntimeProfile.RemasteredEn;
+        }
+    }
+
+    private void RequireRuntimeCode()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (!runtimeCodeVerified)
+        {
+            using FileStream file = OpenAuthenticatedRuntimeCode();
+            runtimeCodeVerified = true;
+        }
+    }
+
+    private FileStream OpenAuthenticatedRuntimeCode()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        FileStream file = File.OpenRead(Path.Combine(gameDirectory, "FFVIII_EFIGS.dll"));
+        try
+        {
+            if (Convert.ToHexString(SHA256.HashData(file)) != "B0097E4EDD96FA2C32745B04328939EB8D182C2E89121D51405BC486B13F9108")
+            {
+                throw new NotImplementedException("Remastered runtime contracts require authenticated translated English code.");
+            }
+            file.Position = 0;
+            return file;
+        }
+        catch
+        {
+            file.Dispose();
+            throw;
         }
     }
 
