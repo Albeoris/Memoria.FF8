@@ -778,6 +778,11 @@ internal sealed class AutoPlayController
 
     private void HandleDialogue(DialogueState dialogue)
     {
+        if (session.State.Scene == SceneKind.WorldMap && dialogue.CanConfirm && dialogue.FirstChoice is null && !dialogue.IsNamePrompt && NeedsWorldConfirmRelease(session.State.WorldProcess?.InputHistory))
+        {
+            Apply(new(PlayerActionKind.Wait));
+            return;
+        }
         if (dialogue.IsNamePrompt)
         {
             Apply(new(PlayerActionKind.EnterName));
@@ -814,6 +819,11 @@ internal sealed class AutoPlayController
         run.SceneChoices.Add(key);
         run.DialogueSelections[key] = selection;
         ApplyDialogueSelection(selection);
+    }
+
+    internal static bool NeedsWorldConfirmRelease(NativeWorldInputHistory? history)
+    {
+        return history is null || (history.CurrentButtons & 0x40) != 0;
     }
 
     private void ApplyDialogueSelection(int selection)
