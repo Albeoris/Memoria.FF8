@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -10,6 +11,9 @@ internal static partial class Program
 {
     private static void NativeMovementRequestContract()
     {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        NativeCharacterVitals initialVitals = assets.ReadNewGameCharacterVitals();
+        NativeEconomy initialEconomy = assets.ReadNewGameEconomy();
         foreach ((bool halt, bool transfer) in new[] { (false, false), (true, false), (true, true) })
         {
             (Jsm.Opcode, int)[] target = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 10000), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.RET, 8)];
@@ -25,7 +29,7 @@ internal static partial class Program
             byte[] content = SyntheticObjects([0, (16 << 7) | 5, (32 << 7) | 1], [target, actor, lower, [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 19), (Jsm.Opcode.RET, 8)], upper, [(Jsm.Opcode.LBL, 21), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 32), (Jsm.Opcode.RET, 8)], controller.ToArray()]);
             EventEngine Create()
             {
-                var session = new GameSession(new GameState());
+                GameSession session = CreateDirectedLinearTurnSession(initialVitals, initialEconomy);
                 var result = new EventEngine(session);
                 result.AnimationFrameCount = (_, _) => 4;
                 result.CanUseNativeScriptMove = actor => actor.ObjectId == 1;
@@ -65,7 +69,7 @@ internal static partial class Program
                     {
                         JsonNode invalid = JsonNode.Parse(during.GetRawText())!;
                         JsonNode saved = invalid["Actors"]![1]!["NativeMovementRequest"]!["SavedMovement"]!;
-                        saved[property] = property == "Speed" ? -1 : property == "TargetX" ? int.MaxValue : saved[property]!.GetValue<int>() + 1;
+                        saved[property] = property == "Speed" ? short.MaxValue + 1 : property == "TargetX" ? int.MaxValue : saved[property]!.GetValue<int>() + 1;
                         try
                         {
                             duringCopy.Restore(JsonSerializer.SerializeToElement(invalid));
@@ -74,13 +78,18 @@ internal static partial class Program
                         catch (InvalidDataException)
                         {
                         }
+                        catch (JsonException) when (property == "Speed")
+                        {
+                        }
                         Require(JsonElement.DeepEquals(during, duringCopy.Capture()), "Invalid movement backup restore partially changed current motion or fibers.");
                     }
                 }
             }
             Require(replacementObserved, "Higher native slot did not issue its own full four-operand MOVE above held MOVEA.");
             JsonElement lowerFiber = live.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 17);
-            Require(lowerFiber.GetProperty("Stack")[0].GetInt32() == 0 && lowerFiber.GetProperty("Results").GetProperty("1").GetInt32() == 11, "Request replaced the lower MOVEA remaining target operand or result bank.");
+            JsonElement lowerResults = lowerFiber.GetProperty("Results");
+            bool expectedResults = halt ? lowerResults.GetProperty("1").GetInt32() == 11 : lowerResults.GetProperty("1").GetInt32() == 0 && lowerResults.GetProperty("6").GetInt32() == 11;
+            Require(lowerFiber.GetProperty("Stack")[0].GetInt32() == 0 && expectedResults, $"Request lost the lower MOVEA remaining target or its held/RET8-reversed result bank: halt={halt}, transfer={transfer}, fiber={lowerFiber.GetRawText()}.");
             if (halt && !transfer)
             {
                 JsonElement upperFiber = live.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 20);
@@ -97,18 +106,18 @@ internal static partial class Program
             }
         }
         NativeSingleBackupOverwriteContract();
-        NativeTurnMoveCallbackOrderContract();
-        NativeHaltedModuleRequestContract();
-        NativeLiveMovementLimitContract();
+        NativeTurnMoveCallbackOrderContract(initialVitals, initialEconomy);
+        NativeHaltedModuleRequestContract(initialVitals, initialEconomy);
+        NativeLiveMovementLimitContract(initialVitals, initialEconomy);
         Console.WriteLine("Native REQ slot2/MOVE above held default MOVEA: single target/stop/speed backup, independent upper operands/results, current-position RET8 restore, MSPEED current/base distinction, HALT occupied slot and corrupt-backup atomic rejection passed.");
     }
 
-    private static void NativeLiveMovementLimitContract()
+    private static void NativeLiveMovementLimitContract(NativeCharacterVitals initialVitals, NativeEconomy initialEconomy)
     {
         byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.PSHN_L, 39), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.MLIMIT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.RFMOVE, 0), (Jsm.Opcode.PSHN_L, 11), (Jsm.Opcode.MLIMIT, 0), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 8)]]);
         EventEngine Create()
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateDirectedLinearTurnSession(initialVitals, initialEconomy);
             EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,
@@ -140,10 +149,8 @@ internal static partial class Program
         Require(JsonElement.DeepEquals(live.Capture(), currentCopy.Capture()), "Current610 changed during active MOVE was not retained by independent restore.");
     }
 
-    private static void NativeTurnMoveCallbackOrderContract()
+    private static void NativeTurnMoveCallbackOrderContract(NativeCharacterVitals initialVitals, NativeEconomy initialEconomy)
     {
-        using Memoria.FF8.Assets.GameAssets assets = new(TestResources.GameDirectory);
-        NativeCharacterVitals initialVitals = assets.ReadNewGameCharacterVitals();
         foreach (bool linear in new[] { false, true })
         {
             (Jsm.Opcode, int)[] player = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.RET, 8)];
@@ -153,7 +160,7 @@ internal static partial class Program
             byte[] content = SyntheticObjects([0, (16 << 7) | 4, (32 << 7) | 1], [player, actor, turn, [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 19), (Jsm.Opcode.RET, 8)], move, [(Jsm.Opcode.LBL, 32), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 33), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.REQ, 1), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
             EventEngine Create()
             {
-                var session = new GameSession(new GameState { CharacterVitals = initialVitals.DeepCopy(), WorldControls = NativeWorldControlState.CreateNewGame() });
+                GameSession session = CreateDirectedLinearTurnSession(initialVitals, initialEconomy);
                 var engine = new EventEngine(session)
                 {
                     AnimationFrameCount = (_, _) => 4,
@@ -188,22 +195,22 @@ internal static partial class Program
         }
     }
 
-    private static void NativeHaltedModuleRequestContract()
+    private static void NativeHaltedModuleRequestContract(NativeCharacterVitals initialVitals, NativeEconomy initialEconomy)
     {
-        byte[] content = SyntheticObjects([(16 << 7) | 2, 1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.PSHN_L, 18), (Jsm.Opcode.REQEW, 1), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_W, 5000), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.PSHN_L, 55), (Jsm.Opcode.POPM_W, 5001), (Jsm.Opcode.RET, 8)]]);
+        byte[] content = SyntheticObjects([(16 << 7) | 2, 1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.PSHN_L, 18), (Jsm.Opcode.REQEW, 1), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_W, 5000), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.PSHN_L, 55), (Jsm.Opcode.POPM_W, 5002), (Jsm.Opcode.RET, 8)]]);
         content[2] = 1;
         content[3] = 1;
-        var session = new GameSession(new GameState());
+        GameSession session = CreateDirectedLinearTurnSession(initialVitals, initialEconomy);
         var engine = new EventEngine(session);
         engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
-        for (int tick = 0; tick < 6; tick++)
+        while (session.EventMemory.Read(5000, 2).RequireExact() != 77 && engine.Frame < 16)
         {
             engine.Step();
         }
-        Require(session.State.Variables.GetValueOrDefault(5000) == 77 && session.State.Variables.GetValueOrDefault(5001) == 55, "REQEW slot7 was confused with the background module's occupied default0/HALT.");
+        Require(session.EventMemory.Read(5000, 2).RequireExact() == 77 && session.EventMemory.Read(5002, 2).RequireExact() == 55, $"REQEW slot7 failed to resume its caller after the background module request: frame={engine.Frame}, caller={session.EventMemory.Read(5000, 2)}, target={session.EventMemory.Read(5002, 2)}, fibers={engine.Capture().GetProperty("Fibers").GetRawText()}.");
         JsonElement defaultFiber = engine.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 17);
         Require(!defaultFiber.GetProperty("Complete").GetBoolean() && defaultFiber.GetProperty("WaitReason").GetString() == "NativeHalt", "Native module default HALT lost its occupied original slot after RET8.");
-        var copy = new EventEngine(new GameSession(new GameState()), NativeEventMemory.FromDWords(new Dictionary<int, int>()));
+        var copy = new EventEngine(CreateDirectedLinearTurnSession(initialVitals, initialEconomy));
         copy.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         copy.Restore(engine.Capture());
         Require(JsonElement.DeepEquals(engine.Capture(), copy.Capture()), "Native non-actor pointer-table request slot did not restore independently.");

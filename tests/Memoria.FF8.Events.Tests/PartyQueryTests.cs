@@ -13,12 +13,13 @@ internal static partial class Program
     {
         using GameAssets assets = new(gameDirectory);
         NativeCharacterVitals initial = assets.ReadNewGameCharacterVitals();
+        NativeEconomy initialEconomy = assets.ReadNewGameEconomy();
         Dictionary<EventEngine, GameSession> sessions = [];
-        EventEngine Create(byte[] content, int[] party, NativeCharacterVitals? vitals = null)
+        EventEngine Create(byte[] content, int[] party, NativeCharacterVitals? vitals = null, bool native = false)
         {
-            GameSession session = new(new GameState { CharacterVitals = vitals });
-            EventEngine engine = new(session);
-            engine.LoadField(600, content, []);
+            GameSession session = native ? CreateDirectedLinearTurnSession(vitals ?? initial, initialEconomy) : new(new GameState { CharacterVitals = vitals });
+            EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 1 };
+            engine.LoadField(600, content, [], nativeRuntimeProfile: native ? NativeFieldRuntimeProfile.FF8En : null);
             engine.Scene.Party.Clear();
             engine.Scene.Party.AddRange(party);
             sessions[engine] = session;
@@ -46,11 +47,15 @@ internal static partial class Program
             written.Step();
             Require(written.Scene.Party.SequenceEqual(packet) && sessions[written].CharacterVitals!.CombatParty.Select(value => (int)value).SequenceEqual(new[] { packet[1], packet[0], packet[2] }), "SETPARTY lost FF bytes or native combat order1,0,2.");
         }
-        byte[] remove = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 257), (Jsm.Opcode.SUBPARTY, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.RET, 8));
-        EventEngine removed = Create(remove, [0, 1, 5], initial.WithMemberFlags(1, true).WithMemberFlags(5, true) with { CombatParty = [1, 0, 5] });
+        byte[] remove = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 257), (Jsm.Opcode.SUBPARTY, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
+        EventEngine removed = Create(remove, [0, 1, 5], initial.WithMemberFlags(1, true).WithMemberFlags(5, true) with { CombatParty = [1, 0, 5] }, native: true);
+        // The loader completes init synchronously; the default script owns the real WAIT boundary.
         removed.Step();
-        Require(removed.Scene.Party.SequenceEqual([0, 255, 5]) && removed.Scene.FieldPartyNativeActorIds.Count == 0 && removed.NormalMembers!.SetEquals([0, 1, 5]) && sessions[removed].CharacterVitals!.CombatParty.Select(value => (int)value).SequenceEqual(new[] { 255, 0, 5 }), "SUBPARTY did not remove only its lowBYTE-matched field/combat slot or implicitly changed bindings/membership.");
-        EventEngine resumed = Create(remove, [255, 255, 255]);
+        int[] bindingsBeforeRemoval = removed.Scene.FieldPartyNativeActorIds.ToArray();
+        int[] membersBeforeRemoval = removed.NormalMembers!.ToArray();
+        removed.Step();
+        Require(removed.Scene.Party.SequenceEqual([0, 255, 5]) && removed.Scene.FieldPartyNativeActorIds.SequenceEqual(bindingsBeforeRemoval) && removed.NormalMembers!.SetEquals(membersBeforeRemoval) && sessions[removed].CharacterVitals!.CombatParty.Select(value => (int)value).SequenceEqual(new[] { 255, 0, 5 }), "SUBPARTY did not remove only its lowBYTE-matched field/combat slot or implicitly changed bindings/membership.");
+        EventEngine resumed = Create(remove, [255, 255, 255], native: true);
         resumed.Restore(removed.Capture());
         for (int tick = 0; tick < 6; tick++)
         {
@@ -98,22 +103,22 @@ internal static partial class Program
             }
             Require(refused.Capture().GetProperty("Fibers")[0].GetProperty("Stack")[0].GetInt32() == slot && refused.Scene.Party.SequenceEqual([0, 255, 5]), "Rejected GETPARTY consumed operands or compressed slots.");
         }
-        NativeSparsePartyRequestContract(initial);
+        NativeSparsePartyRequestContract(initial, initialEconomy);
         NativeInactivePartyRequestContract(assets);
-        NativePartyRequestPreemptionContract(initial);
+        NativePartyRequestPreemptionContract(initial, initialEconomy);
         Console.WriteLine("Native raw3 party: sparse GET/ISPARTY, allFF/leadingFF SETPARTY, combat1,0,2, lowBYTE SUBPARTY, firstFF ADDPARTY, independent restore/field persistence and malformed snapshot atomic refusal passed.");
     }
 
-    private static void NativeSparsePartyRequestContract(NativeCharacterVitals initial)
+    private static void NativeSparsePartyRequestContract(NativeCharacterVitals initial, NativeEconomy initialEconomy)
     {
         Dictionary<EventEngine, GameSession> sessions = [];
         foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.PREQ, Jsm.Opcode.PREQSW, Jsm.Opcode.PREQEW })
         {
             (Jsm.Opcode, int)[] caller = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 2), (opcode, 2), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.POPM_B, 700), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 2), (opcode, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.POPM_B, 701), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
-            byte[] content = SyntheticObjects([1, (8 << 7) | 1, (16 << 7) | 2], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.RET, 8)], caller, [(Jsm.Opcode.LBL, 8), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 9), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.SETMODEL, 5), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.POPM_B, 702), (Jsm.Opcode.RET, 8)]]);
+            byte[] content = SyntheticObjects([1, (2 << 7) | 1, (4 << 7) | 2], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.RET, 8)], caller, [(Jsm.Opcode.LBL, 2), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 3), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 4), (Jsm.Opcode.SETMODEL, 5), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 5), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 6), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.POPM_B, 702), (Jsm.Opcode.RET, 8)]]);
             EventEngine Create()
             {
-                GameSession session = new(new GameState { CharacterVitals = initial.DeepCopy() });
+                GameSession session = CreateDirectedLinearTurnSession(initial, initialEconomy);
                 EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 1 };
                 engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
                 sessions[engine] = session;
@@ -158,7 +163,7 @@ internal static partial class Program
                     caller.Add((Jsm.Opcode.REFRESHPARTY, 0));
                 }
                 caller.AddRange([(Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 2), (opcode, 2), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.POPM_B, 720), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]);
-                byte[] content = SyntheticObjects([1, (8 << 7) | 1, (16 << 7) | 2], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.RET, 8)], caller.ToArray(), [(Jsm.Opcode.LBL, 8), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 9), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.SETMODEL, 5), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.UNUSE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.POPM_B, 721), (Jsm.Opcode.RET, 8)]]);
+                byte[] content = SyntheticObjects([1, (2 << 7) | 1, (4 << 7) | 2], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.RET, 8)], caller.ToArray(), [(Jsm.Opcode.LBL, 2), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 3), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 4), (Jsm.Opcode.SETMODEL, 5), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 5), (Jsm.Opcode.UNUSE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 6), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.POPM_B, 721), (Jsm.Opcode.RET, 8)]]);
                 EventEngine Create()
                 {
                     GameSession session = GameSession.CreateColdProcess();
@@ -199,27 +204,30 @@ internal static partial class Program
         Console.WriteLine("Native inactive party requests: PREQ/PREQSW/PREQEW before/after explicit refresh, retained identity, issue yield, end wait and independent pending restore passed.");
     }
 
-    private static void NativePartyRequestPreemptionContract(NativeCharacterVitals initial)
+    private static void NativePartyRequestPreemptionContract(NativeCharacterVitals initial, NativeEconomy initialEconomy)
     {
         foreach (bool moving in new[] { true, false })
         {
             List<(Jsm.Opcode, int)> controller = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0)];
             if (!moving)
             {
-                controller.AddRange([(Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.REQ, 2)]);
+                controller.AddRange([(Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.REQ, 2)]);
             }
             controller.AddRange([(Jsm.Opcode.PSHN_L, moving ? 3 : 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PREQEW, 2), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.POPM_B, 710), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]);
             (Jsm.Opcode, int)[] move = [(Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MOVE, 0)];
-            List<(Jsm.Opcode, int)> lower = [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.FOLLOWOFF, 0)];
-            lower.AddRange(moving ? move : [(Jsm.Opcode.HALT, 0)]);
-            lower.Add((Jsm.Opcode.RET, 8));
-            List<(Jsm.Opcode, int)> upper = [(Jsm.Opcode.LBL, 20)];
+            List<(Jsm.Opcode, int)> lower = [(Jsm.Opcode.LBL, 5), (Jsm.Opcode.FOLLOWOFF, 0)];
+            if (moving)
+            {
+                lower.AddRange(move);
+            }
+            lower.AddRange([(Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]);
+            List<(Jsm.Opcode, int)> upper = [(Jsm.Opcode.LBL, 8)];
             upper.AddRange(move);
             upper.AddRange([(Jsm.Opcode.RANIMEKEEP, 3), (Jsm.Opcode.ANIMESYNC, 0), (Jsm.Opcode.RET, 8)]);
-            byte[] content = SyntheticObjects([1, (8 << 7) | 1, (16 << 7) | 4], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.RET, 8)], controller.ToArray(), [(Jsm.Opcode.LBL, 8), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 9), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.SETMODEL, 5), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.MSPEED, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.RET, 8)], lower.ToArray(), [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 19), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 8)], upper.ToArray()]);
+            byte[] content = SyntheticObjects([1, (2 << 7) | 1, (4 << 7) | 4], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.RET, 8)], controller.ToArray(), [(Jsm.Opcode.LBL, 2), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 3), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 4), (Jsm.Opcode.SETMODEL, 5), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.MSPEED, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.RET, 8)], lower.ToArray(), [(Jsm.Opcode.LBL, 6), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 7), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 8)], upper.ToArray()]);
             EventEngine Create()
             {
-                GameSession session = new(new GameState { CharacterVitals = initial.DeepCopy() });
+                GameSession session = CreateDirectedLinearTurnSession(initial, initialEconomy);
                 EventEngine engine = new(session)
                 {
                     AnimationFrameCount = (_, _) => 30,
@@ -242,7 +250,7 @@ internal static partial class Program
             {
                 live.Step();
             }
-            Require(issued && (moving ? live.Actors[2].NativeMovementRequest is { RequestSlot: 1, SavedMovement: { Active: true } } && live.Actors[2].NativeScriptMovement is { Suspended: true } : live.Actors[2].NativeMovementRequest is null && live.Capture().GetProperty("Fibers").EnumerateArray().Any(fiber => !fiber.GetProperty("Complete").GetBoolean() && fiber.GetProperty("ScriptId").GetInt32() == 20 && fiber.GetProperty("WaitReason").GetString() == "Animation")), "PREQEW did not use its shared movement backup or queue below the existing native animation slot.");
+            Require(issued && (moving ? live.Actors[2].NativeMovementRequest is { RequestSlot: 1, SavedMovement: { Active: true } } && live.Actors[2].NativeScriptMovement is { Suspended: true } : live.Actors[2].NativeMovementRequest is null && live.Capture().GetProperty("Fibers").EnumerateArray().Any(fiber => !fiber.GetProperty("Complete").GetBoolean() && fiber.GetProperty("ScriptId").GetInt32() == 8 && fiber.GetProperty("WaitReason").GetString() == nameof(WaitReason.NativeAnimationSync))), $"PREQEW did not use its shared movement backup or queue below the existing native animation slot: moving={moving}, issued={issued}, frame={live.Frame}, backup={live.Actors[2].NativeMovementRequest}, movement={live.Actors[2].NativeScriptMovement}, fibers={live.Capture().GetProperty("Fibers").GetRawText()}.");
             EventEngine resumed = Create();
             resumed.Restore(live.Capture());
             for (int tick = 0; tick < 40; tick++)

@@ -43,7 +43,7 @@ internal static partial class Program
             }
             Require(JsonElement.DeepEquals(before, valid.Engine.Capture()), "Rejected unknown or nonzero WORD398 owner partially changed the live VM.");
         }
-        foreach ((Jsm.Opcode opcode, int parameter, int operands) in new[] { (Jsm.Opcode.POPI_L, 19, 1), (Jsm.Opcode.PSHI_L, 19, 0), (Jsm.Opcode.SETLINE, 0, 6), (Jsm.Opcode.BGDRAW, 0, 1), (Jsm.Opcode.PSHN_L, 999, 72) })
+        foreach ((Jsm.Opcode opcode, int parameter, int operands) in new[] { (Jsm.Opcode.POPI_L, 19, 1), (Jsm.Opcode.PSHI_L, 19, 0), (Jsm.Opcode.SETLINE, 0, 6), (Jsm.Opcode.BGDRAW, 0, 1), (Jsm.Opcode.PSHN_L, 999, 80) })
         {
             NativeRequestPhysicalHeaderRefusal(vitals, economy, opcode, parameter, operands);
         }
@@ -183,7 +183,7 @@ internal static partial class Program
         }
         JsonElement saved = engine.Capture();
         JsonElement fiber = RequestPhysicalAliasCaller(saved);
-        Require(refused && operation >= 0 && engine.LastFault?.Operation == operation && fiber.GetProperty("Position").GetInt32() == operation && fiber.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(Enumerable.Range(1, operandCount).Reverse()), $"Unrepresented native {opcode} header write changed the original PC or operand bank.");
+        Require(refused && operation >= 0 && engine.LastFault?.Operation == operation && fiber.GetProperty("Position").GetInt32() == operation && fiber.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(Enumerable.Range(1, operandCount).Reverse()), $"Unrepresented native {opcode} header write changed the original PC or operand bank: expectedPC{operation}/operands{operandCount}, fault{engine.LastFault}, actualPC{fiber.GetProperty("Position").GetInt32()}/operands{fiber.GetProperty("Stack").GetArrayLength()}, physicalDepth{engine.Actors[0].NativeOperandMemory?.LiveDepth}.");
         Require(beforeActor is not null && beforeFiber is not null && JsonElement.DeepEquals(beforeActor.Value, JsonSerializer.SerializeToElement(engine.Actors[0])) && JsonElement.DeepEquals(beforeFiber.Value, fiber) && engine.Actors[0].NativeActorWord398 == 0, $"Unrepresented native {opcode} header write mutated the actor, results or WORD398 owner before refusal.");
     }
 
