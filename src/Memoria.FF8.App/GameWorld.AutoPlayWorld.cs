@@ -29,10 +29,18 @@ internal sealed partial class GameWorld
         scene.DebugTeleportToEntrance(target);
         int frames = Math.Max(1, NativeWorldEntryControl.DelayAfterCallback(scene.State.Frame, 0));
         PlayerActionResult result = Apply(new PlayerAction(PlayerActionKind.Wait, Frames: frames));
-        if (result.Trigger.Kind != PlayerTriggerKind.FieldTransition || result.Trigger.FieldId != target.DestinationField)
+        if (result.Trigger.Kind == PlayerTriggerKind.FieldTransition)
         {
-            throw new NotSupportedException("The actual world entrance callback did not enter the discovered destination.");
+            if (result.Trigger.FieldId != target.DestinationField)
+            {
+                throw new NotSupportedException("The actual world entrance callback entered a different destination from its discovery.");
+            }
+            return result;
         }
-        return result;
+        if (result.Accepted && (result.Trigger.Kind is PlayerTriggerKind.Dialogue or PlayerTriggerKind.Battle or PlayerTriggerKind.Movie or PlayerTriggerKind.PartyMenu or PlayerTriggerKind.Tutorial || result.Trigger.Kind == PlayerTriggerKind.WorldMap && scene.State.EventUi is { ScriptMode: not 0 }))
+        {
+            return result;
+        }
+        throw new NotSupportedException("The actual world entrance callback neither entered its destination nor yielded to a native scene owner.");
     }
 }

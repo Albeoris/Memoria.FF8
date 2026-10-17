@@ -43,11 +43,12 @@ public sealed class AutoPlayCarWorldTests
     }
 
     [Fact]
-    public void ActualEntranceCallbackAndSavedCarReturnMatchAfterColdRestore()
+    public void NativeGuardAndSavedReturnOwnersMatchAfterColdRestore()
     {
         string directory = TestResources.GameDirectory;
         GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.AutoPlayCarWorldTests.1")));
         using WorldMapScene scene = new(session, directory);
+        NativeSavedWorldState savedBefore = session.State.SavedWorld!;
         scene.DebugPlaceCurrentCar(12390, -26709);
         string path = TestResources.ArtifactFile("stationary-car-placement.json");
         session.Save(path);
@@ -58,17 +59,14 @@ public sealed class AutoPlayCarWorldTests
         second.EnsureField();
         PlayerActionResult entered = first.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 24));
         PlayerActionResult repeated = second.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 24));
-        Assert.Equal(PlayerTriggerKind.FieldTransition, entered.Trigger.Kind);
-        Assert.Equal(106, entered.Trigger.FieldId);
+        Assert.Equal(PlayerTriggerKind.Dialogue, entered.Trigger.Kind);
+        Assert.Equal(49, entered.Trigger.MessageId);
         Assert.Equal(entered, repeated);
-        Assert.Equal(SceneKind.Field, session.State.Scene);
-        Assert.NotNull(session.State.SavedWorld!.CarReturn);
-        Assert.Null(session.State.SavedWorld.FootReturn);
-        Assert.Equal((byte)33, session.State.SavedWorld.CarReturn!.EntityType105);
+        Assert.Equal(SceneKind.WorldMap, session.State.Scene);
+        Assert.Equal((byte)14, session.State.World!.EventUi!.ScriptMode);
+        Assert.Equal(savedBefore.CarReturn, session.State.SavedWorld!.CarReturn);
+        Assert.Equal(savedBefore.FootReturn, session.State.SavedWorld.FootReturn);
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(restored.State)));
-        GameState after = session.State;
-        Assert.Throws<NotSupportedException>(() => scene.DebugPlaceCurrentCar(12390, -26709));
-        Assert.Same(after, session.State);
     }
 
     [Fact]

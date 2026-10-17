@@ -202,7 +202,8 @@ internal sealed partial class WorldMapScene : IDisposable
                     GroundType = ground?.Triangle.GroundType,
                     ReplacementMask = mask,
                     NativeFootRuntime = initialFootRuntime,
-                    NativeCarRuntime = initialCarRuntime
+                    NativeCarRuntime = initialCarRuntime,
+                    EventUi = NativeWorldEventUi.Create()
                 };
                 if (!car)
                 {

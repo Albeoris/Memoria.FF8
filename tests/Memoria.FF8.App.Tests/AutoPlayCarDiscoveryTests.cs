@@ -8,7 +8,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class AutoPlayCarDiscoveryTests
 {
     [Fact]
-    public void StationaryCarDiscoveryIsPureAndExecutionUsesTheActualEntranceCallback()
+    public void StationaryCarDiscoveryIsPureAndExecutionPreservesTheNativeEntranceGuard()
     {
         string directory = TestResources.GameDirectory;
         GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.AutoPlayCarWorldTests.1")));
@@ -39,14 +39,21 @@ public sealed class AutoPlayCarDiscoveryTests
         Assert.True(NativeWorldTerrain.CanTraverse(flags, candidate.NativeCarRuntime.EntityType));
 
         PlayerActionResult result = world.ExecuteAutoPlayWorldTarget(entrance);
-        Assert.Equal(PlayerTriggerKind.FieldTransition, result.Trigger.Kind);
-        Assert.Equal(entrance.DestinationField, result.Trigger.FieldId);
-        Assert.Equal(SceneKind.Field, session.State.Scene);
+        Assert.True(result.Accepted);
+        Assert.Equal(PlayerTriggerKind.Dialogue, result.Trigger.Kind);
+        Assert.Equal(49, result.Trigger.MessageId);
+        Assert.Equal(SceneKind.WorldMap, session.State.Scene);
+        Assert.Equal(before.FieldId, session.State.FieldId);
+        Assert.Equal(24, session.State.World!.Frame);
+        Assert.Null(session.State.World.NativeFootRuntime);
+        Assert.Equal(33, session.State.World.NativeCarRuntime!.EntityType);
+        Assert.Equal((byte)14, session.State.World.EventUi!.ScriptMode);
+        Assert.Contains(session.State.World.EventUi.Windows, window => window.WindowId == 9 && window.MessageId == 49);
+        Assert.Equal(49, world.CurrentDialogue!.MessageId);
         Assert.Equal(story, session.State.WorldEntryMemory!.StoryWord);
         Assert.Equal(party, session.State.CharacterVitals!.CombatParty);
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(before.CharacterVitals), JsonSerializer.SerializeToElement(session.State.CharacterVitals)));
-        Assert.NotNull(session.State.SavedWorld!.CarReturn);
-        Assert.Null(session.State.SavedWorld.FootReturn);
-        Assert.Equal((byte)33, session.State.SavedWorld.CarReturn!.EntityType105);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(before.SavedWorld!.CarReturn), JsonSerializer.SerializeToElement(session.State.SavedWorld!.CarReturn)));
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(before.SavedWorld.FootReturn), JsonSerializer.SerializeToElement(session.State.SavedWorld.FootReturn)));
     }
 }
