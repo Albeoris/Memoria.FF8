@@ -7,6 +7,39 @@ namespace Memoria.FF8.App.Tests;
 public sealed class DialogueRichTextTests
 {
     [Fact]
+    public void Fixed_button_tags_render_as_symbols_with_adjacent_numbers_and_authored_lines()
+    {
+        const string encoded = "{Key Triangle}4{Line}{Key Square}3 {Key Circle}1{Line}{Key Cross}2";
+        Assert.Equal("\u25B34\n\u25A13 \u25CB1\n\u00D72", DialogueTextFormatter.Format(encoded));
+    }
+
+    [Theory]
+    [InlineData(TextTagKey.Triangle, "\u25B3")]
+    [InlineData(TextTagKey.Circle, "\u25CB")]
+    [InlineData(TextTagKey.Cross, "\u00D7")]
+    [InlineData(TextTagKey.Square, "\u25A1")]
+    [InlineData(TextTagKey.L1, "L1")]
+    [InlineData(TextTagKey.R1, "R1")]
+    [InlineData(TextTagKey.UpKey, "\u2191")]
+    [InlineData(TextTagKey.RightKey, "\u2192")]
+    [InlineData(TextTagKey.DownKey, "\u2193")]
+    [InlineData(TextTagKey.LeftKey, "\u2190")]
+    public void Named_and_numeric_button_symbols_preserve_color_and_blink(TextTagKey key, string expected)
+    {
+        foreach (string parameter in new[] { key.ToString(), ((byte)key).ToString() })
+        {
+            DialogueRun run = Assert.Single(Assert.Single(Assert.Single(DialogueTextFormatter.Parse($"{{Color GreenBlink}}{{Key {parameter}}}").Pages).Lines).Runs);
+            Assert.Equal(new DialogueRun(expected, Color.Lime, true), run);
+        }
+    }
+
+    [Fact]
+    public void Button_symbols_keep_junction_marker_and_unresolved_tags_distinct()
+    {
+        Assert.Equal("J/{Key 255}/{Key Unknown}", DialogueTextFormatter.Format("{Key 65}/{Key 255}/{Key Unknown}"));
+    }
+
+    [Fact]
     public void Page_and_next_boundaries_preserve_source_lines_and_plain_text()
     {
         const string encoded = "One{Line}{Line}Two{Page}Three{Next}Four{End}";

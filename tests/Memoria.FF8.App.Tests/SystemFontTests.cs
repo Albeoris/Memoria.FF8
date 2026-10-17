@@ -7,6 +7,22 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class SystemFontTests
 {
+    [Fact]
+    public void Dialogue_button_symbols_rasterize_as_distinct_glyphs_at_dialogue_size()
+    {
+        string[] buttons = ["Triangle", "Square", "Circle", "Cross"];
+        using var missing = SystemTextLayout.Rasterize("\U0010FFFF", 8, float.PositiveInfinity, "Arial");
+        List<string> signatures = [];
+        foreach (string button in buttons)
+        {
+            using var bitmap = SystemTextLayout.Rasterize(DialogueTextFormatter.Format($"{{Key {button}}}"), 8, float.PositiveInfinity, "Arial");
+            Assert.Contains(SystemTextLayout.PremultipliedPixels(bitmap), pixel => pixel.A > 0);
+            Assert.NotEqual(Signature(missing), Signature(bitmap));
+            signatures.Add(Signature(bitmap));
+        }
+        Assert.Equal(4, signatures.Distinct().Count());
+    }
+
     [Theory]
     [InlineData("Arial")]
     [InlineData("Segoe UI Emoji")]

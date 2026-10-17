@@ -94,6 +94,9 @@ internal static partial class DialogueTextFormatter
                     // Native common message4 uses key65 for the junctioned-magic J marker.
                     Append("J");
                     break;
+                case "Key" when TryButtonSymbol(parameter, out string symbol):
+                    Append(symbol);
+                    break;
                 default:
                     // Preserve unrelated placeholders until their owning UI supplies a presentation contract.
                     Append(match.Value);
@@ -113,6 +116,25 @@ internal static partial class DialogueTextFormatter
             return result;
         }
         throw new NotSupportedException($"Dialogue {tag} parameter '{value}' is unsupported.");
+    }
+
+    private static bool TryButtonSymbol(string parameter, out string symbol)
+    {
+        symbol = Enum.TryParse(parameter, out TextTagKey key) ? key switch
+        {
+            TextTagKey.Triangle => "\u25B3",
+            TextTagKey.Circle => "\u25CB",
+            TextTagKey.Cross => "\u00D7",
+            TextTagKey.Square => "\u25A1",
+            TextTagKey.L1 => "L1",
+            TextTagKey.R1 => "R1",
+            TextTagKey.UpKey => "\u2191",
+            TextTagKey.RightKey => "\u2192",
+            TextTagKey.DownKey => "\u2193",
+            TextTagKey.LeftKey => "\u2190",
+            _ => ""
+        } : "";
+        return symbol.Length > 0;
     }
 
     private static string CharacterName(TextTagCharacter character, IReadOnlyDictionary<int, string>? names)
