@@ -1,85 +1,180 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.ExceptionServices;
 using System.Text.Json;
+using System.Threading.Channels;
 
 namespace Memoria.FF8;
 
 /// <summary>Windows DirectMusic performance is x86-only; its isolated output process owns no game state.</summary>
 internal sealed class DirectMusicOutput : IDisposable
 {
-    private readonly Process process;
+    private readonly Channel<PendingCommand> commands;
+    private readonly CancellationTokenSource stopping = new();
+    private readonly TimeSpan timeout;
+    private readonly Task worker;
+    private Process? process;
+    private Exception? error;
+    private int disposed;
 
-    public DirectMusicOutput(nint window, string directory)
+    public DirectMusicOutput(nint window, string directory) : this(CreateStartInfo(window, directory), TimeSpan.FromSeconds(10))
+    {
+    }
+
+    internal DirectMusicOutput(ProcessStartInfo start, TimeSpan timeout, int capacity = 128)
+    {
+        if (timeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(timeout));
+        }
+        this.timeout = timeout;
+        commands = Channel.CreateBounded<PendingCommand>(new BoundedChannelOptions(capacity) { SingleReader = true, FullMode = BoundedChannelFullMode.Wait });
+        worker = Task.Run(() => Run(start));
+    }
+
+    public Exception? Error => Volatile.Read(ref error);
+
+    public void Play(string path, int volume, int startPoint = 0) => Enqueue(new { Command = "Play", Path = path, Volume = volume, StartPoint = startPoint });
+    public void Volume(int hundredthDecibels) => Enqueue(new { Command = "Volume", Volume = hundredthDecibels });
+    public void Stop() => Enqueue(new { Command = "Stop" });
+    public void Pause() => Enqueue(new { Command = "Pause" });
+    public void Resume() => Enqueue(new { Command = "Resume" });
+
+    // Diagnostic queries fence earlier queued commands. Gameplay presentation never waits for this property.
+    public bool IsPlaying
+    {
+        get
+        {
+            TaskCompletionSource<bool> reply = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            Enqueue(new { Command = "Playing" }, reply);
+            return reply.Task.WaitAsync(timeout).GetAwaiter().GetResult();
+        }
+    }
+
+    private static ProcessStartInfo CreateStartInfo(nint window, string directory)
     {
         string helper = Path.Combine(AppContext.BaseDirectory, "audio-host", "Memoria.FF8.Music.exe");
         var start = new ProcessStartInfo(helper) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = true, RedirectStandardOutput = true };
         start.ArgumentList.Add(window.ToInt64().ToString(CultureInfo.InvariantCulture));
         start.ArgumentList.Add(directory);
-        process = Process.Start(start) ?? throw new InvalidOperationException("Could not start the DirectMusic output process.");
-        try
+        return start;
+    }
+
+    private void Enqueue(object command, TaskCompletionSource<bool>? reply = null)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
+        if (Error is Exception failure)
         {
-            ReadResult();
+            ExceptionDispatchInfo.Capture(failure).Throw();
         }
-        catch
+        if (!commands.Writer.TryWrite(new PendingCommand(JsonSerializer.Serialize(command), reply)))
         {
-            Dispose();
-            throw;
+            InvalidOperationException queueFailure = new("DirectMusic output command queue is full or closed.");
+            Fail(queueFailure);
+            throw queueFailure;
         }
     }
 
-    public void Play(string path, int volume, int startPoint = 0) => Send(new { Command = "Play", Path = path, Volume = volume, StartPoint = startPoint });
-    public void Volume(int hundredthDecibels) => Send(new { Command = "Volume", Volume = hundredthDecibels });
-    public void Stop() => Send(new { Command = "Stop" });
-    public void Pause() => Send(new { Command = "Pause" });
-    public void Resume() => Send(new { Command = "Resume" });
-    public bool IsPlaying => Send(new { Command = "Playing" });
-
-    private bool Send(object command)
+    private async Task Run(ProcessStartInfo start)
     {
-        process.StandardInput.WriteLine(JsonSerializer.Serialize(command));
-        process.StandardInput.Flush();
-        return ReadResult();
-    }
-
-    private bool ReadResult()
-    {
-        string? response;
+        Process? helper = null;
+        PendingCommand? current = null;
         try
         {
-            response = process.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(10)).GetAwaiter().GetResult();
-        }
-        catch (TimeoutException)
-        {
-            if (!process.HasExited)
+            stopping.Token.ThrowIfCancellationRequested();
+            helper = Process.Start(start) ?? throw new InvalidOperationException("Could not start the DirectMusic output process.");
+            Volatile.Write(ref process, helper);
+            stopping.Token.ThrowIfCancellationRequested();
+            await ReadResult(helper);
+            await foreach (PendingCommand command in commands.Reader.ReadAllAsync(stopping.Token))
             {
-                process.Kill();
-                process.WaitForExit(2000);
+                current = command;
+                await helper.StandardInput.WriteLineAsync(command.Json.AsMemory(), stopping.Token).WaitAsync(timeout, stopping.Token);
+                await helper.StandardInput.FlushAsync(stopping.Token).WaitAsync(timeout, stopping.Token);
+                bool result = await ReadResult(helper);
+                command.Reply?.TrySetResult(result);
+                current = null;
             }
-            throw new TimeoutException("DirectMusic output did not answer within10 seconds; its process was stopped.");
         }
+        catch (OperationCanceledException) when (stopping.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            Fail(exception);
+        }
+        finally
+        {
+            commands.Writer.TryComplete();
+            Exception failure = Error ?? new ObjectDisposedException(nameof(DirectMusicOutput));
+            current?.Reply?.TrySetException(failure);
+            while (commands.Reader.TryRead(out PendingCommand? command))
+            {
+                command.Reply?.TrySetException(failure);
+            }
+            if (helper is not null)
+            {
+                StopProcess(helper);
+                helper.Dispose();
+            }
+        }
+    }
+
+    private async Task<bool> ReadResult(Process helper)
+    {
+        string? response = await helper.StandardOutput.ReadLineAsync(stopping.Token).AsTask().WaitAsync(timeout, stopping.Token);
         if (response is null)
         {
             throw new IOException("DirectMusic output process closed its command channel.");
         }
         using JsonDocument document = JsonDocument.Parse(response);
-        if (document.RootElement.TryGetProperty("Error", out JsonElement error))
+        if (document.RootElement.TryGetProperty("Error", out JsonElement failure))
         {
-            throw new InvalidOperationException($"DirectMusic output: {error.GetString()}");
+            throw new InvalidOperationException($"DirectMusic output: {failure.GetString()}");
         }
         return document.RootElement.GetProperty("Result").GetBoolean();
     }
 
-    public void Dispose()
+    private void Fail(Exception failure)
     {
-        if (!process.HasExited)
+        Interlocked.CompareExchange(ref error, failure, null);
+        commands.Writer.TryComplete();
+        stopping.Cancel();
+    }
+
+    private static void StopProcess(Process helper)
+    {
+        try
         {
-            process.StandardInput.Close();
-            if (!process.WaitForExit(2000))
+            if (!helper.HasExited)
             {
-                process.Kill();
-                process.WaitForExit();
+                helper.Kill(entireProcessTree: true);
+                helper.WaitForExit(2000);
             }
         }
-        process.Dispose();
+        catch (InvalidOperationException)
+        {
+            // The worker may have completed disposal while the owner was cancelling it.
+        }
+        catch (System.ComponentModel.Win32Exception) when (helper.HasExited)
+        {
+        }
     }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref disposed, 1) != 0)
+        {
+            return;
+        }
+        commands.Writer.TryComplete();
+        stopping.Cancel();
+        if (Volatile.Read(ref process) is Process helper)
+        {
+            StopProcess(helper);
+        }
+        worker.Wait(TimeSpan.FromSeconds(2));
+    }
+
+    private sealed record PendingCommand(string Json, TaskCompletionSource<bool>? Reply);
 }

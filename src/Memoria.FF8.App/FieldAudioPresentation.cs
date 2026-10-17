@@ -439,6 +439,11 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
 
     public void Update()
     {
+        if (music?.Error is Exception failure)
+        {
+            midiRamp = null;
+            ReportOutputFailure(failure);
+        }
         TryOutput(() =>
         {
             foreach (Voice voice in voices.Values)
@@ -500,11 +505,20 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         {
             action();
         }
-        catch (Exception exception) when (exception is IOException or InvalidDataException or NotSupportedException or ArgumentException or InvalidOperationException or TimeoutException or System.Runtime.InteropServices.COMException or System.ComponentModel.Win32Exception)
+        catch (Exception exception) when (exception is IOException or InvalidDataException or NotSupportedException or ArgumentException or InvalidOperationException or TimeoutException or System.Text.Json.JsonException or System.Runtime.InteropServices.COMException or System.ComponentModel.Win32Exception)
         {
-            Error = exception.Message;
-            Console.Error.WriteLine($"field-audio=Failed {Error}");
+            ReportOutputFailure(exception);
         }
+    }
+
+    private void ReportOutputFailure(Exception exception)
+    {
+        if (Error == exception.Message)
+        {
+            return;
+        }
+        Error = exception.Message;
+        Console.Error.WriteLine($"field-audio=Failed {Error}");
     }
 
     private void StopVoice(int voice)
