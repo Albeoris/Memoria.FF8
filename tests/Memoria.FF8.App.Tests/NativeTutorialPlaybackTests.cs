@@ -9,6 +9,33 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeTutorialPlaybackTests
 {
     [Fact]
+    public void OriginalSixtyCallbackPauseLastsOneMenuSecond()
+    {
+        string directory = TestResources.GameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Installed original tutorial resources are required.");
+        using GameAssets assets = new(directory);
+        NativeTutorialPlayer player = new(assets.ReadNativeTutorialCatalog(), LiveMenuCatalog.ReadInstalled(assets), 4);
+        Assert.Equal(60, NativeTutorialPlayer.CallbacksPerSecond);
+        for (int tick = 0; tick < 3000; tick++)
+        {
+            JsonElement state = JsonSerializer.SerializeToElement(player.Status);
+            if (state.GetProperty("Delay").GetInt32() == 60)
+            {
+                int pc = state.GetProperty("ProgramCounter").GetInt32();
+                player.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: NativeTutorialPlayer.CallbacksPerSecond - 1));
+                state = JsonSerializer.SerializeToElement(player.Status);
+                Assert.Equal(pc, state.GetProperty("ProgramCounter").GetInt32());
+                Assert.Equal(1, state.GetProperty("Delay").GetInt32());
+                player.Apply(new PlayerAction(PlayerActionKind.Wait));
+                Assert.True(JsonSerializer.SerializeToElement(player.Status).GetProperty("ProgramCounter").GetInt32() > pc);
+                return;
+            }
+            player.Apply(new PlayerAction(player.WaitingForInput ? PlayerActionKind.Confirm : PlayerActionKind.Wait));
+        }
+        Assert.Fail("Original GF demonstration did not reach its sixty-callback pause.");
+    }
+
+    [Fact]
     public void StatusLessonsShowOriginalResistanceCompatibilityAndLearnedLimitData()
     {
         string directory = TestResources.GameDirectory;

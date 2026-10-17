@@ -148,6 +148,12 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
         Text(value, size, bounds, color, null);
     }
 
+    public UiSize MeasureText(string value, float size, float maximumWidth)
+    {
+        Vector2 measured = text.MeasureWrapped(value, size, maximumWidth);
+        return new UiSize(measured.X, measured.Y);
+    }
+
     public void OutlinedText(string value, float size, UiRect bounds, UiColor color, UiColor outline, float thickness)
     {
         if (bounds.IsEmpty || size <= 0 || string.IsNullOrEmpty(value))

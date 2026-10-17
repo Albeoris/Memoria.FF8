@@ -51,9 +51,9 @@ internal sealed partial class RecreateGame
                 ApplyTutorialInput(new PlayerAction(pressed));
             }
             tutorialSeconds += options.ControlStep ? 0 : elapsed.TotalSeconds;
-            while (tutorialSeconds + 1e-9 >= 1d / EventEngine.SimulationFps && displayedTutorial is not null)
+            while (tutorialSeconds + 1e-9 >= 1d / NativeTutorialPlayer.CallbacksPerSecond && displayedTutorial is not null)
             {
-                tutorialSeconds -= 1d / EventEngine.SimulationFps;
+                tutorialSeconds -= 1d / NativeTutorialPlayer.CallbacksPerSecond;
                 ApplyTutorialInput(new PlayerAction(PlayerActionKind.Wait));
             }
             SynchronizeUiMoviePause();

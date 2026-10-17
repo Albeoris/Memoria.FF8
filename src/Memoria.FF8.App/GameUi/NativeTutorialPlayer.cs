@@ -9,6 +9,8 @@ namespace Memoria.FF8.GameUi;
 /// <summary>4BE100's original WORD program, presented through semantic menu targets and an exclusively owned tutorial party.</summary>
 internal sealed partial class NativeTutorialPlayer
 {
+    // Tutorial WORD delays count menu callbacks, independently of the field simulation.
+    internal const int CallbacksPerSecond = 60;
     private readonly NativeTutorialCatalog catalog;
     private readonly LiveMenuCatalog menuCatalog;
     private readonly NativeTutorialDefinition definition;

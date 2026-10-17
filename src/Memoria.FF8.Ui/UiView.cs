@@ -272,6 +272,12 @@ public sealed class UiView
 
     private sealed class ScaledCanvas(IUiCanvas canvas, float scale, float offsetX, float offsetY) : IUiCanvas
     {
+        public UiSize MeasureText(string text, float fontSize, float maximumWidth)
+        {
+            UiSize measured = canvas.MeasureText(text, fontSize * scale, maximumWidth * scale);
+            return new UiSize(measured.Width / scale, measured.Height / scale);
+        }
+
         public void Paper(UiRect bounds, UiColor color)
         {
             canvas.Paper(Map(bounds), color);

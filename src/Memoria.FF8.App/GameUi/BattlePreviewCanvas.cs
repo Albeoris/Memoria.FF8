@@ -118,6 +118,12 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IBattleMessageCanvas, IDi
         Text(text, fontSize, bounds, color, UiAlignment.Start);
     }
 
+    public UiSize MeasureText(string text, float fontSize, float maximumWidth)
+    {
+        using Bitmap glyphs = SystemTextLayout.Rasterize(text, fontSize, maximumWidth);
+        return new UiSize(glyphs.Width / (float)SystemTextLayout.RasterScale, glyphs.Height / (float)SystemTextLayout.RasterScale);
+    }
+
     public void BattleMessage(DialogueDocument document, float size, UiRect bounds, double seconds)
     {
         using SystemTextMeasurer measure = new(size, null);

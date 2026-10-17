@@ -106,6 +106,11 @@ public interface IUiCanvas
         Fill(bounds, color);
     }
     void Text(string text, float fontSize, UiRect bounds, UiColor color);
+    /// <summary>Measures the same wrapped glyph bounds used by Text, in canvas coordinates.</summary>
+    UiSize MeasureText(string text, float fontSize, float maximumWidth)
+    {
+        throw new NotSupportedException("This canvas does not support text measurement.");
+    }
     void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment);
     /// <summary>Vertically centers the visible glyphs and outlines them with the given radius.</summary>
     void OutlinedText(string text, float fontSize, UiRect bounds, UiColor color, UiColor outline, float thickness)
