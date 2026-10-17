@@ -19,6 +19,9 @@ internal sealed class AutoPlayRunState
     public int ActiveField { get; set; }
     public int? ActiveStory { get; set; }
     public int ActiveObjectId { get; set; } = -1;
+    public string? ActiveConditionSignature { get; set; }
+    public List<AutoPlayChoiceSelection>? ActiveSelections { get; set; } = [];
+    public AutoPlayEventRoute? ActiveTravelRoute { get; set; }
     public ScriptedInputMetadata? ActiveObservedInput { get; set; }
     public bool ObserveContactInput { get; set; }
     public bool ObservedControlLoss { get; set; }
@@ -29,6 +32,7 @@ internal sealed class AutoPlayRunState
     public string? PrimaryContinuation { get; set; }
     public int PrimaryStory { get; set; }
     public int PrimaryFrontier { get; set; }
+    public List<AutoPlayChoiceSelection>? PrimarySelections { get; set; }
     public string? Snapshot { get; set; }
     public string? Error { get; set; }
     public bool ReachedEnding { get; set; }
@@ -170,7 +174,17 @@ internal sealed class AutoPlayController
     public void ResumeFrom(string manifest)
     {
         manifest = Path.GetFullPath(manifest);
-        AutoPlayRunState saved = JsonSerializer.Deserialize<AutoPlayRunState>(File.ReadAllText(manifest), JsonOptions) ?? throw new InvalidDataException("Empty automatic play manifest.");
+        string json = File.ReadAllText(manifest);
+        AutoPlayRunState saved = JsonSerializer.Deserialize<AutoPlayRunState>(json, JsonOptions) ?? throw new InvalidDataException("Empty automatic play manifest.");
+        using JsonDocument document = JsonDocument.Parse(json);
+        if (!document.RootElement.TryGetProperty(nameof(AutoPlayRunState.ActiveSelections), out _) && saved.ActiveEvent is not null)
+        {
+            saved.ActiveSelections = null;
+        }
+        if (!document.RootElement.TryGetProperty(nameof(AutoPlayRunState.ActiveConditionSignature), out _) && saved.ActiveVisit is string activeVisit && saved.ActiveEvent is string activeEvent)
+        {
+            saved.ActiveConditionSignature = saved.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == activeVisit)?.Events.SingleOrDefault(item => item.Event.Id == activeEvent)?.Conditions?.ActiveEntry;
+        }
         if (saved.Version != 1 || saved.Seed != 1 || saved.Snapshot is null)
         {
             throw new InvalidDataException("Unsupported automatic play manifest or seed.");
@@ -422,22 +436,22 @@ internal sealed class AutoPlayController
         }
         run.SceneFrames = 0;
         run.ScriptedInputSteps = 0;
+        string visit = VisitKey();
+        IReadOnlyList<AutoPlayTarget> targets = world.DiscoverAutoPlayTargets();
+        planner.Observe(new(visit, world.AutoPlayRegion), targets.GroupBy(target => target.CoverageId).Select(group => group.First()).Select(target => new AutoPlayEvent(target.CoverageId, target.Kind == AutoPlayTargetKind.Gateway || target.DestinationField is not null ? AutoPlayEventKind.Transition : AutoPlayEventKind.Interaction, ChangesStory: target.ChangesStory, Order: target.Order, ConditionSignature: world.ReadAutoPlayConditions(target.CoverageId, target.ObjectId).Fingerprint)).ToArray());
         if (FinishChoices())
         {
             return;
         }
-        string visit = VisitKey();
-        IReadOnlyList<AutoPlayTarget> targets = world.DiscoverAutoPlayTargets();
-        planner.Observe(new(visit, world.AutoPlayRegion), targets.GroupBy(target => target.CoverageId).Select(group => group.First()).Select(target => new AutoPlayEvent(target.CoverageId, target.Kind == AutoPlayTargetKind.Gateway || target.DestinationField is not null ? AutoPlayEventKind.Transition : AutoPlayEventKind.Interaction, ChangesStory: target.ChangesStory, Order: target.Order, ConditionSignature: world.ReadAutoPlayConditions(target.CoverageId, target.ObjectId).Fingerprint)).ToArray());
         if (run.ActiveVisit is not null && run.ActiveEvent is not null)
         {
-            string? exitSignature = run.ActiveField == session.State.FieldId ? world.ReadAutoPlayConditions(run.ActiveEvent, run.ActiveObjectId).Fingerprint : null;
-            planner.Completed(run.ActiveVisit, run.ActiveEvent, run.ActiveVisit == visit ? null : visit, exitSignature, ObserveStoryChange(run.ActiveStory, run.ActiveVisit, session.State.Variables.GetValueOrDefault(256)));
+            RecordActiveControlReturn();
             run.ActiveVisit = null;
             run.ActiveEvent = null;
             run.ActiveStory = null;
             run.ActiveObservedInput = null;
             run.ObserveContactInput = false;
+            run.ActiveTravelRoute = null;
         }
         AutoPlayPlanStep? next = planner.Plan(visit);
         if (next is null)
@@ -461,6 +475,9 @@ internal sealed class AutoPlayController
             run.ActiveField = world.Events.FieldId;
             run.ActiveStory = world.Events.Variables.GetValueOrDefault(256);
             run.ActiveObjectId = target.ObjectId;
+            run.ActiveConditionSignature = world.ReadAutoPlayConditions(target.CoverageId, target.ObjectId).Fingerprint;
+            run.ActiveSelections = [];
+            run.ActiveTravelRoute = next.Route;
             run.ActiveObservedInput = null;
             run.ObserveContactInput = target.Kind != AutoPlayTargetKind.Talk;
             run.ObservedControlLoss = false;
@@ -605,7 +622,11 @@ internal sealed class AutoPlayController
         planner.ObserveChoice(key, input.Masks.Count);
         AutoPlayChoiceCoverage choice = run.Coverage.Choices.Single(item => item.Key == key);
         int selection = attempt % input.Masks.Count;
-        if (choice.ActiveOption is null && !choice.Finished)
+        if (run.ActiveTravelRoute is { } route)
+        {
+            selection = SelectRecordedTravelChoice(route, run.ActiveSelections, key, 0, input.Masks.Count - 1);
+        }
+        else if (choice.ActiveOption is null && !choice.Finished)
         {
             AutoPlayChoiceStep next = planner.PlanChoice(key);
             if (next.Kind == AutoPlayChoiceStepKind.SaveBeforeChoice)
@@ -622,6 +643,7 @@ internal sealed class AutoPlayController
             }
         }
         PulseScriptedInput(input.Masks[selection], input, allowControlled, prepared: true);
+        run.ActiveSelections?.Add(new(key, selection));
     }
 
     private bool PrepareScriptedInput(bool allowControlled)
@@ -709,6 +731,7 @@ internal sealed class AutoPlayController
         string name = "choice-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)))[..16].ToLowerInvariant() + ".json";
         SaveGame(Path.Combine(runDirectory!, name), CaptureState());
         planner.RegisterChoiceCheckpoint(key, name);
+        run.Coverage.Choices.Single(choice => choice.Key == key).BeforeSelections = run.ActiveSelections?.ToList();
     }
 
     private void ExploreWorld(GameWorld world)
@@ -724,24 +747,25 @@ internal sealed class AutoPlayController
             }
             return;
         }
+        string visit = "world:" + session.State.Variables.GetValueOrDefault(256);
+        string signature = WorldConditionSignature(session.State);
+        IReadOnlyList<WorldAutoPlayTarget> targets = world.DiscoverAutoPlayWorldTargets();
+        planner.Observe(new(visit, "world"), targets.Select(target => new AutoPlayEvent(target.Id, AutoPlayEventKind.Transition, Order: target.Order, ConditionSignature: signature)).ToArray());
         if (FinishChoices())
         {
             return;
         }
-        string visit = "world:" + session.State.Variables.GetValueOrDefault(256);
         if (run.ActiveVisit is not null && run.ActiveEvent is not null)
         {
-            RecordWorldControlReturn(planner, run.ActiveVisit, run.ActiveEvent, visit, run.ActiveStory, session.State.Variables.GetValueOrDefault(256));
+            RecordActiveControlReturn();
         }
         run.ActiveVisit = null;
         run.ActiveEvent = null;
         run.ActiveStory = null;
         run.ActiveObservedInput = null;
         run.ObserveContactInput = false;
+        run.ActiveTravelRoute = null;
         run.SceneFrames = 0;
-        string signature = WorldConditionSignature(session.State);
-        IReadOnlyList<WorldAutoPlayTarget> targets = world.DiscoverAutoPlayWorldTargets();
-        planner.Observe(new(visit, "world"), targets.Select(target => new AutoPlayEvent(target.Id, AutoPlayEventKind.Transition, Order: target.Order, ConditionSignature: signature)).ToArray());
         AutoPlayPlanStep next = planner.Plan(visit) ?? throw new NotSupportedException("Reachable world frontier exhausted before the ending.");
         WorldAutoPlayTarget target = targets.Single(item => item.Id == next.Event.Id);
         SaveBundle($"world-{run.Steps:D10}", CaptureState());
@@ -751,6 +775,9 @@ internal sealed class AutoPlayController
         run.ActiveField = session.State.FieldId;
         run.ActiveStory = session.State.Variables.GetValueOrDefault(256);
         run.ActiveObjectId = -1;
+        run.ActiveConditionSignature = signature;
+        run.ActiveSelections = [];
+        run.ActiveTravelRoute = next.Route;
         run.ObservedControlLoss = false;
         run.SettleFrames = 0;
         world.ExecuteAutoPlayWorldTarget(target);
@@ -772,14 +799,15 @@ internal sealed class AutoPlayController
         return ui.ScriptMode != 0 || !ui.Windows.IsEmpty ? 1 : 0;
     }
 
-    internal static void RecordWorldControlReturn(AutoPlayPlanner planner, string activeVisit, string eventId, string currentVisit, int? entryStory, int story)
+    internal static void RecordWorldControlReturn(AutoPlayPlanner planner, string activeVisit, string eventId, string currentVisit, int? entryStory, int story, IReadOnlyList<AutoPlayChoiceSelection>? selections = null, string? entrySignature = null, bool hasChoiceOutcome = false, bool entrySignatureAuthoritative = false)
     {
-        if (activeVisit.StartsWith("world:", StringComparison.Ordinal))
+        AutoPlayEventCoverage item = planner.State.Visits.Single(visit => visit.Visit.Key == activeVisit).Events.Single(item => item.Event.Id == eventId);
+        if (activeVisit.StartsWith("world:", StringComparison.Ordinal) && !hasChoiceOutcome && selections is not { Count: > 0 } && item.Routes.Count == 0)
         {
             planner.Block(activeVisit, eventId, "The native world event returned control without entering the requested field.");
             return;
         }
-        planner.Completed(activeVisit, eventId, currentVisit, observedStoryChanged: ObserveStoryChange(entryStory, activeVisit, story));
+        planner.Completed(activeVisit, eventId, activeVisit == currentVisit ? null : currentVisit, observedStoryChanged: ObserveStoryChange(entryStory, activeVisit, story), selections: selections, entrySignature: entrySignature, entrySignatureAuthoritative: entrySignatureAuthoritative);
     }
 
     internal static string WorldConditionSignature(GameState state)
@@ -841,12 +869,21 @@ internal sealed class AutoPlayController
         string key = $"{VisitKey()}:{dialogue.ObjectId}:{dialogue.ScriptId}:{dialogue.Operation}:{dialogue.MessageId}:{first}:{last}";
         planner.ObserveChoice(key, last - first + 1, first);
         AutoPlayChoiceCoverage coverage = run.Coverage.Choices.Single(item => item.Key == key);
+        if (run.ActiveTravelRoute is { } route)
+        {
+            int recorded = SelectRecordedTravelChoice(route, run.ActiveSelections, key, first, last);
+            run.DialogueSelections[key] = recorded;
+            ApplyDialogueSelection(recorded);
+            run.ActiveSelections?.Add(new(key, recorded));
+            return;
+        }
         if (coverage.ActiveOption is not null || coverage.Finished)
         {
             int previous = run.DialogueSelections.GetValueOrDefault(key, coverage.ActiveOption ?? first);
             int repeated = dialogue.CancelChoice ?? first + (previous - first + 1) % (last - first + 1);
             run.DialogueSelections[key] = repeated;
             ApplyDialogueSelection(repeated);
+            run.ActiveSelections?.Add(new(key, repeated));
             return;
         }
         AutoPlayChoiceStep next = planner.PlanChoice(key);
@@ -858,12 +895,28 @@ internal sealed class AutoPlayController
         if (next.Selection is not int selection)
         {
             ApplyDialogueSelection(dialogue.CancelChoice ?? last);
+            run.ActiveSelections?.Add(new(key, dialogue.CancelChoice ?? last));
             return;
         }
         planner.BeginChoiceOption(key, selection);
         run.SceneChoices.Add(key);
         run.DialogueSelections[key] = selection;
         ApplyDialogueSelection(selection);
+        run.ActiveSelections?.Add(new(key, selection));
+    }
+
+    internal static int SelectRecordedTravelChoice(AutoPlayEventRoute route, IReadOnlyList<AutoPlayChoiceSelection>? executed, string key, int first, int last)
+    {
+        if (route.Selections is null || executed is null || executed.Count >= route.Selections.Count || !route.Selections.Take(executed.Count).SequenceEqual(executed))
+        {
+            throw new NotSupportedException("The recorded travel route has no authenticated next choice selection.");
+        }
+        AutoPlayChoiceSelection next = route.Selections[executed.Count];
+        if (next.Key != key || next.Selection < first || next.Selection > last)
+        {
+            throw new NotSupportedException("The actual native choice does not match the recorded travel route key and selection range.");
+        }
+        return next.Selection;
     }
 
     internal static bool NeedsWorldConfirmRelease(NativeWorldInputHistory? history)
@@ -880,6 +933,7 @@ internal sealed class AutoPlayController
     {
         if (run.SceneChoices.Count != 0)
         {
+            RecordActiveControlReturn();
             string continuation = $"continuation-{run.Steps:D10}.json";
             SaveGame(Path.Combine(runDirectory!, continuation), CaptureState());
             int story = session.State.Variables.GetValueOrDefault(256);
@@ -889,6 +943,7 @@ internal sealed class AutoPlayController
                 run.PrimaryContinuation = continuation;
                 run.PrimaryStory = story;
                 run.PrimaryFrontier = frontier;
+                run.PrimarySelections = run.ActiveSelections?.ToList();
             }
             foreach (string key in run.SceneChoices)
             {
@@ -911,6 +966,7 @@ internal sealed class AutoPlayController
             if (next.Kind == AutoPlayChoiceStepKind.Replay && next.Checkpoint is not null && next.Selection is int selection)
             {
                 restore(GameSession.Load(Path.Combine(runDirectory!, next.Checkpoint)));
+                run.ActiveSelections = choice.BeforeSelections?.ToList();
                 planner.BeginChoiceOption(choice.Key, selection);
                 run.SceneChoices.Add(choice.Key);
                 run.SettleFrames = 0;
@@ -919,16 +975,19 @@ internal sealed class AutoPlayController
                     getWorld().EnsureField();
                     ScriptedInputMetadata input = RestoreScriptedChoiceInput(choice);
                     PulseScriptedInput(input.Masks[selection], input, getWorld().Events.IsUserControlEnabled, choice.InputCheckpointPrepared);
+                    run.ActiveSelections?.Add(new(choice.Key, selection));
                 }
                 else
                 {
                     run.DialogueSelections[choice.Key] = selection;
                     ApplyDialogueSelection(selection);
+                    run.ActiveSelections?.Add(new(choice.Key, selection));
                 }
                 return true;
             }
         }
         restore(GameSession.Load(Path.Combine(runDirectory!, run.PrimaryContinuation)));
+        run.ActiveSelections = run.PrimarySelections?.ToList();
         run.PrimaryContinuation = null;
         return true;
     }
@@ -983,14 +1042,35 @@ internal sealed class AutoPlayController
 
     private int ContinuationFrontier()
     {
-        GameWorld world = getWorld();
-        if (session.State.Scene == SceneKind.WorldMap)
+        string visit = session.State.Scene == SceneKind.WorldMap ? "world:" + session.State.Variables.GetValueOrDefault(256) : VisitKey();
+        return planner.ReachableFrontierCount(visit, run.ActiveVisit, run.ActiveEvent);
+    }
+
+    internal void RecordActiveControlReturn()
+    {
+        if (run.ActiveVisit is not string source || run.ActiveEvent is not string eventId)
         {
-            return world.DiscoverAutoPlayWorldTargets().Count;
+            return;
         }
-        AutoPlayVisitCoverage? visit = run.Coverage.Visits.SingleOrDefault(item => item.Visit.Key == VisitKey());
-        HashSet<string> completed = visit?.Events.Where(item => item.Completed).Select(item => item.Event.Id).ToHashSet(StringComparer.Ordinal) ?? [];
-        return world.DiscoverAutoPlayTargets().Select(item => item.CoverageId).Distinct(StringComparer.Ordinal).Count(id => !completed.Contains(id));
+        string destination = session.State.Scene == SceneKind.WorldMap ? "world:" + session.State.Variables.GetValueOrDefault(256) : VisitKey();
+        if (run.ActiveTravelRoute is { } route && route.DestinationVisitKey != destination)
+        {
+            throw new NotSupportedException("The executed native choices returned to a different destination than the recorded travel route.");
+        }
+        if (run.ActiveTravelRoute is { Selections: { } expected } && (run.ActiveSelections is null || !expected.SequenceEqual(run.ActiveSelections)))
+        {
+            throw new NotSupportedException("The native event returned control before every recorded travel choice was encountered.");
+        }
+        GameWorld world = getWorld();
+        string? exitSignature = run.ActiveField == session.State.FieldId && session.State.Scene == SceneKind.Field ? world.ReadAutoPlayConditions(eventId, run.ActiveObjectId).Fingerprint : null;
+        if (destination.StartsWith("world:", StringComparison.Ordinal))
+        {
+            RecordWorldControlReturn(planner, source, eventId, destination, run.ActiveStory, session.State.Variables.GetValueOrDefault(256), run.ActiveSelections, run.ActiveConditionSignature, run.SceneChoices.Count > 0, entrySignatureAuthoritative: true);
+        }
+        else
+        {
+            planner.Completed(source, eventId, source == destination ? null : destination, exitSignature, ObserveStoryChange(run.ActiveStory, source, session.State.Variables.GetValueOrDefault(256)), run.ActiveSelections, run.ActiveConditionSignature, entrySignatureAuthoritative: true);
+        }
     }
 
     private PlayerActionResult Apply(PlayerAction action)

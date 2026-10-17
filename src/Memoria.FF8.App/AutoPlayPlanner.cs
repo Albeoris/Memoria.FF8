@@ -20,7 +20,9 @@ internal sealed class AutoPlayConditionCoverage
     public bool Contains(string signature) => ConsumedEntries.Contains(signature) || ConsumedExits.Contains(signature);
 }
 
-internal sealed record AutoPlayPlanStep(string VisitKey, AutoPlayEvent Event, bool IsTravel);
+internal sealed record AutoPlayChoiceSelection(string Key, int Selection);
+internal sealed record AutoPlayEventRoute(string DestinationVisitKey, string? ConditionSignature, bool? ObservedStoryChanged, IReadOnlyList<AutoPlayChoiceSelection>? Selections);
+internal sealed record AutoPlayPlanStep(string VisitKey, AutoPlayEvent Event, bool IsTravel, AutoPlayEventRoute? Route = null);
 
 internal sealed class AutoPlayEventCoverage
 {
@@ -31,6 +33,7 @@ internal sealed class AutoPlayEventCoverage
     public AutoPlayConditionCoverage? Conditions { get; set; }
     public bool? ObservedStoryChanged { get; set; }
     public string? ObservedConditionSignature { get; set; }
+    public List<AutoPlayEventRoute> Routes { get; set; } = [];
 }
 
 internal sealed class AutoPlayVisitCoverage
@@ -61,6 +64,7 @@ internal sealed class AutoPlayChoiceCoverage
     public List<int> CompletedOptions { get; set; } = [];
     public int? ActiveOption { get; set; }
     public bool Finished { get; set; }
+    public List<AutoPlayChoiceSelection>? BeforeSelections { get; set; }
 }
 
 internal sealed class AutoPlayPlannerState
@@ -80,6 +84,10 @@ internal sealed class AutoPlayPlanner
     {
         State = state ?? new AutoPlayPlannerState();
         this.phaseOrder = phaseOrder ?? ((_, _) => 0);
+        foreach (AutoPlayEventCoverage item in State.Visits.SelectMany(visit => visit.Events))
+        {
+            NormalizeLegacyRoute(item);
+        }
     }
 
     public void Observe(AutoPlayVisit visit, IReadOnlyList<AutoPlayEvent> events)
@@ -147,16 +155,25 @@ internal sealed class AutoPlayPlanner
         }
     }
 
-    public void Completed(string visitKey, string eventId, string? destinationVisitKey = null, string? exitSignature = null, bool? observedStoryChanged = null)
+    public void Completed(string visitKey, string eventId, string? destinationVisitKey = null, string? exitSignature = null, bool? observedStoryChanged = null, IReadOnlyList<AutoPlayChoiceSelection>? selections = null, string? entrySignature = null, bool entrySignatureAuthoritative = false)
     {
         AutoPlayEventCoverage item = FindEvent(visitKey, eventId);
         item.Completed = true;
+        item.BlockedReason = null;
         item.ObservedStoryChanged = observedStoryChanged;
-        item.ObservedConditionSignature = observedStoryChanged is null ? null : item.Conditions?.ActiveEntry ?? item.Event.ConditionSignature;
-        ConsumeConditions(item, exitSignature);
+        string? entry = entrySignatureAuthoritative ? entrySignature : entrySignature ?? item.Conditions?.ActiveEntry ?? item.Event.ConditionSignature;
+        item.ObservedConditionSignature = observedStoryChanged is null ? null : entry;
+        ConsumeConditions(item, exitSignature, entry, entrySignatureAuthoritative: true);
         if (destinationVisitKey is not null)
         {
+            AutoPlayEventRoute route = new(destinationVisitKey, entry, observedStoryChanged, selections?.ToArray());
+            item.Routes.RemoveAll(previous => previous.DestinationVisitKey == route.DestinationVisitKey && previous.ConditionSignature == route.ConditionSignature && (previous.Selections is null ? route.Selections is null : route.Selections is not null && previous.Selections.SequenceEqual(route.Selections)));
+            item.Routes.Add(route);
             item.Event = item.Event with { DestinationVisitKey = destinationVisitKey, Kind = AutoPlayEventKind.Transition };
+        }
+        if (!entrySignatureAuthoritative)
+        {
+            NormalizeLegacyRoute(item);
         }
     }
 
@@ -179,16 +196,19 @@ internal sealed class AutoPlayPlanner
         while (pending.TryDequeue(out string? key))
         {
             AutoPlayVisitCoverage visit = FindVisit(key);
-            foreach (AutoPlayEventCoverage edge in OrderedEvents(visit).Where(CanTravel))
+            foreach (AutoPlayEventCoverage edge in OrderedEvents(visit))
             {
-                string? destination = edge.Event.DestinationVisitKey;
-                if (destination is null || routes.ContainsKey(destination) || !State.Visits.Any(item => item.Visit.Key == destination))
+                foreach (AutoPlayEventRoute route in TravelRoutes(edge))
                 {
-                    continue;
+                    string destination = route.DestinationVisitKey;
+                    if (routes.ContainsKey(destination) || !State.Visits.Any(item => item.Visit.Key == destination))
+                    {
+                        continue;
+                    }
+                    routes.Add(destination, routes[key] ?? new AutoPlayPlanStep(key, edge.Event with { DestinationVisitKey = destination }, true, route));
+                    distances.Add(destination, distances[key] + 1);
+                    pending.Enqueue(destination);
                 }
-                routes.Add(destination, routes[key] ?? new AutoPlayPlanStep(key, edge.Event, true));
-                distances.Add(destination, distances[key] + 1);
-                pending.Enqueue(destination);
             }
         }
         var candidates = routes.Keys.SelectMany(key => OrderedEvents(FindVisit(key)).Where(NeedsExecution).Select(item => new { Visit = FindVisit(key), Coverage = item }));
@@ -206,6 +226,38 @@ internal sealed class AutoPlayPlanner
             return null;
         }
         return routes[selected.Visit.Visit.Key] ?? new AutoPlayPlanStep(selected.Visit.Visit.Key, selected.Coverage.Event, false);
+    }
+
+    public int ReachableFrontierCount(string currentVisitKey, string? excludedVisit = null, string? excludedEvent = null)
+    {
+        HashSet<string> reached = [];
+        Queue<string> pending = new();
+        pending.Enqueue(currentVisitKey);
+        int count = 0;
+        while (pending.TryDequeue(out string? key))
+        {
+            if (!reached.Add(key))
+            {
+                continue;
+            }
+            AutoPlayVisitCoverage? visit = State.Visits.SingleOrDefault(item => item.Visit.Key == key);
+            if (visit is null)
+            {
+                continue;
+            }
+            foreach (AutoPlayEventCoverage item in OrderedEvents(visit))
+            {
+                if ((key != excludedVisit || item.Event.Id != excludedEvent) && NeedsExecution(item))
+                {
+                    count++;
+                }
+                foreach (AutoPlayEventRoute route in TravelRoutes(item))
+                {
+                    pending.Enqueue(route.DestinationVisitKey);
+                }
+            }
+        }
+        return count;
     }
 
     /// <summary>Keys identify the choice and relevant story state, never the history of alternative selections.</summary>
@@ -301,20 +353,32 @@ internal sealed class AutoPlayPlanner
         return item.Event.ConditionSignature is string signature && item.Conditions is not null ? !item.Conditions.Contains(signature) : !item.Completed;
     }
 
-    private static bool CanTravel(AutoPlayEventCoverage item)
+    private static IEnumerable<AutoPlayEventRoute> TravelRoutes(AutoPlayEventCoverage item)
     {
-        bool changesStory = item.ObservedStoryChanged is bool observed && StringComparer.Ordinal.Equals(item.ObservedConditionSignature, item.Event.ConditionSignature) ? observed : item.Event.ChangesStory;
-        return item.Completed && !changesStory && item.Event.Kind == AutoPlayEventKind.Transition;
+        return item.Routes.Where(route => item.Completed && StringComparer.Ordinal.Equals(route.ConditionSignature, item.Event.ConditionSignature) && !(route.ObservedStoryChanged ?? item.Event.ChangesStory)).OrderBy(route => route.DestinationVisitKey, StringComparer.Ordinal).ThenBy(route => route.Selections is null ? string.Empty : string.Join('|', route.Selections.Select(selection => $"{selection.Key}={selection.Selection}")), StringComparer.Ordinal);
     }
 
-    private static void ConsumeConditions(AutoPlayEventCoverage item, string? exitSignature)
+    private static void NormalizeLegacyRoute(AutoPlayEventCoverage item)
     {
-        if (item.Event.ConditionSignature is not string current)
+        if (item.Completed && item.Routes.Count == 0 && item.Event.DestinationVisitKey is string destination)
+        {
+            bool? observed = StringComparer.Ordinal.Equals(item.ObservedConditionSignature, item.Event.ConditionSignature) ? item.ObservedStoryChanged : null;
+            item.Routes.Add(new(destination, item.Event.ConditionSignature, observed, null));
+        }
+    }
+
+    private static void ConsumeConditions(AutoPlayEventCoverage item, string? exitSignature, string? entrySignature = null, bool entrySignatureAuthoritative = false)
+    {
+        if (item.Event.ConditionSignature is not string && !entrySignatureAuthoritative)
         {
             return;
         }
         item.Conditions ??= new AutoPlayConditionCoverage();
-        item.Conditions.ConsumedEntries.Add(item.Conditions.ActiveEntry ?? current);
+        string? entry = entrySignatureAuthoritative ? entrySignature : item.Conditions.ActiveEntry ?? item.Event.ConditionSignature;
+        if (entry is not null)
+        {
+            item.Conditions.ConsumedEntries.Add(entry);
+        }
         if (exitSignature is not null)
         {
             // Exit states suppress scheduler self-repetition; they are not executed branch coverage.
