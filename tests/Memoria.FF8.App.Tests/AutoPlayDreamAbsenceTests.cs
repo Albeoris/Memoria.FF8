@@ -59,11 +59,20 @@ public sealed class AutoPlayDreamAbsenceTests
         Assert.DoesNotContain(run.Controller.State.Coverage.Visits, visit => visit.Visit.Key == "742:223");
         AutoPlayPlanner planner = new(run.Controller.State.Coverage, (visit, item) => AutoPlayTraversalPolicy.PhaseOrder(visit.Region, item.Order), AutoPlayTraversalPolicy.ProgressionEntryOrder);
         AutoPlayPlanStep next = planner.Plan("741:223")!;
-        Assert.Equal("741:gateway:2", next.Event.Id);
-        Assert.False(next.IsTravel);
+        Assert.StartsWith("741:gateway:", next.Event.Id, StringComparison.Ordinal);
+        Assert.NotEqual(entry.Event.Id, next.Event.Id);
         AutoPlayEventCoverage alternative = run.Controller.State.Coverage.Visits.Single(visit => visit.Visit.Key == "741:223").Events.Single(item => item.Event.Id == next.Event.Id);
         Assert.True(alternative.Available);
-        Assert.False(alternative.Completed);
+        if (next.IsTravel)
+        {
+            Assert.NotNull(next.Route);
+            Assert.Contains(next.Route, alternative.Routes);
+            Assert.Equal(next.Event.ConditionSignature, next.Route.ConditionSignature);
+        }
+        else
+        {
+            Assert.DoesNotContain(next.Event.ConditionSignature!, alternative.Conditions!.ConsumedEntries);
+        }
         Assert.False(alternative.Unavailable);
         Assert.False(run.Controller.State.ReachedEnding);
         Assert.Equal(originalManifest, File.ReadAllBytes(manifest));

@@ -17,7 +17,7 @@ internal sealed class AutoPlayConditionCoverage
     public HashSet<string> ConsumedExits { get; set; } = new(StringComparer.Ordinal);
     public string? ActiveEntry { get; set; }
 
-    public bool Contains(string signature) => ConsumedEntries.Contains(signature) || ConsumedExits.Contains(signature);
+    public bool HasExecutedEntry(string signature) => ConsumedEntries.Contains(signature);
 }
 
 internal sealed record AutoPlayChoiceSelection(string Key, int Selection);
@@ -172,11 +172,11 @@ internal sealed partial class AutoPlayPlanner
                         previous.Conditions = new AutoPlayConditionCoverage();
                         if (previous.Completed || previous.BlockedReason is not null)
                         {
-                            // Legacy manifests establish a baseline instead of replaying their completed frontier.
+                            // Legacy completion has no evidence that this newly observed predicate was an executed entry.
                             previous.Conditions.ConsumedExits.Add(signature);
                         }
                     }
-                    else if (!previous.Conditions.Contains(signature))
+                    else if (!previous.Conditions.HasExecutedEntry(signature))
                     {
                         previous.BlockedReason = null;
                     }
@@ -569,7 +569,7 @@ internal sealed partial class AutoPlayPlanner
 
     private static bool NeedsExecution(AutoPlayEventCoverage item)
     {
-        bool conditionsChanged = item.Event.ConditionSignature is string signature && item.Conditions is not null ? !item.Conditions.Contains(signature) : !item.Completed;
+        bool conditionsChanged = item.Event.ConditionSignature is string signature && item.Conditions is not null ? !item.Conditions.HasExecutedEntry(signature) : !item.Completed;
         return item.RouteNeedsRediscovery || conditionsChanged || item.AvailabilityFingerprint is string availability && !item.CompletedAvailabilityFingerprints.Contains(availability);
     }
 
@@ -601,7 +601,7 @@ internal sealed partial class AutoPlayPlanner
         }
         if (exitSignature is not null)
         {
-            // Exit states suppress scheduler self-repetition; they are not executed branch coverage.
+            // An exit observation is history, not proof that the event ran from that predicate.
             item.Conditions.ConsumedExits.Add(exitSignature);
         }
         item.Conditions.ActiveEntry = null;

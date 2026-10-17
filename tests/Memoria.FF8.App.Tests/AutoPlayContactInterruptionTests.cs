@@ -17,6 +17,13 @@ public sealed class AutoPlayContactInterruptionTests
         using InstalledRun run = new();
         run.Controller.ResumeFrom(manifest);
         run.World.EnsureField();
+        // Isolate this native contact regression from remote frontier scheduling while retaining the authentic local observations.
+        AutoPlayPlannerState coverage = run.Controller.State.Coverage;
+        coverage.Visits.RemoveAll(visit => visit.Visit.Key != "717:223");
+        coverage.NavigationVisits.RemoveAll(visit => visit.VisitKey != "717:223");
+        HashSet<string> navigationKeys = coverage.NavigationVisits.Select(visit => visit.Key).ToHashSet(StringComparer.Ordinal);
+        coverage.NavigationRoutes.RemoveAll(edge => !navigationKeys.Contains(edge.SourceKey) || !navigationKeys.Contains(edge.DestinationKey));
+        coverage.NavigationRetirements.RemoveAll(retired => !navigationKeys.Contains(retired.Route.SourceKey) || !navigationKeys.Contains(retired.Route.DestinationKey) || !navigationKeys.Contains(retired.ActualDestinationKey));
         Assert.Equal(717, run.Session.State.FieldId);
         Assert.Equal(30, run.World.Events.Frame);
         Assert.Null(run.Controller.State.ActiveEvent);

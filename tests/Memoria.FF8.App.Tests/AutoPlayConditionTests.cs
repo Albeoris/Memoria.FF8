@@ -47,7 +47,7 @@ public sealed class AutoPlayConditionTests
     }
 
     [Fact]
-    public void EntryAndExitConsumptionSurvivesRestoreAndStopsSelfWrittenTokens()
+    public void EntryAndExitHistorySurvivesRestoreWithoutConsumingAnUnexecutedEntry()
     {
         AutoPlayPlanner planner = new();
         Observe(planner, "token-before");
@@ -55,26 +55,29 @@ public sealed class AutoPlayConditionTests
         planner.Completed("600:0", "talk", exitSignature: "token-after");
         AutoPlayPlannerState restored = JsonSerializer.Deserialize<AutoPlayPlannerState>(JsonSerializer.Serialize(planner.State))!;
         planner = new AutoPlayPlanner(restored);
-        foreach (string signature in new[] { "token-after", "token-before", "token-after" })
-        {
-            Observe(planner, signature);
-            Assert.Null(planner.Plan("600:0"));
-        }
+        Observe(planner, "token-before");
+        Assert.Null(planner.Plan("600:0"));
+        Observe(planner, "token-after");
+        Assert.NotNull(planner.Plan("600:0"));
         AutoPlayEventCoverage coverage = Assert.Single(Assert.Single(planner.State.Visits).Events);
         Assert.Equal(new[] { "token-before" }, coverage.Conditions!.ConsumedEntries);
         Assert.Equal(new[] { "token-after" }, coverage.Conditions.ConsumedExits);
         Assert.True(coverage.Completed);
+        planner.BeginEvent("600:0", "talk");
+        planner.Completed("600:0", "talk", exitSignature: "token-after");
+        Observe(planner, "token-after");
+        Assert.Null(planner.Plan("600:0"));
         Observe(planner, "external-change");
         Assert.NotNull(planner.Plan("600:0"));
     }
 
     [Fact]
-    public void LegacyCompletedEventsLearnCurrentBaselineWithoutBlindReplay()
+    public void LegacyCompletionDoesNotInventAnExecutedPredicateEntry()
     {
         AutoPlayPlannerState legacy = JsonSerializer.Deserialize<AutoPlayPlannerState>("{\"Visits\":[{\"Visit\":{\"Key\":\"600:0\",\"Region\":\"region\"},\"Events\":[{\"Event\":{\"Id\":\"talk\",\"Kind\":0},\"Available\":true,\"Completed\":true}]}]}")!;
         AutoPlayPlanner planner = new(legacy);
         Observe(planner, "current");
-        Assert.Null(planner.Plan("600:0"));
+        Assert.NotNull(planner.Plan("600:0"));
         AutoPlayConditionCoverage conditions = legacy.Visits[0].Events[0].Conditions!;
         Assert.Empty(conditions.ConsumedEntries);
         Assert.Equal(new[] { "current" }, conditions.ConsumedExits);
