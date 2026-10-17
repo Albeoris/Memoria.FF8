@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -700,7 +700,7 @@ public sealed partial class GameSession : IEventServices
             {
                 throw new InvalidDataException("Active native foot forest cooldown disagrees with the world process authority.");
             }
-            if (world.NativeFootRuntime is NativeFootWorldRuntimeState foot && (state.Scene != SceneKind.WorldMap || state.WorldArrival is null || (foot.StationTrains is { } stationSource ? state.WorldArrival != stationSource.Packet || state.SavedWorld is null || state.DepartingWorldState is null || stationSource.Load != NativeTrainWorldLoadReceipt.Create(state.SavedWorld, state.DepartingWorldState, stationSource.Load.Allocation) : unchecked((byte)state.WorldArrival.Mode) != foot.EntityType && !(unchecked((byte)state.WorldArrival.Mode) == 48 && foot.Rule == NativeFootWorldRuntimeState.GardenDismountRule && foot.GardenDismount is not null && world.NativeGardenRuntime?.Allocation.Packet == state.WorldArrival) && !(unchecked((byte)state.WorldArrival.Mode) == 50 && foot.Rule == NativeFootWorldRuntimeState.RagnarokDismountRule && foot.RagnarokDismount is not null && world.NativeRagnarokRuntime?.Allocation.Packet == state.WorldArrival))))
+            if (world.NativeFootRuntime is NativeFootWorldRuntimeState foot && (state.Scene != SceneKind.WorldMap || state.WorldArrival is null || (foot.StationTrains is { } stationSource ? state.WorldArrival != stationSource.Packet || state.SavedWorld is null || state.DepartingWorldState is null || stationSource.Load != NativeTrainWorldLoadReceipt.Create(foot.StationTrainEntrySavedWorld ?? throw new NotSupportedException("Station foot requires its retained train-entry saved owner."), state.DepartingWorldState, stationSource.Load.Allocation) : unchecked((byte)state.WorldArrival.Mode) != foot.EntityType && !(unchecked((byte)state.WorldArrival.Mode) == 48 && foot.Rule == NativeFootWorldRuntimeState.GardenDismountRule && foot.GardenDismount is not null && world.NativeGardenRuntime?.Allocation.Packet == state.WorldArrival) && !(unchecked((byte)state.WorldArrival.Mode) == 50 && foot.Rule == NativeFootWorldRuntimeState.RagnarokDismountRule && foot.RagnarokDismount is not null && world.NativeRagnarokRuntime?.Allocation.Packet == state.WorldArrival))))
             {
                 throw new InvalidDataException("Native foot world state disagrees with its original transition entity type.");
             }

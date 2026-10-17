@@ -7,6 +7,22 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativeWorldPathProjectionTests
 {
     [Fact]
+    public void FootProjectionUsesTheRetainedFocalDistanceForScreenVisibility()
+    {
+        NativeWorldFootCameraState camera = new(0, 0, 0, 0, 0, 0, 0, 0, 0, -7168);
+        NativeWorldPathPosition node = new(3000, 0, 0);
+        NativeWorldPathNodeProjection normal = NativeWorldPathProjectionCertificate.CreateFoot(camera).ProjectNode(node)!;
+        NativeWorldPathNodeProjection wide = NativeWorldPathProjectionCertificate.CreateFoot(camera with { ProjectionDistance = 640 }).ProjectNode(node)!;
+        Assert.NotNull(normal);
+        Assert.NotNull(wide);
+        Assert.False(normal.Visible);
+        Assert.True(wide.Visible);
+        Assert.Equal(normal.Words, wide.Words);
+        Assert.Throws<InvalidDataException>(() => (camera with { ProjectionDistance = 639 }).Validate());
+        Assert.Throws<InvalidDataException>(() => (camera with { ProjectionDistance = 1025 }).Validate());
+    }
+
+    [Fact]
     public void OriginalTrackElevenProjectsActualNodesAndRestoresTheirNativeReceipts()
     {
         using WorldAssets assets = new(TestResources.GameDirectory);

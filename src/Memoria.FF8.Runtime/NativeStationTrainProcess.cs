@@ -5,11 +5,13 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Exact input words for one552AD0 normal-foot camera, captured before the terrain movement query.</summary>
 public sealed record NativeWorldFootCameraState([property: JsonRequired] int X, [property: JsonRequired] int RawZ, [property: JsonRequired] int NativeHeight, [property: JsonRequired] int TargetX, [property: JsonRequired] int TargetRawZ, [property: JsonRequired] int TargetNativeHeight, [property: JsonRequired] int Yaw, [property: JsonRequired] short Pitch, [property: JsonRequired] short OffsetY, [property: JsonRequired] short OffsetZ)
 {
+    public int ProjectionDistance { get; init; } = 1024;
+
     public static NativeWorldFootCameraState Create(WorldState world)
     {
         NativeFootWorldRuntimeState foot = world.NativeFootRuntime ?? throw new InvalidDataException("Native foot camera capture requires the executed foot process.");
         NativeWorldForestState forest = foot.Forest ?? throw new InvalidDataException("Native foot camera capture has no current selected pitch.");
-        var state = new NativeWorldFootCameraState(world.X, world.Z, world.NativeHeight, world.CameraTargetX, world.CameraTargetZ, world.CameraTargetNativeHeight, world.CameraYaw, forest.CameraPitch, foot.CameraOffsetY, foot.CameraOffsetZ);
+        var state = new NativeWorldFootCameraState(world.X, world.Z, world.NativeHeight, world.CameraTargetX, world.CameraTargetZ, world.CameraTargetNativeHeight, world.CameraYaw, forest.CameraPitch, foot.CameraOffsetY, foot.CameraOffsetZ) { ProjectionDistance = foot.CameraTransition?.ProjectionDistance ?? 1024 };
         state.Validate();
         return state;
     }
@@ -19,7 +21,7 @@ public sealed record NativeWorldFootCameraState([property: JsonRequired] int X, 
 
     public void Validate()
     {
-        if (X is < -131072 or >= 131072 || RawZ is < -98304 or >= 98304 || Yaw is < 0 or >= 4096 || Pitch is < -512 or > 0 || OffsetZ >= 0)
+        if (X is < -131072 or >= 131072 || RawZ is < -98304 or >= 98304 || Yaw is < 0 or >= 4096 || Pitch is < -512 or > 0 || OffsetZ >= 0 || ProjectionDistance is < 640 or > 1024)
         {
             throw new InvalidDataException("Native normal-foot camera lost its physical origin, selected angles or retained camera offsets.");
         }

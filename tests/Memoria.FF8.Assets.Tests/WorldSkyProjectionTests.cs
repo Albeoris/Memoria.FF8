@@ -8,6 +8,16 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class WorldSkyProjectionTests
 {
     [Fact]
+    public void HorizonUsesTheCurrentFocalDistanceAndItsOwnNearClamp()
+    {
+        Assert.Equal(1224, WorldSkyProjection.ProjectHorizonEighthY(100, 1000, projectionDistance: 640));
+        Assert.Equal(1992, WorldSkyProjection.ProjectHorizonEighthY(100, 400, projectionDistance: 640));
+        Vector3 player = new(24576, 658, -29406);
+        WorldCamera camera = WorldCamera.Foot(0, 2048, projectionDistance: 640) with { TargetPosition = new Vector3(player.X, 914, player.Z) };
+        Assert.Equal(441, WorldSkyProjection.Foot(camera, player, Colors()).HorizonEighthY);
+    }
+
+    [Fact]
     public void FootHorizonUsesSeaLevelPointAndOriginalIntegerOffsetCorrection()
     {
         WorldSky sky = Colors();

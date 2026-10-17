@@ -63,6 +63,10 @@ public sealed partial record NativeFootWorldRuntimeState
     public required short CameraOffsetY { get; init; }
     [JsonRequired]
     public required short CameraOffsetZ { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeFootCameraTransition? CameraTransition { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? PriorTerrainOcclusion { get; init; }
     [JsonRequired]
     public required long? ReloadSourceWorldFrame { get; init; }
 
@@ -77,6 +81,8 @@ public sealed partial record NativeFootWorldRuntimeState
     /// <summary>548AF0 keeps both existing train banks and the selected section9 allocation alive.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeTrainWorldRuntimeState? StationTrains { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeSavedWorldState? StationTrainEntrySavedWorld { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeWorldTrainDismountReceipt? TrainDismount { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -127,7 +133,7 @@ public sealed partial record NativeFootWorldRuntimeState
         return state;
     }
 
-    public static NativeFootWorldRuntimeState CreateTrainDismount(NativeTrainWorldRuntimeState train, NativeWorldTrainStation station, short cameraPitch)
+    public static NativeFootWorldRuntimeState CreateTrainDismount(NativeTrainWorldRuntimeState train, NativeWorldTrainStation station, short cameraPitch, NativeSavedWorldState entrySavedWorld)
     {
         NativeWorldTrainDismountReceipt receipt = NativeWorldTrainDismountReceipt.Create(train, station);
         if (station.Index != 0 || train.Primary.TrackIndex != 0)
@@ -145,12 +151,14 @@ public sealed partial record NativeFootWorldRuntimeState
             MapDisplayMode = train.Load.MapDisplayMode,
             CameraOffsetY = 0,
             CameraOffsetZ = train.CameraGeometry.OffsetZ,
+            CameraTransition = NativeFootCameraTransition.TrainDismount,
             ReloadSourceWorldFrame = null,
             GroundCache = train.GroundCache,
             GroundYaw = train.GroundYaw,
             PreviousHorizontalInput = 0,
             Forest = train.Forest with { CameraPitch = cameraPitch },
             StationTrains = train,
+            StationTrainEntrySavedWorld = entrySavedWorld,
             TrainDismount = receipt,
             StationTrainProcess = NativeStationTrainProcess.Create(train)
         };
@@ -213,6 +221,7 @@ public sealed partial record NativeFootWorldRuntimeState
             CameraOffsetY = -341,
             CameraOffsetZ = -7168,
             ReloadSourceWorldFrame = receipt.SourceWorldFrame,
+            CameraTransition = receipt.AnimationVariant108 == 1 ? new NativeFootCameraTransition(0, 640) : null,
             GroundCache = null,
             GroundYaw = 0,
             PreviousHorizontalInput = null
@@ -227,6 +236,8 @@ public sealed partial record NativeFootWorldRuntimeState
         GroundCache?.Validate();
         StationTrains?.Validate();
         NormalObjects?.Validate();
+        CameraTransition?.Validate();
+        StationTrainEntrySavedWorld?.Validate();
         if (Rule == RagnarokDismountRule)
         {
             if (RagnarokDismount is null || GardenDismount is not null || StationTrains is not null || TrainDismount is not null || StationTrainProcess is not null || NormalObjects is not null || ReloadSourceWorldFrame is not null || EntityType != 0 || AnimationVariant != 0 || CameraOffsetY != RagnarokDismount.ProjectionCamera.OffsetY || CameraOffsetZ != RagnarokDismount.Camera.OffsetZ || GroundCache is null || GroundYaw is null || Forest is null)
@@ -253,7 +264,7 @@ public sealed partial record NativeFootWorldRuntimeState
         }
         else if (Rule == TrainDismountRule)
         {
-            if (NormalObjects is not null || StationTrains is null || TrainDismount is null || StationTrainProcess is null || ReloadSourceWorldFrame is not null || EntityType != StationTrains.ControlledObjectEntityType || AnimationVariant != 0 || MapDisplayMode != StationTrains.Load.MapDisplayMode || CameraOffsetY != 0 || CameraOffsetZ != StationTrains.CameraGeometry.OffsetZ)
+            if (NormalObjects is not null || StationTrains is null || TrainDismount is null || StationTrainProcess is null || ReloadSourceWorldFrame is not null || EntityType != StationTrains.ControlledObjectEntityType || AnimationVariant > 1 || MapDisplayMode != StationTrains.Load.MapDisplayMode || CameraOffsetZ >= 0 || CameraOffsetY is < -341 or > 0)
             {
                 throw new InvalidDataException("Native foot dismount lost its retained train allocation or executed station transition.");
             }
@@ -276,7 +287,7 @@ public sealed partial record NativeFootWorldRuntimeState
         {
             throw new InvalidDataException("Native foot retained input/yaw exceeds its physical word contract.");
         }
-        if (ProofVersion != CurrentProofVersion || Rule is not (FirstLoadRule or SavedReloadRule or BattleReloadRule or TrainDismountRule or GardenDismountRule or RagnarokDismountRule) || EntityType > 2 || AnimationVariant > 1 || MapDisplayMode > 3 || Rule == FirstLoadRule && (AnimationVariant != 0 || ReloadSourceWorldFrame is not null) || Rule is SavedReloadRule or BattleReloadRule && (ReloadSourceWorldFrame is null or < 0))
+        if (ProofVersion != CurrentProofVersion || Rule is not (FirstLoadRule or SavedReloadRule or BattleReloadRule or TrainDismountRule or GardenDismountRule or RagnarokDismountRule) || EntityType > 2 || AnimationVariant > 1 || MapDisplayMode > 3 || Rule == FirstLoadRule && (AnimationVariant != 0 && CameraTransition is null || ReloadSourceWorldFrame is not null) || Rule is SavedReloadRule or BattleReloadRule && (ReloadSourceWorldFrame is null or < 0))
         {
             throw new InvalidDataException("Invalid native foot-world loader or saved-reload authority.");
         }
@@ -294,9 +305,17 @@ public sealed partial record NativeFootWorldRuntimeState
     public void RequireSupportedNormalFoot()
     {
         Validate();
-        if (AnimationVariant != 0 || MapDisplayMode != 0)
+        if (AnimationVariant > 1 || MapDisplayMode != 0 || AnimationVariant == 1 && CameraTransition is null)
         {
-            throw new NotSupportedException("The native foot renderer/control path currently requires variant0 and map display mode0.");
+            throw new NotSupportedException("The native foot renderer/control path requires a known camera variant and map display mode0.");
+        }
+        if (Rule == TrainDismountRule && CameraTransition is null)
+        {
+            throw new NotSupportedException("Native station foot camera requires its executed dismount transition; migrate this save explicitly.");
+        }
+        if (Rule == TrainDismountRule && StationTrainEntrySavedWorld is null)
+        {
+            throw new NotSupportedException("Native station foot requires its retained train-entry saved owner; migrate this save explicitly.");
         }
     }
 }

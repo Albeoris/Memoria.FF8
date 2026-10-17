@@ -57,7 +57,7 @@ public enum PlayerTriggerKind
     NativeGameOver
 }
 
-public sealed record PlayerAction(PlayerActionKind Kind, int Value = 0, string? Text = null, float Horizontal = 0, float Vertical = 0, int Frames = 1, int? Quantity = null, float CameraHorizontal = 0, bool WaitWhilePlayable = false);
+public sealed record PlayerAction(PlayerActionKind Kind, int Value = 0, string? Text = null, float Horizontal = 0, float Vertical = 0, int Frames = 1, int? Quantity = null, float CameraHorizontal = 0, bool WaitWhilePlayable = false, ushort WorldButtons = 0);
 public sealed record PlayerTrigger(PlayerTriggerKind Kind, int FieldId, long Frame, int? MessageId, string? Text);
 public sealed record PlayerActionResult(bool Accepted, PlayerTrigger Trigger, int FramesAdvanced, string? Detail = null, bool NativeInputObserved = false);
 public sealed record PlayerActionObservation(long Index, int FieldId, long Frame, PlayerAction Action, PlayerActionResult Result);

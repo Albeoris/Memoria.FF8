@@ -37,20 +37,25 @@ public static class WorldSkyProjection
         Vector3 relative = point - frame.Eye;
         double cameraY = -Vector3.Dot(relative, frame.Up);
         double cameraDepth = Vector3.Dot(relative, frame.Forward);
-        return new WorldSkyGradient(ProjectHorizonEighthY(cameraY, cameraDepth, offsetZ), sky.Top, sky.Center, sky.Bottom);
+        int projectionDistance = (int)MathF.Round(112 / MathF.Tan(camera.FieldOfView / 2));
+        return new WorldSkyGradient(ProjectHorizonEighthY(cameraY, cameraDepth, offsetZ, projectionDistance), sky.Top, sky.Center, sky.Bottom);
     }
 
     /// <summary>Native projection rounds transformed coordinates and eighth-pixel output; half-even matches the bounded PC FPU assumption.</summary>
-    public static int ProjectHorizonEighthY(double cameraY, double cameraDepth, int offsetZ = FootOffsetZ)
+    public static int ProjectHorizonEighthY(double cameraY, double cameraDepth, int offsetZ = FootOffsetZ, int projectionDistance = FootFocalPixels)
     {
         if (!double.IsFinite(cameraY) || !double.IsFinite(cameraDepth))
         {
             throw new ArgumentOutOfRangeException(nameof(cameraY), "Projected coordinates must be finite.");
         }
+        if (projectionDistance is < 640 or > 1024)
+        {
+            throw new ArgumentOutOfRangeException(nameof(projectionDistance));
+        }
         double y = Math.Round(cameraY, MidpointRounding.ToEven);
         double depth = Math.Clamp(Math.Round(cameraDepth, MidpointRounding.ToEven), 0, ushort.MaxValue);
-        double denominator = Math.Max(FootFocalPixels / 2, depth);
-        double screenY = Math.Round(8 * y * FootFocalPixels / denominator, MidpointRounding.ToEven) + 8 * (LogicalHeight / 2);
+        double denominator = Math.Max(projectionDistance / 2, depth);
+        double screenY = Math.Round(8 * y * projectionDistance / denominator, MidpointRounding.ToEven) + 8 * (LogicalHeight / 2);
         int boundedY = (int)Math.Clamp(screenY, -8192, 8184);
         // C# integer division preserves native truncation toward zero: 7168 / -300 == -23.
         return boundedY + 8 * (Math.Abs(offsetZ) / -300);

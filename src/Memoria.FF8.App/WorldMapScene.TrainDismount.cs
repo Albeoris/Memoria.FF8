@@ -11,7 +11,7 @@ internal sealed partial class WorldMapScene
         NativeTrainWorldRuntimeState train = before.NativeTrainRuntime ?? throw new InvalidOperationException("Native station dismount requires the current riding-train runtime.");
         ValidateTrainRide(train);
         NativeWorldTrainStation station = assets.ReadTrainStation(stationIndex);
-        NativeFootWorldRuntimeState foot = NativeFootWorldRuntimeState.CreateTrainDismount(train, station, train.CameraGeometry.Pitch);
+        NativeFootWorldRuntimeState foot = NativeFootWorldRuntimeState.CreateTrainDismount(train, station, train.CameraGeometry.Pitch, session.State.SavedWorld ?? throw new NotSupportedException("Native train dismount lost its train-entry saved-world owner."));
         //548AF0 writes the station pose, clears203FE50 and LOWORD203FE54,
         //selects the existing controlled foot object, and releases203FD5C.
         //The camera target/velocity and ground are retained from the same callback.

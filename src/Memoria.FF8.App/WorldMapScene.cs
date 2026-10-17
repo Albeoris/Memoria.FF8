@@ -201,7 +201,7 @@ internal sealed partial class WorldMapScene : IDisposable
                 {
                     WorldGroundSelection initialGround = assets.LookupNativeGround(x, z, replacements, []) ?? throw new NotSupportedException("Original foot spawn has no native53EB80 ground lookup result.");
                     NativeWorldProcess process = session.State.WorldProcess ?? throw new NotSupportedException("Native forest loader requires the executed main-loop/camera process history; migrate this save explicitly.");
-                    initialFootRuntime = initialFootRuntime! with { GroundCache = CreateFreshGroundCache(initialGround.Identity), PreviousHorizontalInput = PreviousFootHorizontalInput(process, worldLoad: true), Forest = NativeWorldForestState.Create(process.MainLoopCounter, process.CameraCooldown) };
+                    initialFootRuntime = initialFootRuntime! with { GroundCache = CreateFreshGroundCache(initialGround.Identity), PreviousHorizontalInput = PreviousFootHorizontalInput(process, worldLoad: true), Forest = NativeWorldForestState.Create(process.MainLoopCounter, process.CameraCooldown) with { CameraPitch = initialFootRuntime.AnimationVariant == 0 ? (short)-112 : (short)-512 } };
                     ground = initialGround.Ground;
                 }
                 WorldState initial = new()
@@ -223,6 +223,10 @@ internal sealed partial class WorldMapScene : IDisposable
                 if (!car)
                 {
                     initial = parkedGarden ? InitializeParkedGarden(initial, arrival, inputs, unchecked((short)-(int)ground!.Value.Height), battleReload) : InitializeNormalFootObjects(initial, inputs);
+                    if (!parkedGarden)
+                    {
+                        initial = initial with { NativeFootRuntime = initial.NativeFootRuntime! with { PriorTerrainOcclusion = ReadFootTerrainOcclusion(initial, initial) } };
+                    }
                 }
                 EnsureContactCertificate(initial);
                 session.SetWorldState(initial);
@@ -332,6 +336,10 @@ internal sealed partial class WorldMapScene : IDisposable
         bool worldMessageConfirm = sourceDialogue is { CanConfirm: true, FirstChoice: null } && action.Kind == PlayerActionKind.Confirm;
         bool gardenAction = (State.NativeGardenRuntime is not null || State.NativeRagnarokRuntime is not null) && action.Kind == PlayerActionKind.Confirm;
         bool ragnarokButtons = State.NativeRagnarokRuntime is not null && State.NativeFootRuntime is null && action.Kind == PlayerActionKind.WorldButtons;
+        if (action.WorldButtons != 0 && (action.Kind is not (PlayerActionKind.Move or PlayerActionKind.Wait) || (action.WorldButtons & ~0x02) != 0))
+        {
+            throw new ArgumentException("Ordinary world button levels support only the camera toggle mask on Move or Wait actions.", nameof(action));
+        }
         if (ragnarokButtons && action.Value is < 0 or > ushort.MaxValue)
         {
             throw new ArgumentOutOfRangeException(nameof(action), "Native world digital button masks require an unsigned WORD.");
@@ -364,6 +372,7 @@ internal sealed partial class WorldMapScene : IDisposable
                 bool gardenFootAtCallback = candidate.NativeGardenRuntime is not null && candidate.NativeFootRuntime is not null;
                 bool ragnarokFootAtCallback = candidate.NativeRagnarokRuntime is not null && candidate.NativeFootRuntime is not null;
                 uint buttons = ragnarokButtons ? unchecked((uint)action.Value) : (gardenAction || worldMessageConfirm) && index == 0 ? 0x40u : 0;
+                buttons |= action.WorldButtons;
                 if (action.Kind == PlayerActionKind.Move)
                 {
                     buttons |= action.Vertical == -1 ? 0x80u : action.Vertical == 1 ? 0x10u : 0;
@@ -377,6 +386,13 @@ internal sealed partial class WorldMapScene : IDisposable
                     salary = salary.ConsumeGardenScriptRequest();
                 }
                 salary = salary.WithGraphicsSpeed(graphicsSpeed);
+                WorldState beforeToggle = candidate;
+                candidate = PrepareFootCameraToggle(candidate, salary.InputHistory);
+                if (!ReferenceEquals(beforeToggle, candidate))
+                {
+                    WorldEntryVariables variables = WorldEntryVariables.Read(session.State);
+                    salary = salary.WithFootCameraToggle(candidate, checked((ushort)session.State.FieldId), variables.StoryWord, assets.GetNativeMapLocationId(candidate.X, candidate.Z));
+                }
                 if (candidate.NativeCarRuntime is { } fuelCar)
                 {
                     salary = salary.PrepareCarFuel(fuelCar.EntityType, candidate.GroundType ?? throw new NotSupportedException("Native car fuel requires its actual current terrain type."), graphicsSpeed);
@@ -397,6 +413,16 @@ internal sealed partial class WorldMapScene : IDisposable
                 }
                 if (candidate.NativeScriptedRuntime is null && candidate.NativeTrainRuntime is null)
                 {
+                    bool currentOcclusion = candidate.NativeFootRuntime is null ? false : candidate.NativeGardenRuntime?.PriorTerrainOcclusion ?? candidate.NativeRagnarokRuntime?.PriorTerrainOcclusion ?? ReadFootTerrainOcclusion(callbackStart, candidate);
+                    if (candidate.NativeFootRuntime is not null)
+                    {
+                        candidate = candidate with { NativeFootRuntime = candidate.NativeFootRuntime with { PriorTerrainOcclusion = currentOcclusion } };
+                    }
+                    //54B460 follows station handling and runs558D70 in ordinary mode.
+                    if (candidate.NativeFootRuntime?.CameraTransition is { } transition)
+                    {
+                        candidate = candidate with { NativeFootRuntime = transition.Step(candidate.NativeFootRuntime, currentOcclusion) };
+                    }
                     //53FAC0 calls6519D0 with the same accepted-vector /8 units before salary, regardless of its suppression flag.
                     salary = salary.PrepareDrawPointAging(movementUnits);
                 }
@@ -528,6 +554,13 @@ internal sealed partial class WorldMapScene : IDisposable
         }
         EnsureContactCertificate(state);
         WorldCamera camera = FootCamera(state);
+        NativeWorldFootCameraState? drawnCamera = state.NativeFootRuntime?.StationTrainProcess?.ProjectionCamera ?? state.NativeFootRuntime?.NormalObjects?.Camera;
+        if (drawnCamera is not null)
+        {
+            //558D70 runs after drawing. Retain the actual projection for this
+            //presented callback while the live words prepare the next one.
+            camera = WorldCamera.Foot(drawnCamera.Yaw, 2048, projectionDistance: drawnCamera.ProjectionDistance) with { TargetPosition = new Vector3(drawnCamera.TargetX, -drawnCamera.TargetNativeHeight, drawnCamera.TargetRawZ), NativePitch = drawnCamera.Pitch, NativeOffsetY = drawnCamera.OffsetY, NativeOffsetZ = drawnCamera.OffsetZ };
+        }
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
         Vector3 position = new(state.X, -state.NativeHeight, state.Z);
         IReadOnlyList<NativeWorldStaticModelDraw>? models = state.NativeCarRuntime is NativeCarWorldRuntimeState car ? ReadCarModels(state, position, car) : state.NativeFootRuntime?.StationTrains is not null ? ReadStationTrainModels(state.NativeFootRuntime) : state.NativeFootRuntime?.NormalObjects is not null ? ReadNormalFootObjectModels(state) : null;
@@ -640,8 +673,8 @@ internal sealed partial class WorldMapScene : IDisposable
         int targetHeight = (3 * before.CameraTargetNativeHeight + before.NativeHeight - 256) >> 2;
         byte currentGroundType = before.GroundType ?? throw new NotSupportedException("Native forest camera/emission requires the current selected polygon type.");
         NativeWorldProcess process = session.State.WorldProcess ?? throw new NotSupportedException("Native forest camera has no executed process history.");
-        bool priorTerrainOcclusion = before.NativeRagnarokRuntime is { } parkedRagnarok ? parkedRagnarok.PriorTerrainOcclusion ?? throw new NotSupportedException("Parked Ragnarok foot camera lost its previous native terrain-render occlusion owner.") : before.NativeGardenRuntime is { } parkedGarden ? parkedGarden.PriorTerrainOcclusion ?? throw new NotSupportedException("Parked Garden foot camera lost its previous native terrain-render occlusion owner.") : false;
-        NativeForestCameraResult cameraStep = (process with { CameraCooldown = forest.CameraCooldown }).StepNormalFootCamera(forest.CameraPitch, currentGroundType, priorTerrainOcclusion, held8: moving);
+        bool priorTerrainOcclusion = before.NativeRagnarokRuntime is { } parkedRagnarok ? parkedRagnarok.PriorTerrainOcclusion ?? throw new NotSupportedException("Parked Ragnarok foot camera lost its previous native terrain-render occlusion owner.") : before.NativeGardenRuntime is { } parkedGarden ? parkedGarden.PriorTerrainOcclusion ?? throw new NotSupportedException("Parked Garden foot camera lost its previous native terrain-render occlusion owner.") : foot.PriorTerrainOcclusion ?? throw new NotSupportedException("Native foot camera requires its previous terrain-render occlusion owner; migrate this save explicitly.");
+        NativeForestCameraResult cameraStep = foot.AnimationVariant == 0 ? (process with { CameraCooldown = forest.CameraCooldown }).StepNormalFootCamera(forest.CameraPitch, currentGroundType, priorTerrainOcclusion, held8: moving) : new NativeForestCameraResult(forest.CameraPitch, process with { CameraCooldown = forest.CameraCooldown });
         graphicsSpeed = NativeWorldVectorMagnitude.Truncate(moveX, 0, graphicsMoveZ);
         NativeWorldFootType2AnimationResult? type2Animation = null;
         if (foot.EntityType == 2)
@@ -776,7 +809,7 @@ internal sealed partial class WorldMapScene : IDisposable
 
     private static WorldCamera FootCamera(WorldState state)
     {
-        return WorldCamera.Foot(state.CameraYaw, 2048) with { TargetPosition = new Vector3(state.CameraTargetX, -state.CameraTargetNativeHeight, state.CameraTargetZ), NativePitch = state.NativeFootRuntime?.Forest?.CameraPitch, NativeOffsetY = state.NativeFootRuntime?.CameraOffsetY, NativeOffsetZ = state.NativeFootRuntime?.CameraOffsetZ };
+        return WorldCamera.Foot(state.CameraYaw, 2048, projectionDistance: state.NativeFootRuntime?.CameraTransition?.ProjectionDistance ?? 1024) with { TargetPosition = new Vector3(state.CameraTargetX, -state.CameraTargetNativeHeight, state.CameraTargetZ), NativePitch = state.NativeFootRuntime?.Forest?.CameraPitch, NativeOffsetY = state.NativeFootRuntime?.CameraOffsetY, NativeOffsetZ = state.NativeFootRuntime?.CameraOffsetZ };
     }
 
     private static int FollowCamera(int velocity, int delta, bool damping)

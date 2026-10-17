@@ -183,7 +183,7 @@ public sealed partial class EventEngine
         Scene.AllSoundVolumeTransition = previousScene.AllSoundVolumeTransition;
         Scene.AllSoundVolume = previousScene.AllSoundVolume;
         CopyNativeMediaHistory(previousScene);
-        CopyNativeMusicLoad(previousScene, nativeRuntimeProfile);
+        CopyNativeMusicLoad(previousScene, nativeRuntimeProfile, restoringCheckpoint);
         InitializePreviousField(previousFieldId);
         InitializeFieldLoadReason(fieldLoadReason);
         InitializePreviousWorldEntity();

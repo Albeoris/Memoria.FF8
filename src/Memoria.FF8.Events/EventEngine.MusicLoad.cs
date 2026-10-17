@@ -33,9 +33,9 @@ public sealed partial class EventEngine
         SetSoundVolumeByte(198, 127);
     }
 
-    private void CopyNativeMusicLoad(SceneEventState previous, NativeFieldRuntimeProfile? profile)
+    private void CopyNativeMusicLoad(SceneEventState previous, NativeFieldRuntimeProfile? profile, bool restoringCheckpoint = false)
     {
-        if (profile is { IsVerified: true } && services.WorldControls is NativeWorldControlState controls)
+        if (!restoringCheckpoint && profile is { IsVerified: true } && services.WorldControls is NativeWorldControlState controls)
         {
             // Normal52BC00 resets B207 and DWORD104 mask400 without resetting
             // pending, requested/completion bytes, buffers or channel identities.

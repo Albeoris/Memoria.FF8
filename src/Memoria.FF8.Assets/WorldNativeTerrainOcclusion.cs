@@ -68,9 +68,9 @@ public sealed partial class NativeWorldPathProjectionCertificate
         int roundedDepth = NativePrecision53.RoundInteger(depth);
         int screenX;
         int screenY;
-        if (roundedDepth > Focal / 2)
+        if (roundedDepth > focal / 2)
         {
-            double ratio = Focal / depth;
+            double ratio = focal / depth;
             screenX = unchecked(8 * 160 + NativePrecision53.RoundInteger(ratio * x));
             screenY = unchecked(8 * 112 + NativePrecision53.RoundInteger(ratio * y));
         }

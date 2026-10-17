@@ -64,7 +64,8 @@ public sealed class NativeFootWorldRuntimeStateTests
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeFootWorldRuntimeState>("{}"));
         NativeSavedWorldFootReturn receipt = NativeSavedWorldFootReturn.Create(new WorldState(), 159, 17, 1, 1, 0);
         NativeFootWorldRuntimeState reload = NativeFootWorldRuntimeState.CreateSavedReload(receipt);
-        Assert.Throws<NotSupportedException>(reload.RequireSupportedNormalFoot);
+        reload.RequireSupportedNormalFoot();
+        Assert.Equal(640, reload.CameraTransition!.ProjectionDistance);
         Assert.Throws<InvalidDataException>(() => (reload with { ReloadSourceWorldFrame = null }).Validate());
         Assert.Throws<InvalidDataException>(() => (reload with { ReloadSourceWorldFrame = -1 }).Validate());
     }

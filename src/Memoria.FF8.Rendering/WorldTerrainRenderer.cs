@@ -49,9 +49,13 @@ public readonly record struct WorldCamera(float Heading, float Distance, float H
         };
     }
 
-    public static WorldCamera Foot(int nativeHeading, float farDistance, int skyIndex = 0)
+    public static WorldCamera Foot(int nativeHeading, float farDistance, int skyIndex = 0, int projectionDistance = 1024)
     {
-        return new WorldCamera(nativeHeading * MathF.Tau / 4096, 448, 341f / 16, 16, 2 * MathF.Atan(112f / 1024), farDistance, skyIndex, true);
+        if (projectionDistance is < 640 or > 1024)
+        {
+            throw new ArgumentOutOfRangeException(nameof(projectionDistance));
+        }
+        return new WorldCamera(nativeHeading * MathF.Tau / 4096, 448, 341f / 16, 16, 2 * MathF.Atan(112f / projectionDistance), farDistance, skyIndex, true);
     }
 
     public WorldCameraFrame FootFrame(Vector3 playerPosition)

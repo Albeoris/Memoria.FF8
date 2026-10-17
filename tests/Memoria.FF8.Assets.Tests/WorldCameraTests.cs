@@ -6,6 +6,17 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class WorldCameraTests
 {
+    [Theory]
+    [InlineData(1024)]
+    [InlineData(832)]
+    [InlineData(640)]
+    public void FootCameraUsesTheCurrentNativeProjectionDistance(int projectionDistance)
+    {
+        WorldCamera camera = WorldCamera.Foot(0, 2048, projectionDistance: projectionDistance);
+        Assert.InRange(MathF.Abs(112 / MathF.Tan(camera.FieldOfView / 2) - projectionDistance), 0, 0.001f);
+        Assert.Equal(WorldCamera.Foot(0, 2048).FootFrame(Vector3.Zero), camera.FootFrame(Vector3.Zero));
+    }
+
     [Fact]
     public void NativeBoatCameraUsesExecutedSignedWordDistanceAndOpticalBasis()
     {
@@ -22,7 +33,7 @@ public sealed class WorldCameraTests
         Assert.Equal(872, WorldSkyProjection.ProjectHorizonEighthY(0, 20000, -1024));
         WorldCamera narrowed = WorldCamera.ScriptedPath(new NativeWorldPathCamera(new NativeWorldPathPosition(0, 0, 64512), new NativeWorldPathPosition(0, 0, 0)), 2048);
         Assert.Equal(frame, narrowed.ScriptedFrame);
-        Assert.Throws<NotSupportedException>(() => WorldCamera.ScriptedPath(new NativeWorldPathCamera(default, default), 2048));
+        Assert.Throws<InvalidDataException>(() => WorldCamera.ScriptedPath(new NativeWorldPathCamera(default, default), 2048));
     }
 
     [Fact]

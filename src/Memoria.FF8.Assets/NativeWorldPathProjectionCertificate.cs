@@ -14,7 +14,7 @@ public sealed partial class NativeWorldPathProjectionCertificate
 
     // Original B6B980 float bits3AC90FDB, B695F8=1/4096, B69540=4096.
     private const double RadiansPerUnit = 0.0015339808305725455;
-    private const int Focal = 1024;
+    private readonly int focal;
     private const int CurveThreshold = 5216;
     private readonly int curveThreshold;
     private readonly Range[,] rotation;
@@ -30,6 +30,7 @@ public sealed partial class NativeWorldPathProjectionCertificate
     {
         this.precision53 = precision53;
         this.curveThreshold = curveThreshold;
+        focal = camera.FootState?.ProjectionDistance ?? 1024;
         Camera = camera;
         Origin = origin;
         originSector = Sector(origin);
@@ -322,8 +323,8 @@ public sealed partial class NativeWorldPathProjectionCertificate
     {
         if (precision53 && coordinate.Unique && rawDepth.Unique)
         {
-            int depth = Math.Max(Focal / 2, Math.Clamp(rawDepth.Low, 0, ushort.MaxValue));
-            int screen = unchecked(NativePrecision53.RoundInteger(8d * coordinate.Low * (Focal / (double)depth)) + 8 * center);
+            int depth = Math.Max(focal / 2, Math.Clamp(rawDepth.Low, 0, ushort.MaxValue));
+            int screen = unchecked(NativePrecision53.RoundInteger(8d * coordinate.Low * (focal / (double)depth)) + 8 * center);
             return Range.Exact(Math.Clamp(screen, -8192, 8184));
         }
         int low = int.MaxValue;
@@ -332,8 +333,8 @@ public sealed partial class NativeWorldPathProjectionCertificate
         {
             foreach (int z in new[] { rawDepth.Low, rawDepth.High })
             {
-                int depth = Math.Max(Focal / 2, Math.Clamp(z, 0, ushort.MaxValue));
-                double ratio = Focal / (double)depth;
+                int depth = Math.Max(focal / 2, Math.Clamp(z, 0, ushort.MaxValue));
+                double ratio = focal / (double)depth;
                 int multiplier = checked(8 * value);
                 double first = multiplier * (multiplier < 0 ? Math.BitIncrement(ratio) : Math.BitDecrement(ratio));
                 double last = multiplier * (multiplier < 0 ? Math.BitDecrement(ratio) : Math.BitIncrement(ratio));

@@ -581,7 +581,8 @@ internal sealed partial class RecreateGame : Game
             while (fieldSeconds + 1e-9 >= 1d / WorldMapScene.SimulationFps)
             {
                 fieldSeconds -= 1d / WorldMapScene.SimulationFps;
-                PlayerAction action = input.Horizontal != 0 || input.Vertical != 0 ? new PlayerAction(PlayerActionKind.Move, Horizontal: input.Horizontal, Vertical: input.Vertical, CameraHorizontal: input.CameraHorizontal) : new PlayerAction(PlayerActionKind.Wait, CameraHorizontal: input.CameraHorizontal);
+                ushort worldButtons = (ushort)(keyboard.HeldFieldButtons & 0x02);
+                PlayerAction action = input.Horizontal != 0 || input.Vertical != 0 ? new PlayerAction(PlayerActionKind.Move, Horizontal: input.Horizontal, Vertical: input.Vertical, CameraHorizontal: input.CameraHorizontal, WorldButtons: worldButtons) : new PlayerAction(PlayerActionKind.Wait, CameraHorizontal: input.CameraHorizontal, WorldButtons: worldButtons);
                 metrics.Simulate(world.Apply(action).FramesAdvanced);
                 if (session.State.Scene != SceneKind.WorldMap)
                 {

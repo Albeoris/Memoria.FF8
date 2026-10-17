@@ -2,6 +2,15 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeWorldSalaryState
 {
+    private NativeSavedWorldFootReturn? CameraToggleReturn { get; init; }
+
+    public NativeWorldSalaryState WithFootCameraToggle(WorldState world, ushort lastFieldId, ushort storyWord, short mapLocationId)
+    {
+        NativeSavedWorldFootReturn receipt = NativeSavedWorldFootReturn.RecordFootDeparture(world, lastFieldId, storyWord, mapLocationId);
+        NativeSavedWorldState saved = SavedWorldEvents ?? throw new NotSupportedException("Camera mode saving requires the actual saved-world owner.");
+        return this with { CameraToggleReturn = receipt, SavedWorldEvents = saved.WithFootReturn(receipt) };
+    }
+
     public NativeWorldSalaryState WithWorldEventCommand(ushort opcode, ushort operand, NativeWorldMessage? decodedMessage = null)
     {
         if (opcode == 0xFF26)
@@ -39,6 +48,10 @@ public sealed partial record NativeWorldSalaryState
         if (saved is null)
         {
             return null;
+        }
+        if (CameraToggleReturn is not null)
+        {
+            saved = saved.WithFootReturn(CameraToggleReturn);
         }
         return saved with
         {
