@@ -874,7 +874,9 @@ internal sealed partial class AutoPlayController
 
     private void RegisterChoiceSnapshot(string key)
     {
-        string name = "choice-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)))[..16].ToLowerInvariant() + ".json";
+        AutoPlayChoiceCoverage choice = run.Coverage.Choices.Single(item => item.Key == key);
+        string identity = choice.PolicyScope is null ? key : JsonSerializer.Serialize(new { key, choice.PolicyScope });
+        string name = "choice-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity)))[..16].ToLowerInvariant() + ".json";
         SaveGame(Path.Combine(runDirectory!, name), CaptureState());
         planner.RegisterChoiceCheckpoint(key, name);
         run.Coverage.Choices.Single(choice => choice.Key == key).BeforeSelections = run.ActiveSelections?.ToList();

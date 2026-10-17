@@ -488,7 +488,7 @@ internal sealed class AutoPlayPlanner
         }
         choice.PolicyScope = scope;
         choice.PolicyDeferredOptions = deferred.ToHashSet();
-        choice.PolicyExhausted = !choice.Finished && Enumerable.Range(choice.FirstOption, choice.OptionCount).All(option => choice.CompletedOptions.Contains(option) || deferred.Contains(option));
+        choice.PolicyExhausted = !choice.Finished && deferred.Count > 0 && Enumerable.Range(choice.FirstOption, choice.OptionCount).All(option => choice.CompletedOptions.Contains(option) || deferred.Contains(option));
     }
 
     public bool DeferParticipantAction(string visitKey, string eventId, AutoPlayParticipantPolicyDeferral deferral)

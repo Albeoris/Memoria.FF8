@@ -7,7 +7,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class AutoPlayParticipantPolicyTests
 {
     [Fact]
-    public void MissingAuthoredPartyActionDefersRealInputAlternativesWithoutExecutingForeignCodeOrCreditingCompletion()
+    public void NaturalComponentTraversalUsesTheNativeExitWithoutAttemptingDisconnectedParticipantActions()
     {
         string manifest = TestResources.FixturePath("App.Tests.AutoPlayParticipantPolicyTests.1");
         byte[] originalManifest = File.ReadAllBytes(manifest);
@@ -22,85 +22,40 @@ public sealed class AutoPlayParticipantPolicyTests
         byte[] bindings = Bindings(run);
         Assert.Equal(new byte[] { 6, 7, 8 }, bindings);
         Assert.Equal(new[] { 22, 23, 24 }, bindings.Select(index => run.World.Events.Scene.NativeActorObjectIds[index]));
-        HashSet<string> previousChoices = run.Controller.State.Coverage.Choices.Select(choice => choice.Key).ToHashSet(StringComparer.Ordinal);
-        AutoPlayEventCoverage Entry(InstalledRun current) => current.Controller.State.Coverage.Visits.Single(visit => visit.Visit.Key == "764:223").Events.Single(item => item.Event.Id == "764:line:9");
-        Assert.False(Entry(run).Completed);
+        AutoPlayEventCoverage Entry() => run.Controller.State.Coverage.Visits.Single(visit => visit.Visit.Key == "764:223").Events.Single(item => item.Event.Id == "764:line:9");
+        Assert.False(Entry().Completed);
+        Assert.DoesNotContain(run.World.DiscoverAutoPlayTargets(), target => target.CoverageId is "764:line:9" or "764:talk:17");
+        Assert.Empty(run.Controller.State.Coverage.Visits.SelectMany(visit => visit.Events).SelectMany(item => item.ParticipantPolicyDeferrals));
 
-        for (int tick = 0; tick < 1024 && !Entry(run).PolicyDeferred && run.Controller.Error is null; tick++)
+        for (int tick = 0; tick < 32 && run.Session.State.FieldId == 764 && run.Controller.Error is null; tick++)
         {
             run.Controller.Advance(1);
         }
 
         Assert.Null(run.Controller.Error);
         Assert.True(run.Controller.Running);
-        AutoPlayEventCoverage entry = Entry(run);
-        Assert.True(entry.PolicyDeferred);
-        Assert.NotEmpty(entry.ParticipantPolicyDeferrals);
+        Assert.Equal(762, run.Session.State.FieldId);
+        Assert.NotEmpty(run.ActiveEvents);
+        Assert.Equal("764:line:10", run.ActiveEvents[0]);
+        Assert.DoesNotContain("764:line:9", run.ActiveEvents);
+        AutoPlayEventCoverage entry = Entry();
+        Assert.False(entry.Available);
         Assert.False(entry.Completed);
         Assert.False(entry.Unavailable);
         Assert.Empty(entry.UnavailableAttempts);
         Assert.Empty(entry.Routes);
-        Assert.Equal(entry.Event.Variants!.Order(StringComparer.Ordinal), entry.PolicyDeferredVariants.Order(StringComparer.Ordinal));
-        Assert.All(entry.ParticipantPolicyDeferrals, receipt =>
-        {
-            Assert.Contains(receipt.TargetId, entry.Event.Variants!);
-            Assert.Equal(764, receipt.Request.FieldId);
-            Assert.Equal(9, receipt.Request.CallerObjectId);
-            Assert.Equal(81, receipt.Request.ScriptId);
-            Assert.Equal(1668, receipt.Request.Operation);
-            Assert.Equal(0, receipt.Request.PartySlot);
-            Assert.Equal(6, receipt.Request.LocalSelector);
-            Assert.Equal(22, receipt.Request.ReceiverObjectId);
-            Assert.Equal(8, receipt.Request.ReceiverCharacterId);
-            Assert.Equal(6, receipt.Request.PhysicalBinding);
-            Assert.Equal(5, receipt.Request.DeclaredScriptCount);
-            Assert.Equal(162, receipt.Request.PhysicalPointerIndex);
-            Assert.NotEmpty(receipt.Selections);
-        });
-        AutoPlayChoiceCoverage[] inputs = run.Controller.State.Coverage.Choices.Where(choice => !previousChoices.Contains(choice.Key) && choice.Key.StartsWith("input:764:", StringComparison.Ordinal)).ToArray();
-        Assert.NotEmpty(inputs);
-        Assert.All(inputs, choice =>
-        {
-            Assert.True(choice.PolicyExhausted);
-            Assert.False(choice.Finished);
-            Assert.Empty(choice.CompletedOptions);
-            Assert.Equal(Enumerable.Range(choice.FirstOption, choice.OptionCount), choice.PolicyDeferredOptions.Order());
-        });
-        Assert.Contains(run.InputMasks, mask => mask == 64);
-        Assert.Contains(run.InputMasks, mask => mask == 128);
-        Assert.NotEmpty(run.Requests);
+        Assert.False(entry.PolicyDeferred);
+        Assert.Empty(entry.PolicyDeferredVariants);
+        Assert.Empty(entry.ParticipantPolicyDeferrals);
+        Assert.True(entry.Conditions is null || entry.Conditions.ConsumedEntries.Count == 0 && entry.Conditions.ConsumedExits.Count == 0);
+        Assert.Empty(run.Controller.State.Coverage.Visits.SelectMany(visit => visit.Events).SelectMany(item => item.ParticipantPolicyDeferrals));
+        Assert.DoesNotContain(run.Requests, request => request.PhysicalCodeObjectId != request.ReceiverObjectId);
+        Assert.Empty(run.InputMasks);
         AssertNativePolicyBoundary(run);
-        Assert.Equal(bindings, Bindings(run));
-        Assert.Null(run.Controller.State.ActiveEvent);
         Assert.False(run.Controller.State.ReachedEnding);
-
-        string receipts = JsonSerializer.Serialize(entry.ParticipantPolicyDeferrals, AutoPlayController.JsonOptions);
-        run.Controller.SaveAndStop();
-        string portableManifest = run.Controller.ReproductionPath!;
-        using InstalledRun cold = new();
-        cold.Controller.ResumeFrom(portableManifest);
-        cold.World.EnsureField();
-        Assert.True(JsonElement.DeepEquals(run.World.Events.Capture(), cold.World.Events.Capture()));
-        Assert.Equal(receipts, JsonSerializer.Serialize(Entry(cold).ParticipantPolicyDeferrals, AutoPlayController.JsonOptions));
-        Assert.True(Entry(cold).PolicyDeferred);
-        Assert.Equal(bindings, Bindings(cold));
-        long before = cold.Controller.State.Steps;
-        for (int tick = 0; tick < 16 && cold.Controller.State.ActiveEvent is null && cold.ActiveEvents.Count == 0 && cold.Controller.Error is null; tick++)
-        {
-            cold.Controller.Advance(1);
-        }
-        Assert.Null(cold.Controller.Error);
-        Assert.True(cold.Controller.State.Steps > before);
-        Assert.True(cold.Controller.State.ActiveEvent is not null || cold.ActiveEvents.Count > 0);
-        Assert.NotEqual("764:line:9", cold.Controller.State.ActiveEvent);
-        Assert.DoesNotContain("764:line:9", cold.ActiveEvents);
-        Assert.Empty(cold.Requests);
-        Assert.Equal(receipts, JsonSerializer.Serialize(Entry(cold).ParticipantPolicyDeferrals, AutoPlayController.JsonOptions));
-        AssertNativePolicyBoundary(cold);
         Assert.Equal(originalManifest, File.ReadAllBytes(manifest));
         Assert.Equal(originalSnapshot, File.ReadAllBytes(snapshot));
     }
-
     private static byte[] Bindings(InstalledRun run) => Enumerable.Range(0, 3).Select(run.World.Events.Scene.PartyBindingMemory!.At).ToArray();
 
     private static void AssertNativePolicyBoundary(InstalledRun run)

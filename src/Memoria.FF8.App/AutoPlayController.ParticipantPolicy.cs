@@ -34,8 +34,12 @@ internal sealed partial class AutoPlayController
         {
             return;
         }
-        GameWorld world = getWorld();
         AutoPlayEventCoverage item = run.Coverage.Visits.Single(candidate => candidate.Visit.Key == visit).Events.Single(candidate => candidate.Event.Id == eventId);
+        if (choice.PolicyScope is null && choice.PolicyDeferredOptions.Count == 0 && !item.ParticipantPolicyDeferrals.Any(attempt => attempt.ChoiceKey == choice.Key))
+        {
+            return;
+        }
+        GameWorld world = getWorld();
         AutoPlayChoiceSelection[] prefix = run.ActiveSelections?.ToArray() ?? throw new NotSupportedException("Participant-policy choice exploration requires its authentic ordered selection prefix.");
         string? persistent = run.VisitGuards.TryGetValue(visit, out AutoPlayVisitGuard? guard) && guard.Version == AutoPlayVisitGuard.CurrentVersion ? world.Events.ReadPersistentPredicateFingerprint(guard.Reads) : null;
         var scope = new { visit, eventId, target, run.ActiveConditionSignature, persistent, Bindings = Enumerable.Range(0, 3).Select(slot => world.Events.Scene.PartyBindingMemory?.At(slot)).ToArray(), Retained = world.Events.Scene.NativeActorObjectIds, Characters = world.Events.Scene.NativeActorObjectIds.Select(id => world.Events.Actors[id].CharacterId).ToArray(), prefix };
