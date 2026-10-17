@@ -180,6 +180,26 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         Assert.Throws<NotSupportedException>(() => renderer.RenderNativePrimitiveFrame(Frame([new(command, mode with { TextureSelection = null }, 1)]), texture, capabilities: NativeBattlePrimitiveCapabilities.PrimaryRgba8()));
     }
 
+    [Fact]
+    public void Dirty_cached_crop_renders_its_retained_words_after_JSON_while_the_base_texture_refreshes()
+    {
+        const ushort page = 0x100;
+        uint bits = NativeBattleQuezacotlGeometryPackets.TextureWindowCommand(new(8, 0, 8, 8)) & 0xFFFFFF;
+        NativeBattleEffectTextureState original = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(16, [31, 0])] };
+        NativeBattleEffectTextureState current = original with { VramRegions = [new(16, [0xE0, 3])] };
+        NativeBattlePcTextureWindowCache cache = NativeBattlePcTextureWindowCache.Reset4647A0(null).Preprocess462F90(page, 0).Prepare464BD0().Cache;
+        cache = cache.Resolve465CE0(page, 0, bits).Cache.Flush465930().Invalidate464850(0, 0, 63, 255, original).Preprocess462F90(page, 0).Prepare464BD0().Cache;
+        NativeBattlePcTextureWindowResolve resolved = cache.Resolve465CE0(page, 0, bits);
+        cache = System.Text.Json.JsonSerializer.Deserialize<NativeBattlePcTextureWindowCache>(System.Text.Json.JsonSerializer.Serialize(resolved.Cache))!;
+        NativeBattleLogicalCommand command = new(new("off_B6D070", 0, 0), 1, 0x2C, [0x2C808080, Point(10, 10), 0, Point(30, 10), 0x01000000, Point(10, 30), 0, Point(30, 30), 0], 1, [], null) { OrderingBucket = 50 };
+        NativeBattlePrimitiveDrawMode mode = new(page) { TextureWindowBits = bits, TextureSelection = resolved.Selection };
+        BattleRenderer renderer = new(320, 216);
+        NativeBattlePrimitiveFrame frame = Frame([new(command, mode, 1)]);
+        Assert.Throws<NotSupportedException>(() => renderer.RenderNativePrimitiveFrame(frame, current, capabilities: NativeBattlePrimitiveCapabilities.PrimaryRgba8()));
+        byte[] pixels = renderer.RenderNativePrimitiveFrame(frame, current, capabilities: NativeBattlePrimitiveCapabilities.PrimaryRgba8(), textureWindowCache: cache);
+        Assert.Equal(new byte[] { 255, 0, 0, 255 }, pixels.AsSpan(4 * (20 * 320 + 20), 4).ToArray());
+    }
+
     private static NativeBattlePrimitiveDrawMode TexturedMode(ushort page, uint window = 0, ushort clut = 0)
     {
         NativeBattlePcTextureWindowCache cache = NativeBattlePcTextureWindowCache.Reset4647A0(null).Preprocess462F90(page, clut).Prepare464BD0().Cache;

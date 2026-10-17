@@ -147,6 +147,11 @@ public sealed partial class GameAssets
                 binding = binding with { CuraResources = ReadNativeCuraResources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Entry == 0x87DB10)
+            {
+                binding = binding with { CuragaResources = ReadNativeCuragaResources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Initializer == 0 || binding.InitializerIsRet == true || binding.InitializerAsset is not null)
             {
                 continue;

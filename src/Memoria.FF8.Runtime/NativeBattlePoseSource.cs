@@ -6,6 +6,7 @@ namespace Memoria.FF8.Runtime;
 public readonly record struct NativeBattleVector(short X, short Y, short Z);
 public sealed record NativeBattleBonePose(NativeBattleVector Rotation, NativeBattleVector Scale);
 public sealed record NativeBattleDecodedPose(NativeBattleVector Translation, ImmutableArray<NativeBattleBonePose> Bones, bool HasScale);
+public sealed record NativeBattlePoseFirstFrame(NativeBattleDecodedPose Pose, ushort ByteOffset, ushort BitOffset);
 
 /// <summary>Original skeleton and compressed animation bytes consumed by508F90/508C90.</summary>
 public sealed record NativeBattlePoseSource(ImmutableArray<byte> Skeleton, ImmutableArray<byte> Animations)
@@ -41,6 +42,25 @@ public sealed record NativeBattlePoseSource(ImmutableArray<byte> Skeleton, Immut
 
 public static class NativeBattlePoseDecoder
 {
+    public static NativeBattlePoseFirstFrame AdvanceRegular508F90(ReadOnlySpan<byte> section, int bones, int animation, NativeBattleDecodedPose current, ushort byteOffset, ushort bitOffset)
+    {
+        FrameReader reader = Open(section, bones, animation, out _);
+        if (byteOffset < 1 || bitOffset > 7 || current.Bones.Length != bones)
+        {
+            throw new InvalidDataException("Native508F90 has an invalid current pose cursor.");
+        }
+        reader.SetBitPosition(checked((byteOffset - 1) * 8 + bitOffset));
+        NativeBattleDecodedPose pose = Apply(current, reader.Read(), false);
+        return new(pose, checked((ushort)(1 + (reader.BitPosition >> 3))), checked((ushort)(reader.BitPosition & 7)));
+    }
+
+    public static NativeBattlePoseFirstFrame DecodeFirst509440(ReadOnlySpan<byte> section, int bones, int animation)
+    {
+        FrameReader reader = Open(section, bones, animation, out _);
+        NativeBattleDecodedPose pose = Apply(Empty(bones), reader.Read(), false);
+        return new(pose, checked((ushort)(1 + (reader.BitPosition >> 3))), checked((ushort)(reader.BitPosition & 7)));
+    }
+
     public static ImmutableArray<byte> ReadFrameCounts(ReadOnlySpan<byte> section)
     {
         int count = ReadCount(section);
@@ -145,6 +165,16 @@ public static class NativeBattlePoseDecoder
     private sealed class FrameReader(byte[] data, int bones)
     {
         private int position;
+        public int BitPosition => position;
+
+        public void SetBitPosition(int value)
+        {
+            if (value < 0 || value > data.Length * 8L)
+            {
+                throw new InvalidDataException("Native508F90 cursor exceeds its current animation section.");
+            }
+            position = value;
+        }
 
         private int ReadBits(int count)
         {

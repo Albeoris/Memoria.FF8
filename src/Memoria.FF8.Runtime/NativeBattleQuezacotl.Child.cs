@@ -13,10 +13,6 @@ public static class NativeBattleQuezacotlChild
         NativeBattleQuezacotlState state = (effect.Quezacotl ?? throw new InvalidDataException("Native6C3940 lost its initialized Quezacotl globals.")) with { Intensity17A4 = 2400 };
         if (phase != 0)
         {
-            if (phase == 86)
-            {
-                throw new NotSupportedException("Native Quezacotl6C3940 phase86 requires original6EC060/6574D0 controller initialization and its secondary tasks; this callback is not implemented.");
-            }
             throw new NotSupportedException($"Native Quezacotl6C3940 phase{phase} requires original7016B0 model workspace and701970/6C6060 geometry callbacks; full GF animation is not implemented.");
         }
         NativeBattleEffectIoPoll poll = NativeBattleEffectIo.Poll534270(memory);

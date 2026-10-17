@@ -2,8 +2,12 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
+public sealed record NativeBattleRigBone(short Parent, short Length);
+
 public static partial class NativeBattlePoseMatrices
 {
+    public static ImmutableArray<NativeBattleActionMatrix> RigBoneMatrices(short scale, ImmutableArray<NativeBattleRigBone> bones, NativeBattleDecodedPose pose) => BoneMatrices(scale, bones, pose).Select(matrix => new NativeBattleActionMatrix(matrix.Rotation.ToImmutableArray(), matrix.X, matrix.Y, matrix.Z, 4096)).ToImmutableArray();
+
     public static ImmutableArray<NativeBattleActionMatrix> StageBoneMatrices(NativeBattlePoseSource source, NativeBattleDecodedPose pose) => BoneMatrices(source, pose).Select(matrix => new NativeBattleActionMatrix(matrix.Rotation.ToImmutableArray(), matrix.X, matrix.Y, matrix.Z, 4096)).ToImmutableArray();
 
     /// <summary>500FD0/5095B0 overwrites each retained stage matrix, including when508F90 is frozen.</summary>

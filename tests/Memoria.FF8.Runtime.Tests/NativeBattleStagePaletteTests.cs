@@ -13,6 +13,8 @@ public sealed class NativeBattleStagePaletteTests
         Assert.Equal(28, before.ByteCursor);
         Assert.Equal(540, process.ByteCursor);
         Assert.Equal(new NativeBattlePrimitiveReference("off_B6D070", 0, 28), allocation.Address);
+        Assert.Equal(allocation.Source.Data.ToArray(), process.ReadCommonPacket(28, 512));
+        Assert.Throws<NotSupportedException>(() => process.ReadCommonPacket(27, 1));
         NativeBattleEffectTextureState queued = NativeBattleEffectTextureState.FromColdProcess().EnqueueRectangle505DF0(new(0, 239, 256, 1), allocation.Source);
         Assert.Equal((byte)0, queued.Slots[0]!.Kind);
         NativeBattleEffectTextureState restored = JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(queued))!;

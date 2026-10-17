@@ -7,6 +7,35 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleQuezacotlSecondWindowTests
 {
     [Fact]
+    public void MorphAfterSkinOverwritesOnlyXyzAndPreservesUnknownFourthWord()
+    {
+        NativeBattleEffectMemory memory = Memory();
+        byte[] source = memory.QuezacotlExecutableMemory!.Data.ToArray();
+        int geometry = NativeBattleQuezacotlExecutableMemory.PrimaryLength + 16;
+        BinaryPrimitives.WriteInt32LittleEndian(source.AsSpan(geometry), 28);
+        BinaryPrimitives.WriteInt32LittleEndian(source.AsSpan(geometry + 4), 1);
+        foreach (int offset in new[] { geometry + 12, geometry + 20 })
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(source.AsSpan(offset), 1);
+            BinaryPrimitives.WriteInt16LittleEndian(source.AsSpan(offset + 2), -1);
+            BinaryPrimitives.WriteInt16LittleEndian(source.AsSpan(offset + 4), 3);
+        }
+        memory = memory with { QuezacotlExecutableMemory = new(source.ToImmutableArray()), Arena = memory.Arena!.MarkUnknown(0x8D6, 2) };
+        byte[] nodeBytes = new byte[44];
+        foreach (int offset in new[] { 24, 26, 28 })
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(nodeBytes.AsSpan(offset), 4096);
+        }
+        BinaryPrimitives.WriteInt16LittleEndian(nodeBytes.AsSpan(38), 2048);
+        BinaryPrimitives.WriteInt16LittleEndian(nodeBytes.AsSpan(42), 1);
+        NativeBattleActionMatrix identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
+        NativeBattleQuezacotlGeometryStep result = NativeBattleQuezacotlGeometry.Emit6C53A0(memory, Effect(), new(0, 0, nodeBytes.ToImmutableArray()), new(identity, 216, 160, 108), new(0, 0, 0, 0), identity, false, 0);
+        Assert.Equal(new byte[] { 0, 0, 0, 0, 4, 0 }, result.Memory.Arena!.Read(0x8D0, 6));
+        Assert.Throws<NotSupportedException>(() => result.Memory.Arena.Read(0x8D6, 2));
+        Assert.Empty(result.Batch.Attempts);
+    }
+
+    [Fact]
     public void SecondWorkspaceUsesActualResourceAddressAndEntire7FCByteChildSuffix()
     {
         NativeBattleEffectMemory memory = Memory();

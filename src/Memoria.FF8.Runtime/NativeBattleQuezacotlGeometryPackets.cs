@@ -12,9 +12,9 @@ public sealed record NativeBattleQuezacotlGeometryContext(uint FarColor, int Dep
 /// <summary>6C5710/6C5750/6C5B50's original captured-geometry GT3/GT4 and ordered texture-window packets.</summary>
 public static class NativeBattleQuezacotlGeometryPackets
 {
-    public static NativeBattleGfGeometryBatch EmitBatch6C5710(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleQuezacotlGeometryContext context, NativeBattleSummonColors? colors = null)
+    public static NativeBattleGfGeometryBatch EmitBatch6C5710(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleQuezacotlGeometryContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null)
     {
-        if (source.IsDefault || selectedVertices.IsDefault || context.DepthShift > 31)
+        if (source.IsDefault || selectedVertices.IsDefault && readSelectedVertex is null || context.DepthShift > 31)
         {
             throw new InvalidDataException("Native6C5710 requires its current geometry, selected vertex bytes and actual depth shift.");
         }
@@ -48,8 +48,17 @@ public static class NativeBattleQuezacotlGeometryPackets
         {
             if (!projected.TryGetValue(offset, out NativeBattleModuleProjectedVertex vertex))
             {
-                ReadOnlySpan<byte> xyz = Read(selectedVertices, offset * 4, 6);
-                vertex = NativeBattleModuleProjection.Project45FE10(matrix, new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz[2..]), BinaryPrimitives.ReadInt16LittleEndian(xyz[4..])), projection);
+                NativeBattleVector position;
+                if (readSelectedVertex is not null)
+                {
+                    position = readSelectedVertex(offset * 4);
+                }
+                else
+                {
+                    ReadOnlySpan<byte> xyz = Read(selectedVertices, offset * 4, 6);
+                    position = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz[2..]), BinaryPrimitives.ReadInt16LittleEndian(xyz[4..]));
+                }
+                vertex = NativeBattleModuleProjection.Project45FE10(matrix, position, projection);
                 projected.Add(offset, vertex);
             }
             return vertex;

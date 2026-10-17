@@ -1,0 +1,38 @@
+using System.Buffers.Binary;
+using System.Collections.Immutable;
+using Memoria.FF8.Runtime;
+
+namespace Memoria.FF8.Assets;
+
+public static class NativeBattleCuragaResourcesReader
+{
+    public static NativeBattleCuragaResources Read(byte[] executable)
+    {
+        const uint animationAddress = 0x160E0B0;
+        ImmutableArray<byte> header = NativeBattleEffectStaticResourcesReader.Read(executable, animationAddress, 8);
+        ushort length = BinaryPrimitives.ReadUInt16LittleEndian(header.AsSpan().Slice(6));
+        if (length != 0x160EC50 - animationAddress || BinaryPrimitives.ReadUInt16LittleEndian(header.AsSpan()) != 2)
+        {
+            throw new InvalidDataException("Native87DB10 animation does not end at its original asset string.");
+        }
+        NativeBattleEffectHeapAllocation animation = new("FF8_EN:160E0B0", NativeBattleEffectStaticResourcesReader.Read(executable, animationAddress, length));
+        uint sound = BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleEffectStaticResourcesReader.Read(executable, 0x160E0AC, 4).AsSpan());
+        ImmutableArray<byte> flash = NativeBattleEffectStaticResourcesReader.Read(executable, 0x160E0A0, 12);
+        ImmutableArray<byte> originalBank = NativeBattleEffectStaticResourcesReader.Read(executable, NativeBattleCuragaExecutableState.Address, NativeBattleCuragaExecutableState.Length);
+        if (BinaryPrimitives.ReadUInt32LittleEndian(originalBank.AsSpan()) != 0)
+        {
+            throw new InvalidDataException("Native Curaga catalog requires the original uninitialized executable resource.");
+        }
+        return new(animation, sound) { Executable = new(originalBank), FlashProgram = Enumerable.Range(0, 3).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(flash.AsSpan().Slice(4 * index))).ToImmutableArray() };
+    }
+}
+
+public sealed partial class GameAssets
+{
+    private NativeBattleCuragaResources? nativeCuragaResources;
+
+    public NativeBattleCuragaResources ReadNativeCuragaResources()
+    {
+        return nativeCuragaResources ??= NativeBattleCuragaResourcesReader.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")));
+    }
+}

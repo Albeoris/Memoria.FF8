@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -6,6 +7,11 @@ namespace Memoria.FF8.Runtime;
 public static class NativeBattleShadowPackets
 {
     public static ImmutableArray<NativeBattleGeometryPrimitive> Emit5088A0(IReadOnlyList<NativeBattleModuleProjectedVertex> vertices, uint color44, bool gouraudShadows, int tableBaseBucket, byte depthShift)
+    {
+        return EmitBatch5088A0(vertices, color44, gouraudShadows, tableBaseBucket, depthShift).Attempts.Where(attempt => attempt.Primitive is not null).Select(attempt => attempt.Primitive!).ToImmutableArray();
+    }
+
+    public static NativeBattleGfGeometryBatch EmitBatch5088A0(IReadOnlyList<NativeBattleModuleProjectedVertex> vertices, uint color44, bool gouraudShadows, int tableBaseBucket, byte depthShift)
     {
         if (vertices.Count != 10)
         {
@@ -18,13 +24,14 @@ public static class NativeBattleShadowPackets
         }
         if ((flags & 0x60000) != 0 || NativeBattleModulePackets.Nclip(vertices[0].Screen, vertices[1].Screen, vertices[2].Screen) < 0)
         {
-            return [];
+            return new([], 0);
         }
         //56C880 returns SZ3>>2;5088A0 stores its lowWORD and uses an x86 byte shift count.
         int bucket = checked(tableBaseBucket + ((vertices[0].Depth >> 2) >> ((depthShift - 2) & 31)));
         uint color = gouraudShadows ? color44 : (color44 & 0xFF000000) | (color44 & 0xFEFEFE) >> 1;
-        ImmutableArray<NativeBattleGeometryPrimitive>.Builder packets = ImmutableArray.CreateBuilder<NativeBattleGeometryPrimitive>();
-        packets.Add(new(bucket, [0x01000000, 0xE1000620], [0, 0, 0, 0]));
+        ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
+        int allocated = 0;
+        Record([0x01000000, 0xE1000620], [0, 0, 0, 0], true);
         int centerDepth = Depth(0);
         for (int triangle = 0; triangle < 8; triangle++)
         {
@@ -32,14 +39,24 @@ public static class NativeBattleShadowPackets
             int current = triangle + 2;
             int previousDepth = Depth(previous);
             int currentDepth = Depth(current);
-            if (centerDepth <= 0 || previousDepth <= 0 || currentDepth <= 0)
-            {
-                continue;
-            }
-            packets.Add(new(bucket, [0x06000000, color, vertices[0].Screen, gouraudShadows ? 0 : color, vertices[previous].Screen, gouraudShadows ? 0 : color, vertices[current].Screen], [centerDepth, previousDepth, currentDepth, 0]));
+            Record([0x06000000, color, vertices[0].Screen, gouraudShadows ? 0 : color, vertices[previous].Screen, gouraudShadows ? 0 : color, vertices[current].Screen], [centerDepth, previousDepth, currentDepth, 0], centerDepth > 0 && previousDepth > 0 && currentDepth > 0);
         }
-        packets.Add(new(bucket, [0x01000000, 0xE1000640], [0, 0, 0, 0]));
-        return packets.ToImmutable();
+        Record([0x01000000, 0xE1000640], [0, 0, 0, 0], true);
+        return new(attempts.ToImmutable(), allocated);
+
+        void Record(ImmutableArray<uint> words, ImmutableArray<int> payload, bool accepted)
+        {
+            byte[] data = new byte[4 * words.Length];
+            for (int index = 0; index < words.Length; index++)
+            {
+                BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4 * index), words[index]);
+            }
+            attempts.Add(new(allocated, data.ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, data.Length).ToImmutableArray(), accepted ? new(bucket, words, payload) : null));
+            if (accepted)
+            {
+                allocated = checked(allocated + data.Length);
+            }
+        }
 
         int Depth(int index) => 4 * (vertices[index].Depth >> 2) - 300;
     }

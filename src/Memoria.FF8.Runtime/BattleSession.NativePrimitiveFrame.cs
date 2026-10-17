@@ -36,6 +36,8 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("Native primitive packet cursor reaches its original arena capacity.");
             }
+            // TODO(TD-009): Logical packets do not prove original physical padding or rejected stores
+            process = process.MarkCommonUnknown(cursor, next - cursor);
             ordering = ordering.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, cursor), primitive.Words, primitive.VertexPayload4.IsEmpty ? (ushort)1 : (ushort)0, primitive.VertexPayload4, moduleDraw);
             cursor = next;
         }

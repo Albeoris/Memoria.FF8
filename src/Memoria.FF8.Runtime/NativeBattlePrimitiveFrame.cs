@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattlePrimitiveProcess(ushort? TexturePage, byte? Buffer80, string? PacketBank, byte PacketBuffer, int? ByteCursor)
+public sealed partial record NativeBattlePrimitiveProcess(ushort? TexturePage, byte? Buffer80, string? PacketBank, byte PacketBuffer, int? ByteCursor)
 {
     public uint? TextureWindowBits { get; init; }
     public NativeBattlePcTextureWindowCache? TextureWindowCache { get; init; }
@@ -13,6 +13,7 @@ public sealed record NativeBattlePrimitiveProcess(ushort? TexturePage, byte? Buf
 
     public void Validate()
     {
+        ValidateCommonPacketMemory();
         TextureWindowCache?.Validate();
         if (TextureWindowBits is > 0xFFFFFF || Buffer80 is > 1 || PacketBuffer > 1 || TablePerspective.IsDefault || TablePerspective.Length != 2 || (PacketBank is null) != (ByteCursor is null) || PacketBank is not (null or "off_B6D070" or "off_B6D094") || ByteCursor is < 0 || ByteCursor is int cursor && (cursor & 3) != 0 || PacketBank == "off_B6D070" && ByteCursor is > 114688 || PacketBank == "off_B6D094" && ByteCursor is > 147456 || Depth is { } depth && (!float.IsFinite(depth.BucketMix) || !float.IsFinite(depth.RemainingWeight) || depth.BucketMix is < 0 or > 1 || depth.RemainingWeight is < 0 or > 1))
         {

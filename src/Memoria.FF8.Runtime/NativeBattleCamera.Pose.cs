@@ -205,7 +205,7 @@ public sealed partial record NativeBattleCameraState
         }
         if (BlendProgress >= 4096)
         {
-            return CapturedPose is { } captured ? this with { CurrentPose = captured, FocalLength = captured.FocalLength, Roll = captured.Roll } : this;
+            return CapturedPose is { } captured ? this with { CurrentPose = captured, FocalLength = captured.FocalLength, Roll = captured.Roll, EyePaddingF6 = CapturedEyePadding806, TargetPaddingFE = CapturedTargetPadding80E } : this;
         }
         if (BlendProgress != 0)
         {
@@ -213,6 +213,6 @@ public sealed partial record NativeBattleCameraState
             short? focal = track.FocalEnd is short start && captured.FocalLength is short end ? unchecked((short)(start + (BlendProgress * (end - start) >> 12))) : null;
             return this with { CurrentPose = new(InterpolateCameraPoint(eye, captured.Eye, BlendProgress), InterpolateCameraPoint(target, captured.Target, BlendProgress), focal, Roll), FocalLength = focal };
         }
-        return (Mask & 0xDFFF) != 0 ? this with { CurrentPose = new(eye, target, FocalLength, Roll) } : this;
+        return (Mask & 0xDFFF) != 0 ? this with { CurrentPose = new(eye, target, FocalLength, Roll), EyePaddingF6 = TrackEyePadding[slot], TargetPaddingFE = TrackTargetPadding[slot] } : this;
     }
 }

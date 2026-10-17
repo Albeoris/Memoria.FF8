@@ -24,7 +24,7 @@ public enum NativeBattleEffectGouraudWrites
 public sealed record NativeBattleEffectPacketWrite(NativeBattleEffectMemory Memory, int Cursor, NativeBattleLogicalOrdering Ordering);
 
 /// <summary>Native effect packet stores in20DFAB8, with producer-specific secondary Gouraud color writes and retained logical OT links.</summary>
-public static class NativeBattleEffectPacketArena
+public static partial class NativeBattleEffectPacketArena
 {
     public static NativeBattleEffectPacketWrite Append(NativeBattleEffectMemory memory, int cursor, NativeBattleLogicalOrdering ordering, NativeBattleModulePacketBatch batch, NativeBattleEffectGouraudWrites gouraudWrites)
     {

@@ -21,6 +21,7 @@ public static class NativeBattleStagePalette
             BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(2 * index), 0xC210);
         }
         NativeBattleEffectHeapAllocation source = new($"506CF0:{bank}:{process.PacketBuffer}:{cursor}", bytes.ToImmutableArray());
+        next = next.ApplyCommonWrite(cursor, source.Data, Enumerable.Repeat(NativeBattleGfPacketByteState.Known, source.Data.Length).ToImmutableArray());
         return (next, new(new(bank, process.PacketBuffer, cursor), source));
     }
 }

@@ -72,6 +72,7 @@ public static class NativeBattleRetainedMemoryReader
             CureContextF4 = BinaryPrimitives.ReadInt16LittleEndian(ReadLoaderBytes(0x278C8DC, 2)),
             CuraContextF4 = BinaryPrimitives.ReadInt16LittleEndian(ReadLoaderBytes(0x270046C, 2)),
             CuraSceneFade = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x2700360, 4)),
+            CuragaExecutable = new(BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(NativeBattleCuragaExecutableState.Address, 4)), null),
             QuezacotlExecutableMemory = new(ReadLoaderBytes(NativeBattleQuezacotlExecutableMemory.Address, NativeBattleQuezacotlExecutableMemory.Length).ToImmutableArray()),
             Active = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x1D99A64, 4)),
             SelectedIndex = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x1D99A68, 4)),
@@ -101,6 +102,10 @@ public static class NativeBattleRetainedMemoryReader
             throw new InvalidDataException("Authenticated cold stage globals contradict the loader's zero-filled process image.");
         }
         NativeBattleCameraState camera = NativeBattleCameraState.FromColdProcess();
+        if (new uint[] { 0xB8B7F6, 0xB8B7FE, 0xB8B806, 0xB8B80E, 0x1D977C2, 0x1D977CA, 0x1D97CE6, 0x1D97CEE }.Any(address => BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(address, 2)) != 0))
+        {
+            throw new InvalidDataException("Authenticated camera vector padding contradicts its separate static/BSS WORD owners.");
+        }
         if (ReadLoaderBytes(0x1D97778, 44).Any(value => value != 0) || ReadLoaderBytes(0x1D8E038, 8).Any(value => value != 0) || ReadLoaderBytes(0x1CA92DC, 12).Any(value => value != 0) || camera.CurrentPose!.Eye != ReadPoint(0xB8B7F0) || camera.CurrentPose.Target != ReadPoint(0xB8B7F8))
         {
             throw new InvalidDataException("Authenticated cold camera/GTE owners contradict the loader image profile.");

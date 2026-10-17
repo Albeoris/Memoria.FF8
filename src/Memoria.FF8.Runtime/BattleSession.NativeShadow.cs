@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState SubmitNativeShadowPackets5088A0(NativeBattleGraphicsState graphics, NativeBattleGraphicsModel model, NativeBattleCameraProjection projection, int tableBaseBucket, bool ordinaryModel)
     {
-        if ((model.Flags0 & 0x20) != 0)
+        if (this.definition.NativeGraphics?.PrimitiveTables is null || (model.Flags0 & 0x20) != 0)
         {
             return graphics;
         }
@@ -30,6 +30,12 @@ public sealed partial class BattleSession
         NativeBattleShadowSource source = definition.Rules.ShadowSource ?? throw new NotSupportedException("Native5088A0 requires its authenticated matrix/vector seeds.");
         NativeBattleShadowGeometry shape = NativeBattlePoseMatrices.ShadowGeometry5088A0(model, bounds, projection.View ?? throw new NotSupportedException("Native5088A0 requires its prior published camera matrix."), source, gouraud);
         NativeBattleModuleProjectedVertex[] vertices = shape.Vertices.Select(vertex => NativeBattleModuleProjection.Project45FE10(shape.CameraMatrix, vertex, projection)).ToArray();
-        return AppendNativePrimitivePackets(graphics, NativeBattleShadowPackets.Emit5088A0(vertices, model.Color44 ?? throw new NotSupportedException("Native5088A0 requires modelDWORD44."), gouraud, tableBaseBucket, 16));
+        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native5088A0 requires its retained packet memory.");
+        NativeBattlePrimitiveProcess packets = memory.PrimitiveProcess ?? throw new NotSupportedException("Native5088A0 requires its actual common packet cursor.");
+        NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native5088A0 requires its initialized OT.");
+        NativeBattleGfGeometryBatch batch = NativeBattleShadowPackets.EmitBatch5088A0(vertices, model.Color44 ?? throw new NotSupportedException("Native5088A0 requires modelDWORD44."), gouraud, tableBaseBucket, 16);
+        NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(packets, frame.Pending, batch);
+        NativeEffectMemory = memory with { PrimitiveProcess = written.Process };
+        return graphics with { PrimitiveFrame = frame with { Pending = written.Ordering } };
     }
 }

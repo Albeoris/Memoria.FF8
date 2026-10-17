@@ -216,7 +216,7 @@ public sealed partial class BattleSession
                 {
                     foreach (NativeBattleEffectVramUpload upload in drain.Uploads)
                     {
-                        cache = cache.Invalidate464850(upload.X, upload.Y, upload.X + upload.Width - 1, upload.Y + upload.Height - 1);
+                        cache = cache.Invalidate464850(upload.X, upload.Y, upload.X + upload.Width - 1, upload.Y + upload.Height - 1, textures);
                     }
                     process = process with { TextureWindowCache = cache };
                 }

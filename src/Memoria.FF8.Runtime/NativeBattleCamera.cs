@@ -51,7 +51,7 @@ public sealed partial record NativeBattleCameraState(ushort Mask, ImmutableArray
         {
             throw new InvalidDataException("Native509610 camera control source leaves its original effect resource.");
         }
-        if (Variables.IsDefault || Variables.Length != 8 || Scratch.IsDefault || Scratch.Length != 8 || RetainedPoses.IsDefault || RetainedPoses.Length != 2 || SelectedSlot is < 0 or >= 2 || ControlCursor < 0 || Tasks.IsDefault || Tasks.Length != 2 || Order.IsDefault || Order.Any(slot => slot is < 0 or >= 2 || Tasks[slot] is null) || Order.Distinct().Count() != Order.Length || Order.Length != Tasks.Count(task => task is not null) || Tasks.Any(task => task is not null && (task.Channel >= 8 || task.Bank.Data.IsDefault || task.ProgramOffset < 0 || task.ProgramOffset > task.Bank.Data.Length - 2 || task.Elapsed != 0 && task.Pose is null)))
+        if (TrackEyePadding.IsDefault || TrackEyePadding.Length != 2 || TrackTargetPadding.IsDefault || TrackTargetPadding.Length != 2 || Variables.IsDefault || Variables.Length != 8 || Scratch.IsDefault || Scratch.Length != 8 || RetainedPoses.IsDefault || RetainedPoses.Length != 2 || SelectedSlot is < 0 or >= 2 || ControlCursor < 0 || Tasks.IsDefault || Tasks.Length != 2 || Order.IsDefault || Order.Any(slot => slot is < 0 or >= 2 || Tasks[slot] is null) || Order.Distinct().Count() != Order.Length || Order.Length != Tasks.Count(task => task is not null) || Tasks.Any(task => task is not null && (task.Channel >= 8 || task.Bank.Data.IsDefault || task.ProgramOffset < 0 || task.ProgramOffset > task.Bank.Data.Length - 2 || task.Elapsed != 0 && task.Pose is null)))
         {
             throw new InvalidDataException("Native camera task owner requires its two original slots and bounded resource cursors.");
         }
@@ -101,7 +101,7 @@ public sealed partial record NativeBattleCameraState(ushort Mask, ImmutableArray
                 task = task with { ProgramOffset = next, Elapsed = 0, Duration = duration.Value, Pose = pose };
                 if ((pose!.Flags & 0x3E) == 0x1E)
                 {
-                    result = result with { CapturedPose = result.CurrentPose, PoseCaptureCount = checked(result.PoseCaptureCount + 1) };
+                    result = result.Capture503300();
                 }
             }
             if (result.Tasks[slot] is not null)

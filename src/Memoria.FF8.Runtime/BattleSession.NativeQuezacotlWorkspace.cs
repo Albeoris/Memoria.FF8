@@ -9,9 +9,37 @@ public sealed partial class BattleSession
         effect = effect with { Quezacotl = (effect.Quezacotl ?? throw new InvalidDataException("Native6C3940 lost its intensity global.")) with { Intensity17A4 = 2400 } };
         NativeBattleEffectTaskPool originalChild = effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738);
         ushort phase = originalChild.Slots[0].ReadWord(12);
-        if (phase is < 1 or > 85)
+        if (phase is < 1 or > 87)
         {
-            throw new InvalidOperationException("Native Quezacotl workspace owner requires actual phase1..85.");
+            throw new InvalidOperationException("Native Quezacotl workspace owner requires actual phase1..87.");
+        }
+        if (phase == 87)
+        {
+            bool frozen = (memory.QuezacotlPause ?? throw new NotSupportedException("Native6FBDB0 requires its retained pause owner.")) != 0;
+            if (!frozen)
+            {
+                ApplyRig(NativeBattleQuezacotlRig86.Advance6FBDB0(memory, effect));
+            }
+            ApplyRig(NativeBattleQuezacotlRig86.Compose5095B0(memory, effect));
+            NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native6C6770 requires its prior projection owner.");
+            NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native6C6770 requires its authenticated PC color rules.");
+            NativeBattleQuezacotlSkinBatch batch = NativeBattleQuezacotlRig86.Emit6C6770(memory, effect, projection, colors, -70);
+            NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native6C6770 requires its current logical ordering table.");
+            NativeBattleQuezacotlPacketWrite written = NativeBattleQuezacotlSkinArena.Append(memory, effect, frame.Pending, batch);
+            memory = written.Memory;
+            effect = written.Effect;
+            graphics = graphics with { PrimitiveFrame = frame with { Pending = written.Ordering } };
+            ApplyRig(NativeBattleQuezacotlRig86.Restore508C90(memory, effect));
+            if (!frozen)
+            {
+                ApplyRig(NativeBattleQuezacotlRig86.AddFrameCounter(memory, effect, 1));
+            }
+        }
+        if (phase == 86)
+        {
+            NativeBattleQuezacotlRigWrite rig = NativeBattleQuezacotlRig86.InitializeBeforeSecondWindow(memory, effect);
+            memory = rig.Memory;
+            effect = rig.Effect;
         }
         bool secondWindow = phase >= 77;
         int workspaceLength = secondWindow ? NativeBattleQuezacotlWorkspace.SecondLength : NativeBattleQuezacotlWorkspace.Length;
@@ -45,6 +73,22 @@ public sealed partial class BattleSession
             return current;
         });
         Persist(stepped.Workspace);
+        if (phase == 87)
+        {
+            if (memory.QuezacotlPause == 0)
+            {
+                (NativeBattleQuezacotlRigWrite rig, NativeBattleCameraState camera) = NativeBattleQuezacotlRig86.UpdateCamera87(memory, effect, NativeCamera ?? throw new NotSupportedException("Native6C3DDF requires its retained camera globals."));
+                NativeCamera = camera;
+                ApplyRig(rig);
+            }
+            throw new NotSupportedException("Native Quezacotl6C3940 phase87 requires original6C87B0 ribbon producer and its same-callback6C8850 drawing; this callback is not implemented.");
+        }
+        if (phase == 86)
+        {
+            NativeBattleQuezacotlRigWrite rig = NativeBattleQuezacotlRig86.InitializeAfterSecondWindow(memory, effect, NativeCamera ?? throw new NotSupportedException("Native86 requires its retained camera owner."));
+            memory = rig.Memory;
+            effect = rig.Effect;
+        }
         foreach (NativeBattleQuezacotlScreenPacket packet in NativeBattleQuezacotlFlash.Emit(phase, effect.Binding.NativeQuezacotlResources!))
         {
             NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native6C6530 requires its original logical OT frame.");
@@ -105,6 +149,15 @@ public sealed partial class BattleSession
             NativeBattleQuezacotlWorkspaceWrite write = NativeBattleQuezacotlWorkspace.Write(memory, effect, current);
             memory = write.Memory;
             effect = write.Effect;
+            NativeEffectMemory = memory;
+            graphics = graphics with { OriginalEffect = effect };
+            NativeGraphics = graphics;
+        }
+
+        void ApplyRig(NativeBattleQuezacotlRigWrite rig)
+        {
+            memory = rig.Memory;
+            effect = rig.Effect;
             NativeEffectMemory = memory;
             graphics = graphics with { OriginalEffect = effect };
             NativeGraphics = graphics;

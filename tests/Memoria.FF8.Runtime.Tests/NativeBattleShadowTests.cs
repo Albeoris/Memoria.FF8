@@ -73,6 +73,48 @@ public sealed class NativeBattleShadowTests
         Assert.Throws<InvalidDataException>(() => NativeBattleShadowPackets.Emit5088A0(vertices[..9], 0, true, 0, 16));
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Rejected_shadow_fan_retains_the_last_full_candidate_tail_after_the_final_E1_overwrites_its_first_eight_bytes(bool gouraud)
+    {
+        NativeBattleModuleProjectedVertex[] vertices = Projected();
+        vertices[0] = vertices[0] with { Depth = 303 };
+        NativeBattleGfGeometryBatch batch = NativeBattleShadowPackets.EmitBatch5088A0(vertices, 0x32A1C3E5, gouraud, 17, 16);
+        Assert.Equal(16, batch.AllocationBytes);
+        Assert.Equal(10, batch.Attempts.Length);
+        Assert.Equal(8, batch.Attempts.Count(attempt => attempt.Primitive is null));
+        Assert.All(batch.Attempts.Skip(1), attempt => Assert.Equal(8, attempt.ByteOffsetRelative));
+        NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400(), NativeBattleLogicalOrdering.Clear(), batch);
+        Assert.Equal(16, written.Process.ByteCursor);
+        Assert.Equal(2, written.Ordering.Proxies.Length);
+        Assert.Throws<NotSupportedException>(() => written.Process.ReadCommonPacket(8, 3));
+        byte[] expected = new byte[20];
+        uint edgeColor = gouraud ? 0u : 0x32506172u;
+        uint[] tail = [vertices[0].Screen, edgeColor, vertices[8].Screen, edgeColor, vertices[9].Screen];
+        for (int index = 0; index < tail.Length; index++)
+        {
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(expected.AsSpan(4 * index), tail[index]);
+        }
+        Assert.Equal(expected, written.Process.ReadCommonPacket(16, 20));
+        NativeBattlePrimitiveProcess clone = System.Text.Json.JsonSerializer.Deserialize<NativeBattlePrimitiveProcess>(System.Text.Json.JsonSerializer.Serialize(written.Process))!;
+        Assert.Equal(expected, clone.ReadCommonPacket(16, 20));
+        Assert.Throws<NotSupportedException>(() => clone.ReadCommonPacket(36, 1));
+    }
+
+    [Fact]
+    public void Accepted_shadow_packets_allocate_only_their_native240bytes_and_keep_exact_proxy_offsets()
+    {
+        NativeBattleGfGeometryBatch batch = NativeBattleShadowPackets.EmitBatch5088A0(Projected(), 0x32FFFFFF, true, 17, 16);
+        NativeBattlePrimitiveProcess source = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() with { ByteCursor = 12 };
+        NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(source, NativeBattleLogicalOrdering.Clear(), batch);
+        Assert.Equal(240, batch.AllocationBytes);
+        Assert.Equal(252, written.Process.ByteCursor);
+        Assert.Equal(new[] { 12, 20, 48, 76, 104, 132, 160, 188, 216, 244 }, written.Ordering.Proxies.Select(proxy => proxy.Packet.ByteOffset));
+        Assert.Equal((byte)1, written.Process.ReadCommonPacket(247, 1)[0]);
+        Assert.Throws<InvalidDataException>(() => NativeBattleCommonPacketArena.Append(source with { ByteCursor = 114688 - 236 }, NativeBattleLogicalOrdering.Clear(), batch));
+    }
+
     [Fact]
     public void Shadow_matrix_flattens_rows_after_local_center_and_keeps_native_ground_and_seed_axes()
     {

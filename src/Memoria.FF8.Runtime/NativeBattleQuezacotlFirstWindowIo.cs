@@ -7,7 +7,7 @@ public static class NativeBattleQuezacotlFirstWindowIo
 {
     public static NativeBattleQuezacotlFirstWindowIoStep Advance(NativeBattleEffectMemory memory, ushort phase)
     {
-        if (phase is < 1 or > 85)
+        if (phase is < 1 or > 86)
         {
             throw new ArgumentOutOfRangeException(nameof(phase));
         }

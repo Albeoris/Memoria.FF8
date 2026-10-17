@@ -30,7 +30,7 @@ public static class NativeBattleGfGeometryPackets
         return EmitBatch7043B0(source, geometryOffset, selectedVertices, matrix, projection, context, colors).Attempts.Where(attempt => attempt.Primitive is not null).Select(attempt => attempt.Primitive!).ToImmutableArray();
     }
 
-    public static NativeBattleGfGeometryBatch EmitBatch7043B0(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleGfGeometryContext context, NativeBattleSummonColors? colors = null)
+    public static NativeBattleGfGeometryBatch EmitBatch7043B0(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleGfGeometryContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null)
     {
         if (source.IsDefault || context.DepthShift > 31)
         {
@@ -40,7 +40,7 @@ public static class NativeBattleGfGeometryPackets
         ImmutableArray<byte> vertices;
         if ((context.Flags & 0x2000) != 0)
         {
-            vertices = selectedVertices.IsDefault ? throw new NotSupportedException("Native7043B0 flag2000 requires its retained selected or morphed vertex bytes.") : selectedVertices;
+            vertices = selectedVertices.IsDefault && readSelectedVertex is null ? throw new NotSupportedException("Native7043B0 flag2000 requires its retained selected or morphed vertex bytes.") : selectedVertices;
         }
         else
         {
@@ -83,8 +83,17 @@ public static class NativeBattleGfGeometryPackets
         {
             if (!projected.TryGetValue(offset, out NativeBattleModuleProjectedVertex vertex))
             {
-                ReadOnlySpan<byte> xyz = Read(vertices, offset * 4, 6);
-                vertex = NativeBattleModuleProjection.Project45FE10(matrix, new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz[2..]), BinaryPrimitives.ReadInt16LittleEndian(xyz[4..])), projection);
+                NativeBattleVector position;
+                if ((context.Flags & 0x2000) != 0 && readSelectedVertex is not null)
+                {
+                    position = readSelectedVertex(offset * 4);
+                }
+                else
+                {
+                    ReadOnlySpan<byte> xyz = Read(vertices, offset * 4, 6);
+                    position = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz[2..]), BinaryPrimitives.ReadInt16LittleEndian(xyz[4..]));
+                }
+                vertex = NativeBattleModuleProjection.Project45FE10(matrix, position, projection);
                 projected.Add(offset, vertex);
             }
             return vertex;

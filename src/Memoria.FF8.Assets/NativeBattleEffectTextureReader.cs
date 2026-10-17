@@ -12,19 +12,20 @@ public static class NativeBattleEffectTextureReader
 
     public static PixelImage DecodeRegion(NativeBattleEffectTextureState state, ushort texturePage, ushort clut, int u, int v, int width, int height)
     {
-        return DecodeRegionCore(state, texturePage, clut, u, v, width, height, false, null, null);
+        return DecodeRegionCore(state, texturePage, clut, u, v, width, height, false, null, null, null);
     }
 
-    public static PixelImage DecodePcRegion(NativeBattleEffectTextureState state, ushort texturePage, ushort clut, int u, int v, int width, int height, byte? alternatePaletteShift = null, NativeBattlePcDirectTextureFormat? directTextureFormat = null)
+    public static PixelImage DecodePcRegion(NativeBattleEffectTextureState state, ushort texturePage, ushort clut, int u, int v, int width, int height, byte? alternatePaletteShift = null, NativeBattlePcDirectTextureFormat? directTextureFormat = null, NativeBattlePcTextureWindowPixels? pixelWords = null)
     {
         if ((texturePage & 0x180) == 0x100 && directTextureFormat is null)
         {
             throw new NotSupportedException("Native PC direct16-bit texture sampling requires its selected original555/565 device format.");
         }
-        return DecodeRegionCore(state, texturePage, clut, u, v, width, height, true, alternatePaletteShift, directTextureFormat);
+        pixelWords?.Validate();
+        return DecodeRegionCore(state, texturePage, clut, u, v, width, height, true, alternatePaletteShift, directTextureFormat, pixelWords);
     }
 
-    private static PixelImage DecodeRegionCore(NativeBattleEffectTextureState state, ushort texturePage, ushort clut, int u, int v, int width, int height, bool pcPalette, byte? alternatePaletteShift, NativeBattlePcDirectTextureFormat? directTextureFormat)
+    private static PixelImage DecodeRegionCore(NativeBattleEffectTextureState state, ushort texturePage, ushort clut, int u, int v, int width, int height, bool pcPalette, byte? alternatePaletteShift, NativeBattlePcDirectTextureFormat? directTextureFormat, NativeBattlePcTextureWindowPixels? pixelWords)
     {
         if (u is < 0 or > 255 || v is < 0 or > 255 || width is < 1 or > 256 || height is < 1 or > 256)
         {
@@ -39,7 +40,7 @@ public static class NativeBattleEffectTextureReader
         int pageX = (texturePage & 15) * 64;
         int pageY = (texturePage & 16) * 16;
         int paletteX = (clut & 63) * 16;
-        int paletteY = clut >> 6;
+        int paletteY = (pcPalette ? clut & 0x7FFF : clut) >> 6;
         PixelImage image = new(width, height);
         for (int row = 0; row < height; row++)
         {
@@ -48,7 +49,7 @@ public static class NativeBattleEffectTextureReader
                 int x = (u + column) & 255;
                 int y = pageY + ((v + row) & 255);
                 int shift = depth == 0 ? 2 : depth == 1 ? 1 : 0;
-                ushort word = Word(pageX + (x >> shift), y);
+                ushort word = pixelWords is not null ? pixelWords.ReadWord(pageX + (x >> shift), y) : Word(pageX + (x >> shift), y);
                 ushort color = depth switch
                 {
                     0 => Word(paletteX + ((word >> (4 * (x & 3))) & 15), paletteY),

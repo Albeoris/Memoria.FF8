@@ -206,6 +206,40 @@ public sealed class NativeBattlePcTextureWindowCacheTests
         Assert.Throws<InvalidDataException>(() => (empty with { ScaleU = 1f / 64 }).Validate());
     }
 
+    [Fact]
+    public void Unrefreshed_crop_retains_original_words_through_later_writes_and_JSON_until_native_prepare_refreshes_it()
+    {
+        uint bits = Window(8, 0, 64, 32);
+        NativeBattleEffectTextureState before = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(4, [0x21, 0x43])] };
+        NativeBattleEffectTextureState later = before with { VramRegions = [new(4, [0x65, 0x87])] };
+        NativeBattlePcTextureWindowCache cache = Prepared().Resolve465CE0(0, 0, bits).Cache.Flush465930();
+        cache = cache.Invalidate464850(0, 0, 63, 255, before).Invalidate464850(0, 0, 63, 255, later);
+        cache = cache.Preprocess462F90(0, 0).Prepare464BD0().Cache;
+        NativeBattlePcTextureWindowResolve draw = cache.Resolve465CE0(0, 0, bits);
+        Assert.True(draw.Selection.UsesRetainedPixelWords);
+        Assert.Equal((ushort)0x4321, draw.Cache.PixelWords(draw.Selection)!.ReadWord(2, 0));
+        NativeBattlePcTextureWindowCache restored = JsonSerializer.Deserialize<NativeBattlePcTextureWindowCache>(JsonSerializer.Serialize(draw.Cache))!;
+        restored.Validate();
+        Assert.Equal((ushort)0x4321, restored.PixelWords(draw.Selection)!.ReadWord(2, 0));
+        NativeBattlePcTextureWindowResolve refreshed = restored.Prepare464BD0().Cache.Resolve465CE0(0, 0, bits);
+        Assert.False(refreshed.Selection.UsesRetainedPixelWords);
+        Assert.Null(refreshed.Cache.PixelWords(refreshed.Selection));
+        Assert.Null(refreshed.Cache.Rows[0].Regions[1].RetainedPixels);
+    }
+
+    [Theory]
+    [InlineData(0x0000, 2)]
+    [InlineData(0x0080, 4)]
+    [InlineData(0x0100, 8)]
+    public void Retained_words_use_actual_depth_packing_and_reject_samples_outside_the_crop(ushort page, int wordX)
+    {
+        NativeBattleEffectTextureState source = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(2 * (1024 + wordX), [0x34, 0x12])] };
+        NativeBattlePcTextureWindowPixels pixels = NativeBattlePcTextureWindowPixels.Capture((page >> 7) * 32, new(8, 1, 8, 8), source);
+        Assert.Equal((ushort)0x1234, pixels.ReadWord(wordX, 1));
+        Assert.Throws<InvalidDataException>(() => pixels.ReadWord(wordX - 1, 1));
+        Assert.Throws<InvalidDataException>(() => (pixels with { Data = [] }).Validate());
+    }
+
     private static NativeBattlePcTextureWindowCache Prepared(ushort texturePage = 0)
     {
         return NativeBattlePcTextureWindowCache.Reset4647A0(null).Preprocess462F90(texturePage, 0).Prepare464BD0().Cache;

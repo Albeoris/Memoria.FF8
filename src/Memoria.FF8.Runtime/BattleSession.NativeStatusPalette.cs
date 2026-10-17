@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
@@ -17,6 +19,7 @@ public sealed partial class BattleSession
             NativeBattlePrimitiveProcess next = process with { ByteCursor = checked(cursor + 1024) };
             next.Validate();
             source = new($"509E00:{bank}:{process.PacketBuffer}:{cursor}", NativeBattleStatusPalette.Transform509E00(original, flags));
+            next = next.ApplyCommonWrite(cursor, source.Data, Enumerable.Repeat(NativeBattleGfPacketByteState.Known, source.Data.Length).ToImmutableArray());
             memory = memory with { PrimitiveProcess = next };
         }
         else

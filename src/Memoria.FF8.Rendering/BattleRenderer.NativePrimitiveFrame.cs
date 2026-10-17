@@ -11,7 +11,7 @@ public sealed partial class BattleRenderer
     private readonly record struct PrimitiveVertex(float X, float Y, float Z, float ReciprocalW, Vector2 Uv, Vector3 Color, float Alpha);
 
     /// <summary>Render the executed original battle OT into a viewport representing its320x216 draw environment.</summary>
-    public byte[] RenderNativePrimitiveFrame(NativeBattlePrimitiveFrame frame, NativeBattleEffectTextureState? textures, BattleCamera? overlayCamera = null, NativeBattlePrimitiveCapabilities? capabilities = null)
+    public byte[] RenderNativePrimitiveFrame(NativeBattlePrimitiveFrame frame, NativeBattleEffectTextureState? textures, BattleCamera? overlayCamera = null, NativeBattlePrimitiveCapabilities? capabilities = null, NativeBattlePcTextureWindowCache? textureWindowCache = null)
     {
         if (overlayCamera is BattleCamera camera)
         {
@@ -28,7 +28,7 @@ public sealed partial class BattleRenderer
         {
             pixels[index] = 255;
         }
-        Dictionary<(ushort Page, ushort Clut, byte? AlternateShift, int X, int Y, int Width, int Height), PixelImage> pages = [];
+        Dictionary<(ushort Page, ushort Clut, byte? AlternateShift, int X, int Y, int Width, int Height, NativeBattlePcTextureWindowPixels? Pixels), PixelImage> pages = [];
         foreach (NativeBattleLogicalResolvedCommand resolved in frame.LastCommands)
         {
             if (resolved.Pass == 0 || resolved.Command.Opcode is 0xE1 or 0xE2)
@@ -71,6 +71,7 @@ public sealed partial class BattleRenderer
                 _ = resolved.DrawMode.TextureWindowBits ?? throw new NotSupportedException("Native465CE0 requires its retained45BC60 texture-window owner; explicitly migrate the named snapshot.");
                 NativeBattlePcTextureWindowSelection window = resolved.DrawMode.TextureSelection ?? throw new NotSupportedException("Native465CE0 requires its executed PC window-cache selection; explicitly migrate the named snapshot.");
                 window.Validate();
+                NativeBattlePcTextureWindowPixels? retainedPixels = textureWindowCache is not null ? textureWindowCache.PixelWords(window) : window.UsesRetainedPixelWords == false ? null : throw new NotSupportedException("Native texture selection requires its retained cache pixel owner.");
                 ushort clut = (ushort)(command.Words[2] >> 16);
                 byte? alternateShift = null;
                 if (resolved.DrawMode.BlendMode == 2)
@@ -81,10 +82,10 @@ public sealed partial class BattleRenderer
                     }
                     alternateShift = colorState.AlternatePaletteShift ?? throw new NotSupportedException("Native PC ABR2 requires its retained45B540 alternate-palette shift.");
                 }
-                if (!pages.TryGetValue((page, clut, alternateShift, window.X, window.Y, window.Width, window.Height), out texture))
+                if (!pages.TryGetValue((page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, retainedPixels), out texture))
                 {
-                    texture = NativeBattleEffectTextureReader.DecodePcRegion(textures ?? throw new NotSupportedException("Native polygon texture sampling requires its retained VRAM owner."), page, clut, window.X, window.Y, window.Width, window.Height, alternateShift, capabilities?.DirectTextureFormat);
-                    pages.Add((page, clut, alternateShift, window.X, window.Y, window.Width, window.Height), texture);
+                    texture = NativeBattleEffectTextureReader.DecodePcRegion(textures ?? throw new NotSupportedException("Native polygon texture sampling requires its retained VRAM owner."), page, clut, window.X, window.Y, window.Width, window.Height, alternateShift, capabilities?.DirectTextureFormat, retainedPixels);
+                    pages.Add((page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, retainedPixels), texture);
                 }
             }
             PrimitiveVertex At(int corner)

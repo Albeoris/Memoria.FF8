@@ -85,6 +85,49 @@ public sealed class NativeBattleEffectTextureReaderTests
         Assert.Equal(default, NativeBattleEffectTextureReader.DecodeRegion(NativeBattleEffectTextureState.FromColdProcess(), 0, 0, 0, 0, 1, 1)[0, 0]);
     }
 
+    [Theory]
+    [InlineData(0, 0x1111, 0x2222)]
+    [InlineData(1, 0x0101, 0x0202)]
+    public void Stale_index_words_use_the_current_separate_palette_even_when_that_palette_overlaps_the_cached_word_rectangle(int depth, ushort oldWord, ushort newWord)
+    {
+        byte[] beforeBytes = new byte[8];
+        BinaryPrimitives.WriteUInt16LittleEndian(beforeBytes, oldWord);
+        BinaryPrimitives.WriteUInt16LittleEndian(beforeBytes.AsSpan(2), 31);
+        NativeBattleEffectTextureState before = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(0, beforeBytes.ToImmutableArray())] };
+        NativeBattlePcTextureWindowPixels retained = NativeBattlePcTextureWindowPixels.Capture(depth * 32, new(0, 0, 8, 8), before);
+        byte[] afterBytes = beforeBytes.ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(afterBytes, newWord);
+        BinaryPrimitives.WriteUInt16LittleEndian(afterBytes.AsSpan(2), 0x03E0);
+        BinaryPrimitives.WriteUInt16LittleEndian(afterBytes.AsSpan(4), 0x7C00);
+        NativeBattleEffectTextureState after = before with { VramRegions = [new(0, afterBytes.ToImmutableArray())] };
+        PixelImage stale = NativeBattleEffectTextureReader.DecodePcRegion(after, (ushort)(depth << 7), 0, 0, 0, 1, 1, pixelWords: retained);
+        PixelImage current = NativeBattleEffectTextureReader.DecodePcRegion(after, (ushort)(depth << 7), 0, 0, 0, 1, 1);
+        Assert.Equal(new Rgba32(0, 255, 0, 127), stale[0, 0]);
+        Assert.Equal(new Rgba32(0, 0, 255, 127), current[0, 0]);
+    }
+
+    [Fact]
+    public void PC_palette_selection_ignores_CLUT_bit15_before_addressing_the_palette_row()
+    {
+        NativeBattleEffectTextureState texture = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(0, [1, 0]), new(2 * (256 * 1024 + 1), [31, 0])] };
+        PixelImage ordinary = NativeBattleEffectTextureReader.DecodePcRegion(texture, 0, 0x4000, 0, 0, 1, 1);
+        PixelImage highBit = NativeBattleEffectTextureReader.DecodePcRegion(texture, 0, 0xC000, 0, 0, 1, 1);
+        Assert.Equal(new Rgba32(255, 0, 0, 127), highBit[0, 0]);
+        Assert.Equal(ordinary.Pixels, highBit.Pixels);
+    }
+
+    [Fact]
+    public void Stale_direct16_words_keep_their_original_color_without_rolling_back_current_VRAM()
+    {
+        NativeBattleEffectTextureState before = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(0, [31, 0])] };
+        NativeBattlePcTextureWindowPixels retained = NativeBattlePcTextureWindowPixels.Capture(64, new(0, 0, 8, 8), before);
+        NativeBattleEffectTextureState after = before with { VramRegions = [new(0, [0xE0, 3])] };
+        PixelImage stale = NativeBattleEffectTextureReader.DecodePcRegion(after, 0x100, 0, 0, 0, 1, 1, directTextureFormat: NativeBattlePcDirectTextureFormat.Rgb555, pixelWords: retained);
+        PixelImage current = NativeBattleEffectTextureReader.DecodePcRegion(after, 0x100, 0, 0, 0, 1, 1, directTextureFormat: NativeBattlePcDirectTextureFormat.Rgb555);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), stale[0, 0]);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), current[0, 0]);
+    }
+
     [Fact]
     public void OriginalFireSpriteResourcesUseTheirOwnDynamicFrameDirectories()
     {

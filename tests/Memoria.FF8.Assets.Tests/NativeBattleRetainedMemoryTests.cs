@@ -13,11 +13,14 @@ public sealed class NativeBattleRetainedMemoryTests
         NativeBattleRetainedMemory generic = NativeBattleRetainedMemory.FromColdProcess();
         Assert.Equal((short?)0, actual.EffectMemory!.CuraContextF4);
         Assert.Equal((int?)0, actual.EffectMemory.CuraSceneFade);
+        Assert.Equal(NativeBattleCuragaExecutableState.FromColdProcess(), actual.EffectMemory.CuragaExecutable);
         var oldEffect = JsonSerializer.SerializeToNode(actual.EffectMemory)!.AsObject();
         Assert.True(oldEffect.Remove(nameof(NativeBattleEffectMemory.CuraContextF4)));
         Assert.True(oldEffect.Remove(nameof(NativeBattleEffectMemory.CuraSceneFade)));
+        Assert.True(oldEffect.Remove(nameof(NativeBattleEffectMemory.CuragaExecutable)));
         Assert.Null(JsonSerializer.Deserialize<NativeBattleEffectMemory>(oldEffect)!.CuraContextF4);
         Assert.Null(JsonSerializer.Deserialize<NativeBattleEffectMemory>(oldEffect)!.CuraSceneFade);
+        Assert.Null(JsonSerializer.Deserialize<NativeBattleEffectMemory>(oldEffect)!.CuragaExecutable);
         Assert.Null(generic.EffectMemory!.QuezacotlExecutableMemory);
         NativeBattleQuezacotlExecutableMemory executableMemory = Assert.IsType<NativeBattleQuezacotlExecutableMemory>(actual.EffectMemory!.QuezacotlExecutableMemory);
         byte[] executable = File.ReadAllBytes(Path.Combine(assets.GameDirectory, "FF8_EN.exe"));

@@ -24,6 +24,7 @@ public sealed record NativeBattleOriginalEffectState([property: JsonRequired] us
     public NativeBattleQuezacotlState? Quezacotl { get; init; }
     public NativeBattleCureState? Cure { get; init; }
     public NativeBattleCuraState? Cura { get; init; }
+    public NativeBattleCuragaState? Curaga { get; init; }
 
     public void Validate()
     {

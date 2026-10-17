@@ -109,14 +109,23 @@ public static partial class NativeBattlePoseMatrices
 
     private static Matrix[] BoneMatrices(NativeBattlePoseSource source, NativeBattleDecodedPose pose)
     {
-        Matrix[] result = new Matrix[source.BoneCount];
+        ImmutableArray<NativeBattleRigBone> bones = Enumerable.Range(0, source.BoneCount).Select(index => new NativeBattleRigBone(ReadWord(source.Skeleton, 16 + index * 48), ReadWord(source.Skeleton, 18 + index * 48))).ToImmutableArray();
+        return BoneMatrices(ReadWord(source.Skeleton, 2), bones, pose);
+    }
+
+    private static Matrix[] BoneMatrices(short skeletonScale, ImmutableArray<NativeBattleRigBone> bones, NativeBattleDecodedPose pose)
+    {
+        if (bones.IsDefaultOrEmpty || bones.Length != pose.Bones.Length || bones.Where((bone, index) => bone.Parent < -1 || bone.Parent >= index).Any())
+        {
+            throw new InvalidDataException("Native508C90 requires its actual earlier-parent rig records and decoded pose.");
+        }
+        Matrix[] result = new Matrix[bones.Length];
         Matrix[] unscaled = new Matrix[result.Length];
         int[][] scales = new int[result.Length][];
-        int skeletonScale = ReadWord(source.Skeleton, 2);
         for (int bone = 0; bone < result.Length; bone++)
         {
             Matrix local = Rotation(pose.Bones[bone].Rotation);
-            int parent = ReadWord(source.Skeleton, 16 + bone * 48);
+            int parent = bones[bone].Parent;
             NativeBattleVector scale = pose.Bones[bone].Scale;
             if (parent < 0)
             {
@@ -127,7 +136,7 @@ public static partial class NativeBattlePoseMatrices
             }
             else
             {
-                int length = ReadWord(source.Skeleton, 18 + parent * 48);
+                int length = bones[parent].Length;
                 if (pose.HasScale)
                 {
                     unscaled[bone] = Multiply(unscaled[parent], local);
