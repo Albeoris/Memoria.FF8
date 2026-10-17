@@ -13,15 +13,15 @@ public sealed class NativeBoatWorldTests
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original world corpus is required.");
         // Isolated component fixture; no live boarding, session history or field VM is fabricated.
-        NativeSavedWorldState initial = NativeSavedWorldState.CreateNewGame();
-        var previous = new WorldState { Frame = 500, X = 12390, Z = -26709, NativeHeight = -301, BodyYaw = 2256, CameraYaw = 2256, NativeCarRuntime = NativeCarWorldRuntimeState.Create(initial, NativeWorldGroundCacheState.CreateFresh(new(0, 0, 0, 0)), NativeWorldProcess.FromColdProcess()) };
-        NativeSavedWorldCarReturn car = NativeSavedWorldCarReturn.Create(previous, 262, 40, 1);
-        var departure = new GameState { Scene = SceneKind.Field, FieldId = 123, DepartingWorldState = previous, SavedWorld = initial.WithOrdinaryCarEntry().WithCarReturn(car), WorldControls = NativeWorldControlState.CreateNewGame(), EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int>() { [256] = 40 }), ExamTimer = NativeExamTimerState.FromReachedSet(600) };
-        var packet = new WorldTransition(11, 66, 61);
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         using GameAssets initializationAssets = new(directory);
-        departure = departure with { WorldControls = departure.WorldControls!.WithSalaryEnabled(true), SeeD = session.SeeD!.WithSalaryUiEnabled(true) with { SalaryMovementCounter = 123, RankPoints = 65535 }, CharacterVitals = initializationAssets.ReadNewGameCharacterVitals(), SalaryPresentation = session.SalaryPresentation, GlobalSoundProcess = session.GlobalSoundProcess };
+        session.InitializeNewGameCharacterVitals(initializationAssets.ReadNewGameCharacterVitals());
+        NativeSavedWorldState initial = session.State.SavedWorld!;
+        var previous = new WorldState { Frame = 500, X = 12390, Z = -26709, NativeHeight = -301, BodyYaw = 2256, CameraYaw = 2256, NativeCarRuntime = NativeCarWorldRuntimeState.Create(initial, NativeWorldGroundCacheState.CreateFresh(new(0, 0, 0, 0), processSelection: session.WorldProcess!.GroundSelection), session.WorldProcess) };
+        NativeSavedWorldCarReturn car = NativeSavedWorldCarReturn.Create(previous, 262, 40, 1);
+        GameState departure = session.State with { FieldId = 123, FieldLoadContext = null, DepartingWorldState = previous, SavedWorld = initial.WithOrdinaryCarEntry().WithCarReturn(car), WorldEntryMemory = session.State.WorldEntryMemory!.WriteBytes(256, 2, 40), ExamTimer = NativeExamTimerState.FromReachedSet(600), WorldControls = session.WorldControls!.WithSalaryEnabled(true), SeeD = session.SeeD!.WithSalaryUiEnabled(true) with { SalaryMovementCounter = 123, RankPoints = 65535 } };
+        var packet = new WorldTransition(11, 66, 61);
         session.Restore(departure);
         using PreparedWorldEntry ticket = WorldEntryPreflight.Prepare(departure, directory, packet);
         Assert.Same(departure, session.State);
@@ -33,11 +33,12 @@ public sealed class NativeBoatWorldTests
         Assert.True(scene.IsPresentationDeferred);
         Assert.Throws<NativeWorldPresentationDeferredException>(() => scene.Render(320, 224));
         GameState beforeCallback = session.State;
-        PlayerActionResult first = scene.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Vertical: -1));
+        PlayerActionResult first = scene.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: -1, Vertical: -1));
         Assert.Equal(1, first.FramesAdvanced);
         Assert.False(scene.IsPresentationDeferred);
         NativeWorldScriptedPathState path = scene.State.NativeScriptedRuntime!.Path;
         Assert.Equal(1, path.Callback);
+        AssertGroundSelection(scene.State.NativeScriptedRuntime.GroundCache!, session.WorldProcess!, 1);
         Assert.Equal(123u, session.SeeD!.SalaryMovementCounter);
         Assert.Equal((ushort)65535, session.SeeD.RankPoints);
         Assert.NotNull(path.Presentation[1].Angles);
@@ -47,7 +48,7 @@ public sealed class NativeBoatWorldTests
         byte[] pixels = scene.Render(320, 224);
         var replaySession = new GameSession(beforeCallback);
         using WorldMapScene replay = new(replaySession, directory);
-        Assert.Equal(1, replay.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Vertical: -1)).FramesAdvanced);
+        Assert.Equal(1, replay.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: -1, Vertical: -1)).FramesAdvanced);
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(replaySession.State)));
         Assert.Equal(pixels, replay.Render(320, 224));
         // Only the just-executed action is replayed locally; this fixture is never
@@ -80,6 +81,7 @@ public sealed class NativeBoatWorldTests
         };
         Assert.Equal(229, scene.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 229)).FramesAdvanced);
         Assert.True(scene.State.NativeScriptedRuntime!.Path.EndpointRequested);
+        AssertGroundSelection(scene.State.NativeScriptedRuntime.GroundCache!, session.WorldProcess!, 1);
         // Declared retained UI process: native formatting starts a live phase just
         // before the already-requested departure fade; no payout history is claimed.
         NativeSalaryPresentation beforeFade = session.SalaryPresentation!.StartPayment(6, 5, 4000, 3000);
@@ -92,12 +94,13 @@ public sealed class NativeBoatWorldTests
         Assert.Equal(230, session.State.SavedWorld!.ScriptedReturn!.SourceWorldFrame);
         Assert.Equal(246, session.State.DepartingWorldState!.Frame);
         Assert.Equal(246, scene.LastDeparture!.Frame);
+        AssertGroundSelection(session.State.DepartingWorldState.NativeScriptedRuntime!.GroundCache!, session.WorldProcess!, 1);
         Assert.Equal(pixels.Length, scene.Render(320, 224).Length);
         Assert.Throws<NotSupportedException>(() => WorldEntryPreflight.Prepare(departure, directory, new WorldTransition(12, 66, -1)));
 
         // This second isolated allocation uses the genuinely executed preceding boat callbacks,
         // not a car seed or a patched retained world. Story135 selects the same original static-foot clause.
-        GameState returnDeparture = session.State with { EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int>() { [256] = 135 }) };
+        GameState returnDeparture = session.State with { WorldEntryMemory = session.State.WorldEntryMemory!.WriteBytes(256, 2, 135) };
         NativeSavedWorldScriptedReturn outboundReturn = returnDeparture.SavedWorld!.ScriptedReturn!;
         var returnPacket = new WorldTransition(12, 66, 60);
         Assert.Throws<InvalidDataException>(() => WorldEntryPreflight.Prepare(returnDeparture with { DepartingWorldState = returnDeparture.DepartingWorldState! with { Frame = 245 } }, directory, returnPacket));
@@ -106,6 +109,7 @@ public sealed class NativeBoatWorldTests
         NativeScriptedWorldLoadReceipt expectedReturnLoad = outboundReturn.Load with { SourceWorldFrame = returnDeparture.DepartingWorldState!.Frame };
         Assert.Equal(expectedReturnLoad, returnTicket.InitialState.NativeScriptedRuntime!.Load);
         Assert.Equal(outboundReturn, returnTicket.InitialSavedWorld!.ScriptedReturn);
+        AssertGroundSelection(returnTicket.InitialState.NativeScriptedRuntime.GroundCache!, session.WorldProcess!, 1);
         session.Restore(returnDeparture);
         session.CommitPreparedWorldEntry(returnPacket, returnTicket.InitialState, session.WorldControls!, returnTicket.ValidateAdoption, returnTicket.InitialSavedWorld);
         using WorldMapScene returning = returnTicket.Adopt(session);
@@ -134,5 +138,21 @@ public sealed class NativeBoatWorldTests
         Assert.Equal(returnPacket, session.State.SavedWorld.ScriptedReturn.Packet);
         Assert.Equal(expectedReturnLoad, session.State.SavedWorld.ScriptedReturn.Load);
         Assert.Equal(session.State.SavedWorld.ScriptedReturn.SourceWorldFrame + 16, session.State.DepartingWorldState!.Frame);
+        AssertGroundSelection(session.State.DepartingWorldState.NativeScriptedRuntime!.GroundCache!, session.WorldProcess!, 1);
+
+        // A structural ordinary loader continuation consumes the process metadata
+        // established by these boat callbacks; no intervening field travel is claimed.
+        using PreparedWorldEntry footTicket = WorldEntryPreflight.Prepare(session.State, directory, new WorldTransition(1, 1, -1));
+        AssertGroundSelection(footTicket.InitialState.NativeFootRuntime!.GroundCache!, session.WorldProcess!, 1);
+    }
+
+    private static void AssertGroundSelection(NativeWorldGroundCacheState cache, NativeWorldProcess process, int group)
+    {
+        Assert.All(cache.Alternatives, alternative =>
+        {
+            Assert.Equal(group, alternative.PreferredGroup);
+            Assert.Equal(0, alternative.FailedSelections);
+        });
+        Assert.Equal(new NativeWorldGroundSelectionAlternative(group, 0), Assert.Single(process.GroundSelection!.Alternatives));
     }
 }

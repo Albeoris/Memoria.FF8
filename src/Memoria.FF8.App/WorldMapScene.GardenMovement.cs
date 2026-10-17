@@ -69,7 +69,7 @@ internal sealed partial class WorldMapScene
             cameraState = cameraState with { NativeGardenRuntime = garden };
         }
         byte scriptMode = garden.Transfer is { Counter: < 31 } ? (byte)8 : (byte)0;
-        int? selectedGroup = steering < 0 ? 1 : steering > 0 ? 0 : null;
+        int? selectedGroup = (buttons & 0x8000) != 0 ? 0 : (buttons & 0x2000) != 0 ? 1 : null;
         WorldNativeGardenGroundResult ground = assets.ResolveNativeGardenGround(before.X, before.Z, checked((short)moveX), checked((short)graphicsZ), unchecked((short)before.NativeHeight), selectedGroup, garden.GroundCache, replacements, (probes, padding) => GardenContact(cameraState, probes, 48, padding), scriptMode);
         WorldNativeTerrainOcclusionResult occlusion = assets.CertifyNativeTerrainCameraOcclusion(garden.ProjectionCamera!, garden.CurrentGroundHeight!.Value, replacements);
         bool currentOcclusion = occlusion.Occluded ?? throw new NotSupportedException(occlusion.Reason);

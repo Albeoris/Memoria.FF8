@@ -12,8 +12,9 @@ public sealed class NativeWorldProcessTests
         GameSession session = GameSession.CreateColdProcess();
         NativeWorldProcess cold = session.WorldProcess!;
         Assert.True(cold.IsColdProcess);
+        Assert.Equal(new NativeWorldGroundSelectionAlternative(0, 0), Assert.Single(cold.GroundSelection!.Alternatives));
         session.StartNewGame();
-        NativeWorldProcess executed = cold.AdvanceMainLoopCallbacks(7) with { CameraCooldown = 46 };
+        NativeWorldProcess executed = cold.AdvanceMainLoopCallbacks(7) with { CameraCooldown = 46, GroundSelection = new([new(1, 4)]) };
         session.SetWorldProcess(executed);
         session.StartNewGame();
         Assert.Equal(executed, session.WorldProcess);
@@ -22,6 +23,83 @@ public sealed class NativeWorldProcessTests
         restored.SetWorldProcess(restored.WorldProcess!.AdvanceMainLoopCallbacks(1));
         Assert.Equal(8u, restored.WorldProcess.MainLoopCounter);
         Assert.Equal(46, restored.WorldProcess.CameraCooldown);
+    }
+
+    [Fact]
+    public void FreshGroundUsesProcessSelectionWithoutRetainingLoadedTerrain()
+    {
+        NativeWorldGroundIdentity original = new(1, 1, 0, 0);
+        NativeWorldGroundIdentity loaded = new(2, 2, 1, 3);
+        NativeWorldGroundSelectionState process = new([new(1, int.MinValue), new(0, null)]);
+        NativeWorldGroundCacheState fresh = NativeWorldGroundCacheState.CreateFresh(loaded, processSelection: process);
+        Assert.Equal(2, fresh.Alternatives.Length);
+        Assert.Equal(1, fresh.Alternatives[0].PreferredGroup);
+        Assert.Equal(int.MinValue, fresh.Alternatives[0].FailedSelections);
+        Assert.Null(fresh.Alternatives[1].FailedSelections);
+        Assert.All(fresh.Alternatives, alternative =>
+        {
+            Assert.Empty(alternative.Entries);
+            Assert.Equal(loaded, alternative.CurrentGround);
+            Assert.Equal(loaded, alternative.PreviousGround);
+        });
+        NativeWorldGroundCacheState retained = NativeWorldGroundCacheState.CreateFresh(original, processSelection: new([new(0, 3)]));
+        NativeWorldGroundCacheState retainedFresh = NativeWorldGroundCacheState.CreateFresh(loaded, retained, process);
+        Assert.Equal(new NativeWorldGroundSelectionAlternative(0, 3), Assert.Single(NativeWorldGroundSelectionState.FromCache(retainedFresh).Alternatives));
+    }
+
+    [Fact]
+    public void GroundSelectionSurvivesSerializationAndMissingLegacyOwnerStaysUnknown()
+    {
+        NativeWorldProcess process = NativeWorldProcess.FromColdProcess() with { GroundSelection = new([new(1, 7), new(0, null)]) };
+        NativeWorldProcess restored = JsonSerializer.Deserialize<NativeWorldProcess>(JsonSerializer.Serialize(process))!;
+        restored.Validate();
+        Assert.Equal(process.GroundSelection!.Alternatives.ToArray(), restored.GroundSelection!.Alternatives.ToArray());
+        JsonObject legacy = JsonNode.Parse(JsonSerializer.Serialize(process))!.AsObject();
+        legacy.Remove("GroundSelection");
+        NativeWorldProcess unknown = JsonSerializer.Deserialize<NativeWorldProcess>(legacy.ToJsonString())!;
+        Assert.Null(unknown.GroundSelection);
+        NativeWorldGroundCacheState fresh = NativeWorldGroundCacheState.CreateFresh(new(0, 0, 0, 0), processSelection: unknown.GroundSelection);
+        Assert.Equal(new[] { 0, 1 }, fresh.Alternatives.Select(alternative => alternative.PreferredGroup).ToArray());
+        Assert.All(fresh.Alternatives, alternative => Assert.Null(alternative.FailedSelections));
+        Assert.Throws<InvalidDataException>(() => (process with { GroundSelection = new([new(2, 0)]) }).Validate());
+    }
+
+    [Fact]
+    public void MissingGroundCallbackPublicationInvalidatesSelectionOnlyAfterCallbacks()
+    {
+        WorldState before = new();
+        GameState departure = new() { World = before, WorldProcess = NativeWorldProcess.FromColdProcess() };
+        Assert.NotNull(GameSession.PrepareWorldProcess(departure, before).GroundSelection);
+        Assert.Null(GameSession.PrepareWorldProcess(departure, before with { Frame = 1 }).GroundSelection);
+    }
+
+    [Fact]
+    public void GroundCallbackPublishesOnlySelectionPairsAndDeduplicatesCacheHistories()
+    {
+        NativeWorldGroundIdentity ground = new(0, 0, 0, 0);
+        NativeWorldGroundCacheState cache = NativeWorldGroundCacheState.CreateFresh(ground) with
+        {
+            Alternatives = [new(1, [], ground, ground) { FailedSelections = 4 }, new(1, [ground], ground, ground) { FailedSelections = 4 }]
+        };
+        NativeFootWorldRuntimeState foot = new()
+        {
+            ProofVersion = 1,
+            Rule = NativeFootWorldRuntimeState.FirstLoadRule,
+            EntityType = 0,
+            AnimationVariant = 0,
+            MapDisplayMode = 0,
+            CameraOffsetY = -341,
+            CameraOffsetZ = -7168,
+            ReloadSourceWorldFrame = null,
+            GroundCache = cache
+        };
+        WorldState before = new() { NativeFootRuntime = foot };
+        GameState departure = new() { World = before, WorldProcess = NativeWorldProcess.FromColdProcess() };
+        NativeWorldProcess published = GameSession.PrepareWorldProcess(departure, before with { Frame = 1 });
+        Assert.Equal(new NativeWorldGroundSelectionAlternative(1, 4), Assert.Single(published.GroundSelection!.Alternatives));
+        NativeWorldGroundCacheState reloaded = NativeWorldGroundCacheState.CreateFresh(new(1, 1, 0, 0), processSelection: published.GroundSelection);
+        Assert.Empty(Assert.Single(reloaded.Alternatives).Entries);
+        Assert.Equal(4, reloaded.Alternatives[0].FailedSelections);
     }
 
     [Fact]

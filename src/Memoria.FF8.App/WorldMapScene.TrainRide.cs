@@ -37,7 +37,7 @@ internal sealed partial class WorldMapScene
         var train = new NativeTrainWorldRuntimeState
         {
             Version = 1, Rule = NativeTrainWorldRuntimeState.RuntimeRule, Packet = packet, Load = load, Callback = 0, Primary = primary, Alternate = alternate, CameraListIndex = list, CameraCounter = 1,
-            Camera = camera, CameraReceipt = new NativeWorldPathCameraReceipt(1, 0, 0, direction, primary.Nodes), BodyPosition = body, Forest = forest, StationDeclines = [], GroundCache = NativeWorldGroundCacheState.CreateFresh(ground.Identity, previous.NativeFootRuntime?.GroundCache ?? previous.NativeCarRuntime?.GroundCache ?? previous.NativeTrainRuntime?.GroundCache), GroundYaw = 0, CameraGeometry = NativeTrainCameraGeometry.Evaluate(camera)
+            Camera = camera, CameraReceipt = new NativeWorldPathCameraReceipt(1, 0, 0, direction, primary.Nodes), BodyPosition = body, Forest = forest, StationDeclines = [], GroundCache = CreateFreshGroundCache(ground.Identity), GroundYaw = 0, CameraGeometry = NativeTrainCameraGeometry.Evaluate(camera)
         };
         ValidateTrainRide(train);
         return train.ToWorldState() with { ReplacementMask = mask, GroundType = ground.Ground.Triangle.GroundType };
@@ -119,7 +119,8 @@ internal sealed partial class WorldMapScene
             alternate = alternate.Step(other, callback, camera, origin, (node, cam, body) => context.ProjectNode(node));
         }
         //549B40 excludes global entities16..22;5472C0 hides the selected normal-foot model, and550070 emits no normal-foot effect for that global entity.
-        WorldNativeGroundResult ground = assets.ResolveNativeGround(origin.X, -origin.Z, 0, 0, -unchecked((short)(origin.Y - (before.GroundType is <= 5 ? 320 : 0))), null, train.GroundCache, replacements, train.EntityType);
+        int? selectedGroup = horizontal > 0 ? 0 : horizontal < 0 ? 1 : null;
+        WorldNativeGroundResult ground = assets.ResolveNativeGround(origin.X, -origin.Z, 0, 0, -unchecked((short)(origin.Y - (before.GroundType is <= 5 ? 320 : 0))), selectedGroup, train.GroundCache, replacements, train.EntityType);
         NativeTrainWorldRuntimeState next = train with { Callback = callback, Primary = primary, Alternate = alternate, CameraCounter = counter, Camera = camera, CameraReceipt = new NativeWorldPathCameraReceipt(1, callback, train.CameraCounter, train.Primary.Direction, train.Primary.Nodes), BodyPosition = origin, GroundCache = ground.Cache, GroundYaw = ground.GroundYaw, CameraGeometry = NativeTrainCameraGeometry.Evaluate(camera) };
         next.Validate();
         fieldEntry = null;

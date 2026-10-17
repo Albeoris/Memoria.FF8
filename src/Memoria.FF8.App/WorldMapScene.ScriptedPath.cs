@@ -23,7 +23,10 @@ internal sealed partial class WorldMapScene
         }
         NativeWorldScriptedPathState path = NativeWorldScriptedPathState.Create(definition, arrival, (inputs.EventFlags265 & 64) != 0);
         ValidateScriptedModels(path, definition);
-        var scripted = new NativeScriptedWorldRuntimeState(1, NativeScriptedWorldRuntimeState.RuntimeRule, path, load, null);
+        ushort mask = WorldTerrainSelection.ReplacementMask(inputs.ReplacementFlags, storyByte);
+        IReadOnlyDictionary<int, int> selectedReplacements = WorldTerrainSelection.Replacements(mask);
+        WorldGroundSelection ground = assets.LookupNativeGround(path.EntityPosition.X, -path.EntityPosition.Z, selectedReplacements, []) ?? throw new NotSupportedException("Scripted loader has no original initial ground polygon.");
+        var scripted = new NativeScriptedWorldRuntimeState(1, NativeScriptedWorldRuntimeState.RuntimeRule, path, load, null) { GroundCache = CreateFreshGroundCache(ground.Identity) };
         return scripted.ToWorldState() with { ReplacementMask = WorldTerrainSelection.ReplacementMask(inputs.ReplacementFlags, storyByte) };
     }
 
@@ -96,13 +99,22 @@ internal sealed partial class WorldMapScene
         return renderer!.Render(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, replacements, sky, avatarVisible: false, staticModels: models);
     }
 
-    private WorldState StepScripted(WorldState before, out WorldFieldSelection? fieldEntry, Func<NativeWorldPathPosition, NativeWorldPathCamera, NativeWorldPathPosition, NativeWorldPathNodeProjection?> projectNode)
+    private WorldState StepScripted(WorldState before, uint buttons, out WorldFieldSelection? fieldEntry, Func<NativeWorldPathPosition, NativeWorldPathCamera, NativeWorldPathPosition, NativeWorldPathNodeProjection?> projectNode)
     {
         ValidateScriptedState(before);
         NativeScriptedWorldRuntimeState scripted = before.NativeScriptedRuntime!;
         NativeWorldScriptedPathDefinition definition = assets.ReadScriptedPath(unchecked((byte)scripted.Path.Packet.EntryIndex));
         NativeWorldScriptedPathState path = scripted.Path.Step(definition, projectNode);
-        NativeScriptedWorldRuntimeState next = scripted with { Path = path };
+        NativeWorldGroundCacheState cache = scripted.GroundCache ?? throw new NotSupportedException("Scripted ground callback requires its executed loader cache; migrate this save explicitly.");
+        if (!scripted.Path.EndpointRequested)
+        {
+            //557A90 leaves zero velocity for the scripted entities; modes1/2
+            //bypass blocking contacts and XYZ publication, but still execute53BB90.
+            int? group = (buttons & 0x8000) != 0 ? 0 : (buttons & 0x2000) != 0 ? 1 : null;
+            WorldNativeGroundResult ground = assets.ResolveNativeGround(path.EntityPosition.X, -path.EntityPosition.Z, 0, 0, -unchecked((short)path.EntityPosition.Y), group, cache, replacements, path.EntityType);
+            cache = ground.Cache;
+        }
+        NativeScriptedWorldRuntimeState next = scripted with { Path = path, GroundCache = cache };
         if (path.EndpointRequested && scripted.Return is null)
         {
             WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);

@@ -178,15 +178,14 @@ internal sealed partial class WorldMapScene : IDisposable
                     carProcess.Validate();
                     byte carType = unchecked((byte)arrival.Mode);
                     NativeWorldFootCameraState? carProjection = carType == 32 ? new NativeWorldFootCameraState(x, z, height, x, z, height - 256, (spawn.Unknown & 255) * 16, -112, -341, -7168) : null;
-                    initialCarRuntime = NativeCarWorldRuntimeState.Create(carSavedDeparture!, NativeWorldGroundCacheState.CreateFresh(initialGround.Identity, session.State.DepartingWorldState?.NativeFootRuntime?.GroundCache ?? session.State.DepartingWorldState?.NativeCarRuntime?.GroundCache), carProcess, carType, carType == 32 ? assets.ReadTrainWorldAllocation(inputs.StoryWord, inputs.EventFlags265) : null, carProjection);
+                    initialCarRuntime = NativeCarWorldRuntimeState.Create(carSavedDeparture!, CreateFreshGroundCache(initialGround.Identity), carProcess, carType, carType == 32 ? assets.ReadTrainWorldAllocation(inputs.StoryWord, inputs.EventFlags265) : null, carProjection);
                     ground = initialGround.Ground;
                 }
                 else
                 {
                     WorldGroundSelection initialGround = assets.LookupNativeGround(x, z, replacements, []) ?? throw new NotSupportedException("Original foot spawn has no native53EB80 ground lookup result.");
-                    NativeWorldGroundCacheState? retained = session.State.DepartingWorldState?.NativeFootRuntime?.GroundCache ?? session.State.DepartingWorldState?.NativeCarRuntime?.GroundCache;
                     NativeWorldProcess process = session.State.WorldProcess ?? throw new NotSupportedException("Native forest loader requires the executed main-loop/camera process history; migrate this save explicitly.");
-                    initialFootRuntime = initialFootRuntime! with { GroundCache = NativeWorldGroundCacheState.CreateFresh(initialGround.Identity, retained), Forest = NativeWorldForestState.Create(process.MainLoopCounter, process.CameraCooldown) };
+                    initialFootRuntime = initialFootRuntime! with { GroundCache = CreateFreshGroundCache(initialGround.Identity), PreviousHorizontalInput = PreviousFootHorizontalInput(process, worldLoad: true), Forest = NativeWorldForestState.Create(process.MainLoopCounter, process.CameraCooldown) };
                     ground = initialGround.Ground;
                 }
                 WorldState initial = new()
@@ -519,6 +518,27 @@ internal sealed partial class WorldMapScene : IDisposable
         return renderer.Render(position, state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, replacements, sky, state.NativeCarRuntime is null && state.GroundType is null or > 5, avatarModel: state.NativeCarRuntime is null ? assets.GetFootModel(state.NativeFootRuntime!.EntityType) : null, staticModels: models, forest: state.NativeFootRuntime?.Forest);
     }
 
+    private static int? PreviousFootHorizontalInput(NativeWorldProcess process, bool worldLoad = false)
+    {
+        if (process.InputHistory is not { } input)
+        {
+            return null;
+        }
+        ushort? buttons = worldLoad ? input.PreviousButtonsAfterWorldLoad : input.CurrentButtons;
+        return buttons is null ? null : (buttons & 0x8000) != 0 ? 1 : (buttons & 0x2000) != 0 ? -1 : 0;
+    }
+
+    private NativeWorldGroundCacheState CreateFreshGroundCache(NativeWorldGroundIdentity ground)
+    {
+        NativeWorldGroundSelectionState? selection = session.State.WorldProcess?.GroundSelection;
+        if (selection is null && session.State.DepartingWorldState is { } departure)
+        {
+            NativeWorldGroundCacheState? retained = departure.NativeFootRuntime?.GroundCache ?? departure.NativeCarRuntime?.GroundCache ?? departure.NativeTrainRuntime?.GroundCache ?? departure.NativeScriptedRuntime?.GroundCache ?? departure.NativeGardenRuntime?.GroundCache ?? departure.NativeRagnarokRuntime?.GroundCache;
+            selection = retained is null ? null : NativeWorldGroundSelectionState.FromCache(retained);
+        }
+        return NativeWorldGroundCacheState.CreateFresh(ground, processSelection: selection);
+    }
+
     private WorldState Step(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, uint buttons, NativeWorldEntryMemory? entryMemory, ref NativeWorldSalaryState salary, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed)
     {
         encounterMovementMagnitude = 0;
@@ -533,7 +553,7 @@ internal sealed partial class WorldMapScene : IDisposable
             // Native53FAC0 does not call6519D0 for scripted entities16..22/65/66.
             salaryMovementUnits = 0;
             graphicsSpeed = before.NativeScriptedRuntime.Path.EndpointRequested ? priorGraphicsSpeed : 0;
-            return StepScripted(before, out fieldEntry, (node, camera, origin) => NativeWorldPathProjectionCertificate.Create(camera, origin, before.NativeScriptedRuntime.Path.EntityType).ProjectNode(node));
+            return StepScripted(before, buttons, out fieldEntry, (node, camera, origin) => NativeWorldPathProjectionCertificate.Create(camera, origin, before.NativeScriptedRuntime.Path.EntityType).ProjectNode(node));
         }
         if (before.NativeCarRuntime is not null)
         {
@@ -562,6 +582,7 @@ internal sealed partial class WorldMapScene : IDisposable
 
     private WorldState StepFoot(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed)
     {
+        int inputX = Math.Sign(horizontal);
         //53FAC0 seeds24 on the first normal loader callback and decrements before559140.
         //Frame is the actual callback age: callbacks1..23 retain the native zero-input hold.
         if (NativeWorldEntryControl.DelayAfterCallback(before.Frame + 1, 0) > 0)
@@ -574,7 +595,6 @@ internal sealed partial class WorldMapScene : IDisposable
         NativeFootWorldRuntimeState foot = before.NativeFootRuntime!;
         foot.RequireNativeGroundState();
         NativeWorldForestState forest = foot.Forest!;
-        int inputX = Math.Sign(horizontal);
         (int componentX, int componentZ) = ReadFootMovementComponents(horizontal, vertical);
         int localX = (16 * componentX) >> 6;
         int localZ = (16 * componentZ) >> 6;
@@ -647,8 +667,9 @@ internal sealed partial class WorldMapScene : IDisposable
         }
         EnsureContactCertificate(before with { X = x, Z = z, CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot });
         int previousGroundHeight = -unchecked((short)(before.NativeHeight - (before.GroundType is <= 5 ? 320 : 0)));
-        int? selectedGroup = inputX != 0 && foot.PreviousHorizontalInput != inputX ? inputX > 0 ? 1 : 0 : null;
-        WorldNativeGroundResult ground = assets.ResolveNativeGround(before.X, before.Z, moveX, graphicsMoveZ, previousGroundHeight, selectedGroup, foot.GroundCache!, replacements, foot.EntityType, foot.PreviousHorizontalInput is null, foot.StationTrains is not null ? (candidateX, candidateZ, candidateHeight) => HasStationContact(foot, candidateX, candidateZ, candidateHeight) : foot.NormalObjects is not null ? (candidateX, candidateZ, candidateHeight) => HasNormalFootObjectContact(foot, candidateX, candidateZ, candidateHeight) : null, footprintContact: ragnarokCameraState is not null ? (probes, padding) => RagnarokFootContact(ragnarokCameraState, probes, foot.EntityType, padding) : gardenCameraState is not null ? (probes, padding) => GardenFootContact(gardenCameraState, probes, foot.EntityType, padding) : null, commitSuppressed: gardenFootCallback?.BoardingTarget is not null || ragnarokFootCallback?.BoardingTarget is not null);
+        int? previousInput = foot.PreviousHorizontalInput ?? (session.State.WorldProcess is { } inputProcess ? PreviousFootHorizontalInput(inputProcess) : null);
+        int? selectedGroup = inputX != 0 && previousInput != inputX ? inputX > 0 ? 0 : 1 : null;
+        WorldNativeGroundResult ground = assets.ResolveNativeGround(before.X, before.Z, moveX, graphicsMoveZ, previousGroundHeight, selectedGroup, foot.GroundCache!, replacements, foot.EntityType, previousInput is null, foot.StationTrains is not null ? (candidateX, candidateZ, candidateHeight) => HasStationContact(foot, candidateX, candidateZ, candidateHeight) : foot.NormalObjects is not null ? (candidateX, candidateZ, candidateHeight) => HasNormalFootObjectContact(foot, candidateX, candidateZ, candidateHeight) : null, footprintContact: ragnarokCameraState is not null ? (probes, padding) => RagnarokFootContact(ragnarokCameraState, probes, foot.EntityType, padding) : gardenCameraState is not null ? (probes, padding) => GardenFootContact(gardenCameraState, probes, foot.EntityType, padding) : null, commitSuppressed: gardenFootCallback?.BoardingTarget is not null || ragnarokFootCallback?.BoardingTarget is not null);
         x = ground.X;
         z = ground.Z;
         EnsureContactCertificate(before with { X = x, Z = z, CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot });

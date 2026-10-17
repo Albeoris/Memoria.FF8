@@ -52,8 +52,8 @@ public sealed class NativeFootGroundTests
         session.Restore(session.State with { Scene = SceneKind.WorldMap, WorldArrival = new WorldTransition(0, 0, 0) });
         using WorldMapScene scene = new(session, GameDirectory());
         Assert.All(scene.State.NativeFootRuntime!.GroundCache!.Alternatives, alternative => Assert.Empty(alternative.Entries));
-        Assert.Null(scene.State.NativeFootRuntime.PreviousHorizontalInput);
-        scene.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Frames: 3));
+        Assert.Equal(0, scene.State.NativeFootRuntime.PreviousHorizontalInput);
+        scene.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Frames: 27));
         Assert.Equal(1, scene.State.NativeFootRuntime.PreviousHorizontalInput);
         Assert.All(scene.State.NativeFootRuntime.GroundCache.Alternatives, alternative => Assert.Equal(0, alternative.FailedSelections));
         GameState saved = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;

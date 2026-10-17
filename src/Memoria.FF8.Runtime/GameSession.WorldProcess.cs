@@ -19,6 +19,12 @@ public sealed partial class GameSession
         WorldState before = departure.World ?? throw new NotSupportedException("Native world callbacks require their current world departure.");
         NativeWorldProcess process = departure.WorldProcess ?? throw new NotSupportedException("Native world callbacks require executed process counter and camera cooldown history; migrate this save explicitly.");
         long callbacks = checked(finalWorld.Frame - before.Frame);
+        NativeWorldGroundSelectionState? groundSelection = process.GroundSelection;
+        if (callbacks > 0)
+        {
+            NativeWorldGroundCacheState? groundCache = finalWorld.NativeFootRuntime?.GroundCache ?? finalWorld.NativeCarRuntime?.GroundCache ?? finalWorld.NativeTrainRuntime?.GroundCache ?? finalWorld.NativeScriptedRuntime?.GroundCache ?? finalWorld.NativeGardenRuntime?.GroundCache ?? finalWorld.NativeRagnarokRuntime?.GroundCache;
+            groundSelection = groundCache is null ? null : NativeWorldGroundSelectionState.FromCache(groundCache);
+        }
         int? forcedAnimation = process.ForcedAnimationC76628;
         if (callbacks > 0)
         {
@@ -40,6 +46,6 @@ public sealed partial class GameSession
             //inside the batch; an older null owner starts with the full WORD domain.
             bias = (bias ?? NativeWorldVerticalBiasState.UnknownWord).Damp(2, 4, callbacks);
         }
-        return process.AdvanceMainLoopCallbacks(callbacks) with { CameraCooldown = finalWorld.NativeFootRuntime?.Forest?.CameraCooldown ?? finalWorld.NativeGardenRuntime?.Forest.CameraCooldown ?? finalWorld.NativeRagnarokRuntime?.Forest?.CameraCooldown ?? process.CameraCooldown, CarCameraFollowSpeed = finalWorld.NativeCarRuntime?.CameraFollowSpeed ?? finalWorld.NativeGardenRuntime?.CameraFollowSpeed ?? (finalWorld.NativeFootRuntime is null ? finalWorld.NativeRagnarokRuntime?.Motor.CameraFollowSpeed : null) ?? process.CarCameraFollowSpeed, VerticalBias204DADC = bias, ForcedAnimationC76628 = forcedAnimation };
+        return process.AdvanceMainLoopCallbacks(callbacks) with { CameraCooldown = finalWorld.NativeFootRuntime?.Forest?.CameraCooldown ?? finalWorld.NativeGardenRuntime?.Forest.CameraCooldown ?? finalWorld.NativeRagnarokRuntime?.Forest?.CameraCooldown ?? process.CameraCooldown, CarCameraFollowSpeed = finalWorld.NativeCarRuntime?.CameraFollowSpeed ?? finalWorld.NativeGardenRuntime?.CameraFollowSpeed ?? (finalWorld.NativeFootRuntime is null ? finalWorld.NativeRagnarokRuntime?.Motor.CameraFollowSpeed : null) ?? process.CarCameraFollowSpeed, VerticalBias204DADC = bias, ForcedAnimationC76628 = forcedAnimation, GroundSelection = groundSelection };
     }
 }

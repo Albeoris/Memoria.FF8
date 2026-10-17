@@ -87,7 +87,7 @@ public sealed partial class WorldAssets
     {
         bool foot = entityType < 10 || entityType == 128;
         bool car = entityType is >= 32 and <= 40 or 132;
-        bool train = entityType is >= 16 and <= 22;
+        bool train = entityType is >= 16 and <= 22 or 65 or 66;
         if (!foot && !car && !train || selectedGroup is < 0 or > 1 || moveX is < short.MinValue or > short.MaxValue || graphicsMoveZ is < short.MinValue or > short.MaxValue)
         {
             throw new NotSupportedException("Native ground query requires the supported normal foot/car/train entity and exact signed-WORD velocity.");

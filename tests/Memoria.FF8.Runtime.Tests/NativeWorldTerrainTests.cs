@@ -26,6 +26,7 @@ public sealed class NativeWorldTerrainTests
     [InlineData(16)]
     [InlineData(22)]
     [InlineData(64)]
+    [InlineData(65)]
     [InlineData(66)]
     [InlineData(-1)]
     public void Native_otherwise_permission_is_unconditional_but_height_has_no_authority(int entity)
@@ -33,7 +34,7 @@ public sealed class NativeWorldTerrainTests
         Assert.Equal(0, NativeWorldTerrain.PermissionMask(entity));
         Assert.True(NativeWorldTerrain.CanTraverse(0, entity));
         Assert.True(NativeWorldTerrain.CanDisembark(0, entity));
-        if (entity is >= 16 and <= 22)
+        if (entity is >= 16 and <= 22 or 65 or 66)
         {
             Assert.Equal(32, NativeWorldTerrain.ProbeRadius(entity));
         }

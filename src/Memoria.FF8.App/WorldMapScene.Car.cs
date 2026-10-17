@@ -140,7 +140,7 @@ internal sealed partial class WorldMapScene
         (int tilt, int tiltBlend) = CarModelTilt(before, bodyYaw, car);
         int proposedMoveX = NearWrapped(x, before.X, 262144) - before.X;
         int proposedGraphicsZ = before.Z - NearWrapped(z, before.Z, 196608);
-        int? selectedGroup = horizontal > 0 ? 1 : horizontal < 0 ? 0 : null;
+        int? selectedGroup = horizontal > 0 ? 0 : horizontal < 0 ? 1 : null;
         WorldNativeGroundResult ground = assets.ResolveNativeGround(before.X, before.Z, proposedMoveX, proposedGraphicsZ, previousHeight, selectedGroup, car.GroundCache!, replacements);
         candidate = candidate with { X = ground.X, Z = ground.Z };
         EnsureCarContactCertificate(candidate);

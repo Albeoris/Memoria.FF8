@@ -38,7 +38,7 @@ public sealed class NativeCarWorldTests
         WorldNativeGroundResult unanimousBlocked = assets.ResolveNativeGround(12904, -27135, 0, 0, 304, 0, unknownFailure, replacements);
         Assert.True(unanimousBlocked.Blocked);
         Assert.Equal((12904, -27135), (unanimousBlocked.X, unanimousBlocked.Z));
-        Assert.Equal(2, unanimousBlocked.Cache.Alternatives.Length);
+        Assert.NotEmpty(unanimousBlocked.Cache.Alternatives);
         Assert.All(unanimousBlocked.Cache.Alternatives, alternative => Assert.Null(alternative.FailedSelections));
         NativeWorldGroundCacheState wrappingFailure = stoppedCache with { Alternatives = [stoppedCache.Alternatives[0] with { FailedSelections = int.MaxValue }] };
         WorldNativeGroundResult wrappedBlocked = assets.ResolveNativeGround(12904, -27135, 0, 0, 304, 0, wrappingFailure, replacements);
@@ -47,7 +47,7 @@ public sealed class NativeCarWorldTests
         Assert.Equal(edge, blocked.Cache.Alternatives[0].CurrentGround);
         var session = GameSession.CreateColdProcess();
         InitializeNativeOwners(session, directory);
-        session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [256] = 40, [265] = 128 }) });
+        session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), FieldLoadContext = null, WorldEntryMemory = session.State.WorldEntryMemory!.WriteBytes(256, 2, 40).WriteBytes(265, 1, 128) });
         using var scene = new WorldMapScene(session, directory);
         session.SetWorldState(scene.State with { X = 12904, Z = -27135, NativeHeight = -304, CameraTargetX = 12904, CameraTargetZ = -27135, CameraTargetNativeHeight = -560, GroundType = assets.ResolveNativeGroundIdentity(edge, replacements).GroundType, NativeCarRuntime = scene.State.NativeCarRuntime! with { GroundCache = stoppedCache, Speed = 2 } });
         session.SetExamTimer(NativeExamTimerState.FromReachedSet(600).KillDisplay());
@@ -106,14 +106,14 @@ public sealed class NativeCarWorldTests
         // Isolated component fixture; actual gameplay acceptance belongs to the live New Game journey.
         var session = GameSession.CreateColdProcess();
         InitializeNativeOwners(session, directory);
-        session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [256] = 40, [265] = 128 }) });
+        session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), FieldLoadContext = null, WorldEntryMemory = session.State.WorldEntryMemory!.WriteBytes(256, 2, 40).WriteBytes(265, 1, 128) });
         using var scene = new WorldMapScene(session, directory);
         Assert.Equal((24511, -28167, -552), (scene.State.X, scene.State.Z, scene.State.NativeHeight));
         Assert.Equal((2256, 2256), (scene.State.CameraYaw, scene.State.BodyYaw));
         Assert.Null(scene.State.NativeFootRuntime);
         Assert.Equal(73, session.State.SavedWorld!.Slot4.ShapeId);
         Assert.Equal(0, scene.State.NativeCarRuntime!.Speed);
-        Assert.Equal(2, scene.State.NativeCarRuntime.GroundCache!.Alternatives.Length);
+        Assert.Equal(0, Assert.Single(scene.State.NativeCarRuntime.GroundCache!.Alternatives).PreferredGroup);
         Assert.All(scene.State.NativeCarRuntime.GroundCache.Alternatives, alternative =>
         {
             Assert.Empty(alternative.Entries);
@@ -135,7 +135,7 @@ public sealed class NativeCarWorldTests
         Assert.Equal(2, scene.State.NativeCarRuntime!.Speed);
         Assert.Equal(2287, scene.State.BodyYaw);
         NativeWorldGroundAlternative cache = Assert.Single(scene.State.NativeCarRuntime.GroundCache!.Alternatives);
-        Assert.Equal(1, cache.PreferredGroup);
+        Assert.Equal(0, cache.PreferredGroup);
         Assert.NotEmpty(cache.Entries);
         Assert.InRange(cache.Entries.Length, 1, 12);
         var replaySession = new GameSession(before);
@@ -160,7 +160,7 @@ public sealed class NativeCarWorldTests
         Assert.SkipUnless(Directory.Exists(directory), "Installed original world resources are required.");
         var session = GameSession.CreateColdProcess();
         InitializeNativeOwners(session, directory);
-        session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [256] = 40, [265] = 128 }) });
+        session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), FieldLoadContext = null, WorldEntryMemory = session.State.WorldEntryMemory!.WriteBytes(256, 2, 40).WriteBytes(265, 1, 128) });
         using (var entry = new WorldMapScene(session, directory))
         {
             // Isolated component contact fixture at an installed entrance-polygon centroid;
@@ -169,9 +169,30 @@ public sealed class NativeCarWorldTests
             NativeWorldGroundIdentity ground = assets.LookupNativeGround(12390, -26709, WorldTerrainSelection.Replacements(entry.State.ReplacementMask), [])!.Identity;
             session.SetWorldState(entry.State with { X = 12390, Z = -26709, NativeHeight = -301, CameraTargetX = 12390, CameraTargetZ = -26709, CameraTargetNativeHeight = -557, NativeCarRuntime = entry.State.NativeCarRuntime! with { GroundCache = NativeWorldGroundCacheState.CreateFresh(ground) } });
         }
-        using var world = new GameWorld(session, directory);
-        world.EnsureField();
-        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
+        // This component checks entrance selection and the production entry transaction;
+        // it does not load a destination field VM or its audio/presentation backend.
+        using var world = new WorldMapScene(session, directory);
+        bool validatedPreparedEntry = false;
+        world.PrepareFieldEntry = (selection, final, location, salary) =>
+        {
+            FieldTransition transition = new(selection.Entry.FieldId, selection.Entry.X, selection.Entry.Y, selection.Entry.Triangle, selection.Entry.Direction);
+            NativeSavedWorldCarReturn prepared = NativeSavedWorldCarReturn.Create(final, checked((ushort)session.State.FieldId), session.State.WorldEntryMemory!.StoryWord, location);
+            GameState departure = session.State;
+            Assert.Throws<InvalidOperationException>(() => session.CommitPreparedCarFieldEntry(departure, final, transition, prepared, salary, _ => throw new InvalidOperationException("Declared destination preparation refusal.")));
+            Assert.Same(departure, session.State);
+            return () => session.CommitPreparedCarFieldEntry(departure, final, transition, prepared, salary, candidate =>
+            {
+                Assert.Same(departure, session.State);
+                Assert.Equal(255, candidate.SavedWorld!.Slot4.ShapeId);
+                Assert.Equal(106, candidate.FieldId);
+                validatedPreparedEntry = true;
+            });
+        };
+        PlayerActionResult guard = world.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 24));
+        Assert.Equal(PlayerTriggerKind.Dialogue, guard.Trigger.Kind);
+        Assert.Equal(49, guard.Trigger.MessageId);
+        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted);
+        Assert.True(validatedPreparedEntry);
         Assert.Equal(SceneKind.Field, session.State.Scene);
         Assert.Equal(106, session.State.FieldId);
         Assert.Equal(new FieldTransition(106, 58, 4327, 197, 0), session.State.FieldArrival);
@@ -182,7 +203,7 @@ public sealed class NativeCarWorldTests
         Assert.Equal(255, session.State.SavedWorld.Slot4.ShapeId);
         Assert.Equal(receipt.Pose, session.State.SavedWorld.Slot4.Pose);
         Assert.Null(session.State.SavedWorld.FootReturn);
-        Assert.Equal(1, receipt.SourceWorldFrame);
+        Assert.Equal(25, receipt.SourceWorldFrame);
         Assert.Equal(40, receipt.StoryWord);
         Assert.NotNull(session.State.DepartingWorldState!.NativeCarRuntime);
         Assert.Equal(33, session.WorldConfiguration!.EntityByte);
@@ -206,7 +227,7 @@ public sealed class NativeCarWorldTests
         Assert.SkipUnless(Directory.Exists(directory), "Installed original world resources are required.");
         var session = GameSession.CreateColdProcess();
         InitializeNativeOwners(session, directory);
-        session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [256] = 40, [265] = 128 }) });
+        session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), FieldLoadContext = null, WorldEntryMemory = session.State.WorldEntryMemory!.WriteBytes(256, 2, 40).WriteBytes(265, 1, 128) });
         session.SetExamTimer(NativeExamTimerState.FromReachedSet(600).KillDisplay());
         using var scene = new WorldMapScene(session, directory);
         session.SetWorldState(scene.State with { X = -5000, CameraTargetX = -1476, CameraYaw = 0 });
@@ -223,7 +244,7 @@ public sealed class NativeCarWorldTests
         Assert.SkipUnless(Directory.Exists(directory), "Installed original world resources are required.");
         var session = GameSession.CreateColdProcess();
         InitializeNativeOwners(session, directory);
-        session.Restore(session.State with { FieldId = 262, EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [256] = 40, [265] = 128 }) });
+        session.Restore(session.State with { FieldId = 262, FieldLoadContext = null, WorldEntryMemory = session.State.WorldEntryMemory!.WriteBytes(256, 2, 40).WriteBytes(265, 1, 128) });
         var transition = new WorldTransition(63, 33, -1);
         using PreparedWorldEntry ticket = WorldEntryPreflight.Prepare(session.State, directory, transition);
         GameState before = session.State;

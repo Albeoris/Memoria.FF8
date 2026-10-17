@@ -18,8 +18,7 @@ internal sealed partial class WorldMapScene
         {
             NativeSavedWorldPose pose = allocation.LoadPose;
             WorldGroundSelection ground = assets.LookupNativeGround(pose.X, pose.RawZ, replacements, []) ?? throw new NotSupportedException("Ragnarok loader has no actual original initial ground polygon.");
-            WorldState? departure = session.State.DepartingWorldState;
-            NativeWorldGroundCacheState cache = NativeWorldGroundCacheState.CreateFresh(ground.Identity, departure?.NativeRagnarokRuntime?.GroundCache ?? departure?.NativeGardenRuntime?.GroundCache ?? departure?.NativeFootRuntime?.GroundCache ?? departure?.NativeCarRuntime?.GroundCache);
+            NativeWorldGroundCacheState cache = CreateFreshGroundCache(ground.Identity);
             NativeWorldProcess process = session.State.WorldProcess ?? throw new NotSupportedException("Ragnarok loader requires its retained native process owner.");
             process.Validate();
             NativeWorldVerticalBiasState bias = process.VerticalBias204DADC ?? NativeWorldVerticalBiasState.UnknownWord;

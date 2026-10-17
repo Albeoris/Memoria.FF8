@@ -52,7 +52,7 @@ public static class NativeWorldTerrain
     public static int ProbeRadius(int entityType)
     {
         // Native53BB90 chooses the five-point53D8A0 movement footprint.
-        if (entityType is >= 16 and <= 22)
+        if (entityType is >= 16 and <= 22 or 65 or 66)
         {
             return 32;
         }

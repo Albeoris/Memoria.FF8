@@ -144,6 +144,8 @@ public sealed record NativeScriptedWorldRuntimeState([property: JsonRequired] in
 {
     public const string RuntimeRule = "ff8-en-scripted-mode1-2-world-runtime-v1";
 
+    public NativeWorldGroundCacheState? GroundCache { get; init; }
+
     [JsonIgnore]
     public NativeSavedWorldPose CurrentFootPose0 => Path.Mode == 1 ? Load.FootRecord0.Pose : FootPoseFromBody(Path.EntityPosition, Load.RetainedBodyYaw);
 
@@ -153,6 +155,7 @@ public sealed record NativeScriptedWorldRuntimeState([property: JsonRequired] in
     {
         Load?.Validate();
         Return?.Validate();
+        GroundCache?.Validate();
         if (Version != 1 || Rule != RuntimeRule || Path is null || Path.Version != 1 || Path.Rule != NativeWorldScriptedPathState.LoadRule || Path.EntityType is not (>= 16 and <= 22 or 65 or 66) || Path.Mode is not (1 or 2) || Path.Nodes.IsDefault || Path.Nodes.Length != Path.NodeCount || Path.Nodes.Any(node => node is null) || Path.Presentation.IsDefault || Path.Presentation.Length != Path.NodeCount || Path.Presentation.Any(pose => pose is null) || Path.Packet is null || Path.Callback < 0 || Path.Fade is < 0 or > 256 || Path.Fade % 16 != 0 || Path.EndpointRequested && (Path.EndpointCallback is null or < 30 || Path.Callback != Path.EndpointCallback + Path.Fade / 16 || Path.CameraCounter != 0) || !Path.EndpointRequested && (Path.EndpointCallback is not null || Path.Fade != 0 || Path.CameraCounter != Path.Callback + 1) || Load is null || Path.EndpointRequested != (Return is not null) || Return is not null && (Return.SourceWorldFrame != Path.EndpointCallback || Return.Packet != Path.Packet || Return.Load != Load || Return.Camera != Path.Camera))
         {
             throw new InvalidDataException("Scripted runtime and actual endpoint save authority disagree.");

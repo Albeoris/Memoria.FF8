@@ -50,7 +50,7 @@ public sealed partial record NativeWorldSalaryState
 
     public NativeWorldSalaryState WithWorldInputSample(uint buttons)
     {
-        return this with { InputHistory = NativeWorldInputHistory.Sample(InputHistory, buttons) };
+        return this with { InputHistory = Departure.World?.Frame == 0 && Callbacks == 0 ? NativeWorldInputHistory.SampleAfterWorldLoad(InputHistory, buttons) : NativeWorldInputHistory.Sample(InputHistory, buttons) };
     }
 
     public NativeWorldSalaryState WithWorldScriptMode(byte mode)
