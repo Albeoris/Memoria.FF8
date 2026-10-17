@@ -36,7 +36,7 @@ public sealed partial class BattleSession
         });
         foreach (NativeBattleModuleSound sound in step.Sounds)
         {
-            events.Add(new BattleEvent(Frame, "NativeModuleSound", null, null, 0, string.Empty) { NativeModuleSound = sound });
+            PublishNativeModuleSound(sound);
         }
         return graphics with { OriginalEffect = step.Frame.Effect with { Cure = step.Frame.State } };
 

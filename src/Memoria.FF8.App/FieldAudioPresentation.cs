@@ -306,9 +306,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         TryOutput(() =>
         {
             uint pan = ResolveNativeModuleSoundPan(sound);
-            // TODO(TD-009): Retain the original sound ID/flags/anchor; device voice allocation and spatialization use the current presentation output.
-            int transientVoice = (sound.Flags & 0xFFFFFF) == 0 ? -10 - battleVoice++ % 16 : 0;
-            PlayPresentationSound(sound.Sound, ResolveNativeModuleSoundVoice(sound, transientVoice), pan, sound.Volume);
+            PlayPresentationSound(sound.Sound, ResolveNativeModuleSoundVoice(sound), pan, sound.Volume);
         });
     }
 
@@ -319,15 +317,9 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         return nativePan >> 1;
     }
 
-    internal static int ResolveNativeModuleSoundVoice(NativeBattleModuleSound sound, int transientVoice)
+    internal static int ResolveNativeModuleSoundVoice(NativeBattleModuleSound sound)
     {
-        //46B0F0 numbers the lowest selected attribute bit from1;46B2A0 replaces that voice.
-        if ((sound.Flags & 0xFFFFFF) == 0)
-        {
-            return transientVoice;
-        }
-        NativeGlobalSoundProcess.FromBufferlessColdProcess().SelectVoice(sound.Flags, out NativeGlobalSoundAllocation allocation);
-        return allocation.Voice;
+        return sound.ReadCommittedVoice();
     }
 
     private void PlayPresentationSound(uint effect, int voice, uint pan = 64, uint volume = 127)

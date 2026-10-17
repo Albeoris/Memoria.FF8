@@ -126,6 +126,11 @@ public static partial class NativeBattleCuragaNodeKinematics
     internal static byte[] ReadSource(NativeBattleCuragaNodeMemory memory, NativeBattleEffectMemory effectMemory, sbyte sourceIndex)
     {
         NativeBattleCuragaExecutableState bank = effectMemory.CuragaExecutable ?? throw new NotSupportedException("Native Curaga node requires its retained executable resource.");
+        return ReadSource(memory, bank, sourceIndex);
+    }
+
+    internal static byte[] ReadSource(NativeBattleCuragaNodeMemory memory, NativeBattleCuragaExecutableState bank, sbyte sourceIndex)
+    {
         uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(bank.Read(unchecked(memory.ContextDword(0x224) + (uint)(sourceIndex * 4)), 4));
         return bank.Read(pointer, 0x158);
     }

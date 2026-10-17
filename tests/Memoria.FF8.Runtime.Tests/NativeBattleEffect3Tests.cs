@@ -27,6 +27,7 @@ public sealed class NativeBattleEffect3Tests
                 Assert.Equal((byte)128, draw.Intensity);
                 Assert.Equal((byte)0x2A, draw.NativePrimitiveCommand);
                 Assert.Equal(8, draw.NativeOrderingBucket);
+                Assert.Equal(callback % 2 == 0 ? 0x8000 : 0, draw.NativeEffectArenaOffset);
                 Assert.Equal(new NativeBattleScreenPoint[] { new(0, 0), new(320, 0), new(0, 216), new(320, 216) }, draw.NativeScreenVertices.ToArray());
                 flashes.Add(callback);
             }
@@ -37,7 +38,8 @@ public sealed class NativeBattleEffect3Tests
                 sounds.Add(callback);
             }
             contacts.AddRange(step.Contacts);
-            Assert.Equal(callback % 2 == 0 ? 0x8000 : 0, step.Effect.DrawArenaOffset);
+            int flashesThisCallback = step.Draws.Count(draw => draw.Kind == NativeBattleModuleDrawKind.Flash);
+            Assert.Equal((callback % 2 == 0 ? 0x8000 : 0) + 24 * flashesThisCallback, step.Effect.DrawArenaOffset);
             effect = JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(JsonSerializer.Serialize(step.Effect))!;
             effect.Validate();
             callback++;
@@ -48,6 +50,27 @@ public sealed class NativeBattleEffect3Tests
         Assert.Equal(new[] { 0, 1 }, contacts);
         Assert.Equal(contacts, applied);
         Assert.All(effect.Pools, pool => Assert.All(pool.Slots, task => Assert.Equal(0, task.Flags)));
+    }
+
+    [Fact]
+    public void Existing_children_allocate_distinct_private_flash_packets_in_the_same_native_pass()
+    {
+        var fixture = Fixture([4]);
+        NativeBattleEffectTaskPool children = fixture.Effect.Pools[1];
+        for (int model = 4; model < 6; model++)
+        {
+            (children, int slot) = children.Append(0x700DE0);
+            byte[] payload = new byte[16];
+            BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4), checked(0x1D972C0u + 156u * (uint)model));
+            children = children with { Slots = children.Slots.SetItem(slot, children.Slots[slot] with { Payload = payload.ToImmutableArray() }) };
+        }
+        NativeBattleOriginalEffectState effect = fixture.Effect with { Pools = fixture.Effect.Pools.SetItem(1, children) };
+        NativeBattleEffect3Step step = NativeBattleEffect3.Step(effect, fixture.Inputs);
+        Assert.Equal(new int?[] { 0x8000, 0x8018 }, step.Draws.Where(draw => draw.Kind == NativeBattleModuleDrawKind.Flash).Select(draw => draw.NativeEffectArenaOffset).ToArray());
+        Assert.Equal(0x8030, step.Effect.DrawArenaOffset);
+        NativeBattleOriginalEffectState restored = JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(JsonSerializer.Serialize(step.Effect))!;
+        restored.Validate();
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect3.Step(step.Effect, fixture.Inputs)), JsonSerializer.Serialize(NativeBattleEffect3.Step(restored, fixture.Inputs)));
     }
 
     [Fact]

@@ -48,6 +48,7 @@ public sealed partial class BattleSession
         nativeBattleUiRandom = this.definition.NativeBattleUiRandom;
         nativeGlobalRandom = this.definition.NativeGlobalRandom;
         ValidateDefinition(this.definition);
+        NativeGlobalSoundProcess = this.definition.NativeGlobalSoundProcess;
         InitializeNativeRetainedMemory();
         nativeScannedModels = this.definition.NativeScannedModels;
         nativeKnownMagic = this.definition.NativeKnownMagic;
@@ -281,6 +282,7 @@ public sealed partial class BattleSession
             NativeEffectIoResult = NativeEffectIoResult,
             NativeFileIo = NativeFileIo,
             NativeVibrationProcess = NativeVibrationProcess,
+            NativeGlobalSoundProcess = NativeGlobalSoundProcess,
             NativeEffectMemory = NativeEffectMemory,
             NativeStage = NativeStage,
             NativeModelTextureCache = NativeModelTextureCache,
@@ -867,6 +869,7 @@ public sealed partial class BattleSession
 
     private void ValidateDefinition(BattleDefinition source)
     {
+        source.NativeGlobalSoundProcess?.Validate();
         source.NativeScannedModels?.Validate();
         source.NativeKnownMagic?.Validate();
         source.NativeExamTimerAtEntry?.Validate();
@@ -966,6 +969,8 @@ public sealed partial class BattleSession
         NativeFileIo = snapshot.NativeFileIo;
         snapshot.NativeVibrationProcess?.Validate();
         NativeVibrationProcess = snapshot.NativeVibrationProcess;
+        snapshot.NativeGlobalSoundProcess?.Validate();
+        NativeGlobalSoundProcess = snapshot.NativeGlobalSoundProcess;
         snapshot.NativeEffectMemory?.Validate();
         NativeEffectMemory = snapshot.NativeEffectMemory;
         snapshot.NativeStage?.Validate();
@@ -1087,6 +1092,10 @@ public sealed partial class BattleSession
         long previousFrame = 0;
         foreach (BattleEvent item in snapshot.Events)
         {
+            if (item.NativeModuleSound is { Allocation: not null } sound)
+            {
+                _ = sound.ReadCommittedVoice();
+            }
             if (item.Frame < previousFrame || item.Frame > snapshot.Frame || string.IsNullOrWhiteSpace(item.Kind) || item.Message is null || item.Amount < 0 || (item.ActorId is not null && !byId.ContainsKey(item.ActorId)) || (item.TargetId is not null && !byId.ContainsKey(item.TargetId)))
             {
                 throw new InvalidDataException("Invalid battle event log.");
@@ -1251,6 +1260,7 @@ public sealed partial class BattleSession
         NativeEffectIoResult = candidate.NativeEffectIoResult;
         NativeFileIo = candidate.NativeFileIo;
         NativeVibrationProcess = candidate.NativeVibrationProcess;
+        NativeGlobalSoundProcess = candidate.NativeGlobalSoundProcess;
         NativeEffectMemory = candidate.NativeEffectMemory;
         NativeStage = candidate.NativeStage;
         NativeModelTextureCache = candidate.NativeModelTextureCache;

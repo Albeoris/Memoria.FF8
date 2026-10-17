@@ -33,6 +33,7 @@ public sealed class NativeBattleFirePresentationTests
             EncounterId = 94,
             StageId = formation.StageId,
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(),
             NativeFlags = 0x80,
             NativeEntry = new(0, 0),
             NativeGlobalRandom = new(0),
@@ -208,7 +209,7 @@ public sealed class NativeBattleFirePresentationTests
         Assert.Equal((ushort)0x100, sound.Flags);
         Assert.NotNull(sound.Anchor);
         Assert.NotNull(sound.Pan);
-        Assert.Equal(9, FieldAudioPresentation.ResolveNativeModuleSoundVoice(sound, -10));
+        Assert.Equal(9, FieldAudioPresentation.ResolveNativeModuleSoundVoice(sound));
         Assert.Equal((uint)sound.Pan!.Value >> 1, FieldAudioPresentation.ResolveNativeModuleSoundPan(sound));
         Assert.Single(battle.Events, entry => entry.NativeModuleSound?.Sound == 300000);
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored!.Capture()));

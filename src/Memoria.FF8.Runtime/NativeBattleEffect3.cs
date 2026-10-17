@@ -18,6 +18,7 @@ public sealed partial record NativeBattleModuleDraw
     public int SpriteCameraZOffset { get; init; }
     public byte? NativePrimitiveCommand { get; init; }
     public int? NativeOrderingBucket { get; init; }
+    public int? NativeEffectArenaOffset { get; init; }
     public ImmutableArray<NativeBattleScreenPoint> NativeScreenVertices { get; init; } = [];
 }
 
@@ -133,7 +134,9 @@ public static class NativeBattleEffect3
                 {
                     throw new NotSupportedException("Native7011A0 requires its authenticated monochrome808080 fullscreen polygon.");
                 }
-                draws.Add(new(NativeBattleModuleDrawKind.Flash, 128) { NativePrimitiveCommand = 0x2A, NativeOrderingBucket = 8, NativeScreenVertices = [new(0, 0), new(320, 0), new(0, 216), new(320, 216)] });
+                int flashCursor = drawArenaOffset ?? throw new NotSupportedException("Native7011A0 requires the selected700CA0 private draw cursor.");
+                draws.Add(new(NativeBattleModuleDrawKind.Flash, 128) { NativePrimitiveCommand = 0x2A, NativeOrderingBucket = 8, NativeEffectArenaOffset = flashCursor, NativeScreenVertices = [new(0, 0), new(320, 0), new(0, 216), new(320, 216)] });
+                drawArenaOffset = checked(flashCursor + 24);
             }
             if (frame >= 1)
             {

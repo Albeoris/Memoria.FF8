@@ -4,6 +4,10 @@ public sealed partial class GameSession
 {
     private static void ValidateBattleFactsCheckpoint(GameState state)
     {
+        if (state.Battle?.NativeGlobalSoundProcess is { } sound && !System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(sound), System.Text.Json.JsonSerializer.SerializeToElement(state.GlobalSoundProcess)))
+        {
+            throw new InvalidDataException("Active battle and game root disagree about the canonical global sound process.");
+        }
         state.NativeBattleMemory?.Validate();
         if (state.NativeBattleMemory is { } memory && state.Battle is { } battle)
         {
@@ -80,6 +84,6 @@ public sealed partial class GameSession
     {
         BattleSnapshot? owned = snapshot is null ? null : BattleSession.Restore(snapshot).Capture();
         NativeBattleRetainedMemory? memory = owned is null ? State.NativeBattleMemory : NativeBattleRetainedMemory.Capture(owned, State.NativeBattleMemory?.ColdExecutableSha256 ?? owned.Definition.NativeRetainedMemory?.ColdExecutableSha256);
-        State = State with { Battle = owned, NativeBattleMemory = memory, VibrationProcess = owned?.NativeVibrationProcess ?? State.VibrationProcess };
+        State = State with { Battle = owned, NativeBattleMemory = memory, VibrationProcess = owned?.NativeVibrationProcess ?? State.VibrationProcess, GlobalSoundProcess = owned?.NativeGlobalSoundProcess ?? State.GlobalSoundProcess };
     }
 }

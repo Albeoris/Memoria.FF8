@@ -18,6 +18,12 @@ public static partial class NativeBattleCuragaNodeKinematics
     {
         NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
         byte[] source = ReadSource(memory, frame.Memory, unchecked((sbyte)memory.Byte(node + 0x1D6)));
+        AppendChildren(memory, node, source);
+        return memory.Flush();
+    }
+
+    internal static void AppendChildren(NativeBattleCuragaNodeMemory memory, int node, ReadOnlySpan<byte> source)
+    {
         for (int index = 0; index < 4; index++)
         {
             if (source[0x28 + index] == 1)
@@ -25,10 +31,9 @@ public static partial class NativeBattleCuragaNodeKinematics
                 NativeBattleCuragaNodes.AllocateEmitter(memory, memory.Pointer(node), unchecked((sbyte)source[0x2C + index]), unchecked((sbyte)memory.Byte(node + 0x1D9)));
             }
         }
-        return memory.Flush();
     }
 
-    private static bool CompleteGeometry(NativeBattleCuragaNodeMemory memory, int node, ReadOnlySpan<byte> source)
+    internal static bool CompleteGeometry(NativeBattleCuragaNodeMemory memory, int node, ReadOnlySpan<byte> source)
     {
         bool complete;
         switch (unchecked((sbyte)source[0x1E]))

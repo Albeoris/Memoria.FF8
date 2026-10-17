@@ -144,6 +144,7 @@ public sealed partial class BattleSession
                     GlobalRandom = NextNativeGlobalRandom,
                     ReadExternal = variable => ReadNativeGraphicsActionVariable(graphics, variable),
                     ScheduleSoundParticle = (program, soundTwo, bone) => graphics = ScheduleNativeSoundParticle(graphics, index, program, soundTwo, bone),
+                    PlaySound = (current, cue) => PublishNativeSequenceSound(graphics with { Models = models.SetItem(index, current) }, current, GraphicsActor(graphics, index), cue),
                     ScheduleTextureAnimation = (program, sequence) => graphics = ScheduleNativeTextureAnimation(graphics, index, program, sequence),
                     ScheduleModelEffect = effect => graphics = ScheduleNativeModelEffect(graphics, index, effect),
                     ApplyTexture = (selector, variant) => ApplyNativeTextureMotion(graphics, index, selector, variant),
@@ -184,10 +185,6 @@ public sealed partial class BattleSession
                         NativeGraphics = graphics with { Models = models.SetItem(index, model) };
                         RegisterNativeTriggerWidget(NativeGraphics, actor, cue);
                         graphics = NativeGraphics;
-                    }
-                    else if (cue.Kind is NativeBattleSequenceCueKind.ActorSound or NativeBattleSequenceCueKind.SystemSound)
-                    {
-                        events.Add(new BattleEvent(Frame, "NativeSequenceSound", actor.Id, null, 0, string.Empty) { NativeSound = new(checked((byte)cue.First), cue.Kind == NativeBattleSequenceCueKind.ActorSound, checked((byte)cue.Second), checked((ushort)cue.Third)) });
                     }
                 }
             }

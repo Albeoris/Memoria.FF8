@@ -7,8 +7,13 @@ public sealed record NativeBattleGraphicsRules(string ExecutableSha256, Immutabl
     public uint? UiPublicationDuration { get; init; }
     public NativeBattleSummonColors? SummonColors { get; init; }
     public NativeBattleShadowSource? ShadowSource { get; init; }
+    public ImmutableArray<uint>? ActorSounds1120 { get; init; }
     public void Validate()
     {
+        if (ActorSounds1120 is { } sounds && (sounds.IsDefault || sounds.Length != 160 * 7))
+        {
+            throw new InvalidDataException("Native5015A0 requires the complete B8A418 seven-DWORD table for160 actor identities.");
+        }
         if (ExecutableSha256 != NativeFieldRuntimeProfile.FF8EnExecutableHash || SavedStatusMap.IsDefault || SavedStatusMap.Length != 16 || BattleStatusMap.IsDefault || BattleStatusMap.Length != 32 || SavedStatusMap.Concat(BattleStatusMap).Any(value => value is < -1 or > 31))
         {
             throw new InvalidDataException("Native graphics status projection requires the authenticated16/32-byte executable maps.");

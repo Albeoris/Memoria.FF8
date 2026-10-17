@@ -26,7 +26,7 @@ public static partial class NativeBattleQuezacotlRig86
         return Synchronize(memory with { Arena = arena.Write(0x14, raw) }, effect);
     }
 
-    public static (NativeBattleQuezacotlRigWrite Rig, NativeBattleCameraState Camera) UpdateCamera87(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleCameraState camera)
+    public static (NativeBattleQuezacotlRigWrite Rig, NativeBattleCameraState Camera) UpdateCamera87(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleCameraState camera, int localFrame = 1)
     {
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native6C3DDF requires its saved camera aliases.");
         int z = effect.Quezacotl?.TargetZ1778 ?? throw new InvalidDataException("Native6C3DDF lost its target Z.");
@@ -34,7 +34,11 @@ public static partial class NativeBattleQuezacotlRig86
         NativeBattleVector eye = ReadVector(arena, 0x20);
         target = target with { Y = unchecked((short)(target.Y - 17)) };
         eye = eye with { Y = unchecked((short)(eye.Y - 5)), Z = unchecked((short)(eye.Z - z)) };
-        int fraction = 4096 / 76;
+        if (localFrame is < 1 or > 2)
+        {
+            throw new NotSupportedException("Native6C3DDF camera requires its proved first two flight frames.");
+        }
+        int fraction = localFrame * 4096 / 76;
         short angle = unchecked((short)(NativeBattleCameraMath.Sine(fraction >> 1) / 90));
         (int x, int y, int rz) = NativeBattleGfMatrices.Rotate56C3D0(NativeBattleGfMatrices.Euler701310(new(0, angle, 0)), eye);
         eye = new(unchecked((short)x), unchecked((short)y), unchecked((short)(rz + z)));

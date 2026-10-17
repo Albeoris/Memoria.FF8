@@ -143,6 +143,6 @@ public sealed class NativeAutomaticGuardianTests
 
     private static BattleDefinition Definition(GameAssets game, BattleAssets assets, byte flags, BattleCombatantDefinition[] actors)
     {
-        return new() { NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), StageId = 0, NativeFieldBattleRules = 0, NativeActions = assets.NativeActions.ToArray(), ActionDefinitions = assets.ActionDefinitions.ToArray(), NativeSupportRules = assets.ReadNativeSupportRules(), NativeSavedBattleFlags = flags, NativeSavedBattleFlagsKnownMask = 255, InitialRandom = new(Enumerable.Repeat((byte)1, 8).ToImmutableArray(), 0), GuardianForces = [new(0, 100, 100) { KillCount = 0, DeathCount = 0 }], Combatants = actors };
+        return new() { NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), StageId = 0, NativeFieldBattleRules = 0, NativeActions = assets.NativeActions.ToArray(), ActionDefinitions = assets.ActionDefinitions.ToArray(), NativeSupportRules = assets.ReadNativeSupportRules(), NativeSavedBattleFlags = flags, NativeSavedBattleFlagsKnownMask = 255, InitialRandom = new(Enumerable.Repeat((byte)1, 8).ToImmutableArray(), 0), GuardianForces = [new(0, 100, 100) { KillCount = 0, DeathCount = 0 }], Combatants = actors };
     }
 }

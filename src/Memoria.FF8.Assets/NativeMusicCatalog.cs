@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 using System.Reflection.PortableExecutable;
 using System.Security.Cryptography;
 using System.Text;
@@ -68,6 +69,18 @@ public sealed class NativeMusicCatalog
         ArgumentOutOfRangeException.ThrowIfNegative(number);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(number, 48);
         return image[Offset(0xB87D28) + number];
+    }
+
+    /// <summary>Original5015A0/501640 select one of seven original sound identities for each battle actor.</summary>
+    public static ImmutableArray<uint> ReadBattleActorSounds(byte[] executable)
+    {
+        ImmutableArray<byte> bytes = NativeBattleEffectStaticResourcesReader.Read(executable, 0xB8A418, 160 * 7 * sizeof(uint));
+        ImmutableArray<uint>.Builder sounds = ImmutableArray.CreateBuilder<uint>(160 * 7);
+        for (int offset = 0; offset < bytes.Length; offset += sizeof(uint))
+        {
+            sounds.Add(BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan().Slice(offset, sizeof(uint))));
+        }
+        return sounds.MoveToImmutable();
     }
 
     /// <summary>Original5015A0/501640 select one of seven original sound identities for each battle actor.</summary>

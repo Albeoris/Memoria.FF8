@@ -20,7 +20,7 @@ public sealed partial class BattleSession
             NativeBattleModulePacketBatch batch;
             if (draw.Kind == NativeBattleModuleDrawKind.Flash)
             {
-                batch = NativeFlashPacket(draw);
+                batch = NativeBattleFlashPackets.Emit(draw);
             }
             else
             {
@@ -33,15 +33,21 @@ public sealed partial class BattleSession
                     _ => throw new NotSupportedException($"Native module draw{draw.Kind} requires its original primitive emission contract.")
                 };
             }
-            graphics = AppendNativeModulePacketBatch(graphics, batch, index);
+            graphics = AppendNativeModulePacketBatch(graphics, batch, index, draw.NativeEffectArenaOffset);
         }
         return graphics;
     }
 
-    private NativeBattleGraphicsState AppendNativeModulePacketBatch(NativeBattleGraphicsState graphics, NativeBattleModulePacketBatch batch, int moduleDraw)
+    private NativeBattleGraphicsState AppendNativeModulePacketBatch(NativeBattleGraphicsState graphics, NativeBattleModulePacketBatch batch, int moduleDraw, int? effectArenaOffset)
     {
         NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native module packet emission requires its initialized OT owner.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native module packet emission requires its process owner.");
+        if (effectArenaOffset is int privateCursor)
+        {
+            NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(memory, privateCursor, frame.Pending, batch, NativeBattleEffectGouraudWrites.FullDword, moduleDraw);
+            NativeEffectMemory = written.Memory;
+            return graphics with { PrimitiveFrame = frame with { Pending = written.Ordering } };
+        }
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native module packet emission requires its original arena cursor.");
         int cursor = process.ByteCursor ?? throw new NotSupportedException("Native module packet emission has no observed packet cursor.");
         string bank = process.PacketBank ?? throw new NotSupportedException("Native module packet emission has no allocated logical arena.");
@@ -53,7 +59,11 @@ public sealed partial class BattleSession
         }
         NativeBattleLogicalOrdering ordering = frame.Pending;
         // TODO(TD-009): Logical module words do not establish every physical padding byte
-        process = process.MarkCommonUnknown(cursor, batch.AllocationBytes);
+        ImmutableArray<NativeBattleCommonPacketStore>.Builder stores = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
+        if (batch.AllocationBytes != 0)
+        {
+            stores.Add(new(cursor, new byte[batch.AllocationBytes].ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Unknown, batch.AllocationBytes).ToImmutableArray()));
+        }
         foreach (NativeBattleAllocatedPrimitive allocated in batch.Primitives)
         {
             NativeBattleGeometryPrimitive primitive = allocated.Primitive;
@@ -61,31 +71,12 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Native module primitive leaves its original packet allocation.");
             }
-            ordering = ordering.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, checked(cursor + allocated.ByteOffset)), primitive.Words, allocated.Flags20, primitive.VertexPayload4, moduleDraw);
+            int address = checked(cursor + allocated.ByteOffset);
+            bool linked = ordering.Proxies.Length < NativeBattlePrimitiveOrdering.ProxyCapacity;
+            ordering = ordering.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, address), primitive.Words, allocated.Flags20, primitive.VertexPayload4, moduleDraw);
+            stores.AddRange(NativeBattleCommonPacketArena.PrimitiveStores(address, primitive, linked));
         }
-        NativeEffectMemory = memory with { PrimitiveProcess = process with { ByteCursor = next } };
+        NativeEffectMemory = memory with { PrimitiveProcess = process.ApplyCommonWrites(stores.ToImmutable()) with { ByteCursor = next } };
         return graphics with { PrimitiveFrame = frame with { Pending = ordering } };
-    }
-
-    private static NativeBattleModulePacketBatch NativeFlashPacket(NativeBattleModuleDraw draw)
-    {
-        uint rgb = (uint)(draw.Intensity | draw.Intensity << 8 | draw.Intensity << 16);
-        byte command = draw.NativePrimitiveCommand ?? 0x62;
-        int bucket = draw.NativeOrderingBucket ?? 17;
-        ImmutableArray<uint> words;
-        if (command == 0x62)
-        {
-            words = [0x3000000, 0x62000000 | rgb, 0, 216u << 16 | 320];
-        }
-        else if (command == 0x2A && draw.NativeScreenVertices.Length == 4)
-        {
-            words = ImmutableArray.Create(0x5000000u, 0x2A000000 | rgb).AddRange(draw.NativeScreenVertices.Select(point => unchecked((ushort)point.X) | unchecked((uint)point.Y << 16)));
-        }
-        else
-        {
-            throw new NotSupportedException("Native fullscreen module draw requires its original tile or four-vertex polygon command.");
-        }
-        NativeBattleGeometryPrimitive primitive = new(bucket, words, []);
-        return new([new(primitive, 0, 1)], words.Length * 4);
     }
 }

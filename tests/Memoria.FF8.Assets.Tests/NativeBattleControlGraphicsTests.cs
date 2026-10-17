@@ -8,6 +8,7 @@ public sealed class NativeBattleControlGraphicsTests
     [Theory]
     [InlineData(0, false, 0x50BD00)]
     [InlineData(10, false, 0x50BD00)]
+    [InlineData(4, false, 0x50BD00)]
     [InlineData(0, true, 0x50BD80)]
     public void ControlHeadersCompleteTheirActualDescriptorWithoutReplayingGameplayAcrossRestore(byte sequence, bool contact, uint callback)
     {
@@ -25,9 +26,11 @@ public sealed class NativeBattleControlGraphicsTests
             EncounterId = 94,
             StageId = formation.StageId,
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(),
             NativeFlags = 0x80,
             NativeEntry = new(0, 0),
             NativeGlobalRandom = new(0),
+            NativeCrtRandom = new(1),
             NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation),
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeModuleResources = game.ReadNativeBattleModuleResources(),
@@ -67,6 +70,21 @@ public sealed class NativeBattleControlGraphicsTests
         Assert.True(selected);
         Assert.DoesNotContain(battle.NativeGraphics!.Descriptors.Queue, slot => battle.NativeGraphics.Descriptors.Packets[slot].Command == 104);
         Assert.Equal(sequence == 10 && !contact, waitedForSequence);
+        if (sequence == 4)
+        {
+            //The controlled header selects the genuine installed attack sequence. Continue its callbacks
+            //after50BD00 returns immediately; its originalB5/B6/B8 sound is not a descriptor-completion cue.
+            for (int tick = 0; tick < 200 && !battle.Events.Any(item => item.NativeSound is not null); tick++)
+            {
+                battle.Tick();
+                restored.Tick();
+                Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+            }
+            Assert.Contains(battle.Events, item => item.NativeSound is not null);
+            BattleEvent sound = battle.Events.First(item => item.NativeSound is not null);
+            NativeBattleModuleSound receipt = Assert.IsType<NativeBattleModuleSound>(sound.NativeModuleSound);
+            Assert.Equal(receipt.Sound, battle.NativeGlobalSoundProcess!.OriginalEffectIds[receipt.ReadCommittedVoice()]);
+        }
         Assert.Equal(boundary.Combatants.Select(actor => actor.CurrentHp), battle.Capture().Combatants.Select(actor => actor.CurrentHp));
         Assert.Equal(boundary.Random, battle.Capture().Random);
         Assert.DoesNotContain(battle.Events, entry => entry.Kind == "Damage");

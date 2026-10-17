@@ -34,6 +34,7 @@ public sealed class NativeBattleEffect3PresentationTests
         ];
         BattleDefinition definition = new()
         {
+            NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(),
             Combatants = actors,
             EncounterId = 94,
             StageId = formation.StageId,
@@ -134,6 +135,17 @@ public sealed class NativeBattleEffect3PresentationTests
                 HashSet<int> spriteDraws = currentGraphics.ModuleDraws.Select((draw, index) => (draw, index)).Where(pair => pair.draw.Kind == NativeBattleModuleDrawKind.Sprite && pair.draw.Resource is { } resource && spriteResources.Contains(resource.Address)).Select(pair => pair.index).ToHashSet();
                 HashSet<int> effectDraws = new(spriteDraws);
                 effectDraws.UnionWith(currentGraphics.ModuleDraws.Select((draw, index) => (draw, index)).Where(pair => pair.draw.Kind == NativeBattleModuleDrawKind.Flash && pair.draw.NativePrimitiveCommand == 0x2A && pair.draw.NativeOrderingBucket == 8).Select(pair => pair.index));
+                foreach ((NativeBattleModuleDraw draw, int index) in currentGraphics.ModuleDraws.Select((draw, index) => (draw, index)).Where(pair => pair.draw.NativePrimitiveCommand == 0x2A))
+                {
+                    int offset = Assert.IsType<int>(draw.NativeEffectArenaOffset);
+                    //Original B7CFB0 is NULL; B7D3B0 is461340, so command2A draws in the second render pass.
+                    NativeBattleLogicalResolvedCommand command = Assert.Single(frame.LastCommands.Where(command => command.Pass == 2 && command.Command.ModuleDraw == index));
+                    Assert.Equal("20DFAB8", command.Command.Packet.Bank);
+                    Assert.Equal(offset, command.Command.Packet.ByteOffset);
+                    Assert.Equal(5, battle.NativeEffectMemory!.Arena!.Read(offset + 3, 1)[0]);
+                    Assert.Equal(new byte[] { 128, 128, 128, 0x2A }, battle.NativeEffectMemory.Arena.Read(offset + 4, 4));
+                    Assert.Equal(offset + 24, currentGraphics.OriginalEffect!.DrawArenaOffset);
+                }
                 sawSprites |= spriteDraws.Count != 0;
                 if (!frame.LastCommands.Any(command => command.Command.ModuleDraw is int index && effectDraws.Contains(index)))
                 {

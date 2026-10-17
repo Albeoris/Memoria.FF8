@@ -24,6 +24,7 @@ public static class NativeBattleGraphicsRulesReader
         int durationOffset = checked((int)(durationRva - durationSection.VirtualAddress + durationSection.PointerToRawData));
         NativeBattleGraphicsRules rules = new(hash, executable.AsSpan(offset, 16).ToArray().Select(value => unchecked((sbyte)value)).ToImmutableArray(), executable.AsSpan(offset + 16, 32).ToArray().Select(value => unchecked((sbyte)value)).ToImmutableArray()) { UiPublicationDuration = BinaryPrimitives.ReadUInt32LittleEndian(executable.AsSpan(durationOffset, 4)), SummonColors = new(BinaryPrimitives.ReadUInt32LittleEndian(At(0xB8B7D8, 4)), BinaryPrimitives.ReadUInt32LittleEndian(At(0xB8B9A8, 4)), BitConverter.ToSingle(At(0xB695F8, 4)), BitConverter.ToDouble(At(0xB693D8, 8))) };
         rules = rules with { ShadowSource = NativeBattleShadowSourceReader.Read(executable) };
+        rules = rules with { ActorSounds1120 = NativeMusicCatalog.ReadBattleActorSounds(executable) };
         rules.Validate();
         return rules;
 

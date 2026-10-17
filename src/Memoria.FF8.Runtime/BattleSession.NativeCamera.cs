@@ -94,7 +94,7 @@ public sealed partial class BattleSession
             if (emission.Sound is ushort sound)
             {
                 NativeBattleVector point = emission.SoundAnchor ?? throw new InvalidDataException("Native B1 sound lacks its502170 anchor.");
-                events.Add(new BattleEvent(Frame, "NativeModuleSound", graphics.ActorIds[emission.Model], null, 0, string.Empty) { NativeModuleSound = new(sound, 0, new(point.X, point.Y, point.Z, 0)) { Pan = emission.Pan } });
+                PublishNativeModuleSound(new(sound, 0, new(point.X, point.Y, point.Z, 0)) { Pan = emission.Pan }, graphics.ActorIds[emission.Model]);
             }
         }
         return graphics with { Auxiliary = step.State };

@@ -29,6 +29,6 @@ public sealed partial class BattleSession
         //501160 clears the3D-mode switch;5017A0 then uses5011B0's current camera projection before46B2A0.
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native5017A0 sound requires its actual5011B0 camera projection.");
         byte pan = projection.ReadPan(new(anchor.X, anchor.Y, anchor.Z));
-        events.Add(new BattleEvent(Frame, "NativeModuleSound", actorId, null, 0, string.Empty) { NativeModuleSound = new(sound, flags, anchor) { Pan = pan } });
+        PublishNativeModuleSound(new(sound, flags, anchor) { Pan = pan }, actorId);
     }
 }

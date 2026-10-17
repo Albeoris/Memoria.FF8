@@ -26,7 +26,7 @@ public sealed record NativeBattleEffectPacketWrite(NativeBattleEffectMemory Memo
 /// <summary>Native effect packet stores in20DFAB8, with producer-specific secondary Gouraud color writes and retained logical OT links.</summary>
 public static partial class NativeBattleEffectPacketArena
 {
-    public static NativeBattleEffectPacketWrite Append(NativeBattleEffectMemory memory, int cursor, NativeBattleLogicalOrdering ordering, NativeBattleModulePacketBatch batch, NativeBattleEffectGouraudWrites gouraudWrites)
+    public static NativeBattleEffectPacketWrite Append(NativeBattleEffectMemory memory, int cursor, NativeBattleLogicalOrdering ordering, NativeBattleModulePacketBatch batch, NativeBattleEffectGouraudWrites gouraudWrites, int? moduleDraw = null)
     {
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native effect packet writes require the571870 effect arena.");
         if (gouraudWrites is not (NativeBattleEffectGouraudWrites.FullDword or NativeBattleEffectGouraudWrites.RgbBytes))
@@ -107,7 +107,7 @@ public static partial class NativeBattleEffectPacketArena
                 offset = end;
             }
             bool linked = ordering.Proxies.Length < NativeBattlePrimitiveOrdering.ProxyCapacity;
-            ordering = ordering.Prepend(primitive.Bucket, new("20DFAB8", 0, address), primitive.Words, allocation.Flags20, primitive.VertexPayload4);
+            ordering = ordering.Prepend(primitive.Bucket, new("20DFAB8", 0, address), primitive.Words, allocation.Flags20, primitive.VertexPayload4, moduleDraw);
             if (linked)
             {
                 arena = arena.MarkUnknown(address, 3);

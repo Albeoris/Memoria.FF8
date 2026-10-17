@@ -159,7 +159,7 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
         if (session.NativeGraphics is not null)
         {
             //An event index is stable across restore even when gameplayFrame is frozen for many graphics callbacks.
-            return session.Events.Select((item, index) => (item, index)).Where(entry => entry.item.ActorId == definition.Id && entry.item.NativeSound is not null).Select(entry => new BattleSequenceSoundCue(definition.Id, entry.item.Frame, entry.index, entry.item.NativeSound!.SoundId, entry.item.NativeSound.ActorSound, entry.item.NativeSound.Volume)).ToArray();
+            return session.Events.Select((item, index) => (item, index)).Where(entry => entry.item.ActorId == definition.Id && entry.item.NativeSound is not null && entry.item.NativeModuleSound is null).Select(entry => new BattleSequenceSoundCue(definition.Id, entry.item.Frame, entry.index, entry.item.NativeSound!.SoundId, entry.item.NativeSound.ActorSound, entry.item.NativeSound.Attributes)).ToArray();
         }
         if (sequences is null)
         {

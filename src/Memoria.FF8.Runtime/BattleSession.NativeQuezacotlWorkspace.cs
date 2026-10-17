@@ -9,15 +9,15 @@ public sealed partial class BattleSession
         effect = effect with { Quezacotl = (effect.Quezacotl ?? throw new InvalidDataException("Native6C3940 lost its intensity global.")) with { Intensity17A4 = 2400 } };
         NativeBattleEffectTaskPool originalChild = effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738);
         ushort phase = originalChild.Slots[0].ReadWord(12);
-        if (phase is < 1 or > 87)
+        if (phase is < 1 or > 88)
         {
-            throw new InvalidOperationException("Native Quezacotl workspace owner requires actual phase1..87.");
+            throw new InvalidOperationException("Native Quezacotl workspace owner requires actual phase1..88.");
         }
         if (phase == 86)
         {
             ApplyRig(NativeBattleQuezacotlRig86.InitializeBeforeSecondWindow(memory, effect));
         }
-        if (phase is 86 or 87)
+        if (phase is >= 86 and <= 88)
         {
             bool frozen = (memory.QuezacotlPause ?? throw new NotSupportedException("Native6FBDB0 requires its retained pause owner.")) != 0;
             if (!frozen)
@@ -72,15 +72,20 @@ public sealed partial class BattleSession
             return current;
         });
         Persist(stepped.Workspace);
-        if (phase == 87)
+        if (phase is 87 or 88)
         {
             if (memory.QuezacotlPause == 0)
             {
-                (NativeBattleQuezacotlRigWrite rig, NativeBattleCameraState camera) = NativeBattleQuezacotlRig86.UpdateCamera87(memory, effect, NativeCamera ?? throw new NotSupportedException("Native6C3DDF requires its retained camera globals."));
+                (NativeBattleQuezacotlRigWrite rig, NativeBattleCameraState camera) = NativeBattleQuezacotlRig86.UpdateCamera87(memory, effect, NativeCamera ?? throw new NotSupportedException("Native6C3DDF requires its retained camera globals."), phase - 86);
                 NativeCamera = camera;
                 ApplyRig(rig);
-                NativeBattleQuezacotlRibbonSpawn spawned = NativeBattleQuezacotlRibbonProducer.Spawn6C87B0(memory, effect, 1);
+                NativeBattleQuezacotlRibbonSpawn spawned = NativeBattleQuezacotlRibbonProducer.Spawn6C87B0(memory, effect, phase - 86);
                 ApplyRig(new(spawned.Memory, spawned.Effect));
+                if (phase == 88)
+                {
+                    NativeBattleQuezacotlParticleSpawn particle = NativeBattleQuezacotlParticleFlight.SpawnFirst88(memory, effect);
+                    ApplyRig(new(particle.Memory, particle.Effect));
+                }
             }
         }
         if (phase == 86)
@@ -113,7 +118,7 @@ public sealed partial class BattleSession
         if (phase == 65)
         {
             uint sound = effect.Binding.NativeQuezacotlResources?.Frame65Sound ?? throw new NotSupportedException("Native6C4EDB/501330 requires the actual12AE4F4 Quezacotl sound DWORD; explicitly migrate this snapshot's resource binding.");
-            events.Add(new BattleEvent(Frame, "NativeModuleSound", null, null, 0, string.Empty) { NativeModuleSound = new(sound, 1, null) { Pan = 128 } });
+            PublishNativeModuleSound(new(sound, 1, null) { Pan = 128 });
         }
         else if (phase == 69)
         {
@@ -127,7 +132,7 @@ public sealed partial class BattleSession
                 graphics = graphics with { Models = graphics.Models.SetItem(target, model with { Flags0 = (ushort)(model.Flags0 & ~4) }) };
             }
             NativeBattleModuleSound sound = (memory.SummonStream ?? throw new NotSupportedException("Native6C4EF7/5018C0 requires its actual501860 summon stream owner.")).Play5018C0(128, 127);
-            events.Add(new BattleEvent(Frame, "NativeModuleSound", null, null, 0, string.Empty) { NativeModuleSound = sound });
+            PublishNativeModuleSound(sound);
         }
         else if (phase == 76)
         {
@@ -141,13 +146,19 @@ public sealed partial class BattleSession
         memory = memory with { Arena = memory.Arena!.Write(12, [(byte)nextPhase, 0]) };
         effect = effect with { Pools = effect.Pools.SetItem(effect.Pools.IndexOf(effect.Pools.Single(pool => pool.DescriptorAddress == child.DescriptorAddress)), child) };
         NativeEffectMemory = memory;
-        if (phase == 87)
+        if (phase is 87 or 88)
         {
             graphics = AdvanceNativeQuezacotlRibbon(graphics with { OriginalEffect = effect });
             memory = NativeEffectMemory!;
             effect = graphics.OriginalEffect!;
         }
-        effect = NativeBattleQuezacotlChild.FinishMain6C3760(memory, effect, phase == 87);
+        if (phase == 88)
+        {
+            graphics = AdvanceNativeQuezacotlParticles(graphics with { OriginalEffect = effect });
+            memory = NativeEffectMemory!;
+            effect = graphics.OriginalEffect!;
+        }
+        effect = NativeBattleQuezacotlChild.FinishMain6C3760(memory, effect, phase is 87 or 88, phase == 88);
         return graphics with { OriginalEffect = effect };
 
         void Persist(NativeBattleGfAnimationWorkspace current)

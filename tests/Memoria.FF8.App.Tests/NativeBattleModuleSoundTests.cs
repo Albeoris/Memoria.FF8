@@ -49,9 +49,9 @@ public sealed class NativeBattleModuleSoundTests
     [InlineData(300000, 0x100, 175, 9, 87)]
     public void Positioned_contact_sounds_use_native_attributes_and_shifted_pan(uint sound, ushort flags, byte pan, int voice, uint devicePan)
     {
-        NativeBattleModuleSound cue = new(sound, flags, new(1, 2, 3, 4)) { Pan = pan };
+        NativeBattleModuleSound cue = Commit(new(sound, flags, new(1, 2, 3, 4)) { Pan = pan });
         Assert.Equal(devicePan, FieldAudioPresentation.ResolveNativeModuleSoundPan(cue));
-        Assert.Equal(voice, FieldAudioPresentation.ResolveNativeModuleSoundVoice(cue, -11));
+        Assert.Equal(voice, FieldAudioPresentation.ResolveNativeModuleSoundVoice(cue));
     }
 
     [Fact]
@@ -59,11 +59,19 @@ public sealed class NativeBattleModuleSoundTests
     {
         Assert.Equal(64u, FieldAudioPresentation.ResolveNativeModuleSoundPan(new(0x0E, 8, null) { Pan = 128 }));
         Assert.Equal(10u, FieldAudioPresentation.ResolveNativeModuleSoundPan(new(4, 0, null) { Pan = 20 }));
-        Assert.Equal(1, FieldAudioPresentation.ResolveNativeModuleSoundVoice(new(0x0D, 1, null), -11));
-        Assert.Equal(4, FieldAudioPresentation.ResolveNativeModuleSoundVoice(new(300000, 0x800008, null), -11));
-        Assert.Equal(24, FieldAudioPresentation.ResolveNativeModuleSoundVoice(new(4, 0x800000, null), -11));
-        Assert.Equal(-11, FieldAudioPresentation.ResolveNativeModuleSoundVoice(new(4, 0xFF000000, null), -11));
-        Assert.Equal(-11, FieldAudioPresentation.ResolveNativeModuleSoundVoice(new(2, 0, new(1, 2, 3, 4)), -11));
+        Assert.Equal(1, FieldAudioPresentation.ResolveNativeModuleSoundVoice(Commit(new(0x0D, 1, null))));
+        Assert.Equal(4, FieldAudioPresentation.ResolveNativeModuleSoundVoice(Commit(new(300000, 0x800008, null))));
+        Assert.Equal(24, FieldAudioPresentation.ResolveNativeModuleSoundVoice(Commit(new(4, 0x800000, null))));
+        Assert.Equal(26, FieldAudioPresentation.ResolveNativeModuleSoundVoice(Commit(new(4, 0xFF000000, null))));
+        Assert.Equal(26, FieldAudioPresentation.ResolveNativeModuleSoundVoice(Commit(new(2, 0, new(1, 2, 3, 4)))));
+    }
+
+    [Fact]
+    public void Playback_requires_a_committed_allocation_and_rejects_a_forged_selector()
+    {
+        Assert.Throws<NotSupportedException>(() => FieldAudioPresentation.ResolveNativeModuleSoundVoice(new(2, 0, null)));
+        NativeBattleModuleSound committed = Commit(new(2, 0, null));
+        Assert.Throws<InvalidDataException>(() => FieldAudioPresentation.ResolveNativeModuleSoundVoice(committed with { Flags = 1 }));
     }
 
     [Fact]
@@ -79,11 +87,12 @@ public sealed class NativeBattleModuleSoundTests
                 string tools = new MovieClock(GameSession.CreateColdProcess(), directory).ToolsDirectory;
                 using FieldAudioPresentation output = new(GetDesktopWindow(), directory, tools);
                 output.SetOutputPreferences(0, 0);
+                NativeGlobalSoundProcess process = NativeGlobalSoundProcess.FromBufferlessColdProcess();
                 foreach ((uint sound, ushort flags) in new (uint, ushort)[] { (0x0D, 8), (0x0E, 16), (0x72, 0x8000), (300000, 0x100) })
                 {
                     PcmAudio pcm = PcmAudioDecoder.ReadSample(directory, Memoria.FF8.Events.EventEngine.MapGlobalSoundSample(sound));
                     Assert.NotEmpty(pcm.Bytes);
-                    NativeBattleModuleSound cue = new(sound, flags, new(1, 2, 3, 4)) { Pan = 128 };
+                    (process, NativeBattleModuleSound cue) = new NativeBattleModuleSound(sound, flags, new(1, 2, 3, 4)) { Pan = 128 }.Commit46B2A0(process);
                     int before = output.SoundVoiceCount;
                     output.PlayBattleModuleSound(cue);
                     Assert.Null(output.Error);
@@ -96,12 +105,16 @@ public sealed class NativeBattleModuleSoundTests
                 foreach (uint castingSound in new uint[] { 5, 6 })
                 {
                     Assert.NotEmpty(PcmAudioDecoder.ReadSample(directory, Memoria.FF8.Events.EventEngine.MapGlobalSoundSample(castingSound)).Bytes);
-                    output.PlayBattleModuleSound(new(castingSound, 0, new(1, 2, 3, 4)) { Pan = 128 });
+                    (process, NativeBattleModuleSound cue) = new NativeBattleModuleSound(castingSound, 0, new(1, 2, 3, 4)) { Pan = 128 }.Commit46B2A0(process);
+                    output.PlayBattleModuleSound(cue);
                     Assert.Null(output.Error);
                 }
                 Assert.Equal(6, output.SoundVoiceCount);
                 output.StopSounds();
                 Assert.Equal(0, output.SoundVoiceCount);
+                Assert.Equal((byte)3, process.Rotation);
+                Assert.Equal(5u, process.OriginalEffectIds[26]);
+                Assert.Equal(6u, process.OriginalEffectIds[27]);
                 Assert.Null(output.Error);
             }
             catch (Exception exception)
@@ -117,6 +130,8 @@ public sealed class NativeBattleModuleSoundTests
             System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
         }
     }
+
+    private static NativeBattleModuleSound Commit(NativeBattleModuleSound sound) => sound.Commit46B2A0(NativeGlobalSoundProcess.FromBufferlessColdProcess()).Sound;
 
     [DllImport("user32.dll")]
     private static extern nint GetDesktopWindow();

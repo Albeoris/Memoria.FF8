@@ -95,6 +95,12 @@ public static class NativeBattleCuragaNodeEngine
     {
         NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
         NativeBattleCuragaExecutableState executable = frame.Memory.CuragaExecutable ?? throw new NotSupportedException("Native882E20 requires its retained executable-bank owner.");
+        Birth(memory, executable);
+        return memory.Flush();
+    }
+
+    internal static void Birth(NativeBattleCuragaNodeMemory memory, NativeBattleCuragaExecutableState executable)
+    {
         uint directory = memory.ContextDword(0x224);
         for (int index = 0; index < 16; index++)
         {
@@ -120,17 +126,14 @@ public static class NativeBattleCuragaNodeEngine
                 NativeBattleCuragaNodes.AllocateEmitter(memory, 0, unchecked((sbyte)index), 0);
             }
         }
-        return memory.Flush();
     }
 
     public static NativeBattleCuragaFrame AdvanceList8804D0(NativeBattleCuragaFrame frame, uint contextTask, NativeBattleCuragaNodeEngineInputs inputs)
     {
         NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
-        uint pointer = memory.ContextDword(0x2C);
-        while (pointer != 0)
+        WalkList(() => memory, (node, kind) =>
         {
-            int node = memory.Offset(pointer);
-            switch (unchecked((short)memory.Word(node + 8)))
+            switch (kind)
             {
                 case 0:
                     frame = inputs.AdvanceEmitter8817A0(frame, contextTask, node);
@@ -141,8 +144,20 @@ public static class NativeBattleCuragaNodeEngine
             }
             //8804D0 reads this link after the callback. Appended nodes run in this same walk, and882960 leaves a removed node's link intact.
             memory = new(frame, contextTask);
+        });
+        return frame;
+    }
+
+    internal static void WalkList(Func<NativeBattleCuragaNodeMemory> readMemory, Action<int, short> advance)
+    {
+        NativeBattleCuragaNodeMemory memory = readMemory();
+        uint pointer = memory.ContextDword(0x2C);
+        while (pointer != 0)
+        {
+            int node = memory.Offset(pointer);
+            advance(node, unchecked((short)memory.Word(node + 8)));
+            memory = readMemory();
             pointer = memory.Dword(node + 4);
         }
-        return frame;
     }
 }

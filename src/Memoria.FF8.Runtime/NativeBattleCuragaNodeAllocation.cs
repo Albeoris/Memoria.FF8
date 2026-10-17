@@ -29,6 +29,12 @@ public static class NativeBattleCuragaNodes
     public static NativeBattleCuragaFrame AdvanceEmitterLifetime8817F0(NativeBattleCuragaFrame frame, uint contextTask, int node)
     {
         NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
+        AdvanceEmitterLifetime(memory, node);
+        return memory.Flush();
+    }
+
+    internal static void AdvanceEmitterLifetime(NativeBattleCuragaNodeMemory memory, int node)
+    {
         short remaining = unchecked((short)(memory.Word(node + 0x64) - 1));
         memory.Word(node + 0x64, unchecked((ushort)remaining));
         if (remaining <= 0)
@@ -37,7 +43,6 @@ public static class NativeBattleCuragaNodes
             memory.Byte(node + 0x69, 0);
             memory.ContextWord(0x14, unchecked((ushort)(memory.ContextWord(0x14) - 1)));
         }
-        return memory.Flush();
     }
 
     internal static int? AllocateEmitter(NativeBattleCuragaNodeMemory memory, uint parentPointer, sbyte sourceIndex, sbyte targetIndex)

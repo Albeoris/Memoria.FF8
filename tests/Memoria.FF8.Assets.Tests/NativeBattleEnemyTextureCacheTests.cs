@@ -140,6 +140,7 @@ public sealed class NativeBattleEnemyTextureCacheTests(ITestOutputHelper output)
             StageId = encounter.StageId,
             Combatants = actors,
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(),
             NativeFlags = 0x80,
             NativeEntry = new(0, 0),
             NativeGlobalRandom = new(0),

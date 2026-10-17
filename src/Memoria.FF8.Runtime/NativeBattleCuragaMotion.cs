@@ -10,7 +10,12 @@ public static partial class NativeBattleCuragaNodeKinematics
     {
         NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
         byte[] source = ReadSource(memory, frame.Memory, unchecked((sbyte)memory.Byte(node + 0x1D6)));
-        NativeBattleCuragaExecutableState bank = frame.Memory.CuragaExecutable!;
+        AdvanceMotion(memory, node, source, frame.Memory.CuragaExecutable!);
+        return memory.Flush();
+    }
+
+    internal static void AdvanceMotion(NativeBattleCuragaNodeMemory memory, int node, byte[] source, NativeBattleCuragaExecutableState bank)
+    {
         int counter = unchecked((short)memory.Word(node + 0x1CA));
         memory.Copy(node + 0x194, node + 0xCC, 8);
         for (int axis = 0; axis < 3; axis++)
@@ -82,7 +87,7 @@ public static partial class NativeBattleCuragaNodeKinematics
             }
             else
             {
-                NativeBattleActionMatrix camera = frame.State.CopiedCamera ?? throw new NotSupportedException("Native8805A0 camera rotation requires87DC50's actual1D97778 copy.");
+                NativeBattleActionMatrix camera = memory.State.CopiedCamera ?? throw new NotSupportedException("Native8805A0 camera rotation requires87DC50's actual1D97778 copy.");
                 camera.Validate();
                 matrix = camera with { Rotation = Enumerable.Range(0, 9).Select(index => camera.Rotation[index % 3 * 3 + index / 3]).ToImmutableArray() };
             }
@@ -139,8 +144,6 @@ public static partial class NativeBattleCuragaNodeKinematics
                 memory.Dword(node + 0xE0 + instance * 16, 0);
             }
         }
-        return memory.Flush();
-
         short Curve(int field)
         {
             uint channel = BinaryPrimitives.ReadUInt32LittleEndian(source.AsSpan(field));

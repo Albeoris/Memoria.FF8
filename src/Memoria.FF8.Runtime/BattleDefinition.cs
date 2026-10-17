@@ -147,6 +147,7 @@ public sealed record BattleDefinition
     public NativeBattleSupportRules? NativeSupportRules { get; init; }
     public NativeBattleRetainedMemory? NativeRetainedMemory { get; init; }
     public NativeVibrationProcessState? NativeVibrationProcess { get; init; }
+    public NativeGlobalSoundProcess? NativeGlobalSoundProcess { get; init; }
     public NativeBattleGraphicsDefinition? NativeGraphics { get; init; }
     public ImmutableArray<NativeBattleModuleResource> NativeModuleResources { get; init; } = [];
     public ImmutableArray<NativeBattleDefensiveResource> NativeDefensiveResources { get; init; } = [];
@@ -286,6 +287,7 @@ public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, 
 
 public sealed record BattleSnapshot
 {
+    public NativeGlobalSoundProcess? NativeGlobalSoundProcess { get; init; }
     public NativeBattleFileIoState? NativeFileIo { get; init; }
     public NativeVibrationProcessState? NativeVibrationProcess { get; init; }
     public NativeBattleModelTextureCache? NativeModelTextureCache { get; init; }

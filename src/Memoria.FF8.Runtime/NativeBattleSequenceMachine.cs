@@ -275,7 +275,9 @@ public static class NativeBattleSequenceMachine
                     case 0xB8:
                         byte sound = ReadByte();
                         byte attribute = ReadByte();
-                        cues.Add(new(opcode == 0xB8 ? NativeBattleSequenceCueKind.SystemSound : NativeBattleSequenceCueKind.ActorSound, sound, attribute, (attribute & 2) != 0 ? ReadByte() << 8 : 0));
+                        NativeBattleSequenceCue soundCue = new(opcode == 0xB8 ? NativeBattleSequenceCueKind.SystemSound : NativeBattleSequenceCueKind.ActorSound, sound, attribute, (attribute & 2) != 0 ? ReadByte() << 8 : 0);
+                        cues.Add(soundCue);
+                        inputs.PlaySound?.Invoke(model with { Sequence = sequence, ResourceFlags44 = flags, SequenceState = state }, soundCue);
                         break;
                     case 0xB9:
                         state = state with { Wait1 = unchecked((byte)(ReadByte() - 1)) };

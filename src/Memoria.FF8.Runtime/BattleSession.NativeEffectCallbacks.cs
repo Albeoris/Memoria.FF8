@@ -28,7 +28,7 @@ public sealed partial class BattleSession
             {
                 NativeGraphics = graphics;
                 NativeBattleEffectTaskPool childPool = prepared.Effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738);
-                if (childPool.Slots[0].ReadWord(12) is >= 1 and <= 87)
+                if (childPool.Slots[0].ReadWord(12) is >= 1 and <= 88)
                 {
                     graphics = AdvanceNativeQuezacotlFirstWindow(graphics);
                     NativeBattleStageState childStage = NativeStage ?? throw new NotSupportedException("Native5713E0 requires its retained stage rows.");
@@ -54,7 +54,7 @@ public sealed partial class BattleSession
                         graphics = graphics with { Models = graphics.Models.SetItem(target, model with { Flags0 = (ushort)(model.Flags0 | 4) }) };
                     }
                     uint sound = child.Effect.Binding.NativeQuezacotlResources?.InitialSound ?? throw new NotSupportedException("Native501330 requires the actual12AE4F0 Quezacotl sound DWORD.");
-                    events.Add(new BattleEvent(Frame, "NativeModuleSound", null, null, 0, string.Empty) { NativeModuleSound = new(sound, 1, null) { Pan = 128 } });
+                    PublishNativeModuleSound(new(sound, 1, null) { Pan = 128 });
                     NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native6C3940 requires its retained camera globals.")).WriteEffectGlobals(new(new(0, -3827, -1983), new(0, -5150, -723), 288, 0));
                 }
             }
@@ -92,7 +92,7 @@ public sealed partial class BattleSession
             else
             {
                 byte pan = checked((byte)(sound.Pan ?? throw new InvalidDataException("Native501330 Fire sound lacks its original pan.")));
-                events.Add(new BattleEvent(Frame, "NativeModuleSound", null, null, 0, string.Empty) { NativeModuleSound = new(resources.Sound, 0x100, null) { Pan = pan } });
+                PublishNativeModuleSound(new(resources.Sound, 0x100, null) { Pan = pan });
             }
         }
         return graphics with { OriginalEffect = step.Effect, ModuleDraws = graphics.ModuleDraws.AddRange(step.Draws) };

@@ -172,8 +172,8 @@ public sealed partial class BattleSession
         {
             if (graphics.OriginalEffect?.Parameters?.Parameter81 == 3)
             {
-                events.Add(new(Frame, "NativeModuleSound", null, null, 0, string.Empty) { NativeModuleSound = new(0x87, 0, null) { Pan = 0x80 } });
-                events.Add(new(Frame, "NativeModuleSound", null, null, 0, string.Empty) { NativeModuleSound = new(0x88, 0, null) { Pan = 0x80 } });
+                PublishNativeModuleSound(new(0x87, 0, null) { Pan = 0x80 });
+                PublishNativeModuleSound(new(0x88, 0, null) { Pan = 0x80 });
                 graphics = ApplyNativeActiveHeaderContacts(graphics);
             }
             NativeEffectMemory = (NativeEffectMemory ?? throw new InvalidDataException("Native50B2A0 lost its effect memory owner.")) with { Active = 0 };
