@@ -49,6 +49,33 @@ internal sealed partial class GameWorld
                 }
             }
         }
-        return roots.SelectMany(root => AutoPlayScriptClosure(program, root)).Distinct().Where(index => program.Operations[index].Opcode is Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.PSHSM_L).Order().ToArray();
+        return roots.SelectMany(root => AutoPlayScriptClosure(program, root)).Distinct().Where(index => program.Operations[index].Opcode is Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.PSHSM_L).Where(index => !IsAutoPlaySelfUpdateRead(program, index)).Order().ToArray();
+    }
+
+    private static bool IsAutoPlaySelfUpdateRead(JsmProgram program, int index)
+    {
+        if (index + 3 >= program.Operations.Count)
+        {
+            return false;
+        }
+        JsmOperation read = program.Operations[index];
+        JsmOperation literal = program.Operations[index + 1];
+        JsmOperation calculation = program.Operations[index + 2];
+        JsmOperation store = program.Operations[index + 3];
+        Jsm.Opcode? matchingStore = read.Opcode switch
+        {
+            Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B => Jsm.Opcode.POPM_B,
+            Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W => Jsm.Opcode.POPM_W,
+            Jsm.Opcode.PSHM_L or Jsm.Opcode.PSHSM_L => Jsm.Opcode.POPM_L,
+            _ => null
+        };
+        if (literal.Opcode != Jsm.Opcode.PSHN_L || calculation.Opcode != Jsm.Opcode.CAL || calculation.Parameter != 0 || store.Opcode != matchingStore || store.Parameter != read.Parameter)
+        {
+            return false;
+        }
+
+        // This exact stack-balanced addition sends the read only to its own typed store.
+        // Other reads of the same bytes remain dependencies, including in requested scripts.
+        return program.Objects.Any(obj => obj.Scripts.Any(script => script.ContainsOperation(index) && script.ContainsOperation(index + 1) && script.ContainsOperation(index + 2) && script.ContainsOperation(index + 3)));
     }
 }
