@@ -43,7 +43,7 @@ public sealed partial class BattleSession
             ordering.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, cursor), primitive.Words, primitive.VertexPayload4.IsEmpty ? (ushort)1 : (ushort)0, primitive.VertexPayload4, moduleDraw);
             if (linked)
             {
-                stores.Add(new(cursor, NativeBattleLogicalOrdering.LinkBytes(ordering.LastHeaderLink).ToImmutableArray(), [NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known]));
+                stores.Add(new(cursor, NativeBattleLogicalOrdering.LinkBytes(ordering.LastHeaderLink).ToImmutableArray(), NativeBattleCommonPacketArena.KnownLinkMask));
             }
             cursor = next;
         }

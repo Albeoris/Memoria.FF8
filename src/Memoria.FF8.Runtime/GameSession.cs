@@ -423,17 +423,30 @@ public sealed partial class GameSession : IEventServices
         Save(path, compact: false);
     }
 
-    public void Save(string path, bool compact)
+    public void Save(string path, bool compact, Action<GameState>? validateContinuation = null)
     {
         ValidateLiveEventMemoryOwners(State, State.EventMemory);
         string fullPath = Path.GetFullPath(path);
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
         string temporary = fullPath + ".tmp";
-        using (FileStream stream = new(temporary, FileMode.Create, FileAccess.Write, FileShare.None))
+        try
         {
-            JsonSerializer.Serialize(stream, State, compact ? CompactJsonOptions : JsonOptions);
+            using (FileStream stream = new(temporary, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                JsonSerializer.Serialize(stream, State, compact ? CompactJsonOptions : JsonOptions);
+                stream.Flush(true);
+            }
+            GameState candidate = Load(temporary);
+            validateContinuation?.Invoke(candidate);
+            File.Move(temporary, fullPath, true);
         }
-        File.Move(temporary, fullPath, true);
+        finally
+        {
+            if (File.Exists(temporary))
+            {
+                File.Delete(temporary);
+            }
+        }
     }
 
     public void SetEventState(JsonElement? state)

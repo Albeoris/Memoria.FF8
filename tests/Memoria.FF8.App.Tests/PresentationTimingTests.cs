@@ -5,6 +5,30 @@ namespace Memoria.FF8.App.Tests;
 public sealed class PresentationTimingTests
 {
     [Theory]
+    [InlineData(60, 90, 60)]
+    [InlineData(90, 90, 90)]
+    [InlineData(120, 90, 90)]
+    [InlineData(144, 90, 90)]
+    [InlineData(0, 90, 90)]
+    [InlineData(120, 30, 60)]
+    [InlineData(0, 0, 60)]
+    public void Native_battle_host_steps_can_present_each_accelerated_callback(int frameLimit, int callbacks, int expectedRate)
+    {
+        TimeSpan step = PresentationTiming.UpdateStep(frameLimit, callbacks);
+        Assert.Equal(TimeSpan.FromSeconds(1d / expectedRate), step);
+        PresentationTiming timing = new();
+        timing.Accumulate(step * expectedRate);
+        int updates = 0;
+        while (timing.TryStep(step))
+        {
+            updates++;
+        }
+        // Accumulation is bounded to a quarter second, even at higher battle update rates.
+        Assert.Equal(Math.Min(expectedRate, PresentationTiming.MaximumElapsed.Ticks / step.Ticks), updates);
+        Assert.Equal(step * updates, timing.SimulationTotal);
+    }
+
+    [Theory]
     [InlineData(15)]
     [InlineData(30)]
     [InlineData(60)]

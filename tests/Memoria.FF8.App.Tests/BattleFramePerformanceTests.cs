@@ -15,7 +15,7 @@ public sealed class BattleFramePerformanceTests
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_PERFORMANCE_SNAPSHOT");
         Assert.SkipUnless(source is not null && File.Exists(source), "An optional standalone battle fixture is required.");
         GameSession session = new(GameSession.Load(source!));
-        using GameWorld world = NativeBattleProductionEffectAdmissionTests.RestoreWorld(session, TestResources.GameDirectory);
+        using GameWorld world = BattleHostLoopPerformanceTests.RestorePerformanceWorld(session);
         BattleSession battle = world.Battle!;
         BattleScenePresentation scene = new(world.BattleResources, battle.Capture().Definition, true);
         long initialFrame = battle.Frame;
@@ -40,6 +40,7 @@ public sealed class BattleFramePerformanceTests
             }
             long updateStarted = Stopwatch.GetTimestamp();
             battle.AdvanceNativeGraphicsPresentation(elapsed);
+            world.SynchronizeBattlePresentation();
             scene.AdvancePresentation(elapsed);
             clock += elapsed.TotalSeconds;
             int frames = (int)(clock * BattleSession.FramesPerSecond);
@@ -54,7 +55,10 @@ public sealed class BattleFramePerformanceTests
             renderMilliseconds += Stopwatch.GetElapsedTime(renderStarted).TotalMilliseconds;
         }
         double totalMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-        Assert.InRange(battle.Frame - initialFrame, 90 * speed - 1, 90 * speed);
+        if (battle.Mode != BattleAtbMode.TurnBased)
+        {
+            Assert.InRange(battle.Frame - initialFrame, 90 * speed - 1, 90 * speed);
+        }
         Assert.InRange(battle.NativeGraphics.Callback - initialCallback, 90 * speed - 1, 90 * speed);
         session.SetLiveBattle(battle);
         session.SetEventState(world.Events.Capture());
@@ -62,10 +66,12 @@ public sealed class BattleFramePerformanceTests
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_EVIDENCE");
         string id = "performance-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff");
         NativeBattleProductionEffectAdmissionTests.Publish(evidence, id + "-after", saved);
-        using GameWorld restored = NativeBattleProductionEffectAdmissionTests.RestoreWorld(new GameSession(saved), TestResources.GameDirectory);
+        using GameWorld restored = BattleHostLoopPerformanceTests.RestorePerformanceWorld(new GameSession(saved));
         long savedCallback = battle.NativeGraphics.Callback;
         battle.AdvanceNativeGraphicsPresentation(TimeSpan.FromSeconds(1d / 30));
         restored.Battle!.AdvanceNativeGraphicsPresentation(TimeSpan.FromSeconds(1d / 30));
+        world.SynchronizeBattlePresentation();
+        restored.SynchronizeBattlePresentation();
         world.ApplyBattleInput(new(BattleInputKind.Tick));
         restored.ApplyBattleInput(new(BattleInputKind.Tick));
         Assert.True(battle.NativeGraphics.Callback > savedCallback);

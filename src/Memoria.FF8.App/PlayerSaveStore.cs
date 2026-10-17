@@ -48,14 +48,14 @@ internal sealed class PlayerSaveStore
         return fullPath.Equals(directory, StringComparison.OrdinalIgnoreCase) || fullPath.StartsWith(directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
-    public void Save(int slot, GameSession session)
+    public void Save(int slot, GameSession session, Action<GameState>? validateContinuation = null)
     {
         if (session.State.Scene == SceneKind.Title)
         {
             throw new InvalidOperationException("Start or load a game before saving.");
         }
         string path = GetPath(slot);
-        session.Save(path);
+        session.Save(path, compact: false, validateContinuation);
     }
 
     public GameState Load(int slot)

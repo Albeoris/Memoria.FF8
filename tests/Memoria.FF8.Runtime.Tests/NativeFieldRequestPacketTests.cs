@@ -212,9 +212,10 @@ public sealed class NativeFieldRequestPacketTests
             Assert.Equal(current, restored.FieldRequestPacket);
             Assert.True(JsonElement.DeepEquals(state.EventState!.Value, restored.EventState!.Value));
             Assert.True(JsonElement.DeepEquals(state.DepartingFieldState!.Value, restored.DepartingFieldState!.Value));
+            byte[] original = File.ReadAllBytes(path);
             GameState mismatch = state with { EventState = OwnerCheckpoint(dormant) };
-            new GameSession(mismatch).Save(path);
-            Assert.Throws<InvalidDataException>(() => GameSession.Load(path));
+            Assert.Throws<InvalidDataException>(() => new GameSession(mismatch).Save(path));
+            Assert.Equal(original, File.ReadAllBytes(path));
         }
         finally
         {

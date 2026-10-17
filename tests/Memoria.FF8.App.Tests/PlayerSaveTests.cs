@@ -7,6 +7,50 @@ public sealed class PlayerSaveTests : IDisposable
 {
     private readonly string directory = Path.Combine(Path.GetTempPath(), "Memoria.FF8-player-saves-" + Guid.NewGuid().ToString("N"));
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void Failed_continuation_validation_preserves_existing_save_and_rejects_new_slot(int slot)
+    {
+        PlayerSaveStore store = CreateStore();
+        GameSession session = new(new GameState { Scene = SceneKind.Field, X = 10 });
+        store.Save(slot, session);
+        byte[] original = File.ReadAllBytes(store.GetPath(slot));
+        session.SetPosition(20, 0);
+        int validations = 0;
+        void Reject(GameState candidate)
+        {
+            validations++;
+            Assert.Equal(20, candidate.X);
+            Assert.NotSame(session.State, candidate);
+            Assert.Equal(original, File.ReadAllBytes(store.GetPath(slot)));
+            throw new InvalidDataException("Unsupported continuation");
+        }
+        Assert.Throws<InvalidDataException>(() => store.Save(slot, session, Reject));
+        Assert.Equal(1, validations);
+        Assert.Equal(original, File.ReadAllBytes(store.GetPath(slot)));
+        Assert.False(File.Exists(store.GetPath(slot) + ".tmp"));
+        int emptySlot = slot + 2;
+        Assert.Throws<NotSupportedException>(() => store.Save(emptySlot, session, _ => throw new NotSupportedException("Unsupported continuation")));
+        Assert.False(File.Exists(store.GetPath(emptySlot)));
+        Assert.False(File.Exists(store.GetPath(emptySlot) + ".tmp"));
+        store.Save(slot, session, candidate => Assert.Equal(20, candidate.X));
+        Assert.Equal(20, store.Load(slot).X);
+    }
+
+    [Fact]
+    public void Save_rejects_state_that_passes_live_validation_but_cannot_load()
+    {
+        PlayerSaveStore store = CreateStore();
+        GameSession session = new(new GameState { Scene = SceneKind.Field, X = 10 });
+        store.Save(0, session);
+        byte[] original = File.ReadAllBytes(store.GetPath(0));
+        session.SetEventState(System.Text.Json.JsonSerializer.SerializeToElement(new { }));
+        Assert.Throws<InvalidDataException>(() => store.Save(0, session));
+        Assert.Equal(original, File.ReadAllBytes(store.GetPath(0)));
+        Assert.False(File.Exists(store.GetPath(0) + ".tmp"));
+    }
+
     [Fact]
     public void Player_slots_and_quick_save_do_not_replace_research_checkpoint()
     {

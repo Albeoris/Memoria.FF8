@@ -215,10 +215,12 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
             void Write(short x, short y, short width, short height, ReadOnlySpan<byte> data)
             {
                 ImmutableArray<byte> bytes = data.ToArray().ToImmutableArray();
+                NativeBattleEffectArenaWriter writer = new(bank);
                 for (int row = 0; row < height; row++)
                 {
-                    bank = bank.Write(checked(2 * ((y + row) * 1024 + x)), bytes.AsSpan().Slice(2 * row * width, 2 * width));
+                    writer.Write(checked(2 * ((y + row) * 1024 + x)), bytes.AsSpan().Slice(2 * row * width, 2 * width));
                 }
+                bank = writer.Freeze();
                 uploads.Add(new(x, y, width, height, bytes));
             }
         }
@@ -249,13 +251,15 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
                 }
             }
             byte[] changed = new byte[bytesPerRow * copy.Height];
+            NativeBattleEffectArenaWriter writer = new(bank);
             for (int row = 0; row < copy.Height; row++)
             {
                 int write = 2 * ((copy.DestinationY + row) * 1024 + copy.DestinationX);
                 ReadOnlySpan<byte> bytes = memory.AsSpan(write, bytesPerRow);
-                bank = bank.Write(write, bytes);
+                writer.Write(write, bytes);
                 bytes.CopyTo(changed.AsSpan(row * bytesPerRow));
             }
+            bank = writer.Freeze();
             uploads.Add(new(copy.DestinationX, copy.DestinationY, copy.Width, copy.Height, changed.ToImmutableArray()) { Copied = true });
         }
     }

@@ -607,6 +607,7 @@ internal sealed partial class RecreateGame : Game
 
     private void CaptureSession()
     {
+        world?.CaptureBattleState();
         if (world?.PendingEntityName is not null && gameMenus?.IsNamePrompt == true)
         {
             session.SetEntityNameDraft(gameMenus.NameDraft);
@@ -694,7 +695,7 @@ internal sealed partial class RecreateGame : Game
             session.SetMoviePlayback(movie.Playback);
         }
         CaptureSession();
-        playerSaves.Save(slot, session);
+        playerSaves.Save(slot, session, ValidatePlayerState);
         ShowSaveNotice(slot == 0 ? "Quick saved." : $"Saved in {PlayerSaveStore.GetLabel(slot)}.", slot == 0 ? 1 : 5);
     }
 
@@ -713,7 +714,8 @@ internal sealed partial class RecreateGame : Game
         var candidateSession = new GameSession(state);
         if (state.Scene != SceneKind.Movie || state.EventState is not null)
         {
-            using var candidate = new GameWorld(candidateSession, options.GameDirectory, new MovieClock(candidateSession, options.GameDirectory, options.MediaToolsDirectory, resourceHost is null ? null : resourceHost.ResolveGameFile), resourceHost?.Resources);
+            using var candidateClock = new MovieClock(candidateSession, options.GameDirectory, options.MediaToolsDirectory, resourceHost is null ? null : resourceHost.ResolveGameFile);
+            using var candidate = new GameWorld(candidateSession, options.GameDirectory, candidateClock, resourceHost?.Resources);
             candidate.EnsureField();
         }
     }

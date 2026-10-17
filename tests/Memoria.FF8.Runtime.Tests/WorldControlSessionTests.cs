@@ -54,7 +54,7 @@ public sealed class WorldControlSessionTests
     }
 
     [Fact]
-    public void FullCheckpointLoadRejectsConflictingNonNullControlCopies()
+    public void FullCheckpointSaveAndLoadRejectConflictingNonNullControlCopies()
     {
         NativeWorldControlState controls = NativeWorldControlState.CreateNewGame();
         // A narrow root/VM owner consistency fixture; process message data is
@@ -63,7 +63,10 @@ public sealed class WorldControlSessionTests
         string path = Path.Combine(Path.GetTempPath(), "ff8-conflicting-flags-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {
-            session.Save(path);
+            Assert.Throws<InvalidDataException>(() => session.Save(path));
+            Assert.False(File.Exists(path));
+            Assert.False(File.Exists(path + ".tmp"));
+            File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(session.State));
             Assert.Throws<InvalidDataException>(() => GameSession.Load(path));
             session.SetEventState(RuntimeOwnerCheckpointFixture.Capture(session.State));
             session.Save(path);

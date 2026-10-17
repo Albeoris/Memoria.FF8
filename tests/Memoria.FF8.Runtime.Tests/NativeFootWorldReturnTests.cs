@@ -20,15 +20,16 @@ public sealed class NativeFootWorldReturnTests
             GameState restored = GameSession.Load(path);
             Assert.Equal(JsonSerializer.Serialize(session.ExamTimer), JsonSerializer.Serialize(restored.ExamTimer));
             Assert.True(JsonElement.DeepEquals(session.State.DepartingFieldState!.Value, restored.DepartingFieldState!.Value));
+            byte[] original = File.ReadAllBytes(path);
             session.SetNativeEventOwners(session.WorldControls! with { EventFlags104 = session.WorldControls.EventFlags104 | 0x40u }, timer: session.ExamTimer! with { DisplayEnabled = true, Event182Mask4 = true, SaveGlobalMask4 = true });
-            session.Save(path);
-            Assert.Throws<InvalidDataException>(() => GameSession.Load(path));
+            Assert.Throws<InvalidDataException>(() => session.Save(path));
+            Assert.Equal(original, File.ReadAllBytes(path));
             session.SetExamTimer(timer.AdvanceCallbacks(NativeTimerCallbackKind.Menu, 7));
-            session.Save(path);
-            Assert.Throws<InvalidDataException>(() => GameSession.Load(path));
+            Assert.Throws<InvalidDataException>(() => session.Save(path));
+            Assert.Equal(original, File.ReadAllBytes(path));
             session.SetExamTimer(timer.AdvanceCallbacks(NativeTimerCallbackKind.World, 101));
-            session.Save(path);
-            Assert.Throws<InvalidDataException>(() => GameSession.Load(path));
+            Assert.Throws<InvalidDataException>(() => session.Save(path));
+            Assert.Equal(original, File.ReadAllBytes(path));
         }
         finally
         {

@@ -5,6 +5,24 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleCommonPacketBatchTests
 {
     [Fact]
+    public void Linked_primitive_stores_retain_bytes_and_masks_without_allocating_constant_headers_per_packet()
+    {
+        NativeBattleGeometryPrimitive primitive = new(0, [0x01020304u], []) { PhysicalWriteMask = Known(4) };
+        ImmutableArray<NativeBattleCommonPacketStore> actual = NativeBattleCommonPacketArena.PrimitiveStores(16, primitive, true);
+        Assert.Equal(new byte[] { 4, 3, 2, 1 }, actual[0].Data);
+        Assert.Equal(new byte[] { 0, 0, 0 }, actual[1].Data);
+        Assert.Equal(Enumerable.Repeat(NativeBattleGfPacketByteState.Unknown, 3), actual[1].Mask);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int index = 0; index < 10000; index++)
+        {
+            ImmutableArray<NativeBattleCommonPacketStore> stores = NativeBattleCommonPacketArena.PrimitiveStores(index * 4, primitive, true);
+            GC.KeepAlive(stores);
+        }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(allocated <= 2400000, $"Linked packet stores allocated {allocated} bytes for 10000 one-word packets.");
+    }
+
+    [Fact]
     public void Ordered_batch_preserves_overlapping_stores_untouched_bytes_and_prior_unknown_knowledge()
     {
         NativeBattlePrimitiveProcess original = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400().ApplyCommonWrite(8, [1, 2, 3, 4], Known(4));

@@ -161,7 +161,7 @@ public static class MenuSettings
     [
         new("V-Sync", "Synchronize presentation with the display refresh rate. Applies to this installation.", ["On", "Off"]),
         new("Field FPS", "Presentation limit for fields, world travel and movies. Simulation remains at its original rate; higher limits repeat frames. V-Sync may limit output further.", ["15", "30", "60", "90", "120", "144", "240", "Unlimited"]),
-        new("Battle FPS", "Battle presentation limit. Simulation remains unchanged; higher limits repeat frames. Applies to this installation.", ["15", "30", "60", "90", "120", "144", "240", "Unlimited"]),
+        new("Battle FPS", "Battle presentation limit. Higher limits can show more animation frames when game speed is increased. Applies to this installation.", ["15", "30", "60", "90", "120", "144", "240", "Unlimited"]),
         new("Menu FPS", "Title and menu presentation limit. Applies to this installation. V-Sync may limit output further.", ["15", "30", "60", "90", "120", "144", "240", "Unlimited"]),
         new("Sound", "Original stereo / mono output setting.", ["Stereo", "Mono"]),
         new("Controller", "Original normal / custom control mapping.", ["Normal", "Customize"]),

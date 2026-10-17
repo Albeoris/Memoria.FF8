@@ -8,6 +8,10 @@ public sealed record NativeBattleCommonPacketWrite(NativeBattlePrimitiveProcess 
 /// <summary>Apply exact ordered common-heap stores, rejected attempts and accepted native OT links.</summary>
 public static class NativeBattleCommonPacketArena
 {
+    internal static readonly ImmutableArray<NativeBattleGfPacketByteState> KnownLinkMask = [NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known];
+    private static readonly ImmutableArray<NativeBattleGfPacketByteState> UnknownLinkMask = [NativeBattleGfPacketByteState.Unknown, NativeBattleGfPacketByteState.Unknown, NativeBattleGfPacketByteState.Unknown];
+    private static readonly ImmutableArray<byte> UnknownLinkBytes = [0, 0, 0];
+
     public static NativeBattlePrimitiveProcess StorePrimitive(NativeBattlePrimitiveProcess process, int address, NativeBattleGeometryPrimitive primitive, bool linked)
     {
         return process.ApplyCommonWrites(PrimitiveStores(address, primitive, linked));
@@ -27,7 +31,7 @@ public static class NativeBattleCommonPacketArena
             BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4 * index), primitive.Words[index]);
         }
         NativeBattleCommonPacketStore store = new(address, data.ToImmutableArray(), mask);
-        return linked ? [store, new(address, [0, 0, 0], [NativeBattleGfPacketByteState.Unknown, NativeBattleGfPacketByteState.Unknown, NativeBattleGfPacketByteState.Unknown])] : [store];
+        return linked ? [store, new(address, UnknownLinkBytes, UnknownLinkMask)] : [store];
     }
 
     public static NativeBattleCommonPacketWrite Append(NativeBattlePrimitiveProcess process, NativeBattleLogicalOrdering ordering, NativeBattleGfGeometryBatch batch, ushort flags20 = 0, int? moduleDraw = null)
@@ -65,7 +69,7 @@ public static class NativeBattleCommonPacketArena
             links.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, address), primitive.Words, flags20, primitive.VertexPayload4, moduleDraw);
             if (linked)
             {
-                stores.Add(new(address, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink).ToImmutableArray(), [NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known]));
+                stores.Add(new(address, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink).ToImmutableArray(), KnownLinkMask));
             }
             acceptedEnd = Math.Max(acceptedEnd, end);
         }

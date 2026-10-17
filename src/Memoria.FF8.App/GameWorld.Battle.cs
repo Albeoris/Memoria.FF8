@@ -173,9 +173,10 @@ internal sealed partial class GameWorld
         BattleDefinition current = BindBattleEntryClock(CreateEncounterBattle(request.Encounter, battle.Capture().Definition.NativeSeed, request.Flags), battle.Capture(), session.ExamTimer);
         long allocationClock = Events.Scene.NativeFieldInitialization!.TimerClockCallsAtAllocation!.Value;
         long completedCallbacks = Events.Scene.NativeBattleCompletions!.Where(completion => completion.Backend == NativeBattleBackend.Interactive && completion.ReturnFrame is not null && completion.BattleClockCallsAtEntry >= allocationClock).Sum(completion => (long)completion.EmulatedCombatCallbacks);
-        if (Events.Scene.FieldCallbackClock!.BattleCallbacks != completedCallbacks + battle.Frame)
+        long executedCallbacks = battle.NativeGraphics is null ? battle.Frame : battle.NativeHostCallbacks ?? throw new InvalidDataException("Saved native battle lacks its executed callback clock.");
+        if (Events.Scene.FieldCallbackClock!.BattleCallbacks != completedCallbacks + executedCallbacks)
         {
-            throw new InvalidDataException("Saved battle simulation frame disagrees with its executed native callback clock.");
+            throw new InvalidDataException("Saved battle disagrees with its executed native callback clock.");
         }
         if (!System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(current), System.Text.Json.JsonSerializer.SerializeToElement(battle.Capture().Definition)))
         {

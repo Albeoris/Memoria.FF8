@@ -14,8 +14,7 @@ internal sealed partial class RecreateGame
         int frameLimit = PresentationTiming.FrameLimit(uiPreferences, menu, ActiveBattle is not null);
         if (appliedFrameLimit != frameLimit)
         {
-            // MonoGame owns presentation pacing; gameplay always consumes the same 60 Hz steps.
-            // Faster presentation repeats the latest state without interpolating native simulation.
+            // MonoGame owns display pacing; native battle callbacks retain their own elapsed-time clock.
             IsFixedTimeStep = frameLimit != 0;
             if (frameLimit != 0)
             {
@@ -38,9 +37,15 @@ internal sealed partial class RecreateGame
         {
             return;
         }
-        while (presentationTiming.TryStep())
+        while (true)
         {
-            UpdateGameFrame(new GameTime(presentationTiming.SimulationTotal, PresentationTiming.SimulationStep, gameTime.IsRunningSlowly));
+            int nativeCallbackRate = ActiveBattle?.NativeGraphics is null ? 0 : BattleSession.FramesPerSecond * gameplayClock.SpeedMultiplier;
+            TimeSpan step = PresentationTiming.UpdateStep(appliedFrameLimit ?? 60, nativeCallbackRate);
+            if (!presentationTiming.TryStep(step))
+            {
+                break;
+            }
+            UpdateGameFrame(new GameTime(presentationTiming.SimulationTotal, step, gameTime.IsRunningSlowly));
             if (pendingCapture is not null)
             {
                 break;
