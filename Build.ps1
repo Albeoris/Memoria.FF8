@@ -36,6 +36,7 @@ try {
     # DirectMusic is a separate x86 process and needs its own complete runtime.
     Invoke-DotNet @('publish', 'src/Memoria.FF8.Music/Memoria.FF8.Music.csproj', '-c', $Configuration, '-r', 'win-x86', '--self-contained', 'true', '-o', (Join-Path $data 'audio-host'), '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishSingleFile=false')
     Invoke-DotNet (@('publish', 'src/Memoria.Launcher/Memoria.Launcher.csproj', '-o', $launcher, '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true') + $publishArguments)
+    Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--', $data)
 
     if ($Test) {
         Invoke-DotNet @('run', '--project', 'tests/Memoria.Launcher.Tests', '-c', $Configuration)

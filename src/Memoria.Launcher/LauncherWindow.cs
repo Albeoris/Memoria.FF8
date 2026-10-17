@@ -17,6 +17,9 @@ internal sealed class LauncherWindow : Window
     private readonly Button mediaSetup = new() { Content = "Set up FFmpeg", MinWidth = 130, MinHeight = 32 };
     private readonly Button play = new() { Content = "Play", MinWidth = 130, MinHeight = 38, IsDefault = true };
     private readonly TextBlock mediaStatus = new() { Text = "Checking FFmpeg…", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 16, 0) };
+    private readonly ProgressBar mediaProgress = new() { Height = 8, Minimum = 0, Maximum = 100 };
+    private readonly TextBlock mediaProgressText = new() { Margin = new Thickness(0, 6, 0, 0), Foreground = Brushes.DimGray };
+    private readonly StackPanel mediaProgressPanel = new() { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 10, 0, 0) };
     private readonly TextBox status = new() { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, BorderThickness = new Thickness(0), Background = Brushes.Transparent };
     private readonly string mediaDirectory = Path.Combine(AppContext.BaseDirectory, "Data", "media-tools");
     private bool busy;
@@ -45,11 +48,16 @@ internal sealed class LauncherWindow : Window
         selection.Children.Add(browse);
         selection.Children.Add(installations);
         Add(layout, selection, 2);
-        DockPanel media = new() { Margin = new Thickness(0, 0, 0, 14) };
+        DockPanel media = new();
         DockPanel.SetDock(mediaSetup, Dock.Right);
         media.Children.Add(mediaSetup);
         media.Children.Add(mediaStatus);
-        Add(layout, media, 3);
+        StackPanel mediaSection = new() { Margin = new Thickness(0, 0, 0, 14) };
+        mediaSection.Children.Add(media);
+        mediaProgressPanel.Children.Add(mediaProgress);
+        mediaProgressPanel.Children.Add(mediaProgressText);
+        mediaSection.Children.Add(mediaProgressPanel);
+        Add(layout, mediaSection, 3);
         Add(layout, status, 4);
         play.HorizontalAlignment = HorizontalAlignment.Right;
         play.Margin = new Thickness(0, 16, 0, 0);
@@ -138,9 +146,41 @@ internal sealed class LauncherWindow : Window
     {
         using HttpClient client = new() { Timeout = Timeout.InfiniteTimeSpan };
         MediaToolsInstallation installation = new(client, FfmpegDownloadOptions.FromEnvironment());
-        bool ready = await installation.EnsureAsync(mediaDirectory, prompt => MessageBox.Show(this, prompt.Replace("You can continue without installing it.", "Cancel setup to stay in the launcher. FFmpeg must be ready before Play."), "Memoria — FFmpeg setup", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes, message => status.Text = message.Replace("Continuing without FFmpeg video playback (and replacement audio decoding).", "FFmpeg is not ready. Install the tools before pressing Play."));
-        await RefreshMediaStatusAsync();
-        return ready;
+        try
+        {
+            bool ready = await installation.EnsureAsync(mediaDirectory, prompt => MessageBox.Show(this, prompt.Replace("You can continue without installing it.", "Cancel setup to stay in the launcher. FFmpeg must be ready before Play."), "Memoria — FFmpeg setup", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes, message => status.Text = message.Replace("Continuing without FFmpeg video playback (and replacement audio decoding).", "FFmpeg is not ready. Install the tools before pressing Play."), UpdateMediaProgress);
+            await RefreshMediaStatusAsync();
+            if (ready)
+            {
+                status.Text = "FFmpeg is ready. You can start the game.";
+            }
+            return ready;
+        }
+        finally
+        {
+            mediaProgressPanel.Visibility = Visibility.Collapsed;
+            mediaProgress.IsIndeterminate = false;
+        }
+    }
+
+    private void UpdateMediaProgress(MediaToolsProgress progress)
+    {
+        mediaStatus.Text = "Setting up FFmpeg…";
+        mediaProgressPanel.Visibility = Visibility.Visible;
+        mediaProgress.IsIndeterminate = progress.Stage != MediaToolsStage.Complete && (progress.Stage != MediaToolsStage.Downloading || progress.TotalBytes is not > 0);
+        mediaProgress.Value = progress.Stage == MediaToolsStage.Complete ? 100 : progress.TotalBytes is > 0 ? Math.Clamp(100d * progress.BytesReceived / progress.TotalBytes.Value, 0, 100) : 0;
+        mediaProgressText.Text = progress.Stage switch
+        {
+            MediaToolsStage.FetchingChecksums => "Fetching FFmpeg checksums…",
+            MediaToolsStage.Downloading when progress.TotalBytes is > 0 => $"Downloading FFmpeg — {mediaProgress.Value:F0}% · {progress.BytesReceived / 1048576d:F1} / {progress.TotalBytes.Value / 1048576d:F1} MiB",
+            MediaToolsStage.Downloading => $"Downloading FFmpeg — {progress.BytesReceived / 1048576d:F1} MiB received",
+            MediaToolsStage.Verifying => "Verifying FFmpeg checksum…",
+            MediaToolsStage.Extracting => "Extracting FFmpeg…",
+            MediaToolsStage.Validating => "Checking FFmpeg executables…",
+            MediaToolsStage.Complete => "FFmpeg is installed and ready.",
+            _ => throw new ArgumentOutOfRangeException(nameof(progress))
+        };
+        status.Text = string.Empty;
     }
 
     private async Task RefreshMediaStatusAsync()

@@ -10,7 +10,10 @@
     </ItemGroup>
 
     <ItemGroup>
-        <EmbeddedResource Include="Resources\*.json" />
+        <EmbeddedResource Include="Resources\european.codepage.json" />
+        <EmbeddedResource Include="Resources\japanese.codepage.json" />
+        <EmbeddedResource Include="Resources\japanese.field-characters.json" />
+        <EmbeddedResource Include="Resources\russian.codepage.json" />
     </ItemGroup>
 
 </Project>

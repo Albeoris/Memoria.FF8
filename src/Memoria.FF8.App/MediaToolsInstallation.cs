@@ -11,6 +11,18 @@ internal sealed record FfmpegDownloadOptions(Uri ReleaseUrl, string ArchiveName)
     public static FfmpegDownloadOptions FromEnvironment() => new(new Uri(Environment.GetEnvironmentVariable("MEMORIA_FF8_FFMPEG_RELEASE_URL") ?? "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/"), Environment.GetEnvironmentVariable("MEMORIA_FF8_FFMPEG_ARCHIVE") ?? "ffmpeg-master-latest-win64-lgpl.zip");
 }
 
+internal enum MediaToolsStage
+{
+    FetchingChecksums,
+    Downloading,
+    Verifying,
+    Extracting,
+    Validating,
+    Complete
+}
+
+internal sealed record MediaToolsProgress(MediaToolsStage Stage, long BytesReceived = 0, long? TotalBytes = null);
+
 /// <summary>Optional startup installation; playback continues to use independent executables.</summary>
 internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOptions options, TimeSpan? responseTimeout = null, Func<string, Task<bool>>? validate = null)
 {
@@ -51,7 +63,7 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
         return Path.Combine(AppContext.BaseDirectory, "media-tools");
     }
 
-    public async Task<bool> EnsureAsync(string directory, Func<string, bool> consent, Action<string> report)
+    public async Task<bool> EnsureAsync(string directory, Func<string, bool> consent, Action<string> report, Action<MediaToolsProgress>? progress = null)
     {
         try
         {
@@ -64,7 +76,7 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
             if (consent(prompt))
             {
                 report("Downloading and verifying FFmpeg. The download may take several minutes.");
-                await InstallAsync(directory);
+                await InstallAsync(directory, progress);
                 return true;
             }
         }
@@ -76,7 +88,7 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
         return false;
     }
 
-    public async Task InstallAsync(string directory)
+    public async Task InstallAsync(string directory, Action<MediaToolsProgress>? progress = null)
     {
         if (Path.GetFileName(options.ArchiveName) != options.ArchiveName || !options.ArchiveName.EndsWith("-win64-lgpl.zip", StringComparison.Ordinal))
         {
@@ -92,13 +104,16 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
         Directory.CreateDirectory(staging);
         try
         {
+            progress?.Invoke(new(MediaToolsStage.FetchingChecksums));
             using var checksums = new MemoryStream();
             await DownloadAsync(new Uri(release, "checksums.sha256"), checksums, 1024 * 1024);
             string checksum = ReadChecksum(Encoding.UTF8.GetString(checksums.ToArray()), options.ArchiveName);
             string archivePath = Path.Combine(staging, "download.zip");
             await using (FileStream archive = File.Create(archivePath))
             {
-                await DownloadAsync(new Uri(release, options.ArchiveName), archive, 1024L * 1024 * 1024);
+                progress?.Invoke(new(MediaToolsStage.Downloading));
+                await DownloadAsync(new Uri(release, options.ArchiveName), archive, 1024L * 1024 * 1024, progress);
+                progress?.Invoke(new(MediaToolsStage.Verifying));
                 archive.Position = 0;
                 string actual = Convert.ToHexString(await SHA256.HashDataAsync(archive));
                 if (!actual.Equals(checksum, StringComparison.OrdinalIgnoreCase))
@@ -107,7 +122,9 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
                 }
             }
             string extracted = Path.Combine(staging, "files");
-            Extract(archivePath, extracted);
+            progress?.Invoke(new(MediaToolsStage.Extracting));
+            await Task.Run(() => Extract(archivePath, extracted));
+            progress?.Invoke(new(MediaToolsStage.Validating));
             if (!await validator(extracted))
             {
                 throw new InvalidDataException("Downloaded FFmpeg tools failed validation.");
@@ -128,16 +145,20 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
         {
             Directory.Delete(staging, true);
         }
+        progress?.Invoke(new(MediaToolsStage.Complete));
     }
 
-    private async Task DownloadAsync(Uri uri, Stream destination, long maximumBytes)
+    private async Task DownloadAsync(Uri uri, Stream destination, long maximumBytes, Action<MediaToolsProgress>? progress = null)
     {
         using var responseDeadline = new CancellationTokenSource(timeout);
         using HttpResponseMessage response = await client.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, responseDeadline.Token);
         response.EnsureSuccessStatusCode();
+        long? contentLength = response.Content.Headers.ContentLength;
+        progress?.Invoke(new(MediaToolsStage.Downloading, 0, contentLength));
         await using Stream source = await response.Content.ReadAsStreamAsync(responseDeadline.Token);
         byte[] buffer = new byte[81920];
         long total = 0;
+        Stopwatch updates = Stopwatch.StartNew();
         while (true)
         {
             // Each network read gets its own deadline; the entire download has no time limit.
@@ -153,7 +174,13 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
                 throw new InvalidDataException("FFmpeg download exceeds the expected size limit.");
             }
             await destination.WriteAsync(buffer.AsMemory(0, read));
+            if (updates.ElapsedMilliseconds >= 100)
+            {
+                progress?.Invoke(new(MediaToolsStage.Downloading, total, contentLength));
+                updates.Restart();
+            }
         }
+        progress?.Invoke(new(MediaToolsStage.Downloading, total, contentLength));
     }
 
     private static string ReadChecksum(string text, string archiveName)

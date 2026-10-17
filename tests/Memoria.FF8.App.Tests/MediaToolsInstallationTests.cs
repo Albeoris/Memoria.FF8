@@ -192,6 +192,30 @@ public sealed class MediaToolsInstallationTests
         Assert.DoesNotContain(Directory.EnumerateFiles(directory.Path, "*", SearchOption.AllDirectories), path => System.IO.Path.GetFileName(path).Equals("ffplay.exe", StringComparison.OrdinalIgnoreCase) || System.IO.Path.GetExtension(path).Equals(".dll", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Installation_reports_download_bytes_and_each_verified_installation_stage(bool knownLength)
+    {
+        using TestDirectory directory = new();
+        byte[] archive = CreateArchive();
+        using DownloadHandler handler = ArchiveHandler(archive, stream: () => new DelayedReadStream(archive, 64, TimeSpan.FromMilliseconds(15), knownLength));
+        using HttpClient client = new(handler);
+        MediaToolsInstallation installation = new(client, Options, validate: _ => Task.FromResult(true));
+        List<MediaToolsProgress> updates = [];
+
+        await installation.InstallAsync(directory.Path, updates.Add);
+
+        Assert.Equal([MediaToolsStage.FetchingChecksums, MediaToolsStage.Downloading, MediaToolsStage.Verifying, MediaToolsStage.Extracting, MediaToolsStage.Validating, MediaToolsStage.Complete], updates.Select(update => update.Stage).Distinct());
+        MediaToolsProgress[] downloads = updates.Where(update => update.Stage == MediaToolsStage.Downloading).ToArray();
+        Assert.Equal(0, downloads[0].BytesReceived);
+        Assert.Equal(archive.Length, downloads[^1].BytesReceived);
+        Assert.Contains(downloads, update => update.BytesReceived > 0 && update.BytesReceived < archive.Length);
+        Assert.Equal(downloads.Select(update => update.BytesReceived).Order(), downloads.Select(update => update.BytesReceived));
+        Assert.All(downloads.Skip(1), update => Assert.Equal(knownLength ? archive.LongLength : (long?)null, update.TotalBytes));
+        Assert.Empty(Directory.GetDirectories(directory.Path, ".install-*"));
+    }
+
     [Fact]
     public async Task Checksum_mismatch_preserves_existing_tools_and_does_not_validate_untrusted_content()
     {
@@ -202,10 +226,12 @@ public sealed class MediaToolsInstallationTests
         using DownloadHandler handler = ArchiveHandler(CreateArchive(), new string('0', 64));
         using HttpClient client = new(handler);
         MediaToolsInstallation installation = new(client, Options, validate: _ => throw new InvalidOperationException("Must not execute untrusted tools"));
+        List<MediaToolsProgress> updates = [];
 
-        Exception failure = await Assert.ThrowsAnyAsync<Exception>(() => installation.InstallAsync(directory.Path));
+        Exception failure = await Assert.ThrowsAnyAsync<Exception>(() => installation.InstallAsync(directory.Path, updates.Add));
 
         Assert.Contains("SHA-256", failure.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(MediaToolsStage.Verifying, updates[^1].Stage);
         Assert.Equal("existing tool", await File.ReadAllTextAsync(existing, TestContext.Current.CancellationToken));
         Assert.False(File.Exists(System.IO.Path.Combine(directory.Path, "ffprobe.exe")));
     }
@@ -365,9 +391,10 @@ public sealed class MediaToolsInstallationTests
         }
     }
 
-    private sealed class DelayedReadStream(byte[] content, int chunkSize, TimeSpan delay) : MemoryStream(content, false)
+    private sealed class DelayedReadStream(byte[] content, int chunkSize, TimeSpan delay, bool knownLength = true) : MemoryStream(content, false)
     {
         public int ReadCount { get; private set; }
+        public override bool CanSeek => knownLength && base.CanSeek;
 
         public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
         {
