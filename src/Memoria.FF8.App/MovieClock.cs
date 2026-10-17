@@ -4,7 +4,7 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8;
 
 /// <summary>Tracks decoded clip frames separately from script simulation frames.</summary>
-internal sealed class MovieClock
+internal sealed partial class MovieClock
 {
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string Path, long Length, long Modified), string> SourceHashes = new();
     private readonly GameSession session;

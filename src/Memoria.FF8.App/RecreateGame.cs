@@ -288,6 +288,7 @@ internal sealed partial class RecreateGame : Game
         {
             UpdateField(gameplayElapsed, input);
         }
+        PreserveCompletedMovieFrame();
         if (session.State.Scene != SceneKind.Movie && movie is not null)
         {
             movie.Dispose();
@@ -1079,6 +1080,7 @@ internal sealed partial class RecreateGame : Game
         {
             DrawPartyMenu(bounds);
         }
+        MovieSkipHint.Draw(uiCanvas!, new Memoria.FF8.Ui.UiRect(bounds.X, bounds.Y, bounds.Width, bounds.Height), session.State.Scene, movieSkipGesture, keyboard.CancelBindingHint, uiPreferences.UiFontFamily);
         if (error is not null)
         {
             DrawNoticeUi(bounds, error, true);
