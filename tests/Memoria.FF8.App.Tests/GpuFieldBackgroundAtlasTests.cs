@@ -12,6 +12,24 @@ namespace Memoria.FF8.App.Tests;
 public sealed class GpuFieldBackgroundAtlasTests
 {
     [Fact]
+    public void Patterned_tiles_keep_point_sampling_boundaries_at_fractional_vertical_scale()
+    {
+        BackgroundTile[] tiles = Enumerable.Range(0, 2131).Select(index => Tile(index % 20 * 16 - 160, index / 20 % 14 * 16 - 112, new PixelImage(16, 16, Enumerable.Range(0, 256).Select(texel => new Rgba32((byte)(texel * 31 + index), (byte)(texel * 19), (byte)(texel * 7), 255)).ToArray()))).ToArray();
+        FieldAssets field = Field(tiles);
+        FieldRenderer renderer = new(field, 960, 720);
+        Dictionary<int, Vector2> offsets = new() { [0] = Vector2.Zero };
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer gpu = new(device.Device);
+        renderer.TriangleRenderer = new SeparateTileTextures(gpu);
+        renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero, backgroundScrollOffsets: offsets);
+        Color[] expected = GpuTestDevice.Read(gpu.Target);
+        renderer.TriangleRenderer = gpu;
+        renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero, backgroundScrollOffsets: offsets);
+        Assert.Equal(expected, GpuTestDevice.Read(gpu.Target));
+        Assert.Equal(1, gpu.FrameTextureUploads);
+    }
+
+    [Fact]
     public void More_than_512_distinct_tiles_share_an_upload_and_remain_resident_while_scrolling()
     {
         BackgroundTile[] tiles = Enumerable.Range(0, 600).Select(index => Tile(index % 20 * 16 - 160, index / 20 % 14 * 16 - 112, new PixelImage(2, 2, Enumerable.Repeat(new Rgba32((byte)index, (byte)(index >> 1), (byte)(255 - index), 255), 4).ToArray()))).ToArray();
@@ -161,6 +179,44 @@ public sealed class GpuFieldBackgroundAtlasTests
         public TextureReplacement? Resolve(TextureBuildContext context)
         {
             return new TextureReplacement(context.Key.Subresource == "first" ? first : second, "atlas-validation", 16, 16);
+        }
+    }
+
+    private sealed class SeparateTileTextures(ITriangleRenderer target) : ITriangleRenderer
+    {
+        private readonly Dictionary<(PixelImage, int, int, int, int), PixelImage> textures = [];
+
+        public void Begin(int width, int height, Vector4 clearColor, float clearDepth = 1)
+        {
+            target.Begin(width, height, clearColor, clearDepth);
+        }
+
+        public void Draw(in TriangleVertex a, in TriangleVertex b, in TriangleVertex c, in TriangleMaterial material)
+        {
+            PixelImage atlas = material.Texture!;
+            Vector2 minimum = Vector2.Min(a.Uv, Vector2.Min(b.Uv, c.Uv));
+            Vector2 maximum = Vector2.Max(a.Uv, Vector2.Max(b.Uv, c.Uv));
+            int x = (int)MathF.Round(minimum.X * atlas.Width);
+            int y = (int)MathF.Round(minimum.Y * atlas.Height);
+            int width = (int)MathF.Round((maximum.X - minimum.X) * atlas.Width);
+            int height = (int)MathF.Round((maximum.Y - minimum.Y) * atlas.Height);
+            var key = (atlas, x, y, width, height);
+            if (!textures.TryGetValue(key, out PixelImage? image))
+            {
+                image = new PixelImage(width, height);
+                for (int row = 0; row < height; row++)
+                {
+                    Array.Copy(atlas.Pixels, (y + row) * atlas.Width + x, image.Pixels, row * width, width);
+                }
+                textures.Add(key, image);
+            }
+            Vector2 size = maximum - minimum;
+            target.Draw(a with { Uv = (a.Uv - minimum) / size }, b with { Uv = (b.Uv - minimum) / size }, c with { Uv = (c.Uv - minimum) / size }, material with { Texture = image });
+        }
+
+        public void End()
+        {
+            target.End();
         }
     }
 

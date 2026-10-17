@@ -69,6 +69,9 @@ public sealed partial class FieldRenderer
 
     private void PublishBackgroundAtlasPage(List<(PixelImage Image, int X, int Y)> page, int width, int height)
     {
+        // Avoid nonbinary normalization of point-sampled tile coordinates
+        // when the presentation applies a fractional vertical scale.
+        height = (int)System.Numerics.BitOperations.RoundUpToPowerOf2((uint)height);
         PixelImage atlas = new(width, height);
         foreach ((PixelImage image, int x, int y) in page)
         {
