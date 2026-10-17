@@ -143,6 +143,40 @@ public sealed class NativeBattleEffectResourceResolverTests
         Assert.Throws<NotSupportedException>(() => NativeBattleOriginalEffects.Initialize(NativeBattleEffectMemory.FromColdProcess(), NativeBattleEffectResourceResolver.MaterializeSelected(selected, null)));
     }
 
+    [Fact]
+    public void Common_parameter_preparation_uses_cold_bytes_and_retains_current_bytes_across_module_loads_and_restore()
+    {
+        NativeBattleEffectMemory cold = NativeBattleEffectMemory.FromColdProcess();
+        NativeBattleActionGraphicsState context = new(3, 2, 0, 0x48, 0, null, 3, 0x20, null, 0);
+        MethodInfo prepare = typeof(BattleSession).GetMethod("CreateNativeOriginalEffectParameters", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        MethodInfo begin = typeof(BattleSession).GetMethod("BeginNativeOriginalEffect", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        foreach (NativeBattleEffectMemory current in new[] { cold, cold.SetDirectParameters(0x50BDC0, 0xF1, 65530, 7) })
+        {
+            BattleSession session = new(Definition() with { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess() with { EffectMemory = current } }, BattleAtbMode.Normal);
+            session.AttachNativeEffectResourceResolver(effect => Catalog()[effect - 1] with { InitializerAsset = new("fixture.tim", [0xA5]) });
+            for (ushort effect = 1; effect <= 400; effect++)
+            {
+                NativeBattleGraphicsState graphics = new([], [], 0, 0);
+                begin.Invoke(session, [graphics, effect, false]);
+                NativeBattleEffectParameters parameters = (NativeBattleEffectParameters)prepare.Invoke(session, [context, (byte)1])!;
+                Assert.Equal((byte)2, parameters.Actor78);
+                Assert.Equal((byte)0x21, parameters.Flags79);
+                Assert.Equal((ushort)0x48, parameters.TargetMask7A);
+                Assert.Equal(3, parameters.HeaderIndex7C);
+                Assert.Equal((byte)0, parameters.Parameter81);
+                Assert.Equal((byte)0, parameters.Parameter83);
+                Assert.NotNull(parameters.Parameter80);
+                Assert.NotNull(parameters.Parameter82);
+                Assert.Equal(current.Parameter80, parameters.Parameter80);
+                Assert.Equal(current.Parameter82, parameters.Parameter82);
+            }
+            BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(session.Capture()))!);
+            NativeBattleEffectParameters afterRestore = (NativeBattleEffectParameters)prepare.Invoke(restored, [context, (byte)1])!;
+            Assert.Equal(current.Parameter80, afterRestore.Parameter80);
+            Assert.Equal(current.Parameter82, afterRestore.Parameter82);
+        }
+    }
+
     private sealed record SavedEffect(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect);
 
     private static ImmutableArray<NativeBattleEffectBinding> Catalog() => Enumerable.Range(1, 400).Select(effect => new NativeBattleEffectBinding((ushort)effect, 0x6298A0, 0x629880) { InitializerIsRet = false, InitializerResource = new("fixture.tim", 0x24CBD68) }).ToImmutableArray();

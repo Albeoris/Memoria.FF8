@@ -11,7 +11,10 @@ public sealed class NativeBattleRetainedMemoryTests
         using GameAssets assets = new(TestResources.GameDirectory);
         NativeBattleRetainedMemory actual = assets.ReadColdProcessNativeBattleMemory();
         NativeBattleRetainedMemory generic = NativeBattleRetainedMemory.FromColdProcess();
-        Assert.Equal((short?)0, actual.EffectMemory!.CuraContextF4);
+        Assert.Equal((byte?)0, actual.EffectMemory!.Parameter80);
+        Assert.Equal((byte?)0, actual.EffectMemory.Parameter82);
+        Assert.Equal((byte?)0, generic.EffectMemory!.Parameter82);
+        Assert.Equal((short?)0, actual.EffectMemory.CuraContextF4);
         Assert.Equal((int?)0, actual.EffectMemory.CuraSceneFade);
         Assert.Equal(NativeBattleCuragaExecutableState.FromColdProcess(), actual.EffectMemory.CuragaExecutable);
         var oldEffect = JsonSerializer.SerializeToNode(actual.EffectMemory)!.AsObject();

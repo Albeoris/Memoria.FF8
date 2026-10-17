@@ -69,6 +69,17 @@ public static class NativeBattleRetainedMemoryReader
         }
         NativeBattleEffectMemory effectMemory = NativeBattleEffectMemory.FromColdProcess() with
         {
+            Parameter80 = ReadLoaderBytes(0x1D99A80, 1)[0],
+            Parameter82 = ReadLoaderBytes(0x1D99A82, 1)[0],
+            ReturnedTaskPointer1D96AAC = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1D96AAC, 4)),
+            GuardianCasterBank = checked((byte)BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1D96DC4, 4))),
+            QuezacotlPause = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x25216DC, 4)),
+            QuezacotlCompletion17A8 = ReadLoaderBytes(0x25217A8, 1)[0],
+            QuezacotlTargetY1774 = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x2521774, 4)),
+            ActionPhaseDEA = ReadLoaderBytes(0x1D28DEA, 1)[0],
+            SequenceSine = BinaryPrimitives.ReadInt16LittleEndian(ReadLoaderBytes(0x1D981FC, 2)),
+            SequenceCosine = BinaryPrimitives.ReadInt16LittleEndian(ReadLoaderBytes(0x1D981FE, 2)),
+            SequenceParticlePreviousBone = ReadLoaderBytes(0x1D98208, 1)[0],
             DoubleMorph = new(NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 0x163FFD0u).Bytes),
             TripleMorph = new(NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 0x1627970u).Bytes),
             CureContextF4 = BinaryPrimitives.ReadInt16LittleEndian(ReadLoaderBytes(0x278C8DC, 2)),
