@@ -93,7 +93,7 @@ public sealed class AutoPlayVisitGuardTests
         Assert.Equal(first.ProgramHash, available.ProgramHash);
         Assert.Equal(Convert.ToHexString(SHA256.HashData(source)), available.ProgramHash);
         Assert.Equal(600, available.FieldId);
-        Assert.Equal(2, available.Version);
+        Assert.Equal(3, available.Version);
     }
 
     [Fact]

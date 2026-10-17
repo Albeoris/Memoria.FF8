@@ -1343,11 +1343,13 @@ public sealed partial class EventEngine
             // Native PREQ/PREQSW/PREQEW consume and drop a request whose priority slot is occupied.
             return;
         }
-        if ((uint)scriptIndex >= program.Objects[target.ObjectId].Scripts.Count)
+        NativeScriptPointer? physical = NativeRuntimeProfile is { IsVerified: true } ? ReadNativePartyRequestPointer(target.ObjectId, scriptIndex, Scene) : null;
+        EventScript script = physical?.Script ?? ((uint)scriptIndex < program.Objects[target.ObjectId].Scripts.Count ? program.Objects[target.ObjectId].Scripts[scriptIndex] : throw Fault(caller, $"{opcode} targets an unknown party actor script index."));
+        Fiber requested = Queue(target.ObjectId, script, priority, false);
+        if (physical is not null)
         {
-            throw Fault(caller, $"{opcode} targets an unknown party actor script index.");
+            requested.NativePartyRequestPointer = new NativePartyRequestPointer(1, scriptIndex, checked((ushort)physical.Index));
         }
-        Fiber requested = Queue(target.ObjectId, program.Objects[target.ObjectId].Scripts[scriptIndex].Id, priority, false);
         if (IsNativeActorRequest(target.ObjectId))
         {
             requested.NativeActorSlot = (byte)priority;

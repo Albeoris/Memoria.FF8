@@ -94,7 +94,7 @@ public sealed partial class EventEngine
         foreach (FiberCheckpoint fiber in saved.Fibers.Where(fiber => fiber.NativeActorSlot is not null))
         {
             bool movementRequest = saved.Actors[fiber.ObjectId].NativeMovementRequest is { } request && request.RequestSequence == fiber.Sequence && request.RequestSlot == fiber.NativeActorSlot && request.RequestScriptId == fiber.ScriptId;
-            bool haltedRequest = fiber.NativeActorSlot == fiber.Priority && !fiber.Initialization && program!.NativeObjects.Contains(fiber.ObjectId) && !program.Objects[fiber.ObjectId].IsDoor && (saved.Scene.NativeActorObjectIds.Contains(fiber.ObjectId) || program.Objects[fiber.ObjectId].BackgroundModuleIndex is not null || program.Objects[fiber.ObjectId].IsArea) && program.Objects[fiber.ObjectId].Scripts.Any(script => script.Id == fiber.ScriptId);
+            bool haltedRequest = fiber.NativeActorSlot == fiber.Priority && !fiber.Initialization && program!.NativeObjects.Contains(fiber.ObjectId) && !program.Objects[fiber.ObjectId].IsDoor && (saved.Scene.NativeActorObjectIds.Contains(fiber.ObjectId) || program.Objects[fiber.ObjectId].BackgroundModuleIndex is not null || program.Objects[fiber.ObjectId].IsArea) && (program.Objects[fiber.ObjectId].Scripts.Any(script => script.Id == fiber.ScriptId) || fiber.NativePartyRequestPointer is not null && ReadSavedFiberScript(fiber, saved.Scene).Id == fiber.ScriptId);
             if ((movementRequest || haltedRequest) && (fiber.NativeActorSlot > 7 || fiber.Priority != fiber.NativeActorSlot || fiber.Initialization))
             {
                 throw new InvalidDataException("Saved native actor request lost its original slot or retained body.");

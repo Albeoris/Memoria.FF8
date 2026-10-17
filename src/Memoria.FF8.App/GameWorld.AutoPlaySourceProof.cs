@@ -29,6 +29,7 @@ internal sealed partial class GameWorld
         }
         Queue<EventScript> pending = new(roots);
         HashSet<EventScript> inspected = [];
+        int[] possibleActors = program.NativeObjects.Take(program.NativeActorCount).ToArray();
         while (pending.TryDequeue(out EventScript? script))
         {
             if (!inspected.Add(script))
@@ -58,7 +59,22 @@ internal sealed partial class GameWorld
                     }
                     foreach (EventObject target in targets)
                     {
-                        EventScript? requested = partyRequest ? (uint)selector < target.Scripts.Count ? target.Scripts[selector] : null : target.Scripts.SingleOrDefault(candidate => candidate.Id == unchecked((ushort)selector));
+                        EventScript? requested;
+                        if (partyRequest)
+                        {
+                            try
+                            {
+                                requested = program.ResolveNativeRequestPointer(target.Index, selector, possibleActors).Script;
+                            }
+                            catch (NotSupportedException)
+                            {
+                                return false;
+                            }
+                        }
+                        else
+                        {
+                            requested = target.Scripts.SingleOrDefault(candidate => candidate.Id == unchecked((ushort)selector));
+                        }
                         if (requested is null)
                         {
                             return false;

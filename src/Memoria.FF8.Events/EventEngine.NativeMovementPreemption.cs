@@ -15,7 +15,7 @@ public sealed partial class EventEngine
 
     private int CurrentNativeRequestSlot(ActorState actor, Fiber? incoming = null) => fibers.Where(fiber => fiber.ObjectId == actor.ObjectId && !fiber.Complete && fiber != incoming).Select(NativeActorRequestSlot).DefaultIfEmpty(0).Max();
 
-    private string? UnsupportedNativeMovementRequest(ActorState actor, int priority, int scriptId)
+    private string? UnsupportedNativeMovementRequest(ActorState actor, int priority, int scriptId, EventScript? physicalScript = null)
     {
         //51CD60/51CED0/51D060 back up and stop only physical mode572=1.
         //Modes3/4 keep their current body/phase while the higher VM slot runs;
@@ -32,7 +32,7 @@ public sealed partial class EventEngine
         {
             if (CanTransferNativeMovementBackup(actor, existing))
             {
-                return UnsupportedNativeRequestResumption(actor, scriptId);
+                return UnsupportedNativeRequestResumption(actor, scriptId, physicalScript);
             }
             if (actor.NativeScriptMovement is not { Active: true, Suspended: false })
             {
@@ -64,13 +64,13 @@ public sealed partial class EventEngine
         {
             return "Native request requires its single original movement backup without unproved nested overwrite";
         }
-        return UnsupportedNativeRequestResumption(actor, scriptId);
+        return UnsupportedNativeRequestResumption(actor, scriptId, physicalScript);
     }
 
-    private string? UnsupportedNativeRequestResumption(ActorState actor, int scriptId)
+    private string? UnsupportedNativeRequestResumption(ActorState actor, int scriptId, EventScript? physicalScript = null)
     {
-        EventScript requested = program!.Objects[actor.ObjectId].Scripts.Single(script => script.Id == scriptId);
-        if (program.Operations.Where(operation => requested.ContainsOperation(operation.Index)).Any(operation => operation.Opcode == Jsm.Opcode.RET && operation.Parameter != 8) || fibers.Where(fiber => fiber.ObjectId == actor.ObjectId && !fiber.Complete).Sum(fiber => fiber.Stack.Count + 8) + 8 > 80)
+        EventScript requested = physicalScript ?? program!.Objects[actor.ObjectId].Scripts.Single(script => script.Id == scriptId);
+        if (program!.Operations.Where(operation => requested.ContainsOperation(operation.Index)).Any(operation => operation.Opcode == Jsm.Opcode.RET && operation.Parameter != 8) || fibers.Where(fiber => fiber.ObjectId == actor.ObjectId && !fiber.Complete).Sum(fiber => fiber.Stack.Count + 8) + 8 > 80)
         {
             return "Native movement request requires RET8 resumption and the original eighty-word operand/result stack";
         }

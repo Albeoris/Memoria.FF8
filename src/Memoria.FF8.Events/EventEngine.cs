@@ -603,7 +603,12 @@ public sealed partial class EventEngine
             throw new InvalidDataException($"Field {FieldId} request refers to unknown object {objectId}.");
         }
         EventScript script = program.Objects[objectId].Scripts.SingleOrDefault(item => item.Id == scriptId) ?? throw new InvalidDataException($"Field {FieldId} object {objectId} has no script label {scriptId}.");
-        Fiber fiber = new(objectId, script, priority, ++sequence, initialization) { BackgroundId = program.Objects[objectId].BackgroundModuleIndex ?? 0 };
+        return Queue(objectId, script, priority, initialization);
+    }
+
+    private Fiber Queue(int objectId, EventScript script, int priority, bool initialization)
+    {
+        Fiber fiber = new(objectId, script, priority, ++sequence, initialization) { BackgroundId = program!.Objects[objectId].BackgroundModuleIndex ?? 0 };
         fibers.Add(fiber);
         return fiber;
     }
@@ -818,6 +823,7 @@ public sealed partial class EventEngine
         public int SoundResourceId;
         public byte? NativeDoorSlot;
         public byte? NativeActorSlot;
+        public NativePartyRequestPointer? NativePartyRequestPointer;
         public int? NativeMoveOperation;
         public int? NativeMoveTarget;
         public int? NativeShadeOperation;

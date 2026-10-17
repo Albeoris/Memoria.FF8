@@ -1205,7 +1205,7 @@ internal sealed class AutoPlayController
         {
             return includeUnknown;
         }
-        if (guard.Version is not (1 or AutoPlayVisitGuard.CurrentVersion) || guard.FieldId != field)
+        if (guard.Version is not (1 or 2 or AutoPlayVisitGuard.CurrentVersion) || guard.FieldId != field)
         {
             throw new InvalidDataException("The visited field eligibility receipt has an unsupported version or field identity.");
         }

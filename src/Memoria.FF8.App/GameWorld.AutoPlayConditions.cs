@@ -7,7 +7,7 @@ namespace Memoria.FF8;
 
 internal sealed record AutoPlayVisitGuard(int Version, int FieldId, string ProgramHash, ImmutableArray<NativePersistentPredicateRead> Reads, string Fingerprint)
 {
-    internal const int CurrentVersion = 2;
+    internal const int CurrentVersion = 3;
 }
 
 internal sealed partial class GameWorld

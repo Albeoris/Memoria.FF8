@@ -248,12 +248,19 @@ internal sealed partial class GameWorld
                 {
                     continue;
                 }
-                // Party requests select a local script index on the execution-time bound actor, not a global script label.
-                IEnumerable<EventObject> targets = partyRequest ? program.NativeObjects.Take(program.NativeActorCount).Select(objectId => program.Objects[objectId]) : [program.Objects[program.NativeObjects[operation.Parameter]]];
-                int? selector = index >= 1 && program.Operations[index - 1].Opcode == Jsm.Opcode.PSHN_L ? program.Operations[index - 1].Parameter : null;
+                int? selector = index > current.Start && current.ContainsOperation(index - 1) && program.Operations[index - 1].Opcode == Jsm.Opcode.PSHN_L && !AutoPlaySourceHasInteriorEntry(program, current, index - 1, index) ? program.Operations[index - 1].Parameter : null;
+                if (partyRequest)
+                {
+                    foreach (EventScript requested in AutoPlayPartyRequestScripts(program, selector))
+                    {
+                        pending.Enqueue(requested);
+                    }
+                    continue;
+                }
+                IEnumerable<EventObject> targets = [program.Objects[program.NativeObjects[operation.Parameter]]];
                 foreach (EventObject target in targets)
                 {
-                    foreach (EventScript requested in target.Scripts.Where((item, local) => selector is null || (partyRequest ? local == selector.Value : item.Id == unchecked((ushort)selector.Value))))
+                    foreach (EventScript requested in target.Scripts.Where(item => selector is null || item.Id == unchecked((ushort)selector.Value)))
                     {
                         pending.Enqueue(requested);
                     }
@@ -261,5 +268,28 @@ internal sealed partial class GameWorld
             }
         }
         return operations;
+    }
+
+    private static IReadOnlyList<EventScript> AutoPlayPartyRequestScripts(JsmProgram program, int? selector)
+    {
+        if (selector is null)
+        {
+            return program.NativeScriptPointers.Select(pointer => pointer.Script).ToArray();
+        }
+        int[] possibleActors = program.NativeObjects.Take(program.NativeActorCount).ToArray();
+        List<EventScript> requested = [];
+        foreach (int objectId in possibleActors)
+        {
+            try
+            {
+                requested.Add(program.ResolveNativeRequestPointer(objectId, selector.Value, possibleActors).Script);
+            }
+            catch (NotSupportedException)
+            {
+                // Unknown execution admission must not omit possible story writes or predicate reads.
+                return program.NativeScriptPointers.Select(pointer => pointer.Script).ToArray();
+            }
+        }
+        return requested;
     }
 }

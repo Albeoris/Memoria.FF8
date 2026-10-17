@@ -39,6 +39,7 @@ internal static partial class Program
                     ["native-animation-backup"] = () => NativeAnimationBackupContract(selectedGameDirectory),
                     ["native-field-bars"] = () => NativeFieldBarsContract(selectedGameDirectory),
                     ["native-actor-visibility"] = () => NativeActorVisibilityContract(selectedGameDirectory),
+                    ["native-party-request-pointer"] = NativePartyRequestPointerContract,
                     ["native-request-physical-alias"] = () => NativeRequestPhysicalAliasContract(selectedGameDirectory),
                     ["native-world-entry-memory"] = () => NativeWorldEntryMemoryContract(selectedGameDirectory),
                     ["native-world-music-selection"] = () => NativeWorldMusicSelectionContract(selectedGameDirectory),

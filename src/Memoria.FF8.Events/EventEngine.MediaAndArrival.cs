@@ -659,12 +659,27 @@ public sealed partial class EventEngine
         {
             return null;
         }
-        if ((uint)fiber.Stack.Peek() >= program!.Objects[target.ObjectId].Scripts.Count)
+        EventScript partyScript;
+        if (NativeRuntimeProfile is { IsVerified: true })
         {
-            return $"Unsupported {operation.Opcode} targets an unknown original party actor local script index";
+            try
+            {
+                partyScript = ReadNativePartyRequestPointer(target.ObjectId, fiber.Stack.Peek(), Scene).Script;
+            }
+            catch (NotSupportedException exception)
+            {
+                return exception.Message;
+            }
         }
-        int partyScriptId = program.Objects[target.ObjectId].Scripts[fiber.Stack.Peek()].Id;
-        return UnsupportedNativeMovementRequest(target, priority, partyScriptId);
+        else
+        {
+            if ((uint)fiber.Stack.Peek() >= program!.Objects[target.ObjectId].Scripts.Count)
+            {
+                return $"Unsupported {operation.Opcode} targets an unknown party actor local script index";
+            }
+            partyScript = program.Objects[target.ObjectId].Scripts[fiber.Stack.Peek()];
+        }
+        return UnsupportedNativeMovementRequest(target, priority, partyScript.Id, partyScript);
     }
 
     private void SampleMoviePlayback()

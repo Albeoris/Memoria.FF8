@@ -62,14 +62,14 @@ public sealed class AutoPlayDiscoveryTests
     [InlineData(Jsm.Opcode.PREQ)]
     [InlineData(Jsm.Opcode.PREQSW)]
     [InlineData(Jsm.Opcode.PREQEW)]
-    public void PartyRequestsFollowLocalIndicesRatherThanGlobalLabels(Jsm.Opcode opcode)
+    public void PartyRequestsUsePhysicalSelectorsAndKeepUnknownPointersConservative(Jsm.Opcode opcode)
     {
-        JsmProgram program = JsmProgram.Read(ProgramWithLabel(40, [(Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.PSHN_L, 1), (opcode, 0)], [(Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.POPM_W, 256)], [(Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_W, 700)]));
+        JsmProgram program = JsmProgram.Read(ProgramWithLabel(0, [(Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.PSHN_L, 1), (opcode, 0)], [(Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.POPM_W, 256)], [(Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_W, 700)]));
         Assert.True(GameWorld.AutoPlayScriptChangesStory(program, program.Objects[0].Scripts[0]));
-        program = JsmProgram.Read(ProgramWithLabel(40, [(Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.PSHN_L, 2), (opcode, 0)], [(Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.POPM_W, 256)], [(Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_W, 700)]));
+        program = JsmProgram.Read(ProgramWithLabel(0, [(Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.PSHN_L, 2), (opcode, 0)], [(Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.POPM_W, 256)], [(Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_W, 700)]));
         Assert.False(GameWorld.AutoPlayScriptChangesStory(program, program.Objects[0].Scripts[0]));
-        program = JsmProgram.Read(ProgramWithLabel(40, [(Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.PSHN_L, 41), (opcode, 0)], [(Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.POPM_W, 256)]));
-        Assert.False(GameWorld.AutoPlayScriptChangesStory(program, program.Objects[0].Scripts[0]));
+        program = JsmProgram.Read(ProgramWithLabel(0, [(Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.PSHN_L, 41), (opcode, 0)], [(Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.POPM_W, 256)]));
+        Assert.True(GameWorld.AutoPlayScriptChangesStory(program, program.Objects[0].Scripts[0]));
     }
 
     [Fact]

@@ -152,7 +152,22 @@ public sealed partial class EventEngine
                 }
                 foreach (EventObject target in targets)
                 {
-                    EventScript? requested = partyRequest ? selector >= 0 && selector < target.Scripts.Count ? target.Scripts[selector] : null : target.Scripts.SingleOrDefault(script => script.Id == unchecked((ushort)selector));
+                    EventScript? requested;
+                    if (partyRequest)
+                    {
+                        try
+                        {
+                            requested = ReadNativePartyRequestPointer(target.Index, selector, Scene).Script;
+                        }
+                        catch (NotSupportedException)
+                        {
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        requested = target.Scripts.SingleOrDefault(script => script.Id == unchecked((ushort)selector));
+                    }
                     if (requested is null)
                     {
                         return false;

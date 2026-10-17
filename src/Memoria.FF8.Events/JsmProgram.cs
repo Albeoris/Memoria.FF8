@@ -10,23 +10,46 @@ public sealed record EventScript(int Id, int Start, int End, FrozenSet<int> Reac
 
     public bool ContainsPosition(int position, bool complete) => ContainsOperation(position) || complete && TerminalSuccessors.Contains(position);
 }
+public sealed record NativeScriptPointer(int Index, int ObjectId, ushort RawPointer, EventScript Script);
 public sealed record EventObject(int Index, int Label, IReadOnlyList<EventScript> Scripts, int? BackgroundModuleIndex = null, bool IsArea = false, bool IsDoor = false);
 
 /// <summary>Validated bytecode ranges correlated with Albeoris's source-backed operations.</summary>
 public sealed class JsmProgram
 {
-    private JsmProgram(IReadOnlyList<EventObject> objects, IReadOnlyList<JsmOperation> operations, IReadOnlyList<int> nativeObjects, int nativeActorCount)
+    private JsmProgram(IReadOnlyList<EventObject> objects, IReadOnlyList<JsmOperation> operations, IReadOnlyList<int> nativeObjects, int nativeActorCount, IReadOnlyList<NativeScriptPointer> nativeScriptPointers)
     {
         Objects = objects;
         Operations = operations;
         NativeObjects = nativeObjects;
         NativeActorCount = nativeActorCount;
+        NativeScriptPointers = nativeScriptPointers;
     }
 
     public IReadOnlyList<EventObject> Objects { get; }
     public IReadOnlyList<JsmOperation> Operations { get; }
     public IReadOnlyList<int> NativeObjects { get; }
     public int NativeActorCount { get; }
+    public IReadOnlyList<NativeScriptPointer> NativeScriptPointers { get; }
+
+    public NativeScriptPointer ResolveNativeRequestPointer(int objectId, int localSelector, IReadOnlyCollection<int> retainedActors)
+    {
+        if (retainedActors.Distinct().Count() != retainedActors.Count || retainedActors.Any(id => !NativeObjects.Take(NativeActorCount).Contains(id)) || (uint)objectId >= Objects.Count || !retainedActors.Contains(objectId) || !NativeObjects.Take(NativeActorCount).Contains(objectId))
+        {
+            throw new NotSupportedException("Native request pointer requires its actually retained physical actor.");
+        }
+        ushort pointer = unchecked((ushort)(Objects[objectId].Label + localSelector));
+        if (pointer >= NativeScriptPointers.Count)
+        {
+            throw new NotSupportedException("Native request pointer lies outside the validated original script table.");
+        }
+        NativeScriptPointer entry = NativeScriptPointers[pointer];
+        bool admitted = (entry.RawPointer & 0x8000) != 0 || retainedActors.Any(id => (uint)id < Objects.Count && pointer >= Objects[id].Label && pointer <= Objects[id].Label + Objects[id].Scripts.Count);
+        if (!admitted)
+        {
+            throw new NotSupportedException("Native request pointer has no executed instruction-copy allocation; an omitted table entry cannot select its original code.");
+        }
+        return entry;
+    }
 
     public static JsmProgram Read(byte[] content)
     {
@@ -69,6 +92,7 @@ public sealed class JsmProgram
             throw new InvalidDataException("JSM script position table is incomplete.");
         }
         List<EventObject> objects = [];
+        List<NativeScriptPointer> nativeScriptPointers = [];
         HashSet<int> labels = [];
         int positionIndex = 0;
         foreach (ushort group in groups)
@@ -84,7 +108,9 @@ public sealed class JsmProgram
                     throw new InvalidDataException($"Invalid or overlapping JSM script label/range {label + index}: {start}..{end}.");
                 }
                 ValidateScript(content, operationsOffset, label + index, start, end, operationCount);
-                scripts.Add(CreateScript(label + index, start, end, operations));
+                EventScript script = CreateScript(label + index, start, end, operations);
+                scripts.Add(script);
+                nativeScriptPointers.Add(new NativeScriptPointer(positionIndex, objects.Count, BinaryPrimitives.ReadUInt16LittleEndian(content.AsSpan(scriptsOffset + positionIndex * 2)), script));
                 positionIndex++;
             }
             int moduleIndex = -1;
@@ -99,7 +125,7 @@ public sealed class JsmProgram
             }
             objects.Add(new EventObject(objects.Count, label, scripts, moduleIndex < 0 ? null : moduleIndex, areaGroups.Contains(group), doorGroups.Contains(group)));
         }
-        return new JsmProgram(objects, operations, nativeGroups.Select(group => objects.Single(obj => obj.Label == group >> 7).Index).ToArray(), content[3]);
+        return new JsmProgram(objects, operations, nativeGroups.Select(group => objects.Single(obj => obj.Label == group >> 7).Index).ToArray(), content[3], nativeScriptPointers);
     }
 
     public static int JumpTarget(int operation, int parameter) => unchecked((ushort)(operation + unchecked((short)parameter)));
