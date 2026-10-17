@@ -1192,6 +1192,7 @@ internal sealed partial class RecreateGame : Game
             movie?.Dispose();
             world?.Dispose();
             movieClock.Dispose();
+            battlePresentationPacer.Dispose();
             resourceHost?.Dispose();
             DisposeBattlePresentation();
             fieldTexture?.Dispose();

@@ -42,7 +42,8 @@ public sealed class BattleHostLoopPerformanceTests
         Set(game, "globalSettings", settings);
         string? requestedFps = Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_PERFORMANCE_FPS");
         int fps = requestedFps is null ? 60 : int.Parse(requestedFps, System.Globalization.CultureInfo.InvariantCulture);
-        Set(game, "uiPreferences", new UiPreferences { WindowWidth = 960, WindowHeight = 720, VSync = false, BattleFps = fps });
+        bool vSync = Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_PERFORMANCE_VSYNC") == "1";
+        Set(game, "uiPreferences", new UiPreferences { WindowWidth = 960, WindowHeight = 720, VSync = vSync, BattleFps = fps });
         if (speed == 3)
         {
             Get<GameplayClock>(game, "gameplayClock").ToggleSpeed();
@@ -54,7 +55,7 @@ public sealed class BattleHostLoopPerformanceTests
         GameLoopSample sample = Get<GameLoopMetrics>(game, "metrics").Latest!;
         Assert.NotNull(sample);
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_EVIDENCE");
-        NativeBattleProductionEffectAdmissionTests.Publish(evidence, $"host-loop-x{speed}-measurement", new { Speed = speed, FramesPerSecondLimit = fps, Seconds = seconds, sample, PresentedScenes = Get<GpuTriangleRenderer?>(game, "battleGpu")?.PresentationVersion, InitialFrame = initialFrame, FinalFrame = battle.Frame, InitialCallback = initialCallback, FinalCallback = battle.NativeGraphics.Callback });
+        NativeBattleProductionEffectAdmissionTests.Publish(evidence, $"host-loop-x{speed}-measurement", new { Speed = speed, FramesPerSecondLimit = fps, VSync = vSync, Seconds = seconds, sample, PresentedScenes = Get<GpuTriangleRenderer?>(game, "battleGpu")?.PresentationVersion, InitialFrame = initialFrame, FinalFrame = battle.Frame, InitialCallback = initialCallback, FinalCallback = battle.NativeGraphics.Callback });
         session.SetLiveBattle(battle);
         session.SetEventState(world.Events.Capture());
         NativeBattleProductionEffectAdmissionTests.Publish(evidence, $"host-loop-x{speed}-after", session.State);

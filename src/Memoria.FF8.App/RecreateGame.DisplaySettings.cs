@@ -1,27 +1,33 @@
 using Memoria.FF8.Runtime;
 using Microsoft.Xna.Framework;
+using System.Diagnostics;
 
 namespace Memoria.FF8;
 
 internal sealed partial class RecreateGame
 {
     private readonly PresentationTiming presentationTiming = new();
+    private readonly BattlePresentationPacer battlePresentationPacer = new();
     private int? appliedFrameLimit;
+    private bool appliedNativeBattlePacing;
 
     private void ApplyDisplaySettings()
     {
         bool menu = startup.Active || session.State.Scene == SceneKind.Title || gameMenus?.IsOpen == true || saveMenu.IsOpen || battleDebug is not null || world?.ActiveTripleTriad is not null;
         int frameLimit = PresentationTiming.FrameLimit(uiPreferences, menu, ActiveBattle is not null);
-        if (appliedFrameLimit != frameLimit)
+        bool nativeBattle = ActiveBattle?.NativeGraphics is not null;
+        if (appliedFrameLimit != frameLimit || appliedNativeBattlePacing != nativeBattle)
         {
-            // MonoGame owns display pacing; native battle callbacks retain their own elapsed-time clock.
-            IsFixedTimeStep = frameLimit != 0;
+            // Native battles yield to Draw between bounded catch-up batches instead of letting fixed-step catch-up starve presentation.
+            IsFixedTimeStep = !nativeBattle && frameLimit != 0;
             if (frameLimit != 0)
             {
                 TargetElapsedTime = TimeSpan.FromSeconds(1d / frameLimit);
             }
             MaxElapsedTime = PresentationTiming.MaximumElapsed;
             appliedFrameLimit = frameLimit;
+            appliedNativeBattlePacing = nativeBattle;
+            battlePresentationPacer.Reset();
         }
         if (graphics.SynchronizeWithVerticalRetrace != uiPreferences.VSync)
         {
@@ -32,6 +38,12 @@ internal sealed partial class RecreateGame
 
     private void UpdateDisplayFrame(GameTime gameTime)
     {
+        if (appliedNativeBattlePacing)
+        {
+            battlePresentationPacer.WaitForNextFrame(appliedFrameLimit ?? 60);
+        }
+        long started = Stopwatch.GetTimestamp();
+        TimeSpan workBudget = appliedFrameLimit is > 0 ? TimeSpan.FromSeconds(1d / appliedFrameLimit.Value) : PresentationTiming.SimulationStep;
         presentationTiming.Accumulate(gameTime.ElapsedGameTime);
         if (pendingCapture is not null)
         {
@@ -48,6 +60,11 @@ internal sealed partial class RecreateGame
             UpdateGameFrame(new GameTime(presentationTiming.SimulationTotal, step, gameTime.IsRunningSlowly));
             if (pendingCapture is not null)
             {
+                break;
+            }
+            if (appliedNativeBattlePacing && Stopwatch.GetElapsedTime(started) >= workBudget)
+            {
+                // The remaining elapsed-time debt stays in presentationTiming for the next display frame.
                 break;
             }
         }

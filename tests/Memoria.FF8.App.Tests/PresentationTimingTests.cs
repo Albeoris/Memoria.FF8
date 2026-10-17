@@ -5,6 +5,8 @@ namespace Memoria.FF8.App.Tests;
 public sealed class PresentationTimingTests
 {
     [Theory]
+    [InlineData(15, 90, 60)]
+    [InlineData(30, 90, 60)]
     [InlineData(60, 90, 60)]
     [InlineData(90, 90, 90)]
     [InlineData(120, 90, 90)]
