@@ -6,6 +6,38 @@ namespace Memoria.FF8.Assets;
 /// <summary>The executed simple-range section9 clause, without trailing resource alignment padding or materialized vehicle state.</summary>
 public sealed record NativeWorldAllocationClause(int Index, int Offset, int Length, ushort MinimumStory, ushort MaximumStory, ImmutableArray<ushort> Words)
 {
+    /// <summary>Original546E10/544860 exact foot-shape selection; other entity modes require their own allocation paths.</summary>
+    public bool? HasRequestedFootObject(byte entityType)
+    {
+        byte shape;
+        switch (entityType)
+        {
+            case 0:
+            case 3:
+            case 4:
+            case 5:
+            case 7:
+            case 8:
+            case 9:
+                shape = 0;
+                break;
+            case 1:
+                shape = 4;
+                break;
+            case 2:
+                shape = 5;
+                break;
+            case 6:
+                shape = 6;
+                break;
+            default:
+                return null;
+        }
+        // Saved cars, shape94 and flag-selected79/80 pairs cannot supply these
+        // foot shapes; the late auxiliary append does not rerun this selector.
+        return ContainsShape(shape);
+    }
+
     public bool ContainsShape(byte shape)
     {
         for (int index = 8; index < Words.Length - 2; index += 2)

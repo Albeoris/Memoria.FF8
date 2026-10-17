@@ -27,7 +27,29 @@ internal sealed partial class GameWorld
         {
             return [];
         }
-        return DiscoverAutoPlayTargets(Field, Events, player);
+        IReadOnlyList<AutoPlayTarget> targets = DiscoverAutoPlayTargets(Field, Events, player);
+        if (!NeedsAutoPlayWorldGatewayOwnerLookup(Field.Id, targets, Events.InfGateways))
+        {
+            return targets;
+        }
+        ushort story = session.State.WorldEntryMemory?.StoryWord ?? throw new NotSupportedException("World gateway discovery requires its typed native story memory.");
+        NativeWorldAllocationClause clause = assets.ReadNativeWorldAllocationClause(story);
+        return FilterAutoPlayWorldGatewayTargets(Field.Id, targets, Events.InfGateways, clause);
+    }
+
+    internal static bool NeedsAutoPlayWorldGatewayOwnerLookup(int fieldId, IReadOnlyList<AutoPlayTarget> targets, IReadOnlyList<InfGateway> gateways)
+    {
+        HashSet<string> available = targets.Where(target => target.Kind == AutoPlayTargetKind.Gateway).Select(target => target.CoverageId).ToHashSet(StringComparer.Ordinal);
+        return gateways.Select((gateway, index) => (Gateway: gateway, Index: index))
+            .Any(item => item.Gateway.Destination.FieldId is >= 0 and < 72 && unchecked((byte)item.Gateway.Destination.Triangle) <= 9 && available.Contains($"{fieldId}:gateway:{item.Index}"));
+    }
+
+    internal static IReadOnlyList<AutoPlayTarget> FilterAutoPlayWorldGatewayTargets(int fieldId, IReadOnlyList<AutoPlayTarget> targets, IReadOnlyList<InfGateway> gateways, NativeWorldAllocationClause clause)
+    {
+        HashSet<string> unavailable = gateways.Select((gateway, index) => (Gateway: gateway, Index: index))
+            .Where(item => item.Gateway.Destination.FieldId is >= 0 and < 72 && clause.HasRequestedFootObject(unchecked((byte)item.Gateway.Destination.Triangle)) == false)
+            .Select(item => $"{fieldId}:gateway:{item.Index}").ToHashSet(StringComparer.Ordinal);
+        return targets.Where(target => target.Kind != AutoPlayTargetKind.Gateway || !unavailable.Contains(target.CoverageId)).ToArray();
     }
 
     internal static IReadOnlyList<AutoPlayTarget> DiscoverAutoPlayTargets(FieldAssets field, EventEngine events, ActorState player)
