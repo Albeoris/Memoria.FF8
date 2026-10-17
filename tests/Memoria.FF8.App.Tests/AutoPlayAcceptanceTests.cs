@@ -7,6 +7,28 @@ namespace Memoria.FF8.App.Tests;
 public sealed class AutoPlayAcceptanceTests
 {
     [Fact]
+    public void OrdinaryLibrarianTalkKeepsTheNativeAbsentPartyBranchClosed()
+    {
+        string gameDirectory = TestResources.GameDirectory;
+        string manifest = TestResources.FixturePath("App.Tests.AutoPlayAcceptanceTests.3");
+        using InstalledRun run = new(gameDirectory);
+        run.Controller.ResumeFrom(manifest);
+        JsonElement before = run.Snapshot();
+        for (int step = 0; step < 32 && !run.Branches.Any(branch => branch.Operation == 2213); step++)
+        {
+            run.Controller.Advance(1);
+            Assert.Null(run.Controller.Error);
+        }
+        BranchDecision partyGuard = Assert.Single(run.Branches, branch => branch.Operation == 2213);
+        Assert.False(partyGuard.ConditionPassed);
+        Assert.Equal(0, partyGuard.Value);
+        JsonElement after = run.Snapshot();
+        Assert.True(JsonElement.DeepEquals(before.GetProperty("EventState").GetProperty("Scene").GetProperty("Party"), after.GetProperty("EventState").GetProperty("Scene").GetProperty("Party")));
+        Assert.Equal(16, run.Variables.GetValueOrDefault(256));
+        Assert.Equal(0, run.Variables.GetValueOrDefault(1054));
+    }
+
+    [Fact]
     public void ScriptedChoiceReplayRecoversAContactOwnerBetweenNativeCallbacks()
     {
         string gameDirectory = TestResources.GameDirectory;
@@ -163,6 +185,8 @@ public sealed class AutoPlayAcceptanceTests
 
         public AutoPlayController Controller { get; }
         public IReadOnlyList<Memoria.FF8.Events.DialogueOutcome> DialogueOutcomes => GetWorld().Events.DialogueOutcomes;
+        public IReadOnlyList<BranchDecision> Branches => GetWorld().Events.Decisions;
+        public IReadOnlyDictionary<int, int> Variables => GetWorld().Events.Variables;
         public string OutputDirectory => outputDirectory;
         public bool PreserveArtifacts { get; set; }
 

@@ -30,6 +30,34 @@ public sealed class ResourceService : IResourceChangeFeed
 
     public ResourceContent Get(ResourceKey key) => source.Find(key) ?? throw new FileNotFoundException($"Resource {key} is unavailable from {Source.Id}.");
 
+    public ResourcePrefix ReadPrefix(ResourceKey key, int maximumBytes)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maximumBytes);
+        if (source is IResourcePrefixSource prefixSource && prefixSource.ReadPrefix(key, maximumBytes) is ResourcePrefix prefix)
+        {
+            if (prefix.Bytes is null || prefix.Bytes.Length > maximumBytes || prefix.Length is long length && (length < 0 || prefix.Bytes.Length > length))
+            {
+                throw new InvalidDataException("Resource prefix differs from its declared bound or length.");
+            }
+            return prefix;
+        }
+        using Stream stream = Get(key).OpenRead();
+        long? size = stream.CanSeek ? stream.Length - stream.Position : null;
+        using MemoryStream bytes = new();
+        byte[] buffer = new byte[Math.Min(8192, maximumBytes)];
+        while (bytes.Length < maximumBytes)
+        {
+            int count = stream.Read(buffer, 0, (int)Math.Min(buffer.Length, maximumBytes - bytes.Length));
+            if (count == 0)
+            {
+                size ??= bytes.Length;
+                break;
+            }
+            bytes.Write(buffer, 0, count);
+        }
+        return new ResourcePrefix(bytes.ToArray(), size);
+    }
+
     public byte[] Read(ResourceKey key)
     {
         using Stream stream = Get(key).OpenRead();

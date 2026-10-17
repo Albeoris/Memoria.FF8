@@ -140,7 +140,7 @@ internal static partial class Program
                     ["native-door-default-frame"] = () => NativeDoorDefaultFrameContract(selectedGameDirectory),
                     ["native-movie-mask-control"] = () => NativeMovieMaskControlContract(selectedGameDirectory),
                     ["native-music-status"] = () => NativeMusicStatusContract(selectedGameDirectory),
-                    ["native-actor-info-unknown"] = NativeActorInfoUnknownReadContract,
+                    ["native-actor-info-unknown"] = () => NativeActorInfoUnknownReadContract(selectedGameDirectory),
                     ["native-actor-info"] = () => NativeActorInfoContract(selectedGameDirectory),
                     ["native-movement-request"] = NativeMovementRequestContract,
                     ["native-mode0-request-transfer"] = NativeModeZeroRequestTransferContract,

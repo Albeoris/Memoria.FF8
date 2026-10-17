@@ -128,6 +128,7 @@ internal sealed partial class GameWorld : IDisposable
         Events.ResolveNativeMagazinePage = (itemId, pageId) => FieldItemCatalog.MagazinePage(itemId, pageId);
         Events.ResolveNativeRefinementDefinitions = assets.ReadNativeRefinementDefinitions;
         Events.ReadNativeDrawPointCatalog = assets.ReadNativeDrawPointCatalog;
+        Events.ReadNativeActorInfoArena = assets.ReadNativeActorInfoArena;
         Events.ReadSteamDiscMount = selectedDisc => NativeSteamDiscMountReader.Read(assets.GameDirectory, selectedDisc);
     }
 

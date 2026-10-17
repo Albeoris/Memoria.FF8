@@ -5,6 +5,8 @@ namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
+    public Func<NativeActorInfoArenaDefinition>? ReadNativeActorInfoArena { get; set; }
+
     private ActorState? ResolveNativeIndexedPartyBody(int operand, out int bankAddress, out byte nativeActor)
     {
         bankAddress = -1;
@@ -60,8 +62,7 @@ public sealed partial class EventEngine
             actor = ResolveNativeIndexedPartyBody(fiber.Stack.Peek(), out bankAddress, out nativeActor);
             if (actor is null)
             {
-                // Native51EEB0 still reads base+612*index. Preserve unknown results
-                // when no retained body supplies those bytes.
+                // Native51EEB0 still reads base+612*index outside the retained table.
                 return null;
             }
         }
@@ -84,10 +85,14 @@ public sealed partial class EventEngine
         }
         try
         {
-            _ = ResolveNativeActorInfoBody(fiber, operation.Opcode == Jsm.Opcode.PGETINFO, out _, out _);
+            ActorState? actor = ResolveNativeActorInfoBody(fiber, operation.Opcode == Jsm.Opcode.PGETINFO, out _, out byte nativeActor);
+            if (actor is null)
+            {
+                _ = TryReadNativeArenaActorInfo(nativeActor, out _);
+            }
             return null;
         }
-        catch (NotSupportedException exception)
+        catch (Exception exception) when (exception is IOException or InvalidDataException or NotSupportedException)
         {
             return exception.Message;
         }
@@ -100,7 +105,10 @@ public sealed partial class EventEngine
         NativeScalarValue[] values;
         if (actor is null)
         {
-            values = new[] { 0, 1, 2, 4, 5, 6 }.Select(register => new NativeScalarValue([], ActorInfoOrigin: new NativeActorInfoReadOrigin(1, FieldId, programHash, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, rawOperand, bankAddress, nativeActor, Scene.NativeActorObjectIds.Count, register))).ToArray();
+            if (!TryReadNativeArenaActorInfo(nativeActor, out values))
+            {
+                values = new[] { 0, 1, 2, 4, 5, 6 }.Select(register => new NativeScalarValue([], ActorInfoOrigin: new NativeActorInfoReadOrigin(1, FieldId, programHash, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, rawOperand, bankAddress, nativeActor, Scene.NativeActorObjectIds.Count, register))).ToArray();
+            }
         }
         else
         {
@@ -119,5 +127,52 @@ public sealed partial class EventEngine
             fiber.Results[registers[index]] = values[index];
         }
         return args;
+    }
+
+    private bool TryReadNativeArenaActorInfo(byte nativeActor, out NativeScalarValue[] values)
+    {
+        values = [];
+        if (program is null || ReadNativeActorInfoArena?.Invoke() is not { } arena)
+        {
+            return false;
+        }
+        arena.Validate();
+        if (arena.ExecutableHash != NativeRuntimeProfile?.ExecutableHash || program.NativeObjects.Count > arena.MaximumDeclaredRecords)
+        {
+            return false;
+        }
+        int prefix = 0;
+        foreach (int objectId in program.NativeObjects.Skip(program.NativeActorCount))
+        {
+            EventObject obj = program.Objects[objectId];
+            if (obj.IsDoor)
+            {
+                prefix = checked(prefix + 416);
+            }
+            else if (obj.IsArea)
+            {
+                prefix = checked(prefix + 396);
+            }
+            else if (obj.BackgroundModuleIndex is not null)
+            {
+                prefix = checked(prefix + 436);
+            }
+            else
+            {
+                return false;
+            }
+        }
+        int[] offsets = [400, 404, 408, 577, 506, 510];
+        int[] widths = [4, 4, 4, 1, 2, 2];
+        int[] raw = new int[offsets.Length];
+        for (int index = 0; index < offsets.Length; index++)
+        {
+            if (!arena.TryReadZero(prefix, nativeActor, offsets[index], widths[index], out raw[index]))
+            {
+                return false;
+            }
+        }
+        values = [raw[0] / 4096, raw[1] / 4096, raw[2] / 4096, (byte)raw[3], (ushort)raw[4], (short)raw[5]];
+        return true;
     }
 }

@@ -30,6 +30,14 @@ public readonly record struct ResourceKey
 
 public sealed record ResourceContent(ResourceKey Key, string Format, long Revision, string Provenance, Func<Stream> OpenRead);
 
+public sealed record ResourcePrefix(byte[] Bytes, long? Length);
+
+/// <summary>Optional bounded reads for sources whose ordinary resources require materializing nested storage.</summary>
+public interface IResourcePrefixSource
+{
+    ResourcePrefix? ReadPrefix(ResourceKey key, int maximumBytes);
+}
+
 public interface IResourceSource : IDisposable
 {
     ResourceSourceDescriptor Descriptor { get; }
