@@ -2,7 +2,6 @@ using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Reflection.PortableExecutable;
 using System.Security.Cryptography;
-using Albeoris.Games.FF8.FlArchives;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Memoria.FF8.Runtime;
 
@@ -71,7 +70,7 @@ public sealed partial class GameAssets
             {
                 throw new InvalidDataException("Native Fire binding differs from its original resource initializer.");
             }
-            using IFlArchive magic = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "magic.fs"), FlArchiveRepresentation.Files);
+            using IFlArchive magic = OpenArchive("magic");
             nativeEffectCatalog = catalog.SetItem(1, fire with { InitializerAsset = new("mag001.tim", Read(magic, "mag001.tim").ToImmutableArray()) });
         }
         return nativeEffectCatalog;

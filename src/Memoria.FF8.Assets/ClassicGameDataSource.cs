@@ -5,7 +5,7 @@ using Memoria.FF8.Resources;
 namespace Memoria.FF8.Assets;
 
 /// <summary>Owns Classic storage. Logical keys are archive family / nested archive / resource.</summary>
-public sealed class ClassicGameDataSource : IResourceSource
+public sealed partial class ClassicGameDataSource : IResourceSource, IGameArchiveSource, IGameFileSource
 {
     private readonly string gameDirectory;
     private readonly Dictionary<string, IFlArchive> archives = new(StringComparer.OrdinalIgnoreCase);
@@ -19,12 +19,41 @@ public sealed class ClassicGameDataSource : IResourceSource
 
     public ResourceSourceDescriptor Descriptor { get; } = new("classic", GameDataEdition.Classic, ["classic-world-texl", "classic-world-road-region", "classic-world-water-region", "classic-field-tile", "classic-model", "classic-battle"]);
 
+    public IFlArchive OpenArchive(string family)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        string name = new ResourceKey(family).Path;
+        if (name.Contains('/'))
+        {
+            throw new ArgumentException("An archive family must be a single logical name.", nameof(family));
+        }
+        return FlArchive.OpenForRead(Path.Combine(gameDirectory, "Data", "lang-en", name + ".fs"), FlArchiveRepresentation.Files);
+    }
+
+    public string ResolveFile(string relativeDataPath)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        return Path.Combine(gameDirectory, "Data", new ResourceKey(relativeDataPath).Path.Replace('/', Path.DirectorySeparatorChar));
+    }
+
     public ResourceContent? Find(ResourceKey key)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         if (catalog.TryGetValue(key.Path, out ResourceContent? cached))
         {
             return cached;
+        }
+        if (key.Path.StartsWith("files/", StringComparison.Ordinal))
+        {
+            string path = ResolveFile(key.Path[6..]);
+            ResourceContent? file = File.Exists(path) ? new ResourceContent(key, Path.GetExtension(path).TrimStart('.'), 1, $"{Descriptor.Id}:{key}", () => File.OpenRead(path)) : null;
+            catalog.Add(key.Path, file);
+            return file;
+        }
+        if (FindNamedTable(key) is { } table)
+        {
+            catalog.Add(key.Path, table);
+            return table;
         }
         string[] parts = key.Path.Split('/');
         if (parts.Length < 2)

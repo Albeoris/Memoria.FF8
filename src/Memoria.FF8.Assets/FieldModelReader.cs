@@ -2,6 +2,7 @@ using System.Numerics;
 using Albeoris.Games.FF8.Imaging;
 using Albeoris.Games.FF8.Imaging.Tim;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Assets;
 
@@ -95,7 +96,7 @@ internal static class FieldModelReader
                 {
                     throw new InvalidDataException($"ONE model {header.Name} aliases an absent texture slot0.");
                 }
-                result = ReadModel(header.Name, one, header.Offset + header.ModelOffset, [], header.Offset, null, 0, decodedTextures: [source.Textures[0]], nativeEyeTexture: source.NativeEyes?.Texture);
+                result = ReadModel(header.Name, one, header.Offset + header.ModelOffset, [], header.Offset, null, 0, decodedTextures: [source.Textures[0]], nativeEyeTexture: source.NativeEyes?.Texture) with { TextureRegions = source.TextureRegions.Take(1).ToArray() };
             }
             else if (header.ModelOffset >= 0)
             {
@@ -206,13 +207,15 @@ internal static class FieldModelReader
             // Native 531310 preserves MCH face+8 bit2; 531980 sets the packet's semitransparency bit from it.
             faces[i] = new ModelFace(indices, uv, texture, quad) { SemiTransparent = (flags & 4) != 0 };
         }
-        IReadOnlyList<PixelImage> textures = decodedTextures ?? textureOffsets.Select(offset => DecodeTim(content, textureBase + offset)).ToArray();
+        TimImage[]? nativeTextures = decodedTextures is null ? textureOffsets.Select(offset => ReadTim(content, textureBase + offset)).ToArray() : null;
+        IReadOnlyList<PixelImage> textures = decodedTextures ?? nativeTextures!.Select(texture => texture.Decode()).ToArray();
+        IReadOnlyList<TextureSourceRegion> textureRegions = nativeTextures?.Select(texture => new TextureSourceRegion(texture.X, texture.Y, texture.PixelMode switch { TimPixelMode.Indexed4 => 4, TimPixelMode.Indexed8 => 8, TimPixelMode.Direct16 => 16, _ => 24 }, texture.PixelWidth, texture.Height)).ToArray() ?? [];
         if (faces.Any(face => face.Texture >= textures.Count))
         {
             throw new InvalidDataException($"{name}: face references an absent texture.");
         }
         animations ??= ReadAnimations(animationContent ?? content, animationContent is null ? embeddedAnimation : animationOffset, boneCount);
-        return new FieldModel(name, bones, vertices, faces, textures, animations) { NativeEyes = new NativeFieldEyeDefinition(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)), modelOffset, eyeOffset, content.AsSpan(eyeOffset, eyeDataCount).ToArray(), nativeEyeTexture ?? ReadEyeTexture(content, textureOffsets.Select(offset => textureBase + offset).FirstOrDefault(-1))), ControlBones = controls, NativeParts = new NativeModelPartsDefinition(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)), modelOffset, parts, skinBindings) };
+        return new FieldModel(name, bones, vertices, faces, textures, animations) { TextureRegions = textureRegions, NativeEyes = new NativeFieldEyeDefinition(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)), modelOffset, eyeOffset, content.AsSpan(eyeOffset, eyeDataCount).ToArray(), nativeEyeTexture ?? ReadEyeTexture(content, textureOffsets.Select(offset => textureBase + offset).FirstOrDefault(-1))), ControlBones = controls, NativeParts = new NativeModelPartsDefinition(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)), modelOffset, parts, skinBindings) };
     }
 
     private static NativeEyeTexture? ReadEyeTexture(byte[] content, int offset)
@@ -246,7 +249,7 @@ internal static class FieldModelReader
         return new NativeEyeTexture((int)(flags & 3), width, height, words);
     }
 
-    private static PixelImage DecodeTim(byte[] content, int offset)
+    private static TimImage ReadTim(byte[] content, int offset)
     {
         using BinaryReader reader = Reader(content);
         reader.BaseStream.Position = offset;
@@ -263,7 +266,7 @@ internal static class FieldModelReader
         uint imageBytes = reader.ReadUInt32();
         reader.BaseStream.Position += imageBytes - 4;
         int length = checked((int)reader.BaseStream.Position - offset);
-        return TimFile.Read(content.AsSpan(offset, length)).Images[0].Decode();
+        return TimFile.Read(content.AsSpan(offset, length)).Images[0];
     }
 
     private static IReadOnlyList<ModelAnimation> ReadAnimations(byte[] content, int offset, int boneCount)

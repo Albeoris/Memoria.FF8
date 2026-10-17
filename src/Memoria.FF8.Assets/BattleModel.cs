@@ -1,5 +1,6 @@
 using System.Numerics;
 using Albeoris.Games.FF8.Imaging;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Assets;
 
@@ -11,6 +12,8 @@ public sealed record BattlePose(Vector3 Translation, IReadOnlyList<Vector3> Rota
 public sealed record BattleAnimation(IReadOnlyList<BattlePose> Frames);
 public sealed record BattleModel(string Name, IReadOnlyList<BattleBone> Bones, IReadOnlyList<BattleMesh> Meshes, IReadOnlyList<PixelImage> Textures, IReadOnlyList<BattleAnimation> Animations, float Scale)
 {
+    public IReadOnlyList<TextureSourceRegion> TextureRegions { get; init; } = [];
+
     public BattleSequenceSet? Sequences { get; init; }
     public Memoria.FF8.Runtime.NativeBattlePoseSource? NativePoseSource { get; init; }
     public Memoria.FF8.Runtime.NativeBattleCameraBank? NativeActionCameraBank { get; init; }

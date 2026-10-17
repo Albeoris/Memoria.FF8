@@ -2,7 +2,6 @@ using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Reflection.PortableExecutable;
 using System.Security.Cryptography;
-using Albeoris.Games.FF8.FlArchives;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Memoria.FF8.Runtime;
 
@@ -154,7 +153,7 @@ public sealed partial class GameAssets
         {
             return nativeTutorialBrowser;
         }
-        using IFlArchive menu = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "menu.fs"), FlArchiveRepresentation.Files);
+        using IFlArchive menu = OpenArchive("menu");
         return nativeTutorialBrowser = NativeTutorialBrowserCatalog.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")), Read(menu, "mngrphd.bin"), Read(menu, "mngrp.bin"), Read(menu, "mtmag.bin"), Read(menu, "mmag.bin"));
     }
 }

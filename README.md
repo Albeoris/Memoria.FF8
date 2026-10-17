@@ -34,7 +34,7 @@ Memoria FF8 is an experimental, standalone Windows recreation of FINAL FANTASY V
 
 ## Run
 
-Download the Windows archive from this repository's Releases, extract it, and open `Memoria.Launcher.exe`. Keep the adjacent `Data` directory intact. The launcher finds installed copies, lets you choose a game folder, installs required FFmpeg tools on request and starts the engine. Only the English Steam 2013 edition is currently playable; discovery of another edition does not establish support. Windows 10 or later on x64 hardware is required; the bundled x86 audio process handles original DirectMusic playback. A separate .NET installation is unnecessary for the published application.
+Download the Windows archive from this repository's Releases, extract it, and open `Memoria.Launcher.exe`. Keep the adjacent `Data` directory intact. The launcher finds installed copies, lets you choose a game folder, installs required FFmpeg tools on request and starts the engine. Only the English Steam 2013 edition is currently playable; discovery of another edition does not establish support. Experimental [Remastered resource loading](docs/remastered-resources.md) is available through a separate provider and optional test project. Windows 10 or later on x64 hardware is required; the bundled x86 audio process handles original DirectMusic playback. A separate .NET installation is unnecessary for the published application.
 
 This is a work in progress. Some gameplay, battle behavior and rendering remain incomplete. It is an independent project and is not affiliated with Square Enix. FINAL FANTASY and the original game's assets belong to their respective owners.
 

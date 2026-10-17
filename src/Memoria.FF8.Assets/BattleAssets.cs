@@ -1,4 +1,3 @@
-using Albeoris.Games.FF8.FlArchives;
 using Albeoris.Games.FF8.TextEncoding;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Memoria.FF8.Runtime;
@@ -10,6 +9,7 @@ namespace Memoria.FF8.Assets;
 public sealed partial class BattleAssets : IDisposable
 {
     private readonly IFlArchive archive;
+    private readonly IResourceSource? ownedSource;
     private readonly Dictionary<string, IFlArchiveEntry> entries;
     private readonly Dictionary<string, BattleModel> models = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, BattleStage> stages = [];
@@ -24,42 +24,62 @@ public sealed partial class BattleAssets : IDisposable
     {
         this.resources = resources;
         textureScope = new AssetTextureScope(resources);
-        archive = FlArchive.OpenForRead(Path.Combine(gameDirectory, "Data", "lang-en", "battle.fs"), FlArchiveRepresentation.Files);
-        entries = archive.Entries.ToDictionary(entry => entry.RelativePath.Replace('\\', '/').Split('/')[^1], StringComparer.OrdinalIgnoreCase);
-        using (IFlArchive main = FlArchive.OpenForRead(Path.Combine(gameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files))
+        IGameArchiveSource archiveSource;
+        if (resources is null)
         {
-            IFlArchiveEntry kernel = main.Entries.Single(entry => entry.RelativePath.Replace('\\', '/').Split('/')[^1].Equals("kernel.bin", StringComparison.OrdinalIgnoreCase));
-            using Stream input = kernel.OpenForRead();
-            using MemoryStream bytes = new();
-            input.CopyTo(bytes);
-            input.Dispose();
-            WeaponDefinitions = BattleKernelReader.Weapons(bytes.ToArray());
-            IFlArchiveEntry initial = main.Entries.Single(entry => entry.RelativePath.Replace('\\', '/').Split('/')[^1].Equals("init.out", StringComparison.OrdinalIgnoreCase));
-            using Stream initialInput = initial.OpenForRead();
-            using MemoryStream initialBytes = new();
-            initialInput.CopyTo(initialBytes);
-            byte[] initialContent = initialBytes.ToArray();
-            if (initialContent.Length != 2812)
-            {
-                throw new NotSupportedException("Battle GF labels require the authentic New Game name template.");
-            }
-            string GuardianName(int id)
-            {
-                ReadOnlySpan<byte> name = initialContent.AsSpan(id * 68, 12);
-                int end = name.IndexOf((byte)0);
-                return FF8Encoding.CreateEuropean().GetString(end < 0 ? name : name[..end]);
-            }
-            BattleActionCatalog actionCatalog = BattleActionKernelReader.ReadCatalogue(bytes.ToArray());
-            ActionDefinitions = actionCatalog.Actions.Select(action => action.Ability == Memoria.FF8.Runtime.BattleAbility.GuardianForce ? action with { DisplayName = GuardianName(action.Id) } : action).ToArray();
-            NativeActions = actionCatalog.NativeActions;
-            NativeKernelRecords = actionCatalog.Records;
-            playerStats = new BattlePlayerStatReader(bytes.ToArray());
-            battleKernel = Albeoris.Games.FF8.KernelBin.KernelData.ReadFromArray(bytes.ToArray(), FF8Encoding.CreateEuropean());
+            ClassicGameDataSource source = new(gameDirectory);
+            ownedSource = source;
+            archiveSource = source;
         }
-        encounters = Read("scene.out");
-        if (encounters.Length != 1024 * 128)
+        else
         {
-            throw new InvalidDataException("scene.out does not contain the original 1024 formations.");
+            archiveSource = resources.GetSource<IGameArchiveSource>() ?? throw new NotSupportedException("The battle resource source does not support archive enumeration.");
+        }
+        IFlArchive? openedArchive = null;
+        try
+        {
+            openedArchive = archiveSource.OpenArchive("battle");
+            archive = openedArchive;
+            entries = archive.Entries.ToDictionary(entry => entry.RelativePath.Replace('\\', '/').Split('/')[^1], StringComparer.OrdinalIgnoreCase);
+            using (IFlArchive main = archiveSource.OpenArchive("main"))
+            {
+                byte[] kernel = ReadMain(main, "kernel.bin");
+                WeaponDefinitions = BattleKernelReader.Weapons(kernel);
+                byte[] initialContent = ReadMain(main, "init.out");
+                if (initialContent.Length != 2812)
+                {
+                    throw new NotSupportedException("Battle GF labels require the authentic New Game name template.");
+                }
+                string GuardianName(int id)
+                {
+                    ReadOnlySpan<byte> name = initialContent.AsSpan(id * 68, 12);
+                    int end = name.IndexOf((byte)0);
+                    return FF8Encoding.CreateEuropean().GetString(end < 0 ? name : name[..end]);
+                }
+                BattleActionCatalog actionCatalog = BattleActionKernelReader.ReadCatalogue(kernel);
+                ActionDefinitions = actionCatalog.Actions.Select(action => action.Ability == Memoria.FF8.Runtime.BattleAbility.GuardianForce ? action with { DisplayName = GuardianName(action.Id) } : action).ToArray();
+                NativeActions = actionCatalog.NativeActions;
+                NativeKernelRecords = actionCatalog.Records;
+                playerStats = new BattlePlayerStatReader(kernel);
+                battleKernel = Albeoris.Games.FF8.KernelBin.KernelData.ReadFromArray(kernel, FF8Encoding.CreateEuropean());
+            }
+            encounters = Read("scene.out");
+            if (encounters.Length != 1024 * 128)
+            {
+                throw new InvalidDataException("scene.out does not contain the original 1024 formations.");
+            }
+        }
+        catch
+        {
+            try
+            {
+                openedArchive?.Dispose();
+            }
+            finally
+            {
+                ownedSource?.Dispose();
+            }
+            throw;
         }
     }
 
@@ -327,11 +347,25 @@ public sealed partial class BattleAssets : IDisposable
     {
         if (!models.TryGetValue(name, out BattleModel? model))
         {
-            model = BattleResourceReader.ReadModel(name, Read(name));
+            byte[] content = Read(name);
+            model = resources?.GetSource<IBattleModelSource>()?.ReadModel(new ResourceKey("battle/" + name), content) ?? BattleResourceReader.ReadModel(name, content);
             model = model with { Textures = textureScope.RegisterList(new ResourceKey("battle/" + name), model.Textures, "classic-battle") };
             models.Add(name, model);
         }
         return model;
+    }
+
+    private byte[] ReadMain(IFlArchive main, string name)
+    {
+        if (resources is not null)
+        {
+            return resources.Read(new ResourceKey("main/" + name));
+        }
+        IFlArchiveEntry entry = main.Entries.Single(entry => entry.RelativePath.Replace('\\', '/').Split('/')[^1].Equals(name, StringComparison.OrdinalIgnoreCase));
+        using Stream input = entry.OpenForRead();
+        using MemoryStream bytes = new();
+        input.CopyTo(bytes);
+        return bytes.ToArray();
     }
 
     private byte[] Read(string name)
@@ -362,5 +396,6 @@ public sealed partial class BattleAssets : IDisposable
     {
         textureScope.Dispose();
         archive.Dispose();
+        ownedSource?.Dispose();
     }
 }

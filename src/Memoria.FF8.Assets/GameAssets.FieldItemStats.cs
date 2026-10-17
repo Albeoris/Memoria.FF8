@@ -1,4 +1,3 @@
-using Albeoris.Games.FF8.FlArchives;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Memoria.FF8.Runtime;
 
@@ -16,7 +15,7 @@ public sealed partial class GameAssets
         }
         if (fieldItemStats is null)
         {
-            using IFlArchive main = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
+            using IFlArchive main = OpenArchive("main");
             fieldItemStats = new BattlePlayerStatReader(Read(main, "kernel.bin"));
         }
         //4F7DB7..4F7E0C clears junctions and equips B88B18's native identity-specific initial weapon.

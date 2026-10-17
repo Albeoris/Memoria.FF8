@@ -23,6 +23,7 @@ public sealed class ResourceService : IResourceChangeFeed
     }
 
     public ResourceSourceDescriptor Source => source.Descriptor;
+    public T? GetSource<T>() where T : class => source as T;
     public long Generation => Volatile.Read(ref published).Generation;
     public int ResidentTextureCount => handles.Count;
     public event Action<TextureKey, Exception>? ReplacementFailed;
@@ -228,10 +229,10 @@ public sealed class ResourceService : IResourceChangeFeed
         return new Subscription(() => subscribers.Remove(callback));
     }
 
-    private static TextureValue Resolve(TextureBuildContext context, ITextureReplacementResolver? replacementResolver)
+    private TextureValue Resolve(TextureBuildContext context, ITextureReplacementResolver? replacementResolver)
     {
-        TextureReplacement? replacement = replacementResolver?.Resolve(context);
-        return replacement is null ? new TextureValue(context.Original, context.LogicalWidth, context.LogicalHeight, context.Source.Id) : new TextureValue(replacement.Image, replacement.LogicalWidth, replacement.LogicalHeight, replacement.Provenance, replacement.MipLevels);
+        TextureReplacement? replacement = replacementResolver?.Resolve(context) ?? (source as ITextureReplacementResolver)?.Resolve(context);
+        return replacement is null ? new TextureValue(context.Original, context.LogicalWidth, context.LogicalHeight, context.Source.Id) : new TextureValue(replacement.Image, replacement.LogicalWidth, replacement.LogicalHeight, replacement.Provenance, replacement.MipLevels, replacement.Variants);
     }
 
     private void Notify(ResourceChangeSet notification)

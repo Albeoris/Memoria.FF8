@@ -1,6 +1,5 @@
 using System.Numerics;
 using System.Security.Cryptography;
-using Albeoris.Games.FF8.FlArchives;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Albeoris.Games.FF8.Imaging;
 using Albeoris.Games.FF8.Imaging.Tim;
@@ -34,6 +33,8 @@ public sealed partial class WorldAssets : IDisposable
     public const int Columns = 32;
     public const int Rows = 24;
     private readonly IFlArchive archive;
+    private readonly IGameArchiveSource archiveSource;
+    private readonly IResourceSource? ownedSource;
     private readonly string gameDirectory;
     private readonly IFlArchiveEntry terrain;
     private readonly byte[] wmset;
@@ -60,17 +61,44 @@ public sealed partial class WorldAssets : IDisposable
         this.resources = resources;
         textureScope = new AssetTextureScope(resources);
         this.gameDirectory = gameDirectory;
-        archive = FlArchive.OpenForRead(Path.Combine(gameDirectory, "Data", "lang-en", "world.fs"), FlArchiveRepresentation.Files);
-        terrain = Entry("wmx.obj");
-        if (terrain.Size != 835 * SegmentBytes)
+        if (resources is null)
         {
-            throw new InvalidDataException("Unexpected WMX segment count.");
+            ClassicGameDataSource source = new(gameDirectory);
+            ownedSource = source;
+            archiveSource = source;
         }
-        wmset = Read("wmsetus.obj");
-        sections = WorldAssetReader.ReadSections(wmset);
-        mapLocations = new WorldMapLocations(wmset);
-        Spawns = WorldAssetReader.ReadSpawns(wmset, sections);
-        Skies = WorldAssetReader.InnerPointers(wmset, sections[32]).Select(pointer => WorldAssetReader.ReadSky(wmset, sections[32] + pointer)).ToArray();
+        else
+        {
+            archiveSource = resources.GetSource<IGameArchiveSource>() ?? throw new NotSupportedException("The world resource source does not support archive enumeration.");
+        }
+        IFlArchive? openedArchive = null;
+        try
+        {
+            openedArchive = archiveSource.OpenArchive("world");
+            archive = openedArchive;
+            terrain = Entry("wmx.obj");
+            if (terrain.Size != 835 * SegmentBytes)
+            {
+                throw new InvalidDataException("Unexpected WMX segment count.");
+            }
+            wmset = Read("wmsetus.obj");
+            sections = WorldAssetReader.ReadSections(wmset);
+            mapLocations = new WorldMapLocations(wmset);
+            Spawns = WorldAssetReader.ReadSpawns(wmset, sections);
+            Skies = WorldAssetReader.InnerPointers(wmset, sections[32]).Select(pointer => WorldAssetReader.ReadSky(wmset, sections[32] + pointer)).ToArray();
+        }
+        catch
+        {
+            try
+            {
+                openedArchive?.Dispose();
+            }
+            finally
+            {
+                ownedSource?.Dispose();
+            }
+            throw;
+        }
     }
 
     public IReadOnlyList<WorldSpawn> Spawns { get; }
@@ -111,7 +139,11 @@ public sealed partial class WorldAssets : IDisposable
 
     private WorldFieldEntryReader ReadFieldEntries()
     {
-        using IFlArchive main = FlArchive.OpenForRead(Path.Combine(gameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
+        if (resources is not null)
+        {
+            return WorldFieldEntryReader.Read(wmset.AsSpan(sections[7], sections[8] - sections[7]), resources.Read(new ResourceKey("main/wm2field.tbl")));
+        }
+        using IFlArchive main = archiveSource.OpenArchive("main");
         IFlArchiveEntry entry = main.Entries.Single(item => item.RelativePath.Replace('\\', '/').Split('/')[^1].Equals("wm2field.tbl", StringComparison.OrdinalIgnoreCase));
         using Stream source = entry.OpenForRead();
         byte[] table = new byte[checked((int)entry.Size)];
@@ -291,5 +323,6 @@ public sealed partial class WorldAssets : IDisposable
     {
         textureScope.Dispose();
         archive.Dispose();
+        ownedSource?.Dispose();
     }
 }

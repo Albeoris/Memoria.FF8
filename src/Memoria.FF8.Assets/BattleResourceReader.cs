@@ -1,6 +1,7 @@
 ﻿using System.Numerics;
 using Albeoris.Games.FF8.Imaging;
 using System.Collections.Immutable;
+using Memoria.FF8.Resources;
 using Albeoris.Games.FF8.Imaging.Tim;
 
 namespace Memoria.FF8.Assets;
@@ -63,6 +64,7 @@ internal static partial class BattleResourceReader
         int cameraSection = offsets.Length is 7 or 8 ? 4 : offsets.Length is 9 or 10 ? 6 : -1;
         return new BattleModel(name, bones, meshes, textures.Select(texture => texture.Image).ToArray(), animations, scale)
         {
+            TextureRegions = textures.Select(texture => new TextureSourceRegion(texture.Tim.X, texture.Tim.Y, 0, texture.Image.Width, texture.Image.Height)).ToArray(),
             NativePoseSource = new(bytes.AsSpan(offsets[0], 16 + boneCount * 48).ToArray().ToImmutableArray(), bytes.AsSpan(offsets[2], offsets.Where(offset => offset > offsets[2]).DefaultIfEmpty(bytes.Length).Min() - offsets[2]).ToArray().ToImmutableArray()),
             NativeActionCameraBank = cameraSection >= 0 && offsets[cameraSection] != offsets[cameraSection + 1] ? new(bytes.AsSpan(offsets[cameraSection], offsets[cameraSection + 1] - offsets[cameraSection]).ToArray().ToImmutableArray()) : null,
             Sequences = name.StartsWith("c0m", StringComparison.OrdinalIgnoreCase) ? Sequences(bytes, offsets, 3) : offsets.Length is 9 or 10 ? Sequences(bytes, offsets, 5) : null

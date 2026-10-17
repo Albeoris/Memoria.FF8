@@ -41,9 +41,9 @@ public sealed class TextureBuildContext
 }
 
 /// <summary>Image and logical canvas are published as a single value. Pixels are already colored.</summary>
-public sealed record TextureReplacement(PixelImage Image, string Provenance, int LogicalWidth, int LogicalHeight, IReadOnlyList<PixelImage>? MipLevels = null);
+public sealed record TextureReplacement(PixelImage Image, string Provenance, int LogicalWidth, int LogicalHeight, IReadOnlyList<PixelImage>? MipLevels = null, IReadOnlyDictionary<string, PixelImage>? Variants = null);
 
-public sealed record TextureValue(PixelImage Image, int LogicalWidth, int LogicalHeight, string Provenance, IReadOnlyList<PixelImage>? MipLevels = null);
+public sealed record TextureValue(PixelImage Image, int LogicalWidth, int LogicalHeight, string Provenance, IReadOnlyList<PixelImage>? MipLevels = null, IReadOnlyDictionary<string, PixelImage>? Variants = null);
 
 public interface ITextureReplacementResolver
 {

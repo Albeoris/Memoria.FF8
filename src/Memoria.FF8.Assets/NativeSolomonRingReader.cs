@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using System.Security.Cryptography;
-using Albeoris.Games.FF8.FlArchives;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Memoria.FF8.Runtime;
 
@@ -20,7 +19,7 @@ public sealed partial class GameAssets
         {
             throw new NotSupportedException("Solomon Ring requires the authenticated original executable.");
         }
-        using IFlArchive menu = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "menu.fs"), FlArchiveRepresentation.Files);
+        using IFlArchive menu = OpenArchive("menu");
         byte[] bytes = Read(menu, "mthomas.bin");
         string hash = Convert.ToHexString(SHA256.HashData(bytes));
         if (bytes.Length != 16 || hash != "CD2C7261EE28D2D6D13DB5922D447FA49D337B07A706BC042D3803E562F62BDD" || bytes[12] != 0)

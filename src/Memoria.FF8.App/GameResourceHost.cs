@@ -7,7 +7,7 @@ namespace Memoria.FF8;
 /// <summary>Application composition root. Resource consumers do not reference the mod adapters.</summary>
 internal sealed class GameResourceHost : IDisposable
 {
-    private readonly ClassicGameDataSource source;
+    private readonly IResourceSource source;
     private readonly string gameDirectory;
     private readonly string materializationDirectory = Path.Combine(Path.GetTempPath(), "Memoria.FF8.Junction", Guid.NewGuid().ToString("N"));
     private readonly Dictionary<ModFile, string> materializedFiles = [];
@@ -16,7 +16,7 @@ internal sealed class GameResourceHost : IDisposable
     public GameResourceHost(string gameDirectory, string? applicationBaseDirectory = null, bool watch = true)
     {
         this.gameDirectory = Path.GetFullPath(gameDirectory);
-        source = new ClassicGameDataSource(gameDirectory);
+        source = GameDataSourceFactory.Open(gameDirectory);
         Resources = new ResourceService(source);
         Mods = new ModRuntime(applicationBaseDirectory, format => ModCompatibility.IsCompatible(source.Descriptor.Edition, format), Prepare, watch, additionalBaseDirectories: [gameDirectory]);
         Resources.ReplacementFailed += (key, exception) => Mods.ReportFailure(new ModDiagnostic("replacement-failed", $"{key}: {exception.Message} Original pixels remain active.", (exception as ModTextureLoadException)?.PackageId, (exception as ModTextureLoadException)?.RelativePath));
@@ -32,6 +32,10 @@ internal sealed class GameResourceHost : IDisposable
         ModFile? replacement = Mods.Catalog.FindAll(ModFormat.Junction, relative).FirstOrDefault();
         if (replacement is null)
         {
+            if (source is IGameFileSource files)
+            {
+                return files.ResolveFile(relative);
+            }
             return Path.Combine(gameDirectory, "Data", relative.Replace('/', Path.DirectorySeparatorChar));
         }
         if (materializedFiles.TryGetValue(replacement, out string? cached))

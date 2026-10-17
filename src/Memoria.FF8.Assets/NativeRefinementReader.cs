@@ -1,7 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
-using Albeoris.Games.FF8.FlArchives;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Albeoris.Games.FF8.KernelBin;
 using Albeoris.Games.FF8.TextEncoding;
@@ -23,8 +22,8 @@ public sealed partial class GameAssets
         {
             throw new NotSupportedException("Refinement requires the authenticated original executable.");
         }
-        using IFlArchive main = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
-        using IFlArchive menu = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "menu.fs"), FlArchiveRepresentation.Files);
+        using IFlArchive main = OpenArchive("main");
+        using IFlArchive menu = OpenArchive("menu");
         byte[] kernelBytes = Read(main, "kernel.bin");
         string kernelHash = Convert.ToHexString(SHA256.HashData(kernelBytes));
         KernelData kernel = KernelData.ReadFromArray(kernelBytes, FF8Encoding.CreateEuropean());

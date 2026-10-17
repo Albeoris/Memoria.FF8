@@ -1,6 +1,7 @@
 using System.Numerics;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Assets;
 
@@ -15,6 +16,8 @@ public sealed record ModelAnimation(IReadOnlyList<AnimationFrame> Frames);
 public sealed record ModelControlBones(int First, int Second, int Additional, uint RawHeader);
 public sealed record FieldModel(string Name, IReadOnlyList<ModelBone> Bones, IReadOnlyList<ModelVertex> Vertices, IReadOnlyList<ModelFace> Faces, IReadOnlyList<PixelImage> Textures, IReadOnlyList<ModelAnimation> Animations)
 {
+    public IReadOnlyList<TextureSourceRegion> TextureRegions { get; init; } = [];
+
     public NativeModelPartsDefinition? NativeParts { get; init; }
     public NativeFieldEyeDefinition? NativeEyes { get; init; }
 
