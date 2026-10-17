@@ -676,6 +676,7 @@ public sealed partial class EventEngine
                 LastFault = new EventFault(FieldId, fiber.ObjectId, fiber.Script.Id, operationIndex, operation.Opcode.ToString(), message);
                 throw new EventScriptException(message);
             }
+            ObserveNativePartyActionRequest(fiber, operation);
             fiber.Position++;
             try
             {

@@ -40,6 +40,9 @@ internal sealed class AutoPlayEventCoverage
     public HashSet<string> UnavailableVariants { get; set; } = new(StringComparer.Ordinal);
     public string? AvailabilityFingerprint { get; set; }
     public HashSet<string> CompletedAvailabilityFingerprints { get; set; } = new(StringComparer.Ordinal);
+    public List<AutoPlayParticipantPolicyDeferral> ParticipantPolicyDeferrals { get; set; } = [];
+    public HashSet<string> PolicyDeferredVariants { get; set; } = new(StringComparer.Ordinal);
+    public bool PolicyDeferred { get; set; }
 }
 
 internal sealed class AutoPlayVisitCoverage
@@ -54,10 +57,12 @@ internal enum AutoPlayChoiceStepKind
     Select,
     Replay,
     RestoreContinuation,
-    Complete
+    Complete,
+    PolicyDeferred
 }
 
 internal sealed record AutoPlayChoiceStep(AutoPlayChoiceStepKind Kind, int? Selection = null, string? Checkpoint = null);
+internal sealed record AutoPlayPolicyChoiceCheckpoint(string? BeforeCheckpoint, bool InputCheckpointPrepared, string? ContinuationCheckpoint, IReadOnlyList<AutoPlayChoiceSelection>? BeforeSelections);
 
 internal sealed class AutoPlayChoiceCoverage
 {
@@ -71,6 +76,10 @@ internal sealed class AutoPlayChoiceCoverage
     public int? ActiveOption { get; set; }
     public bool Finished { get; set; }
     public List<AutoPlayChoiceSelection>? BeforeSelections { get; set; }
+    public HashSet<int> PolicyDeferredOptions { get; set; } = [];
+    public bool PolicyExhausted { get; set; }
+    public string? PolicyScope { get; set; }
+    public Dictionary<string, AutoPlayPolicyChoiceCheckpoint> PolicyCheckpoints { get; set; } = new(StringComparer.Ordinal);
 }
 
 internal sealed class AutoPlayPlannerState
@@ -387,7 +396,7 @@ internal sealed class AutoPlayPlanner
     public AutoPlayChoiceStep PlanChoice(string key)
     {
         AutoPlayChoiceCoverage choice = FindChoice(key);
-        if (choice.Finished)
+        if (choice.Finished || choice.PolicyExhausted)
         {
             return new AutoPlayChoiceStep(AutoPlayChoiceStepKind.Complete);
         }
@@ -399,10 +408,10 @@ internal sealed class AutoPlayPlanner
         {
             return new AutoPlayChoiceStep(AutoPlayChoiceStepKind.SaveBeforeChoice);
         }
-        int selection = Enumerable.Range(choice.FirstOption, choice.OptionCount).FirstOrDefault(index => !choice.CompletedOptions.Contains(index), -1);
+        int selection = Enumerable.Range(choice.FirstOption, choice.OptionCount).FirstOrDefault(index => !choice.CompletedOptions.Contains(index) && !choice.PolicyDeferredOptions.Contains(index), -1);
         if (selection < 0)
         {
-            return new AutoPlayChoiceStep(AutoPlayChoiceStepKind.RestoreContinuation, Checkpoint: choice.ContinuationCheckpoint);
+            return choice.CompletedOptions.Count == 0 ? new AutoPlayChoiceStep(AutoPlayChoiceStepKind.PolicyDeferred) : new AutoPlayChoiceStep(AutoPlayChoiceStepKind.RestoreContinuation, Checkpoint: choice.ContinuationCheckpoint);
         }
         return new AutoPlayChoiceStep(selection == choice.FirstOption ? AutoPlayChoiceStepKind.Select : AutoPlayChoiceStepKind.Replay, selection, selection == choice.FirstOption ? null : choice.BeforeCheckpoint);
     }
@@ -432,7 +441,7 @@ internal sealed class AutoPlayPlanner
     {
         AutoPlayChoiceCoverage choice = FindChoice(key);
         int selection = choice.ActiveOption ?? throw new InvalidOperationException("No choice option is active.");
-        if (selection == choice.FirstOption)
+        if (choice.ContinuationCheckpoint is null)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(continuationCheckpoint);
             choice.ContinuationCheckpoint = continuationCheckpoint;
@@ -447,12 +456,66 @@ internal sealed class AutoPlayPlanner
         {
             throw new InvalidOperationException("Every option must return control before restoring the continuation.");
         }
-        FindChoice(key).Finished = true;
+        AutoPlayChoiceCoverage choice = FindChoice(key);
+        choice.PolicyExhausted = choice.PolicyDeferredOptions.Count > 0;
+        choice.Finished = !choice.PolicyExhausted;
+    }
+
+    public void FinishPolicyDeferredChoice(string key)
+    {
+        if (PlanChoice(key).Kind != AutoPlayChoiceStepKind.PolicyDeferred)
+        {
+            throw new InvalidOperationException("Every remaining option must have an explicit participant-policy deferral.");
+        }
+        FindChoice(key).PolicyExhausted = true;
+    }
+
+    public void RefreshParticipantChoice(string key, string scope, IReadOnlyCollection<int> deferred)
+    {
+        AutoPlayChoiceCoverage choice = FindChoice(key);
+        if (choice.ActiveOption is not null)
+        {
+            throw new InvalidOperationException("An active alternative cannot change its policy scope.");
+        }
+        if (choice.PolicyScope is not null && choice.PolicyScope != scope)
+        {
+            choice.PolicyCheckpoints[choice.PolicyScope] = new(choice.BeforeCheckpoint, choice.InputCheckpointPrepared, choice.ContinuationCheckpoint, choice.BeforeSelections?.ToArray());
+            choice.PolicyCheckpoints.TryGetValue(scope, out AutoPlayPolicyChoiceCheckpoint? checkpoint);
+            choice.BeforeCheckpoint = checkpoint?.BeforeCheckpoint;
+            choice.ContinuationCheckpoint = checkpoint?.ContinuationCheckpoint;
+            choice.BeforeSelections = checkpoint?.BeforeSelections?.ToList();
+            choice.InputCheckpointPrepared = checkpoint?.InputCheckpointPrepared ?? false;
+        }
+        choice.PolicyScope = scope;
+        choice.PolicyDeferredOptions = deferred.ToHashSet();
+        choice.PolicyExhausted = !choice.Finished && Enumerable.Range(choice.FirstOption, choice.OptionCount).All(option => choice.CompletedOptions.Contains(option) || deferred.Contains(option));
+    }
+
+    public bool DeferParticipantAction(string visitKey, string eventId, AutoPlayParticipantPolicyDeferral deferral)
+    {
+        AutoPlayEventCoverage item = FindEvent(visitKey, eventId);
+        if (item.ParticipantPolicyDeferrals.Any(previous => previous.TargetId == deferral.TargetId && previous.SourceConditionSignature == deferral.SourceConditionSignature && previous.Guard.Fingerprint == deferral.Guard.Fingerprint && previous.Selections.SequenceEqual(deferral.Selections)))
+        {
+            return false;
+        }
+        item.ParticipantPolicyDeferrals.Add(deferral);
+        return true;
+    }
+
+    public void RefreshParticipantPolicy(string visitKey, Func<AutoPlayParticipantPolicyDeferral, bool> matches)
+    {
+        AutoPlayVisitCoverage visit = State.Visits.Single(item => item.Visit.Key == visitKey);
+        foreach (AutoPlayEventCoverage item in visit.Events)
+        {
+            AutoPlayParticipantPolicyDeferral[] current = item.ParticipantPolicyDeferrals.Where(attempt => attempt.SourceConditionSignature == item.Event.ConditionSignature && matches(attempt)).ToArray();
+            item.PolicyDeferredVariants = current.GroupBy(attempt => attempt.TargetId).Where(group => group.Any(attempt => attempt.Selections.Count == 0) || group.Where(attempt => attempt.Selections.Count == 1 && attempt.ChoiceKey is not null).GroupBy(attempt => (attempt.ChoiceKey, attempt.FirstOption, attempt.OptionCount)).Any(options => Enumerable.Range(options.Key.FirstOption, options.Key.OptionCount).All(option => options.Any(attempt => attempt.Selections[0].Selection == option)))).Select(group => group.Key).ToHashSet(StringComparer.Ordinal);
+            item.PolicyDeferred = ObservedVariants(item).All(item.PolicyDeferredVariants.Contains);
+        }
     }
 
     private static IOrderedEnumerable<AutoPlayEventCoverage> OrderedEvents(AutoPlayVisitCoverage visit)
     {
-        return visit.Events.Where(item => item.Available && !item.Unavailable && item.BlockedReason is null).OrderBy(item => item.Event.Order).ThenBy(item => item.Event.Kind).ThenBy(item => item.Event.Id, StringComparer.Ordinal);
+        return visit.Events.Where(item => item.Available && !item.Unavailable && !item.PolicyDeferred && item.BlockedReason is null).OrderBy(item => item.Event.Order).ThenBy(item => item.Event.Kind).ThenBy(item => item.Event.Id, StringComparer.Ordinal);
     }
 
     private static bool NeedsExecution(AutoPlayEventCoverage item)
@@ -463,7 +526,7 @@ internal sealed class AutoPlayPlanner
 
     private static IEnumerable<AutoPlayEventRoute> TravelRoutes(AutoPlayEventCoverage item)
     {
-        return item.Routes.Where(route => item.Completed && StringComparer.Ordinal.Equals(route.ConditionSignature, item.Event.ConditionSignature) && !(route.ObservedStoryChanged ?? item.Event.ChangesStory) && (route.TargetId is null ? item.UnavailableVariants.Count == 0 : ObservedVariants(item).Contains(route.TargetId, StringComparer.Ordinal) && !item.UnavailableVariants.Contains(route.TargetId))).OrderBy(route => route.DestinationVisitKey, StringComparer.Ordinal).ThenBy(route => route.TargetId, StringComparer.Ordinal).ThenBy(route => route.Selections is null ? string.Empty : string.Join('|', route.Selections.Select(selection => $"{selection.Key}={selection.Selection}")), StringComparer.Ordinal);
+        return item.Routes.Where(route => item.Completed && StringComparer.Ordinal.Equals(route.ConditionSignature, item.Event.ConditionSignature) && !(route.ObservedStoryChanged ?? item.Event.ChangesStory) && (route.TargetId is null ? item.UnavailableVariants.Count == 0 && item.PolicyDeferredVariants.Count == 0 : ObservedVariants(item).Contains(route.TargetId, StringComparer.Ordinal) && !item.UnavailableVariants.Contains(route.TargetId) && !item.PolicyDeferredVariants.Contains(route.TargetId))).OrderBy(route => route.DestinationVisitKey, StringComparer.Ordinal).ThenBy(route => route.TargetId, StringComparer.Ordinal).ThenBy(route => route.Selections is null ? string.Empty : string.Join('|', route.Selections.Select(selection => $"{selection.Key}={selection.Selection}")), StringComparer.Ordinal);
     }
 
     private static void NormalizeLegacyRoute(AutoPlayEventCoverage item)

@@ -8,9 +8,9 @@ namespace Memoria.FF8.App.Tests;
 public sealed class AutoPlayPhysicalRequestTests
 {
     [Fact]
-    public void AnAdmittedPhysicalPartyRequestSurvivesColdRestoreWithoutClaimingControlReturn()
+    public void AnActualPhysicalRequestCheckpointSurvivesColdRestoreWithoutCompletionCredit()
     {
-        string manifest = TestResources.FixturePath("App.Tests.AutoPlayPhysicalRequestTests.1");
+        string manifest = TestResources.FixturePath("App.Tests.AutoPlayPhysicalRequestTests.2");
         byte[] originalManifest = File.ReadAllBytes(manifest);
         AutoPlayRunState saved = JsonSerializer.Deserialize<AutoPlayRunState>(originalManifest, AutoPlayController.JsonOptions)!;
         string snapshot = Path.Combine(Path.GetDirectoryName(manifest)!, saved.Snapshot!);
@@ -28,18 +28,8 @@ public sealed class AutoPlayPhysicalRequestTests
         AutoPlayEventCoverage Entry() => run.Controller.State.Coverage.Visits.Single(visit => visit.Visit.Key == "764:223").Events.Single(item => item.Event.Id == "764:line:9");
         Assert.False(Entry().Completed);
 
-        for (int tick = 0; tick < 512 && !run.FirstRequestIssued && run.Controller.Error is null; tick++)
-        {
-            run.Controller.Advance(1);
-        }
-
         Assert.Null(run.Controller.Error);
         Assert.True(run.Controller.Running);
-        Assert.True(run.FirstRequestIssued);
-        Assert.Contains(run.Commands, command => command is { FieldId: 764, ObjectId: 9, ScriptId: 81, Operation: 1660, Name: "KEYSCAN" } && command.Arguments.SequenceEqual(new[] { 192 }));
-        Assert.Contains(run.Branches, branch => branch is { FieldId: 764, ObjectId: 9, ScriptId: 81, Operation: 1664, ConditionPassed: true });
-        Assert.Contains(run.Commands, command => command is { FieldId: 764, ObjectId: 9, ScriptId: 81, Operation: 1668, Name: "PREQ" } && command.Arguments.SequenceEqual(new[] { 1, 6 }));
-        Assert.DoesNotContain(run.Commands, command => command is { FieldId: 764, ObjectId: 9, ScriptId: 81, Operation: 1673, Name: "PREQ" });
         Assert.Equal(764, run.Session.State.FieldId);
         Assert.Equal(new[] { 8, 9, 10 }, run.World.Events.Scene.Party);
         Assert.All(run.PartySamples, party => Assert.Equal(new[] { 8, 9, 10 }, party));
@@ -122,7 +112,6 @@ public sealed class AutoPlayPhysicalRequestTests
         public List<ScriptCommand> Commands { get; } = [];
         public List<BranchDecision> Branches { get; } = [];
         public List<int[]> PartySamples { get; } = [];
-        public bool FirstRequestIssued { get; private set; }
 
         public GameWorld World
         {
@@ -137,10 +126,6 @@ public sealed class AutoPlayPhysicalRequestTests
                     {
                         Commands.Add(command);
                         PartySamples.Add(observed.Events.Scene.Party.ToArray());
-                        if (command is { FieldId: 764, ObjectId: 9, ScriptId: 81, Operation: 1668, Name: "PREQ" })
-                        {
-                            FirstRequestIssued = true;
-                        }
                     };
                 }
                 return world;

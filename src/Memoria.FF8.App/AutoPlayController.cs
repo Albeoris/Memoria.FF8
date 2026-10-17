@@ -50,10 +50,12 @@ internal sealed class AutoPlayRunState
     public HashSet<string> ObservedMessages { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, NativePlayerAbsenceReceipt> UnavailabilityGuards { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, AutoPlayVisitGuard> VisitGuards { get; set; } = new(StringComparer.Ordinal);
+    public bool ParticipantPolicyDiagnosticOnly { get; set; }
+    public string? ParticipantPolicyResumeChoice { get; set; }
 }
 
 /// <summary>The graphics host and command line drive this same autonomous, deterministic controller.</summary>
-internal sealed class AutoPlayController
+internal sealed partial class AutoPlayController
 {
     internal static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, Converters = { new JsonStringEnumConverter() } };
     private static readonly JsonSerializerOptions BeforeSnapshotJsonOptions = new(JsonOptions) { WriteIndented = false };
@@ -83,6 +85,7 @@ internal sealed class AutoPlayController
             if (advancing && watchedWorlds.Add(world))
             {
                 world.Events.OperationCompleted += CheckIdleDeadline;
+                world.Events.BeforeNativePartyActionRequest += ObserveParticipantAction;
             }
             return world;
         };
@@ -183,6 +186,10 @@ internal sealed class AutoPlayController
         manifest = Path.GetFullPath(manifest);
         string json = File.ReadAllText(manifest);
         AutoPlayRunState saved = JsonSerializer.Deserialize<AutoPlayRunState>(json, JsonOptions) ?? throw new InvalidDataException("Empty automatic play manifest.");
+        if (saved.ParticipantPolicyDiagnosticOnly)
+        {
+            throw new NotSupportedException("This participant-policy bundle preserves a diagnostic callback boundary. Resume the separately saved authentic pre-choice or pre-event return bundle.");
+        }
         using JsonDocument document = JsonDocument.Parse(json);
         if (!document.RootElement.TryGetProperty(nameof(AutoPlayRunState.ActiveSelections), out _) && saved.ActiveEvent is not null)
         {
@@ -224,6 +231,11 @@ internal sealed class AutoPlayController
         }
         foreach (AutoPlayChoiceCoverage choice in saved.Coverage.Choices)
         {
+            foreach (string scope in choice.PolicyCheckpoints.Keys.ToArray())
+            {
+                AutoPlayPolicyChoiceCheckpoint checkpoint = choice.PolicyCheckpoints[scope];
+                choice.PolicyCheckpoints[scope] = checkpoint with { BeforeCheckpoint = ImportCheckpoint(checkpoint.BeforeCheckpoint), ContinuationCheckpoint = ImportCheckpoint(checkpoint.ContinuationCheckpoint) };
+            }
             if (choice.Finished)
             {
                 choice.BeforeCheckpoint = null;
@@ -271,7 +283,7 @@ internal sealed class AutoPlayController
                 CheckIdleDeadline();
                 Tick();
                 run.Steps++;
-                int score = run.ObservedScenes.Count + run.ObservedMessages.Count + run.Coverage.Visits.Count + run.Coverage.Choices.Count + run.Coverage.Visits.Sum(visit => visit.Events.Count(item => item.Completed) + visit.Events.Sum(item => item.UnavailableAttempts.Count)) + run.Coverage.Choices.Sum(choice => choice.CompletedOptions.Count);
+                int score = run.ObservedScenes.Count + run.ObservedMessages.Count + run.Coverage.Visits.Count + run.Coverage.Choices.Count + run.Coverage.Visits.Sum(visit => visit.Events.Count(item => item.Completed) + visit.Events.Sum(item => item.UnavailableAttempts.Count + item.ParticipantPolicyDeferrals.Count)) + run.Coverage.Choices.Sum(choice => choice.CompletedOptions.Count);
                 if (score != run.LastProgressScore)
                 {
                     run.LastProgressScore = score;
@@ -288,6 +300,18 @@ internal sealed class AutoPlayController
                     lastSave = time.GetTimestamp();
                 }
             }
+            catch (AutoPlayParticipantPolicyException exception)
+            {
+                try
+                {
+                    DeferParticipantAction(exception.Request);
+                    run.Steps++;
+                }
+                catch (Exception failure)
+                {
+                    Fail(failure);
+                }
+            }
             catch (Exception exception)
             {
                 Fail(exception);
@@ -298,6 +322,7 @@ internal sealed class AutoPlayController
                 foreach (GameWorld watched in watchedWorlds)
                 {
                     watched.Events.OperationCompleted -= CheckIdleDeadline;
+                    watched.Events.BeforeNativePartyActionRequest -= ObserveParticipantAction;
                 }
                 watchedWorlds.Clear();
             }
@@ -342,6 +367,11 @@ internal sealed class AutoPlayController
     {
         GameWorld world = getWorld();
         world.EnsureField();
+        if (run.ParticipantPolicyResumeChoice is string policyChoice)
+        {
+            ResumeParticipantChoice(policyChoice);
+            return;
+        }
         if (!world.Events.IsUserControlEnabled && run.ActiveEvent is not null)
         {
             run.ObservedControlLoss = true;
@@ -367,7 +397,8 @@ internal sealed class AutoPlayController
             Status = "Ending reached. Inspect coverage for conditional or unreachable events.";
             return;
         }
-        Status = $"{session.State.FieldId}:{session.State.FieldName} · frame {world.Events.Frame} · {run.Coverage.Visits.Count} visits · {run.Steps} steps";
+        int deferred = run.Coverage.Visits.Sum(visit => visit.Events.Sum(item => item.ParticipantPolicyDeferrals.Count));
+        Status = $"{session.State.FieldId}:{session.State.FieldName} · frame {world.Events.Frame} · {run.Coverage.Visits.Count} visits · {run.Steps} steps" + (deferred == 0 ? string.Empty : $" · {deferred} deferred");
         if (world.PendingEntityName is not null)
         {
             Apply(new(PlayerActionKind.EnterName));
@@ -460,6 +491,7 @@ internal sealed class AutoPlayController
             return new AutoPlayEvent(target.CoverageId, target.Kind == AutoPlayTargetKind.Gateway || target.DestinationField is not null ? AutoPlayEventKind.Transition : AutoPlayEventKind.Interaction, ChangesStory: target.ChangesStory, Order: target.Order, ConditionSignature: world.ReadAutoPlayConditions(target.CoverageId, target.ObjectId).Fingerprint, Variants: group.Select(variant => variant.Id).Order(StringComparer.Ordinal).ToArray());
         }).ToArray());
         RefreshUnavailable(world);
+        RefreshParticipantPolicies(world);
         if (FinishChoices())
         {
             return;
@@ -489,7 +521,7 @@ internal sealed class AutoPlayController
             return;
         }
         AutoPlayEventCoverage currentEvent = run.Coverage.Visits.Single(item => item.Visit.Key == visit).Events.Single(item => item.Event.Id == next.Event.Id);
-        AutoPlayTarget[] variants = targets.Where(item => item.CoverageId == next.Event.Id && !currentEvent.UnavailableVariants.Contains(item.Id) && (next.Route?.TargetId is not string recordedTarget || item.Id == recordedTarget)).OrderBy(item => item.Order).ThenBy(item => item.Id, StringComparer.Ordinal).ToArray();
+        AutoPlayTarget[] variants = targets.Where(item => item.CoverageId == next.Event.Id && !currentEvent.UnavailableVariants.Contains(item.Id) && !currentEvent.PolicyDeferredVariants.Contains(item.Id) && (next.Route?.TargetId is not string recordedTarget || item.Id == recordedTarget)).OrderBy(item => item.Order).ThenBy(item => item.Id, StringComparer.Ordinal).ToArray();
         AutoPlayTarget target = variants.FirstOrDefault() ?? throw new InvalidDataException("Planned event is no longer available in the current field.");
         string beforeCheckpoint = $"event-{run.Steps:D10}.json";
         SaveBundle(Path.GetFileNameWithoutExtension(beforeCheckpoint), CaptureState());
@@ -734,6 +766,7 @@ internal sealed class AutoPlayController
         run.ScriptedChoiceInputs.TryAdd(key, input);
         planner.ObserveChoice(key, input.Masks.Count);
         AutoPlayChoiceCoverage choice = run.Coverage.Choices.Single(item => item.Key == key);
+        RefreshParticipantChoice(choice);
         int selection = attempt % input.Masks.Count;
         if (run.ActiveTravelRoute is { } route)
         {
@@ -755,8 +788,8 @@ internal sealed class AutoPlayController
                 run.SceneChoices.Add(key);
             }
         }
-        PulseScriptedInput(input.Masks[selection], input, allowControlled, prepared: true);
         run.ActiveSelections?.Add(new(key, selection));
+        PulseScriptedInput(input.Masks[selection], input, allowControlled, prepared: true);
     }
 
     private bool PrepareScriptedInput(bool allowControlled)
@@ -992,12 +1025,13 @@ internal sealed class AutoPlayController
         string key = $"{VisitKey()}:{dialogue.ObjectId}:{dialogue.ScriptId}:{dialogue.Operation}:{dialogue.MessageId}:{first}:{last}";
         planner.ObserveChoice(key, last - first + 1, first);
         AutoPlayChoiceCoverage coverage = run.Coverage.Choices.Single(item => item.Key == key);
+        RefreshParticipantChoice(coverage);
         if (run.ActiveTravelRoute is { } route)
         {
             int recorded = SelectRecordedTravelChoice(route, run.ActiveSelections, key, first, last);
             run.DialogueSelections[key] = recorded;
-            ApplyDialogueSelection(recorded);
             run.ActiveSelections?.Add(new(key, recorded));
+            ApplyDialogueSelection(recorded);
             return;
         }
         if (coverage.ActiveOption is not null || coverage.Finished)
@@ -1005,8 +1039,8 @@ internal sealed class AutoPlayController
             int previous = run.DialogueSelections.GetValueOrDefault(key, coverage.ActiveOption ?? first);
             int repeated = dialogue.CancelChoice ?? first + (previous - first + 1) % (last - first + 1);
             run.DialogueSelections[key] = repeated;
-            ApplyDialogueSelection(repeated);
             run.ActiveSelections?.Add(new(key, repeated));
+            ApplyDialogueSelection(repeated);
             return;
         }
         AutoPlayChoiceStep next = planner.PlanChoice(key);
@@ -1017,15 +1051,15 @@ internal sealed class AutoPlayController
         }
         if (next.Selection is not int selection)
         {
-            ApplyDialogueSelection(dialogue.CancelChoice ?? last);
             run.ActiveSelections?.Add(new(key, dialogue.CancelChoice ?? last));
+            ApplyDialogueSelection(dialogue.CancelChoice ?? last);
             return;
         }
         planner.BeginChoiceOption(key, selection);
         run.SceneChoices.Add(key);
         run.DialogueSelections[key] = selection;
-        ApplyDialogueSelection(selection);
         run.ActiveSelections?.Add(new(key, selection));
+        ApplyDialogueSelection(selection);
     }
 
     internal static int SelectRecordedTravelChoice(AutoPlayEventRoute route, IReadOnlyList<AutoPlayChoiceSelection>? executed, string key, int first, int last)
@@ -1080,7 +1114,7 @@ internal sealed class AutoPlayController
         {
             return false;
         }
-        foreach (AutoPlayChoiceCoverage choice in run.Coverage.Choices.Where(item => !item.Finished))
+        foreach (AutoPlayChoiceCoverage choice in run.Coverage.Choices.Where(item => !item.Finished && !item.PolicyExhausted))
         {
             AutoPlayChoiceStep next = planner.PlanChoice(choice.Key);
             if (next.Kind == AutoPlayChoiceStepKind.RestoreContinuation)
@@ -1099,14 +1133,14 @@ internal sealed class AutoPlayController
                 {
                     getWorld().EnsureField();
                     ScriptedInputMetadata input = RestoreScriptedChoiceInput(choice);
-                    PulseScriptedInput(input.Masks[selection], input, getWorld().Events.IsUserControlEnabled, choice.InputCheckpointPrepared);
                     run.ActiveSelections?.Add(new(choice.Key, selection));
+                    PulseScriptedInput(input.Masks[selection], input, getWorld().Events.IsUserControlEnabled, choice.InputCheckpointPrepared);
                 }
                 else
                 {
                     run.DialogueSelections[choice.Key] = selection;
-                    ApplyDialogueSelection(selection);
                     run.ActiveSelections?.Add(new(choice.Key, selection));
+                    ApplyDialogueSelection(selection);
                 }
                 return true;
             }
