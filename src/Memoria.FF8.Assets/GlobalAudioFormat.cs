@@ -1,3 +1,4 @@
+using Memoria.FF8.Resources;
 using System.Buffers.Binary;
 
 namespace Memoria.FF8.Assets;
@@ -15,10 +16,15 @@ public static class GlobalAudioFormat
     public static GlobalAudioSampleDescriptor Read(string gameDirectory, int sampleIndex)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameDirectory);
-        string soundDirectory = Path.Combine(gameDirectory, "Data", "Sound");
-        long dataLength = new FileInfo(Path.Combine(soundDirectory, "audio.dat")).Length;
-        using FileStream format = File.OpenRead(Path.Combine(soundDirectory, "audio.fmt"));
-        return Read(format, dataLength, sampleIndex);
+        using IResourceSource source = GameDataSourceFactory.Open(gameDirectory);
+        return Read(new ResourceService(source), sampleIndex);
+    }
+
+    public static GlobalAudioSampleDescriptor Read(ResourceService resources, int sampleIndex)
+    {
+        using Stream data = resources.Get(new ResourceKey("files/sound/audio.dat")).OpenRead();
+        using Stream format = resources.Get(new ResourceKey("files/sound/audio.fmt")).OpenRead();
+        return Read(format, data.Length, sampleIndex);
     }
 
     /// <summary>Reads from the current format-stream position and leaves the stream open. Descriptor offsets are relative to that position.</summary>

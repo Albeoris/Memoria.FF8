@@ -1,3 +1,4 @@
+using Memoria.FF8.Resources;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
@@ -52,12 +53,13 @@ public sealed class TripleTriadCatalog
     public static TripleTriadCatalog Load(string gameDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameDirectory);
-        using IFlArchive archive = FlArchive.OpenForRead(Path.Combine(gameDirectory, "Data", "lang-en", "menu.fs"), FlArchiveRepresentation.Files);
+        using IResourceSource provider = GameDataSourceFactory.Open(gameDirectory);
+        using IFlArchive archive = (provider as IGameArchiveSource ?? throw new NotSupportedException("The resource source does not support archive enumeration.")).OpenArchive("menu");
         IFlArchiveEntry entry = archive.Entries.Single(entry => entry.RelativePath.Replace('\\', '/').Split('/')[^1].Equals("m004.bin", StringComparison.OrdinalIgnoreCase));
         using Stream input = entry.OpenForRead();
         using MemoryStream data = new();
         input.CopyTo(data);
-        return ReadExecutable(File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe")), data.ToArray());
+        return ReadExecutable(GameDataResources.ReadNativeExecutable(new ResourceService(provider)), data.ToArray());
     }
 
     public static TripleTriadCatalog ReadExecutable(byte[] executable, byte[]? refinementData = null)

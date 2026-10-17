@@ -8,7 +8,7 @@ public sealed partial class WorldAssets
 {
     public NativeWorldMusicResource ReadMusicFileResource(int index)
     {
-        string relativePath = new NativeMusicCatalog(gameDirectory).WorldMusicFile(index);
+        string relativePath = new NativeMusicCatalog(resources).WorldMusicFile(index);
         byte[] container = Read(relativePath.Split('/')[^1]);
         if (container.Length < 8)
         {

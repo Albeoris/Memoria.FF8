@@ -1,3 +1,4 @@
+using Memoria.FF8.Resources;
 using Albeoris.Games.FF8.FlArchives;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
 
@@ -20,7 +21,8 @@ public sealed class WorldMapLocations
 
     public static WorldMapLocations ReadInstalled(string gameDirectory)
     {
-        using IFlArchive archive = FlArchive.OpenForRead(Path.Combine(gameDirectory, "Data", "lang-en", "world.fs"), FlArchiveRepresentation.Files);
+        using IResourceSource provider = GameDataSourceFactory.Open(gameDirectory);
+        using IFlArchive archive = (provider as IGameArchiveSource ?? throw new NotSupportedException("The resource source does not support archive enumeration.")).OpenArchive("world");
         IFlArchiveEntry entry = archive.Entries.Single(entry => Path.GetFileName(entry.RelativePath).Equals("wmsetus.obj", StringComparison.OrdinalIgnoreCase));
         using Stream source = entry.OpenForRead();
         using MemoryStream buffer = new();

@@ -1,3 +1,4 @@
+using Memoria.FF8.Resources;
 using System.Buffers.Binary;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -198,7 +199,12 @@ public sealed class BattleIntegrationTests
         {
             UseInteractiveBattle = (_, _) => true,
             ValidateInteractiveBattle = (_, _) => null,
-            ReadMovieCameraFlags = (disc, movie) => NativeMovieCameraReader.Read(File.ReadAllBytes(MovieClock.GetCameraPath(TestResources.GameDirectory, disc, movie)))
+            ReadMovieCameraFlags = (disc, movie) =>
+            {
+                using IResourceSource movieSource = GameDataSourceFactory.Open(TestResources.GameDirectory);
+                IGameFileSource movieFiles = Assert.IsAssignableFrom<IGameFileSource>(movieSource);
+                return NativeMovieCameraReader.Read(File.ReadAllBytes(MovieClock.GetCameraPath(movieFiles, disc, movie)));
+            }
         };
     }
 

@@ -1,3 +1,4 @@
+using Memoria.FF8.Resources;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using Albeoris.Games.FF8.FlArchives;
@@ -77,7 +78,8 @@ public sealed class NativeMenuArtwork
     public static NativeMenuArtwork Load(string gameDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameDirectory);
-        using IFlArchive menu = FlArchive.OpenForRead(Path.Combine(gameDirectory, "Data", "lang-en", "menu.fs"), FlArchiveRepresentation.Files);
+        using IResourceSource provider = GameDataSourceFactory.Open(gameDirectory);
+        using IFlArchive menu = (provider as IGameArchiveSource ?? throw new NotSupportedException("The resource source does not support archive enumeration.")).OpenArchive("menu");
         byte[] faces = ReadEntry(menu, "face.sp2");
         PixelImage[] characterAtlases = [ReadPortraitAtlas(menu, "Face_b00.TEX"), ReadPortraitAtlas(menu, "Face_b01.TEX")];
         PixelImage[] guardianForceAtlases = [ReadPortraitAtlas(menu, "Gf_big00.TEX"), ReadPortraitAtlas(menu, "Gf_big01.TEX")];

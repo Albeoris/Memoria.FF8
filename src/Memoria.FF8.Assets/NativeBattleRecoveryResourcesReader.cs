@@ -98,7 +98,7 @@ public sealed partial class GameAssets
         _ = NativeBattleRecoveryProfile.ForEffect(effect);
         if (!nativeRecoveryResources.TryGetValue(effect, out NativeBattleRecoveryResources? resources))
         {
-            resources = NativeBattleRecoveryResourcesReader.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")), effect);
+            resources = NativeBattleRecoveryResourcesReader.Read(GameDataResources.ReadNativeExecutable(this.resources), effect);
             nativeRecoveryResources.Add(effect, resources);
         }
         return resources;

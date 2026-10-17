@@ -15,9 +15,12 @@ public sealed class NativeWorldForestTables
     public IReadOnlyList<NativeWorldForestEffect> Effects { get; }
     public IReadOnlyList<ushort> PaletteY { get; }
 
-    public NativeWorldForestTables(string gameDirectory)
+    public NativeWorldForestTables(string gameDirectory) : this(GameDataResources.ReadNativeExecutable(gameDirectory))
     {
-        byte[] image = File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe"));
+    }
+
+    public NativeWorldForestTables(byte[] image)
+    {
         if (!Convert.ToHexString(SHA256.HashData(image)).Equals(NativeFieldRuntimeProfile.FF8EnExecutableHash, StringComparison.OrdinalIgnoreCase))
         {
             throw new NotSupportedException("Forest tables require the authenticated original FF8_EN executable.");
@@ -78,7 +81,7 @@ public sealed partial class WorldAssets
     private TimImage? forestTim;
     private TimImage? gardenWakeTim;
     private TimImage? cactuarBurstTim;
-    public NativeWorldForestTables ForestTables => forestTables ??= new NativeWorldForestTables(gameDirectory);
+    public NativeWorldForestTables ForestTables => forestTables ??= new NativeWorldForestTables(GameDataResources.ReadNativeExecutable(resources));
 
     public PixelImage GetForestTexture(byte type, int frame)
     {

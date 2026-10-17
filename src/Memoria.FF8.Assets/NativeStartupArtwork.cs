@@ -1,3 +1,4 @@
+using Memoria.FF8.Resources;
 using System.Buffers.Binary;
 using Albeoris.Games.Core.NSCompression.LZS;
 using Albeoris.Games.FF8.FlArchives;
@@ -44,7 +45,8 @@ public sealed class NativeStartupArtwork
     public static NativeStartupArtwork Load(string gameDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameDirectory);
-        using IFlArchive archive = FlArchive.OpenForRead(Path.Combine(gameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
+        using IResourceSource provider = GameDataSourceFactory.Open(gameDirectory);
+        using IFlArchive archive = (provider as IGameArchiveSource ?? throw new NotSupportedException("The resource source does not support archive enumeration.")).OpenArchive("main");
         Dictionary<int, PixelImage> images = [];
         for (int index = 4; index <= 33; index++)
         {

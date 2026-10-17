@@ -15,7 +15,7 @@ public sealed partial class WorldAssets
         if (!scriptedPaths.TryGetValue((trackIndex, cameraList), out NativeWorldScriptedPathDefinition? definition))
         {
             byte[] rail = Read("rail.obj");
-            byte[] executable = File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe"));
+            byte[] executable = GameDataResources.ReadNativeExecutable(resources);
             definition = NativeWorldScriptedPathReader.Read(rail, wmset.AsSpan(sections[17], sections[18] - sections[17]), executable, trackIndex, cameraList);
             scriptedPaths.Add((trackIndex, cameraList), definition);
         }

@@ -8,6 +8,7 @@ namespace Memoria.FF8;
 /// <summary>Device output is transient. Executed VM audio receipts keep their deterministic headless contract.</summary>
 internal sealed partial class FieldAudioPresentation(nint window, string gameDirectory, string toolsDirectory) : IDisposable
 {
+    private readonly GameFileResources gameFiles = new(gameDirectory);
     private readonly Dictionary<int, PcmAudio> samples = [];
     private readonly Dictionary<int, Voice> voices = [];
     private NativeMusicCatalog? catalog;
@@ -63,9 +64,9 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
     internal int PrimaryMusicId => musicIds[0];
     internal int SoundVoiceCount => voices.Count;
     internal float PrimaryMusicVolume => musicKinds[0] == MusicKind.Midi ? midiVolume : streamVolume;
-    private NativeMusicCatalog Catalog => catalog ??= new NativeMusicCatalog(gameDirectory);
+    private NativeMusicCatalog Catalog => catalog ??= new NativeMusicCatalog(gameFiles.Resources);
     private DirectSoundOutput Sound => sound ??= new DirectSoundOutput(window);
-    private DirectMusicOutput Music => music ??= new DirectMusicOutput(window, Path.Combine(gameDirectory, "Data", "Music", "dmusic"));
+    private DirectMusicOutput Music => music ??= new DirectMusicOutput(window, Path.GetDirectoryName(gameFiles.ResolveDataFile("music/dmusic/FF8.dls"))!);
 
     public void Attach(EventEngine next)
     {
@@ -188,7 +189,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
     private void PlayFootstepSound(NativeFootstepSound footstep)
     {
         (int sample, int voice, uint volume, uint pan) = ResolveFootstepPlayback(footstep);
-        GlobalSoundResource resource = GameWorld.CreateMutedGlobalSoundResource(GlobalAudioFormat.Read(gameDirectory, sample)) ?? throw new NotSupportedException($"Footstep sound {footstep.EffectId} requires an unsupported audio format.");
+        GlobalSoundResource resource = GameWorld.CreateMutedGlobalSoundResource(GlobalAudioFormat.Read(gameFiles.Resources, sample)) ?? throw new NotSupportedException($"Footstep sound {footstep.EffectId} requires an unsupported audio format.");
         // Native footsteps replace device voices23/24, sharing script stop/volume controls.
         // The transient callback creates no persisted VM request or allocator mutation.
         PlaySoundSample(sample, voice, volume, pan, resource.LoopPolicy);
@@ -198,7 +199,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
     {
         if (!samples.TryGetValue(index, out PcmAudio? pcm))
         {
-            pcm = PcmAudioDecoder.ReadSample(gameDirectory, index);
+            pcm = PcmAudioDecoder.ReadSample(gameFiles.Resources, index);
             samples.Add(index, pcm);
         }
         DirectSoundOutput.Buffer primary = Sound.Create(pcm.Bytes, pcm.SampleRate, pcm.Channels);
@@ -321,7 +322,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
             return;
         }
         int sample = EventEngine.MapGlobalSoundSample(effect);
-        GlobalSoundResource resource = GameWorld.CreateMutedGlobalSoundResource(GlobalAudioFormat.Read(gameDirectory, sample)) ?? throw new NotSupportedException($"Presentation sound {effect} requires an unsupported audio format.");
+        GlobalSoundResource resource = GameWorld.CreateMutedGlobalSoundResource(GlobalAudioFormat.Read(gameFiles.Resources, sample)) ?? throw new NotSupportedException($"Presentation sound {effect} requires an unsupported audio format.");
         PlaySoundSample(sample, voice, volume, pan, resource.LoopPolicy);
     }
 
@@ -340,7 +341,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
             return;
         }
         StopMusicSlot(slot);
-        string path = Path.Combine(gameDirectory, Catalog.MusicFileResolved(track));
+        string path = gameFiles.ResolveInstallationFile(Catalog.MusicFileResolved(track));
         if (Path.GetExtension(path).Equals(".sgt", StringComparison.OrdinalIgnoreCase))
         {
             Music.Play(path, OutputGain(Catalog.MusicVolume(volume.Value), musicPreference), startPoint);
@@ -564,6 +565,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         StopAll();
         music?.Dispose();
         sound?.Dispose();
+        gameFiles.Dispose();
     }
 
     private sealed class Voice(DirectSoundOutput.Buffer primary, DirectSoundOutput.Buffer? loop, float volume, float pan, int? loopDelay)

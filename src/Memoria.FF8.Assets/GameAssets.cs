@@ -5,7 +5,6 @@ using Albeoris.Games.FF8.Imaging.Mim;
 using Albeoris.Games.FF8.Msd;
 using Albeoris.Games.FF8.TextEncoding;
 using Memoria.FF8.Runtime;
-using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using Memoria.FF8.Resources;
 
@@ -14,7 +13,6 @@ namespace Memoria.FF8.Assets;
 /// <summary>Reads selected original assets without modifying or extracting the installed game.</summary>
 public sealed partial class GameAssets : IDisposable
 {
-    private static readonly ConcurrentDictionary<(string Path, long Length, long ModifiedTicks), string> NativeExecutableHashes = new();
     private readonly IFlArchive outer;
     private readonly IGameArchiveSource archiveSource;
     private readonly IResourceSource? ownedSource;
@@ -22,7 +20,7 @@ public sealed partial class GameAssets : IDisposable
     private readonly Dictionary<int, FieldAssets> fields = [];
     private readonly Dictionary<int, FieldSoundEffectTable> fieldSoundEffects = [];
     private readonly IAssetOverrideSource? overrides;
-    private readonly ResourceService? resources;
+    private readonly ResourceService resources;
     private readonly IMusicCueResolver musicCueResolver;
     private readonly AssetTextureScope textureScope;
     private readonly Dictionary<IFlArchive, string> archiveIdentities = [];
@@ -36,33 +34,19 @@ public sealed partial class GameAssets : IDisposable
     public GameAssets(string gameDirectory, IAssetOverrideSource? overrides = null, ResourceService? resources = null, IMusicCueResolver? musicCueResolver = null)
     {
         this.musicCueResolver = musicCueResolver ?? new ClassicMusicCueResolver();
-        this.resources = resources;
-        textureScope = new AssetTextureScope(resources);
         this.overrides = overrides;
         GameDirectory = Path.GetFullPath(gameDirectory);
         if (resources is null)
         {
-            ClassicGameDataSource source = new(GameDirectory);
-            ownedSource = source;
-            archiveSource = source;
+            ownedSource = GameDataSourceFactory.Open(GameDirectory);
+            resources = new ResourceService(ownedSource);
         }
-        else
-        {
-            archiveSource = resources.GetSource<IGameArchiveSource>() ?? throw new NotSupportedException("The game resource source does not support archive enumeration.");
-        }
+        this.resources = resources;
+        textureScope = new AssetTextureScope(resources);
+        archiveSource = resources.GetSource<IGameArchiveSource>() ?? throw new NotSupportedException("The game resource source does not support archive enumeration.");
         IFlArchive? openedArchive = null;
         try
         {
-            string executable = Path.Combine(GameDirectory, "FF8_EN.exe");
-            if (File.Exists(executable))
-            {
-                FileInfo info = new(executable);
-                NativeExecutableHash = NativeExecutableHashes.GetOrAdd((info.FullName, info.Length, info.LastWriteTimeUtc.Ticks), identity =>
-                {
-                    using FileStream stream = File.OpenRead(identity.Path);
-                    return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(stream));
-                });
-            }
             openedArchive = OpenArchive("field");
             outer = openedArchive;
             archiveIdentities[outer] = "field";
@@ -94,7 +78,7 @@ public sealed partial class GameAssets : IDisposable
         }
         return resource;
     }
-    public string? NativeExecutableHash { get; }
+    public string? NativeExecutableHash => resources.GetSource<IGameRuntimeSource>()?.NativeExecutableHash;
     public NativeEncounterTables ReadNativeEncounterTables() => nativeEncounterTables ??= NativeEncounterTables.ReadExecutable(ReadNativeExecutable());
     public NativeDrawPointCatalog ReadNativeDrawPointCatalog()
     {
@@ -106,27 +90,16 @@ public sealed partial class GameAssets : IDisposable
         nativeDrawPointCatalog = NativeDrawPointCatalogReader.Read(ReadNativeExecutable(), Read(main, "kernel.bin"));
         return nativeDrawPointCatalog;
     }
-    public NativeVibrationBank ReadNativeVibrationBank() => nativeVibrationBank ??= NativeVibrationBankReader.ReadExecutable(ReadNativeExecutable());
+    public NativeVibrationBank ReadNativeVibrationBank() => nativeVibrationBank ??= NativeVibrationBankReader.ReadTable(ReadResource(new ResourceKey("tables/vibration")), NativeExecutableHash);
     public NativeShakeTables ReadNativeShakeTables()
     {
-        if (NativeRuntimeProfile is not { IsVerified: true })
-        {
-            throw new NotSupportedException("Native shake tables require the preserved English executable profile.");
-        }
-        using FileStream stream = File.OpenRead(Path.Combine(GameDirectory, "FF8_EN.exe"));
-        byte[] random = new byte[256];
-        byte[] cosine = new byte[512];
-        stream.Position = 0x780A18;
-        stream.ReadExactly(random);
-        stream.Position = 0x780D9C;
-        stream.ReadExactly(cosine);
-        return new NativeShakeTables(random, cosine);
+        return new NativeShakeTables(ReadResource(new ResourceKey("tables/field-random")), ReadResource(new ResourceKey("tables/cosine")));
     }
     public NativeCharacterVitals ReadNewGameCharacterVitals()
     {
         if (NativeRuntimeProfile is null)
         {
-            throw new NotSupportedException("Native character initialization requires the proved installed executable.");
+            throw UnsupportedRuntime("Native character initialization requires the proved installed executable.");
         }
         using IFlArchive main = OpenArchive("main");
         return NativeCharacterInitialization.Read(Read(main, "init.out"), Read(main, "kernel.bin"));
@@ -136,7 +109,7 @@ public sealed partial class GameAssets : IDisposable
     {
         if (NativeRuntimeProfile is not { IsVerified: true })
         {
-            throw new NotSupportedException("Battle experience requires the authenticated original executable.");
+            throw UnsupportedRuntime("Battle experience requires the authenticated original executable.");
         }
         using IFlArchive main = OpenArchive("main");
         return NativeBattleExperienceDefinitionReader.Read(Read(main, "kernel.bin"));
@@ -145,7 +118,7 @@ public sealed partial class GameAssets : IDisposable
     {
         if (NativeRuntimeProfile is not { IsVerified: true })
         {
-            throw new NotSupportedException("Native economy initialization requires the authenticated original executable.");
+            throw UnsupportedRuntime("Native economy initialization requires the authenticated original executable.");
         }
         using IFlArchive main = OpenArchive("main");
         return NativeEconomyInitialization.Read(Read(main, "init.out"));
@@ -155,7 +128,7 @@ public sealed partial class GameAssets : IDisposable
     {
         if (NativeRuntimeProfile is not { IsVerified: true })
         {
-            throw new NotSupportedException("Native shop initialization requires the authenticated original executable.");
+            throw UnsupportedRuntime("Native shop initialization requires the authenticated original executable.");
         }
         using IFlArchive main = OpenArchive("main");
         return NativeShopDefinitionReader.ReadNewGameHistory(Read(main, "init.out"));
@@ -176,7 +149,7 @@ public sealed partial class GameAssets : IDisposable
     {
         if (NativeRuntimeProfile is not { IsVerified: true })
         {
-            throw new NotSupportedException("Native known-weapon initialization requires the authenticated original executable.");
+            throw UnsupportedRuntime("Native known-weapon initialization requires the authenticated original executable.");
         }
         using IFlArchive main = OpenArchive("main");
         return NativeWeaponShopDefinitionReader.ReadNewGameRecipes(Read(main, "init.out"));
@@ -197,7 +170,7 @@ public sealed partial class GameAssets : IDisposable
     {
         if (NativeRuntimeProfile is not { IsVerified: true })
         {
-            throw new NotSupportedException("Native shot availability initialization requires the authenticated original executable.");
+            throw UnsupportedRuntime("Native shot availability initialization requires the authenticated original executable.");
         }
         using IFlArchive main = OpenArchive("main");
         return NativeShotAvailabilityInitialization.Read(Read(main, "init.out"), Read(main, "kernel.bin"));
@@ -207,7 +180,7 @@ public sealed partial class GameAssets : IDisposable
     {
         if (NativeRuntimeProfile is not { IsVerified: true })
         {
-            throw new NotSupportedException("Native Limit initialization requires the authenticated original executable.");
+            throw UnsupportedRuntime("Native Limit initialization requires the authenticated original executable.");
         }
         using IFlArchive main = OpenArchive("main");
         return NativeLimitProgressInitialization.Read(Read(main, "init.out"));
@@ -217,7 +190,7 @@ public sealed partial class GameAssets : IDisposable
     {
         if (NativeRuntimeProfile is not { IsVerified: true })
         {
-            throw new NotSupportedException("PocketStation initialization requires the authenticated original executable.");
+            throw UnsupportedRuntime("PocketStation initialization requires the authenticated original executable.");
         }
         using IFlArchive main = OpenArchive("main");
         return NativePocketStationInitialization.Read(Read(main, "init.out"));
@@ -227,7 +200,7 @@ public sealed partial class GameAssets : IDisposable
     {
         if (NativeRuntimeProfile is not { IsVerified: true })
         {
-            throw new NotSupportedException("Saved battle flag initialization requires the authenticated original executable.");
+            throw UnsupportedRuntime("Saved battle flag initialization requires the authenticated original executable.");
         }
         //56D9F0/47E410 clear1CFDC58..1CFEFF8.56DA10's init.out payload ends1CFE7A4, before BYTE1CFE97A.
         return new NativeSavedBattleFlags(NativeInputConfiguration.OriginalInitHash, 0);
@@ -236,7 +209,7 @@ public sealed partial class GameAssets : IDisposable
     {
         if (NativeRuntimeProfile is not { IsVerified: true })
         {
-            throw new NotSupportedException("Native input initialization requires the authenticated original executable.");
+            throw UnsupportedRuntime("Native input initialization requires the authenticated original executable.");
         }
         using IFlArchive main = OpenArchive("main");
         return NativeInputInitialization.Read(Read(main, "init.out"));
@@ -245,12 +218,9 @@ public sealed partial class GameAssets : IDisposable
     {
         if (NativeRuntimeProfile is not { IsVerified: true })
         {
-            throw new NotSupportedException("Salary lookup requires the authenticated original executable.");
+            throw UnsupportedRuntime("Salary lookup requires the authenticated original executable.");
         }
-        using FileStream stream = File.OpenRead(Path.Combine(GameDirectory, "FF8_EN.exe"));
-        byte[] raw = new byte[64];
-        stream.Position = 0x78E474;
-        stream.ReadExactly(raw);
+        byte[] raw = ReadNativeExecutable().AsSpan(0x78E474, 64).ToArray();
         ushort[] entries = new ushort[32];
         for (int index = 0; index < entries.Length; index++)
         {
@@ -260,13 +230,13 @@ public sealed partial class GameAssets : IDisposable
         table.Validate();
         return table;
     }
-    public NativeFieldRuntimeProfile? NativeRuntimeProfile => NativeExecutableHash == NativeFieldRuntimeProfile.FF8EnExecutableHash ? NativeFieldRuntimeProfile.FF8En : null;
+    public NativeFieldRuntimeProfile? NativeRuntimeProfile => resources.GetSource<IGameRuntimeSource>()?.NativeRuntimeProfile;
 
     public NativeCharacterAppearance ReadNewGameCharacterAppearance()
     {
         if (NativeRuntimeProfile is null)
         {
-            throw new NotSupportedException("Native appearance initialization requires the proved installed executable.");
+            throw UnsupportedRuntime("Native appearance initialization requires the proved installed executable.");
         }
         using IFlArchive main = OpenArchive("main");
         return NativeAppearanceInitialization.Read(Read(main, "init.out"));
@@ -303,7 +273,7 @@ public sealed partial class GameAssets : IDisposable
             nativeMain.TryAdd(model, new($"field/main_chr/{model}.mch", Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)), bytes.ToImmutableArray()));
             return bytes;
         }
-        IReadOnlyList<FieldModel> models = (resources?.GetSource<IFieldModelSource>()?.ReadModels(new ResourceKey($"field/{name}/chara.one"), one, ReadRegistrationMain, nativeDirectory.Add) ?? FieldModelReader.Read(one, ReadRegistrationMain, nativeDirectory.Add)).Select((model, index) => model with { Textures = textureScope.RegisterList(new ResourceKey($"field/{name}/chara.one"), model.Textures, "classic-model", $"model/{index}/texture") }).ToArray();
+        IReadOnlyList<FieldModel> models = (resources.GetSource<IFieldModelSource>()?.ReadModels(new ResourceKey($"field/{name}/chara.one"), one, ReadRegistrationMain, nativeDirectory.Add) ?? FieldModelReader.Read(one, ReadRegistrationMain, nativeDirectory.Add)).Select((model, index) => model with { Textures = textureScope.RegisterList(new ResourceKey($"field/{name}/chara.one"), model.Textures, "classic-model", $"model/{index}/texture") }).ToArray();
         IReadOnlyList<FieldCamera> cameras = FieldCamera.ReadAll(Read(nested, name + ".ca"));
         byte[] information = Read(nested, name + ".inf");
         byte[] walkmesh = Read(nested, name + ".id");
@@ -325,36 +295,25 @@ public sealed partial class GameAssets : IDisposable
     public string GetMoviePath(int index, int disk = 1)
     {
         string stem = $"disc{disk - 1:00}_{index:00}";
-        string directory = Path.Combine(GameDirectory, "Data", "movies");
+        IGameFileSource files = resources.GetSource<IGameFileSource>() ?? throw new NotImplementedException("The resource source has no movie file capability.");
         foreach (string suffix in new[] { "h.avi", ".bik", ".avi", "h.bik" })
         {
-            if (archiveSource is IGameFileSource files)
+            try
             {
-                try
+                string resolved = files.ResolveFile("movies/" + stem + suffix);
+                if (File.Exists(resolved))
                 {
-                    string resolved = files.ResolveFile("movies/" + stem + suffix);
-                    if (File.Exists(resolved))
-                    {
-                        return resolved;
-                    }
-                    continue;
-                }
-                catch (FileNotFoundException)
-                {
-                    continue;
-                }
-                catch (DirectoryNotFoundException)
-                {
-                    continue;
+                    return resolved;
                 }
             }
-            string path = Path.Combine(directory, stem + suffix);
-            if (File.Exists(path))
+            catch (FileNotFoundException)
             {
-                return path;
+            }
+            catch (DirectoryNotFoundException)
+            {
             }
         }
-        throw new FileNotFoundException($"Movie {stem} is absent from {directory}.");
+        throw new FileNotFoundException($"Movie {stem} is absent from the game resource source.");
     }
 
     public FieldSoundEffectTable LoadFieldSoundEffects(int fieldId)
@@ -380,13 +339,16 @@ public sealed partial class GameAssets : IDisposable
         return Read(mainCharacters, name + ".mch");
     }
 
-    private byte[] ReadNativeExecutable()
+    public byte[] ReadResource(ResourceKey key) => resources.Read(key);
+
+    public byte[] ReadNativeExecutable() => GameDataResources.ReadNativeExecutable(resources);
+
+    public IFlArchive OpenResourceArchive(string family) => OpenArchive(family);
+
+    private Exception UnsupportedRuntime(string message)
     {
-        if (NativeRuntimeProfile is not { IsVerified: true })
-        {
-            throw new NotSupportedException("Native executable tables require the authenticated original executable profile.");
-        }
-        return File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe"));
+        _ = GameDataResources.RequireNativeRuntimeProfile(resources);
+        return new NotSupportedException(message);
     }
 
     private IFlArchive OpenArchive(string family)
@@ -410,7 +372,7 @@ public sealed partial class GameAssets : IDisposable
         {
             return content;
         }
-        if (resources is not null && archiveIdentities.TryGetValue(archive, out string? identity))
+        if (archiveIdentities.TryGetValue(archive, out string? identity))
         {
             return resources.Read(new ResourceKey(identity + "/" + basename));
         }

@@ -274,6 +274,6 @@ public sealed partial class GameAssets
     public NativeTutorialExamCatalog ReadNativeTutorialExamCatalog()
     {
         using IFlArchive menu = OpenArchive("menu");
-        return nativeTutorialExams ??= NativeTutorialExamCatalog.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")), Read(menu, "mngrphd.bin"), Read(menu, "mngrp.bin"));
+        return nativeTutorialExams ??= NativeTutorialExamCatalog.Read(ReadNativeExecutable(), Read(menu, "mngrphd.bin"), Read(menu, "mngrp.bin"));
     }
 }

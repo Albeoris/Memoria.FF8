@@ -94,7 +94,7 @@ public sealed partial class GameAssets
     {
         if (nativeEffectCatalog.IsDefault)
         {
-            byte[] executable = File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe"));
+            byte[] executable = GameDataResources.ReadNativeExecutable(this.resources);
             ImmutableArray<NativeBattleEffectBinding> catalog = NativeBattleEffectCatalogReader.Read(executable);
             NativeBattleEffectBinding fire = catalog[1];
             if (fire.Entry != 0x6298A0 || fire.Initializer != 0x629880)

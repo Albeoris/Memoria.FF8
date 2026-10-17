@@ -67,7 +67,7 @@ public sealed partial class GameAssets
     {
         if (NativeRuntimeProfile is not { IsVerified: true } || information.Length != 676)
         {
-            throw new NotSupportedException("Native field registration requires the authenticated original information record.");
+            throw UnsupportedRuntime("Native field registration requires the authenticated original information record.");
         }
         if (nativeFieldPlacementWords.IsDefault)
         {

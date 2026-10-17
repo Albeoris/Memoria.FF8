@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using Albeoris.Games.FF8.FlArchives;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Albeoris.Games.FF8.KernelBin;
 using Albeoris.Games.FF8.MngrpBin;
@@ -344,7 +343,7 @@ public sealed partial class LiveMenuCatalog
     public static LiveMenuCatalog ReadInstalled(GameAssets assets)
     {
         ArgumentNullException.ThrowIfNull(assets);
-        using IFlArchive main = FlArchive.OpenForRead(Path.Combine(assets.GameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
+        using IFlArchive main = assets.OpenResourceArchive("main");
         byte[] Read(string name)
         {
             IFlArchiveEntry entry = main.Entries.Single(entry => string.Equals(Path.GetFileName(entry.RelativePath), name, StringComparison.OrdinalIgnoreCase));
@@ -367,7 +366,7 @@ public sealed partial class LiveMenuCatalog
         }).ToArray();
         byte[] kernelBytes = Read("kernel.bin");
         KernelData kernel = KernelData.ReadFromArray(kernelBytes, encoding);
-        using IFlArchive menu = FlArchive.OpenForRead(Path.Combine(assets.GameDirectory, "Data", "lang-en", "menu.fs"), FlArchiveRepresentation.Files);
+        using IFlArchive menu = assets.OpenResourceArchive("menu");
         byte[] ReadMenu(string name)
         {
             IFlArchiveEntry entry = menu.Entries.Single(entry => string.Equals(Path.GetFileName(entry.RelativePath), name, StringComparison.OrdinalIgnoreCase));
@@ -398,7 +397,7 @@ public sealed partial class LiveMenuCatalog
         {
             throw new InvalidDataException("Original field item metadata requires complete four-byte rows.");
         }
-        byte[] itemIconKinds = NativeMagazineArtwork.ReadItemIconKinds(File.ReadAllBytes(Path.Combine(assets.GameDirectory, "FF8_EN.exe")));
+        byte[] itemIconKinds = NativeMagazineArtwork.ReadItemIconKinds(assets.ReadNativeExecutable());
         LiveMenuCatalog catalog = new(kernelBytes, kernel, guardianForceNames, cardNames, cardDescriptions, fieldItems, itemIconKinds, TripleTriadCatalog.Load(assets.GameDirectory));
         catalog.ReadLocations(ReadMenu("areames.dc1"), encoding, WorldMapLocations.ReadInstalled(assets.GameDirectory));
         catalog.solomonRing = assets.ReadNativeSolomonRingDefinition();

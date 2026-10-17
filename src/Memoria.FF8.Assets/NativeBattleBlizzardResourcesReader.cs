@@ -14,5 +14,5 @@ public static class NativeBattleBlizzardResourcesReader
 public sealed partial class GameAssets
 {
     private NativeBattleBlizzardResources? nativeBlizzardResources;
-    public NativeBattleBlizzardResources ReadNativeBlizzardResources() => nativeBlizzardResources ??= NativeBattleBlizzardResourcesReader.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")));
+    public NativeBattleBlizzardResources ReadNativeBlizzardResources() => nativeBlizzardResources ??= NativeBattleBlizzardResourcesReader.Read(GameDataResources.ReadNativeExecutable(this.resources));
 }

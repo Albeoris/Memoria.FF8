@@ -210,12 +210,12 @@ public sealed partial class WorldAssets
         //auxiliary channels are proved inactive, indices inspect only shape bytes,
         //then548080/548300 writes foot and both Garden poses before first use.
         vitals.Validate();
-        NativeWorldPathPosition cactuar = NativeGardenWorldAllocationReader.ReadCactuarLoadPosition(contactExecutable ??= File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe")));
+        NativeWorldPathPosition cactuar = NativeGardenWorldAllocationReader.ReadCactuarLoadPosition(contactExecutable ??= GameDataResources.ReadNativeExecutable(resources));
         NativeWorldAuxiliaryRelocationReceipt? auxiliaryEntry = ReadGardenAuxiliaryRelocations(packet, memory, pose);
         return NativeGardenWorldAllocationReader.Read(wmset.AsSpan(sections[9], sections[10] - sections[9]), wmset.AsSpan(sections[10], sections[11] - sections[10]), packet, entry, memory, saved, vitals.GuardianForces[13].Flags, cactuar, pose, cameraYaw, variant, mapDisplay, auxiliaryEntry: auxiliaryEntry);
     }
 
-    public NativeGardenCameraDefaults ReadGardenCameraDefaults() => NativeGardenWorldAllocationReader.ReadCameraDefaults(contactExecutable ??= File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe")));
+    public NativeGardenCameraDefaults ReadGardenCameraDefaults() => NativeGardenWorldAllocationReader.ReadCameraDefaults(contactExecutable ??= GameDataResources.ReadNativeExecutable(resources));
 
     public NativeWorldAuxiliaryRelocationReceipt? ReadGardenAuxiliaryRelocations(WorldTransition packet, NativeEventMemory memory, NativeSavedWorldPose loadPose)
     {
@@ -320,7 +320,7 @@ public sealed partial class WorldAssets
         }
         NativeWorldAuxiliaryRelocationReceipt? auxiliaryEntry = ReadGardenAuxiliaryRelocations(packet, memory, foot);
         vitals.Validate();
-        NativeWorldPathPosition cactuar = NativeGardenWorldAllocationReader.ReadCactuarLoadPosition(contactExecutable ??= File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe")));
+        NativeWorldPathPosition cactuar = NativeGardenWorldAllocationReader.ReadCactuarLoadPosition(contactExecutable ??= GameDataResources.ReadNativeExecutable(resources));
         return NativeGardenWorldAllocationReader.Read(wmset.AsSpan(sections[9], sections[10] - sections[9]), wmset.AsSpan(sections[10], sections[11] - sections[10]), packet, entry, memory, saved, vitals.GuardianForces[13].Flags, cactuar, foot, camera, variant, saved.ReadMapDisplayModeForFreshFootLoader(), parked, auxiliaryEntry, battleReload);
     }
 }

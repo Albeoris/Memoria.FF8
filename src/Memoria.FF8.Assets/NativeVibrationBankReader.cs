@@ -41,6 +41,11 @@ public static class NativeVibrationBankReader
         return bank;
     }
 
+    public static NativeVibrationBank ReadTable(byte[] bytes, string? sourceHash = null)
+    {
+        return Read(bytes, sourceHash ?? Convert.ToHexString(SHA256.HashData(bytes)));
+    }
+
     private static NativeVibrationBank Read(ReadOnlySpan<byte> bytes, string hash)
     {
         int tableBytes = BinaryPrimitives.ReadInt32LittleEndian(bytes);

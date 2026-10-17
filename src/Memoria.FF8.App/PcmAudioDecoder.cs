@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8;
 
@@ -9,9 +10,15 @@ internal static class PcmAudioDecoder
 {
     public static PcmAudio ReadSample(string gameDirectory, int sampleIndex)
     {
-        GlobalAudioSampleDescriptor sample = GlobalAudioFormat.Read(gameDirectory, sampleIndex);
+        using GameFileResources files = new(gameDirectory);
+        return ReadSample(files.Resources, sampleIndex);
+    }
+
+    public static PcmAudio ReadSample(ResourceService resources, int sampleIndex)
+    {
+        GlobalAudioSampleDescriptor sample = GlobalAudioFormat.Read(resources, sampleIndex);
         byte[] compressed = new byte[checked((int)sample.CompressedLength)];
-        using (FileStream data = File.OpenRead(Path.Combine(gameDirectory, "Data", "Sound", "audio.dat")))
+        using (Stream data = resources.Get(new ResourceKey("files/sound/audio.dat")).OpenRead())
         {
             data.Position = sample.CompressedOffset;
             data.ReadExactly(compressed);

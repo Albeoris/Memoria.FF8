@@ -6,5 +6,5 @@ public sealed partial class BattleAssets
 {
     private NativeBattlePrimitiveTables? nativePrimitiveTables;
 
-    public NativeBattlePrimitiveTables ReadNativePrimitiveTables() => nativePrimitiveTables ??= NativeBattlePrimitiveTablesReader.Read(File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe")));
+    public NativeBattlePrimitiveTables ReadNativePrimitiveTables() => nativePrimitiveTables ??= NativeBattlePrimitiveTablesReader.Read(GameDataResources.ReadNativeExecutable(this.resources));
 }

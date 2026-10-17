@@ -1,3 +1,4 @@
+using Memoria.FF8.Resources;
 using System.Buffers.Binary;
 using Albeoris.Games.FF8.FlArchives;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
@@ -120,7 +121,8 @@ public sealed class NativeTutorialArtwork
     public static NativeTutorialArtwork Load(string gameDirectory)
     {
         using GameAssets assets = new(gameDirectory);
-        using IFlArchive menu = FlArchive.OpenForRead(Path.Combine(gameDirectory, "Data", "lang-en", "menu.fs"), FlArchiveRepresentation.Files);
+        using IResourceSource provider = GameDataSourceFactory.Open(gameDirectory);
+        using IFlArchive menu = (provider as IGameArchiveSource ?? throw new NotSupportedException("The resource source does not support archive enumeration.")).OpenArchive("menu");
         byte[] Read(string name)
         {
             using Stream source = menu.Entries.Single(entry => Path.GetFileName(entry.RelativePath).Equals(name, StringComparison.OrdinalIgnoreCase)).OpenForRead();

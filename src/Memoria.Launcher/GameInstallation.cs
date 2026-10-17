@@ -52,9 +52,20 @@ internal static class GameInstallationSelection
         {
             return "Choose an installed FINAL FANTASY VIII folder.";
         }
+        if (File.Exists(Path.Combine(path, "main.zzz")) || File.Exists(Path.Combine(path, "other.zzz")) || File.Exists(Path.Combine(path, "FFVIII_EN.exe.dat")))
+        {
+            foreach (string relative in new[] { "main.zzz", "other.zzz", "FFVIII_EN.exe.dat" })
+            {
+                if (!File.Exists(Path.Combine(path, relative)))
+                {
+                    return $"The selected Remastered installation is missing {relative}. Select the complete English Remastered game folder.";
+                }
+            }
+            return null;
+        }
         if (!File.Exists(Path.Combine(path, "FF8_EN.exe")))
         {
-            return "This engine currently requires the English Steam (2013) edition, including FF8_EN.exe and Data/lang-en. Select that installation folder. The original PC and Remastered editions cannot be launched by this engine yet.";
+            return "Select English Steam (2013) game files including FF8_EN.exe and Data/lang-en, or English Remastered game files including main.zzz, other.zzz and FFVIII_EN.exe.dat. Remastered support is partial; unimplemented engine features stop with an explicit error.";
         }
         foreach (string archive in new[] { "main", "menu", "field", "battle", "world", "magic" })
         {

@@ -34,7 +34,7 @@ public sealed partial class WorldAssets
 
     public NativeRagnarokCameraDefaults ReadRagnarokCameraDefaults()
     {
-        byte[] executable = contactExecutable ??= File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe"));
+        byte[] executable = contactExecutable ??= GameDataResources.ReadNativeExecutable(resources);
         string hash = Convert.ToHexString(SHA256.HashData(executable));
         if (hash != NativeFieldRuntimeProfile.FF8EnExecutableHash)
         {

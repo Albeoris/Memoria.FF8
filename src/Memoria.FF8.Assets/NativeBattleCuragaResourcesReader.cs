@@ -33,6 +33,6 @@ public sealed partial class GameAssets
 
     public NativeBattleCuragaResources ReadNativeCuragaResources()
     {
-        return nativeCuragaResources ??= NativeBattleCuragaResourcesReader.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")));
+        return nativeCuragaResources ??= NativeBattleCuragaResourcesReader.Read(GameDataResources.ReadNativeExecutable(this.resources));
     }
 }

@@ -8,14 +8,12 @@ namespace Memoria.FF8;
 internal sealed class GameResourceHost : IDisposable
 {
     private readonly IResourceSource source;
-    private readonly string gameDirectory;
     private readonly string materializationDirectory = Path.Combine(Path.GetTempPath(), "Memoria.FF8.Junction", Guid.NewGuid().ToString("N"));
     private readonly Dictionary<ModFile, string> materializedFiles = [];
     private TonberryRecognitionCache? recognition;
 
     public GameResourceHost(string gameDirectory, string? applicationBaseDirectory = null, bool watch = true)
     {
-        this.gameDirectory = Path.GetFullPath(gameDirectory);
         source = GameDataSourceFactory.Open(gameDirectory);
         Resources = new ResourceService(source);
         Mods = new ModRuntime(applicationBaseDirectory, format => ModCompatibility.IsCompatible(source.Descriptor.Edition, format), Prepare, watch, additionalBaseDirectories: [gameDirectory]);
@@ -36,7 +34,7 @@ internal sealed class GameResourceHost : IDisposable
             {
                 return files.ResolveFile(relative);
             }
-            return Path.Combine(gameDirectory, "Data", relative.Replace('/', Path.DirectorySeparatorChar));
+            throw new NotImplementedException("The selected resource provider does not implement file resolution.");
         }
         if (materializedFiles.TryGetValue(replacement, out string? cached))
         {

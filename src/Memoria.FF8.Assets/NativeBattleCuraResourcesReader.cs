@@ -34,6 +34,6 @@ public sealed partial class GameAssets
 
     public NativeBattleCuraResources ReadNativeCuraResources()
     {
-        return nativeCuraResources ??= NativeBattleCuraResourcesReader.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")));
+        return nativeCuraResources ??= NativeBattleCuraResourcesReader.Read(GameDataResources.ReadNativeExecutable(this.resources));
     }
 }

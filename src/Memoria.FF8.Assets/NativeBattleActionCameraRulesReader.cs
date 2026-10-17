@@ -33,5 +33,5 @@ public sealed partial class GameAssets
 {
     private NativeBattleActionCameraRules? nativeActionCameraRules;
 
-    public NativeBattleActionCameraRules ReadNativeActionCameraRules() => nativeActionCameraRules ??= NativeBattleActionCameraRulesReader.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")));
+    public NativeBattleActionCameraRules ReadNativeActionCameraRules() => nativeActionCameraRules ??= NativeBattleActionCameraRulesReader.Read(GameDataResources.ReadNativeExecutable(this.resources));
 }

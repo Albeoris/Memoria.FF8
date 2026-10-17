@@ -18,8 +18,8 @@ public sealed partial class GameAssets
 
     public NativeWorldAllocationClause ReadNativeWorldAllocationClause(ushort story)
     {
-        WorldAllocationCache cache = resources is not null && overrides is null ? WorldAllocationCaches.GetValue(resources, _ => new WorldAllocationCache()) : worldAllocationCache;
-        long generation = resources?.Generation ?? 0;
+        WorldAllocationCache cache = overrides is null ? WorldAllocationCaches.GetValue(resources, _ => new WorldAllocationCache()) : worldAllocationCache;
+        long generation = resources.Generation;
         lock (cache)
         {
             if (cache.Program is null || cache.Generation != generation || overrides is not null)

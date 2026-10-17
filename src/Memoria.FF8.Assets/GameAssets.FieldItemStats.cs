@@ -11,7 +11,7 @@ public sealed partial class GameAssets
     {
         if (NativeRuntimeProfile is not { IsVerified: true })
         {
-            throw new NotSupportedException("Field stat items require the authenticated original stat projection contract.");
+            throw UnsupportedRuntime("Field stat items require the authenticated original stat projection contract.");
         }
         if (fieldItemStats is null)
         {

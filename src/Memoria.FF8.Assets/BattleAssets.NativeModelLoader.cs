@@ -30,7 +30,7 @@ public sealed partial class BattleAssets
         {
             throw new NotSupportedException("Native party file-table selection requires its original model0..10 and an existing linked callback.");
         }
-        byte[] executable = File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe"));
+        byte[] executable = GameDataResources.ReadNativeExecutable(this.resources);
         uint table = linked ? 0xB8B940u : 0xB8B914u;
         uint selectors = BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleEffectStaticResourcesReader.Read(executable, table + modelId * 4u, 4).AsSpan());
         if (selectors == 0)

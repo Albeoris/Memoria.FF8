@@ -30,7 +30,7 @@ We will review concerns promptly and in good faith and address confirmed issues 
 
 ## About
 
-Memoria FF8 is an experimental, standalone Windows engine for FINAL FANTASY VIII. It reads resources from your own installed copy; game data, movies, music and saved games are not included. The supported playable edition is **English Steam 2013 on Windows x64**. Gameplay, battle behavior and rendering remain under development.
+Memoria FF8 is an experimental, standalone Windows engine for FINAL FANTASY VIII. It reads resources from your own installed copy; game data, movies, music and saved games are not included. The supported playable edition is **English Steam 2013 on Windows x64**. Gameplay, battle behavior and rendering remain under development. The launcher also accepts English Remastered installations for experimental resource support; unimplemented gameplay contracts stop with an explicit error.
 
 ## Play
 

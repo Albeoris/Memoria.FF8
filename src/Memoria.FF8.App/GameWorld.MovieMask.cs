@@ -55,7 +55,7 @@ internal sealed partial class GameWorld
     {
         if (!movieCameraFlags.TryGetValue((disc, movie), out NativeMovieCameraFlags? flags))
         {
-            string path = MovieClock.GetCameraPath(assets.GameDirectory, disc, movie);
+            string path = movieClock.GetNativeCameraPath(disc, movie);
             byte[] bytes = File.ReadAllBytes(path);
             flags = NativeMovieCameraReader.Read(bytes);
             movieCameraFlags.Add((disc, movie), flags);
@@ -93,7 +93,7 @@ internal sealed partial class GameWorld
         }
         byte[] cameraBytes = movieCameraBytes[(source.DiscIndex, movie)];
         byte drawValue = playback.DrawValue ?? throw new InvalidDataException("Movie rendering has no retained draw-control phase.");
-        string originalPath = MovieClock.GetCameraPath(assets.GameDirectory, source.DiscIndex, movie);
+        string originalPath = movieClock.GetNativeCameraPath(source.DiscIndex, movie);
         string presentationPath = movieClock.CameraPath;
         if (!string.Equals(Path.GetFullPath(originalPath), Path.GetFullPath(presentationPath), StringComparison.OrdinalIgnoreCase))
         {

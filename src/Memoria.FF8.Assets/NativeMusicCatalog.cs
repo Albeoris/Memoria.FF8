@@ -1,3 +1,4 @@
+using Memoria.FF8.Resources;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Reflection.PortableExecutable;
@@ -13,9 +14,17 @@ public sealed class NativeMusicCatalog
     private readonly byte[] image;
     private readonly PEHeaders headers;
 
-    public NativeMusicCatalog(string gameDirectory)
+    public NativeMusicCatalog(string gameDirectory) : this(GameDataResources.ReadNativeExecutable(gameDirectory))
     {
-        image = File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe"));
+    }
+
+    public NativeMusicCatalog(ResourceService resources) : this(GameDataResources.ReadNativeExecutable(resources))
+    {
+    }
+
+    private NativeMusicCatalog(byte[] image)
+    {
+        this.image = image;
         if (!Convert.ToHexString(SHA256.HashData(image)).Equals(NativeFieldRuntimeProfile.FF8EnExecutableHash, StringComparison.OrdinalIgnoreCase))
         {
             throw new NotSupportedException("Audio tables require the authenticated FF8_EN executable.");

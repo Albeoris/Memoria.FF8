@@ -35,7 +35,6 @@ public sealed partial class WorldAssets : IDisposable
     private readonly IFlArchive archive;
     private readonly IGameArchiveSource archiveSource;
     private readonly IResourceSource? ownedSource;
-    private readonly string gameDirectory;
     private readonly IFlArchiveEntry terrain;
     private readonly byte[] wmset;
     private readonly int[] sections;
@@ -43,7 +42,7 @@ public sealed partial class WorldAssets : IDisposable
     private readonly Dictionary<(int, int), WorldSegment> segments = [];
     private readonly Dictionary<(int, int), PixelImage> textures = [];
     private readonly Dictionary<(int, int), AssetHandle<TextureValue>> textureHandles = [];
-    private readonly ResourceService? resources;
+    private readonly ResourceService resources;
     private readonly AssetTextureScope textureScope;
     private AssetHandle<TextureValue>? roadHandle;
     private AssetHandle<TextureValue>? waterHandle;
@@ -58,19 +57,19 @@ public sealed partial class WorldAssets : IDisposable
 
     public WorldAssets(string gameDirectory, ResourceService? resources = null)
     {
-        this.resources = resources;
-        textureScope = new AssetTextureScope(resources);
-        this.gameDirectory = gameDirectory;
         if (resources is null)
         {
-            ClassicGameDataSource source = new(gameDirectory);
+            IResourceSource source = GameDataSourceFactory.Open(gameDirectory);
             ownedSource = source;
-            archiveSource = source;
+            resources = new ResourceService(source);
+            archiveSource = resources.GetSource<IGameArchiveSource>() ?? throw new NotSupportedException("The world resource source does not support archive enumeration.");
         }
         else
         {
             archiveSource = resources.GetSource<IGameArchiveSource>() ?? throw new NotSupportedException("The world resource source does not support archive enumeration.");
         }
+        this.resources = resources;
+        textureScope = new AssetTextureScope(resources);
         IFlArchive? openedArchive = null;
         try
         {
@@ -139,16 +138,7 @@ public sealed partial class WorldAssets : IDisposable
 
     private WorldFieldEntryReader ReadFieldEntries()
     {
-        if (resources is not null)
-        {
-            return WorldFieldEntryReader.Read(wmset.AsSpan(sections[7], sections[8] - sections[7]), resources.Read(new ResourceKey("main/wm2field.tbl")));
-        }
-        using IFlArchive main = archiveSource.OpenArchive("main");
-        IFlArchiveEntry entry = main.Entries.Single(item => item.RelativePath.Replace('\\', '/').Split('/')[^1].Equals("wm2field.tbl", StringComparison.OrdinalIgnoreCase));
-        using Stream source = entry.OpenForRead();
-        byte[] table = new byte[checked((int)entry.Size)];
-        source.ReadExactly(table);
-        return WorldFieldEntryReader.Read(wmset.AsSpan(sections[7], sections[8] - sections[7]), table);
+        return WorldFieldEntryReader.Read(wmset.AsSpan(sections[7], sections[8] - sections[7]), resources.Read(new ResourceKey("main/wm2field.tbl")));
     }
 
     public static int SegmentAt(float x, float z)
@@ -280,7 +270,6 @@ public sealed partial class WorldAssets : IDisposable
         int[] members = selected ?? Enumerable.Range(0, pointers.Length).ToArray();
         List<TextureKey> dependencies = [];
         List<(int X, int Y)> positions = [];
-        List<TextureValue> original = [];
         ResourceKey owner = new("world/wmsetus.obj");
         for (int index = 0; index < members.Length; index++)
         {
@@ -292,13 +281,9 @@ public sealed partial class WorldAssets : IDisposable
             textureScope.Register(key, decoded, layout, region, palette => tim.Decode(palette), tim.Palettes.Count);
             dependencies.Add(key);
             positions.Add(selected is null ? ((tim.X - 832) * 4, tim.Y - 256) : (index % 4 * 64, index / 4 * 64));
-            if (resources is null)
-            {
-                original.Add(new TextureValue(decoded, decoded.Width, decoded.Height, "classic"));
-            }
         }
         handle = textureScope.RegisterAtlas(new TextureKey(owner, name + "-atlas"), dependencies, positions, width, height);
-        return handle is null ? TextureAtlasBuilder.Build(original, positions, width, height).Image : null;
+        return null;
     }
 
     private IFlArchiveEntry Entry(string name)
@@ -308,15 +293,7 @@ public sealed partial class WorldAssets : IDisposable
 
     private byte[] Read(string name)
     {
-        if (resources is not null)
-        {
-            return resources.Read(new ResourceKey("world/" + name));
-        }
-        IFlArchiveEntry entry = Entry(name);
-        using Stream source = entry.OpenForRead();
-        byte[] bytes = new byte[checked((int)entry.Size)];
-        source.ReadExactly(bytes);
-        return bytes;
+        return resources.Read(new ResourceKey("world/" + name));
     }
 
     public void Dispose()

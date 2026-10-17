@@ -8,6 +8,6 @@ public sealed partial class WorldAssets
 
     public NativeWorldPathPosition ReadFootType2CactuarLoadPosition()
     {
-        return type2CactuarSeed ??= NativeGardenWorldAllocationReader.ReadCactuarLoadPosition(contactExecutable ??= File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe")));
+        return type2CactuarSeed ??= NativeGardenWorldAllocationReader.ReadCactuarLoadPosition(contactExecutable ??= GameDataResources.ReadNativeExecutable(resources));
     }
 }

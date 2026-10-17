@@ -39,7 +39,7 @@ public sealed class NativeTripleTriadArtwork
 
     public static NativeTripleTriadArtwork Load(string gameDirectory)
     {
-        return ReadExecutable(File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe")));
+        return ReadExecutable(GameDataResources.ReadNativeExecutable(gameDirectory));
     }
 
     public static NativeTripleTriadArtwork ReadExecutable(byte[] executable)

@@ -16,11 +16,60 @@ public sealed class GameAssetsResourceSourceTests
             Assert.Equal(new[] { "field" }, source.OpenedFamilies);
             Assert.Equal(new[] { "field/mapdata.fl", "field/mapdata.fi", "field/mapdata.fs", "field/mapdata/maplist" }, source.ReadKeys);
             Assert.Null(assets.NativeRuntimeProfile);
-            Assert.Throws<NotSupportedException>(() => assets.ReadNativeEncounterTables());
-            Assert.Throws<NotSupportedException>(() => assets.ReadNativeVibrationBank());
+            Assert.Throws<FileNotFoundException>(() => assets.ReadNativeEncounterTables());
+            Assert.Throws<FileNotFoundException>(() => assets.ReadNativeVibrationBank());
+            Assert.Contains("runtime/native-executable", source.ReadKeys);
+            Assert.Contains("tables/vibration", source.ReadKeys);
         }
         Assert.True(source.RootDisposed);
         Assert.False(source.Disposed);
+    }
+
+    [Fact]
+    public void NativeExecutableHelperUsesOnlyTheProviderLogicalKey()
+    {
+        using CatalogSource source = new();
+        Assert.Throws<FileNotFoundException>(() => GameDataResources.ReadNativeExecutable(new ResourceService(source)));
+        Assert.Equal(new[] { "runtime/native-executable" }, source.ReadKeys);
+    }
+
+    [Fact]
+    public void MissingRuntimeCapabilityRetainsNotSupportedBoundary()
+    {
+        using CatalogSource source = new();
+        Assert.Throws<NotSupportedException>(() => GameDataResources.RequireNativeRuntimeProfile(new ResourceService(source)));
+        using GameAssets assets = new(Path.GetTempPath(), resources: new ResourceService(source));
+        Assert.Throws<NotSupportedException>(() => assets.ReadNewGameCharacterVitals());
+    }
+
+    [Fact]
+    public void ClassicExecutableResourceRejectsUnauthenticatedBytes()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "ff8-executable-source-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            File.WriteAllBytes(Path.Combine(directory, "FF8_EN.exe"), [0x4D, 0x5A, 1, 2]);
+            using ClassicGameDataSource source = new(directory);
+            Assert.Null(source.NativeRuntimeProfile);
+            Assert.Throws<NotSupportedException>(() => source.RequireNativeRuntimeProfile());
+            Assert.Throws<NotSupportedException>(() => GameDataResources.ReadNativeExecutable(new ResourceService(source)));
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public void InstalledClassicExecutableResourcePreservesAuthenticatedRawBytes()
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory), "Set MEMORIA_FF8_GAME_DIR to run optional installed Classic checks.");
+        using ClassicGameDataSource source = new(directory!);
+        Assert.NotNull(source.NativeRuntimeProfile);
+        byte[] executable = GameDataResources.ReadNativeExecutable(new ResourceService(source));
+        Assert.Equal(File.ReadAllBytes(Path.Combine(directory!, "FF8_EN.exe")), executable);
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+using Memoria.FF8.Resources;
 using System.Diagnostics;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -86,6 +87,9 @@ public sealed class OpeningMoviePresentationTests
     [Fact]
     public void FreshOpeningDisplaysDecodedMovieDespiteRetainedBlackFieldFade()
     {
+        using IResourceSource movieSource = GameDataSourceFactory.Open(TestResources.GameDirectory);
+        IGameFileSource movieFiles = Assert.IsAssignableFrom<IGameFileSource>(movieSource);
+
         string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original opening movie and field corpus is required.");
         GameSession session = GameSession.CreateColdProcess();
@@ -105,7 +109,7 @@ public sealed class OpeningMoviePresentationTests
         world.SetRenderSize(320, 224);
         NativeFieldFadeState fade = Assert.IsType<NativeFieldFadeState>(world.Events.FieldFade);
         Assert.Equal(NativeFadeDrawMode.Black, fade.Draw.Mode);
-        byte[] cameraBytes = File.ReadAllBytes(MovieClock.GetCameraPath(game, clock.SourceDiscIndex, session.State.MovieIndex));
+        byte[] cameraBytes = File.ReadAllBytes(MovieClock.GetCameraPath(movieFiles, clock.SourceDiscIndex, session.State.MovieIndex));
         using FfmpegMovieDecoder decoder = new(clock.ToolsDirectory, clock.SourcePath, information: information);
         Stopwatch timeout = Stopwatch.StartNew();
         HashSet<int> rendered = [];

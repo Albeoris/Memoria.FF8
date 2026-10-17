@@ -1,14 +1,18 @@
+using Memoria.FF8.Assets;
+using Memoria.FF8.Resources;
 using Memoria.FF8.Media;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
 /// <summary>Tracks decoded clip frames separately from script simulation frames.</summary>
-internal sealed partial class MovieClock
+internal sealed partial class MovieClock : IDisposable
 {
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string Path, long Length, long Modified), string> SourceHashes = new();
     private readonly GameSession session;
     private readonly string gameDirectory;
+    private IResourceSource? nativeSource;
+    private IGameFileSource NativeFiles => (nativeSource ??= GameDataSourceFactory.Open(gameDirectory)) as IGameFileSource ?? throw new NotImplementedException("The selected resource provider does not implement movie file resolution.");
     private readonly string toolsDirectory;
     private readonly Dictionary<NativeMovieSource, MovieInformation> movies = [];
     private readonly Dictionary<string, MovieInformation> presentationMovies = new(StringComparer.OrdinalIgnoreCase);
@@ -61,11 +65,11 @@ internal sealed partial class MovieClock
         bindingHasPlayback = false;
         presentationFrame = null;
         presentationSource = null;
-        pinnedMoviePath = ResolveMovieFile(GetMovieRelativePath(gameDirectory, source.DiscIndex, source.MovieIndex));
+        pinnedMoviePath = ResolveMovieFile(GetMovieRelativePath(source.DiscIndex, source.MovieIndex));
         pinnedCameraPath = ResolveMovieFile($"movies/disc{source.DiscIndex:00}_{source.MovieIndex:00}.cam");
     }
 
-    public string ResolveMovieFile(string relativePath) => ResolveGameFile?.Invoke(relativePath) ?? Path.Combine(gameDirectory, "Data", relativePath.Replace('/', Path.DirectorySeparatorChar));
+    public string ResolveMovieFile(string relativePath) => ResolveGameFile?.Invoke(relativePath) ?? NativeFiles.ResolveFile(relativePath);
 
     public void SetPresentationFrame(int frame)
     {
@@ -78,7 +82,7 @@ internal sealed partial class MovieClock
     public MovieInformation PreparePresentation()
     {
         string path = SourcePath;
-        if (string.Equals(path, GetSourcePath(gameDirectory, SourceDiscIndex, RequireSource(session.State).MovieIndex), StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(path, GetSourcePath(NativeFiles, SourceDiscIndex, RequireSource(session.State).MovieIndex), StringComparison.OrdinalIgnoreCase))
         {
             return Prepare();
         }
@@ -100,7 +104,7 @@ internal sealed partial class MovieClock
         NativeMovieSource source = RequireSource(session.State);
         if (!movies.TryGetValue(source, out MovieInformation? information))
         {
-            information = FfmpegMovieDecoder.Probe(toolsDirectory, GetSourcePath(gameDirectory, source.DiscIndex, source.MovieIndex));
+            information = FfmpegMovieDecoder.Probe(toolsDirectory, GetSourcePath(NativeFiles, source.DiscIndex, source.MovieIndex));
             movies.Add(source, information);
         }
         if (session.State.MoviePlayback is null)
@@ -127,24 +131,31 @@ internal sealed partial class MovieClock
         return source;
     }
 
-    internal static string GetSourcePath(string gameDirectory, int discIndex, int movieIndex)
+    internal string GetNativeSourcePath(int discIndex, int movieIndex) => GetSourcePath(NativeFiles, discIndex, movieIndex);
+
+    internal string GetNativeCameraPath(int discIndex, int movieIndex) => GetCameraPath(NativeFiles, discIndex, movieIndex);
+
+    internal static string GetSourcePath(IGameFileSource files, int discIndex, int movieIndex)
     {
-        ValidateResource(discIndex, movieIndex);
-        return Path.Combine(gameDirectory, "Data", GetMovieRelativePath(gameDirectory, discIndex, movieIndex).Replace('/', Path.DirectorySeparatorChar));
+        return files.ResolveFile(GetMovieRelativePath(discIndex, movieIndex));
     }
 
-    internal static string GetMovieRelativePath(string gameDirectory, int discIndex, int movieIndex)
+    internal static string GetMovieRelativePath(int discIndex, int movieIndex)
     {
         ValidateResource(discIndex, movieIndex);
-        string name = $"disc{discIndex:00}_{movieIndex:00}h.avi";
-        string localized = Path.Combine(gameDirectory, "Data", "lang-en", "movies", name);
-        return File.Exists(localized) ? $"lang-en/movies/{name}" : $"movies/{name}";
+        return $"movies/disc{discIndex:00}_{movieIndex:00}h.avi";
     }
 
-    internal static string GetCameraPath(string gameDirectory, int discIndex, int movieIndex)
+    internal static string GetCameraPath(IGameFileSource files, int discIndex, int movieIndex)
     {
         ValidateResource(discIndex, movieIndex);
-        return Path.Combine(gameDirectory, "Data", "movies", $"disc{discIndex:00}_{movieIndex:00}.cam");
+        return files.ResolveFile($"movies/disc{discIndex:00}_{movieIndex:00}.cam");
+    }
+
+    public void Dispose()
+    {
+        nativeSource?.Dispose();
+        nativeSource = null;
     }
 
     private static void ValidateResource(int discIndex, int movieIndex)
@@ -163,7 +174,9 @@ internal sealed partial class MovieClock
 
     internal static string GetSourceHash(string gameDirectory, int discIndex, int movieIndex)
     {
-        var file = new FileInfo(GetSourcePath(gameDirectory, discIndex, movieIndex));
+        using IResourceSource source = GameDataSourceFactory.Open(gameDirectory);
+        IGameFileSource files = source as IGameFileSource ?? throw new NotImplementedException("The selected resource provider does not implement movie file resolution.");
+        var file = new FileInfo(GetSourcePath(files, discIndex, movieIndex));
         return SourceHashes.GetOrAdd((file.FullName, file.Length, file.LastWriteTimeUtc.Ticks), identity =>
         {
             using FileStream stream = File.OpenRead(identity.Path);

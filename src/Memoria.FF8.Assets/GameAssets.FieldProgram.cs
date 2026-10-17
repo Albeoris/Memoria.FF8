@@ -21,7 +21,7 @@ public sealed partial class GameAssets
 
     private string ReadFieldResourceHash(int fieldId, string extension, Dictionary<int, string> hashes)
     {
-        long generation = resources?.Generation ?? 0;
+        long generation = resources.Generation;
         if (fieldResourceHashGeneration != generation)
         {
             fieldProgramHashes.Clear();
@@ -38,7 +38,7 @@ public sealed partial class GameAssets
         }
         string name = fieldNames[fieldId];
         string hash;
-        if (resources is not null && overrides is null)
+        if (overrides is null)
         {
             using Stream stream = resources.Get(new Memoria.FF8.Resources.ResourceKey("field/" + name + "/" + name + extension)).OpenRead();
             hash = Convert.ToHexString(SHA256.HashData(stream));

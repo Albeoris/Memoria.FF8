@@ -83,6 +83,10 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
 
     private ResourceContent? FindCore(ResourceKey key)
     {
+        if (key.Path is "files/sound/audio.fmt" or "files/sound/audio.dat")
+        {
+            throw new NotImplementedException($"Remastered sound resource '{key}' has no implemented edition contract.");
+        }
         if (FindNamedTable(key) is { } table)
         {
             return table;
@@ -192,6 +196,10 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         string relative = new ResourceKey(relativeDataPath).Path;
+        if (relative is "sound/audio.fmt" or "sound/audio.dat")
+        {
+            throw new NotImplementedException($"Remastered sound resource '{relative}' has no implemented edition contract.");
+        }
         if (files.TryGetValue(relative, out string? cached))
         {
             return cached;

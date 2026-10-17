@@ -12,9 +12,9 @@ public sealed partial class GameAssets
     {
         if (NativeRuntimeProfile is not { IsVerified: true })
         {
-            throw new NotSupportedException("Native field allocation layout requires the authenticated executable contract.");
+            throw UnsupportedRuntime("Native field allocation layout requires the authenticated executable contract.");
         }
-        long generation = resources?.Generation ?? 0;
+        long generation = resources.Generation;
         if (nativePreModelCursorGeneration != generation)
         {
             nativePreModelCursors.Clear();
@@ -44,7 +44,7 @@ public sealed partial class GameAssets
         byte[] information = Read(archive, name + ".inf");
         if (information.Length != 676)
         {
-            throw new NotSupportedException("Native field layout requires the original information record.");
+            throw UnsupportedRuntime("Native field layout requires the original information record.");
         }
         int polygons = 0;
         while (true)

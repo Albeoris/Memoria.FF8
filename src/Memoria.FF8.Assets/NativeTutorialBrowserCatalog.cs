@@ -154,6 +154,6 @@ public sealed partial class GameAssets
             return nativeTutorialBrowser;
         }
         using IFlArchive menu = OpenArchive("menu");
-        return nativeTutorialBrowser = NativeTutorialBrowserCatalog.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")), Read(menu, "mngrphd.bin"), Read(menu, "mngrp.bin"), Read(menu, "mtmag.bin"), Read(menu, "mmag.bin"));
+        return nativeTutorialBrowser = NativeTutorialBrowserCatalog.Read(ReadNativeExecutable(), Read(menu, "mngrphd.bin"), Read(menu, "mngrp.bin"), Read(menu, "mtmag.bin"), Read(menu, "mmag.bin"));
     }
 }

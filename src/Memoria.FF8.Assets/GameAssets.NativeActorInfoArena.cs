@@ -15,13 +15,13 @@ public sealed partial class GameAssets
     {
         if (NativeRuntimeProfile is not { IsVerified: true } profile)
         {
-            throw new NotSupportedException("Native actor information requires the authenticated original executable.");
+            throw UnsupportedRuntime("Native actor information requires the authenticated original executable.");
         }
         if (overrides is null && nativeActorInfoArena is not null)
         {
             return nativeActorInfoArena;
         }
-        Dictionary<string, NativeActorInfoArenaDefinition>? shared = resources is not null && overrides is null ? NativeActorInfoCertificates.GetValue(resources, _ => new Dictionary<string, NativeActorInfoArenaDefinition>(StringComparer.OrdinalIgnoreCase)) : null;
+        Dictionary<string, NativeActorInfoArenaDefinition>? shared = overrides is null ? NativeActorInfoCertificates.GetValue(resources, _ => new Dictionary<string, NativeActorInfoArenaDefinition>(StringComparer.OrdinalIgnoreCase)) : null;
         string key = GameDirectory + "\n" + profile.ExecutableHash;
         if (shared is not null)
         {
@@ -105,35 +105,8 @@ public sealed partial class GameAssets
         {
             return new ResourcePrefix(replacement.Take(8).ToArray(), replacement.LongLength);
         }
-        if (resources is not null)
-        {
-            ResourcePrefix prefix = resources.ReadPrefix(new ResourceKey("field/" + name + "/" + name + ".jsm"), 8);
-            return prefix.Length == 0 ? null : prefix;
-        }
-        byte[] metrics = Read(outer, name + ".fi");
-        IFlArchiveEntry contentEntry = outer.Entries.Single(entry => ActorInfoBasename(entry.RelativePath).Equals(name + ".fs", StringComparison.OrdinalIgnoreCase));
-        Stream content;
-        long contentLength;
-        if (overrides?.TryRead(contentEntry.RelativePath.Replace('\\', '/').TrimStart('/'), out byte[]? contentReplacement) == true)
-        {
-            content = new MemoryStream(contentReplacement, false);
-            contentLength = contentReplacement.LongLength;
-        }
-        else
-        {
-            content = contentEntry.OpenForRead();
-            contentLength = contentEntry.Size;
-        }
-        using IFlArchive nested = NativeActorInfoArenaReader.OpenHeaderArchive(listing, metrics, content, contentLength);
-        IFlArchiveEntry jsm = nested.Entries.Single(entry => ActorInfoBasename(entry.RelativePath).Equals(name + ".jsm", StringComparison.OrdinalIgnoreCase));
-        if (jsm.Size == 0)
-        {
-            return null;
-        }
-        byte[] header = new byte[(int)Math.Min(8, jsm.Size)];
-        using Stream stream = jsm.OpenForRead();
-        stream.ReadExactly(header);
-        return new ResourcePrefix(header, jsm.Size);
+        ResourcePrefix prefix = resources.ReadPrefix(new ResourceKey("field/" + name + "/" + name + ".jsm"), 8);
+        return prefix.Length == 0 ? null : prefix;
     }
 
     private static string ActorInfoBasename(string path)

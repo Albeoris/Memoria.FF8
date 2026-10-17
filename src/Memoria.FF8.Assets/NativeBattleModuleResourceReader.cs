@@ -66,7 +66,7 @@ public sealed partial class GameAssets
     {
         if (nativeBattleModuleResources.IsDefault)
         {
-            nativeBattleModuleResources = NativeBattleModuleResourceReader.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")));
+            nativeBattleModuleResources = NativeBattleModuleResourceReader.Read(GameDataResources.ReadNativeExecutable(this.resources));
         }
         return nativeBattleModuleResources;
     }

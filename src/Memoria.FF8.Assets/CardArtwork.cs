@@ -1,3 +1,4 @@
+using Memoria.FF8.Resources;
 using Albeoris.Games.FF8.FlArchives;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Albeoris.Games.FF8.Imaging;
@@ -38,7 +39,8 @@ public sealed class CardArtwork
     public static CardArtwork Load(string gameDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameDirectory);
-        using IFlArchive archive = FlArchive.OpenForRead(Path.Combine(gameDirectory, "Data", "lang-en", "menu.fs"), FlArchiveRepresentation.Files);
+        using IResourceSource provider = GameDataSourceFactory.Open(gameDirectory);
+        using IFlArchive archive = (provider as IGameArchiveSource ?? throw new NotSupportedException("The resource source does not support archive enumeration.")).OpenArchive("menu");
         PixelImage[] fronts = new PixelImage[CardCount];
         PixelImage? back = null;
         for (int atlasIndex = 0; atlasIndex < CardCount / CardsPerAtlas; atlasIndex++)

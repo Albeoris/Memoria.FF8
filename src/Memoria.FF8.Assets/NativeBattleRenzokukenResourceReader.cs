@@ -95,7 +95,7 @@ public sealed partial class GameAssets
     {
         if (nativeRenzokukenResources.IsDefault)
         {
-            nativeRenzokukenResources = NativeBattleRenzokukenResourceReader.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")));
+            nativeRenzokukenResources = NativeBattleRenzokukenResourceReader.Read(GameDataResources.ReadNativeExecutable(this.resources));
         }
         return nativeRenzokukenResources;
     }

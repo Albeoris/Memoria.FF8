@@ -177,6 +177,6 @@ public sealed partial class GameAssets
 
     public NativeBattleRetainedMemory ReadColdProcessNativeBattleMemory()
     {
-        return coldProcessNativeBattleMemory ??= NativeBattleRetainedMemoryReader.ReadColdProcess(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")));
+        return coldProcessNativeBattleMemory ??= NativeBattleRetainedMemoryReader.ReadColdProcess(GameDataResources.ReadNativeExecutable(this.resources));
     }
 }

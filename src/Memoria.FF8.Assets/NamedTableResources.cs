@@ -1,7 +1,5 @@
 using System.Reflection.PortableExecutable;
-using System.Security.Cryptography;
 using Memoria.FF8.Resources;
-using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
 
@@ -29,11 +27,7 @@ public sealed partial class ClassicGameDataSource
         }
         Lazy<byte[]> bytes = new(() =>
         {
-            byte[] executable = File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe"));
-            if (Convert.ToHexString(SHA256.HashData(executable)) != NativeFieldRuntimeProfile.FF8EnExecutableHash)
-            {
-                throw new NotSupportedException("Named executable resources require an authenticated source image.");
-            }
+            byte[] executable = ReadAuthenticatedExecutable();
             using PEReader reader = new(new MemoryStream(executable, false));
             long rva = layout.Address - (long)reader.PEHeaders.PEHeader!.ImageBase;
             SectionHeader section = reader.PEHeaders.SectionHeaders.Single(section => rva >= section.VirtualAddress && rva + layout.Length <= section.VirtualAddress + section.SizeOfRawData);

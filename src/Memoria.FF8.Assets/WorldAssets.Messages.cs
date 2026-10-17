@@ -21,7 +21,7 @@ public sealed partial class WorldAssets
             return cached;
         }
         _ = ReadWorldMessage(message);
-        byte[] executable = contactExecutable ??= File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe"));
+        byte[] executable = contactExecutable ??= GameDataResources.ReadNativeExecutable(resources);
         if (Convert.ToHexString(SHA256.HashData(executable)) != NativeFieldRuntimeProfile.FF8EnExecutableHash)
         {
             throw new InvalidDataException("World message windows require their authenticated original executable table.");

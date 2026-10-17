@@ -58,7 +58,7 @@ public sealed partial class GameAssets
     {
         if (nativeBattleDefensiveResources.IsDefault)
         {
-            nativeBattleDefensiveResources = NativeBattleDefensiveResourceReader.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")));
+            nativeBattleDefensiveResources = NativeBattleDefensiveResourceReader.Read(GameDataResources.ReadNativeExecutable(this.resources));
         }
         return nativeBattleDefensiveResources;
     }

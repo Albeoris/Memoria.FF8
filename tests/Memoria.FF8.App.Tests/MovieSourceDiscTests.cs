@@ -1,3 +1,5 @@
+using Memoria.FF8.Assets;
+using Memoria.FF8.Resources;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
@@ -7,6 +9,9 @@ public sealed class MovieSourceDiscTests
     [Fact]
     public void Prepared_resources_keep_their_disc_across_probe_cam_cache_and_source_hash_validation()
     {
+        using IResourceSource movieSource = GameDataSourceFactory.Open(TestResources.GameDirectory);
+        IGameFileSource movieFiles = Assert.IsAssignableFrom<IGameFileSource>(movieSource);
+
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original movie corpus is required.");
         //Declared resource component: explicit native loader requests, no fabricated gameplay history.
@@ -47,8 +52,8 @@ public sealed class MovieSourceDiscTests
         Assert.Equal(278, third.FrameCount);
         Assert.EndsWith("disc01_01h.avi", clock.SourcePath, StringComparison.OrdinalIgnoreCase);
         Assert.NotEqual(secondHash, MovieClock.GetSourceHash(directory, session.State));
-        Assert.Throws<NotSupportedException>(() => MovieClock.GetSourcePath(directory, 255, 0));
-        Assert.Throws<NotSupportedException>(() => MovieClock.GetSourcePath(directory, 1, 256));
+        Assert.Throws<NotSupportedException>(() => MovieClock.GetSourcePath(movieFiles, 255, 0));
+        Assert.Throws<NotSupportedException>(() => MovieClock.GetSourcePath(movieFiles, 1, 256));
         GameSession unknown = GameSession.CreateColdProcess();
         unknown.StartNewGame();
         unknown.RequestMovie(0);

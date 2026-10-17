@@ -9,7 +9,7 @@ public sealed partial class BattleAssets
 {
     public NativeBattleArchiveFile ReadNativeBattleFile(ushort fileId)
     {
-        byte[] executable = File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe"));
+        byte[] executable = GameDataResources.ReadNativeExecutable(this.resources);
         uint nameAddress = BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleEffectStaticResourcesReader.Read(executable, checked(0xB84CCC + (uint)fileId * 4), 4).AsSpan());
         byte[] nameBytes = NativeBattleEffectStaticResourcesReader.Read(executable, nameAddress, 128).ToArray();
         int end = Array.IndexOf(nameBytes, (byte)0);

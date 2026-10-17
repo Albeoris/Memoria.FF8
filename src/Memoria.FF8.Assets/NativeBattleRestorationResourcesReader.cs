@@ -39,10 +39,10 @@ public sealed partial class GameAssets
     {
         return effect switch
         {
-            24 => nativeEsunaResources ??= NativeBattleRestorationResourcesReader.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")), effect),
-            27 => nativeFullLifeResources ??= NativeBattleRestorationResourcesReader.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")), effect),
-            57 => nativeEffect57Resources ??= NativeBattleRestorationResourcesReader.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")), effect),
-            67 => nativeRemedyResources ??= NativeBattleRestorationResourcesReader.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")), effect),
+            24 => nativeEsunaResources ??= NativeBattleRestorationResourcesReader.Read(GameDataResources.ReadNativeExecutable(this.resources), effect),
+            27 => nativeFullLifeResources ??= NativeBattleRestorationResourcesReader.Read(GameDataResources.ReadNativeExecutable(this.resources), effect),
+            57 => nativeEffect57Resources ??= NativeBattleRestorationResourcesReader.Read(GameDataResources.ReadNativeExecutable(this.resources), effect),
+            67 => nativeRemedyResources ??= NativeBattleRestorationResourcesReader.Read(GameDataResources.ReadNativeExecutable(this.resources), effect),
             _ => throw new NotSupportedException("The shared restoration resource reader supports only native24/27/57/67.")
         };
     }

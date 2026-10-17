@@ -1,9 +1,23 @@
+using Memoria.FF8.Resources;
 using Memoria.FF8.Assets;
 
 namespace Memoria.FF8.Assets.Tests;
 
 public sealed class GlobalAudioFormatTests
 {
+    [Fact]
+    public void ReadsSelectedAudioMetadataThroughLogicalProviderKeys()
+    {
+        using InMemoryResourceSource source = new(new("memory-audio", GameDataEdition.Classic, []));
+        using MemoryStream format = Format(0, Entry(1, 4, []));
+        source.Set(new ResourceKey("files/sound/audio.fmt"), format.ToArray(), "bin");
+        source.Set(new ResourceKey("files/sound/audio.dat"), new byte[14], "bin");
+        GlobalAudioSampleDescriptor sample = GlobalAudioFormat.Read(new ResourceService(source), 0);
+        Assert.Equal(10u, sample.CompressedOffset);
+        Assert.Equal(4u, sample.CompressedLength);
+        Assert.Equal((ushort)1, sample.WaveFormat.Tag);
+    }
+
     [Fact]
     public void StreamsVariableAdpcmMetadataThroughSelectedDescriptorOnly()
     {

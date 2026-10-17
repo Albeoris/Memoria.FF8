@@ -41,7 +41,7 @@ internal sealed class LauncherWindow : Window
             layout.RowDefinitions.Add(new RowDefinition { Height = height });
         }
         Add(layout, new TextBlock { Text = "Memoria", FontSize = 32, FontWeight = FontWeights.SemiBold }, 0);
-        Add(layout, new TextBlock { Text = "FINAL FANTASY VIII · English Steam (2013) game files required", Foreground = Brushes.DimGray, Margin = new Thickness(0, 4, 0, 24) }, 1);
+        Add(layout, new TextBlock { Text = "English Steam (2013) or Remastered · Remastered support is partial", Foreground = Brushes.DimGray, Margin = new Thickness(0, 4, 0, 24) }, 1);
         DockPanel selection = new() { LastChildFill = true, Margin = new Thickness(0, 0, 0, 20) };
         DockPanel.SetDock(browse, Dock.Right);
         selection.Children.Add(browse);

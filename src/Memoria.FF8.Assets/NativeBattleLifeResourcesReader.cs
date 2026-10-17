@@ -41,8 +41,8 @@ public sealed partial class GameAssets
     {
         return effect switch
         {
-            35 => nativeLifeResources ??= NativeBattleLifeResourcesReader.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")), effect),
-            5 => nativePhoenixDownResources ??= NativeBattleLifeResourcesReader.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")), effect),
+            35 => nativeLifeResources ??= NativeBattleLifeResourcesReader.Read(GameDataResources.ReadNativeExecutable(this.resources), effect),
+            5 => nativePhoenixDownResources ??= NativeBattleLifeResourcesReader.Read(GameDataResources.ReadNativeExecutable(this.resources), effect),
             _ => throw new ArgumentOutOfRangeException(nameof(effect), "Native Life-family resources require effect5 or35.")
         };
     }

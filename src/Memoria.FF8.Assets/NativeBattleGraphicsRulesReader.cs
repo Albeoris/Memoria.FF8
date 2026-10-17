@@ -47,6 +47,6 @@ public sealed partial class GameAssets
 
     public NativeBattleGraphicsRules ReadNativeBattleGraphicsRules()
     {
-        return nativeBattleGraphicsRules ??= NativeBattleGraphicsRulesReader.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")));
+        return nativeBattleGraphicsRules ??= NativeBattleGraphicsRulesReader.Read(GameDataResources.ReadNativeExecutable(this.resources));
     }
 }

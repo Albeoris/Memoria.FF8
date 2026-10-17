@@ -1,6 +1,6 @@
 # Optional Remastered resource checks
 
-This project is deliberately excluded from the solution and the mandatory build and test workflow. It tests synthetic archive and serialized guest image data without requiring an installation.
+This project is included in the solution and `Build.ps1 -Test`. It tests synthetic archive and serialized guest image data, provider routing and explicit unsupported runtime boundaries without requiring an installation.
 
 From the product directory, run:
 

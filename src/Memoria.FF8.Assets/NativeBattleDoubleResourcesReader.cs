@@ -40,6 +40,6 @@ public sealed partial class GameAssets
 
     public NativeBattleDoubleResources ReadNativeDoubleResources()
     {
-        return nativeDoubleResources ??= NativeBattleDoubleResourcesReader.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")));
+        return nativeDoubleResources ??= NativeBattleDoubleResourcesReader.Read(GameDataResources.ReadNativeExecutable(this.resources));
     }
 }

@@ -13,7 +13,7 @@ public sealed partial class GameAssets
     {
         if (NativeRuntimeProfile is not { IsVerified: true })
         {
-            throw new NotSupportedException("Native animation allocation requires an authenticated runtime profile.");
+            throw UnsupportedRuntime("Native animation allocation requires an authenticated runtime profile.");
         }
         ushort?[] result = new ushort?[boundModelIds.Count];
         if (!boundModelIds.Contains(-1))

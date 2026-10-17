@@ -16,7 +16,8 @@ internal sealed class SpuWaveAudioOutput(string gameDirectory, string toolsDirec
     {
         resource.Validate();
         Stop();
-        string path = Path.Combine(gameDirectory, resource.RelativePath);
+        using GameFileResources files = new(gameDirectory);
+        string path = files.ResolveInstallationFile(resource.RelativePath);
         string hash;
         using (FileStream stream = File.OpenRead(path))
         {

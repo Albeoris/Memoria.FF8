@@ -1,7 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text;
-using Albeoris.Games.FF8.FlArchives;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Memoria.FF8.Runtime;
 
@@ -77,10 +76,10 @@ public sealed partial class GameAssets
     {
         if (nativeQuezacotlResources is null)
         {
-            using IFlArchive magic = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "magic.fs"), FlArchiveRepresentation.Files);
-            using IFlArchive battle = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "battle.fs"), FlArchiveRepresentation.Files);
+            using IFlArchive magic = OpenArchive("magic");
+            using IFlArchive battle = OpenArchive("battle");
             NativeBattleEffectInitializerAsset initializer = new("mag115.tim", Read(magic, "mag115.tim").ToImmutableArray());
-            byte[] executable = File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe"));
+            byte[] executable = GameDataResources.ReadNativeExecutable(this.resources);
             ImmutableArray<NativeBattleEffectFileAsset> files = NativeBattleQuezacotlResourcesReader.ReadFileNames(executable).Select(file => file with { Data = Read(battle, file.Name).ToImmutableArray() }).ToImmutableArray();
             nativeQuezacotlResources = NativeBattleQuezacotlResourcesReader.Read(executable, initializer) with { Files = files };
         }

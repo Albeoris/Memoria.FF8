@@ -31,7 +31,7 @@ public sealed partial class GameAssets
     {
         if (nativeBattleCommandSequences.IsDefault)
         {
-            nativeBattleCommandSequences = NativeBattleCommandSequenceReader.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")));
+            nativeBattleCommandSequences = NativeBattleCommandSequenceReader.Read(GameDataResources.ReadNativeExecutable(this.resources));
         }
         return nativeBattleCommandSequences;
     }

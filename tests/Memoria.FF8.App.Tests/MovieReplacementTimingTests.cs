@@ -1,3 +1,4 @@
+using Memoria.FF8.Resources;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -120,6 +121,9 @@ public sealed class MovieReplacementTimingTests
     [Fact]
     public void Installed_cinema_movie_uses_resolved_video_camera_and_actual_decoded_pixels()
     {
+        using IResourceSource movieSource = GameDataSourceFactory.Open(TestResources.GameDirectory);
+        IGameFileSource movieFiles = Assert.IsAssignableFrom<IGameFileSource>(movieSource);
+
         string game = TestResources.GameDirectory;
         string package = Path.Combine(game, "Mods", "Junction", "cinema-rf.iroj");
         Assert.SkipUnless(File.Exists(package), "The actual installed cinema-rf Junction package is required.");
@@ -133,12 +137,12 @@ public sealed class MovieReplacementTimingTests
         MovieClock clock = new(session, game, resolveGameFile: host.ResolveGameFile);
         MovieInformation native = clock.Prepare();
         MovieInformation media = clock.PreparePresentation();
-        Assert.NotEqual(MovieClock.GetSourcePath(game, 0, 0), clock.SourcePath);
-        Assert.NotEqual(MovieClock.GetCameraPath(game, 0, 0), clock.CameraPath);
+        Assert.NotEqual(MovieClock.GetSourcePath(movieFiles, 0, 0), clock.SourcePath);
+        Assert.NotEqual(MovieClock.GetCameraPath(movieFiles, 0, 0), clock.CameraPath);
         Assert.True(media.Width > 0 && media.Height > 0);
         Assert.True(media.FramesPerSecond > native.FramesPerSecond);
         Assert.Equal(native.FrameCount - 1, session.State.MoviePlayback!.TerminalFrame);
-        NativeMovieCameraFlags nativeFlags = NativeMovieCameraReader.Read(File.ReadAllBytes(MovieClock.GetCameraPath(game, 0, 0)));
+        NativeMovieCameraFlags nativeFlags = NativeMovieCameraReader.Read(File.ReadAllBytes(MovieClock.GetCameraPath(movieFiles, 0, 0)));
         MoviePresentationCamera camera = new(File.ReadAllBytes(clock.CameraPath), nativeFlags, native, media);
         Assert.True(camera.Flags.Flags.Length > nativeFlags.Flags.Length);
         using FfmpegMovieDecoder decoder = new(clock.ToolsDirectory, clock.SourcePath, information: media);

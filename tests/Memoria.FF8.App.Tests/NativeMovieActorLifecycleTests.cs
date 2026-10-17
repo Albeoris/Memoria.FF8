@@ -1,3 +1,4 @@
+using Memoria.FF8.Resources;
 using System.Buffers.Binary;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -104,7 +105,12 @@ public sealed class NativeMovieActorLifecycleTests
         var engine = new EventEngine(session)
         {
             MoviePlayback = () => session.State.MoviePlayback,
-            ReadMovieCameraFlags = (disc, movie) => NativeMovieCameraReader.Read(File.ReadAllBytes(MovieClock.GetCameraPath(TestResources.GameDirectory, disc, movie))),
+            ReadMovieCameraFlags = (disc, movie) =>
+            {
+                using IResourceSource movieSource = GameDataSourceFactory.Open(TestResources.GameDirectory);
+                IGameFileSource movieFiles = Assert.IsAssignableFrom<IGameFileSource>(movieSource);
+                return NativeMovieCameraReader.Read(File.ReadAllBytes(MovieClock.GetCameraPath(movieFiles, disc, movie)));
+            },
             AnimationFrameCount = (_, _) => 4,
             CanUseNativeScriptMove = _ => true,
             ResolveNativeScriptDirection = request => new(NativeScriptDirectionStatus.Moving, request.FixedX, request.FixedY, request.MovementDirection, request.TurnAccumulator),

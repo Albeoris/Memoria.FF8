@@ -123,6 +123,31 @@ public sealed class InstalledRemasteredTests
         Assert.Equal(35576, resources.Read(new ResourceKey("magic/mag085_b.dat")).Length);
     }
 
+    [Fact]
+    public void EngineAssetsUseFactoryProvidersAndFailExplicitlyAtUnsupportedRuntimeContracts()
+    {
+        string directory = InstalledDirectory();
+        using GameAssets assets = new(directory);
+        Assert.NotEmpty(assets.ReadResource(new ResourceKey("main/kernel.bin")));
+        Assert.NotEmpty(assets.LoadField(179).Models);
+        Assert.Equal(assets.ReadResource(new ResourceKey("tables/field-random"))[0], assets.ReadNativeShakeTables().Random(0));
+        assets.ReadNativeVibrationBank().Validate();
+        Assert.Throws<NotImplementedException>(() => assets.ReadNativeExecutable());
+        Assert.Throws<NotImplementedException>(() => assets.ReadNativeEncounterTables());
+        Assert.Throws<NotImplementedException>(() => assets.ReadNewGameCharacterVitals());
+    }
+
+    [Theory]
+    [InlineData("runtime/native-executable")]
+    [InlineData("runtime/unknown")]
+    [InlineData("files/sound/audio.fmt")]
+    [InlineData("files/sound/audio.dat")]
+    public void UnsupportedEditionResourcesHaveExplicitBoundaries(string key)
+    {
+        using RemasteredGameDataSource source = new(InstalledDirectory());
+        Assert.Throws<NotImplementedException>(() => new ResourceService(source).Read(new ResourceKey(key)));
+    }
+
     private static string FieldName(ResourceService resources, int fieldId)
     {
         string[] maps = Encoding.ASCII.GetString(resources.Read(new ResourceKey("field/mapdata/maplist"))).Replace("\r", "").Split('\n');

@@ -12,7 +12,7 @@ internal sealed partial class MovieClock
             return null;
         }
         string path = SourcePath;
-        MovieInformation presentation = string.Equals(path, GetSourcePath(gameDirectory, source.DiscIndex, source.MovieIndex), StringComparison.OrdinalIgnoreCase) ? native : presentationMovies.TryGetValue(path, out MovieInformation? replacement) ? replacement : FfmpegMovieDecoder.Probe(toolsDirectory, path);
+        MovieInformation presentation = string.Equals(path, GetNativeSourcePath(source.DiscIndex, source.MovieIndex), StringComparison.OrdinalIgnoreCase) ? native : presentationMovies.TryGetValue(path, out MovieInformation? replacement) ? replacement : FfmpegMovieDecoder.Probe(toolsDirectory, path);
         // Retain the decoded surface at the actual completion callback, including early CAM completion.
         // This is presentation only: seeking must not advance the VM or replace its saved playback.
         return MovieCompletionFrame.Read(toolsDirectory, path, presentation, playback.FrameIndex / native.FramesPerSecond);

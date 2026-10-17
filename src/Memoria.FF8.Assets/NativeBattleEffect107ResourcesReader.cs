@@ -21,6 +21,6 @@ public sealed partial class GameAssets
 
     public NativeBattleEffect107Resources ReadNativeEffect107Resources()
     {
-        return nativeEffect107Resources ??= NativeBattleEffect107ResourcesReader.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")));
+        return nativeEffect107Resources ??= NativeBattleEffect107ResourcesReader.Read(GameDataResources.ReadNativeExecutable(this.resources));
     }
 }

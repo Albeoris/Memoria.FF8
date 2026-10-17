@@ -94,6 +94,39 @@ public sealed class LauncherTests : IDisposable
         Assert.Contains("field.fi", GameInstallationSelection.ValidateForEngine(directory));
     }
 
+    [Fact]
+    public void CompleteRemasteredInstallationDoesNotRequireClassicExecutableOrArchives()
+    {
+        foreach (string file in new[] { "main.zzz", "other.zzz", "FFVIII_EN.exe.dat" })
+        {
+            File.WriteAllText(Path.Combine(directory, file), "");
+        }
+
+        Assert.Null(GameInstallationSelection.ValidateForEngine(directory));
+        Assert.False(File.Exists(Path.Combine(directory, "FF8_EN.exe")));
+        Assert.False(Directory.Exists(Path.Combine(directory, "Data")));
+    }
+
+    [Theory]
+    [InlineData("main.zzz")]
+    [InlineData("other.zzz")]
+    [InlineData("FFVIII_EN.exe.dat")]
+    public void RemasteredValidationNamesEachMissingRequiredFile(string missing)
+    {
+        foreach (string file in new[] { "main.zzz", "other.zzz", "FFVIII_EN.exe.dat" })
+        {
+            if (file != missing)
+            {
+                File.WriteAllText(Path.Combine(directory, file), "");
+            }
+        }
+
+        string error = Assert.IsType<string>(GameInstallationSelection.ValidateForEngine(directory));
+
+        Assert.Contains("Remastered", error);
+        Assert.Contains(missing, error);
+    }
+
     public void Dispose()
     {
         Directory.Delete(directory, true);

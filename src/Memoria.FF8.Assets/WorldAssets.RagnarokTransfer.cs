@@ -24,7 +24,7 @@ public sealed partial class WorldAssets
         {
             return retained with { Pitch = takeoff ? unchecked((short)(-256 - targetHeight / 24)) : retained.Pitch, Yaw = bodyYaw };
         }
-        byte[] executable = contactExecutable ??= File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe"));
+        byte[] executable = contactExecutable ??= GameDataResources.ReadNativeExecutable(resources);
         if (Convert.ToHexString(SHA256.HashData(executable)) != NativeFieldRuntimeProfile.FF8EnExecutableHash)
         {
             throw new InvalidDataException("Ragnarok transfer camera targets require the authenticated original executable.");

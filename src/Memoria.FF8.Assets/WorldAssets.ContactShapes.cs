@@ -19,7 +19,7 @@ public sealed partial class WorldAssets
         }
         if (contactExecutable is null)
         {
-            contactExecutable = File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe"));
+            contactExecutable = GameDataResources.ReadNativeExecutable(resources);
             if (Convert.ToHexString(SHA256.HashData(contactExecutable)) != NativeFieldRuntimeProfile.FF8EnExecutableHash)
             {
                 throw new InvalidDataException("Native contact shapes require the verified original executable.");

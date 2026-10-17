@@ -1,3 +1,4 @@
+using Memoria.FF8.Resources;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
@@ -10,12 +11,15 @@ public sealed class NativeMovieFootstepTests
     [Fact]
     public void ActualOutsideMovieRetainsSuppressedDrawsThenProjectsContactsFromCamAndRestoresBothPhases()
     {
+        using IResourceSource movieSource = GameDataSourceFactory.Open(TestResources.GameDirectory);
+        IGameFileSource movieFiles = Assert.IsAssignableFrom<IGameFileSource>(movieSource);
+
         string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original field and CAM corpus is required.");
         string source = TestResources.FixturePath("App.Tests.NativeMovieFootstepTests.1");
         Assert.SkipUnless(File.Exists(source), "The preserved authentic606 movie14 preboundary save is required.");
         byte[] original = File.ReadAllBytes(source);
-        byte[] cam = File.ReadAllBytes(MovieClock.GetCameraPath(game, 1, 14));
+        byte[] cam = File.ReadAllBytes(MovieClock.GetCameraPath(movieFiles, 1, 14));
         NativeMovieCameraFlags flags = NativeMovieCameraReader.Read(cam);
         GameSession session = new(GameSession.Load(source));
         using GameWorld world = new(session, game);

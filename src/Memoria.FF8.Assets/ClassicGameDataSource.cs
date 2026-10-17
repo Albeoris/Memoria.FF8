@@ -33,7 +33,16 @@ public sealed partial class ClassicGameDataSource : IResourceSource, IGameArchiv
     public string ResolveFile(string relativeDataPath)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        return Path.Combine(gameDirectory, "Data", new ResourceKey(relativeDataPath).Path.Replace('/', Path.DirectorySeparatorChar));
+        string relative = new ResourceKey(relativeDataPath).Path;
+        if (relative.StartsWith("movies/", StringComparison.Ordinal))
+        {
+            string localized = Path.Combine(gameDirectory, "Data", "lang-en", relative.Replace('/', Path.DirectorySeparatorChar));
+            if (File.Exists(localized))
+            {
+                return localized;
+            }
+        }
+        return Path.Combine(gameDirectory, "Data", relative.Replace('/', Path.DirectorySeparatorChar));
     }
 
     public ResourceContent? Find(ResourceKey key)
@@ -49,6 +58,11 @@ public sealed partial class ClassicGameDataSource : IResourceSource, IGameArchiv
             ResourceContent? file = File.Exists(path) ? new ResourceContent(key, Path.GetExtension(path).TrimStart('.'), 1, $"{Descriptor.Id}:{key}", () => File.OpenRead(path)) : null;
             catalog.Add(key.Path, file);
             return file;
+        }
+        if (FindRuntimeResource(key) is { } runtime)
+        {
+            catalog.Add(key.Path, runtime);
+            return runtime;
         }
         if (FindNamedTable(key) is { } table)
         {

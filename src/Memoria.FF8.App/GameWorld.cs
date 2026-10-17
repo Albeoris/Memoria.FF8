@@ -12,6 +12,7 @@ internal sealed partial class GameWorld : IDisposable
 {
     private readonly GameSession session;
     private readonly MovieClock movieClock;
+    private readonly bool ownsMovieClock;
     private readonly GameAssets assets;
     private readonly ResourceService? resources;
     private readonly bool validateWorldPresentation;
@@ -87,6 +88,7 @@ internal sealed partial class GameWorld : IDisposable
         }
         MovieClock clock = movieClock ?? new MovieClock(session, gameDirectory);
         this.movieClock = clock;
+        ownsMovieClock = movieClock is null;
         if (resolveGameFile is not null)
         {
             clock.ResolveGameFile = resolveGameFile;
@@ -106,7 +108,7 @@ internal sealed partial class GameWorld : IDisposable
         if (assets.NativeRuntimeProfile is { IsVerified: true })
         {
             Events.ShakeTables = assets.ReadNativeShakeTables();
-            Events.DrawPointParticleTables = NativeDrawPointParticleTableReader.Read(File.ReadAllBytes(Path.Combine(assets.GameDirectory, "FF8_EN.exe")));
+            Events.DrawPointParticleTables = NativeDrawPointParticleTableReader.Read(assets.ReadNativeExecutable());
             Events.ResolveNativeDrawPointDirection = FieldNativeScriptDirectionProbe.ResolveFacing;
         }
         if (initializedNativeParty)
@@ -469,6 +471,10 @@ internal sealed partial class GameWorld : IDisposable
     {
         Events.OperationCompleted -= ObservePendingBattle;
         spuAudio?.Dispose();
+        if (ownsMovieClock)
+        {
+            movieClock.Dispose();
+        }
         assets.Dispose();
         battleAssets?.Dispose();
         preparedWorldEntry?.Dispose();
