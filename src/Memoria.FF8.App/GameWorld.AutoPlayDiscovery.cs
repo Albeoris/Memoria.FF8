@@ -42,7 +42,7 @@ internal sealed partial class GameWorld
             {
                 return true;
             }
-            return field.Walkmesh.TryPosition(x, y, out position, out triangle) && Math.Abs(position.Z - z) < 256;
+            return field.Walkmesh.TryPosition(x, y, out position, out triangle, events.Scene.LockedTriangles) && Math.Abs(position.Z - z) < 256;
         }
         int Order(int variant, int triangle, int? approachTriangle = null) => variant + (reachable.Contains(triangle) && (approachTriangle is null || reachable.Contains(approachTriangle.Value)) ? 0 : 100000);
         foreach (int objectId in events.Scene.NativeActorObjectIds)
