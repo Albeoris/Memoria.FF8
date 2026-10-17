@@ -1561,7 +1561,7 @@ internal sealed partial class AutoPlayController
         SaveGame(Path.Combine(runDirectory!, snapshot), state);
         run.Snapshot = snapshot;
         string manifest = Path.Combine(runDirectory!, name + ".run.json");
-        string content = JsonSerializer.Serialize(run, JsonOptions);
+        string content = JsonSerializer.Serialize(run, BeforeSnapshotJsonOptions);
         AtomicWrite(manifest, content);
         AtomicWrite(Path.Combine(runDirectory!, "latest.run.json"), content);
         return manifest;
@@ -1581,7 +1581,7 @@ internal sealed partial class AutoPlayController
                 before.Snapshot = $"failure-{run.Steps:D10}-before.json";
                 SaveGame(Path.Combine(runDirectory!, before.Snapshot), beforeStep);
                 ReproductionPath = Path.Combine(runDirectory!, $"failure-{run.Steps:D10}.run.json");
-                AtomicWrite(ReproductionPath, JsonSerializer.Serialize(before, JsonOptions));
+                AtomicWrite(ReproductionPath, JsonSerializer.Serialize(before, BeforeSnapshotJsonOptions));
             }
             SaveBundle($"failure-{run.Steps:D10}-fault", CaptureState());
         }
@@ -1594,7 +1594,7 @@ internal sealed partial class AutoPlayController
     private static void SaveGame(string path, GameState state)
     {
         string temporary = path + ".tmp";
-        new GameSession(state).Save(temporary);
+        new GameSession(state).Save(temporary, compact: true);
         CommitCheckpointFile(temporary, path);
     }
 

@@ -6,6 +6,7 @@ namespace Memoria.FF8.Runtime;
 public sealed partial class GameSession : IEventServices
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, Converters = { new JsonStringEnumConverter() } };
+    private static readonly JsonSerializerOptions CompactJsonOptions = new(JsonOptions) { WriteIndented = false };
     private SceneKind movieReturnScene;
     private bool acceleratingMovie;
 
@@ -404,11 +405,16 @@ public sealed partial class GameSession : IEventServices
 
     public void Save(string path)
     {
+        Save(path, compact: false);
+    }
+
+    public void Save(string path, bool compact)
+    {
         ValidateLiveEventMemoryOwners(State, State.EventMemory);
         string fullPath = Path.GetFullPath(path);
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
         string temporary = fullPath + ".tmp";
-        File.WriteAllText(temporary, JsonSerializer.Serialize(State, JsonOptions));
+        File.WriteAllText(temporary, JsonSerializer.Serialize(State, compact ? CompactJsonOptions : JsonOptions));
         File.Move(temporary, fullPath, true);
     }
 
