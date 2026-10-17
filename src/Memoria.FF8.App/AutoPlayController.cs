@@ -55,6 +55,7 @@ internal sealed class AutoPlayRunState
 internal sealed class AutoPlayController
 {
     internal static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, Converters = { new JsonStringEnumConverter() } };
+    private static readonly JsonSerializerOptions BeforeSnapshotJsonOptions = new(JsonOptions) { WriteIndented = false };
     private readonly GameSession session;
     private readonly Func<GameWorld> getWorld;
     private readonly Action<GameState> restore;
@@ -163,7 +164,7 @@ internal sealed class AutoPlayController
         {
             return;
         }
-        beforeController = JsonSerializer.Serialize(run, JsonOptions);
+        beforeController = JsonSerializer.Serialize(run, BeforeSnapshotJsonOptions);
         beforeStep = session.State;
         try
         {
@@ -264,7 +265,7 @@ internal sealed class AutoPlayController
             {
                 advancing = true;
                 beforeStep = session.State;
-                beforeController = JsonSerializer.Serialize(run, JsonOptions);
+                beforeController = JsonSerializer.Serialize(run, BeforeSnapshotJsonOptions);
                 beforeStep = CaptureState();
                 CheckIdleDeadline();
                 Tick();
