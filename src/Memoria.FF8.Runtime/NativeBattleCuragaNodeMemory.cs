@@ -74,6 +74,34 @@ internal sealed class NativeBattleCuragaNodeMemory
     internal void Dword(int offset, uint value) => BinaryPrimitives.WriteUInt32LittleEndian(Write(offset, 4), value);
     internal void Clear(int offset, int count) => Write(offset, count).Clear();
 
+    internal void MarkUnknown(int offset, int count)
+    {
+        Require(offset, count);
+        unknown.AsSpan(offset - first, count).Fill(true);
+        dirty |= count != 0;
+    }
+
+    internal void Copy(int source, int destination, int count)
+    {
+        Require(source, count);
+        Require(destination, count);
+        if ((count & 3) != 0)
+        {
+            throw new InvalidDataException("Native Curaga forward copy requires its original DWORD count.");
+        }
+        Span<byte> word = stackalloc byte[4];
+        Span<bool> mask = stackalloc bool[4];
+        for (int offset = 0; offset < count; offset += 4)
+        {
+            //A native memcpy transfers unknown bytes too; their values are required only if a later operation actually reads them.
+            bytes.AsSpan(source - first + offset, 4).CopyTo(word);
+            unknown.AsSpan(source - first + offset, 4).CopyTo(mask);
+            word.CopyTo(bytes.AsSpan(destination - first + offset, 4));
+            mask.CopyTo(unknown.AsSpan(destination - first + offset, 4));
+        }
+        dirty |= count != 0;
+    }
+
     internal uint Pointer(int offset)
     {
         Require(offset, 1);

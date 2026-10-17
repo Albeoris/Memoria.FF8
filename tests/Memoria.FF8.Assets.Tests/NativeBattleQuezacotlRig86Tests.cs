@@ -47,5 +47,23 @@ public sealed class NativeBattleQuezacotlRig86Tests
         Console.WriteLine($"Actual MAG115_H.07 frame2 skin: writes={skin.Writes.Length}, common={skin.CommonAllocationBytes}, effect={skin.EffectAllocationBytes}");
         NativeBattleQuezacotlRigWrite recomputed = NativeBattleQuezacotlRig86.Restore508C90(composed.Memory, composed.Effect);
         Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(NativeBattleQuezacotlRig86.ReadBoneMatrix(recomputed.Memory, 0)));
+        NativeBattleQuezacotlRibbonResources ribbonResources = Assert.IsType<NativeBattleQuezacotlRibbonResources>(resources.Ribbon);
+        ribbonResources.Validate();
+        Assert.Equal(4032, ribbonResources.ControlTriangles.Length);
+        Assert.NotNull(ribbonResources.ParticleScaleWords4096);
+        Assert.Equal(4096, ribbonResources.ParticleScaleWords4096.Value.Length);
+        Assert.Equal((short)12, ribbonResources.ParticleScaleWords4096.Value[2]);
+        Assert.NotEqual(NativeBattleCameraMath.Sine(2), ribbonResources.ParticleScaleWords4096.Value[2]);
+        Assert.Equal(new byte[] { 18, 0, 11, 0, 52, 0, 18, 0 }, ribbonResources.Pairs80.AsSpan().Slice(8, 8).ToArray());
+        NativeBattleCameraState camera = NativeBattleCameraState.FromColdProcess() with { CurrentPose = new(new(0, 0, 0), new(0, 0, 0), 216, 0) };
+        NativeBattleQuezacotlRigWrite pools = NativeBattleQuezacotlRig86.InitializeAfterSecondWindow(recomputed.Memory, recomputed.Effect, camera);
+        NativeBattleQuezacotlRibbonSpawn spawned = NativeBattleQuezacotlRibbonProducer.Spawn6C87B0(pools.Memory, pools.Effect, 1);
+        NativeBattleQuezacotlRigWrite world = NativeBattleQuezacotlRig86.Compose5095B0(spawned.Memory, spawned.Effect);
+        byte[] envelope = world.Memory.Arena!.Read(0x3C25C, 32);
+        NativeBattleQuezacotlRibbonStep ribbon = NativeBattleQuezacotlRibbon.Advance6C8850(world.Memory.Arena.Read(0x3BA5C, 128).ToImmutableArray(), ribbonResources, 1, selector => NativeBattleQuezacotlRig86.ReadBoneMatrix(world.Memory, selector), Enumerable.Range(0, 16).Select(index => BinaryPrimitives.ReadInt16LittleEndian(envelope.AsSpan(index * 2))).ToImmutableArray(), 1, false, identity, new(identity, 216, 160, 108));
+        Assert.Equal((short)256, BinaryPrimitives.ReadInt16LittleEndian(ribbon.Task128.AsSpan().Slice(0xE)));
+        Assert.Equal(0, ribbon.Returned);
+        Assert.NotEmpty(ribbon.CommonPackets.Attempts);
+        Console.WriteLine($"Actual MAG115_H.07 pair1 ribbon: packets={ribbon.CommonPackets.Attempts.Length}, allocated={ribbon.CommonPackets.AllocationBytes}, random={ribbon.Random17A0}");
     }
 }

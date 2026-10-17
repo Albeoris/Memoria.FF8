@@ -28,6 +28,7 @@ public sealed partial class BattleSession
         string bank = process.PacketBank ?? throw new NotSupportedException("Native callback primitive submission has no allocated logical packet bank.");
         int cursor = process.ByteCursor ?? throw new NotSupportedException("Native callback primitive submission has no observed packet cursor.");
         NativeBattleLogicalOrdering ordering = frame.Pending;
+        ImmutableArray<NativeBattleCommonPacketStore>.Builder stores = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
         foreach (NativeBattleGeometryPrimitive primitive in primitives)
         {
             int next = checked(cursor + primitive.Words.Length * 4);
@@ -36,12 +37,12 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("Native primitive packet cursor reaches its original arena capacity.");
             }
-            // TODO(TD-009): Logical packets do not prove original physical padding or rejected stores
-            process = process.MarkCommonUnknown(cursor, next - cursor);
+            bool linked = ordering.Proxies.Length < NativeBattlePrimitiveOrdering.ProxyCapacity;
+            stores.AddRange(NativeBattleCommonPacketArena.PrimitiveStores(cursor, primitive, linked));
             ordering = ordering.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, cursor), primitive.Words, primitive.VertexPayload4.IsEmpty ? (ushort)1 : (ushort)0, primitive.VertexPayload4, moduleDraw);
             cursor = next;
         }
-        NativeEffectMemory = memory with { PrimitiveProcess = process with { ByteCursor = cursor } };
+        NativeEffectMemory = memory with { PrimitiveProcess = process.ApplyCommonWrites(stores.ToImmutable()) with { ByteCursor = cursor } };
         return graphics with { PrimitiveFrame = frame with { Pending = ordering } };
     }
 

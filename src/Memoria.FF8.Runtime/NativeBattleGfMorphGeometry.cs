@@ -13,6 +13,20 @@ public static class NativeBattleGfMorphGeometry
             throw new InvalidDataException("Native701390 requires current source geometry and actual destination arena bytes.");
         }
         ImmutableArray<NativeBattleVector> vertices = MorphVertices701390(source, geometryOffset, firstShape, secondShape, ratio);
+        return StoreVertices(vertices, destination, destinationOffset);
+    }
+
+    public static ImmutableArray<byte> Morph45E9D0(ImmutableArray<byte> firstSource, int firstOffset, ImmutableArray<byte> secondSource, int secondOffset, int count, int ratio, ImmutableArray<byte> destination, int destinationOffset)
+    {
+        if (destination.IsDefault)
+        {
+            throw new InvalidDataException("Native GTE morph requires its actual destination bytes.");
+        }
+        return StoreVertices(MorphVertices45E9D0(firstSource, firstOffset, secondSource, secondOffset, count, ratio), destination, destinationOffset);
+    }
+
+    private static ImmutableArray<byte> StoreVertices(ImmutableArray<NativeBattleVector> vertices, ImmutableArray<byte> destination, int destinationOffset)
+    {
         byte[] output = destination.ToArray();
         foreach (NativeBattleVector vertex in vertices)
         {
@@ -39,9 +53,19 @@ public static class NativeBattleGfMorphGeometry
         {
             throw new InvalidDataException("Native701390 vertex count exceeds its bounded observed source.");
         }
-        ImmutableArray<NativeBattleVector>.Builder result = ImmutableArray.CreateBuilder<NativeBattleVector>(count);
         int first = unchecked(geometryOffset + 12 + count * firstShape * 8);
         int second = unchecked(geometryOffset + 12 + count * secondShape * 8);
+        return MorphVertices45E9D0(source, first, source, second, count, ratio);
+    }
+
+    /// <summary>The shared45E9D0/45EBF0 core accepts actual shape pointers; callers retain their original+8/+12 geometry layouts.</summary>
+    public static ImmutableArray<NativeBattleVector> MorphVertices45E9D0(ImmutableArray<byte> firstSource, int firstOffset, ImmutableArray<byte> secondSource, int secondOffset, int count, int ratio)
+    {
+        Require(firstSource, firstOffset);
+        Require(secondSource, secondOffset);
+        ImmutableArray<NativeBattleVector>.Builder result = ImmutableArray.CreateBuilder<NativeBattleVector>(count);
+        int first = firstOffset;
+        int second = secondOffset;
         short firstWeight = unchecked((short)(4096 - ratio));
         short secondWeight = unchecked((short)ratio);
         for (int vertex = 0; vertex < count; vertex++)
@@ -50,8 +74,8 @@ public static class NativeBattleGfMorphGeometry
             for (int component = 0; component < 3; component++)
             {
                 int offset = component * 2;
-                short a = BinaryPrimitives.ReadInt16LittleEndian(Read(source, unchecked(first + offset), 2));
-                short b = BinaryPrimitives.ReadInt16LittleEndian(Read(source, unchecked(second + offset), 2));
+                short a = BinaryPrimitives.ReadInt16LittleEndian(Read(firstSource, unchecked(first + offset), 2));
+                short b = BinaryPrimitives.ReadInt16LittleEndian(Read(secondSource, unchecked(second + offset), 2));
                 // 45E9D0 stores the first rounded product in MAC; 45EBF0 adds a separately rounded product before IR saturation.
                 int mac = unchecked(NativePrecision53.RoundInteger(a * (firstWeight / 4096.0)) + NativePrecision53.RoundInteger(b * (secondWeight / 4096.0)));
                 xyz[component] = (short)Math.Clamp(mac, short.MinValue, short.MaxValue);
@@ -61,6 +85,14 @@ public static class NativeBattleGfMorphGeometry
             second = unchecked(second + 8);
         }
         return result.MoveToImmutable();
+
+        void Require(ImmutableArray<byte> source, int offset)
+        {
+            if (source.IsDefault || count < 0 || count > 0 && (offset < 0 || offset + (long)(count - 1) * 8 + 6 > source.Length))
+            {
+                throw new InvalidDataException("Native GTE morph vertex loads leave their actual shape bytes.");
+            }
+        }
     }
 
     private static ReadOnlySpan<byte> Read(ImmutableArray<byte> bytes, int offset, int length)

@@ -13,6 +13,10 @@ public static class NativeBattleQuezacotlChild
         NativeBattleQuezacotlState state = (effect.Quezacotl ?? throw new InvalidDataException("Native6C3940 lost its initialized Quezacotl globals.")) with { Intensity17A4 = 2400 };
         if (phase != 0)
         {
+            if (phase == 88)
+            {
+                throw new NotSupportedException("Native Quezacotl6C3940 phase88 requires its next skinned/ribbon controller frame and original6C7D10 particle producer; this callback is not implemented.");
+            }
             throw new NotSupportedException($"Native Quezacotl6C3940 phase{phase} requires original7016B0 model workspace and701970/6C6060 geometry callbacks; full GF animation is not implemented.");
         }
         NativeBattleEffectIoPoll poll = NativeBattleEffectIo.Poll534270(memory);
@@ -33,7 +37,7 @@ public static class NativeBattleQuezacotlChild
         return new(memory, FinishMain6C3760(memory, effect), request, !poll.Busy);
     }
 
-    public static NativeBattleOriginalEffectState FinishMain6C3760(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect)
+    public static NativeBattleOriginalEffectState FinishMain6C3760(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, bool ribbonExecuted = false)
     {
         //6C3760 runs the remaining five508420 lists after its primary child. Their real cold head pointers are retained separately.
         ImmutableArray<uint> heads = memory.QuezacotlSecondaryHeads ?? throw new NotSupportedException("Native6C3760 requires the retained heads of its five secondary private task descriptors.");
@@ -41,7 +45,7 @@ public static class NativeBattleQuezacotlChild
         {
             throw new InvalidDataException("Native Quezacotl requires its five physical secondary descriptor head DWORDs.");
         }
-        if (heads.Any(head => head != 0))
+        if (heads.Skip(1).Any(head => head != 0) || heads[0] != 0 && !ribbonExecuted)
         {
             throw new NotSupportedException("Native6C3760 secondary Quezacotl task callback requires its actual retained pool owner.");
         }

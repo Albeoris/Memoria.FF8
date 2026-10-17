@@ -13,7 +13,11 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Native Quezacotl workspace owner requires actual phase1..87.");
         }
-        if (phase == 87)
+        if (phase == 86)
+        {
+            ApplyRig(NativeBattleQuezacotlRig86.InitializeBeforeSecondWindow(memory, effect));
+        }
+        if (phase is 86 or 87)
         {
             bool frozen = (memory.QuezacotlPause ?? throw new NotSupportedException("Native6FBDB0 requires its retained pause owner.")) != 0;
             if (!frozen)
@@ -23,7 +27,8 @@ public sealed partial class BattleSession
             ApplyRig(NativeBattleQuezacotlRig86.Compose5095B0(memory, effect));
             NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native6C6770 requires its prior projection owner.");
             NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native6C6770 requires its authenticated PC color rules.");
-            NativeBattleQuezacotlSkinBatch batch = NativeBattleQuezacotlRig86.Emit6C6770(memory, effect, projection, colors, -70);
+            int localFrame = phase - 86;
+            NativeBattleQuezacotlSkinBatch batch = NativeBattleQuezacotlRig86.Emit6C6770(memory, effect, projection, colors, -3500 * localFrame / 50);
             NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native6C6770 requires its current logical ordering table.");
             NativeBattleQuezacotlPacketWrite written = NativeBattleQuezacotlSkinArena.Append(memory, effect, frame.Pending, batch);
             memory = written.Memory;
@@ -32,14 +37,8 @@ public sealed partial class BattleSession
             ApplyRig(NativeBattleQuezacotlRig86.Restore508C90(memory, effect));
             if (!frozen)
             {
-                ApplyRig(NativeBattleQuezacotlRig86.AddFrameCounter(memory, effect, 1));
+                ApplyRig(NativeBattleQuezacotlRig86.AddFrameCounter(memory, effect, localFrame));
             }
-        }
-        if (phase == 86)
-        {
-            NativeBattleQuezacotlRigWrite rig = NativeBattleQuezacotlRig86.InitializeBeforeSecondWindow(memory, effect);
-            memory = rig.Memory;
-            effect = rig.Effect;
         }
         bool secondWindow = phase >= 77;
         int workspaceLength = secondWindow ? NativeBattleQuezacotlWorkspace.SecondLength : NativeBattleQuezacotlWorkspace.Length;
@@ -80,8 +79,9 @@ public sealed partial class BattleSession
                 (NativeBattleQuezacotlRigWrite rig, NativeBattleCameraState camera) = NativeBattleQuezacotlRig86.UpdateCamera87(memory, effect, NativeCamera ?? throw new NotSupportedException("Native6C3DDF requires its retained camera globals."));
                 NativeCamera = camera;
                 ApplyRig(rig);
+                NativeBattleQuezacotlRibbonSpawn spawned = NativeBattleQuezacotlRibbonProducer.Spawn6C87B0(memory, effect, 1);
+                ApplyRig(new(spawned.Memory, spawned.Effect));
             }
-            throw new NotSupportedException("Native Quezacotl6C3940 phase87 requires original6C87B0 ribbon producer and its same-callback6C8850 drawing; this callback is not implemented.");
         }
         if (phase == 86)
         {
@@ -140,8 +140,14 @@ public sealed partial class BattleSession
         child = child with { Slots = child.Slots.SetItem(0, child.Slots[0].WriteWord(12, nextPhase)) };
         memory = memory with { Arena = memory.Arena!.Write(12, [(byte)nextPhase, 0]) };
         effect = effect with { Pools = effect.Pools.SetItem(effect.Pools.IndexOf(effect.Pools.Single(pool => pool.DescriptorAddress == child.DescriptorAddress)), child) };
-        effect = NativeBattleQuezacotlChild.FinishMain6C3760(memory, effect);
         NativeEffectMemory = memory;
+        if (phase == 87)
+        {
+            graphics = AdvanceNativeQuezacotlRibbon(graphics with { OriginalEffect = effect });
+            memory = NativeEffectMemory!;
+            effect = graphics.OriginalEffect!;
+        }
+        effect = NativeBattleQuezacotlChild.FinishMain6C3760(memory, effect, phase == 87);
         return graphics with { OriginalEffect = effect };
 
         void Persist(NativeBattleGfAnimationWorkspace current)

@@ -119,7 +119,7 @@ public sealed class NativeBattleGuardianPresentationTests
         Assert.True(sawEntry, diagnostic);
         Assert.NotNull(boundary);
         Assert.Contains("6C3940", boundary.Message);
-        Assert.Contains("phase87 requires original6C87B0", boundary.Message);
+        Assert.Contains("phase88 requires its next skinned/ribbon controller frame", boundary.Message);
         Assert.True(sawGeometry);
         Assert.True(sawNativeFlash);
         Assert.Equal((ushort)116, battle.NativeGraphics!.OriginalEffect!.Binding.Effect);
@@ -127,7 +127,8 @@ public sealed class NativeBattleGuardianPresentationTests
         Assert.Contains(battle.NativeGraphics.OriginalEffect.Pools, pool => pool.DescriptorAddress == 0x2521738 && pool.Stride == 0x8D0 && pool.Slots.Single().Callback == 0x6C3940);
         Assert.Equal((byte?)0, battle.NativeEffectMemory!.GuardianCasterBank);
         ushort boundaryPhase = battle.NativeGraphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12);
-        Assert.Equal((ushort)87, boundaryPhase);
+        Assert.Equal((ushort)88, boundaryPhase);
+        Assert.Equal((byte)3, battle.NativeEffectMemory!.Arena!.Read(0x9A, 1)[0]);
         Assert.Equal(0, battle.NativeGraphics.Models[3].Flags0 & 4);
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240066, Flags: 1, Pan: 128 });
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240069, Flags: 1, Pan: 128 });

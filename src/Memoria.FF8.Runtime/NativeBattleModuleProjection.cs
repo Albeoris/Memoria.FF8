@@ -121,18 +121,27 @@ public static partial class NativeBattlePoseMatrices
             local[1] = unchecked((short)(-scaleY * sine >> 12));
             local[4] = unchecked((short)(scaleY * cosine >> 12));
         }
+        NativeBattleActionMatrix multiplied = MultiplyGteRotation45E470(main, new(local.ToImmutableArray(), 0, 0, 0, 4096));
+        short dx = unchecked((short)(8 * quad[0] + 16 * BinaryPrimitives.ReadInt16LittleEndian(quad[8..])));
+        short dy = unchecked((short)(8 * quad[2] + 16 * BinaryPrimitives.ReadInt16LittleEndian(quad[10..])));
+        (int x, int y, int z) = ApplyRounded(new(main.Rotation.ToArray()), dx, dy, 0);
+        return new(multiplied.Rotation, unchecked(main.X + x), unchecked(main.Y + y), unchecked(main.Z + z), 4096);
+    }
+
+    /// <summary>45DE00/45E180/460820/45E470 multiply rotation columns with PC rounding and saturated IR stores; translation is retained.</summary>
+    public static NativeBattleActionMatrix MultiplyGteRotation45E470(NativeBattleActionMatrix left, NativeBattleActionMatrix right)
+    {
+        left.Validate();
+        right.Validate();
         short[] rotation = new short[9];
         for (int row = 0; row < 3; row++)
         {
             for (int column = 0; column < 3; column++)
             {
-                double value = main.Rotation[row * 3 + 2] / 4096d * local[6 + column] + main.Rotation[row * 3 + 1] / 4096d * local[3 + column] + main.Rotation[row * 3] / 4096d * local[column];
+                double value = left.Rotation[row * 3 + 2] / 4096d * right.Rotation[6 + column] + left.Rotation[row * 3 + 1] / 4096d * right.Rotation[3 + column] + left.Rotation[row * 3] / 4096d * right.Rotation[column];
                 rotation[row * 3 + column] = (short)Math.Clamp(RoundNative(value), short.MinValue, short.MaxValue);
             }
         }
-        short dx = unchecked((short)(8 * quad[0] + 16 * BinaryPrimitives.ReadInt16LittleEndian(quad[8..])));
-        short dy = unchecked((short)(8 * quad[2] + 16 * BinaryPrimitives.ReadInt16LittleEndian(quad[10..])));
-        (int x, int y, int z) = ApplyRounded(new(main.Rotation.ToArray()), dx, dy, 0);
-        return new(rotation.ToImmutableArray(), unchecked(main.X + x), unchecked(main.Y + y), unchecked(main.Z + z), 4096);
+        return left with { Rotation = rotation.ToImmutableArray() };
     }
 }

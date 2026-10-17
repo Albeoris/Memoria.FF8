@@ -37,8 +37,14 @@ public static class NativeBattleGfMatrices
 
     public static (int X, int Y, int Z) Rotate56C3D0(NativeBattleActionMatrix matrix, NativeBattleVector point)
     {
+        return RotateLong56C600(matrix, point.X, point.Y, point.Z);
+    }
+
+    /// <summary>56C600 uses DWORD vector components with the same three biased-rounded dot products as56C3D0; it ignores translation and writes XYZ only.</summary>
+    public static (int X, int Y, int Z) RotateLong56C600(NativeBattleActionMatrix matrix, int x, int y, int z)
+    {
         matrix.Validate();
-        int Row(int row) => NativePrecision53.RoundInteger(matrix.Rotation[row * 3 + 2] * (point.Z / 4096d) + matrix.Rotation[row * 3 + 1] * (point.Y / 4096d) + matrix.Rotation[row * 3] * (point.X / 4096d));
+        int Row(int row) => NativePrecision53.RoundInteger(matrix.Rotation[row * 3 + 2] * (z / 4096d) + matrix.Rotation[row * 3 + 1] * (y / 4096d) + matrix.Rotation[row * 3] * (x / 4096d));
         return (Row(0), Row(1), Row(2));
     }
 

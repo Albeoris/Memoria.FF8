@@ -1,3 +1,6 @@
+using System.Buffers.Binary;
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleCommonPacketWrite(NativeBattlePrimitiveProcess Process, NativeBattleLogicalOrdering Ordering);
@@ -5,6 +8,28 @@ public sealed record NativeBattleCommonPacketWrite(NativeBattlePrimitiveProcess 
 /// <summary>Apply exact ordered common-heap stores, rejected attempts and accepted native OT links.</summary>
 public static class NativeBattleCommonPacketArena
 {
+    public static NativeBattlePrimitiveProcess StorePrimitive(NativeBattlePrimitiveProcess process, int address, NativeBattleGeometryPrimitive primitive, bool linked)
+    {
+        return process.ApplyCommonWrites(PrimitiveStores(address, primitive, linked));
+    }
+
+    public static ImmutableArray<NativeBattleCommonPacketStore> PrimitiveStores(int address, NativeBattleGeometryPrimitive primitive, bool linked)
+    {
+        if (primitive.PhysicalWriteMask is not { } mask)
+        {
+            // TODO(TD-009): Other logical emitters do not yet establish actual padding/rejected stores
+            int length = checked(4 * primitive.Words.Length);
+            return [new(address, new byte[length].ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Unknown, length).ToImmutableArray())];
+        }
+        byte[] data = new byte[checked(4 * primitive.Words.Length)];
+        for (int index = 0; index < primitive.Words.Length; index++)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4 * index), primitive.Words[index]);
+        }
+        NativeBattleCommonPacketStore store = new(address, data.ToImmutableArray(), mask);
+        return linked ? [store, new(address, [0, 0, 0], [NativeBattleGfPacketByteState.Unknown, NativeBattleGfPacketByteState.Unknown, NativeBattleGfPacketByteState.Unknown])] : [store];
+    }
+
     public static NativeBattleCommonPacketWrite Append(NativeBattlePrimitiveProcess process, NativeBattleLogicalOrdering ordering, NativeBattleGfGeometryBatch batch, ushort flags20 = 0)
     {
         process.Validate();
@@ -16,6 +41,7 @@ public static class NativeBattleCommonPacketArena
             throw new InvalidDataException("Native common packet receipts require their bounded aligned final allocation.");
         }
         int acceptedEnd = 0;
+        ImmutableArray<NativeBattleCommonPacketStore>.Builder stores = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
         foreach (NativeBattleGfGeometryAttempt attempt in batch.Attempts)
         {
             if (attempt is null || attempt.Data.IsDefaultOrEmpty || attempt.WriteMask.IsDefault || attempt.ByteOffsetRelative < 0 || (attempt.ByteOffsetRelative & 3) != 0 || (attempt.PacketLength & 3) != 0)
@@ -23,7 +49,7 @@ public static class NativeBattleCommonPacketArena
                 throw new InvalidDataException("Native common packet receipt lacks its original aligned stores and mask.");
             }
             int address = checked(start + attempt.ByteOffsetRelative);
-            process = process.ApplyCommonWrite(address, attempt.Data, attempt.WriteMask);
+            stores.Add(new(address, attempt.Data, attempt.WriteMask));
             if (attempt.Primitive is not { } primitive)
             {
                 continue;
@@ -37,7 +63,7 @@ public static class NativeBattleCommonPacketArena
             ordering = ordering.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, address), primitive.Words, flags20, primitive.VertexPayload4);
             if (linked)
             {
-                process = process.MarkCommonUnknown(address, 3);
+                stores.Add(new(address, [0, 0, 0], [NativeBattleGfPacketByteState.Unknown, NativeBattleGfPacketByteState.Unknown, NativeBattleGfPacketByteState.Unknown]));
             }
             acceptedEnd = Math.Max(acceptedEnd, end);
         }
@@ -45,6 +71,6 @@ public static class NativeBattleCommonPacketArena
         {
             throw new InvalidDataException("Native common packet accepted extent differs from its final physical cursor.");
         }
-        return new(process with { ByteCursor = checked(start + batch.AllocationBytes) }, ordering);
+        return new(process.ApplyCommonWrites(stores.ToImmutable()) with { ByteCursor = checked(start + batch.AllocationBytes) }, ordering);
     }
 }

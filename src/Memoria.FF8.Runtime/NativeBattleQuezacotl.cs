@@ -4,7 +4,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffectFileAsset(short FileId, string Name, ImmutableArray<byte> Data);
-public sealed record NativeBattleQuezacotlResources(NativeBattleEffectInitializerAsset Initializer, NativeBattleEffectHeapAllocation WorkSeed0, NativeBattleEffectHeapAllocation WorkSeed1, NativeVibrationBank Vibration)
+public sealed partial record NativeBattleQuezacotlResources(NativeBattleEffectInitializerAsset Initializer, NativeBattleEffectHeapAllocation WorkSeed0, NativeBattleEffectHeapAllocation WorkSeed1, NativeVibrationBank Vibration)
 {
     public ImmutableArray<NativeBattleEffectFileAsset> Files { get; init; } = [];
     public uint? InitialSound { get; init; }

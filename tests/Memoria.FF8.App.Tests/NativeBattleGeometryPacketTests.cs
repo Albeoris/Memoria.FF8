@@ -83,6 +83,42 @@ public sealed class NativeBattleGeometryPacketTests
         Assert.Equal(unchanged.VertexPayload4, actual.VertexPayload4);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Original_body_packet_stores_preserve_UV_padding_and_unknown_heap_bytes_for_all_four_source_groups(bool quad, bool colored)
+    {
+        byte[] original = Polygon(quad);
+        byte[] polygon = new byte[original.Length + (colored ? 4 : 0)];
+        original.CopyTo(polygon, 0);
+        if (colored)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(polygon.AsSpan(original.Length), quad ? 0x2E808080u : 0x26808080u);
+        }
+        NativeBattleGeometryPrimitive primitive = NativeBattleGeometryPackets.EmitRaw50FDF0(polygon, Vertices, quad, 0x808080, 17, 4, 0)!;
+        int length = primitive.Words.Length * 4;
+        ImmutableArray<byte> prior = Enumerable.Repeat((byte)0xA5, length).ToImmutableArray();
+        NativeBattlePrimitiveProcess process = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400();
+        NativeBattlePrimitiveProcess seeded = process.ApplyCommonWrite(0, prior, Enumerable.Repeat(NativeBattleGfPacketByteState.Known, length).ToImmutableArray());
+        NativeBattlePrimitiveProcess written = NativeBattleCommonPacketArena.StorePrimitive(seeded, 0, primitive, false);
+        Assert.Equal(new byte[] { 0xA5, 0xA5 }, written.ReadCommonPacket(30, 2));
+        Assert.Equal((ushort)0x0605, BinaryPrimitives.ReadUInt16LittleEndian(written.ReadCommonPacket(28, 2)));
+        Assert.Equal((uint)(quad ? 0x09000000 : 0x07000000), BinaryPrimitives.ReadUInt32LittleEndian(written.ReadCommonPacket(0, 4)));
+        if (quad)
+        {
+            Assert.Equal(new byte[] { 0xA5, 0xA5 }, written.ReadCommonPacket(38, 2));
+            Assert.Equal((ushort)0x0807, BinaryPrimitives.ReadUInt16LittleEndian(written.ReadCommonPacket(36, 2)));
+        }
+        NativeBattlePrimitiveProcess linked = NativeBattleCommonPacketArena.StorePrimitive(process, 0, primitive, true);
+        Assert.Throws<NotSupportedException>(() => linked.ReadCommonPacket(0, 3));
+        Assert.Throws<NotSupportedException>(() => linked.ReadCommonPacket(30, 2));
+        Assert.Equal(primitive.Words[1], BinaryPrimitives.ReadUInt32LittleEndian(linked.ReadCommonPacket(4, 4)));
+        NativeBattlePrimitiveProcess clone = JsonSerializer.Deserialize<NativeBattlePrimitiveProcess>(JsonSerializer.Serialize(written))!;
+        Assert.Equal(written.ReadCommonPacket(0, length), clone.ReadCommonPacket(0, length));
+    }
+
     [Fact]
     public void Mesh_submission_projects_original_WORDs_and_inserts_each_packet_in_physical_same_bucket_LIFO_order()
     {

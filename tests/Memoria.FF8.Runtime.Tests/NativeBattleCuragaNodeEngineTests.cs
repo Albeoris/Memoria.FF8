@@ -147,7 +147,7 @@ public sealed class NativeBattleCuragaNodeEngineTests
         return frame with { Effect = frame.Effect with { Pools = hierarchy.Write(address, update(hierarchy.Read(address))).Pools } };
     }
 
-    private static (NativeBattleCuragaFrame Frame, uint Task) Fixture((byte Mode, sbyte Birth, bool PerTarget)[]? sources = null)
+    internal static (NativeBattleCuragaFrame Frame, uint Task) Fixture((byte Mode, sbyte Birth, bool PerTarget)[]? sources = null)
     {
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
         (packets, _) = packets.Prepare(new(0, 2, 11, 0, 23, 28, null));

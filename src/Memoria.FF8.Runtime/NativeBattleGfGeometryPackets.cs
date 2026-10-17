@@ -210,14 +210,12 @@ public static class NativeBattleGfGeometryPackets
             NativeBattleSummonColors rules = colors ?? throw new NotSupportedException("Native7043B0 depth cue requires its authenticated45F270/45F4C0 PC interpolation constants.");
             if (gouraud)
             {
-                // 45E120 sets RGBC from its third input: triangle's modified first color, quad's original fourth color.
-                uint fifoCommand = quad ? vertexColors[3] & 0xFF000000 : command & 0xFF000000;
-                for (int corner = 1; corner < count; corner++)
-                {
-                    vertexColors[corner] = (rules.Interpolate(vertexColors[corner], context.DepthCue, context.FarColor) & 0xFFFFFF) | fifoCommand;
-                }
+                vertexColors = NativeBattleGteColorInterpolation.Gouraud45F4C0(vertexColors.ToImmutableArray(), quad, context.DepthCue, context.FarColor, rules).ToArray();
             }
-            vertexColors[0] = rules.Interpolate(command, context.DepthCue, context.FarColor);
+            else
+            {
+                vertexColors[0] = rules.Interpolate(command, context.DepthCue, context.FarColor);
+            }
         }
         // 56BAA0 establishes ZSF3=155h/ZSF4=100h;AVSZ performs unsigned SHR12 before context bias and signed clamp.
         uint average = unchecked((uint)vertices.Sum(vertex => (int)vertex.Depth) * (quad ? 0x100u : 0x155u)) >> 12;

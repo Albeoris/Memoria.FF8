@@ -3,7 +3,10 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleGeometryPacket(int Bucket, NativeBattlePrimitivePacket Packet, ImmutableArray<int> VertexPayload4);
-public sealed record NativeBattleGeometryPrimitive(int Bucket, ImmutableArray<uint> Words, ImmutableArray<int> VertexPayload4);
+public sealed record NativeBattleGeometryPrimitive(int Bucket, ImmutableArray<uint> Words, ImmutableArray<int> VertexPayload4)
+{
+    public ImmutableArray<NativeBattleGfPacketByteState>? PhysicalWriteMask { get; init; }
+}
 
 /// <summary>50FDF0's original FT3/FT4 packet emission; inputs are original records, never float-renderer depth estimates.</summary>
 public static class NativeBattleGeometryPackets
@@ -86,7 +89,15 @@ public static class NativeBattleGeometryPackets
         {
             depths = depths.Add(0);
         }
-        return new(checked(tableBaseBucket + (minDepth >> depthShift)), words.ToImmutableArray(), depths);
+        NativeBattleGfPacketByteState[] physicalMask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, words.Length * 4).ToArray();
+        physicalMask[30] = NativeBattleGfPacketByteState.Untouched;
+        physicalMask[31] = NativeBattleGfPacketByteState.Untouched;
+        if (quad)
+        {
+            physicalMask[38] = NativeBattleGfPacketByteState.Untouched;
+            physicalMask[39] = NativeBattleGfPacketByteState.Untouched;
+        }
+        return new(checked(tableBaseBucket + (minDepth >> depthShift)), words.ToImmutableArray(), depths) { PhysicalWriteMask = physicalMask.ToImmutableArray() };
     }
 
     public static bool Accept510680(uint a, uint b, uint c)
