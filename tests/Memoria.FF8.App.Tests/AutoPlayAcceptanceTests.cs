@@ -7,6 +7,47 @@ namespace Memoria.FF8.App.Tests;
 public sealed class AutoPlayAcceptanceTests
 {
     [Fact]
+    public void InitialFieldRegistrationResumesBeforeItsFirstSkinCallback()
+    {
+        string gameDirectory = TestResources.GameDirectory;
+        string manifest = TestResources.FixturePath("App.Tests.AutoPlayAcceptanceTests.4");
+        AutoPlayRunState saved = JsonSerializer.Deserialize<AutoPlayRunState>(File.ReadAllText(manifest), AutoPlayController.JsonOptions)!;
+        GameState initial = GameSession.Load(Path.Combine(Path.GetDirectoryName(manifest)!, saved.Snapshot!));
+        GameSession session = new(initial);
+        using GameWorld world = new(session, gameDirectory, validateWorldPresentation: false);
+        world.EnsureField();
+        Assert.Equal(1, world.Events.Frame);
+        Assert.True(world.Events.IsNativeModelDrawPending);
+        ActorState[] actors = world.Events.Actors.Where(actor => actor.Active && actor.Visible && actor.RenderModelId >= 0).ToArray();
+        Assert.NotEmpty(actors);
+        JsonElement beforeVisuals = world.Events.Capture();
+        Assert.All(actors, actor => Assert.False(world.CreateVisual(actor).Visible));
+        if (world.Events.PlayerActor is { } player)
+        {
+            Assert.False(world.CreateVisual(player).Visible);
+        }
+        Assert.True(JsonElement.DeepEquals(beforeVisuals, world.Events.Capture()));
+        world.Events.Step();
+        Assert.False(world.Events.IsNativeModelDrawPending);
+        Assert.Contains(world.Events.Actors, actor => actor.Active && actor.Visible && actor.RenderModelId >= 0 && world.CreateVisual(actor).Visible);
+        using InstalledRun run = new(gameDirectory);
+        run.Controller.ResumeFrom(manifest);
+        run.Controller.Advance(1);
+        Assert.Null(run.Controller.Error);
+        JsonElement after = run.Snapshot();
+        Assert.Equal(139, after.GetProperty("FieldId").GetInt32());
+        JsonElement events = after.GetProperty("EventState");
+        long frame = events.GetProperty("Frame").GetInt64();
+        Assert.True(frame > 1);
+        JsonElement scene = events.GetProperty("Scene");
+        Assert.True(scene.GetProperty("FieldCallbackClock").GetProperty("OrdinaryCallbacks").GetInt64() > 0);
+        JsonProperty[] draws = scene.GetProperty("ModelParts").GetProperty("Draws").EnumerateObject().ToArray();
+        Assert.NotEmpty(draws);
+        Assert.All(draws, draw => Assert.Equal(frame, draw.Value.GetProperty("Frame").GetInt64()));
+        Assert.True(JsonElement.DeepEquals(world.Events.Capture(), events));
+    }
+
+    [Fact]
     public void OrdinaryLibrarianTalkKeepsTheNativeAbsentPartyBranchClosed()
     {
         string gameDirectory = TestResources.GameDirectory;

@@ -96,7 +96,7 @@ internal sealed partial class GameWorld
     internal ActorVisual CreateVisual(ActorState actor)
     {
         DebugActorView? view = session.State.DebugView?.Actors.GetValueOrDefault(actor.ObjectId);
-        bool visible = view?.Visible ?? actor.Active && actor.Visible;
+        bool visible = (view?.Visible ?? actor.Active && actor.Visible) && !Events.IsNativeModelDrawPending;
         if (visible && actor.NativeEyes?.Patch is not null)
         {
             // TODO(TD-015): project the authenticated native VRAM eye copy.

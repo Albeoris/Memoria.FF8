@@ -14,6 +14,24 @@ public sealed partial class EventEngine
 {
     public Func<int, NativeModelPartsDefinition?>? ReadNativeModelParts { get; set; }
 
+    public bool IsNativeModelDrawPending
+    {
+        get
+        {
+            if (NativeRuntimeProfile is not { IsVerified: true } || Scene.ModelParts is null || !IsNativeModelRegistrationOnly(Scene, Frame))
+            {
+                return false;
+            }
+            ValidateNativeModelParts(Scene, actors, Frame, defaultsStarted, transitionRequested, services.MovieSource);
+            return true;
+        }
+    }
+
+    private static bool IsNativeModelRegistrationOnly(SceneEventState scene, long frame)
+    {
+        return frame == 1 && scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Completed } && scene.FieldCallbackClock is { Version: 1, InitializationTransactions: 1, OrdinaryCallbacks: 0, MovieCallbacks: 0, MenuCallbacks: 0, FieldLoaderCallbacks: 0, BattleCallbacks: null or 0, RandomBattleCallbacks: 0 };
+    }
+
     private void InitializeNativeModelParts()
     {
         if (NativeRuntimeProfile is not { IsVerified: true } || ReadNativeModelParts is null)
@@ -157,6 +175,11 @@ public sealed partial class EventEngine
             NativeModelPartsDefinition definition = ReadNativeModelParts?.Invoke(model) ?? throw new InvalidDataException("Saved native model resource has no actual MCH definition.");
             state.Validate(definition);
         }
+        bool registrationOnly = IsNativeModelRegistrationOnly(scene, frame);
+        if (registrationOnly && (bank.Draws.Count != 0 || bank.Resources.Values.Any(state => state.Parts.Any(row => row[7] != 0)) || savedActors.Any(actor => actor.NativeFootstepModelOrigin is not null)))
+        {
+            throw new InvalidDataException("Saved initial model registration contains a skin callback or part mutation before its first native callback.");
+        }
         foreach ((int objectId, NativeModelPartDraw draw) in bank.Draws)
         {
             NativeFieldModelInstance? instance = bank.Instances.SingleOrDefault(item => item.ObjectId == objectId);
@@ -182,7 +205,8 @@ public sealed partial class EventEngine
         {
             // Native4767B0 dispatches field/world changes before472B30/530810.
             // The dormant field retains its last executed skin sample, not a new draw.
-            if (transitionRequested || !savedActors[instance.ObjectId].Visible || !NativeModelDrawEnabled(scene, movieSource, frame, true))
+            //52C650's diagnostic transaction registers models without executing530C30.
+            if (registrationOnly || transitionRequested || !savedActors[instance.ObjectId].Visible || !NativeModelDrawEnabled(scene, movieSource, frame, true))
             {
                 continue;
             }

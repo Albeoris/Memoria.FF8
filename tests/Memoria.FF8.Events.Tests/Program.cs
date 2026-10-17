@@ -45,6 +45,7 @@ internal static partial class Program
                     ["native-maccel"] = () => NativeMovementAccelerationContract(),
                     ["native-reverse-maccel"] = () => NativeMovementAccelerationContract(reverseOnly: true),
                     ["native-model-door"] = () => NativeModelDoorContract(selectedGameDirectory),
+                    ["native-model-initial-checkpoint"] = () => NativeModelInitializationCheckpointContract(selectedGameDirectory),
                     ["native-sethp"] = () => NativeSetHitPointsContract(selectedGameDirectory),
                     ["native-rest-membership"] = () => NativeRestAndMembershipContract(selectedGameDirectory),
                     ["native-split-control-caller"] = () => NativeSplitControlCallerContract(selectedGameDirectory),
