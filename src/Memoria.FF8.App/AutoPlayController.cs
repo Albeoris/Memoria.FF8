@@ -569,6 +569,10 @@ internal sealed class AutoPlayController
 
     private void DriveScriptedInput(ScriptedInputMetadata input, bool allowControlled)
     {
+        if (!PrepareScriptedInput(allowControlled))
+        {
+            return;
+        }
         if (++run.ScriptedInputSteps > 10000)
         {
             throw new NotSupportedException("Scripted input exploration exceeded 10000 attempts without a control-return boundary.");
@@ -586,6 +590,7 @@ internal sealed class AutoPlayController
             if (next.Kind == AutoPlayChoiceStepKind.SaveBeforeChoice)
             {
                 RegisterChoiceSnapshot(key);
+                choice.InputCheckpointPrepared = true;
                 next = planner.PlanChoice(key);
             }
             if (next.Selection is int planned)
@@ -595,19 +600,35 @@ internal sealed class AutoPlayController
                 run.SceneChoices.Add(key);
             }
         }
-        PulseScriptedInput(input.Masks[selection], input, allowControlled);
+        PulseScriptedInput(input.Masks[selection], input, allowControlled, prepared: true);
     }
 
-    private void PulseScriptedInput(int mask, ScriptedInputMetadata input, bool allowControlled)
+    private bool PrepareScriptedInput(bool allowControlled)
     {
         Apply(new(PlayerActionKind.FieldButtons, 0));
         GameWorld world = getWorld();
         int field = session.State.FieldId;
-        bool HasOwner() => session.State.Scene == SceneKind.Field && session.State.FieldId == field && (allowControlled || !world.Events.IsUserControlEnabled) && world.Events.Scene.NativeTutorial is null && world.Events.Scene.NativeMenuTutorial is null && world.Events.PartyMenu is null;
-        for (int release = 0; release < 2 && HasOwner(); release++)
+        for (int release = 0; release < 2 && HasScriptedInputOwner(world, field, allowControlled); release++)
         {
             world.AdvanceAutoPlayInputFrame();
         }
+        return HasScriptedInputOwner(world, field, allowControlled);
+    }
+
+    private bool HasScriptedInputOwner(GameWorld world, int field, bool allowControlled)
+    {
+        return session.State.Scene == SceneKind.Field && session.State.FieldId == field && (allowControlled || !world.Events.IsUserControlEnabled) && world.Events.Scene.NativeTutorial is null && world.Events.Scene.NativeMenuTutorial is null && world.Events.PartyMenu is null;
+    }
+
+    private void PulseScriptedInput(int mask, ScriptedInputMetadata input, bool allowControlled, bool prepared = false)
+    {
+        if (!prepared && !PrepareScriptedInput(allowControlled))
+        {
+            throw new NotSupportedException($"Scripted input {input.Fingerprint} lost its field owner before physical mask {mask} was sampled.");
+        }
+        GameWorld world = getWorld();
+        int field = session.State.FieldId;
+        bool HasOwner() => HasScriptedInputOwner(world, field, allowControlled);
         if (!HasOwner())
         {
             throw new NotSupportedException($"Scripted input {input.Fingerprint} lost its field owner before physical mask {mask} was sampled.");
@@ -627,12 +648,15 @@ internal sealed class AutoPlayController
         {
             for (int hold = 1, callbacks = 0; callbacks < 256 && HasOwner() && !sampled; hold++)
             {
-                Apply(new(PlayerActionKind.FieldButtons, 0));
-                world.AdvanceAutoPlayInputFrame();
-                callbacks++;
-                if (!HasOwner())
+                if (hold > 1 || !prepared)
                 {
-                    break;
+                    Apply(new(PlayerActionKind.FieldButtons, 0));
+                    world.AdvanceAutoPlayInputFrame();
+                    callbacks++;
+                    if (!HasOwner())
+                    {
+                        break;
+                    }
                 }
                 Apply(new(PlayerActionKind.FieldButtons, mask));
                 for (int held = 0; held < hold && callbacks < 256 && HasOwner() && !sampled; held++)
@@ -873,7 +897,7 @@ internal sealed class AutoPlayController
                 {
                     getWorld().EnsureField();
                     ScriptedInputMetadata input = RestoreScriptedChoiceInput(choice);
-                    PulseScriptedInput(input.Masks[selection], input, getWorld().Events.IsUserControlEnabled);
+                    PulseScriptedInput(input.Masks[selection], input, getWorld().Events.IsUserControlEnabled, choice.InputCheckpointPrepared);
                 }
                 else
                 {
