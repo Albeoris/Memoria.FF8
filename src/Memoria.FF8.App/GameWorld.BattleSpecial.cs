@@ -6,8 +6,7 @@ internal sealed partial class GameWorld
 {
     private ushort? ReadNativeFieldBattleMode()
     {
-        NativeScalarValue value = Events.EventMemory.Read(182, 2);
-        return value.IsExact ? unchecked((ushort)value.Values[0]) : null;
+        return Events.Scene.NativeBattleFlagWrites is { Count: > 0 } history ? history[^1].PersistentFlags : null;
     }
 
     private uint? ReadNativeElapsedCounter()

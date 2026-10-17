@@ -23,7 +23,7 @@ internal sealed partial class RecreateGame
 
     private void ApplyAutoPlayCommand(string command)
     {
-        autoPlay ??= new AutoPlayController(session, () => world ??= CreateWorld(), RestorePlayerState, Path.Combine(Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!, "autoplay"));
+        autoPlay ??= new AutoPlayController(session, () => world ??= CreateWorld(), RestorePlayerState, Path.Combine(Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!, "autoplay"), createColdProcess: () => GameWorld.CreateColdProcess(options.GameDirectory));
         try
         {
             switch (command)

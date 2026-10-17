@@ -40,7 +40,7 @@ internal static class Program
                 throw new DirectoryNotFoundException($"Installed game directory not found: {options.GameDirectory}. Pass --game-dir or set MEMORIA_FF8_GAME_DIR or FF8_GAME_DIRECTORY.");
             }
             Directory.SetCurrentDirectory(options.GameDirectory);
-            GameSession session = options.StatePath is null && options.InitialState.Scene == SceneKind.Title ? GameSession.CreateColdProcess() : new GameSession(options.InitialState);
+            GameSession session = options.StatePath is null && options.InitialState.Scene == SceneKind.Title ? GameWorld.CreateColdProcess(options.GameDirectory) : new GameSession(options.InitialState);
             if (options.ValidateOnly)
             {
                 Console.WriteLine($"Memoria - Final Fantasy VIII | {session.State.Scene} | {session.State.FieldId}:{session.State.FieldName} | cwd={Environment.CurrentDirectory}");

@@ -74,6 +74,7 @@ internal sealed partial class AutoPlayController
     private static readonly JsonSerializerOptions BeforeSnapshotJsonOptions = new(JsonOptions) { WriteIndented = false };
     private readonly GameSession session;
     private readonly Func<GameWorld> getWorld;
+    private readonly Func<GameSession> createColdProcess;
     private readonly Action<GameState> restore;
     private readonly string outputDirectory;
     private readonly TimeProvider time;
@@ -92,9 +93,10 @@ internal sealed partial class AutoPlayController
     private bool advancing;
     internal static readonly TimeSpan MaximumIdleTime = TimeSpan.FromSeconds(10);
 
-    public AutoPlayController(GameSession session, Func<GameWorld> getWorld, Action<GameState> restore, string outputDirectory, TimeProvider? time = null, TimeProvider? deadlineTime = null)
+    public AutoPlayController(GameSession session, Func<GameWorld> getWorld, Action<GameState> restore, string outputDirectory, TimeProvider? time = null, TimeProvider? deadlineTime = null, Func<GameSession>? createColdProcess = null)
     {
         this.session = session;
+        this.createColdProcess = createColdProcess ?? (() => GameSession.CreateColdProcess());
         this.getWorld = () =>
         {
             using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("World.Get");
@@ -150,7 +152,7 @@ internal sealed partial class AutoPlayController
 
     public void Start()
     {
-        GameSession cold = GameSession.CreateColdProcess();
+        GameSession cold = createColdProcess();
         cold.StartNewGame();
         restore(cold.State);
         run = new();

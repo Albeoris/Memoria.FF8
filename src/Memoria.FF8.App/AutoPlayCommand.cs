@@ -47,7 +47,7 @@ internal static class AutoPlayCommand
             throw new ArgumentException("Use --resume <run.json> to resume both the standalone game snapshot and exploration coverage.");
         }
         output ??= resume is null ? Path.Combine(Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!, "autoplay") : Directory.GetParent(Path.GetDirectoryName(resume)!)!.FullName;
-        GameSession session = GameSession.CreateColdProcess();
+        GameSession session = GameWorld.CreateColdProcess(options.GameDirectory);
         using GameResourceHost resources = new(options.GameDirectory, watch: false);
         GameWorld? world = null;
         GameWorld GetWorld() => world ??= new(session, options.GameDirectory, new MovieClock(session, options.GameDirectory, options.MediaToolsDirectory, resources.ResolveGameFile), resources.Resources, validateWorldPresentation: false, resolveGameFile: resources.ResolveGameFile);
@@ -57,7 +57,7 @@ internal static class AutoPlayCommand
             world = null;
             session.Restore(state);
         }
-        AutoPlayController controller = new(session, GetWorld, Restore, output);
+        AutoPlayController controller = new(session, GetWorld, Restore, output, createColdProcess: () => GameWorld.CreateColdProcess(options.GameDirectory));
         try
         {
             if (resume is null)

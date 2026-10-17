@@ -138,6 +138,10 @@ public sealed partial class EventEngine
                 int[] operands = fiber.Stack.Take(2).Reverse().ToArray();
                 if (UseInteractiveBattle?.Invoke(unchecked((ushort)operands[0]), unchecked((ushort)operands[1])) == true)
                 {
+                    if (Scene.NativeBattleFlagWrites is not { Count: > 0 })
+                    {
+                        return "Interactive BATTLE requires the actual retained saved WORD182; migrate this snapshot explicitly before battle entry";
+                    }
                     if (services.ExamTimer is null || services.WorldProcess is null || Scene.NativeFieldInitialization?.TimerClockCallsAtAllocation is null)
                     {
                         return "Interactive BATTLE requires its actual retained timer/main-loop owners and allocation clock provenance";

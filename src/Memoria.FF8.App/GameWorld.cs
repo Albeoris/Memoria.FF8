@@ -22,6 +22,12 @@ internal sealed partial class GameWorld : IDisposable
     private int renderWidth = FieldRenderer.Width;
     private int renderHeight = FieldRenderer.Height;
 
+    internal static GameSession CreateColdProcess(string gameDirectory)
+    {
+        using GameAssets assets = new(gameDirectory);
+        return GameSession.CreateColdProcess(assets.ReadColdProcessNativeBattleMemory());
+    }
+
     public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, nint audioWindow = default, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null)
     {
         this.session = session;

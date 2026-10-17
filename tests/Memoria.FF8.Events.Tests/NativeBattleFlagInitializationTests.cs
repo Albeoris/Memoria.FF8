@@ -72,6 +72,40 @@ internal static partial class Program
             Require(live.Scene.NativeBattleFlagWrites![^1].PersistentFlags == expected && live.Scene.NativeBattleFlagWrites[^1].ActiveFlags == expected && !live.Scene.NativeBattleFlagWrites.Any(write => write.Writer == NativeBattleFlagWriter.BattleMode), "Timer flag writers required an invented BATTLEMODE before random battle entry.");
             Require(timerMode == 0 || live.Scene.NativeBattleFlagWrites.Any(write => write.Writer == NativeBattleFlagWriter.DisplayTimer), "DISPTIMER did not record its shared flag write after cold initialization.");
             Require(timerMode != 2 || live.Scene.NativeBattleFlagWrites.Any(write => write.Writer == NativeBattleFlagWriter.KillTimer), "KILLTIMER did not record its shared flag write after cold initialization.");
+            JsonNode imported = JsonNode.Parse(live.Capture().GetRawText())!;
+            JsonNode importedWriter = imported["Scene"]!["NativeBattleFlagWrites"]![0]!.DeepClone();
+            importedWriter["Writer"] = "SavedStateMigration";
+            importedWriter["PersistentFlags"] = expected;
+            importedWriter["ActiveFlags"] = expected;
+            imported["Scene"]!["NativeBattleFlagWrites"] = new JsonArray(importedWriter);
+            coldClone.Restore(JsonSerializer.SerializeToElement(imported));
+            Require(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(imported), coldClone.Capture()), "Explicit saved-state flag import did not survive independent restore.");
+            foreach (string corruption in new[] { "second-import", "other-bits", "active-word", "bootstrap" })
+            {
+                JsonNode invalid = imported.DeepClone();
+                if (corruption == "second-import")
+                {
+                    invalid["Scene"]!["NativeBattleFlagWrites"]!.AsArray().Add(importedWriter.DeepClone());
+                }
+                else if (corruption == "bootstrap")
+                {
+                    invalid["Scene"]!["MusicProcess"]!.AsObject().Remove("Bootstrap");
+                }
+                else
+                {
+                    invalid["Scene"]!["NativeBattleFlagWrites"]![0]![corruption == "other-bits" ? "PersistentFlags" : "ActiveFlags"] = expected ^ 2;
+                }
+                JsonElement beforeInvalid = coldClone.Capture();
+                try
+                {
+                    coldClone.Restore(JsonSerializer.SerializeToElement(invalid));
+                    throw new InvalidOperationException($"Saved-state flag import accepted corrupt {corruption}.");
+                }
+                catch (InvalidDataException)
+                {
+                }
+                Require(JsonElement.DeepEquals(beforeInvalid, coldClone.Capture()), "Rejected saved-state flag import changed the current owners.");
+            }
             live.LoadField(159, destination, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             Require(live.Scene.NativeBattleFlagWrites![^1] is { Writer: NativeBattleFlagWriter.FieldLoad } copied && copied.PersistentFlags == expected && copied.ActiveFlags == expected, "Field transition lost the initialized flag words without BATTLEMODE.");
             for (int frame = 0; frame < 4; frame++)
@@ -110,5 +144,24 @@ internal static partial class Program
         {
         }
         Require(unknown.Scene.NativeBattleFlagWrites is null && before == unknown.Capture().GetRawText(), "Refused unknown initial flags changed the field or invented initialization history.");
+
+        GameSession unknownScriptSession = CreateNativeMusicSession();
+        byte[] unknownScriptContent = BattleModeCallbackProgram((Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 94), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.BATTLE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8));
+        EventEngine unknownScript = new(unknownScriptSession) { UseInteractiveBattle = (_, _) => true };
+        unknownScript.LoadField(159, unknownScriptContent, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        try
+        {
+            for (int frame = 0; frame < 4; frame++)
+            {
+                unknownScript.Step();
+            }
+            throw new InvalidOperationException("Interactive scripted battle entered without the saved return WORD.");
+        }
+        catch (EventScriptException exception) when (exception.Message.Contains("saved WORD182", StringComparison.Ordinal))
+        {
+        }
+        Require(unknownScript.PendingInteractiveBattle is null && unknownScript.Scene.NativeBattleFlagWrites is null && unknownScript.Scene.NativeBattleCompletions is null, "Refused unknown scripted flags published a battle request or invented a saved return WORD.");
+        JsonElement refusedFiber = unknownScript.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("Stack").GetArrayLength() == 2);
+        Require(refusedFiber.GetProperty("Stack")[0].GetInt32() == 4 && refusedFiber.GetProperty("Stack")[1].GetInt32() == 94, "Refused unknown scripted flags consumed its original operands.");
     }
 }
