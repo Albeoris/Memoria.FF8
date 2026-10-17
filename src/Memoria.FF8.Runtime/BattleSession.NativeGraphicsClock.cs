@@ -93,6 +93,12 @@ public sealed partial class BattleSession
             ushort modelFlags = model.Flags2 ?? throw new InvalidDataException("Native loaded graphics model lacks Flags2.");
             if ((modelFlags & 4) == 0)
             {
+                NativeBattleEffectMemory colorMemory = NativeEffectMemory ?? throw new NotSupportedException("Native50A0A0 requires the retained process model-color owner.");
+                NativeBattleSummonColors colorRules = definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Native50A0A0 requires its authenticated interpolation constants.");
+                NativeBattleStageColors modelColors = NativeStage?.ModelColors ?? throw new NotSupportedException("Native50A0A0 requires the actual stage color DWORDs.");
+                NativeBattleModelColorStep colorStep = NativeBattleModelColors.Advance50A0A0(model, flags, colorRules with { Transition = modelColors.Color40, Normal = modelColors.Color44 }, colorMemory.ModelColorOverrides);
+                model = colorStep.Model;
+                NativeEffectMemory = colorMemory with { ModelColorOverrides = colorStep.Overrides };
                 model = NativeBattleGraphicsModels.AdvanceCover(model);
                 model = NativeBattleGraphicsModels.AdvanceAppearance(model, (flags & 1) != 0);
                 if (model.Kind5 == 3)

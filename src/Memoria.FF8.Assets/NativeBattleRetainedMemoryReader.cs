@@ -81,11 +81,20 @@ public static class NativeBattleRetainedMemoryReader
             SoundPendingFlags = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1D96DB4, 4)),
             SoundPublishedFlags = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1D96DB8, 4)),
             SharedEffectRandom = new(BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x2557098, 4))),
+            ModelColorOverrides = new(Enumerable.Range(0, 2).Select(index =>
+            {
+                uint packed = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0xB8BA00u + (uint)index * 4, 4));
+                return new NativeBattleModelColorOverride((byte)(packed >> 24), packed & 0xFFFFFF);
+            }).ToImmutableArray()),
             PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess() with { TexturePage = BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(0x1C48818, 2)), Buffer80 = ReadLoaderBytes(0x1D96A80, 1)[0], TextureWindowBits = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1CA8848, 4)) }
         };
         if (effectMemory.SharedEffectRandom!.State != 0)
         {
             throw new InvalidDataException("Authenticated cold7059E0 shared random DWORD2557098 contradicts its zero-filled loader storage.");
+        }
+        if (effectMemory.ModelColorOverrides!.Slots[0] != new NativeBattleModelColorOverride(255, 0) || effectMemory.ModelColorOverrides.Slots[1] != new NativeBattleModelColorOverride(0, 0))
+        {
+            throw new InvalidDataException("Authenticated cold B8BA00/B8BA04 color overrides contradict their distinct FF000000/00000000 image values.");
         }
         if (ReadLoaderBytes(0x209FAB8, NativeBattleGuardianWorkBuffer.Length).Any(value => value != 0) || ReadLoaderBytes(0x1DCD6E4, 12).Any(value => value != 0) || ReadLoaderBytes(0x1D96DC4, 4).Any(value => value != 0) || ReadLoaderBytes(0x25216DC, 4).Any(value => value != 0) || ReadLoaderBytes(0x2521774, 4).Any(value => value != 0) || ReadLoaderBytes(0x1D96DB0, 4).Any(value => value != 0) || ReadLoaderBytes(0x1D96DC0, 4).Any(value => value != 0) || new uint[] { 0x2521728, 0x2521718, 0x2521708, 0x25216F8, 0x25216E8 }.Any(address => ReadLoaderBytes(address, 4).Any(value => value != 0)))
         {
