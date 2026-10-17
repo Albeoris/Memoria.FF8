@@ -43,10 +43,6 @@ internal sealed partial class AutoPlayController
             return;
         }
         string destinationNavigation = CurrentNavigationKey(getWorld(), destination);
-        if (source == destination && sourceNavigation == destinationNavigation)
-        {
-            return;
-        }
         AutoPlayEventCoverage item = run.Coverage.Visits.Single(visit => visit.Visit.Key == source).Events.Single(item => item.Event.Id == eventId);
         AutoPlayEventRoute? route = item.Routes.LastOrDefault(route => route.DestinationVisitKey == destination && route.ConditionSignature == run.ActiveConditionSignature && route.TargetId == run.ActiveTargetId && (route.Selections is null ? run.ActiveSelections is null : run.ActiveSelections is not null && route.Selections.SequenceEqual(run.ActiveSelections)));
         if (route is not null)
