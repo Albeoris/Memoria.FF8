@@ -44,7 +44,7 @@ public static class NativeBattleQuezacotlSkinArena
                 bool scratch = write.Bank == NativeBattleQuezacotlSkinBank.VertexScratch;
                 if (!scratch && write.Bank != NativeBattleQuezacotlSkinBank.Effect || scratch && attempt.Primitive is not null)
                 {
-                    throw new InvalidDataException("Native6C6770 has an invalid physical ../fixtures bank.");
+                    throw new InvalidDataException("Native6C6770 has an invalid physical scratch or packet bank.");
                 }
                 if (!scratch && attempt.Primitive is not null && attempt.ByteOffsetRelative > batch.EffectAllocationBytes - attempt.PacketLength)
                 {
