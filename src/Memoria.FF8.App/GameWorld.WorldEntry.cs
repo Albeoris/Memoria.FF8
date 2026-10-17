@@ -9,9 +9,12 @@ internal sealed partial class GameWorld
 {
     private PreparedWorldEntry? preparedWorldEntry;
 
+    internal event Action<NativeWorldTransitionRequest>? BeforeWorldEntry;
+
     private Action PrepareNativeWorldEntry(NativeWorldTransitionRequest request)
     {
         ValidateWorldDeparture(request);
+        BeforeWorldEntry?.Invoke(request);
         GameState departure = session.State;
         preparedWorldEntry?.Dispose();
         PreparedWorldEntry ticket = WorldEntryPreflight.Prepare(session.State, assets.GameDirectory, request.Transition, validateWorldPresentation);

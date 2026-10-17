@@ -50,6 +50,7 @@ internal sealed class AutoPlayRunState
     public HashSet<string> ObservedScenes { get; set; } = new(StringComparer.Ordinal);
     public HashSet<string> ObservedMessages { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, NativePlayerAbsenceReceipt> UnavailabilityGuards { get; set; } = new(StringComparer.Ordinal);
+    public Dictionary<string, AutoPlayWorldAbsenceReceipt> WorldUnavailabilityGuards { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, AutoPlayVisitGuard> VisitGuards { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, AutoPlayNavigationReceipt> NavigationReceipts { get; set; } = new(StringComparer.Ordinal);
     public HashSet<string> InspectedVisitsSinceProgress { get; set; } = new(StringComparer.Ordinal);
@@ -95,6 +96,7 @@ internal sealed partial class AutoPlayController
                 world.Events.OperationCompleted += ObserveSurveyOperation;
                 world.Events.BeforeNativePartyActionRequest += ObserveParticipantAction;
                 world.BeforeFieldAllocation += ObserveSurveySegmentChanges;
+                world.BeforeWorldEntry += ObserveWorldEntry;
             }
             if (advancing)
             {
@@ -325,6 +327,18 @@ internal sealed partial class AutoPlayController
                     lastSave = time.GetTimestamp();
                 }
             }
+            catch (AutoPlayWorldAbsenceException exception)
+            {
+                try
+                {
+                    DeferUnavailableWorldEntry(exception.Request, exception.Receipt);
+                    run.Steps++;
+                }
+                catch (Exception failure)
+                {
+                    Fail(failure);
+                }
+            }
             catch (AutoPlayParticipantPolicyException exception)
             {
                 try
@@ -350,6 +364,7 @@ internal sealed partial class AutoPlayController
                     watched.Events.OperationCompleted -= ObserveSurveyOperation;
                     watched.Events.BeforeNativePartyActionRequest -= ObserveParticipantAction;
                     watched.BeforeFieldAllocation -= ObserveSurveySegmentChanges;
+                    watched.BeforeWorldEntry -= ObserveWorldEntry;
                 }
                 watchedWorlds.Clear();
             }
@@ -1306,6 +1321,11 @@ internal sealed partial class AutoPlayController
         AutoPlayVisitCoverage[] visits = run.Coverage.Visits.Where(visit => visit.Events.Any(item => item.Available && item.UnavailableAttempts.Any(attempt => attempt.SourceConditionSignature == item.Event.ConditionSignature))).ToArray();
         foreach (string key in visits.SelectMany(visit => visit.Events.Where(item => item.Available).SelectMany(item => item.UnavailableAttempts.Where(attempt => attempt.SourceConditionSignature == item.Event.ConditionSignature))).Select(attempt => attempt.GuardKey).Distinct(StringComparer.Ordinal))
         {
+            if (run.WorldUnavailabilityGuards.TryGetValue(key, out AutoPlayWorldAbsenceReceipt? worldReceipt))
+            {
+                fingerprints[key] = world.ReadAutoPlayWorldAbsenceFingerprint(worldReceipt);
+                continue;
+            }
             if (!run.UnavailabilityGuards.TryGetValue(key, out NativePlayerAbsenceReceipt? receipt))
             {
                 throw new InvalidDataException("The native unavailable attempt lacks its persisted destination eligibility receipt.");
@@ -1412,6 +1432,14 @@ internal sealed partial class AutoPlayController
         }
         planner.MarkUnavailable(sourceVisit, eventId, new(sourceSignature, destinationVisit, guardKey, receipt.Fingerprint, run.ActiveTargetId));
         RefreshUnavailable(getWorld());
+        ClearNativeUnavailableInteraction();
+        SaveBundle($"unavailable-return-{run.Steps:D10}", CaptureState());
+        Status = "Restored the actual pre-event checkpoint; the native unavailable destination is deferred under its observed conditions.";
+        return true;
+    }
+
+    private void ClearNativeUnavailableInteraction()
+    {
         run.ActiveVisit = null;
         run.ActiveNavigationKey = null;
         run.ActiveEvent = null;
@@ -1430,9 +1458,6 @@ internal sealed partial class AutoPlayController
         run.SettleFrames = 4;
         run.SceneFrames = 0;
         run.ScriptedInputSteps = 0;
-        SaveBundle($"unavailable-return-{run.Steps:D10}", CaptureState());
-        Status = "Restored the actual pre-event checkpoint; the native unavailable destination is deferred under its observed conditions.";
-        return true;
     }
 
     internal static void ValidateNativeBacktrack(AutoPlayRunState state)

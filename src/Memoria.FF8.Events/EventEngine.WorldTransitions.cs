@@ -1,6 +1,7 @@
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Runtime;
 using System.Buffers.Binary;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Events;
 
@@ -10,7 +11,7 @@ public enum NativeWorldTransitionOrigin
     Gateway
 }
 
-public sealed record NativeWorldTransitionRequest(int Version, int SourceFieldId, long SourceFrame, NativeWorldTransitionOrigin Origin, WorldTransition Transition, NativeWorldControlState ControlsAtDeparture, NativeWorldControlState ControlsAtIssue, NativeWorldControlState ControlsAtLoader, InfGateway? Gateway = null);
+public sealed record NativeWorldTransitionRequest(int Version, int SourceFieldId, long SourceFrame, NativeWorldTransitionOrigin Origin, WorldTransition Transition, NativeWorldControlState ControlsAtDeparture, NativeWorldControlState ControlsAtIssue, NativeWorldControlState ControlsAtLoader, InfGateway? Gateway = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? SourceObjectId = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? SourceScriptId = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? SourceOperation = null);
 public sealed record NativeWorldJumpWait(int Version, int ObjectId, int ScriptId, int Operation, bool Suppressed, int[] Operands);
 
 public sealed partial class EventEngine
@@ -55,7 +56,7 @@ public sealed partial class EventEngine
         int[] operands = fiber.Stack.Take(3).Reverse().ToArray();
         try
         {
-            NativeWorldTransitionRequest request = CreateWorldTransitionRequest(new WorldTransition((short)operands[0], (short)operands[1], (short)operands[2]), NativeWorldTransitionOrigin.Script);
+            NativeWorldTransitionRequest request = CreateWorldTransitionRequest(new WorldTransition((short)operands[0], (short)operands[1], (short)operands[2]), NativeWorldTransitionOrigin.Script) with { SourceObjectId = fiber.ObjectId, SourceScriptId = fiber.Script.Id, SourceOperation = fiber.Position };
             Action commit = PrepareWorldTransitionCommit(request);
             preparedWorldTransitions[fiber.Sequence] = (request, commit);
             return null;
@@ -152,10 +153,15 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved scripted world request differs from its original three low-WORD packet operands.");
             }
+            bool hasSource = request.SourceObjectId is not null || request.SourceScriptId is not null || request.SourceOperation is not null;
+            if (hasSource && (request.SourceObjectId != issued[0].ObjectId || request.SourceScriptId != issued[0].ScriptId || request.SourceOperation != issued[0].Operation))
+            {
+                throw new InvalidDataException("Saved scripted world request changed its original issuing fiber or instruction.");
+            }
         }
         else
         {
-            if (issued.Length != 0 || request.Gateway is not InfGateway gateway)
+            if (issued.Length != 0 || request.Gateway is not InfGateway gateway || request.SourceObjectId is not null || request.SourceScriptId is not null || request.SourceOperation is not null)
             {
                 throw new InvalidDataException("Saved INF world request lacks its original gateway metadata.");
             }
