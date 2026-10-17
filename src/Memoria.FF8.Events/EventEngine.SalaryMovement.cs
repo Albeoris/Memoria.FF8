@@ -64,7 +64,8 @@ public sealed partial class EventEngine
         }
         // Native4789A0 samples physical WORD1CE4868 after the VM. Mode4
         // suppresses ordinary movement and478680 follower placement while black.
-        if (!IsUserControlEnabled || FieldFade?.Physical.Mode == 4 || IsMovementBlockedByDialogue || services.IsMoviePlaying)
+        //4767B0 also calls4789A0 during movies; ordinary idle selection still owns the renderer.
+        if (!IsUserControlEnabled || FieldFade?.Physical.Mode == 4 || IsMovementBlockedByDialogue)
         {
             return;
         }

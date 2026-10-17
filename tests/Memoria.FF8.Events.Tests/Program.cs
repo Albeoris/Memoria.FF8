@@ -90,6 +90,7 @@ internal static partial class Program
                     },
                     ["dialogue-channels"] = DialogueChannelContract,
                     ["dialogue-channel-style"] = DialogueChannelStyleContract,
+                    ["native-dialogue-close"] = NativeDialogueCloseContract,
                     ["native-script-move"] = () => NativeScriptMovementAndBoundary(selectedGameDirectory),
                     ["native-rfmove"] = () =>
                     {
@@ -268,6 +269,7 @@ internal static partial class Program
             NativeExamTimerContract();
             NativeScalarMemoryContract();
             DialogueChannelContract();
+            NativeDialogueCloseContract();
             LineContactAndResume();
             MovieAxisAndFaultResume();
             ArrivalInitializationOrder();

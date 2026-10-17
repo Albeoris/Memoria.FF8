@@ -66,8 +66,11 @@ public sealed partial class EventEngine
         private set => currentDialogue = value;
     }
     public IReadOnlyList<ActorState> Actors => actors;
-    // With locomotion disabled and character models hidden, button-polling scripts own a 2D interface and its repeat delays.
-    public bool IsScriptedInterface => !IsUserControlEnabled && !actors.Any(actor => actor.Active && actor.Visible && actor.RenderModelId >= 0) && program is not null && program.Operations.Any(operation => operation.Opcode is Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2 or Jsm.Opcode.KEYON);
+    // Button-polling interfaces own their real-time repeat delays even when characters remain visible.
+    public bool IsScriptedInterface => !IsUserControlEnabled && program is not null &&
+        (!actors.Any(actor => actor.Active && actor.Visible && actor.RenderModelId >= 0)
+            ? program.Operations.Any(operation => operation.Opcode is Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2 or Jsm.Opcode.KEYON)
+            : fibers.Any(fiber => !fiber.Complete && fiber.WaitReason != WaitReason.NativeHalt && fiber.Script.ReachableOperations.Any(index => program.Operations[index].Opcode is Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2 or Jsm.Opcode.KEYON)));
     public IReadOnlyDictionary<int, int> BackgroundStates => backgroundStates;
     public SceneEventState Scene { get; private set; } = new();
     public Func<int, int, int>? AnimationFrameCount { get; set; }
@@ -438,6 +441,7 @@ public sealed partial class EventEngine
         }
         StepNativeMovieMask();
         bool movieUi = services.NativeMovieClockFlag ?? (services.IsMoviePlaying ? throw new NotSupportedException("Native UI requires its actual movie callback flag.") : false);
+        StepNativeDialogueWindows(movieUi ? 4 : 2);
         StepNativeBars(movieUi);
         NativeSalaryPresentation? salaryUi = services.SalaryPresentation?.Advance(movieUi ? 4 : 2);
         NativeVibrationProcessState? vibrationUi = services.VibrationProcess?.Advance(movieUi ? 4 : 2);
@@ -783,6 +787,10 @@ public sealed partial class EventEngine
     private void ShowDialogue(Fiber fiber, DialogueState dialogue, bool wait)
     {
         dialogue = dialogue with { ObjectId = fiber.ObjectId, ScriptId = fiber.Script.Id, Operation = fiber.Position - 1 };
+        if (NativeRuntimeProfile is { IsVerified: true })
+        {
+            dialogue = dialogue with { NativeWindow = new NativeDialogueWindowState(1, 0, 512) };
+        }
         if (dialogue.MessageId >= messages.Count)
         {
             throw Fault(fiber, $"Message {dialogue.MessageId} is outside the field MSD table ({messages.Count} messages).");
@@ -805,7 +813,8 @@ public sealed partial class EventEngine
     private void RefreshCurrentDialogue()
     {
         // TODO(TD-012): persist the native UI focus marker; this is the host representative.
-        CurrentDialogue = dialogues.Values.LastOrDefault(dialogue => dialogue.CanConfirm) ?? dialogues.Values.LastOrDefault();
+        IEnumerable<DialogueState> visible = dialogues.Values.Where(dialogue => dialogue.NativeWindow is not { Progress: 0, Delta: < 0 });
+        CurrentDialogue = visible.LastOrDefault(dialogue => dialogue.CanConfirm) ?? visible.LastOrDefault();
         if (CurrentDialogue is not null)
         {
             services.ShowDialog(CurrentDialogue.Text);

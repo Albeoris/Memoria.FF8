@@ -623,7 +623,7 @@ public sealed partial class EventEngine
 
     private void StepStationaryPartyTrace()
     {
-        if (Scene.NativePartyTraceVersion != 1 || !IsUserControlEnabled || IsMovementBlockedByDialogue || services.IsMoviePlaying || partyJoin is not null)
+        if (Scene.NativePartyTraceVersion != 1 || !IsUserControlEnabled || IsMovementBlockedByDialogue || partyJoin is not null)
         {
             return;
         }

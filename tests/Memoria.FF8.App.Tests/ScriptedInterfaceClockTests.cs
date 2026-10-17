@@ -6,6 +6,24 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class ScriptedInterfaceClockTests
 {
+    [Fact]
+    public void Original_second_coupling_keeps_button_delays_with_visible_characters()
+    {
+        string snapshot = TestResources.FixturePath("App.Tests.ScriptedInterfaceClockTests.1");
+        using GameWorld world = new(new GameSession(GameSession.Load(snapshot)), TestResources.GameDirectory, validateWorldPresentation: false);
+        world.EnsureField();
+        Assert.Equal(903, world.Events.FieldId);
+        Assert.False(world.Events.IsUserControlEnabled);
+        Assert.Contains(world.Events.Actors, actor => actor.Active && actor.Visible && actor.RenderModelId >= 0);
+        Assert.NotNull(world.Events.DiscoverScriptedInput());
+        Assert.True(world.Events.IsScriptedInterface);
+        GameplayClock clock = new();
+        clock.ToggleSpeed();
+        TimeSpan sample = TimeSpan.FromTicks(333334);
+        Assert.Equal(sample, clock.Advance(sample, SceneKind.Field, world.Events.IsScriptedInterface));
+        Assert.Equal(3, clock.SpeedMultiplier);
+    }
+
     [Theory]
     [InlineData(234, false)]
     [InlineData(235, true)]

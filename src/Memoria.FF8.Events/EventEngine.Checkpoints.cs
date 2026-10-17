@@ -305,6 +305,7 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved dialogue channels must be distinct original window IDs and contain the focused channel.");
         }
+        ValidateNativeDialogueWindows(saved.Dialogues, NativeRuntimeProfile is { IsVerified: true });
         ValidateDrawPointCheckpoint(saved);
         ValidateDrawPointInteractionCheckpoint(saved);
         ValidateSoundInitializationCheckpoint(saved);

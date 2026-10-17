@@ -871,6 +871,10 @@ public sealed partial class EventEngine
                 }
                 break;
             case Jsm.Opcode.WINCLOSE:
+                if (WaitForNativeDialogueClose(fiber))
+                {
+                    break;
+                }
                 args = Pop(fiber, 1);
                 CloseDialogue(args[0]);
                 break;

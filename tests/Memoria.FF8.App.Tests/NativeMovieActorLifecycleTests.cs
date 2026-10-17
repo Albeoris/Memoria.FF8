@@ -25,9 +25,10 @@ public sealed class NativeMovieActorLifecycleTests
         Assert.Equal(16014, first.Engine.Actors[1].MovementSpeed);
         Assert.Equal((short)16014, first.Engine.Actors[1].NativeMovementBaseSpeed);
         Assert.Equal(32, first.Engine.Actors[1].AnimationSpeed);
-        first.Session.SetMoviePlayback(new(700, 1099, true, false, false));
+        first.Session.SetMoviePlayback(new(2, 1099, true, false, false));
         first.Engine.Step();
         Assert.Equal((short)1001, first.Engine.Actors[1].NativeScriptMovement!.Speed);
+        first.Session.SetMoviePlayback(new(3, 1099, true, false, false));
         first.Engine.Step();
         ActorState moving = first.Engine.Actors[1];
         Assert.Equal(13345, moving.MovementSpeed);
@@ -86,10 +87,24 @@ public sealed class NativeMovieActorLifecycleTests
 
     private static (GameSession Session, EventEngine Engine) Create(GameState? state = null)
     {
-        var session = new GameSession(state ?? new GameState { Scene = SceneKind.Field, FieldId = 600, ExamTimer = NativeExamTimerState.FromReachedSet(600) });
+        GameSession session;
+        if (state is null)
+        {
+            using GameAssets assets = new(TestResources.GameDirectory);
+            session = GameSession.CreateColdProcess();
+            session.StartNewGame();
+            session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
+            session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
+            session.Restore(session.State with { Scene = SceneKind.Field, FieldId = 600, FieldLoadContext = null, ExamTimer = NativeExamTimerState.FromReachedSet(600) });
+        }
+        else
+        {
+            session = new GameSession(state);
+        }
         var engine = new EventEngine(session)
         {
             MoviePlayback = () => session.State.MoviePlayback,
+            ReadMovieCameraFlags = (disc, movie) => NativeMovieCameraReader.Read(File.ReadAllBytes(MovieClock.GetCameraPath(TestResources.GameDirectory, disc, movie))),
             AnimationFrameCount = (_, _) => 4,
             CanUseNativeScriptMove = _ => true,
             ResolveNativeScriptDirection = request => new(NativeScriptDirectionStatus.Moving, request.FixedX, request.FixedY, request.MovementDirection, request.TurnAccumulator),
@@ -111,7 +126,7 @@ public sealed class NativeMovieActorLifecycleTests
         (Jsm.Opcode Opcode, int Parameter)[][] scripts =
         [
             [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.RET, 0)],
-            [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.MOVIEREADY, 0), (Jsm.Opcode.MOVIE, 0), (Jsm.Opcode.MOVIESYNC, 0), (Jsm.Opcode.RET, 0)],
+            [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.MOVIEREADY, 0), (Jsm.Opcode.MOVIE, 0), (Jsm.Opcode.MOVIESYNC, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)],
             [(Jsm.Opcode.LBL, 2), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 8007), (Jsm.Opcode.MSPEED, 0), (Jsm.Opcode.RET, 0)],
             [(Jsm.Opcode.LBL, 3), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 1001), (Jsm.Opcode.MSPEED, 0), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.RMOVE, 0), (Jsm.Opcode.PSHN_L, 78881), (Jsm.Opcode.MSPEED, 0), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0)]
         ];

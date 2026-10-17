@@ -4,7 +4,14 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
 
-public sealed record DialogueState(int Channel, int MessageId, string Text, int X, int Y, int? FirstChoice = null, int? LastChoice = null, int? InitialChoice = null, int? CancelChoice = null, bool IsNamePrompt = false, int ObjectId = -1, int ScriptId = -1, int Operation = -1, bool CanConfirm = true);
+public sealed record NativeDialogueWindowState([property: JsonRequired] int Version, int Progress, int Delta)
+{
+    [JsonRequired]
+    public int Progress { get; set; } = Progress;
+    [JsonRequired]
+    public int Delta { get; set; } = Delta;
+}
+public sealed record DialogueState(int Channel, int MessageId, string Text, int X, int Y, int? FirstChoice = null, int? LastChoice = null, int? InitialChoice = null, int? CancelChoice = null, bool IsNamePrompt = false, int ObjectId = -1, int ScriptId = -1, int Operation = -1, bool CanConfirm = true, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeDialogueWindowState? NativeWindow = null);
 public sealed record ScriptCommand(int FieldId, int ObjectId, int ScriptId, int Operation, string Name, IReadOnlyList<int> Arguments, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<NativeScalarValue>? ScalarArguments = null);
 public enum SoundResourceStatus
 {
