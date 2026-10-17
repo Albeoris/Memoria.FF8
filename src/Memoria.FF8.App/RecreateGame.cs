@@ -129,18 +129,29 @@ internal sealed partial class RecreateGame : Game
     private void UpdateGameFrame(GameTime gameTime)
     {
         long updateStarted = Stopwatch.GetTimestamp();
+        GamePadState pad = controller!.Read();
+        if (gameMenus is not null)
+        {
+            gameMenus.NamingControllerConnected = pad.IsConnected;
+        }
         if (autoPlay?.Running != true && !autoPlayFailureHeld)
         {
             SynchronizeNativeNamePrompt();
         }
         KeyboardState keys = Microsoft.Xna.Framework.Input.Keyboard.GetState();
-        GamePadState pad = controller!.Read();
         keyboard.ControllerPresentation = controller.Presentation;
         keyboard.ControllerGeneration = controller.Generation;
         bool capturing = gameMenus?.UpdateControlsCapture(keys, pad, IsActive) == true;
         capturingControls = capturing;
         keyboard.RecoveryNavigationEnabled = gameMenus is { IsOpen: true, IsControlsScreen: true };
-        keyboard.TextEntryEnabled = gameMenus?.IsEditingName == true;
+        bool typingName = gameMenus?.IsTypingName == true;
+        bool namingNavigation = gameMenus?.IsEditingName == true;
+        if (keyboard.TextEntryEnabled != typingName || keyboard.NamingNavigationEnabled != namingNavigation)
+        {
+            keyboard.SuppressHeldNameInput();
+        }
+        keyboard.TextEntryEnabled = typingName;
+        keyboard.NamingNavigationEnabled = namingNavigation;
         InputFrame input = keyboard.Read(keys, pad, IsActive && !capturing);
         var currentMovieIdentity = (session.State.FieldId, session.State.MovieIndex, session.State.MovieSource);
         if (session.State.Scene != SceneKind.Movie || movieSkipIdentity != currentMovieIdentity || !IsActive)
@@ -508,7 +519,7 @@ internal sealed partial class RecreateGame : Game
 
     private void OnTextInput(object? sender, TextInputEventArgs args)
     {
-        if (IsActive)
+        if (IsActive && keyboard.AllowsNameText(args.Key))
         {
             gameMenus?.EnterNameCharacter(args.Character);
         }

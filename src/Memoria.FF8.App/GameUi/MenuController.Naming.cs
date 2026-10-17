@@ -20,9 +20,12 @@ public sealed partial class MenuController
     private string _nameDraft = "";
     private char? _nameHighSurrogate;
     private int _namePage;
+    private bool _nameKeyboard;
     public bool IsNamingScreen => ScreenId is "debug-names" or "debug-name-input" or "name-input";
     public bool IsEditingName => IsOpen && ScreenId is "debug-name-input" or "name-input" && _nameTarget is not null;
     public bool IsNamePrompt => IsEditingName && ScreenId == "name-input";
+    internal bool NamingControllerConnected { get; set; }
+    internal bool IsTypingName => IsEditingName && _nameKeyboard && SelectedIndex < NameCells;
     internal bool NamingAvailable => _writeName is not null && _readNames?.Invoke().Count > 0;
     internal string NameDraft => _nameDraft;
 
@@ -49,6 +52,7 @@ public sealed partial class MenuController
         _nameDraft = target.Name;
         _nameHighSurrogate = null;
         _namePage = 0;
+        _nameKeyboard = !NamingControllerConnected;
         _selections[ScreenId] = 0;
         _view = null;
     }
@@ -122,10 +126,15 @@ public sealed partial class MenuController
         List<MenuEntry> entries = [];
         for (int index = 0; index < NameCells; index++)
         {
+            if (_nameKeyboard)
+            {
+                entries.Add(new MenuEntry("letter-" + index, "", "Enter a name using your keyboard.", Action: new MenuAction("name-keyboard"), Enabled: index == 0));
+                continue;
+            }
             string letter = index < characters.Length && characters[index] != '\0' ? characters[index].ToString() : "";
             entries.Add(new MenuEntry("letter-" + index, letter == " " ? "␣" : letter, "Append this character.", Action: new MenuAction("name-letter", Value: letter), Enabled: letter.Length > 0));
         }
-        entries.AddRange(new[] { ("English", "name-page", "English"), ("Symbols", "name-page", "Symbols"), ("Cyrillic", "name-page", "Cyrillic"), ("Space", "name-letter", " "), ("Confirm", "name-save", ""), ("Delete", "name-delete", ""), ("Default", "name-default", ""), ("Clear", "name-clear", ""), ("Cancel", "menu-back", "") }.Select((entry, index) => new MenuEntry("name-command-" + index, entry.Item1, entry.Item1, Action: new MenuAction(entry.Item2, Value: entry.Item3), Enabled: index != 8 || !IsNamePrompt)));
+        entries.AddRange(new[] { ("Keyboard", "name-keyboard", ""), ("English", "name-page", "English"), ("Symbols", "name-page", "Symbols"), ("Cyrillic", "name-page", "Cyrillic"), ("Space", "name-letter", " "), ("Confirm", "name-save", ""), ("Delete", "name-delete", ""), ("Default", "name-default", ""), ("Clear", "name-clear", ""), ("Cancel", "menu-back", "") }.Select((entry, index) => new MenuEntry("name-command-" + index, entry.Item1, entry.Item1, Action: new MenuAction(entry.Item2, Value: entry.Item3), Enabled: index != 9 || !IsNamePrompt)));
         return entries;
     }
 
@@ -152,11 +161,15 @@ public sealed partial class MenuController
         Place(name, Label($"{StringInfo.ParseCombiningCharacters(_nameDraft).Length}/{GameNames.MaximumLength}", 15), 1);
         Place(identity, Panel("NAME", name), 1);
         Place(page, identity, 1, 1);
-        UiGrid commands = new() { Columns = 1, Rows = 9, Gap = 1 };
+        UiGrid commands = new() { Columns = 1, Rows = 10, Gap = 1 };
         UiGrid keys = new() { Columns = NameColumns, Rows = NameRows, Gap = 0 };
         IReadOnlyList<MenuEntry> entries = Entries;
         for (int index = 0; index < entries.Count; index++)
         {
+            if (_nameKeyboard && index < NameCells)
+            {
+                continue;
+            }
             int selected = index;
             UiButton button = new() { Id = entries[index].Id, DrawBackground = false, HighlightSelection = false, PointerSize = index < NameCells ? 12 : 18, Enabled = entries[index].Enabled, Click = () => Activate(selected) };
             button.Children.Add(new UiLabel { Text = entries[index].Label, Muted = !entries[index].Enabled, FontSize = (index < NameCells ? 24 : 22) * TextScale, HorizontalAlignment = index < NameCells ? UiAlignment.Center : UiAlignment.Start, VerticalAlignment = UiAlignment.Center });
@@ -170,14 +183,21 @@ public sealed partial class MenuController
             }
         }
         Place(page, Panel(null, commands), 2, 0);
-        Place(page, Panel(NamePages[_namePage].Title, keys), 2, 1);
+        UiElement input = keys;
+        if (_nameKeyboard)
+        {
+            UiButton keyboard = new() { Id = "letter-0", DrawBackground = false, HighlightSelection = false, PointerSize = 0, Click = () => Execute(new MenuAction("name-keyboard")) };
+            keyboard.Children.Add(Lines(["Use your keyboard to enter a name.", "Or select an on-screen keyboard", "from the menu on the left."], 22));
+            input = keyboard;
+        }
+        Place(page, Panel(_nameKeyboard ? "Keyboard" : NamePages[_namePage].Title, input), 2, 1);
         Place(page, Panel(null, Label(Message.Length > 0 ? Message : "20 characters", 16)), 3, 0, 1, 2);
         return page;
     }
 
     public bool EnterNameCharacter(char character)
     {
-        if (!IsEditingName)
+        if (!IsTypingName)
         {
             return false;
         }
@@ -251,28 +271,60 @@ public sealed partial class MenuController
             return false;
         }
         int index = SelectedIndex;
-        int commandCount = IsNamePrompt ? 8 : 9;
+        int commandCount = IsNamePrompt ? 9 : 10;
         switch (input)
         {
+            case MenuInput.Confirm when IsTypingName:
+                Execute(new MenuAction("name-save"));
+                return true;
+            case MenuInput.Tab:
+                SelectNameCell(index >= NameCells ? 0 : NameCells, 1);
+                break;
             case MenuInput.PageLeft:
             case MenuInput.PageUp:
+                _nameKeyboard = false;
                 _namePage = (_namePage + NamePages.Length - 1) % NamePages.Length;
                 break;
             case MenuInput.PageRight:
             case MenuInput.PageDown:
+                _nameKeyboard = false;
                 _namePage = (_namePage + 1) % NamePages.Length;
                 break;
             case MenuInput.Up:
+                if (IsTypingName)
+                {
+                    return true;
+                }
                 SelectNameCell(index >= NameCells ? NameCells + (index - NameCells + commandCount - 1) % commandCount : (index + NameCells - NameColumns) % NameCells, -NameColumns);
                 break;
             case MenuInput.Down:
+                if (IsTypingName)
+                {
+                    return true;
+                }
                 SelectNameCell(index >= NameCells ? NameCells + (index - NameCells + 1) % commandCount : (index + NameColumns) % NameCells, NameColumns);
                 break;
             case MenuInput.Left:
-                SelectNameCell(index >= NameCells ? NameCells - 1 : index % NameColumns == 0 ? NameCells + Math.Min(index / NameColumns, commandCount - 1) : index - 1, -1);
+                if (index >= NameCells)
+                {
+                    return true;
+                }
+                int left = _nameKeyboard || index % NameColumns == 0 ? NameCells + Math.Min(index / NameColumns, commandCount - 1) : index - 1;
+                SelectNameCell(left, -1);
                 break;
             case MenuInput.Right:
-                SelectNameCell(index >= NameCells ? Math.Min(index - NameCells, NameRows - 1) * NameColumns : (index + 1) % NameColumns == 0 ? NameCells + Math.Min(index / NameColumns, commandCount - 1) : index + 1, 1);
+                if (_nameKeyboard)
+                {
+                    SelectNameCell(0, 1);
+                }
+                else if (index >= NameCells)
+                {
+                    SelectNameCell(Math.Min(index - NameCells, NameRows - 1) * NameColumns, 1);
+                }
+                else
+                {
+                    SelectNameCell((index + 1) % NameColumns == 0 ? NameCells + Math.Min(index / NameColumns, commandCount - 1) : index + 1, 1);
+                }
                 break;
             case MenuInput.Cancel:
                 if (IsNamePrompt)
@@ -327,6 +379,11 @@ public sealed partial class MenuController
         }
         switch (action.Kind)
         {
+            case "name-keyboard":
+                _nameKeyboard = true;
+                _nameHighSurrogate = null;
+                _selections[ScreenId] = 0;
+                break;
             case "name-page":
                 int firstPage = Array.FindIndex(NamePages, page => page.Title.StartsWith(action.Value, StringComparison.Ordinal));
                 if (firstPage < 0)
@@ -334,6 +391,9 @@ public sealed partial class MenuController
                     throw new ArgumentException("Unknown naming alphabet.", nameof(action));
                 }
                 _namePage = NamePages[_namePage].Title.StartsWith(action.Value, StringComparison.Ordinal) && _namePage + 1 < NamePages.Length && NamePages[_namePage + 1].Title.StartsWith(action.Value, StringComparison.Ordinal) ? _namePage + 1 : firstPage;
+                _nameKeyboard = false;
+                _nameHighSurrogate = null;
+                _selections[ScreenId] = 0;
                 break;
             case "name-letter":
                 AppendNameText(action.Value);

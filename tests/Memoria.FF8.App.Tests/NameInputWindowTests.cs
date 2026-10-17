@@ -44,7 +44,7 @@ public sealed class NameInputWindowTests
     [Fact]
     public void Controller_pages_include_all_printable_windows1252_and_the_cyrillic_block()
     {
-        MenuController menus = new();
+        MenuController menus = new() { NamingControllerConnected = true };
         menus.OpenNamePrompt(0, "Squall", _ => { });
         HashSet<string> characters = [];
         for (int page = 0; page < 6; page++)
@@ -113,7 +113,7 @@ public sealed class NameInputWindowTests
     public void Controller_confirm_selects_letters_and_cancel_deletes_while_typing_mode_is_active()
     {
         KeyboardInput keyboard = new() { TextEntryEnabled = true };
-        MenuController menus = new();
+        MenuController menus = new() { NamingControllerConnected = true };
         menus.OpenNamePrompt(0, "", _ => { });
         keyboard.Read(default, Pad(), true);
         InputFrame right = keyboard.Read(default, Pad(Buttons.DPadRight), true);
@@ -139,7 +139,7 @@ public sealed class NameInputWindowTests
     [InlineData(1920, 1080, 43)]
     public void Name_window_uses_nonoverlapping_retained_controls_and_subject_artwork(int width, int height, int subject)
     {
-        MenuController menus = new();
+        MenuController menus = new() { NamingControllerConnected = true };
         menus.OpenNamePrompt(subject, GameNames.DefaultName(subject), _ => { });
         UiView view = menus.BuildView();
         view.Resize(width, height);

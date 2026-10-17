@@ -54,13 +54,14 @@ public sealed class DebugNameMenuTests
         menus.Open("debug-names", true);
         menus.Navigate(MenuInput.Confirm);
         menus.Execute(new MenuAction("name-clear"));
+        menus.Execute(new MenuAction("name-page", Value: "English"));
         menus.BuildView();
         menus.Navigate(MenuInput.Right);
         menus.Navigate(MenuInput.Confirm);
         Assert.Equal("B", menus.NameDraft);
         menus.Execute(new MenuAction("name-clear"));
         menus.Execute(new MenuAction("name-letter", Value: "😀"));
-        menus.EnterNameCharacter('\b');
+        menus.Execute(new MenuAction("name-delete"));
         Assert.Equal("", menus.NameDraft);
         menus.Execute(new MenuAction("name-letter", Value: "A"));
         menus.Execute(new MenuAction("name-save"));

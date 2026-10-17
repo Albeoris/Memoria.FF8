@@ -45,6 +45,7 @@ internal sealed class KeyboardInput
         set => connectedPresentation = value == ControllerPresentation.Automatic ? ControllerPresentation.Generic : value;
     }
     public bool RecoveryNavigationEnabled { get; set; }
+    public bool NamingNavigationEnabled { get; set; }
     public bool TextEntryEnabled { get; set; }
     public bool SpeedToggleRequested { get; private set; }
     public bool DebugRoomRequested { get; private set; }
@@ -81,6 +82,13 @@ internal sealed class KeyboardInput
 
     internal InputFrame Read(KeyboardState current, bool active) => Read(current, default, active);
 
+    internal void SuppressHeldNameInput()
+    {
+        disarmedKeys.UnionWith(previousKeyboard.GetPressedKeys());
+    }
+
+    internal bool AllowsNameText(Keys key) => !disarmedKeys.Contains(key) && !IsArrowKey(key);
+
     internal InputFrame Read(KeyboardState current, GamePadState pad, bool active)
         => Read(current, pad, active, System.Diagnostics.Stopwatch.GetElapsedTime(0));
 
@@ -108,6 +116,10 @@ internal sealed class KeyboardInput
         {
             matches = matches.Where(match => match.Device == ControlDevice.Controller).ToArray();
         }
+        else if (NamingNavigationEnabled)
+        {
+            matches = matches.Where(match => match.Device == ControlDevice.Controller || IsNamingNavigationAction(match.Action) && !match.Chord.Keys.Any(IsArrowKey)).ToArray();
+        }
         foreach (var match in matches.Where(match => match.Chord.Count > 1))
         {
             consumedKeys.UnionWith(match.Chord.Keys);
@@ -117,7 +129,7 @@ internal sealed class KeyboardInput
         HashSet<ControlAction> effective = effectiveMatches.Select(match => match.Action).ToHashSet();
         bool Down(ControlAction action) => active && effective.Contains(action);
         bool Pressed(ControlAction action) => Down(action) && !previous.Contains(action) && (previousConnected || !pad.IsConnected || Profile.GetBindings(action, ControlDevice.Keyboard).Any(chord => chord.Matches(current, default)));
-        bool RecoveryPressed(Keys key) => active && (RecoveryNavigationEnabled || TextEntryEnabled) && !disarmedKeys.Contains(key) && current.IsKeyDown(key) && previousKeyboard.IsKeyUp(key);
+        bool RecoveryPressed(Keys key) => active && (RecoveryNavigationEnabled || NamingNavigationEnabled || TextEntryEnabled) && !disarmedKeys.Contains(key) && current.IsKeyDown(key) && previousKeyboard.IsKeyUp(key);
         Vector2 movement = ApplyRadialDeadZone(pad.ThumbSticks.Left, Profile.LeftStickDeadZone);
         Vector2 camera = ApplyRadialDeadZone(pad.ThumbSticks.Right, Profile.RightStickDeadZone);
         if (!active || !previousActive || profileChanged || deviceChanged || hasSampledInput && pad.IsConnected && !previousConnected)
@@ -195,6 +207,10 @@ internal sealed class KeyboardInput
         profileChanged = false;
         return input with { MenuVertical = Math.Sign(input.MenuVertical), MenuHorizontal = Math.Sign(input.MenuHorizontal) };
     }
+
+    private static bool IsArrowKey(Keys key) => key is Keys.Up or Keys.Down or Keys.Left or Keys.Right;
+
+    private static bool IsNamingNavigationAction(ControlAction action) => action is ControlAction.MoveUp or ControlAction.MoveDown or ControlAction.MoveLeft or ControlAction.MoveRight or ControlAction.Confirm or ControlAction.Cancel or ControlAction.RotateLeft or ControlAction.RotateRight or ControlAction.UiTab or ControlAction.UiPageUp or ControlAction.UiPageDown;
 
     private (int Horizontal, int Vertical) ReadStickNavigation(Vector2 movement, bool active, TimeSpan sampleTime)
     {

@@ -413,6 +413,7 @@ internal sealed partial class RecreateGame
             suppressNativeNameInput = false;
             return true;
         }
+        bool wasTypingName = gameMenus.IsTypingName;
         if (input.MenuVertical < 0)
         {
             gameMenus.Navigate(MenuInput.Up);
@@ -455,13 +456,21 @@ internal sealed partial class RecreateGame
         }
         if (gameMenus.IsOpen)
         {
+            if (keyboard.UiTabRequested && gameMenus.IsEditingName)
+            {
+                gameMenus.Navigate(MenuInput.Tab);
+            }
             UiView view = gameMenus.BuildView();
             view.Resize(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
-            if (keyboard.UiTabRequested)
+            if (keyboard.UiTabRequested && !gameMenus.IsEditingName)
             {
                 view.Key(UiKey.Tab);
             }
             view.Pointer(mouse.X, mouse.Y, mousePressEdge);
+        }
+        if (wasTypingName != gameMenus.IsTypingName)
+        {
+            keyboard.SuppressHeldNameInput();
         }
         if (!gameMenus.IsOpen)
         {
