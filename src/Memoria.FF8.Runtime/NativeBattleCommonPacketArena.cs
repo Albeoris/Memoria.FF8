@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 
 namespace Memoria.FF8.Runtime;
 
@@ -23,14 +24,14 @@ public static class NativeBattleCommonPacketArena
         {
             // TODO(TD-009): Other logical emitters do not yet establish actual padding/rejected stores.
             int length = checked(4 * primitive.Words.Length);
-            return [new(address, new byte[length].ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Unknown, length).ToImmutableArray())];
+            return [new(address, ImmutableCollectionsMarshal.AsImmutableArray(new byte[length]), Enumerable.Repeat(NativeBattleGfPacketByteState.Unknown, length).ToImmutableArray())];
         }
         byte[] data = new byte[checked(4 * primitive.Words.Length)];
         for (int index = 0; index < primitive.Words.Length; index++)
         {
             BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4 * index), primitive.Words[index]);
         }
-        NativeBattleCommonPacketStore store = new(address, data.ToImmutableArray(), mask);
+        NativeBattleCommonPacketStore store = new(address, ImmutableCollectionsMarshal.AsImmutableArray(data), mask);
         return linked ? [store, new(address, UnknownLinkBytes, UnknownLinkMask)] : [store];
     }
 

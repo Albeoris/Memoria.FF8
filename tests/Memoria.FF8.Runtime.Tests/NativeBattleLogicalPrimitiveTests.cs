@@ -27,6 +27,27 @@ public sealed class NativeBattleLogicalPrimitiveTests
     }
 
     [Fact]
+    public void Retained_physical_packets_need_no_repeated_invalidation_but_replacements_are_indexed()
+    {
+        NativeBattlePrimitiveReference reference = new("off_B6D070", 0, 0);
+        NativeBattleLogicalOrdering source = NativeBattleLogicalOrdering.Clear().Prepend(17, reference, Tile(10), 1, []).ResetAfterDraw45D080();
+        string original = JsonSerializer.Serialize(source);
+        NativeBattleLogicalOrdering.Builder builder = new(source);
+        builder.InvalidatePacketRange(reference, 16);
+        Assert.Same(source.Packets[0], builder.ToImmutable().Packets[0]);
+        builder.Prepend(18, reference, Tile(20), 1, []);
+        NativeBattleLogicalPacket replacement = builder.ToImmutable().Packets[0];
+        Assert.False(replacement.RequiresPhysicalRead);
+        builder.InvalidatePacketRange(new("off_B6D070", 0, 12), 4);
+        NativeBattleLogicalPacket invalidated = builder.ToImmutable().Packets[0];
+        Assert.True(invalidated.RequiresPhysicalRead);
+        builder.InvalidatePacketRange(reference, 16);
+        Assert.Same(invalidated, builder.ToImmutable().Packets[0]);
+        Assert.False(replacement.RequiresPhysicalRead);
+        Assert.Equal(original, JsonSerializer.Serialize(source));
+    }
+
+    [Fact]
     public void Producer_batch_preserves_physical_alias_cycles_and_proxy_capacity()
     {
         NativeBattlePrimitiveReference reference = new("off_B6D070", 0, 0);

@@ -38,6 +38,41 @@ public sealed class NativeBattleEffectTextureCopyTests
         Assert.Equal(2, step.Uploads.Length);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MultirowTransfersPreserveScalarStateWithoutCopyingTheVramBankForEveryRow(bool rectangleUpload)
+    {
+        byte[] memory = new byte[NativeBattleEffectArena.Length];
+        new Random(50520).NextBytes(memory);
+        NativeBattleEffectArena source = new([new(0, memory.ToImmutableArray())]);
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = source.Regions };
+        const short width = 8;
+        const short height = 64;
+        const short destinationX = 16;
+        const short destinationY = 128;
+        byte[] transferred = new byte[2 * width * height];
+        for (int row = 0; row < height; row++)
+        {
+            memory.AsSpan(2 * row * 1024, 2 * width).CopyTo(transferred.AsSpan(2 * row * width));
+        }
+        state = rectangleUpload ? state.EnqueueRectangle505DF0(new(destinationX, destinationY, width, height), new("texture-transfer", transferred.ToImmutableArray())) : state.EnqueueCopy505EB0(0, 0, width, height, destinationX, destinationY);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        NativeBattleEffectTextureDrain drained = state.Drain505D20();
+        long transferBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        before = GC.GetAllocatedBytesForCurrentThread();
+        NativeBattleEffectArena scalar = source;
+        for (int row = 0; row < height; row++)
+        {
+            scalar = scalar.Write(2 * ((destinationY + row) * 1024 + destinationX), transferred.AsSpan(2 * row * width, 2 * width));
+        }
+        long scalarBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.Equal(JsonSerializer.Serialize(state with { Count = 0, VramRegions = scalar.Regions }), JsonSerializer.Serialize(drained.State));
+        Assert.Equal(transferred, Assert.Single(drained.Uploads).Bytes.ToArray());
+        Assert.Equal(memory, new NativeBattleEffectArena(state.VramRegions).Read(0, memory.Length));
+        Assert.True(transferBytes < scalarBytes / 8, $"Scalar allocated {scalarBytes} bytes; transfer allocated {transferBytes} bytes.");
+    }
+
     [Fact]
     public void CopySharesThePhysicalQueueLimitAndRejectsReachedInvalidCoordinates()
     {

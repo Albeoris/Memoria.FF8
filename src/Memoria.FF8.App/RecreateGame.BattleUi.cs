@@ -87,7 +87,7 @@ internal sealed partial class RecreateGame
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.GuardianBoost));
         }
-        active.AdvanceNativeGraphicsPresentation(elapsed);
+        active.AdvanceNativeGraphicsPresentation(elapsed, battleIdleWorkBudget ?? TargetElapsedTime);
         if (ReferenceEquals(active, world?.Battle))
         {
             world.SynchronizeBattlePresentation();

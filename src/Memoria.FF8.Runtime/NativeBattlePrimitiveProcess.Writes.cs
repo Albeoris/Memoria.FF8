@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 
 namespace Memoria.FF8.Runtime;
 
@@ -120,7 +121,7 @@ public sealed partial record NativeBattlePrimitiveProcess
                 AppendUnknownRegion(unknownRegions, first, end);
             }
         }
-        ImmutableArray<NativeBattleEffectMemoryRegion> regions = endData > firstData ? [new(firstData, bytes.ToImmutableArray())] : [];
+        ImmutableArray<NativeBattleEffectMemoryRegion> regions = endData > firstData ? [new(firstData, ImmutableCollectionsMarshal.AsImmutableArray(bytes))] : [];
         NativeBattleEffectArena result = new(regions) { UnknownRegions = unknownRegions.ToImmutable() };
         return StoreCommonArena(bank, result);
     }

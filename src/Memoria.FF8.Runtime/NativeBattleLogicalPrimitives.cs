@@ -119,7 +119,7 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
             foreach ((int _, int index) in ranges.GetViewBetween((minimum, int.MinValue), (maximum, int.MaxValue)))
             {
                 NativeBattleLogicalPacket packet = packets[index];
-                if (packet.Reference.Bank == reference.Bank && packet.Reference.Buffer == reference.Buffer && packet.Reference.ByteOffset < reference.ByteOffset + length && reference.ByteOffset < packet.Reference.ByteOffset + packet.Words.Length * 4)
+                if (!packet.RequiresPhysicalRead && packet.Reference.Bank == reference.Bank && packet.Reference.Buffer == reference.Buffer && packet.Reference.ByteOffset < reference.ByteOffset + length && reference.ByteOffset < packet.Reference.ByteOffset + packet.Words.Length * 4)
                 {
                     packets[index] = packet with { RequiresPhysicalRead = true };
                 }
@@ -128,6 +128,10 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
 
         private void RegisterPacketRange(NativeBattleLogicalPacket packet, int index)
         {
+            if (packet.RequiresPhysicalRead)
+            {
+                return;
+            }
             var key = (packet.Reference.Bank, packet.Reference.Buffer);
             if (!packetRanges.TryGetValue(key, out SortedSet<(int Offset, int Index)>? ranges))
             {

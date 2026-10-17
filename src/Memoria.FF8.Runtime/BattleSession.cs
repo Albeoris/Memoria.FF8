@@ -171,7 +171,7 @@ public sealed partial class BattleSession
 
     private bool CanAutomaticallyAdvanceTurn => Mode == BattleAtbMode.TurnBased && Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && NativeEntryReady && !HasPendingTurn && !combatants.Any(actor => actor.IsReady) && combatants.Any(actor => IsNativeBattleCapable(actor) && !actor.Suspended);
 
-    private void DispatchTurnBasedFrame()
+    private void DispatchTurnBasedFrame(Func<bool>? continueIdle = null)
     {
         // Skip idle gauge time through the ordinary dispatcher. A ready actor or any newly produced action/wait ends the skip, preserving the action's presentation frames.
         bool advanceToReadiness = CanAutomaticallyAdvanceTurn;
@@ -185,7 +185,7 @@ public sealed partial class BattleSession
             {
                 PumpNativeHostFrame();
             }
-            if (!advanceToReadiness || !CanAutomaticallyAdvanceTurn)
+            if (!advanceToReadiness || !CanAutomaticallyAdvanceTurn || continueIdle?.Invoke() == false)
             {
                 return;
             }
