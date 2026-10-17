@@ -48,6 +48,7 @@ public sealed class NativeBattleQuezacotlLaterWindowTests
     [InlineData(0x1D8, 0x12A9664u)]
     [InlineData(0x128, 0x129BA94u)]
     [InlineData(0xB4, 0x1299718u)]
+    [InlineData(0x124, 0x12A9664u)]
     public void LaterWorkspaceReadsCurrentSubregionAndWritesOnlyItsActualPrefix(int length, uint address)
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(116);
@@ -85,6 +86,8 @@ public sealed class NativeBattleQuezacotlLaterWindowTests
     [InlineData(246, 3690, 4313, -885, 6926, -1134, -711, 3426)]
     [InlineData(256, 3690, -4000, -4000, 7690, 0, 0, 3690)]
     [InlineData(246, 30000, 4313, -885, -32300, -1134, -711, 29736)]
+    [InlineData(318, 3690, 4096, -4096, -406, 0, 0, 3690)]
+    [InlineData(318, -30000, 4096, -4096, 31440, 0, 0, -30000)]
     public void LaterCameraWritesOnlyOriginalXyzWithSignedWordWrapping(ushort phase, int targetZ, short eyeX, short eyeY, short eyeZ, short targetX, short targetY, short targetDepth)
     {
         NativeBattleCameraState camera = NativeBattleCameraState.FromColdProcess() with { FocalLength = 288, Roll = 7, EyePaddingF6 = 0x1234, TargetPaddingFE = 0x5678 };

@@ -42,6 +42,11 @@ public static class NativeBattleQuezacotlLaterCamera
             eye = new(0, -2378, unchecked((short)(targetZ + 3555)));
             target = new(0, -1291, unchecked((short)(targetZ - 2362)));
         }
+        else if (phase == 318)
+        {
+            eye = new(4096, -4096, unchecked((short)(targetZ - 4096)));
+            target = new(0, 0, unchecked((short)targetZ));
+        }
         else
         {
             throw new ArgumentOutOfRangeException(nameof(phase));

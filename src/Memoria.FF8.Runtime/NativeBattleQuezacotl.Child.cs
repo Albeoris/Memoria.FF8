@@ -13,9 +13,9 @@ public static class NativeBattleQuezacotlChild
         NativeBattleQuezacotlState state = (effect.Quezacotl ?? throw new InvalidDataException("Native6C3940 lost its initialized Quezacotl globals.")) with { Intensity17A4 = 2400 };
         if (phase != 0)
         {
-            if (phase == 303)
+            if (phase == 319)
             {
-                throw new NotSupportedException("Native Quezacotl6C3940 phase303 requires its original32x2C pool25216E8,6C6660 callbacks and124-byte child workspace from current12A9664; this producer contract is not implemented.");
+                throw new NotSupportedException("Native Quezacotl6C3940 phase319 requires its original354-byte child workspace and current arena28E9C geometry source; this resource adapter is not implemented.");
             }
             throw new NotSupportedException($"Native Quezacotl6C3940 phase{phase} requires original7016B0 model workspace and701970/6C6060 geometry callbacks; full GF animation is not implemented.");
         }
@@ -37,7 +37,7 @@ public static class NativeBattleQuezacotlChild
         return new(memory, FinishMain6C3760(memory, effect), request, !poll.Busy);
     }
 
-    public static NativeBattleOriginalEffectState FinishMain6C3760(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, bool ribbonExecuted = false, bool particlesExecuted = false, bool pathsExecuted = false)
+    public static NativeBattleOriginalEffectState FinishMain6C3760(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, bool ribbonExecuted = false, bool particlesExecuted = false, bool pathsExecuted = false, bool fragmentsExecuted = false)
     {
         //6C3760 runs the remaining five508420 lists after its primary child. Their real cold head pointers are retained separately.
         ImmutableArray<uint> heads = memory.QuezacotlSecondaryHeads ?? throw new NotSupportedException("Native6C3760 requires the retained heads of its five secondary private task descriptors.");
@@ -45,7 +45,7 @@ public static class NativeBattleQuezacotlChild
         {
             throw new InvalidDataException("Native Quezacotl requires its five physical secondary descriptor head DWORDs.");
         }
-        if (heads.Skip(3).Any(head => head != 0) || heads[0] != 0 && !ribbonExecuted || heads[1] != 0 && !particlesExecuted || heads[2] != 0 && !pathsExecuted)
+        if (heads[3] != 0 || heads[4] != 0 && !fragmentsExecuted || heads[0] != 0 && !ribbonExecuted || heads[1] != 0 && !particlesExecuted || heads[2] != 0 && !pathsExecuted)
         {
             throw new NotSupportedException("Native6C3760 secondary Quezacotl task callback requires its actual retained pool owner.");
         }

@@ -85,7 +85,16 @@ public sealed class NativeBattleGuardianPresentationTests
         NativeBattleGraphicsState graphics = before.NativeGraphics!;
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         //The declared cold/manual-header component never invokes48E830/48EB40. This explicit input preserves native actor3's authenticated BSS byte; old snapshots receive no default.
-        battle = BattleSession.Restore(before with { Combatants = coldActors, NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } });
+        BattleSnapshot pendingSource = before with { Combatants = coldActors, NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
+        Assert.True(pendingSource.Definition.NativeGlobalSoundProcess!.IsColdProcess);
+        Assert.NotNull(pendingSource.NativeGlobalSoundProcess!.Rotation);
+        Assert.All(pendingSource.NativeGlobalSoundProcess.OriginalEffectIds, value => Assert.NotNull(value));
+        string sourceOutput = Environment.GetEnvironmentVariable("MEMORIA_FF8_GF_FRESH_SOURCE_OUTPUT") ?? Path.Combine(Path.GetTempPath(), "memoria-ff8-gf-fresh-" + Guid.NewGuid().ToString("N") + ".battle.json");
+        PublishStandalone(sourceOutput, pendingSource);
+        BattleSnapshot sourceFromFile = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(sourceOutput))!;
+        Assert.Equal(JsonSerializer.Serialize(pendingSource), JsonSerializer.Serialize(sourceFromFile));
+        battle = BattleSession.Restore(sourceFromFile);
+        Console.WriteLine($"Fresh GF pending104 source: {Path.GetFullPath(sourceOutput)}; frame{sourceFromFile.Frame}/callback{sourceFromFile.NativeGraphics!.Callback}.");
         TimeSpan frame = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         bool selected = false;
         bool restoredBeforeEntry = false;
@@ -95,7 +104,12 @@ public sealed class NativeBattleGuardianPresentationTests
         NotSupportedException? boundary = null;
         BattleSnapshot? boundaryBefore = null;
         BattleSnapshot? beforeBoost = null;
-        for (int callback = 0; callback < 360; callback++)
+        Dictionary<ushort, NativeBattleModuleSound> streamPlays = [];
+        HashSet<ushort> restoredStreamPhases = [];
+        BattleSession? streamClone = null;
+        ushort? clonedStreamPhase = null;
+        int streamCountBeforeClone = 0;
+        for (int callback = 0; callback < 512; callback++)
         {
             if (!restoredBeforeEntry && battle.NativeGraphics!.Descriptors.Tasks.Any(task => task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.Phase == 2))
             {
@@ -119,7 +133,44 @@ public sealed class NativeBattleGuardianPresentationTests
             {
                 boundary = exception;
                 boundaryBefore = beforeStep;
+                if (streamClone is not null)
+                {
+                    NotSupportedException clonedBoundary = Assert.Throws<NotSupportedException>(() => streamClone.AdvanceNativeGraphicsPresentation(frame));
+                    Assert.Equal(exception.Message, clonedBoundary.Message);
+                    Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(streamClone.Capture()));
+                    Assert.Equal(streamCountBeforeClone, StreamSounds(battle.Capture()).Length);
+                    restoredStreamPhases.Add(clonedStreamPhase!.Value);
+                    streamClone = null;
+                }
                 break;
+            }
+            BattleSnapshot afterStep = battle.Capture();
+            if (streamClone is not null)
+            {
+                streamClone.AdvanceNativeGraphicsPresentation(frame);
+                Assert.Equal(JsonSerializer.Serialize(afterStep), JsonSerializer.Serialize(streamClone.Capture()));
+                Assert.Equal(streamCountBeforeClone, StreamSounds(afterStep).Length);
+                restoredStreamPhases.Add(clonedStreamPhase!.Value);
+                streamClone = null;
+            }
+            ushort? phaseBefore = ChildPhase(beforeStep);
+            if (phaseBefore is 69 or 212 or 318 && ChildPhase(afterStep) != phaseBefore)
+            {
+                NativeBattleModuleSound sound = Assert.Single(afterStep.Events.Skip(beforeStep.Events.Length).Select(entry => entry.NativeModuleSound).OfType<NativeBattleModuleSound>(), sound => sound is { Flags: 0, RawPan: 128, Volume: 127 });
+                NativeBattleSummonStreamState stream = afterStep.NativeEffectMemory!.SummonStream!;
+                Assert.NotNull(stream.Number);
+                Assert.NotNull(stream.SourceAddress);
+                Assert.Equal(unchecked((uint)stream.Number.Value), sound.Sound);
+                NativeGlobalSoundAllocation allocation = Assert.IsType<NativeGlobalSoundAllocation>(sound.Allocation);
+                NativeGlobalSoundProcess.ValidateAllocation(sound.Flags, allocation);
+                Assert.Equal(beforeStep.NativeGlobalSoundProcess!.Rotation, allocation.BeforeRotation);
+                Assert.Equal(afterStep.NativeGlobalSoundProcess!.Rotation, allocation.AfterRotation);
+                Assert.Equal(sound.Sound, afterStep.NativeGlobalSoundProcess.OriginalEffectIds[allocation.Voice]);
+                Assert.True(streamPlays.TryAdd(phaseBefore.Value, sound));
+                streamCountBeforeClone = StreamSounds(afterStep).Length;
+                clonedStreamPhase = phaseBefore.Value;
+                streamClone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(afterStep))!);
+                Assert.Equal(JsonSerializer.Serialize(afterStep), JsonSerializer.Serialize(streamClone.Capture()));
             }
             selected |= battle.NativeGraphics!.ActionGraphics?.Callback == 0x50B2A0;
             sawEntry |= battle.NativeGraphics.OriginalEffect?.ReturnedDescriptor == 0x2521748;
@@ -128,12 +179,18 @@ public sealed class NativeBattleGuardianPresentationTests
         }
         NativeBattleGraphicsModel finalCaster = battle.NativeGraphics!.Models[0];
         string diagnostic = $"callback={battle.NativeGraphics.Callback}; actionPhase={battle.NativeGraphics.Descriptors.Tasks.FirstOrDefault(task => task.Kind == NativeBattleDescriptorTaskKind.Action104)?.Phase}; casterFlags0={finalCaster.Flags0:X}; sequence={finalCaster.Sequence}; cursor={finalCaster.SequenceState?.Offset46}; resource44={finalCaster.ResourceFlags44:X}; IO={battle.NativeEffectIoResult}; cameraMask={battle.NativeCamera?.Mask}; descriptor={battle.NativeGraphics.OriginalEffect?.ReturnedDescriptor:X}; boundary={boundary}";
+        if (boundaryBefore is not null && Environment.GetEnvironmentVariable("MEMORIA_FF8_GF_FRESH_BOUNDARY_OUTPUT") is { Length: > 0 } boundaryOutput)
+        {
+            PublishStandalone(boundaryOutput, boundaryBefore);
+            Assert.Equal(JsonSerializer.Serialize(boundaryBefore), JsonSerializer.Serialize(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(boundaryOutput))!));
+            Console.WriteLine($"Fresh GF actual boundary: {Path.GetFullPath(boundaryOutput)}; frame{boundaryBefore.Frame}/callback{boundaryBefore.NativeGraphics!.Callback}; phase{ChildPhase(boundaryBefore)}; {boundary?.Message}");
+        }
         Assert.True(selected);
         Assert.True(restoredBeforeEntry);
         Assert.True(boundary is not null, diagnostic);
         Assert.True(sawEntry, diagnostic);
         Assert.NotNull(boundary);
-        Assert.Contains("phase303 requires its original32x2C pool25216E8,6C6660 callbacks and124-byte child workspace", boundary.Message);
+        Assert.Contains("phase319 requires its original354-byte child workspace and current arena28E9C geometry source", boundary.Message);
         Assert.True(sawGeometry);
         Assert.True(sawNativeFlash);
         Assert.Equal((ushort)116, battle.NativeGraphics!.OriginalEffect!.Binding.Effect);
@@ -141,7 +198,7 @@ public sealed class NativeBattleGuardianPresentationTests
         Assert.Contains(battle.NativeGraphics.OriginalEffect.Pools, pool => pool.DescriptorAddress == 0x2521738 && pool.Stride == 0x8D0 && pool.Slots.Single().Callback == 0x6C3940);
         Assert.Equal((byte?)0, battle.NativeEffectMemory!.GuardianCasterBank);
         ushort boundaryPhase = battle.NativeGraphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12);
-        Assert.Equal((ushort)303, boundaryPhase);
+        Assert.Equal((ushort)319, boundaryPhase);
         //6C3A42..4D selects6574D0(rig=child+28h,2) at238;509440 stores thatBYTE at rig+6Ch=child+94h.
         Assert.Equal((byte)2, battle.NativeEffectMemory!.Arena!.Read(0x94, 1)[0]);
         Assert.Equal(0, battle.NativeGraphics.Models[3].Flags0 & 4);
@@ -159,8 +216,12 @@ public sealed class NativeBattleGuardianPresentationTests
         Assert.Equal(loadedStream, unchecked((uint)battle.NativeEffectMemory.SummonStream!.Number!.Value));
         Assert.Equal(0x2108954u, battle.NativeEffectMemory.SummonStream.SourceAddress);
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Flags: 0, RawPan: 128, Volume: 127 } sound && sound.Sound == playedStream);
-        Assert.DoesNotContain(battle.Events, entry => entry.NativeModuleSound?.Sound == loadedStream);
-        Assert.DoesNotContain(battle.Events, entry => entry.NativeModuleSound?.Sound == StreamNumber(520));
+        Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Flags: 0, RawPan: 128, Volume: 127 } sound && sound.Sound == loadedStream);
+        Assert.Equal(new ushort[] { 69, 212, 318 }, streamPlays.Keys.Order().ToArray());
+        Assert.Equal(new ushort[] { 69, 212, 318 }, restoredStreamPhases.Order().ToArray());
+        Assert.Equal(playedStream, streamPlays[69].Sound);
+        Assert.Equal(StreamNumber(520), streamPlays[212].Sound);
+        Assert.Equal(loadedStream, streamPlays[318].Sound);
         BattleEvent damage = Assert.Single(battle.Events, entry => entry.Kind == "Damage");
         Assert.Equal("party", damage.ActorId);
         Assert.Equal("enemy", damage.TargetId);
@@ -192,5 +253,23 @@ public sealed class NativeBattleGuardianPresentationTests
             using FileStream output = new(Path.Combine(evidence, name + ".battle.json"), FileMode.CreateNew, FileAccess.Write);
             JsonSerializer.Serialize(output, boundaryBefore);
         }
+    }
+
+    private static ushort? ChildPhase(BattleSnapshot snapshot)
+    {
+        return snapshot.NativeGraphics?.OriginalEffect?.Pools.FirstOrDefault(pool => pool.DescriptorAddress == 0x2521738)?.Slots.Single().ReadWord(12);
+    }
+
+    private static NativeBattleModuleSound[] StreamSounds(BattleSnapshot snapshot)
+    {
+        return snapshot.Events.Select(entry => entry.NativeModuleSound).OfType<NativeBattleModuleSound>().Where(sound => sound is { Flags: 0, RawPan: 128, Volume: 127 }).ToArray();
+    }
+
+    private static void PublishStandalone(string path, BattleSnapshot snapshot)
+    {
+        string fullPath = Path.GetFullPath(path);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        using FileStream output = new(fullPath, FileMode.CreateNew, FileAccess.Write);
+        JsonSerializer.Serialize(output, snapshot);
     }
 }

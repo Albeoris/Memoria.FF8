@@ -9,9 +9,8 @@ public sealed record NativeBattleUiRandomState(uint State)
             throw new InvalidDataException("Native battle UI random state exceeds its original15-bit initializer.");
         }
         //4A7080's state is initialized by4A94D0 from saved playtimeDWORD1CFE928&7FFF.
-        uint next = unchecked(125 * State + 14) % 0x8000;
-        result = checked((ushort)next);
-        return new(next);
+        result = NativeBattleRandomTransitions.Draw125(State);
+        return new(result);
     }
 }
 

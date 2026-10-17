@@ -17,17 +17,28 @@ public static class NativeBattleGfMatrices
         return Multiply56C090(Multiply56C090(y, x), z);
     }
 
-    private static (NativeBattleActionMatrix X, NativeBattleActionMatrix Y, NativeBattleActionMatrix Z) AxisMatrices(NativeBattleVector angles)
+    /// <summary>56CD50 left-multiplies Z, then Y, then X; each56C090 product rounds before the next operation.</summary>
+    public static NativeBattleActionMatrix Euler56CD50(NativeBattleVector angles)
+    {
+        (NativeBattleActionMatrix x, NativeBattleActionMatrix y, NativeBattleActionMatrix z) = AxisMatrices(angles, true);
+        return Multiply56C090(x, Multiply56C090(y, z));
+    }
+
+    private static (NativeBattleActionMatrix X, NativeBattleActionMatrix Y, NativeBattleActionMatrix Z) AxisMatrices(NativeBattleVector angles, bool native56CD50 = false)
     {
         short sx = unchecked((short)NativeBattleCameraMath.Sine(angles.X));
         short cx = unchecked((short)NativeBattleCameraMath.Cosine(angles.X));
-        short sy = unchecked((short)NativeBattleCameraMath.Sine(-(int)angles.Y));
-        short cy = unchecked((short)NativeBattleCameraMath.Cosine(-(int)angles.Y));
+        int yaw = native56CD50 ? angles.Y : -(int)angles.Y;
+        short sy = unchecked((short)NativeBattleCameraMath.Sine(yaw));
+        short cy = unchecked((short)NativeBattleCameraMath.Cosine(yaw));
         short sz = unchecked((short)NativeBattleCameraMath.Sine(angles.Z));
         short cz = unchecked((short)NativeBattleCameraMath.Cosine(angles.Z));
-        NativeBattleActionMatrix x = new([4096, 0, 0, 0, cx, sx, 0, unchecked((short)-sx), cx], 0, 0, 0, 4096);
-        NativeBattleActionMatrix y = new([cy, 0, unchecked((short)-sy), 0, 4096, 0, sy, 0, cy], 0, 0, 0, 4096);
-        NativeBattleActionMatrix z = new([cz, sz, 0, unchecked((short)-sz), cz, 0, 0, 0, 4096], 0, 0, 0, 4096);
+        short xSine = native56CD50 ? unchecked((short)-sx) : sx;
+        short ySine = native56CD50 ? unchecked((short)-sy) : sy;
+        short zSine = native56CD50 ? unchecked((short)-sz) : sz;
+        NativeBattleActionMatrix x = new([4096, 0, 0, 0, cx, xSine, 0, unchecked((short)-xSine), cx], 0, 0, 0, 4096);
+        NativeBattleActionMatrix y = new([cy, 0, unchecked((short)-ySine), 0, 4096, 0, ySine, 0, cy], 0, 0, 0, 4096);
+        NativeBattleActionMatrix z = new([cz, zSine, 0, unchecked((short)-zSine), cz, 0, 0, 0, 4096], 0, 0, 0, 4096);
         return (x, y, z);
     }
 

@@ -18,6 +18,10 @@ public sealed class NativeBattleQuezacotlFlashTests
     [InlineData(257, 0x040506u)]
     [InlineData(258, 0x010203u)]
     [InlineData(259, 0x040506u)]
+    [InlineData(315, 0x070809u)]
+    [InlineData(316, 0x040506u)]
+    [InlineData(317, 0x010203u)]
+    [InlineData(318, 0x040506u)]
     public void PlainFlashWritesOriginalQuadTagCommandCoordinatesBucketAndProxyFlags(ushort phase, uint color)
     {
         NativeBattleQuezacotlScreenPacket packet = Assert.Single(NativeBattleQuezacotlFlash.Emit(phase, Resources()));

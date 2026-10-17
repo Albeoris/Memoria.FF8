@@ -54,6 +54,34 @@ public sealed class NativeBattleQuezacotlFirstWindowIoTests
         Assert.Equal(new byte[] { 0, 0, 1, 0, 0 }, defaultBranch.Memory.Arena!.Read(64, 5));
     }
 
+    [Theory]
+    [InlineData((ushort)69, 0)]
+    [InlineData((ushort)69, 1)]
+    [InlineData((ushort)212, 0)]
+    [InlineData((ushort)212, 1)]
+    public void Stream_tail69_and212_advance_without_ready_poll_and_allocate_automatically_even_when_paused(ushort phase, int pause)
+    {
+        NativeBattleEffectMemory memory = Memory();
+        NativeBattleSummonStreamState stream = new(690007, 0x2108954);
+        memory = memory with { Arena = memory.Arena!.Write(64, [1, 1, 1, 0, 0]), QuezacotlPause = pause, SummonStream = stream };
+        NativeBattleQuezacotlFirstWindowIoStep io = NativeBattleQuezacotlFirstWindowIo.Advance(memory, phase);
+        Assert.True(io.AdvancePhase);
+        Assert.Null(io.Request);
+        Assert.Equal(new byte[] { 1, 1, 1, 0, 0 }, io.Memory.Arena!.Read(64, 5));
+        Assert.Same(stream, io.Memory.SummonStream);
+        NativeBattleModuleSound request = io.Memory.SummonStream!.Play5018C0(128, 127);
+        (NativeGlobalSoundProcess process, NativeBattleModuleSound committed) = request.Commit46B2A0(NativeGlobalSoundProcess.FromBufferlessColdProcess());
+        Assert.Equal(0u, committed.Flags);
+        Assert.Equal(128u, committed.RawPan);
+        Assert.Equal(127u, committed.Volume);
+        Assert.Equal((byte)26, committed.ReadCommittedVoice());
+        Assert.Equal((byte)2, process.Rotation);
+        Assert.Equal((uint?)690007, process.OriginalEffectIds[26]);
+        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(io.Memory))!;
+        Assert.Equal(request, restored.SummonStream!.Play5018C0(128, 127));
+        Assert.Throws<NotSupportedException>(() => request.Commit46B2A0(NativeGlobalSoundProcess.UnknownBufferless()));
+    }
+
     [Fact]
     public void Phase276ResetsItsActualHeadAndImpactFlagOnlyAfterPollIsReady()
     {
@@ -112,5 +140,21 @@ public sealed class NativeBattleQuezacotlFirstWindowIoTests
     {
         NativeBattleEffectMemory memory = NativeBattleEffectIo.Initialize534110(NativeBattleEffectMemory.FromColdProcess().BeginLoad(116), 64);
         return memory with { EffectIo = memory.EffectIo! with { Callback = 0x6C3580 } };
+    }
+
+    [Fact]
+    public void Phase318_only_waits_for_the_existing_batch_without_queuing_or_resetting_any_list()
+    {
+        NativeBattleEffectMemory memory = Memory();
+        memory = memory with { Arena = memory.Arena!.Write(64, [0, 1, 1, 0, 0]), QuezacotlSecondaryHeads = [11, 22, 33, 44, 55] };
+        NativeBattleQuezacotlFirstWindowIoStep waiting = NativeBattleQuezacotlFirstWindowIo.Advance(memory, 318);
+        Assert.False(waiting.AdvancePhase);
+        Assert.Null(waiting.Request);
+        Assert.Equal(new byte[] { 0, 0, 1, 0, 0 }, waiting.Memory.Arena!.Read(64, 5));
+        NativeBattleQuezacotlFirstWindowIoStep ready = NativeBattleQuezacotlFirstWindowIo.Advance(waiting.Memory, 318);
+        Assert.True(ready.AdvancePhase);
+        Assert.Null(ready.Request);
+        Assert.Equal(new byte[] { 0, 0, 1, 0, 0 }, ready.Memory.Arena!.Read(64, 5));
+        Assert.Equal(new uint[] { 11, 22, 33, 44, 55 }, ready.Memory.QuezacotlSecondaryHeads!.Value);
     }
 }
