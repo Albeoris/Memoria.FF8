@@ -1551,12 +1551,36 @@ internal sealed partial class AutoPlayController
     {
         string temporary = path + ".tmp";
         new GameSession(state).Save(temporary);
-        File.Move(temporary, path, true);
+        CommitCheckpointFile(temporary, path);
     }
 
     private static void AtomicWrite(string path, string content)
     {
         File.WriteAllText(path + ".tmp", content);
-        File.Move(path + ".tmp", path, true);
+        CommitCheckpointFile(path + ".tmp", path);
+    }
+
+    internal static void CommitCheckpointFile(string temporary, string path)
+    {
+        long started = Stopwatch.GetTimestamp();
+        while (true)
+        {
+            try
+            {
+                File.Move(temporary, path, true);
+                return;
+            }
+            catch (Exception exception) when (IsCheckpointSharingConflict(exception, path) && Stopwatch.GetElapsedTime(started) < TimeSpan.FromMilliseconds(500))
+            {
+                // Windows readers may temporarily deny delete sharing while inspecting the previous checkpoint.
+                // Keep both files intact until the atomic replacement succeeds or the bounded retry fails.
+                Thread.Sleep(10);
+            }
+        }
+    }
+
+    private static bool IsCheckpointSharingConflict(Exception exception, string path)
+    {
+        return OperatingSystem.IsWindows() && (exception is IOException or UnauthorizedAccessException) && (exception.HResult & 0xffff) is 5 or 32 or 33 && File.Exists(path) && (File.GetAttributes(path) & FileAttributes.ReadOnly) == 0;
     }
 }
