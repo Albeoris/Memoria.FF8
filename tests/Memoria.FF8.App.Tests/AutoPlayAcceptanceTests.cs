@@ -7,6 +7,78 @@ namespace Memoria.FF8.App.Tests;
 public sealed class AutoPlayAcceptanceTests
 {
     [Fact]
+    public void ResumedChoiceReplayIsIndependentOfItsOriginalDirectory()
+    {
+        string gameDirectory = TestResources.GameDirectory;
+        string fixture = TestResources.FixturePath("App.Tests.AutoPlayAcceptanceTests.2");
+        string fixtureDirectory = Path.GetDirectoryName(fixture)!;
+        string temporary = Path.Combine(Path.GetTempPath(), "ff8-checkpoint-import-" + Guid.NewGuid().ToString("N"));
+        string sourceDirectory = Path.Combine(temporary, "source");
+        Directory.CreateDirectory(sourceDirectory);
+        try
+        {
+            AutoPlayRunState source = JsonSerializer.Deserialize<AutoPlayRunState>(File.ReadAllText(fixture), AutoPlayController.JsonOptions)!;
+            Dictionary<string, string> copied = new(StringComparer.OrdinalIgnoreCase);
+            string? Copy(string? reference)
+            {
+                if (reference is null)
+                {
+                    return null;
+                }
+                string path = Path.GetFullPath(reference, fixtureDirectory);
+                if (!copied.TryGetValue(path, out string? filename))
+                {
+                    filename = $"snapshot-{copied.Count}.json";
+                    File.Copy(path, Path.Combine(sourceDirectory, filename));
+                    copied.Add(path, filename);
+                }
+                return filename;
+            }
+            source.Snapshot = Copy(source.Snapshot);
+            source.PrimaryContinuation = Copy(source.PrimaryContinuation);
+            foreach (AutoPlayChoiceCoverage choice in source.Coverage.Choices)
+            {
+                if (choice.Finished)
+                {
+                    choice.BeforeCheckpoint = "retired-before.json";
+                    choice.ContinuationCheckpoint = "retired-continuation.json";
+                }
+                else
+                {
+                    choice.BeforeCheckpoint = Copy(choice.BeforeCheckpoint);
+                    choice.ContinuationCheckpoint = Copy(choice.ContinuationCheckpoint);
+                }
+            }
+            string manifest = Path.Combine(sourceDirectory, "source.run.json");
+            File.WriteAllText(manifest, JsonSerializer.Serialize(source, AutoPlayController.JsonOptions));
+            using InstalledRun run = new(gameDirectory);
+            run.Controller.ResumeFrom(manifest);
+            string imported = Assert.Single(Directory.GetFiles(run.OutputDirectory, "resume-start.run.json", SearchOption.AllDirectories));
+            string importedDirectory = Path.GetDirectoryName(imported)!;
+            foreach (string reference in run.Controller.State.Coverage.Choices.Where(choice => !choice.Finished).SelectMany(choice => new[] { choice.BeforeCheckpoint, choice.ContinuationCheckpoint }).Append(run.Controller.State.PrimaryContinuation).OfType<string>())
+            {
+                Assert.False(Path.IsPathRooted(reference));
+                Assert.True(File.Exists(Path.Combine(importedDirectory, reference)));
+            }
+            Assert.All(run.Controller.State.Coverage.Choices.Where(choice => choice.Finished), choice =>
+            {
+                Assert.Null(choice.BeforeCheckpoint);
+                Assert.Null(choice.ContinuationCheckpoint);
+            });
+            Directory.Move(sourceDirectory, Path.Combine(temporary, "detached"));
+            run.Controller.Advance(1);
+            Assert.Null(run.Controller.Error);
+            AutoPlayChoiceCoverage input = Assert.Single(run.Controller.State.Coverage.Choices, choice => choice.Key.StartsWith("input:", StringComparison.Ordinal));
+            Assert.Equal(1, input.ActiveOption);
+            Assert.Contains(0, input.CompletedOptions);
+        }
+        finally
+        {
+            Directory.Delete(temporary, true);
+        }
+    }
+
+    [Fact]
     public void InitialFieldRegistrationResumesBeforeItsFirstSkinCallback()
     {
         string gameDirectory = TestResources.GameDirectory;

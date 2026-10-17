@@ -174,27 +174,48 @@ internal sealed class AutoPlayController
         }
         string directory = Path.GetDirectoryName(manifest)!;
         restore(GameSession.Load(Path.Combine(directory, saved.Snapshot)));
+        runDirectory = Path.Combine(outputDirectory, time.GetUtcNow().ToString("yyyyMMdd-HHmmss-fffffff") + "-resume");
+        Directory.CreateDirectory(runDirectory);
+        Dictionary<string, string> imported = new(StringComparer.OrdinalIgnoreCase);
+        string? ImportCheckpoint(string? checkpoint)
+        {
+            if (checkpoint is null)
+            {
+                return null;
+            }
+            string source = Path.GetFullPath(checkpoint, directory);
+            if (imported.TryGetValue(source, out string? existing))
+            {
+                return existing;
+            }
+            byte[] bytes = File.ReadAllBytes(source);
+            string filename = "import-" + Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant() + ".json";
+            string destination = Path.Combine(runDirectory!, filename);
+            if (!File.Exists(destination))
+            {
+                File.WriteAllBytes(destination, bytes);
+            }
+            imported.Add(source, filename);
+            return filename;
+        }
         foreach (AutoPlayChoiceCoverage choice in saved.Coverage.Choices)
         {
-            if (choice.BeforeCheckpoint is not null)
+            if (choice.Finished)
             {
-                choice.BeforeCheckpoint = Path.GetFullPath(choice.BeforeCheckpoint, directory);
+                choice.BeforeCheckpoint = null;
+                choice.ContinuationCheckpoint = null;
             }
-            if (choice.ContinuationCheckpoint is not null)
+            else
             {
-                choice.ContinuationCheckpoint = Path.GetFullPath(choice.ContinuationCheckpoint, directory);
+                choice.BeforeCheckpoint = ImportCheckpoint(choice.BeforeCheckpoint);
+                choice.ContinuationCheckpoint = ImportCheckpoint(choice.ContinuationCheckpoint);
             }
         }
-        if (saved.PrimaryContinuation is not null)
-        {
-            saved.PrimaryContinuation = Path.GetFullPath(saved.PrimaryContinuation, directory);
-        }
+        saved.PrimaryContinuation = ImportCheckpoint(saved.PrimaryContinuation);
         run = saved;
         run.Error = null;
         run.LastProgressStep = run.Steps;
         planner = new(run.Coverage, (visit, item) => AutoPlayTraversalPolicy.PhaseOrder(visit.Region, item.Order));
-        runDirectory = Path.Combine(outputDirectory, time.GetUtcNow().ToString("yyyyMMdd-HHmmss-fffffff") + "-resume");
-        Directory.CreateDirectory(runDirectory);
         Running = true;
         Paused = false;
         Error = null;

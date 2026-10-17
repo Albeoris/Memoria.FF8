@@ -155,11 +155,15 @@ public sealed class AutoPlayControllerTests
         Assert.True(Assert.Single(Assert.Single(controller.State.Coverage.Visits).Events).Completed);
         Assert.Equal(manifest, controller.ReproductionPath);
         AutoPlayChoiceCoverage choice = Assert.Single(controller.State.Coverage.Choices);
-        Assert.Equal(Path.Combine(sourceDirectory, "choice.json"), choice.BeforeCheckpoint);
-        Assert.Equal(Path.Combine(sourceDirectory, "continuation.json"), choice.ContinuationCheckpoint);
-        Assert.Equal(Path.Combine(sourceDirectory, "continuation.json"), controller.State.PrimaryContinuation);
         string resumed = Assert.Single(Directory.GetFiles(run.Directory, "resume-start.run.json", SearchOption.AllDirectories));
-        Assert.NotEqual(sourceDirectory, Path.GetDirectoryName(resumed));
+        string resumedDirectory = Path.GetDirectoryName(resumed)!;
+        Assert.NotEqual(sourceDirectory, resumedDirectory);
+        foreach ((string? imported, string original) in new[] { (choice.BeforeCheckpoint, "choice.json"), (choice.ContinuationCheckpoint, "continuation.json"), (controller.State.PrimaryContinuation, "continuation.json") })
+        {
+            Assert.NotNull(imported);
+            Assert.False(Path.IsPathRooted(imported));
+            Assert.Equal(originals[Path.Combine(sourceDirectory, original)], File.ReadAllBytes(Path.Combine(resumedDirectory, imported)));
+        }
         controller.Advance(1);
         Assert.False(controller.Running);
         Assert.Contains("Resources are unavailable.", controller.Error);
