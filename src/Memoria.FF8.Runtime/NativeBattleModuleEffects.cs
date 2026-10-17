@@ -21,7 +21,9 @@ public enum NativeBattleModuleKind
     GuardianCastingRing574AE0,
     GuardianCastingGround574990,
     GuardianCastingParticle574670,
-    GuardianCastingTrail574580
+    GuardianCastingTrail574580,
+    BoneSpriteSeed573560,
+    BoneSprite573640
 }
 
 public enum NativeBattleModuleDrawKind
@@ -130,6 +132,8 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
                 NativeBattleModuleKind.GuardianCastingGround574990 => state.AdvanceCastingGround(index, inputs),
                 NativeBattleModuleKind.GuardianCastingParticle574670 => state.AdvanceGuardianCastingParticle(index, inputs),
                 NativeBattleModuleKind.GuardianCastingTrail574580 => state.AdvanceGuardianCastingTrail(index, inputs),
+                NativeBattleModuleKind.BoneSpriteSeed573560 => state.AdvanceBoneSpriteSeed(index, inputs),
+                NativeBattleModuleKind.BoneSprite573640 => state.AdvanceBoneSprite(index, inputs),
                 _ => throw new NotSupportedException("Native effect-module task requires its original callback owner.")
             };
             state = callback.State;

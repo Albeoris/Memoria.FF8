@@ -5,6 +5,9 @@ namespace Memoria.FF8.Runtime;
 /// <summary>45E120/45F4C0/45E370 polygon color FIFO followed by the separate first-color45F270 operation.</summary>
 public static class NativeBattleGteColorInterpolation
 {
+    /// <summary>Immutable PE code operands B695F8=39800000 and B693D8=4330000080000000; no retained model color is supplied.</summary>
+    public static NativeBattleSummonColors CodeConstants45F270 { get; } = new(0, 0, BitConverter.Int32BitsToSingle(0x39800000), BitConverter.Int64BitsToDouble(0x4330000080000000));
+
     public static ImmutableArray<uint> Gouraud45F4C0(ImmutableArray<uint> colors, bool quad, int factor, uint farColor, NativeBattleSummonColors rules)
     {
         if (colors.IsDefault || colors.Length != (quad ? 4 : 3))

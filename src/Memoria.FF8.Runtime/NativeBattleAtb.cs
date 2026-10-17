@@ -73,7 +73,7 @@ public sealed partial class BattleSession
             //The host decision hold freezes gauge/GF growth, not registration of an already-full native gauge.
             foreach (BattleCombatant actor in combatants)
             {
-                PublishNativeUiReady(actor);
+                PublishNativeFullGaugeRegistration(actor);
             }
         }
         if (!AdmitNativeBattleClock(uiAllows && stepAllows, false))
@@ -95,7 +95,7 @@ public sealed partial class BattleSession
         }
         bool wasReady = actor.IsReady;
         actor.NativeAtb = nativeGauge.Advance(actor.NativeAtbSpeed, definition.NativeClockRules!.AtbSpeedMultiplier, actor.NativeCombatantFlags, NativeSavedStatusBits(actor), NativeBattleStatusBits(actor));
-        PublishNativeUiReady(actor);
+        PublishNativeFullGaugeRegistration(actor);
         if (!wasReady && actor.IsReady)
         {
             becameReady?.Add(actor.Id);

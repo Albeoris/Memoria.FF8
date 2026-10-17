@@ -442,6 +442,11 @@ public sealed partial class BattleSession
         DispatchNativeCompelledActors();
         foreach (BattleCombatant enemy in combatants.Where(actor => !actor.IsPlayer && actor.IsReady && CanNativeBattleActorAct(actor)).ToArray())
         {
+            if (HasNativeUiServiceClock)
+            {
+                //Raw4842B0 owns full-gauge registration;4847B0 below publishes its deferred callback without resetting the gauge.
+                continue;
+            }
             if (enemy.NativeAi is not null)
             {
                 enemy.Atb = 0;
@@ -451,6 +456,11 @@ public sealed partial class BattleSession
             // TODO(TD-009): First living opponent is scaffold AI until native enemy decision programs are implemented.
             BattleCombatant target = combatants.First(actor => actor.IsPlayer && actor.IsAlive);
             EnqueueAttack(enemy, target);
+        }
+        if (HasNativeUiServiceClock)
+        {
+            //Ordinary4847F0 inputs are already folded into their physical banks; consume200 before event dispatch.
+            PublishNativeRegisteredCallbacks4847B0();
         }
         DispatchAction();
         DispatchNativeTriggerReceipt();

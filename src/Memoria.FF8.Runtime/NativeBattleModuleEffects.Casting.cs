@@ -6,6 +6,7 @@ namespace Memoria.FF8.Runtime;
 public sealed partial record NativeBattleModuleInputs
 {
     public Func<int, NativeBattleModelTransform>? ReadModelTransform { get; init; }
+    public Func<int, byte>? ReadModelBoneCount { get; init; }
 }
 
 public sealed partial record NativeBattleModuleDraw
@@ -28,11 +29,12 @@ public sealed partial record NativeBattleModuleState
         {
             throw new InvalidDataException("Native571840 requires its physical graphics model pointer.");
         }
-        if (effect is not (0 or 1))
+        if (effect is not (0 or 1 or 4))
         {
             throw new NotSupportedException($"Native571840 callback selector{effect} requires its original C816A4 implementation.");
         }
-        (NativeBattleModuleState state, int slot) = Append(effect == 0 ? NativeBattleModuleKind.CastingSeed574C80 : NativeBattleModuleKind.GuardianCastingSeed5742A0);
+        NativeBattleModuleKind kind = effect switch { 0 => NativeBattleModuleKind.CastingSeed574C80, 1 => NativeBattleModuleKind.GuardianCastingSeed5742A0, 4 => NativeBattleModuleKind.BoneSpriteSeed573560, _ => throw new InvalidOperationException() };
+        (NativeBattleModuleState state, int slot) = Append(kind);
         byte[] payload = state.Slots[slot].Payload.ToArray();
         W(payload, 0, 0);
         W(payload, 2, 0);

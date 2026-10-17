@@ -30,7 +30,7 @@ public static class NativeBattleCommonPacketArena
         return linked ? [store, new(address, [0, 0, 0], [NativeBattleGfPacketByteState.Unknown, NativeBattleGfPacketByteState.Unknown, NativeBattleGfPacketByteState.Unknown])] : [store];
     }
 
-    public static NativeBattleCommonPacketWrite Append(NativeBattlePrimitiveProcess process, NativeBattleLogicalOrdering ordering, NativeBattleGfGeometryBatch batch, ushort flags20 = 0)
+    public static NativeBattleCommonPacketWrite Append(NativeBattlePrimitiveProcess process, NativeBattleLogicalOrdering ordering, NativeBattleGfGeometryBatch batch, ushort flags20 = 0, int? moduleDraw = null)
     {
         process.Validate();
         int start = process.ByteCursor ?? throw new NotSupportedException("Native common packet receipts require their allocated current cursor.");
@@ -60,7 +60,7 @@ public static class NativeBattleCommonPacketArena
                 throw new InvalidDataException("Native linked common packet leaves its accepted allocation.");
             }
             bool linked = ordering.Proxies.Length < NativeBattlePrimitiveOrdering.ProxyCapacity;
-            ordering = ordering.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, address), primitive.Words, flags20, primitive.VertexPayload4);
+            ordering = ordering.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, address), primitive.Words, flags20, primitive.VertexPayload4, moduleDraw);
             if (linked)
             {
                 stores.Add(new(address, [0, 0, 0], [NativeBattleGfPacketByteState.Unknown, NativeBattleGfPacketByteState.Unknown, NativeBattleGfPacketByteState.Unknown]));

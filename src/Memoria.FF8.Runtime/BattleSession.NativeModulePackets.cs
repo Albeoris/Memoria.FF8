@@ -27,9 +27,9 @@ public sealed partial class BattleSession
                 NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native module packet emission requires its prior projection/register owner.");
                 batch = draw.Kind switch
                 {
-                    NativeBattleModuleDrawKind.Mesh => NativeBattleModulePackets.EmitMesh572200(draw, definition.NativeEffectMeshes.Single(resource => resource.Id == draw.MeshId), projection, 17, 2),
+                    NativeBattleModuleDrawKind.Mesh => NativeBattleModulePackets.EmitMesh572200(draw, definition.NativeEffectMeshes.Single(resource => resource.Id == draw.MeshId), projection, 17, 2, definition.NativeGraphics.Rules.SummonColors ?? throw new NotSupportedException("Native572200 requires its authenticated interpolation constants.")),
                     NativeBattleModuleDrawKind.Sprite => NativeBattleModulePackets.EmitSprite571DC0(draw, projection, NativeCamera!.Roll, 17, 2),
-                    NativeBattleModuleDrawKind.Defensive => NativeBattleDefensivePackets.Emit570650(draw, definition.NativeDefensiveResources.Single(resource => resource.Variant == draw.Variant), projection),
+                    NativeBattleModuleDrawKind.Defensive => NativeBattleDefensivePackets.Emit570650(draw, definition.NativeDefensiveResources.Single(resource => resource.Variant == draw.Variant), projection, definition.NativeGraphics.Rules.SummonColors ?? throw new NotSupportedException("Native570650 requires its authenticated interpolation constants.")),
                     _ => throw new NotSupportedException($"Native module draw{draw.Kind} requires its original primitive emission contract.")
                 };
             }
@@ -42,6 +42,18 @@ public sealed partial class BattleSession
     {
         NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native module packet emission requires its initialized OT owner.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native module packet emission requires its process owner.");
+        if (batch.CapturedWrites is { } captured)
+        {
+            if (effectArenaOffset is int capturedCursor)
+            {
+                NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(memory, capturedCursor, frame.Pending, captured, moduleDraw: moduleDraw);
+                NativeEffectMemory = written.Memory;
+                return graphics with { PrimitiveFrame = frame with { Pending = written.Ordering } };
+            }
+            NativeBattleCommonPacketWrite common = NativeBattleCommonPacketArena.Append(memory.PrimitiveProcess ?? throw new NotSupportedException("Native module packet emission requires its original arena cursor."), frame.Pending, captured, moduleDraw: moduleDraw);
+            NativeEffectMemory = memory with { PrimitiveProcess = common.Process };
+            return graphics with { PrimitiveFrame = frame with { Pending = common.Ordering } };
+        }
         if (effectArenaOffset is int privateCursor)
         {
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(memory, privateCursor, frame.Pending, batch, NativeBattleEffectGouraudWrites.FullDword, moduleDraw);

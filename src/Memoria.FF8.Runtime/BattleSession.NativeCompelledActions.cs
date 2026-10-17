@@ -11,6 +11,11 @@ public sealed partial class BattleSession
 
     private void DispatchNativeCompelledActors()
     {
+        if (HasNativeUiServiceClock)
+        {
+            //483EB0 already queued the original command at full-gauge registration, preserving its gauge until completion.
+            return;
+        }
         foreach (BattleCombatant actor in combatants.Where(actor => actor.IsReady && RequiresNativeCompelledCommand(actor)))
         {
             BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.IsActive && candidate.NativeIndex is >= 3 and < 7) ?? actor;

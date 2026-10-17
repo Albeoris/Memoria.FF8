@@ -1,4 +1,6 @@
 using System.Buffers.Binary;
+using System.Drawing;
+using System.Drawing.Imaging;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -27,6 +29,20 @@ public sealed class NativeBattleProductionEffectAdmissionTests
     [Fact]
     public void Resume_the_named_production_battle_checkpoint_for_one_native_callback()
     {
+        ResumeNamedCheckpoint(1);
+    }
+
+    [Fact]
+    public void Continue_the_named_production_checkpoint_for_a_bounded_native_interval()
+    {
+        string? requested = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_CALLBACKS");
+        int callbacks = requested is null ? 512 : int.Parse(requested, System.Globalization.CultureInfo.InvariantCulture);
+        Assert.InRange(callbacks, 1, 4096);
+        ResumeNamedCheckpoint(callbacks);
+    }
+
+    private static void ResumeNamedCheckpoint(int callbacks)
+    {
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_SNAPSHOT");
         Assert.SkipUnless(source is not null && File.Exists(source), "A concrete production-host standalone checkpoint is required.");
         GameSession session = new(GameSession.Load(source!));
@@ -35,24 +51,34 @@ public sealed class NativeBattleProductionEffectAdmissionTests
         GameSession independent = new(GameSession.Load(source!));
         using GameWorld clone = RestoreWorld(independent, directory);
         long callback = world.Battle!.NativeGraphics!.Callback;
+        string id = "production-resume-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff");
+        string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_EVIDENCE");
+        int completed = 0;
         try
         {
-            world.ApplyBattleInput(new(BattleInputKind.Tick));
+            for (; completed < callbacks; completed++)
+            {
+                world.ApplyBattleInput(new(BattleInputKind.Tick));
+                clone.ApplyBattleInput(new(BattleInputKind.Tick));
+                if ((completed + 1) % 64 == 0 || completed + 1 == callbacks)
+                {
+                    Assert.Equal(JsonSerializer.Serialize(world.Battle.Capture()), JsonSerializer.Serialize(clone.Battle!.Capture()));
+                    Assert.Equal(RenderBattle(world), RenderBattle(clone));
+                }
+            }
         }
         catch (Exception exception)
         {
-            string id = "production-resume-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff");
-            string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_EVIDENCE");
+            session.SetEventState(world.Events.Capture());
+            Publish(evidence, id + "-last-published", session.State);
             Publish(evidence, id + "-failed-live.battle", world.Battle.Capture());
-            Publish(evidence, id + "-failure", new { Error = exception.ToString(), SavedCallback = callback, LiveCallback = world.Battle.NativeGraphics!.Callback });
+            Publish(evidence, id + "-failure", new { Error = exception.ToString(), SavedCallback = callback, LiveCallback = world.Battle.NativeGraphics!.Callback, RequestedCallbacks = callbacks, CompletedCallbacks = completed });
             throw;
         }
         Assert.True(world.Battle.NativeGraphics!.Callback > callback);
-        clone.ApplyBattleInput(new(BattleInputKind.Tick));
-        Assert.Equal(JsonSerializer.Serialize(world.Battle.Capture()), JsonSerializer.Serialize(clone.Battle!.Capture()));
-        Assert.Equal(RenderBattle(world), RenderBattle(clone));
         session.SetEventState(world.Events.Capture());
-        Publish(Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_EVIDENCE"), "production-resume-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-after", session.State);
+        Publish(evidence, id + "-after", session.State);
+        PublishPixels(evidence, id + "-after", RenderBattle(world));
     }
 
     [Fact]
@@ -234,8 +260,34 @@ public sealed class NativeBattleProductionEffectAdmissionTests
             return;
         }
         Directory.CreateDirectory(directory);
-        using FileStream stream = new(Path.Combine(directory, name + ".json"), FileMode.CreateNew);
-        JsonSerializer.Serialize(stream, value, value.GetType());
+        string path = Path.Combine(directory, name + ".json");
+        using (FileStream stream = new(path, FileMode.CreateNew))
+        {
+            JsonSerializer.Serialize(stream, value, value.GetType());
+        }
+        if (value is GameState)
+        {
+            GameSession.Load(path);
+        }
+    }
+
+    private static void PublishPixels(string? directory, string name, byte[] pixels)
+    {
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            return;
+        }
+        using Bitmap bitmap = new(320, 224);
+        for (int y = 0; y < 224; y++)
+        {
+            for (int x = 0; x < 320; x++)
+            {
+                int offset = (y * 320 + x) * 4;
+                bitmap.SetPixel(x, y, Color.FromArgb(pixels[offset + 3], pixels[offset], pixels[offset + 1], pixels[offset + 2]));
+            }
+        }
+        using FileStream stream = new(Path.Combine(directory, name + ".png"), FileMode.CreateNew);
+        bitmap.Save(stream, ImageFormat.Png);
     }
 
     private static byte[] Program()

@@ -3,7 +3,7 @@ namespace Memoria.FF8.Runtime;
 public static partial class NativeBattleEffectPacketArena
 {
     /// <summary>Apply ordered native stores and links, including rejected attempts and nonsequential E1/draw packet insertion.</summary>
-    public static NativeBattleEffectPacketWrite Append(NativeBattleEffectMemory memory, int cursor, NativeBattleLogicalOrdering ordering, NativeBattleGfGeometryBatch batch, ushort flags20 = 0)
+    public static NativeBattleEffectPacketWrite Append(NativeBattleEffectMemory memory, int cursor, NativeBattleLogicalOrdering ordering, NativeBattleGfGeometryBatch batch, ushort flags20 = 0, int? moduleDraw = null)
     {
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native effect packet attempts require their actual571870 arena bytes.");
         if (batch.Attempts.IsDefault || batch.AllocationBytes < 0 || (batch.AllocationBytes & 3) != 0 || cursor < 0 || (cursor & 3) != 0 || cursor > NativeBattleEffectArena.Length - batch.AllocationBytes)
@@ -49,7 +49,7 @@ public static partial class NativeBattleEffectPacketArena
                 }
                 acceptedEnd = Math.Max(acceptedEnd, end);
                 bool linked = ordering.Proxies.Length < NativeBattlePrimitiveOrdering.ProxyCapacity;
-                ordering = ordering.Prepend(primitive.Bucket, new("20DFAB8", 0, address), primitive.Words, flags20, primitive.VertexPayload4);
+                ordering = ordering.Prepend(primitive.Bucket, new("20DFAB8", 0, address), primitive.Words, flags20, primitive.VertexPayload4, moduleDraw);
                 if (linked)
                 {
                     arena = arena.MarkUnknown(address, 3);

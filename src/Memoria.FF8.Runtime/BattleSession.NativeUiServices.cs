@@ -84,17 +84,6 @@ public sealed partial class BattleSession
         AdvanceNativeUiAtbService();
     }
 
-    private void PublishNativeUiReady(BattleCombatant actor)
-    {
-        if (NativeGraphics?.UiServices is not { } ui || actor.NativeIndex is < 0 or >= 3 || actor.NativeAtb is not { } gauge || !NativeBattleAtbState.CanAdvance(actor.NativeCombatantFlags, NativeSavedStatusBits(actor), NativeBattleStatusBits(actor)) || gauge.Current < gauge.Maximum || (actor.NativeCombatantFlags & 0x1C) != 0 || (NativeSavedStatusBits(actor) & 0x24) != 0 || (NativeBattleStatusBits(actor) & 0x2004009) != 0)
-        {
-            return;
-        }
-        //4842B0 queues17 once at the clamp, even if the gauge was already full on entry.
-        NativeGraphics = NativeGraphics with { UiServices = ui with { Commands = ui.Commands.Enqueue(checked((byte)actor.NativeIndex), 0x11) } };
-        actor.NativeCombatantFlags |= 8;
-    }
-
     private void RemoveNativeUiReady(BattleCombatant actor)
     {
         if (NativeGraphics?.UiServices is { } ui && actor.NativeIndex is >= 0 and < 3)

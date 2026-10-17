@@ -33,6 +33,14 @@ public static partial class NativeBattleEffectPacketArena
         {
             throw new ArgumentOutOfRangeException(nameof(gouraudWrites));
         }
+        if (batch.CapturedWrites is { } captured)
+        {
+            if (gouraudWrites != NativeBattleEffectGouraudWrites.FullDword)
+            {
+                throw new InvalidDataException("Native572200 captured stores cannot use another producer's three-byte color policy.");
+            }
+            return Append(memory, cursor, ordering, captured, moduleDraw: moduleDraw);
+        }
         if (batch.Primitives.IsDefault || batch.AllocationBytes < 0 || cursor < 0 || (cursor & 3) != 0 || cursor > NativeBattleEffectArena.Length - batch.AllocationBytes)
         {
             throw new InvalidDataException("Native Cure packets leave their original aligned effect arena.");

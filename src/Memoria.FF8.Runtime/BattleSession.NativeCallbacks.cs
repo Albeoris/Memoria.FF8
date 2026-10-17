@@ -18,13 +18,16 @@ public sealed partial class BattleSession
 {
     private List<BattleAttackCommand>? nativeCallbackTail;
 
-    private void QueueNativeCallback(BattleCombatant actor, ushort stage)
+    private void QueueNativeCallback(BattleCombatant actor, ushort stage, byte bank = 0)
     {
         BattleNativeCallback callback = new(checked((byte)actor.NativeIndex), stage);
         callback.Validate();
-        actor.NativePendingReaction = actor.NativePendingReaction with { Stage = 0 };
+        if (bank == 0)
+        {
+            actor.NativePendingReaction = actor.NativePendingReaction with { Stage = 0 };
+        }
         BattleAttackCommand packet = new(actor.Id, actor.Id, BattleAbility.EnemyAbility, 0) { NativeCallback = callback };
-        (NativeBattleCommandBanks state, NativeBattleCommandLocation location) = nativeCommandBanks.EnqueueCallback(0, callback.ActorIndex, callback.Stage);
+        (NativeBattleCommandBanks state, NativeBattleCommandLocation location) = nativeCommandBanks.EnqueueCallback(bank, callback.ActorIndex, callback.Stage);
         nativeCommandBanks = state.BindCommand(location, 0, packet);
     }
 

@@ -5,6 +5,8 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleGfGeometryContext(uint Flags, uint FarColor, int DepthCue, ushort? TexturePage, ushort? Clut, int DepthBias, int TableBaseBucket, byte DepthShift);
 
+internal sealed record NativeBattleMeshPacketContext(uint Flags, uint? FarColor, int? DepthCue, ushort? TexturePage, ushort? Clut, uint? PackedUvOffset, int DepthBias, int TableBaseBucket, byte DepthShift);
+
 public enum NativeBattleGfPacketByteState : byte
 {
     Untouched,
@@ -31,6 +33,11 @@ public static class NativeBattleGfGeometryPackets
     }
 
     public static NativeBattleGfGeometryBatch EmitBatch7043B0(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleGfGeometryContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null)
+    {
+        return EmitBatch(source, geometryOffset, selectedVertices, matrix, projection, Normalize(context), colors, readSelectedVertex, observeDepth);
+    }
+
+    internal static NativeBattleGfGeometryBatch EmitBatch(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleMeshPacketContext context, NativeBattleSummonColors? colors, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null)
     {
         if (source.IsDefault || context.DepthShift > 31)
         {
@@ -68,7 +75,7 @@ public static class NativeBattleGfGeometryPackets
                     offsets[corner] = BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(4 + corner * 2));
                 }
                 ProjectedCorners corners = new(offsets, Project);
-                NativeBattleGfGeometryAttempt attempt = EmitAttempt7043B0(face, corners, group, context, colors, allocated, observeDepth);
+                NativeBattleGfGeometryAttempt attempt = EmitAttempt(face, corners, group, context, colors, allocated, observeDepth);
                 attempts.Add(attempt);
                 if (attempt.Primitive is not null)
                 {
@@ -112,6 +119,11 @@ public static class NativeBattleGfGeometryPackets
 
     public static NativeBattleGfGeometryAttempt EmitAttempt7043B0(ReadOnlySpan<byte> face, IReadOnlyList<NativeBattleModuleProjectedVertex> vertices, int group, NativeBattleGfGeometryContext context, NativeBattleSummonColors? colors = null, int byteOffsetRelative = 0, Action<ushort>? observeDepth = null)
     {
+        return EmitAttempt(face, vertices, group, Normalize(context), colors, byteOffsetRelative, observeDepth);
+    }
+
+    internal static NativeBattleGfGeometryAttempt EmitAttempt(ReadOnlySpan<byte> face, IReadOnlyList<NativeBattleModuleProjectedVertex> vertices, int group, NativeBattleMeshPacketContext context, NativeBattleSummonColors? colors, int byteOffsetRelative = 0, Action<ushort>? observeDepth = null)
+    {
         bool quad = (group & 1) != 0;
         bool textured = (group & 2) != 0;
         bool gouraud = (group & 4) != 0;
@@ -145,12 +157,13 @@ public static class NativeBattleGfGeometryPackets
         uint[] uvs = new uint[textured ? count : 0];
         if (textured)
         {
-            uvs[0] = BinaryPrimitives.ReadUInt32LittleEndian(face[12..]);
-            uvs[1] = BinaryPrimitives.ReadUInt32LittleEndian(face[16..]);
-            uvs[2] = quad ? BinaryPrimitives.ReadUInt32LittleEndian(face[20..]) : BinaryPrimitives.ReadUInt16LittleEndian(face[10..]);
+            uint offset = context.PackedUvOffset ?? throw new NotSupportedException("Native textured mesh requires its preserved contextDWORD18 UV offset.");
+            uvs[0] = unchecked(BinaryPrimitives.ReadUInt32LittleEndian(face[12..]) + offset);
+            uvs[1] = unchecked(BinaryPrimitives.ReadUInt32LittleEndian(face[16..]) + offset);
+            uvs[2] = quad ? unchecked(BinaryPrimitives.ReadUInt32LittleEndian(face[20..]) + offset + (offset << 16)) : unchecked(BinaryPrimitives.ReadUInt16LittleEndian(face[10..]) + offset);
             if (quad)
             {
-                uvs[3] = BinaryPrimitives.ReadUInt16LittleEndian(face[22..]);
+                uvs[3] = uvs[2] >> 16;
             }
             for (int corner = 0; corner < count; corner++)
             {
@@ -215,13 +228,15 @@ public static class NativeBattleGfGeometryPackets
         if ((flags & (gouraud ? 0x80u : 0x40u)) != 0)
         {
             NativeBattleSummonColors rules = colors ?? throw new NotSupportedException("Native7043B0 depth cue requires its authenticated45F270/45F4C0 PC interpolation constants.");
+            int factor = context.DepthCue ?? throw new NotSupportedException("Native mesh depth cue requires its actual signed contextDWORD0C.");
+            uint farColor = context.FarColor ?? throw new NotSupportedException("Native mesh depth cue requires its actually written contextRGB8.");
             if (gouraud)
             {
-                vertexColors = NativeBattleGteColorInterpolation.Gouraud45F4C0(vertexColors.ToImmutableArray(), quad, context.DepthCue, context.FarColor, rules).ToArray();
+                vertexColors = NativeBattleGteColorInterpolation.Gouraud45F4C0(vertexColors.ToImmutableArray(), quad, factor, farColor, rules).ToArray();
             }
             else
             {
-                vertexColors[0] = rules.Interpolate(command, context.DepthCue, context.FarColor);
+                vertexColors[0] = rules.Interpolate(command, factor, farColor);
             }
         }
         // 56BAA0 establishes ZSF3=155h/ZSF4=100h;AVSZ performs unsigned SHR12 before context bias and signed clamp.
@@ -237,6 +252,8 @@ public static class NativeBattleGfGeometryPackets
 
         int ScreenWord(int corner) => gouraud ? 2 + corner * (textured ? 3 : 2) : 2 + corner * (textured ? 2 : 1);
     }
+
+    private static NativeBattleMeshPacketContext Normalize(NativeBattleGfGeometryContext context) => new(context.Flags, context.FarColor, context.DepthCue, context.TexturePage, context.Clut, 0, context.DepthBias, context.TableBaseBucket, context.DepthShift);
 
     private static uint Material(uint original, ushort? contextWord, bool add, string name)
     {
