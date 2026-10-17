@@ -35,6 +35,7 @@ internal sealed class AutoPlayRunState
     public string? PrimaryContinuation { get; set; }
     public int PrimaryStory { get; set; }
     public int PrimaryFrontier { get; set; }
+    public bool PrimaryConditionsChanged { get; set; }
     public List<AutoPlayChoiceSelection>? PrimarySelections { get; set; }
     public string? Snapshot { get; set; }
     public string? Error { get; set; }
@@ -1022,11 +1023,13 @@ internal sealed class AutoPlayController
             SaveGame(Path.Combine(runDirectory!, continuation), CaptureState());
             int story = session.State.Variables.GetValueOrDefault(256);
             int frontier = ContinuationFrontier();
-            if (run.PrimaryContinuation is null || story > run.PrimaryStory || story == run.PrimaryStory && frontier > run.PrimaryFrontier)
+            bool conditionsChanged = run.ActiveVisit is string sourceVisit && run.VisitGuards.TryGetValue(sourceVisit, out AutoPlayVisitGuard? sourceGuard) && getWorld().Events.ReadPersistentPredicateFingerprint(sourceGuard.Reads) is string currentConditions && currentConditions != sourceGuard.Fingerprint;
+            if (run.PrimaryContinuation is null || story > run.PrimaryStory || story == run.PrimaryStory && (frontier > run.PrimaryFrontier || frontier == run.PrimaryFrontier && conditionsChanged && !run.PrimaryConditionsChanged))
             {
                 run.PrimaryContinuation = continuation;
                 run.PrimaryStory = story;
                 run.PrimaryFrontier = frontier;
+                run.PrimaryConditionsChanged = conditionsChanged;
                 run.PrimarySelections = run.ActiveSelections?.ToList();
             }
             foreach (string key in run.SceneChoices)
@@ -1073,6 +1076,7 @@ internal sealed class AutoPlayController
         restore(GameSession.Load(Path.Combine(runDirectory!, run.PrimaryContinuation)));
         run.ActiveSelections = run.PrimarySelections?.ToList();
         run.PrimaryContinuation = null;
+        run.PrimaryConditionsChanged = false;
         return true;
     }
 

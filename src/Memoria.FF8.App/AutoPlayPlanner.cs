@@ -303,7 +303,7 @@ internal sealed class AutoPlayPlanner
             .ThenBy(item => item.Visit.Visit.Key, StringComparer.Ordinal)
             .ThenBy(item => item.Coverage.Event.Id, StringComparer.Ordinal);
         var selected = ordered.FirstOrDefault();
-        if (needsRefresh is not null)
+        if (needsRefresh is not null && (selected is null || progressionOrder(selected.Visit.Visit, selected.Coverage.Event) >= 0))
         {
             var ordinary = ordered.FirstOrDefault(item => !item.Coverage.Event.ChangesStory && progressionOrder(item.Visit.Visit, item.Coverage.Event) <= 0);
             if (ordinary is not null)
