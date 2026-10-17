@@ -22,6 +22,7 @@ internal sealed class AutoPlayConditionCoverage
 
 internal sealed record AutoPlayChoiceSelection(string Key, int Selection);
 internal sealed record AutoPlayEventRoute(string DestinationVisitKey, string? ConditionSignature, bool? ObservedStoryChanged, IReadOnlyList<AutoPlayChoiceSelection>? Selections, string? TargetId = null);
+internal sealed record AutoPlayRetiredRoute(AutoPlayEventRoute Route, string ActualChoiceKey, int FirstChoice, int LastChoice, IReadOnlyList<AutoPlayChoiceSelection> ExecutedPrefix);
 internal sealed record AutoPlayPlanStep(string VisitKey, AutoPlayEvent Event, bool IsTravel, AutoPlayEventRoute? Route = null, string? RefreshVisitKey = null);
 internal sealed record AutoPlayUnavailableAttempt(string SourceConditionSignature, string DestinationVisitKey, string GuardKey, string GuardFingerprint, string? TargetId = null);
 
@@ -35,6 +36,8 @@ internal sealed class AutoPlayEventCoverage
     public bool? ObservedStoryChanged { get; set; }
     public string? ObservedConditionSignature { get; set; }
     public List<AutoPlayEventRoute> Routes { get; set; } = [];
+    public List<AutoPlayRetiredRoute> RetiredRoutes { get; set; } = [];
+    public bool RouteNeedsRediscovery { get; set; }
     public List<AutoPlayUnavailableAttempt> UnavailableAttempts { get; set; } = [];
     public bool Unavailable { get; set; }
     public HashSet<string> UnavailableVariants { get; set; } = new(StringComparer.Ordinal);
@@ -186,6 +189,7 @@ internal sealed class AutoPlayPlanner
     {
         AutoPlayEventCoverage item = FindEvent(visitKey, eventId);
         item.Completed = true;
+        item.RouteNeedsRediscovery = false;
         item.BlockedReason = null;
         item.Unavailable = false;
         string? completedAvailability = availabilityFingerprintAuthoritative ? entryAvailabilityFingerprint : item.AvailabilityFingerprint;
@@ -216,6 +220,40 @@ internal sealed class AutoPlayPlanner
         AutoPlayEventCoverage item = FindEvent(visitKey, eventId);
         item.BlockedReason = reason;
         ConsumeConditions(item, null);
+    }
+
+    public void RetireTravelRoute(string visitKey, string eventId, AutoPlayEventRoute route, string actualChoiceKey, int first, int last, IReadOnlyList<AutoPlayChoiceSelection>? executedPrefix)
+    {
+        ArgumentNullException.ThrowIfNull(route);
+        ArgumentException.ThrowIfNullOrWhiteSpace(actualChoiceKey);
+        ArgumentOutOfRangeException.ThrowIfNegative(first);
+        ArgumentOutOfRangeException.ThrowIfLessThan(last, first);
+        AutoPlayEventCoverage item = FindEvent(visitKey, eventId);
+        if (route.Selections is null || executedPrefix is null || executedPrefix.Count > route.Selections.Count || !route.Selections.Take(executedPrefix.Count).SequenceEqual(executedPrefix))
+        {
+            throw new InvalidOperationException("Route retirement requires the exact authenticated executed prefix of its recorded choices.");
+        }
+        if (executedPrefix.Count < route.Selections.Count)
+        {
+            AutoPlayChoiceSelection expected = route.Selections[executedPrefix.Count];
+            if (expected.Key == actualChoiceKey && expected.Selection >= first && expected.Selection <= last)
+            {
+                throw new InvalidOperationException("The actual next choice still admits the recorded route selection.");
+            }
+        }
+        if (!OrderedEvents(FindVisit(visitKey)).Contains(item) || !TravelRoutes(item).Any(candidate => SameTravelRoute(candidate, route)))
+        {
+            throw new InvalidOperationException("Only an exact known eligible travel route can be retired.");
+        }
+        AutoPlayEventRoute recorded = item.Routes.Single(candidate => SameTravelRoute(candidate, route));
+        item.RetiredRoutes.Add(new(recorded with { Selections = recorded.Selections!.ToArray() }, actualChoiceKey, first, last, executedPrefix.ToArray()));
+        item.Routes.Remove(recorded);
+        item.RouteNeedsRediscovery = true;
+    }
+
+    private static bool SameTravelRoute(AutoPlayEventRoute left, AutoPlayEventRoute right)
+    {
+        return left.DestinationVisitKey == right.DestinationVisitKey && left.ConditionSignature == right.ConditionSignature && left.ObservedStoryChanged == right.ObservedStoryChanged && left.TargetId == right.TargetId && (left.Selections is null ? right.Selections is null : right.Selections is not null && left.Selections.SequenceEqual(right.Selections));
     }
 
     public void MarkUnavailable(string visitKey, string eventId, AutoPlayUnavailableAttempt attempt)
@@ -521,7 +559,7 @@ internal sealed class AutoPlayPlanner
     private static bool NeedsExecution(AutoPlayEventCoverage item)
     {
         bool conditionsChanged = item.Event.ConditionSignature is string signature && item.Conditions is not null ? !item.Conditions.Contains(signature) : !item.Completed;
-        return conditionsChanged || item.AvailabilityFingerprint is string availability && !item.CompletedAvailabilityFingerprints.Contains(availability);
+        return item.RouteNeedsRediscovery || conditionsChanged || item.AvailabilityFingerprint is string availability && !item.CompletedAvailabilityFingerprints.Contains(availability);
     }
 
     private static IEnumerable<AutoPlayEventRoute> TravelRoutes(AutoPlayEventCoverage item)
@@ -531,7 +569,7 @@ internal sealed class AutoPlayPlanner
 
     private static void NormalizeLegacyRoute(AutoPlayEventCoverage item)
     {
-        if (item.Completed && item.Routes.Count == 0 && item.Event.DestinationVisitKey is string destination)
+        if (item.Completed && item.Routes.Count == 0 && item.RetiredRoutes.Count == 0 && item.Event.DestinationVisitKey is string destination)
         {
             bool? observed = StringComparer.Ordinal.Equals(item.ObservedConditionSignature, item.Event.ConditionSignature) ? item.ObservedStoryChanged : null;
             item.Routes.Add(new(destination, item.Event.ConditionSignature, observed, null));

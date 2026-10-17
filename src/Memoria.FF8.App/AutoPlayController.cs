@@ -790,9 +790,9 @@ internal sealed partial class AutoPlayController
         AutoPlayChoiceCoverage choice = run.Coverage.Choices.Single(item => item.Key == key);
         RefreshParticipantChoice(choice);
         int selection = attempt % input.Masks.Count;
-        if (run.ActiveTravelRoute is { } route)
+        if (run.ActiveTravelRoute is not null && TrySelectTravelChoice(key, 0, input.Masks.Count - 1, out int recorded))
         {
-            selection = SelectRecordedTravelChoice(route, run.ActiveSelections, key, 0, input.Masks.Count - 1);
+            selection = recorded;
         }
         else if (choice.ActiveOption is null && !choice.Finished)
         {
@@ -1052,9 +1052,8 @@ internal sealed partial class AutoPlayController
         planner.ObserveChoice(key, last - first + 1, first);
         AutoPlayChoiceCoverage coverage = run.Coverage.Choices.Single(item => item.Key == key);
         RefreshParticipantChoice(coverage);
-        if (run.ActiveTravelRoute is { } route)
+        if (run.ActiveTravelRoute is not null && TrySelectTravelChoice(key, first, last, out int recorded))
         {
-            int recorded = SelectRecordedTravelChoice(route, run.ActiveSelections, key, first, last);
             run.DialogueSelections[key] = recorded;
             run.ActiveSelections?.Add(new(key, recorded));
             ApplyDialogueSelection(recorded);
@@ -1100,6 +1099,30 @@ internal sealed partial class AutoPlayController
             throw new NotSupportedException("The actual native choice does not match the recorded travel route key and selection range.");
         }
         return next.Selection;
+    }
+
+    private bool TrySelectTravelChoice(string key, int first, int last, out int selection)
+    {
+        AutoPlayEventRoute route = run.ActiveTravelRoute ?? throw new InvalidOperationException("No active travel route.");
+        if (route.Selections is null || run.ActiveSelections is null || run.ActiveSelections.Count > route.Selections.Count || !route.Selections.Take(run.ActiveSelections.Count).SequenceEqual(run.ActiveSelections))
+        {
+            selection = SelectRecordedTravelChoice(route, run.ActiveSelections, key, first, last);
+            return true;
+        }
+        if (run.ActiveSelections.Count < route.Selections.Count && route.Selections[run.ActiveSelections.Count] is { } next && next.Key == key && next.Selection >= first && next.Selection <= last)
+        {
+            selection = SelectRecordedTravelChoice(route, run.ActiveSelections, key, first, last);
+            return true;
+        }
+        if (run.ActiveVisit is not string visit || run.ActiveEvent is not string eventId || run.ActiveConditionSignature != route.ConditionSignature || run.ActiveTargetId != route.TargetId || run.ActiveBeforeCheckpoint is null)
+        {
+            throw new NotSupportedException("A changed travel choice lacks its authenticated source attempt.");
+        }
+        planner.RetireTravelRoute(visit, eventId, route, key, first, last, run.ActiveSelections);
+        run.ActiveTravelRoute = null;
+        run.RefreshTargetVisit = null;
+        selection = default;
+        return false;
     }
 
     internal static bool NeedsWorldConfirmRelease(NativeWorldInputHistory? history)
