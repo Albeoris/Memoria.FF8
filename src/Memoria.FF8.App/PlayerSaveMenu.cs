@@ -6,7 +6,8 @@ namespace Memoria.FF8;
 internal enum PlayerSaveMenuMode
 {
     Save,
-    Load
+    Load,
+    QuickLoad
 }
 
 internal sealed class PlayerSaveMenu
@@ -26,9 +27,10 @@ internal sealed class PlayerSaveMenu
     public int Selection { get; private set; }
     public int Bank { get; private set; }
     public int Page { get; private set; }
-    public int SelectedSlot => Entries[Selection].Slot;
+    public int SelectedSlot => Entries.Count == 0 ? 0 : Entries[Selection].Slot;
     public PlayerSaveEntry? QuickEntry => Mode == PlayerSaveMenuMode.Load ? Entries[0] : null;
-    public IReadOnlyList<PlayerSaveEntry> VisibleEntries => Entries.Where(entry => entry.Slot > Bank * PlayerSaveStore.SlotsPerBank && entry.Slot <= (Bank + 1) * PlayerSaveStore.SlotsPerBank).Skip(Page * EntriesPerPage).Take(EntriesPerPage).ToArray();
+    public int QuickPageCount => Math.Max(1, (Entries.Count + EntriesPerPage - 1) / EntriesPerPage);
+    public IReadOnlyList<PlayerSaveEntry> VisibleEntries => Mode == PlayerSaveMenuMode.QuickLoad ? Entries.Skip(Page * EntriesPerPage).Take(EntriesPerPage).ToArray() : Entries.Where(entry => entry.Slot > Bank * PlayerSaveStore.SlotsPerBank && entry.Slot <= (Bank + 1) * PlayerSaveStore.SlotsPerBank).Skip(Page * EntriesPerPage).Take(EntriesPerPage).ToArray();
     public bool ConfirmOverwrite { get; private set; }
     public string? Message { get; private set; }
     public IReadOnlyList<PlayerSaveEntry> Entries { get; private set; } = [];
@@ -43,7 +45,16 @@ internal sealed class PlayerSaveMenu
         Mode = mode;
         ConfirmOverwrite = false;
         Message = null;
-        Entries = store.ReadEntries(mode == PlayerSaveMenuMode.Load);
+        RefreshEntries();
+        if (mode == PlayerSaveMenuMode.QuickLoad)
+        {
+            Selection = 0;
+            Bank = 0;
+            Page = 0;
+            Message = Entries.Count == 0 ? "No quick saves." : null;
+            IsOpen = true;
+            return;
+        }
         MenuCursor cursor = remembered.GetValueOrDefault(mode, new MenuCursor(mode == PlayerSaveMenuMode.Load ? 0 : 1, 0, 0));
         Bank = cursor.Bank;
         Page = cursor.Page;
@@ -74,14 +85,13 @@ internal sealed class PlayerSaveMenu
             {
                 if (input.QuickLoad)
                 {
-                    load(0);
-                    Close();
+                    Open(PlayerSaveMenuMode.QuickLoad);
                 }
                 else
                 {
                     save(0);
                     Message = "Quick saved.";
-                    Entries = store.ReadEntries(Mode == PlayerSaveMenuMode.Load);
+                    RefreshEntries();
                 }
                 SoundRequested?.Invoke(MenuSound.Confirm);
             }
@@ -110,7 +120,13 @@ internal sealed class PlayerSaveMenu
         if (input.MenuHorizontal != 0 || input.MenuPage != 0 || input.MenuVertical != 0)
         {
             (int Bank, int Page, int Selection) previous = (Bank, Page, Selection);
-            if (input.MenuHorizontal != 0)
+            if (Mode == PlayerSaveMenuMode.QuickLoad)
+            {
+                int delta = input.MenuVertical != 0 ? Math.Sign(input.MenuVertical) : Math.Sign(input.MenuPage) * EntriesPerPage;
+                Selection = Math.Clamp(Selection + delta, 0, Math.Max(0, Entries.Count - 1));
+                Page = Selection / EntriesPerPage;
+            }
+            else if (input.MenuHorizontal != 0)
             {
                 int nextBank = Math.Clamp(Bank + Math.Sign(input.MenuHorizontal), 0, PlayerSaveStore.BankCount - 1);
                 int slot = SelectedSlot == 0 ? 0 : nextBank * PlayerSaveStore.SlotsPerBank + (SelectedSlot - 1) % PlayerSaveStore.SlotsPerBank + 1;
@@ -148,8 +164,14 @@ internal sealed class PlayerSaveMenu
         {
             return;
         }
+        if (Entries.Count == 0)
+        {
+            Message = "No quick saves.";
+            SoundRequested?.Invoke(MenuSound.Cancel);
+            return;
+        }
         PlayerSaveEntry entry = Entries[Selection];
-        if (Mode == PlayerSaveMenuMode.Load && !entry.CanLoad)
+        if (Mode != PlayerSaveMenuMode.Save && !entry.CanLoad)
         {
             Message = entry.Details == "Empty" ? "This slot is empty." : entry.Details;
             SoundRequested?.Invoke(MenuSound.Cancel);
@@ -180,8 +202,18 @@ internal sealed class PlayerSaveMenu
             ConfirmOverwrite = false;
             Message = $"{Mode} failed: {exception.Message}";
             Console.Error.WriteLine(exception);
-            Entries = store.ReadEntries(Mode == PlayerSaveMenuMode.Load);
+            RefreshEntries();
             SoundRequested?.Invoke(MenuSound.Cancel);
+        }
+    }
+
+    private void RefreshEntries()
+    {
+        Entries = Mode == PlayerSaveMenuMode.QuickLoad ? store.ReadQuickEntries() : store.ReadEntries(Mode == PlayerSaveMenuMode.Load);
+        Selection = Math.Clamp(Selection, 0, Math.Max(0, Entries.Count - 1));
+        if (Mode == PlayerSaveMenuMode.QuickLoad)
+        {
+            Page = Selection / EntriesPerPage;
         }
     }
 
@@ -197,7 +229,10 @@ internal sealed class PlayerSaveMenu
 
     private void RememberCursor()
     {
-        remembered[Mode] = new MenuCursor(SelectedSlot, Bank, Page);
+        if (Mode != PlayerSaveMenuMode.QuickLoad)
+        {
+            remembered[Mode] = new MenuCursor(SelectedSlot, Bank, Page);
+        }
     }
 
     private sealed record MenuCursor(int Slot, int Bank, int Page);

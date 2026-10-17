@@ -20,7 +20,7 @@ public sealed partial class MenuController
         "V-Sync" or "Field FPS" or "Battle FPS" or "Menu FPS" => "display",
         "Music volume" or "Effect volume" or "Sound" => "audio",
         "Controller" or "Vibration" => "controls",
-        "Cursor" or "Field message" or "Rare card markers" or "Text scale" or "UI font" or "UI font size" or "Dialogue font" or "Dialogue font size" => "interface",
+        "Quick saves" or "Cursor" or "Field message" or "Rare card markers" or "Text scale" or "UI font" or "UI font size" or "Dialogue font" or "Dialogue font size" => "interface",
         _ => "gameplay"
     };
 

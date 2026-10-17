@@ -74,6 +74,7 @@ internal sealed partial class RecreateGame : Game
         saveMenu.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
         globalSettings.ImportLegacyFiles(options.SavePath);
         uiPreferences = GameUi.UiPreferences.Load(UiPreferencesPath);
+        playerSaves.SetQuickSaveCount(uiPreferences.QuickSaveCount);
         (int width, int height) = uiPreferences.WindowSize(options);
         graphics = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = width, PreferredBackBufferHeight = height, SynchronizeWithVerticalRetrace = uiPreferences.VSync, GraphicsProfile = GraphicsProfile.HiDef, PreferMultiSampling = true };
         Window.Title = "Memoria - Final Fantasy VIII";
@@ -664,7 +665,7 @@ internal sealed partial class RecreateGame : Game
             {
                 if (input.QuickLoad)
                 {
-                    LoadPlayerSlot(0);
+                    OpenPlayerSaveMenu(PlayerSaveMenuMode.QuickLoad);
                 }
                 else
                 {
@@ -715,7 +716,7 @@ internal sealed partial class RecreateGame : Game
         GameState state = playerSaves.Load(slot);
         ValidatePlayerState(state);
         RestorePlayerState(state);
-        ShowSaveNotice(slot == 0 ? "Quick loaded." : $"Loaded {PlayerSaveStore.GetLabel(slot)}.", slot == 0 ? 1 : 5);
+        ShowSaveNotice(slot <= 0 ? "Quick loaded." : $"Loaded {PlayerSaveStore.GetLabel(slot)}.", slot <= 0 ? 1 : 5);
     }
 
 

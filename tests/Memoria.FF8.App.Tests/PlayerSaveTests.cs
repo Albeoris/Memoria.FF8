@@ -266,9 +266,11 @@ public sealed class PlayerSaveTests : IDisposable
         Assert.Equal(42, store.Load(0).X);
         menu.Update(new InputFrame(0, 0, false, false, false, false, QuickLoad: true), _ => throw new InvalidOperationException(), _ => throw new InvalidDataException("Invalid VM continuation"));
         Assert.True(menu.IsOpen);
+        Assert.Equal(PlayerSaveMenuMode.QuickLoad, menu.Mode);
+        menu.Update(Confirm(), _ => throw new InvalidOperationException(), _ => throw new InvalidDataException("Invalid VM continuation"));
         Assert.Contains("Invalid VM continuation", menu.Message);
         int loaded = -1;
-        menu.Update(new InputFrame(0, 0, false, false, false, false, QuickLoad: true), _ => throw new InvalidOperationException(), slot => loaded = slot);
+        menu.Update(Confirm(), _ => throw new InvalidOperationException(), slot => loaded = slot);
         Assert.Equal(0, loaded);
         Assert.False(menu.IsOpen);
     }

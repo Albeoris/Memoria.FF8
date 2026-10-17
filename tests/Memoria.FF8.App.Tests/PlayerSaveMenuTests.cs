@@ -86,12 +86,13 @@ public sealed class PlayerSaveMenuTests : IDisposable
         menu.Open(PlayerSaveMenuMode.Save);
         menu.Update(new InputFrame(0, 0, false, false, false, true), slot => Assert.Equal(0, slot), _ => Assert.Fail("Unexpected load."));
         Assert.Equal(new[] { MenuSound.Confirm }, sounds);
-        menu.Update(new InputFrame(0, 0, false, false, false, false, QuickLoad: true), _ => Assert.Fail("Unexpected save."), _ => throw new InvalidDataException("Unavailable test save."));
+        menu.Update(new InputFrame(0, 0, false, false, false, false, QuickLoad: true), _ => Assert.Fail("Unexpected save."), _ => Assert.Fail("Quick load must open the picker."));
         Assert.True(menu.IsOpen);
-        Assert.Equal(new[] { MenuSound.Confirm, MenuSound.Cancel }, sounds);
-        menu.Update(new InputFrame(0, 0, false, false, false, false, QuickLoad: true), _ => Assert.Fail("Unexpected save."), slot => Assert.Equal(0, slot));
-        Assert.False(menu.IsOpen);
-        Assert.Equal(new[] { MenuSound.Confirm, MenuSound.Cancel, MenuSound.Confirm }, sounds);
+        Assert.Equal(PlayerSaveMenuMode.QuickLoad, menu.Mode);
+        Assert.Equal(new[] { MenuSound.Confirm, MenuSound.Confirm }, sounds);
+        menu.Update(Confirm(), _ => Assert.Fail("Unexpected save."), _ => Assert.Fail("Empty picker must not load."));
+        Assert.Equal(new[] { MenuSound.Confirm, MenuSound.Confirm, MenuSound.Cancel }, sounds);
+
     }
 
     private PlayerSaveMenu CreateMenu(out PlayerSaveStore store)

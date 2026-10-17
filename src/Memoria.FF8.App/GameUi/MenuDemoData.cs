@@ -83,6 +83,7 @@ public static class MenuDemoData
         {
             data.Settings[setting.Id] = setting.Values[0];
         }
+        data.Settings["Quick saves"] = "9";
         AddLimits(data);
         AddBattle(data);
         return data;
@@ -165,6 +166,7 @@ public static class MenuSettings
         new("Menu FPS", "Title and menu presentation limit. Applies to this installation. V-Sync may limit output further.", ["15", "30", "60", "90", "120", "144", "240", "Unlimited"]),
         new("Sound", "Original stereo / mono output setting.", ["Stereo", "Mono"]),
         new("Controller", "Original normal / custom control mapping.", ["Normal", "Customize"]),
+        new("Quick saves", "Number of rotating quick saves to retain. Shared by every save on this installation.", Enumerable.Range(1, 999).Select(value => value.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray()),
         new("Cursor", "Initial resets the cursor when entering a menu. Memory remembers the last selection.", ["Initial", "Memory"]),
         new("ATB", "Original battle timing mode.", ["Active", "Wait"]),
         new("Battle ATB mode", "Classic uses continuous ATB. Turn Based advances idle gauges when a turn is requested. Saved with the game; Title sets the new-game default.", ["Classic", "Turn Based"]),

@@ -4,7 +4,7 @@ Memoria saves its current state as standalone JSON. Loading restores that state 
 
 ## Player saves
 
-The default player directory is `%LOCALAPPDATA%\Memoria.FF8\player-saves`. It contains `quick.json` and 60 manual slots, `slot-01.json` through `slot-60.json`, arranged as two banks of 30.
+The default player directory is `%LOCALAPPDATA%\Memoria.FF8\player-saves`. It contains a rotating set of quick saves (including the compatible `quick.json`) and 60 manual slots, `slot-01.json` through `slot-60.json`, arranged as two banks of 30.
 
 Default keyboard bindings are:
 
@@ -14,6 +14,8 @@ Default keyboard bindings are:
 | F9 | Quick Load |
 | F6 | Save menu |
 | F10 | Load menu |
+
+Quick Save keeps nine snapshots by default. Config → Interface → Quick saves sets the installation-wide count (at least one). When full, saving replaces the oldest quick save; reducing the count immediately deletes the oldest excess quick saves. Quick Load opens a picker containing only quick saves, newest first, with the newest selected each time. Up/Down selects a save, PageUp/PageDown changes page, Confirm loads and Cancel closes.
 
 Continue opens the Load menu. Up/Down selects a slot, Left/Right changes bank, and PageUp/PageDown changes page. Each page shows five manual slots; Quick Save is pinned separately in Load. Confirm selects or accepts an overwrite; Cancel backs out. Save/Load cursors are remembered while the application runs. Bindings can be changed in Controls.
 

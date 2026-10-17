@@ -57,16 +57,17 @@ internal sealed partial class RecreateGame
             content.RowDefinitions.Add(UiGridLength.Pixel(72));
             content.RowDefinitions.Add(UiGridLength.Star());
 
-            bool loading = saveMenu.Mode == PlayerSaveMenuMode.Load;
+            bool loading = saveMenu.Mode != PlayerSaveMenuMode.Save;
+            bool quickLoading = saveMenu.Mode == PlayerSaveMenuMode.QuickLoad;
             UiGrid header = new() { Gap = 5 };
             header.RowDefinitions.Add(UiGridLength.Star());
             header.ColumnDefinitions.Add(UiGridLength.Star(3.7f));
             header.ColumnDefinitions.Add(UiGridLength.Star(1.3f));
             UiPanel info = new() { Caption = "INFO.", CaptionFontSize = 13, CaptionHeight = 15, Padding = new UiThickness(8, 2) };
-            info.Children.Add(new UiLabel { Text = $"Bank {saveMenu.Bank + 1} / {PlayerSaveStore.BankCount}    Page {saveMenu.Page + 1} / {PlayerSaveMenu.PageCount}", FontSize = 23 });
+            info.Children.Add(new UiLabel { Text = quickLoading ? $"Page {saveMenu.Page + 1} / {saveMenu.QuickPageCount}" : $"Bank {saveMenu.Bank + 1} / {PlayerSaveStore.BankCount}    Page {saveMenu.Page + 1} / {PlayerSaveMenu.PageCount}", FontSize = 23 });
             header.Children.Add(info);
             UiPanel title = new() { GridColumn = 1, Padding = new UiThickness(8, 3) };
-            title.Children.Add(new UiLabel { Text = loading ? "Load" : "Save", FontSize = 27 });
+            title.Children.Add(new UiLabel { Text = quickLoading ? "Quick Load" : loading ? "Load" : "Save", FontSize = 27 });
             header.Children.Add(title);
             content.Children.Add(header);
 

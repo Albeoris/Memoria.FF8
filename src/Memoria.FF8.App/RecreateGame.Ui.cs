@@ -96,6 +96,8 @@ internal sealed partial class RecreateGame
         }
         data.Settings["Music volume"] = uiPreferences.MusicVolume + "%";
         data.Settings["Cursor"] = uiPreferences.CursorMemory ? "Memory" : "Initial";
+        data.Settings["Quick saves"] = uiPreferences.QuickSaveCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        data.SupportedActions.Add("config:Quick saves");
         data.Settings["Field message"] = uiPreferences.FieldMessageSpeed.ToString();
         data.Settings["Vibration"] = keyboard.Profile.VibrationEnabled ? "On" : "Off";
         data.Settings["Effect volume"] = uiPreferences.SoundVolume + "%";
@@ -294,6 +296,10 @@ internal sealed partial class RecreateGame
             UiPreferences nextPreferences = ReadCurrentUiPreferences().WithSetting(action.SubjectId, action.Value);
             ApplyCurrentBattleSettings(nextPreferences, action.SubjectId);
             UiPreferences installationPreferences = uiPreferences.WithInstallationSetting(action.SubjectId, action.Value, session.State.Scene != SceneKind.Title);
+            if (action.SubjectId == "Quick saves")
+            {
+                playerSaves.SetQuickSaveCount(installationPreferences.QuickSaveCount);
+            }
             installationPreferences.Save(UiPreferencesPath);
             uiPreferences = installationPreferences;
             ApplyDisplaySettings();
