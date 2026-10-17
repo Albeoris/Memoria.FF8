@@ -9,12 +9,11 @@ on:
 permissions:
   contents: write
 
-concurrency:
-  group: windows-distribution-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   package:
+    concurrency:
+      group: windows-distribution-${{ github.ref }}
+      cancel-in-progress: true
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,24 +25,6 @@ jobs:
           name: Memoria-FF8-win-x64
           path: artifacts/Memoria-FF8-win-x64.zip
           if-no-files-found: error
-      - name: Update nightly release
-        if: github.ref == 'refs/heads/main'
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release view nightly --repo "$env:GITHUB_REPOSITORY" *> $null
-          if ($LASTEXITCODE -ne 0) {
-            gh release create nightly --repo "$env:GITHUB_REPOSITORY" --target "$env:GITHUB_SHA" --title 'Nightly' --notes 'Latest successful build from main.' --prerelease
-            if ($LASTEXITCODE -ne 0) { throw 'Could not create the nightly release.' }
-          }
-          gh api --method PATCH "repos/$env:GITHUB_REPOSITORY/git/refs/tags/nightly" -f "sha=$env:GITHUB_SHA" -F force=true
-          if ($LASTEXITCODE -ne 0) { throw 'Could not advance the nightly source tag.' }
-          gh release upload nightly artifacts/Memoria-FF8-win-x64.zip --repo "$env:GITHUB_REPOSITORY" --clobber
-          if ($LASTEXITCODE -ne 0) { throw 'Could not upload the nightly distribution.' }
-          $updatedAt = [DateTime]::UtcNow.ToString("yyyy-MM-dd HH:mm:ss 'UTC'", [Globalization.CultureInfo]::InvariantCulture)
-          gh release edit nightly --repo "$env:GITHUB_REPOSITORY" --title "Nightly - $updatedAt"
-          if ($LASTEXITCODE -ne 0) { throw 'Could not update the nightly release title.' }
       - name: Publish versioned release
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
@@ -57,3 +38,39 @@ jobs:
           }
           gh release upload "$env:GITHUB_REF_NAME" artifacts/Memoria-FF8-win-x64.zip --repo "$env:GITHUB_REPOSITORY" --clobber
           if ($LASTEXITCODE -ne 0) { throw 'Could not upload the versioned distribution.' }
+
+  nightly:
+    needs: package
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    concurrency:
+      group: windows-nightly
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Memoria-FF8-win-x64
+          path: artifacts
+      - name: Update nightly release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $mainSha = gh api "repos/$env:GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha
+          if ($LASTEXITCODE -ne 0) { throw 'Could not resolve the current main commit.' }
+          if ($mainSha -ne $env:GITHUB_SHA) {
+            Write-Host 'Skipping nightly: this build is not the current main commit.'
+            return
+          }
+          gh release view nightly --repo "$env:GITHUB_REPOSITORY" *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create nightly --repo "$env:GITHUB_REPOSITORY" --target "$env:GITHUB_SHA" --title 'Nightly' --notes 'Latest successful build from main.' --prerelease
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create the nightly release.' }
+          }
+          gh api --method PATCH "repos/$env:GITHUB_REPOSITORY/git/refs/tags/nightly" -f "sha=$env:GITHUB_SHA" -F force=true
+          if ($LASTEXITCODE -ne 0) { throw 'Could not advance the nightly source tag.' }
+          gh release upload nightly artifacts/Memoria-FF8-win-x64.zip --repo "$env:GITHUB_REPOSITORY" --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload the nightly distribution.' }
+          $updatedAt = [DateTime]::UtcNow.ToString("yyyy-MM-dd HH:mm:ss 'UTC'", [Globalization.CultureInfo]::InvariantCulture)
+          gh release edit nightly --repo "$env:GITHUB_REPOSITORY" --title "Nightly - $updatedAt"
+          if ($LASTEXITCODE -ne 0) { throw 'Could not update the nightly release title.' }
