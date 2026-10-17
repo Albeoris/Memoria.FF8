@@ -5,6 +5,15 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativeTerrainCellOcclusionTests
 {
     [Fact]
+    public void DeclaredFootDepartureExcludesCellsRejectedByBothNativeBoundTriangles()
+    {
+        using WorldAssets assets = new(TestResources.GameDirectory);
+        NativeWorldFootCameraState camera = new(13249, -26779, -304, 13249, -26779, -560, 1536, -112, -341, -7168);
+        WorldNativeTerrainOcclusionResult result = assets.CertifyNativeTerrainCameraOcclusion(camera, 304, WorldTerrainSelection.Replacements(285), 1);
+        Assert.True(result.Occluded == false, result.Reason);
+    }
+
+    [Fact]
     public void ActualEstharRoadCameraExcludesTheOccluderCellOutsideNativeGeneration()
     {
         using WorldAssets assets = new(TestResources.GameDirectory);

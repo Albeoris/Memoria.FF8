@@ -41,7 +41,8 @@ public sealed class NativeWorldEventRandomTests
         using WorldMapScene world = component.World;
         GameSession session = component.Session;
         session.SetSavedWorldState(session.State.SavedWorld! with { WorldEventVariable125 = null });
-        (ushort Opcode, ushort Operand)[] tail = unknown ? [(0xFF0A, 0), (0xFF2D, 0x0001), (0xFF0B, 0)] : [(0xFF26, 0)];
+        // FF23 opens a native choice window, whose runtime command contract remains unsupported.
+        (ushort Opcode, ushort Operand)[] tail = unknown ? [(0xFF0A, 0), (0xFF2D, 0x0001), (0xFF0B, 0)] : [(0xFF23, 0)];
         InjectWorldEvents(world, [(0xFF01, 0), (0xFF04, 0), (0xFF28, 0x0100), (0xFF2E, 0x0100), .. tail, (0xFF05, 0)]);
         GameState before = session.State;
         string worldBefore = JsonSerializer.Serialize(world.State);
