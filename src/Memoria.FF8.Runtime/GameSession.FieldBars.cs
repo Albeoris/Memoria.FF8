@@ -6,6 +6,16 @@ public sealed partial class GameSession
 {
     public NativeFieldBarsState? FieldBars => State.FieldBars;
     public bool CanStoreFieldBars => true;
+    public bool CanStoreNativeFieldBarAliasOwners => true;
+
+    public void SetNativeFieldBarAliasOwners(NativeFieldBarsState bars, NativeVibrationProcessState vibration)
+    {
+        ArgumentNullException.ThrowIfNull(bars);
+        ArgumentNullException.ThrowIfNull(vibration);
+        bars.Validate();
+        vibration.Validate();
+        State = State with { FieldBars = bars, VibrationProcess = vibration };
+    }
 
     public void SetFieldBars(NativeFieldBarsState state)
     {

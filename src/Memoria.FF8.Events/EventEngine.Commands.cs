@@ -42,9 +42,7 @@ public sealed partial class EventEngine
             case Jsm.Opcode.BROKEN:
             case Jsm.Opcode.SETBAR:
             case Jsm.Opcode.KILLBAR:
-                NativeFieldBarsState bars = PrepareNativeBars(fiber, opcode);
-                args = Pop(fiber, opcode == Jsm.Opcode.BROKEN ? 8 : opcode == Jsm.Opcode.DISPBAR ? 7 : opcode == Jsm.Opcode.SETBAR ? 2 : 1);
-                services.SetFieldBars(bars);
+                args = ExecuteNativeBars(fiber, opcode);
                 break;
             case Jsm.Opcode.RET:
                 if (fiber.Stack.Count != 0 && (!HasNativeOperandRecord(fiber.ObjectId) || fiber.Initialization))

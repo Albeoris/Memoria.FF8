@@ -105,6 +105,10 @@ public sealed record NativeVibrationProcessState
     [JsonRequired]
     public required int CarHandleC76788 { get; init; }
 
+    /// <summary>An address AND-transform applied after bank binding; null retains the unmodified binding without inventing a physical heap address.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public uint? ResourcePointerAndMask { get; init; }
+
     public static NativeVibrationProcessState FromColdProcess()
     {
         //BSS motor/clock words0; executed4A2D30 priority0, generation1, IDs0..3.
@@ -156,6 +160,10 @@ public sealed record NativeVibrationProcessState
         {
             return new NativeVibrationEnqueue(this, 0);
         }
+        if (ResourcePointerAndMask is uint mask && mask != uint.MaxValue)
+        {
+            throw new NotSupportedException("The vibration resource pointer has an address transform whose result is not proved to retain the authenticated bank binding.");
+        }
         bank.Validate();
         if ((uint)pattern >= bank.Offsets.Length)
         {
@@ -181,6 +189,8 @@ public sealed record NativeVibrationProcessState
         NativeVibrationSlot replacement = old with { A = a, B = b, Generation = generation, Priority = unchecked((byte)priority) };
         return new NativeVibrationEnqueue(this with { Slots = Slots.SetItem(selected, replacement) }, generation * 16 | old.Id);
     }
+
+    public NativeVibrationProcessState AndResourcePointer(uint mask) => this with { ResourcePointerAndMask = (ResourcePointerAndMask ?? uint.MaxValue) & mask };
 
     public bool IsPlaying(int handle) => handle != 0 && Slots[handle & 3].Priority != 0 && Slots[handle & 3].Generation == handle >> 4;
 

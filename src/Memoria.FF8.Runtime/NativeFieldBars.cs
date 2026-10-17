@@ -17,6 +17,9 @@ public sealed record NativeFieldBarSlot([property: JsonRequired] NativeFieldBarM
 /// <summary>The two global native field-bar mirror and UI records; null slots are hidden with otherwise opaque words.</summary>
 public sealed record NativeFieldBarsState([property: JsonRequired] int Version, [property: JsonRequired] NativeFieldBarSlot? First, [property: JsonRequired] NativeFieldBarSlot? Second)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ushort? AdjacentMirrorWord { get; init; }
+
     public static NativeFieldBarsState CreateHidden() => new(1, null, null);
 
     [JsonIgnore]
@@ -77,6 +80,8 @@ public sealed record NativeFieldBarsState([property: JsonRequired] int Version, 
         NativeFieldBarSlot? slot = Get(id);
         return slot is null ? this : Set(id, new(slot.Mirror with { Mode = 0 }, slot.Display with { Flags = (byte)(slot.Display.Flags & ~0x80) }));
     }
+
+    public NativeFieldBarsState ClearAdjacentMirrorWord() => this with { AdjacentMirrorWord = 0 };
 
     /// <summary>49A990 runs the smoother once per UI tick, then49AB80/4B7A40 toggles low-value flash once per draw.</summary>
     public NativeFieldBarsState Advance(int uiTicks)

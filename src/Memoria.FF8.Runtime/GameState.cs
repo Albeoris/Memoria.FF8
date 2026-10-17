@@ -297,6 +297,11 @@ public interface IEventServices
     NativeWorldControlState? WorldControls => null;
     NativeFieldBarsState? FieldBars => null;
     bool CanStoreFieldBars => false;
+    bool CanStoreNativeFieldBarAliasOwners => false;
+    void SetNativeFieldBarAliasOwners(NativeFieldBarsState bars, NativeVibrationProcessState vibration)
+    {
+        throw new NotSupportedException("Atomic native bar alias ownership is not implemented by this event service.");
+    }
     void SetFieldBars(NativeFieldBarsState state) => throw new NotSupportedException("This service cannot retain native global field bars.");
 
     NativeWorldEntryMemory? WorldEntryMemory => null;
