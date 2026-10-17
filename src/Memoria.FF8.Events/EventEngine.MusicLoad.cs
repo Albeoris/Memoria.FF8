@@ -19,7 +19,7 @@ public sealed partial class EventEngine
         {
             return;
         }
-        if (EventMemory.Cells.Any(pair => pair.Key < 116 && (long)pair.Key + pair.Value.Width > 108 || pair.Key < 204 && (long)pair.Key + pair.Value.Width > 197 || pair.Key <= 207 && (long)pair.Key + pair.Value.Width > 207 || pair.Key < 215 && (long)pair.Key + pair.Value.Width > 213))
+        if (EventMemory.Cells.Any(pair => pair.Key < 116 && (long)pair.Key + pair.Value.Width > 108 || pair.Key < 184 && (long)pair.Key + pair.Value.Width > 182 || pair.Key < 204 && (long)pair.Key + pair.Value.Width > 197 || pair.Key <= 207 && (long)pair.Key + pair.Value.Width > 207 || pair.Key < 215 && (long)pair.Key + pair.Value.Width > 213))
         {
             throw new NotSupportedException("Native New Game music reset intersects memory without an executed empty bootstrap.");
         }

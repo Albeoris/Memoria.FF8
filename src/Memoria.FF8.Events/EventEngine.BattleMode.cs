@@ -12,7 +12,8 @@ public enum NativeBattleFlagWriter
     KillTimer,
     FieldBattleReturn,
     RandomFieldBattleReturn,
-    MenuFieldBattleReturn
+    MenuFieldBattleReturn,
+    NewGame
 }
 
 public sealed record NativeBattleFlagWrite(int Version, NativeBattleFlagWriter Writer, int FieldId, string ProgramHash, long Frame, int ObjectId, int ScriptId, int Operation, int? RawOperand, ushort PersistentFlags, ushort ActiveFlags);
@@ -123,7 +124,7 @@ public sealed partial class EventEngine
         for (int index = 0; index < history.Count; index++)
         {
             NativeBattleFlagWrite write = history[index];
-            if (write is null || write.Version != 1 || !Enum.IsDefined(write.Writer) || write.FieldId is < 0 or > ushort.MaxValue || write.ProgramHash is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit) || write.Frame < 0 || write.Writer is not (NativeBattleFlagWriter.FieldLoad or NativeBattleFlagWriter.RandomFieldBattleReturn or NativeBattleFlagWriter.MenuFieldBattleReturn) && (write.Frame == 0 || write.ObjectId < 0 || write.ScriptId < 0 || write.Operation < 0) || write.Writer == NativeBattleFlagWriter.FieldLoad && (write.Frame != 0 || write.ObjectId != -1 || write.ScriptId != -1 || write.Operation != -1 || write.RawOperand is not null) || write.Writer is NativeBattleFlagWriter.RandomFieldBattleReturn or NativeBattleFlagWriter.MenuFieldBattleReturn && (write.ObjectId != -1 || write.ScriptId != -1 || write.Operation != -1 || write.RawOperand is not null))
+            if (write is null || write.Version != 1 || !Enum.IsDefined(write.Writer) || write.FieldId is < 0 or > ushort.MaxValue || write.ProgramHash is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit) || write.Frame < 0 || write.Writer is not (NativeBattleFlagWriter.NewGame or NativeBattleFlagWriter.FieldLoad or NativeBattleFlagWriter.RandomFieldBattleReturn or NativeBattleFlagWriter.MenuFieldBattleReturn) && (write.Frame == 0 || write.ObjectId < 0 || write.ScriptId < 0 || write.Operation < 0) || write.Writer is NativeBattleFlagWriter.NewGame or NativeBattleFlagWriter.FieldLoad && (write.Frame != 0 || write.ObjectId != -1 || write.ScriptId != -1 || write.Operation != -1 || write.RawOperand is not null) || write.Writer is NativeBattleFlagWriter.RandomFieldBattleReturn or NativeBattleFlagWriter.MenuFieldBattleReturn && (write.ObjectId != -1 || write.ScriptId != -1 || write.Operation != -1 || write.RawOperand is not null))
             {
                 throw new InvalidDataException("Native battle-mode writer has invalid original source metadata.");
             }
@@ -133,9 +134,13 @@ public sealed partial class EventEngine
             {
                 persistent = active = unchecked((ushort)rawMode);
             }
+            else if (write.Writer == NativeBattleFlagWriter.NewGame && prior is null && write.FieldId == 74 && write.RawOperand is null)
+            {
+                persistent = active = 0;
+            }
             else if (prior is null)
             {
-                throw new InvalidDataException("Native battle-mode history requires a reached BATTLEMODE full-WORD write.");
+                throw new InvalidDataException("Native battle-mode history requires an executed New Game reset or reached BATTLEMODE full-WORD write.");
             }
             else if (write.Writer == NativeBattleFlagWriter.Battle && write.RawOperand is int rawBattle)
             {
@@ -176,7 +181,7 @@ public sealed partial class EventEngine
                 NativeBattleFlagWriter.DisplayTimer => Jsm.Opcode.DISPTIMER,
                 _ => Jsm.Opcode.KILLTIMER
             };
-            if (index >= lastLoad && (write.FieldId != saved.FieldId || write.ProgramHash != saved.ProgramHash || write.Frame > saved.Frame || write.Writer is not (NativeBattleFlagWriter.FieldLoad or NativeBattleFlagWriter.RandomFieldBattleReturn or NativeBattleFlagWriter.MenuFieldBattleReturn) && ((uint)write.Operation >= program!.Operations.Count || program.Operations[write.Operation].Opcode != expectedOpcode || (uint)write.ObjectId >= program.Objects.Count || !program.Objects[write.ObjectId].Scripts.Any(script => script.Id == write.ScriptId && script.ContainsOperation(write.Operation)))))
+            if (index >= lastLoad && (write.FieldId != saved.FieldId || write.ProgramHash != saved.ProgramHash || write.Frame > saved.Frame || write.Writer is not (NativeBattleFlagWriter.NewGame or NativeBattleFlagWriter.FieldLoad or NativeBattleFlagWriter.RandomFieldBattleReturn or NativeBattleFlagWriter.MenuFieldBattleReturn) && ((uint)write.Operation >= program!.Operations.Count || program.Operations[write.Operation].Opcode != expectedOpcode || (uint)write.ObjectId >= program.Objects.Count || !program.Objects[write.ObjectId].Scripts.Any(script => script.Id == write.ScriptId && script.ContainsOperation(write.Operation)))))
             {
                 throw new InvalidDataException("Native battle-mode writer disagrees with its reached original command.");
             }

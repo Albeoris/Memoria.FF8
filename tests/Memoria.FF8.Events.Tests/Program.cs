@@ -243,6 +243,7 @@ internal static partial class Program
                     ["sound-volume"] = NativeSoundVolumeContract,
                     ["sound-position"] = NativeSoundPositionContract,
                     ["battle-mode"] = NativeBattleModeContract,
+                    ["native-battle-flag-initialization"] = NativeBattleFlagInitializationContract,
                     ["sound-initialization"] = () => NativeSoundInitializationContract(selectedGameDirectory),
                     ["sound-stop"] = NativeSoundStopContract,
                     ["native-talk"] = NativeTalkSelectionContract,

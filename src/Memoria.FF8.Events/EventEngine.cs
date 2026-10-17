@@ -214,6 +214,15 @@ public sealed partial class EventEngine
         Scene.NativeRandomFieldBattle = previousScene.NativeRandomFieldBattle;
         Scene.NativeMenuBattle = previousScene.NativeMenuBattle;
         CopyNativeBattleMode(previousScene);
+        if (coldNativeCamera && !restoringCheckpoint)
+        {
+            //470560 calls52CA90(1): clear248 event bytes, then copy WORD182 to active battle flags.
+            AppendBattleFlagWrite(NativeBattleFlagWriter.NewGame, null, null, 0, 0);
+            if (services.ExamTimer is NativeExamTimerState timer)
+            {
+                services.SetExamTimer(ProjectBattleModeTimer(timer));
+            }
+        }
         Scene.GlobalSoundRequests.AddRange(previousScene.GlobalSoundRequests);
 
         Scene.FieldLoadFirstRecordZero = previousScene.NativePartyTraceVersion == 1 ? previousScene.PartyTrace?.FirstTrail[0] : HasNativeUnboundFieldLoad(previousScene) ? previousScene.FieldLoadFirstRecordZero : null;
