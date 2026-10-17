@@ -18,6 +18,14 @@ public sealed class NativeEventMemory
     public int Version { get; }
     public IReadOnlyDictionary<int, NativeMemoryValue> Cells => CopyCells(cells);
 
+    internal IEnumerable<(int Address, int Width)> CellRanges()
+    {
+        foreach ((int address, NativeMemoryValue value) in cells)
+        {
+            yield return (address, value.Width);
+        }
+    }
+
     [JsonIgnore]
     public IReadOnlyDictionary<int, int> KnownValues => knownValues;
 
@@ -45,20 +53,22 @@ public sealed class NativeEventMemory
     public NativeScalarValue Read(int address, int width, bool signed = false)
     {
         ValidateAccess(address, width);
-        NativeMemoryValue[] uncertain = cells.Where(pair => Overlaps(pair.Key, pair.Value.Width, address, width) && !pair.Value.Value.IsExact).Select(pair => pair.Value).ToArray();
-        if (uncertain.Length != 0)
-        {
-            if (uncertain.Length != 1 || !cells.TryGetValue(address, out NativeMemoryValue? entry) || entry.Width != width || entry.Value.IsExact)
-            {
-                throw new NotSupportedException("A native event memory read cannot split or combine uncertain cells.");
-            }
-            return CopyValue(entry.Value).ToWidth(width, signed && width != 4);
-        }
+        NativeMemoryValue? uncertain = null;
+        int uncertainCount = 0;
+        int uncertainAddress = -1;
         uint value = 0;
-        foreach ((int start, NativeMemoryValue entry) in cells)
+        // A validated cell is at most four bytes wide, so only these starts can overlap.
+        for (int start = Math.Max(0, address - 3); start < address + width; start++)
         {
-            if (!Overlaps(start, entry.Width, address, width))
+            if (!cells.TryGetValue(start, out NativeMemoryValue? entry) || !Overlaps(start, entry.Width, address, width))
             {
+                continue;
+            }
+            if (!entry.Value.IsExact)
+            {
+                uncertain = entry;
+                uncertainCount++;
+                uncertainAddress = start;
                 continue;
             }
             for (int target = Math.Max(address, start); target < Math.Min(address + width, start + entry.Width); target++)
@@ -67,7 +77,39 @@ public sealed class NativeEventMemory
                 value |= next << (8 * (target - address));
             }
         }
+        if (uncertain is not null)
+        {
+            if (uncertainCount != 1 || uncertainAddress != address || uncertain.Width != width)
+            {
+                throw new NotSupportedException("A native event memory read cannot split or combine uncertain cells.");
+            }
+            return CopyValue(uncertain.Value).ToWidth(width, signed && width != 4);
+        }
         return NativeScalarValue.Exact(unchecked((int)value)).ToWidth(width, signed && width != 4);
+    }
+
+    /// <summary>Checks explicitly represented exact bytes; implicit zero background does not establish a predicate dependency.</summary>
+    public bool HasRepresentedExactBytes(int address, int width)
+    {
+        ValidateAccess(address, width);
+        for (int offset = 0; offset < width; offset++)
+        {
+            int target = address + offset;
+            bool found = false;
+            for (int start = Math.Max(0, target - 3); start <= target; start++)
+            {
+                if (cells.TryGetValue(start, out NativeMemoryValue? cell) && target < start + cell.Width && cell.Value.IsExact)
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     public NativeEventMemory Write(int address, int width, NativeScalarValue value)
@@ -184,7 +226,8 @@ public sealed class NativeEventMemory
                 throw new InvalidDataException("Native event memory requires valid, nonoverlapping typed cells.");
             }
             entry.Value.Validate();
-            if (!entry.Value.Values.SequenceEqual(entry.Value.ToWidth(entry.Width).Values))
+            bool fitsWidth = entry.Value.IsExact ? entry.Width == 4 || entry.Value.Values[0] == (entry.Width == 1 ? unchecked((byte)entry.Value.Values[0]) : unchecked((ushort)entry.Value.Values[0])) : entry.Value.Values.SequenceEqual(entry.Value.ToWidth(entry.Width).Values);
+            if (!fitsWidth)
             {
                 throw new InvalidDataException("Native event memory cell differs from its declared width projection.");
             }

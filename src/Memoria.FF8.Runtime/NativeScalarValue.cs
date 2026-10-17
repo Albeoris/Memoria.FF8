@@ -36,9 +36,16 @@ public sealed record NativeScalarValue(int[] Values, NativeTimerReadOrigin? Orig
             }
             return;
         }
-        if (Values is null || Values.Length == 0 || Values.Length > 64 || !Values.SequenceEqual(Values.Distinct().Order()))
+        if (Values is null || Values.Length == 0 || Values.Length > 64)
         {
             throw new InvalidDataException("Native scalar alternatives must be nonempty, distinct and ordered.");
+        }
+        for (int index = 1; index < Values.Length; index++)
+        {
+            if (Values[index - 1] >= Values[index])
+            {
+                throw new InvalidDataException("Native scalar alternatives must be nonempty, distinct and ordered.");
+            }
         }
         if (Origin is null)
         {

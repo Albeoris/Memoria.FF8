@@ -15,6 +15,9 @@ public sealed partial class EventEngine
         NativeScalarValue[]? scalarArgs = null;
         switch (opcode)
         {
+            case Jsm.Opcode.GAMEOVER:
+                ExecuteNativeGameOver(fiber);
+                break;
             case Jsm.Opcode.Unknown1:
                 args = ExecuteNativeSavedBattleFlagBit4(fiber);
                 break;

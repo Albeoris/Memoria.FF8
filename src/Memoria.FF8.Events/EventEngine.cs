@@ -259,7 +259,7 @@ public sealed partial class EventEngine
         {
             throw new ArgumentOutOfRangeException(nameof(elapsed), "Field updates must be between zero and ten seconds.");
         }
-        if (Scene.NativeTutorial is not null || Scene.NativeMenuTutorial is not null)
+        if (NativeGameOver is not null || Scene.NativeTutorial is not null || Scene.NativeMenuTutorial is not null)
         {
             return;
         }
@@ -274,7 +274,7 @@ public sealed partial class EventEngine
                 accumulatedSeconds = 0;
                 break;
             }
-            if (transitionRequested)
+            if (transitionRequested || NativeGameOver is not null)
             {
                 break;
             }
@@ -299,10 +299,11 @@ public sealed partial class EventEngine
         {
             throw new EventScriptException(fault.Message);
         }
-        if (program is null || transitionRequested)
+        if (program is null || transitionRequested || NativeGameOver is not null)
         {
             return;
         }
+        pendingNativeGameOver = null;
         if (HasPendingBattle || PendingTripleTriad is not null || Scene.NativeTutorial is not null || Scene.NativeMenuTutorial is not null)
         {
             return;
@@ -455,6 +456,7 @@ public sealed partial class EventEngine
             services.SetSalaryPresentation(salaryUi);
         }
         ValidateNativeTimerExpiryAfterVm();
+        AcceptNativeGameOverAfterCallback();
     }
 
     private void ConfirmDialogueCore(int? choice = null, string? name = null)
@@ -719,7 +721,7 @@ public sealed partial class EventEngine
                     return count + 1 + Run(selected, instructionBudget - count - 1);
                 }
             }
-            if (fiber.Complete || fiber.WaitReason != WaitReason.None || transitionRequested || NativeRequestEndsTurn(fiber, operation))
+            if (fiber.Complete || fiber.WaitReason != WaitReason.None || transitionRequested || operation.Opcode == Jsm.Opcode.GAMEOVER || NativeRequestEndsTurn(fiber, operation))
             {
                 return count + 1;
             }

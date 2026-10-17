@@ -65,6 +65,12 @@ public sealed record NativeFieldRequestPacket
         return written with { Kind = Kind, FieldId = FieldId, ExtraWord = ExtraWord };
     }
 
+    public NativeFieldRequestPacket WithGameOverRequest()
+    {
+        Validate();
+        return this with { Kind = 4 };
+    }
+
     public NativeFieldRequestPacket WithConsumedRequest()
     {
         Validate();

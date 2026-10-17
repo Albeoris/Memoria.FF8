@@ -43,6 +43,9 @@ internal sealed class AutoPlayRunState
     public bool ReachedEnding { get; set; }
     public Dictionary<string, int> ScriptedInputs { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, ScriptedInputMetadata> ScriptedChoiceInputs { get; set; } = new(StringComparer.Ordinal);
+    public AutoPlayInputSearch? InputSearch { get; set; }
+    public List<AutoPlayInputSearch> InputSearchHistory { get; set; } = [];
+    public HashSet<string> InputSearchChoiceKeys { get; set; } = new(StringComparer.Ordinal);
     public int ScriptedInputSteps { get; set; }
     public Dictionary<string, int> DialogueSelections { get; set; } = new(StringComparer.Ordinal);
     public long LastProgressStep { get; set; }
@@ -74,11 +77,12 @@ internal sealed partial class AutoPlayController
     private readonly string outputDirectory;
     private readonly TimeProvider time;
     private readonly TimeProvider deadlineTime;
+    private readonly AutoPlayPerformanceProfile performance = new();
     private long lastSave;
     private AutoPlayRunState run = new();
     private AutoPlayPlanner planner = new();
     private GameState? beforeStep;
-    private string? beforeController;
+    private byte[]? beforeController;
     private string? runDirectory;
     private long lastProgressTimestamp;
     private readonly HashSet<GameWorld> watchedWorlds = [];
@@ -90,6 +94,7 @@ internal sealed partial class AutoPlayController
         this.session = session;
         this.getWorld = () =>
         {
+            using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("World.Get");
             GameWorld world = getWorld();
             if (advancing && watchedWorlds.Add(world))
             {
@@ -107,11 +112,20 @@ internal sealed partial class AutoPlayController
         };
         this.restore = state =>
         {
+            using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Restore");
+            GameWorld? current = advancing ? this.getWorld() : null;
             if (advancing && run.SurveyBaseline is not null)
             {
-                ObserveSurveySegmentChanges(this.getWorld());
+                ObserveSurveySegmentChanges(current!);
             }
             ResetSurveySegment();
+            string? boundary = null;
+            if (current is not null && current.TryRestoreAutoPlayFieldSnapshot(state, out boundary))
+            {
+                performance.Count("Restore.CachedField");
+                return;
+            }
+            performance.Count("Restore.NewHost:" + boundary);
             restore(state);
         };
         this.outputDirectory = Path.GetFullPath(outputDirectory);
@@ -127,6 +141,7 @@ internal sealed partial class AutoPlayController
     public string? ReproductionPath { get; private set; }
     public string? ResumeCommand => ReproductionPath is null ? null : $"--auto-play --resume \"{ReproductionPath}\"";
     internal AutoPlayRunState State => run;
+    internal void WritePerformanceProfile() => performance.Write();
 
     public void Start()
     {
@@ -192,7 +207,7 @@ internal sealed partial class AutoPlayController
         {
             return;
         }
-        beforeController = JsonSerializer.Serialize(run, BeforeSnapshotJsonOptions);
+        beforeController = JsonSerializer.SerializeToUtf8Bytes(run, BeforeSnapshotJsonOptions);
         beforeStep = session.State;
         try
         {
@@ -207,6 +222,7 @@ internal sealed partial class AutoPlayController
 
     public void ResumeFrom(string manifest)
     {
+        using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("ResumeAndImport");
         manifest = Path.GetFullPath(manifest);
         string json = File.ReadAllText(manifest);
         AutoPlayRunState saved = JsonSerializer.Deserialize<AutoPlayRunState>(json, JsonOptions) ?? throw new InvalidDataException("Empty automatic play manifest.");
@@ -241,7 +257,6 @@ internal sealed partial class AutoPlayController
             }
         }
         string directory = Path.GetDirectoryName(manifest)!;
-        restore(GameSession.Load(Path.Combine(directory, saved.Snapshot)));
         runDirectory = Path.Combine(outputDirectory, time.GetUtcNow().ToString("yyyyMMdd-HHmmss-fffffff") + "-resume");
         Directory.CreateDirectory(runDirectory);
         Dictionary<string, string> imported = new(StringComparer.OrdinalIgnoreCase);
@@ -284,8 +299,10 @@ internal sealed partial class AutoPlayController
                 choice.ContinuationCheckpoint = ImportCheckpoint(choice.ContinuationCheckpoint);
             }
         }
+        ImportInputSearch(saved, directory, ImportCheckpoint, document.RootElement);
         saved.PrimaryContinuation = ImportCheckpoint(saved.PrimaryContinuation);
         saved.ActiveBeforeCheckpoint = ImportCheckpoint(saved.ActiveBeforeCheckpoint);
+        restore(GameSession.Load(Path.Combine(directory, saved.Snapshot)));
         run = saved;
         if (!document.RootElement.TryGetProperty(nameof(AutoPlayRunState.SurveyBaseline), out _) && run.ActiveEvent is not null)
         {
@@ -317,12 +334,14 @@ internal sealed partial class AutoPlayController
         {
             try
             {
+                using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Controller.Step");
                 advancing = true;
                 beforeStep = session.State;
-                beforeController = JsonSerializer.Serialize(run, BeforeSnapshotJsonOptions);
+                beforeController = CaptureControllerRollback();
                 beforeStep = CaptureState();
                 CheckIdleDeadline();
                 Tick();
+                RecoverNativeInputSearchLoss();
                 run.Steps++;
                 int score = run.ObservedScenes.Count + run.ObservedMessages.Count + run.Coverage.Visits.Count + run.Coverage.NavigationVisits.Count + run.Coverage.NavigationRoutes.Count + run.Coverage.NavigationRetirements.Count + run.Coverage.Choices.Count + run.Coverage.Visits.Sum(visit => visit.Events.Count(item => item.Completed) + visit.Events.Sum(item => item.UnavailableAttempts.Count + item.ParticipantPolicyDeferrals.Count)) + run.Coverage.Choices.Sum(choice => choice.CompletedOptions.Count);
                 if (score != run.LastProgressScore)
@@ -404,6 +423,7 @@ internal sealed partial class AutoPlayController
 
     private GameState CaptureState()
     {
+        using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Snapshot.Capture");
         GameWorld world = getWorld();
         if (world.Field is not null)
         {
@@ -427,6 +447,10 @@ internal sealed partial class AutoPlayController
             ObserveSurveySegmentChanges(world);
         }
         world.EnsureField();
+        if (RecoverNativeInputSearchLoss())
+        {
+            return;
+        }
         ObserveSurveyInitialization(world);
         if (run.ParticipantPolicyResumeChoice is string policyChoice)
         {
@@ -502,7 +526,7 @@ internal sealed partial class AutoPlayController
         }
         if (!world.Events.IsUserControlEnabled && session.State.FieldButtonInput is { PhysicalHeld: 0 } buttons && (buttons.PendingPulse != 0 || buttons.RawHeld != 0))
         {
-            world.AdvanceAutoPlayInputFrame();
+            AdvanceInputFrame(world);
             return;
         }
         if (world.Events.IsUserControlEnabled && world.Events.PlayerActor is { NativeLadder: { Active: true, AutomaticCompletion: false } ladder, NativeMovementCompletion542: 1 } ladderPlayer && TryDriveOwnedLadderInput(world, ladderPlayer, ladder))
@@ -793,20 +817,22 @@ internal sealed partial class AutoPlayController
 
     private void DriveWhenQueried(ScriptedInputMetadata input, bool allowControlled, int? objectId)
     {
-        if (ProbeScriptedInput(input, allowControlled, objectId) is { } current)
+        if (ProbeScriptedInput(input, allowControlled, objectId, out GameState? preparedCheckpoint) is { } current)
         {
-            DriveScriptedInput(current, allowControlled, prepared: true);
+            DriveScriptedInput(current, allowControlled, prepared: true, preparedCheckpoint);
         }
     }
 
-    private ScriptedInputMetadata? ProbeScriptedInput(ScriptedInputMetadata input, bool allowControlled, int? objectId)
+    private ScriptedInputMetadata? ProbeScriptedInput(ScriptedInputMetadata input, bool allowControlled, int? objectId, out GameState? preparedCheckpoint)
     {
+        using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Input.Probe");
+        preparedCheckpoint = null;
         GameWorld world = getWorld();
         int field = session.State.FieldId;
         Apply(new(PlayerActionKind.FieldButtons, 0));
         if (!HasNeutralScriptedInput(session.State.FieldButtonInput, field, world.Events.Frame))
         {
-            world.AdvanceAutoPlayInputFrame();
+            AdvanceInputFrame(world);
             return null;
         }
         GameState checkpoint = CaptureState();
@@ -852,7 +878,7 @@ internal sealed partial class AutoPlayController
             while (callbacks < 300 && HasProbeOwner())
             {
                 queryBeforeFrame = world.Events.Frame;
-                world.AdvanceAutoPlayInputFrame();
+                AdvanceInputFrame(world);
                 callbacks++;
                 if (queried || !HasProbeOwner())
                 {
@@ -864,7 +890,7 @@ internal sealed partial class AutoPlayController
         {
             world.Events.CommandExecuted -= ObserveQuery;
         }
-        if (matchedQuery is not null && HasMatchedQueryOwner() && PrepareScriptedInput(allowControlled) && HasMatchedQueryOwner())
+        if (matchedQuery is not null && HasMatchedQueryOwner())
         {
             // Replay only the proven neutral prefix so the actual query's before-state owns its choice checkpoint.
             restore(checkpoint);
@@ -880,7 +906,7 @@ internal sealed partial class AutoPlayController
                     {
                         throw new InvalidOperationException("The native neutral input prefix changed its owner during checkpoint replay.");
                     }
-                    world.AdvanceAutoPlayInputFrame();
+                    AdvanceInputFrame(world);
                     if (queried || !HasProbeOwner())
                     {
                         throw new InvalidOperationException("The native neutral input prefix changed its query or ownership boundary during checkpoint replay.");
@@ -896,6 +922,7 @@ internal sealed partial class AutoPlayController
             {
                 throw new NotSupportedException("The observed native input query has no supported metadata at its exact replayed before-callback checkpoint.");
             }
+            preparedCheckpoint = callbacks == 1 ? checkpoint : CaptureState();
             return current;
         }
         return null;
@@ -925,7 +952,7 @@ internal sealed partial class AutoPlayController
             for (int callback = 0; callback < 16 && HasOwner(); callback++)
             {
                 Apply(new(PlayerActionKind.FieldButtons, physical));
-                world.AdvanceAutoPlayInputFrame();
+                AdvanceInputFrame(world);
                 driven = true;
             }
         }
@@ -940,8 +967,13 @@ internal sealed partial class AutoPlayController
         return driven;
     }
 
-    private void DriveScriptedInput(ScriptedInputMetadata input, bool allowControlled, bool prepared = false)
+    private void DriveScriptedInput(ScriptedInputMetadata input, bool allowControlled, bool prepared = false, GameState? preparedCheckpoint = null)
     {
+        if (!prepared && input.ObservedQueriesProven && run.ActiveTravelRoute is null)
+        {
+            DriveWhenQueried(input, allowControlled, allowControlled && run.ActiveObjectId >= 0 ? run.ActiveObjectId : null);
+            return;
+        }
         if (!prepared && !PrepareScriptedInput(allowControlled))
         {
             return;
@@ -949,6 +981,11 @@ internal sealed partial class AutoPlayController
         if (++run.ScriptedInputSteps > 10000)
         {
             throw new NotSupportedException("Scripted input exploration exceeded 10000 attempts without a control-return boundary.");
+        }
+        if (input.ObservedQueriesProven && run.ActiveTravelRoute is null)
+        {
+            DriveInputSearchBoundary(input, allowControlled, preparedCheckpoint: preparedCheckpoint);
+            return;
         }
         int attempt = run.ScriptedInputs.GetValueOrDefault(input.Fingerprint);
         run.ScriptedInputs[input.Fingerprint] = attempt + 1;
@@ -989,25 +1026,26 @@ internal sealed partial class AutoPlayController
         int field = session.State.FieldId;
         for (int release = 0; release < 2 && HasScriptedInputOwner(world, field, allowControlled); release++)
         {
-            world.AdvanceAutoPlayInputFrame();
+            AdvanceInputFrame(world);
         }
         return HasScriptedInputOwner(world, field, allowControlled);
     }
 
     private bool HasScriptedInputOwner(GameWorld world, int field, bool allowControlled)
     {
-        return session.State.Scene == SceneKind.Field && session.State.FieldId == field && (allowControlled || !world.Events.IsUserControlEnabled) && world.Events.Scene.NativeTutorial is null && world.Events.Scene.NativeMenuTutorial is null && world.Events.PartyMenu is null;
+        return session.State.NativeGameOver is null && session.State.Scene == SceneKind.Field && session.State.FieldId == field && (allowControlled || !world.Events.IsUserControlEnabled) && world.Events.Scene.NativeTutorial is null && world.Events.Scene.NativeMenuTutorial is null && world.Events.PartyMenu is null;
     }
 
-    private void PulseScriptedInput(int mask, ScriptedInputMetadata input, bool allowControlled, bool prepared = false)
+    private bool PulseScriptedInput(int mask, ScriptedInputMetadata input, bool allowControlled, bool prepared = false, Action<ScriptedInputQuery>? sampledQuery = null)
     {
+        using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Input.Pulse");
         if (!prepared && !PrepareScriptedInput(allowControlled))
         {
             throw new NotSupportedException($"Scripted input {input.Fingerprint} lost its field owner before physical mask {mask} was sampled.");
         }
         GameWorld world = getWorld();
         int field = session.State.FieldId;
-        bool HasOwner() => HasScriptedInputOwner(world, field, allowControlled);
+        bool HasOwner() => session.State.NativeGameOver is null && HasScriptedInputOwner(world, field, allowControlled);
         if (!HasOwner())
         {
             throw new NotSupportedException($"Scripted input {input.Fingerprint} lost its field owner before physical mask {mask} was sampled.");
@@ -1019,7 +1057,11 @@ internal sealed partial class AutoPlayController
             {
                 NativeFieldButtonInput buttons = session.State.FieldButtonInput!;
                 int value = command.Name == "KEYSCAN2" ? buttons.RawHeld : command.Name == "KEYON" ? buttons.Pressed ?? 0 : buttons.Held ?? 0;
-                sampled |= (buttons.PhysicalHeld & mask) == mask && (command.Arguments[0] & value) != 0;
+                if ((buttons.PhysicalHeld & mask) == mask && (command.Arguments[0] & value) != 0)
+                {
+                    sampled = true;
+                    sampledQuery?.Invoke(new(command.ObjectId, command.ScriptId, command.Operation, command.Name, unchecked((ushort)command.Arguments[0])));
+                }
             }
         }
         world.Events.CommandExecuted += Observe;
@@ -1030,7 +1072,7 @@ internal sealed partial class AutoPlayController
                 if (hold > 1 || !prepared)
                 {
                     Apply(new(PlayerActionKind.FieldButtons, 0));
-                    world.AdvanceAutoPlayInputFrame();
+                    AdvanceInputFrame(world);
                     callbacks++;
                     if (!HasOwner())
                     {
@@ -1040,7 +1082,7 @@ internal sealed partial class AutoPlayController
                 Apply(new(PlayerActionKind.FieldButtons, mask));
                 for (int held = 0; held < hold && callbacks < 256 && HasOwner() && !sampled; held++)
                 {
-                    world.AdvanceAutoPlayInputFrame();
+                    AdvanceInputFrame(world);
                     callbacks++;
                 }
             }
@@ -1054,12 +1096,13 @@ internal sealed partial class AutoPlayController
                 session.SetFieldButtonInput(sampler with { PhysicalHeld = 0 });
             }
         }
-        if (!sampled)
+        if (!sampled && session.State.NativeGameOver is null)
         {
             throw new NotSupportedException($"Scripted input {input.Fingerprint} did not sample physical mask {mask} within 256 native callbacks; the alternative is not completed.");
         }
         run.SettleFrames = 0;
         run.SceneFrames = 0;
+        return sampled;
     }
 
     private void RegisterChoiceSnapshot(string key)
@@ -1221,6 +1264,11 @@ internal sealed partial class AutoPlayController
             return;
         }
         string key = $"{VisitKey()}:{dialogue.ObjectId}:{dialogue.ScriptId}:{dialogue.Operation}:{dialogue.MessageId}:{first}:{last}";
+        if (run.InputSearch is { Closed: false } && run.ActiveTravelRoute is null)
+        {
+            DriveInputSearchBoundary(null, false, dialogue, key);
+            return;
+        }
         planner.ObserveChoice(key, last - first + 1, first);
         AutoPlayChoiceCoverage coverage = run.Coverage.Choices.Single(item => item.Key == key);
         RefreshParticipantChoice(coverage);
@@ -1309,6 +1357,7 @@ internal sealed partial class AutoPlayController
 
     private bool FinishChoices()
     {
+        CompleteInputSearchAtControlReturn();
         if (run.SceneChoices.Count != 0)
         {
             RecordActiveControlReturn();
@@ -1335,7 +1384,7 @@ internal sealed partial class AutoPlayController
         {
             return false;
         }
-        foreach (AutoPlayChoiceCoverage choice in run.Coverage.Choices.Where(item => !item.Finished && !item.PolicyExhausted && item.SupersededInputDomain is null))
+        foreach (AutoPlayChoiceCoverage choice in run.Coverage.Choices.Where(item => !item.Finished && !item.PolicyExhausted && item.SupersededInputDomain is null && (run.InputSearch is null || run.InputSearch.Closed)))
         {
             AutoPlayChoiceStep next = planner.PlanChoice(choice.Key);
             if (next.Kind == AutoPlayChoiceStepKind.RestoreContinuation)
@@ -1367,24 +1416,17 @@ internal sealed partial class AutoPlayController
                             throw new NotSupportedException("The legacy scripted input checkpoint lost its native owner before its query domain could be observed.");
                         }
                         int? source = allowControlled && run.ActiveField == session.State.FieldId && run.ActiveObjectId >= 0 ? run.ActiveObjectId : null;
-                        ScriptedInputMetadata current = ProbeScriptedInput(input, allowControlled, source) ?? throw new NotSupportedException("The legacy scripted input checkpoint has no observed native query domain; no old alternative was pressed or completed.");
+                        ScriptedInputMetadata current = ProbeScriptedInput(input, allowControlled, source, out GameState? preparedCheckpoint) ?? throw new NotSupportedException("The legacy scripted input checkpoint has no observed native query domain; no old alternative was pressed or completed.");
                         string replacement = $"input:{session.State.FieldId}:{current.Fingerprint}";
-                        DriveScriptedInput(current, allowControlled, prepared: true);
+                        DriveScriptedInput(current, allowControlled, prepared: true, preparedCheckpoint);
                         choice.SupersededInputDomain = replacement;
                         return true;
                     }
-                    planner.BeginChoiceOption(choice.Key, selection);
-                    run.SceneChoices.Add(choice.Key);
-                    run.ActiveSelections?.Add(new(choice.Key, selection));
-                    PulseScriptedInput(input.Masks[selection], input, allowControlled, choice.InputCheckpointPrepared);
+                    BeginPlannedInputSearchReplay(choice, selection, choiceCheckpoint, input, allowControlled);
                 }
                 else
                 {
-                    planner.BeginChoiceOption(choice.Key, selection);
-                    run.SceneChoices.Add(choice.Key);
-                    run.DialogueSelections[choice.Key] = selection;
-                    run.ActiveSelections?.Add(new(choice.Key, selection));
-                    ApplyDialogueSelection(selection);
+                    BeginPlannedInputSearchReplay(choice, selection, choiceCheckpoint);
                 }
                 return true;
             }
@@ -1429,7 +1471,7 @@ internal sealed partial class AutoPlayController
             for (int callback = 0; callback < 256 && recovered is null && session.State.Scene == SceneKind.Field && session.State.FieldId == field; callback++)
             {
                 CheckIdleDeadline();
-                world.AdvanceAutoPlayInputFrame();
+                AdvanceInputFrame(world);
             }
         }
         finally
@@ -1664,6 +1706,7 @@ internal sealed partial class AutoPlayController
 
     private PlayerActionResult Apply(PlayerAction action)
     {
+        using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Action.Apply");
         PlayerActionResult result = run.ObserveContactInput ? ApplyContactInput(action) : getWorld().Apply(action);
         if (!result.Accepted)
         {
@@ -1732,11 +1775,24 @@ internal sealed partial class AutoPlayController
         }
     }
 
-    private static void SaveGame(string path, GameState state)
+    private void SaveGame(string path, GameState state)
     {
+        using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Snapshot.Write");
         string temporary = path + ".tmp";
         new GameSession(state).Save(temporary, compact: true);
         CommitCheckpointFile(temporary, path);
+    }
+
+    private byte[] CaptureControllerRollback()
+    {
+        using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Controller.RollbackJson");
+        return JsonSerializer.SerializeToUtf8Bytes(run, BeforeSnapshotJsonOptions);
+    }
+
+    private void AdvanceInputFrame(GameWorld world)
+    {
+        using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Input.Callback");
+        world.AdvanceAutoPlayInputFrame();
     }
 
     private static void AtomicWrite(string path, string content)

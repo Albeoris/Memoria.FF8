@@ -6,6 +6,18 @@ public sealed partial class GameSession
 {
     public NativeFieldRequestPacket? FieldRequestPacket => State.FieldRequestPacket;
     public bool CanStoreFieldRequestPacket => true;
+    public NativeGameOverReceipt? NativeGameOver => State.NativeGameOver;
+    public bool CanStoreNativeGameOver => true;
+
+    public void SetNativeGameOver(NativeGameOverReceipt? receipt)
+    {
+        receipt?.Validate();
+        if (receipt is not null && State.FieldRequestPacket?.Kind != 4)
+        {
+            throw new InvalidOperationException("Native game-over acceptance requires the final request-kind4 packet.");
+        }
+        State = State with { NativeGameOver = receipt };
+    }
 
     public void SetFieldRequestPacket(NativeFieldRequestPacket packet)
     {
@@ -42,12 +54,22 @@ public sealed partial class GameSession
     private static void ValidateFieldRequestPacketCheckpoint(GameState state, JsonElement? vm)
     {
         state.FieldRequestPacket?.Validate();
+        state.NativeGameOver?.Validate();
+        if (state.NativeGameOver is { } loss && (state.Scene != SceneKind.Field || loss.FieldId != state.FieldId || state.FieldRequestPacket?.Kind != 4))
+        {
+            throw new InvalidDataException("Native terminal loss requires its issuing field and final request-kind4 packet.");
+        }
         if (vm is not JsonElement snapshot)
         {
             return;
         }
         NativeFieldRequestPacket? saved = snapshot.TryGetProperty(nameof(GameState.FieldRequestPacket), out JsonElement packet) && packet.ValueKind != JsonValueKind.Null ? packet.Deserialize<NativeFieldRequestPacket>(JsonOptions) : null;
         saved?.Validate();
+        NativeGameOverReceipt? savedLoss = snapshot.TryGetProperty(nameof(GameState.NativeGameOver), out JsonElement lossReceipt) && lossReceipt.ValueKind != JsonValueKind.Null ? lossReceipt.Deserialize<NativeGameOverReceipt>(JsonOptions) : null;
+        if (savedLoss != state.NativeGameOver)
+        {
+            throw new InvalidDataException("Root and active VM native game-over receipt owners disagree.");
+        }
         if (saved != state.FieldRequestPacket)
         {
             throw new InvalidDataException("Root and active VM retained native field request packet owners disagree; migrate the required checkpoint explicitly.");

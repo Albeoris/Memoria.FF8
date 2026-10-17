@@ -61,7 +61,12 @@ public sealed class AutoPlayObservedInputTests
         Assert.DoesNotContain(scoped.Queries, query => query.ObjectId is 9 or 11);
         Assert.Empty(selected.CompletedOptions);
         Assert.False(selected.Finished);
-        Assert.NotNull(selected.ActiveOption);
+        Assert.Null(selected.ActiveOption);
+        AutoPlayInputSearchFrame selectedFrame = Assert.Single(run.Controller.State.InputSearch!.Frames, frame => frame.Key == selected.Key);
+        AutoPlayInputSearchTrial selectedTrial = Assert.Single(selectedFrame.Trials);
+        Assert.True(selectedTrial.Sampled);
+        Assert.NotNull(selectedTrial.SampledQuery);
+        Assert.Equal(AutoPlayInputTrialOutcome.Pending, selectedTrial.Outcome);
         Assert.True(selected.InputCheckpointPrepared);
         Assert.Equal(completedOptions, run.Controller.State.Coverage.Choices.Sum(choice => choice.CompletedOptions.Count));
         Assert.DoesNotContain(run.Queries, sample => (sample.Input.PhysicalHeld & 4096) != 0);
@@ -73,7 +78,8 @@ public sealed class AutoPlayObservedInputTests
         {
             Assert.Contains(callback, sample => scoped.Queries.Any(query => Matches(query, sample.Command)) && IsPositiveQuery(sample));
         });
-        int physical = scoped.Masks[selected.ActiveOption!.Value];
+        int physical = scoped.Masks[selectedTrial.Selection];
+        Assert.Equal(physical, selectedTrial.Mask);
         Assert.Contains(run.Queries, sample => sample.Input.PhysicalHeld == physical && scoped.Queries.Any(query => Matches(query, sample.Command)) && IsPositiveQuery(sample));
         string beforePath = Assert.Single(Directory.GetFiles(run.Output, selected.BeforeCheckpoint!, SearchOption.AllDirectories));
         GameState checkpoint = GameSession.Load(beforePath);
@@ -90,7 +96,12 @@ public sealed class AutoPlayObservedInputTests
         Assert.True(JsonElement.DeepEquals(native, cold.World.Events.Capture()));
         Assert.Equal(run.Session.State.FieldButtonInput, cold.Session.State.FieldButtonInput);
         AutoPlayChoiceCoverage restored = Assert.Single(cold.Controller.State.Coverage.Choices, choice => choice.Key == selected.Key);
-        Assert.Equal(selected.ActiveOption, restored.ActiveOption);
+        Assert.Null(restored.ActiveOption);
+        AutoPlayInputSearchTrial coldTrial = Assert.Single(Assert.Single(cold.Controller.State.InputSearch!.Frames, frame => frame.Key == selected.Key).Trials);
+        Assert.True(coldTrial.Sampled);
+        Assert.Equal(selectedTrial.Mask, coldTrial.Mask);
+        Assert.Equal(selectedTrial.SampledQuery, coldTrial.SampledQuery);
+        Assert.Equal(selectedTrial.Outcome, coldTrial.Outcome);
         Assert.Equal(selected.FirstOption, restored.FirstOption);
         Assert.Equal(selected.OptionCount, restored.OptionCount);
         Assert.True(restored.InputCheckpointPrepared);

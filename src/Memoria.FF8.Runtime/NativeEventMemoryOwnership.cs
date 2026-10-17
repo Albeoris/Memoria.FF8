@@ -69,11 +69,11 @@ public static partial class NativeEventMemoryOwnership
                 throw new InvalidDataException("Native event memory has overlapping or invalid owner registrations.");
             }
         }
-        foreach ((int address, NativeMemoryValue value) in memory.Cells)
+        foreach ((int address, int width) in memory.CellRanges())
         {
-            if (regions.Any(region => region.Overlaps(address, value.Width)))
+            if (regions.Any(region => region.Overlaps(address, width)))
             {
-                throw new InvalidDataException($"Generic event cell {address}/{value.Width} overlaps a canonical memory owner.");
+                throw new InvalidDataException($"Generic event cell {address}/{width} overlaps a canonical memory owner.");
             }
         }
     }

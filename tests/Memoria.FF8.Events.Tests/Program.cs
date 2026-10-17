@@ -165,6 +165,7 @@ internal static partial class Program
                     ["native-facediri"] = () => NativeFaceImmediateContract(selectedGameDirectory),
                     ["native-facedirp"] = NativePartyFaceContract,
                     ["native-rfacedirp"] = () => NativePartyFaceContract(true),
+                    ["native-gameover"] = () => NativeGameOverContract(selectedGameDirectory),
                     ["native-ranimeloop-yield"] = NativeAnimationLoopYieldContract,
                     ["native-movement-animation"] = () => NativeMovementAnimationContract(selectedGameDirectory),
                     ["native-face-sync"] = NativeFaceSyncContract,
@@ -302,6 +303,7 @@ internal static partial class Program
             NativeDoorLineToggleContract();
             NativePartyActorDirectionContract();
             NativePartyFaceContract();
+            NativeGameOverContract(gameDirectory);
             NativeAnimationLoopYieldContract();
             NativeMovementAnimationContract(gameDirectory);
             NativePlayerScriptHandoffContract(gameDirectory);

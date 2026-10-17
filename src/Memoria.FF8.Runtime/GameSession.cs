@@ -429,7 +429,10 @@ public sealed partial class GameSession : IEventServices
         string fullPath = Path.GetFullPath(path);
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
         string temporary = fullPath + ".tmp";
-        File.WriteAllText(temporary, JsonSerializer.Serialize(State, compact ? CompactJsonOptions : JsonOptions));
+        using (FileStream stream = new(temporary, FileMode.Create, FileAccess.Write, FileShare.None))
+        {
+            JsonSerializer.Serialize(stream, State, compact ? CompactJsonOptions : JsonOptions);
+        }
         File.Move(temporary, fullPath, true);
     }
 

@@ -37,8 +37,17 @@ public sealed partial class GameAssets
             throw new ArgumentOutOfRangeException(nameof(fieldId));
         }
         string name = fieldNames[fieldId];
-        using IFlArchive nested = OpenNested(name);
-        string hash = Convert.ToHexString(SHA256.HashData(Read(nested, name + extension)));
+        string hash;
+        if (resources is not null && overrides is null)
+        {
+            using Stream stream = resources.Get(new Memoria.FF8.Resources.ResourceKey("field/" + name + "/" + name + extension)).OpenRead();
+            hash = Convert.ToHexString(SHA256.HashData(stream));
+        }
+        else
+        {
+            using IFlArchive nested = OpenNested(name);
+            hash = Convert.ToHexString(SHA256.HashData(Read(nested, name + extension)));
+        }
         if (overrides is null)
         {
             hashes[fieldId] = hash;

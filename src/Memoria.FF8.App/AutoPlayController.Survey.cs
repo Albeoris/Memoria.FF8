@@ -23,6 +23,7 @@ internal sealed partial class AutoPlayController
 
     private void BeginSurveySegment(GameWorld world)
     {
+        using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Survey.Begin");
         if (world.Events.Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } initialization)
         {
             run.SurveyBaseline = null;
@@ -32,7 +33,7 @@ internal sealed partial class AutoPlayController
         Dictionary<string, AutoPlayVisitGuard> guards = new(StringComparer.Ordinal);
         foreach ((string key, AutoPlayVisitGuard guard) in run.VisitGuards)
         {
-            if (guard.Version != AutoPlayVisitGuard.CurrentVersion || world.ReadAutoPlayFieldProgramHash(guard.FieldId) != guard.ProgramHash || world.Events.ReadPersistentPredicateFingerprint(guard.Reads) is not string fingerprint)
+            if (guard.Version != AutoPlayVisitGuard.CurrentVersion || ReadSurveyProgramHash(world, guard.FieldId) != guard.ProgramHash || ReadSurveyFingerprint(world, guard.Reads) is not string fingerprint)
             {
                 run.InspectedVisitsSinceProgress.Remove(key);
                 continue;
@@ -67,6 +68,7 @@ internal sealed partial class AutoPlayController
 
     private void ObserveSurveySegmentChanges(GameWorld world)
     {
+        using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Survey.ObserveChanges");
         if (run.SurveyBaseline is not { } baseline)
         {
             return;
@@ -85,11 +87,23 @@ internal sealed partial class AutoPlayController
             ResetSurveySegment();
             return;
         }
-        foreach (string key in FindChangedSurveyVisits(baseline, run.VisitGuards, world.ReadAutoPlayFieldProgramHash, world.Events.ReadPersistentPredicateFingerprint, recordedTravel: run.ActiveTravelRoute is not null, currentCanonicalProgressFingerprint: canonical))
+        foreach (string key in FindChangedSurveyVisits(baseline, run.VisitGuards, field => ReadSurveyProgramHash(world, field), reads => ReadSurveyFingerprint(world, reads), recordedTravel: run.ActiveTravelRoute is not null, currentCanonicalProgressFingerprint: canonical))
         {
             run.InspectedVisitsSinceProgress.Remove(key);
         }
         BeginSurveySegment(world);
+    }
+
+    private string ReadSurveyProgramHash(GameWorld world, int field)
+    {
+        using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Survey.ProgramHash");
+        return world.ReadAutoPlayFieldProgramHash(field);
+    }
+
+    private string? ReadSurveyFingerprint(GameWorld world, IReadOnlyList<NativePersistentPredicateRead> reads)
+    {
+        using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Survey.Fingerprint");
+        return world.Events.ReadPersistentPredicateFingerprint(reads);
     }
 
     private static string? ReadSurveyCanonicalProgress(GameWorld world)

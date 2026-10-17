@@ -92,7 +92,7 @@ public sealed partial class EventEngine
         }
         NativeEventMemoryOwner owner = ResolveMemoryOwner(descriptor.Address, descriptor.Width);
         bool canonical = owner == NativeEventMemoryOwner.WorldEntry || owner == NativeEventMemoryOwner.WorldControls && descriptor.Address == 104 && descriptor.Width == 4 || owner == NativeEventMemoryOwner.SeeD && descriptor.Address == 184 && descriptor.Width == 2;
-        if (!canonical && (owner != NativeEventMemoryOwner.Generic || descriptor.Address < 256 || !HasExactPredicateBytes(EventMemory.Cells, descriptor.Address, descriptor.Width)))
+        if (!canonical && (owner != NativeEventMemoryOwner.Generic || descriptor.Address < 256 || !EventMemory.HasRepresentedExactBytes(descriptor.Address, descriptor.Width)))
         {
             return false;
         }
@@ -199,7 +199,7 @@ public sealed partial class EventEngine
             NativeEventMemoryOwner owner = ResolveMemoryOwner(operation.Parameter, width);
             // Completed native field initialization proves the1024..1279 reset bank, including its implicit zero bytes.
             bool resetLocal = operation.Parameter >= 1024 && operation.Parameter + width <= 1280;
-            return owner == NativeEventMemoryOwner.Generic && (resetLocal || HasExactPredicateBytes(EventMemory.Cells, operation.Parameter, width));
+            return owner == NativeEventMemoryOwner.Generic && (resetLocal || EventMemory.HasRepresentedExactBytes(operation.Parameter, width));
         }
         if (operation.Opcode is Jsm.Opcode.POPM_B or Jsm.Opcode.POPM_W or Jsm.Opcode.POPM_L)
         {

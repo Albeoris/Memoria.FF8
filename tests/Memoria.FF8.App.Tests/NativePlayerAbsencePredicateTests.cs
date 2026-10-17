@@ -10,6 +10,24 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativePlayerAbsencePredicateTests
 {
     [Fact]
+    public void PersistentReadsFollowTheActualRestoredImmutableMemoryOwner()
+    {
+        EventEngine engine = Create(600, 1);
+        EventEngine alternative = Create(600, 0);
+        NativePersistentPredicateRead[] reads = [new("PSHM_B", 720, 1), new("PSHSM_B", 721, 1)];
+        JsonElement original = engine.Capture();
+        string first = Assert.IsType<string>(engine.ReadPersistentPredicateFingerprint(reads));
+        string second = Assert.IsType<string>(alternative.ReadPersistentPredicateFingerprint(reads));
+        Assert.NotEqual(first, second);
+
+        engine.Restore(alternative.Capture());
+        Assert.Equal(second, engine.ReadPersistentPredicateFingerprint(reads));
+        engine.Restore(original);
+        Assert.Equal(first, engine.ReadPersistentPredicateFingerprint(reads));
+        Assert.True(JsonElement.DeepEquals(original, engine.Capture()));
+    }
+
+    [Fact]
     public void PersistentFingerprintSurvivesAnotherFieldAndDistinguishesChangedPartyAndFlags()
     {
         EventEngine destination = Create(600, 1);

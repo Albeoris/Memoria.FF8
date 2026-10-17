@@ -7,16 +7,15 @@ namespace Memoria.FF8.App.Tests;
 public sealed class AutoPlayScriptedInputPreparationTests
 {
     [Fact]
-    public void ScheduledNativeExitDuringReleaseDoesNotAttemptOrCreditAnotherInput()
+    public void ScheduledNativeExitAfterARealQueryDoesNotCreditThePendingInputAlternative()
     {
         string manifest = TestResources.FixturePath("App.Tests.AutoPlayScriptedInputPreparationTests.1");
         byte[] original = File.ReadAllBytes(manifest);
         using InstalledRun run = new();
         run.Controller.ResumeFrom(manifest);
         Assert.Equal(235, run.Session.State.FieldId);
-        string choices = JsonSerializer.Serialize(run.Controller.State.Coverage.Choices);
-        string attempts = JsonSerializer.Serialize(run.Controller.State.ScriptedInputs);
-        int inputSteps = run.Controller.State.ScriptedInputSteps;
+        Dictionary<string, string> choices = run.Controller.State.Coverage.Choices.ToDictionary(choice => choice.Key, choice => JsonSerializer.Serialize(choice));
+        int completed = run.Controller.State.Coverage.Choices.Sum(choice => choice.CompletedOptions.Count);
         string[] sceneChoices = run.Controller.State.SceneChoices.ToArray();
         for (int tick = 0; tick < 4 && run.Session.State.FieldId == 235 && run.Controller.Error is null; tick++)
         {
@@ -25,13 +24,42 @@ public sealed class AutoPlayScriptedInputPreparationTests
         Assert.Null(run.Controller.Error);
         Assert.True(run.Controller.Running);
         Assert.Equal(234, run.Session.State.FieldId);
-        Assert.Equal(choices, JsonSerializer.Serialize(run.Controller.State.Coverage.Choices));
-        Assert.Equal(attempts, JsonSerializer.Serialize(run.Controller.State.ScriptedInputs));
-        Assert.Equal(inputSteps, run.Controller.State.ScriptedInputSteps);
+        AutoPlayInputSearchFrame frame = Assert.Single(run.Controller.State.InputSearch!.Frames);
+        AutoPlayInputSearchTrial trial = Assert.Single(frame.Trials);
+        Assert.Equal(235, frame.FieldId);
+        Assert.True(trial.Sampled);
+        ScriptedInputQuery query = Assert.IsType<ScriptedInputQuery>(trial.SampledQuery);
+        Assert.NotEqual(AutoPlayInputTrialOutcome.ControlReturn, trial.Outcome);
+        Assert.Null(trial.Loss);
+        AutoPlayChoiceCoverage choice = Assert.Single(run.Controller.State.Coverage.Choices, candidate => candidate.Key == frame.Key);
+        Assert.Null(choice.ActiveOption);
+        Assert.Empty(choice.CompletedOptions);
+        Assert.False(choice.Finished);
+        Assert.Equal(completed, run.Controller.State.Coverage.Choices.Sum(candidate => candidate.CompletedOptions.Count));
+        foreach (KeyValuePair<string, string> previous in choices)
+        {
+            Assert.Equal(previous.Value, JsonSerializer.Serialize(run.Controller.State.Coverage.Choices.Single(candidate => candidate.Key == previous.Key)));
+        }
         Assert.Equal(sceneChoices, run.Controller.State.SceneChoices);
-        Assert.DoesNotContain(run.InputCallbacks, sample => sample.Mask != 0);
+        string checkpointPath = Assert.Single(Directory.GetFiles(run.Output, frame.Checkpoint, SearchOption.AllDirectories));
+        GameState checkpoint = GameSession.Load(checkpointPath);
+        long preparedFrame = checkpoint.EventState!.Value.GetProperty("Frame").GetInt64();
+        Assert.True(AutoPlayController.HasNeutralScriptedInput(checkpoint.FieldButtonInput, 235, preparedFrame));
+        int sampledIndex = run.QueryTimeline.FindIndex(sample => sample.Command.FieldId == 235 && sample.Command.ObjectId == query.ObjectId && sample.Command.ScriptId == query.ScriptId && sample.Command.Operation == query.Operation && sample.Command.Name == query.Opcode && sample.Command.Arguments.Count == 1 && sample.Command.Arguments[0] == query.Mask && sample.Input.PhysicalHeld == trial.Mask && (sample.Command.Arguments[0] & (query.Opcode == "KEYSCAN2" ? sample.Input.RawHeld : query.Opcode == "KEYON" ? sample.Input.Pressed.GetValueOrDefault() : sample.Input.Held.GetValueOrDefault())) != 0);
+        Assert.True(sampledIndex >= 0, JsonSerializer.Serialize(run.QueryTimeline.Select(sample => new { sample.Command, sample.Input })));
+        Assert.Equal(preparedFrame + 1, run.QueryTimeline[sampledIndex].Input.SampledFrame);
+        int exitIndex = run.QueryTimeline.FindIndex(sample => sample.Command.FieldId == 235 && sample.Command.Name is "MAPJUMP" or "MAPJUMP3" or "MAPJUMPO");
+        Assert.True(exitIndex > sampledIndex, JsonSerializer.Serialize(run.QueryTimeline.Select(sample => new { sample.Command, sample.Input })));
+        Assert.DoesNotContain(run.InputCallbacks, sample => sample.Field == 234 && sample.Mask != 0);
         Assert.Equal(0, run.Session.State.FieldButtonInput!.PhysicalHeld);
         Assert.Equal(original, File.ReadAllBytes(manifest));
+        string? timelineReport = Environment.GetEnvironmentVariable("MEMORIA_FF8_INPUT_TIMELINE_REPORT");
+        if (!string.IsNullOrWhiteSpace(timelineReport))
+        {
+            string path = Path.GetFullPath(timelineReport);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, JsonSerializer.Serialize(new { PreparedFrame = preparedFrame, FinalField = run.Session.State.FieldId, FinalFrame = run.World.Events.Frame, SampledQueryIndex = sampledIndex, NativeExitIndex = exitIndex, PendingTrial = trial, Timeline = run.QueryTimeline.Select(sample => new { sample.Command, sample.Input }) }, new JsonSerializerOptions { WriteIndented = true }));
+        }
     }
 
     [Fact]
@@ -57,13 +85,24 @@ public sealed class AutoPlayScriptedInputPreparationTests
         long preparedFrame = checkpoint.EventState!.Value.GetProperty("Frame").GetInt64();
         Assert.Equal(0, checkpoint.FieldButtonInput!.PhysicalHeld);
         Assert.Equal(preparedFrame + 1, run.InputCallbacks.First(sample => sample.Field == 240 && sample.Mask == input.Masks[0]).Frame);
-        for (int step = 0; step < 128 && !run.InputCallbacks.Any(sample => sample.Field == 240 && sample.Mask == input.Masks[1]); step++)
+        AutoPlayInputSearch search = run.Controller.State.InputSearch!;
+        AutoPlayInputSearchFrame searchFrame = Assert.Single(search.Frames, frame => frame.Key == inputChoice.Key);
+        for (int step = 0; step < 128 && !inputChoice.CompletedOptions.Contains(0); step++)
         {
             run.Controller.Advance(1);
             Assert.Null(run.Controller.Error);
         }
         Assert.Contains(0, inputChoice.CompletedOptions);
-        Assert.Equal(1, inputChoice.ActiveOption);
+        Assert.True(search.Closed);
+        // Verify replay preparation directly from the authentic saved frame after its real control return.
+        System.Reflection.MethodInfo restoreFrame = typeof(AutoPlayController).GetMethod("RestoreInputSearchFrame", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        System.Reflection.MethodInfo executeTrial = typeof(AutoPlayController).GetMethod("ExecuteInputSearchTrial", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        restoreFrame.Invoke(run.Controller, [searchFrame]);
+        executeTrial.Invoke(run.Controller, [searchFrame]);
+        Assert.Null(inputChoice.ActiveOption);
+        Assert.Equal(1, searchFrame.Trials.Last().Selection);
+        Assert.True(searchFrame.Trials.Last().Sampled);
+        Assert.Equal(input.Masks[1], searchFrame.Trials.Last().Mask);
         Assert.Equal(preparedFrame + 1, run.InputCallbacks.First(sample => sample.Field == 240 && sample.Mask == input.Masks[1]).Frame);
     }
 
@@ -95,7 +134,11 @@ public sealed class AutoPlayScriptedInputPreparationTests
         }
         Assert.True(run.Controller.Error is null, $"{run.Controller.Error}; {run.Controller.ReproductionPath}");
         Assert.NotNull(legacyChoice);
-        Assert.Equal(0, legacyChoice.ActiveOption);
+        Assert.Null(legacyChoice.ActiveOption);
+        AutoPlayInputSearchTrial initialTrial = Assert.Single(Assert.Single(run.Controller.State.InputSearch!.Frames, frame => frame.Key == legacyChoice.Key).Trials);
+        Assert.Equal(0, initialTrial.Selection);
+        Assert.True(initialTrial.Sampled);
+        Assert.NotNull(initialTrial.SampledQuery);
         Assert.Empty(legacyChoice.CompletedOptions);
         Assert.True(legacyChoice.InputCheckpointPrepared);
         string scopedKey = legacyChoice.Key;
@@ -143,6 +186,10 @@ public sealed class AutoPlayScriptedInputPreparationTests
         Assert.DoesNotContain(run.Controller.State.Coverage.Choices, choice => choice.Key == legacyKey);
 
         // Model old controller metadata only: its active option was genuinely sampled from this unchanged checkpoint.
+        run.Controller.State.InputSearch = null;
+        run.Controller.State.InputSearchChoiceKeys.Remove(scopedKey);
+        legacyChoice.ActiveOption = initialTrial.Selection;
+        run.Controller.State.SceneChoices.Add(scopedKey);
         List<AutoPlayChoiceSelection>? Rename(IReadOnlyList<AutoPlayChoiceSelection>? selections)
         {
             return selections?.Select(selection => selection.Key == scopedKey ? selection with { Key = legacyKey } : selection).ToList();
@@ -190,7 +237,11 @@ public sealed class AutoPlayScriptedInputPreparationTests
         Assert.NotEqual(legacyKey, replacementKey);
         AutoPlayChoiceCoverage replacement = Assert.Single(run.Controller.State.Coverage.Choices, choice => choice.Key == replacementKey);
         Assert.True(run.Controller.State.ScriptedChoiceInputs[replacementKey].ObservedQueriesProven);
-        Assert.Equal(0, replacement.ActiveOption);
+        Assert.Null(replacement.ActiveOption);
+        AutoPlayInputSearchTrial replacementTrial = Assert.Single(Assert.Single(run.Controller.State.InputSearch!.Frames, frame => frame.Key == replacementKey).Trials);
+        Assert.Equal(0, replacementTrial.Selection);
+        Assert.True(replacementTrial.Sampled);
+        Assert.NotNull(replacementTrial.SampledQuery);
         Assert.Empty(replacement.CompletedOptions);
         Assert.False(replacement.Finished);
         Assert.True(replacement.InputCheckpointPrepared);
@@ -208,7 +259,11 @@ public sealed class AutoPlayScriptedInputPreparationTests
         Assert.Equal(new[] { 0 }, old.CompletedOptions);
         Assert.False(old.Finished);
         AutoPlayChoiceCoverage restored = Assert.Single(cold.Controller.State.Coverage.Choices, choice => choice.Key == replacementKey);
-        Assert.Equal(0, restored.ActiveOption);
+        Assert.Null(restored.ActiveOption);
+        AutoPlayInputSearchTrial restoredTrial = Assert.Single(Assert.Single(cold.Controller.State.InputSearch!.Frames, frame => frame.Key == replacementKey).Trials);
+        Assert.Equal(replacementTrial.Mask, restoredTrial.Mask);
+        Assert.Equal(replacementTrial.SampledQuery, restoredTrial.SampledQuery);
+        Assert.True(restoredTrial.Sampled);
         Assert.Empty(restored.CompletedOptions);
         Assert.True(cold.Controller.State.ScriptedChoiceInputs[replacementKey].ObservedQueriesProven);
         Assert.Equal(checkpointBytes, File.ReadAllBytes(Assert.Single(Directory.GetFiles(cold.Output, old.BeforeCheckpoint!, SearchOption.AllDirectories))));
@@ -281,6 +336,7 @@ public sealed class AutoPlayScriptedInputPreparationTests
         public string Output { get; } = Path.Combine(Path.GetTempPath(), "ff8-autoplay-input-preparation-" + Guid.NewGuid().ToString("N"));
         public AutoPlayController Controller { get; }
         public List<(int Field, long Frame, int Mask)> InputCallbacks { get; } = [];
+        public List<(ScriptCommand Command, NativeFieldButtonInput Input)> QueryTimeline { get; } = [];
         public GameWorld World => GetWorld();
         public bool PreserveArtifacts { get; set; }
 
@@ -290,7 +346,14 @@ public sealed class AutoPlayScriptedInputPreparationTests
             {
                 world = new GameWorld(Session, gameDirectory, validateWorldPresentation: false);
                 GameWorld observed = world;
-                observed.Events.CommandExecuted += _ => InputCallbacks.Add((observed.Events.FieldId, observed.Events.Frame, Session.State.FieldButtonInput!.PhysicalHeld));
+                observed.Events.CommandExecuted += command =>
+                {
+                    InputCallbacks.Add((observed.Events.FieldId, observed.Events.Frame, Session.State.FieldButtonInput!.PhysicalHeld));
+                    if (command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON" or "KEYOFF" or "MAPJUMP" or "MAPJUMP3" or "MAPJUMPO")
+                    {
+                        QueryTimeline.Add((command, Session.State.FieldButtonInput!));
+                    }
+                };
             }
             return world;
         }

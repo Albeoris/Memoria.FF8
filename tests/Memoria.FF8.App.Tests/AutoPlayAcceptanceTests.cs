@@ -14,17 +14,34 @@ public sealed class AutoPlayAcceptanceTests
         using InstalledRun run = new(gameDirectory);
         run.Controller.ResumeFrom(manifest);
         ScopeNativeInputCoverageToWardrobe(run.Controller);
-        for (int step = 0; step < 8 && run.Controller.State.ActiveObservedInput is null; step++)
+        for (int step = 0; step < 16 && run.Controller.State.InputSearch is null; step++)
         {
             run.Controller.Advance(1);
             Assert.Null(run.Controller.Error);
         }
-        ScriptedInputMetadata input = Assert.IsType<ScriptedInputMetadata>(run.Controller.State.ActiveObservedInput);
-        run.Controller.State.ActiveObservedInput = input with { Queries = input.Queries.Select(query => query with { Operation = int.MaxValue }).ToArray() };
-        run.Controller.Advance(1);
-        Assert.Contains("did not sample physical mask", run.Controller.Error);
-        AutoPlayChoiceCoverage choice = Assert.Single(run.Controller.State.Coverage.Choices, choice => choice.Key == "input:240:" + input.Fingerprint);
+        AutoPlayInputSearchFrame frame = Assert.Single(run.Controller.State.InputSearch!.Frames);
+        ScriptedInputMetadata input = Assert.IsType<ScriptedInputMetadata>(frame.Input);
+        AutoPlayInputSearchTrial actual = Assert.Single(frame.Trials);
+        Assert.True(actual.Sampled);
+        Assert.NotNull(actual.SampledQuery);
+        AutoPlayChoiceCoverage choice = Assert.Single(run.Controller.State.Coverage.Choices, choice => choice.Key == frame.Key);
         Assert.Empty(choice.CompletedOptions);
+        string checkpoint = Assert.Single(Directory.GetFiles(run.OutputDirectory, frame.Checkpoint, SearchOption.AllDirectories));
+        byte[] originalCheckpoint = File.ReadAllBytes(checkpoint);
+        System.Reflection.MethodInfo restoreFrame = typeof(AutoPlayController).GetMethod("RestoreInputSearchFrame", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        System.Reflection.MethodInfo pulse = typeof(AutoPlayController).GetMethod("PulseScriptedInput", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        restoreFrame.Invoke(run.Controller, [frame]);
+        ScriptedInputMetadata impossible = input with { Queries = input.Queries.Select(query => query with { Operation = int.MaxValue }).ToArray() };
+        List<ScriptedInputQuery> sampled = [];
+
+        System.Reflection.TargetInvocationException invocation = Assert.Throws<System.Reflection.TargetInvocationException>(() => pulse.Invoke(run.Controller, [input.Masks[actual.Selection], impossible, frame.AllowControlled, true, new Action<ScriptedInputQuery>(sampled.Add)]));
+
+        NotSupportedException failure = Assert.IsType<NotSupportedException>(invocation.InnerException);
+        Assert.Contains("did not sample physical mask", failure.Message);
+        Assert.Empty(sampled);
+        Assert.Empty(choice.CompletedOptions);
+        Assert.False(choice.Finished);
+        Assert.Equal(originalCheckpoint, File.ReadAllBytes(checkpoint));
     }
 
     [Fact]
@@ -218,7 +235,13 @@ public sealed class AutoPlayAcceptanceTests
         Assert.Contains(0, legacy.CompletedOptions);
         Assert.False(legacy.Finished);
         AutoPlayChoiceCoverage observed = Assert.Single(state.Coverage.Choices, choice => choice.Key == legacy.SupersededInputDomain);
-        Assert.Equal(0, observed.ActiveOption);
+        Assert.Null(observed.ActiveOption);
+        AutoPlayInputSearchFrame frame = Assert.Single(state.InputSearch!.Frames, candidate => candidate.Key == observed.Key);
+        AutoPlayInputSearchTrial trial = Assert.Single(frame.Trials);
+        Assert.Equal(0, trial.Selection);
+        Assert.True(trial.Sampled);
+        Assert.NotNull(trial.SampledQuery);
+        Assert.Equal(AutoPlayInputTrialOutcome.Pending, trial.Outcome);
         Assert.Empty(observed.CompletedOptions);
         Assert.False(observed.Finished);
         Assert.True(state.ScriptedChoiceInputs[observed.Key].ObservedQueriesProven);

@@ -1,6 +1,5 @@
 using System.Numerics;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
@@ -10,22 +9,32 @@ namespace Memoria.FF8.Events.Tests;
 
 internal static partial class Program
 {
+    // A transition is an ordinary callback command; synchronous initialization only prepares its default script.
+    private static byte[] OriginCallbackProgram(params (Jsm.Opcode Opcode, int Parameter)[] operations)
+    {
+        return SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], operations]);
+    }
+
     private static void NativeMapJumpOriginContract()
     {
-        byte[] jump = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 65636), (Jsm.Opcode.PSHN_L, 65538), (Jsm.Opcode.MAPJUMPO, 0), (Jsm.Opcode.RET, 0));
-        GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 99 });
+        using GameAssets assets = new(TestResources.GameDirectory);
+        GameSession CreateSession()
+        {
+            return CreateDirectedLinearTurnSession(assets.ReadNewGameCharacterVitals(), assets.ReadNewGameEconomy());
+        }
+
+        byte[] jump = OriginCallbackProgram((Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 65636), (Jsm.Opcode.PSHN_L, 65538), (Jsm.Opcode.MAPJUMPO, 0), (Jsm.Opcode.RET, 0));
+        GameSession session = CreateSession();
         EventEngine issuing = new(session);
-        issuing.LoadField(99, jump, []);
+        issuing.LoadField(99, jump, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        issuing.Step();
         issuing.Step();
         Require(session.State.FieldArrival == new FieldTransition(100, 32767, 32767, 2, 0) && session.State.EntryPoint == 0 && issuing.NextTrigger.Kind == PlayerTriggerKind.FieldTransition, "MAPJUMPO did not preserve its low WORD field/triangle and original centroid sentinels.");
-        GameSession missingSession = new(new GameState());
+        GameSession missingSession = CreateSession();
         EventEngine missing = new(missingSession);
-        missing.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 175), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.MAPJUMPO, 0), (Jsm.Opcode.RET, 0)), []);
+        missing.LoadField(100, OriginCallbackProgram((Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 175), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.MAPJUMPO, 0), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         missing.Step();
-        JsonObject missingSnapshot = JsonNode.Parse(missing.Capture().GetRawText())!.AsObject();
-        missingSnapshot["Fibers"]![0]!["Stack"]!.AsArray().RemoveAt(0);
-        missingSnapshot["Fibers"]![0]!["StackExpressions"]!.AsArray().RemoveAt(0);
-        missing.Restore(JsonSerializer.SerializeToElement(missingSnapshot));
+        missing.Step();
         try
         {
             missing.Step();
@@ -34,15 +43,16 @@ internal static partial class Program
         catch (EventScriptException)
         {
         }
-        Require(missing.LastFault?.Opcode == "MAPJUMPO" && missing.Capture().GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 5 && missing.Capture().GetProperty("Fibers")[0].GetProperty("Stack")[0].GetInt32() == 175 && missingSession.State.FieldArrival is null, "Missing MAPJUMPO operands changed the issuing PC, stack or destination.");
+        JsonElement refused = missing.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => !fiber.GetProperty("Initialization").GetBoolean());
+        Require(missing.LastFault?.Opcode == "MAPJUMPO" && refused.GetProperty("Position").GetInt32() == 6 && refused.GetProperty("Stack")[0].GetInt32() == 175 && missingSession.State.FieldArrival is null, "Missing MAPJUMPO operands changed the issuing PC, stack or destination.");
 
         FieldWalkmesh mesh = new([new WalkmeshTriangle(new Vector3(-5, -4, 8), new Vector3(-5, 3, 10), new Vector3(2, -4, 9), -1, -1, -1)]);
         Require(FieldPartyTraceGeometry.ResolveTriangleCentroid(mesh, 0) == new Vector3(-2, -1, 9), "Native centroid did not divide signed XYZ vertex sums toward zero independently of plane height.");
         Require(FieldPartyTraceGeometry.ResolveTriangleCentroid(mesh, -1) is null && FieldPartyTraceGeometry.ResolveTriangleCentroid(mesh, 1) is null, "Invalid original triangle acquired a centroid.");
-        byte[] init = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.BASEANIME, 0), (Jsm.Opcode.RET, 0));
+        byte[] init = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.BASEANIME, 0), (Jsm.Opcode.RET, 0));
         EventEngine Create(int triangle)
         {
-            GameSession target = new(new GameState());
+            GameSession target = CreateSession();
             EventEngine result = new(target)
             {
                 AnimationFrameCount = (_, _) => 3,
@@ -50,7 +60,6 @@ internal static partial class Program
                 ResolveNativeTriangleHeight = (index, x, y) => FieldPartyTraceGeometry.ResolveTriangleHeight(mesh, index, x, y),
                 ResolvePartyTraceTriangle = (x, y, z) => FieldPartyTraceGeometry.Resolve(mesh, x, y, z)
             };
-            result.Scene.Party.Add(0);
             result.LoadField(100, init, [], FieldTransition.FromMapJumpOrigin(100, triangle), nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return result;
         }

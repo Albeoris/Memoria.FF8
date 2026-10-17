@@ -27,7 +27,7 @@ public sealed partial class EventEngine
 
     private static bool Supports(Jsm.Opcode opcode) => opcode switch
     {
-            Jsm.Opcode.OPENEYES or Jsm.Opcode.CLOSEEYES or Jsm.Opcode.DSCROLLA2 or Jsm.Opcode.CSCROLLA2 or Jsm.Opcode.LBL or Jsm.Opcode.NOP or Jsm.Opcode.RET or Jsm.Opcode.HALT or Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or
+            Jsm.Opcode.GAMEOVER or Jsm.Opcode.OPENEYES or Jsm.Opcode.CLOSEEYES or Jsm.Opcode.DSCROLLA2 or Jsm.Opcode.CSCROLLA2 or Jsm.Opcode.LBL or Jsm.Opcode.NOP or Jsm.Opcode.RET or Jsm.Opcode.HALT or Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or
             Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.PSHSM_L or Jsm.Opcode.PSHSM_W or Jsm.Opcode.POPM_B or Jsm.Opcode.POPM_W or
             Jsm.Opcode.POPM_L or Jsm.Opcode.PSHI_L or Jsm.Opcode.POPI_L or Jsm.Opcode.CAL or Jsm.Opcode.JMP or Jsm.Opcode.JPF or
             Jsm.Opcode.SETTIMER or Jsm.Opcode.DISPTIMER or Jsm.Opcode.GETTIMER or Jsm.Opcode.KILLTIMER or Jsm.Opcode.BATTLE or Jsm.Opcode.CARDGAME or Jsm.Opcode.BATTLEMODE or Jsm.Opcode.BATTLERESULT or

@@ -49,6 +49,8 @@ public sealed record GameState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeFieldRequestPacket? FieldRequestPacket { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeGameOverReceipt? NativeGameOver { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeFieldLoadContext? FieldLoadContext { get; init; }
     public WorldTransition? WorldArrival { get; init; }
     public WorldState? World { get; init; }
@@ -342,6 +344,12 @@ public interface IEventServices
     }
     NativeFieldRequestPacket? FieldRequestPacket => null;
     bool CanStoreFieldRequestPacket => false;
+    NativeGameOverReceipt? NativeGameOver => null;
+    bool CanStoreNativeGameOver => false;
+    void SetNativeGameOver(NativeGameOverReceipt? receipt)
+    {
+        throw new NotSupportedException("Native game-over terminal-loss ownership is not implemented by this event service.");
+    }
     void SetFieldRequestPacket(NativeFieldRequestPacket packet)
     {
         throw new NotSupportedException("Native retained field request packet ownership is not implemented by this event service.");

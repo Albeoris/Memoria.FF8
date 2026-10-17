@@ -20,7 +20,8 @@ internal static partial class Program
         session.InitializeNewGameShotAvailability(assets.ReadNewGameShotAvailability());
         session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
         EventEngine engine = new(session);
-        byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 300), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 14), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.DISPTIMER, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.ADDMEMBER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.ADDMEMBER, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 99), (Jsm.Opcode.HOLD, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 99), (Jsm.Opcode.HOLD, 0), (Jsm.Opcode.MENUPHS, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.RET, 8)]]);
+        // HALT keeps each completed default component at a supported native idle boundary.
+        byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 300), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 14), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.DISPTIMER, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.ADDMEMBER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.ADDMEMBER, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 99), (Jsm.Opcode.HOLD, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 99), (Jsm.Opcode.HOLD, 0), (Jsm.Opcode.MENUPHS, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
         // Declared component: actual resource initialization and executed native commands;
         // it claims no original field allocation or journey.
         engine.LoadField(74, content, [], previousFieldId: 123, nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
@@ -119,7 +120,7 @@ internal static partial class Program
         session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
         EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 4 };
         (Jsm.Opcode, int)[] Player(int label, int character) => [(Jsm.Opcode.LBL, label), (Jsm.Opcode.SETMODEL, character), (Jsm.Opcode.PSHN_L, character), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, character), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 8)];
-        byte[] content = SyntheticObjects([1, (16 << 7) | 1], [Player(0, 0), [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.UCOFF, 0), (Jsm.Opcode.UCON, 0), (Jsm.Opcode.RET, 8)], Player(16, 1), [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.FOLLOWON, 0), (Jsm.Opcode.RET, 8)]]);
+        byte[] content = SyntheticObjects([1, (16 << 7) | 1], [Player(0, 0), [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.UCOFF, 0), (Jsm.Opcode.UCON, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], Player(16, 1), [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.FOLLOWON, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
         engine.LoadField(74, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         engine.Step();
         Require(engine.Actors[1].NativePartyFlags is { AutoAnimation4: false, DetachedFollow64: false }, "Fresh declared actor allocation invented a geometry-dependent party-binding mask4 producer.");
@@ -155,7 +156,7 @@ internal static partial class Program
         session.InitializeNewGameShotAvailability(assets.ReadNewGameShotAvailability());
         session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
         EventEngine engine = new(session);
-        byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.MAPFADEOFF, 0), (Jsm.Opcode.MENUNORMAL, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.RET, 8)]]);
+        byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.MAPFADEOFF, 0), (Jsm.Opcode.MENUNORMAL, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
         engine.LoadField(74, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         engine.Step();
         engine.Step();
@@ -183,7 +184,7 @@ internal static partial class Program
         engine.Apply(new PlayerAction(PlayerActionKind.Wait));
         Require(engine.PartyMenu is null && engine.Frame == fieldFrame + 1 && session.State.Variables[500] == 77 && session.ExamTimer.ClockCalls == clocks + 10 && engine.Scene.Party.SequenceEqual(fieldParty.Select(row => (int)row)) && session.CharacterVitals!.CombatParty.SequenceEqual(before.CombatParty), "Verified unchanged kind6 failed its original retained VM, ten clock units or unchanged saved parties.");
         Require(session.FieldFade!.MapFadeDisabled == 0, "First resumed4767B0 retained the old4905 byte instead of executing its actual reset.");
-        Require(engine.Scene.FieldCallbackClock!.OrdinaryCallbacks == fieldFrame + 1 && engine.Scene.FieldCallbackClock.MenuCallbacks == 6 && engine.Scene.FieldCallbackClock.FieldLoaderCallbacks == 1 && engine.Scene.FieldCallbackClock.TimerCalls == session.ExamTimer.ClockCalls, "Menu/loader/VM callback ledger conflated native process clock with actor frame history.");
+        Require(engine.Scene.FieldCallbackClock!.OrdinaryCallbacks == fieldFrame && engine.Scene.FieldCallbackClock.InitializationTransactions == 1 && engine.Scene.FieldCallbackClock.MenuCallbacks == 6 && engine.Scene.FieldCallbackClock.FieldLoaderCallbacks == 1 && engine.Scene.FieldCallbackClock.TimerCalls == session.ExamTimer.ClockCalls, "Menu/loader/VM callback ledger conflated native process clock with actor frame history.");
         JsonElement completed = engine.Capture();
         session.SetEventState(completed);
         engine.Restore(completed);

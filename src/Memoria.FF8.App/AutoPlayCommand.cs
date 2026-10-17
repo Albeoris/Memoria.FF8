@@ -100,6 +100,7 @@ internal static class AutoPlayCommand
             {
                 Console.WriteLine(controller.ResumeCommand);
             }
+            controller.WritePerformanceProfile();
             return controller.Error is null ? 0 : 1;
         }
         finally

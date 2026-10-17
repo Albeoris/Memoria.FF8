@@ -6,6 +6,45 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeEventMemoryTests
 {
     [Fact]
+    public void MixedCellReadsMatchAnIndependentByteImageAcrossGapsAndPhysicalBoundaries()
+    {
+        Random random = new(19);
+        byte[] bytes = new byte[ushort.MaxValue + 1];
+        bool[] represented = new bool[bytes.Length];
+        Dictionary<int, NativeMemoryValue> cells = [];
+        for (int address = 0; address < 1024;)
+        {
+            int width = 1 << random.Next(3);
+            uint value = unchecked((uint)random.NextInt64(1L << 32));
+            int projected = width == 1 ? (byte)value : width == 2 ? (ushort)value : unchecked((int)value);
+            cells.Add(address, new(width, NativeScalarValue.Exact(projected)));
+            for (int offset = 0; offset < width; offset++)
+            {
+                bytes[address + offset] = (byte)(value >> (offset * 8));
+                represented[address + offset] = true;
+            }
+            address += width + random.Next(3);
+        }
+        cells.Add(NativeEventMemory.MaximumAddress, new(4, NativeScalarValue.Exact(unchecked((int)0x89ABCDEF))));
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(NativeEventMemory.MaximumAddress), 0x89ABCDEF);
+        Array.Fill(represented, true, NativeEventMemory.MaximumAddress, 4);
+        NativeEventMemory memory = new(1, cells);
+
+        foreach (int address in Enumerable.Range(0, 1030).Concat(Enumerable.Range(NativeEventMemory.MaximumAddress - 7, 8)))
+        {
+            Assert.Equal(bytes[address], memory.Read(address, 1).RequireExact());
+            Assert.Equal(unchecked((sbyte)bytes[address]), memory.Read(address, 1, signed: true).RequireExact());
+            Assert.Equal(System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(address)), memory.Read(address, 2).RequireExact());
+            Assert.Equal(System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(address)), memory.Read(address, 2, signed: true).RequireExact());
+            Assert.Equal(System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(address)), memory.Read(address, 4).RequireExact());
+            foreach (int width in new[] { 1, 2, 4 })
+            {
+                Assert.Equal(Enumerable.Range(address, width).All(index => represented[index]), memory.HasRepresentedExactBytes(address, width));
+            }
+        }
+    }
+
+    [Fact]
     public void Byte201AndByte204AreIndependentCellsOverAZeroBackground()
     {
         NativeEventMemory memory = NativeEventMemory.Empty.Write(201, 1, 0xAB).Write(204, 1, 0xCD);
@@ -68,6 +107,9 @@ public sealed class NativeEventMemoryTests
         Assert.Equal(scalar.Origin.Timer.Alternatives, read.Origin.Timer.Alternatives);
         Assert.Throws<NotSupportedException>(() => memory.Read(100, 1));
         Assert.Throws<NotSupportedException>(() => memory.Read(99, 4));
+        Assert.False(memory.HasRepresentedExactBytes(100, 2));
+        Assert.True(memory.HasRepresentedExactBytes(104, 1));
+        Assert.False(memory.HasRepresentedExactBytes(103, 2));
         Assert.Throws<NotSupportedException>(() => memory.Write(101, 1, 0));
         Assert.Throws<NotSupportedException>(() => memory.Write(99, 4, 0));
         Assert.Throws<NotSupportedException>(() => memory.Clear(101, 102));

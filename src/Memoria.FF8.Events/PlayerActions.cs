@@ -53,7 +53,8 @@ public enum PlayerTriggerKind
     PartyMenu,
     Battle,
     TripleTriad,
-    Tutorial
+    Tutorial,
+    NativeGameOver
 }
 
 public sealed record PlayerAction(PlayerActionKind Kind, int Value = 0, string? Text = null, float Horizontal = 0, float Vertical = 0, int Frames = 1, int? Quantity = null, float CameraHorizontal = 0, bool WaitWhilePlayable = false);
@@ -82,7 +83,7 @@ public sealed partial class EventEngine
     public event Action<DialogueOutcome>? DialogueCompleted;
 
     public PlayerTrigger NextTrigger => new(
-        LastFault is not null ? PlayerTriggerKind.Faulted : program is null ? PlayerTriggerKind.Unloaded : transitionRequested ? Scene.WorldTransitionRequest is null ? PlayerTriggerKind.FieldTransition : PlayerTriggerKind.WorldMap : Scene.NativeTutorial is not null || Scene.NativeMenuTutorial is not null ? PlayerTriggerKind.Tutorial : PendingTripleTriad is not null ? PlayerTriggerKind.TripleTriad : HasPendingBattle ? PlayerTriggerKind.Battle : services.IsMoviePlaying ? PlayerTriggerKind.Movie : PartyMenu is not null ? PlayerTriggerKind.PartyMenu : dialogues.Values.Any(dialogue => dialogue.CanConfirm) ? PlayerTriggerKind.Dialogue : defaultsStarted && AreSelectedFieldScriptsStarted() && CanAcceptFieldMovement ? PlayerTriggerKind.Playable : PlayerTriggerKind.Waiting,
+        NativeGameOver is not null ? PlayerTriggerKind.NativeGameOver : LastFault is not null ? PlayerTriggerKind.Faulted : program is null ? PlayerTriggerKind.Unloaded : transitionRequested ? Scene.WorldTransitionRequest is null ? PlayerTriggerKind.FieldTransition : PlayerTriggerKind.WorldMap : Scene.NativeTutorial is not null || Scene.NativeMenuTutorial is not null ? PlayerTriggerKind.Tutorial : PendingTripleTriad is not null ? PlayerTriggerKind.TripleTriad : HasPendingBattle ? PlayerTriggerKind.Battle : services.IsMoviePlaying ? PlayerTriggerKind.Movie : PartyMenu is not null ? PlayerTriggerKind.PartyMenu : dialogues.Values.Any(dialogue => dialogue.CanConfirm) ? PlayerTriggerKind.Dialogue : defaultsStarted && AreSelectedFieldScriptsStarted() && CanAcceptFieldMovement ? PlayerTriggerKind.Playable : PlayerTriggerKind.Waiting,
         FieldId, Frame, PartyMenu is not null ? null : CurrentDialogue?.MessageId, LastFault?.Message ?? (PartyMenu is not null ? null : CurrentDialogue?.Text));
 
     /// <summary>Applies an ordinary player action; no variable or script-PC mutation API is exposed.</summary>
@@ -110,7 +111,12 @@ public sealed partial class EventEngine
         activeActionIndex = actionLog.Count + 1;
         try
         {
-            if (Scene.NativeTutorial is not null || Scene.NativeMenuTutorial is not null)
+            if (NativeGameOver is not null)
+            {
+                accepted = false;
+                detail = "Native terminal loss suspends ordinary field input.";
+            }
+            else if (Scene.NativeTutorial is not null || Scene.NativeMenuTutorial is not null)
             {
                 accepted = false;
                 detail = "The tutorial suspends ordinary field input until it is closed.";
@@ -339,7 +345,7 @@ public sealed partial class EventEngine
                                 }
                                 CommitNativeLineMovement(lineChanges);
                                 advanced++;
-                                if (!IsUserControlEnabled || IsMovementBlockedByDialogue || services.IsMoviePlaying || transitionRequested || HasPendingBattle || Scene.NativeTutorial is not null || Scene.NativeMenuTutorial is not null)
+                                if (NativeGameOver is not null || !IsUserControlEnabled || IsMovementBlockedByDialogue || services.IsMoviePlaying || transitionRequested || HasPendingBattle || Scene.NativeTutorial is not null || Scene.NativeMenuTutorial is not null)
                                 {
                                     break;
                                 }
@@ -365,7 +371,7 @@ public sealed partial class EventEngine
                         {
                             for (int index = 0; index < action.Frames; index++)
                             {
-                                if ((waitingFor == PlayerTriggerKind.Playable && NextTrigger.Kind != PlayerTriggerKind.Playable) || NextTrigger.Kind is PlayerTriggerKind.Faulted or PlayerTriggerKind.Unloaded or PlayerTriggerKind.Dialogue or PlayerTriggerKind.Movie or PlayerTriggerKind.FieldTransition or PlayerTriggerKind.WorldMap or PlayerTriggerKind.Battle)
+                                if ((waitingFor == PlayerTriggerKind.Playable && NextTrigger.Kind != PlayerTriggerKind.Playable) || NextTrigger.Kind is PlayerTriggerKind.NativeGameOver or PlayerTriggerKind.Faulted or PlayerTriggerKind.Unloaded or PlayerTriggerKind.Dialogue or PlayerTriggerKind.Movie or PlayerTriggerKind.FieldTransition or PlayerTriggerKind.WorldMap or PlayerTriggerKind.Battle)
                                 {
                                     break;
                                 }

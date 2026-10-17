@@ -10,9 +10,6 @@ public sealed record EventPredicateState(string Fingerprint, IReadOnlyList<Event
 
 public sealed partial class EventEngine
 {
-    private NativeEventMemory? predicateMemory;
-    private IReadOnlyDictionary<int, NativeMemoryValue>? predicateCells;
-
     /// <summary>Inspects present canonical state without executing a script or establishing a missing memory owner.</summary>
     public EventPredicateState ReadPredicateState(IReadOnlyCollection<int> operationIndices, bool includeParty = true)
     {
@@ -20,12 +17,6 @@ public sealed partial class EventEngine
         List<EventPredicateValue> values = [];
         List<int> deferred = [];
         NativeEventMemory memory = EventMemory;
-        if (!ReferenceEquals(predicateMemory, memory))
-        {
-            predicateCells = memory.Cells;
-            predicateMemory = memory;
-        }
-        IReadOnlyDictionary<int, NativeMemoryValue> cells = predicateCells!;
         foreach (int index in operationIndices.Distinct().Order())
         {
             if (program is null || (uint)index >= program.Operations.Count)
@@ -41,7 +32,7 @@ public sealed partial class EventEngine
             try
             {
                 NativeEventMemoryOwner owner = ResolveMemoryOwner(operation.Parameter, width);
-                bool represented = owner == NativeEventMemoryOwner.Generic && HasExactPredicateBytes(cells, operation.Parameter, width);
+                bool represented = owner == NativeEventMemoryOwner.Generic && memory.HasRepresentedExactBytes(operation.Parameter, width);
                 bool canonical = owner is NativeEventMemoryOwner.PartyBindings or NativeEventMemoryOwner.WorldEntry or NativeEventMemoryOwner.WorldControls or NativeEventMemoryOwner.Disc or NativeEventMemoryOwner.PreviousField or NativeEventMemoryOwner.PreviousWorldEntity or NativeEventMemoryOwner.FieldLoadReason or NativeEventMemoryOwner.Economy or NativeEventMemoryOwner.Cards or NativeEventMemoryOwner.Junction or NativeEventMemoryOwner.BattleMode or NativeEventMemoryOwner.SeeD or NativeEventMemoryOwner.DrawPoints;
                 if (represented || canonical)
                 {
@@ -78,26 +69,4 @@ public sealed partial class EventEngine
         return new EventPredicateState(fingerprint, values, deferred);
     }
 
-    private static bool HasExactPredicateBytes(IReadOnlyDictionary<int, NativeMemoryValue> cells, int address, int width)
-    {
-        for (int offset = 0; offset < width; offset++)
-        {
-            int target = address + offset;
-            bool found = false;
-            // NativeEventMemory validates nonoverlapping BYTE, WORD or DWORD cells.
-            for (int start = Math.Max(0, target - 3); start <= target; start++)
-            {
-                if (cells.TryGetValue(start, out NativeMemoryValue? cell) && target < start + cell.Width && cell.Value.IsExact)
-                {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found)
-            {
-                return false;
-            }
-        }
-        return true;
-    }
 }
