@@ -8,6 +8,17 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeWorldTutorialTextTests
 {
+    [Fact]
+    public void HistoricalFieldCheckpointStillLoadsWithoutInventingItsMissingMessageSpeed()
+    {
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.NativeWorldTutorialTextTests.1")));
+        Assert.Null(session.State.InputConfiguration!.FieldMessageSpeedByte);
+        using GameWorld world = new(session, TestResources.GameDirectory, validateWorldPresentation: false);
+        world.EnsureField();
+        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
+        Assert.Null(session.State.InputConfiguration.FieldMessageSpeedByte);
+    }
+
     [Theory]
     [InlineData(49)]
     [InlineData(50)]

@@ -13,6 +13,7 @@ public sealed record NativeInputConfiguration([property: JsonRequired] string In
 
     public byte? BattleMessageSpeed { get; init; }
     public byte? NativeBattleSpeedByte { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte? FieldMessageSpeedByte { get; init; }
 
     public void Validate()
