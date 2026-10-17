@@ -1805,7 +1805,7 @@ internal static partial class Program
         // Component-only INF/commit-boundary tests; no second production input API.
         try
         {
-            typeof(EventEngine).GetMethod("MovePlayerCore", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(engine, [x, y, z, triangle, null, null, false, null]);
+            typeof(EventEngine).GetMethod("MovePlayerCore", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(engine, [x, y, z, triangle, null, null, false, null, null]);
         }
         catch (System.Reflection.TargetInvocationException error) when (error.InnerException is not null)
         {
@@ -2354,7 +2354,7 @@ internal static partial class Program
             BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(scriptsOffset + index * 2), checked((ushort)operationIndex));
             foreach ((Jsm.Opcode opcode, int parameter) in scripts[index])
             {
-                int encoded = parameter != 0 || opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or Jsm.Opcode.PSHI_L or Jsm.Opcode.POPI_L or Jsm.Opcode.PREQ or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW or Jsm.Opcode.REQ or Jsm.Opcode.REQSW or Jsm.Opcode.REQEW ? (int)opcode << 24 | parameter & 0xFFFFFF : (int)opcode;
+                int encoded = parameter != 0 || opcode is Jsm.Opcode.SETMODEL or Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or Jsm.Opcode.PSHI_L or Jsm.Opcode.POPI_L or Jsm.Opcode.PREQ or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW or Jsm.Opcode.REQ or Jsm.Opcode.REQSW or Jsm.Opcode.REQEW ? (int)opcode << 24 | parameter & 0xFFFFFF : (int)opcode;
                 BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(operationsOffset + operationIndex++ * 4), encoded);
             }
         }
@@ -2374,7 +2374,7 @@ internal static partial class Program
         for (int index = 0; index < operations.Length; index++)
         {
             (Jsm.Opcode opcode, int parameter) = operations[index];
-            int encoded = parameter != 0 || opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or Jsm.Opcode.PSHI_L or Jsm.Opcode.POPI_L or Jsm.Opcode.PREQ or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW or Jsm.Opcode.REQ or Jsm.Opcode.REQSW or Jsm.Opcode.REQEW ? (int)opcode << 24 | parameter & 0xFFFFFF : (int)opcode;
+            int encoded = parameter != 0 || opcode is Jsm.Opcode.SETMODEL or Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or Jsm.Opcode.PSHI_L or Jsm.Opcode.POPI_L or Jsm.Opcode.PREQ or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW or Jsm.Opcode.REQ or Jsm.Opcode.REQSW or Jsm.Opcode.REQEW ? (int)opcode << 24 | parameter & 0xFFFFFF : (int)opcode;
             BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(16 + index * 4), encoded);
         }
         return bytes;
