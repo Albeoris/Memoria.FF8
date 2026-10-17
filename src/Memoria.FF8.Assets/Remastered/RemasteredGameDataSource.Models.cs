@@ -52,9 +52,8 @@ public sealed partial class RemasteredGameDataSource
                 {
                     throw new NotSupportedException("A field model texture has no source rectangle metadata.");
                 }
-                TextureSourceRegion region = model.TextureRegions[texture];
-                int row = region.Y / 128 & 1;
-                string stem = $"{name}_{row}" + (name == "o006" && UsesAlphaObject(owner) ? "_alpha" : "");
+                // HD suffixes identify source materials; TIM rectangles identify their VRAM allocation.
+                string stem = $"{name}_{texture}" + (name == "o006" && UsesAlphaObject(owner) ? "_alpha" : "");
                 string preferred = $"textures/field.fs/field_hd_new/{stem}.png";
                 string fallback = $"textures/field.fs/field_hd/{stem}.png";
                 string? path = Contains(preferred) ? preferred : Contains(fallback) ? fallback : null;

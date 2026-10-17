@@ -99,6 +99,37 @@ public sealed class InstalledRemasteredTests
         Assert.Equal(Memoria.FF8.Runtime.NativeFieldRuntimeProfile.RemasteredEn, assets.NativeRuntimeProfile);
     }
 
+    [Theory]
+    [InlineData("bgroom_1", "d021")]
+    [InlineData("bghoke_2", "d019")]
+    public void FieldMaterialsUseSourceOrderRatherThanVramAllocationRows(string field, string name)
+    {
+        using RemasteredGameDataSource source = new(InstalledDirectory());
+        ResourceService resources = new(source);
+        ResourceKey owner = new($"field/{field}/chara.one");
+        IReadOnlyList<FieldModel> models = source.ReadModels(owner, resources.Read(owner), model => resources.Read(new ResourceKey($"field/main_chr/{model}.mch")));
+        int index = Enumerable.Range(0, models.Count).Single(index => models[index].Name.StartsWith(name, StringComparison.OrdinalIgnoreCase));
+        FieldModel model = models[index];
+        Assert.Equal(2, model.Textures.Count);
+        Assert.Equal(128, model.TextureRegions[0].Y);
+        Assert.Equal(0, model.TextureRegions[1].Y);
+        using ZzzArchive main = new(Path.Combine(InstalledDirectory(), "main.zzz"));
+        for (int slot = 0; slot < model.Textures.Count; slot++)
+        {
+            TextureBuildContext context = new(new TextureKey(owner, $"model/{index}/texture/{slot}"), source.Descriptor, 0, "classic-model", 128, 128, () => model.Textures[slot]);
+            TextureReplacement replacement = Assert.IsType<TextureReplacement>(source.Resolve(context));
+            string path = $"textures/field.fs/field_hd_new/{name}_{slot}.png";
+            using Stream image = main.Open(path);
+            using MemoryStream bytes = new();
+            image.CopyTo(bytes);
+            DecodedTextureImage encoded = TextureImageDecoder.Decode(bytes.ToArray(), path);
+            for (int row = 0; row < encoded.Image.Height; row++)
+            {
+                Assert.Equal(encoded.Image.Pixels.AsSpan(row * encoded.Image.Width, 384).ToArray(), replacement.Image.Pixels.AsSpan(row * 384, 384).ToArray());
+            }
+        }
+    }
+
     [Fact]
     public void ShortFieldImageRetainsNativeThreefoldUvScaleAndEyePlanes()
     {
@@ -108,10 +139,10 @@ public sealed class InstalledRemasteredTests
         IReadOnlyList<FieldModel> models = source.ReadModels(owner, resources.Read(owner), name => resources.Read(new ResourceKey($"field/main_chr/{name}.mch")));
         int index = Enumerable.Range(0, models.Count).Single(index => models[index].Name.StartsWith("d019", StringComparison.OrdinalIgnoreCase));
         FieldModel model = models[index];
-        Assert.Equal(128, model.Textures[1].Height);
-        float maxV = model.Faces.Where(face => face.Texture == 1).SelectMany(face => face.TextureCoordinates).Max(uv => uv.Y);
+        Assert.Equal(128, model.Textures[0].Height);
+        float maxV = model.Faces.Where(face => face.Texture == 0).SelectMany(face => face.TextureCoordinates).Max(uv => uv.Y);
         Assert.Equal(127, maxV);
-        TextureBuildContext context = new(new TextureKey(owner, $"model/{index}/texture/1"), source.Descriptor, 0, "classic-model", 128, 128, () => model.Textures[1]);
+        TextureBuildContext context = new(new TextureKey(owner, $"model/{index}/texture/0"), source.Descriptor, 0, "classic-model", 128, 128, () => model.Textures[0]);
         TextureReplacement texture = Assert.IsType<TextureReplacement>(source.Resolve(context));
         Assert.Equal(128, texture.LogicalWidth);
         Assert.Equal(128, texture.LogicalHeight);
