@@ -1,5 +1,6 @@
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Resources;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Remastered;
 
@@ -26,10 +27,10 @@ public sealed partial class RemasteredGameDataSource
         return fieldNames.Length > 0x370 && (parts[1] == fieldNames[0x36F] || parts[1] == fieldNames[0x370]);
     }
 
-    public IReadOnlyList<FieldModel> ReadModels(ResourceKey owner, byte[] one, Func<string, byte[]> mainCharacter)
+    public IReadOnlyList<FieldModel> ReadModels(ResourceKey owner, byte[] one, Func<string, byte[]> mainCharacter, Action<NativeFieldOneModelEntry>? retainEntry = null)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        IReadOnlyList<FieldModel> models = FieldModelReader.Read(one, mainCharacter);
+        IReadOnlyList<FieldModel> models = FieldModelReader.Read(one, mainCharacter, retainEntry);
         for (int index = 0; index < models.Count; index++)
         {
             FieldModel model = models[index];

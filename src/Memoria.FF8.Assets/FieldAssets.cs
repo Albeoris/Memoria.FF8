@@ -12,6 +12,7 @@ public sealed record FieldAssets(int Id, string Name, byte[] Jsm, IReadOnlyList<
     public FieldInformation? Information { get; init; }
     public FieldMovieMask? MovieMask { get; init; }
     public Memoria.FF8.Runtime.NativeFieldEncounterDefinition? RandomEncounters { get; init; }
+    public Memoria.FF8.Runtime.NativeFieldRegistrationResources? NativeRegistration { get; init; }
 
     public FieldCamera GetCamera(int index)
     {

@@ -296,6 +296,8 @@ public sealed record BattleSnapshot
     public NativeVibrationProcessState? NativeVibrationProcess { get; init; }
     public NativeBattleModelTextureCache? NativeModelTextureCache { get; init; }
     public NativeBattleModelLoader? NativeModelLoader { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleFileStaging? NativeFileStaging { get; init; }
     public NativeBattleModelCpuResources? NativeModelCpuResources { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public NativeBattleGuardianBoost? NativeGuardianBoost { get; init; }

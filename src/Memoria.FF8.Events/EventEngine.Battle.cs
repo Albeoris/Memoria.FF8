@@ -280,6 +280,11 @@ public sealed partial class EventEngine
     private void ValidateNativeBattleCheckpoint(Checkpoint saved, IReadOnlyDictionary<long, Fiber> bySequence)
     {
         saved.Scene.NativeBattleFieldReload?.Validate();
+        saved.Scene.NativeBattleFieldReloadState?.Validate();
+        if (saved.Scene.NativeBattleFieldReloadState is { } pending && (saved.Scene.NativeBattleFieldReload is not null || pending.FieldId != saved.FieldId || pending.ProgramHash != saved.ProgramHash || saved.Scene.NativeBattleCompletions?.Count(completion => completion.Backend == NativeBattleBackend.Interactive && completion.ReturnFrame is null && completion.Result is null && completion.Frame == pending.BattleEntryFrame) != 1))
+        {
+            throw new InvalidDataException("Pending kind3 cache reset lost its actual suspended battle or resource continuation.");
+        }
         saved.Scene.NativeBattleFieldReturn?.Reload.Validate();
         saved.Scene.NativeBattleFieldReturn?.Music.Validate();
         if (saved.Scene.NativeBattleFieldReload is { } reload && (reload.FieldId != saved.FieldId || reload.ProgramHash != saved.ProgramHash || saved.Scene.NativeBattleCompletions?.Count(completion => completion.Backend == NativeBattleBackend.Interactive && completion.ReturnFrame is null && completion.Result is null && completion.Frame == reload.BattleEntryFrame) != 1))

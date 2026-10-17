@@ -11,26 +11,27 @@ public sealed class NativeBattleModelLoaderTests
     {
         NativeBattleModelDatSource source = Source(0, false, 2);
         NativeBattleModelLoader queue = NativeBattleModelLoader.Queue507080(0, 1, 0x11223344, 7, 2);
-        NativeBattleModelLoadStep request = queue.Poll507070(99, [source]);
-        Assert.Equal(new NativeBattleModelFileRequest(310, "test.dat", 0x508470), request.FileRequest);
+        NativeBattleModelLoadStep request = queue.Poll507070(99, [source], NativeBattleFileStaging.Unknown());
+        Assert.Equal(new NativeBattleModelFileRequest(310, "test.dat", 0x508470, source.Bytes.Length), request.FileRequest);
         Assert.Equal((byte)1, request.State.Task!.Phase);
         Assert.Equal(0x11223344u, request.State.Task.Argument);
-        Assert.Equal(request.State, request.State.Poll507070(-1, [source]).State);
-        Assert.Equal(request.State, request.State.Poll507070(int.MinValue, [source]).State);
+        Assert.Equal(request.State, request.State.Poll507070(-1, [source], request.Staging).State);
+        Assert.Equal(request.State, request.State.Poll507070(int.MinValue, [source], request.Staging).State);
         string json = JsonSerializer.Serialize(request.State);
         NativeBattleModelLoader restored = JsonSerializer.Deserialize<NativeBattleModelLoader>(json)!;
-        NativeBattleModelLoadStep texture = restored.Poll507070(source.Bytes.Length, [source]);
+        NativeBattleFileStaging restoredStaging = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(request.Staging))!;
+        NativeBattleModelLoadStep texture = restored.Poll507070(source.Bytes.Length, [source], restoredStaging);
         Assert.NotNull(texture.TextureUpload);
         Assert.Null(texture.Bind);
         Assert.Equal(1, texture.Remaining);
-        NativeBattleModelLoadStep complete = texture.State.Poll507070(source.Bytes.Length, [source]);
+        NativeBattleModelLoadStep complete = texture.State.Poll507070(source.Bytes.Length, [source], texture.Staging);
         Assert.Equal(0, complete.Remaining);
         Assert.Null(complete.State.Task);
         Assert.NotNull(complete.Bind);
         Assert.Equal((byte)1, complete.Bind.Task.PhysicalIndex);
         Assert.Null(complete.TextureUpload);
-        Assert.Equal(0, complete.State.Poll507070(-1, []).Remaining);
-        Assert.Throws<NotSupportedException>(() => NativeBattleModelLoader.Queue507080(0, 0, 0, 0, 9).Poll507070(0, [source]));
+        Assert.Equal(0, complete.State.Poll507070(-1, [], complete.Staging).Remaining);
+        Assert.Throws<NotSupportedException>(() => NativeBattleModelLoader.Queue507080(0, 0, 0, 0, 9).Poll507070(0, [source], NativeBattleFileStaging.Unknown()));
     }
 
     [Theory]
@@ -91,9 +92,9 @@ public sealed class NativeBattleModelLoaderTests
     private static NativeBattleModelResourceBind Complete(ushort request, NativeBattleModelDatSource source)
     {
         NativeBattleModelLoader state = NativeBattleModelLoader.Queue507080(request, 0, 0, 0, 0);
-        state = state.Poll507070(-1, [source]).State;
-        state = state.Poll507070(source.Bytes.Length, [source]).State;
-        return state.Poll507070(source.Bytes.Length, [source]).Bind!;
+        NativeBattleModelLoadStep requested = state.Poll507070(-1, [source], NativeBattleFileStaging.Unknown());
+        NativeBattleModelLoadStep prepared = requested.State.Poll507070(source.Bytes.Length, [source], requested.Staging);
+        return prepared.State.Poll507070(source.Bytes.Length, [source], prepared.Staging).Bind!;
     }
 
     private static NativeBattleModelDatSource Source(byte model, bool linked, byte selector)

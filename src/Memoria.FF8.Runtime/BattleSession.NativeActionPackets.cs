@@ -29,6 +29,7 @@ public sealed partial class BattleSession
         NativeStage = memory.Stage;
         NativeModelTextureCache = memory.ModelTextureCache;
         NativeModelLoader = memory.ModelLoader;
+        NativeFileStaging = memory.FileStaging;
         NativeModelCpuResources = memory.ModelCpuResources;
         if (NativeCamera is not null)
         {

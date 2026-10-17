@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -6,6 +7,9 @@ namespace Memoria.FF8.Runtime;
 /// <summary>The sole mutable32-byte part rows for one selected ONE resource slot.</summary>
 public sealed record NativeModelPartResourceState([property: JsonRequired] string SourceHash, [property: JsonRequired] int SourceOffset, [property: JsonRequired] short[][] Parts)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<ushort>? SkinFlags { get; init; }
+
     public static NativeModelPartResourceState Create(NativeModelPartsDefinition definition)
     {
         definition.Validate();
@@ -15,7 +19,27 @@ public sealed record NativeModelPartResourceState([property: JsonRequired] strin
             //5318D0 preserves copied MCH counter/start/target/duration and clears WORD14 only.
             row[7] = 0;
         }
-        return new NativeModelPartResourceState(definition.SourceHash, definition.SourceOffset, rows);
+        return new NativeModelPartResourceState(definition.SourceHash, definition.SourceOffset, rows) { SkinFlags = InitialSkinFlags5318D0(definition) };
+    }
+
+    private static ImmutableArray<ushort> InitialSkinFlags5318D0(NativeModelPartsDefinition definition)
+    {
+        ushort[] flags = definition.SkinBindings.Select(skin => skin.OriginalFlags).ToArray();
+        foreach (NativeModelPartDefinition part in definition.Parts)
+        {
+            for (int skin = part.FirstSkinBinding; skin < part.FirstSkinBinding + part.SkinBindingCount; skin++)
+            {
+                //5318D0 clears WORD6 of each part-selected eight-byte skin record, not unrelated skin rows.
+                flags[skin] = 0;
+            }
+        }
+        return flags.ToImmutableArray();
+    }
+
+    public ushort ReadSkinFlags(int index)
+    {
+        ImmutableArray<ushort> flags = SkinFlags ?? throw new NotSupportedException("Native skin flags require their actual5318D0 registration; old missing state is not a zero array.");
+        return flags[index];
     }
 
     public void Validate(NativeModelPartsDefinition definition)
@@ -24,6 +48,10 @@ public sealed record NativeModelPartResourceState([property: JsonRequired] strin
         if (SourceHash != definition.SourceHash || SourceOffset != definition.SourceOffset || Parts is null || Parts.Length != definition.Parts.Count)
         {
             throw new InvalidDataException("Native model-part state does not match its original MCH resource.");
+        }
+        if (SkinFlags is { } flags && (flags.IsDefault || !flags.SequenceEqual(InitialSkinFlags5318D0(definition))))
+        {
+            throw new InvalidDataException("Native skin flags lost their actual selected5318D0 clears or unchanged source words.");
         }
         for (int part = 0; part < Parts.Length; part++)
         {

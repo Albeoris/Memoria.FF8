@@ -57,6 +57,9 @@ public sealed class SceneEventState
     public NativeBattleFieldReloadCompletion? NativeBattleFieldReload { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleFieldReloadState? NativeBattleFieldReloadState { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleFieldReturnReceipt? NativeBattleFieldReturn { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

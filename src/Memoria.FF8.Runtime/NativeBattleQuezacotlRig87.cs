@@ -81,6 +81,18 @@ public static partial class NativeBattleQuezacotlRig86
         }
     }
 
+    public static NativeBattleQuezacotlRigWrite PreparePose6C3A1E(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, ushort phase)
+    {
+        if (phase is 118 or 238)
+        {
+            NativeBattleQuezacotlRigWrite selected = Select6574D0(memory, effect, phase == 118 ? (byte)1 : (byte)2);
+            memory = selected.Memory;
+            effect = selected.Effect;
+        }
+        int paused = memory.QuezacotlPause ?? throw new NotSupportedException("Native6FBDB0 requires its retained pause owner.");
+        return paused == 0 ? Advance6FBDB0(memory, effect) : new(memory, effect);
+    }
+
     public static NativeBattleQuezacotlRigWrite Select6574D0(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, byte selector)
     {
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native6574D0 requires its current rig memory.");

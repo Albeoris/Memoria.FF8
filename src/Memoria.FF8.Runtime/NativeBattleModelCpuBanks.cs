@@ -12,66 +12,12 @@ public sealed record NativeBattleModelCpuBank(ImmutableArray<NativeBattleEffectM
 
     public byte[] Read(int offset, int length)
     {
-        Require(offset, length);
-        byte[] bytes = new byte[length];
-        int observed = offset;
-        foreach (NativeBattleEffectMemoryRegion region in KnownRanges)
-        {
-            int first = Math.Max(offset, region.Offset);
-            int end = Math.Min(offset + length, region.Offset + region.Data.Length);
-            if (end <= first)
-            {
-                continue;
-            }
-            if (first != observed)
-            {
-                throw new NotSupportedException("Native CPU model-bank read reaches unobserved retained heap bytes.");
-            }
-            region.Data.AsSpan().Slice(first - region.Offset, end - first).CopyTo(bytes.AsSpan(first - offset));
-            observed = end;
-        }
-        if (observed != offset + length)
-        {
-            throw new NotSupportedException("Native CPU model-bank read reaches unobserved retained heap bytes.");
-        }
-        return bytes;
+        return NativeKnownByteRanges.Read(KnownRanges, offset, length, Length);
     }
 
     public NativeBattleModelCpuBank Write(int offset, ReadOnlySpan<byte> bytes)
     {
-        Require(offset, bytes.Length);
-        if (bytes.IsEmpty)
-        {
-            return this;
-        }
-        int writeEnd = offset + bytes.Length;
-        NativeBattleEffectMemoryRegion[] overlaps = KnownRanges.Where(region => region.Offset <= writeEnd && region.Offset + region.Data.Length >= offset).ToArray();
-        int first = overlaps.Select(region => region.Offset).Append(offset).Min();
-        int end = overlaps.Select(region => region.Offset + region.Data.Length).Append(writeEnd).Max();
-        byte[] data = new byte[end - first];
-        foreach (NativeBattleEffectMemoryRegion region in overlaps)
-        {
-            region.Data.AsSpan().CopyTo(data.AsSpan(region.Offset - first));
-        }
-        bytes.CopyTo(data.AsSpan(offset - first));
-        return new(KnownRanges.Except(overlaps).Append(new(first, data.ToImmutableArray())).OrderBy(region => region.Offset).ToImmutableArray());
-    }
-
-    private void Require(int offset, int length)
-    {
-        if (KnownRanges.IsDefault || offset < 0 || length < 0 || offset > Length - length)
-        {
-            throw new InvalidDataException("Native CPU model-bank access exceeds its64KB allocation.");
-        }
-        int previousEnd = 0;
-        foreach (NativeBattleEffectMemoryRegion region in KnownRanges)
-        {
-            if (region.Data.IsDefaultOrEmpty || region.Offset < previousEnd || region.Offset > Length - region.Data.Length)
-            {
-                throw new InvalidDataException("Native CPU model-bank known ranges overlap or leave the allocation.");
-            }
-            previousEnd = region.Offset + region.Data.Length;
-        }
+        return new(NativeKnownByteRanges.Write(KnownRanges, offset, bytes, Length));
     }
 }
 

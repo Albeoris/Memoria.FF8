@@ -8,7 +8,11 @@ namespace Memoria.FF8.Events;
 public sealed record NativeFieldModelInstance([property: JsonRequired] int ObjectId, [property: JsonRequired] int ModelId);
 /// <summary>Executed530C30 local-vector samples for an instance; rendering never advances physical part rows.</summary>
 public sealed record NativeModelPartDraw([property: JsonRequired] long Frame, [property: JsonRequired] int ModelId, [property: JsonRequired] Dictionary<int, Vector3> SkinTranslations);
-public sealed record NativeFieldModelPartsState([property: JsonRequired] Dictionary<int, NativeModelPartResourceState> Resources, [property: JsonRequired] NativeFieldModelInstance[] Instances, [property: JsonRequired] Dictionary<int, NativeModelPartDraw> Draws);
+public sealed record NativeFieldModelPartsState([property: JsonRequired] Dictionary<int, NativeModelPartResourceState> Resources, [property: JsonRequired] NativeFieldModelInstance[] Instances, [property: JsonRequired] Dictionary<int, NativeModelPartDraw> Draws)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeFieldModelCacheResetState? CacheReset { get; init; }
+}
 
 public sealed partial class EventEngine
 {
@@ -101,6 +105,10 @@ public sealed partial class EventEngine
 
     private void StepNativeModelParts()
     {
+        if (Scene.NativeBattleFieldReloadState is not null)
+        {
+            throw new NotSupportedException("Native field drawing cannot run before its pending kind3 resource registration completes.");
+        }
         if (Scene.ModelParts is not NativeFieldModelPartsState bank)
         {
             return;
@@ -129,6 +137,10 @@ public sealed partial class EventEngine
 
     public IReadOnlyDictionary<int, Vector3>? GetNativeModelPartTranslations(int objectId)
     {
+        if (Scene.NativeBattleFieldReloadState is not null)
+        {
+            throw new NotSupportedException("Native kind3 has cleared model registrations; old draw samples cannot render a replacement frame.");
+        }
         if ((uint)objectId >= actors.Count)
         {
             throw new ArgumentOutOfRangeException(nameof(objectId));
@@ -150,6 +162,16 @@ public sealed partial class EventEngine
 
     private void ValidateNativeModelParts(SceneEventState scene, IReadOnlyList<ActorState> savedActors, long frame, bool initialized, bool transitionRequested, NativeMovieSource? movieSource)
     {
+        if (scene.NativeBattleFieldReloadState is { } pending)
+        {
+            pending.Validate();
+            if (!initialized || scene.ModelParts is not { CacheReset: { } reset } cleared || cleared.Resources is null || cleared.Resources.Count != 0 || cleared.Instances is null || cleared.Instances.Length != 0 || cleared.Draws is null || cleared.Draws.Count != 0)
+            {
+                throw new InvalidDataException("Pending kind3 registration must retain exactly the actual cleared model caches.");
+            }
+            reset.Validate();
+            return;
+        }
         if (scene.ModelParts is not NativeFieldModelPartsState bank)
         {
             if (savedActors.Any(actor => actor.NativeFootstepModelOrigin is not null))
@@ -161,6 +183,10 @@ public sealed partial class EventEngine
                 throw new InvalidDataException("Saved native field is missing its executed model-part resource state; migrate this save explicitly.");
             }
             return;
+        }
+        if (bank.CacheReset is not null)
+        {
+            throw new InvalidDataException("Cleared5310F0 caches require their actual pending kind3 registration stage.");
         }
         if (!initialized || scene.NativeActorLayoutVersion != 1 || bank.Resources is null || bank.Resources.Values.Any(state => state is null) || bank.Instances is null || bank.Instances.Any(instance => instance is null) || bank.Draws is null || bank.Instances.Length > 32 || bank.Instances.Select(instance => instance.ObjectId).Distinct().Count() != bank.Instances.Length || !bank.Instances.Select(instance => instance.ObjectId).SequenceEqual(scene.NativeActorObjectIds.Where(id => bank.Instances.Any(instance => instance.ObjectId == id))) || bank.Instances.Any(instance => (uint)instance.ObjectId >= savedActors.Count || instance.ModelId < 0 || !bank.Resources.ContainsKey(instance.ModelId)) || !bank.Resources.Keys.Order().SequenceEqual(bank.Instances.Select(instance => instance.ModelId).Distinct().Order()))
         {

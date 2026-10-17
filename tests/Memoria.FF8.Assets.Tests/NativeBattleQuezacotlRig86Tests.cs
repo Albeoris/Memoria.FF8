@@ -68,6 +68,15 @@ public sealed class NativeBattleQuezacotlRig86Tests
         Assert.Equal((byte)2, selectedAdvance.Memory.Arena!.Read(0x9A, 1)[0]);
         NativeBattleQuezacotlRigWrite selectedAgain = NativeBattleQuezacotlRig86.Select6574D0(selectedAdvance.Memory, selectedAdvance.Effect, 1);
         Assert.Equal(JsonSerializer.Serialize(NativeBattleQuezacotlRig86.ReadBoneMatrix(selected.Memory, 1)), JsonSerializer.Serialize(NativeBattleQuezacotlRig86.ReadBoneMatrix(selectedAgain.Memory, 1)));
+        foreach (int paused in new[] { 0, 1 })
+        {
+            NativeBattleQuezacotlRigWrite third = NativeBattleQuezacotlRig86.PreparePose6C3A1E(selectedAdvance.Memory with { QuezacotlPause = paused }, selectedAdvance.Effect, 238);
+            Assert.Equal((byte)2, third.Memory.Arena!.Read(0x94, 1)[0]);
+            byte frame = paused == 0 ? (byte)2 : (byte)1;
+            Assert.Equal(frame, third.Memory.Arena.Read(0x9A, 1)[0]);
+            NativeBattleDecodedPose thirdExpected = original.Sample(2, frame, 0);
+            Assert.Equal(JsonSerializer.Serialize(NativeBattlePoseMatrices.StageBoneMatrices(original, thirdExpected)[1]), JsonSerializer.Serialize(NativeBattleQuezacotlRig86.ReadBoneMatrix(third.Memory, 1)));
+        }
         NativeBattleQuezacotlRibbonResources ribbonResources = Assert.IsType<NativeBattleQuezacotlRibbonResources>(resources.Ribbon);
         ribbonResources.Validate();
         Assert.Equal(4032, ribbonResources.ControlTriangles.Length);

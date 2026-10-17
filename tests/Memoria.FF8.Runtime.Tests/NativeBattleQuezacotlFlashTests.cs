@@ -10,6 +10,11 @@ public sealed class NativeBattleQuezacotlFlashTests
     [InlineData(79, 0x010203u)]
     [InlineData(80, 0x040506u)]
     [InlineData(81, 0x070809u)]
+    [InlineData(227, 0x040506u)]
+    [InlineData(228, 0x070809u)]
+    [InlineData(248, 0x010203u)]
+    [InlineData(250, 0x010203u)]
+    [InlineData(253, 0x010203u)]
     public void PlainFlashWritesOriginalQuadTagCommandCoordinatesBucketAndProxyFlags(ushort phase, uint color)
     {
         NativeBattleQuezacotlScreenPacket packet = Assert.Single(NativeBattleQuezacotlFlash.Emit(phase, Resources()));
@@ -52,6 +57,21 @@ public sealed class NativeBattleQuezacotlFlashTests
         NativeBattleQuezacotlResources unknown = Resources() with { FlashColors = null };
         Assert.Empty(NativeBattleQuezacotlFlash.Emit(72, unknown));
         Assert.Throws<NotSupportedException>(() => NativeBattleQuezacotlFlash.Emit(73, unknown));
+    }
+
+    [Fact]
+    public void FourthColorIsStrictAt229AndDoesNotChangeTheOldThreeColorDirectory()
+    {
+        NativeBattleQuezacotlResources original = Resources();
+        Assert.Single(NativeBattleQuezacotlFlash.Emit(228, original));
+        Assert.Throws<NotSupportedException>(() => NativeBattleQuezacotlFlash.Emit(229, original));
+        Assert.DoesNotContain("Frame229FlashColor", JsonSerializer.Serialize(original));
+        NativeBattleQuezacotlResources observed = original with { Frame229FlashColor = 0x00505050 };
+        NativeBattleQuezacotlScreenPacket packet = Assert.Single(NativeBattleQuezacotlFlash.Emit(229, observed));
+        Assert.Equal(0x2A505050u, packet.Batch.Attempts[0].Primitive!.Words[1]);
+        Assert.Equal(original.FlashColors, observed.FlashColors);
+        Assert.Single(NativeBattleQuezacotlFlash.Emit(229, observed with { FlashColors = null }));
+        Assert.Equal(JsonSerializer.Serialize(observed), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleQuezacotlResources>(JsonSerializer.Serialize(observed))));
     }
 
     private static NativeBattleQuezacotlResources Resources() => new(new("mag115.tim", []), new("source0", []), new("source1", []), new("test", [], [])) { FlashColors = [0x010203, 0x040506, 0x070809] };

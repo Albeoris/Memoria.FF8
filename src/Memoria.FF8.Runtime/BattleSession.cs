@@ -289,6 +289,7 @@ public sealed partial class BattleSession
             NativeStage = NativeStage,
             NativeModelTextureCache = NativeModelTextureCache,
             NativeModelLoader = NativeModelLoader,
+            NativeFileStaging = NativeFileStaging,
             NativeModelCpuResources = NativeModelCpuResources,
             NativeActionMemory = nativeActionMemory.State,
             NativeActionScratch = nativeActionScratch,
@@ -983,8 +984,14 @@ public sealed partial class BattleSession
         snapshot.NativeModelTextureCache?.Validate();
         NativeModelTextureCache = snapshot.NativeModelTextureCache;
         snapshot.NativeModelLoader?.Validate();
+        snapshot.NativeFileStaging?.Validate();
+        if (snapshot.NativeModelLoader?.Task is { Phase: > 0 } && snapshot.NativeFileStaging is null)
+        {
+            throw new InvalidDataException("Native model load snapshot lacks its actual shared199B018 staging owner; migrate the active load explicitly.");
+        }
         snapshot.NativeModelCpuResources?.Validate();
         NativeModelLoader = snapshot.NativeModelLoader;
+        NativeFileStaging = snapshot.NativeFileStaging;
         NativeModelCpuResources = snapshot.NativeModelCpuResources;
         RestoreNativeActionMemory(snapshot.NativeActionMemory);
         nativeActionScratch = snapshot.NativeActionScratch ?? throw new InvalidDataException("Native action scratch owner is missing; explicitly migrate the standalone snapshot.");
@@ -1271,6 +1278,7 @@ public sealed partial class BattleSession
         NativeStage = candidate.NativeStage;
         NativeModelTextureCache = candidate.NativeModelTextureCache;
         NativeModelLoader = candidate.NativeModelLoader;
+        NativeFileStaging = candidate.NativeFileStaging;
         NativeModelCpuResources = candidate.NativeModelCpuResources;
         nativeActionScratch = candidate.nativeActionScratch;
         RestoreNativeTimedAction(candidate.CaptureNativeTimedAction());

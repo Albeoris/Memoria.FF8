@@ -6,6 +6,7 @@ public sealed partial class BattleSession
 {
     public NativeBattleModelLoader? NativeModelLoader { get; private set; }
     public NativeBattleModelCpuResources? NativeModelCpuResources { get; private set; }
+    public NativeBattleFileStaging? NativeFileStaging { get; private set; }
 
     private void QueueNativeModelResource507080(NativeBattleGraphicsState graphics, ushort request, byte physicalIndex, uint argument = 0)
     {
@@ -20,13 +21,20 @@ public sealed partial class BattleSession
     {
         NativeBattleModelLoader loader = NativeModelLoader ?? throw new NotSupportedException("Native507070 requires its actually initialized singleton load list.");
         ImmutableArray<NativeBattleModelDatSource> sources = definition.NativeGraphics!.Bindings.SelectMany(binding => binding.Resource.ModelLoadSources ?? []).ToImmutableArray();
-        NativeBattleModelLoadStep step = loader.Poll507070(NativeEffectIoResult ?? throw new NotSupportedException("Native507070 requires its retained signed1D999C8 IO result."), sources);
-        if (step.FileRequest is { } request)
+        if (NativeFileStaging is null && loader.Task is { Phase: > 0 })
         {
-            NativeBattleModelDatSource source = step.State.Task!.Staging!;
+            throw new NotSupportedException("Native model callback requires its retained shared199B018 staging bytes; migrate an older active load explicitly.");
+        }
+        NativeBattleModelLoadStep step = loader.Poll507070(NativeEffectIoResult ?? throw new NotSupportedException("Native507070 requires its retained signed1D999C8 IO result."), sources, NativeFileStaging ?? NativeBattleFileStaging.Unknown());
+        if (step.FileRequest is not null)
+        {
             //508480 writes the result gate before482610's synchronous read and delayed508470 callback.
             NativeEffectIoResult = -1;
-            QueueNativeFileIo482610(source.Bytes.Length, request.CompletionCallback);
+        }
+        NativeFileStaging = step.Staging;
+        if (step.FileRequest is { } request)
+        {
+            QueueNativeFileIo482610(request.FileResult, request.CompletionCallback);
         }
         if (step.TextureUpload is { } upload)
         {

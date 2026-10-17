@@ -16,12 +16,12 @@ public sealed class NativeBattleModelDatSourceTests
         Assert.Equal(fileId, source.FileId);
         Assert.Equal(name, source.Name);
         NativeBattleModelLoader loader = NativeBattleModelLoader.Queue507080((ushort)(model | (linked ? 0x1000 : 0)), 0, 0, 0, 0);
-        NativeBattleModelLoadStep request = loader.Poll507070(-1, [source]);
+        NativeBattleModelLoadStep request = loader.Poll507070(-1, [source], NativeBattleFileStaging.Unknown());
         Assert.Equal(fileId, request.FileRequest!.FileId);
-        Assert.Equal(1, request.State.Poll507070(-1, [source]).Remaining);
-        NativeBattleModelLoadStep prepared = request.State.Poll507070(source.Bytes.Length, [source]);
+        Assert.Equal(1, request.State.Poll507070(-1, [source], request.Staging).Remaining);
+        NativeBattleModelLoadStep prepared = request.State.Poll507070(source.Bytes.Length, [source], request.Staging);
         Assert.NotEmpty(prepared.TextureUpload!.TimOffsets);
-        NativeBattleModelLoadStep complete = prepared.State.Poll507070(source.Bytes.Length, [source]);
+        NativeBattleModelLoadStep complete = prepared.State.Poll507070(source.Bytes.Length, [source], prepared.Staging);
         Assert.NotNull(complete.Bind);
         Assert.Equal(0, complete.Remaining);
         Assert.Equal(source.Bytes.Length, complete.Bind.PreparedDat.Bytes.Length);

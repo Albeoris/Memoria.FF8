@@ -43,20 +43,57 @@ public sealed class NativeBattleQuezacotlLaterWindowTests
         Assert.Equal((10, 270, 260), (actual.X, actual.Y, actual.Z));
     }
 
-    [Fact]
-    public void FourthWorkspaceReadsCurrentSubregionAndWritesOnlyItsActualPrefix()
+    [Theory]
+    [InlineData(0x1A0, 0x12A1164u)]
+    [InlineData(0x1D8, 0x12A9664u)]
+    [InlineData(0x128, 0x129BA94u)]
+    public void LaterWorkspaceReadsCurrentSubregionAndWritesOnlyItsActualPrefix(int length, uint address)
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(116);
         byte[] current = new byte[NativeBattleQuezacotlExecutableMemory.Length];
-        int offset = checked((int)(0x12A1164 - NativeBattleQuezacotlExecutableMemory.Address));
+        int offset = checked((int)(address - NativeBattleQuezacotlExecutableMemory.Address));
         current[offset] = 0xA7;
-        memory = memory with { QuezacotlExecutableMemory = new(current.ToImmutableArray()), Arena = memory.Arena!.Write(0xD4 + 0x1A0, [0xCC, 0xDD]) };
-        Assert.Equal((byte)0xA7, NativeBattleQuezacotlWorkspace.Source(memory, 0x12A1164).Data[0]);
+        memory = memory with { QuezacotlExecutableMemory = new(current.ToImmutableArray()), Arena = memory.Arena!.Write(0xD4 + length, [0xCC, 0xDD]) };
+        Assert.Equal((byte)0xA7, NativeBattleQuezacotlWorkspace.Source(memory, address).Data[0]);
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2521738, 0x20DFAB8, 0x8D0, 1);
         (pool, _) = pool.Append(0x6C3940);
         NativeBattleOriginalEffectState effect = new(116, 115, new(116, 0x6C3550, 0x6C3560), null, null) { Pools = [pool] };
-        NativeBattleQuezacotlWorkspaceWrite result = NativeBattleQuezacotlWorkspace.Write(memory, effect, new(Enumerable.Repeat((byte)0x5A, 0x1A0).ToImmutableArray()));
-        Assert.Equal(new byte[] { 0xCC, 0xDD }, result.Memory.Arena!.Read(0xD4 + 0x1A0, 2));
-        Assert.Equal(Enumerable.Repeat((byte)0x5A, 0x1A0), result.Memory.Arena.Read(0xD4, 0x1A0));
+        NativeBattleQuezacotlWorkspaceWrite result = NativeBattleQuezacotlWorkspace.Write(memory, effect, new(Enumerable.Repeat((byte)0x5A, length).ToImmutableArray()));
+        Assert.Equal(new byte[] { 0xCC, 0xDD }, result.Memory.Arena!.Read(0xD4 + length, 2));
+        Assert.Equal(Enumerable.Repeat((byte)0x5A, length), result.Memory.Arena.Read(0xD4, length));
+    }
+
+    [Theory]
+    [InlineData(255, 256)]
+    [InlineData(256, 257)]
+    [InlineData(65535, 0)]
+    public void NativePhaseIncrementWritesTheFullWordToBothPhysicalOwners(ushort phase, ushort expected)
+    {
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(116);
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2521738, 0x20DFAB8, 0x8D0, 1);
+        (pool, _) = pool.Append(0x6C3940);
+        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(12, phase)) };
+        NativeBattleOriginalEffectState effect = new(116, 115, new(116, 0x6C3550, 0x6C3560), null, null) { Pools = [pool] };
+        NativeBattleQuezacotlWorkspaceWrite result = NativeBattleQuezacotlWorkspace.AdvancePhase6C51F1(memory, effect);
+        Assert.Equal(expected, result.Effect.Pools[0].Slots[0].ReadWord(12));
+        Assert.Equal(expected, BinaryPrimitives.ReadUInt16LittleEndian(result.Memory.Arena!.Read(12, 2)));
+        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleQuezacotlWorkspaceWrite>(JsonSerializer.Serialize(result))));
+    }
+
+    [Theory]
+    [InlineData(246, 3690, 4313, -885, 6926, -1134, -711, 3426)]
+    [InlineData(256, 3690, -4000, -4000, 7690, 0, 0, 3690)]
+    [InlineData(246, 30000, 4313, -885, -32300, -1134, -711, 29736)]
+    public void LaterCameraWritesOnlyOriginalXyzWithSignedWordWrapping(ushort phase, int targetZ, short eyeX, short eyeY, short eyeZ, short targetX, short targetY, short targetDepth)
+    {
+        NativeBattleCameraState camera = NativeBattleCameraState.FromColdProcess() with { FocalLength = 288, Roll = 7, EyePaddingF6 = 0x1234, TargetPaddingFE = 0x5678 };
+        NativeBattleCameraState changed = NativeBattleQuezacotlLaterCamera.Apply6C4F80(camera, phase, targetZ);
+        Assert.Equal(new NativeBattleCameraPoint(eyeX, eyeY, eyeZ), changed.CurrentPose!.Eye);
+        Assert.Equal(new NativeBattleCameraPoint(targetX, targetY, targetDepth), changed.CurrentPose.Target);
+        Assert.Equal(camera.Projection, changed.Projection);
+        Assert.Equal(camera.EyePaddingF6, changed.EyePaddingF6);
+        Assert.Equal(camera.TargetPaddingFE, changed.TargetPaddingFE);
+        Assert.Equal(camera.FocalLength, changed.FocalLength);
+        Assert.Equal(camera.Roll, changed.Roll);
     }
 }

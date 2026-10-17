@@ -12,7 +12,7 @@ public sealed class NativeBattleMusicLoaderTests
     public void Shared_auxiliary_worker_stops_copies_the_initialized_destination_and_completes_on_its_third_callback(byte bank)
     {
         const uint completionAddress = 0x1D9700E;
-        NativeBattleMusicProcessState process = Create(bank).InitializeCommands501C60().StageLoad501A20(Directory());
+        NativeBattleMusicProcessState process = CreateStaged(bank, out NativeBattleFileStaging staging);
         NativeGlobalSoundProcess sound = NativeGlobalSoundProcess.FromBufferlessColdProcess();
         List<(uint Address, byte Value)> writes = [];
         NativeBattleAuxiliaryState auxiliary = NativeBattleAuxiliaryState.Clear().AppendCameraBlend(8).AppendMusicLoad501A20(completionAddress, (address, value) => writes.Add((address, value)));
@@ -23,7 +23,7 @@ public sealed class NativeBattleMusicLoaderTests
         {
             AdvanceMusicLoad501A70 = (phase, address) =>
             {
-                NativeBattleMusicLoadStep step = process.AdvanceLoad501A70(sound, phase, address, (pointer, value) => writes.Add((pointer, value)));
+                NativeBattleMusicLoadStep step = process.AdvanceLoad501A70(sound, staging, phase, address, (pointer, value) => writes.Add((pointer, value)));
                 process = step.State;
                 sound = step.Sound;
                 return (step.Phase, step.Completed);
@@ -57,15 +57,16 @@ public sealed class NativeBattleMusicLoaderTests
     [Fact]
     public void Independent_saved_globals_continue_without_a_journal_or_replaying_stop()
     {
-        NativeBattleMusicProcessState process = Create(0).InitializeCommands501C60().StageLoad501A20(Directory());
+        NativeBattleMusicProcessState process = CreateStaged(0, out NativeBattleFileStaging staging);
         NativeGlobalSoundProcess sound = NativeGlobalSoundProcess.FromBufferlessColdProcess();
-        NativeBattleMusicLoadStep first = process.AdvanceLoad501A70(sound, 0, 0x1234);
+        NativeBattleMusicLoadStep first = process.AdvanceLoad501A70(sound, staging, 0, 0x1234);
         NativeBattleMusicCommandStep drained = first.State.DrainCommands501B60(first.Sound);
         process = JsonSerializer.Deserialize<NativeBattleMusicProcessState>(JsonSerializer.Serialize(drained.State))!;
         sound = JsonSerializer.Deserialize<NativeGlobalSoundProcess>(JsonSerializer.Serialize(drained.Sound))!;
         string before = JsonSerializer.Serialize(process);
-        NativeBattleMusicLoadStep next = process.AdvanceLoad501A70(sound, 1, 0x1234);
-        NativeBattleMusicLoadStep independent = JsonSerializer.Deserialize<NativeBattleMusicProcessState>(before)!.AdvanceLoad501A70(JsonSerializer.Deserialize<NativeGlobalSoundProcess>(JsonSerializer.Serialize(sound))!, 1, 0x1234);
+        NativeBattleMusicLoadStep next = process.AdvanceLoad501A70(sound, staging, 1, 0x1234);
+        NativeBattleFileStaging copiedStaging = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(staging))!;
+        NativeBattleMusicLoadStep independent = JsonSerializer.Deserialize<NativeBattleMusicProcessState>(before)!.AdvanceLoad501A70(JsonSerializer.Deserialize<NativeGlobalSoundProcess>(JsonSerializer.Serialize(sound))!, copiedStaging, 1, 0x1234);
         Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(independent));
         Assert.Equal(before, JsonSerializer.Serialize(process));
         Assert.Equal((byte)2, next.State.Commands!.Command);
@@ -75,12 +76,12 @@ public sealed class NativeBattleMusicLoaderTests
     [Fact]
     public void Subsequent_process_load_does_not_toggle_again_and_missing_old_first_load_state_stays_unknown()
     {
-        NativeBattleMusicProcessState process = Create(0).InitializeCommands501C60().StageLoad501A20(Directory());
+        NativeBattleMusicProcessState process = CreateStaged(0, out NativeBattleFileStaging staging);
         NativeGlobalSoundProcess sound = NativeGlobalSoundProcess.FromBufferlessColdProcess();
         sound = sound with { MusicPlayback = sound.MusicPlayback! with { BattleFirstLoadB8B7D4 = false } };
-        NativeBattleMusicLoadStep step = process.AdvanceLoad501A70(sound, 1, 0x1234);
+        NativeBattleMusicLoadStep step = process.AdvanceLoad501A70(sound, staging, 1, 0x1234);
         Assert.Equal((byte)0, step.State.ReturnBank);
-        Assert.Throws<NotSupportedException>(() => process.AdvanceLoad501A70(sound with { MusicPlayback = sound.MusicPlayback! with { BattleFirstLoadB8B7D4 = null } }, 1, 0x1234));
+        Assert.Throws<NotSupportedException>(() => process.AdvanceLoad501A70(sound with { MusicPlayback = sound.MusicPlayback! with { BattleFirstLoadB8B7D4 = null } }, staging, 1, 0x1234));
     }
 
     [Fact]
@@ -88,15 +89,15 @@ public sealed class NativeBattleMusicLoaderTests
     {
         NativeBattleMusicProcessState process = Create(0);
         NativeGlobalSoundProcess sound = NativeGlobalSoundProcess.FromBufferlessColdProcess() with { MusicPlayback = NativeMusicPlaybackState.Unknown() };
-        NativeBattleMusicLoadStep first = process.AdvanceLoad501A70(sound, 0, 0x1234);
+        NativeBattleMusicLoadStep first = process.AdvanceLoad501A70(sound, null, 0, 0x1234);
         Assert.Equal((byte)1, first.State.Commands!.Command);
         Assert.Equal((byte)1, first.Phase);
-        Assert.Throws<NotSupportedException>(() => process.AdvanceLoad501A70(sound, 2, 0x1234));
+        Assert.Throws<NotSupportedException>(() => process.AdvanceLoad501A70(sound, null, 2, 0x1234));
         List<byte> writes = [];
-        NativeBattleMusicLoadStep completed = process.AdvanceLoad501A70(sound, 2, 0x1234, (_, value) => writes.Add(value));
+        NativeBattleMusicLoadStep completed = process.AdvanceLoad501A70(sound, null, 2, 0x1234, (_, value) => writes.Add(value));
         Assert.True(completed.Completed);
         Assert.Equal(new byte[] { 1 }, writes);
-        Assert.Same(process, process.AdvanceLoad501A70(sound, 255, 0x1234, (_, _) => Assert.Fail("Unknown phase does not write completion.")).State);
+        Assert.Same(process, process.AdvanceLoad501A70(sound, null, 255, 0x1234, (_, _) => Assert.Fail("Unknown phase does not write completion.")).State);
     }
 
     [Fact]
@@ -114,6 +115,12 @@ public sealed class NativeBattleMusicLoaderTests
     }
 
     private static NativeBattleMusicProcessState Create(byte bank) => new(new(1, null, null, null, 0, null), bank, null);
+
+    private static NativeBattleMusicProcessState CreateStaged(byte bank, out NativeBattleFileStaging staging)
+    {
+        staging = NativeBattleFileStaging.Unknown().Write(NativeBattleFileStaging.Address, Directory().AsSpan());
+        return Create(bank).InitializeCommands501C60().StageLoad501A20(staging, NativeBattleFileStaging.Address);
+    }
 
     private static ImmutableArray<byte> Directory()
     {

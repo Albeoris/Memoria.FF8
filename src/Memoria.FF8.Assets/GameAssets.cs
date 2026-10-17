@@ -6,6 +6,7 @@ using Albeoris.Games.FF8.Msd;
 using Albeoris.Games.FF8.TextEncoding;
 using Memoria.FF8.Runtime;
 using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Assets;
@@ -294,11 +295,23 @@ public sealed partial class GameAssets : IDisposable
             tiles[index] = tile with { Texture = textureScope.Register(new TextureKey(new ResourceKey($"field/{name}/{name}.mim"), $"tile/{index}", map.Tiles[index].PaletteId), tile.Image, "classic-field-tile") };
         }
         byte[] one = Read(nested, "chara.one");
-        IReadOnlyList<FieldModel> models = (resources?.GetSource<IFieldModelSource>()?.ReadModels(new ResourceKey($"field/{name}/chara.one"), one, ReadMainCharacter) ?? FieldModelReader.Read(one, ReadMainCharacter)).Select((model, index) => model with { Textures = textureScope.RegisterList(new ResourceKey($"field/{name}/chara.one"), model.Textures, "classic-model", $"model/{index}/texture") }).ToArray();
+        List<NativeFieldOneModelEntry> nativeDirectory = [];
+        Dictionary<string, NativeFieldModelSource> nativeMain = [];
+        byte[] ReadRegistrationMain(string model)
+        {
+            byte[] bytes = ReadMainCharacter(model);
+            nativeMain.TryAdd(model, new($"field/main_chr/{model}.mch", Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)), bytes.ToImmutableArray()));
+            return bytes;
+        }
+        IReadOnlyList<FieldModel> models = (resources?.GetSource<IFieldModelSource>()?.ReadModels(new ResourceKey($"field/{name}/chara.one"), one, ReadRegistrationMain, nativeDirectory.Add) ?? FieldModelReader.Read(one, ReadRegistrationMain, nativeDirectory.Add)).Select((model, index) => model with { Textures = textureScope.RegisterList(new ResourceKey($"field/{name}/chara.one"), model.Textures, "classic-model", $"model/{index}/texture") }).ToArray();
         IReadOnlyList<FieldCamera> cameras = FieldCamera.ReadAll(Read(nested, name + ".ca"));
         byte[] information = Read(nested, name + ".inf");
         byte[] walkmesh = Read(nested, name + ".id");
         FieldAssets result = new(fieldId, name, Read(nested, name + ".jsm"), MsdFile.Read(Read(nested, name + ".msd"), FF8Encoding.CreateEuropean()).Texts.ToArray(), tiles, cameras[0], FieldWalkmesh.Read(walkmesh), models) { Cameras = cameras, Information = information.Length == 676 ? FieldInformation.Read(information) : null, WalkmeshHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(walkmesh)), NativeExecutableHash = NativeExecutableHash };
+        if (NativeRuntimeProfile is { IsVerified: true } registrationProfile && nativeDirectory.Count == models.Count)
+        {
+            result = result with { NativeRegistration = new(fieldId, name, registrationProfile.ExecutableHash, Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(result.Jsm)), new($"field/{name}/chara.one", Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(one)), one.ToImmutableArray()), nativeDirectory.ToImmutableArray(), nativeMain.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => pair.Value).ToImmutableArray()) };
+        }
         result = result with { RandomEncounters = NativeEncounterTables.ReadField(Read(nested, name + ".rat"), Read(nested, name + ".mrt")) };
         if (result.Information?.NativeMovieMaskFlag14 == 1)
         {

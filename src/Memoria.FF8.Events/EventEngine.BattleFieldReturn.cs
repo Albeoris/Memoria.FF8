@@ -55,6 +55,10 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Native battle result1/3/5 requires its actual4706B0 saved183/fresh-field/game-over return branch.");
         }
+        if (Scene.NativeBattleFieldReloadState is not null && Scene.NativeBattleFieldReload is null)
+        {
+            throw new NotSupportedException("Native kind3 reached532A40 resource/texture registration after actual5310F0; no completed field reload is owned.");
+        }
         NativeBattleFieldReloadCompletion reload = Scene.NativeBattleFieldReload ?? throw new NotSupportedException("Native kind3 field return requires actual471F70/471010/52BC00 resource-reload completion; the paused field VM or kind6 menu path cannot establish it.");
         reload.Validate();
         if (NativeRuntimeProfile is not { IsVerified: true } || Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } proof || !proof.IsFrom(NativeRuntimeProfile, FieldId, programHash) || reload.FieldId != FieldId || reload.ProgramHash != programHash || reload.BattleEntryFrame != battle.Frame || reload.NativeResult != nativeResult)

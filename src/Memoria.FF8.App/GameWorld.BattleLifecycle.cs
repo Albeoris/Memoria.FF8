@@ -64,9 +64,14 @@ internal sealed partial class GameWorld
     private void CompleteBattle(BattleSession active)
     {
         BattleEncounterOccurrence occurrence = session.State.PendingBattleEncounter ?? throw new InvalidOperationException("A live battle has no owned encounter occurrence.");
+        RequireNativeBattleReturnBranch(occurrence.SourceScene, occurrence.ScriptedOwner is not null);
         if (occurrence.ScriptedOwner is not null)
         {
-            // No current producer publishes this completion: refuse before rewards, music or the suspended VM change.
+            if (Events.Scene.NativeBattleFieldReload is null)
+            {
+                _ = Events.ExecuteNativeBattleFieldCacheReset(Field?.NativeRegistration ?? throw new NotSupportedException("Native kind3 requires the current original field ONE/MCH registration inputs."), active.NativeResult ?? throw new InvalidOperationException("Active battle has no native return result."));
+            }
+            // No current producer completes registration: refuse before rewards, music or the suspended VM change.
             _ = Events.RequireNativeBattleFieldReload(active.NativeResult ?? throw new InvalidOperationException("Active battle has no native return result."));
         }
         BattleResult result = CaptureBattleOutcome(active, occurrence);
@@ -85,6 +90,18 @@ internal sealed partial class GameWorld
             ApplyBattleResult(occurrence, result);
             RandomEncounterSessionState encounters = session.State.RandomEncounters ?? throw new InvalidOperationException("Random outcome lost its playthrough owner.");
             session.SetRandomEncounters(encounters with { Pending = null });
+        }
+    }
+
+    internal static void RequireNativeBattleReturnBranch(SceneKind source, bool scripted)
+    {
+        if (source != SceneKind.Field)
+        {
+            throw new NotSupportedException("Native world battle return requires its actual world reload/music producer before outcomes can be published.");
+        }
+        if (!scripted)
+        {
+            throw new NotSupportedException("Native random field battle return requires its actual kind3 reload/encounter completion owner before outcomes can be published.");
         }
     }
 }

@@ -77,7 +77,7 @@ public static class NativeBattleQuezacotlGeometryPackets
 
     public static uint TextureWindowCommand(NativeBattleTextureWindow window)
     {
-        return 0xE2000000u | (uint)((window.Y & 0xF8) << 12) | (uint)((window.X & 0xF8) << 7) | (uint)((~(window.Height - 1) & 0xF8) << 2) | (uint)((~(window.Width - 1) >> 3) & 31);
+        return NativeBattleEffectTextureWindows.Encode(window);
     }
 
     private static NativeBattleGfGeometryBatch EmitPolygon(ReadOnlySpan<byte> face, IReadOnlyList<NativeBattleModuleProjectedVertex> vertices, bool quad, NativeBattleQuezacotlGeometryContext context, NativeBattleSummonColors? colors, int byteOffsetRelative)
@@ -132,11 +132,10 @@ public static class NativeBattleQuezacotlGeometryPackets
         {
             packet.Word(4 + corner * 12, vertexColors[corner]);
         }
-        int[] vertical = Enumerable.Range(0, count).Select(corner => packet.Byte(13 + corner * 12) + context.VerticalOffset).ToArray();
-        bool wrap = vertical.Aggregate(0, (combined, value) => combined | value) > 255;
+        ImmutableArray<byte> vertical = NativeBattleEffectTextureWindows.OffsetAxis(Enumerable.Range(0, count).Select(corner => packet.Byte(13 + corner * 12)), context.VerticalOffset, unchecked((byte)context.WindowAfter.Height));
         for (int corner = 0; corner < count; corner++)
         {
-            packet.Byte(13 + corner * 12, unchecked((byte)(vertical[corner] - (wrap ? (byte)context.WindowAfter.Height : 0))));
+            packet.Byte(13 + corner * 12, vertical[corner]);
         }
         uint average = unchecked((uint)vertices.Sum(vertex => (int)vertex.Depth) * (quad ? 0x100u : 0x155u)) >> 12;
         int bucket = checked(context.TableBaseBucket + ((int)average >> context.DepthShift));
@@ -155,19 +154,7 @@ public static class NativeBattleQuezacotlGeometryPackets
             }
         }
         NativeBattleGeometryPrimitive polygon = new(bucket, packet.Words(), payload);
-        Writes firstWindow = Window(length, context.WindowBefore);
-        Writes lastWindow = Window(length + 12, context.WindowAfter);
-        Writes linkOnly = new(length, byteOffsetRelative);
-        return new([packet.Attempt(null), firstWindow.Attempt(new(bucket, firstWindow.Words(), [0, 0, 0, 0])), linkOnly.Attempt(polygon), lastWindow.Attempt(new(bucket, lastWindow.Words(), [0, 0, 0, 0]))], length + 24);
-
-        Writes Window(int relativeOffset, NativeBattleTextureWindow window)
-        {
-            Writes result = new(12, checked(byteOffsetRelative + relativeOffset));
-            result.Word(0, 0x02000000);
-            result.Word(4, TextureWindowCommand(window));
-            result.Word(8, 0);
-            return result;
-        }
+        return NativeBattleEffectTextureWindows.Bracket(packet.Attempt(null), polygon, context.WindowBefore, context.WindowAfter);
     }
 
     private static ReadOnlySpan<byte> Read(ImmutableArray<byte> source, int offset, int length)

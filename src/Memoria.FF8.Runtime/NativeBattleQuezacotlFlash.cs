@@ -12,21 +12,31 @@ public static class NativeBattleQuezacotlFlash
     {
         int colorIndex = phase switch
         {
-            73 or 79 => 0,
-            78 or 80 => 1,
-            81 => 2,
+            73 or 79 or 248 or 250 or 253 => 0,
+            78 or 80 or 227 => 1,
+            81 or 228 => 2,
+            229 => 3,
             _ => -1
         };
         if (colorIndex < 0)
         {
             return [];
         }
-        ImmutableArray<uint> colors = resources.FlashColors ?? throw new NotSupportedException("Native6C6530 requires authenticated DWORD colors12AE7E0/E4/E8; explicitly migrate this snapshot's resource binding.");
-        if (colors.IsDefault || colors.Length != 3)
+        uint color;
+        if (colorIndex == 3)
         {
-            throw new InvalidDataException("Native Quezacotl flash requires its three observed color DWORDs.");
+            color = resources.Frame229FlashColor ?? throw new NotSupportedException("Native6C6530 phase229 requires its authenticated12AE7EC color DWORD; explicitly migrate this snapshot's resource binding.");
         }
-        NativeBattleQuezacotlScreenPacket flash = Packet([0x05000000, 0x2A000000 | (colors[colorIndex] & 0xFFFFFF), 0, 320, 216u << 16, (216u << 16) | 320], 1);
+        else
+        {
+            ImmutableArray<uint> colors = resources.FlashColors ?? throw new NotSupportedException("Native6C6530 requires authenticated DWORD colors12AE7E0/E4/E8; explicitly migrate this snapshot's resource binding.");
+            if (colors.IsDefault || colors.Length != 3)
+            {
+                throw new InvalidDataException("Native Quezacotl flash requires its three observed color DWORDs.");
+            }
+            color = colors[colorIndex];
+        }
+        NativeBattleQuezacotlScreenPacket flash = Packet([0x05000000, 0x2A000000 | (color & 0xFFFFFF), 0, 320, 216u << 16, (216u << 16) | 320], 1);
         return phase == 78 ? [Packet([0x01000000, 0xE10002A0], 0), flash, Packet([0x01000000, 0xE10002C0], 0)] : [flash];
     }
 

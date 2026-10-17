@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Collections.Immutable;
 using Albeoris.Games.FF8.Imaging;
 using Albeoris.Games.FF8.Imaging.Tim;
 using Memoria.FF8.Runtime;
@@ -9,13 +10,11 @@ namespace Memoria.FF8.Assets;
 /// <summary>Selected field ONE/MCH structures. Archive, image and text formats are handled by Albeoris.</summary>
 internal static class FieldModelReader
 {
-    private sealed record Header(int Offset, int Size, uint Flag, int ModelOffset, int[] Textures, string Name);
-
-    public static IReadOnlyList<FieldModel> Read(byte[] one, Func<string, byte[]> mainCharacter)
+    public static IReadOnlyList<FieldModel> Read(byte[] one, Func<string, byte[]> mainCharacter, Action<NativeFieldOneModelEntry>? retainEntry = null)
     {
         using BinaryReader reader = Reader(one);
         int count = Count(reader.ReadUInt32(), 100, "ONE models");
-        List<Header> headers = [];
+        List<NativeFieldOneModelEntry> headers = [];
         for (int i = 0; i < count; i++)
         {
             int offset = checked((int)reader.ReadUInt32() + 4);
@@ -23,6 +22,7 @@ internal static class FieldModelReader
             reader.ReadUInt32();
             uint flag = reader.ReadUInt32();
             List<int> textures = [];
+            List<uint> rawTextureWords = [];
             int modelOffset = -1;
             if ((flag >> 28) == 0xD)
             {
@@ -36,10 +36,12 @@ internal static class FieldModelReader
             else
             {
                 textures.Add(checked((int)(flag & 0xFFFFFF)));
+                rawTextureWords.Add(flag);
                 uint value;
                 while ((value = reader.ReadUInt32()) != uint.MaxValue)
                 {
                     textures.Add(checked((int)(value & 0xFFFFFF)));
+                    rawTextureWords.Add(value);
                     if (textures.Count > 100)
                     {
                         throw new InvalidDataException("ONE texture pointer table is unbounded.");
@@ -53,7 +55,9 @@ internal static class FieldModelReader
             {
                 throw new InvalidDataException($"ONE model {name} lies outside its container.");
             }
-            headers.Add(new Header(offset, size, flag, modelOffset, textures.ToArray(), name));
+            NativeFieldOneModelEntry entry = new(offset, size, flag, modelOffset, textures.ToImmutableArray(), name) { RawTextureWords = rawTextureWords.ToImmutableArray() };
+            headers.Add(entry);
+            retainEntry?.Invoke(entry);
         }
         FieldModel?[] models = new FieldModel?[headers.Count];
         HashSet<int> resolving = [];
@@ -68,7 +72,7 @@ internal static class FieldModelReader
                 resolving.Remove(index);
                 return cached;
             }
-            Header header = headers[index];
+            NativeFieldOneModelEntry header = headers[index];
             FieldModel result;
             if ((header.Flag >> 28) == 0xD)
             {

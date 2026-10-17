@@ -6,6 +6,24 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativeBattleArchiveMusicTests
 {
     [Fact]
+    public void Pending_model_completion_reads_the_same_staging_bytes_overwritten_by_original_file766()
+    {
+        using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        NativeBattleModelDatSource model = assets.ReadNativeModelDatSource(0, false, 0);
+        NativeBattleModelLoadStep request = NativeBattleModelLoader.Queue507080(0, 0, 0, 0, 0).Poll507070(-1, [model], NativeBattleFileStaging.Unknown());
+        NativeBattleModelLoadStep prepared = request.State.Poll507070(model.Bytes.Length, [model], request.Staging);
+        NativeBattleArchiveFile victory = assets.ReadNativeBattleFile(766);
+        NativeBattleFileStaging overwritten = prepared.Staging.Write(NativeBattleFileStaging.Address, victory.Bytes.AsSpan());
+        NativeBattleModelLoadStep completion = prepared.State.Poll507070(victory.Bytes.Length, [model], overwritten);
+        NativeBattleModelResourceBind bound = Assert.IsType<NativeBattleModelResourceBind>(completion.Bind);
+        Assert.Equal(victory.Bytes.ToArray(), bound.PreparedDat.Bytes.ToArray());
+        Assert.Equal(model.FileId, bound.Task.File!.FileId);
+        Assert.Equal(model.Name, bound.PreparedDat.Name);
+        Assert.Equal(victory.Bytes.ToArray(), completion.Staging.ReadDat(NativeBattleFileStaging.Address).ToArray());
+        Assert.Equal(model.Bytes.Length, prepared.Staging.ReadDat(NativeBattleFileStaging.Address).Length);
+    }
+
+    [Fact]
     public void Original_file766_selects_the_actual_second_nested_AKAO_resource_for501A20()
     {
         using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
