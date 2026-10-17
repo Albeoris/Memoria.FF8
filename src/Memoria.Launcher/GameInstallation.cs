@@ -75,10 +75,7 @@ internal static class GameInstallationSelection
         ProcessStartInfo result = new(Path.Combine(dataDirectory, "Memoria.FF8.exe"))
         {
             WorkingDirectory = dataDirectory,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardError = true,
-            RedirectStandardOutput = true
+            UseShellExecute = false
         };
         result.ArgumentList.Add("--game-dir");
         result.ArgumentList.Add(Path.GetFullPath(gameDirectory));

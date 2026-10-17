@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Net.Http;
-using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -215,8 +214,6 @@ internal sealed class LauncherWindow : Window
             }
             status.Text = "Starting the game…";
             using Process process = Process.Start(start) ?? throw new InvalidOperationException("The game process could not be started.");
-            Task<string> errors = ReadRecentErrorsAsync(process.StandardError);
-            Task output = process.StandardOutput.BaseStream.CopyToAsync(Stream.Null);
             bool remembered = false;
             while (!process.HasExited)
             {
@@ -230,8 +227,6 @@ internal sealed class LauncherWindow : Window
                 await Task.Delay(200);
             }
             await process.WaitForExitAsync();
-            string error = await errors;
-            await output;
             WindowState = WindowState.Normal;
             Activate();
             if (process.ExitCode == 0)
@@ -244,8 +239,8 @@ internal sealed class LauncherWindow : Window
             }
             else
             {
-                status.Text = $"The game exited with code {process.ExitCode}.{Environment.NewLine}{error}";
-                MessageBox.Show(this, "The game could not continue. See the launcher for details.", "Memoria", MessageBoxButton.OK, MessageBoxImage.Error);
+                status.Text = $"The game exited with code {process.ExitCode}.";
+                MessageBox.Show(this, status.Text, "Memoria", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
         catch (Exception exception)
@@ -270,26 +265,6 @@ internal sealed class LauncherWindow : Window
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             status.Text = $"The game started, but its folder could not be remembered: {exception.Message}";
-        }
-    }
-
-    private static async Task<string> ReadRecentErrorsAsync(StreamReader source)
-    {
-        const int maximumCharacters = 32768;
-        StringBuilder result = new();
-        char[] buffer = new char[4096];
-        while (true)
-        {
-            int read = await source.ReadAsync(buffer);
-            if (read == 0)
-            {
-                return result.ToString();
-            }
-            result.Append(buffer, 0, read);
-            if (result.Length > maximumCharacters)
-            {
-                result.Remove(0, result.Length - maximumCharacters);
-            }
         }
     }
 
