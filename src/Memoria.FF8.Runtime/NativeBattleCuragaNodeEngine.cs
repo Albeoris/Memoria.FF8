@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCuragaNodeEngineInputs(Func<NativeBattleCuragaFrame, uint, int, NativeBattleCuragaFrame> AdvanceEmitter8817A0, Func<NativeBattleCuragaFrame, uint, int, NativeBattleCuragaFrame> AdvanceGeometry880510, Func<NativeBattleCuragaFrame, uint, NativeBattleCuragaFrame> DrawSprites880390, Func<NativeBattleCuragaFrame, uint, NativeBattleCuragaFrame> DrawMeshes87ED10);
+public sealed record NativeBattleCuragaNodeEngineInputs(Func<NativeBattleCuragaFrame, uint, NativeBattleCuragaFrame> AdvanceBirthUpdateAndDraw);
 public sealed record NativeBattleCuragaNodeEngineStep(NativeBattleCuragaFrame Frame, bool Complete);
 
 /// <summary>87EC80's context phases and ordered birth/update/sprite/mesh execution. Persistent nodes remain in the original arena.</summary>
@@ -61,34 +61,39 @@ public static class NativeBattleCuragaNodeEngine
 
     public static NativeBattleCuragaNodeEngineStep Advance87EC80(NativeBattleCuragaFrame frame, uint contextTask, NativeBattleCuragaNodeEngineInputs inputs)
     {
-        NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
+        NativeBattleModulePoolTask task = ReadTask();
         bool complete = false;
-        switch (unchecked((short)memory.ContextWord(0x20)))
+        switch (unchecked((short)task.ReadWord(0x34 + 0x20)))
         {
             case 0:
-                memory.ContextWord(0x20, unchecked((ushort)(memory.ContextWord(0x20) + 1)));
+                WriteTask(task.WriteWord(0x34 + 0x20, unchecked((ushort)(task.ReadWord(0x34 + 0x20) + 1))));
                 break;
             case 1:
-                frame = Birth882E20(memory.Flush(), contextTask);
-                frame = AdvanceList8804D0(frame, contextTask, inputs);
-                frame = inputs.DrawSprites880390(frame, contextTask);
-                frame = inputs.DrawMeshes87ED10(frame, contextTask);
-                memory = new(frame, contextTask);
-                short counter = unchecked((short)(memory.ContextWord(0x18) + 1));
-                memory.ContextWord(0x18, unchecked((ushort)counter));
-                if (counter >= unchecked((short)memory.ContextWord(0x1A)) && memory.ContextWord(0x14) == 0 && memory.ContextWord(0x16) == 0)
+                frame = inputs.AdvanceBirthUpdateAndDraw(frame, contextTask);
+                task = ReadTask();
+                short counter = unchecked((short)(task.ReadWord(0x34 + 0x18) + 1));
+                task = task.WriteWord(0x34 + 0x18, unchecked((ushort)counter));
+                if (counter >= unchecked((short)task.ReadWord(0x34 + 0x1A)) && task.ReadWord(0x34 + 0x14) == 0 && task.ReadWord(0x34 + 0x16) == 0)
                 {
-                    memory.ContextWord(0x20, unchecked((ushort)(memory.ContextWord(0x20) + 1)));
+                    task = task.WriteWord(0x34 + 0x20, unchecked((ushort)(task.ReadWord(0x34 + 0x20) + 1)));
                 }
+                WriteTask(task);
                 break;
             case 2:
                 complete = true;
                 break;
         }
-        ushort emitterCount = memory.State.PassCount26D82EA ?? throw new NotSupportedException("Native87EC80 requires87DC50's actual per-pass emitter-count reset.");
-        ushort geometryCount = memory.State.PassCount26D82DA ?? throw new NotSupportedException("Native87EC80 requires87DC50's actual per-pass geometry-count reset.");
-        memory.State = memory.State with { PassCount26D82EA = unchecked((ushort)(emitterCount + memory.ContextWord(0x14))), PassCount26D82DA = unchecked((ushort)(geometryCount + memory.ContextWord(0x16))) };
-        return new(memory.Flush(), complete);
+        ushort emitterCount = frame.State.PassCount26D82EA ?? throw new NotSupportedException("Native87EC80 requires87DC50's actual per-pass emitter-count reset.");
+        ushort geometryCount = frame.State.PassCount26D82DA ?? throw new NotSupportedException("Native87EC80 requires87DC50's actual per-pass geometry-count reset.");
+        task = ReadTask();
+        return new(frame with { State = frame.State with { PassCount26D82EA = unchecked((ushort)(emitterCount + task.ReadWord(0x34 + 0x14))), PassCount26D82DA = unchecked((ushort)(geometryCount + task.ReadWord(0x34 + 0x16))) } }, complete);
+
+        NativeBattleModulePoolTask ReadTask() => new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(contextTask);
+        void WriteTask(NativeBattleModulePoolTask updated)
+        {
+            NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
+            frame = frame with { Effect = frame.Effect with { Pools = hierarchy.Write(contextTask, updated).Pools } };
+        }
     }
 
     public static NativeBattleCuragaFrame Birth882E20(NativeBattleCuragaFrame frame, uint contextTask)
@@ -128,7 +133,7 @@ public static class NativeBattleCuragaNodeEngine
         }
     }
 
-    public static NativeBattleCuragaFrame AdvanceList8804D0(NativeBattleCuragaFrame frame, uint contextTask, NativeBattleCuragaNodeEngineInputs inputs)
+    public static NativeBattleCuragaFrame AdvanceList8804D0(NativeBattleCuragaFrame frame, uint contextTask, Func<NativeBattleCuragaFrame, uint, int, NativeBattleCuragaFrame> advanceEmitter, Func<NativeBattleCuragaFrame, uint, int, NativeBattleCuragaFrame> advanceGeometry)
     {
         NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
         WalkList(() => memory, (node, kind) =>
@@ -136,10 +141,10 @@ public static class NativeBattleCuragaNodeEngine
             switch (kind)
             {
                 case 0:
-                    frame = inputs.AdvanceEmitter8817A0(frame, contextTask, node);
+                    frame = advanceEmitter(frame, contextTask, node);
                     break;
                 case 1:
-                    frame = inputs.AdvanceGeometry880510(frame, contextTask, node);
+                    frame = advanceGeometry(frame, contextTask, node);
                     break;
             }
             //8804D0 reads this link after the callback. Appended nodes run in this same walk, and882960 leaves a removed node's link intact.

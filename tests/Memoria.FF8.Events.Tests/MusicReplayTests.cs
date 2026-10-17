@@ -30,7 +30,7 @@ internal static partial class Program
         live.Engine.Step();
         live.Engine.Step();
         live.Engine.Step();
-        Require(replayOutputs == 1 && live.Engine.Scene.MusicReplayRequest is { Bank: 1, Music: 34, Volume: 127, PriorKeepBit400: true, ResourceOwner: "MusicPlayRequest" } && live.Engine.Scene.MusicProcess is { Bank201: 1, Pending: true, Requested213: 99 } && live.Engine.Scene.MusicChannel108 is { ChannelId: 0, MusicId: 34 } && live.Session.WorldControls is { MusicKeep207: 0 } controls && (controls.EventFlags104 & 0x400) == 0 && !live.Session.State.Variables.ContainsKey(500), "MUSICREPLAY consumed pending music, selected the unplayed buffer, changed bank/music byte, lost keep-bit writes, touched an operand or failed return3.");
+        Require(replayOutputs == 1 && live.Engine.Scene.MusicReplayRequest is { Bank: 1, Music: 34, Volume: 127, PriorKeepBit400: true, ResourceOwner: "MusicProcess.Buffer1" } && live.Engine.Scene.MusicProcess is { Bank201: 1, Pending: true, Requested213: 99 } && live.Engine.Scene.MusicChannel108 is { ChannelId: 0, MusicId: 34 } && live.Session.WorldControls is { MusicKeep207: 0 } controls && (controls.EventFlags104 & 0x400) == 0 && !live.Session.State.Variables.ContainsKey(500), "MUSICREPLAY consumed pending music, selected the unplayed buffer, changed bank/music byte, lost keep-bit writes, touched an operand or failed return3.");
         JsonElement held = live.Engine.Capture();
         var restored = Fresh();
         restored.Engine.Restore(held);

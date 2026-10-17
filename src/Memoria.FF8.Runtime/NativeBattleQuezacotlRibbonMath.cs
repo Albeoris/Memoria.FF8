@@ -36,8 +36,7 @@ public static class NativeBattleQuezacotlRibbonMath
             ReadOnlySpan<byte> source = triangles.AsSpan().Slice(checked(index * 24 + corner * 8), 8);
             NativeBattleVector local = new(BinaryPrimitives.ReadInt16LittleEndian(source), BinaryPrimitives.ReadInt16LittleEndian(source[2..]), BinaryPrimitives.ReadInt16LittleEndian(source[4..]));
             NativeBattleActionMatrix bone = readBoneMatrix(BinaryPrimitives.ReadInt16LittleEndian(source[6..]));
-            (int x, int y, int z) = NativeBattleGfMatrices.Rotate56C3D0(bone, local);
-            points[corner] = new(Saturate(unchecked(x + bone.X)), Saturate(unchecked(y + bone.Y)), Saturate(unchecked(z + bone.Z)));
+            points[corner] = NativeBattleGfMatrices.Transform460840(bone, local);
         }
         int ax = unchecked((short)(points[0].X - points[1].X));
         int ay = unchecked((short)(points[0].Y - points[1].Y));

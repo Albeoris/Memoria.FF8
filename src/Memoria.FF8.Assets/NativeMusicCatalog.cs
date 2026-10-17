@@ -101,7 +101,11 @@ public sealed class NativeMusicCatalog
 
     public string MusicFile(int music, int fieldId)
     {
-        music = ResolveMusicId(music, fieldId);
+        return MusicFileResolved(ResolveMusicId(music, fieldId));
+    }
+
+    public string MusicFileResolved(int music)
+    {
         string? stream = music switch
         {
             3 => "003-combat.wav",

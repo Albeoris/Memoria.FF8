@@ -102,9 +102,7 @@ public static class NativeBattleQuezacotlSkinning
 
     public static NativeBattleQuezacotlSkinProjection Project6C74D0(NativeBattleVector local, NativeBattleActionMatrix bone, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleQuezacotlSkinContext context, int scratchOffset = 0)
     {
-        (int x, int y, int z) = NativeBattleGfMatrices.Rotate56C3D0(bone, local);
-        //460840/703F40 store saturated IR WORDs after the model-space translation.
-        NativeBattleVector skinned = new((short)Math.Clamp(unchecked(x + bone.X), short.MinValue, short.MaxValue), (short)Math.Clamp(unchecked(y + bone.Y), short.MinValue, short.MaxValue), (short)Math.Clamp(unchecked(z + bone.Z), short.MinValue, short.MaxValue));
+        NativeBattleVector skinned = NativeBattleGfMatrices.Transform460840(bone, local);
         SkinWrites initial = new(12, scratchOffset);
         initial.Word16(0, unchecked((ushort)skinned.X));
         initial.Word16(2, unchecked((ushort)skinned.Y));

@@ -203,6 +203,8 @@ internal static partial class Program
                     ["draw-point-allocated-byte"] = NativeDrawPointAllocatedByteContract,
                     ["music-position"] = () => NativeMusicPositionContract(selectedGameDirectory),
                     ["music-load"] = NativeMusicLoadContract,
+                    ["battle-music-byte"] = NativeBattleMusicByteContract,
+                    ["native-music-playback"] = NativeMusicPlaybackContract,
                     ["choice-music"] = NativeChoiceMusicContract,
                     ["move-flush"] = () => NativeMoveFlushContract(selectedGameDirectory),
                     ["native-field-fade"] = NativeFadeNoneContract,
@@ -310,6 +312,8 @@ internal static partial class Program
             NativeDrawPointSetupContract(gameDirectory);
             NativeMusicPositionContract(gameDirectory);
             NativeMusicLoadContract();
+            NativeMusicPlaybackContract();
+            NativeBattleMusicByteContract();
             NativeMusicFadeContract();
             NativeSoundInitializationContract(gameDirectory);
             NativeSoundStopContract();

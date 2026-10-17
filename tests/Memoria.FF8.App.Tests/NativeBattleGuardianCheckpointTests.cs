@@ -31,6 +31,10 @@ public sealed class NativeBattleGuardianCheckpointTests
         }
         catch (NotSupportedException exception)
         {
+            if (Environment.GetEnvironmentVariable("MEMORIA_FF8_GF_DIAGNOSTIC_STACK") == "1")
+            {
+                Console.WriteLine(exception.ToString());
+            }
             //A named diagnostic may intentionally precede a strict unsupported contract. Report it; never replay earlier frames.
             return exception.Message;
         }

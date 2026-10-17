@@ -83,6 +83,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
 
     public void ResumeMusic(SceneEventState scene, int fieldId, bool worldMap = false)
     {
+        // TODO(TD-009): Exact resume requires the retained1CD2388/C mode owners and native replay lifecycle
         // Saved native channel authority proves the track identity, not its device phase.
         // Resume from the original segment's start; never synthesize effect-buffer activity.
         NativeMusicChannelState? secondary = scene.MusicChannel112;
@@ -108,15 +109,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
             switch (command)
             {
                 case NativeWorldMusicLoad world:
-                    if (world.Operation == NativeWorldMusicOperation.Stop)
-                    {
-                        StopMusicSlot(0);
-                    }
-                    else if (world.Music is byte worldMusic)
-                    {
-                        PlayMusic(worldMusic, 0, world.InitialVolume ?? (int)PrimaryMusicVolume, world.SourceFieldId, world.StartPoint, forceRestart: world.Operation == NativeWorldMusicOperation.Play);
-                        SetMusicGain(0, false, null, world.TargetVolume, world.DurationMilliseconds);
-                    }
+                    ExecuteMusicPlayback(world.Playback, world.SourceFieldId, world.StartPoint, world.DurationMilliseconds, world.Operation == NativeWorldMusicOperation.Play ? world.InitialVolume : null);
                     break;
                 case GlobalSoundRequest request when request.Resource.BackendStatus != GlobalSoundBackendStatus.Failed:
                     PlaySound(request);
@@ -130,11 +123,12 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
                         StopVoice(voice);
                     }
                     break;
-                case NativeSoundInitialization:
+                case NativeSoundInitialization initialization:
                     foreach (int voice in voices.Keys.ToArray())
                     {
                         StopVoice(voice);
                     }
+                    DispatchNativeMusicInitialization(initialization, (slot, gain) => SetMusicGain(slot, null, gain, 0));
                     break;
                 case NativeSoundVolume volume:
                     SetVoiceVolume(volume.Voice, volume.Volume, volume.DurationMilliseconds);
@@ -151,16 +145,14 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
                 case NativeAllSoundVolumeTransition volume:
                     SetAllVoiceVolumes(volume.FirstVoice, volume.VoiceCount, volume.Volume, volume.DurationMilliseconds);
                     break;
-                case NativeMusicPlayRequest { ConsumedPending: true, Music: byte track, Channel: int slot } play:
-                    RequireOrdinaryMusicOutput(play.ChoiceMask);
-                    PlayMusic(track, slot, play.Volume, play.FieldId, play.SkipPosition ?? 0, play.Opcode == "CROSSMUSIC");
+                case NativeMusicPlayRequest { ConsumedPending: true } play:
+                    ExecuteMusicPlayback(play.Playback, play.FieldId, play.SkipPosition ?? 0, choiceMask: play.ChoiceMask);
                     break;
                 case NativeMusicReplayRequest replay:
-                    PlayMusic(replay.Music, 0, replay.Volume, replay.FieldId);
-                    SetMusicGain(0, false, null, replay.Volume, 0);
+                    ExecuteMusicPlayback(replay.Playback, replay.FieldId);
                     break;
                 case NativeMusicStop { StopRequested: true } stop:
-                    StopMusicSlot(stop.Slot);
+                    DispatchNativeMusicStop(stop, StopMusicSlot);
                     break;
                 case NativeMusicVolume volume when volume.BothChannels is not null:
                     SetMusicVolume(volume);
@@ -334,19 +326,22 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         PlaySoundSample(sample, voice, volume, pan, resource.LoopPolicy);
     }
 
-    private void PlayMusic(int track, int slot, int? volume, int fieldId, int startPoint = 0, bool forceRestart = false)
+    private void PlayMusic(int track, int slot, int? volume, int fieldId, int startPoint = 0, bool forceRestart = false, bool identityResolved = false)
     {
         if (volume is not (>= 0 and <= 127))
         {
             throw new NotSupportedException("Music output requires the executed native volume.");
         }
-        track = NativeMusicCatalog.ResolveMusicId(track, fieldId);
+        if (!identityResolved)
+        {
+            track = NativeMusicCatalog.ResolveMusicId(track, fieldId);
+        }
         if (!forceRestart && musicIds[slot] == track)
         {
             return;
         }
         StopMusicSlot(slot);
-        string path = Path.Combine(gameDirectory, Catalog.MusicFile(track, fieldId));
+        string path = Path.Combine(gameDirectory, Catalog.MusicFileResolved(track));
         if (Path.GetExtension(path).Equals(".sgt", StringComparison.OrdinalIgnoreCase))
         {
             Music.Play(path, OutputGain(Catalog.MusicVolume(volume.Value), musicPreference), startPoint);
@@ -371,35 +366,48 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
 
     private void SetMusicVolume(NativeMusicVolume request)
     {
-        SetMusicGain(request.Slot, request.BothChannels == true, request.FadeInitialVolumeOperand, request.RequestedVolume, request.EffectiveDuration);
+        DispatchNativeMusicVolume(request, (slot, gain) => SetMusicGain(slot, request.FadeInitialVolumeOperand, gain, request.EffectiveDuration));
     }
 
-    private void SetMusicGain(int slot, bool bothChannels, int? initialVolume, int requestedVolume, int duration)
+    private void SetMusicGain(int slot, int? initialVolume, int requestedVolume, int duration)
     {
-        bool midi = bothChannels || musicKinds[slot] == MusicKind.Midi;
-        bool stream = bothChannels || musicKinds[slot] == MusicKind.Stream;
-        if (initialVolume is int initial && initial is >= 0 and <= 127)
+        if (requestedVolume is < 0 or > 127 || initialVolume is < 0 or > 127 || duration < 0)
         {
-            if (midi)
-            {
-                midiVolume = initial;
-                music?.Volume(OutputGain(Catalog.MusicVolume(initial), musicPreference));
-            }
-            if (stream)
-            {
-                streamVolume = initial;
-                streamedMusic?.Volume(OutputGain(Catalog.SoundVolume(initial), musicPreference));
-            }
+            throw new NotSupportedException("Native music device output requires reached gain-table indices and a nonnegative effective duration.");
         }
-        if (requestedVolume is >= 0 and <= 127)
+        bool midi = musicKinds[slot] == MusicKind.Midi;
+        bool stream = musicKinds[slot] == MusicKind.Stream;
+        if (initialVolume is int initial)
+        {
+            SetImmediate(initial);
+        }
+        if (duration == 0)
+        {
+            SetImmediate(requestedVolume);
+            return;
+        }
+        if (midi)
+        {
+            midiRamp = new Ramp(midiVolume, requestedVolume, duration);
+        }
+        if (stream)
+        {
+            streamRamp = new Ramp(streamVolume, requestedVolume, duration);
+        }
+
+        void SetImmediate(int value)
         {
             if (midi)
             {
-                midiRamp = new Ramp(midiVolume, requestedVolume, duration);
+                midiVolume = value;
+                midiRamp = null;
+                music?.Volume(OutputGain(Catalog.MusicVolume(value), musicPreference));
             }
             if (stream)
             {
-                streamRamp = new Ramp(streamVolume, requestedVolume, duration);
+                streamVolume = value;
+                streamRamp = null;
+                streamedMusic?.Volume(OutputGain(Catalog.SoundVolume(value), musicPreference));
             }
         }
     }

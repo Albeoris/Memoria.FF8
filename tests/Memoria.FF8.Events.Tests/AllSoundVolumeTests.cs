@@ -23,10 +23,11 @@ internal static partial class Program
                 byte[] content = SyntheticProgram(operations.ToArray());
                 EventEngine Create()
                 {
-                    GameSession session = GameSession.CreateColdProcess();
+                    GameSession session = CreateControlledMusicSession();
                     session.SetEventMemory(session.State.EventMemory.Write(512, 4, NativeScalarValue.Exact(rawVolume)));
                     EventEngine engine = new(session) { ResolveGlobalSoundResource = MutedGlobalSample };
                     engine.LoadField(100, content, []);
+                    SetControlledMusicChannels(engine);
                     return engine;
                 }
                 EventEngine first = Create();

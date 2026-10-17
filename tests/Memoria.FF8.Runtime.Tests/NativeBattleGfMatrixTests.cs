@@ -68,6 +68,16 @@ public sealed class NativeBattleGfMatrixTests
         Assert.Equal(context.Rotation.ToArray(), billboardPriority.Rotation.ToArray());
     }
 
+    [Fact]
+    public void ThirdWindowPassesItsBaseCoordinatesToTheSameCameraComposition()
+    {
+        NativeBattleGfAnimationNode node = Node(0, new(0, 0, 0), new(4096, 4096, 4096));
+        NativeBattleActionMatrix first = NativeBattleGfMatrices.Compose6C6060(node, Identity, null, new(0, -5000, 0));
+        NativeBattleActionMatrix third = NativeBattleGfMatrices.Compose6C6060(node, Identity, null, new(0, 0, 3690));
+        Assert.Equal((110, -4780, 330), (first.X, first.Y, first.Z));
+        Assert.Equal((110, 220, 4020), (third.X, third.Y, third.Z));
+        Assert.Equal(first.Rotation.ToArray(), third.Rotation.ToArray());
+    }
     private static NativeBattleGfAnimationNode Node(uint header, NativeBattleVector angles, NativeBattleVector scale)
     {
         byte[] bytes = new byte[44];

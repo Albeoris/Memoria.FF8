@@ -45,7 +45,7 @@ public sealed record NativeBattleEffectArena([property: JsonRequired] ImmutableA
         RequireRange(offset, count);
         if (count > 0 && UnknownRegions.Any(region => region.Offset < offset + count && region.Offset + region.Length > offset))
         {
-            throw new NotSupportedException("Native effect arena read requires unresolved physical pointer bytes; its logical packet-link owner does not provide a native address.");
+            throw new NotSupportedException($"Native effect arena read intersects unresolved physical bytes at arena offset 0x{offset:X} for {count} bytes; unknown padding or pointer data cannot be substituted.");
         }
         return ReadStorage(offset, count);
     }

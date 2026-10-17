@@ -161,7 +161,8 @@ public sealed class SceneEventState
     [JsonInclude]
     public int MusicCrossfadeFrames { get; internal set; }
     [JsonInclude]
-    public int BattleMusic { get; internal set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? NativeBattleMusic203 { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeSoundInitialization? SoundInitialization { get; internal set; }

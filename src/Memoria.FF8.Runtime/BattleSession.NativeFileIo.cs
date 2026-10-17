@@ -54,17 +54,17 @@ public sealed partial class BattleSession
         QueueNativeFileIo482610(file.Data.Length, request.CompletionCallback);
     }
 
-    private NativeBattleEffectHeapAllocation ResolveNativeQuezacotlSource(uint address)
+    private NativeBattleEffectHeapAllocation ResolveNativeQuezacotlSource(uint address, int? requestedLength)
     {
         if (address is >= 0x20DFAB8 and < 0x21DFAB8)
         {
             int offset = checked((int)(address - 0x20DFAB8));
-            return new($"20DFAB8+{offset:X}", (NativeEffectMemory?.Arena ?? throw new NotSupportedException("Native6C3580 requires its actual mutable effect arena.")).Read(offset, NativeBattleEffectArena.Length - offset).ToImmutableArray());
+            return new($"20DFAB8+{offset:X}", (NativeEffectMemory?.Arena ?? throw new NotSupportedException("Native6C3580 requires its actual mutable effect arena.")).Read(offset, requestedLength ?? throw new InvalidOperationException("Native mutable effect source requires its actual bounded read; arena TIM uploads have their own parser.")).ToImmutableArray());
         }
         if (address >= NativeBattleQuezacotlExecutableMemory.Address && address < NativeBattleQuezacotlExecutableMemory.Address + NativeBattleQuezacotlExecutableMemory.Length)
         {
             NativeBattleQuezacotlExecutableMemory executable = NativeEffectMemory?.QuezacotlExecutableMemory ?? throw new NotSupportedException("Native6C3580 requires its current executable model source.");
-            return new($"FF8_EN:{address:X8}", executable.Data.AsSpan().Slice(checked((int)(address - NativeBattleQuezacotlExecutableMemory.Address))).ToArray().ToImmutableArray());
+            return new($"FF8_EN:{address:X8}", executable.Data.AsSpan().Slice(checked((int)(address - NativeBattleQuezacotlExecutableMemory.Address)), requestedLength ?? checked(executable.Data.Length - (int)(address - NativeBattleQuezacotlExecutableMemory.Address))).ToArray().ToImmutableArray());
         }
         throw new NotSupportedException($"Native6C3580 source{address:X8} requires its actual mutable resource owner.");
     }

@@ -53,8 +53,10 @@ public static class NativeBattleQuezacotlResourcesReader
         }
         NativeVibrationBank vibration = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, offsets.MoveToImmutable(), NativeBattleEffectStaticResourcesReader.Read(executable, 0x12AE500, end));
         vibration.Validate();
+        ImmutableArray<byte> anchorWords = NativeBattleEffectStaticResourcesReader.Read(executable, 0x12AFE40, 22);
         return new(initializer, first, second, vibration)
         {
+            AnchorVertexIndices11 = Enumerable.Range(0, 11).Select(index => BinaryPrimitives.ReadInt16LittleEndian(anchorWords.AsSpan().Slice(2 * index))).ToImmutableArray(),
             InitialSound = BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleEffectStaticResourcesReader.Read(executable, 0x12AE4F0, 4).AsSpan()),
             Frame65Sound = BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleEffectStaticResourcesReader.Read(executable, 0x12AE4F4, 4).AsSpan()),
             FlashColors = Enumerable.Range(0, 3).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleEffectStaticResourcesReader.Read(executable, checked(0x12AE7E0u + 4u * (uint)index), 4).AsSpan())).ToImmutableArray(),

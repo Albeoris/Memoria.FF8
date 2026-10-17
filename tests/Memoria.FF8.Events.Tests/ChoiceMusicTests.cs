@@ -27,7 +27,8 @@ internal static partial class Program
             {
                 first.Step();
             }
-            Require(first.Scene.MusicPlayRequest is { Opcode: "CHOICEMUSIC", ConsumedPending: true, Music: 43, Bank: 1, Channel: 0, Volume: null, Duration: null, SkipPosition: null } play && play.ChoiceMask == mask && first.Scene.MusicChannel108 is { ChannelId: 0, MusicId: 43 } primary && primary.ChoiceMask == mask && first.Scene.MusicChannel112 is { ChannelId: -1, MusicId: 255, ChoiceMask: null } && first.Scene.MusicProcess is { Pending: false, Requested213: 43, Complete214: 1, Bank201: 1 } && session.WorldControls is { EventFlags104: 0x18, MusicKeep207: 0 } && session.State.GlobalSoundProcess == backend && !session.State.Variables.ContainsKey(500), "CHOICEMUSIC lost mask width, pending/bank/channel/control ownership, invented volume/duration or failed native return3 yield.");
+            NativeGlobalSoundProcess expectedBackend = backend! with { MusicPlayback = backend!.MusicPlayback!.Concert46B990(mask, () => 74) };
+            Require(first.Scene.MusicPlayRequest is { Opcode: "CHOICEMUSIC", ConsumedPending: true, Music: 43, Bank: 1, Channel: 0, Volume: null, Duration: null, SkipPosition: null } play && play.ChoiceMask == mask && first.Scene.MusicChannel108 is { ChannelId: 0, MusicId: 43 } primary && primary.ChoiceMask == mask && first.Scene.MusicChannel112 is { ChannelId: -1, MusicId: 255, ChoiceMask: null } && first.Scene.MusicProcess is { Pending: false, Requested213: 43, Complete214: 1, Bank201: 1 } && session.WorldControls is { EventFlags104: 0x18, MusicKeep207: 0 } && session.State.GlobalSoundProcess == expectedBackend && !session.State.Variables.ContainsKey(500), "CHOICEMUSIC lost mask width, pending/bank/channel/control ownership, invented volume/duration or failed native return3 yield.");
             JsonElement pending = first.Capture();
             JsonElement fiber = pending.GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ScriptId").GetInt32() == 1);
             Require(fiber.GetProperty("Stack").GetArrayLength() == 1 && fiber.GetProperty("Stack")[0].GetInt32() == 77, "CHOICEMUSIC did not consume exactly the ignored top DWORD and lower mask operand.");
@@ -57,7 +58,7 @@ internal static partial class Program
             first.LoadField(100, noPending, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             first.Step();
             first.Step();
-            Require(session.State.Variables[501] == 88 && first.Scene.MusicPlayRequest is { ConsumedPending: false, ChoiceMask: 4, Channel: null, Bank: 1, Volume: null, Duration: null } && first.Scene.MusicChannel108?.ChoiceMask == mask && first.Scene.MusicChannel108.MusicId == 43 && session.State.GlobalSoundProcess == backend, "No-pending CHOICEMUSIC changed the prior selection, touched the backend, used its discarded top operand or introduced a yield.");
+            Require(session.State.Variables[501] == 88 && first.Scene.MusicPlayRequest is { ConsumedPending: false, ChoiceMask: 4, Channel: null, Bank: 1, Volume: null, Duration: null } && first.Scene.MusicChannel108?.ChoiceMask == mask && first.Scene.MusicChannel108.MusicId == 43 && session.State.GlobalSoundProcess == expectedBackend, "No-pending CHOICEMUSIC changed the prior selection, touched the backend, used its discarded top operand or introduced a yield.");
             resumed.LoadField(100, noPending, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             resumed.Restore(first.Capture());
             Require(JsonElement.DeepEquals(first.Capture(), resumed.Capture()), "Concert selection was lost across normal field load or no-pending restore.");

@@ -22,17 +22,20 @@ internal static partial class Program
     private static void NativeMusicLoadContract()
     {
         NativeMusicSkipContract();
-        byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 300), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.FADENONE, 0), (Jsm.Opcode.MUSICCHANGE, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
+        byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 300), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.FADENONE, 0), (Jsm.Opcode.MUSICCHANGE, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
         (GameSession Session, EventEngine Engine) Fresh(byte[]? bytes = null)
         {
             GameSession session = CreateNativeMusicSession();
-            EventEngine engine = new(session);
+            EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 4 };
             engine.LoadField(74, bytes ?? content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return (session, engine);
         }
         (GameSession session, EventEngine first) = Fresh();
         Require(first.Scene.MusicChannel108 is { ChannelId: -1, MusicId: 255 } && first.Scene.MusicChannel112 is { ChannelId: -1, MusicId: 255 } && session.WorldControls is { EventFlags104: 0x18, MusicKeep207: 0 } && first.Scene.MusicProcess is { Pending: null, Bank201: 0 }, "Fresh native bootstrap invented pending music or lost the original reset bytes.");
-        first.Step();
+        while (first.Scene.MusicPlayRequest is null && first.Frame < 4)
+        {
+            first.Step();
+        }
         Require(first.Scene.MusicLoadRequest is { RawMusic: 300, Music: 44, PriorSecondChannel: -1, Loaded: true } && first.Scene.MusicPlayRequest is { ConsumedPending: true, Music: 44, PriorBank: 0, Bank: 1, PriorKeepBit400: true, Channel: 0 } && session.WorldControls is { EventFlags104: 0x18, MusicKeep207: 0 } && first.Scene.MusicProcess is { Pending: false, Requested213: 44, Complete214: 1, Bank201: 1 } && first.Scene.MusicChannel108 is { ChannelId: 0, MusicId: 44 } && first.Scene.MusicChannel112 is { ChannelId: -1, MusicId: 255 }, "Native pending load, byte narrowing, primary play or independent second-channel state changed.");
         Require(!session.State.Variables.ContainsKey(500), "Native MUSICCHANGE return3 failed to yield the caller.");
         Require(new[] { 201, 202, 213, 214 }.All(address => !session.State.Variables.ContainsKey(address)), "Music process bytes were duplicated as untyped memory owners.");

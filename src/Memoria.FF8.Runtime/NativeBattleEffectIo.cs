@@ -70,7 +70,7 @@ public static class NativeBattleEffectIo
         return new(advance.Memory, true, advance.Request);
     }
 
-    public static NativeBattleEffectIoCompletion Complete6C3580(NativeBattleEffectMemory memory, Func<uint, NativeBattleEffectHeapAllocation> resolveSource)
+    public static NativeBattleEffectIoCompletion Complete6C3580(NativeBattleEffectMemory memory, Func<uint, int?, NativeBattleEffectHeapAllocation> resolveSource)
     {
         NativeBattleEffectIoState io = memory.EffectIo ?? throw new NotSupportedException("Native6C3580 requires its retained callback/controller pointers.");
         if (io.Callback != 0x6C3580)
@@ -94,14 +94,14 @@ public static class NativeBattleEffectIo
             }
             else
             {
-                (textures, _) = textures.EnqueueTim505E30(resolveSource(pointer));
+                (textures, _) = textures.EnqueueTim505E30(resolveSource(pointer, null));
             }
             delay = unchecked((byte)type);
         }
         else if (type <= 4)
         {
             //501860 acknowledges immediately after publishing pointer1D96DC0 and number1D96DB0.
-            NativeBattleEffectHeapAllocation source = resolveSource(pointer);
+            NativeBattleEffectHeapAllocation source = resolveSource(pointer, 4);
             if (source.Data.Length < 4)
             {
                 throw new InvalidDataException("Native501860 stream request lacks its original leading DWORD.");

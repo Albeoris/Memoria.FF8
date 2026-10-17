@@ -10,6 +10,7 @@ public sealed class NativeBattleQuezacotlFirstWindowIoTests
     [InlineData(60, new short[] { 511, 512 }, new short[] { 1, 5 }, new uint[] { 0x2108954, 0x2111154 })]
     [InlineData(76, new short[] { 513 }, new short[] { 5 }, new uint[] { 0x1298C68 })]
     [InlineData(85, new short[] { 514, 515 }, new short[] { 0, 5 }, new uint[] { 0x2108954, 0x12A1164 })]
+    [InlineData(161, new short[] { 516, 517, 518, 519, 520 }, new short[] { 0, 5, 1, 1, 3 }, new uint[] { 0x2108954, 0x12A9664, 0x2108954, 0x2108954, 0x2108954 })]
     public void NativeBatchWaitsForPollThenPreservesOriginalOrderWidthsTypesAndDestinations(ushort phase, short[] files, short[] types, uint[] destinations)
     {
         NativeBattleEffectMemory memory = Memory();

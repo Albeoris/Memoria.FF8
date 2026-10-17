@@ -1,9 +1,14 @@
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Runtime;
+using System.Collections.Immutable;
 
 namespace Memoria.FF8.Events;
 
-public sealed record NativeSoundInitialization(int Version, int FieldId, int ObjectId, int ScriptId, int Operation, long Frame, byte MusicVolume197, byte MusicVolume198, byte SoundVolume, int StopFirstVoice, int StopVoiceCount, int PanFirstVoice, int PanVoiceCount, byte Pan, GlobalSoundBackendStatus BackendStatus);
+public sealed record NativeSoundInitialization(int Version, int FieldId, int ObjectId, int ScriptId, int Operation, long Frame, byte MusicVolume197, byte MusicVolume198, byte SoundVolume, int StopFirstVoice, int StopVoiceCount, int PanFirstVoice, int PanVoiceCount, byte Pan, GlobalSoundBackendStatus BackendStatus)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<int>? MusicGainChannels { get; init; }
+}
 
 public sealed partial class EventEngine
 {
@@ -70,9 +75,11 @@ public sealed partial class EventEngine
 
     private void ExecuteSoundInitialization(Fiber fiber)
     {
+        ImmutableArray<int> channels = new[] { RequireMusicChannel(0), RequireMusicChannel(1) }.Where(channel => channel != -1).ToImmutableArray();
+        CommitMusicPlayback(fiber, Jsm.Opcode.INITSOUND);
         SetSoundVolumeByte(197, 127);
         SetSoundVolumeByte(198, 127);
-        Scene.SoundInitialization = new NativeSoundInitialization(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, 127, 127, 127, 0, 32, 1, 29, 64, GlobalSoundBackendStatus.Muted);
+        Scene.SoundInitialization = new NativeSoundInitialization(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, 127, 127, 127, 0, 32, 1, 29, 64, GlobalSoundBackendStatus.Muted) { MusicGainChannels = channels };
         AudioCommandExecuted?.Invoke(Scene.SoundInitialization);
         // This records the installed calls on an explicit muted backend. It
         // neither invents active music channel IDs nor erases effect history.
@@ -96,6 +103,10 @@ public sealed partial class EventEngine
         if (scene.SoundInitialization is not NativeSoundInitialization reset)
         {
             return;
+        }
+        if (reset.MusicGainChannels is { } channels && (channels.IsDefault || channels.Length > 2 || channels.Contains(-1)))
+        {
+            throw new InvalidDataException("Sound initialization lost the actual ordered native gain-call channels.");
         }
         if (reset.Version != 1 || reset.FieldId < 72 || reset.ObjectId < 0 || reset.ScriptId < 0 || reset.Operation < 0 || reset.Frame < 0 || reset.MusicVolume197 != 127 || reset.MusicVolume198 != 127 || reset.SoundVolume != 127 || reset.StopFirstVoice != 0 || reset.StopVoiceCount != 32 || reset.PanFirstVoice != 1 || reset.PanVoiceCount != 29 || reset.Pan != 64 || reset.BackendStatus != GlobalSoundBackendStatus.Muted || scene.SoundMusicVolume197 is null || scene.SoundMusicVolume198 is null)
         {

@@ -1,9 +1,41 @@
+using System.Collections.Immutable;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffectIoTests
 {
+    [Theory]
+    [InlineData(3, 0)]
+    [InlineData(4, 1)]
+    public void StreamCompletionReadsOnlyItsLeadingDWORDAndPreservesUnrelatedUnknownBytes(short type, byte delay)
+    {
+        const int sourceOffset = 512;
+        const uint pointer = 0x20DFAB8 + sourceOffset;
+        NativeBattleEffectMemory memory = NativeBattleEffectIo.Initialize534110(NativeBattleEffectMemory.FromColdProcess().BeginLoad(116), 64);
+        memory = memory with { EffectIo = memory.EffectIo! with { Callback = 0x6C3580 } };
+        memory = NativeBattleEffectIo.Queue5341D0(memory, 520, pointer, type);
+        memory = NativeBattleEffectIo.Advance534210(memory).Memory;
+        memory = memory with { Arena = memory.Arena!.Write(sourceOffset, [119, 0, 0, 0]).MarkUnknown(sourceOffset + 4, NativeBattleEffectArena.Length - sourceOffset - 4) };
+        List<(uint Address, int? Length)> reads = [];
+        NativeBattleEffectIoCompletion completed = NativeBattleEffectIo.Complete6C3580(memory, (address, length) =>
+        {
+            reads.Add((address, length));
+            Assert.Equal(4, length);
+            return new("actual mutable source", memory.Arena!.Read(checked((int)(address - 0x20DFAB8)), length!.Value).ToImmutableArray());
+        });
+        Assert.Equal(new[] { (pointer, (int?)4) }, reads);
+        Assert.Equal(new NativeBattleSummonStreamRequest(pointer, 690119), completed.Stream);
+        Assert.Equal(new NativeBattleSummonStreamState(690119, pointer), completed.Memory.SummonStream);
+        Assert.Equal(new byte[] { 0, delay, 1, 1, 1 }, completed.Memory.Arena!.Read(64, 5));
+        Assert.Throws<NotSupportedException>(() => completed.Memory.Arena.Read(sourceOffset + 4, 1));
+        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(completed.Memory))!;
+        Assert.Equal(completed.Memory.SummonStream, restored.SummonStream);
+        Assert.Throws<NotSupportedException>(() => restored.Arena!.Read(sourceOffset + 4, 1));
+        memory = memory with { Arena = memory.Arena!.MarkUnknown(sourceOffset, 1) };
+        Assert.Throws<NotSupportedException>(() => NativeBattleEffectIo.Complete6C3580(memory, (address, length) => new("unknown leading DWORD", memory.Arena!.Read(checked((int)(address - 0x20DFAB8)), length!.Value).ToImmutableArray())));
+    }
+
     [Fact]
     public void PollHonorsAcknowledgmentBusyAndByteDelayWithoutInventingACompletion()
     {

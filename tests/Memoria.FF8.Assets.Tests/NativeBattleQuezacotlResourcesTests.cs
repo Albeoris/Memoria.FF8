@@ -87,7 +87,7 @@ public sealed class NativeBattleQuezacotlResourcesTests
         Assert.Equal((ushort)1, childZero.Effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
         NativeBattleEffectFileAsset file = resources.Files.Single(file => file.FileId == 505);
         NativeBattleEffectMemory loaded = childZero.Memory with { Arena = childZero.Memory.Arena!.Write(0x28E9C, file.Data.AsSpan()) };
-        NativeBattleEffectIoCompletion complete = NativeBattleEffectIo.Complete6C3580(loaded, _ => throw new InvalidOperationException("Arena TIM must retain its mutable native pointer."));
+        NativeBattleEffectIoCompletion complete = NativeBattleEffectIo.Complete6C3580(loaded, (_, _) => throw new InvalidOperationException("Arena TIM must retain its mutable native pointer."));
         Assert.Equal(0x28E9C, complete.Memory.Textures!.Slots[1]!.ArenaOffset);
         Assert.Equal(new byte[] { 0, 1, 1, 3, 1 }, complete.Memory.Arena!.Read(0x28E54, 5));
         Assert.Equal(4, complete.Memory.Textures.Drain505D20(complete.Memory.Arena).Uploads.Length);

@@ -13,10 +13,11 @@ internal static partial class Program
         byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1234), (Jsm.Opcode.INITSOUND, 0), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHM_B, 197), (Jsm.Opcode.POPI_L, 4), (Jsm.Opcode.PSHM_B, 198), (Jsm.Opcode.POPI_L, 5), (Jsm.Opcode.PSHN_L, 511), (Jsm.Opcode.POPM_B, 198), (Jsm.Opcode.PSHM_B, 198), (Jsm.Opcode.POPI_L, 6), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
         EventEngine Create(byte[]? program = null)
         {
-            GameSession session = GameSession.CreateColdProcess();
+            GameSession session = CreateControlledMusicSession();
             session.SetWorldControls(NativeWorldControlState.CreateNewGame());
             EventEngine engine = new(session);
             engine.LoadField(100, program ?? content, []);
+            SetControlledMusicChannels(engine);
             JsonNode source = JsonNode.Parse(engine.Capture().GetRawText())!;
             source["Scene"]!["LoadedMusic"] = 26;
             source["Scene"]!["MusicPlaying"] = true;
@@ -33,6 +34,7 @@ internal static partial class Program
         EventEngine first = Create();
         first.Step();
         NativeSoundInitialization reset = first.Scene.SoundInitialization ?? throw new InvalidOperationException("INITSOUND did not record its original muted reset.");
+        Require(reset.MusicGainChannels is { } channels && channels.SequenceEqual([0, 1]), "INITSOUND lost its actual ordered event-channel gain calls.");
         JsonElement begun = first.Capture();
         JsonElement results = begun.GetProperty("Fibers")[0].GetProperty("Results");
         Require(reset is { Version: 1, FieldId: 100, Operation: 2, MusicVolume197: 127, MusicVolume198: 127, SoundVolume: 127, StopFirstVoice: 0, StopVoiceCount: 32, PanFirstVoice: 1, PanVoiceCount: 29, Pan: 64, BackendStatus: GlobalSoundBackendStatus.Muted } && first.Scene.SoundMusicVolume197 == 127 && first.Scene.SoundMusicVolume198 == 255 && first.Scene.LoadedMusic == 26 && first.Scene.MusicPlaying && first.Scene.MusicVolume == 127, "INITSOUND fabricated music identity or lost its original reset ranges/known byte writes.");
@@ -70,16 +72,16 @@ internal static partial class Program
         EventEngine ambiguous = Create();
         JsonNode ambiguousSource = JsonNode.Parse(ambiguous.Capture().GetRawText())!;
         SetCapturedCell(ambiguousSource, 197, 4, 65537);
-        ambiguous.Restore(JsonSerializer.SerializeToElement(ambiguousSource));
+        JsonElement beforeAlias = ambiguous.Capture();
         try
         {
-            ambiguous.Step();
-            throw new InvalidOperationException("INITSOUND overwrote an ambiguous preexisting DWORD alias.");
+            ambiguous.Restore(JsonSerializer.SerializeToElement(ambiguousSource));
+            throw new InvalidOperationException("INITSOUND fixture restored a DWORD alias overlapping its canonical channels.");
         }
-        catch (EventScriptException) when (ambiguous.LastFault?.Opcode == "INITSOUND")
+        catch (InvalidDataException)
         {
         }
-        Require(ambiguous.Scene.SoundInitialization is null && ambiguous.Scene.MusicVolume == 37 && ambiguous.Capture().GetProperty("Fibers")[0].GetProperty("Stack")[0].GetInt32() == 1234, "Refused reset changed sound state or consumed a sentinel operand.");
+        Require(JsonElement.DeepEquals(beforeAlias, ambiguous.Capture()), "Rejected overlapping restore changed the controlled music fixture.");
         JsonNode malformed = JsonNode.Parse(begun.GetRawText())!;
         malformed["Scene"]!["SoundInitialization"]!["Pan"] = 63;
         try

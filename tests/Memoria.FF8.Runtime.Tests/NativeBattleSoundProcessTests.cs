@@ -14,7 +14,7 @@ public sealed class NativeBattleSoundProcessTests
             (process, NativeBattleModuleSound automatic) = new NativeBattleModuleSound((uint)(100 + index), index == 1 ? 0xFF000000u : 0, null).Commit46B2A0(process);
             Assert.Equal(expected[index], automatic.ReadCommittedVoice());
             Assert.Equal((uint)(100 + index), process.OriginalEffectIds[expected[index]]);
-            byte rotation = process.Rotation;
+            byte? rotation = process.Rotation;
             (process, NativeBattleModuleSound explicitSound) = new NativeBattleModuleSound(300000, 0x800100, null).Commit46B2A0(process);
             Assert.Equal((byte)9, explicitSound.ReadCommittedVoice());
             Assert.Equal(rotation, process.Rotation);

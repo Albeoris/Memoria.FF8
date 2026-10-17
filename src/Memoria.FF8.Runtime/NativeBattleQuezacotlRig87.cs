@@ -26,30 +26,85 @@ public static partial class NativeBattleQuezacotlRig86
         return Synchronize(memory with { Arena = arena.Write(0x14, raw) }, effect);
     }
 
-    public static (NativeBattleQuezacotlRigWrite Rig, NativeBattleCameraState Camera) UpdateCamera87(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleCameraState camera, int localFrame = 1)
+    public static (NativeBattleQuezacotlRigWrite Rig, NativeBattleCameraState Camera) UpdateFlightCamera6C3DDF(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleCameraState camera, int localFrame)
     {
+        if (localFrame is < 1 or >= 76)
+        {
+            throw new ArgumentOutOfRangeException(nameof(localFrame));
+        }
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native6C3DDF requires its saved camera aliases.");
         int z = effect.Quezacotl?.TargetZ1778 ?? throw new InvalidDataException("Native6C3DDF lost its target Z.");
         NativeBattleVector target = ReadVector(arena, 0x18);
         NativeBattleVector eye = ReadVector(arena, 0x20);
         target = target with { Y = unchecked((short)(target.Y - 17)) };
         eye = eye with { Y = unchecked((short)(eye.Y - 5)), Z = unchecked((short)(eye.Z - z)) };
-        if (localFrame is < 1 or > 2)
-        {
-            throw new NotSupportedException("Native6C3DDF camera requires its proved first two flight frames.");
-        }
         int fraction = localFrame * 4096 / 76;
         short angle = unchecked((short)(NativeBattleCameraMath.Sine(fraction >> 1) / 90));
-        (int x, int y, int rz) = NativeBattleGfMatrices.Rotate56C3D0(NativeBattleGfMatrices.Euler701310(new(0, angle, 0)), eye);
-        eye = new(unchecked((short)x), unchecked((short)y), unchecked((short)(rz + z)));
+        eye = Rotate(eye, angle);
+        eye = eye with { Z = unchecked((short)(eye.Z + z)) };
         arena = WriteVector(arena, 0x18, target);
         arena = WriteVector(arena, 0x20, eye);
-        short targetPadding = BinaryPrimitives.ReadInt16LittleEndian(arena.Read(0x1E, 2));
-        short eyePadding = BinaryPrimitives.ReadInt16LittleEndian(arena.Read(0x26, 2));
-        camera = camera.WriteEffectGlobals(new(new(eye.X, eye.Y, eye.Z), new(target.X, target.Y, target.Z), camera.FocalLength, camera.Roll)) with { EyePaddingF6 = eyePadding, TargetPaddingFE = targetPadding };
+        NativeBattleVector currentEye;
+        NativeBattleVector currentTarget;
+        if (localFrame == 31)
+        {
+            currentEye = new(1531, -2459, unchecked((short)(z - 518)));
+            currentTarget = new(-5127, -1606, unchecked((short)(z + 1542)));
+        }
+        else if (localFrame is > 31 and <= 40)
+        {
+            NativeBattleCameraPose pose = camera.CurrentPose ?? throw new NotSupportedException("Native6C3EBB requires its retained current camera coordinates.");
+            currentEye = Rotate(new(pose.Eye.X, pose.Eye.Y, unchecked((short)(pose.Eye.Z - z))), 64);
+            currentEye = currentEye with { Z = unchecked((short)(currentEye.Z + z)) };
+            currentTarget = Rotate(new(pose.Target.X, pose.Target.Y, unchecked((short)(pose.Target.Z - z))), 64);
+            currentTarget = currentTarget with { Z = unchecked((short)(currentTarget.Z + z)) };
+        }
+        else if (fraction < 2048)
+        {
+            currentEye = eye;
+            currentTarget = target;
+            camera = camera with { EyePaddingF6 = BinaryPrimitives.ReadInt16LittleEndian(arena.Read(0x26, 2)), TargetPaddingFE = BinaryPrimitives.ReadInt16LittleEndian(arena.Read(0x1E, 2)) };
+        }
+        else
+        {
+            int progress = 2 * fraction - 4096;
+            currentTarget = NativeBattleQuezacotlRibbonMath.Blend(target, new(-663, -2748, unchecked((short)(z + 1783))), 4096 - progress, progress);
+            currentEye = NativeBattleQuezacotlRibbonMath.Blend(eye, new(1351, -1548, unchecked((short)(z - 2580))), 4096 - progress, progress);
+        }
+        camera = camera.WriteEffectGlobals(new(new(currentEye.X, currentEye.Y, currentEye.Z), new(currentTarget.X, currentTarget.Y, currentTarget.Z), camera.FocalLength, camera.Roll));
         return (Synchronize(memory with { Arena = arena }, effect), camera);
+
+        static NativeBattleVector Rotate(NativeBattleVector vector, short angle)
+        {
+            (int x, int y, int z) = NativeBattleGfMatrices.Rotate56C3D0(NativeBattleGfMatrices.Euler701310(new(0, angle, 0)), vector);
+            return new(unchecked((short)x), unchecked((short)y), unchecked((short)z));
+        }
     }
 
+    public static NativeBattleQuezacotlRigWrite Select6574D0(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, byte selector)
+    {
+        NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native6574D0 requires its current rig memory.");
+        int skeleton = checked((int)(BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(Directory, 4)) - ArenaAddress));
+        int animations = checked((int)(BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(Directory + 8, 4)) - ArenaAddress));
+        int end = checked((int)(BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(Directory + 12, 4)) - ArenaAddress));
+        byte[] control = arena.Read(0x94, 8);
+        if ((control[1] & 3) != 0)
+        {
+            throw new NotSupportedException("Native6574D0 requires its reached pose-speed selector contract.");
+        }
+        ImmutableArray<byte> section = arena.Read(animations, end - animations).ToImmutableArray();
+        NativeBattlePoseFirstFrame first = NativeBattlePoseDecoder.DecodeFirst509440(section.AsSpan(), arena.Read(skeleton, 1)[0], selector);
+        control[0] = selector;
+        control[1] = (byte)((control[1] & 0xF3) | 4);
+        BinaryPrimitives.WriteUInt16LittleEndian(control.AsSpan(2), first.ByteOffset);
+        BinaryPrimitives.WriteUInt16LittleEndian(control.AsSpan(4), first.BitOffset);
+        control[6] = 1;
+        control[7] = NativeBattlePoseDecoder.ReadFrameCounts(section.AsSpan())[selector];
+        arena = arena.Write(0x94, control);
+        arena = WritePose(arena, skeleton, first.Pose);
+        arena = RestoreBoneMatrices(arena, skeleton, first.Pose);
+        return Synchronize(memory with { Arena = arena }, effect);
+    }
     public static NativeBattleQuezacotlRigWrite Advance6FBDB0(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect)
     {
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native6FBDB0 requires its current arena rig.");

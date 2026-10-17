@@ -42,7 +42,8 @@ public static partial class NativeBattleEffectPacketArena
             if (attempt.Primitive is { } primitive)
             {
                 int end = checked(attempt.ByteOffsetRelative + attempt.PacketLength);
-                if (primitive.Words.Length * 4 != attempt.PacketLength || end > batch.AllocationBytes)
+                //8DD260's first extended E1 occupies12 allocation bytes but only two logical command DWORDs; its final four bytes are untouched padding.
+                if (primitive.Words.IsDefaultOrEmpty || primitive.Words.Length < 1 + (primitive.Words[0] >> 24) || primitive.Words.Length * 4 > attempt.PacketLength || end > batch.AllocationBytes)
                 {
                     throw new InvalidDataException("Native linked effect packet leaves its accepted allocation.");
                 }

@@ -14,7 +14,7 @@ public sealed partial class EventEngine
 
     private static NativeEventSceneMemoryOwners SceneMemoryOwners(SceneEventState scene)
     {
-        NativeEventSceneMemoryOwners owners = NativeEventSceneMemoryOwners.None;
+        NativeEventSceneMemoryOwners owners = NativeEventSceneMemoryOwners.BattleMusic;
         if (scene.PreviousFieldWord84 is not null)
         {
             owners |= NativeEventSceneMemoryOwners.PreviousField;
@@ -159,6 +159,10 @@ public sealed partial class EventEngine
             else if (owner == NativeEventMemoryOwner.MusicProcess && TryReadNativeMusicByte(address, out value))
             {
             }
+            else if (owner == NativeEventMemoryOwner.BattleMusic && Scene.NativeBattleMusic203 is byte battleMusic)
+            {
+                value = battleMusic;
+            }
             else if (owner == NativeEventMemoryOwner.Disc && services.DiscProcess is { } disc)
             {
                 value = disc.SavedDisc204;
@@ -212,6 +216,7 @@ public sealed partial class EventEngine
         Add(200, Scene.MusicChannel112?.MusicId);
         Add(201, Scene.MusicProcess?.Bank201);
         Add(202, Scene.MusicProcess?.Bank202);
+        Add(203, Scene.NativeBattleMusic203);
         Add(204, services.DiscProcess?.SavedDisc204);
         Add(207, services.WorldControls?.MusicKeep207);
         Add(209, services.WorldControls?.Menu209);

@@ -106,6 +106,18 @@ public sealed class NativeBattleCuragaControllerTests
 
     private static NativeBattleCuragaResources Resources() => new(new("skipped-camera-registration", []), 0x4946F);
 
+    [Fact]
+    public void Entry_skip_flag_preserves_unknown_texture_owner_and_non_skip_requires_the_actual_registration_owner()
+    {
+        var fixture = Fixture();
+        NativeBattleEffectMemory memory = fixture.Frame.Memory with { Textures = null };
+        NativeBattleCuragaFrame skipped = NativeBattleCuragaController.Initialize87DB10(memory, fixture.Frame.Effect, fixture.Inputs.Packets, Resources());
+        Assert.Null(skipped.Memory.Textures);
+        Assert.Equal(256, skipped.State.SourceArenaOffset);
+        NativeBattleOriginalEffectState selected = fixture.Frame.Effect with { Parameters = fixture.Frame.Effect.Parameters! with { Flags79 = 0 } };
+        Assert.Throws<NotSupportedException>(() => NativeBattleCuragaController.Initialize87DB10(memory, selected, fixture.Inputs.Packets, Resources()));
+    }
+
     private static (NativeBattleCuragaFrame Frame, NativeBattleCuragaControllerInputs Inputs) Fixture(byte targets = 1)
     {
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();

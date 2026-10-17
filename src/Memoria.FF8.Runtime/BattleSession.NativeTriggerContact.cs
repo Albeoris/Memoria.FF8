@@ -87,23 +87,29 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native4850A0 requires its original254 header0.");
         }
-        ushort id = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(first.Payload.AsSpan()[4..]);
+        ushort id = NativeBattleActionGraphics.Word(first, 4);
+        if (id is < 64 or >= 80)
+        {
+            throw new InvalidDataException("Native4850A0 requires the physical GF action WORD64..79.");
+        }
         BattleCombatant actor = FindNativeActor(first.ReadByte(0));
         BattleNativeAction native = FindInstalledNativeAction(command, id);
+        ValidateNativeActionContract(native);
         BattleActionDefinition action = FindAction(BattleAbility.GuardianForce, id - 64);
+        byte sequence = first.ReadByte(2);
         NativeBattleContactPacket[] retained = Enumerable.Range(0, first.ReadByte(16)).Select(nativeActionPackets.ReadContact).ToArray();
-        BattleActionPresentation original = ActiveAction ?? throw new NotSupportedException("Native4850A0 requires its admitted GF invocation provenance.");
-        BattleActionPresentation contact = original with { NativeAction = native };
         BattleActionPresentation? previous = resolvingNativeAction;
         nativeActionScratch = nativeActionScratch with { ActorIndex = first.ReadByte(0), Command = command, Action = id, GuardianFormulaE1E = true, DeferredEffectsE00 = false, GuardianBoostPercent = boostPercent };
         nativeActionPackets = nativeActionPackets with { ContactCount = 0 };
         nativeActionCommitDepth++;
-        resolvingNativeAction = contact;
         try
         {
             foreach (NativeBattleContactPacket prior in retained)
             {
                 BattleCombatant recipient = FindNativeActor(prior.Primary.ActorIndex);
+                //4850A0 restores its invocation globals directly from header0 before48FE20; no queued presentation is consulted.
+                BattleActionPresentation contact = new(actor.Id, recipient.Id, BattleActionPhase.Recovery, 0, BattleAbility.GuardianForce, id - 64) { NativeHeaderIndex = 0, NativeQueuedCommand = command, NativeAction = native, NativeSequence = sequence, NativeTargetMask = checked((ushort)(1 << recipient.NativeIndex)) };
+                resolvingNativeAction = contact;
                 NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, recipient, contact, action, native, 255);
                 (nativeActionPackets, _) = nativeActionPackets.AppendContact(packet);
             }

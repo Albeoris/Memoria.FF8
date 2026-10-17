@@ -17,11 +17,12 @@ internal static partial class Program
                 byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.INITSOUND, 0), (Jsm.Opcode.PSHN_L, 69), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.EFFECTPLAY, 0), (Jsm.Opcode.PSHN_L, 1234), (Jsm.Opcode.PSHM_L, 512), (Jsm.Opcode.PSHM_L, 516), (Jsm.Opcode.SEVOL, 0), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
                 EventEngine Create()
                 {
-                    GameSession session = GameSession.CreateColdProcess();
+                    GameSession session = CreateControlledMusicSession();
                     session.SetEventMemory(session.State.EventMemory.Write(512, 4, NativeScalarValue.Exact(unchecked((int)rawMask))));
                     session.SetEventMemory(session.State.EventMemory.Write(516, 4, NativeScalarValue.Exact(rawVolume)));
                     EventEngine engine = new(session) { ResolveGlobalSoundResource = MutedGlobalSample };
                     engine.LoadField(100, content, []);
+                    SetControlledMusicChannels(engine);
                     return engine;
                 }
                 EventEngine first = Create();

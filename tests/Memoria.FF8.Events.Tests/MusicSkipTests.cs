@@ -12,15 +12,19 @@ internal static partial class Program
     {
         foreach (int position in new[] { 0, 65537, -1, -8388608 })
         {
-            byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 26), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.PSHN_L, position), (Jsm.Opcode.MUSICSKIP, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.RET, 0));
+            // Serial initialization ignores waits; native return3 is tested in an ordinary main script.
+            byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 26), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.PSHN_L, position), (Jsm.Opcode.MUSICSKIP, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
             GameSession session = CreateNativeMusicSession();
-            EventEngine first = new(session);
+            EventEngine first = new(session) { AnimationFrameCount = (_, _) => 4 };
             first.LoadField(74, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
-            first.Step();
+            while (first.Scene.MusicPlayRequest is null && first.Frame < 4)
+            {
+                first.Step();
+            }
             Require(first.Scene.MusicPlayRequest is { Opcode: "MUSICSKIP", ConsumedPending: true, Music: 26, Bank: 1, Channel: 0, Volume: 127 } request && request.SkipPosition == position && first.Scene.MusicChannel112?.ChannelId == -1 && !session.State.Variables.ContainsKey(500), "MUSICSKIP lost full position, primary routing, bank toggle or return3 yield.");
             JsonElement checkpoint = first.Capture();
             GameSession copySession = CreateNativeMusicSession();
-            EventEngine copy = new(copySession);
+            EventEngine copy = new(copySession) { AnimationFrameCount = (_, _) => 4 };
             copy.LoadField(74, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             copy.Restore(checkpoint);
             first.Step();

@@ -42,6 +42,10 @@ public sealed partial class EventEngine
             //Native51E8A0 has no operands, including when another scalar is uncertain.
             return UnsupportedNativeSwap();
         }
+        if (UnsupportedNativeBattleMusic203(fiber, operation) is string battleMusic)
+        {
+            return battleMusic;
+        }
         if (UnsupportedNativeDisc(fiber, operation) is string disc)
         {
             return disc;

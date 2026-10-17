@@ -20,9 +20,10 @@ internal static partial class Program
             byte[] content = SyntheticProgram(operations.ToArray());
             EventEngine Create()
             {
-                GameSession session = new(new GameState());
+                GameSession session = CreateControlledMusicSession();
                 EventEngine engine = new(session);
                 engine.LoadField(100, content, []);
+                SetControlledMusicChannels(engine);
                 return engine;
             }
             EventEngine engine = Create();
@@ -68,13 +69,17 @@ internal static partial class Program
         }
 
         // An actual GETTIMER produces a bounded typed scalar, rather than a seeded operand.
-        byte[] uncertain = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.MUSICVOLSYNC, 0), (Jsm.Opcode.POPI_L, 1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 8));
+        byte[] uncertain = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.MUSICVOLSYNC, 0), (Jsm.Opcode.POPI_L, 1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
         GameSession timerSession = new(new GameState { ExamTimer = NativeExamTimerState.FromReachedSet(0) });
-        EventEngine timer = new(timerSession);
+        EventEngine timer = new(timerSession) { AnimationFrameCount = (_, _) => 4 };
         timer.LoadField(100, uncertain, []);
-        timer.Step();
-        timer.Step();
-        JsonElement results = timer.Capture().GetProperty("Fibers")[0].GetProperty("Results");
+        bool copiedTimer = false;
+        timer.CommandExecuted += command => copiedTimer |= command.Name == "POPI_L";
+        while (!copiedTimer && timer.Frame < 8)
+        {
+            timer.Step();
+        }
+        JsonElement results = timer.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1).GetProperty("Results");
         Require(timer.LastFault is null && JsonElement.DeepEquals(results.GetProperty("0"), results.GetProperty("1")) && results.GetProperty("1").GetProperty("Values").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(new[] { 59, 60 }), "MUSICVOLSYNC refused or narrowed a typed unrelated operand although the native handler reads no stack.");
         Console.WriteLine("Native MUSICVOLSYNC329: authenticated zero helper, same-callback return2, empty/occupied/typed stacks, independent180-duration fade request and exact restore verified.");
     }

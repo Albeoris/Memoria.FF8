@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Buffers.Binary;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
@@ -120,7 +121,7 @@ public sealed class NativeBattleGuardianPresentationTests
         Assert.True(sawEntry, diagnostic);
         Assert.NotNull(boundary);
         Assert.Contains("6C3940", boundary.Message);
-        Assert.Contains("phase89 requires its next skinned/ribbon/particle controller frame", boundary.Message);
+        Assert.Contains("phase207 requires the original5-pair12AF800 ribbon directory", boundary.Message);
         Assert.True(sawGeometry);
         Assert.True(sawNativeFlash);
         Assert.Equal((ushort)116, battle.NativeGraphics!.OriginalEffect!.Binding.Effect);
@@ -128,15 +129,23 @@ public sealed class NativeBattleGuardianPresentationTests
         Assert.Contains(battle.NativeGraphics.OriginalEffect.Pools, pool => pool.DescriptorAddress == 0x2521738 && pool.Stride == 0x8D0 && pool.Slots.Single().Callback == 0x6C3940);
         Assert.Equal((byte?)0, battle.NativeEffectMemory!.GuardianCasterBank);
         ushort boundaryPhase = battle.NativeGraphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12);
-        Assert.Equal((ushort)89, boundaryPhase);
-        Assert.Equal((byte)4, battle.NativeEffectMemory!.Arena!.Read(0x9A, 1)[0]);
-        Assert.Equal(0, battle.NativeGraphics.Models[3].Flags0 & 4);
+        Assert.Equal((ushort)207, boundaryPhase);
+        Assert.Equal((byte)1, battle.NativeEffectMemory!.Arena!.Read(0x94, 1)[0]);
+        Assert.Equal(4, battle.NativeGraphics.Models[3].Flags0 & 4);
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240066, Flags: 1, Pan: 128 });
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240069, Flags: 1, Pan: 128 });
-        uint stream = unchecked((uint)battle.NativeEffectMemory.SummonStream!.Number!.Value);
+        NativeBattleQuezacotlResources streamResources = battle.NativeGraphics.OriginalEffect.Binding.NativeQuezacotlResources!;
+        uint playedStream = StreamNumber(510);
+        uint loadedStream = StreamNumber(520);
+        Assert.Equal(690118u, playedStream);
+        Assert.Equal(690119u, loadedStream);
+        Assert.Equal(loadedStream, unchecked((uint)battle.NativeEffectMemory.SummonStream!.Number!.Value));
         Assert.Equal(0x2108954u, battle.NativeEffectMemory.SummonStream.SourceAddress);
-        Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Flags: 0, RawPan: 128, Volume: 127 } sound && sound.Sound == stream);
+        Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Flags: 0, RawPan: 128, Volume: 127 } sound && sound.Sound == playedStream);
+        Assert.DoesNotContain(battle.Events, entry => entry.NativeModuleSound?.Sound == loadedStream);
         Assert.DoesNotContain(battle.Events, entry => entry.Kind == "Damage");
+
+        uint StreamNumber(short fileId) => unchecked((uint)(BinaryPrimitives.ReadInt32LittleEndian(streamResources.Files.Single(file => file.FileId == fileId).Data.AsSpan()) + 690000));
         Assert.NotNull(boundaryBefore);
         Assert.Null(boundaryBefore.ActiveAction);
         Assert.NotNull(boundaryBefore.NativeGuardianBoost);

@@ -17,9 +17,10 @@ internal static partial class Program
         byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.INITSOUND, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MUSICSTOP, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 511), (Jsm.Opcode.MUSICVOL, 0), (Jsm.Opcode.PSHM_B, 197), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
         EventEngine Create(byte[]? bytes = null)
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateControlledMusicSession();
             EventEngine engine = new(session);
             engine.LoadField(100, bytes ?? content, []);
+            SetControlledMusicChannels(engine);
             return engine;
         }
         EventEngine first = Create();
@@ -38,14 +39,14 @@ internal static partial class Program
         byte[] unknown = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.INITSOUND, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 37), (Jsm.Opcode.MUSICVOL, 0), (Jsm.Opcode.PSHM_B, 197), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
         EventEngine uncertain = Create(unknown);
         uncertain.Step();
-        Require(uncertain.LastFault is null && uncertain.Scene.MusicVolumeRequest is { ChannelId: null, BothChannels: null, StoredVolume: 37, BackendStatus: GlobalSoundBackendStatus.Muted } && uncertain.Scene.SoundMusicVolume197 == 37 && uncertain.Scene.SoundMusicVolume198 == 127 && uncertain.Scene.MusicChannel108 is null && !uncertain.Scene.MusicPlaying && uncertain.Capture().GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == 37, "Unknown muted routing prevented MUSICVOL's unconditional BYTE write or fabricated a current channel.");
+        Require(uncertain.LastFault is null && uncertain.Scene.MusicVolumeRequest is { ChannelId: 0, BothChannels: false, StoredVolume: 37, BackendStatus: GlobalSoundBackendStatus.Muted } && uncertain.Scene.SoundMusicVolume197 == 37 && uncertain.Scene.SoundMusicVolume198 == 127 && uncertain.Scene.MusicChannel108?.ChannelId == 0 && !uncertain.Scene.MusicPlaying && uncertain.Capture().GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == 37, "Controlled routing prevented MUSICVOL's unconditional BYTE write or fabricated a current channel.");
         EventEngine uncertainRestore = Create(unknown);
         uncertainRestore.Restore(uncertain.Capture());
         for (int tick = 0; tick < 4; tick++)
         {
             uncertain.Step();
             uncertainRestore.Step();
-            Require(JsonElement.DeepEquals(uncertain.Capture(), uncertainRestore.Capture()), "Unknown backend routing or authoritative volume BYTE changed after independent restore.");
+            Require(JsonElement.DeepEquals(uncertain.Capture(), uncertainRestore.Capture()), "Controlled backend routing or authoritative volume BYTE changed after independent restore.");
         }
         foreach (bool initialize in new[] { false, true })
         {
@@ -55,7 +56,7 @@ internal static partial class Program
                 steps.Add((Jsm.Opcode.INITSOUND, 0));
             }
             steps.AddRange([(Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MUSICSTOP, 0), (Jsm.Opcode.PSHN_L, 26), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.MUSICCHANGE, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 511), (Jsm.Opcode.MUSICVOL, 0), (Jsm.Opcode.RET, 0)]);
-            GameSession takenOverSession = GameSession.CreateColdProcess();
+            GameSession takenOverSession = CreateControlledMusicSession();
             takenOverSession.StartNewGame();
             takenOverSession.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
             takenOverSession.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
@@ -81,12 +82,12 @@ internal static partial class Program
         try
         {
             Create(unknown).Restore(JsonSerializer.SerializeToElement(impossibleRouting));
-            throw new InvalidOperationException("Unknown channel checkpoint manufactured exact backend routing.");
+            throw new InvalidOperationException("Disagreeing channel checkpoint manufactured exact backend routing.");
         }
         catch (InvalidDataException)
         {
         }
-        Console.WriteLine("Native MUSICVOL: masked slot/full volume, unconditional B197/198 BYTE authority, duration16->0, independently unknown muted routing, takeover and exact independent restore verified.");
+        Console.WriteLine("Native MUSICVOL: masked slot/full volume, unconditional B197/198 BYTE authority, duration16->0, physical and broadcast routing, takeover and exact independent restore verified.");
     }
 
     private static void NativeRetainedPartyByteAuthorityContract()
@@ -98,9 +99,10 @@ internal static partial class Program
             [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 0)]
         ]);
         byte[] secondField = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 511), (Jsm.Opcode.MUSICVOL, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
-        GameSession session = new(new GameState());
+        GameSession session = CreateControlledMusicSession();
         EventEngine first = new(session);
         first.LoadField(100, firstField, []);
+        SetControlledMusicChannels(first);
         first.Scene.Party.Clear();
         first.Scene.Party.AddRange([0, 3, 255]);
         first.Step();
@@ -110,7 +112,7 @@ internal static partial class Program
         first.Step();
         JsonElement paused = first.Capture();
         Require(first.Scene.NativeActorLayoutVersion == 0 && first.Scene.FieldPartyNativeActorIds.Count == 0 && first.Scene.PartyBindingMemory == new NativePartyBindingMemory(1, 0, 1, 255), "Field allocation confused retained global BYTE authority with current compact actor bindings.");
-        GameSession restoredSession = new(new GameState());
+        GameSession restoredSession = CreateControlledMusicSession();
         EventEngine restored = new(restoredSession);
         restored.LoadField(101, secondField, []);
         restored.Restore(paused);
@@ -118,9 +120,9 @@ internal static partial class Program
         {
             first.Step();
             restored.Step();
-            Require(JsonElement.DeepEquals(first.Capture(), restored.Capture()), "Mid-initialization restore lost retained party BYTE widths or MUSICVOL's independently unknown routing.");
+            Require(JsonElement.DeepEquals(first.Capture(), restored.Capture()), "Mid-initialization restore lost retained party BYTE widths or MUSICVOL's explicit native channel routing.");
         }
-        Require(first.Scene.SoundMusicVolume197 == 255 && first.Scene.MusicVolumeRequest is { ChannelId: null, BothChannels: null } && first.Variables[194] == 0 && first.Variables[195] == 1 && first.Variables[196] == 255, "Initialization MUSICVOL rejected proved prior binding bytes, changed them, or manufactured a channel.");
+        Require(first.Scene.SoundMusicVolume197 == 255 && first.Scene.MusicVolumeRequest is { ChannelId: 0, BothChannels: false } && first.Variables[194] == 0 && first.Variables[195] == 1 && first.Variables[196] == 255, "Initialization MUSICVOL rejected proved prior binding bytes, changed them, or manufactured a channel.");
         foreach (string property in new[] { "Version" })
         {
             JsonNode malformed = JsonNode.Parse(paused.GetRawText())!;
@@ -163,17 +165,18 @@ internal static partial class Program
                 byte[] content = SyntheticProgram(operations.ToArray());
                 EventEngine Create()
                 {
-                    GameSession session = new(new GameState());
+                    GameSession session = CreateControlledMusicSession();
                     session.SetEventMemory(session.State.EventMemory.Write(640, 4, NativeScalarValue.Exact(duration)));
                     EventEngine engine = new(session);
                     engine.LoadField(100, content, []);
+                    SetControlledMusicChannels(engine);
                     return engine;
                 }
                 EventEngine first = Create();
                 first.Step();
                 NativeMusicVolume request = first.Scene.MusicVolumeRequest!;
                 int doubledByte = (byte)(unchecked((uint)duration) << 1);
-                Require(first.LastFault is null && request.RawSlot == rawSlot && request.Slot == (rawSlot & 1) && request.TransitionDurationOperand == duration && request.RequestedDuration == doubledByte && request.EffectiveDuration == (doubledByte < 50 ? 0 : doubledByte) && request.RequestedVolume == 511 && request.StoredVolume == 255 && request.ChannelId == (known ? -1 : null) && request.BothChannels == (known ? true : null), "MUSICVOLTRANS lost its original duration DWORD, doubled low-BYTE backend duration, native threshold or independent routing uncertainty.");
+                Require(first.LastFault is null && request.RawSlot == rawSlot && request.Slot == (rawSlot & 1) && request.TransitionDurationOperand == duration && request.RequestedDuration == doubledByte && request.EffectiveDuration == (doubledByte < 50 ? 0 : doubledByte) && request.RequestedVolume == 511 && request.StoredVolume == 255 && request.ChannelId == (known ? -1 : 1) && request.BothChannels == (known ? true : false), "MUSICVOLTRANS lost its original duration DWORD, doubled low-BYTE backend duration, native threshold or explicit physical-channel routing.");
                 Require(first.Capture().GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == 255, "MUSICVOLTRANS deferred its unconditional target BYTE write until an invented audio ramp completed.");
                 EventEngine restored = Create();
                 restored.Restore(first.Capture());

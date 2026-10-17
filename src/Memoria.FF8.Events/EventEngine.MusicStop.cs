@@ -61,6 +61,7 @@ public sealed partial class EventEngine
 
     private int[] ExecuteMusicStop(Fiber fiber)
     {
+        CommitMusicPlayback(fiber, Jsm.Opcode.MUSICSTOP);
         int[] args = Pop(fiber, 1);
         int slot = args[0] & 1;
         NativeMusicChannelState? previous = ReadMusicChannel(slot);

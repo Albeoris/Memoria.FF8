@@ -7,11 +7,11 @@ public static class NativeBattleQuezacotlFirstWindowIo
 {
     public static NativeBattleQuezacotlFirstWindowIoStep Advance(NativeBattleEffectMemory memory, ushort phase)
     {
-        if (phase is < 1 or > 88)
+        if (phase is < 1 or > 206)
         {
             throw new ArgumentOutOfRangeException(nameof(phase));
         }
-        if (phase is 30 or 60 or 76 or 85)
+        if (phase is 30 or 60 or 76 or 85 or 161)
         {
             NativeBattleEffectIoPoll poll = NativeBattleEffectIo.Poll534270(memory);
             memory = poll.Memory;
@@ -32,6 +32,13 @@ public static class NativeBattleQuezacotlFirstWindowIo
                     break;
                 case 76:
                     memory = NativeBattleEffectIo.Queue5341D0(memory, 513, 0x1298C68, 5);
+                    break;
+                case 161:
+                    memory = NativeBattleEffectIo.Queue5341D0(memory, 516, 0x2108954, 0);
+                    memory = NativeBattleEffectIo.Queue5341D0(memory, 517, 0x12A9664, 5);
+                    memory = NativeBattleEffectIo.Queue5341D0(memory, 518, 0x2108954, 1);
+                    memory = NativeBattleEffectIo.Queue5341D0(memory, 519, 0x2108954, 1);
+                    memory = NativeBattleEffectIo.Queue5341D0(memory, 520, 0x2108954, 3);
                     break;
                 case 85:
                     memory = NativeBattleEffectIo.Queue5341D0(memory, 514, 0x2108954, 0);

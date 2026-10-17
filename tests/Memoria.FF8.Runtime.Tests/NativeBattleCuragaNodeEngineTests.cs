@@ -76,14 +76,13 @@ public sealed class NativeBattleCuragaNodeEngineTests
         NativeBattleCuragaFrame frame = NativeBattleCuragaNodes.AllocateEmitter881700(fixture.Frame, fixture.Task, 0, 5, 0).Frame;
         NativeBattleCuragaFrame clone = JsonSerializer.Deserialize<NativeBattleCuragaFrame>(JsonSerializer.Serialize(frame))!;
         List<string> calls = [];
-        NativeBattleCuragaNodeEngineInputs inputs = new(Emitter, Geometry, (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException());
-        NativeBattleCuragaFrame actual = NativeBattleCuragaNodeEngine.AdvanceList8804D0(frame, fixture.Task, inputs);
+        NativeBattleCuragaFrame actual = NativeBattleCuragaNodeEngine.AdvanceList8804D0(frame, fixture.Task, Emitter, Geometry);
         Assert.Equal(new[] { "emitter", "geometry" }, calls);
         Assert.Equal(0u, Task(actual, fixture.Task).ReadDword(0x34 + 0x2C));
         Assert.Equal((ushort)0, Task(actual, fixture.Task).ReadWord(0x34 + 0x14));
         Assert.Equal((ushort)0, Task(actual, fixture.Task).ReadWord(0x34 + 0x16));
         calls.Clear();
-        NativeBattleCuragaFrame restored = NativeBattleCuragaNodeEngine.AdvanceList8804D0(clone, fixture.Task, inputs);
+        NativeBattleCuragaFrame restored = NativeBattleCuragaNodeEngine.AdvanceList8804D0(clone, fixture.Task, Emitter, Geometry);
         Assert.Equal(new[] { "emitter", "geometry" }, calls);
         Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(restored));
 
@@ -103,27 +102,24 @@ public sealed class NativeBattleCuragaNodeEngineTests
     }
 
     [Fact]
-    public void Active_phase_orders_birth_then_updates_then_both_draw_passes_and_only_reports_completion_on_the_next_callback()
+    public void Active_phase_invokes_one_combined_callback_and_only_reports_completion_on_the_next_callback()
     {
         var fixture = Fixture([(0, 0, false)]);
         NativeBattleCuragaFrame frame = Write(fixture.Frame, fixture.Task, task => task.WriteWord(0x34 + 0x20, 1).WriteWord(0x34 + 0x1A, 1));
         List<string> calls = [];
-        NativeBattleCuragaNodeEngineInputs inputs = new((current, context, node) =>
+        NativeBattleCuragaNodeEngineInputs inputs = new((current, context) =>
         {
-            calls.Add("update");
-            Assert.Equal((ushort)1, Task(current, context).ReadWord(0x34 + 0x14));
-            return NativeBattleCuragaNodes.AdvanceEmitterLifetime8817F0(current, context, node);
-        }, (_, _, _) => throw new InvalidOperationException(), (current, _) =>
-        {
-            calls.Add("sprites");
-            return current;
-        }, (current, _) =>
-        {
-            calls.Add("meshes");
-            return current;
+            calls.Add("combined");
+            current = NativeBattleCuragaNodeEngine.Birth882E20(current, context);
+            return NativeBattleCuragaNodeEngine.AdvanceList8804D0(current, context, (value, taskAddress, node) =>
+            {
+                calls.Add("update");
+                Assert.Equal((ushort)1, Task(value, taskAddress).ReadWord(0x34 + 0x14));
+                return NativeBattleCuragaNodes.AdvanceEmitterLifetime8817F0(value, taskAddress, node);
+            }, (_, _, _) => throw new InvalidOperationException());
         });
         NativeBattleCuragaNodeEngineStep result = NativeBattleCuragaNodeEngine.Advance87EC80(frame, fixture.Task, inputs);
-        Assert.Equal(new[] { "update", "sprites", "meshes" }, calls);
+        Assert.Equal(new[] { "combined", "update" }, calls);
         Assert.False(result.Complete);
         Assert.Equal((ushort)2, Task(result.Frame, fixture.Task).ReadWord(0x34 + 0x20));
         Assert.Equal((ushort)1, Task(result.Frame, fixture.Task).ReadWord(0x34 + 0x18));
@@ -138,7 +134,7 @@ public sealed class NativeBattleCuragaNodeEngineTests
         Assert.Throws<NotSupportedException>(() => NativeBattleCuragaNodeEngine.Advance87EC80(frame, fixture.Task, NoLeaves()));
     }
 
-    private static NativeBattleCuragaNodeEngineInputs NoLeaves() => new((_, _, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException());
+    private static NativeBattleCuragaNodeEngineInputs NoLeaves() => new((_, _) => throw new InvalidOperationException());
     private static NativeBattleCuragaControllerInputs NoControllerInputs() => new(NativeBattleActionPacketsState.Fresh(), new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException());
     private static NativeBattleModulePoolTask Task(NativeBattleCuragaFrame frame, uint address) => new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
     private static NativeBattleCuragaFrame Write(NativeBattleCuragaFrame frame, uint address, Func<NativeBattleModulePoolTask, NativeBattleModulePoolTask> update)

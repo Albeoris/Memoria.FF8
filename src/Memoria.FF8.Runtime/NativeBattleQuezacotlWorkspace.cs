@@ -9,6 +9,7 @@ public static class NativeBattleQuezacotlWorkspace
     public const int Offset = 0xD4;
     public const int Length = 0x7D4;
     public const int SecondLength = 0x7FC;
+    public const int ThirdLength = 0x158;
 
     public static NativeBattleGfAnimationSource Source(NativeBattleEffectMemory memory, uint address = NativeBattleQuezacotlExecutableMemory.Address)
     {
@@ -25,9 +26,9 @@ public static class NativeBattleQuezacotlWorkspace
 
     public static NativeBattleQuezacotlWorkspaceWrite Write(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleGfAnimationWorkspace workspace)
     {
-        if (workspace.Data.IsDefault || workspace.Data.Length is not (Length or SecondLength))
+        if (workspace.Data.IsDefault || workspace.Data.Length is not (Length or SecondLength or ThirdLength))
         {
-            throw new InvalidDataException("Native Quezacotl workspace must fit its actual7D4/7FC-byte child suffix.");
+            throw new InvalidDataException("Native Quezacotl workspace must fit its actual7D4/7FC/158-byte child workspace.");
         }
         NativeBattleEffectTaskPool child = effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738);
         NativeBattleEffectArena arena = (memory.Arena ?? throw new NotSupportedException("Native Quezacotl701970 requires its actual child-task arena bytes.")).Write(Offset, workspace.Data.AsSpan());

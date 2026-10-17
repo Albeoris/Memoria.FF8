@@ -280,6 +280,10 @@ public sealed partial class EventEngine
         {
             return UnsupportedPositiveCosineTurn(fiber);
         }
+        if (UnsupportedMusicPlayback(fiber, operation.Opcode) is string playback)
+        {
+            return playback;
+        }
         if (UnsupportedNativeMusicReplay(operation) is string replay)
         {
             return replay;

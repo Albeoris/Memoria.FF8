@@ -23,20 +23,21 @@ internal static partial class Program
                 byte[] content = SyntheticProgram(operations.ToArray());
                 EventEngine Create()
                 {
-                    GameSession session = GameSession.CreateColdProcess();
+                    GameSession session = CreateControlledMusicSession();
                     session.SetEventMemory(session.State.EventMemory.Write(640, 4, NativeScalarValue.Exact(duration)));
                     session.SetEventMemory(session.State.EventMemory.Write(644, 4, NativeScalarValue.Exact(int.MinValue)));
                     session.SetEventMemory(session.State.EventMemory.Write(648, 4, NativeScalarValue.Exact(511)));
                     session.SetEventMemory(session.State.EventMemory.Write(652, 4, NativeScalarValue.Exact(int.MaxValue)));
                     EventEngine engine = new(session);
                     engine.LoadField(100, content, []);
+                    SetControlledMusicChannels(engine);
                     return engine;
                 }
                 EventEngine first = Create();
                 first.Step();
                 NativeMusicVolume fade = first.Scene.MusicVolumeRequest!;
                 int durationByte = unchecked((byte)(2 * duration));
-                Require(first.LastFault is null && fade.RawSlot == 3 && fade.Slot == 1 && fade.TransitionDurationOperand == duration && fade.FadeInitialVolumeOperand == int.MinValue && fade.RequestedVolume == 511 && fade.StoredVolume == 255 && fade.RequestedDuration == durationByte && fade.EffectiveDuration == (durationByte < 50 ? 0 : durationByte) && fade.ChannelId == (knownChannel ? -1 : null) && fade.BothChannels == (knownChannel ? true : null) && fade.BackendStatus == GlobalSoundBackendStatus.Muted, "MUSICVOLFADE lost full initial/target DWORDs, masked slot, immediate final BYTE or independent backend routing.");
+                Require(first.LastFault is null && fade.RawSlot == 3 && fade.Slot == 1 && fade.TransitionDurationOperand == duration && fade.FadeInitialVolumeOperand == int.MinValue && fade.RequestedVolume == 511 && fade.StoredVolume == 255 && fade.RequestedDuration == durationByte && fade.EffectiveDuration == (durationByte < 50 ? 0 : durationByte) && fade.ChannelId == (knownChannel ? -1 : 1) && fade.BothChannels == (knownChannel ? true : false) && fade.BackendStatus == GlobalSoundBackendStatus.Muted, "MUSICVOLFADE lost full initial/target DWORDs, masked slot, immediate final BYTE or independent backend routing.");
                 Require(first.Scene.SoundMusicVolume197 == 127 && first.Scene.SoundMusicVolume198 == 255 && first.Capture().GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == 255, "MUSICVOLFADE failed immediate B198 readback or changed the other slot.");
                 NativeAllSoundVolumeTransition all = first.Scene.AllSoundVolumeTransition!;
                 int milliseconds = 10 * unchecked((byte)duration);
@@ -67,7 +68,7 @@ internal static partial class Program
         }
         foreach (int volume in new[] { -1, 0, 1, 63, 64, 127, 128, 255, 256, int.MinValue, int.MaxValue })
         {
-            GameSession session = GameSession.CreateColdProcess();
+            GameSession session = CreateControlledMusicSession();
             session.SetEventMemory(session.State.EventMemory.Write(640, 4, NativeScalarValue.Exact(volume)));
             EventEngine engine = new(session);
             engine.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.PSHM_L, 640), (Jsm.Opcode.ALLSEVOLTRANS, 0), (Jsm.Opcode.RET, 0)), []);

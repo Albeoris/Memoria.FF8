@@ -15,6 +15,13 @@ public static partial class NativeBattleCuragaNodeKinematics
         {
             NativeBattleCuragaNodeEngine.Birth(memory, bank);
         }
+        (bank, random) = AdvanceList(memory, bank, random, readModel);
+        NativeBattleCuragaFrame result = memory.Flush();
+        return new(result with { Memory = result.Memory with { CuragaExecutable = bank } }, random);
+    }
+
+    internal static (NativeBattleCuragaExecutableState Bank, NativeCrtRandomState Random) AdvanceList(NativeBattleCuragaNodeMemory memory, NativeBattleCuragaExecutableState bank, NativeCrtRandomState random, Func<int, NativeBattleGraphicsModel> readModel)
+    {
         NativeBattleCuragaNodeEngine.WalkList(() => memory, (node, kind) =>
         {
             switch (kind)
@@ -29,8 +36,7 @@ public static partial class NativeBattleCuragaNodeKinematics
                     break;
             }
         });
-        NativeBattleCuragaFrame result = memory.Flush();
-        return new(result with { Memory = result.Memory with { CuragaExecutable = bank } }, random);
+        return (bank, random);
     }
 
     internal static void AdvanceEmitter(NativeBattleCuragaNodeMemory memory, int node, byte[] source, NativeBattleCuragaExecutableState bank, ref NativeCrtRandomState random, Func<int, NativeBattleGraphicsModel> readModel)

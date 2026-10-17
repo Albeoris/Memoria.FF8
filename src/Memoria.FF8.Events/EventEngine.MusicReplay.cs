@@ -3,21 +3,18 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
 
-public sealed record NativeMusicReplayRequest(int Version, int FieldId, int ObjectId, int ScriptId, int Operation, long Frame, byte Bank, byte Music, byte Volume, bool PriorKeepBit400, string ResourceOwner);
+public sealed record NativeMusicReplayRequest(int Version, int FieldId, int ObjectId, int ScriptId, int Operation, long Frame, byte Bank, byte Music, byte Volume, bool PriorKeepBit400, string ResourceOwner)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeMusicPlaybackDecision? Playback { get; init; }
+}
 
 public sealed partial class EventEngine
 {
     private (byte Music, string Owner) ReadNativeReplayResource(byte bank)
     {
-        if (Scene.WorldMusicLoad is { Operation: NativeWorldMusicOperation.Play, Music: byte worldMusic } world && world.Bank == bank)
-        {
-            return (worldMusic, "WorldMusicLoad");
-        }
-        if (Scene.MusicPlayRequest is { ConsumedPending: true, Music: byte music } play && play.Bank == bank && play.Opcode != nameof(Jsm.Opcode.DUALMUSIC))
-        {
-            return (music, "MusicPlayRequest");
-        }
-        throw new NotSupportedException("MUSICREPLAY requires the selected native buffer's executed resource owner; a pending request or channel music byte cannot identify its contents.");
+        NativeMusicBufferIdentity buffer = (Scene.MusicProcess ?? throw new NotSupportedException("MUSICREPLAY requires the actual native buffer owner.")).ReadBuffer(bank);
+        return (unchecked((byte)(buffer.EncodedAkaoId - 1)), $"MusicProcess.Buffer{bank}");
     }
 
     private string? UnsupportedNativeMusicReplay(JsmOperation operation)
@@ -56,6 +53,7 @@ public sealed partial class EventEngine
 
     private void ExecuteNativeMusicReplay(Fiber fiber)
     {
+        NativeMusicPlaybackDecision? playback = CommitMusicPlayback(fiber, Jsm.Opcode.MUSICREPLAY);
         byte bank = Scene.MusicProcess!.Bank201!.Value;
         (byte music, string owner) = ReadNativeReplayResource(bank);
         NativeWorldControlState controls = services.WorldControls!;
@@ -64,7 +62,7 @@ public sealed partial class EventEngine
         //51F880 replaces DWORD108 but does not write the retained music BYTE199.
         Scene.MusicChannel108 = Scene.MusicChannel108! with { ChannelId = 0 };
         Scene.MusicPlaying = true;
-        Scene.MusicReplayRequest = new(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, bank, music, Scene.SoundMusicVolume197!.Value, priorKeep, owner);
+        Scene.MusicReplayRequest = new NativeMusicReplayRequest(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, bank, music, Scene.SoundMusicVolume197!.Value, priorKeep, owner) { Playback = playback };
         AudioCommandExecuted?.Invoke(Scene.MusicReplayRequest);
         WaitFrames(fiber, 1);
     }
@@ -75,7 +73,16 @@ public sealed partial class EventEngine
         {
             return;
         }
-        if (replay.Version != 1 || replay.Bank > 1 || replay.ResourceOwner is not ("MusicPlayRequest" or "WorldMusicLoad"))
+        replay.Playback?.Validate();
+        if (replay.Playback is { Channel: not 0 })
+        {
+            throw new InvalidDataException("MUSICREPLAY decision must use physical channel0.");
+        }
+        if (replay.Playback is { } decision && decision.MusicId != (replay.Music == 255 ? -1 : replay.Music == 17 && replay.FieldId != 339 ? 99 : replay.Music))
+        {
+            throw new InvalidDataException("MUSICREPLAY decision differs from its actual decoded/remapped selected resource.");
+        }
+        if (replay.Version != 1 || replay.Bank > 1 || replay.ResourceOwner is not ("MusicPlayRequest" or "WorldMusicLoad" or "MusicProcess.Buffer0" or "MusicProcess.Buffer1") || replay.ResourceOwner == "MusicProcess.Buffer0" && replay.Bank != 0 || replay.ResourceOwner == "MusicProcess.Buffer1" && replay.Bank != 1)
         {
             throw new InvalidDataException("Saved MUSICREPLAY lost its selected native buffer/resource provenance.");
         }

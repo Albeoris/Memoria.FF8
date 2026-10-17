@@ -18,6 +18,10 @@ public sealed partial class BattleSession
         {
             return AdvanceNativeCura889E40(graphics);
         }
+        if (effect.Binding.Entry == 0x87DB10)
+        {
+            return AdvanceNativeCuraga87DC50(graphics);
+        }
         if (effect.Binding.Entry == 0x6C3550)
         {
             NativeBattleQuezacotlPreparation prepared = NativeBattleQuezacotl.Prepare6C3760(NativeEffectMemory ?? throw new NotSupportedException("Native Quezacotl callbacks require retained effect memory."), effect, NativeVibrationProcess, NativeCamera?.Projection?.View);
@@ -28,7 +32,7 @@ public sealed partial class BattleSession
             {
                 NativeGraphics = graphics;
                 NativeBattleEffectTaskPool childPool = prepared.Effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738);
-                if (childPool.Slots[0].ReadWord(12) is >= 1 and <= 88)
+                if (childPool.Slots[0].ReadWord(12) is >= 1 and <= 206)
                 {
                     graphics = AdvanceNativeQuezacotlFirstWindow(graphics);
                     NativeBattleStageState childStage = NativeStage ?? throw new NotSupportedException("Native5713E0 requires its retained stage rows.");
@@ -44,15 +48,7 @@ public sealed partial class BattleSession
                 }
                 if (child.Entered)
                 {
-                    NativeBattleEffectParameters parameters = child.Effect.Parameters ?? throw new InvalidDataException("Native6C5300 lost its actual action header.");
-                    NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.HeaderIndex7C];
-                    int first = header.FirstContactIndex ?? throw new NotSupportedException("Native6C5300 requires its actual target contact pointer.");
-                    for (int index = 0; index < header.ReadByte(16); index++)
-                    {
-                        int target = nativeActionPackets.ReadContact(first + index).Primary.ActorIndex;
-                        NativeBattleGraphicsModel model = graphics.Models[target];
-                        graphics = graphics with { Models = graphics.Models.SetItem(target, model with { Flags0 = (ushort)(model.Flags0 | 4) }) };
-                    }
+                    graphics = SetNativeQuezacotlTargets6C5300(graphics, child.Effect, true);
                     uint sound = child.Effect.Binding.NativeQuezacotlResources?.InitialSound ?? throw new NotSupportedException("Native501330 requires the actual12AE4F0 Quezacotl sound DWORD.");
                     PublishNativeModuleSound(new(sound, 1, null) { Pan = 128 });
                     NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native6C3940 requires its retained camera globals.")).WriteEffectGlobals(new(new(0, -3827, -1983), new(0, -5150, -723), 288, 0));

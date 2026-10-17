@@ -32,6 +32,18 @@ public sealed class NativeBattleQuezacotlRig86Tests
         Assert.Throws<NotSupportedException>(() => initialized.Memory.Arena.Read(skeleton + 32 + 48 + 18, 2));
         NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(initialized.Memory))!;
         Assert.Equal(JsonSerializer.Serialize(NativeBattleQuezacotlRig86.ReadBoneMatrix(initialized.Memory, 1)), JsonSerializer.Serialize(NativeBattleQuezacotlRig86.ReadBoneMatrix(restored, 1)));
+        Assert.Equal(new short[] { 93, 33, 696, 562, 578, 450, 9, 240, 388, 408, 265 }, resources.AnchorVertexIndices11!.Value.ToArray());
+        int[] selectedBones = [22, 4, 1, 21, 33, 39, 4, 14, 34, 36, 40];
+        NativeBattleVector[] selectedLocals = [new(-25, 0, -1543), new(-2, -720, -2153), new(1589, -1034, -3168), new(-172, -411, -323), new(-81, -501, -1974), new(48, -673, -1615), new(204, 604, -2112), new(265, -365, -1220), new(-309, -442, -462), new(92, -439, -313), new(-47, -673, -1615)];
+        NativeBattleQuezacotlRigWrite anchorWorld = NativeBattleQuezacotlRig86.Compose5095B0(initialized.Memory, initialized.Effect);
+        for (int index = 0; index < selectedBones.Length; index++)
+        {
+            NativeBattleActionMatrix expectedBone = NativeBattleQuezacotlRig86.ReadBoneMatrix(anchorWorld.Memory, selectedBones[index]);
+            NativeBattleVector expectedPosition = NativeBattleGfMatrices.Transform460840(expectedBone, selectedLocals[index]);
+            NativeBattleQuezacotlAnchor anchor = NativeBattleQuezacotlRig86.ReadMeshAnchor6C6440(initialized.Memory, initialized.Effect, 0, resources.AnchorVertexIndices11!.Value[index]);
+            Assert.Equal(expectedPosition, anchor.Position);
+            Assert.Equal(JsonSerializer.Serialize(NativeBattleQuezacotlRig86.ReadBoneMatrix(initialized.Memory, selectedBones[index])), JsonSerializer.Serialize(NativeBattleQuezacotlRig86.ReadBoneMatrix(anchor.Memory, selectedBones[index])));
+        }
         NativeBattleQuezacotlRigWrite advanced = NativeBattleQuezacotlRig86.Advance6FBDB0(initialized.Memory, initialized.Effect);
         Assert.Equal((byte)2, advanced.Memory.Arena!.Read(0x9A, 1)[0]);
         Assert.Equal((byte)0, advanced.Memory.Arena.Read(0x95, 1)[0]);
@@ -47,6 +59,15 @@ public sealed class NativeBattleQuezacotlRig86Tests
         Console.WriteLine($"Actual MAG115_H.07 frame2 skin: writes={skin.Writes.Length}, common={skin.CommonAllocationBytes}, effect={skin.EffectAllocationBytes}");
         NativeBattleQuezacotlRigWrite recomputed = NativeBattleQuezacotlRig86.Restore508C90(composed.Memory, composed.Effect);
         Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(NativeBattleQuezacotlRig86.ReadBoneMatrix(recomputed.Memory, 0)));
+        NativeBattleQuezacotlRigWrite selected = NativeBattleQuezacotlRig86.Select6574D0(recomputed.Memory, recomputed.Effect, 1);
+        Assert.Equal((byte)1, selected.Memory.Arena!.Read(0x94, 1)[0]);
+        Assert.Equal((byte)1, selected.Memory.Arena.Read(0x9A, 1)[0]);
+        NativeBattleDecodedPose selectedExpected = original.Sample(1, 1, 0);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattlePoseMatrices.StageBoneMatrices(original, selectedExpected)[1]), JsonSerializer.Serialize(NativeBattleQuezacotlRig86.ReadBoneMatrix(selected.Memory, 1)));
+        NativeBattleQuezacotlRigWrite selectedAdvance = NativeBattleQuezacotlRig86.Advance6FBDB0(selected.Memory, selected.Effect);
+        Assert.Equal((byte)2, selectedAdvance.Memory.Arena!.Read(0x9A, 1)[0]);
+        NativeBattleQuezacotlRigWrite selectedAgain = NativeBattleQuezacotlRig86.Select6574D0(selectedAdvance.Memory, selectedAdvance.Effect, 1);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleQuezacotlRig86.ReadBoneMatrix(selected.Memory, 1)), JsonSerializer.Serialize(NativeBattleQuezacotlRig86.ReadBoneMatrix(selectedAgain.Memory, 1)));
         NativeBattleQuezacotlRibbonResources ribbonResources = Assert.IsType<NativeBattleQuezacotlRibbonResources>(resources.Ribbon);
         ribbonResources.Validate();
         Assert.Equal(4032, ribbonResources.ControlTriangles.Length);

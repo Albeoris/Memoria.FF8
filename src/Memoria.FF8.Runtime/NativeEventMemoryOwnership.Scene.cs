@@ -17,7 +17,8 @@ public enum NativeEventSceneMemoryOwners
     WorldMusicSelection = 1 << 8,
     DrawPointDisplay = 1 << 9,
     DrawPointIndex = 1 << 10,
-    FieldLoadReason = 1 << 11
+    FieldLoadReason = 1 << 11,
+    BattleMusic = 1 << 12
 }
 
 public static partial class NativeEventMemoryOwnership
@@ -25,12 +26,16 @@ public static partial class NativeEventMemoryOwnership
     /// <summary>Canonical scene owner spans shared by live execution and persisted-state validation.</summary>
     public static IReadOnlyList<NativeEventMemoryRegion> SceneRegions(NativeEventSceneMemoryOwners owners)
     {
-        const NativeEventSceneMemoryOwners all = NativeEventSceneMemoryOwners.PreviousField | NativeEventSceneMemoryOwners.PreviousWorldEntity | NativeEventSceneMemoryOwners.PrimaryChannel | NativeEventSceneMemoryOwners.SecondaryChannel | NativeEventSceneMemoryOwners.PartyBindings | NativeEventSceneMemoryOwners.MusicVolume | NativeEventSceneMemoryOwners.SoundVolume | NativeEventSceneMemoryOwners.MusicProcess | NativeEventSceneMemoryOwners.WorldMusicSelection | NativeEventSceneMemoryOwners.DrawPointDisplay | NativeEventSceneMemoryOwners.DrawPointIndex | NativeEventSceneMemoryOwners.FieldLoadReason;
+        const NativeEventSceneMemoryOwners all = NativeEventSceneMemoryOwners.PreviousField | NativeEventSceneMemoryOwners.PreviousWorldEntity | NativeEventSceneMemoryOwners.PrimaryChannel | NativeEventSceneMemoryOwners.SecondaryChannel | NativeEventSceneMemoryOwners.PartyBindings | NativeEventSceneMemoryOwners.MusicVolume | NativeEventSceneMemoryOwners.SoundVolume | NativeEventSceneMemoryOwners.MusicProcess | NativeEventSceneMemoryOwners.WorldMusicSelection | NativeEventSceneMemoryOwners.DrawPointDisplay | NativeEventSceneMemoryOwners.DrawPointIndex | NativeEventSceneMemoryOwners.FieldLoadReason | NativeEventSceneMemoryOwners.BattleMusic;
         if ((owners & ~all) != NativeEventSceneMemoryOwners.None)
         {
             throw new InvalidDataException("Unrecognized native event scene memory owner flags.");
         }
         List<NativeEventMemoryRegion> regions = [];
+        if (owners.HasFlag(NativeEventSceneMemoryOwners.BattleMusic))
+        {
+            regions.Add(new(203, 1, NativeEventMemoryOwner.BattleMusic));
+        }
         if (owners.HasFlag(NativeEventSceneMemoryOwners.PreviousField))
         {
             regions.Add(new(84, 2, NativeEventMemoryOwner.PreviousField));
@@ -92,7 +97,8 @@ public static partial class NativeEventMemoryOwnership
         {
             throw new InvalidDataException("Native event scene owner registrations require a captured Scene object.");
         }
-        NativeEventSceneMemoryOwners owners = NativeEventSceneMemoryOwners.None;
+        //A captured Scene owns BYTE203 even when its prior value is unknown.
+        NativeEventSceneMemoryOwners owners = NativeEventSceneMemoryOwners.BattleMusic;
         void Include(string property, NativeEventSceneMemoryOwners owner)
         {
             if (scene.TryGetProperty(property, out JsonElement value) && value.ValueKind != JsonValueKind.Null)

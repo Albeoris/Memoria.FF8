@@ -51,7 +51,7 @@ public sealed class NativeBattleQuezacotlParticleCallbacksTests
     public void Flight88BuildsItsActualModeZeroArgumentsBeforeTheThreeNullVelocityDraws()
     {
         var (memory, effect) = Fixture(0, 0);
-        NativeBattleQuezacotlParticleSpawn spawned = NativeBattleQuezacotlParticleFlight.SpawnFirst88(memory, effect);
+        NativeBattleQuezacotlParticleSpawn spawned = NativeBattleQuezacotlParticleFlight.Spawn6C4043(memory, effect);
         Assert.Equal(1, spawned.Slot);
         Assert.Equal((ushort)11383, spawned.Effect.Quezacotl!.Random17A0);
         int task = 0x3C27C + 60;
@@ -61,6 +61,29 @@ public sealed class NativeBattleQuezacotlParticleCallbacksTests
         Assert.Equal(new short[] { 59, -35, -9 }, Vector(task + 0x30));
         Assert.Equal((short)0, Read16(spawned.Memory, task + 0x3A));
         Assert.Equal((short)3, Read16(spawned.Memory, task + 0x2E));
+
+        short[] Vector(int offset) => [Read16(spawned.Memory, offset), Read16(spawned.Memory, offset + 2), Read16(spawned.Memory, offset + 4)];
+    }
+    [Fact]
+    public void AnchorCallerUsesModeZeroBudgetThreeAndExactlyTenPrivateDraws()
+    {
+        var (memory, effect) = Fixture(0, 0);
+        NativeBattleQuezacotlResources resources = effect.Binding.NativeQuezacotlResources! with { AnchorVertexIndices11 = [93, 33, 696, 562, 578, 450, 9, 240, 388, 408, 265] };
+        ushort random = effect.Quezacotl!.Random17A0;
+        Assert.Equal((short)93, NativeBattleQuezacotlParticleFlight.SelectVertex12AFE40(resources, ref random));
+        effect = effect with { Quezacotl = effect.Quezacotl! with { Random17A0 = random } };
+        NativeBattleQuezacotlParticleSpawn spawned = NativeBattleQuezacotlParticleFlight.SpawnFromAnchor6C41E2(memory, effect, new(100, 200, 300));
+        Assert.Equal((ushort)11101, spawned.Effect.Quezacotl!.Random17A0);
+        int task = 0x3C27C + 60;
+        Assert.Equal(new short[] { 100, 200, 300 }, Vector(task + 0x18));
+        Assert.Equal(new short[] { 81, -1535, 101 }, Vector(task + 0x20));
+        Assert.Equal(new short[] { 35, -101, 31 }, Vector(task + 0x28));
+        Assert.Equal(new short[] { 113, 59, -35 }, Vector(task + 0x30));
+        Assert.Equal((short)0, Read16(spawned.Memory, task + 0x3A));
+        Assert.Equal((short)3, Read16(spawned.Memory, task + 0x2E));
+        Assert.Equal((short)0, Read16(spawned.Memory, task + 0x1E));
+        Assert.Equal((short)256, Read16(spawned.Memory, task + 0x26));
+        Assert.Equal((short)250, Read16(spawned.Memory, task + 0x38));
 
         short[] Vector(int offset) => [Read16(spawned.Memory, offset), Read16(spawned.Memory, offset + 2), Read16(spawned.Memory, offset + 4)];
     }

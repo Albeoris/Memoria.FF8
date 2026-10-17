@@ -21,7 +21,8 @@ public enum NativeEventMemoryOwner
     Fade,
     WorldEntry,
     WorldMusicSelection,
-    FieldLoadReason
+    FieldLoadReason,
+    BattleMusic
 }
 
 public readonly record struct NativeEventMemoryRegion(int Address, int Length, NativeEventMemoryOwner Owner)

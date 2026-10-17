@@ -11,17 +11,17 @@ public sealed record NativeBattleQuezacotlGeometryStep(NativeBattleEffectMemory 
 /// <summary>Reached6C6060 generic first-window model draw, using current executable vertices and actual arena morph scratch.</summary>
 public static class NativeBattleQuezacotlGeometry
 {
-    public static NativeBattleQuezacotlGeometryStep Emit6C6060(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleGfAnimationNode node, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleQuezacotlGeometryStep Emit6C6060(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleGfAnimationNode node, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleVector basePosition)
     {
-        return Emit(memory, effect, node, projection, colors, NativeBattleQuezacotlExecutableMemory.Address, null, false, 0);
+        return Emit(memory, effect, node, projection, colors, NativeBattleQuezacotlExecutableMemory.Address, null, false, 0, basePosition);
     }
 
     public static NativeBattleQuezacotlGeometryStep Emit6C53A0(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleGfAnimationNode node, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleActionMatrix contextMatrix, bool capturePrimary, byte control)
     {
-        return Emit(memory, effect, node, projection, colors, 0x12A9664, contextMatrix, capturePrimary, control);
+        return Emit(memory, effect, node, projection, colors, 0x12A9664, contextMatrix, capturePrimary, control, default);
     }
 
-    private static NativeBattleQuezacotlGeometryStep Emit(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleGfAnimationNode node, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint sourceAddress, NativeBattleActionMatrix? contextMatrix, bool capturePrimary, byte control)
+    private static NativeBattleQuezacotlGeometryStep Emit(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleGfAnimationNode node, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint sourceAddress, NativeBattleActionMatrix? contextMatrix, bool capturePrimary, byte control, NativeBattleVector basePosition)
     {
         if (NativeBattleQuezacotlWorkspace.SkipsGeometry6C6060(node))
         {
@@ -70,7 +70,7 @@ public static class NativeBattleQuezacotlGeometry
             memory = memory with { Arena = arena };
         }
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native6C6060 requires its prior published view matrix.");
-        NativeBattleActionMatrix matrix = contextMatrix is null ? NativeBattleGfMatrices.Compose6C6060(node, view, effect.Quezacotl?.Billboard17B0, new(0, -5000, 0)) : NativeBattleGfMatrices.Compose6C53A0(node, contextMatrix, effect.Quezacotl?.Billboard17B0);
+        NativeBattleActionMatrix matrix = contextMatrix is null ? NativeBattleGfMatrices.Compose6C6060(node, view, effect.Quezacotl?.Billboard17B0, basePosition) : NativeBattleGfMatrices.Compose6C53A0(node, contextMatrix, effect.Quezacotl?.Billboard17B0);
         if (capturePrimary && node.GeometryIndex == 0)
         {
             memory = memory with { QuezacotlCapturedMatrix1780 = matrix };

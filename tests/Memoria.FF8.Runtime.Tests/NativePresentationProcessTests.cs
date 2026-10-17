@@ -62,7 +62,7 @@ public sealed class NativePresentationProcessTests
             NativeGlobalSoundProcess.ValidateAllocation(0, allocation);
             Assert.Equal(effect, next.OriginalEffectIds[voice]);
         }
-        byte rotation = next.Rotation;
+        byte? rotation = next.Rotation;
         NativeGlobalSoundProcess explicitVoice = next.RecordEffect(690001, 0x1000001, out NativeGlobalSoundAllocation explicitAllocation);
         Assert.Equal((byte)1, explicitAllocation.Voice);
         Assert.Equal(rotation, explicitVoice.Rotation);

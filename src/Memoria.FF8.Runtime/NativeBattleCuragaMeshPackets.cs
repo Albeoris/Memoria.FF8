@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleCuragaMeshContext(uint Flags, uint? FarColor, int? Fade, ushort? TexturePage, ushort? Clut, uint? UvOffset, int TableBaseBucket, byte DepthShift);
 
 /// <summary>87EEB0's geometry dispatcher and the reached87F6C0/8800B0 textured quad stores and gates.</summary>
-public static class NativeBattleCuragaMeshPackets
+public static partial class NativeBattleCuragaMeshPackets
 {
     private static readonly string[] Leaves = ["87EFF0", "87F200", "87F480", "87F6C0", "87F960", "87FB90", "87FE50", "8800B0"];
 
@@ -32,20 +32,20 @@ public static class NativeBattleCuragaMeshPackets
             {
                 continue;
             }
-            if (group is not (3 or 7))
+            if (group is not (3 or 4 or 5 or 7))
             {
                 throw new NotSupportedException($"Native87EEB0 reached original{Leaves[group]} group{group}; its exact packet leaf is not implemented.");
             }
             for (int index = 0; index < count; index++)
             {
-                int stride = group == 7 ? 36 : 24;
+                int stride = group switch { 4 => 20, 7 => 36, _ => 24 };
                 ReadOnlySpan<byte> face = Read(mesh, cursor, stride);
-                ushort[] indices = new ushort[4];
-                for (int corner = 0; corner < 4; corner++)
+                ushort[] indices = new ushort[group == 4 ? 3 : 4];
+                for (int corner = 0; corner < indices.Length; corner++)
                 {
                     indices[corner] = BinaryPrimitives.ReadUInt16LittleEndian(face[(4 + corner * 2)..]);
                 }
-                NativeBattleGfGeometryBatch emitted = EmitQuad(face, corner =>
+                NativeBattleModuleProjectedVertex Project(int corner)
                 {
                     int offset = indices[corner] * 4;
                     NativeBattleVector vertex;
@@ -59,7 +59,8 @@ public static class NativeBattleCuragaMeshPackets
                         vertex = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz[2..]), BinaryPrimitives.ReadInt16LittleEndian(xyz[4..]));
                     }
                     return NativeBattleModuleProjection.Project45FE10(matrix, vertex, projection);
-                }, group == 7, context, colors, allocated);
+                }
+                NativeBattleGfGeometryBatch emitted = group is 4 or 5 ? EmitGouraud(face, Project, group == 5, context, colors, allocated) : EmitQuad(face, Project, group == 7, context, colors, allocated);
                 attempts.AddRange(emitted.Attempts);
                 allocated = checked(allocated + emitted.AllocationBytes);
                 cursor = checked(cursor + stride);

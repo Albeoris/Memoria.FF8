@@ -34,7 +34,7 @@ public sealed class NativeBattleGuardianPhase86MigrationTests
         Assert.NotNull(authenticated.Ribbon);
         Assert.NotNull(authenticated.Ribbon.ParticleScaleWords4096);
         authenticated.Ribbon.Validate();
-        Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(authenticated with { Ribbon = null }));
+        Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(authenticated with { Ribbon = null, AnchorVertexIndices11 = retained.AnchorVertexIndices11 }));
         int index = effect.Binding.Effect - 1;
         NativeBattleEffectBinding catalog = original.Definition.NativeEffectCatalog[index];
         Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(catalog.NativeQuezacotlResources));

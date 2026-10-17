@@ -115,6 +115,12 @@ public sealed partial class EventEngine
                     SetSoundVolumeByte(parameter, (byte)args[0]);
                     break;
                 }
+                if (opcode == Jsm.Opcode.POPM_B && parameter == 203)
+                {
+                    args = Pop(fiber, 1);
+                    SetNativeBattleMusic203(args[0]);
+                    break;
+                }
                 if (opcode == Jsm.Opcode.POPM_B && parameter == 209 && services.WorldControls is Memoria.FF8.Runtime.NativeWorldControlState controls)
                 {
                     if (fiber.Stack.Count == 0)
@@ -1149,7 +1155,7 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.SETBATTLEMUSIC:
                 args = Pop(fiber, 1);
-                Scene.BattleMusic = args[0];
+                SetNativeBattleMusic203(args[0]);
                 break;
             case Jsm.Opcode.EFFECTLOAD:
                 if (LoadSoundResource is null)

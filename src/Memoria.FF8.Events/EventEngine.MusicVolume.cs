@@ -17,6 +17,7 @@ public sealed partial class EventEngine
 
     private int[] ExecuteMusicVolume(Fiber fiber, Jsm.Opcode opcode)
     {
+        CommitMusicPlayback(fiber, opcode);
         int[] args = Pop(fiber, opcode == Jsm.Opcode.MUSICVOLFADE ? 4 : opcode == Jsm.Opcode.MUSICVOLTRANS ? 3 : 2);
         int slot = args[0] & 1;
         NativeMusicChannelState? channel = ReadMusicChannel(slot);
