@@ -7,6 +7,13 @@ internal static class DialoguePresentation
 {
     internal const float Padding = 8;
 
+    public static IEnumerable<DialogueState> DrawOrder(IEnumerable<DialogueState> dialogues)
+    {
+        // Native channel submission gives lower channels the nearer depth.
+        // The host paints without that depth buffer, so submit foreground channels last.
+        return dialogues.OrderByDescending(dialogue => dialogue.Channel);
+    }
+
     public static PixelBounds Bounds(DialogueState dialogue, DialogueWindow? window, PixelBounds viewport, float textWidth, float textHeight)
     {
         float scale = viewport.Width / 320f;

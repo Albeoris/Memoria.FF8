@@ -1107,7 +1107,7 @@ internal sealed partial class RecreateGame : Game
         if (events is not null && (session.State.Scene == SceneKind.WorldMap || field?.Id == session.State.FieldId && session.State.Scene is SceneKind.Field or SceneKind.Movie) && session.State.DebugView?.DialogueVisible != false)
         {
             PixelBounds viewport = ViewportLayout.Fit(320, 240, bounds.Width, bounds.Height);
-            foreach (DialogueState dialogue in VisibleDialogues)
+            foreach (DialogueState dialogue in DialoguePresentation.DrawOrder(VisibleDialogues))
             {
                 DrawDialogueUi(bounds, viewport, dialogue, gameTime.TotalGameTime.TotalSeconds);
             }

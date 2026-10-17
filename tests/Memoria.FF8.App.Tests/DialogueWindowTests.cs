@@ -6,6 +6,26 @@ namespace Memoria.FF8.App.Tests;
 public sealed class DialogueWindowTests
 {
     [Fact]
+    public void Lower_channel_prompt_covers_overlapping_persistent_hints()
+    {
+        DialogueState prompt = new(0, 1, "Question{Line}Yes{Line}No", 15, 145, FirstChoice: 1, LastChoice: 2);
+        DialogueState hint = new(1, 2, "Hint", 15, 170, CanConfirm: false);
+        DialogueState code = new(2, 3, "Code", 230, 80, CanConfirm: false);
+        Assert.Equal(new[] { code, hint, prompt }, DialoguePresentation.DrawOrder([prompt, hint, code]));
+        Assert.Equal(new[] { code, hint, prompt }, DialoguePresentation.DrawOrder([hint, code, prompt]));
+    }
+
+    [Fact]
+    public void Native_channel_depth_is_independent_of_confirmation_state()
+    {
+        DialogueState foreground = new(0, 1, "Hint", 15, 145, CanConfirm: false);
+        DialogueState background = new(2, 2, "Question", 15, 170);
+        Assert.Equal(new[] { background, foreground }, DialoguePresentation.DrawOrder([foreground, background]));
+        Assert.Empty(DialoguePresentation.DrawOrder([]));
+        Assert.Equal(new[] { background }, DialoguePresentation.DrawOrder([background]));
+    }
+
+    [Fact]
     public void Independent_windows_follow_the_original_coordinates_inside_the_fitted_field()
     {
         PixelBounds viewport = ViewportLayout.Fit(320, 240, 1280, 720);
