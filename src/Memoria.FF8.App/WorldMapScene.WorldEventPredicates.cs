@@ -151,17 +151,31 @@ internal sealed partial class WorldMapScene
     {
         bool sparseFoot = state.NativeFootRuntime is { EntityType: 0 or 1, NormalObjects: null, StationTrains: null };
         bool sparseCar = state.NativeCarRuntime is { EntityType: 33, Allocation: null } && state.NativeFootRuntime is null;
-        if ((!sparseFoot && !sparseCar) || state.NativeGardenRuntime is not null || state.NativeRagnarokRuntime is not null)
+        bool sparseScripted = state.NativeScriptedRuntime is not null && state.NativeFootRuntime is null && state.NativeCarRuntime is null && state.NativeTrainRuntime is null;
+        if ((!sparseFoot && !sparseCar && !sparseScripted) || state.NativeGardenRuntime is not null || state.NativeRagnarokRuntime is not null)
         {
             return false;
         }
         WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
+        if (sparseScripted)
+        {
+            NativeScriptedWorldLoadReceipt load = state.NativeScriptedRuntime!.Load;
+            load.Validate();
+            if (load.FootRecord0 != assets.ReadScriptedFootRecord(inputs.StoryWord, inputs.EventFlags265))
+            {
+                throw new InvalidDataException("Scripted shape absence requires its authenticated complete selected allocation.");
+            }
+        }
         NativeWorldAllocationClause clause = assets.ReadWorldAllocationClause(inputs.StoryWord);
         NativeSavedWorldState saved = session.State.SavedWorld!;
         //544860 selects section9 and can append the saved car; the separate94/79/80 producers are checked by the caller.
         //Native shape comparisons sign-extend the allocated byte before comparing the predicate's WORD operand.
         bool declared = shape <= sbyte.MaxValue && clause.ContainsShape((byte)shape);
         bool savedCar = shape <= sbyte.MaxValue && saved.Slot4.ShapeId == shape && NativeTrainWorldObject.ClassifyShape(saved.Slot4.ShapeId) is >= 32 and <= 40 or 132;
+        if (sparseScripted && shape <= sbyte.MaxValue && state.NativeScriptedRuntime!.Load.Slot4.ShapeId == shape && NativeTrainWorldObject.ClassifyShape((byte)shape) is >= 32 and <= 40 or 132)
+        {
+            savedCar = true;
+        }
         return !declared && !savedCar;
     }
 
@@ -169,7 +183,8 @@ internal sealed partial class WorldMapScene
     {
         //544860 appends94 independently of section9, and appends the current saved car.
         //These records are absent from the section9-only allocation receipt.
-        if (shape == 94 || shape is 79 or 80 && (WorldEntryVariables.Read(session.State).ReplacementFlags & 7) != 0 || state.NativeCarRuntime is { } car && shape == car.ShapeId)
+        bool scriptedShape = state.NativeScriptedRuntime is { } scripted && shape <= sbyte.MaxValue && NativeTrainWorldObject.ClassifyShape((byte)shape) == scripted.Path.EntityType;
+        if (shape == 94 || shape is 79 or 80 && (WorldEntryVariables.Read(session.State).ReplacementFlags & 7) != 0 || state.NativeCarRuntime is { } car && shape == car.ShapeId || scriptedShape)
         {
             throw new NotSupportedException($"World shape predicate {shape} requires its actual appended544860 object publication.");
         }
