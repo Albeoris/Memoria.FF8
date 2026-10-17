@@ -40,12 +40,15 @@ public sealed class AutoPlayChangedRouteIntegrationTests
         int routes = Entry(run).Routes.Count;
         int retired = Entry(run).RetiredRoutes.Count;
         string routeJson = JsonSerializer.Serialize(oldRoute, AutoPlayController.JsonOptions);
+        string[] inspected = run.Controller.State.InspectedVisitsSinceProgress.Order(StringComparer.Ordinal).ToArray();
+        Assert.NotEmpty(inspected);
 
         run.Controller.Advance(1);
 
         Assert.Null(run.Controller.Error);
         Assert.Null(run.World.Events.LastFault);
         Assert.True(run.Controller.Running);
+        Assert.Equal(inspected, run.Controller.State.InspectedVisitsSinceProgress.Order(StringComparer.Ordinal));
         Assert.Null(run.Controller.State.ActiveTravelRoute);
         Assert.Null(run.Controller.State.RefreshTargetVisit);
         Assert.True(Entry(run).RouteNeedsRediscovery);

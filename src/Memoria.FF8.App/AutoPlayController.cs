@@ -52,6 +52,9 @@ internal sealed class AutoPlayRunState
     public Dictionary<string, AutoPlayVisitGuard> VisitGuards { get; set; } = new(StringComparer.Ordinal);
     public HashSet<string> InspectedVisitsSinceProgress { get; set; } = new(StringComparer.Ordinal);
     public string? RefreshTargetVisit { get; set; }
+    public AutoPlaySurveyBaseline? SurveyBaseline { get; set; }
+    public bool SurveyInvalidationUnknown { get; set; }
+    public string? SurveyProgressBeforeInitialization { get; set; }
     public bool ParticipantPolicyDiagnosticOnly { get; set; }
     public string? ParticipantPolicyResumeChoice { get; set; }
 }
@@ -87,11 +90,24 @@ internal sealed partial class AutoPlayController
             if (advancing && watchedWorlds.Add(world))
             {
                 world.Events.OperationCompleted += CheckIdleDeadline;
+                world.Events.OperationCompleted += ObserveSurveyOperation;
                 world.Events.BeforeNativePartyActionRequest += ObserveParticipantAction;
+            }
+            if (advancing)
+            {
+                ObserveSurveyInitialization(world);
             }
             return world;
         };
-        this.restore = restore;
+        this.restore = state =>
+        {
+            if (advancing && run.SurveyBaseline is not null)
+            {
+                ObserveSurveySegmentChanges(this.getWorld());
+            }
+            ResetSurveySegment();
+            restore(state);
+        };
         this.outputDirectory = Path.GetFullPath(outputDirectory);
         this.time = time ?? TimeProvider.System;
         this.deadlineTime = deadlineTime ?? TimeProvider.System;
@@ -252,6 +268,10 @@ internal sealed partial class AutoPlayController
         saved.PrimaryContinuation = ImportCheckpoint(saved.PrimaryContinuation);
         saved.ActiveBeforeCheckpoint = ImportCheckpoint(saved.ActiveBeforeCheckpoint);
         run = saved;
+        if (!document.RootElement.TryGetProperty(nameof(AutoPlayRunState.SurveyBaseline), out _) && run.ActiveEvent is not null)
+        {
+            run.SurveyInvalidationUnknown = true;
+        }
         run.Error = null;
         run.LastProgressStep = run.Steps;
         planner = new(run.Coverage, (visit, item) => AutoPlayTraversalPolicy.PhaseOrder(visit.Region, item.Order), AutoPlayTraversalPolicy.ProgressionEntryOrder);
@@ -288,8 +308,6 @@ internal sealed partial class AutoPlayController
                 int score = run.ObservedScenes.Count + run.ObservedMessages.Count + run.Coverage.Visits.Count + run.Coverage.Choices.Count + run.Coverage.Visits.Sum(visit => visit.Events.Count(item => item.Completed) + visit.Events.Sum(item => item.UnavailableAttempts.Count + item.ParticipantPolicyDeferrals.Count)) + run.Coverage.Choices.Sum(choice => choice.CompletedOptions.Count);
                 if (score != run.LastProgressScore)
                 {
-                    run.InspectedVisitsSinceProgress.Clear();
-                    run.RefreshTargetVisit = null;
                     run.LastProgressScore = score;
                     run.LastProgressStep = run.Steps;
                     ResetIdleDeadline();
@@ -326,6 +344,7 @@ internal sealed partial class AutoPlayController
                 foreach (GameWorld watched in watchedWorlds)
                 {
                     watched.Events.OperationCompleted -= CheckIdleDeadline;
+                    watched.Events.OperationCompleted -= ObserveSurveyOperation;
                     watched.Events.BeforeNativePartyActionRequest -= ObserveParticipantAction;
                 }
                 watchedWorlds.Clear();
@@ -370,7 +389,12 @@ internal sealed partial class AutoPlayController
     private void Tick()
     {
         GameWorld world = getWorld();
+        if (world.Events.FieldId != session.State.FieldId || session.State.Scene == SceneKind.WorldMap)
+        {
+            ObserveSurveySegmentChanges(world);
+        }
         world.EnsureField();
+        ObserveSurveyInitialization(world);
         if (run.ParticipantPolicyResumeChoice is string policyChoice)
         {
             ResumeParticipantChoice(policyChoice);
@@ -534,6 +558,7 @@ internal sealed partial class AutoPlayController
         int variantAttempt = 0;
         string BeforeVariant()
         {
+            BeginSurveySegment(world);
             if (variantAttempt++ == 0)
             {
                 return beforeCheckpoint;
@@ -947,6 +972,7 @@ internal sealed partial class AutoPlayController
         WorldAutoPlayTarget target = targets.Single(item => item.Id == next.Event.Id);
         string beforeCheckpoint = $"world-{run.Steps:D10}.json";
         SaveBundle(Path.GetFileNameWithoutExtension(beforeCheckpoint), CaptureState());
+        BeginSurveySegment(world);
         planner.BeginEvent(visit, target.Id);
         run.ActiveVisit = visit;
         run.ActiveEvent = target.Id;
@@ -1433,6 +1459,13 @@ internal sealed partial class AutoPlayController
             throw new NotSupportedException("The native event returned control before every recorded travel choice was encountered.");
         }
         GameWorld world = getWorld();
+        if (run.SurveyInvalidationUnknown)
+        {
+            run.InspectedVisitsSinceProgress.Clear();
+            run.RefreshTargetVisit = null;
+            run.SurveyInvalidationUnknown = false;
+        }
+        ObserveSurveySegmentChanges(world);
         string? exitSignature = run.ActiveField == session.State.FieldId && session.State.Scene == SceneKind.Field ? world.ReadAutoPlayConditions(eventId, run.ActiveObjectId).Fingerprint : null;
         if (destination.StartsWith("world:", StringComparison.Ordinal))
         {

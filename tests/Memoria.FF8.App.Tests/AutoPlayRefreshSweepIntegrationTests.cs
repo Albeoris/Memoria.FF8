@@ -58,8 +58,6 @@ public sealed class AutoPlayRefreshSweepIntegrationTests
         Assert.True(cold.Controller.Running);
         Assert.True(cold.Controller.State.LastProgressScore > beforeScore);
         Assert.True(cold.Controller.State.LastProgressStep > beforeStep);
-        Assert.Empty(cold.Controller.State.InspectedVisitsSinceProgress);
-        Assert.Null(cold.Controller.State.RefreshTargetVisit);
         Assert.True(cold.NativeCommands > 0);
         Assert.Null(cold.World.Events.LastFault);
         Assert.False(cold.Controller.State.ReachedEnding);
