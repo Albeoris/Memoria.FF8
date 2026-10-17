@@ -57,6 +57,7 @@ internal static partial class Program
         }
         JsonElement held = observed.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
         Require(held.GetProperty("Position").GetInt32() == observed.LastFault!.Operation && held.GetProperty("Stack")[0].GetInt32() == 77 && !CapturedVariables(observed.Capture()).TryGetProperty("5000", out _), "Unsupported empty animation observation advanced its original PC or consumed an unrelated operand.");
+        NativeCertifiedEmptyAnimation(vitals, economy);
         Console.WriteLine("Empty native animation: three nonblocking writers and idle reset, exact known stores/opaque terminal, no metadata lookup, retained empty binding after SETMODEL, independent writer restore and completion-observer refusal passed.");
     }
 }

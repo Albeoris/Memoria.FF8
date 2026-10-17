@@ -3,11 +3,13 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Events;
 
-public sealed record NativeActorAnimationHeader([property: JsonRequired] int Version, [property: JsonRequired] byte AnimationId, [property: JsonRequired] ushort? Frame, [property: JsonRequired] ushort Increment, [property: JsonRequired] ushort First, [property: JsonRequired] ushort? Terminal, [property: JsonRequired] ushort? Flags, [property: JsonRequired] int? BoundModelId);
+public sealed record NativeActorAnimationHeader([property: JsonRequired] int Version, [property: JsonRequired] byte AnimationId, [property: JsonRequired] ushort? Frame, [property: JsonRequired] ushort Increment, [property: JsonRequired] ushort First, [property: JsonRequired] ushort? Terminal, [property: JsonRequired] ushort? Flags, [property: JsonRequired] int? BoundModelId, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ushort? EmptyModelTerminal = null);
 public sealed record NativeActorAnimationBackup([property: JsonRequired] int Version, [property: JsonRequired] byte AnimationId, [property: JsonRequired] ushort Frame, [property: JsonRequired] ushort Increment, [property: JsonRequired] ushort First, [property: JsonRequired] ushort Terminal, [property: JsonRequired] ushort Flags);
 
 public sealed partial class EventEngine
 {
+    public Func<IReadOnlyList<int>, IReadOnlyList<ushort?>>? ReadNativeEmptyAnimationTerminals { get; set; }
+
     private const ushort AnimationComplete = 0x0800;
     private const ushort AnimationFrozen = 0x1000;
     private const ushort AnimationRepeating = 0x2000;
@@ -22,6 +24,10 @@ public sealed partial class EventEngine
     private ushort NativeAnimationTerminal(ActorState actor, int animation)
     {
         NativeActorAnimationHeader header = RequireNativeAnimationHeader(actor);
+        if (header.BoundModelId == -1 && header.EmptyModelTerminal is ushort empty)
+        {
+            return empty;
+        }
         if (header.BoundModelId is not int model || model < 0)
         {
             throw new NotSupportedException("Native animation selection requires its actually bound model resource; an empty instance has opaque model WORD12.");
@@ -64,7 +70,7 @@ public sealed partial class EventEngine
     private void SelectNativeBodyAnimation(ActorState actor, byte animation, ushort flags, ushort first = 0, ushort? terminal = null)
     {
         NativeActorAnimationHeader header = RequireNativeAnimationHeader(actor);
-        ushort? end = header.BoundModelId == -1 ? null : terminal ?? NativeAnimationTerminal(actor, animation);
+        ushort? end = terminal ?? (header.BoundModelId == -1 ? header.EmptyModelTerminal : NativeAnimationTerminal(actor, animation));
         actor.NativeAnimationHeader = header with { AnimationId = animation, Frame = first, First = first, Terminal = end, Flags = flags };
         PublishNativeAnimation(actor, true);
     }
@@ -75,6 +81,13 @@ public sealed partial class EventEngine
         {
             return;
         }
+        int[] boundModels = Scene.NativeActorObjectIds.Select(objectId => actors[objectId].ModelId is -1 or ushort.MaxValue ? -1 : actors[objectId].ModelId).ToArray();
+        IReadOnlyList<ushort?>? emptyTerminals = boundModels.Contains(-1) ? ReadNativeEmptyAnimationTerminals?.Invoke(boundModels) : null;
+        if (emptyTerminals is not null && emptyTerminals.Count != boundModels.Length)
+        {
+            throw new InvalidDataException("Native animation allocation returned a different physical actor order.");
+        }
+        int ordinal = 0;
         foreach (int objectId in Scene.NativeActorObjectIds)
         {
             ActorState actor = actors[objectId];
@@ -87,7 +100,8 @@ public sealed partial class EventEngine
             {
                 throw new NotSupportedException("Native model binding cannot replace a retained eye resource without a proved backend rebind contract.");
             }
-            actor.NativeAnimationHeader = RequireNativeAnimationHeader(actor) with { BoundModelId = bound };
+            actor.NativeAnimationHeader = RequireNativeAnimationHeader(actor) with { BoundModelId = bound, EmptyModelTerminal = bound == -1 ? emptyTerminals?[ordinal] : null };
+            ordinal++;
             SelectNativeBodyAnimation(actor, unchecked((byte)actor.BaseAnimationId), AnimationRepeating);
         }
     }
@@ -104,9 +118,9 @@ public sealed partial class EventEngine
             return;
         }
         NativeActorAnimationHeader header = RequireNativeAnimationHeader(actor);
-        if (header.BoundModelId == -1)
+        if (header.BoundModelId == -1 && header.EmptyModelTerminal is null)
         {
-            // 531D40 leaves model WORD12 opaque. Unobserved empty-body phases remain unknown.
+            // An unrepresented backing WORD12 leaves the empty-body phase opaque.
             actor.NativeAnimationHeader = header with { Frame = null, Flags = null };
             return;
         }
@@ -244,7 +258,8 @@ public sealed partial class EventEngine
     private void PlayNativeAnimation(Fiber fiber, ActorState actor, Jsm.Opcode opcode, int animation, out int[] args)
     {
         animation = unchecked((short)animation);
-        ushort? full = RequireNativeAnimationHeader(actor).BoundModelId == -1 ? null : NativeAnimationTerminal(actor, animation);
+        NativeActorAnimationHeader header = RequireNativeAnimationHeader(actor);
+        ushort? full = header.BoundModelId == -1 ? header.EmptyModelTerminal : NativeAnimationTerminal(actor, animation);
         bool ranged = opcode is Jsm.Opcode.CANIME or Jsm.Opcode.CANIMEKEEP or Jsm.Opcode.RCANIME or Jsm.Opcode.RCANIMEKEEP or Jsm.Opcode.RCANIMELOOP;
         ushort first = 0;
         ushort? terminal = full;
@@ -289,7 +304,7 @@ public sealed partial class EventEngine
             NativeActorAnimationBackup backup = actor.NativeAnimationBackup ?? throw new InvalidDataException("Saved physical actor lost its allocated single animation backup slot.");
             bool empty = header.BoundModelId == -1;
             NativeFieldModelInstance? registered = saved.Scene.ModelParts?.Instances.SingleOrDefault(instance => instance.ObjectId == objectId);
-            if (header.Version != 1 || backup.Version != 1 || header.BoundModelId is < -1 or > 255 || header.Flags is ushort flags && (flags & 0x07FF) != 0 || (backup.Flags & 0x07FF) != 0 || !empty && (header.Frame is null || header.Terminal is null || header.Flags is null) || saved.DefaultsStarted && saved.Scene.NativeActorObjectIds.Contains(objectId) && header.BoundModelId is null || actor.AnimationSpeed != unchecked((short)header.Increment))
+            if (header.Version != 1 || backup.Version != 1 || header.BoundModelId is < -1 or > 255 || !empty && header.EmptyModelTerminal is not null || header.Flags is ushort flags && (flags & 0x07FF) != 0 || (backup.Flags & 0x07FF) != 0 || !empty && (header.Frame is null || header.Terminal is null || header.Flags is null) || saved.DefaultsStarted && saved.Scene.NativeActorObjectIds.Contains(objectId) && header.BoundModelId is null || actor.AnimationSpeed != unchecked((short)header.Increment))
             {
                 throw new InvalidDataException("Saved native animation header/backup or speed mirror has no represented physical owner.");
             }
