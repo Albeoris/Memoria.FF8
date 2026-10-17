@@ -8,15 +8,16 @@ namespace Memoria.FF8;
 internal static partial class DialogueTextFormatter
 {
     private static readonly Color GreyTextColor = new(208, 208, 208);
+    private static readonly Func<ushort, string> DefaultButtonBindingHint = new KeyboardInput().NativeButtonBindingHint;
 
-    public static string Format(string encoded, IReadOnlyDictionary<int, string>? names = null, NativeMessageVariables? messageVariables = null)
+    public static string Format(string encoded, IReadOnlyDictionary<int, string>? names = null, NativeMessageVariables? messageVariables = null, Func<ushort, string>? buttonBindingHint = null)
     {
-        return Parse(encoded, names, messageVariables).Text;
+        return Parse(encoded, names, messageVariables, buttonBindingHint).Text;
     }
 
-    public static DialogueDocument Parse(string encoded, IReadOnlyDictionary<int, string>? names = null, NativeMessageVariables? messageVariables = null)
+    public static DialogueDocument Parse(string encoded, IReadOnlyDictionary<int, string>? names = null, NativeMessageVariables? messageVariables = null, Func<ushort, string>? buttonBindingHint = null)
     {
-        string expanded = NativeMessageVariables.Expand(encoded, messageVariables);
+        string expanded = ExpandButtonBindings(NativeMessageVariables.Expand(encoded, messageVariables), buttonBindingHint);
         List<DialoguePage> pages = [];
         List<DialogueLine> lines = [];
         List<DialogueRun> runs = [];
@@ -94,9 +95,6 @@ internal static partial class DialogueTextFormatter
                     // Native common message4 uses key65 for the junctioned-magic J marker.
                     Append("J");
                     break;
-                case "Key" when TryButtonSymbol(parameter, out string symbol):
-                    Append(symbol);
-                    break;
                 default:
                     // Preserve unrelated placeholders until their owning UI supplies a presentation contract.
                     Append(match.Value);
@@ -118,23 +116,33 @@ internal static partial class DialogueTextFormatter
         throw new NotSupportedException($"Dialogue {tag} parameter '{value}' is unsupported.");
     }
 
-    private static bool TryButtonSymbol(string parameter, out string symbol)
+    public static string ExpandButtonBindings(string encoded, Func<ushort, string>? buttonBindingHint = null)
     {
-        symbol = Enum.TryParse(parameter, out TextTagKey key) ? key switch
+        return InlineTag().Replace(encoded, match =>
         {
-            TextTagKey.Triangle => "\u25B3",
-            TextTagKey.Circle => "\u25CB",
-            TextTagKey.Cross => "\u00D7",
-            TextTagKey.Square => "\u25A1",
-            TextTagKey.L1 => "L1",
-            TextTagKey.R1 => "R1",
-            TextTagKey.UpKey => "\u2191",
-            TextTagKey.RightKey => "\u2192",
-            TextTagKey.DownKey => "\u2193",
-            TextTagKey.LeftKey => "\u2190",
-            _ => ""
-        } : "";
-        return symbol.Length > 0;
+            if (match.Groups[1].Value != "Key" || !Enum.TryParse(match.Groups[2].Value, out TextTagKey key))
+            {
+                return match.Value;
+            }
+            ushort buttons = key switch
+            {
+                TextTagKey.EscapeKey1 => 0x01,
+                TextTagKey.EscapeKey2 => 0x02,
+                TextTagKey.L1 => 0x04,
+                TextTagKey.R1 => 0x08,
+                TextTagKey.Triangle or TextTagKey.Cancel => 0x10,
+                TextTagKey.Circle or TextTagKey.Menu => 0x20,
+                TextTagKey.Cross or TextTagKey.Confirm => 0x40,
+                TextTagKey.Square or TextTagKey.Cards => 0x80,
+                TextTagKey.Select or TextTagKey.EndKey => 0x100,
+                TextTagKey.UpKey => 0x1000,
+                TextTagKey.RightKey => 0x2000,
+                TextTagKey.DownKey => 0x4000,
+                TextTagKey.LeftKey => 0x8000,
+                _ => 0
+            };
+            return buttons == 0 ? match.Value : (buttonBindingHint ?? DefaultButtonBindingHint)(buttons);
+        });
     }
 
     private static string CharacterName(TextTagCharacter character, IReadOnlyDictionary<int, string>? names)

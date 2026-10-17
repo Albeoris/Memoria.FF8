@@ -8,7 +8,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class SystemFontTests
 {
     [Fact]
-    public void Dialogue_button_symbols_rasterize_as_distinct_glyphs_at_dialogue_size()
+    public void Dialogue_keyboard_bindings_rasterize_as_distinct_glyphs_at_dialogue_size()
     {
         string[] buttons = ["Triangle", "Square", "Circle", "Cross"];
         using var missing = SystemTextLayout.Rasterize("\U0010FFFF", 8, float.PositiveInfinity, "Arial");

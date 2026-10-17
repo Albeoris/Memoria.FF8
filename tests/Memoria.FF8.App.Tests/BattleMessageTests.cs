@@ -7,6 +7,23 @@ namespace Memoria.FF8.App.Tests;
 public sealed class BattleMessageTests
 {
     [Fact]
+    public void Open_battle_message_updates_when_its_live_input_bindings_change()
+    {
+        BattleSession battle = Create([1, 0, 0]);
+        BattleSnapshot snapshot = battle.Capture();
+        BattleDefinition definition = snapshot.Definition;
+        BattleCombatantDefinition enemy = definition.Combatants[1];
+        enemy = enemy with { NativeAi = enemy.NativeAi! with { Texts = ["{Key Triangle}/{Key Cross}"] } };
+        battle = AdmitInitial(definition with { Combatants = [definition.Combatants[0], enemy] });
+        KeyboardInput input = new();
+        BattleHudController hud = new(battle, battle.QueueAttack, () => { }, () => battle.AdvanceTurn()) { NativeButtonBindingHint = input.NativeButtonBindingHint };
+        hud.BuildView();
+        Assert.Equal("C/X", hud.BattleMessage);
+        input.Profile = input.Profile.WithBinding(ControlAction.Cancel, ControlDevice.Keyboard, new([Microsoft.Xna.Framework.Input.Keys.K], []));
+        Assert.Equal("K/X", hud.BattleMessage);
+    }
+
+    [Fact]
     public void OriginalTextCommandsQueueMessagesWithTheirNativeDurationAndMode()
     {
         BattleSession battle = Create([1, 0, 24, 1, 26, 2, 34, 3, 2, 0]);

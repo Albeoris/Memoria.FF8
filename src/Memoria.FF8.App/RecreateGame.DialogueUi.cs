@@ -15,21 +15,21 @@ internal sealed partial class RecreateGame
     private (IReadOnlyList<DialogueVisualPage> Pages, DialoguePager Pager) GetDialoguePages(DialogueState dialogue)
     {
         DialogueWindow? window = dialogue.X == 0 && dialogue.Y == 0 ? events!.Scene.DialogueWindows.GetValueOrDefault(dialogue.Channel) : null;
-        string expanded = NativeMessageVariables.Expand(dialogue.Text, events!.MessageVariables);
+        string expanded = DialogueTextFormatter.ExpandButtonBindings(NativeMessageVariables.Expand(dialogue.Text, events!.MessageVariables), keyboard.NativeButtonBindingHint);
         foreach (var name in events.Scene.Names.OrderBy(pair => pair.Key))
         {
             expanded += "\u0001" + name.Key + "=" + name.Value;
         }
-        // Names and message variables can change while a persistent window retains its native identity.
+        // Names, message variables and input bindings can change while a window retains its native identity.
         string key = expanded;
         var presentation = dialoguePages.Get(dialogue, window, uiPreferences.DialogueFontFamily, uiPreferences.DialogueFontSize, key, session.State.Scene == SceneKind.WorldMap, () =>
         {
-            var document = DialogueTextFormatter.Parse(dialogue.Text, events.Scene.Names, events.MessageVariables);
+            var document = DialogueTextFormatter.Parse(dialogue.Text, events.Scene.Names, events.MessageVariables, keyboard.NativeButtonBindingHint);
             float size = uiPreferences.DialogueFontSize;
             string font = uiPreferences.DialogueFontFamily;
             using var measurer = SystemTextLayout.CreateMeasurer(size, font);
             return DialogueLayout.Create(document, dialogue, window, measurer.LineHeight, measurer.Measure);
-        }, retainPosition: dialogue.IsNamePrompt);
+        }, retainPosition: true);
         if (dialogue.IsNamePrompt)
         {
             presentation.Pager.UpdateReveal(TimeSpan.Zero, presentation.Pages[presentation.Pager.PageIndex], uiPreferences.FieldMessageSpeed, instant: true);

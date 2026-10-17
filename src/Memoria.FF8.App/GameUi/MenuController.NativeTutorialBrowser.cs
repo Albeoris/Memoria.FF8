@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.RegularExpressions;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Ui;
 
@@ -183,21 +182,7 @@ public sealed partial class MenuController
 
     internal string FormatNativeTutorialText(string text, IReadOnlyDictionary<int, string>? names = null)
     {
-        string formatted = DialogueTextFormatter.Format(text, names);
-        return Regex.Replace(formatted, @"\{Key ([^}]+)\}", match => match.Groups[1].Value switch
-        {
-            "Confirm" => CurrentBindingText(ControlAction.Confirm),
-            "Menu" or "Cancel" or "EscapeKey1" or "EscapeKey2" => CurrentBindingText(ControlAction.Cancel),
-            "Cards" => CurrentBindingText(ControlAction.Card),
-            "UpKey" => CurrentBindingText(ControlAction.MoveUp),
-            "DownKey" => CurrentBindingText(ControlAction.MoveDown),
-            "LeftKey" => CurrentBindingText(ControlAction.MoveLeft),
-            "RightKey" => CurrentBindingText(ControlAction.MoveRight),
-            "EndKey" or "Select" => CurrentBindingText(ControlAction.Select),
-            "L1" => CurrentBindingText(ControlAction.RotateLeft),
-            "R1" => CurrentBindingText(ControlAction.RotateRight),
-            _ => match.Value
-        });
+        return DialogueTextFormatter.Format(text, names, buttonBindingHint: buttons => CurrentBindingText(KeyboardInput.NativeButtonAction(buttons)));
     }
 
     private static string NativePageScreen(int category) => $"tutorial-native-pages-{category}";

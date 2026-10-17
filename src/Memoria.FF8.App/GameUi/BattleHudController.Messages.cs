@@ -11,6 +11,7 @@ public sealed partial class BattleHudController
     private double battleMessageFrames;
     private BattleEvent? formattedBattleMessageEvent;
     private DialogueDocument? formattedBattleMessage;
+    private string? formattedBattleMessageBindings;
     private double battlePresentationSeconds;
     private DialogueDocument? commandError;
     private double commandErrorUntil;
@@ -27,7 +28,8 @@ public sealed partial class BattleHudController
             {
                 return battlePresentationSeconds < commandErrorUntil ? commandError : null;
             }
-            if (!ReferenceEquals(message, formattedBattleMessageEvent))
+            string bindings = DialogueTextFormatter.ExpandButtonBindings(message.Message, NativeButtonBindingHint);
+            if (!ReferenceEquals(message, formattedBattleMessageEvent) || bindings != formattedBattleMessageBindings)
             {
                 Dictionary<int, string> names = battleNames?.ToDictionary(pair => pair.Key, pair => pair.Value) ?? [];
                 foreach (BattleCombatant actor in session.Combatants.Where(actor => actor.IsPlayer && actor.ModelId is >= 0 and <= 10))
@@ -46,8 +48,9 @@ public sealed partial class BattleHudController
                         names[subject] = GameNames.DefaultName(subject);
                     }
                 }
-                formattedBattleMessage = DialogueTextFormatter.Parse(message.Message, names);
+                formattedBattleMessage = DialogueTextFormatter.Parse(message.Message, names, buttonBindingHint: NativeButtonBindingHint);
                 formattedBattleMessageEvent = message;
+                formattedBattleMessageBindings = bindings;
             }
             return formattedBattleMessage;
         }

@@ -7,24 +7,24 @@ namespace Memoria.FF8.App.Tests;
 public sealed class DialogueRichTextTests
 {
     [Fact]
-    public void Fixed_button_tags_render_as_symbols_with_adjacent_numbers_and_authored_lines()
+    public void Button_tags_render_current_keyboard_bindings_with_adjacent_numbers_and_authored_lines()
     {
         const string encoded = "{Key Triangle}4{Line}{Key Square}3 {Key Circle}1{Line}{Key Cross}2";
-        Assert.Equal("\u25B34\n\u25A13 \u25CB1\n\u00D72", DialogueTextFormatter.Format(encoded));
+        Assert.Equal("C4\nS3 V1\nX2", DialogueTextFormatter.Format(encoded));
     }
 
     [Theory]
-    [InlineData(TextTagKey.Triangle, "\u25B3")]
-    [InlineData(TextTagKey.Circle, "\u25CB")]
-    [InlineData(TextTagKey.Cross, "\u00D7")]
-    [InlineData(TextTagKey.Square, "\u25A1")]
-    [InlineData(TextTagKey.L1, "L1")]
-    [InlineData(TextTagKey.R1, "R1")]
-    [InlineData(TextTagKey.UpKey, "\u2191")]
-    [InlineData(TextTagKey.RightKey, "\u2192")]
-    [InlineData(TextTagKey.DownKey, "\u2193")]
-    [InlineData(TextTagKey.LeftKey, "\u2190")]
-    public void Named_and_numeric_button_symbols_preserve_color_and_blink(TextTagKey key, string expected)
+    [InlineData(TextTagKey.Triangle, "C")]
+    [InlineData(TextTagKey.Circle, "V")]
+    [InlineData(TextTagKey.Cross, "X")]
+    [InlineData(TextTagKey.Square, "S")]
+    [InlineData(TextTagKey.L1, "H")]
+    [InlineData(TextTagKey.R1, "G")]
+    [InlineData(TextTagKey.UpKey, "Up")]
+    [InlineData(TextTagKey.RightKey, "Right")]
+    [InlineData(TextTagKey.DownKey, "Down")]
+    [InlineData(TextTagKey.LeftKey, "Left")]
+    public void Named_and_numeric_button_bindings_preserve_color_and_blink(TextTagKey key, string expected)
     {
         foreach (string parameter in new[] { key.ToString(), ((byte)key).ToString() })
         {
@@ -210,7 +210,7 @@ public sealed class DialogueRichTextTests
     }
 
     [Theory]
-    [InlineData("Press {Key Menu} to get off.")]
+    [InlineData("Press {Key Unknown} to get off.")]
     [InlineData("{Dialog SelectedGF}")]
     [InlineData("{Option 1}")]
     [InlineData("{Unknown 1}")]
