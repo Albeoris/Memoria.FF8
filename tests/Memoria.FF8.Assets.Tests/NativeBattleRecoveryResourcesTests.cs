@@ -12,7 +12,7 @@ public sealed class NativeBattleRecoveryResourcesTests
     [InlineData((ushort)59, 0x35A8, 10, 5, 300182u, 17)]
     public void Original_directories_keep_absolute_pointers_real_kind6_sprites_and_full_mesh_envelopes(ushort effect, int length, int sources, int meshes, uint sound, int firstSpriteFrames)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         byte[] executable = File.ReadAllBytes(Path.Combine(game.GameDirectory, "FF8_EN.exe"));
         NativeBattleRecoveryResources resources = game.ReadNativeRecoveryResources(effect);
         NativeBattleRecoveryProfile profile = NativeBattleRecoveryProfile.ForEffect(effect);

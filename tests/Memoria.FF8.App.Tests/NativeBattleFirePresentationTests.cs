@@ -16,7 +16,7 @@ public sealed class NativeBattleFirePresentationTests
     [InlineData(true)]
     public void Installed_Fire_runs_original_service_camera_sprites_contact_and_sound_through_mid_effect_restore(bool casting)
     {
-        string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(gameDirectory), "Installed original Fire resources are required.");
         using GameAssets game = new(gameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
@@ -228,7 +228,7 @@ public sealed class NativeBattleFirePresentationTests
         BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(path!))!;
         BattleSession battle = BattleSession.Restore(snapshot);
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(battle.Capture()));
-        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         BattleScenePresentation scene = new(assets, snapshot.Definition, true);
         Assert.Equal(320 * 224 * 4, scene.Render(battle, 320, 224).Length);
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(battle.Capture()));

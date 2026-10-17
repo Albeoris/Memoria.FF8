@@ -19,7 +19,7 @@ public sealed class NativeBattleEffectPresentationTests
     [InlineData((ushort)59, (byte)4, "Megalixir", 0x7F2810u, 300182u, false, false)]
     public void Installed_original_effect_runs_cast_pixels_sound_and_one_contact_through_a_saved_midpoint(ushort effect, byte command, string name, uint entry, uint sound, bool requireCasting, bool applyKernelStatuses)
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original effect resources are required.");
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
@@ -38,7 +38,7 @@ public sealed class NativeBattleEffectPresentationTests
         NativeBattleEffectBinding binding = source.NativeGraphics?.OriginalEffect?.Binding ?? Assert.Single(source.Definition.NativeEffectCatalog, binding => binding.LifeResources is not null || binding.DoubleResources is not null || binding.TripleResources is not null || binding.RecoveryResources is not null);
         ushort effect = binding.Effect;
         Assert.True(effect is 4 or 5 or 21 or 35 or 53 or 58 or 59);
-        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         uint sound = binding.RecoveryResources?.Sound ?? (effect is 4 or 21 ? 300027u : 300021u);
         RunCurrentCast(source, assets, effect, binding.Entry, sound, false, false);
     }
@@ -57,7 +57,7 @@ public sealed class NativeBattleEffectPresentationTests
         second.AdvanceNativeGraphicsPresentation(Callback);
         Assert.Equal(source.NativeGraphics!.Callback + 1, first.NativeGraphics!.Callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
-        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         byte[] pixels = new BattleScenePresentation(assets, source.Definition, true).Render(first, 320, 224).ToArray();
         Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition, true).Render(second, 320, 224).ToArray());
         string id = "effect-next-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff");

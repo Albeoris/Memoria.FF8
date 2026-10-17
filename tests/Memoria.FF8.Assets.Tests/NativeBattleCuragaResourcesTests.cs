@@ -8,7 +8,7 @@ public sealed class NativeBattleCuragaResourcesTests
     [Fact]
     public void Original_Curaga_resources_keep_actual_animation_sound_flash_program_and_mutable_directory_extent()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleCuragaResources resources = game.ReadNativeCuragaResources();
         Assert.Equal(2976, resources.Animation.Data.Length);
         Assert.Equal(0x4946Fu, resources.Sound);

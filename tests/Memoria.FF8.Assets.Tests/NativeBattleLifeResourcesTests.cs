@@ -9,7 +9,7 @@ public sealed class NativeBattleLifeResourcesTests
     [InlineData((ushort)5, 0x8D4450u, 0x8D4430u, 0x27618A0u)]
     public void Original_catalog_and_resources_keep_distinct_entries_and_identical_sprite_payloads(ushort effect, uint entry, uint initializer, uint global)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalog()[effect - 1];
         Assert.Equal(entry, binding.Entry);
         Assert.Equal(initializer, binding.Initializer);
@@ -46,7 +46,7 @@ public sealed class NativeBattleLifeResourcesTests
     [InlineData((ushort)5, (byte)1, true, false)]
     public void Actual_entry_preserves_the_distinct_TIM_and_animation_policy(ushort effectId, byte flags, bool uploads, bool registersAnimation)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleLifeResources resources = game.ReadNativeLifeResources(effectId);
         NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(effectId, game.ReadNativeEffectCatalogForEffects([effectId]));
         var initialized = NativeBattleOriginalEffects.Initialize(game.ReadColdProcessNativeBattleMemory().EffectMemory!, selected);
@@ -91,7 +91,7 @@ public sealed class NativeBattleLifeResourcesTests
     [Fact]
     public void Unproved_effect_does_not_reuse_a_family_resource_profile()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         Assert.Throws<ArgumentOutOfRangeException>(() => game.ReadNativeLifeResources(1));
     }
 }

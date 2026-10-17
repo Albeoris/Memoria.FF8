@@ -10,7 +10,7 @@ public sealed class NativeBattleCureResourcesTests
     [InlineData("Curaga", 23, 28, 0x87DB10u, 0x87DAF0u, "mag027-051.tim")]
     public void Healing_actions_use_the_installed_kernel_effect_and_executable_entry(string name, int actionId, ushort effectId, uint entry, uint initializer, string texture)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleActionDefinition action = assets.ActionDefinitions.Single(action => action.Ability == BattleAbility.Magic && action.Id == actionId);
         Assert.Equal(name, action.Name);
@@ -24,7 +24,7 @@ public sealed class NativeBattleCureResourcesTests
     [Fact]
     public void Cure_entry_registers_its_original_animation_and_uploads_the_loaded_TIM_before_its_first_callback()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleCureResources resources = game.ReadNativeCureResources();
         Assert.Equal(1968, resources.Animation.Data.Length);
         Assert.Equal(0x493F2u, resources.Sound);

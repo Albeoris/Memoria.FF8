@@ -15,7 +15,7 @@ public sealed class NativeBattleRestorationMeshAssetsTests
     [InlineData(5, 48, 0)]
     public void Original_Esuna_mesh_groups_emit_exact_faces_and_source_selected_windows_after_restore(int index, int faces, ushort vertical)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleRestorationExecutableState bank = NativeBattleRestorationExecutableState.FromColdProcess(24).Initialize(game.ReadNativeRestorationResources(24).Executable!);
         NativeBattleRestorationExecutableState restored = JsonSerializer.Deserialize<NativeBattleRestorationExecutableState>(JsonSerializer.Serialize(bank))!;
         NativeBattleActionMatrix matrix = NativeBattleCuragaMatrices.Identity8DD770() with { Z = 20000 };
@@ -44,7 +44,7 @@ public sealed class NativeBattleRestorationMeshAssetsTests
     [InlineData(11, 48)]
     public void Original_Full_life_textured_meshes_use_the_shared_exact_material_and_packet_core(int index, int faces)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleRestorationExecutableState bank = NativeBattleRestorationExecutableState.FromColdProcess(27).Initialize(game.ReadNativeRestorationResources(27).Executable!);
         ImmutableArray<byte> mesh = ReadMesh(bank, index);
         NativeBattleActionMatrix matrix = NativeBattleCuragaMatrices.Identity8DD770() with { Z = 20000 };
@@ -61,7 +61,7 @@ public sealed class NativeBattleRestorationMeshAssetsTests
     [InlineData(9, 0x2A563964u)]
     public void Actual_Full_life_meshes_keep_their_original_F4_G4_colors_ordered_packets_and_JSON(int index, uint color)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleRestorationExecutableState bank = NativeBattleRestorationExecutableState.FromColdProcess(27).Initialize(game.ReadNativeRestorationResources(27).Executable!);
         ImmutableArray<byte> mesh = ReadMesh(bank, index);
         int groups = BinaryPrimitives.ReadInt32LittleEndian(mesh.AsSpan());

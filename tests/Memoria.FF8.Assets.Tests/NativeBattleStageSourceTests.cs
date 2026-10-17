@@ -7,7 +7,7 @@ public sealed class NativeBattleStageSourceTests
     [Fact]
     public void InstalledStage31RetainsItsOriginalFourSkeletonsAndAnimationSources()
     {
-        using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(TestResources.GameDirectory);
         BattleStage stage = assets.LoadStage(31);
         NativeBattleStageSource source = Assert.IsType<NativeBattleStageSource>(stage.NativeSource);
         Assert.Equal((short)16, source.RotationSpeed);

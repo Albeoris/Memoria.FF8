@@ -9,7 +9,7 @@ public sealed class NativeBattleBlizzardResourcesTests
     [Fact]
     public void OriginalBlizzardAction144BindsOnlyRequestedInitializerAndDirectMeshes()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleActionDefinition action = assets.ActionDefinitions.Single(action => action.Ability == BattleAbility.Magic && action.Id == 4);
         Assert.Equal("Blizzard", action.Name);
@@ -37,7 +37,7 @@ public sealed class NativeBattleBlizzardResourcesTests
     [Fact]
     public void Original80FaceInitializationAndActualPartnerRecordUseCurrentPacketCore()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleBlizzardResources resources = game.ReadNativeBlizzardResources();
         var initialized = NativeBattleBlizzardFaceMotion.Initialize61B190(null, 0, resources.PrimaryMesh, new(1));
         Assert.Equal(2560, initialized.Faces.Read(0).Length);

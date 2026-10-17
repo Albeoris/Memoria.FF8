@@ -8,7 +8,7 @@ public sealed class NativeBattleModelLoaderSessionTests
     [Fact]
     public void Actual_party_file_wait_restores_its_singleton_IO_CPU_and_resource_state_without_reinitialization()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleEncounter encounter = assets.LoadEncounter(94);
         BattleStage stage = assets.LoadStage(encounter.StageId);
@@ -17,14 +17,16 @@ public sealed class NativeBattleModelLoaderSessionTests
             new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 },
             new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = encounter.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
         ];
+        NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicFixture.Prepare(game, encounter.Id);
         BattleSession session = new(new()
         {
             EncounterId = 94,
             StageId = encounter.StageId,
             Combatants = actors,
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativeMusicProcess = musicEntry.MusicProcess,
             NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5),
-            NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(),
+            NativeGlobalSoundProcess = musicEntry.SoundProcess,
             NativeFlags = 0x80,
             NativeEntry = new(0, 0),
             NativeGlobalRandom = new(0),

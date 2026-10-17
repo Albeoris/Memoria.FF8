@@ -28,7 +28,7 @@ public sealed class NativeBattleGuardianPhase86MigrationTests
         Assert.Equal((ushort)86, effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
         NativeBattleQuezacotlResources retained = effect.Binding.NativeQuezacotlResources!;
         Assert.Null(retained.Ribbon);
-        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         using BattleAssets presentationAssets = new(game.GameDirectory);
         NativeBattleQuezacotlResources authenticated = game.ReadNativeQuezacotlResources();
         Assert.NotNull(authenticated.Ribbon);

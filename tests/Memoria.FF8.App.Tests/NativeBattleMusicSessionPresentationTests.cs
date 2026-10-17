@@ -197,7 +197,7 @@ public sealed class NativeBattleMusicSessionPresentationTests
 
     private static GameAssets OpenGame()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original battle entry resources are required.");
         return new(directory);
     }

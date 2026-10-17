@@ -37,7 +37,7 @@ public sealed class NativeBattleCameraScratchMigrationTests
         BattleSession first = BattleSession.Restore(migrated);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(migrated))!);
         Assert.Equal(JsonSerializer.Serialize(migrated), JsonSerializer.Serialize(first.Capture()));
-        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         BattleScenePresentation scene = new(assets, migrated.Definition, true);
         byte[] before = scene.Render(first, 320, 224).ToArray();
         Assert.Equal(before, scene.Render(BattleSession.Restore(original), 320, 224).ToArray());

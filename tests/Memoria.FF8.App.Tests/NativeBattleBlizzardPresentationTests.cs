@@ -15,7 +15,7 @@ public sealed class NativeBattleBlizzardPresentationTests
     [Fact]
     public void Installed_Blizzard144_runs_original_geometry_casting_sound_contact_and_standalone_restore()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original Blizzard resources are required.");
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
@@ -215,7 +215,7 @@ public sealed class NativeBattleBlizzardPresentationTests
         second.AdvanceNativeGraphicsPresentation(Callback);
         Assert.Equal(snapshot.NativeGraphics.Callback + 1, first.NativeGraphics!.Callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
-        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         Assert.Equal(new BattleScenePresentation(assets, snapshot.Definition, true).Render(first, 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition, true).Render(second, 320, 224).ToArray());
         Console.WriteLine($"Blizzard checkpoint saved{snapshot.Frame}/{snapshot.NativeGraphics.Callback}; actual nextcallback{first.NativeGraphics.Callback}, independentwholeJSON/copiedpixels agree.");
     }

@@ -21,7 +21,7 @@ public sealed class NativeBattleGuardianRibbonVisualTests
         BattleSession original = BattleSession.Restore(snapshot);
         BattleSnapshot without = snapshot with { NativeGraphics = snapshot.NativeGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !Ribbon(command)).ToImmutableArray() } } };
         BattleSession control = BattleSession.Restore(without);
-        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         BattleScenePresentation scene = new(assets, snapshot.Definition, true);
         byte[] full = scene.Render(original, 320, 224).ToArray();
         byte[] removed = scene.Render(control, 320, 224);

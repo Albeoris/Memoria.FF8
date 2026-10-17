@@ -13,7 +13,7 @@ public sealed class NativeBattleDefensiveFrameRenderingTests
     [InlineData(2, 60)]
     public void Original_defensive_packets_render_pixels_and_independent_frame_restores_match(byte variant, int polygons)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         NativeBattleDefensiveResource resource = game.ReadNativeBattleDefensiveResources().Single(item => item.Variant == variant);
         NativeBattleCameraProjection projection = new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 20000, 4096), 216, 160, 108);

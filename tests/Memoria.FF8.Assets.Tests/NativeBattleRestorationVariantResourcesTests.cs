@@ -12,7 +12,7 @@ public sealed class NativeBattleRestorationVariantResourcesTests
     [InlineData((ushort)67, 0x7DEA20u, 0x7DEA00u, 0x26005D0u, "mag023-066.tim", 0x5C0C)]
     public void Authenticated_original_variants_keep_their_own_initializer_animation_directory_and_cold_flag(ushort effect, uint entry, uint initializer, uint initializerGlobal, string file, int extent)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([effect])[effect - 1];
         NativeBattleRestorationResources resources = Assert.IsType<NativeBattleRestorationResources>(binding.RestorationResources);
         Assert.Equal(entry, binding.Entry);
@@ -49,7 +49,7 @@ public sealed class NativeBattleRestorationVariantResourcesTests
     [InlineData((ushort)67, (byte)1)]
     public void Actual_TIM_entry_obeys_the_original_skip_bit_without_aliasing_another_executable(ushort effect, byte flags)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         ImmutableArray<NativeBattleEffectBinding> catalog = game.ReadNativeEffectCatalogForEffects([effect]);
         NativeBattleRestorationResources resources = catalog[effect - 1].RestorationResources!;
         NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(effect, catalog);
@@ -85,7 +85,7 @@ public sealed class NativeBattleRestorationVariantResourcesTests
     [Fact]
     public void Remedy_equal_original_bytes_still_materialize_distinct_mutable_addresses()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleRestorationResources esuna = game.ReadNativeRestorationResources(24);
         NativeBattleRestorationResources remedy = game.ReadNativeRestorationResources(67);
         Assert.Equal(esuna.Animation.Data.ToArray(), remedy.Animation.Data.ToArray());
@@ -104,7 +104,7 @@ public sealed class NativeBattleRestorationVariantResourcesTests
     [Fact]
     public void Effect57_extra_frame_zero_source6_uses_twenty_original_FT4_faces_and_survives_JSON()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleRestorationResources resources = game.ReadNativeRestorationResources(57);
         NativeBattleRestorationProfile profile = NativeBattleRestorationProfile.Effect57;
         NativeBattleRestorationExecutableState bank = game.ReadColdProcessNativeBattleMemory().EffectMemory!.Effect57Executable!.Initialize(resources.Executable!);

@@ -10,7 +10,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private void QueueNativeActionClockCompletion(uint callback)
+    private void QueueNativeActionClockCompletion(uint callback, string? eventActorId = null, byte? eventActorIndex = null)
     {
         if (NativeGraphics is { } graphics)
         {
@@ -19,7 +19,7 @@ public sealed partial class BattleSession
         else
         {
             nativeActionScratch = nativeActionScratch with { ComponentCompletion = callback };
-            TryCompleteNativeComponentCommand();
+            TryCompleteNativeComponentCommand(eventActorId, eventActorIndex);
         }
     }
 
@@ -35,28 +35,33 @@ public sealed partial class BattleSession
         bool completed = CompleteNativeActionEvent(callback);
         if (completed)
         {
-            //One original event can publish several104 headers before its single final10.
-            //Remove only those current mirrors, before computing the actor's remaining busy owner.
-            if (queuedPresentations.Length != 0)
-            {
-                HashSet<BattleAttackCommand> acknowledged = new(queuedPresentations, ReferenceEqualityComparer.Instance);
-                BattleAttackCommand[] remaining = actions.Where(command => !acknowledged.Contains(command)).ToArray();
-                actions.Clear();
-                foreach (BattleAttackCommand command in remaining)
-                {
-                    actions.Enqueue(command);
-                }
-            }
-            if (presentation is not null && ReferenceEquals(ActiveAction, presentation))
-            {
-                CompleteActionPresentation(presentation, "Native action event completed.");
-            }
-            foreach (BattleAttackCommand command in queuedPresentations)
-            {
-                CompleteActionPresentation(NativeCommandPresentation(command), "Native action event completed.", false);
-            }
+            AcknowledgeNativeEventPresentations(presentation, queuedPresentations);
         }
         return NativeGraphics ?? throw new InvalidDataException("Native completion lost its graphical descriptor owner.");
+    }
+
+    private void AcknowledgeNativeEventPresentations(BattleActionPresentation? presentation, BattleAttackCommand[] queuedPresentations)
+    {
+        //One original event can publish several104 headers before its single final10.
+        //Remove only those current mirrors, before computing the actor's remaining busy owner.
+        if (queuedPresentations.Length != 0)
+        {
+            HashSet<BattleAttackCommand> acknowledged = new(queuedPresentations, ReferenceEqualityComparer.Instance);
+            BattleAttackCommand[] remaining = actions.Where(command => !acknowledged.Contains(command)).ToArray();
+            actions.Clear();
+            foreach (BattleAttackCommand command in remaining)
+            {
+                actions.Enqueue(command);
+            }
+        }
+        if (presentation is not null && ReferenceEquals(ActiveAction, presentation))
+        {
+            CompleteActionPresentation(presentation, "Native action event completed.");
+        }
+        foreach (BattleAttackCommand command in queuedPresentations)
+        {
+            CompleteActionPresentation(NativeCommandPresentation(command), "Native action event completed.", false);
+        }
     }
 
     private bool HasCurrentNativeQueuedPresentation()
@@ -132,6 +137,7 @@ public sealed partial class BattleSession
 
     private void RunNativeAi(BattleCombatant actor, int callback)
     {
+        byte eventActorIndex = checked((byte)actor.NativeIndex);
         if (callback == 1)
         {
             actor.AiTurnCount = unchecked((byte)(actor.AiTurnCount + 1));
@@ -160,7 +166,7 @@ public sealed partial class BattleSession
         }
         if (paused)
         {
-            QueueNativeActionClockCompletion(callback == 1 ? 0x47DE70u : 0x47DDA0u);
+            QueueNativeActionClockCompletion(callback == 1 ? 0x47DE70u : 0x47DDA0u, actor.Id, eventActorIndex);
         }
     }
 }

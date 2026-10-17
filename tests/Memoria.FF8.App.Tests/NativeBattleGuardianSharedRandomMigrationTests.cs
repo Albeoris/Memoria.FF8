@@ -26,7 +26,7 @@ public sealed class NativeBattleGuardianSharedRandomMigrationTests
         Assert.Null(original.Definition.NativeRetainedMemory!.EffectMemory!.SharedEffectRandom);
         Assert.Equal(0, original.Definition.NativeRetainedMemory.EffectMemory.SelectedIndex);
         Assert.Equal(NativeFieldRuntimeProfile.FF8EnExecutableHash, original.Definition.NativeRetainedMemory.ColdExecutableSha256);
-        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         NativeBattleSharedEffectRandomState cold = Assert.IsType<NativeBattleSharedEffectRandomState>(game.ReadColdProcessNativeBattleMemory().EffectMemory!.SharedEffectRandom);
         Assert.Equal(0u, cold.State);
         //Only the exact first-guardian component lineage is eligible after its complete writer/caller proof.

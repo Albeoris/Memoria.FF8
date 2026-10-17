@@ -11,7 +11,7 @@ public sealed class NativeBattlePlayerTextureTests
     [InlineData(2)]
     public void InstalledSquallBodyRetainsItsOriginalTextureMotionTableAndRelocatesToThePhysicalPartySlot(int physicalSlot)
     {
-        using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(TestResources.GameDirectory);
         NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(new() { Id = "player", IsPlayer = true, ModelId = 0, WeaponId = 0 });
         Assert.NotNull(resource.TextureAnimations);
         Assert.NotNull(resource.BodyTexturePack);

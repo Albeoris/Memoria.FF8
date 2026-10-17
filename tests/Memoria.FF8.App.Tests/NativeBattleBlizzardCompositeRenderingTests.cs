@@ -14,7 +14,7 @@ public sealed class NativeBattleBlizzardCompositeRenderingTests
     [InlineData(64)]
     public void Composite_original_command_tables_select_the_partner_window_and_add_visible_pixels_after_json(int verticalOffset)
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Original primitive command tables are required.");
         using BattleAssets assets = new(directory);
         ImmutableArray<byte> face = Face();

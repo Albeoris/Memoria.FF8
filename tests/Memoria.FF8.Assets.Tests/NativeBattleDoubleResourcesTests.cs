@@ -8,7 +8,7 @@ public sealed class NativeBattleDoubleResourcesTests
     [Fact]
     public void Original_Double_kernel_catalog_and_resources_keep_their_native_addresses_and_bounds()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleActionDefinition action = Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.NativeAction?.MagicId == 4);
         Assert.Equal("Double", action.Name);
@@ -44,7 +44,7 @@ public sealed class NativeBattleDoubleResourcesTests
     [InlineData(4096)]
     public void Actual_Double_morph_sources_write_only_XYZ_into_the_current_destination(int ratio)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleDoubleResources resources = game.ReadNativeDoubleResources();
         NativeBattleStaticMeshResource destination = Assert.Single(resources.Meshes, mesh => mesh.Address == 0x163FFD0);
         var morphed = NativeBattleGfMorphGeometry.Morph45E9D0(resources.MorphFirst, 8, resources.MorphSecond, 8, 76, ratio, destination.Bytes, 8);
@@ -67,7 +67,7 @@ public sealed class NativeBattleDoubleResourcesTests
     [InlineData((byte)1)]
     public void Original_Double_entry_registers_and_uploads_only_when_parameter_flag_allows_it(byte flags)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleDoubleResources resources = game.ReadNativeDoubleResources();
         NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(4, game.ReadNativeEffectCatalogForEffects([4]));
         var initialized = NativeBattleOriginalEffects.Initialize(game.ReadColdProcessNativeBattleMemory().EffectMemory!, selected);

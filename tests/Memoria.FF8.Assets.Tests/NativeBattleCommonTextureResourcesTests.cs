@@ -7,7 +7,7 @@ public sealed class NativeBattleCommonTextureResourcesTests
     [Fact]
     public void Original_A3_is_read_into_mutable_arena_then_queued_and_drained_by_current_TIM_contract()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleEffectInitializerAsset source = game.ReadNativeCommonEffectTexture();
         Assert.Equal("a8def.tim", source.Name);
         Assert.NotEmpty(source.Data);

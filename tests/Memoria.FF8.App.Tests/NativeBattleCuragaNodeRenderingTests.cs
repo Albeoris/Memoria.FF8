@@ -11,7 +11,7 @@ public sealed class NativeBattleCuragaNodeRenderingTests
     [Fact]
     public void Actual_initializer_and_private_node_cycle_render_original_sprites_FT4_GT4_G3_G4_and_restore_independently()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         var fixture = Fixture(game);
         NativeBattleCuragaFrame frame = fixture.Frame;

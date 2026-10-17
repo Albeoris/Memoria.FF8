@@ -12,7 +12,7 @@ public sealed class NativeBattleCuraResourcesTests
     [InlineData(0x1611C20u, 18, 100, 0x40000030u)]
     public void Original_scene_channels_emit_the_actual_meshes_for_their_complete_lifetime_and_restore_next_callback(uint address, int duration, int clearBytes, uint flags)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleCuraSceneResource scene = game.ReadNativeCuraResources().Scenes.Single(item => item.Address == address);
         NativeBattleGfAnimationSource source = new(scene.Address, scene.Data);
         NativeBattleGfAnimationWorkspace workspace = new(new byte[104].ToImmutableArray());
@@ -50,7 +50,7 @@ public sealed class NativeBattleCuraResourcesTests
     [Fact]
     public void Real_Cura_scene_meshes_use_their_explicit_plus_twelve_vertex_pointer_and_keep_the_default_mesh_path_equivalent()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleCuraResources resources = game.ReadNativeCuraResources();
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 30000, 4096);
         NativeBattleCameraProjection projection = new(camera, 216, 160, 108);
@@ -77,7 +77,7 @@ public sealed class NativeBattleCuraResourcesTests
     [Fact]
     public void Original_Cura_resources_keep_all_sprite_banks_both_scene_resources_and_signed_emission_tables()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleCuraResources resources = game.ReadNativeCuraResources();
         Assert.Equal(2120, resources.Animation.Data.Length);
         Assert.Equal(0x4942Du, resources.Sound);
@@ -94,7 +94,7 @@ public sealed class NativeBattleCuraResourcesTests
     [Fact]
     public void Entry_uploads_the_actual_loaded_TIM_and_registers_the_actual_camera_while_draw_banks_come_from_literal571B50()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(25, game.ReadNativeEffectCatalogForEffects([25]));
         var initialized = NativeBattleOriginalEffects.Initialize(NativeBattleEffectMemory.FromColdProcess(), selected);
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();

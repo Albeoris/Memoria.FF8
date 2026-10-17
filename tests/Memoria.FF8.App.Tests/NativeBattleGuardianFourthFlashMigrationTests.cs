@@ -24,7 +24,7 @@ public sealed class NativeBattleGuardianFourthFlashMigrationTests
         Assert.Equal((ushort)227, original.NativeGraphics.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
         NativeBattleQuezacotlResources retained = original.NativeGraphics.OriginalEffect.Binding.NativeQuezacotlResources!;
         Assert.Null(retained.Frame229FlashColor);
-        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         NativeBattleQuezacotlResources authenticated = game.ReadNativeQuezacotlResources();
         Assert.Equal(0x00505050u, authenticated.Frame229FlashColor);
         Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(authenticated with { Frame229FlashColor = null, Frame277Sound = retained.Frame277Sound, Paths = retained.Paths }));

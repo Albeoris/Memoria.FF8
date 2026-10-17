@@ -11,7 +11,7 @@ public sealed class NativeBattleQuezacotlExecutableWorkspaceTests
     [Fact]
     public void Original129CD84_runs_its_sixteen_nodes_in_the_retained4BC_executable_workspace_and_preserves_the_concurrent_child()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleQuezacotlResources resources = game.ReadNativeQuezacotlResources();
         NativeBattleEffectFileAsset currentModel = resources.Files.Single(file => file.FileId == 521);
         Assert.Equal("MAG115_H.16", currentModel.Name);
@@ -57,7 +57,7 @@ public sealed class NativeBattleQuezacotlExecutableWorkspaceTests
     [Fact]
     public void Original527_type16_completion_queues_its_three_mutable_arena_TIM_pointers()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleQuezacotlResources resources = game.ReadNativeQuezacotlResources();
         NativeBattleEffectFileAsset file = resources.Files.Single(file => file.FileId == 527);
         Assert.Equal(97896, file.Data.Length);

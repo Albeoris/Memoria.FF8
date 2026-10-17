@@ -11,7 +11,7 @@ public sealed class NativeBattleGuardianFixtureInputTests
     [Fact]
     public void InstalledManualHeaderFixtureInputsIncludeItsOriginalKernelRowAndColdPhysicalThreeByte()
     {
-        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleDefinition definition = new() { NativeActions = assets.NativeActions.ToArray(), ActionDefinitions = BattlePartyProjection.CreateActions(game.ReadNewGameCharacterVitals(), assets.ActionDefinitions) };
         BattleNativeAction native = Assert.Single(definition.NativeActions, action => action.Command == 254 && action.ActionId == 64);

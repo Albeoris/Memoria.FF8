@@ -9,7 +9,7 @@ public sealed class NativeBattleQuezacotlResourcesTests
     [Fact]
     public void Original116CustomInitializerAndEntryRetainSeparateWorkBankOneRandomDrawAndPhysicalMainPool()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         ImmutableArray<NativeBattleEffectBinding> original = game.ReadNativeEffectCatalog();
         Assert.Null(original[115].NativeQuezacotlResources);
         ImmutableArray<NativeBattleEffectBinding> catalog = game.ReadNativeEffectCatalogForEffects([116]);

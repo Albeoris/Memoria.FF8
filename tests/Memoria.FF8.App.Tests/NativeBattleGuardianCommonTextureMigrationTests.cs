@@ -27,7 +27,7 @@ public sealed class NativeBattleGuardianCommonTextureMigrationTests
         Assert.Equal((byte?)0, original.NativeEffectMemory!.QuezacotlCompletion17A8);
         NativeBattleAuxiliaryTask pending = Assert.Single(original.NativeGraphics.Auxiliary.Slots, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.CommonTextureLoad508660);
         Assert.Equal((byte)0, pending.Payload[0]);
-        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         NativeBattleEffectInitializerAsset authenticated = game.ReadNativeCommonEffectTexture();
         Assert.Equal("a8def.tim", authenticated.Name);
         Assert.NotEmpty(authenticated.Data);

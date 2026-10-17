@@ -10,7 +10,7 @@ public sealed class NativeMusicDecisionPresentationTests
     [Fact]
     public void Already_decoded_landing_identity_keeps_its_original_file_and_negative_identity_has_no_fallback()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "The original authenticated music catalog is required.");
         NativeMusicCatalog catalog = new(directory);
         Assert.Equal("017s-joriku.sgt", Path.GetFileName(catalog.MusicFileResolved(17)));

@@ -23,7 +23,7 @@ public sealed class NativeBattleGuardianPaddingMigrationTests
         Assert.Equal((ushort)116, original.NativeGraphics.OriginalEffect!.Binding.Effect);
         Assert.Equal((ushort)86, original.NativeGraphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
         Assert.Equal((ushort)0, original.NativeCamera!.Mask);
-        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         NativeBattleCameraState cold = game.ReadColdProcessNativeBattleMemory().Camera!;
         Assert.Equal((short?)0, cold.EyePaddingF6);
         Assert.Equal((short?)0, cold.TargetPaddingFE);

@@ -11,7 +11,7 @@ public sealed class NativeBattleCuragaGouraudAssetsTests
     [InlineData(14)]
     public void Two_actual_frame_twelve_meshes_emit_their_original_two_G3_and_four_G4_faces(int index)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleCuragaExecutableState bank = NativeBattleCuragaExecutableState.FromColdProcess().Initialize87EA20(game.ReadNativeCuragaResources().Executable!);
         uint mesh = BinaryPrimitives.ReadUInt32LittleEndian(bank.Read(NativeBattleCuragaExecutableState.Address + 0x84 + (uint)index * 4, 4));
         ImmutableArray<byte> bytes = bank.Read(mesh, checked(NativeBattleCuragaExecutableState.Length - (int)(mesh - NativeBattleCuragaExecutableState.Address))).ToImmutableArray();

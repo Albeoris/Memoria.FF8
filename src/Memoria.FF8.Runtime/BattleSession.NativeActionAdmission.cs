@@ -182,11 +182,16 @@ public sealed partial class BattleSession
 
     private void ValidateNativeHeaderReference(BattleCombatant actor, int? headerIndex)
     {
+        ValidateNativeHeaderReference(actor.NativeIndex, headerIndex);
+    }
+
+    private void ValidateNativeHeaderReference(int actorIndex, int? headerIndex)
+    {
         if (headerIndex is null)
         {
             return;
         }
-        if (headerIndex is < 0 or >= NativeBattleActionPacketsState.HeaderCapacity || nativeActionPackets.Headers[headerIndex.Value].ReadByte(0) != actor.NativeIndex)
+        if (headerIndex is < 0 or >= NativeBattleActionPacketsState.HeaderCapacity || nativeActionPackets.Headers[headerIndex.Value].ReadByte(0) != actorIndex)
         {
             throw new InvalidDataException("Saved factual action does not identify its physical actor/header slot.");
         }
@@ -195,7 +200,7 @@ public sealed partial class BattleSession
 
     private void CompleteNativeComponentPacketPresentation(BattleActionPresentation command)
     {
-        if (NativeGraphics is null && command.NativeHeaderIndex is not null && !actions.Any(queued => queued.NativeHeaderIndex is not null))
+        if (NativeGraphics is null && ReferenceEquals(ActiveAction, command) && command.NativeHeaderIndex is not null && !actions.Any(queued => queued.NativeHeaderIndex is not null))
         {
             //TODO(TD-009): Graphicsless components admit48D1F0 at their declared presentation completion instead of descriptor10.
             nativeActionScratch = nativeActionScratch with { ComponentCompletion = nativeActionScratch.ComponentCompletion ?? 0x47DDA0 };

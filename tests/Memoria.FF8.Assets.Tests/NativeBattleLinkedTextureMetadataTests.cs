@@ -9,7 +9,7 @@ public sealed class NativeBattleLinkedTextureMetadataTests
     [InlineData(1, 7, 2, true)]
     public void Selected_weapon_pack_has_its_own_original_slot_and_geometry_shape(int character, int weapon, int physicalIndex, bool sharedSkeleton)
     {
-        using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(TestResources.GameDirectory);
         NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(new() { Id = "player", IsPlayer = true, ModelId = character, WeaponId = weapon });
         Assert.Equal(sharedSkeleton, resource.LinkedGeometryUsesBodySkeleton);
         Assert.NotNull(resource.LinkedTexturePack);
@@ -31,7 +31,7 @@ public sealed class NativeBattleLinkedTextureMetadataTests
     [Fact]
     public void Enemy_loader_publishes_known_linked_pointer_absence_from_502670()
     {
-        using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(TestResources.GameDirectory);
         NativeBattleGraphicsResource resource = assets.ReadEnemyNativeGraphicsResource(61);
         Assert.NotNull(resource.Geometry);
         Assert.NotEmpty(resource.Geometry!.Value);

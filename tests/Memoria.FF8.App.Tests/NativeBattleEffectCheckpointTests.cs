@@ -16,7 +16,7 @@ public sealed class NativeBattleEffectCheckpointTests
         string json = JsonSerializer.Serialize(before);
         Assert.Equal(json, JsonSerializer.Serialize(battle.Capture()));
         BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
-        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         BattleScenePresentation first = new(assets, before.Definition, true);
         BattleScenePresentation second = new(assets, before.Definition, true);
         Assert.Equal(first.Render(battle, 320, 224).ToArray(), second.Render(clone, 320, 224));

@@ -11,7 +11,7 @@ public sealed class NativeBattleModulePacketResourcesTests
     [InlineData(7)]
     public void OriginalCastingMeshesEmitTheirActualFt4OrG4RecordsWithGteDepth(int meshId)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleStaticMeshResource resource = game.ReadNativeEffectMeshes().Single(mesh => mesh.Id == meshId);
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 12000, 4096);
         NativeBattleCameraProjection projection = new(camera, 216, 160, 108);

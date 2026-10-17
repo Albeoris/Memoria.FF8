@@ -10,7 +10,7 @@ public sealed class NativeBattleQuezacotlFragmentMeshAssetsTests
     [Fact]
     public void Actual525_current_executable_mesh_emits_original_twenty_F3_attempts_and_survives_independent_restore()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleEffectFileAsset file = game.ReadNativeQuezacotlResources().Files.Single(file => file.FileId == 525);
         Assert.Equal("MAG115_H.20", file.Name);
         NativeBattleEffectMemory memory = game.ReadColdProcessNativeBattleMemory().EffectMemory!;

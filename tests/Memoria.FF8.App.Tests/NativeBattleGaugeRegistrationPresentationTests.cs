@@ -11,7 +11,7 @@ public sealed class NativeBattleGaugeRegistrationPresentationTests
     [InlineData(0x215u, 0x15u)]
     public void Installed_participant_deferred_ready_callback_is_consumed_once_in_bank_one_preserving_reaction_and_full_gauge(uint registeredFlags, uint consumedFlags)
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original participant and native clock resources are required.");
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);

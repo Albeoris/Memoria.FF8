@@ -7,7 +7,7 @@ public sealed class NativeBattleSharedEffectRandomResourcesTests
     [Fact]
     public void Authenticated_loader_publishes_actual_BSS_DWORD2557098_without_aliasing_private_GF_seed()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleRetainedMemory cold = game.ReadColdProcessNativeBattleMemory();
         Assert.Equal(NativeFieldRuntimeProfile.FF8EnExecutableHash, cold.ColdExecutableSha256);
         NativeBattleEffectMemory memory = cold.EffectMemory!;

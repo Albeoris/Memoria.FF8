@@ -25,7 +25,7 @@ public sealed class NativeBattleGuardianRibbonMigrationTests
         Assert.Equal((ushort)87, effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
         NativeBattleQuezacotlResources retained = effect.Binding.NativeQuezacotlResources!;
         Assert.Null(retained.Ribbon);
-        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         NativeBattleQuezacotlResources authenticated = game.ReadNativeQuezacotlResources();
         Assert.NotNull(authenticated.Ribbon);
         authenticated.Ribbon.Validate();
@@ -43,7 +43,7 @@ public sealed class NativeBattleGuardianRibbonMigrationTests
         BattleSession first = BattleSession.Restore(migrated);
         Assert.Equal(JsonSerializer.Serialize(migrated), JsonSerializer.Serialize(first.Capture()));
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(migrated))!);
-        using BattleAssets presentationAssets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using BattleAssets presentationAssets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         BattleScenePresentation scene = new(presentationAssets, migrated.Definition, true);
         Assert.Equal(320 * 224 * 4, scene.Render(first, 320, 224).Length);
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);

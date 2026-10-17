@@ -8,7 +8,7 @@ public sealed class NativeBattleModelColorOwnerTests
     [Fact]
     public void Authenticated_image_preserves_the_two_distinct_cold_override_actor_bytes()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         byte[] executable = File.ReadAllBytes(Path.Combine(game.GameDirectory, "FF8_EN.exe"));
         byte[] packed = NativeBattleEffectStaticResourcesReader.Read(executable, 0xB8BA00, 8).ToArray();
         Assert.Equal(0xFF000000u, BinaryPrimitives.ReadUInt32LittleEndian(packed));

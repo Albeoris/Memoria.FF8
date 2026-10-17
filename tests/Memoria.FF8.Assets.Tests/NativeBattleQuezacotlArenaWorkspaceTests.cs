@@ -10,7 +10,7 @@ public sealed class NativeBattleQuezacotlArenaWorkspaceTests
     [Fact]
     public void Original527_current_arena_resource_runs_all_ten_nodes_for36_frames_through_the_shared_geometry_core()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleQuezacotlResources resources = game.ReadNativeQuezacotlResources();
         NativeBattleEffectFileAsset file = resources.Files.Single(file => file.FileId == 527);
         Assert.Equal("MAG115_H.22", file.Name);

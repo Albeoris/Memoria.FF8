@@ -9,11 +9,12 @@ public sealed class NativeBattleStageLifecycleTests
     [Fact]
     public void OriginalStageDescriptorLoadsTextureThenRegistersAndYieldsBeforeFirstPreCameraDraw()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleEncounter formation = assets.LoadEncounter(94);
         BattleStage source = assets.LoadStage(formation.StageId);
         BattleCombatantDefinition[] actors = [new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0 }, new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = formation.Enemies.Single(enemy => enemy.ModelId == 61).Slot }];
+        NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicFixture.Prepare(game, formation.Id);
         BattleDefinition definition = new()
         {
             EncounterId = formation.Id,
@@ -21,8 +22,9 @@ public sealed class NativeBattleStageLifecycleTests
             NativeFlags = 0x80,
             NativeEntry = new(0, 0),
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativeMusicProcess = musicEntry.MusicProcess,
             NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5),
-            NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(),
+            NativeGlobalSoundProcess = musicEntry.SoundProcess,
             NativeGlobalRandom = new(0),
             NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation),
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),

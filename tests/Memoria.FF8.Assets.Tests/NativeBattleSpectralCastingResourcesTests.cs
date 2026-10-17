@@ -12,7 +12,7 @@ public sealed class NativeBattleSpectralCastingResourcesTests
     [InlineData(3, 0x3C67)]
     public void Original_resources_run_the_whole_shared_module_cycle_and_emit_mixed_FT4_GT4_packets(int selector, ushort material)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         var meshes = game.ReadNativeEffectMeshes();
         NativeBattleStaticMeshResource mesh2 = meshes.Single(mesh => mesh.Id == 2);
         NativeBattleStaticMeshResource mesh3 = meshes.Single(mesh => mesh.Id == 3);

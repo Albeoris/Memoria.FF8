@@ -7,7 +7,7 @@ public sealed class NativeBattleMaterialMetadataTests(ITestOutputHelper output)
     [Fact]
     public void OriginalStage31AndSquallRetainCompleteNativeTexturePageWords()
     {
-        using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(TestResources.GameDirectory);
         Check("stage31", assets.LoadStage(31).Meshes);
         Check("Squall", assets.LoadPlayer(0).Meshes);
 

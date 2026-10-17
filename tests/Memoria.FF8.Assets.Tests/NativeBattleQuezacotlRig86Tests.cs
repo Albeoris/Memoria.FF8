@@ -10,7 +10,7 @@ public sealed class NativeBattleQuezacotlRig86Tests
     [Fact]
     public void OriginalFile512InitializesItsActual47BonePoseAndPreservesUnwrittenBoneScales()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleQuezacotlResources resources = game.ReadNativeQuezacotlResources();
         NativeBattleEffectFileAsset file = resources.Files.Single(file => file.FileId == 512);
         Assert.Equal(41920, file.Data.Length);

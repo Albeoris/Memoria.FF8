@@ -23,7 +23,7 @@ public sealed class NativeBattleExecutionStackMigrationTests
         string captureHash = Convert.ToHexString(SHA256.HashData(captureBytes));
         Assert.Equal(expectedSourceHash, sourceHash);
         Assert.Equal(expectedCaptureHash, captureHash);
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         string executableHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(directory, "FF8_EN.exe"))));
         Assert.Equal(NativeFieldRuntimeProfile.FF8EnExecutableHash, executableHash);
         using JsonDocument capture = JsonDocument.Parse(captureBytes);

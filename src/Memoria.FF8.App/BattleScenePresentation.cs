@@ -152,13 +152,7 @@ internal sealed class BattleScenePresentation
             float ground = animation.GroundOffset(pose, actor.IsAlive, groundOffsets[actor.Id]);
             // Original502070 party0/enemy2048 plus world(x,-y,-z) and DAT-local(-x,-y,z)
             // bases yields renderer partyPI/enemy0.
-            BattleActorDraw drawing = new(shownModel, positions[actor.Id], actor.IsPlayer ? MathF.PI : 0, Animation: pose.Animation, Frame: pose.Frame, AttackOffset: pose.Offset, Opacity: pose.Opacity, GroundOffset: ground, LoopAnimation: pose.Loop) { NativePose = pose.NativePose, MeshMask = session.NativeGraphics?.Models[nativeIndex].SequenceState?.MeshMask124 ?? uint.MaxValue };
-            if (session.NativeGraphics is { } nativeTextures && actor.IsPlayer)
-            {
-                NativeBattleModelTextureBinding materialBinding = nativeTextures.Models[nativeIndex].BodyTextureSlots ?? throw new NotSupportedException("Native player rendering requires its executed507400 body texture allocation; migrate the named standalone snapshot explicitly.");
-                //5022C0 pose/sequence replacements retain this body's original geometry and texture allocation.
-                drawing = drawing with { NativeTextureBinding = materialBinding, NativeTextures = session.NativeEffectMemory?.Textures ?? throw new NotSupportedException("Native actor texture allocation requires its retained original VRAM owner.") };
-            }
+            BattleActorDraw drawing = new(shownModel, positions[actor.Id], actor.IsPlayer ? MathF.PI : 0, Animation: pose.Animation, Frame: pose.Frame, AttackOffset: pose.Offset, Opacity: pose.Opacity, GroundOffset: ground, LoopAnimation: pose.Loop) { NativePose = pose.NativePose };
             actors.Add(drawing);
             if (shownWeapon is BattleModel weapon)
             {

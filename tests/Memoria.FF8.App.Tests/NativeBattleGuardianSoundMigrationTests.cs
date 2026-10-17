@@ -22,7 +22,7 @@ public sealed class NativeBattleGuardianSoundMigrationTests
         NativeBattleQuezacotlResources retained = effect.Binding.NativeQuezacotlResources!;
         Assert.NotNull(retained);
         Assert.True(retained.Frame65Sound is null || retained.FlashColors is null, "At least one authenticated resource owner must be missing for this explicit migration.");
-        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         NativeBattleQuezacotlResources authenticated = game.ReadNativeQuezacotlResources();
         Assert.Equal((uint?)240069, authenticated.Frame65Sound);
         if (retained.Frame65Sound is uint sound)

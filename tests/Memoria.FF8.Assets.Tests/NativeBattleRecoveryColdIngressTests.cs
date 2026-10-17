@@ -14,7 +14,7 @@ public sealed class NativeBattleRecoveryColdIngressTests
     [InlineData((ushort)59, 0x2608044u, 0x260A328u)]
     public void Authenticated_loader_maps_the_complete_physical_track_bank_as_zero_without_entry_reset(ushort effect, uint address, uint end)
     {
-        byte[] executable = File.ReadAllBytes(Path.Combine(LaunchOptions.DefaultGameDirectory, "FF8_EN.exe"));
+        byte[] executable = File.ReadAllBytes(Path.Combine(TestResources.GameDirectory, "FF8_EN.exe"));
         NativeBattleRecoveryProfile profile = NativeBattleRecoveryProfile.ForEffect(effect);
         Assert.Equal(address, profile.ChannelAddress);
         Assert.Equal(checked((int)(end - address)), profile.ChannelLength);
@@ -45,7 +45,7 @@ public sealed class NativeBattleRecoveryColdIngressTests
     [InlineData((ushort)59)]
     public void Current_channels_survive_JSON_and_flag1_initialization_while_old_missing_channels_stay_unknown(ushort effect)
     {
-        byte[] executable = File.ReadAllBytes(Path.Combine(LaunchOptions.DefaultGameDirectory, "FF8_EN.exe"));
+        byte[] executable = File.ReadAllBytes(Path.Combine(TestResources.GameDirectory, "FF8_EN.exe"));
         NativeBattleRecoveryResources resources = NativeBattleRecoveryResourcesReader.Read(executable, effect);
         NativeBattleRecoveryExecutableState cold = NativeBattleRecoveryResourcesReader.ReadColdProcessState(executable, effect);
         NativeBattleRecoveryProfile profile = NativeBattleRecoveryProfile.ForEffect(effect);
@@ -69,7 +69,7 @@ public sealed class NativeBattleRecoveryColdIngressTests
     [InlineData((ushort)59, 0x260A2E2u)]
     public void Proved_original_maximum_read_end_remains_inside_the_declared_physical_bank(ushort effect, uint readEnd)
     {
-        byte[] executable = File.ReadAllBytes(Path.Combine(LaunchOptions.DefaultGameDirectory, "FF8_EN.exe"));
+        byte[] executable = File.ReadAllBytes(Path.Combine(TestResources.GameDirectory, "FF8_EN.exe"));
         NativeBattleRecoveryExecutableState cold = NativeBattleRecoveryResourcesReader.ReadColdProcessState(executable, effect);
         NativeBattleRecoveryProfile profile = NativeBattleRecoveryProfile.ForEffect(effect);
         Assert.True(readEnd <= profile.ChannelAddress + (uint)profile.ChannelLength);
@@ -82,7 +82,7 @@ public sealed class NativeBattleRecoveryColdIngressTests
     [Fact]
     public void MegaPotion_repeating_sprite_reads_cross_adjacent_zero_tracks_without_splitting_physical_memory()
     {
-        byte[] executable = File.ReadAllBytes(Path.Combine(LaunchOptions.DefaultGameDirectory, "FF8_EN.exe"));
+        byte[] executable = File.ReadAllBytes(Path.Combine(TestResources.GameDirectory, "FF8_EN.exe"));
         NativeBattleRecoveryExecutableState cold = NativeBattleRecoveryResourcesReader.ReadColdProcessState(executable, 53);
         NativeBattleRecoveryProfile profile = NativeBattleRecoveryProfile.MegaPotion;
         uint source = BinaryPrimitives.ReadUInt32LittleEndian(cold.Read(profile.DirectoryAddress + 4 + 4 * 4, 4));
@@ -107,7 +107,7 @@ public sealed class NativeBattleRecoveryColdIngressTests
     [Fact]
     public void Cold_channel_ingress_rejects_an_unauthenticated_image()
     {
-        byte[] executable = File.ReadAllBytes(Path.Combine(LaunchOptions.DefaultGameDirectory, "FF8_EN.exe"));
+        byte[] executable = File.ReadAllBytes(Path.Combine(TestResources.GameDirectory, "FF8_EN.exe"));
         executable[^1] ^= 1;
         Assert.Throws<NotSupportedException>(() => NativeBattleRecoveryResourcesReader.ReadColdProcessState(executable, 53));
     }

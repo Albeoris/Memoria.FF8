@@ -11,7 +11,7 @@ public sealed class NativeBattleTripleResourcesTests
     [Fact]
     public void Authenticated_cold_mesh_is_retained_across_loads_and_missing_old_owner_stays_unknown()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleEffectMemory memory = game.ReadColdProcessNativeBattleMemory().EffectMemory!;
         NativeBattleTripleMorph current = Assert.IsType<NativeBattleTripleMorph>(memory.TripleMorph);
         Assert.Equal(Assert.Single(game.ReadNativeTripleResources().Meshes, mesh => mesh.Address == 0x1627970).Bytes.ToArray(), current.Bytes.ToArray());
@@ -27,7 +27,7 @@ public sealed class NativeBattleTripleResourcesTests
     [Fact]
     public void Original_Triple_resources_keep_distinct_native_bounds_curves_and_kernel_identity()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleActionDefinition action = Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.NativeAction?.MagicId == 21);
         Assert.Equal("Triple", action.Name);
@@ -57,7 +57,7 @@ public sealed class NativeBattleTripleResourcesTests
     [InlineData(4096)]
     public void Actual_eighty_vertex_morph_preserves_current_fourth_WORDs_and_all_mesh_records(short ratio)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleTripleResources resources = game.ReadNativeTripleResources();
         NativeBattleTripleMorph state = new(Assert.Single(resources.Meshes, mesh => mesh.Address == 0x1627970).Bytes);
         NativeBattleTripleMorph next = state.Morph89E6E0(resources.MorphFirst, resources.MorphSecond, ratio);
@@ -81,7 +81,7 @@ public sealed class NativeBattleTripleResourcesTests
     [InlineData((byte)1)]
     public void Original_entry_registers_its_actual_animation_and_TIM_only_on_the_native_flag_branch(byte flags)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleTripleResources resources = game.ReadNativeTripleResources();
         NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(21, game.ReadNativeEffectCatalogForEffects([21]));
         var initialized = NativeBattleOriginalEffects.Initialize(game.ReadColdProcessNativeBattleMemory().EffectMemory!, selected);

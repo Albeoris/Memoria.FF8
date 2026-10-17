@@ -11,7 +11,7 @@ public sealed class NativeBattleModelDatSourceTests
     [InlineData(1, true, 322, "d1w008.dat")]
     public void Original_tables_select_actual_DAT_and_loader_prepares_and_copies_it_without_model_initialization(byte model, bool linked, short fileId, string name)
     {
-        using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(TestResources.GameDirectory);
         NativeBattleModelDatSource source = assets.ReadNativeModelDatSource(model, linked, 0);
         Assert.Equal(fileId, source.FileId);
         Assert.Equal(name, source.Name);

@@ -14,7 +14,7 @@ public sealed class NativeBattleCurePresentationTests
     [Fact]
     public void Installed_Cure_casting_runs_original_callbacks_pixels_sound_and_one_healing_contact_through_restore()
     {
-        string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(gameDirectory), "Installed original Cure resources are required.");
         using GameAssets game = new(gameDirectory);
         using BattleAssets assets = new(game.GameDirectory);

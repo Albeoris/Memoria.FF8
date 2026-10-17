@@ -16,7 +16,7 @@ public sealed class NativeBattleGuardianActionCatalogMigrationTests
     {
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_GF_ACTION_CATALOG_SOURCE");
         Assert.SkipUnless(source is not null, "The exact standalone20 source is required.");
-        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         (_, JsonNode migratedNode) = Prepare(source!, assets);
         BattleSnapshot migrated = migratedNode.Deserialize<BattleSnapshot>()!;
@@ -39,7 +39,7 @@ public sealed class NativeBattleGuardianActionCatalogMigrationTests
         Assert.SkipUnless(source is not null && output is not null, "The exact standalone20 source and a distinct output are required.");
         Assert.False(string.Equals(Path.GetFullPath(source!), Path.GetFullPath(output!), StringComparison.OrdinalIgnoreCase));
         Assert.EndsWith("-action-catalog-cold-bd9.battle.json", Path.GetFileName(output!));
-        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         (JsonNode originalNode, JsonNode migratedNode) = Prepare(source!, assets);
         BattleSnapshot original = originalNode.Deserialize<BattleSnapshot>()!;

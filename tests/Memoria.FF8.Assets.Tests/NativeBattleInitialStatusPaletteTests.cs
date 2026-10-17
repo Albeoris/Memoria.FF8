@@ -8,7 +8,7 @@ public sealed class NativeBattleInitialStatusPaletteTests
     [Fact]
     public void Initial_petrify_projects_both_original_party_palette_rows_through_509D10()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleEncounter encounter = assets.LoadEncounter(94);
         BattleStage stage = assets.LoadStage(encounter.StageId);
@@ -19,12 +19,15 @@ public sealed class NativeBattleInitialStatusPaletteTests
             new() { Id = "neighbor", Name = "Zell", IsPlayer = true, ModelId = 1, WeaponId = neighborWeapon, NativeDeathCount = 0 },
             new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = encounter.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
         ];
+        NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicFixture.Prepare(game, encounter.Id);
         BattleSession session = new(new()
         {
             EncounterId = 94,
             StageId = encounter.StageId,
             Combatants = actors,
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativeMusicProcess = musicEntry.MusicProcess,
+            NativeGlobalSoundProcess = musicEntry.SoundProcess,
             NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5),
             NativeFlags = 0x80,
             NativeEntry = new(0, 0),

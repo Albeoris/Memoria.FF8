@@ -14,7 +14,7 @@ public sealed class NativeBattleGuardianCompletionProtocolTests
     [InlineData(3, true)]
     public void Original_resource_phase7_restoration_then_low_camera_byte_gate_and_phase9_receipts(byte parameter81, bool waitForLowCameraByte)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession session = ControlledPostModule(game, assets, parameter81);
         BattleSnapshot protocol = session.Capture();
@@ -99,14 +99,16 @@ public sealed class NativeBattleGuardianCompletionProtocolTests
             new() { Id = "neighbor", Name = "Zell", IsPlayer = true, ModelId = 1, WeaponId = neighborWeapon, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 },
             new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = encounter.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
         ];
+        NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicFixture.Prepare(game, encounter.Id);
         BattleDefinition definition = new()
         {
             EncounterId = 94,
             StageId = encounter.StageId,
             Combatants = actors,
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativeMusicProcess = musicEntry.MusicProcess,
             NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5),
-            NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(),
+            NativeGlobalSoundProcess = musicEntry.SoundProcess,
             NativeVibrationProcess = NativeVibrationProcessState.FromColdProcess(),
             NativeFlags = 0x80,
             NativeEntry = new(0, 0),

@@ -33,7 +33,7 @@ public sealed class NativeBattleGuardianGeometryCheckpointTests
         Assert.Equal(expectedStart, commands.Min(command => command.Command.Packet.ByteOffset));
         Assert.True(after.NativeGraphics.OriginalEffect.DrawArenaOffset > expectedStart);
         Assert.Throws<NotSupportedException>(() => after.NativeEffectMemory!.Arena!.Read(expectedStart, 3));
-        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         byte[] pixels = new BattleScenePresentation(assets, after.Definition, true).Render(battle, 320, 224).ToArray();
         Assert.Equal(320 * 224 * 4, pixels.Length);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(after))!);

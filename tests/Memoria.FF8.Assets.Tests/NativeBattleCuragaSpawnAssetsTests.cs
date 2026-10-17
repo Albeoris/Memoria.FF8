@@ -10,7 +10,7 @@ public sealed class NativeBattleCuragaSpawnAssetsTests
     [InlineData(30, new byte[] { 6 })]
     public void Actual_Curaga_executable_birth_scan_selects_literal_records_in_original_directory_order(ushort counter, byte[] expected)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleCuragaResources resources = game.ReadNativeCuragaResources();
         NativeBattleCuragaExecutableState executable = NativeBattleCuragaExecutableState.FromColdProcess().Initialize87EA20(resources.Executable!);
         NativeBattleEffectHierarchy hierarchy = new([NativeBattleEffectTaskPool.Initialize(0x26D7EC0, 0x26D76D0, 676, 3)]);

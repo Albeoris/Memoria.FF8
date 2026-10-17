@@ -7,7 +7,7 @@ public sealed class NativeBattleGeometryMetadataTests
     [Fact]
     public void Reached_player_and_stage31_keep_original_vertex_WORDs_polygon_bytes_and_stage_groups()
     {
-        using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(TestResources.GameDirectory);
         BattleModel player = assets.LoadPlayer(0);
         BattleStage stage = assets.LoadStage(31);
         Assert.NotEmpty(player.Meshes);

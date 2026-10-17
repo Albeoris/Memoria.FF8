@@ -9,7 +9,7 @@ public sealed class NativeBattleStatusIconResourcesTests
     [Fact]
     public void Authenticated_status_directory_preserves_its_five_distinct_resources_and_original_frame_tables()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleStatusIconResources icons = Assert.IsType<NativeBattleStatusIconResources>(game.ReadNativeBattleGraphicsRules().StatusIcons);
         Assert.Equal(0xFF000000u, icons.DefaultHeader);
         Assert.Equal(new byte[] { 5, 6, 7, 8, 12 }, icons.Entries.Select(entry => entry.StatusBit).ToArray());
@@ -53,7 +53,7 @@ public sealed class NativeBattleStatusIconResourcesTests
     [Fact]
     public void Original_poison_initialization_draws_in_the_same_callback_and_retains_next_frame_across_whole_session_JSON()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleEncounter encounter = assets.LoadEncounter(94);
         BattleStage stage = assets.LoadStage(encounter.StageId);
@@ -62,13 +62,15 @@ public sealed class NativeBattleStatusIconResourcesTests
             new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, NativeStatus0 = 2, NativeDeathCount = 0, MaximumHp = 1000, CurrentHp = 1000, InitialAtb = BattleSession.AtbMaximum },
             new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = encounter.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
         ];
+        NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicFixture.Prepare(game, encounter.Id);
         BattleSession session = new(new()
         {
             EncounterId = 94,
             StageId = encounter.StageId,
             Combatants = actors,
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
-            NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(),
+            NativeMusicProcess = musicEntry.MusicProcess,
+            NativeGlobalSoundProcess = musicEntry.SoundProcess,
             NativeFlags = 0x80,
             NativeEntry = new(0, 0),
             NativeGlobalRandom = new(0),

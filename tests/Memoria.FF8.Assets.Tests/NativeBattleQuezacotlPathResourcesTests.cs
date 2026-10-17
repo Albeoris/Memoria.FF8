@@ -8,7 +8,7 @@ public sealed class NativeBattleQuezacotlPathResourcesTests
     [Fact]
     public void OriginalFortyPathsRetainTheirExactExtentHashOffsetsAndTerminalWord()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleQuezacotlPathResources resources = game.ReadNativeQuezacotlResources().Paths!;
         resources.Validate();
         Assert.Equal(0x12AFE58u, resources.Address);

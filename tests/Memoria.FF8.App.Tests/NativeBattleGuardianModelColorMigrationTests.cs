@@ -29,7 +29,7 @@ public sealed class NativeBattleGuardianModelColorMigrationTests
         Assert.Equal(0, visible.Flags0 & 0x808);
         Assert.Equal(0, visible.Flags2!.Value & 4);
         Assert.True((visible.Flags8!.Value & 0x2160510) == 0);
-        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         NativeBattleModelColorOverrides cold = game.ReadColdProcessNativeBattleMemory().EffectMemory!.ModelColorOverrides!;
         Assert.Equal((byte?)255, cold.Slots[0].Actor);
         Assert.Equal((byte?)0, cold.Slots[1].Actor);

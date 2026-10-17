@@ -8,7 +8,7 @@ public sealed class NativeBattleEffect3ResourcesTests
     [Fact]
     public void ExplicitEffect3SelectionReadsItsActualEmbeddedTextureAndEightSpriteBanks()
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         Assert.Null(assets.ReadNativeEffectCatalog()[2].Effect3Resources);
         var catalog = assets.ReadNativeEffectCatalogForEffects([3]);
         NativeBattleEffectBinding binding = catalog[2];

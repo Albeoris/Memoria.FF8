@@ -10,7 +10,7 @@ public sealed class NativeBattleGuardianCastingResourcesTests
     [Fact]
     public void Selector1_uses_installed_resource4_quads_and_restores_its_physical_particles_and_trails()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         ImmutableArray<NativeBattleModuleResource> resources = game.ReadNativeBattleModuleResources();
         Assert.Equal(8, BinaryPrimitives.ReadUInt16LittleEndian(resources[4].Bytes.AsSpan().Slice(8)));
         NativeCrtRandomState random = new(7);

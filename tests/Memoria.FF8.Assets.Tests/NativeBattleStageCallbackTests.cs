@@ -9,7 +9,7 @@ public sealed class NativeBattleStageCallbackTests
     [Fact]
     public void AllSupportedStageCallbacksMatchTheCompleteOriginalBodyAndExactCallTargets()
     {
-        byte[] executable = File.ReadAllBytes(Path.Combine(LaunchOptions.DefaultGameDirectory, "FF8_EN.exe"));
+        byte[] executable = File.ReadAllBytes(Path.Combine(TestResources.GameDirectory, "FF8_EN.exe"));
         using PEReader reader = new(new MemoryStream(executable));
         byte[] staticTemplate = Bytes(0x51B0A0, 35);
         byte[] textureTemplate = Bytes(0x519540, 45);

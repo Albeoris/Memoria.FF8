@@ -14,7 +14,7 @@ public sealed class NativeBattleEffect3PresentationTests
     [Fact]
     public void Installed_Thunder_effect3_runs_original_casting_pixels_sound_and_one_contact_through_restore()
     {
-        string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(gameDirectory), "Installed original Effect3 resources are required.");
         using GameAssets game = new(gameDirectory);
         using BattleAssets assets = new(game.GameDirectory);

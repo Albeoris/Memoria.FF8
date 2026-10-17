@@ -12,7 +12,7 @@ public sealed class NativeBattleGfAnimationWorkspaceResourcesTests(ITestOutputHe
     [InlineData(true, 0x12A9664u, 0x7FC, 23, 24)]
     public void Original_Quezacotl_workspaces_decode_all_first_frame_nodes_and_resume_identically(bool second, uint address, int clearSize, int expectedCount, int expectedDuration)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleQuezacotlResources resources = Assert.IsType<NativeBattleQuezacotlResources>(game.ReadNativeEffectCatalogForEffects([116])[115].NativeQuezacotlResources);
         ImmutableArray<byte> original = second ? resources.WorkSeed1.Data : resources.WorkSeed0.Data;
         NativeBattleGfAnimationSource source = new(address, original);
@@ -75,7 +75,7 @@ public sealed class NativeBattleGfAnimationWorkspaceResourcesTests(ITestOutputHe
     [Fact]
     public void OriginalFile513ThirdWorkspaceUsesIts158ByteCacheAndPreservesThePreviousSuffix()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleQuezacotlResources resources = game.ReadNativeQuezacotlResources();
         NativeBattleEffectFileAsset file = resources.Files.Single(file => file.FileId == 513);
         Assert.Equal("MAG115_H.08", file.Name);

@@ -11,7 +11,7 @@ public sealed class NativeFieldRegistrationResourcesTests
     [InlineData(919)]
     public void Actual_field_ONE_and_referenced_MCH_sources_remain_original_registration_inputs(int fieldId)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         FieldAssets field = game.LoadField(fieldId);
         NativeFieldRegistrationResources source = Assert.IsType<NativeFieldRegistrationResources>(field.NativeRegistration);
         source.Validate();

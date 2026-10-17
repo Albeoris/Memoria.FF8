@@ -24,7 +24,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
         byte[] bytes = File.ReadAllBytes(source!);
         string originalHash = Convert.ToHexString(SHA256.HashData(bytes));
         Assert.Equal(expectedHash, originalHash);
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         using GameAssets assets = new(directory);
         Assert.Equal(NativeFieldRuntimeProfile.FF8EnExecutableHash, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(directory, "FF8_EN.exe")))));
         NativeBattleStaticMeshResource[] currentMeshes = assets.ReadNativeEffectMeshes().ToArray();
@@ -84,7 +84,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
     {
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_SNAPSHOT");
         Assert.SkipUnless(source is not null && File.Exists(source), "A concrete production-host standalone checkpoint is required.");
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         GameSession session = new(GameSession.Load(source!));
         using GameWorld world = RestoreWorld(session, directory);
         string id = "production-continuation-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff");
@@ -114,7 +114,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_SNAPSHOT");
         Assert.SkipUnless(source is not null && File.Exists(source), "A concrete production-host standalone checkpoint is required.");
         GameSession session = new(GameSession.Load(source!));
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         using GameWorld world = RestoreWorld(session, directory);
         GameSession independent = new(GameSession.Load(source!));
         using GameWorld clone = RestoreWorld(independent, directory);
@@ -175,7 +175,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
     {
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_GF_SNAPSHOT");
         Assert.SkipUnless(source is not null && File.Exists(source), "A concrete production-host GF standalone checkpoint is required.");
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         GameSession session = new(GameSession.Load(source!));
         using GameWorld world = RestoreWorld(session, directory);
         RunQuezacotl(world, session, directory, Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_EVIDENCE"), "production-gf-continuation-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff"), false);
@@ -183,7 +183,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
 
     private static (GameState State, string GameDirectory, string? Evidence, string Id) CreateBeforeEntryComponent(bool guardianCommand)
     {
-        string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(gameDirectory), "Installed original battle resources are required.");
         using GameAssets assets = new(gameDirectory);
         string? selectorSource = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_MUSIC_SOURCE");

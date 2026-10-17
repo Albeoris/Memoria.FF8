@@ -20,7 +20,7 @@ public sealed class NativeBattleCuragaPresentationTests
         BattleSession battle = BattleSession.Restore(initial);
         Assert.True(HasActionDescriptor(battle));
         Assert.Null(initial.NativeGraphics!.OriginalEffect?.Curaga?.Auxiliary16F80);
-        string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         using BattleAssets assets = new(gameDirectory);
         BattleScenePresentation scene = new(assets, initial.Definition, true);
         bool cleared = false;
@@ -104,7 +104,7 @@ public sealed class NativeBattleCuragaPresentationTests
     [Fact]
     public void Installed_Curaga_casting_runs_original_callbacks_pixels_sound_and_one_healing_contact_through_restore()
     {
-        string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(gameDirectory), "Installed original Curaga resources are required.");
         using GameAssets game = new(gameDirectory);
         using BattleAssets assets = new(game.GameDirectory);

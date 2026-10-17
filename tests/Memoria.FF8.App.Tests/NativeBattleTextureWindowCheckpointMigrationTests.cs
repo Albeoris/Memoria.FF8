@@ -33,7 +33,7 @@ public sealed class NativeBattleTextureWindowCheckpointMigrationTests
         Assert.DoesNotContain(frame.LastCommands, command => command.Command.Opcode == 0xE2);
         Assert.All(frame.LastCommands, command => Assert.Null(command.DrawMode.TextureWindowBits));
         Assert.Null(process.TextureWindowCache);
-        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         Assert.Equal((uint?)0, game.ReadColdProcessNativeBattleMemory().EffectMemory!.PrimitiveProcess!.TextureWindowBits);
         //4647A0 clears renderer resource rows, preserving unknown prior UV scales. Rebuild only this saved OT, with no simulation/travel replay.
         NativeBattlePcTextureWindowCache reset = NativeBattlePcTextureWindowCache.Reset4647A0(process.TextureWindowCache);

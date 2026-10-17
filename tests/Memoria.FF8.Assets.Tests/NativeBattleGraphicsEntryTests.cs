@@ -295,7 +295,10 @@ public sealed class NativeBattleGraphicsEntryTests
         }
         Assert.True(battle.NativeGraphics!.ActionCallbackReady);
         Assert.Equal((ushort)9, Assert.Single(battle.Capture().NativeScriptState.WaitCounters));
-        Assert.Equal(BattleActionPhase.Recovery, battle.ActiveAction!.Phase);
+        //AA admits contact; the factual header remains in windup until its final descriptor10 completes.
+        Assert.Equal(BattleActionPhase.Windup, battle.ActiveAction!.Phase);
+        Assert.Equal(beforeText.ActiveAction!.NativeHeaderIndex, battle.ActiveAction.NativeHeaderIndex);
+        Assert.Equal(beforeText.Events.Count(item => item.Kind == "ActionComplete"), battle.Events.Count(item => item.Kind == "ActionComplete"));
         Assert.Single(battle.Events, item => item.Kind == "NativeText");
         Assert.Equal(beforeText.Events.Count(item => item.Kind == "Damage"), battle.Events.Count(item => item.Kind == "Damage"));
         Assert.Equal(beforeText.Combatants.Select(actor => actor.CurrentHp), battle.Capture().Combatants.Select(actor => actor.CurrentHp));
@@ -308,6 +311,7 @@ public sealed class NativeBattleGraphicsEntryTests
         }
         Assert.DoesNotContain(battle.NativeGraphics.Descriptors.Queue, slot => battle.NativeGraphics.Descriptors.Packets[slot].Command == 104);
         Assert.Null(battle.ActiveAction);
+        Assert.Equal(beforeText.Events.Count(item => item.Kind == "ActionComplete") + 1, battle.Events.Count(item => item.Kind == "ActionComplete"));
         Assert.Equal(beforeText.Events.Count(item => item.Kind == "Damage"), battle.Events.Count(item => item.Kind == "Damage"));
         Assert.Equal(beforeText.Combatants.Select(actor => actor.CurrentHp), battle.Capture().Combatants.Select(actor => actor.CurrentHp));
     }
@@ -339,6 +343,7 @@ public sealed class NativeBattleGraphicsEntryTests
         }
         actors.Add(new() { Id = "enemy", Name = "Enemy", ModelId = model, Speed = 1, NativeAi = ai, NativeCombatantFlags = ai is null ? 0u : 0x10u, SceneSlot = formation.Enemies.First(enemy => enemy.ModelId == model).Slot });
         NativeBattleGraphicsDefinition graphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation);
-        return new(new() { Name = "Installed raw entry component", EncounterId = formation.Id, StageId = formation.StageId, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5), NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(), NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeGraphics = graphics, NativeActions = assets.NativeActions.Where(action => action.Command == 8 && action.ActionId == 89).ToArray(), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeStageSource = assets.LoadStage(formation.StageId).NativeSource, NativeStageCameraBank = assets.LoadStage(formation.StageId).NativeCameraBank, NativeStageCameraSelectors = [formation.PrimaryCamera, formation.AlternativeCamera], NativeStageCameraControl = assets.LoadStage(formation.StageId).NativeCameraControl, Combatants = actors.ToArray() }, BattleAtbMode.TurnBased);
+        NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicFixture.Prepare(game, formation.Id);
+        return new(new() { Name = "Installed raw entry component", EncounterId = formation.Id, StageId = formation.StageId, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeMusicProcess = musicEntry.MusicProcess, NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5), NativeGlobalSoundProcess = musicEntry.SoundProcess, NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeGraphics = graphics, NativeActions = assets.NativeActions.Where(action => action.Command == 8 && action.ActionId == 89).ToArray(), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeStageSource = assets.LoadStage(formation.StageId).NativeSource, NativeStageCameraBank = assets.LoadStage(formation.StageId).NativeCameraBank, NativeStageCameraSelectors = [formation.PrimaryCamera, formation.AlternativeCamera], NativeStageCameraControl = assets.LoadStage(formation.StageId).NativeCameraControl, Combatants = actors.ToArray() }, BattleAtbMode.TurnBased);
     }
 }

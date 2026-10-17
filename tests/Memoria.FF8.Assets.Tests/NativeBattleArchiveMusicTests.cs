@@ -10,7 +10,7 @@ public sealed class NativeBattleArchiveMusicTests
     [Fact]
     public void Original503040_prefix_preserves_descriptor_before_worker_order_and_the_actual_completion_pointer()
     {
-        using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(TestResources.GameDirectory);
         NativeBattleVictoryMusicStep request = NativeBattleVictoryMusicLoader.Advance503040(0, null, 0, null, null);
         NativeBattleArchiveFile file = assets.ReadNativeBattleFile(request.FileRequest!.FileId);
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(request.FileRequest.DestinationAddress, file.Bytes.AsSpan());
@@ -75,7 +75,7 @@ public sealed class NativeBattleArchiveMusicTests
     [Fact]
     public void Pending_model_completion_reads_the_same_staging_bytes_overwritten_by_original_file766()
     {
-        using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(TestResources.GameDirectory);
         NativeBattleModelDatSource model = assets.ReadNativeModelDatSource(0, false, 0);
         NativeBattleModelLoadStep request = NativeBattleModelLoader.Queue507080(0, 0, 0, 0, 0).Poll507070(-1, [model], NativeBattleFileStaging.Unknown());
         NativeBattleModelLoadStep prepared = request.State.Poll507070(model.Bytes.Length, [model], request.Staging);
@@ -93,7 +93,7 @@ public sealed class NativeBattleArchiveMusicTests
     [Fact]
     public void Original_file766_selects_the_actual_second_nested_AKAO_resource_for501A20()
     {
-        using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(TestResources.GameDirectory);
         NativeBattleArchiveFile file = assets.ReadNativeBattleFile(766);
         Assert.Equal("r0win.dat", file.Name);
         Assert.Equal(163916, file.Bytes.Length);

@@ -24,9 +24,9 @@ internal sealed partial class RecreateGame
                 tripleTriadAudio?.Dispose();
                 tripleTriadAudio = null;
                 presentedTripleTriad = null;
-                if (world is { Field: { } field })
+                if (world?.Field is not null)
                 {
-                    fieldAudio?.ResumeMusic(world.Events.Scene, field.Id, session.State.Scene == SceneKind.WorldMap);
+                    fieldAudio?.ResumeMusic(session.State.GlobalSoundProcess?.MusicPlayback);
                 }
             }
             return false;

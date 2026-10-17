@@ -77,7 +77,7 @@ public sealed class NativeBattleModuleSoundTests
     [Fact]
     public void Installed_positioned_samples_replace_their_fixed_device_voice_and_other_attributes_overlap()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original audio corpus is required.");
         Exception? failure = null;
         Thread thread = new(() =>

@@ -8,7 +8,7 @@ public sealed class NativeBattleFactoryBindingTests
     [Fact]
     public void Encounter_factory_binds_original_graphics_clock_and_resources_to_the_supplied_process_owners()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "The installed original battle resources are required.");
         using GameAssets assets = new(directory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).RebuildParty().Rest();

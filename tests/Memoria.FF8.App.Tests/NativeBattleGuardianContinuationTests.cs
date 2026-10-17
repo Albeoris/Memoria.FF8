@@ -32,7 +32,7 @@ public sealed class NativeBattleGuardianContinuationTests
         Assert.Equal(snapshot.NativeGraphics.Callback + 16, after.NativeGraphics!.Callback);
         Assert.Equal(0u, after.NativeGraphics.OriginalEffect!.ReturnedDescriptor);
         Assert.Equal(0, after.NativeEffectMemory!.Active);
-        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         BattleScenePresentation scene = new(assets, snapshot.Definition, true);
         Assert.Equal(scene.Render(battle, 320, 224).ToArray(), scene.Render(independent, 320, 224).ToArray());
         using FileStream stream = new(output!, FileMode.CreateNew, FileAccess.Write);
@@ -51,7 +51,7 @@ public sealed class NativeBattleGuardianContinuationTests
         BattleSession battle = BattleSession.Restore(snapshot);
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(battle.Capture()));
         Assert.Equal((ushort)116, snapshot.NativeGraphics!.OriginalEffect!.Binding.Effect);
-        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         BattleScenePresentation scene = new(assets, snapshot.Definition, true);
         Assert.Equal(320 * 224 * 4, scene.Render(battle, 320, 224).Length);
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);

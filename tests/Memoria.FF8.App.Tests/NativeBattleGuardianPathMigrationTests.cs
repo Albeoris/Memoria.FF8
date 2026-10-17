@@ -26,7 +26,7 @@ public sealed class NativeBattleGuardianPathMigrationTests
         Assert.Null(original.NativeEffectMemory!.QuezacotlTargetY1774);
         NativeBattleQuezacotlResources retained = original.NativeGraphics.OriginalEffect.Binding.NativeQuezacotlResources!;
         Assert.Null(retained.Paths);
-        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         NativeBattleQuezacotlResources authenticated = game.ReadNativeQuezacotlResources();
         Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(authenticated with { Paths = null, Frame277Sound = retained.Frame277Sound }));
         Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(original.Definition.NativeEffectCatalog[115].NativeQuezacotlResources));

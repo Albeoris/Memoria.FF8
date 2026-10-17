@@ -10,7 +10,7 @@ public sealed class NativeBattleGenericInitializerTests
     [Fact]
     public void AuthenticatedCatalogProvesEveryStraightLineLoaderWithoutMaterializingItsAssets()
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         byte[] executable = File.ReadAllBytes(Path.Combine(assets.GameDirectory, "FF8_EN.exe"));
         using PEReader reader = new(new MemoryStream(executable));
         var catalog = assets.ReadNativeEffectCatalog();
@@ -38,7 +38,7 @@ public sealed class NativeBattleGenericInitializerTests
     [Fact]
     public void OnlyExplicitlyRequestedInitializerAssetsMaterializeAndShareTheOriginalArenaLoader()
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         var catalog = assets.ReadNativeEffectCatalogForEffects([1, 2, 4, 4]);
         Assert.Equal(new ushort[] { 1, 2, 4 }, catalog.Where(binding => binding.InitializerAsset is not null).Select(binding => binding.Effect));
         Assert.Equal("mag000-049.tim", catalog[0].InitializerAsset!.Name);

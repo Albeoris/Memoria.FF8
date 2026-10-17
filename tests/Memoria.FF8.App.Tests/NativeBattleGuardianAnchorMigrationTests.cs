@@ -26,7 +26,7 @@ public sealed class NativeBattleGuardianAnchorMigrationTests
         Assert.Equal((ushort)157, effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
         NativeBattleQuezacotlResources retained = effect.Binding.NativeQuezacotlResources!;
         Assert.Null(retained.AnchorVertexIndices11);
-        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         NativeBattleQuezacotlResources authenticated = game.ReadNativeQuezacotlResources();
         Assert.Equal(new short[] { 93, 33, 696, 562, 578, 450, 9, 240, 388, 408, 265 }, authenticated.AnchorVertexIndices11!.Value.ToArray());
         Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(authenticated with { AnchorVertexIndices11 = null, Frame209Sound = retained.Frame209Sound, Frame277Sound = retained.Frame277Sound, Frame229FlashColor = retained.Frame229FlashColor, Paths = retained.Paths, Ribbon = authenticated.Ribbon! with { SecondaryBank = retained.Ribbon?.SecondaryBank } }));

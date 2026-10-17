@@ -11,7 +11,7 @@ public sealed class NativeBattleRestorationAdmissionResourcesTests
     [InlineData((ushort)27, 25, "Full-life")]
     public void Selective_original_catalog_initializes_own_TIM_entry_camera_and_persistent_bank(ushort effect, int actionId, string name)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleActionDefinition action = Assert.Single(assets.ActionDefinitions, action => action.NativeAction is { Command: 2 } native && native.MagicId == effect);
         Assert.Equal(actionId, action.Id);

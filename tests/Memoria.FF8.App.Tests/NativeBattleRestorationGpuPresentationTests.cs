@@ -14,7 +14,7 @@ public sealed class NativeBattleRestorationGpuPresentationTests
     [InlineData(9)]
     public void Original_Full_life_F4_G4_mesh_renders_a_real_gradient_and_independent_frame_restores_match(int index)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         NativeBattleRestorationExecutableState bank = NativeBattleRestorationExecutableState.FromColdProcess(27).Initialize(game.ReadNativeRestorationResources(27).Executable!);
         uint address = NativeBattleRestorationProfile.FullLife.ExecutableAddress;

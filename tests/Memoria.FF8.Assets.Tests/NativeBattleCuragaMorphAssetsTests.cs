@@ -13,7 +13,7 @@ public sealed class NativeBattleCuragaMorphAssetsTests
     [InlineData(3)]
     public void Four_original_shape_records_keep_their_eighty_four_vertices_and_morph_into_the_actual_mesh_plus_eight_destination(int index)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleCuragaExecutableState bank = NativeBattleCuragaExecutableState.FromColdProcess().Initialize87EA20(game.ReadNativeCuragaResources().Executable!);
         uint mesh = Pointer(0x84 + 12 * 4);
         uint first = Pointer(0xC4 + index * 4);

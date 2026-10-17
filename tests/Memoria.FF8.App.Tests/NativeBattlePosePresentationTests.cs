@@ -60,7 +60,7 @@ public sealed class NativeBattlePosePresentationTests
     [Fact]
     public void Ejection_contact_commits_both_positioned_sounds_once_and_restore_does_not_replay_them()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleEncounter encounter = assets.LoadEncounter(94);
         BattleStage stage = assets.LoadStage(encounter.StageId);

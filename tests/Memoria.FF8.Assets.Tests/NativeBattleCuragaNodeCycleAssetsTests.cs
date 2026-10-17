@@ -58,7 +58,7 @@ public sealed class NativeBattleCuragaNodeCycleAssetsTests
 
     private static (NativeBattleCuragaFrame Frame, uint Task) Fixture()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleCuragaExecutableState executable = NativeBattleCuragaExecutableState.FromColdProcess().Initialize87EA20(game.ReadNativeCuragaResources().Executable!);
         NativeBattleEffectHierarchy hierarchy = new([NativeBattleEffectTaskPool.Initialize(0x26D7EC0, 0x26D76D0, 676, 3)]);
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 0x87E1A0, 676);

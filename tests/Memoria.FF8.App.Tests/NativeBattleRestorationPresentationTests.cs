@@ -17,7 +17,7 @@ public sealed class NativeBattleRestorationPresentationTests
     [InlineData((ushort)67, "Remedy", 16, (byte)4)]
     public void Installed_restoration_cast_completes_original_nodes_pixels_sound_and_one_status_contact_through_restore(ushort effect, string name, int actionId, byte command)
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original restoration resources are required.");
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
@@ -31,7 +31,7 @@ public sealed class NativeBattleRestorationPresentationTests
     [Fact]
     public void Installed_unnamed_effect57_completes_its_controlled_original_descriptor_without_claiming_a_kernel_action()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original effect57 resources are required.");
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
@@ -50,7 +50,7 @@ public sealed class NativeBattleRestorationPresentationTests
         BattleSnapshot source = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(path!))!;
         NativeBattleEffectBinding binding = source.NativeGraphics?.OriginalEffect?.Binding ?? Assert.Single(source.Definition.NativeEffectCatalog, binding => binding.RestorationResources is not null);
         Assert.True(binding.Effect is 24 or 27 or 57 or 67);
-        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         RunCurrentCast(source, assets, binding.Effect, false);
     }
 
@@ -68,7 +68,7 @@ public sealed class NativeBattleRestorationPresentationTests
         second.AdvanceNativeGraphicsPresentation(Callback);
         Assert.Equal(source.NativeGraphics.Callback + 1, first.NativeGraphics!.Callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
-        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         byte[] pixels = new BattleScenePresentation(assets, source.Definition, true).Render(first, 320, 224).ToArray();
         Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition, true).Render(second, 320, 224).ToArray());
         Publish(Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_RESTORATION_EVIDENCE"), "restoration-next-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff"), first.Capture(), pixels);

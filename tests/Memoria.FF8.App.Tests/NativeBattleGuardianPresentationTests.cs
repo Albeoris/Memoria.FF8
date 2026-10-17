@@ -10,7 +10,7 @@ public sealed class NativeBattleGuardianPresentationTests
     [Fact]
     public void Installed_Quezacotl_fresh_standalone_runs_through_phase318_with_original_stream_receipts_and_restore()
     {
-        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleEncounter formation = assets.LoadEncounter(94);
         BattleStage stage = assets.LoadStage(formation.StageId);

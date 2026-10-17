@@ -11,7 +11,7 @@ public sealed class NativeBattleRestorationAnimatedAnchorAssetsTests
     [InlineData((ushort)27, (sbyte)12, (byte)0, (short)409, -124528000)]
     public void Actual_first_mode4_sources_read_their_own_curves_and_interpolate_at_frame_one_after_restore(ushort effect, sbyte sourceIndex, byte anchor, short ratio, int expectedY)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleRestorationResources resources = game.ReadNativeRestorationResources(effect);
         NativeBattleRestorationProfile profile = NativeBattleRestorationProfile.ForEffect(effect);
         NativeBattleEffectMemory memory = game.ReadColdProcessNativeBattleMemory().EffectMemory!.BeginLoad(effect - 1);

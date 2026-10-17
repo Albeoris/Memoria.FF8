@@ -7,7 +7,7 @@ public sealed class NativeBattleShadowSourceTests
     [Fact]
     public void Original_shadow_uses_an_identity_offset_flattened_Y_and_zero_initialized_perimeter_axes()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleShadowSource source = Assert.IsType<NativeBattleShadowSource>(game.ReadNativeBattleGraphicsRules().ShadowSource);
         Assert.Equal(new short[] { 4096, 0, 0, 0, 4096, 0, 0, 0, 4096 }, source.OffsetMatrix.Rotation);
         Assert.Equal((0, 0, 0), (source.OffsetMatrix.X, source.OffsetMatrix.Y, source.OffsetMatrix.Z));

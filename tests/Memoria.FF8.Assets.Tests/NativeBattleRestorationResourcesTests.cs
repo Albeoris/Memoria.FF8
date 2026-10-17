@@ -10,7 +10,7 @@ public sealed class NativeBattleRestorationResourcesTests
     [InlineData((ushort)27, 25, "Full-life", 2648, 0x49445u, 0x57C4u)]
     public void Installed_kernel_and_authenticated_resources_keep_distinct_original_effects_and_unfixed_directories(ushort effect, int actionId, string name, int animationBytes, uint sound, uint firstSource)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleActionDefinition action = Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.NativeAction?.MagicId == effect);
         Assert.Equal(actionId, action.Id);
@@ -36,7 +36,7 @@ public sealed class NativeBattleRestorationResourcesTests
     [InlineData((ushort)27, 12, 0x67E4)]
     public void Original_sparse_banks_fix_only_once_and_prove_the_reached_animated_anchor_source(ushort effect, int initialAnimatedSource, int expectedExtent)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleRestorationResources resources = game.ReadNativeRestorationResources(effect);
         NativeBattleRestorationExecutableSource source = resources.Executable!;
         NativeBattleRestorationProfile profile = NativeBattleRestorationProfile.ForEffect(effect);

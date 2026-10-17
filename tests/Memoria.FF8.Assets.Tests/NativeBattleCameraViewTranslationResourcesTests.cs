@@ -8,7 +8,7 @@ public sealed class NativeBattleCameraViewTranslationResourcesTests
     [Fact]
     public void Authenticated_loader_proves_the_six_zero_filled_camera_translation_bytes_and_retains_them_through_JSON()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleRetainedMemory cold = game.ReadColdProcessNativeBattleMemory();
         NativeBattleCameraState camera = Assert.IsType<NativeBattleCameraState>(cold.Camera);
         Assert.Equal(new NativeBattleCameraViewTranslationScratch(0, 0, 0), camera.ViewTranslationScratch);

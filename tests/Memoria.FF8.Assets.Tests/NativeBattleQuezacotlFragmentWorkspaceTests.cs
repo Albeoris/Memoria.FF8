@@ -10,7 +10,7 @@ public sealed class NativeBattleQuezacotlFragmentWorkspaceTests
     [Fact]
     public void Original525_current_model_initializes_the124_child_workspace_for_its_complete_sixteen_frame_resource()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleQuezacotlResources resources = game.ReadNativeQuezacotlResources();
         NativeBattleEffectFileAsset file = resources.Files.Single(file => file.FileId == 525);
         Assert.Equal("MAG115_H.20", file.Name);

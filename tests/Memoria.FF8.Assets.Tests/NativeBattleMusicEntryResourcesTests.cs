@@ -7,7 +7,7 @@ public sealed class NativeBattleMusicEntryResourcesTests
     [Fact]
     public void Original_request_and_encounter_table_select_the_actual_AKAO_byte_and_three_special_SEs()
     {
-        NativeMusicCatalog catalog = new(LaunchOptions.DefaultGameDirectory);
+        NativeMusicCatalog catalog = new(TestResources.GameDirectory);
         NativeBattleMusicEntryResources resources = catalog.ReadBattleEntryResources();
         Assert.Equal(NativeFieldRuntimeProfile.FF8EnExecutableHash, resources.ExecutableSha256);
         Assert.Equal(36, resources.Template36.Length);

@@ -20,14 +20,16 @@ public sealed class NativeBattleControlGraphicsTests
             new() { Id = "party", Name = "Party", IsPlayer = true, ModelId = 0, WeaponId = 0, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 },
             new() { Id = "enemy", Name = "Enemy", ModelId = 61, SceneSlot = formation.Enemies.First(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
         ];
+        NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicFixture.Prepare(game, formation.Id);
         BattleDefinition definition = new()
         {
             Combatants = actors,
             EncounterId = 94,
             StageId = formation.StageId,
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativeMusicProcess = musicEntry.MusicProcess,
             NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5),
-            NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(),
+            NativeGlobalSoundProcess = musicEntry.SoundProcess,
             NativeFlags = 0x80,
             NativeEntry = new(0, 0),
             NativeGlobalRandom = new(0),

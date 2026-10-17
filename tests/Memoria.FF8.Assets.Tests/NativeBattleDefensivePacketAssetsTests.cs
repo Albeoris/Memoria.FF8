@@ -10,7 +10,7 @@ public sealed class NativeBattleDefensivePacketAssetsTests
     [InlineData(2, 60, 0, 0x5400DFu, 0x2A006Fu, 0x150037u)]
     public void Original_defensive_meshes_emit_their_Gouraud_forms_with_570650_phase_context(byte variant, int polygons, int quads, uint full, uint half, uint quarter)
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativeBattleDefensiveResource resource = assets.ReadNativeBattleDefensiveResources().Single(item => item.Variant == variant);
         NativeBattleCameraProjection projection = new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 20000, 4096), 216, 160, 108);
         NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Defensive, 0) { Anchor = new(0, 0, 0, 0), Variant = variant, Scale = 4096 };

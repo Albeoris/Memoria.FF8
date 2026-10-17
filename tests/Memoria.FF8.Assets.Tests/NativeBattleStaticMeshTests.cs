@@ -10,7 +10,7 @@ public sealed class NativeBattleStaticMeshTests
     [InlineData(7, 0xC800F0u, 60, 5, 48, 1672)]
     public void InstalledCastingMeshesRetainTheirOriginalPrimitiveDirectories(byte id, uint address, int vertices, int group, int faces, int length)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         var mesh = Assert.Single(game.ReadNativeEffectMeshes(), mesh => mesh.Id == id);
         Assert.Equal(address, mesh.Address);
         Assert.Equal(length, mesh.Bytes.Length);
