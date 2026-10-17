@@ -54,11 +54,11 @@ public sealed class NativeMagazineArtwork
 
     public static byte[] ReadItemIconKinds(byte[] executable)
     {
-        if (Convert.ToHexString(SHA256.HashData(executable)) != NativeFieldRuntimeProfile.FF8EnExecutableHash || executable.Length < 0x788024 + 21)
+        if (Convert.ToHexString(SHA256.HashData(executable)) != NativeFieldRuntimeProfile.FF8EnExecutableHash || executable.Length < 0x788024 + 22)
         {
-            throw new NotSupportedException("Magazine ingredient icons require the authenticated original English executable.");
+            throw new NotSupportedException("Item icons require the authenticated original English executable.");
         }
-        return executable.AsSpan(0x788024, 21).ToArray();
+        return executable.AsSpan(0x788024, 22).ToArray();
     }
 
     /// <summary>The native magita paper's mean display color, for procedural paper generation.</summary>

@@ -236,14 +236,18 @@ internal sealed partial class RecreateGame
             fieldSeconds = 0;
             return;
         }
-        if (action.Kind == "item-use" && session.State.Scene is SceneKind.Field or SceneKind.WorldMap)
+        if (action.Kind is "item-use" or "item-battle" && session.State.Scene is SceneKind.Field or SceneKind.WorldMap)
         {
             int itemId = int.Parse(action.SubjectId.AsSpan("item-".Length), System.Globalization.CultureInfo.InvariantCulture);
-            int row = int.Parse(action.TargetId.AsSpan(action.TargetId.StartsWith("item-target-", StringComparison.Ordinal) ? "item-target-".Length : "character-".Length), System.Globalization.CultureInfo.InvariantCulture);
+            int row = action.Kind == "item-battle" ? 0 : int.Parse(action.TargetId.AsSpan(action.TargetId.StartsWith("item-target-", StringComparison.Ordinal) ? "item-target-".Length : "character-".Length), System.Globalization.CultureInfo.InvariantCulture);
             PlayerActionResult result = world!.Apply(new PlayerAction(PlayerActionKind.UseFieldItem, itemId, Text: string.IsNullOrEmpty(action.Value) ? null : action.Value, Quantity: row));
             if (!result.Accepted)
             {
                 throw new NotSupportedException(result.Detail ?? "The current field cannot accept item use.");
+            }
+            if (action.Kind == "item-battle")
+            {
+                gameMenus!.Close();
             }
             fieldSeconds = 0;
             return;

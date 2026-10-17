@@ -7,11 +7,34 @@ public sealed record NativeFieldItem(byte Type, byte TargetFlags, byte Power, by
 {
     public NativeSolomonRingDefinition? SolomonRingDefinition { get; init; }
     public bool SupportsNameUse => Type is 11 or 12 or 13;
+    public bool SupportsBattleUse => Type == 14 && TargetFlags == 1;
     public bool SupportsInventoryUse => Type == 15 && TargetFlags == 1 && SolomonRingDefinition is not null;
     public bool SupportsRestUse => Type == 6 && (TargetFlags & 1) != 0;
     public bool SupportsCharacterUse => Type is 0 or 1 or 2 or 16 or 20 or 21 && (TargetFlags & 3) == 3 && (TargetFlags & 4) == 0;
     public bool SupportsGuardianForceUse => Type is 3 or 4 or 5 or 17 or 18 && (TargetFlags & 5) == 5 && (TargetFlags & 2) == 0;
     public bool SupportsBlueMagicUse => Type == 19 && (TargetFlags & 0x43) == 0x43 && Power < 16;
+
+    public (NativeCharacterVitals Vitals, NativeEconomy Economy, ushort Encounter, int MenuResult) BeginBattle(NativeCharacterVitals vitals, NativeEconomy economy, int itemId, bool contextBlocked)
+    {
+        vitals.Validate();
+        economy.Validate();
+        if (!SupportsBattleUse || itemId is <= 0 or > 255 || vitals.InitOutSha256 != economy.InitOutSha256)
+        {
+            throw new NotSupportedException("Battle item use requires original battle-item metadata and matching saved owners.");
+        }
+        if (vitals.DreamEnabled || contextBlocked)
+        {
+            throw new InvalidOperationException("The current native menu context forbids battle items.");
+        }
+        int slot = Array.FindIndex(economy.Items, stock => stock.ItemId == itemId && stock.Count > 0);
+        if (slot < 0)
+        {
+            throw new InvalidOperationException("The selected battle item stock is exhausted.");
+        }
+        ushort encounter = (ushort)(Power | StatusMask << 8);
+        // Native47E480 acquires GF5 at item use, before battle entry, without rebuilding saved HP.
+        return (vitals.AcquireGuardianForce(5), Consume(economy, slot), encounter, encounter << 16 | 4);
+    }
 
     public (NativeEconomy Economy, int Subject) BeginNaming(NativeCharacterVitals vitals, NativeEconomy economy, int itemId, int target)
     {

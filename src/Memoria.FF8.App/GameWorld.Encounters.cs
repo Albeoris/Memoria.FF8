@@ -8,11 +8,11 @@ namespace Memoria.FF8;
 
 internal sealed partial class GameWorld
 {
-    public bool HasPendingBattle => session.State.PendingBattleEncounter is not null || Events.PendingHostedBattle is not null || session.State.RandomEncounters?.Pending is not null;
+    public bool HasPendingBattle => Events.PendingMenuBattle is not null || session.State.PendingBattleEncounter is not null || Events.PendingHostedBattle is not null || session.State.RandomEncounters?.Pending is not null;
 
     private void ConfigureRandomEncounterHost()
     {
-        Events.HasPendingRandomBattle = () => session.State.RandomEncounters?.Pending is not null || session.State.PendingBattleEncounter is { ScriptedOwner: null, SourceScene: SceneKind.Field };
+        Events.HasPendingRandomBattle = () => session.State.RandomEncounters?.Pending is not null || session.State.PendingBattleEncounter is { ScriptedOwner: null, SourceScene: SceneKind.Field } && Events.PendingMenuBattle is null;
         Events.NativePlayerMovementProcessed = ProcessFieldRandomEncounters;
     }
 

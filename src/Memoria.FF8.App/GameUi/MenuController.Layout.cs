@@ -309,7 +309,7 @@ public sealed partial class MenuController
         {
             return new UiImageSource(UiImageKind.Card, cardId);
         }
-        return action.Kind == "select-item" ? Data.Items.FirstOrDefault(item => item.Id == action.SubjectId)?.Icon : null;
+        return action.Kind is "select-item" or "item-battle" ? Data.Items.FirstOrDefault(item => item.Id == action.SubjectId)?.Icon : null;
     }
 
     private UiImageSource? EntryMarker(MenuEntry entry)

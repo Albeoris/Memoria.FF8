@@ -29,6 +29,7 @@ internal static partial class Program
                     ["native-party-hold"] = () => NativePartyHoldContract(selectedGameDirectory),
                     ["native-disc-save"] = () => NativeDiscSaveContract(selectedGameDirectory),
                     ["native-party-menu"] = () => NativePartyMenuContract(selectedGameDirectory),
+                    ["native-menu-battle"] = () => NativeMenuBattleContract(selectedGameDirectory),
                     ["native-party-slots"] = () => NativePartySlotContract(selectedGameDirectory),
                     ["native-sealedoff"] = () => NativeSealedOffContract(selectedGameDirectory),
                     ["native-lastin"] = () => NativeLastInContract(selectedGameDirectory),

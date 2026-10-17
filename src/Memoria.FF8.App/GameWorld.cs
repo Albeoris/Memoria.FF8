@@ -407,6 +407,10 @@ internal sealed partial class GameWorld : IDisposable
         {
             return ApplyNativeTutorial(action);
         }
+        if (action.Kind == PlayerActionKind.UseFieldItem && FieldItemCatalog.FieldItem(action.Value) is { SupportsBattleUse: true } battleItem)
+        {
+            return ApplyMenuBattleItem(action, battleItem);
+        }
         if (action.Kind == PlayerActionKind.UseFieldItem && FieldItemCatalog.FieldItem(action.Value) is { SupportsNameUse: true } namingItem)
         {
             return ApplyItemNaming(action, namingItem);

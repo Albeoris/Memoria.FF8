@@ -29,12 +29,13 @@ public static class LiveMenuData
             result.Currency = checked((int)economy.Gil);
             foreach (NativeItemStock item in economy.Items.Where(item => item.ItemId != 0 && item.Count != 0))
             {
-                result.Items.Add(new MenuItem { Id = $"item-{item.ItemId}", Name = catalog?.ItemName(item.ItemId) ?? $"Item {item.ItemId}", Quantity = item.Count, NativeMagazinePages = state.Scene is SceneKind.Field or SceneKind.WorldMap ? catalog?.MagazinePages(item.ItemId) ?? [] : [], NativeMagazinePageUnavailableReasons = catalog?.MagazineUnavailableReasons(item.ItemId, state) ?? [], Description = catalog?.ItemDescription(item.ItemId) ?? "Item effect unavailable; using, discarding and refining are unsupported.", NativeFieldUseSupported = state.Scene is SceneKind.Field or SceneKind.WorldMap && catalog?.FieldItem(item.ItemId) is { } definition && (definition.SupportsNameUse && (definition.Type != 13 || state.PocketStation?.ChocoboName is not null || names?.ContainsKey(GameNames.BokoSubject) == true || SavedName(state, GameNames.BokoSubject) is not null) || definition.SupportsCharacterUse || definition.SupportsGuardianForceUse || definition.SupportsInventoryUse || definition.SupportsRestUse && state.Scene == SceneKind.Field && (state.WorldControls?.Menu209 & 1) != 0 || definition.SupportsBlueMagicUse && state.LimitProgress is not null && state.CharacterVitals?.DreamEnabled == false), NativeFieldNameConfirmation = catalog?.FieldItem(item.ItemId)?.Type is 12 or 13, NativeFieldNameSubject = catalog?.FieldItem(item.ItemId)?.Type switch { 12 => 2, 13 => GameNames.BokoSubject, _ => null }, NativeFieldTargetsGuardianForce = catalog?.FieldItem(item.ItemId) is { } targetItem && (targetItem.SupportsGuardianForceUse || targetItem.Type == 11), NativeFieldQuistisOnly = catalog?.FieldItem(item.ItemId)?.SupportsBlueMagicUse == true, NativeFieldForgetsAbility = catalog?.FieldItem(item.ItemId)?.Type == 18, NativeFieldInventoryTarget = catalog?.FieldItem(item.ItemId) is { } inventoryItem && (inventoryItem.SupportsInventoryUse || inventoryItem.SupportsRestUse) });
+                result.Items.Add(new MenuItem { Id = $"item-{item.ItemId}", Icon = catalog?.ItemIcon(item.ItemId), Name = catalog?.ItemName(item.ItemId) ?? $"Item {item.ItemId}", Quantity = item.Count, NativeMagazinePages = state.Scene is SceneKind.Field or SceneKind.WorldMap ? catalog?.MagazinePages(item.ItemId) ?? [] : [], NativeMagazinePageUnavailableReasons = catalog?.MagazineUnavailableReasons(item.ItemId, state) ?? [], Description = catalog?.ItemDescription(item.ItemId) ?? "Item effect unavailable; using, discarding and refining are unsupported.", NativeFieldUseSupported = state.Scene is SceneKind.Field or SceneKind.WorldMap && catalog?.FieldItem(item.ItemId) is { } definition && (definition.SupportsNameUse && (definition.Type != 13 || state.PocketStation?.ChocoboName is not null || names?.ContainsKey(GameNames.BokoSubject) == true || SavedName(state, GameNames.BokoSubject) is not null) || definition.SupportsBattleUse && state.CharacterVitals?.DreamEnabled == false && !MenuBattleTimerBlocked(state) || definition.SupportsCharacterUse || definition.SupportsGuardianForceUse || definition.SupportsInventoryUse || definition.SupportsRestUse && state.Scene == SceneKind.Field && (state.WorldControls?.Menu209 & 1) != 0 || definition.SupportsBlueMagicUse && state.LimitProgress is not null && state.CharacterVitals?.DreamEnabled == false), NativeFieldBattleUse = catalog?.FieldItem(item.ItemId)?.SupportsBattleUse == true, NativeFieldNameConfirmation = catalog?.FieldItem(item.ItemId)?.Type is 12 or 13, NativeFieldNameSubject = catalog?.FieldItem(item.ItemId)?.Type switch { 12 => 2, 13 => GameNames.BokoSubject, _ => null }, NativeFieldTargetsGuardianForce = catalog?.FieldItem(item.ItemId) is { } targetItem && (targetItem.SupportsGuardianForceUse || targetItem.Type == 11), NativeFieldQuistisOnly = catalog?.FieldItem(item.ItemId)?.SupportsBlueMagicUse == true, NativeFieldForgetsAbility = catalog?.FieldItem(item.ItemId)?.Type == 18, NativeFieldInventoryTarget = catalog?.FieldItem(item.ItemId) is { } inventoryItem && (inventoryItem.SupportsInventoryUse || inventoryItem.SupportsRestUse) });
             }
         }
         if (state.Scene is SceneKind.Field or SceneKind.WorldMap && state.CharacterVitals is not null && result.Items.Any(item => item.NativeFieldUseSupported))
         {
             result.SupportedActions.Add("item-use");
+            result.SupportedActions.Add("item-battle");
         }
         if (state.SeeD is { SalaryUiEnabled: true } seeD)
         {
@@ -279,6 +280,15 @@ public static class LiveMenuData
 
     private static string? Nonempty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
 
+    private static bool MenuBattleTimerBlocked(GameState state)
+    {
+        if (state.Scene == SceneKind.Field && state.EventState is { ValueKind: System.Text.Json.JsonValueKind.Object } snapshot && snapshot.TryGetProperty("PartyMenu", out System.Text.Json.JsonElement menu) && menu.ValueKind == System.Text.Json.JsonValueKind.Object && menu.TryGetProperty("TimerDisplayBeforeMenu", out System.Text.Json.JsonElement display) && display.ValueKind is System.Text.Json.JsonValueKind.True or System.Text.Json.JsonValueKind.False)
+        {
+            return display.GetBoolean();
+        }
+        return state.ExamTimer?.DisplayEnabled != false;
+    }
+
     internal static string CharacterName(GameState state, byte identity, IReadOnlyDictionary<int, string>? names, LiveMenuCatalog? catalog)
     {
         int subject = GameNames.CharacterSubject(identity);
@@ -315,7 +325,7 @@ public sealed partial class LiveMenuCatalog
     private NativeSolomonRingDefinition? solomonRing;
     private readonly TripleTriadCatalog tripleTriad;
 
-    private LiveMenuCatalog(byte[] kernelBytes, KernelData kernel, string[] guardianForceNames, string[] cardNames, string[] cardDescriptions, byte[] fieldItems, TripleTriadCatalog tripleTriad)
+    private LiveMenuCatalog(byte[] kernelBytes, KernelData kernel, string[] guardianForceNames, string[] cardNames, string[] cardDescriptions, byte[] fieldItems, byte[] itemIconKinds, TripleTriadCatalog tripleTriad)
     {
         this.kernel = kernel;
         statistics = new BattlePlayerStatReader(kernelBytes);
@@ -323,6 +333,7 @@ public sealed partial class LiveMenuCatalog
         this.cardNames = cardNames;
         this.cardDescriptions = cardDescriptions;
         this.fieldItems = fieldItems;
+        this.itemIconKinds = itemIconKinds;
         this.tripleTriad = tripleTriad;
         abilityNames = [.. kernel.JunctionAbilities.Select(ability => ability.Name), .. kernel.CommandAbilities.Select(ability => ability.Name), .. kernel.CharacterStatAbilities.Select(ability => ability.Name), .. kernel.CharacterAbilities.Select(ability => ability.Name), .. kernel.PartyAbilities.Select(ability => ability.Name), .. kernel.GuardianAbilities.Select(ability => ability.Name), .. kernel.MenuAbilities.Select(ability => ability.Name)];
         abilityDescriptions = [.. kernel.JunctionAbilities.Select(ability => FormatDescription(ability.Description)), .. kernel.CommandAbilities.Select(ability => FormatDescription(ability.Description)), .. kernel.CharacterStatAbilities.Select(ability => FormatDescription(ability.Description)), .. kernel.CharacterAbilities.Select(ability => FormatDescription(ability.Description)), .. kernel.PartyAbilities.Select(ability => FormatDescription(ability.Description)), .. kernel.GuardianAbilities.Select(ability => FormatDescription(ability.Description)), .. kernel.MenuAbilities.Select(ability => FormatDescription(ability.Description))];
@@ -387,10 +398,11 @@ public sealed partial class LiveMenuCatalog
         {
             throw new InvalidDataException("Original field item metadata requires complete four-byte rows.");
         }
-        LiveMenuCatalog catalog = new(kernelBytes, kernel, guardianForceNames, cardNames, cardDescriptions, fieldItems, TripleTriadCatalog.Load(assets.GameDirectory));
+        byte[] itemIconKinds = NativeMagazineArtwork.ReadItemIconKinds(File.ReadAllBytes(Path.Combine(assets.GameDirectory, "FF8_EN.exe")));
+        LiveMenuCatalog catalog = new(kernelBytes, kernel, guardianForceNames, cardNames, cardDescriptions, fieldItems, itemIconKinds, TripleTriadCatalog.Load(assets.GameDirectory));
         catalog.ReadLocations(ReadMenu("areames.dc1"), encoding, WorldMapLocations.ReadInstalled(assets.GameDirectory));
         catalog.solomonRing = assets.ReadNativeSolomonRingDefinition();
-        catalog.ReadMagazines(ReadMenu("mmag.bin"), textArchive.GetSection<MngrpStringTableSection>(87).Table, assets.ReadNativeWeaponShopDefinitions(), textArchive.GetSection<MngrpOpaqueSection>(7).Content, ReadMenu("magita.TEX"), NativeMagazineArtwork.ReadItemIconKinds(File.ReadAllBytes(Path.Combine(assets.GameDirectory, "FF8_EN.exe"))));
+        catalog.ReadMagazines(ReadMenu("mmag.bin"), textArchive.GetSection<MngrpStringTableSection>(87).Table, assets.ReadNativeWeaponShopDefinitions(), textArchive.GetSection<MngrpOpaqueSection>(7).Content, ReadMenu("magita.TEX"), itemIconKinds);
         return catalog;
     }
 

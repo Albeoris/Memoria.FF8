@@ -93,6 +93,7 @@ internal sealed partial class GameWorld
         }
         if (occurrence.SourceScene == SceneKind.WorldMap)
         {
+            bool menuBattle = Events.PendingMenuBattle is not null;
             NativeWorldBattleOutcome physical = new(occurrence, active.NativeResult!.Value, active.Capture().Definition.NativeExamTimerAtEntry?.ClockCalls ?? throw new NotSupportedException("World outcome requires its actual entry clock."), session.ExamTimer!.ClockCalls) { DefeatBranch = active.NativeResult == 1 ? Events.ReadNativeDefeatReturnBranch4706B0() : null };
             Events.RequireNativeWorldBattleOutcome(physical);
             Action publishWorld = PrepareNativeWorldBattleReturn(active, occurrence);
@@ -104,8 +105,20 @@ internal sealed partial class GameWorld
             {
                 session.SetDepartingFieldState(Events.Capture());
             }
-            RandomEncounterSessionState encounters = session.State.RandomEncounters ?? throw new InvalidOperationException("World outcome lost its playthrough owner.");
-            session.SetRandomEncounters(encounters with { Pending = null });
+            if (menuBattle)
+            {
+                Events.ReturnFromNativeMenuBattle(checked((int)(active.NativeGraphics is null ? active.Frame : active.NativeHostCallbacks!.Value)), active.NativeResult!.Value, () => { });
+                session.SetEventState(Events.Capture());
+                if (session.State.DepartingFieldState is not null)
+                {
+                    session.SetDepartingFieldState(Events.Capture());
+                }
+            }
+            else
+            {
+                RandomEncounterSessionState encounters = session.State.RandomEncounters ?? throw new InvalidOperationException("World outcome lost its playthrough owner.");
+                session.SetRandomEncounters(encounters with { Pending = null });
+            }
             return;
         }
         NativeBattleRetainedMemory? reloadedMemory = null;
@@ -121,7 +134,17 @@ internal sealed partial class GameWorld
             reloadedField = assets.BindNativeRegisteredTextures(currentField, Events.Scene.NativeFieldRegistration ?? throw new InvalidDataException("Native kind3 did not publish its actual registered field resource addresses."), reloadedMemory.EffectMemory?.Textures ?? throw new NotSupportedException("Native kind3 requires its retained texture memory."));
             _ = Events.RequireNativeBattleFieldReload(active.NativeResult ?? throw new InvalidOperationException("Active battle has no native return result."));
         }
-        if (occurrence.ScriptedOwner is not null)
+        if (Events.PendingMenuBattle is not null)
+        {
+            Events.ReturnFromNativeMenuBattle(checked((int)(active.NativeGraphics is null ? active.Frame : active.NativeHostCallbacks!.Value)), active.NativeResult!.Value, () =>
+            {
+                ApplyBattleResult(occurrence, result);
+                EventEngine.PreparedNativeBattleFieldReturn prepared = Events.PrepareNativeBattleFieldReturn(active.NativeMusicProcess ?? throw new NotSupportedException("Native menu battle return requires its live physical music owner."), active.Capture().Definition.NativeFlags, active.NativeResult!.Value, BattleMusicEntryResources, reloadedMemory, registration?.CrtRandomBefore, registration?.CrtRandomAfter);
+                Events.CommitNativeBattleFieldReturn(prepared);
+            });
+            PublishReloadedBattleField(reloadedField!);
+        }
+        else if (occurrence.ScriptedOwner is not null)
         {
             Events.ReturnFromInteractiveBattle(checked((int)(active.NativeGraphics is null ? active.Frame : active.NativeHostCallbacks!.Value)), () =>
             {

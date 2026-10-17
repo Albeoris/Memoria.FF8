@@ -128,7 +128,7 @@ public sealed partial class EventEngine
             Scene.MusicChannel108 = Scene.MusicChannel108! with { ChannelId = 0 };
         }
         NativeBattleCompletion? source = prepared.Battle;
-        Scene.NativeBattleFlagWrites!.Add(new(1, source is null ? NativeBattleFlagWriter.RandomFieldBattleReturn : NativeBattleFlagWriter.FieldBattleReturn, FieldId, programHash, Frame, source?.ObjectId ?? -1, source?.ScriptId ?? -1, source?.Operation ?? -1, null, prepared.PersistentFlags, prepared.PersistentFlags));
+        Scene.NativeBattleFlagWrites!.Add(new(1, source is null ? PendingMenuBattle is not null ? NativeBattleFlagWriter.MenuFieldBattleReturn : NativeBattleFlagWriter.RandomFieldBattleReturn : NativeBattleFlagWriter.FieldBattleReturn, FieldId, programHash, Frame, source?.ObjectId ?? -1, source?.ScriptId ?? -1, source?.Operation ?? -1, null, prepared.PersistentFlags, prepared.PersistentFlags));
         prepared.PublishAnimations();
         Scene.NativeBattleFieldReturn = new(prepared.Reload, prepared.Owners.Music.Receipt);
         Scene.NativeBattleFieldReload = null;

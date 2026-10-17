@@ -45,6 +45,10 @@ public sealed partial class EventEngine
         {
             writers.Add((random.BattleClockCallsAtEntry, random.Abandonment is null ? random.Result!.Value : (byte)1));
         }
+        if (scene.NativeMenuBattle is { } menu && (menu.Result is not null || menu.Abandonment is not null))
+        {
+            writers.Add((menu.BattleClockCallsAtEntry, menu.Abandonment is null ? menu.Result!.Value : (byte)1));
+        }
         if ((abandonedReplacement ?? scene.NativeAbandonedBattleOutcome) is { } abandoned)
         {
             writers.Add((abandoned.EntryClockCalls, 1));

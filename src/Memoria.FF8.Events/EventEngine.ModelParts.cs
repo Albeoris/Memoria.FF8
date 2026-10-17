@@ -33,7 +33,8 @@ public sealed partial class EventEngine
 
     private static bool IsNativeModelRegistrationOnly(SceneEventState scene, long frame)
     {
-        return frame == 1 && scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Completed } && scene.FieldCallbackClock is { Version: 1, InitializationTransactions: 1, OrdinaryCallbacks: 0, MovieCallbacks: 0, MenuCallbacks: 0, FieldLoaderCallbacks: 0, BattleCallbacks: null or 0, RandomBattleCallbacks: 0 };
+        // Menu and combat callbacks leave the registered field model bank dormant.
+        return frame == 1 && scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Completed } && scene.FieldCallbackClock is { Version: 1, InitializationTransactions: 1, OrdinaryCallbacks: 0, MovieCallbacks: 0, FieldLoaderCallbacks: 0 };
     }
 
     private void InitializeNativeModelParts()

@@ -33,6 +33,14 @@ public sealed partial class EventEngine
 
     private long RequireNativeBattleFieldReloadEntryFrame()
     {
+        if (PendingMenuBattle is { SourceScene: SceneKind.Field } menu)
+        {
+            if (PendingInteractiveBattle is not null || Scene.NativeRandomFieldBattle is { Result: null, Abandonment: null })
+            {
+                throw new InvalidDataException("Menu battle cannot share a field return owner.");
+            }
+            return menu.SourceFrame;
+        }
         if (PendingInteractiveBattle is { } scripted)
         {
             if (Scene.NativeRandomFieldBattle is { Result: null, Abandonment: null })
@@ -59,7 +67,7 @@ public sealed partial class EventEngine
     private static int CountPendingNativeFieldOwners(SceneEventState scene, long frame)
     {
         int scripted = scene.NativeBattleCompletions?.Count(completion => completion.Backend == NativeBattleBackend.Interactive && completion.ReturnFrame is null && completion.Result is null && completion.Abandonment is null && completion.Frame == frame) ?? 0;
-        return scripted + (scene.NativeRandomFieldBattle is { Result: null, ReturnFrame: null, Abandonment: null } random && random.Request.Frame == frame ? 1 : 0);
+        return scripted + (scene.NativeMenuBattle is { SourceScene: SceneKind.Field, Result: null, ReturnFrame: null, Abandonment: null } menu && menu.SourceFrame == frame ? 1 : 0) + (scene.NativeRandomFieldBattle is { Result: null, ReturnFrame: null, Abandonment: null } random && random.Request.Frame == frame ? 1 : 0);
     }
 
     private static void ValidateNativeRandomFieldBattleCheckpoint(Checkpoint saved)

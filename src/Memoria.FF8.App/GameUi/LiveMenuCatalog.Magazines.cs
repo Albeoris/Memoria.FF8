@@ -38,7 +38,7 @@ public sealed partial class LiveMenuCatalog
             throw new InvalidDataException("Magazine viewing requires the original mmag page rows and English section87 text.");
         }
         var paper = NativeMagazineArtwork.GetPaperColor(paperTexture);
-        if (itemIconKinds.Length != 21)
+        if (itemIconKinds.Length != 22)
         {
             throw new InvalidDataException("Magazine ingredients require the original native item-type icon table.");
         }

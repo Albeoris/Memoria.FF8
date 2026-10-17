@@ -57,6 +57,7 @@ internal sealed partial class GameWorld
         {
             throw new NotSupportedException("Interactive battle requires native495530 sealed-command slot flags and admission; enabled commands cannot substitute for those restrictions.");
         }
+        NativeCharacterVitals entryVitals = (session.State.CharacterVitals ?? throw new NotSupportedException("Battle entry requires the saved GF owner.")).RefreshGuardianForces();
         BattleEncounter encounter = BattleResources.LoadEncounter(encounterId);
         _ = BattleResources.LoadStage(encounter.StageId);
         List<BattleCombatantDefinition> combatants = [.. CreateBattleParty()];
@@ -95,7 +96,7 @@ internal sealed partial class GameWorld
             int drainPercent = 0;
             combatants.Add(new BattleCombatantDefinition { Id = $"enemy-{enemy.Slot}", SceneSlot = enemy.Slot, InitialActive = enemy.Enabled, NativeStatus0 = nativeStatuses.Saved, NativeStatus1 = nativeStatuses.Battle, NativeStatusResistances = nativeStatuses.Resistances.ToArray(), NativeCombatantFlags = BattleResources.ReadEnemyNativeCombatantFlags(enemy.ModelId), InitialHidden = enemy.Hidden, InitialUntargetable = enemy.Untargetable, InitialSuspended = enemy.InitiallySuspended, NativeAi = BattleResources.ReadEnemyAi(enemy.ModelId, level), NativeTemplate = BattleResources.ReadEnemyTemplate(enemy.ModelId, checked((byte)enemy.Level)), Name = BattleResources.ReadEnemyName(enemy.ModelId), ModelId = enemy.ModelId, MaximumHp = stats.MaximumHp, CurrentHp = stats.MaximumHp, Speed = Math.Max(1, stats.Speed), Attack = stats.Strength, Defense = stats.Vitality, Level = level, Magic = stats.Magic, Spirit = stats.Spirit, Evasion = stats.Evasion, PhysicalPower = power, DrainPercent = drainPercent, ElementDefenses = stats.ElementDefenses.Select(value => (int)value).ToArray(), NativeDrawSlots = BattleResources.ReadEnemyDrawSlots(enemy.ModelId, level), DrawSpells = BattleResources.ReadEnemyDrawSpells(enemy.ModelId, level), DrawGuardianForces = BattleResources.ReadEnemyDrawGuardianForces(enemy.ModelId, level), AbilityPoints = BattleResources.ReadEnemyAbilityPoints(enemy.ModelId), RewardSlot = enemy.Slot, Rewards = BattleResources.ReadEnemyRewards(enemy.ModelId) });
         }
-        BattleDefinition definition = new() { Name = $"Encounter {encounterId}", EncounterId = encounterId, StageId = encounter.StageId, Combatants = combatants.ToArray(), ActionDefinitions = CreateBattleActions(), NativeActions = BattleResources.NativeActions.ToArray(), NativeDevourEffects = BattleResources.ReadNativeDevourEffects(), NativeCards = session.State.CardInventory?.DeepCopy(), NativeCrtRandom = session.State.CrtRandom, NativeGlobalRandom = session.State.GlobalRandom, NativeElapsedCounter = ReadNativeElapsedCounter(), NativeCardNames = Enumerable.Range(0, 110).Select(id => battleCatalog!.CardName(id)).ToArray(), NativeItemNames = Enumerable.Range(0, 256).Select(id => battleCatalog!.ItemName(id)).ToArray(), NativeGlobalMessages = BattleResources.ReadNativeGlobalBattleMessages(), NativeScannedModels = session.State.ScannedModels, NativeKnownMagic = session.State.KnownMagic, NativeCommandNames = BattleResources.ReadNativeCommandNames(), NativeScanAlwaysShow = ((session.State.InputConfiguration ?? assets.ReadNewGameInputConfiguration()).Options & 0x100) != 0, GuardianForces = session.State.CharacterVitals!.GuardianForces.Select((gf, id) => new BattleGuardianForceVital(id, gf.HitPoints, session.State.CharacterVitals.Definitions.GuardianForceMaximum(id, gf), (gf.Flags & 1) != 0) { KillCount = gf.KillCount, DeathCount = gf.DeathCount }).ToArray(), NativePocketStation = session.State.PocketStation, NativeChocoboName = Events.Scene.Names.GetValueOrDefault(GameNames.BokoSubject) ?? NativePocketStationText.ChocoboName(session.State.PocketStation), NativeBattleSpeed = session.State.InputConfiguration?.NativeBattleSpeedByte ?? assets.ReadNewGameInputConfiguration().NativeBattleSpeedByte, LimitProgress = session.State.LimitProgress, NativeShotAvailability = session.State.ShotAvailability, NativeFieldBattleRules = fieldRules, NativeLimitsDisabled = (fieldRules & 0x20) != 0, NativeStatusRules = BattleResources.ReadNativeStatusRules(session.State.InputConfiguration?.NativeBattleSpeedByte ?? assets.ReadNewGameInputConfiguration().NativeBattleSpeedByte ?? throw new InvalidDataException("Native battle status timing requires the original saved speed BYTE.")), NativeSeed = nativeSeed, NativeFlags = activeFlags, NativeFieldBattleMode = ReadNativeFieldBattleMode(), NativeMessageSpeed = session.State.InputConfiguration?.BattleMessageSpeed ?? assets.ReadNewGameInputConfiguration().BattleMessageSpeed, NativeExamTimerAtEntry = session.ExamTimer, NativeSavedBattleFlags = session.State.SavedBattleFlags?.Value ?? (byte)(session.State.CharacterVitals!.DreamEnabled ? 1 : 0), NativeSavedBattleFlagsKnownMask = session.State.SavedBattleFlags?.EffectiveKnownMask ?? (byte)1, InitialRandom = random, PersistentAiVariables = session.State.BattleVariables?.Values.ToArray(), RareItem = (session.State.CharacterVitals!.GetEncounterAbilityFlags() & 2) != 0, NativeItemInventory = session.State.Economy?.Items.ToArray() ?? throw new NotSupportedException("Interactive battle requires the canonical item owner.") };
+        BattleDefinition definition = new() { Name = $"Encounter {encounterId}", EncounterId = encounterId, StageId = encounter.StageId, Combatants = combatants.ToArray(), ActionDefinitions = CreateBattleActions(), NativeActions = BattleResources.NativeActions.ToArray(), NativeDevourEffects = BattleResources.ReadNativeDevourEffects(), NativeCards = session.State.CardInventory?.DeepCopy(), NativeCrtRandom = session.State.CrtRandom, NativeGlobalRandom = session.State.GlobalRandom, NativeElapsedCounter = ReadNativeElapsedCounter(), NativeCardNames = Enumerable.Range(0, 110).Select(id => battleCatalog!.CardName(id)).ToArray(), NativeItemNames = Enumerable.Range(0, 256).Select(id => battleCatalog!.ItemName(id)).ToArray(), NativeGlobalMessages = BattleResources.ReadNativeGlobalBattleMessages(), NativeScannedModels = session.State.ScannedModels, NativeKnownMagic = session.State.KnownMagic, NativeCommandNames = BattleResources.ReadNativeCommandNames(), NativeScanAlwaysShow = ((session.State.InputConfiguration ?? assets.ReadNewGameInputConfiguration()).Options & 0x100) != 0, GuardianForces = entryVitals.GuardianForces.Select((gf, id) => new BattleGuardianForceVital(id, gf.HitPoints, entryVitals.Definitions.GuardianForceMaximum(id, gf), (gf.Flags & 1) != 0) { KillCount = gf.KillCount, DeathCount = gf.DeathCount }).ToArray(), NativePocketStation = session.State.PocketStation, NativeChocoboName = Events.Scene.Names.GetValueOrDefault(GameNames.BokoSubject) ?? NativePocketStationText.ChocoboName(session.State.PocketStation), NativeBattleSpeed = session.State.InputConfiguration?.NativeBattleSpeedByte ?? assets.ReadNewGameInputConfiguration().NativeBattleSpeedByte, LimitProgress = session.State.LimitProgress, NativeShotAvailability = session.State.ShotAvailability, NativeFieldBattleRules = fieldRules, NativeLimitsDisabled = (fieldRules & 0x20) != 0, NativeStatusRules = BattleResources.ReadNativeStatusRules(session.State.InputConfiguration?.NativeBattleSpeedByte ?? assets.ReadNewGameInputConfiguration().NativeBattleSpeedByte ?? throw new InvalidDataException("Native battle status timing requires the original saved speed BYTE.")), NativeSeed = nativeSeed, NativeFlags = activeFlags, NativeFieldBattleMode = ReadNativeFieldBattleMode(), NativeMessageSpeed = session.State.InputConfiguration?.BattleMessageSpeed ?? assets.ReadNewGameInputConfiguration().BattleMessageSpeed, NativeExamTimerAtEntry = session.ExamTimer, NativeSavedBattleFlags = session.State.SavedBattleFlags?.Value ?? (byte)(session.State.CharacterVitals!.DreamEnabled ? 1 : 0), NativeSavedBattleFlagsKnownMask = session.State.SavedBattleFlags?.EffectiveKnownMask ?? (byte)1, InitialRandom = random, PersistentAiVariables = session.State.BattleVariables?.Values.ToArray(), RareItem = (session.State.CharacterVitals!.GetEncounterAbilityFlags() & 2) != 0, NativeItemInventory = session.State.Economy?.Items.ToArray() ?? throw new NotSupportedException("Interactive battle requires the canonical item owner.") };
         definition = definition with
         {
             NativeSavedOptions = (session.State.InputConfiguration ?? assets.ReadNewGameInputConfiguration()).Options,
@@ -140,6 +141,15 @@ internal sealed partial class GameWorld
 
     private void ValidateBattleHostState()
     {
+        if (Events.PendingMenuBattle is not null)
+        {
+            ValidateMenuBattleHostState();
+            if (battle is not null)
+            {
+                ValidateBattleMusicHostState(battle);
+            }
+            return;
+        }
         if (battle is null)
         {
             return;
@@ -203,7 +213,7 @@ internal sealed partial class GameWorld
             }
             if (!input.FullCombat)
             {
-                if (battle is null && (Events.PendingInteractiveBattle is not null || session.State.RandomEncounters?.Pending is not null))
+                if (battle is null && (Events.PendingMenuBattle is not null || Events.PendingInteractiveBattle is not null || session.State.RandomEncounters?.Pending is not null))
                 {
                     ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: input.Mode));
                 }
@@ -224,6 +234,10 @@ internal sealed partial class GameWorld
         {
             // TODO(TD-009): Original CRT entropy provenance remains unowned.
             input = input with { NativeSeed = (byte)System.Security.Cryptography.RandomNumberGenerator.GetInt32(256) };
+        }
+        if (TryApplyMenuBattleInput(input, out int menuAdvanced))
+        {
+            return menuAdvanced;
         }
         if (TryApplyRandomBattleInput(input, out int randomAdvanced))
         {

@@ -45,6 +45,14 @@ public sealed partial class EventEngine
             }
             Scene.NativeBattleCompletions[index] = request with { Abandonment = receipt, EmulatedCombatCallbacks = receipt.CombatCallbacks };
         }
+        else if (PendingMenuBattle is { } menu)
+        {
+            if (menu.SourceScene != receipt.Encounter.SourceScene || menu.SourceFrame != receipt.Encounter.SourceFrame || menu.Formation != receipt.Encounter.Formation || menu.BattleClockCallsAtEntry != receipt.EntryClockCalls || menu.Callbacks != receipt.CombatCallbacks)
+            {
+                throw new InvalidDataException("Abandonment changed the menu battle entry or callback owner.");
+            }
+            Scene.NativeMenuBattle = menu with { Abandonment = receipt };
+        }
         else if (receipt.Encounter.SourceScene == SceneKind.Field)
         {
             NativeRandomFieldBattleOwner random = Scene.NativeRandomFieldBattle ?? throw new InvalidOperationException("Abandonment requires its suspended random encounter.");
@@ -61,7 +69,7 @@ public sealed partial class EventEngine
     public NativeBattleAbandonment CaptureNativeBattleAbandonment(BattleEncounterOccurrence encounter, int callbacks)
     {
         NativeBattleDefeatReturnBranch branch = ReadNativeDefeatReturnBranch4706B0();
-        long entry = PendingInteractiveBattle?.BattleClockCallsAtEntry ?? Scene.NativeRandomFieldBattle?.BattleClockCallsAtEntry ?? throw new NotSupportedException("Native fresh defeat requires its executed entry clock owner.");
+        long entry = PendingInteractiveBattle?.BattleClockCallsAtEntry ?? PendingMenuBattle?.BattleClockCallsAtEntry ?? Scene.NativeRandomFieldBattle?.BattleClockCallsAtEntry ?? throw new NotSupportedException("Native fresh defeat requires its executed entry clock owner.");
         NativeBattleAbandonment receipt = new(encounter, branch, entry, services.ExamTimer?.ClockCalls ?? throw new NotSupportedException("Native fresh defeat requires its process timer."), callbacks);
         if (PendingInteractiveBattle is { } request)
         {

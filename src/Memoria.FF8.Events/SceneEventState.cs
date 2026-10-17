@@ -83,6 +83,9 @@ public sealed class SceneEventState
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeRandomFieldBattleOwner? NativeRandomFieldBattle { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeMenuBattleOwner? NativeMenuBattle { get; internal set; }
 
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

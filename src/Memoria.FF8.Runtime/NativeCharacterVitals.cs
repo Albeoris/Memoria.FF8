@@ -168,6 +168,12 @@ public sealed partial record NativeCharacterVitals
             ushort maximum = Definitions.CharacterMaximum(current);
             records[slot] = current with { HitPoints = ClampHitPoints(current.HitPoints, maximum) };
         }
+        return (this with { Records = records, GuardianForces = RefreshGuardianForces().GuardianForces }).DeepCopy();
+    }
+
+    public NativeCharacterVitals RefreshGuardianForces()
+    {
+        Validate();
         NativeGuardianForceVital[] guardianForces = GuardianForces.ToArray();
         for (int id = 0; id < guardianForces.Length; id++)
         {
@@ -178,7 +184,7 @@ public sealed partial record NativeCharacterVitals
                 guardianForces[id] = current with { MaximumHitPoints = maximum, HitPoints = unchecked((short)maximum) < current.HitPoints ? maximum : current.HitPoints };
             }
         }
-        return (this with { Records = records, GuardianForces = guardianForces }).DeepCopy();
+        return (this with { GuardianForces = guardianForces }).DeepCopy();
     }
 
     public NativeCharacterVitals AcquireGuardianForce(int id)

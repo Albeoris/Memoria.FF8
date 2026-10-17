@@ -104,6 +104,7 @@ public sealed class MenuItem
     public Memoria.FF8.Runtime.NativeMagazinePage[] NativeMagazinePages { get; set; } = [];
     public Dictionary<byte, string> NativeMagazinePageUnavailableReasons { get; set; } = [];
     public bool NativeFieldUseSupported { get; set; }
+    public bool NativeFieldBattleUse { get; set; }
     public bool NativeFieldNameConfirmation { get; set; }
     public int? NativeFieldNameSubject { get; set; }
     public bool NativeFieldTargetsGuardianForce { get; set; }

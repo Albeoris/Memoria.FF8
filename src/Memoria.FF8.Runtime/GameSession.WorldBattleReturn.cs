@@ -2,6 +2,17 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class GameSession
 {
+    public void RecordNativeMenuWorldBattleDeparture(BattleEncounterOccurrence occurrence, NativeSavedWorldFootReturn receipt)
+    {
+        occurrence.Validate();
+        receipt.RequireCompleteFootReload();
+        if (State.Scene != SceneKind.WorldMap || State.World is not { } world || State.SavedWorld is not { } saved || occurrence.SourceScene != SceneKind.WorldMap || occurrence.SourceFieldId != State.FieldId || occurrence.SourceFrame != world.Frame || receipt.SourceWorldFrame != world.Frame || receipt.WorldMode != 3 || State.PendingBattleEncounter is not null || State.Battle is not null || State.RandomEncounters?.Pending is not null)
+        {
+            throw new InvalidOperationException("Menu combat departure requires its current encounter and actual saved foot pose.");
+        }
+        State = State with { SavedWorld = PrepareGardenParkingForFootReturn(saved, world).WithFootReturn(receipt), WorldConfiguration = NativeWorldConfiguration.FromWorldReturn(world, State.FieldId) };
+    }
+
     public void RecordNativeWorldBattleDeparture(RandomEncounterRequest request, NativeSavedWorldFootReturn receipt)
     {
         receipt.RequireCompleteFootReload();
@@ -18,8 +29,8 @@ public sealed partial class GameSession
         {
             throw new InvalidOperationException("Prepared world combat reload no longer matches its applied encounter and physical saved owner.");
         }
-        RandomEncounterSessionState encounters = State.RandomEncounters ?? throw new NotSupportedException("World combat reload requires its original encounter process.");
-        GameState candidate = State with { Battle = null, World = prepared.World, SavedWorld = prepared.SavedWorld, EventMemory = prepared.EventMemory, WorldEntryMemory = prepared.WorldEntryMemory, RandomEncounters = encounters with { Native = encounters.Native with { WorldInitialized = false } } };
+        RandomEncounterSessionState? encounters = State.RandomEncounters;
+        GameState candidate = State with { Battle = null, World = prepared.World, SavedWorld = prepared.SavedWorld, EventMemory = prepared.EventMemory, WorldEntryMemory = prepared.WorldEntryMemory, RandomEncounters = encounters is null ? null : encounters with { Native = encounters.Native with { WorldInitialized = false } } };
         candidate = AdvanceNativePlaytime(candidate);
         ValidateLiveEventMemoryOwners(candidate, candidate.EventMemory);
         ValidateBattleFactsCheckpoint(candidate);

@@ -22,7 +22,7 @@ public sealed partial class EventEngine
     public Func<bool>? HasPendingRandomBattle { get; set; }
     public Action<bool>? NativePlayerMovementProcessed { get; set; }
     public bool HostAutomaticBattles { get; set; }
-    public bool HasPendingBattle => PendingHostedBattle is not null || HasPendingRandomBattle?.Invoke() == true;
+    public bool HasPendingBattle => PendingMenuBattle is not null || PendingHostedBattle is not null || HasPendingRandomBattle?.Invoke() == true;
     public void AdvanceRandomBattleCallbacks(int callbacks)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(callbacks);
@@ -293,6 +293,7 @@ public sealed partial class EventEngine
     private void ValidateNativeBattleCheckpoint(Checkpoint saved, IReadOnlyDictionary<long, Fiber> bySequence)
     {
         ValidateNativeRandomFieldBattleCheckpoint(saved);
+        ValidateNativeMenuBattleCheckpoint(saved);
         saved.Scene.NativeBattleFieldReload?.Validate();
         saved.Scene.NativeBattleFieldReloadState?.Validate();
         if (saved.Scene.NativeBattleFieldReloadState is { } pending && (saved.Scene.NativeBattleFieldReload is not null || pending.FieldId != saved.FieldId || pending.ProgramHash != saved.ProgramHash || CountPendingNativeFieldOwners(saved.Scene, pending.BattleEntryFrame) != 1))

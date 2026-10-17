@@ -18,7 +18,13 @@ internal sealed partial class GameWorld
         BattleDefinition definition = CreateEncounterBattle(encounter, seed, flags) with { NativeGlobalSoundProcess = prepared.Native.SoundProcess, NativeMusicProcess = prepared.Native.MusicProcess };
         BattleSession candidate = AttachNativeEffectResources(CreateLiveBattleSession(definition, session.State.GameplayPreferences with { AtbMode = mode }));
         synchronizedNativeBattleCallbacks = 0;
-        Events.CommitNativeBattleMusicEntry(prepared, _ => session.SetBattle(candidate.Capture()));
+        Events.CommitNativeBattleMusicEntry(prepared, _ =>
+        {
+            //48B7E0 calls495EC0 before publishing the entry GF bank.
+            NativeCharacterVitals vitals = session.State.CharacterVitals!.RefreshGuardianForces();
+            session.SetNativePartyMenuOwners(vitals, session.State.Economy!, session.State.ShotAvailability!, session.State.SalaryPresentation!);
+            session.SetBattle(candidate.Capture());
+        });
         Events.SynchronizeNativeBattleMusicProcess(candidate.NativeMusicProcess);
         return candidate;
     }
@@ -53,7 +59,11 @@ internal sealed partial class GameWorld
         while (remaining > 0)
         {
             int callbacks = (int)Math.Min(remaining, 30000);
-            if (session.State.PendingBattleEncounter?.ScriptedOwner is not null)
+            if (Events.PendingMenuBattle is not null)
+            {
+                Events.AdvanceMenuBattleCallbacks(callbacks);
+            }
+            else if (session.State.PendingBattleEncounter?.ScriptedOwner is not null)
             {
                 Events.AdvanceInteractiveBattleCallbacks(callbacks);
             }

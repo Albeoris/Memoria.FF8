@@ -16,6 +16,12 @@ public sealed partial class EventEngine
         return new(native, Scene, buffers, sound, keep ? null : Scene.NativeBattleMusic203, keep ? null : Scene.MusicChannel108);
     }
 
+    public PreparedNativeBattleMusicEntry PrepareNativeMenuBattleMusicEntry(ushort encounter, ushort flags, NativeBattleMusicEntryResources resources, ushort? priorReturnChannel = null)
+    {
+        //4706B0 passes a local AKAO descriptor;52CE30 overwrites it with its original36-byte template before reading it.
+        return PrepareNativeBattleMusicEntry(encounter, flags, resources, priorReturnChannel);
+    }
+
     public void CommitNativeBattleMusicEntry(PreparedNativeBattleMusicEntry prepared, Action<NativeBattleMusicEntryPreparation> publishNativeBattle)
     {
         ArgumentNullException.ThrowIfNull(prepared);

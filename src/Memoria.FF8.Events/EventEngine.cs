@@ -212,6 +212,7 @@ public sealed partial class EventEngine
         Scene.NativeAbandonedBattleOutcome = previousScene.NativeAbandonedBattleOutcome;
         Scene.NativeWorldBattleOutcome = previousScene.NativeWorldBattleOutcome;
         Scene.NativeRandomFieldBattle = previousScene.NativeRandomFieldBattle;
+        Scene.NativeMenuBattle = previousScene.NativeMenuBattle;
         CopyNativeBattleMode(previousScene);
         Scene.GlobalSoundRequests.AddRange(previousScene.GlobalSoundRequests);
 

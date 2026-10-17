@@ -3,17 +3,17 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8.Events;
 
 /// <summary>Actual field callbacks since allocation, classified by the movie flag sampled before VM dispatch.</summary>
-public sealed record NativeFieldCallbackClock(int Version, long OrdinaryCallbacks, long MovieCallbacks, [property: System.Text.Json.Serialization.JsonRequired] long MenuCallbacks, [property: System.Text.Json.Serialization.JsonRequired] long FieldLoaderCallbacks, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] long? BattleCallbacks = null, [property: System.Text.Json.Serialization.JsonRequired] long? InitializationTransactions = null, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] long RandomBattleCallbacks = 0)
+public sealed record NativeFieldCallbackClock(int Version, long OrdinaryCallbacks, long MovieCallbacks, [property: System.Text.Json.Serialization.JsonRequired] long MenuCallbacks, [property: System.Text.Json.Serialization.JsonRequired] long FieldLoaderCallbacks, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] long? BattleCallbacks = null, [property: System.Text.Json.Serialization.JsonRequired] long? InitializationTransactions = null, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] long RandomBattleCallbacks = 0, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] long MenuBattleCallbacks = 0)
 {
     public void Validate(long frame)
     {
-        if (Version != 1 || InitializationTransactions is null or < 0 or > 1 || OrdinaryCallbacks < 0 || MovieCallbacks < 0 || MenuCallbacks < 0 || FieldLoaderCallbacks < 0 || BattleCallbacks < 0 || RandomBattleCallbacks < 0 || OrdinaryCallbacks > frame - InitializationTransactions.Value || MovieCallbacks != frame - InitializationTransactions.Value - OrdinaryCallbacks)
+        if (Version != 1 || InitializationTransactions is null or < 0 or > 1 || OrdinaryCallbacks < 0 || MovieCallbacks < 0 || MenuCallbacks < 0 || FieldLoaderCallbacks < 0 || BattleCallbacks < 0 || RandomBattleCallbacks < 0 || MenuBattleCallbacks < 0 || OrdinaryCallbacks > frame - InitializationTransactions.Value || MovieCallbacks != frame - InitializationTransactions.Value - OrdinaryCallbacks)
         {
             throw new InvalidDataException("Native field callback clock does not match its executed frame history.");
         }
     }
 
-    public long TimerCalls => checked(2 * OrdinaryCallbacks + 4 * MovieCallbacks + MenuCallbacks + 2 * FieldLoaderCallbacks + 4 * BattleCallbacks.GetValueOrDefault() + 4 * RandomBattleCallbacks);
+    public long TimerCalls => checked(2 * OrdinaryCallbacks + 4 * MovieCallbacks + MenuCallbacks + 2 * FieldLoaderCallbacks + 4 * BattleCallbacks.GetValueOrDefault() + 4 * RandomBattleCallbacks + 4 * MenuBattleCallbacks);
 }
 
 public sealed partial class EventEngine

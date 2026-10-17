@@ -23,11 +23,13 @@ internal sealed partial class GameWorld
         GameState departure = session.State;
         NativeSavedWorldState saved = departure.SavedWorld ?? throw new NotSupportedException("World combat return requires its recorded saved-world bytes.");
         NativeSavedWorldFootReturn receipt = saved.FootReturn ?? throw new NotSupportedException("World combat return requires the actual mode3 departure pose.");
-        if (occurrence.SourceScene != SceneKind.WorldMap || departure.RandomEncounters?.Pending is not { Scene: SceneKind.WorldMap } request || request.SourceHash != previous.AllocationProgramSha256 || occurrence.SourceFrame != receipt.SourceWorldFrame || request.Frame != receipt.SourceWorldFrame || receipt.WorldMode != 3 || active.NativeResult is not (1 or 2 or 4))
+        bool menuBattle = Events.PendingMenuBattle is { SourceScene: SceneKind.WorldMap } menu && menu.SourceHash == previous.AllocationProgramSha256 && menu.SourceFrame == receipt.SourceWorldFrame;
+        bool randomBattle = departure.RandomEncounters?.Pending is { Scene: SceneKind.WorldMap } request && request.SourceHash == previous.AllocationProgramSha256 && request.Frame == receipt.SourceWorldFrame;
+        if (occurrence.SourceScene != SceneKind.WorldMap || !menuBattle && !randomBattle || occurrence.SourceFrame != receipt.SourceWorldFrame || receipt.WorldMode != 3 || active.NativeResult is not (1 or 2 or 4))
         {
             throw new InvalidDataException("World combat return differs from its original request, result or saved foot owner.");
         }
-        GameState input = departure with { World = null, Battle = null, PendingBattleEncounter = null, DepartingWorldState = departure.World, RandomEncounters = departure.RandomEncounters with { Pending = null } };
+        GameState input = departure with { World = null, Battle = null, PendingBattleEncounter = null, DepartingWorldState = departure.World, RandomEncounters = departure.RandomEncounters is null ? null : departure.RandomEncounters with { Pending = null } };
         GameSession temporary = new(input);
         WorldMapScene candidate = new(temporary, assets.GameDirectory, resources, receipt);
         Action publishMusic;
