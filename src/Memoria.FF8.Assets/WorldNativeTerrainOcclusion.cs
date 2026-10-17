@@ -223,7 +223,10 @@ public sealed partial class WorldAssets
                         continue;
                     }
                     NativeTerrainScreenBounds[] points = projected.Select(point => point!.Value).ToArray();
-                    if (points.Max(point => point.MinimumDepth) >> 2 >= threshold)
+                    //The fast renderer compares eighth-depth buckets against a
+                    //halved quarter-depth threshold, including its lost low bit.
+                    bool depthExcluded = direct ? points.Max(point => point.MinimumDepth) >> 2 >= threshold : points.Max(point => point.MinimumDepth) >> 3 >= threshold >> 1;
+                    if (depthExcluded)
                     {
                         continue;
                     }

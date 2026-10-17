@@ -5,6 +5,15 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativeGardenTerrainOcclusionTests
 {
     [Fact]
+    public void ForestFootCameraRejectsFastTerrainAtTheHalfThresholdBoundary()
+    {
+        using WorldAssets assets = new(TestResources.GameDirectory);
+        NativeWorldFootCameraState camera = new(26919, -28895, -608, 26867, -28862, -835, 639, -238, -341, -7168);
+        WorldNativeTerrainOcclusionResult result = assets.CertifyNativeTerrainCameraOcclusion(camera, 928, WorldTerrainSelection.Replacements(285), 0);
+        Assert.True(result.Occluded == false, result.Reason);
+    }
+
+    [Fact]
     public void ActualBalambFootCandidateUsesFloatStoresBeforeUnsignedFastClipping()
     {
         //Recorded b3ed5338 candidate: original4023D0 produces screenY
