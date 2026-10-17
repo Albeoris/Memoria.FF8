@@ -21,11 +21,14 @@ internal sealed class AutoPlayInputSearchTrial
     public int? Mask { get; set; }
     public bool Sampled { get; set; }
     public ScriptedInputQuery? SampledQuery { get; set; }
+    public AutoPlayNeutralInputReceipt? NeutralReceipt { get; set; }
     public AutoPlayInputTrialOutcome Outcome { get; set; }
     public string? ChildId { get; set; }
     public NativeGameOverReceipt? Loss { get; set; }
     public string? Diagnostic { get; set; }
 }
+
+internal sealed record AutoPlayNeutralInputReceipt(ScriptedInputQuery Query, NativeFieldButtonInput Buttons);
 
 internal sealed class AutoPlayInputSearchFrame
 {
@@ -41,6 +44,7 @@ internal sealed class AutoPlayInputSearchFrame
     public DialogueState? Dialogue { get; set; }
     public bool Prepared { get; set; }
     public bool AllowControlled { get; set; }
+    public bool IncludeNeutralInput { get; set; }
     public List<int> Options { get; set; } = [];
     public int? PreferredSelection { get; set; }
     public List<AutoPlayChoiceSelection>? BeforeSelections { get; set; }
@@ -124,12 +128,13 @@ internal sealed partial class AutoPlayController
             Dialogue = dialogue,
             Prepared = input is not null,
             AllowControlled = allowControlled,
-            Options = input is null ? Enumerable.Range(dialogue!.FirstChoice!.Value, dialogue.LastChoice!.Value - dialogue.FirstChoice.Value + 1).ToList() : Enumerable.Range(0, input.Masks.Count).ToList(),
+            IncludeNeutralInput = input is not null,
+            Options = input is null ? Enumerable.Range(dialogue!.FirstChoice!.Value, dialogue.LastChoice!.Value - dialogue.FirstChoice.Value + 1).ToList() : Enumerable.Range(0, input.Masks.Count + 1).ToList(),
             PreferredSelection = preferredSelection,
             BeforeSelections = run.ActiveSelections?.ToList(),
             Context = CaptureInputSearchContext()
         };
-        if (preferredSelection is int preferred && (parent is not null || !frame.Options.Contains(preferred)))
+        if (preferredSelection is int preferred && (parent is not null || !frame.Options.Contains(preferred) || input is not null && preferred >= input.Masks.Count))
         {
             throw new InvalidDataException("A planned local replay requires a root occurrence and an actual visible alternative.");
         }
@@ -139,7 +144,7 @@ internal sealed partial class AutoPlayController
         {
             run.ScriptedChoiceInputs.TryAdd(key, input);
         }
-        planner.ObserveChoice(key, frame.Options.Count, frame.Options[0]);
+        planner.ObserveChoice(key, input?.Masks.Count ?? frame.Options.Count, frame.Options[0]);
         AutoPlayChoiceCoverage choice = run.Coverage.Choices.Single(item => item.Key == key);
         if (choice.BeforeCheckpoint is null)
         {
@@ -194,12 +199,12 @@ internal sealed partial class AutoPlayController
         DriveInputSearchBoundary(null, false, dialogue, key, preferredSelection: selection);
     }
 
-    internal static int? NextInputSearchSelection(AutoPlayInputSearchFrame frame)
+    internal static int? NextInputSearchSelection(AutoPlayInputSearchFrame frame, bool includeNeutral = true)
     {
         int start = 0;
         if (frame.PreferredSelection is int preferred)
         {
-            if (!frame.Options.Contains(preferred))
+            if (!frame.Options.Contains(preferred) || frame.Input is not null && preferred >= frame.Input.Masks.Count)
             {
                 throw new InvalidDataException("The planned local input alternative is outside its original domain.");
             }
@@ -212,6 +217,10 @@ internal sealed partial class AutoPlayController
         for (int offset = 0; offset < frame.Options.Count; offset++)
         {
             int selection = frame.Options[(start + offset) % frame.Options.Count];
+            if (!includeNeutral && frame.IncludeNeutralInput && frame.Input is { } input && selection == input.Masks.Count)
+            {
+                continue;
+            }
             if (!frame.Trials.Any(trial => trial.Selection == selection))
             {
                 return selection;
@@ -220,23 +229,32 @@ internal sealed partial class AutoPlayController
         return null;
     }
 
-    private void ExecuteInputSearchTrial(AutoPlayInputSearchFrame frame)
+    private void ExecuteInputSearchTrial(AutoPlayInputSearchFrame frame, bool includeNeutral = true)
     {
         AutoPlayInputSearch search = run.InputSearch!;
         if (search.TrialCount >= AutoPlayInputSearch.MaximumTrials)
         {
             throw new NotSupportedException("Local input search exhausted 10000 actual trials without a native control return.");
         }
-        int selection = NextInputSearchSelection(frame) ?? throw new NotSupportedException("The local input checkpoint has no untried physical alternative.");
-        AutoPlayInputSearchTrial trial = new() { Selection = selection, Mask = frame.Input?.Masks[selection] };
+        int selection = NextInputSearchSelection(frame, includeNeutral) ?? throw new NotSupportedException("The local input checkpoint has no untried physical alternative.");
+        bool neutral = frame.IncludeNeutralInput && frame.Input is { } neutralInput && selection == neutralInput.Masks.Count;
+        AutoPlayInputSearchTrial trial = new() { Selection = selection, Mask = neutral ? 0 : frame.Input?.Masks[selection] };
         frame.ActiveTrial = frame.Trials.Count;
         frame.Trials.Add(trial);
         search.ActiveFrameId = frame.Id;
         search.TrialCount++;
-        run.ActiveSelections?.Add(new(frame.Key, selection));
+        if (!neutral)
+        {
+            run.ActiveSelections?.Add(new(frame.Key, selection));
+        }
         if (frame.Input is { } input)
         {
             run.ScriptedInputs[input.Fingerprint] = run.ScriptedInputs.GetValueOrDefault(input.Fingerprint) + 1;
+            if (neutral)
+            {
+                trial.NeutralReceipt = ObserveNeutralInputSearchCallback(frame);
+                return;
+            }
             trial.Sampled = PulseScriptedInput(input.Masks[selection], input, frame.AllowControlled, prepared: true, query => trial.SampledQuery = query);
             if (RecordInputSearchKnowledge(search, frame, trial))
             {
@@ -252,9 +270,53 @@ internal sealed partial class AutoPlayController
         }
     }
 
+    private AutoPlayNeutralInputReceipt ObserveNeutralInputSearchCallback(AutoPlayInputSearchFrame frame)
+    {
+        GameWorld world = getWorld();
+        int field = session.State.FieldId;
+        long before = world.Events.Frame;
+        if (!HasScriptedInputOwner(world, field, frame.AllowControlled) || !HasNeutralScriptedInput(session.State.FieldButtonInput, field, before))
+        {
+            throw new NotSupportedException("A neutral input alternative requires its authentic prepared field callback.");
+        }
+        AutoPlayNeutralInputReceipt? receipt = null;
+        void Observe(ScriptCommand command)
+        {
+            if (command.FieldId != field || command.Arguments.Count != 1 || command.Name is not ("KEYSCAN" or "KEYSCAN2" or "KEYON"))
+            {
+                return;
+            }
+            ScriptedInputQuery query = new(command.ObjectId, command.ScriptId, command.Operation, command.Name, unchecked((ushort)command.Arguments[0]));
+            if (frame.Input!.Queries.Contains(query) && session.State.FieldButtonInput is { } buttons && HasNeutralScriptedInput(buttons, field, world.Events.Frame))
+            {
+                receipt ??= new(query, buttons);
+            }
+        }
+        Apply(new(PlayerActionKind.FieldButtons, 0));
+        world.Events.CommandExecuted += Observe;
+        try
+        {
+            AdvanceInputFrame(world);
+        }
+        finally
+        {
+            world.Events.CommandExecuted -= Observe;
+        }
+        if (receipt is null || world.Events.Frame != before + 1 || receipt.Buttons.SampledFrame != before + 1)
+        {
+            throw new NotSupportedException("A neutral input alternative did not observe its zero-input native query in exactly one callback.");
+        }
+        return receipt;
+    }
+
+    internal static bool HasNeutralInputSearchReceipt(AutoPlayInputSearchFrame frame, AutoPlayInputSearchTrial trial)
+    {
+        return frame.IncludeNeutralInput && frame.Input is { } input && trial.Selection == input.Masks.Count && trial.Mask == 0 && !trial.Sampled && trial.SampledQuery is null && trial.NeutralReceipt is { } receipt && input.Queries.Contains(receipt.Query) && receipt.Buttons.Version == 3 && receipt.Buttons.SampledFrame > 0 && HasNeutralScriptedInput(receipt.Buttons, frame.FieldId, receipt.Buttons.SampledFrame);
+    }
+
     internal static bool RecordInputSearchKnowledge(AutoPlayInputSearch search, AutoPlayInputSearchFrame frame, AutoPlayInputSearchTrial trial)
     {
-        if (!trial.Sampled || trial.Mask is not int mask || frame.Input is null || trial.SampledQuery is null || !frame.Input.Queries.Contains(trial.SampledQuery))
+        if (!trial.Sampled || trial.Mask is not int mask || mask <= 0 || frame.Input is null || trial.SampledQuery is null || !frame.Input.Queries.Contains(trial.SampledQuery))
         {
             return false;
         }
@@ -316,25 +378,33 @@ internal sealed partial class AutoPlayController
             SaveGame(Path.Combine(runDirectory!, before.Snapshot), beforeStep);
             AtomicWrite(Path.Combine(runDirectory!, diagnostic + "-before.run.json"), JsonSerializer.Serialize(before, BeforeSnapshotJsonOptions));
         }
-        while (frame is not null)
+        AutoPlayInputSearchFrame? next = SelectInputSearchRecoveryFrame(search, frame);
+        if (next is not null)
         {
-            if (NextInputSearchSelection(frame) is not null)
-            {
-                RestoreInputSearchFrame(frame);
-                ExecuteInputSearchTrial(frame);
-                return true;
-            }
-            AutoPlayInputSearchFrame? retained = frame.Trials.Where(trial => trial.ChildId is not null).Select(trial => search.Frames.Single(child => child.Id == trial.ChildId)).FirstOrDefault(child => !child.Exhausted && child.Trials.Count == 0);
-            if (retained is not null)
-            {
-                RestoreInputSearchFrame(retained);
-                ExecuteInputSearchTrial(retained);
-                return true;
-            }
-            frame.Exhausted = true;
-            frame = search.Frames.SingleOrDefault(parent => parent.Id == frame.ParentId);
+            RestoreInputSearchFrame(next);
+            ExecuteInputSearchTrial(next, includeNeutral: NextInputSearchSelection(next, includeNeutral: false) is null);
+            return true;
         }
         throw new NotSupportedException("The bounded local input search exhausted its retained authentic alternatives after a native loss.");
+    }
+
+    internal static AutoPlayInputSearchFrame? SelectInputSearchRecoveryFrame(AutoPlayInputSearch search, AutoPlayInputSearchFrame failed)
+    {
+        Dictionary<string, AutoPlayInputSearchFrame> frames = search.Frames.ToDictionary(frame => frame.Id, StringComparer.Ordinal);
+        List<AutoPlayInputSearchFrame> ancestors = [];
+        for (AutoPlayInputSearchFrame? frame = failed; frame is not null; frame = frame.ParentId is string parent ? frames[parent] : null)
+        {
+            ancestors.Add(frame);
+        }
+        foreach (AutoPlayInputSearchFrame frame in search.Frames)
+        {
+            frame.Exhausted = NextInputSearchSelection(frame) is null;
+        }
+        // Keep every deferred neutral occurrence, but try actual positive alternatives before waiting again at a loss prompt.
+        return ancestors.FirstOrDefault(frame => NextInputSearchSelection(frame, includeNeutral: false) is not null)
+            ?? search.Frames.FirstOrDefault(frame => NextInputSearchSelection(frame, includeNeutral: false) is not null)
+            ?? ancestors.FirstOrDefault(frame => !frame.Exhausted)
+            ?? search.Frames.FirstOrDefault(frame => !frame.Exhausted);
     }
 
     private AutoPlayInputSearchContext CaptureInputSearchContext()
@@ -415,7 +485,7 @@ internal sealed partial class AutoPlayController
         while (frame is not null && frame.ActiveTrial is int active)
         {
             AutoPlayInputSearchTrial trial = frame.Trials[active];
-            if (!trial.Sampled || trial.Outcome == AutoPlayInputTrialOutcome.NativeLoss)
+            if ((!trial.Sampled && !HasNeutralInputSearchReceipt(frame, trial)) || trial.Outcome == AutoPlayInputTrialOutcome.NativeLoss)
             {
                 throw new InvalidDataException("A failed or unsampled local input trial cannot receive control-return coverage.");
             }
@@ -427,6 +497,10 @@ internal sealed partial class AutoPlayController
         for (int index = path.Count - 1; index >= 0; index--)
         {
             (AutoPlayInputSearchFrame observed, AutoPlayInputSearchTrial trial) = path[index];
+            if (HasNeutralInputSearchReceipt(observed, trial))
+            {
+                continue;
+            }
             if (credited.Add(observed.Key))
             {
                 AutoPlayChoiceCoverage choice = run.Coverage.Choices.Single(candidate => candidate.Key == observed.Key);
@@ -459,7 +533,7 @@ internal sealed partial class AutoPlayController
 
     private static void ValidateInputSearchCheckpointMetadata(AutoPlayInputSearchFrame frame, int field, string? program, long callback, NativeFieldButtonInput? buttons)
     {
-        if (field != frame.FieldId || program != frame.ProgramHash || frame.Input is { } input && (!frame.Prepared || !input.ObservedQueriesProven || input.Queries.Count == 0 || input.Masks.Count != frame.Options.Count || !HasNeutralScriptedInput(buttons, frame.FieldId, callback)) || frame.Input is null && (frame.Prepared || frame.Dialogue?.FirstChoice is null))
+        if (field != frame.FieldId || program != frame.ProgramHash || frame.Input is { } input && (!frame.Prepared || !input.ObservedQueriesProven || input.Queries.Count == 0 || input.Masks.Count + (frame.IncludeNeutralInput ? 1 : 0) != frame.Options.Count || !HasNeutralScriptedInput(buttons, frame.FieldId, callback)) || frame.Input is null && (frame.IncludeNeutralInput || frame.Prepared || frame.Dialogue?.FirstChoice is null) || frame.Trials.Any(trial => trial.NeutralReceipt is { } receipt && (!HasNeutralInputSearchReceipt(frame, trial) || receipt.Buttons.SampledFrame != callback + 1)))
         {
             throw new InvalidDataException("A local input search checkpoint lost its original field, program, query domain or prepared input owner.");
         }
@@ -500,8 +574,8 @@ internal sealed partial class AutoPlayController
         foreach (AutoPlayInputSearchFrame frame in search.Frames)
         {
             int first = frame.Input is null ? frame.Dialogue?.FirstChoice ?? -1 : 0;
-            int count = frame.Input is null ? (frame.Dialogue?.LastChoice ?? -2) - first + 1 : frame.Input.Masks.Count;
-            if (first < 0 || count <= 0 || frame.PreferredSelection is int preferred && (frame.ParentId is not null || !frame.Options.Contains(preferred)) || !frame.Options.SequenceEqual(Enumerable.Range(first, count)) || frame.Input is { } input && (input.Masks.Distinct().Count() != input.Masks.Count || input.Masks.Any(mask => mask is <= 0 or > ushort.MaxValue)) || frame.Trials.Select(trial => trial.Selection).Distinct().Count() != frame.Trials.Count || frame.ActiveTrial is int active && (active < 0 || active >= frame.Trials.Count))
+            int count = frame.Input is null ? (frame.Dialogue?.LastChoice ?? -2) - first + 1 : frame.Input.Masks.Count + (frame.IncludeNeutralInput ? 1 : 0);
+            if (first < 0 || count <= 0 || frame.IncludeNeutralInput && frame.Input is null || frame.PreferredSelection is int preferred && (frame.ParentId is not null || !frame.Options.Contains(preferred) || frame.Input is not null && preferred >= frame.Input.Masks.Count) || !frame.Options.SequenceEqual(Enumerable.Range(first, count)) || frame.Input is { } input && (input.Masks.Distinct().Count() != input.Masks.Count || input.Masks.Any(mask => mask is <= 0 or > ushort.MaxValue)) || frame.Trials.Select(trial => trial.Selection).Distinct().Count() != frame.Trials.Count || frame.ActiveTrial is int active && (active < 0 || active >= frame.Trials.Count))
             {
                 throw new InvalidDataException("A local input search ledger has a changed ordered option domain or active trial.");
             }
@@ -529,7 +603,10 @@ internal sealed partial class AutoPlayController
             for (int index = 0; index < frame.Trials.Count; index++)
             {
                 AutoPlayInputSearchTrial trial = frame.Trials[index];
-                if (!frame.Options.Contains(trial.Selection) || trial.Mask != frame.Input?.Masks[trial.Selection] || trial.Sampled && frame.Input is not null && (trial.SampledQuery is null || !frame.Input.Queries.Contains(trial.SampledQuery)) || trial.Outcome is AutoPlayInputTrialOutcome.ReturnedToObservedContext or AutoPlayInputTrialOutcome.ReachedNewBoundary or AutoPlayInputTrialOutcome.ControlReturn && !trial.Sampled || (trial.Outcome == AutoPlayInputTrialOutcome.NativeLoss) != (trial.Loss is not null))
+                bool neutral = frame.IncludeNeutralInput && frame.Input is { } neutralInput && trial.Selection == neutralInput.Masks.Count;
+                bool physicalSelection = frame.Input is null || trial.Selection >= 0 && trial.Selection < frame.Input.Masks.Count;
+                int? expectedMask = neutral ? 0 : physicalSelection ? frame.Input?.Masks[trial.Selection] : null;
+                if (!frame.Options.Contains(trial.Selection) || trial.Mask != expectedMask || !neutral && trial.NeutralReceipt is not null || neutral && (trial.Sampled || trial.SampledQuery is not null || trial.NeutralReceipt is not null && !HasNeutralInputSearchReceipt(frame, trial)) || trial.Sampled && frame.Input is not null && (trial.SampledQuery is null || !frame.Input.Queries.Contains(trial.SampledQuery)) || trial.Outcome is AutoPlayInputTrialOutcome.ReturnedToObservedContext or AutoPlayInputTrialOutcome.ReachedNewBoundary or AutoPlayInputTrialOutcome.ControlReturn && !trial.Sampled && !HasNeutralInputSearchReceipt(frame, trial) || (trial.Outcome == AutoPlayInputTrialOutcome.NativeLoss) != (trial.Loss is not null))
                 {
                     throw new InvalidDataException("A local input search trial has inconsistent sampling, outcome or physical alternative.");
                 }

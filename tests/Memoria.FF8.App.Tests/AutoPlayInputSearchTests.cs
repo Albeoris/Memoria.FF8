@@ -10,6 +10,138 @@ public sealed class AutoPlayInputSearchTests
     private static readonly ScriptedInputQuery Query = new(2, 3, 4, "KEYSCAN2", 3);
 
     [Fact]
+    public void ConfirmedLossDefersNeutralPromptUntilAncestorPhysicalAlternativesAreExhausted()
+    {
+        AutoPlayInputSearchFrame parent = Frame("parent");
+        AutoPlayInputSearchFrame lossPrompt = Frame("loss-prompt");
+        ScriptedInputQuery confirm = new(0, 1, 125, "KEYON", 64);
+        lossPrompt.FieldId = 75;
+        lossPrompt.Key = "input:75:confirm";
+        lossPrompt.Input = new("confirm", [64], [confirm]) { ObservedQueriesProven = true };
+        lossPrompt.IncludeNeutralInput = true;
+        lossPrompt.ParentId = parent.Id;
+        lossPrompt.ParentTrial = 0;
+        parent.Trials.Add(new() { Selection = 0, Mask = 1, Sampled = true, SampledQuery = Query, Outcome = AutoPlayInputTrialOutcome.ReachedNewBoundary, ChildId = lossPrompt.Id });
+        lossPrompt.Trials.Add(new()
+        {
+            Selection = 0,
+            Mask = 64,
+            Sampled = true,
+            SampledQuery = confirm,
+            Outcome = AutoPlayInputTrialOutcome.NativeLoss,
+            Loss = new(1, 75, new string('a', 64), NativeFieldRuntimeProfile.FF8EnExecutableHash, 0, 1, 137, 386, 4)
+        });
+        AutoPlayInputSearch search = new() { Frames = [parent, lossPrompt], TrialCount = 2, ActiveFrameId = lossPrompt.Id };
+        AutoPlayController.RecordInputSearchKnowledge(search, parent, parent.Trials[0]);
+        AutoPlayController.RecordInputSearchKnowledge(search, lossPrompt, lossPrompt.Trials[0]);
+        AutoPlayController.ValidateInputSearchLedger(search);
+
+        Assert.Same(parent, AutoPlayController.SelectInputSearchRecoveryFrame(search, lossPrompt));
+        Assert.False(lossPrompt.Exhausted);
+        Assert.Equal(1, AutoPlayController.NextInputSearchSelection(lossPrompt));
+        Assert.Null(AutoPlayController.NextInputSearchSelection(lossPrompt, includeNeutral: false));
+        Assert.Single(lossPrompt.Trials);
+
+        AutoPlayInputSearch cold = JsonSerializer.Deserialize<AutoPlayInputSearch>(JsonSerializer.Serialize(search, AutoPlayController.JsonOptions), AutoPlayController.JsonOptions)!;
+        AutoPlayInputSearchFrame coldParent = cold.Frames[0];
+        AutoPlayInputSearchFrame coldPrompt = cold.Frames[1];
+        coldParent.Trials.Add(new() { Selection = 1, Mask = 2 });
+        cold.TrialCount++;
+        AutoPlayController.ValidateInputSearchLedger(cold);
+
+        Assert.Same(coldPrompt, AutoPlayController.SelectInputSearchRecoveryFrame(cold, coldPrompt));
+        Assert.True(coldParent.Exhausted);
+        Assert.False(coldPrompt.Exhausted);
+        Assert.Equal(1, AutoPlayController.NextInputSearchSelection(coldPrompt));
+        Assert.Equal(AutoPlayInputTrialOutcome.NativeLoss, Assert.Single(coldPrompt.Trials).Outcome);
+        Assert.Equal(2, cold.DistinctSampledPhysicalEdges);
+        AutoPlayController.ValidateInputSearchLedger(cold);
+    }
+
+    [Fact]
+    public void ExplicitNeutralAlternativeFollowsPhysicalAlternativesWithoutChangingTheirDomainOrProgress()
+    {
+        AutoPlayInputSearchFrame frame = Frame("neutral");
+        frame.IncludeNeutralInput = true;
+        frame.Options.Add(frame.Input!.Masks.Count);
+        frame.FieldId = 100;
+        Assert.Equal(0, AutoPlayController.NextInputSearchSelection(frame));
+        AutoPlayInputSearchTrial trial = new()
+        {
+            Selection = 2,
+            Mask = 0,
+            NeutralReceipt = new(Query, new(3, 0, 0, 43, 100, 0, 0, 0, 0)),
+            Outcome = AutoPlayInputTrialOutcome.ControlReturn
+        };
+        frame.Trials.Add(trial);
+        AutoPlayInputSearch search = new() { Frames = [frame], TrialCount = 1 };
+        AutoPlayController.ValidateInputSearchLedger(search);
+        Assert.True(AutoPlayController.HasNeutralInputSearchReceipt(frame, trial));
+        Assert.False(AutoPlayController.RecordInputSearchKnowledge(search, frame, trial));
+        Assert.Equal(0, search.DistinctSampledPhysicalEdges);
+        Assert.Equal(new[] { 1, 2 }, frame.Input.Masks);
+        Assert.Equal(0, AutoPlayController.NextInputSearchSelection(frame));
+
+        AutoPlayInputSearch cold = JsonSerializer.Deserialize<AutoPlayInputSearch>(JsonSerializer.Serialize(search, AutoPlayController.JsonOptions), AutoPlayController.JsonOptions)!;
+        AutoPlayController.ValidateInputSearchLedger(cold);
+        Assert.True(AutoPlayController.HasNeutralInputSearchReceipt(cold.Frames[0], cold.Frames[0].Trials[0]));
+        Assert.Equal(0, AutoPlayController.NextInputSearchSelection(cold.Frames[0]));
+        cold.Frames[0].Trials.RemoveAt(0);
+        cold.Frames[0].Trials.Add(new() { Selection = 0, Mask = 1 });
+        Assert.Equal(1, AutoPlayController.NextInputSearchSelection(cold.Frames[0]));
+        cold.Frames[0].Trials.Add(new() { Selection = 1, Mask = 2 });
+        Assert.Equal(2, AutoPlayController.NextInputSearchSelection(cold.Frames[0]));
+    }
+
+    [Fact]
+    public void ExplicitGlobalPhysicalSelectionTakesPrecedenceOverNeutral()
+    {
+        AutoPlayInputSearchFrame frame = Frame("neutral");
+        frame.IncludeNeutralInput = true;
+        frame.Options.Add(frame.Input!.Masks.Count);
+        frame.PreferredSelection = 1;
+        Assert.Equal(1, AutoPlayController.NextInputSearchSelection(frame));
+        frame.PreferredSelection = 2;
+        Assert.Throws<InvalidDataException>(() => AutoPlayController.NextInputSearchSelection(frame));
+    }
+
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("physical")]
+    [InlineData("field")]
+    [InlineData("query")]
+    [InlineData("positive-credit")]
+    [InlineData("legacy")]
+    public void NeutralReturnCannotBeForgedFromMissingNonzeroOrUnownedSamples(string invalid)
+    {
+        AutoPlayInputSearchFrame frame = Frame("neutral");
+        frame.IncludeNeutralInput = invalid != "legacy";
+        frame.Options.Add(frame.Input!.Masks.Count);
+        frame.FieldId = 100;
+        AutoPlayInputSearchTrial trial = new()
+        {
+            Selection = 2,
+            Mask = 0,
+            NeutralReceipt = new(Query, new(3, 0, 0, 43, 100, 0, 0, 0, 0)),
+            Outcome = AutoPlayInputTrialOutcome.ControlReturn
+        };
+        trial.NeutralReceipt = invalid switch
+        {
+            "missing" => null,
+            "physical" => trial.NeutralReceipt with { Buttons = trial.NeutralReceipt.Buttons with { PhysicalHeld = 1 } },
+            "field" => trial.NeutralReceipt with { Buttons = trial.NeutralReceipt.Buttons with { SampledFieldId = 101 } },
+            "query" => trial.NeutralReceipt with { Query = Query with { Operation = 99 } },
+            _ => trial.NeutralReceipt
+        };
+        trial.Sampled = invalid == "positive-credit";
+        frame.Trials.Add(trial);
+        AutoPlayInputSearch search = new() { Frames = [frame], TrialCount = 1 };
+
+        Assert.False(AutoPlayController.HasNeutralInputSearchReceipt(frame, trial));
+        Assert.Throws<InvalidDataException>(() => AutoPlayController.ValidateInputSearchLedger(search));
+    }
+
+    [Fact]
     public void PlannedGlobalReplayStartsWithItsActualAlternativeAndColdPreservesTheDomain()
     {
         AutoPlayInputSearchFrame frame = Frame("root");
@@ -256,9 +388,10 @@ public sealed class AutoPlayInputSearchTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ImportedCheckpointValidatesOwnersAfterReadingAcrossStreamBuffers(bool changedOwner)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void ImportedCheckpointValidatesOwnersAfterReadingAcrossStreamBuffers(bool changedOwner, bool changedNeutralFrame)
     {
         string directory = Path.Combine(Path.GetTempPath(), "ff8-input-search-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -268,6 +401,14 @@ public sealed class AutoPlayInputSearchTests
             AutoPlayInputSearchFrame frame = Frame("parent");
             frame.FieldId = 100;
             frame.ProgramHash = "observed-program";
+            frame.IncludeNeutralInput = true;
+            frame.Options.Add(frame.Input!.Masks.Count);
+            frame.Trials.Add(new()
+            {
+                Selection = frame.Input.Masks.Count,
+                Mask = 0,
+                NeutralReceipt = new(Query, new(3, 0, 0, changedNeutralFrame ? 44 : 43, frame.FieldId, 0, 0, 0, 0))
+            });
             using (FileStream stream = File.Create(path))
             {
                 JsonSerializer.Serialize(stream, new
@@ -283,7 +424,7 @@ public sealed class AutoPlayInputSearchTests
                 frame.Sha256 = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
             }
 
-            if (changedOwner)
+            if (changedOwner || changedNeutralFrame)
             {
                 InvalidDataException exception = Assert.Throws<InvalidDataException>(() => AutoPlayController.ValidateImportedInputSearchCheckpoint(frame, directory));
                 Assert.Contains("prepared input owner", exception.Message);

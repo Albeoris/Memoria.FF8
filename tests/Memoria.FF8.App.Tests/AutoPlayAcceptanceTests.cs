@@ -22,8 +22,11 @@ public sealed class AutoPlayAcceptanceTests
         AutoPlayInputSearchFrame frame = Assert.Single(run.Controller.State.InputSearch!.Frames);
         ScriptedInputMetadata input = Assert.IsType<ScriptedInputMetadata>(frame.Input);
         AutoPlayInputSearchTrial actual = Assert.Single(frame.Trials);
+        Assert.True(frame.IncludeNeutralInput);
+        Assert.Equal(0, actual.Selection);
         Assert.True(actual.Sampled);
         Assert.NotNull(actual.SampledQuery);
+        Assert.Null(actual.NeutralReceipt);
         AutoPlayChoiceCoverage choice = Assert.Single(run.Controller.State.Coverage.Choices, choice => choice.Key == frame.Key);
         Assert.Empty(choice.CompletedOptions);
         string checkpoint = Assert.Single(Directory.GetFiles(run.OutputDirectory, frame.Checkpoint, SearchOption.AllDirectories));
@@ -31,10 +34,24 @@ public sealed class AutoPlayAcceptanceTests
         System.Reflection.MethodInfo restoreFrame = typeof(AutoPlayController).GetMethod("RestoreInputSearchFrame", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
         System.Reflection.MethodInfo pulse = typeof(AutoPlayController).GetMethod("PulseScriptedInput", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
         restoreFrame.Invoke(run.Controller, [frame]);
+        JsonElement neutralBefore = run.Snapshot();
+        long beforeFrame = neutralBefore.GetProperty("EventState").GetProperty("Frame").GetInt64();
+        long progress = run.Controller.State.LastProgressStep;
+        int knowledge = run.Controller.State.InputSearch.DistinctSampledPhysicalEdges;
+        System.Reflection.MethodInfo neutral = typeof(AutoPlayController).GetMethod("ObserveNeutralInputSearchCallback", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        AutoPlayNeutralInputReceipt receipt = Assert.IsType<AutoPlayNeutralInputReceipt>(neutral.Invoke(run.Controller, [frame]));
+        Assert.Equal(beforeFrame + 1, run.Snapshot().GetProperty("EventState").GetProperty("Frame").GetInt64());
+        Assert.Equal(beforeFrame + 1, receipt.Buttons.SampledFrame);
+        Assert.True(AutoPlayController.HasNeutralScriptedInput(receipt.Buttons, frame.FieldId, beforeFrame + 1));
+        Assert.Contains(receipt.Query, input.Queries);
+        Assert.Equal(progress, run.Controller.State.LastProgressStep);
+        Assert.Equal(knowledge, run.Controller.State.InputSearch.DistinctSampledPhysicalEdges);
+        Assert.Empty(choice.CompletedOptions);
+        restoreFrame.Invoke(run.Controller, [frame]);
         ScriptedInputMetadata impossible = input with { Queries = input.Queries.Select(query => query with { Operation = int.MaxValue }).ToArray() };
         List<ScriptedInputQuery> sampled = [];
 
-        System.Reflection.TargetInvocationException invocation = Assert.Throws<System.Reflection.TargetInvocationException>(() => pulse.Invoke(run.Controller, [input.Masks[actual.Selection], impossible, frame.AllowControlled, true, new Action<ScriptedInputQuery>(sampled.Add)]));
+        System.Reflection.TargetInvocationException invocation = Assert.Throws<System.Reflection.TargetInvocationException>(() => pulse.Invoke(run.Controller, [input.Masks[0], impossible, frame.AllowControlled, true, new Action<ScriptedInputQuery>(sampled.Add)]));
 
         NotSupportedException failure = Assert.IsType<NotSupportedException>(invocation.InnerException);
         Assert.Contains("did not sample physical mask", failure.Message);
