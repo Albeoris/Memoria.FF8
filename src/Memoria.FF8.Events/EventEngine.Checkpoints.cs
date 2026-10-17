@@ -68,7 +68,7 @@ public sealed partial class EventEngine
     }
 
     /// <summary>Restores a captured VM after LoadField has supplied exactly the same field's bytes and messages.</summary>
-    private void RestoreCore(JsonElement snapshot)
+    private void RestoreCore(JsonElement snapshot, bool restoreSharedState = true)
     {
         Checkpoint saved = snapshot.Deserialize<Checkpoint>(CheckpointOptions) ?? throw new InvalidDataException("Empty event checkpoint.");
         if (saved.EventMemory is null)
@@ -86,6 +86,10 @@ public sealed partial class EventEngine
         }
         saved.EventMemory.Validate();
         ValidateSceneMemoryOwners(saved.EventMemory, saved.Scene);
+        if (!restoreSharedState)
+        {
+            ValidateSceneMemoryOwners(EventMemory, saved.Scene);
+        }
         if (program is null || saved.Version != 1 || saved.FieldId != FieldId || saved.ProgramHash != programHash || saved.Actors.Length != actors.Count || saved.Frame < 0 || !double.IsFinite(saved.AccumulatedSeconds) || saved.AccumulatedSeconds < 0 || saved.AccumulatedSeconds > 10)
         {
             throw new InvalidDataException("Event checkpoint does not match the loaded field/program or has invalid timing.");
@@ -659,105 +663,108 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved unsupported-opcode fault does not match its preserved instruction pointer.");
         }
-        if (saved.WorldControls is NativeWorldControlState savedControls)
+        if (restoreSharedState)
         {
-            // A complete VM snapshot restores this canonical service state too.
-            services.SetWorldControls(savedControls);
-        }
-        if (saved.FieldButtonInput is NativeFieldButtonInput fieldButtonInput)
-        {
-            services.SetFieldButtonInput(fieldButtonInput);
-        }
-        if (saved.InputConfiguration is NativeInputConfiguration inputConfiguration)
-        {
-            services.SetInputConfiguration(inputConfiguration);
-        }
-        if (saved.MessageVariables is NativeMessageVariables messageVariables)
-        {
-            services.SetMessageVariables(messageVariables);
-        }
-        axisStart = saved.AxisStart;
-        if (saved.ExamTimer is NativeExamTimerState savedTimer)
-        {
-            services.SetExamTimer(savedTimer);
-        }
-        if (saved.CharacterVitals is NativeCharacterVitals savedVitals)
-        {
-            services.SetCharacterVitals(savedVitals);
-        }
-        if (saved.CharacterAppearance is NativeCharacterAppearance savedAppearance)
-        {
-            services.SetCharacterAppearance(savedAppearance);
-        }
-        if (saved.CardInventory is NativeCardInventory savedCards)
-        {
-            services.SetCardInventory(savedCards);
-        }
-        if (saved.GlobalSoundProcess is NativeGlobalSoundProcess soundProcess)
-        {
-            services.SetGlobalSoundProcess(soundProcess);
-        }
-        if (saved.EventRandom is NativeEventRandomState eventRandom)
-        {
-            services.SetEventRandom(eventRandom);
-        }
-        if (saved.WorldEntryMemory is NativeWorldEntryMemory worldEntryMemory)
-        {
-            services.SetWorldEntryMemory(worldEntryMemory);
-        }
-        if (saved.WeaponRecipes is NativeWeaponRecipes weaponRecipes)
-        {
-            services.SetWeaponRecipes(weaponRecipes);
-        }
-        if (saved.MovieSource is NativeMovieSource movieSource)
-        {
-            services.SetMovieSource(movieSource);
-        }
-        if (saved.DiscProcess is NativeDiscProcessState discProcess)
-        {
-            services.SetDiscProcess(discProcess);
-        }
-        if (saved.MenuRandom is NativeMenuRandomState menuRandom)
-        {
-            services.SetMenuRandom(menuRandom);
-        }
-        if (saved.ShopHistory is NativeShopHistory shopHistory)
-        {
-            services.SetShopHistory(shopHistory);
-        }
-        if (saved.FieldFade is NativeFieldFadeState fieldFade)
-        {
-            services.SetFieldFade(fieldFade);
-        }
-        if (saved.VibrationProcess is NativeVibrationProcessState vibration)
-        {
-            services.SetVibrationProcess(vibration);
-        }
-        if (saved.FieldBars is NativeFieldBarsState fieldBars)
-        {
-            services.SetFieldBars(fieldBars);
-        }
-        if (saved.FieldShake is NativeFieldShake fieldShake)
-        {
-            services.SetFieldShake(fieldShake);
-        }
-        if (saved.SalaryPresentation is NativeSalaryPresentation salaryPresentation)
-        {
-            services.SetSalaryPresentation(salaryPresentation);
-        }
-        if (saved.Economy is NativeEconomy savedEconomy)
-        {
-            services.SetEconomy(savedEconomy);
-        }
-        if (saved.SeeD is NativeSeeDState savedSeeD)
-        {
-            services.SetSeeD(savedSeeD);
-        }
-        if (saved.ShotAvailability is NativeShotAvailabilityState shots)
-        {
-            services.SetNativePartyMenuOwners(saved.CharacterVitals ?? throw new InvalidDataException("Shot owner lacks native saved characters."), saved.Economy ?? throw new InvalidDataException("Shot owner lacks native economy."), shots, saved.SalaryPresentation ?? throw new InvalidDataException("Shot owner lacks native salary process."), fieldLocation: saved.NativeFieldLocation);
+            if (saved.WorldControls is NativeWorldControlState savedControls)
+            {
+                // A complete VM snapshot restores this canonical service state too.
+                services.SetWorldControls(savedControls);
+            }
+            if (saved.FieldButtonInput is NativeFieldButtonInput fieldButtonInput)
+            {
+                services.SetFieldButtonInput(fieldButtonInput);
+            }
+            if (saved.InputConfiguration is NativeInputConfiguration inputConfiguration)
+            {
+                services.SetInputConfiguration(inputConfiguration);
+            }
+            if (saved.MessageVariables is NativeMessageVariables messageVariables)
+            {
+                services.SetMessageVariables(messageVariables);
+            }
+            if (saved.ExamTimer is NativeExamTimerState savedTimer)
+            {
+                services.SetExamTimer(savedTimer);
+            }
+            if (saved.CharacterVitals is NativeCharacterVitals savedVitals)
+            {
+                services.SetCharacterVitals(savedVitals);
+            }
+            if (saved.CharacterAppearance is NativeCharacterAppearance savedAppearance)
+            {
+                services.SetCharacterAppearance(savedAppearance);
+            }
+            if (saved.CardInventory is NativeCardInventory savedCards)
+            {
+                services.SetCardInventory(savedCards);
+            }
+            if (saved.GlobalSoundProcess is NativeGlobalSoundProcess soundProcess)
+            {
+                services.SetGlobalSoundProcess(soundProcess);
+            }
+            if (saved.EventRandom is NativeEventRandomState eventRandom)
+            {
+                services.SetEventRandom(eventRandom);
+            }
+            if (saved.WorldEntryMemory is NativeWorldEntryMemory worldEntryMemory)
+            {
+                services.SetWorldEntryMemory(worldEntryMemory);
+            }
+            if (saved.WeaponRecipes is NativeWeaponRecipes weaponRecipes)
+            {
+                services.SetWeaponRecipes(weaponRecipes);
+            }
+            if (saved.MovieSource is NativeMovieSource movieSource)
+            {
+                services.SetMovieSource(movieSource);
+            }
+            if (saved.DiscProcess is NativeDiscProcessState discProcess)
+            {
+                services.SetDiscProcess(discProcess);
+            }
+            if (saved.MenuRandom is NativeMenuRandomState menuRandom)
+            {
+                services.SetMenuRandom(menuRandom);
+            }
+            if (saved.ShopHistory is NativeShopHistory shopHistory)
+            {
+                services.SetShopHistory(shopHistory);
+            }
+            if (saved.FieldFade is NativeFieldFadeState fieldFade)
+            {
+                services.SetFieldFade(fieldFade);
+            }
+            if (saved.VibrationProcess is NativeVibrationProcessState vibration)
+            {
+                services.SetVibrationProcess(vibration);
+            }
+            if (saved.FieldBars is NativeFieldBarsState fieldBars)
+            {
+                services.SetFieldBars(fieldBars);
+            }
+            if (saved.FieldShake is NativeFieldShake fieldShake)
+            {
+                services.SetFieldShake(fieldShake);
+            }
+            if (saved.SalaryPresentation is NativeSalaryPresentation salaryPresentation)
+            {
+                services.SetSalaryPresentation(salaryPresentation);
+            }
+            if (saved.Economy is NativeEconomy savedEconomy)
+            {
+                services.SetEconomy(savedEconomy);
+            }
+            if (saved.SeeD is NativeSeeDState savedSeeD)
+            {
+                services.SetSeeD(savedSeeD);
+            }
+            if (saved.ShotAvailability is NativeShotAvailabilityState shots)
+            {
+                services.SetNativePartyMenuOwners(saved.CharacterVitals ?? throw new InvalidDataException("Shot owner lacks native saved characters."), saved.Economy ?? throw new InvalidDataException("Shot owner lacks native economy."), shots, saved.SalaryPresentation ?? throw new InvalidDataException("Shot owner lacks native salary process."), fieldLocation: saved.NativeFieldLocation);
+            }
         }
         partyMenu = saved.PartyMenu;
+        axisStart = saved.AxisStart;
         axisTarget = saved.AxisTarget;
         axisDuration = saved.AxisDuration;
         axisElapsed = saved.AxisElapsed;
@@ -810,7 +817,10 @@ public sealed partial class EventEngine
             backgroundAnimations.Add(animation.Id, new BackgroundAnimation { NativeVersion = animation.NativeVersion, First = animation.First, Last = animation.Last, Speed = animation.Speed, Counter = animation.Counter, Position = animation.Position, Active = animation.Active, Complete = animation.Complete, Loop = animation.Loop });
         }
         Scene = saved.Scene;
-        PublishEventMemory(saved.EventMemory);
+        if (restoreSharedState)
+        {
+            PublishEventMemory(saved.EventMemory);
+        }
         partyJoin = saved.PartyJoin;
         partySplit = saved.PartySplit;
         if (LastFault is EventFault retryableFault && Supports(program.Operations[retryableFault.Operation].Opcode))
@@ -821,7 +831,10 @@ public sealed partial class EventEngine
                 LastFault = null;
             }
         }
-        RefreshCurrentDialogue();
+        if (restoreSharedState)
+        {
+            RefreshCurrentDialogue();
+        }
     }
 
     private sealed record FiberCheckpoint(int ObjectId, int ScriptId, int Priority, long Sequence, bool Initialization, int Position, bool Complete, bool Started, [property: JsonRequired] bool NativeResultFrameEntered, NativeScalarValue[] Stack, string[] StackExpressions, Dictionary<int, NativeScalarValue> Results, WaitReason WaitReason, long WaitUntil, long? RequestSequence, int DialogueChannel, int BackgroundId, int SoundResourceId = 0, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] byte? NativeDoorSlot = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] byte? NativeActorSlot = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? NativeMoveOperation = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? NativeMoveTarget = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeDoorRequestWaitState? NativeDoorRequestWait = null, [property: JsonRequired] bool NativeDoorDefaultFrame = false, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeScalarValue[]? NativeDoorSavedResults = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? NativeShadeOperation = null);

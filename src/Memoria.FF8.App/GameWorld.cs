@@ -281,23 +281,8 @@ internal sealed partial class GameWorld : IDisposable
             return next.Walkmesh.TryPosition(arrival.X, arrival.Y, out Vector3 position, out int triangle, locked) ? new WalkmeshPosition(position, triangle) : null;
         };
         Events.InitInputAxisDirection = next.Information?.ControlDirection ?? 0;
-        NativeWorldControlState? sceneControls = restoreDeparting ? session.WorldControls : null;
-        NativeExamTimerState? sceneTimer = restoreDeparting ? session.State.ExamTimer : null;
-        NativeSeeDState? sceneSeeD = restoreDeparting ? session.SeeD : null;
-        NativeEconomy? sceneEconomy = restoreDeparting ? session.Economy : null;
-        NativeCharacterVitals? sceneVitals = restoreDeparting ? session.State.CharacterVitals : null;
-        NativeCardInventory? sceneCards = restoreDeparting ? session.State.CardInventory : null;
-        NativeLimitProgress? sceneLimits = restoreDeparting ? session.State.LimitProgress : null;
-        NativeGlobalSoundProcess? sceneSoundProcess = restoreDeparting ? session.GlobalSoundProcess : null;
-        NativeSalaryPresentation? sceneSalaryPresentation = restoreDeparting ? session.SalaryPresentation : null;
-        NativeEventRandomState? sceneEventRandom = restoreDeparting ? session.EventRandom : null;
-        NativeVibrationProcessState? sceneVibration = restoreDeparting ? session.VibrationProcess : null;
-        NativeFieldFadeState? sceneFade = restoreDeparting ? session.FieldFade : null;
-        NativeShopHistory? sceneShopHistory = restoreDeparting ? session.ShopHistory : null;
-        NativeMenuRandomState? sceneMenuRandom = restoreDeparting ? session.MenuRandom : null;
-        NativeWeaponRecipes? sceneWeaponRecipes = restoreDeparting ? session.WeaponRecipes : null;
         ushort? inheritedPlaceId = !restoreDeparting && snapshot is null && HasWorldPlaceArrival(Events.Scene, session.State) ? unchecked((ushort)(worldLocations ??= WorldMapLocations.ReadInstalled(assets.GameDirectory)).GetPlaceId(session.State.DepartingWorldState!.X, session.State.DepartingWorldState.Z)) : null;
-        Events.LoadField(next.Id, next.Jsm, next.Messages, arrival, previousFieldId: snapshot is null ? session.State.PreviousFieldId : null, nativeRuntimeProfile: assets.NativeRuntimeProfile, worldEntityAllocationContext: snapshot, inheritedPlaceId: inheritedPlaceId);
+        Events.LoadField(next.Id, next.Jsm, next.Messages, arrival, previousFieldId: snapshot is null ? session.State.PreviousFieldId : null, nativeRuntimeProfile: assets.NativeRuntimeProfile, worldEntityAllocationContext: snapshot, inheritedPlaceId: inheritedPlaceId, restoringCheckpoint: snapshot is not null);
         if (next.Information is FieldInformation information)
         {
             Events.InfGateways = information.Gateways.Select((gateway, index) => (Gateway: gateway, Index: index)).Where(item => item.Gateway.Defined || item.Gateway.DestinationField < 72).Select(item => CreateInfGateway(item.Gateway, item.Index)).ToArray();
@@ -305,68 +290,13 @@ internal sealed partial class GameWorld : IDisposable
         }
         if (snapshot is System.Text.Json.JsonElement saved)
         {
-            Events.Restore(saved);
-            if (sceneControls is not null)
+            if (restoreDeparting)
             {
-                // The departing VM precedes world flags/menu changes; the current session owns DWORD104 and BYTE207/209.
-                session.SetWorldControls(sceneControls);
+                Events.RestoreFieldState(saved);
             }
-            if (sceneTimer is not null)
+            else
             {
-                // The frozen departing VM precedes world callbacks; the session owns the shared native clock.
-                session.SetExamTimer(sceneTimer);
-            }
-            if (sceneSeeD is not null)
-            {
-                session.SetSeeD(sceneSeeD);
-            }
-            if (sceneEconomy is not null)
-            {
-                session.SetEconomy(sceneEconomy);
-            }
-            if (sceneVitals is not null)
-            {
-                session.SetCharacterVitals(sceneVitals);
-            }
-            if (sceneCards is not null)
-            {
-                session.SetCardInventory(sceneCards);
-            }
-            if (sceneLimits is not null)
-            {
-                session.SetLimitProgress(sceneLimits);
-            }
-            if (sceneSoundProcess is not null)
-            {
-                session.SetGlobalSoundProcess(sceneSoundProcess);
-            }
-            if (sceneSalaryPresentation is not null)
-            {
-                session.SetSalaryPresentation(sceneSalaryPresentation);
-            }
-            if (sceneEventRandom is not null)
-            {
-                session.SetEventRandom(sceneEventRandom);
-            }
-            if (sceneWeaponRecipes is not null)
-            {
-                session.SetWeaponRecipes(sceneWeaponRecipes);
-            }
-            if (sceneMenuRandom is not null)
-            {
-                session.SetMenuRandom(sceneMenuRandom);
-            }
-            if (sceneShopHistory is not null)
-            {
-                session.SetShopHistory(sceneShopHistory);
-            }
-            if (sceneFade is not null)
-            {
-                session.SetFieldFade(sceneFade);
-            }
-            if (sceneVibration is not null)
-            {
-                session.SetVibrationProcess(sceneVibration);
+                Events.Restore(saved);
             }
         }
         Field = next;

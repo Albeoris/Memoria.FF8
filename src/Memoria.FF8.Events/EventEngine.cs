@@ -74,9 +74,9 @@ public sealed partial class EventEngine
     public NativeFieldRuntimeProfile? NativeRuntimeProfile { get; private set; }
     public event Action<ScriptCommand>? CommandExecuted;
 
-    private void LoadFieldCore(int fieldId, byte[] jsm, IReadOnlyList<string> fieldMessages, FieldTransition? arrival = null, int? previousFieldId = null, NativeFieldRuntimeProfile? nativeRuntimeProfile = null, System.Text.Json.JsonElement? worldEntityAllocationContext = null, ushort? inheritedPlaceId = null)
+    private void LoadFieldCore(int fieldId, byte[] jsm, IReadOnlyList<string> fieldMessages, FieldTransition? arrival = null, int? previousFieldId = null, NativeFieldRuntimeProfile? nativeRuntimeProfile = null, System.Text.Json.JsonElement? worldEntityAllocationContext = null, ushort? inheritedPlaceId = null, bool restoringCheckpoint = false)
     {
-        if (program is not null)
+        if (program is not null && !restoringCheckpoint)
         {
             StopNativeSpuAtFieldDeparture();
         }
@@ -93,13 +93,16 @@ public sealed partial class EventEngine
         ValidateNativeMusicFieldLoad(nativeRuntimeProfile);
         JsmProgram next = JsmProgram.Read(jsm);
         string nextHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(jsm));
-        if (nativeRuntimeProfile is { IsVerified: true } && services.FieldFade is NativeFieldFadeState fieldFade)
+        if (!restoringCheckpoint)
         {
-            services.SetFieldFade(fieldFade.ResetPhysicalForLoader().InitializeFreshActors());
+            if (nativeRuntimeProfile is { IsVerified: true } && services.FieldFade is NativeFieldFadeState fieldFade)
+            {
+                services.SetFieldFade(fieldFade.ResetPhysicalForLoader().InitializeFreshActors());
+            }
+            ResetNativeShakeForLoad(nativeRuntimeProfile);
+            InitializeNewGameMusic(nativeRuntimeProfile, fieldId);
         }
-        ResetNativeShakeForLoad(nativeRuntimeProfile);
-        InitializeNewGameMusic(nativeRuntimeProfile, fieldId);
-        if (program is null && fieldId == 74)
+        if (!restoringCheckpoint && program is null && fieldId == 74)
         {
             // Native New Game entry 0x470560 seeds field party bytes 00 FF FF before start0 init SETPC.
             Scene.Party.Clear();
@@ -135,7 +138,10 @@ public sealed partial class EventEngine
         backgroundStates.Clear();
         backgroundAnimations.Clear();
         CurrentDialogue = null;
-        services.DismissDialog();
+        if (!restoringCheckpoint)
+        {
+            services.DismissDialog();
+        }
         defaultsStarted = false;
         transitionRequested = false;
         IsUserControlEnabled = true;
@@ -144,7 +150,10 @@ public sealed partial class EventEngine
         movieProgressExpected = false;
         CurrentMoviePlayback = null;
         // Native field initialization clears the 256 temporary bytes at variable offset 0x400.
-        SetEventMemory(EventMemory.Clear(1024, 1280));
+        if (!restoringCheckpoint)
+        {
+            SetEventMemory(EventMemory.Clear(1024, 1280));
+        }
         SceneEventState previousScene = Scene;
         Scene = new SceneEventState { AudioLoadEpoch = checked(previousScene.AudioLoadEpoch + 1), RandomBattlesEnabled = previousScene.RandomBattlesEnabled, LoadedMusic = previousScene.LoadedMusic, MusicPlaying = previousScene.MusicPlaying, MusicVolume = previousScene.MusicVolume, BattleMusic = previousScene.BattleMusic, PartyPower = previousScene.PartyPower, PlaceId = inheritedPlaceId ?? previousScene.PlaceId };
         Scene.NativeFieldInitialization = nativeRuntimeProfile is { IsVerified: true } ? new NativeFieldInitializationProof(1, nativeRuntimeProfile.ExecutableHash, fieldId, programHash, nativeRuntimeProfile.FieldClock, NativeFieldInitializationStage.Allocated, services.ExamTimer?.ClockCalls) : null;

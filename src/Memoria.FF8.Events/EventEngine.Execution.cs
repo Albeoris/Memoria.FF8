@@ -11,10 +11,19 @@ public sealed partial class EventEngine
         RestoreCore(snapshot);
     }
 
-    public void LoadField(int fieldId, byte[] jsm, IReadOnlyList<string> fieldMessages, FieldTransition? arrival = null, int? previousFieldId = null, NativeFieldRuntimeProfile? nativeRuntimeProfile = null, JsonElement? worldEntityAllocationContext = null, ushort? inheritedPlaceId = null)
+    /// <summary>Restores a dormant field allocation while the current service retains all shared process owners.</summary>
+    public void RestoreFieldState(JsonElement snapshot)
     {
-        LoadFieldCore(fieldId, jsm, fieldMessages, arrival, previousFieldId, nativeRuntimeProfile, worldEntityAllocationContext, inheritedPlaceId);
-        OperationCompleted?.Invoke();
+        RestoreCore(snapshot, restoreSharedState: false);
+    }
+
+    public void LoadField(int fieldId, byte[] jsm, IReadOnlyList<string> fieldMessages, FieldTransition? arrival = null, int? previousFieldId = null, NativeFieldRuntimeProfile? nativeRuntimeProfile = null, JsonElement? worldEntityAllocationContext = null, ushort? inheritedPlaceId = null, bool restoringCheckpoint = false)
+    {
+        LoadFieldCore(fieldId, jsm, fieldMessages, arrival, previousFieldId, nativeRuntimeProfile, worldEntityAllocationContext, inheritedPlaceId, restoringCheckpoint);
+        if (!restoringCheckpoint)
+        {
+            OperationCompleted?.Invoke();
+        }
     }
 
     public void Step()
