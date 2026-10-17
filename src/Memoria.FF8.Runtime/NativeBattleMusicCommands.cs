@@ -64,18 +64,30 @@ public sealed partial record NativeBattleMusicProcessState
 
     public NativeBattleMusicCommandStep DrainCommands501B60(NativeGlobalSoundProcess sound, Func<ushort>? readCurrentField = null)
     {
+        ArgumentNullException.ThrowIfNull(sound);
+        var step = DrainCommands501B60Core(sound, readCurrentField);
+        return new(step.State, step.Sound!, step.Receipt);
+    }
+
+    internal (NativeBattleMusicProcessState State, NativeGlobalSoundProcess? Sound, NativeBattleMusicCommandReceipt? Receipt) DrainCommands501B60Core(NativeGlobalSoundProcess? sound, Func<ushort>? readCurrentField = null)
+    {
         Validate();
-        sound.Validate();
+        sound?.Validate();
         NativeBattleMusicCommandState request = Commands ?? throw new NotSupportedException("Native501B60 requires its retained singleton request owner.");
         bool pending = request.Pending ?? throw new NotSupportedException("Native501B60 requires its retained pending BYTE before dispatch.");
         if (!pending)
         {
-            return new(this, sound, null);
+            return (this, sound, null);
         }
         byte command = request.Command ?? throw new NotSupportedException("Native501B60 requires the pending request's actual command BYTE.");
-        NativeMusicPlaybackState playback = sound.MusicPlayback ?? NativeMusicPlaybackState.Unknown();
-        NativeBattleMusicProcessState next = this;
         NativeBattleMusicCommandState completed = request with { Pending = false };
+        if (command is < 1 or > 4)
+        {
+            return (this with { Commands = completed }, sound, new(command));
+        }
+        NativeGlobalSoundProcess actualSound = sound ?? throw new NotSupportedException("Native501B60 requires the actual global sound process when its pending command reaches a music operation.");
+        NativeMusicPlaybackState playback = actualSound.MusicPlayback ?? NativeMusicPlaybackState.Unknown();
+        NativeBattleMusicProcessState next = this;
         NativeBattleMusicCommandReceipt receipt;
         switch (command)
         {
@@ -115,8 +127,8 @@ public sealed partial record NativeBattleMusicProcessState
                 receipt = new(command, GainChannel: 0, Gain: 0, EffectiveDuration: fade < 50 ? 0 : fade);
                 break;
             default:
-                return new(this with { Commands = completed }, sound, new(command));
+                throw new InvalidOperationException("Native501B60 command classification diverged from its dispatch.");
         }
-        return new(next with { Commands = completed }, sound with { MusicPlayback = playback }, receipt);
+        return (next with { Commands = completed }, actualSound with { MusicPlayback = playback }, receipt);
     }
 }

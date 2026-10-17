@@ -34,6 +34,7 @@ public sealed partial class BattleSession
             //500870 calls501160: DB8 is reset, while the pending DB4 field is retained.
             NativeEffectMemory = effectMemory with { SoundPublishedFlags = 0, Textures = effectMemory.Textures?.Initialize500400(), SummonStream = (effectMemory.SummonStream ?? NativeBattleSummonStreamState.Unknown()).Reset501160() };
         }
+        InitializeNativeMusic501C60();
         InitializeNativePartyPresentation();
         NativeModelTextureCache = NativeBattleModelTextureCache.Initialize508260(NativeModelTextureCache);
         NativeModelCpuResources = (NativeModelCpuResources ?? NativeBattleModelCpuResources.Unknown()) with { ScratchMaximum = 0 };

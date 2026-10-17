@@ -19,7 +19,7 @@ public sealed class BattleRewardPreviewTests
         using GameWorld setup = new(session, assets.GameDirectory);
         BattleDefinition original = setup.CreateEncounterBattle(512);
         // Explicit component combat inputs shorten this test without fabricating any defeat/reward receipts.
-        BattleDefinition definition = original with { Combatants = original.Combatants.Select(actor => actor.IsPlayer ? actor with { Attack = 255, PhysicalPower = 255, Speed = 10_000, InitialAtb = 10_000 } : actor with { CurrentHp = 1, Speed = 1 }).ToArray() };
+        BattleDefinition definition = original with { NativeGraphics = null, NativeClockRules = null, Combatants = original.Combatants.Select(actor => actor.IsPlayer ? actor with { Attack = 255, PhysicalPower = 255, Speed = 10_000, InitialAtb = 10_000 } : actor with { CurrentHp = 1, Speed = 1 }).ToArray() };
         string? resumeSnapshot = Environment.GetEnvironmentVariable("MEMORIA_FF8_ENCOUNTER_COMPONENT_SNAPSHOT");
         BattleSession active = resumeSnapshot is null ? GameWorld.CreateLiveBattleSession(definition, BattleAtbMode.Normal) : BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(resumeSnapshot))!);
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_ENCOUNTER_FIX_EVIDENCE");

@@ -209,6 +209,8 @@ public sealed partial class BattleSession
         {
             NativeCamera = NativeCamera.PublishProjection(flags);
         }
+        //The original loc_5005A0 tail calls501B60 at50065E regardless of flags4/8, before501230 and505D20.
+        DrainNativeMusic501B60();
         if (NativeEffectMemory is { } effectMemory)
         {
             effectMemory = effectMemory.PublishSound();

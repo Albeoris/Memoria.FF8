@@ -16,7 +16,7 @@ public sealed class BattleSavedFlagOutcomeTests
         using GameWorld world = new(session, assets.GameDirectory);
         BattleDefinition installed = world.CreateEncounterBattle(512);
         // Isolated component combat: original reward sources, short HP/ATB inputs and an explicit opcode54 callback.
-        BattleDefinition definition = installed with { Combatants = installed.Combatants.Select(actor => actor.IsPlayer ? actor with { Attack = 255, Speed = 10_000, InitialAtb = 10_000 } : actor with { CurrentHp = 1, Speed = 1, NativeAi = actor.NativeAi! with { Scripts = [[54, 0], [0], [0], [0], [0]] } }).ToArray() };
+        BattleDefinition definition = installed with { NativeGraphics = null, NativeClockRules = null, Combatants = installed.Combatants.Select(actor => actor.IsPlayer ? actor with { Attack = 255, Speed = 10_000, InitialAtb = 10_000 } : actor with { CurrentHp = 1, Speed = 1, NativeAi = actor.NativeAi! with { Scripts = [[54, 0], [0], [0], [0], [0]] } }).ToArray() };
         BattleSession active = new(definition, BattleAtbMode.Normal);
         for (int frame = 0; frame < 1000 && active.Outcome == BattleOutcome.Active; frame++)
         {

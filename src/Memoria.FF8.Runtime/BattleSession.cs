@@ -1179,7 +1179,9 @@ public sealed partial class BattleSession
         BattleCombatant actor = GetActor(actorId);
         BattleCombatant target = GetActor(targetId);
         ValidateNativeHeaderReference(actor, nativeHeaderIndex);
+        bool factualHeader = nativeHeaderIndex is not null;
         bool native = nativeAction is not null || graphic is not null || renzokuken is not null || duel is not null;
+        bool factualNativeAction = factualHeader && (native || HasInstalledNativeAction(actor, new(actorId, targetId, ability, actionId) { NativeAction = nativeAction, NativeGraphic = graphic }));
         ValidateNativePlayerReaction(actor, ability, nativeAction, reaction);
         ValidateNativeMenuInvocation(actor, ability, actionId, nativeAction, duel, slots);
         if (renzokuken is not null && (nativeAction is not null || graphic is not null || ability != BattleAbility.LimitBreak || actionId != 5 << 16 || actor.NativeLimit?.Command != 5 || renzokuken.CrisisLevel is < 1 or > 4))
@@ -1205,7 +1207,11 @@ public sealed partial class BattleSession
         bool allies = !native && ability != BattleAbility.Attack && ability != BattleAbility.Draw && FindAction(ability, actionId).Allies;
         bool unique = busy.Add(actorId);
         bool validTarget = renzokuken is not null || graphic is not null || allowDefeatedTarget || (native ? ActionHasValidTarget(targetId, ability, actionId, nativeAction, nativeTargetMask) : target.IsAlive || IsRevive(ability, actionId));
-        if (nativeHeaderIndex is null && !allowNativeQueuedState && !CanRetainNativeSupportActor(actor, reaction) || actor.Atb != 0 && reaction is null || !native && nativeTargetMask == 0 && (actor.IsPlayer == target.IsPlayer) != allies || !validTarget || !unique && !native || !native && !actor.Abilities.Contains(ability))
+        //4842B0 grows DWORD20 despite pending flags4/8; only the native clock/status/80 gates stop it.
+        //A validated physical action header may therefore retain a nonzero owned gauge between queueing and action-pause publication.
+        //Ordinary Attack/Magic resolve installed metadata through the actor/action catalog and legitimately leave nativeAction null.
+        bool retainedNativeGauge = factualNativeAction && actor.NativeAtb is not null;
+        if (nativeHeaderIndex is null && !allowNativeQueuedState && !CanRetainNativeSupportActor(actor, reaction) || actor.Atb != 0 && reaction is null && !retainedNativeGauge || !native && nativeTargetMask == 0 && (actor.IsPlayer == target.IsPlayer) != allies || !validTarget || !unique && !native && !factualNativeAction || !native && !actor.Abilities.Contains(ability))
         {
             throw new InvalidDataException("Invalid queued or active battle action.");
         }

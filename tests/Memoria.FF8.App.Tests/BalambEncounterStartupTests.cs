@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
@@ -10,7 +11,7 @@ public sealed class BalambEncounterStartupTests
     [InlineData(4)]
     [InlineData(10)]
     [InlineData(24)]
-    public void OriginalBalambFormationsStartThroughTheCurrentGameHost(byte ground)
+    public void Original_Balamb_formations_construct_raw_entry_and_restore_its_snapshot_through_the_current_game_host(byte ground)
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original encounter and participant resources are required.");
@@ -26,16 +27,23 @@ public sealed class BalambEncounterStartupTests
             CharacterAppearance = assets.ReadNewGameCharacterAppearance(),
             Economy = assets.ReadNewGameEconomy(),
             BattleVariables = NativeBattleVariableState.CreateNewGame(),
-            GlobalRandom = assets.ReadNewGameGlobalRandom()
+            GlobalRandom = assets.ReadNewGameGlobalRandom(),
+            NativeBattleMemory = assets.ReadColdProcessNativeBattleMemory()
         });
         using GameWorld world = new(session, directory);
         NativeWorldEncounterDefinition encounters = Assert.IsType<NativeWorldEncounterDefinition>(worldAssets.ReadRandomEncounterDefinition(24576, -29406, ground, 1));
+        NativeBattleMusicEntryResources musicResources = new NativeMusicCatalog(directory).ReadBattleEntryResources();
 
         foreach (ushort formation in encounters.Formations.Distinct())
         {
             BattleDefinition definition = world.CreateEncounterBattle(formation);
             AssertEntryAllocationRandomOrder(world, definition);
-            BattleSession battle = new(definition, BattleAtbMode.Normal);
+            //Each independent component declares sourceBYTE201=0 with both old buffers unknown.
+            //Actual52CE30 establishes this formation's selected buffer/return selectors before fresh501C60.
+            NativeMusicProcessState sourceBuffers = new(1, null, null, null, 0, null);
+            NativeBattleMusicEntryPreparation entry = NativeBattleMusicEntry.Prepare52CE30(formation, definition.NativeFlags, sourceBuffers, 5, -1, NativeGlobalSoundProcess.FromBufferlessColdProcess(), musicResources);
+            definition = definition with { NativeMusicProcess = entry.MusicProcess, NativeGlobalSoundProcess = entry.SoundProcess };
+            BattleSession battle = GameWorld.CreateLiveBattleSession(definition, BattleAtbMode.Normal);
 
             Assert.Equal(formation, battle.EncounterId);
             Assert.Equal(BattleOutcome.Active, battle.Outcome);
@@ -43,6 +51,14 @@ public sealed class BalambEncounterStartupTests
             Assert.Contains(battle.Combatants, actor => actor.IsPlayer && actor.IsActive);
             Assert.Contains(battle.Combatants, actor => !actor.IsPlayer && actor.IsActive);
             Assert.All(definition.Combatants.Where(actor => !actor.IsPlayer), actor => Assert.NotNull(actor.NativeAi));
+            Assert.NotNull(battle.NativeGraphics);
+            Assert.NotNull(definition.NativeClockRules);
+            Assert.False(battle.NativeEntryReady);
+            Assert.Equal(new NativeBattleMusicCommandState(false, null, null, null, 0x1CE075C, false), battle.NativeMusicProcess!.Commands);
+            BattleSnapshot snapshot = battle.Capture();
+            BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
+            Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(restored.Capture()));
+            //Constructor/resource/entry persistence only: no callback, AI turn, formula or playable-encounter claim.
         }
     }
 

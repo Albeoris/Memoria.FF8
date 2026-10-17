@@ -32,7 +32,7 @@ public sealed class NativeTrainingDrawIntegrationTests
             KnownMagic = assets.ReadNewGameKnownMagic()
         });
         using GameWorld world = new(session, assets.GameDirectory);
-        BattleDefinition installed = world.CreateEncounterBattle(59);
+        BattleDefinition installed = world.CreateEncounterBattle(59) with { NativeGraphics = null, NativeClockRules = null };
         Assert.Null(installed.NativeGraphics);
         BattleCombatantDefinition[] actors = installed.Combatants.ToArray();
         int casterIndex = Array.FindIndex(actors, actor => actor.IsPlayer);

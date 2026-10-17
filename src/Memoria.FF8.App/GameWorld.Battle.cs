@@ -28,15 +28,15 @@ internal sealed partial class GameWorld
 
     private void ConfigureBattleHost()
     {
-        battle = session.State.Battle is null ? null : BattleSession.Restore(session.State.Battle);
+        battle = session.State.Battle is null ? null : AttachNativeEffectResources(BattleSession.Restore(session.State.Battle));
         Events.HostAutomaticBattles = true;
         Events.UseInteractiveBattle = (_, _) => session.State.FullBattlePlaythrough == true;
         Events.ValidateInteractiveBattle = (encounter, flags) =>
         {
             try
             {
-                _ = Events.PrepareNativeBattleMusicEntry(encounter, flags, BattleMusicEntryResources, session.State.NativeBattleMemory?.MusicProcess?.ReturnChannel);
-                BattleDefinition definition = CreateEncounterBattle(encounter, activeFlags: flags);
+                PreparedNativeBattleMusicEntry prepared = Events.PrepareNativeBattleMusicEntry(encounter, flags, BattleMusicEntryResources, session.State.NativeBattleMemory?.MusicProcess?.ReturnChannel);
+                BattleDefinition definition = CreateEncounterBattle(encounter, activeFlags: flags) with { NativeGlobalSoundProcess = prepared.Native.SoundProcess, NativeMusicProcess = prepared.Native.MusicProcess };
                 _ = new BattleSession(definition, BattleAtbMode.Normal);
                 return null;
             }
@@ -99,6 +99,8 @@ internal sealed partial class GameWorld
         {
             NativeSavedOptions = (session.State.InputConfiguration ?? assets.ReadNewGameInputConfiguration()).Options,
             NativeSupportRules = BattleResources.ReadNativeSupportRules(),
+            NativeGraphics = BattleResources.ReadNativeGraphicsDefinition(definition.Combatants, assets.ReadNativeBattleGraphicsRules(), encounter),
+            NativeClockRules = BattleResources.ReadNativeClockRules(),
             NativeRetainedMemory = session.State.NativeBattleMemory,
             NativeVibrationProcess = session.State.VibrationProcess,
             NativeGlobalSoundProcess = session.State.GlobalSoundProcess,
@@ -119,11 +121,6 @@ internal sealed partial class GameWorld
             NativeBattleUiRandom = session.State.Playtime?.CreateBattleUiRandom(),
             Combatants = definition.Combatants.Select(actor => actor.IsPlayer ? actor : actor with { NativeRenzokukenMagicIds = BattleResources.ReadNativeRenzokukenMagicIds(actor.ModelId) }).ToArray()
         };
-        // TODO(TD-009): Native clock/support initialization belongs to the raw descriptor entry callback.
-        if (definition.NativeGraphics is not null)
-        {
-            definition = definition with { NativeClockRules = BattleResources.ReadNativeClockRules() };
-        }
         _ = new BattleScenePresentation(BattleResources, definition, true);
         return definition;
     }

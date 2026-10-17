@@ -142,6 +142,8 @@ public sealed class BattleComponentSupportTests
         // Explicit component inputs isolate support from encounter advantage, ready gauges and unrelated enemy decisions.
         return original with
         {
+            NativeGraphics = null,
+            NativeClockRules = null,
             NativeEntry = null,
             InitialRandom = new(Enumerable.Repeat((byte)1, 8).ToImmutableArray(), 0),
             Combatants = original.Combatants.Select(actor => actor.IsPlayer ? actor with { InitialAtb = 0, Speed = 1 } : actor with { InitialAtb = 0, Speed = 1, NativeStatusResistances = new byte[40], NativeAi = actor.NativeAi! with { Scripts = [[0], [0], [0], [0], [0]] } }).ToArray()

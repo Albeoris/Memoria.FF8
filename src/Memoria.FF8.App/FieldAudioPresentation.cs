@@ -104,7 +104,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
                     ExecuteBattleMusicReturn(returned);
                     break;
                 case NativeBattleMusicCommandReceipt battleMusic:
-                    ExecuteBattleMusicCommand(battleMusic);
+                    PlayBattleMusicCommand(battleMusic);
                     break;
                 case NativeWorldMusicLoad world:
                     ExecuteMusicPlayback(world.Playback, world.SourceFieldId, world.StartPoint, world.DurationMilliseconds, world.Operation == NativeWorldMusicOperation.Play ? world.InitialVolume : null);

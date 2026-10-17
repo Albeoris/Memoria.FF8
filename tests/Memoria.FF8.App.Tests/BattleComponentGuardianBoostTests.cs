@@ -195,7 +195,7 @@ public sealed class BattleComponentGuardianBoostTests
         BattleCombatantDefinition caster = original.Combatants.Single(actor => actor.IsPlayer && actor.ModelId == 0);
         BattleCombatantDefinition enemy = original.Combatants.First(actor => !actor.IsPlayer && actor.InitialActive);
         // This independent formation512 component owns one original enabled enemy and one authentic caster.
-        BattleDefinition definition = original with { NativeEntry = null, Combatants = [caster with { InitialAtb = BattleSession.AtbMaximum, GuardianForceCompatibility = new ushort[16] }, enemy with { InitialAtb = 0, Speed = 1, MaximumHp = 10000, CurrentHp = 10000, NativeAi = enemy.NativeAi! with { Scripts = [[0], [0], [0], [0], [0]] } }] };
+        BattleDefinition definition = original with { NativeGraphics = null, NativeClockRules = null, NativeEntry = null, Combatants = [caster with { InitialAtb = BattleSession.AtbMaximum, GuardianForceCompatibility = new ushort[16] }, enemy with { InitialAtb = 0, Speed = 1, MaximumHp = 10000, CurrentHp = 10000, NativeAi = enemy.NativeAi! with { Scripts = [[0], [0], [0], [0], [0]] } }] };
         return GameWorld.CreateLiveBattleSession(definition, BattleAtbMode.TurnBased);
     }
 }

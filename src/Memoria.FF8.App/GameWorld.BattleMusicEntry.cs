@@ -15,7 +15,7 @@ internal sealed partial class GameWorld
     {
         PreparedNativeBattleMusicEntry prepared = Events.PrepareNativeBattleMusicEntry(checked((ushort)encounter), flags, BattleMusicEntryResources, session.State.NativeBattleMemory?.MusicProcess?.ReturnChannel);
         BattleDefinition definition = CreateEncounterBattle(encounter, seed, flags) with { NativeGlobalSoundProcess = prepared.Native.SoundProcess, NativeMusicProcess = prepared.Native.MusicProcess };
-        BattleSession candidate = CreateLiveBattleSession(definition, session.State.GameplayPreferences with { AtbMode = mode });
+        BattleSession candidate = AttachNativeEffectResources(CreateLiveBattleSession(definition, session.State.GameplayPreferences with { AtbMode = mode }));
         Events.CommitNativeBattleMusicEntry(prepared, _ => session.SetBattle(candidate.Capture()));
         Events.SynchronizeNativeBattleMusicProcess(candidate.NativeMusicProcess);
         return candidate;
