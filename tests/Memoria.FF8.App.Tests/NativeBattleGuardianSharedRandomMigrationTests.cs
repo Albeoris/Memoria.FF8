@@ -30,7 +30,6 @@ public sealed class NativeBattleGuardianSharedRandomMigrationTests
         NativeBattleSharedEffectRandomState cold = Assert.IsType<NativeBattleSharedEffectRandomState>(game.ReadColdProcessNativeBattleMemory().EffectMemory!.SharedEffectRandom);
         Assert.Equal(0u, cold.State);
         //Only the exact first-guardian component lineage is eligible after its complete writer/caller proof.
-        
         //The Definition cold copy remains unknown; this is not a restore fallback or a seed event replay.
         JsonNode originalNode = JsonNode.Parse(originalBytes)!;
         JsonNode migratedNode = originalNode.DeepClone();

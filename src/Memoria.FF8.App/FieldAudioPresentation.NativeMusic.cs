@@ -35,7 +35,7 @@ internal sealed partial class FieldAudioPresentation
             int volume = gain ?? throw new NotSupportedException("Music resume requires the selected slot's native gain latch.");
             if (music == 43)
             {
-                // TODO(TD-003): Slot mode/ID cannot distinguish concert instruments from ordinary43
+                // TODO(TD-003): Slot mode/ID cannot distinguish concert instruments from ordinary43.
                 throw new NotSupportedException("Music43 resume requires its retained concert or ordinary-segment selection.");
             }
             if (mode != NativeMusicRouting.Mode46B530(music))

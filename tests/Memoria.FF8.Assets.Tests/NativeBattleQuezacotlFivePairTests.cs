@@ -8,7 +8,9 @@ public sealed class NativeBattleQuezacotlFivePairTests
     [Fact]
     public void OriginalFivePairsControlExtentAndExplicit209SoundAreAuthenticated()
     {
-        using GameAssets game = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory), "Set MEMORIA_FF8_GAME_DIR to the installed game directory.");
+        using GameAssets game = new(directory!);
         NativeBattleQuezacotlResources resources = game.ReadNativeQuezacotlResources();
         NativeBattleQuezacotlRibbonBank bank = resources.Ribbon!.SecondaryBank!;
         bank.Validate();

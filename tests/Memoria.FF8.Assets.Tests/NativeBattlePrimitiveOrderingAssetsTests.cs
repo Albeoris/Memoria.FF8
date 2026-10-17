@@ -9,7 +9,9 @@ public sealed class NativeBattlePrimitiveOrderingAssetsTests
     [Fact]
     public void Installed_command_lengths_and_both_render_passes_preserve_the_actual_inherited_blend()
     {
-        byte[] executable = File.ReadAllBytes(Path.Combine(@"C:\Steam\steamapps\common\FINAL FANTASY VIII", "FF8_EN.exe"));
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory), "Set MEMORIA_FF8_GAME_DIR to the installed game directory.");
+        byte[] executable = File.ReadAllBytes(Path.Combine(directory!, "FF8_EN.exe"));
         ImmutableArray<byte> lengths = NativeBattleEffectStaticResourcesReader.Read(executable, 0xB7CC28, 256);
         ImmutableArray<uint> opaqueHandlers = Handlers(executable, 0xB7CF08);
         ImmutableArray<uint> transparentHandlers = Handlers(executable, 0xB7D308);

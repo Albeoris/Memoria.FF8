@@ -33,7 +33,7 @@ public sealed class NativeBattleGuardianPathMigrationTests
         Assert.Equal(0, game.ReadColdProcessNativeBattleMemory().EffectMemory!.QuezacotlTargetY1774);
         //Only this named first-GF cold/manual-header lineage is admitted. Entry6C3640 does not reset1774;
         //the complete native writer set is276@6C5060=-4096 and302@6C50DD=0, neither reached by concrete24.
-        //See native-quezacotl-path-producer-6c76c0-plan-20261017.md; no journal or general old-save inference is used.
+        // No journal or general old-save inference is used.
         JsonNode originalNode = JsonNode.Parse(originalBytes)!;
         JsonNode migratedNode = originalNode.DeepClone();
         JsonObject catalog = migratedNode["Definition"]!["NativeEffectCatalog"]![115]!["NativeQuezacotlResources"]!.AsObject();

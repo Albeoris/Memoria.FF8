@@ -17,7 +17,7 @@ public static class NativeBattleCommonPacketArena
     {
         if (primitive.PhysicalWriteMask is not { } mask)
         {
-            // TODO(TD-009): Other logical emitters do not yet establish actual padding/rejected stores
+            // TODO(TD-009): Other logical emitters do not yet establish actual padding/rejected stores.
             int length = checked(4 * primitive.Words.Length);
             return [new(address, new byte[length].ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Unknown, length).ToImmutableArray())];
         }

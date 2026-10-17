@@ -7,7 +7,6 @@ namespace Memoria.FF8.Assets;
 public static class NativeBattleStageSourceReader
 {
     // Original50E510 initializer assignments to WORD1D96D9C, in physical stage order0..162.
-    
     private static readonly short[] RotationSpeeds =
     [
         4, 4, 4, 4, 0, 0, 4, 4, 0, 0, 4, 4, 0, 0, 0, 0,

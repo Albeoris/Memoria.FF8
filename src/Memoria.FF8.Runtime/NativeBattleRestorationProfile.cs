@@ -9,7 +9,7 @@ public sealed record NativeBattleRestorationProfile(ushort Effect, uint Entry, u
     public static NativeBattleRestorationProfile Esuna { get; } = new(24, 0x88CF70, 0x88CF50, 0x2700470, 0x88D0A0, 0x88D3B0, 0x88D4C0, 0x88D290, 0x892ED0, 0x17E48E4, 0xA000, 0x10E0, 0x10680, 20, 20, [0x2700560, 0x2701010, 0x2700D70, 0x2701000], [0x2700498, 0x2701020, 0x2700580, 0x2700D80]);
     public static NativeBattleRestorationProfile FullLife { get; } = new(27, 0x883110, 0x8830F0, 0x26D8308, 0x883240, 0x883550, 0x883660, 0x883430, 0x888480, 0x17DE100, 0x6000, 0x1518, 0x16F80, 30, 10, [0x26D83F8, 0x26D8EA8, 0x26D8C08, 0x26D8E98], [0x26D8330, 0x26D8EB8, 0x26D8418, 0x26D8C18]);
 
-    // Exact78-body normalization:
+    // Exact78-body normalization.
     public static NativeBattleRestorationProfile Effect57 { get; } = TranslateEsuna(57, -0x8FE20, -0xF2E80, 0x17A3DD0);
     public static NativeBattleRestorationProfile Remedy { get; } = TranslateEsuna(67, -0xAE550, -0xFFEA0, 0x178F3F4);
 

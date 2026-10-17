@@ -13,7 +13,8 @@ internal static partial class Program
 {
     private static void NativeBattleFieldReturnContract()
     {
-        NativeBattleMusicEntryResources resources = new NativeMusicCatalog(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII").ReadBattleEntryResources();
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? throw new InvalidOperationException("Set MEMORIA_FF8_GAME_DIR to the installed game directory.");
+        NativeBattleMusicEntryResources resources = new NativeMusicCatalog(directory).ReadBattleEntryResources();
         GameSession session = CreateNativeMusicSession();
         byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.BATTLEMODE, 0), (Jsm.Opcode.PSHN_L, 94), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.BATTLE, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_W, 800), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
         EventEngine engine = new(session) { UseInteractiveBattle = (_, _) => true, ValidateInteractiveBattle = (_, _) => null };

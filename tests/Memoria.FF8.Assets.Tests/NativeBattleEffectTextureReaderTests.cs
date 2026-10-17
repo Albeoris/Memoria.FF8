@@ -11,7 +11,9 @@ public sealed class NativeBattleEffectTextureReaderTests
     [Fact]
     public void OriginalFireTimUploadsAndDecodesItsActualClutAndImage()
     {
-        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory), "Set MEMORIA_FF8_GAME_DIR to the installed game directory.");
+        using GameAssets assets = new(directory!);
         NativeBattleEffectInitializerAsset asset = assets.ReadNativeEffectCatalog()[1].InitializerAsset!;
         NativeBattleEffectHeapAllocation source = new(asset.Name, asset.Data);
         TimFile original = TimFile.Read(asset.Data.AsSpan());
@@ -131,7 +133,9 @@ public sealed class NativeBattleEffectTextureReaderTests
     [Fact]
     public void OriginalFireSpriteResourcesUseTheirOwnDynamicFrameDirectories()
     {
-        byte[] executable = File.ReadAllBytes(@"C:\Steam\steamapps\common\FINAL FANTASY VIII\FF8_EN.exe");
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory), "Set MEMORIA_FF8_GAME_DIR to the installed game directory.");
+        byte[] executable = File.ReadAllBytes(Path.Combine(directory!, "FF8_EN.exe"));
         foreach (uint address in new uint[] { 0xDEDC2C, 0xDEDDD8, 0xDEDF84 })
         {
             NativeBattleModuleResource resource = NativeBattleEffectStaticResourcesReader.ReadSprite(executable, address);

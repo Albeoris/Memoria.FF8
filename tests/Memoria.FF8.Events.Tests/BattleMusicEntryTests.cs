@@ -10,7 +10,8 @@ internal static partial class Program
 {
     private static void NativeBattleMusicEntryContract()
     {
-        NativeBattleMusicEntryResources resources = new NativeMusicCatalog(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII").ReadBattleEntryResources();
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? throw new InvalidOperationException("Set MEMORIA_FF8_GAME_DIR to the installed game directory.");
+        NativeBattleMusicEntryResources resources = new NativeMusicCatalog(directory).ReadBattleEntryResources();
         GameSession session = CreateNativeMusicSession();
         EventEngine engine = new(session);
         byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0));

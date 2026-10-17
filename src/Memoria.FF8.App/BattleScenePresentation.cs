@@ -195,7 +195,7 @@ internal sealed class BattleScenePresentation
                 float x = viewport.X + projected.X * viewport.Width / renderer.Width;
                 float y = viewport.Y + projected.Y * viewport.Height / renderer.Height;
                 byte alpha = (byte)(255 * Math.Min(1, (BattleImpactPresentation.Duration - cue.Age) / 8f));
-                //TODO(TD-009): Component battles retain their existing impact projection until the raw effect dispatcher owns normal encounters
+                //TODO(TD-009): Component battles retain their existing impact projection until the raw effect dispatcher owns normal encounters.
                 if (session.NativeGraphics is null && cue.IsPhysical && cue.Age < 7)
                 {
                     float radius = (8 + cue.Age * 3) * scale;

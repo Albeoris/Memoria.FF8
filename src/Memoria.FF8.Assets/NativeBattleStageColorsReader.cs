@@ -8,7 +8,7 @@ public sealed record NativeBattleStageColorInitializer(uint Source40, uint Sourc
 public static class NativeBattleStageColorsReader
 {
     // Original50E510 initializer DWORD assignments, then500EA0 replaces Color44's high BYTE with0x32.
-    
+    // Stages37/38 require retained process globals.
     private static readonly ImmutableArray<NativeBattleStageColorInitializer> Initializers =
     [
         new(0xB8C1B4, 0xB8C1B8, new(0x0078807D, 0x32494949)), new(0xB8C1AC, 0xB8C1B0, new(0x005D5D64, 0x32313F4E)),

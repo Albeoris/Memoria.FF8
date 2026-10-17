@@ -70,7 +70,7 @@ public sealed partial class BattleSession
             throw new NotSupportedException("Native module packet batch reaches its original arena capacity.");
         }
         NativeBattleLogicalOrdering ordering = frame.Pending;
-        // TODO(TD-009): Logical module words do not establish every physical padding byte
+        // TODO(TD-009): Logical module words do not establish every physical padding byte.
         ImmutableArray<NativeBattleCommonPacketStore>.Builder stores = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
         if (batch.AllocationBytes != 0)
         {

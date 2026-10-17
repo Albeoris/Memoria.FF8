@@ -14,7 +14,6 @@ public static class NativeBattleQuezacotlRibbon
         {
             throw new NotSupportedException("Native6C8850 stack derivation requires its proved outer47D490 phase; phase1 has a distinct pending stack frame.");
         }
-        // Native
         NativeBattleStackFrame frame = stack.ReadCommonFrame();
         frame = frame.EnterCdecl(0x1C, 2, 0); //47CF60→47CCB0, followed by the tail jump into47D490.
         frame = frame.EnterCdecl(0, 2, 0); //47D490→500900 on the admitted outer phase.

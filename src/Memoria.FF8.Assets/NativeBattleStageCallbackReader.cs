@@ -6,7 +6,7 @@ namespace Memoria.FF8.Assets;
 public static class NativeBattleStageCallbackReader
 {
     // Full35/45-byte callback equality, with each relative CALL target verified against authenticated FF8_EN.
-    // Original50E510 initializer mapping:
+    // Original50E510 initializer mapping.
     private static readonly ImmutableArray<NativeBattleStageCallback> Callbacks =
     [
         new(0x51b0a0, false), new(0x51afc0, false), new(0x51aee0, false), new(0x51ae00, false),

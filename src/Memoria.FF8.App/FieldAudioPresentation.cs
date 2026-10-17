@@ -86,7 +86,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
     {
         TryOutput(() => DispatchNativeMusicResume(playback, (slot, id, gain) =>
         {
-            // TODO(TD-009): Device phase is not retained; restart the proved selection at its segment start
+            // TODO(TD-009): Device phase is not retained; restart the proved selection at its segment start.
             PlayMusic(id, slot, gain, -1, forceRestart: true, identityResolved: true);
         }));
     }

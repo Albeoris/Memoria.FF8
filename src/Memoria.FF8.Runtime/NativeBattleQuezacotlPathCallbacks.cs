@@ -40,7 +40,6 @@ public static class NativeBattleQuezacotlPathCallbacks
                     }
                     SyncPool();
                     //6C76E0 saves the caller's EBX=2 into the future6C79A0 direction DWORD (entryESP-36).
-                    
                     outlineDirection = 2;
                     NativeBattleQuezacotlPathSpawn spawned = NativeBattleQuezacotlPathProducer.Spawn6C76E0(memory with { Arena = arena }, effect, paths, T32(0x14), T16(0xE));
                     memory = spawned.Memory;
