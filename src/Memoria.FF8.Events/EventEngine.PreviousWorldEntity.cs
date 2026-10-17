@@ -73,7 +73,7 @@ public sealed partial class EventEngine
             && JsonElement.DeepEquals(departing, snapshot)
             && state.DepartingWorldState is { } world
             && state.WorldConfiguration is { Rule: Memoria.FF8.Runtime.NativeWorldConfiguration.ReturnRule } configuration
-            && configuration.SourceWorldFrame == world.Frame;
+            && configuration == Memoria.FF8.Runtime.NativeWorldConfiguration.FromWorldReturn(world, snapshot.GetProperty("FieldId").GetInt32());
     }
 
     private void ValidatePreviousWorldEntityCheckpoint(Checkpoint saved, bool dormantWorldReturn = false)
