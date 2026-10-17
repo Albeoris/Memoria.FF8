@@ -322,8 +322,13 @@ public sealed class NativeBattleProductionEffectAdmissionTests
             Assert.True(packets);
             Assert.True(restored);
             Assert.True(finished);
-            for (int callback = 0; callback < 128 && battle.Events.Count(item => item.Kind == "ActionComplete") == completed; callback++)
+            for (int callback = 0; callback < 128; callback++)
             {
+                bool guardianPending = battle.Capture().GuardianForceCasts.Length != 0 || battle.QueuedActions.Any(action => action.Ability == BattleAbility.GuardianForce && action.ActionId == 0) || battle.ActiveAction is { Ability: BattleAbility.GuardianForce, ActionId: 0 };
+                if (!guardianPending && battle.Events.Count(item => item.Kind == "ActionComplete") > completed)
+                {
+                    break;
+                }
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
             }
             Assert.True(battle.Events.Count(item => item.Kind == "ActionComplete") > completed);
@@ -437,6 +442,11 @@ public sealed class NativeBattleProductionEffectAdmissionTests
     {
         JsonElement events = session.State.EventState!.Value;
         GameWorld world = new(session, directory);
+        if (session.State.FieldId != 999)
+        {
+            world.EnsureField();
+            return world;
+        }
         world.Events.LoadField(999, Program(), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         world.Events.Restore(events);
         return world;
