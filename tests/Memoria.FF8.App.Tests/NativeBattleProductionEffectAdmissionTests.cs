@@ -178,7 +178,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         GameSession session = new(GameSession.Load(source!));
         using GameWorld world = RestoreWorld(session, directory);
-        RunQuezacotl(world, session, directory, Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_EVIDENCE"), "production-gf-continuation-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff"), false);
+        RunQuezacotl(world, session, directory, Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_EVIDENCE"), "production-gf-continuation-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff"), session.State.Battle is null);
     }
 
     private static (GameState State, string GameDirectory, string? Evidence, string Id) CreateBeforeEntryComponent(bool guardianCommand)
