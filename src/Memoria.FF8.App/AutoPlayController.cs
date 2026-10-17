@@ -82,7 +82,9 @@ internal sealed partial class AutoPlayController
     private AutoPlayRunState run = new();
     private AutoPlayPlanner planner = new();
     private GameState? beforeStep;
-    private byte[]? beforeController;
+    private ReadOnlyMemory<byte>? beforeController;
+    private MemoryStream controllerRollbackBuffer = new();
+    private MemoryStream controllerRollbackScratch = new();
     private string? runDirectory;
     private long lastProgressTimestamp;
     private readonly HashSet<GameWorld> watchedWorlds = [];
@@ -207,7 +209,7 @@ internal sealed partial class AutoPlayController
         {
             return;
         }
-        beforeController = JsonSerializer.SerializeToUtf8Bytes(run, BeforeSnapshotJsonOptions);
+        beforeController = CaptureControllerRollback();
         beforeStep = session.State;
         try
         {
@@ -271,12 +273,14 @@ internal sealed partial class AutoPlayController
             {
                 return existing;
             }
-            byte[] bytes = File.ReadAllBytes(source);
-            string filename = "import-" + Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant() + ".json";
+            using FileStream sourceStream = File.OpenRead(source);
+            string filename = "import-" + Convert.ToHexString(SHA256.HashData(sourceStream)).ToLowerInvariant() + ".json";
             string destination = Path.Combine(runDirectory!, filename);
             if (!File.Exists(destination))
             {
-                File.WriteAllBytes(destination, bytes);
+                sourceStream.Position = 0;
+                using FileStream destinationStream = File.Create(destination);
+                sourceStream.CopyTo(destinationStream);
             }
             imported.Add(source, filename);
             return filename;
@@ -336,8 +340,8 @@ internal sealed partial class AutoPlayController
             {
                 using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Controller.Step");
                 advancing = true;
-                beforeStep = session.State;
                 beforeController = CaptureControllerRollback();
+                beforeStep = session.State;
                 beforeStep = CaptureState();
                 CheckIdleDeadline();
                 Tick();
@@ -1761,7 +1765,7 @@ internal sealed partial class AutoPlayController
         {
             if (beforeStep is not null && beforeController is not null)
             {
-                AutoPlayRunState before = JsonSerializer.Deserialize<AutoPlayRunState>(beforeController, JsonOptions)!;
+                AutoPlayRunState before = JsonSerializer.Deserialize<AutoPlayRunState>(beforeController.Value.Span, JsonOptions)!;
                 before.Snapshot = $"failure-{run.Steps:D10}-before.json";
                 SaveGame(Path.Combine(runDirectory!, before.Snapshot), beforeStep);
                 ReproductionPath = Path.Combine(runDirectory!, $"failure-{run.Steps:D10}.run.json");
@@ -1783,10 +1787,16 @@ internal sealed partial class AutoPlayController
         CommitCheckpointFile(temporary, path);
     }
 
-    private byte[] CaptureControllerRollback()
+    // Consume this view before another successful capture; later captures reuse its backing storage.
+    internal ReadOnlyMemory<byte> CaptureControllerRollback()
     {
         using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Controller.RollbackJson");
-        return JsonSerializer.SerializeToUtf8Bytes(run, BeforeSnapshotJsonOptions);
+        controllerRollbackScratch.SetLength(0);
+        controllerRollbackScratch.Position = 0;
+        JsonSerializer.Serialize(controllerRollbackScratch, run, BeforeSnapshotJsonOptions);
+        // Keep the last completed rollback intact until its replacement is fully written.
+        (controllerRollbackBuffer, controllerRollbackScratch) = (controllerRollbackScratch, controllerRollbackBuffer);
+        return controllerRollbackBuffer.GetBuffer().AsMemory(0, checked((int)controllerRollbackBuffer.Length));
     }
 
     private void AdvanceInputFrame(GameWorld world)

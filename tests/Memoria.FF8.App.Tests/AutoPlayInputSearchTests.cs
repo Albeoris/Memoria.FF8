@@ -255,6 +255,54 @@ public sealed class AutoPlayInputSearchTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ImportedCheckpointValidatesOwnersAfterReadingAcrossStreamBuffers(bool changedOwner)
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "ff8-input-search-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        string path = Path.Combine(directory, "parent.json");
+        try
+        {
+            AutoPlayInputSearchFrame frame = Frame("parent");
+            frame.FieldId = 100;
+            frame.ProgramHash = "observed-program";
+            using (FileStream stream = File.Create(path))
+            {
+                JsonSerializer.Serialize(stream, new
+                {
+                    UnusedOwnerData = Enumerable.Repeat("unused owner data", 8192).ToArray(),
+                    FieldId = frame.FieldId,
+                    FieldButtonInput = new NativeFieldButtonInput(3, 0, 0, 42, changedOwner ? 101 : frame.FieldId, 0, 0, 0, 0),
+                    EventState = new { ProgramHash = frame.ProgramHash, Frame = 42 }
+                });
+            }
+            using (FileStream stream = File.OpenRead(path))
+            {
+                frame.Sha256 = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
+            }
+
+            if (changedOwner)
+            {
+                InvalidDataException exception = Assert.Throws<InvalidDataException>(() => AutoPlayController.ValidateImportedInputSearchCheckpoint(frame, directory));
+                Assert.Contains("prepared input owner", exception.Message);
+            }
+            else
+            {
+                AutoPlayController.ValidateImportedInputSearchCheckpoint(frame, directory);
+                File.AppendAllText(path, " ");
+                InvalidDataException exception = Assert.Throws<InvalidDataException>(() => AutoPlayController.ValidateImportedInputSearchCheckpoint(frame, directory));
+                Assert.Contains("byte identity", exception.Message);
+            }
+        }
+        finally
+        {
+            File.Delete(path);
+            Directory.Delete(directory);
+        }
+    }
+
     private static AutoPlayInputSearchFrame Frame(string id)
     {
         return new()

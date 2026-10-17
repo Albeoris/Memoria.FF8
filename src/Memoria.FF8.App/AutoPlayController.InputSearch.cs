@@ -311,7 +311,7 @@ internal sealed partial class AutoPlayController
         SaveBundle(diagnostic, CaptureState());
         if (beforeStep is not null && beforeController is not null)
         {
-            AutoPlayRunState before = JsonSerializer.Deserialize<AutoPlayRunState>(beforeController, JsonOptions)!;
+            AutoPlayRunState before = JsonSerializer.Deserialize<AutoPlayRunState>(beforeController.Value.Span, JsonOptions)!;
             before.Snapshot = diagnostic + "-before.json";
             SaveGame(Path.Combine(runDirectory!, before.Snapshot), beforeStep);
             AtomicWrite(Path.Combine(runDirectory!, diagnostic + "-before.run.json"), JsonSerializer.Serialize(before, BeforeSnapshotJsonOptions));
@@ -442,7 +442,8 @@ internal sealed partial class AutoPlayController
 
     private static string CheckpointHash(string path)
     {
-        return Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
+        using FileStream stream = File.OpenRead(path);
+        return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
     }
 
     internal static GameState ValidateInputSearchCheckpoint(AutoPlayInputSearchFrame frame, string directory)
@@ -467,20 +468,21 @@ internal sealed partial class AutoPlayController
     private sealed record InputSearchSnapshotHeader([property: JsonRequired] int FieldId, [property: JsonRequired] NativeFieldButtonInput? FieldButtonInput, [property: JsonRequired] InputSearchVmHeader EventState);
     private sealed record InputSearchVmHeader([property: JsonRequired] string ProgramHash, [property: JsonRequired] long Frame);
 
-    private static void ValidateImportedInputSearchCheckpoint(AutoPlayInputSearchFrame frame, string directory)
+    internal static void ValidateImportedInputSearchCheckpoint(AutoPlayInputSearchFrame frame, string directory)
     {
         if (frame.Checkpoint != Path.GetFileName(frame.Checkpoint) || string.IsNullOrEmpty(frame.Checkpoint))
         {
             throw new InvalidDataException("A local input search checkpoint requires its original basename.");
         }
-        byte[] bytes = File.ReadAllBytes(Path.Combine(directory, frame.Checkpoint));
-        if (frame.Sha256 != Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant())
+        using FileStream stream = File.OpenRead(Path.Combine(directory, frame.Checkpoint));
+        if (frame.Sha256 != Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant())
         {
             throw new InvalidDataException("A local input search checkpoint has a missing or changed byte identity.");
         }
         // Import validates immutable bytes and replay metadata; full owner validation
         // still runs through GameSession.Load whenever a retained state is restored.
-        InputSearchSnapshotHeader header = JsonSerializer.Deserialize<InputSearchSnapshotHeader>(bytes, JsonOptions) ?? throw new InvalidDataException("Empty local input search checkpoint.");
+        stream.Position = 0;
+        InputSearchSnapshotHeader header = JsonSerializer.Deserialize<InputSearchSnapshotHeader>(stream, JsonOptions) ?? throw new InvalidDataException("Empty local input search checkpoint.");
         if (header.EventState is null)
         {
             throw new InvalidDataException("A local input search checkpoint requires its native VM header.");

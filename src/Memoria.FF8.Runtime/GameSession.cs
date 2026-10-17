@@ -467,7 +467,8 @@ public sealed partial class GameSession : IEventServices
 
     public static GameState Load(string path)
     {
-        GameState state = JsonSerializer.Deserialize<GameState>(File.ReadAllText(path), JsonOptions) ?? throw new InvalidDataException("Empty checkpoint.");
+        using FileStream stream = File.OpenRead(path);
+        GameState state = JsonSerializer.Deserialize<GameState>(stream, JsonOptions) ?? throw new InvalidDataException("Empty checkpoint.");
         Validate(state);
         JsonElement? currentVm = state.Scene == SceneKind.WorldMap ? state.DepartingFieldState ?? state.EventState : state.EventState;
         if (currentVm is null && state.Scene == SceneKind.Field && state.DepartingFieldState is JsonElement pendingField && pendingField.TryGetProperty("TransitionRequested", out JsonElement requested) && requested.ValueKind == JsonValueKind.True && pendingField.TryGetProperty("Scene", out JsonElement pendingScene) && pendingScene.TryGetProperty("WorldTransitionRequest", out JsonElement worldRequest) && worldRequest.ValueKind == JsonValueKind.Null)

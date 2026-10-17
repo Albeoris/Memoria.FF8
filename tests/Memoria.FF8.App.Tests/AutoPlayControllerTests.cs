@@ -5,6 +5,52 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class AutoPlayControllerTests
 {
+    [Fact]
+    public void RollbackRetainsExactCompactBytesThroughStateMutationAndFailedReplacement()
+    {
+        using TestRun run = new();
+        AutoPlayController controller = run.Create(() => throw new InvalidOperationException("Resources are unavailable."));
+        controller.State.Steps = 17;
+        JsonSerializerOptions compact = new(AutoPlayController.JsonOptions) { WriteIndented = false };
+        byte[] expected = JsonSerializer.SerializeToUtf8Bytes(controller.State, compact);
+        ReadOnlyMemory<byte> retained = controller.CaptureControllerRollback();
+        controller.State.Steps = 18;
+        controller.State.ObservedMessages.Add("A later native callback.");
+
+        Assert.Equal(expected, retained.ToArray());
+        controller.State.ActiveTravelRoute = new("destination", null, null, new ThrowingSelections());
+        Assert.Throws<InvalidOperationException>(() => controller.CaptureControllerRollback());
+        Assert.Equal(expected, retained.ToArray());
+
+        controller.State.ActiveTravelRoute = null;
+        ReadOnlyMemory<byte> replacement = controller.CaptureControllerRollback();
+        AutoPlayRunState restored = JsonSerializer.Deserialize<AutoPlayRunState>(replacement.Span, AutoPlayController.JsonOptions)!;
+        Assert.Equal(18, restored.Steps);
+        Assert.Contains("A later native callback.", restored.ObservedMessages);
+        Assert.Equal(expected, retained.ToArray());
+    }
+
+    [Fact]
+    public void WarmRollbackBuffersAvoidAllocatingAnotherManifestSizedArray()
+    {
+        using TestRun run = new();
+        AutoPlayController controller = run.Create(() => throw new InvalidOperationException("Resources are unavailable."));
+        controller.State.Error = new string('x', 256 * 1024);
+        controller.CaptureControllerRollback();
+        controller.CaptureControllerRollback();
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        ReadOnlyMemory<byte> snapshot = default;
+        for (int capture = 0; capture < 4; capture++)
+        {
+            snapshot = controller.CaptureControllerRollback();
+        }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.True(allocated < snapshot.Length, $"Four warmed captures allocated {allocated} bytes for a {snapshot.Length}-byte manifest.");
+        AutoPlayRunState restored = JsonSerializer.Deserialize<AutoPlayRunState>(snapshot.Span, AutoPlayController.JsonOptions)!;
+        Assert.Equal(controller.State.Error, restored.Error);
+    }
+
     [Theory]
     [InlineData(33, "172:33", 33, false)]
     [InlineData(33, "172:33", 34, true)]
@@ -206,6 +252,22 @@ public sealed class AutoPlayControllerTests
         controller.Advance(1);
         Assert.True(requests > 0);
         Assert.False(controller.Running);
+    }
+
+    private sealed class ThrowingSelections : IReadOnlyList<AutoPlayChoiceSelection>
+    {
+        public int Count => 1;
+        public AutoPlayChoiceSelection this[int index] => throw new InvalidOperationException("Synthetic serialization failure.");
+
+        public IEnumerator<AutoPlayChoiceSelection> GetEnumerator()
+        {
+            throw new InvalidOperationException("Synthetic serialization failure.");
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
     }
 
     private static AutoPlayRunState ReadManifest(string path)
