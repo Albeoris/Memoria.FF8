@@ -1113,8 +1113,9 @@ internal sealed class AutoPlayController
         SaveGame(Path.Combine(runDirectory!, snapshot), state);
         run.Snapshot = snapshot;
         string manifest = Path.Combine(runDirectory!, name + ".run.json");
-        AtomicWrite(manifest, JsonSerializer.Serialize(run, JsonOptions));
-        AtomicWrite(Path.Combine(runDirectory!, "latest.run.json"), JsonSerializer.Serialize(run, JsonOptions));
+        string content = JsonSerializer.Serialize(run, JsonOptions);
+        AtomicWrite(manifest, content);
+        AtomicWrite(Path.Combine(runDirectory!, "latest.run.json"), content);
         return manifest;
     }
 
