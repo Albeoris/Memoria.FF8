@@ -30,13 +30,15 @@ The launcher remembers the selected folder after a successful start and offers i
 
 FFmpeg and FFprobe provide movie playback and replacement audio decoding. They are external tools with their own licenses. The launcher checks whether both tools run, asks before downloading, verifies the archive against the release SHA-256 manifest, and keeps its license notices alongside the extracted executables.
 
-The package uses `Data/media-tools/` beside the engine. Download progress shows received bytes and, when the server supplies a file size, a percentage. Verification, extraction and executable checks have separate stages. Existing working tools are reused without an automatic update.
+The launcher and engine use `%LOCALAPPDATA%/Memoria.FF8/media-tools/` by default, beside the `player-saves/` folder. This shared folder survives installing new releases, so existing working tools are reused without another download or an automatic update. To reuse tools from an older release, move its entire `Data/media-tools/` folder, including licenses and notices, to this location.
+
+Download progress shows received bytes and, when the server supplies a file size, a percentage. Verification, extraction and executable checks have separate stages.
 
 Response headers and each stalled network read have a 15-second timeout. The complete download has no fixed 15-second limit, so a transfer can take several minutes while data keeps arriving. Setup failures report the reason and manual installation instructions.
 
-For manual setup, obtain the Windows x64 LGPL static archive from [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds/releases/latest). Put `ffmpeg.exe` and `ffprobe.exe` from its `bin` directory in `Data/media-tools/`, and retain the archive's license, copyright and documentation files there. No `ffplay.exe` or FFmpeg DLLs are required. Restart the launcher to validate the tools.
+For manual setup, obtain the Windows x64 LGPL static archive from [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds/releases/latest). Put `ffmpeg.exe` and `ffprobe.exe` from its `bin` directory in `%LOCALAPPDATA%/Memoria.FF8/media-tools/`, and retain the archive's license, copyright and documentation files there. No `ffplay.exe` or FFmpeg DLLs are required. Restart the launcher to validate the tools.
 
-Direct engine launches can select another media directory; see the [command line](../reference/command-line.md) and [environment reference](../reference/environment-variables.md). The launcher requires ready media tools before starting a game. A direct engine launch may continue without them, but movie-dependent scenes can then fail to continue.
+Set `MEMORIA_FF8_MEDIA_TOOLS` to select another media directory for both the launcher and engine. Direct engine launches can override it with `--media-tools`; see the [command line](../reference/command-line.md) and [environment reference](../reference/environment-variables.md). The launcher requires ready media tools before starting a game. A direct engine launch may continue without them, but movie-dependent scenes can then fail to continue.
 
 ## Start from source
 

@@ -26,7 +26,7 @@ Without a mode selector, the engine opens the game window. With no `--state` and
 | `--game-dir DIRECTORY` | Installed game directory. Overrides `MEMORIA_FF8_GAME_DIR`, then `FF8_GAME_DIRECTORY`. |
 | `--state FILE` | Load a standalone JSON snapshot. Its state overrides scene initialization options. |
 | `--save-state FILE` | Quick-save snapshot destination; default `%LOCALAPPDATA%/Memoria.FF8/checkpoint.json`. |
-| `--media-tools DIRECTORY` | Directory containing `ffmpeg.exe` and `ffprobe.exe`; overrides `MEMORIA_FF8_MEDIA_TOOLS`. Default `media-tools` beside the engine executable. |
+| `--media-tools DIRECTORY` | Directory containing `ffmpeg.exe` and `ffprobe.exe`; overrides `MEMORIA_FF8_MEDIA_TOOLS` for direct engine startup. Default `%LOCALAPPDATA%/Memoria.FF8/media-tools/`, beside `player-saves/` and shared across releases. The launcher honors the same environment variable and default. |
 | `--scene NAME` | Initial scene: `Title`, `Field`, `Movie` or `WorldMap`, case insensitive. Scene selection alone does not construct a valid gameplay state. |
 | `--field ID_OR_NAME` | Request a field. Numeric IDs and aliases `start0`, `bghoke_1`, `bghoke_2`, `bghoke_3`, `bgroad_6` are accepted. This initializes a field; use a snapshot for exact continuation. |
 | `--entry NUMBER` | Only `0` is supported. Nonzero entries fail. |

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Memoria.FF8;
 
 namespace Memoria.Launcher;
 
@@ -80,7 +81,7 @@ internal static class GameInstallationSelection
         result.ArgumentList.Add("--game-dir");
         result.ArgumentList.Add(Path.GetFullPath(gameDirectory));
         result.ArgumentList.Add("--media-tools");
-        result.ArgumentList.Add(Path.Combine(dataDirectory, "media-tools"));
+        result.ArgumentList.Add(MediaToolsInstallation.ResolveDirectory());
         return result;
     }
 }

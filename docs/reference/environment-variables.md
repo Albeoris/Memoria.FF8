@@ -1,6 +1,6 @@
 # Environment variables
 
-Set these in the shell before starting the engine or test process. An explicit command-line path takes precedence where the corresponding option exists. Use full paths for installed games and externally supplied resources; do not copy game assets into the source checkout.
+Set these in the shell before starting the launcher, engine or test process. An explicit command-line path takes precedence where the corresponding option exists. Use full paths for installed games and externally supplied resources; do not copy game assets into the source checkout.
 
 ## Engine startup
 
@@ -8,7 +8,7 @@ Set these in the shell before starting the engine or test process. An explicit c
 | --- | --- |
 | `MEMORIA_FF8_GAME_DIR` | Original installed game directory. Used when `--game-dir` is absent. |
 | `FF8_GAME_DIRECTORY` | Fallback game directory when `MEMORIA_FF8_GAME_DIR` is unset. |
-| `MEMORIA_FF8_MEDIA_TOOLS` | Directory containing `ffmpeg.exe` and `ffprobe.exe`, overridden by `--media-tools`. Otherwise graphical startup uses `media-tools` beside the engine executable. |
+| `MEMORIA_FF8_MEDIA_TOOLS` | Directory containing `ffmpeg.exe` and `ffprobe.exe`, used by both the launcher and engine. Direct engine startup can override it with `--media-tools`. Default `%LOCALAPPDATA%/Memoria.FF8/media-tools/`, beside `player-saves/`. |
 | `MEMORIA_FF8_FFMPEG_RELEASE_URL` | Override the HTTPS release-download directory used by optional FFmpeg installation. Default `https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/`. |
 | `MEMORIA_FF8_FFMPEG_ARCHIVE` | Override the optional FFmpeg ZIP filename. Default `ffmpeg-master-latest-win64-lgpl.zip`. Must be a filename ending in `-win64-lgpl.zip`. |
 
@@ -24,7 +24,9 @@ The game-directory fallback checks whether a variable is unset, rather than skip
 
 FFmpeg release/archive overrides affect the optional installer, not movie selection. Installation downloads the matching checksum list, verifies the archive and validates the executables. A fixed release URL and matching archive filename can pin the download. Keep the FFmpeg license and notices with the installed tools. The graphical host asks before downloading; declining may prevent movie-dependent scenes from continuing.
 
-These settings describe direct engine startup. The graphical launcher selects a game directory through its own settings and passes it explicitly, along with `Data/media-tools` from its package directory. Use direct engine arguments to override these paths. The launcher does not use the game-directory variables as a replacement for its selection UI.
+The graphical launcher selects a game directory through its own settings and passes it explicitly. It resolves the media-tools directory using `MEMORIA_FF8_MEDIA_TOOLS` and the same default as the engine, then passes that path to the engine. The launcher does not use the game-directory variables as a replacement for its selection UI.
+
+The default media-tools folder is shared across releases. To avoid downloading again after upgrading from an older release, move the entire old `Data/media-tools/` folder, including its licenses and notices, to `%LOCALAPPDATA%/Memoria.FF8/media-tools/`.
 
 ## Optional installed-resource tests
 

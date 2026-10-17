@@ -58,7 +58,8 @@ public sealed class LauncherTests : IDisposable
 
         Assert.Equal(Path.Combine(package, "Data", "Memoria.FF8.exe"), result.FileName);
         Assert.Equal(Path.Combine(package, "Data"), result.WorkingDirectory);
-        Assert.Equal(new[] { "--game-dir", game, "--media-tools", Path.Combine(package, "Data", "media-tools") }, result.ArgumentList);
+        Assert.Equal(new[] { "--game-dir", game, "--media-tools", MediaToolsInstallation.ResolveDirectory() }, result.ArgumentList);
+        Assert.Equal(result.ArgumentList, GameInstallationSelection.CreateStartInfo(Path.Combine(directory, "Next release"), game).ArgumentList);
         Assert.False(result.UseShellExecute);
     }
 

@@ -20,7 +20,7 @@ internal sealed class LauncherWindow : Window
     private readonly TextBlock mediaProgressText = new() { Margin = new Thickness(0, 6, 0, 0), Foreground = Brushes.DimGray };
     private readonly StackPanel mediaProgressPanel = new() { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 10, 0, 0) };
     private readonly TextBox status = new() { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, BorderThickness = new Thickness(0), Background = Brushes.Transparent };
-    private readonly string mediaDirectory = Path.Combine(AppContext.BaseDirectory, "Data", "media-tools");
+    private readonly string mediaDirectory = MediaToolsInstallation.ResolveDirectory();
     private bool busy;
 
     public LauncherWindow()

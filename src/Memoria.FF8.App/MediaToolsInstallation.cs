@@ -60,7 +60,7 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
         {
             return Path.GetFullPath(configured);
         }
-        return Path.Combine(AppContext.BaseDirectory, "media-tools");
+        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoria.FF8", "media-tools");
     }
 
     public async Task<bool> EnsureAsync(string directory, Func<string, bool> consent, Action<string> report, Action<MediaToolsProgress>? progress = null)

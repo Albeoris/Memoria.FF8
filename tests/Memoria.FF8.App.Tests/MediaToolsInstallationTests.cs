@@ -16,6 +16,29 @@ public sealed class MediaToolsInstallationTests
     private static readonly FfmpegDownloadOptions Options = new(new Uri("https://example.invalid/releases/latest/download/"), "ffmpeg-test-win64-lgpl.zip");
 
     [Fact]
+    public void Default_directory_is_shared_between_releases_and_next_to_player_saves()
+    {
+        const string variable = "MEMORIA_FF8_MEDIA_TOOLS";
+        string? previous = Environment.GetEnvironmentVariable(variable);
+        try
+        {
+            Environment.SetEnvironmentVariable(variable, null);
+
+            string expected = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoria.FF8", "media-tools");
+            Assert.Equal(expected, MediaToolsInstallation.ResolveDirectory());
+            Assert.Equal(Path.GetDirectoryName(PlayerSaveStore.DefaultDirectory), Path.GetDirectoryName(expected));
+
+            Environment.SetEnvironmentVariable(variable, "custom-media-tools");
+            Assert.Equal(Path.GetFullPath("custom-media-tools"), MediaToolsInstallation.ResolveDirectory());
+            Assert.Equal(Path.GetFullPath("explicit-tools"), MediaToolsInstallation.ResolveDirectory("explicit-tools"));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(variable, previous);
+        }
+    }
+
+    [Fact]
     public void Malformed_download_configuration_reports_manual_installation_without_prompting()
     {
         using TestDirectory directory = new();
