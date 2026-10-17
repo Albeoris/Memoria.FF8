@@ -15,8 +15,15 @@ internal static partial class Program
             NativeLadderButtons(live, 0x3000);
             NativeLadderButtons(independent, 0x3000);
             bool requested = false;
+            bool requestedLabel = false;
+            bool requestedReturn = false;
             live.CommandExecuted += command =>
             {
+                if (command.ObjectId == 0 && command.ScriptId == 2)
+                {
+                    requestedLabel |= command.Name == "LBL";
+                    requestedReturn |= command.Name == "RET";
+                }
                 if (command.Name != opcode.ToString())
                 {
                     return;
@@ -57,7 +64,7 @@ internal static partial class Program
                 }
                 independent.Restore(saved);
             }
-            Require(completedUnderUpperWait && CapturedVariables(live.Capture()).GetProperty("6000").GetInt32() == 73, "Mode4 request failed to return to its original lower consumer.");
+            Require(requestedLabel && requestedReturn && completedUnderUpperWait && CapturedVariables(live.Capture()).GetProperty("6000").GetInt32() == 73, "Mode4 request failed its genuine requested LBL/RET frame or did not return to its original lower consumer.");
         }
         Console.WriteLine("Native mode4 requests: REQ/REQSW/REQEW preserve the physical exit/drain beneath higher HIDE/UCOFF/WAIT, create no mode1 backup, and RET8 resumes the lower consumer; independent restores PASS.");
     }

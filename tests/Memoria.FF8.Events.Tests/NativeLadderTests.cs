@@ -53,7 +53,7 @@ internal static partial class Program
         {
             scripts.Add([(Jsm.Opcode.LBL, 2), (Jsm.Opcode.HIDE, 0), (Jsm.Opcode.UCOFF, 0), (Jsm.Opcode.PSHN_L, 6), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 99), (Jsm.Opcode.POPM_B, 6001), (Jsm.Opcode.RET, 8)]);
             scripts.Add([(Jsm.Opcode.LBL, 16), (Jsm.Opcode.RET, 8)]);
-            scripts.Add([(Jsm.Opcode.LBL, 17), (Jsm.Opcode.PSHN_L, 6), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 6), (Jsm.Opcode.PSHN_L, 2), (requestOpcode, 0), (Jsm.Opcode.PSHN_L, 88), (Jsm.Opcode.POPM_B, 6002), (Jsm.Opcode.RET, 8)]);
+            scripts.Add([(Jsm.Opcode.LBL, 17), (Jsm.Opcode.PSHN_L, 6), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 6), (Jsm.Opcode.PSHN_L, 2), (requestOpcode, 0), (Jsm.Opcode.PSHN_L, 88), (Jsm.Opcode.POPM_B, 6002), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]);
         }
         if (followers)
         {
@@ -145,7 +145,162 @@ internal static partial class Program
         }
         NativeLadderAutomaticContract();
         NativeLadderRequestContract();
+        NativeLadderTraceWriteBeforeReadContract();
         Console.WriteLine("Native mode4 ladder: fullDWORD coordinates, old-counter phases, direction masks/priority, mapped held input, triangle transfer, return2 successor and independent restore passed.");
+    }
+
+    private static void NativeLadderTraceWriteBeforeReadContract()
+    {
+        JsonElement UnknownKind(JsonElement source, int index)
+        {
+            JsonNode state = JsonNode.Parse(source.GetRawText())!;
+            foreach (string ring in new[] { "FirstTrail", "SecondTrail" })
+            {
+                state["Scene"]!["PartyTrace"]![ring]![index]!["Animation"] = -1;
+            }
+            return JsonSerializer.SerializeToElement(state);
+        }
+        void SetUnknownAfterInitTrace(EventEngine engine, int relativeIndex)
+        {
+            engine.CommandExecuted += command =>
+            {
+                if (command.Name != "INITTRACE")
+                {
+                    return;
+                }
+                PartyTraceState trace = engine.Scene.PartyTrace!;
+                int index = (trace.Cursor + relativeIndex) & 63;
+                trace.FirstTrail[index] = trace.FirstTrail[index]! with { Animation = -1 };
+                trace.SecondTrail[index] = trace.SecondTrail[index]! with { Animation = -1 };
+            };
+        }
+        foreach (bool up in new[] { false, true })
+        {
+            EventEngine live = CreateNativeLadder(up);
+            SetUnknownAfterInitTrace(live, 0);
+            bool unknownAtIssue = false;
+            live.CommandExecuted += command =>
+            {
+                if (command.Name == (up ? "LADDERUP2" : "LADDERDOWN2"))
+                {
+                    PartyTraceState trace = live.Scene.PartyTrace!;
+                    unknownAtIssue = trace.FirstTrail[trace.Cursor]!.Animation == -1 && trace.SecondTrail[trace.Cursor]!.Animation == -1;
+                }
+            };
+            ReachNativeLadderIssue(live);
+            Require(unknownAtIssue, "Mode4 preflight filled the unknown current trace kind before the actual native phase write.");
+            PartyTraceState issuedTrace = live.Scene.PartyTrace!;
+            int written = (issuedTrace.Cursor - 1) & 63;
+            Require(issuedTrace.FirstTrail[written]!.Animation == (up ? 3 : 5) && issuedTrace.SecondTrail[written]!.Animation == (up ? 3 : 5), "Mode4 setup failed to overwrite current byte10 with its real direction-specific kind.");
+
+            int current = issuedTrace.Cursor;
+            JsonElement unknownStage = UnknownKind(live.Capture(), current);
+            live.Restore(unknownStage);
+            EventEngine independent = CreateNativeLadder(up);
+            independent.Restore(unknownStage);
+            Require(JsonElement.DeepEquals(unknownStage, live.Capture()) && JsonElement.DeepEquals(unknownStage, independent.Capture()), "Cold stage3 restoration changed an unknown kind instead of preserving it until native execution.");
+            live.Step();
+            independent.Step();
+            Require(live.Scene.PartyTrace!.FirstTrail[current]!.Animation == (up ? 3 : 5) && live.Scene.PartyTrace.SecondTrail[current]!.Animation == (up ? 3 : 5) && JsonElement.DeepEquals(live.Capture(), independent.Capture()), "The actual restored stage3 did not publish its trace write identically before any consumer.");
+
+            EventEngine unused = CreateNativeLadder(up);
+            SetUnknownAfterInitTrace(unused, 17);
+            ReachNativeLadderIssue(unused);
+            EventEngine unusedRestored = CreateNativeLadder(up);
+            unusedRestored.Restore(unused.Capture());
+            unused.Step();
+            unusedRestored.Step();
+            Require(unused.Scene.PartyTrace!.FirstTrail[17]!.Animation == -1 && unused.Scene.PartyTrace.SecondTrail[17]!.Animation == -1 && JsonElement.DeepEquals(unused.Capture(), unusedRestored.Capture()), "Mode4 read or filled an unused trace kind with no present follower consumer.");
+
+            EventEngine growingDelay = CreateNativeLadder(up, followers: true);
+            SetUnknownAfterInitTrace(growingDelay, 49);
+            ReachNativeLadderIssue(growingDelay);
+            Require(growingDelay.Scene.PartyTrace!.FirstOffset == 16 && growingDelay.Scene.PartyTrace.FirstTrail[49]!.Animation == 2 && growingDelay.Scene.PartyTrace.SecondTrail[49]!.Animation == -1, "A growing follower delay failed to write kind2 before its actual delayed lookup or changed another ring's unread cell.");
+
+            EventEngine blocked = CreateNativeLadder(up, followers: true);
+            ReachNativeLadderClimb(blocked);
+            int forwardInput = up ? 0x3000 : 0xC000;
+            int reverseInput = up ? 0xC000 : 0x3000;
+            for (int cycle = 0; cycle < 4; cycle++)
+            {
+                foreach (int held in new[] { forwardInput, forwardInput, reverseInput, reverseInput })
+                {
+                    NativeLadderButtons(blocked, held);
+                    blocked.Step();
+                }
+            }
+            PartyTraceState matureTrace = blocked.Scene.PartyTrace!;
+            Require(matureTrace.FirstOffset == 31 && blocked.Actors[0].NativeMovementCompletion542 == 1 && blocked.Actors[0].NativeTurnAccumulator474 == 0, "Consumed-kind fixture did not naturally reach its final follower delay while retaining the controlled middle phase.");
+            int consumed = (matureTrace.Cursor + 1 - matureTrace.FirstOffset) & 63;
+            JsonElement known = blocked.Capture();
+            matureTrace.FirstTrail[consumed] = matureTrace.FirstTrail[consumed]! with { Animation = -1 };
+            JsonElement unknownConsumed = blocked.Capture();
+            EventEngine coldRejected = CreateNativeLadder(up, followers: true);
+            coldRejected.Restore(known);
+            try
+            {
+                coldRejected.Restore(unknownConsumed);
+                throw new InvalidOperationException("Mode4 cold restoration accepted an unknown kind that the actual present follower will read.");
+            }
+            catch (InvalidDataException)
+            {
+            }
+            Require(JsonElement.DeepEquals(known, coldRejected.Capture()), "Rejected consumed-kind restoration changed the cold engine.");
+            NativeLadderState physicalBefore = blocked.Actors[0].NativeLadder!;
+            short counterBefore = blocked.Actors[0].NativeTurnAccumulator474!.Value;
+            JsonElement traceBefore = JsonSerializer.SerializeToElement(blocked.Scene.PartyTrace);
+            try
+            {
+                NativeLadderButtons(blocked, forwardInput);
+                blocked.Step();
+                throw new InvalidOperationException("Mode4 consumed an unknown animation kind at its actual mature delayed follower index.");
+            }
+            catch (EventScriptException)
+            {
+            }
+            JsonElement refused = blocked.Capture();
+            EventFault fault = blocked.LastFault ?? throw new InvalidOperationException("Consumed unknown trace kind did not retain its required opcode fault.");
+            JsonElement owner = refused.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ObjectId").GetInt32() == fault.ObjectId && fiber.GetProperty("ScriptId").GetInt32() == fault.ScriptId && !fiber.GetProperty("Complete").GetBoolean());
+            Require(fault.Opcode == (up ? "LADDERUP2" : "LADDERDOWN2") && owner.GetProperty("Position").GetInt32() == physicalBefore.Operation && owner.GetProperty("Stack").GetArrayLength() == 0 && blocked.Actors[0].NativeLadder == physicalBefore && blocked.Actors[0].NativeTurnAccumulator474 == counterBefore && JsonElement.DeepEquals(traceBefore, JsonSerializer.SerializeToElement(blocked.Scene.PartyTrace)), "Consumed-kind refusal changed the held issuing PC, consumed operand bank, physical phase or trace before its read.");
+
+            foreach (bool automatic in new[] { false, true })
+            {
+                EventEngine middle = CreateNativeLadder(up, automatic: automatic);
+                ReachNativeLadderClimb(middle);
+                JsonElement knownMiddle = middle.Capture();
+                JsonElement unknownMiddle = UnknownKind(knownMiddle, middle.Scene.PartyTrace!.Cursor);
+                middle.Restore(unknownMiddle);
+                EventEngine middleRestored = CreateNativeLadder(up, automatic: automatic);
+                middleRestored.Restore(unknownMiddle);
+                int idleCursor = middle.Scene.PartyTrace!.Cursor;
+                JsonElement traceBeforeMiddle = JsonSerializer.SerializeToElement(middle.Scene.PartyTrace);
+                middle.Step();
+                middleRestored.Step();
+                Require(middle.Scene.PartyTrace!.Cursor == idleCursor && middle.Scene.PartyTrace.FirstTrail[idleCursor]!.Animation == -1 && middle.Scene.PartyTrace.SecondTrail[idleCursor]!.Animation == -1 && JsonElement.DeepEquals(middle.Capture(), middleRestored.Capture()), "Idle or automatic mode4 read, filled or advanced an unused animation-kind cell after cold restore.");
+                if (automatic)
+                {
+                    Require(JsonElement.DeepEquals(traceBeforeMiddle, JsonSerializer.SerializeToElement(middle.Scene.PartyTrace)), "Automatic middle traversal unexpectedly published a trace pass.");
+                }
+            }
+
+            EventEngine moving = CreateNativeLadder(up);
+            ReachNativeLadderClimb(moving);
+            int forward = up ? 0x3000 : 0xC000;
+            NativeLadderButtons(moving, forward);
+            moving.Step();
+            int movingCursor = moving.Scene.PartyTrace!.Cursor;
+            JsonElement unknownMoving = UnknownKind(moving.Capture(), movingCursor);
+            moving.Restore(unknownMoving);
+            EventEngine movingRestored = CreateNativeLadder(up);
+            movingRestored.Restore(unknownMoving);
+            Require(moving.Scene.PartyTrace!.FirstTrail[movingCursor]!.Animation == -1 && JsonElement.DeepEquals(moving.Capture(), movingRestored.Capture()), "Controlled middle restoration eagerly wrote a kind instead of preserving the sampled pending phase.");
+            NativeLadderButtons(moving, forward);
+            NativeLadderButtons(movingRestored, forward);
+            moving.Step();
+            movingRestored.Step();
+            Require(moving.Scene.PartyTrace!.FirstTrail[movingCursor]!.Animation == 4 && moving.Scene.PartyTrace.SecondTrail[movingCursor]!.Animation == 4 && JsonElement.DeepEquals(moving.Capture(), movingRestored.Capture()), "Actual mapped nonzero middle input did not publish kind4 identically before its trace consumer.");
+        }
+        Console.WriteLine("Native mode4 trace: actual phase writes precede follower lookup, unused and idle/automatic kinds remain opaque, growing delays write kind2, and consumed mature-delay unknown kinds refuse atomically with independent cold checks.");
     }
 
     private static void NativeLadderReverseAndRestoreContract()

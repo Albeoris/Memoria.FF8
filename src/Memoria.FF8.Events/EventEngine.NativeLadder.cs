@@ -51,7 +51,8 @@ public sealed partial class EventEngine
         }
         try
         {
-            ValidateLadderTraceSamples(Scene.PartyTrace);
+            int stage = actor.NativeLadder is { Active: true } ? actor.NativeMovementCompletion542.Value : 0;
+            ValidateLadderTraceSamples(Scene.PartyTrace, ProspectiveLadderTraceKind(up, stage, userControlEnabled, ButtonInput?.Held), ResolvePartyActor(1) is not null, ResolvePartyActor(2) is not null);
             if (actor.NativeLadder is not { Active: true })
             {
                 int[] operands = fiber.Stack.Take(9).Reverse().ToArray();
@@ -152,17 +153,61 @@ public sealed partial class EventEngine
         }
     }
 
-    private static void ValidateLadderTraceSamples(PartyTraceState trace)
+    private static int? ProspectiveLadderTraceKind(bool up, int stage, bool controlEnabled, ushort? held)
+    {
+        return stage switch
+        {
+            0 or 3 or 5 => up ? 3 : 5,
+            4 => up ? 5 : 3,
+            6 => 2,
+            1 when controlEnabled && (held.GetValueOrDefault() & 0xF000) != 0 => 4,
+            _ => null
+        };
+    }
+
+    private static void ValidateLadderTraceSamples(PartyTraceState trace, int? overwrittenKind, bool firstFollower, bool secondFollower)
     {
         if (trace.Cursor is < 0 or > 63 || trace.FirstOffset is < 0 or > 63 || trace.SecondOffset is < 0 or > 63 || trace.FirstTrail.Length != 64 || trace.SecondTrail.Length != 64)
         {
             throw new NotSupportedException("Native mode4 requires complete bounded dual trace rings");
         }
-        foreach (PartyTraceSample? sample in trace.FirstTrail.Concat(trace.SecondTrail))
+        foreach (PartyTraceSample?[] trail in new[] { trace.FirstTrail, trace.SecondTrail })
         {
-            if (sample is null || sample.X is < short.MinValue or > short.MaxValue || sample.Y is < short.MinValue or > short.MaxValue || sample.Z is < short.MinValue or > short.MaxValue || sample.Triangle is < short.MinValue or > ushort.MaxValue || sample.Direction is < 0 or > 255 || sample.Animation is < 0 or > 5 || sample.FirstFlag is < 0 or > 255 || sample.SecondFlag is < -128 or > 255)
+            for (int index = 0; index < trail.Length; index++)
             {
-                throw new NotSupportedException("Native mode4 would observe an opaque or malformed physical trace sample");
+                PartyTraceSample? sample = trail[index];
+                if (sample is null || sample.X is < short.MinValue or > short.MaxValue || sample.Y is < short.MinValue or > short.MaxValue || sample.Z is < short.MinValue or > short.MaxValue || sample.Triangle is < short.MinValue or > ushort.MaxValue || sample.Direction is < 0 or > 255 || sample.Animation is < -1 or > 255 || sample.FirstFlag is < 0 or > 255 || sample.SecondFlag is < -128 or > 255)
+                {
+                    throw new NotSupportedException("Native mode4 would observe an opaque or malformed physical trace sample");
+                }
+            }
+        }
+        if (overwrittenKind is not int written)
+        {
+            // Idle middle does not animate followers; automatic middle and completion have no trace pass.
+            return;
+        }
+        int cursor = (trace.Cursor + 1) & 63;
+        ValidateAnimation(trace.FirstTrail, trace.FirstOffset, written == 2 ? 15 : 31, firstFollower);
+        ValidateAnimation(trace.SecondTrail, trace.SecondOffset, written == 2 ? 30 : 62, secondFollower);
+
+        void ValidateAnimation(PartyTraceSample?[] trail, int offset, int target, bool present)
+        {
+            if (!present)
+            {
+                return;
+            }
+            offset += Math.Sign(target - offset);
+            if (offset < target)
+            {
+                //478430 writes kind2 into this delayed cell before selecting the follower's clip.
+                return;
+            }
+            int index = (cursor - offset) & 63;
+            int kind = index == trace.Cursor ? written : trail[index]!.Animation;
+            if (kind is < 0 or > 5)
+            {
+                throw new NotSupportedException("Native mode4 would consume an unknown or unsupported follower trace animation kind");
             }
         }
     }
@@ -407,7 +452,7 @@ public sealed partial class EventEngine
                 }
                 try
                 {
-                    ValidateLadderTraceSamples(saved.Scene.PartyTrace);
+                    ValidateLadderTraceSamples(saved.Scene.PartyTrace, ProspectiveLadderTraceKind(ladder.Up, stage, saved.UserControlEnabled, saved.FieldButtonInput?.Held), NativeFieldPartyBinding.ResolveActor(saved.Scene, saved.Actors, 1) is not null, NativeFieldPartyBinding.ResolveActor(saved.Scene, saved.Actors, 2) is not null);
                 }
                 catch (NotSupportedException exception)
                 {
