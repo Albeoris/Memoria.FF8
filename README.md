@@ -32,6 +32,8 @@ We will review concerns promptly and in good faith and address confirmed issues 
 
 Memoria FF8 is an experimental, standalone Windows engine for FINAL FANTASY VIII. It reads resources from your own installed copy; game data, movies, music and saved games are not included. The supported playable edition is **English Steam 2013 on Windows x64**. Gameplay, battle behavior and rendering remain under development. English Remastered also supports the verified opening route from New Game into the classroom; further gameplay remains experimental and unimplemented contracts stop with an explicit error.
 
+Watch the [gameplay video](https://youtu.be/QnqDSBLkN58).
+
 ## Play
 
 Download the Windows archive from [Releases](https://github.com/Albeoris/Memoria.FF8/releases), extract it, and open `Memoria.Launcher.exe`. Keep the adjacent `Data/` directory intact. The launcher discovers installations, offers manual folder selection, sets up FFmpeg with your consent and remembers your last successful selection.
