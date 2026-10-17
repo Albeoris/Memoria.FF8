@@ -134,6 +134,8 @@ internal sealed partial class GameWorld : IDisposable
 
     public EventEngine Events { get; }
 
+    internal event Action<GameWorld>? BeforeFieldAllocation;
+
     internal bool HasCurrentFieldAllocation => session.State.Scene != SceneKind.WorldMap && worldScene is null && Events.FieldId == session.State.FieldId && Events.NextTrigger.Kind is not (PlayerTriggerKind.FieldTransition or PlayerTriggerKind.WorldMap);
 
     internal bool AdvanceMovieFrame(MoviePlaybackState playback, double seconds)
@@ -209,6 +211,10 @@ internal sealed partial class GameWorld : IDisposable
         if (Field is null && session.State.DepartingFieldState is System.Text.Json.JsonElement departing)
         {
             LoadField(departing.GetProperty("FieldId").GetInt32(), null, departing, restoreDeparting: true);
+        }
+        if (Field is not null)
+        {
+            BeforeFieldAllocation?.Invoke(this);
         }
         LoadField(session.State.FieldId, session.State.FieldArrival, session.State.EventState);
         session.SetDepartingFieldState(null);

@@ -94,6 +94,7 @@ internal sealed partial class AutoPlayController
                 world.Events.OperationCompleted += CheckIdleDeadline;
                 world.Events.OperationCompleted += ObserveSurveyOperation;
                 world.Events.BeforeNativePartyActionRequest += ObserveParticipantAction;
+                world.BeforeFieldAllocation += ObserveSurveySegmentChanges;
             }
             if (advancing)
             {
@@ -348,6 +349,7 @@ internal sealed partial class AutoPlayController
                     watched.Events.OperationCompleted -= CheckIdleDeadline;
                     watched.Events.OperationCompleted -= ObserveSurveyOperation;
                     watched.Events.BeforeNativePartyActionRequest -= ObserveParticipantAction;
+                    watched.BeforeFieldAllocation -= ObserveSurveySegmentChanges;
                 }
                 watchedWorlds.Clear();
             }
@@ -391,7 +393,7 @@ internal sealed partial class AutoPlayController
     private void Tick()
     {
         GameWorld world = getWorld();
-        if (world.Events.FieldId != session.State.FieldId || session.State.Scene == SceneKind.WorldMap)
+        if (session.State.Scene == SceneKind.WorldMap)
         {
             ObserveSurveySegmentChanges(world);
         }
