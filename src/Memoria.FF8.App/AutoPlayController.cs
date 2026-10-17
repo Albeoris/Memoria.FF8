@@ -696,10 +696,18 @@ internal sealed partial class AutoPlayController
     private void DriveWhenQueried(ScriptedInputMetadata input, bool allowControlled, int? objectId)
     {
         GameWorld world = getWorld();
+        int field = session.State.FieldId;
+        Apply(new(PlayerActionKind.FieldButtons, 0));
+        if (!HasNeutralScriptedInput(session.State.FieldButtonInput, field, world.Events.Frame))
+        {
+            world.AdvanceAutoPlayInputFrame();
+            return;
+        }
+        GameState checkpoint = CaptureState();
         bool queried = false;
         void ObserveQuery(ScriptCommand command)
         {
-            queried |= command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON" && (objectId is null || command.ObjectId == objectId);
+            queried |= command.FieldId == field && command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON" && (objectId is null || command.ObjectId == objectId) && input.Queries.Any(query => query.ObjectId == command.ObjectId && query.ScriptId == command.ScriptId && query.Operation == command.Operation && query.Opcode == command.Name);
         }
         world.Events.CommandExecuted += ObserveQuery;
         try
@@ -710,10 +718,18 @@ internal sealed partial class AutoPlayController
         {
             world.Events.CommandExecuted -= ObserveQuery;
         }
-        if (queried && session.State.Scene == SceneKind.Field && session.State.FieldId == world.Events.FieldId && world.CurrentDialogue is not { CanConfirm: true } && world.Events.Scene.NativeTutorial is null && world.Events.Scene.NativeMenuTutorial is null)
+        if (queried && HasScriptedInputOwner(world, field, allowControlled) && world.CurrentDialogue is not { CanConfirm: true } && PrepareScriptedInput(allowControlled))
         {
-            DriveScriptedInput(world.Events.DiscoverScriptedInput(objectId) ?? input, allowControlled);
+            // A neutral callback proves the real query. Replay its genuine before-state so preparation cannot consume the input window.
+            restore(checkpoint);
+            getWorld().EnsureField();
+            DriveScriptedInput(input, allowControlled, prepared: true);
         }
+    }
+
+    internal static bool HasNeutralScriptedInput(NativeFieldButtonInput? input, int field, long frame)
+    {
+        return input is { PhysicalHeld: 0, RawHeld: 0, RawPressed: 0, PendingPulse: 0, Held: 0, Pressed: 0 } && input.SampledFieldId == field && input.SampledFrame == frame;
     }
 
     private bool TryDriveOwnedLadderInput(GameWorld world, ActorState player, NativeLadderState owner)
@@ -750,9 +766,9 @@ internal sealed partial class AutoPlayController
         return driven;
     }
 
-    private void DriveScriptedInput(ScriptedInputMetadata input, bool allowControlled)
+    private void DriveScriptedInput(ScriptedInputMetadata input, bool allowControlled, bool prepared = false)
     {
-        if (!PrepareScriptedInput(allowControlled))
+        if (!prepared && !PrepareScriptedInput(allowControlled))
         {
             return;
         }

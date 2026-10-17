@@ -18,7 +18,10 @@ public sealed class AutoPlayScriptedInputPreparationTests
         string attempts = JsonSerializer.Serialize(run.Controller.State.ScriptedInputs);
         int inputSteps = run.Controller.State.ScriptedInputSteps;
         string[] sceneChoices = run.Controller.State.SceneChoices.ToArray();
-        run.Controller.Advance(1);
+        for (int tick = 0; tick < 4 && run.Session.State.FieldId == 235 && run.Controller.Error is null; tick++)
+        {
+            run.Controller.Advance(1);
+        }
         Assert.Null(run.Controller.Error);
         Assert.True(run.Controller.Running);
         Assert.Equal(234, run.Session.State.FieldId);
