@@ -57,6 +57,7 @@ internal sealed partial class GameWorld
         JsmProgram program = JsmProgram.Read(field.Jsm);
         HashSet<int> reachable = AutoPlayReachableTriangles(field.Walkmesh, player.WalkmeshTriangle, events.Scene.LockedTriangles);
         HashSet<int> excluded = Enumerable.Range(0, field.Walkmesh.Triangles.Count).Where(index => !reachable.Contains(index)).ToHashSet();
+        excluded.UnionWith(events.Scene.LockedTriangles);
         List<AutoPlayTarget> targets = [];
         bool Resolve(float x, float y, float z, out Vector3 position, out int triangle)
         {
@@ -177,16 +178,24 @@ internal sealed partial class GameWorld
         pending.Enqueue(start);
         while (pending.TryDequeue(out int index))
         {
-            if ((uint)index >= walkmesh.Triangles.Count || locked.Contains(index) || !reached.Add(index))
+            if ((uint)index >= walkmesh.Triangles.Count || !reached.Add(index))
             {
                 continue;
             }
             WalkmeshTriangle triangle = walkmesh.Triangles[index];
-            pending.Enqueue(triangle.NeighborA);
-            pending.Enqueue(triangle.NeighborB);
-            pending.Enqueue(triangle.NeighborC);
+            EnqueueNeighbor(triangle.NeighborA);
+            EnqueueNeighbor(triangle.NeighborB);
+            EnqueueNeighbor(triangle.NeighborC);
         }
         return reached;
+
+        void EnqueueNeighbor(int neighbor)
+        {
+            if (!locked.Contains(neighbor))
+            {
+                pending.Enqueue(neighbor);
+            }
+        }
     }
 
     private static int AutoPlayDirection(Vector3 from, Vector3 to) => (int)MathF.Round(MathF.Atan2(to.X - from.X, from.Y - to.Y) * 128 / MathF.PI) & 255;

@@ -6,6 +6,52 @@ namespace Memoria.FF8.App.Tests;
 public sealed class AutoPlayNavigationContinuationTests
 {
     [Fact]
+    public void AnActualNativeLockUnderThePlayerAllowsExitWithoutUnlockingOrLandingOnLockedTriangles()
+    {
+        string manifest = TestResources.FixturePath("App.Tests.AutoPlayNavigationContinuationTests.4");
+        byte[] originalManifest = File.ReadAllBytes(manifest);
+        AutoPlayRunState saved = JsonSerializer.Deserialize<AutoPlayRunState>(originalManifest, AutoPlayController.JsonOptions)!;
+        string snapshot = Path.Combine(Path.GetDirectoryName(manifest)!, saved.Snapshot!);
+        byte[] originalSnapshot = File.ReadAllBytes(snapshot);
+        using InstalledRun run = new();
+        run.Controller.ResumeFrom(manifest);
+        run.World.EnsureField();
+        Assert.Equal(741, run.World.Field!.Id);
+        Assert.Equal(71, run.World.Events.PlayerActor!.WalkmeshTriangle);
+        Assert.Contains(71, run.World.Events.Scene.LockedTriangles);
+        string nativeBefore = run.World.Events.Capture().GetRawText();
+        int[] locks = run.World.Events.Scene.LockedTriangles.Order().ToArray();
+        AutoPlayNavigationReceipt receipt = run.World.CaptureAutoPlayNavigationReceipt();
+        Assert.Contains(71, receipt.ReachableTriangles);
+        Assert.Contains(59, receipt.ReachableTriangles);
+        Assert.Contains(72, receipt.ReachableTriangles);
+        AutoPlayTarget[] targets = run.World.DiscoverAutoPlayTargets().ToArray();
+        Assert.NotEmpty(targets);
+        Assert.All(targets, target =>
+        {
+            Assert.Contains(target.Triangle, receipt.ReachableTriangles);
+            Assert.DoesNotContain(target.Triangle, locks);
+            if (target.ApproachTriangle is int approach)
+            {
+                Assert.Contains(approach, receipt.ReachableTriangles);
+                Assert.DoesNotContain(approach, locks);
+            }
+        });
+        Assert.Equal(nativeBefore, run.World.Events.Capture().GetRawText());
+        Assert.Equal(locks, run.World.Events.Scene.LockedTriangles.Order());
+        run.Controller.Advance(1);
+        Assert.Null(run.Controller.Error);
+        Assert.Equal(saved.Steps + 1, run.Controller.State.Steps);
+        run.Controller.SaveAndStop();
+        using InstalledRun cold = new();
+        cold.Controller.ResumeFrom(run.Controller.ReproductionPath!);
+        cold.Controller.Advance(1);
+        Assert.Null(cold.Controller.Error);
+        Assert.Equal(originalManifest, File.ReadAllBytes(manifest));
+        Assert.Equal(originalSnapshot, File.ReadAllBytes(snapshot));
+    }
+
+    [Fact]
     public void AnActualCanonicalChoiceReturnCanRepeatItsAuthenticatedEdgeAfterSourceObservationChanges()
     {
         string manifest = TestResources.FixturePath("App.Tests.AutoPlayNavigationContinuationTests.3");

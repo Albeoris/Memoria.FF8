@@ -415,6 +415,45 @@ public sealed class AutoPlayDiscoveryTests
     }
 
     [Fact]
+    public void DiscoveryCanLeaveTheOccupiedLockedTriangleWithoutLandingOrApproachingOnALockedTriangle()
+    {
+        byte[] source = Program([(Jsm.Opcode.NOP, 0)]);
+        GameSession session = new(new GameState());
+        EventEngine events = new(session);
+        events.LoadField(600, source, []);
+        events.Scene.LockedTriangles.Add(0);
+        events.InfGateways =
+        [
+            new(new Vector3(30, 50, 0), new Vector3(80, 50, 0), new FieldTransition(601, 0, 0, 0, 0)),
+            new(new Vector3(130, 150, 0), new Vector3(180, 150, 0), new FieldTransition(602, 0, 0, 0, 0)),
+            new(new Vector3(60, 140, 0), new Vector3(140, 60, 0), new FieldTransition(603, 0, 0, 0, 0))
+        ];
+        WalkmeshTriangle first = new(Vector3.Zero, new Vector3(200, 0, 0), new Vector3(0, 200, 0), -1, 1, -1);
+        WalkmeshTriangle neighbor = new(new Vector3(200, 0, 0), new Vector3(200, 200, 0), new Vector3(0, 200, 0), -1, -1, 0);
+        FieldCamera camera = new(Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ, Vector3.Zero, Vector2.Zero, 1);
+        FieldAssets field = new(600, "component", source, [], [], camera, new([first, neighbor]), []);
+        ActorState player = new(0, 0);
+        JsonElement before = events.Capture();
+        GameState state = session.State;
+        int executedCommands = 0;
+        events.CommandExecuted += _ => executedCommands++;
+
+        IReadOnlyList<AutoPlayTarget> targets = GameWorld.DiscoverAutoPlayTargets(field, events, player);
+
+        Assert.Contains(targets, target => target.DestinationField == 602);
+        Assert.DoesNotContain(targets, target => target.DestinationField is 601 or 603);
+        Assert.All(targets, target =>
+        {
+            Assert.Equal(1, target.Triangle);
+            Assert.Equal(1, target.ApproachTriangle);
+        });
+        Assert.Equal(new[] { 0 }, events.Scene.LockedTriangles);
+        Assert.True(JsonElement.DeepEquals(before, events.Capture()));
+        Assert.Same(state, session.State);
+        Assert.Equal(0, executedCommands);
+    }
+
+    [Fact]
     public void AReachableContactSideCannotUseAnApproachAcrossADisconnectedNeighbor()
     {
         byte[] source = Program([(Jsm.Opcode.NOP, 0)]);

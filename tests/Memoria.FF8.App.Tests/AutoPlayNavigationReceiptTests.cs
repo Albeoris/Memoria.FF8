@@ -62,14 +62,54 @@ public sealed class AutoPlayNavigationReceiptTests
     }
 
     [Fact]
-    public void ALockedStartingTriangleRefusesInsteadOfChoosingItsUnlockedNeighborOrAnotherFloor()
+    public void TheOccupiedLockedTriangleCanBeLeftButCannotBeEnteredAgainFromItsUnlockedNeighbor()
     {
         FieldWalkmesh walkmesh = CreateWalkmesh();
         HashSet<int> locked = [0];
 
-        Assert.Throws<NotSupportedException>(() => GameWorld.CaptureAutoPlayNavigationReceipt(600, "program", "walkmesh", walkmesh, 0, locked));
+        AutoPlayNavigationReceipt occupied = GameWorld.CaptureAutoPlayNavigationReceipt(600, "program", "walkmesh", walkmesh, 0, locked);
+        AutoPlayNavigationReceipt exited = GameWorld.CaptureAutoPlayNavigationReceipt(600, "program", "walkmesh", walkmesh, 1, locked);
 
+        Assert.Equal(new[] { 0, 1 }, occupied.ReachableTriangles);
+        Assert.Equal(new[] { 1 }, exited.ReachableTriangles);
+        Assert.NotEqual(occupied.Key("600:16"), exited.Key("600:16"));
         Assert.Equal(new[] { 0 }, locked);
+    }
+
+    [Fact]
+    public void AnUnoccupiedLockedTriangleCannotBridgeTwoOtherwiseDisconnectedReachableRegions()
+    {
+        FieldWalkmesh walkmesh = new(
+        [
+            new(Vector3.Zero, new Vector3(200, 0, 0), new Vector3(0, 200, 0), -1, 1, -1),
+            new(new Vector3(200, 0, 0), new Vector3(200, 200, 0), new Vector3(0, 200, 0), 2, -1, 0),
+            new(new Vector3(200, 0, 0), new Vector3(400, 0, 0), new Vector3(200, 200, 0), -1, -1, 1)
+        ]);
+
+        Assert.Equal(new[] { 0 }, Capture(walkmesh, 0, [1]).ReachableTriangles);
+        Assert.Equal(new[] { 2 }, Capture(walkmesh, 2, [1]).ReachableTriangles);
+        Assert.Equal(new[] { 0, 1, 2 }, Capture(walkmesh, 0, []).ReachableTriangles);
+    }
+
+    [Fact]
+    public void ACompletelyEnclosedLockedStartRetainsOnlyTheActualOccupiedTriangle()
+    {
+        AutoPlayNavigationReceipt receipt = Capture(CreateWalkmesh(), 0, [0, 1]);
+
+        Assert.Equal(new[] { 0 }, receipt.ReachableTriangles);
+        Assert.Equal(new[] { 0, 1 }, receipt.LockedTriangles);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(4)]
+    [InlineData(int.MaxValue)]
+    public void AnInvalidStartingTriangleStillRefusesWithoutSelectingAnUnlockedComponent(int start)
+    {
+        FieldWalkmesh walkmesh = CreateWalkmesh();
+
+        Assert.Empty(GameWorld.AutoPlayReachableTriangles(walkmesh, start, new HashSet<int>()));
+        Assert.Throws<NotSupportedException>(() => Capture(walkmesh, start, []));
     }
 
     [Fact]
