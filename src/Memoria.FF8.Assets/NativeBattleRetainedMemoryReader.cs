@@ -70,6 +70,7 @@ public static class NativeBattleRetainedMemoryReader
         NativeBattleEffectMemory effectMemory = NativeBattleEffectMemory.FromColdProcess() with
         {
             DoubleMorph = new(NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 0x163FFD0u).Bytes),
+            TripleMorph = new(NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 0x1627970u).Bytes),
             CureContextF4 = BinaryPrimitives.ReadInt16LittleEndian(ReadLoaderBytes(0x278C8DC, 2)),
             CuraContextF4 = BinaryPrimitives.ReadInt16LittleEndian(ReadLoaderBytes(0x270046C, 2)),
             CuraSceneFade = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x2700360, 4)),

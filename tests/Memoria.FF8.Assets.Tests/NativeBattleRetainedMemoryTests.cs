@@ -23,6 +23,7 @@ public sealed class NativeBattleRetainedMemoryTests
         Assert.Null(JsonSerializer.Deserialize<NativeBattleEffectMemory>(oldEffect)!.CuragaExecutable);
         Assert.Null(generic.EffectMemory!.QuezacotlExecutableMemory);
         Assert.Null(generic.EffectMemory.DoubleMorph);
+        Assert.Null(generic.EffectMemory.TripleMorph);
         Assert.Null(generic.EffectMemory.Effect57Executable);
         Assert.Null(generic.EffectMemory.RemedyExecutable);
         Assert.Equal(NativeBattleRestorationExecutableState.FromColdProcess(57), actual.EffectMemory.Effect57Executable);
@@ -35,7 +36,9 @@ public sealed class NativeBattleRetainedMemoryTests
         Assert.Equal(executableMemory.Data.ToArray(), NativeBattleQuezacotlWorkspace.Source(actual.EffectMemory).Data.ToArray());
         NativeBattleDoubleMorph doubleMorph = Assert.IsType<NativeBattleDoubleMorph>(actual.EffectMemory.DoubleMorph);
         Assert.Equal(NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 0x163FFD0u).Bytes.ToArray(), doubleMorph.Bytes.ToArray());
-        Assert.Equal(JsonSerializer.Serialize(generic), JsonSerializer.Serialize(actual with { EffectMemory = actual.EffectMemory with { QuezacotlExecutableMemory = null, DoubleMorph = null, Effect57Executable = null, RemedyExecutable = null } }));
+        NativeBattleTripleMorph tripleMorph = Assert.IsType<NativeBattleTripleMorph>(actual.EffectMemory.TripleMorph);
+        Assert.Equal(NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 0x1627970u).Bytes.ToArray(), tripleMorph.Bytes.ToArray());
+        Assert.Equal(JsonSerializer.Serialize(generic), JsonSerializer.Serialize(actual with { EffectMemory = actual.EffectMemory with { QuezacotlExecutableMemory = null, DoubleMorph = null, TripleMorph = null, Effect57Executable = null, RemedyExecutable = null } }));
         Assert.Same(actual, assets.ReadColdProcessNativeBattleMemory());
         Assert.Equal(0, actual.ActionPackets.Headers[31].ReadByte(19));
         Assert.Equal(0, actual.ActionPackets.ReadContact(48).Secondary.Amount6);

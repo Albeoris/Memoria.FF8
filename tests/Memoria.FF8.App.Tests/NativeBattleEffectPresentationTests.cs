@@ -13,6 +13,7 @@ public sealed class NativeBattleEffectPresentationTests
     [InlineData((ushort)35, (byte)2, "Life", 0x8649C0u, 300021u, true, false)]
     [InlineData((ushort)5, (byte)4, "Phoenix Down", 0x8D4450u, 300021u, false, false)]
     [InlineData((ushort)4, (byte)2, "Double", 0x8D5080u, 300027u, true, true)]
+    [InlineData((ushort)21, (byte)2, "Triple", 0x89DEF0u, 300027u, true, true)]
     public void Installed_original_effect_runs_cast_pixels_sound_and_one_contact_through_a_saved_midpoint(ushort effect, byte command, string name, uint entry, uint sound, bool requireCasting, bool applyKernelStatuses)
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
@@ -31,11 +32,11 @@ public sealed class NativeBattleEffectPresentationTests
         string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_EFFECT_PRESENTATION_SNAPSHOT") ?? Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_LIFE_SNAPSHOT");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(path), "A concrete standalone effect cast is required.");
         BattleSnapshot source = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(path!))!;
-        NativeBattleEffectBinding binding = source.NativeGraphics?.OriginalEffect?.Binding ?? Assert.Single(source.Definition.NativeEffectCatalog, binding => binding.LifeResources is not null || binding.DoubleResources is not null);
+        NativeBattleEffectBinding binding = source.NativeGraphics?.OriginalEffect?.Binding ?? Assert.Single(source.Definition.NativeEffectCatalog, binding => binding.LifeResources is not null || binding.DoubleResources is not null || binding.TripleResources is not null);
         ushort effect = binding.Effect;
-        Assert.True(effect is 4 or 5 or 35);
+        Assert.True(effect is 4 or 5 or 21 or 35);
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
-        RunCurrentCast(source, assets, effect, binding.Entry, effect == 4 ? 300027u : 300021u, false, false);
+        RunCurrentCast(source, assets, effect, binding.Entry, effect is 4 or 21 ? 300027u : 300021u, false, false);
     }
 
     [Fact]
@@ -44,7 +45,7 @@ public sealed class NativeBattleEffectPresentationTests
         string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_EFFECT_PRESENTATION_SNAPSHOT") ?? Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_LIFE_SNAPSHOT");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(path), "A concrete standalone effect checkpoint is required.");
         BattleSnapshot source = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(path!))!;
-        Assert.True(source.NativeGraphics?.OriginalEffect?.Binding.Effect is 4 or 5 or 35);
+        Assert.True(source.NativeGraphics?.OriginalEffect?.Binding.Effect is 4 or 5 or 21 or 35);
         BattleSession first = BattleSession.Restore(source);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(source))!);
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(first.Capture()));
@@ -80,7 +81,7 @@ public sealed class NativeBattleEffectPresentationTests
         NativeBattleStatusMirror expectedStatus = new(targetStatus.Saved, targetStatus.Battle);
         int expectedStatusTransitions = targetStatus.Presentation == expectedStatus ? 0 : 1;
         int expectedHpTransitions = initial.NativePartyPresentation!.Rows[1]!.HitPoints == 100 ? 0 : 1;
-        string? initialMorph = requireMorphAndFlash ? JsonSerializer.Serialize(initial.NativeEffectMemory!.DoubleMorph) : null;
+        string? initialMorph = requireMorphAndFlash ? MorphJson(initial, effect) : null;
         bool morphed = false;
         bool flashed = false;
         int peakRgb = 0;
@@ -141,7 +142,7 @@ public sealed class NativeBattleEffectPresentationTests
                 flashed |= frame.LastCommands.Any(command => command.Command.Opcode == 0x62);
                 if (requireMorphAndFlash && !morphed)
                 {
-                    morphed = initialMorph != JsonSerializer.Serialize(after.NativeEffectMemory!.DoubleMorph);
+                    morphed = initialMorph != MorphJson(after, effect);
                 }
                 if (!frame.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
                 {
@@ -211,6 +212,18 @@ public sealed class NativeBattleEffectPresentationTests
     {
         NativeBattleDescriptorState descriptors = battle.NativeGraphics!.Descriptors;
         return descriptors.Queue.Any(slot => descriptors.Packets[slot].Command == 104);
+    }
+
+    private static string MorphJson(BattleSnapshot snapshot, ushort effect)
+    {
+        object? owner = effect switch
+        {
+            4 => snapshot.NativeEffectMemory!.DoubleMorph,
+            21 => snapshot.NativeEffectMemory!.TripleMorph,
+            _ => throw new NotSupportedException("The current enhancement test requires its own original morph owner.")
+        };
+        Assert.NotNull(owner);
+        return JsonSerializer.Serialize(owner);
     }
 
     private static string? EvidenceDirectory()

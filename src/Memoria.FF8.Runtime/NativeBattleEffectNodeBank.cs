@@ -5,11 +5,12 @@ namespace Memoria.FF8.Runtime;
 /// <summary>A callback's current addressed executable view, published back to the same typed retained bank after its exact stores.</summary>
 internal sealed class NativeBattleEffectNodeBank
 {
+    private readonly Func<uint, int, byte[]>? readExternal;
     internal uint Address { get; }
     internal ImmutableArray<byte> Data { get; private set; }
     internal int Length => Data.Length;
 
-    internal NativeBattleEffectNodeBank(uint address, ImmutableArray<byte> data)
+    internal NativeBattleEffectNodeBank(uint address, ImmutableArray<byte> data, Func<uint, int, byte[]>? readExternal = null)
     {
         if (data.IsDefaultOrEmpty || (ulong)address + (uint)data.Length > uint.MaxValue)
         {
@@ -17,15 +18,31 @@ internal sealed class NativeBattleEffectNodeBank
         }
         Address = address;
         Data = data;
+        this.readExternal = readExternal;
     }
 
     internal byte[] Read(uint address, int length)
     {
-        if (address < Address || length < 0 || address - Address > Data.Length || length > Data.Length - (address - Address))
+        if (length < 0 || (ulong)address + (uint)length > (1UL << 32))
         {
             throw new InvalidDataException("Native node executable read leaves its own current resource bank.");
         }
-        return Data.AsSpan().Slice(checked((int)(address - Address)), length).ToArray();
+        ulong end = (ulong)address + (uint)length;
+        ulong bankEnd = (ulong)Address + (uint)Data.Length;
+        if (address >= Address && end <= bankEnd)
+        {
+            return Data.AsSpan().Slice(checked((int)(address - Address)), length).ToArray();
+        }
+        if (readExternal is null || address < bankEnd && end > Address)
+        {
+            throw new InvalidDataException("Native node executable read leaves its own current resource bank.");
+        }
+        byte[] result = readExternal(address, length);
+        if (result is null || result.Length != length)
+        {
+            throw new InvalidDataException("Native node external owner must supply exactly the requested addressed bytes.");
+        }
+        return result;
     }
 
     internal void ReplaceData(ImmutableArray<byte> data)

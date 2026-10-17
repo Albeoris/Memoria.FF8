@@ -5,7 +5,17 @@ public static class NativeBattleEffectOverlayPackets
 {
     public static NativeBattleGfGeometryBatch Emit8D6790(NativeBattleModulePoolTask task, NativeBattleCameraProjection projection, Action<ushort>? observeDepth = null)
     {
-        if (task.Callback != 0x8D6790 || task.Payload.IsDefault || task.Payload.Length != 68)
+        return Emit(task, projection, 0x8D6790, observeDepth);
+    }
+
+    public static NativeBattleGfGeometryBatch Emit89F950(NativeBattleModulePoolTask task, NativeBattleCameraProjection projection, Action<ushort>? observeDepth = null)
+    {
+        return Emit(task, projection, 0x89F950, observeDepth);
+    }
+
+    private static NativeBattleGfGeometryBatch Emit(NativeBattleModulePoolTask task, NativeBattleCameraProjection projection, uint callback, Action<ushort>? observeDepth)
+    {
+        if (task.Callback != callback || task.Payload.IsDefault || task.Payload.Length != 68)
         {
             throw new InvalidDataException("Native8D6790 requires its original80-byte task and callback.");
         }

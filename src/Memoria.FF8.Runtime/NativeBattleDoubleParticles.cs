@@ -261,28 +261,7 @@ public static partial class NativeBattleDoubleController
 
         private void AdvanceFirstMesh()
         {
-            switch (Phase(task))
-            {
-                case 0:
-                    task = Add(task, 0x50, -512).WriteByte(0x26, (byte)(task.ReadByte(0x26) | 2));
-                    if (Word(task, 0x50) <= 0)
-                    {
-                        task = Increment(task.WriteWord(0x50, 0));
-                    }
-                    break;
-                case 1:
-                    task = Add(task, 0x50, 512);
-                    task = AddScale(task, -512, -512, -512);
-                    if (Word(task, 0x50) >= 4096)
-                    {
-                        task = Increment(Scale(task.WriteWord(0x50, 4096).WriteWord(0x26, (ushort)((task.ReadWord(0x26) & ~2) | 5)), 16));
-                    }
-                    break;
-                case 2:
-                    break;
-                default:
-                    throw new InvalidDataException("Native8D5C80 signed phase exceeds its three callbacks.");
-            }
+            task = NativeBattleEnhancementMeshPhases.First(task);
             task = task.WriteWord(0x46, (ushort)((task.ReadWord(0x46) + 320) & 4095)).WriteDword(0x1C, task.ReadDword(0x54)).WriteDword(0x20, task.ReadDword(0x58));
             task = Add(task, 0x1C, NativeBattleCameraMath.Sine(Word(task, 0x5C)) / 4);
             task = Add(task, 0x20, NativeBattleCameraMath.Cosine(Word(task, 0x5C)) / 4);
@@ -351,52 +330,20 @@ public static partial class NativeBattleDoubleController
 
         private void AdvanceSecondMeshPhase()
         {
-            switch (Phase(task))
+            int phase = Phase(task);
+            if (phase is >= 0 and <= 4)
             {
-                case 0:
-                    task = AddScale(Add(task, 0x50, -1024), 512, 0, 512);
-                    if (Word(task, 0x50) <= 0)
-                    {
-                        task = Increment(task.WriteWord(0x50, 0).WriteDword(0x30, 2048).WriteDword(0x38, 2048));
-                    }
-                    break;
-                case 1:
-                    task = AddScale(task, 0, 1024, 0);
-                    if (unchecked((int)task.ReadDword(0x34)) >= 4096)
-                    {
-                        task = Increment(task);
-                    }
-                    break;
-                case 2:
-                    task = AddScale(task, 0, 1024, 0);
-                    if (unchecked((int)task.ReadDword(0x34)) >= 6144)
-                    {
-                        task = Increment(task.WriteDword(0x34, 6144));
-                    }
-                    break;
-                case 3:
-                    task = AddScale(task, 1024, -1024, 1024);
-                    if (unchecked((int)task.ReadDword(0x34)) <= 4096)
-                    {
-                        task = Scale(task, 4096);
-                        if (task.ReadWord(0x5E) == 0)
-                        {
-                            task = task.WriteWord(0x60, 1);
-                        }
-                        else
-                        {
-                            uint first = task.ReadDword(0x14);
-                            Hierarchy = Hierarchy.Write(first, Hierarchy.Read(first).WriteWord(0x58, 1));
-                        }
-                        task = Increment(task);
-                    }
-                    break;
-                case 4:
-                    if (Hierarchy.Read(task.ReadDword(0x14)).ReadWord(0x58) == 2)
-                    {
-                        task = Increment(task.WriteWord(0x60, 3));
-                    }
-                    break;
+                NativeBattleEnhancementMeshPhase shared = NativeBattleEnhancementMeshPhases.SecondPrefix(task, false, Hierarchy.Read);
+                task = shared.Task;
+                if (shared.PublishTargetFlash)
+                {
+                    uint first = task.ReadDword(0x14);
+                    Hierarchy = Hierarchy.Write(first, Hierarchy.Read(first).WriteWord(0x58, 1));
+                }
+                return;
+            }
+            switch (phase)
+            {
                 case 5:
                     if (task.ReadWord(0x60) == 0)
                     {
@@ -441,87 +388,38 @@ public static partial class NativeBattleDoubleController
 
         private void AdvanceOverlay()
         {
-            switch (Phase(task))
-            {
-                case 0:
-                    task = Increment(task.WriteWord(0x32, unchecked((ushort)-144)));
-                    break;
-                case 1:
-                    task = Add(task, 0x32, 40);
-                    task = Add(task, 0x1E, Word(task, 0x32));
-                    if (Word(task, 0x1E) >= Word(task, 0x3A))
-                    {
-                        task = Increment(task.WriteWord(0x1E, task.ReadWord(0x3A)));
-                    }
-                    break;
-                case 2:
-                    if (Word(task, 0x24) >= 15)
-                    {
-                        task = Increment(task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 1)));
-                    }
-                    break;
-                default:
-                    //Original switch falls through and still draws for every other signed BYTE phase.
-                    break;
-            }
+            task = NativeBattleEnhancementMeshPhases.Overlay(task);
             Execute(new NativeBattleDoublePackets(NativeBattleEffectOverlayPackets.Emit8D6790(task, inputs.Projection), 1));
         }
 
         private void DrawMesh()
         {
-            if ((task.ReadByte(0x26) & 4) != 0)
+            NativeBattleGfGeometryBatch? batch = NativeBattleEnhancementDraws.EmitMesh(task, meshAddress => meshAddress == 0x163FFD0 ? (Frame.Memory.DoubleMorph ?? throw new NotSupportedException("Native Double draw requires current163FFD0 bytes.")).Bytes : resources.Meshes.Single(mesh => mesh.Address == meshAddress).Bytes, inputs.Projection, inputs.Colors);
+            if (batch is not null)
             {
-                return;
+                Execute(new NativeBattleDoublePackets(batch));
             }
-            uint meshAddress = task.ReadDword(0x4C);
-            ImmutableArray<byte> bytes = meshAddress == 0x163FFD0 ? (Frame.Memory.DoubleMorph ?? throw new NotSupportedException("Native Double draw requires current163FFD0 bytes.")).Bytes : resources.Meshes.Single(mesh => mesh.Address == meshAddress).Bytes;
-            NativeBattleActionMatrix world = NativeBattleGfMatrices.Euler56CD50(new(Word(task, 0x44), Word(task, 0x46), Word(task, 0x48)));
-            world = ScaleMatrix(world) with { X = Word(task, 0x1C), Y = Word(task, 0x1E), Z = Word(task, 0x20) };
-            NativeBattleActionMatrix view = inputs.Projection.View ?? throw new NotSupportedException("Native8D5440 requires the prior1D97778 view.");
-            NativeBattleActionMatrix composed = NativeBattlePoseMatrices.Compose56C2F0(view, world);
-            NativeBattleModuleMeshContext context = new(0xF0, task.ReadDword(0x40), Word(task, 0x50), null, null, null, 17, 2);
-            Execute(new NativeBattleDoublePackets(NativeBattleModulePackets.EmitBatch572200(bytes, 0, [], composed, inputs.Projection, context, inputs.Colors)));
         }
-
-        private NativeBattleActionMatrix ScaleMatrix(NativeBattleActionMatrix matrix) => NativeBattlePoseMatrices.Scale56BEF0(matrix, unchecked((int)task.ReadDword(0x30)), unchecked((int)task.ReadDword(0x34)), unchecked((int)task.ReadDword(0x38)));
 
         private void DrawOrientedSprite(bool flat)
         {
-            if ((task.ReadByte(0x26) & 4) != 0)
+            NativeBattleModuleDraw? draw = NativeBattleEnhancementDraws.OrientedSprite(task, sprite => resources.Sprites.Single(resource => resource.Address == sprite), flat ? 0x163EB6Cu : null);
+            if (draw is not null)
             {
-                return;
+                Execute(new NativeBattleDoubleSprite(draw));
             }
-            NativeBattleActionMatrix rotation = NativeBattleCuragaMatrices.Identity8DD770();
-            if (flat)
-            {
-                rotation = NativeBattleCuragaMatrices.RotateX8DD7E0(rotation, 1024);
-            }
-            else
-            {
-                rotation = NativeBattleCuragaMatrices.RotateX8DD7E0(NativeBattleCuragaMatrices.RotateY8DD8A0(rotation, Word(task, 0x42)), Word(task, 0x40));
-                rotation = ScaleMatrix(rotation);
-            }
-            uint sprite = flat ? 0x163EB6Cu : task.ReadDword(0x4C);
-            NativeBattleModuleResource resource = resources.Sprites.Single(resource => resource.Address == sprite);
-            int phase = flat ? 0 : Word(task, 0x50);
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.SpriteFrame(phase), Anchor = new(Word(task, 0x1C), flat ? (short)0 : Word(task, 0x1E), Word(task, 0x20), 0), Phase = unchecked((ushort)phase), Scale = 4096, Direction = 4096, SpriteFlags = 4, SpriteColor = task.ReadDword(0x48), SpriteWorldRotation = rotation.Rotation };
-            Execute(new NativeBattleDoubleSprite(draw));
         }
 
         private void DrawBillboard()
         {
-            if ((task.ReadByte(0x26) & 4) != 0)
+            NativeBattleModuleDraw? draw = NativeBattleEnhancementDraws.Billboard(task, sprite => resources.Sprites.Single(resource => resource.Address == sprite));
+            if (draw is not null)
             {
-                return;
+                Execute(new NativeBattleDoubleSprite(draw));
             }
-            NativeBattleModuleResource resource = resources.Sprites.Single(resource => resource.Address == task.ReadDword(0x4C));
-            int phase = Word(task, 0x50);
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.SpriteFrame(phase), Anchor = new(Word(task, 0x1C), Word(task, 0x1E), Word(task, 0x20), 0), Phase = unchecked((ushort)phase), Scale = 4096, Direction = 4096, DepthOffset = Word(task, 0x54), SpriteFlags = 0, SpriteColor = 0x808080 };
-            Execute(new NativeBattleDoubleSprite(draw));
         }
 
         private static NativeBattleModulePoolTask Scale(NativeBattleModulePoolTask value, int scale) => value.WriteDword(0x30, unchecked((uint)scale)).WriteDword(0x34, unchecked((uint)scale)).WriteDword(0x38, unchecked((uint)scale));
-        private static NativeBattleModulePoolTask AddScale(NativeBattleModulePoolTask value, int x, int y, int z) => value.WriteDword(0x30, unchecked(value.ReadDword(0x30) + (uint)x)).WriteDword(0x34, unchecked(value.ReadDword(0x34) + (uint)y)).WriteDword(0x38, unchecked(value.ReadDword(0x38) + (uint)z));
         private static NativeBattleModulePoolTask Color(NativeBattleModulePoolTask value, int offset, byte color) => value.WriteByte(offset, color).WriteByte(offset + 1, color).WriteByte(offset + 2, color);
         private static NativeBattleModulePoolTask AddColor(NativeBattleModulePoolTask value, int offset, int color) => value.WriteByte(offset, unchecked((byte)(value.ReadByte(offset) + color))).WriteByte(offset + 1, unchecked((byte)(value.ReadByte(offset + 1) + color))).WriteByte(offset + 2, unchecked((byte)(value.ReadByte(offset + 2) + color)));
     }
