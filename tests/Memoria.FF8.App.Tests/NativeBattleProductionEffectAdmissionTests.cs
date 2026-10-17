@@ -433,7 +433,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
         }
     }
 
-    private static GameWorld RestoreWorld(GameSession session, string directory)
+    internal static GameWorld RestoreWorld(GameSession session, string directory)
     {
         JsonElement events = session.State.EventState!.Value;
         GameWorld world = new(session, directory);
@@ -442,13 +442,13 @@ public sealed class NativeBattleProductionEffectAdmissionTests
         return world;
     }
 
-    private static byte[] RenderBattle(GameWorld world)
+    internal static byte[] RenderBattle(GameWorld world)
     {
         BattleSession battle = world.Battle!;
         return new BattleScenePresentation(world.BattleResources, battle.Capture().Definition, true).Render(battle, 320, 224).ToArray();
     }
 
-    private static void Publish(string? directory, string name, object value)
+    internal static void Publish(string? directory, string name, object value)
     {
         if (string.IsNullOrWhiteSpace(directory))
         {

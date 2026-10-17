@@ -5,6 +5,32 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleCureWedgeTests
 {
     [Fact]
+    public void Thin_cure_adapter_preserves_immediate_memory_effect_and_task_changes()
+    {
+        var fixture = Fixture();
+        NativeBattleCureParticleStep step = NativeBattleCureParticles.AdvanceWedge8DCC20(fixture.Frame, fixture.Address, fixture.Inputs with
+        {
+            Execute = (current, operation) =>
+            {
+                Assert.IsType<NativeBattleCurePacketOperation>(operation);
+                NativeBattleEffectHierarchy hierarchy = new(current.Effect.Pools);
+                hierarchy = hierarchy.Write(fixture.Address, hierarchy.Read(fixture.Address).WriteWord(0x24, 99));
+                return current with
+                {
+                    Memory = current.Memory with { Textures = current.Memory.Textures!.EnqueueCopy505EB0(1, 2, 3, 4, 5, 6) },
+                    Effect = current.Effect with { Pools = hierarchy.Pools, DrawArenaOffset = 789 }
+                };
+            }
+        });
+        Assert.Equal(1, step.Frame.Memory.Textures!.Count);
+        Assert.Equal(new NativeBattleEffectVramCopy(1, 2, 3, 4, 5, 6), step.Frame.Memory.Textures.Slots[0]!.Copy);
+        Assert.Equal(789, step.Frame.Effect.DrawArenaOffset);
+        Assert.Equal((ushort)100, new NativeBattleEffectHierarchy(step.Frame.Effect.Pools).Read(fixture.Address).ReadWord(0x24));
+        Assert.Equal(0, fixture.Frame.Memory.Textures!.Count);
+        Assert.Null(fixture.Frame.Effect.DrawArenaOffset);
+    }
+
+    [Fact]
     public void Initial_black_degenerate_polygons_still_publish_the_mode_packet_and_consume_three_random_draws_in_yaw_pitch_roll_order()
     {
         var fixture = Fixture();

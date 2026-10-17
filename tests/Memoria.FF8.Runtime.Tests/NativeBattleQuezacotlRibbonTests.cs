@@ -103,6 +103,57 @@ public sealed class NativeBattleQuezacotlRibbonTests
         Assert.Throws<InvalidDataException>(() => NativeBattleQuezacotlRibbonPackets.Emit6C8C50(Points(), Identity, Projection, []));
     }
 
+    [Theory]
+    [InlineData(0x001A5020u, 0x03650517u, 0x035B04E9u)]
+    [InlineData(0xFFFF0001u, 0x035F0500u, 0x03610500u)]
+    public void Degenerate_first_segment_reads_both_signed_halves_of_the_explicit_direction_before_replacing_it(uint direction, uint expectedLeft, uint expectedRight)
+    {
+        ImmutableArray<NativeBattleQuezacotlRibbonPoint> points = Enumerable.Range(0, 16).Select(index => new NativeBattleQuezacotlRibbonPoint(new((short)(Math.Max(index - 1, 0) * 20), 0, 1000), 64, 128)).ToImmutableArray();
+        Assert.Throws<NotSupportedException>(() => NativeBattleQuezacotlRibbonPackets.Emit6C8C50(points, Identity, Projection, DistanceFixture()));
+        NativeBattleGfGeometryBatch batch = NativeBattleQuezacotlRibbonPackets.Emit6C8C50(points, Identity, Projection, DistanceFixture(), incomingDirectionDword: direction);
+        Assert.Equal(14, batch.Attempts.Length);
+        Assert.Equal(14 * 52, batch.AllocationBytes);
+        NativeBattleGeometryPrimitive first = batch.Attempts[0].Primitive!;
+        Assert.Equal(expectedLeft, first.Words[2]);
+        Assert.Equal(expectedRight, first.Words[5]);
+        //After the prior read, the leaf writes the actual next-segment direction; point2 no longer uses the incoming DWORD.
+        Assert.Equal(0x035E0523u, first.Words[8]);
+        Assert.Equal(0x03620523u, first.Words[11]);
+        Assert.All(batch.Attempts, attempt =>
+        {
+            Assert.Equal(new[] { 1000, 1000, 1000, 1000 }, attempt.Primitive!.VertexPayload4);
+            Assert.Equal(NativeBattleGfPacketByteState.Untouched, attempt.WriteMask[38]);
+            Assert.Equal(NativeBattleGfPacketByteState.Untouched, attempt.WriteMask[50]);
+        });
+        Assert.Equal(JsonSerializer.Serialize(batch), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleGfGeometryBatch>(JsonSerializer.Serialize(batch))));
+    }
+
+    [Fact]
+    public void Callback_forwards_the_explicit_stack_bytes_without_extra_random_draws_or_task_history_replay()
+    {
+        byte[] pairs = new byte[80];
+        BinaryPrimitives.WriteInt16LittleEndian(pairs.AsSpan(2), 1);
+        BinaryPrimitives.WriteInt16LittleEndian(pairs.AsSpan(6), 1);
+        NativeBattleQuezacotlRibbonResources resources = new(pairs.ToImmutableArray(), Triangles(), SqrtFixture(), DistanceFixture());
+        ImmutableArray<short> envelope = Enumerable.Repeat((short)0, 16).ToImmutableArray();
+        ImmutableArray<byte> task = Task(0, 0);
+        Assert.Throws<NotSupportedException>(() => NativeBattleQuezacotlRibbon.Advance6C8850(task, resources, 0, _ => Identity with { Z = 1000 }, envelope, 7, false, Identity, Projection));
+        NativeBattleQuezacotlRibbonStep actual = NativeBattleQuezacotlRibbon.Advance6C8850(task, resources, 0, _ => Identity with { Z = 1000 }, envelope, 7, false, Identity, Projection, incomingDirectionDword: 0x1A5020);
+        ImmutableArray<byte> restoredTask = JsonSerializer.Deserialize<ImmutableArray<byte>>(JsonSerializer.Serialize(task));
+        NativeBattleQuezacotlRibbonStep independent = NativeBattleQuezacotlRibbon.Advance6C8850(restoredTask, resources, resources.PrimaryBank, 0, _ => Identity with { Z = 1000 }, envelope, 7, false, Identity, Projection, incomingDirectionDword: 0x1A5020);
+        Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(independent));
+        ushort random = 7;
+        for (int index = 0; index < 42; index++)
+        {
+            random = (ushort)((125 * random + 14) & 0x7FFF);
+        }
+        Assert.Equal(random, actual.Random17A0);
+        Assert.Equal(14, actual.CommonPackets.Attempts.Length);
+        Assert.Equal(256, ReadWord(actual.Task128, 0x0E));
+        Assert.Equal(0, ReadWord(task, 0x0E));
+        Assert.Equal(0, actual.Returned);
+    }
+
     [Fact]
     public void Pause_stops_task_progress_but_retains_drawing_and_exactly_forty_two_private_random_draws()
     {

@@ -50,6 +50,10 @@ public sealed partial class BattleSession
         {
             return EnterNativeCure8D6A00(graphics);
         }
+        if (effect.Binding.Entry is 0x8649C0 or 0x8D4450)
+        {
+            return EnterNativeLife(graphics);
+        }
         if (effect.Binding.Entry == 0x889D60)
         {
             return EnterNativeCura889D60(graphics);

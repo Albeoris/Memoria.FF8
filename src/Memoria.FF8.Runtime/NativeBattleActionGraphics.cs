@@ -116,6 +116,8 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
     public NativeBattleEffect3Resources? Effect3Resources { get; init; }
     public NativeBattleQuezacotlResources? NativeQuezacotlResources { get; init; }
     public NativeBattleCureResources? CureResources { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleLifeResources? LifeResources { get; init; }
     public NativeBattleCuraResources? CuraResources { get; init; }
     public NativeBattleCuragaResources? CuragaResources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

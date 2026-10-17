@@ -17,11 +17,14 @@ public sealed partial record NativeBattleEffectMemory([property: JsonRequired] N
     public NativeBattleCuragaExecutableState? CuragaExecutable { get; init; }
     public NativeBattleRestorationExecutableState? EsunaExecutable { get; init; }
     public NativeBattleRestorationExecutableState? FullLifeExecutable { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleExecutionStack? ExecutionStack { get; init; }
 
     public static NativeBattleEffectMemory FromColdProcess() => new(null, 0, 0, ImmutableArray.CreateRange(new NativeBattleEffectHeapAllocation?[256]), 0, 0, 0, 0) { Textures = NativeBattleEffectTextureState.FromColdProcess(), Parameter80 = 0, CureContextF4 = 0, CuraContextF4 = 0, CuraSceneFade = 0, CuragaExecutable = NativeBattleCuragaExecutableState.FromColdProcess(), EsunaExecutable = NativeBattleRestorationExecutableState.FromColdProcess(24), FullLifeExecutable = NativeBattleRestorationExecutableState.FromColdProcess(27), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), GuardianWorkBuffer = NativeBattleGuardianWorkBuffer.FromColdProcess(), EffectIo = NativeBattleEffectIoState.FromColdProcess(), GuardianCasterBank = 0, QuezacotlPause = 0, QuezacotlTargetY1774 = 0, QuezacotlSecondaryHeads = [0, 0, 0, 0, 0], SummonStream = NativeBattleSummonStreamState.FromColdProcess(), SharedEffectRandom = NativeBattleSharedEffectRandomState.FromColdProcess(), ModelColorOverrides = NativeBattleModelColorOverrides.FromColdProcess() };
 
     public void Validate()
     {
+        ExecutionStack?.Validate();
         ModelColorOverrides?.Validate();
         CuragaExecutable?.Validate();
         EsunaExecutable?.Validate();

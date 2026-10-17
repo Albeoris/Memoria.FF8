@@ -16,6 +16,9 @@ public sealed partial class BattleSession
         }
         NativeBattleQuezacotlRibbonResources resources = effect.Binding.NativeQuezacotlResources?.Ribbon ?? throw new NotSupportedException("Native6C8850 requires its authenticated ribbon control and lookup resources; explicitly migrate this standalone's resource binding.");
         resources.Validate();
+        NativeBattleStackFrame? callbackStack = memory.ExecutionStack is { } stack ? NativeBattleQuezacotlRibbon.ResolveEntryStack6C8850(stack, graphics.EntryLifecycle) : null;
+        //6C8A9B writes this caller-local pointer into the slot later reused as6C8C50 direction scratch.
+        uint? incomingDirection = callbackStack?.AddressAtOffset(-0x38);
         NativeBattleQuezacotlRigWrite composed = NativeBattleQuezacotlRig86.Compose5095B0(memory, effect);
         memory = composed.Memory;
         effect = composed.Effect;
@@ -42,7 +45,7 @@ public sealed partial class BattleSession
             byte[] envelopeBytes = memory.Arena.Read(0x3C25C, 32);
             ImmutableArray<short> envelope = Enumerable.Range(0, 16).Select(point => BinaryPrimitives.ReadInt16LittleEndian(envelopeBytes.AsSpan(point * 2))).ToImmutableArray();
             NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native6C8850 requires its prior camera projection.");
-            NativeBattleQuezacotlRibbonStep ribbon = NativeBattleQuezacotlRibbon.Advance6C8850(task, resources, bank, (int)((pair - bank.PairAddress) / 8), selector => NativeBattleQuezacotlRig86.ReadBoneMatrix(memory, selector), envelope, effect.Quezacotl!.Random17A0, memory.QuezacotlPause != 0, projection.View ?? throw new NotSupportedException("Native6C8850 requires its prior view matrix."), projection, depthTrace.Push);
+            NativeBattleQuezacotlRibbonStep ribbon = NativeBattleQuezacotlRibbon.Advance6C8850(task, resources, bank, (int)((pair - bank.PairAddress) / 8), selector => NativeBattleQuezacotlRig86.ReadBoneMatrix(memory, selector), envelope, effect.Quezacotl!.Random17A0, memory.QuezacotlPause != 0, projection.View ?? throw new NotSupportedException("Native6C8850 requires its prior view matrix."), projection, depthTrace.Push, incomingDirection);
             NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native6C8850 requires its current ordering table.");
             NativeBattleQuezacotlSkinBatch packets = new(ribbon.CommonPackets.Attempts.Select(attempt => new NativeBattleQuezacotlSkinWrite(NativeBattleQuezacotlSkinBank.Common, attempt)).ToImmutableArray(), ribbon.CommonPackets.AllocationBytes, 0);
             NativeBattleQuezacotlPacketWrite written = NativeBattleQuezacotlSkinArena.Append(memory, effect, frame.Pending, packets);

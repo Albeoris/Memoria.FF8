@@ -58,11 +58,12 @@ public sealed class NativeBattleRestorationPresentationTests
         Console.WriteLine($"Restoration checkpoint effect{source.NativeGraphics.OriginalEffect.Binding.Effect}, saved{source.Frame}/{source.NativeGraphics.Callback}; actual nextcallback{first.NativeGraphics.Callback}, wholeJSON/copiedpixels agree.");
     }
 
-    private static BattleSession PrepareComponent(GameAssets game, BattleAssets assets, BattleActionDefinition action, ushort effect)
+    internal static BattleSession PrepareComponent(GameAssets game, BattleAssets assets, BattleActionDefinition action, ushort effect)
     {
         BattleEncounter formation = assets.LoadEncounter(94);
         BattleStage stage = assets.LoadStage(formation.StageId);
         const int targetMaximumHp = 200;
+        bool resurrection = effect is 5 or 27 or 35;
         int targetHp = effect == 27 ? 200 : 100;
         BattleCombatantDefinition[] actors =
         [
@@ -70,13 +71,19 @@ public sealed class NativeBattleRestorationPresentationTests
             new() { Id = "target", Name = "Zell", IsPlayer = true, ModelId = 1, WeaponId = assets.WeaponDefinitions.First(weapon => weapon.CharacterId == 1).Id, MaximumHp = targetMaximumHp, CurrentHp = targetHp, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 },
             new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = formation.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
         ];
+        //This fresh component declares the same source selectors as the battle-music entry fixture.
+        //52CE30 transfers the original selected bank; no old snapshot's missing music is reconstructed.
+        NativeMusicProcessState sourceBuffers = new(1, null, null, null, 0, null);
+        NativeBattleMusicEntryResources musicResources = new NativeMusicCatalog(game.GameDirectory).ReadBattleEntryResources();
+        NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicEntry.Prepare52CE30(94, 0x80, sourceBuffers, 5, -1, NativeGlobalSoundProcess.FromBufferlessColdProcess(), musicResources);
         BattleDefinition definition = new()
         {
             Combatants = actors,
             EncounterId = 94,
             StageId = formation.StageId,
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
-            NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(),
+            NativeGlobalSoundProcess = musicEntry.SoundProcess,
+            NativeMusicProcess = musicEntry.MusicProcess,
             NativeFlags = 0x80,
             NativeEntry = new(0, 0),
             NativeGlobalRandom = new(0),
@@ -96,7 +103,7 @@ public sealed class NativeBattleRestorationPresentationTests
             NativeStageCameraControl = stage.NativeCameraControl
         };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        string? entryEvidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_RESTORATION_EVIDENCE");
+        string? entryEvidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_RESTORATION_EVIDENCE") ?? (effect is 5 or 35 ? Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_LIFE_EVIDENCE") : null);
         string entryId = $"restoration{effect}-native-entry-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N")[..8];
         BattleSnapshot entrySource = battle.Capture();
         Publish(entryEvidence, entryId + "-before", entrySource, null);
@@ -114,17 +121,18 @@ public sealed class NativeBattleRestorationPresentationTests
         //494360 adds saved0300 below one-quarter HP. Half HP for Esuna and full HP for Full-life keep this controlled result clear.
         Assert.Equal((ushort)0, status.Saved);
         //Controlled post-formula boundary: B90 already holds the successful result. B92 and the HP cache retain the prior display.
-        //Esuna's prior poison bit is2; Full-life's prior KO bit is1. This does not run or admit either formula.
+        //Esuna's prior poison bit is2; revival's prior KO bit is1. This does not run or admit either formula.
         ushort priorSaved = effect == 24 ? (ushort)2 : (ushort)1;
         target = target with { NativeStatus = status with { Presentation = new(priorSaved, status.Battle) } };
         NativeBattlePartyPresentation party = before.NativePartyPresentation!;
         NativeBattlePartyPresentedVital targetRow = party.Rows[1]!;
-        party = party with { Rows = party.Rows.SetItem(1, targetRow with { HitPoints = effect == 27 ? (ushort)0 : targetRow.HitPoints }) };
+        party = party with { Rows = party.Rows.SetItem(1, targetRow with { HitPoints = resurrection ? (ushort)0 : targetRow.HitPoints }) };
         before = before with { Combatants = before.Combatants.Select(actor => actor.Id == target.Id ? target : actor).ToArray(), NativePartyPresentation = party, NativePartyStatusMirrors = before.NativePartyStatusMirrors!.Observe(1, priorSaved, status.Battle) };
         BattleNativeAction native = action.NativeAction!;
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
-        (packets, int header) = packets.Prepare(new(0, native.Command, 11, -1, native.ActionId, native.MagicId, null));
-        (packets, _) = packets.AppendContact(new(new(1, native.DamagePresentation, 0, effect == 27 ? (byte)1 : (byte)0, status.Saved, effect == 27 ? (ushort)200 : (ushort)0, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
+        byte sequence = definition.NativeCommandSequences[native.Command];
+        (packets, int header) = packets.Prepare(new(0, native.Command, sequence, -1, native.ActionId, native.MagicId, null));
+        (packets, _) = packets.AppendContact(new(new(1, native.DamagePresentation, 0, resurrection ? (byte)1 : (byte)0, status.Saved, resurrection ? checked((ushort)targetHp) : (ushort)0, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
         (packets, _) = packets.Publish(1);
         NativeBattleGraphicsState graphics = before.NativeGraphics!;
         NativeBattleGraphicsModel targetModel = graphics.Models[1];
@@ -350,7 +358,7 @@ public sealed class NativeBattleRestorationPresentationTests
         JsonSerializer.Serialize(stream, value, value.GetType());
     }
 
-    private static void Publish(string? directory, string name, BattleSnapshot snapshot, byte[]? pixels)
+    internal static void Publish(string? directory, string name, BattleSnapshot snapshot, byte[]? pixels)
     {
         if (string.IsNullOrWhiteSpace(directory))
         {

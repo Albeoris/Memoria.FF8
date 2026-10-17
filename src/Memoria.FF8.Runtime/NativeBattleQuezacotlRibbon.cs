@@ -8,12 +8,28 @@ public sealed record NativeBattleQuezacotlRibbonStep(ImmutableArray<byte> Task12
 /// <summary>6C8850's endpoint interpolation, ribbon jitter, paused drawing and post-progress fade.</summary>
 public static class NativeBattleQuezacotlRibbon
 {
-    public static NativeBattleQuezacotlRibbonStep Advance6C8850(ImmutableArray<byte> task128, NativeBattleQuezacotlRibbonResources resources, int pairIndex, Func<int, NativeBattleActionMatrix> readBoneMatrix, ImmutableArray<short> currentEnvelope16, ushort random17A0, bool paused, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, Action<ushort>? observeDepth = null)
+    public static NativeBattleStackFrame ResolveEntryStack6C8850(NativeBattleExecutionStack stack, byte entryLifecycle)
     {
-        return Advance6C8850(task128, resources, resources.PrimaryBank, pairIndex, readBoneMatrix, currentEnvelope16, random17A0, paused, view, projection, observeDepth);
+        if (entryLifecycle is not (0 or 2 or 3 or 4))
+        {
+            throw new NotSupportedException("Native6C8850 stack derivation requires its proved outer47D490 phase; phase1 has a distinct pending stack frame.");
+        }
+        // Native
+        NativeBattleStackFrame frame = stack.ReadCommonFrame();
+        frame = frame.EnterCdecl(0x1C, 2, 0); //47CF60→47CCB0, followed by the tail jump into47D490.
+        frame = frame.EnterCdecl(0, 2, 0); //47D490→500900 on the admitted outer phase.
+        frame = frame.EnterCdecl(0, 0, 4); //50093A→508420 with the main descriptor argument.
+        frame = frame.EnterCdecl(0, 4, 4); //508420→6C3760 with the main task argument.
+        frame = frame.EnterCdecl(0, 2, 12); //6C388C→508420; two pose arguments remain pending beside the descriptor.
+        return frame.EnterCdecl(0, 4, 4); //508420→6C8850 with the ribbon task argument.
     }
 
-    public static NativeBattleQuezacotlRibbonStep Advance6C8850(ImmutableArray<byte> task128, NativeBattleQuezacotlRibbonResources resources, NativeBattleQuezacotlRibbonBank bank, int pairIndex, Func<int, NativeBattleActionMatrix> readBoneMatrix, ImmutableArray<short> currentEnvelope16, ushort random17A0, bool paused, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, Action<ushort>? observeDepth = null)
+    public static NativeBattleQuezacotlRibbonStep Advance6C8850(ImmutableArray<byte> task128, NativeBattleQuezacotlRibbonResources resources, int pairIndex, Func<int, NativeBattleActionMatrix> readBoneMatrix, ImmutableArray<short> currentEnvelope16, ushort random17A0, bool paused, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, Action<ushort>? observeDepth = null, uint? incomingDirectionDword = null)
+    {
+        return Advance6C8850(task128, resources, resources.PrimaryBank, pairIndex, readBoneMatrix, currentEnvelope16, random17A0, paused, view, projection, observeDepth, incomingDirectionDword);
+    }
+
+    public static NativeBattleQuezacotlRibbonStep Advance6C8850(ImmutableArray<byte> task128, NativeBattleQuezacotlRibbonResources resources, NativeBattleQuezacotlRibbonBank bank, int pairIndex, Func<int, NativeBattleActionMatrix> readBoneMatrix, ImmutableArray<short> currentEnvelope16, ushort random17A0, bool paused, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, Action<ushort>? observeDepth = null, uint? incomingDirectionDword = null)
     {
         if (task128.IsDefault || task128.Length != 128 || bank.Pairs.IsDefault || bank.Pairs.Length % 8 != 0 || (uint)pairIndex >= bank.Pairs.Length / 8 || currentEnvelope16.IsDefault || currentEnvelope16.Length != 16 || random17A0 >= 0x8000)
         {
@@ -54,7 +70,7 @@ public static class NativeBattleQuezacotlRibbon
             }
             points[index] = points[index] with { Position = new(Noise(position.X), Noise(position.Y), Noise(position.Z)) };
         }
-        NativeBattleGfGeometryBatch packets = NativeBattleQuezacotlRibbonPackets.Emit6C8C50(points.ToImmutable(), view, projection, resources.DistanceBytes16384, observeDepth);
+        NativeBattleGfGeometryBatch packets = NativeBattleQuezacotlRibbonPackets.Emit6C8C50(points.ToImmutable(), view, projection, resources.DistanceBytes16384, observeDepth, incomingDirectionDword);
         SkinWrites writes = new(128, 0);
         byte[] task = task128.ToArray();
         int returned = 0;
