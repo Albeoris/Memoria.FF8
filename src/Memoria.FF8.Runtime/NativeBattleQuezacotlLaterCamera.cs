@@ -2,6 +2,22 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleQuezacotlLaterCamera
 {
+    public static NativeBattleCameraState Shift6C48F5(NativeBattleCameraState camera, int localFrame, int frozen)
+    {
+        if (localFrame is < 0 or >= 36)
+        {
+            throw new ArgumentOutOfRangeException(nameof(localFrame));
+        }
+        if (frozen != 0)
+        {
+            return camera;
+        }
+        NativeBattleCameraPose pose = camera.CurrentPose ?? throw new NotSupportedException("Native6C48F5 requires its current global EyeXYZ.");
+        int delta = 128 - localFrame * 128 / 36;
+        NativeBattleCameraPoint eye = new(unchecked((short)(pose.Eye.X + delta)), unchecked((short)(pose.Eye.Y - delta)), unchecked((short)(pose.Eye.Z - delta)));
+        return camera.WriteEffectGlobals(new(eye, pose.Target, camera.FocalLength, camera.Roll));
+    }
+
     public static NativeBattleCameraState Orbit6C3AEC(NativeBattleCameraState camera, int localFrame, int targetZ1770)
     {
         if (localFrame is < 0 or >= 20)

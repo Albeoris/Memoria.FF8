@@ -9,7 +9,8 @@ public enum NativeBattleAuxiliaryKind
     CameraBlend509930,
     SoundParticle50F830,
     TextureAnimation5057D0,
-    MusicLoad501A70
+    MusicLoad501A70,
+    CommonTextureLoad508660
 }
 
 public sealed record NativeBattleAuxiliaryTask([property: JsonRequired] ushort Flags, [property: JsonRequired] ushort State, [property: JsonRequired] int? Next, [property: JsonRequired] NativeBattleAuxiliaryKind Kind, [property: JsonRequired] ImmutableArray<byte> Payload)
@@ -69,6 +70,10 @@ public sealed partial record NativeBattleAuxiliaryState([property: JsonRequired]
             {
                 throw new InvalidDataException("Native501A70 lacks its written phase BYTE and caller completion pointer.");
             }
+            else if (Slots[index].Kind == NativeBattleAuxiliaryKind.CommonTextureLoad508660 && (Slots[index].UnknownByteMask & 0xFF1) != 0)
+            {
+                throw new InvalidDataException("Native508660 lacks its written phase BYTE, destination and completion pointers.");
+            }
         }
     }
 
@@ -111,7 +116,11 @@ public sealed partial record NativeBattleAuxiliaryState([property: JsonRequired]
         {
             NativeBattleAuxiliaryTask task = slots[index];
             bool release;
-            if (task.Kind == NativeBattleAuxiliaryKind.MusicLoad501A70)
+            if (task.Kind == NativeBattleAuxiliaryKind.CommonTextureLoad508660)
+            {
+                (task, release) = AdvanceCommonTextureLoad508660(task, inputs);
+            }
+            else if (task.Kind == NativeBattleAuxiliaryKind.MusicLoad501A70)
             {
                 (task, release) = AdvanceMusicLoad(task, inputs);
             }

@@ -8,7 +8,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleGuardianPresentationTests
 {
     [Fact]
-    public void Installed_Quezacotl_runs_original_guardian_service_entry_and_stops_at_the_unowned_next_workspace()
+    public void Installed_Quezacotl_fresh_standalone_runs_through_phase318_with_original_stream_receipts_and_restore()
     {
         using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
@@ -101,8 +101,7 @@ public sealed class NativeBattleGuardianPresentationTests
         bool sawEntry = false;
         bool sawGeometry = false;
         bool sawNativeFlash = false;
-        NotSupportedException? boundary = null;
-        BattleSnapshot? boundaryBefore = null;
+        BattleSnapshot? prefixSnapshot = null;
         BattleSnapshot? beforeBoost = null;
         Dictionary<ushort, NativeBattleModuleSound> streamPlays = [];
         HashSet<ushort> restoredStreamPhases = [];
@@ -121,29 +120,36 @@ public sealed class NativeBattleGuardianPresentationTests
                 restoredBeforeEntry = true;
             }
             BattleSnapshot beforeStep = battle.Capture();
+            if (ChildPhase(beforeStep) == 319)
+            {
+                prefixSnapshot = beforeStep;
+                Assert.NotNull(streamClone);
+                Assert.Equal((ushort)318, clonedStreamPhase);
+                BattleSession firstProbe = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(beforeStep))!);
+                BattleSession secondProbe = streamClone;
+                Exception? firstError = Record.Exception(() => firstProbe.AdvanceNativeGraphicsPresentation(frame));
+                Exception? secondError = Record.Exception(() => secondProbe.AdvanceNativeGraphicsPresentation(frame));
+                if (firstError is null)
+                {
+                    Assert.Null(secondError);
+                }
+                else
+                {
+                    NotSupportedException firstBoundary = Assert.IsType<NotSupportedException>(firstError);
+                    NotSupportedException secondBoundary = Assert.IsType<NotSupportedException>(secondError);
+                    Assert.Equal(firstBoundary.Message, secondBoundary.Message);
+                }
+                Assert.Equal(JsonSerializer.Serialize(firstProbe.Capture()), JsonSerializer.Serialize(secondProbe.Capture()));
+                Assert.Equal(streamCountBeforeClone, StreamSounds(firstProbe.Capture()).Length);
+                restoredStreamPhases.Add(318);
+                streamClone = null;
+                break;
+            }
             if (beforeStep.NativeGuardianBoost is { Phase: 4, Remaining: 1 })
             {
                 beforeBoost = beforeStep;
             }
-            try
-            {
-                battle.AdvanceNativeGraphicsPresentation(frame);
-            }
-            catch (NotSupportedException exception)
-            {
-                boundary = exception;
-                boundaryBefore = beforeStep;
-                if (streamClone is not null)
-                {
-                    NotSupportedException clonedBoundary = Assert.Throws<NotSupportedException>(() => streamClone.AdvanceNativeGraphicsPresentation(frame));
-                    Assert.Equal(exception.Message, clonedBoundary.Message);
-                    Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(streamClone.Capture()));
-                    Assert.Equal(streamCountBeforeClone, StreamSounds(battle.Capture()).Length);
-                    restoredStreamPhases.Add(clonedStreamPhase!.Value);
-                    streamClone = null;
-                }
-                break;
-            }
+            battle.AdvanceNativeGraphicsPresentation(frame);
             BattleSnapshot afterStep = battle.Capture();
             if (streamClone is not null)
             {
@@ -178,27 +184,25 @@ public sealed class NativeBattleGuardianPresentationTests
             sawNativeFlash |= battle.NativeGraphics.PrimitiveFrame?.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8" && command.Command.Opcode == 0x2A && command.Command.OrderingBucket == 8 && command.Command.Flags20 == 1) == true;
         }
         NativeBattleGraphicsModel finalCaster = battle.NativeGraphics!.Models[0];
-        string diagnostic = $"callback={battle.NativeGraphics.Callback}; actionPhase={battle.NativeGraphics.Descriptors.Tasks.FirstOrDefault(task => task.Kind == NativeBattleDescriptorTaskKind.Action104)?.Phase}; casterFlags0={finalCaster.Flags0:X}; sequence={finalCaster.Sequence}; cursor={finalCaster.SequenceState?.Offset46}; resource44={finalCaster.ResourceFlags44:X}; IO={battle.NativeEffectIoResult}; cameraMask={battle.NativeCamera?.Mask}; descriptor={battle.NativeGraphics.OriginalEffect?.ReturnedDescriptor:X}; boundary={boundary}";
-        if (boundaryBefore is not null && Environment.GetEnvironmentVariable("MEMORIA_FF8_GF_FRESH_BOUNDARY_OUTPUT") is { Length: > 0 } boundaryOutput)
+        string diagnostic = $"callback={battle.NativeGraphics.Callback}; actionPhase={battle.NativeGraphics.Descriptors.Tasks.FirstOrDefault(task => task.Kind == NativeBattleDescriptorTaskKind.Action104)?.Phase}; casterFlags0={finalCaster.Flags0:X}; sequence={finalCaster.Sequence}; cursor={finalCaster.SequenceState?.Offset46}; resource44={finalCaster.ResourceFlags44:X}; IO={battle.NativeEffectIoResult}; cameraMask={battle.NativeCamera?.Mask}; descriptor={battle.NativeGraphics.OriginalEffect?.ReturnedDescriptor:X}; verifiedPrefix={prefixSnapshot is not null}";
+        if (prefixSnapshot is not null && Environment.GetEnvironmentVariable("MEMORIA_FF8_GF_FRESH_BOUNDARY_OUTPUT") is { Length: > 0 } boundaryOutput)
         {
-            PublishStandalone(boundaryOutput, boundaryBefore);
-            Assert.Equal(JsonSerializer.Serialize(boundaryBefore), JsonSerializer.Serialize(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(boundaryOutput))!));
-            Console.WriteLine($"Fresh GF actual boundary: {Path.GetFullPath(boundaryOutput)}; frame{boundaryBefore.Frame}/callback{boundaryBefore.NativeGraphics!.Callback}; phase{ChildPhase(boundaryBefore)}; {boundary?.Message}");
+            PublishStandalone(boundaryOutput, prefixSnapshot);
+            Assert.Equal(JsonSerializer.Serialize(prefixSnapshot), JsonSerializer.Serialize(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(boundaryOutput))!));
+            Console.WriteLine($"Fresh GF bounded prefix snapshot: {Path.GetFullPath(boundaryOutput)}; frame{prefixSnapshot.Frame}/callback{prefixSnapshot.NativeGraphics!.Callback}; phase{ChildPhase(prefixSnapshot)}.");
         }
         Assert.True(selected);
         Assert.True(restoredBeforeEntry);
-        Assert.True(boundary is not null, diagnostic);
+        Assert.True(prefixSnapshot is not null, diagnostic);
         Assert.True(sawEntry, diagnostic);
-        Assert.NotNull(boundary);
-        Assert.Contains("phase319 requires its original354-byte child workspace and current arena28E9C geometry source", boundary.Message);
         Assert.True(sawGeometry);
         Assert.True(sawNativeFlash);
         Assert.Equal((ushort)116, battle.NativeGraphics!.OriginalEffect!.Binding.Effect);
         Assert.Equal(0x2521748u, battle.NativeGraphics.OriginalEffect.ReturnedDescriptor);
         Assert.Contains(battle.NativeGraphics.OriginalEffect.Pools, pool => pool.DescriptorAddress == 0x2521738 && pool.Stride == 0x8D0 && pool.Slots.Single().Callback == 0x6C3940);
         Assert.Equal((byte?)0, battle.NativeEffectMemory!.GuardianCasterBank);
-        ushort boundaryPhase = battle.NativeGraphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12);
-        Assert.Equal((ushort)319, boundaryPhase);
+        ushort prefixPhase = battle.NativeGraphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12);
+        Assert.Equal((ushort)319, prefixPhase);
         //6C3A42..4D selects6574D0(rig=child+28h,2) at238;509440 stores thatBYTE at rig+6Ch=child+94h.
         Assert.Equal((byte)2, battle.NativeEffectMemory!.Arena!.Read(0x94, 1)[0]);
         Assert.Equal(0, battle.NativeGraphics.Models[3].Flags0 & 4);
@@ -230,28 +234,21 @@ public sealed class NativeBattleGuardianPresentationTests
         Assert.True(battle.Capture().NativeActionScratch!.GuardianFormulaE1E);
 
         uint StreamNumber(short fileId) => unchecked((uint)(BinaryPrimitives.ReadInt32LittleEndian(streamResources.Files.Single(file => file.FileId == fileId).Data.AsSpan()) + 690000));
-        Assert.NotNull(boundaryBefore);
-        Assert.Null(boundaryBefore.ActiveAction);
-        Assert.Null(boundaryBefore.NativeGuardianBoost);
+        Assert.NotNull(prefixSnapshot);
+        Assert.Null(prefixSnapshot.ActiveAction);
+        Assert.Null(prefixSnapshot.NativeGuardianBoost);
         Assert.NotNull(beforeBoost);
         NativeBattleGuardianBoost boost = beforeBoost.NativeGuardianBoost!;
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(beforeBoost with { NativeGuardianBoost = boost with { ActionId = 65 } }));
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(beforeBoost with { NativeGuardianBoost = boost with { ComponentSubframeTicks = 1 } }));
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(beforeBoost with { NativeActionScratch = beforeBoost.NativeActionScratch! with { GuardianFormulaE1E = true } }));
-        BattleSession boundaryClone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(boundaryBefore))!);
-        NotSupportedException restoredBoundary = Assert.Throws<NotSupportedException>(() => boundaryClone.AdvanceNativeGraphicsPresentation(frame));
-        Assert.Equal(boundary.Message, restoredBoundary.Message);
-        Assert.Equal(battle.NativeGraphics.Callback, boundaryClone.NativeGraphics!.Callback);
-        Assert.Equal(boundaryBefore.NativeGraphics!.OriginalEffect!.ReturnedDescriptor, boundaryClone.NativeGraphics.OriginalEffect!.ReturnedDescriptor);
-        Assert.Equal(battle.NativeEffectMemory!.Arena!.Read(NativeBattleQuezacotlWorkspace.Offset, NativeBattleQuezacotlWorkspace.SecondLength), boundaryClone.NativeEffectMemory!.Arena!.Read(NativeBattleQuezacotlWorkspace.Offset, NativeBattleQuezacotlWorkspace.SecondLength));
-        Assert.Equal(JsonSerializer.Serialize(battle.NativeFileIo), JsonSerializer.Serialize(boundaryClone.NativeFileIo));
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_GF_EVIDENCE");
         if (!string.IsNullOrEmpty(evidence))
         {
             Directory.CreateDirectory(evidence);
             string name = "quezacotl116-prefix-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N")[..8];
             using FileStream output = new(Path.Combine(evidence, name + ".battle.json"), FileMode.CreateNew, FileAccess.Write);
-            JsonSerializer.Serialize(output, boundaryBefore);
+            JsonSerializer.Serialize(output, prefixSnapshot);
         }
     }
 

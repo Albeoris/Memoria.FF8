@@ -13,9 +13,9 @@ public static class NativeBattleQuezacotlChild
         NativeBattleQuezacotlState state = (effect.Quezacotl ?? throw new InvalidDataException("Native6C3940 lost its initialized Quezacotl globals.")) with { Intensity17A4 = 2400 };
         if (phase != 0)
         {
-            if (phase == 319)
+            if (phase > 355)
             {
-                throw new NotSupportedException("Native Quezacotl6C3940 phase319 requires its original354-byte child workspace and current arena28E9C geometry source; this resource adapter is not implemented.");
+                throw new NotSupportedException("Native Quezacotl6C3940 cannot resume a child beyond its original355 cleanup callback.");
             }
             throw new NotSupportedException($"Native Quezacotl6C3940 phase{phase} requires original7016B0 model workspace and701970/6C6060 geometry callbacks; full GF animation is not implemented.");
         }
@@ -52,6 +52,17 @@ public static class NativeBattleQuezacotlChild
         NativeBattleEffectTaskPool main = effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521748);
         if ((memory.QuezacotlPause ?? throw new NotSupportedException("Native6C3760 requires its retained pause DWORD.")) == 0)
         {
+            NativeBattleEffectTaskPool? child = main.Slots[0].ReadByte(0x0F) != 0 ? effect.Pools.SingleOrDefault(pool => pool.DescriptorAddress == 0x2521738) ?? throw new NotSupportedException("Native6C3860 requires its initialized primary child descriptor.") : null;
+            if (child is { Head: null })
+            {
+                byte completion = memory.QuezacotlCompletion17A8 ?? throw new NotSupportedException("Native6C3923 requires the retained completion BYTE25217A8 after its primary child unlinks.");
+                if (completion != 0)
+                {
+                    NativeBattleEffectTaskStep finished = main.Advance((pool, _) => new(pool, 2));
+                    return effect with { Pools = effect.Pools.Select(pool => pool.DescriptorAddress == main.DescriptorAddress ? finished.Pool : pool).ToImmutableArray(), ReturnedDescriptor = 0 };
+                }
+                return effect;
+            }
             main = main with { Slots = main.Slots.SetItem(0, main.Slots[0].WriteWord(12, unchecked((ushort)(main.Slots[0].ReadWord(12) + 1)))) };
         }
         return effect with { Pools = effect.Pools.Select(pool => pool.DescriptorAddress == main.DescriptorAddress ? main : pool).ToImmutableArray() };

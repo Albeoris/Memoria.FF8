@@ -9,6 +9,53 @@ public sealed class NativeBattleActionPacketsTests
     private static NativeBattleContactPacket Contact(ushort damage) => new(new(3, 4, 0, 0, 0, damage, 0), new(255, 0, 0, 0, 0, 0, 0));
 
     [Fact]
+    public void HeaderContactWalkUsesTheExplicitPhysicalHeaderAfterCountsResetInsteadOfTheActiveSingleton()
+    {
+        NativeBattleActionPacketsState state = NativeBattleActionPacketsState.Fresh();
+        (state, _) = state.Prepare(Header());
+        (state, _) = state.AppendContact(Contact(17));
+        (state, _) = state.Publish(1);
+        (state, int second) = state.Prepare(Header(254));
+        (state, _) = state.AppendContact(Contact(29));
+        (state, _) = state.AppendContact(Contact(31));
+        (state, _) = state.Publish(2);
+        state = state.ActivateHeader(0).ResetCounts();
+        Assert.Equal(0, state.ActiveHeaderIndex);
+        Assert.Equal(new ushort[] { 29, 31 }, state.ReadHeaderContacts506BA0(second).Select(packet => packet.Primary.Amount6).ToArray());
+        Assert.Equal((ushort)17, Assert.Single(state.ReadHeaderContacts506BA0(0)).Primary.Amount6);
+        NativeBattleActionPacketsState restored = JsonSerializer.Deserialize<NativeBattleActionPacketsState>(JsonSerializer.Serialize(state))!;
+        Assert.Equal(state.ReadHeaderContacts506BA0(second).ToArray(), restored.ReadHeaderContacts506BA0(second).ToArray());
+    }
+
+    [Fact]
+    public void EmptyPhysicalHeaderDoesNotReadItsUnobservedContactPointer()
+    {
+        NativeBattleActionPacketsState state = NativeBattleActionPacketsState.Fresh();
+        NativeBattleActionHeaderSlot header = state.Headers[3] with { UnknownByteMask = state.Headers[3].UnknownByteMask & ~(1u << 16) };
+        state = state with { Headers = state.Headers.SetItem(3, header) };
+        Assert.Null(header.FirstContactIndex);
+        Assert.Empty(state.ReadHeaderContacts506BA0(3));
+        Assert.Throws<NotSupportedException>(() => state.ReadHeaderContacts506BA0(4));
+        Assert.Throws<ArgumentOutOfRangeException>(() => state.ReadHeaderContacts506BA0(-1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => state.ReadHeaderContacts506BA0(32));
+    }
+
+    [Fact]
+    public void NonemptyPhysicalHeaderRetainsUnknownPointerAndContactBoundaries()
+    {
+        NativeBattleActionPacketsState state = NativeBattleActionPacketsState.Fresh();
+        byte[] raw = state.Headers[0].Payload.ToArray();
+        raw[16] = 1;
+        NativeBattleActionHeaderSlot header = state.Headers[0] with { Payload = System.Collections.Immutable.ImmutableArray.CreateRange(raw), UnknownByteMask = state.Headers[0].UnknownByteMask & ~(1u << 16) };
+        state = state with { Headers = state.Headers.SetItem(0, header) };
+        Assert.Throws<NotSupportedException>(() => state.ReadHeaderContacts506BA0(0));
+        state = state with { Headers = state.Headers.SetItem(0, header with { FirstContactIndex = 49 }) };
+        Assert.Throws<InvalidDataException>(() => state.ReadHeaderContacts506BA0(0));
+        state = state with { Headers = state.Headers.SetItem(0, header with { FirstContactIndex = 0 }) };
+        Assert.Throws<NotSupportedException>(() => state.ReadHeaderContacts506BA0(0));
+    }
+
+    [Fact]
     public void PreparationAndContactWritesDoNotPublishTheActionCount()
     {
         NativeBattleActionPacketsState state = NativeBattleActionPacketsState.Fresh();

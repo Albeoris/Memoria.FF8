@@ -7,11 +7,13 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState ApplyNativeActiveHeaderContacts(NativeBattleGraphicsState graphics)
     {
         int index = nativeActionPackets.ActiveHeaderIndex ?? throw new InvalidDataException("Native50A670 requires its actual active header pointer.");
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[index];
-        int count = header.ReadByte(16);
-        int first = header.FirstContactIndex ?? throw new InvalidDataException("Native50A670 requires its physical contact pointer.");
+        return ApplyNativeHeaderContacts(graphics, index);
+    }
+
+    private NativeBattleGraphicsState ApplyNativeHeaderContacts(NativeBattleGraphicsState graphics, int headerIndex)
+    {
         //506BA0 reads this physical header range. The temporary projection is consumed here, never persisted as another contact owner.
-        var contacts = Enumerable.Range(first, count).Select(nativeActionPackets.ReadContact).ToImmutableArray();
+        var contacts = nativeActionPackets.ReadHeaderContacts506BA0(headerIndex);
         NativeBattleGraphicsState applied = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = contacts });
         return applied with { PendingContacts = graphics.PendingContacts };
     }

@@ -180,6 +180,26 @@ public sealed record NativeBattleActionPacketsState([property: JsonRequired] byt
         return this with { ActionCount = 0, ContactCount = 0 };
     }
 
+    public ImmutableArray<NativeBattleContactPacket> ReadHeaderContacts506BA0(int headerIndex)
+    {
+        if (headerIndex is < 0 or >= HeaderCapacity)
+        {
+            throw new ArgumentOutOfRangeException(nameof(headerIndex));
+        }
+        NativeBattleActionHeaderSlot header = Headers[headerIndex];
+        int count = header.ReadByte(16);
+        if (count == 0)
+        {
+            return [];
+        }
+        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native506BA0 requires its actual header's physical contact pointer.");
+        if (first < 0 || first > ContactCapacity - count)
+        {
+            throw new InvalidDataException("Native506BA0 contact range exceeds the retained physical contact arena.");
+        }
+        return Enumerable.Range(first, count).Select(ReadContact).ToImmutableArray();
+    }
+
     public NativeBattleContactPacket ReadContact(int index)
     {
         if (index is < 0 or >= ContactCapacity)

@@ -16,19 +16,40 @@ public static class NativeBattleQuezacotlGeometry
         return Emit(memory, effect, node, projection, colors, sourceAddress, null, capturePrimary, control, basePosition, depthBias, observeDepth);
     }
 
+    /// <summary>The same6C6060 geometry body over caller-resolved current resource bytes, including a bounded mutable arena source.</summary>
+    public static NativeBattleQuezacotlGeometryStep Emit6C6060(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleGfAnimationNode node, NativeBattleGfAnimationSource currentSource, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleVector basePosition, bool capturePrimary = false, byte control = 0, int depthBias = 0, Action<ushort>? observeDepth = null)
+    {
+        ArgumentNullException.ThrowIfNull(currentSource);
+        return Emit(memory, effect, node, projection, colors, currentSource.Address, null, capturePrimary, control, basePosition, depthBias, observeDepth, currentSource);
+    }
+
     public static NativeBattleQuezacotlGeometryStep Emit6C53A0(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleGfAnimationNode node, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleActionMatrix contextMatrix, bool capturePrimary, byte control, uint sourceAddress = 0x12A9664, Action<ushort>? observeDepth = null)
     {
         return Emit(memory, effect, node, projection, colors, sourceAddress, contextMatrix, capturePrimary, control, default, observeDepth: observeDepth);
     }
 
-    private static NativeBattleQuezacotlGeometryStep Emit(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleGfAnimationNode node, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint sourceAddress, NativeBattleActionMatrix? contextMatrix, bool capturePrimary, byte control, NativeBattleVector basePosition, int depthBias = 0, Action<ushort>? observeDepth = null)
+    private static NativeBattleQuezacotlGeometryStep Emit(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleGfAnimationNode node, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint sourceAddress, NativeBattleActionMatrix? contextMatrix, bool capturePrimary, byte control, NativeBattleVector basePosition, int depthBias = 0, Action<ushort>? observeDepth = null, NativeBattleGfAnimationSource? currentSource = null)
     {
         if (NativeBattleQuezacotlWorkspace.SkipsGeometry6C6060(node))
         {
             return new(memory, new([], 0));
         }
-        ImmutableArray<byte> source = (memory.QuezacotlExecutableMemory ?? throw new NotSupportedException("Native Quezacotl draw requires its current executable bytes.")).Data;
-        int sourceOffset = checked((int)(sourceAddress - NativeBattleQuezacotlExecutableMemory.Address));
+        ImmutableArray<byte> source;
+        int sourceOffset;
+        if (currentSource is null)
+        {
+            source = (memory.QuezacotlExecutableMemory ?? throw new NotSupportedException("Native Quezacotl draw requires its current executable bytes.")).Data;
+            sourceOffset = checked((int)(sourceAddress - NativeBattleQuezacotlExecutableMemory.Address));
+        }
+        else
+        {
+            if (currentSource.Data.IsDefault || currentSource.Address == 0)
+            {
+                throw new InvalidDataException("Native6C6060 requires its actual bounded current resource view.");
+            }
+            source = currentSource.Data;
+            sourceOffset = 0;
+        }
         int directory = checked(sourceOffset + 8 + 4 * node.GeometryIndex);
         int geometry = checked(sourceOffset + BinaryPrimitives.ReadInt32LittleEndian(Read(source, directory, 4)));
         int count = BinaryPrimitives.ReadInt32LittleEndian(Read(source, checked(geometry + 4), 4));
@@ -86,7 +107,7 @@ public static class NativeBattleQuezacotlGeometry
     {
         if (offset < 0 || length < 0 || offset > bytes.Length - length)
         {
-            throw new InvalidDataException("Native6C6060 geometry pointer leaves its current executable source owner.");
+            throw new InvalidDataException("Native6C6060 geometry pointer leaves its current resource source owner.");
         }
         return bytes.AsSpan().Slice(offset, length);
     }

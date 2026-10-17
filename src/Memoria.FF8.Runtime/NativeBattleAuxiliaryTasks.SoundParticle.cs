@@ -24,6 +24,10 @@ public sealed record NativeBattleAuxiliaryInputs
     public Action<int, byte, byte>? ApplyTexture { get; init; }
     public Action<int>? RestoreTextureBlink { get; init; }
     public Func<byte, uint, (byte Phase, bool Completed)>? AdvanceMusicLoad501A70 { get; init; }
+    public Action<ushort, uint>? RequestFile5084B0 { get; init; }
+    public Func<int>? ReadEffectIoResult508470 { get; init; }
+    public Action<uint>? EnqueueTexture505E30 { get; init; }
+    public Action<uint, byte>? WriteCompletionByte { get; init; }
 }
 
 public sealed partial record NativeBattleAuxiliaryState

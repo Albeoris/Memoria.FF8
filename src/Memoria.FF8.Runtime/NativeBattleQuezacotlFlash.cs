@@ -14,7 +14,7 @@ public static class NativeBattleQuezacotlFlash
         {
             73 or 79 or 248 or 250 or 253 or 258 or 317 => 0,
             78 or 80 or 227 or 257 or 259 or 316 or 318 => 1,
-            81 or 228 or 315 => 2,
+            81 or 228 or 315 or 319 => 2,
             229 => 3,
             _ => -1
         };

@@ -111,7 +111,7 @@ public static class NativeBattleQuezacotlFragmentPool
 
     public static void Validate(NativeBattleEffectMemory memory, NativeBattleEffectTaskPool pool)
     {
-        Validate(pool);
+        ValidateHead(memory, pool);
         NativeBattleQuezacotlExecutableMemory executable = Executable(memory);
         for (int index = 0; index < Capacity; index++)
         {
@@ -123,6 +123,11 @@ public static class NativeBattleQuezacotlFragmentPool
                 throw new InvalidDataException("Native fragment typed task disagrees with its current physical EXE bytes.");
             }
         }
+    }
+
+    public static void ValidateHead(NativeBattleEffectMemory memory, NativeBattleEffectTaskPool pool)
+    {
+        Validate(pool);
         ImmutableArray<uint> heads = memory.QuezacotlSecondaryHeads ?? throw new NotSupportedException("Native fragment pool requires its retained descriptor head DWORD.");
         uint head = pool.Head is int indexHead ? Bank + (uint)indexHead * Stride : 0;
         if (heads.IsDefault || heads.Length != 5 || heads[4] != head)

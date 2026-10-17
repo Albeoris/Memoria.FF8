@@ -10,6 +10,11 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native6C6660 requires its current effect memory.");
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new InvalidDataException("Native6C6660 lost its module state.");
         NativeBattleEffectTaskPool before = effect.Pools.SingleOrDefault(pool => pool.DescriptorAddress == NativeBattleQuezacotlFragmentPool.Descriptor) ?? throw new NotSupportedException("Native6C6660 requires its current EXE task pool.");
+        NativeBattleQuezacotlFragmentPool.ValidateHead(memory, before);
+        if (before.Head is null)
+        {
+            return graphics;
+        }
         NativeBattleQuezacotlFragmentPool.Validate(memory, before);
         NativeBattleEffectTaskStep stepped = before.Advance((current, index) =>
         {

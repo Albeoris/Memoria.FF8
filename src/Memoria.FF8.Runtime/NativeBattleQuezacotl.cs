@@ -77,7 +77,7 @@ public static class NativeBattleQuezacotl
         }
         int average = sum / count;
         NativeBattleQuezacotlState state = new(seed, average, unchecked(average + 3690));
-        memory = memory with { GuardianWorkBuffer = work, Textures = textures };
+        memory = memory with { GuardianWorkBuffer = work, Textures = textures, QuezacotlCompletion17A8 = 0 };
         return new(memory, effect with { Pools = [main], Quezacotl = state, ReturnedDescriptor = main.DescriptorAddress, DrawArenaOffset = null }, random);
     }
 

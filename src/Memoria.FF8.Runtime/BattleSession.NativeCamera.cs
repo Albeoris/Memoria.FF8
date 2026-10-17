@@ -78,6 +78,10 @@ public sealed partial class BattleSession
             ReadPan = point => (NativeCamera?.Projection ?? throw new NotSupportedException("Native50F830 requires its actual prior5033E0/500900 projection owner.")).ReadPan(point),
             ReadModel = model => graphics.Models[model],
             ApplyTexture = (model, selector, variant) => ApplyNativeTextureMotion(graphics, model, selector, variant),
+            RequestFile5084B0 = QueueNativeCommonTexture5084B0,
+            ReadEffectIoResult508470 = () => NativeEffectIoResult ?? throw new NotSupportedException("Native508660 requires its actual shared signed IO result."),
+            EnqueueTexture505E30 = EnqueueNativeCommonTexture505E30,
+            WriteCompletionByte = WriteNativeAuxiliaryCompletionByte,
             RestoreTextureBlink = model => graphics = graphics with { Models = graphics.Models.SetItem(model, graphics.Models[model] with { Flags0 = (ushort)(graphics.Models[model].Flags0 | 0x400) }) }
         });
         if (step.CameraBlend is ushort blend)

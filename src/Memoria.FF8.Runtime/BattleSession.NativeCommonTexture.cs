@@ -1,0 +1,48 @@
+namespace Memoria.FF8.Runtime;
+
+public sealed partial class BattleSession
+{
+    private void QueueNativeCommonTexture5084B0(ushort file, uint destination)
+    {
+        if (file != 0xA3)
+        {
+            throw new NotSupportedException("Native508660 requires its original A3 shared texture file.");
+        }
+        NativeBattleEffectInitializerAsset resource = definition.NativeCommonEffectTexture ?? throw new NotSupportedException("Native5084B0 A3 requires the original a8def.tim resource binding; explicitly migrate a named source if needed.");
+        if (resource.Name != "a8def.tim" || resource.Data.IsDefaultOrEmpty)
+        {
+            throw new InvalidDataException("Native A3 resource does not identify its original a8def.tim bytes.");
+        }
+        int offset = CommonTextureOffset(destination);
+        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native5084B0 requires its current destination memory.");
+        NativeEffectIoResult = -1;
+        NativeEffectMemory = memory with { Arena = (memory.Arena ?? throw new NotSupportedException("Native A3 destination requires its effect arena.")).Write(offset, resource.Data.AsSpan()) };
+        QueueNativeFileIo482610(resource.Data.Length, 0x508470);
+    }
+
+    private void EnqueueNativeCommonTexture505E30(uint source)
+    {
+        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native508660 requires its current mutable TIM memory.");
+        NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native508660 requires its retained texture queue.");
+        (textures, _) = textures.EnqueueArenaTim505E30(memory.Arena ?? throw new NotSupportedException("Native508660 requires its actual A3 destination."), CommonTextureOffset(source));
+        NativeEffectMemory = memory with { Textures = textures };
+    }
+
+    private void WriteNativeAuxiliaryCompletionByte(uint address, byte value)
+    {
+        if (address != 0x25217A8)
+        {
+            throw new NotSupportedException($"Native508660 completion BYTE0x{address:X8} has no retained owner.");
+        }
+        NativeEffectMemory = (NativeEffectMemory ?? throw new NotSupportedException("Native508660 requires its retained completion owner.")) with { QuezacotlCompletion17A8 = value };
+    }
+
+    private static int CommonTextureOffset(uint address)
+    {
+        if (address < 0x20DFAB8 || address >= 0x21DFAB8)
+        {
+            throw new NotSupportedException("Native508660 destination requires its actual owned mutable allocation.");
+        }
+        return checked((int)(address - 0x20DFAB8));
+    }
+}

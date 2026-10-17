@@ -17,6 +17,8 @@ public static class NativeBattleQuezacotlWorkspace
     public const uint EighthAddress = 0x129F4E8;
     public const int EighthLength = 0x4BC;
     public const int NinthLength = 0x124;
+    public const int TenthLength = 0x354;
+    public const uint TenthSourceAddress = 0x2108954;
 
     public static NativeBattleGfAnimationSource Source(NativeBattleEffectMemory memory, uint address = NativeBattleQuezacotlExecutableMemory.Address)
     {
@@ -27,6 +29,17 @@ public static class NativeBattleQuezacotlWorkspace
             throw new NotSupportedException("Native Quezacotl animation source requires its observed executable region.");
         }
         return new(address, address == NativeBattleQuezacotlExecutableMemory.Address ? executable.Data : executable.Data.AsSpan().Slice(checked((int)(address - NativeBattleQuezacotlExecutableMemory.Address))).ToArray().ToImmutableArray());
+    }
+
+    public static NativeBattleGfAnimationSource Source(NativeBattleEffectMemory memory, uint address, int observedLength)
+    {
+        const uint arenaAddress = 0x20DFAB8;
+        if (address < arenaAddress || address - arenaAddress >= NativeBattleEffectArena.Length || observedLength <= 0 || observedLength > NativeBattleEffectArena.Length - (address - arenaAddress))
+        {
+            throw new ArgumentOutOfRangeException(nameof(observedLength), "Native animation source must fit its explicitly observed current arena extent.");
+        }
+        NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native701970 arena source requires its actual retained effect arena.");
+        return new(address, arena.Read(checked((int)(address - arenaAddress)), observedLength).ToImmutableArray());
     }
 
     public static NativeBattleGfAnimationWorkspace Read(NativeBattleEffectMemory memory, int length = Length) => new((memory.Arena ?? throw new NotSupportedException("Native Quezacotl701970 requires its actual child-task arena bytes.")).Read(Offset, length).ToImmutableArray());
@@ -50,9 +63,9 @@ public static class NativeBattleQuezacotlWorkspace
 
     public static NativeBattleQuezacotlWorkspaceWrite Write(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleGfAnimationWorkspace workspace)
     {
-        if (workspace.Data.IsDefault || workspace.Data.Length is not (Length or SecondLength or ThirdLength or FourthLength or FifthLength or SixthLength or SeventhLength or NinthLength))
+        if (workspace.Data.IsDefault || workspace.Data.Length is not (Length or SecondLength or ThirdLength or FourthLength or FifthLength or SixthLength or SeventhLength or NinthLength or TenthLength))
         {
-            throw new InvalidDataException("Native Quezacotl workspace must fit its actual7D4/7FC/158/1A0/1D8/128/B4/124-byte child workspace.");
+            throw new InvalidDataException("Native Quezacotl workspace must fit its actual7D4/7FC/158/1A0/1D8/128/B4/124/354-byte child workspace.");
         }
         NativeBattleEffectTaskPool child = effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738);
         NativeBattleEffectArena arena = (memory.Arena ?? throw new NotSupportedException("Native Quezacotl701970 requires its actual child-task arena bytes.")).Write(Offset, workspace.Data.AsSpan());

@@ -36,7 +36,11 @@ public sealed partial class BattleSession
             {
                 NativeGraphics = graphics;
                 NativeBattleEffectTaskPool childPool = prepared.Effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738);
-                if (childPool.Slots[0].ReadWord(12) is >= 1 and <= 318)
+                if (childPool.Head is null)
+                {
+                    return AdvanceNativeQuezacotlAfterChild6C3760(graphics);
+                }
+                if (childPool.Slots[0].ReadWord(12) is >= 1 and <= 355)
                 {
                     graphics = AdvanceNativeQuezacotlFirstWindow(graphics);
                     NativeBattleStageState childStage = NativeStage ?? throw new NotSupportedException("Native5713E0 requires its retained stage rows.");
