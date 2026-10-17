@@ -31,7 +31,6 @@ internal sealed class AutoPlayRunState
     public bool ObservedControlLoss { get; set; }
     public int SettleFrames { get; set; }
     public long SceneFrames { get; set; }
-    public int IdleFrames { get; set; }
     public List<string> SceneChoices { get; set; } = [];
     public string? PrimaryContinuation { get; set; }
     public int PrimaryStory { get; set; }
@@ -412,7 +411,7 @@ internal sealed class AutoPlayController
             world.AdvanceAutoPlayInputFrame();
             return;
         }
-        if (run.ActiveObservedInput is { Masks.Count: > 0 } observedInput && run.ActiveEvent is not null && run.ActiveField == session.State.FieldId)
+        if (run.ActiveObservedInput is { Masks.Count: > 0 } observedInput && run.ActiveField == session.State.FieldId)
         {
             run.ActiveObservedInput = null;
             run.ObserveContactInput = false;
@@ -476,14 +475,9 @@ internal sealed class AutoPlayController
         AutoPlayPlanStep? next = planner.Plan(visit);
         if (next is null)
         {
-            if (run.IdleFrames++ < 1200)
-            {
-                Apply(new(PlayerActionKind.Wait));
-                return;
-            }
-            throw new NotSupportedException("Reachable event frontier exhausted before the authenticated ending. Missing conditional event, graph edge or progression policy; coverage is saved.");
+            WaitForNativeFrontier();
+            return;
         }
-        run.IdleFrames = 0;
         AutoPlayEventCoverage currentEvent = run.Coverage.Visits.Single(item => item.Visit.Key == visit).Events.Single(item => item.Event.Id == next.Event.Id);
         AutoPlayTarget[] variants = targets.Where(item => item.CoverageId == next.Event.Id && !currentEvent.UnavailableVariants.Contains(item.Id) && (next.Route?.TargetId is not string recordedTarget || item.Id == recordedTarget)).OrderBy(item => item.Order).ThenBy(item => item.Id, StringComparer.Ordinal).ToArray();
         AutoPlayTarget target = variants.FirstOrDefault() ?? throw new InvalidDataException("Planned event is no longer available in the current field.");
@@ -621,6 +615,39 @@ internal sealed class AutoPlayController
         finally
         {
             world.Events.CommandExecuted -= ObserveQuery;
+        }
+    }
+
+    private void WaitForNativeFrontier()
+    {
+        GameWorld world = getWorld();
+        int field = session.State.FieldId;
+        ScriptedInputMetadata? observedInput = null;
+        int observedObject = -1;
+        void ObserveQuery(ScriptCommand command)
+        {
+            if (observedInput is null && command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON" && world.Events.DiscoverScriptedInput(command.ObjectId) is { Masks.Count: > 0 } input)
+            {
+                observedInput = input;
+                observedObject = command.ObjectId;
+            }
+        }
+        world.Events.CommandExecuted += ObserveQuery;
+        PlayerActionResult result;
+        try
+        {
+            result = Apply(new(PlayerActionKind.Wait, Frames: 300, WaitWhilePlayable: true));
+        }
+        finally
+        {
+            world.Events.CommandExecuted -= ObserveQuery;
+        }
+        if (result.NativeInputObserved && session.State.Scene == SceneKind.Field && session.State.FieldId == field && world.CurrentDialogue is not { CanConfirm: true })
+        {
+            run.ActiveObservedInput = observedInput ?? throw new NotSupportedException("The native frontier wait sampled a scripted input query without supported physical-input metadata.");
+            run.ActiveField = field;
+            run.ActiveObjectId = observedObject;
+            run.ActiveSelections = [];
         }
     }
 
@@ -1192,7 +1219,6 @@ internal sealed class AutoPlayController
         run.SettleFrames = 4;
         run.SceneFrames = 0;
         run.ScriptedInputSteps = 0;
-        run.IdleFrames = 0;
         SaveBundle($"unavailable-return-{run.Steps:D10}", CaptureState());
         Status = "Restored the actual pre-event checkpoint; the native unavailable destination is deferred under its observed conditions.";
         return true;

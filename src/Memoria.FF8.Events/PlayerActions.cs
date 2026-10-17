@@ -55,9 +55,9 @@ public enum PlayerTriggerKind
     Tutorial
 }
 
-public sealed record PlayerAction(PlayerActionKind Kind, int Value = 0, string? Text = null, float Horizontal = 0, float Vertical = 0, int Frames = 1, int? Quantity = null, float CameraHorizontal = 0);
+public sealed record PlayerAction(PlayerActionKind Kind, int Value = 0, string? Text = null, float Horizontal = 0, float Vertical = 0, int Frames = 1, int? Quantity = null, float CameraHorizontal = 0, bool WaitWhilePlayable = false);
 public sealed record PlayerTrigger(PlayerTriggerKind Kind, int FieldId, long Frame, int? MessageId, string? Text);
-public sealed record PlayerActionResult(bool Accepted, PlayerTrigger Trigger, int FramesAdvanced, string? Detail = null);
+public sealed record PlayerActionResult(bool Accepted, PlayerTrigger Trigger, int FramesAdvanced, string? Detail = null, bool NativeInputObserved = false);
 public sealed record PlayerActionObservation(long Index, int FieldId, long Frame, PlayerAction Action, PlayerActionResult Result);
 public sealed record WalkmeshPosition(Vector3 Position, int Triangle);
 public sealed record BranchDecision(int FieldId, int ObjectId, int ScriptId, int Operation, long Frame, string Predicate, int Value, bool ConditionPassed, int JumpTarget, long ActionIndex);
@@ -102,6 +102,7 @@ public sealed partial class EventEngine
         }
         bool accepted = true;
         int advanced = 0;
+        bool nativeInputObserved = false;
         string? detail = null;
         int sourceField = FieldId;
         long sourceFrame = Frame;
@@ -350,18 +351,34 @@ public sealed partial class EventEngine
                             advanced = AdvanceMovieWait(action.Frames);
                             break;
                         }
-                        for (int index = 0; index < action.Frames; index++)
+                        PlayerTriggerKind waitingFor = action.WaitWhilePlayable && NextTrigger.Kind == PlayerTriggerKind.Playable ? PlayerTriggerKind.Playable : PlayerTriggerKind.Waiting;
+                        void ObserveWaitInput(ScriptCommand command)
                         {
-                            if (NextTrigger.Kind is PlayerTriggerKind.Faulted or PlayerTriggerKind.Unloaded or PlayerTriggerKind.Dialogue or PlayerTriggerKind.Movie or PlayerTriggerKind.FieldTransition or PlayerTriggerKind.WorldMap or PlayerTriggerKind.Battle)
+                            if (waitingFor == PlayerTriggerKind.Playable && (command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON" or "KEYOFF"))
                             {
-                                break;
+                                nativeInputObserved = true;
                             }
-                            Step();
-                            advanced++;
-                            if (NextTrigger.Kind != PlayerTriggerKind.Waiting)
+                        }
+                        CommandExecuted += ObserveWaitInput;
+                        try
+                        {
+                            for (int index = 0; index < action.Frames; index++)
                             {
-                                break;
+                                if ((waitingFor == PlayerTriggerKind.Playable && NextTrigger.Kind != PlayerTriggerKind.Playable) || NextTrigger.Kind is PlayerTriggerKind.Faulted or PlayerTriggerKind.Unloaded or PlayerTriggerKind.Dialogue or PlayerTriggerKind.Movie or PlayerTriggerKind.FieldTransition or PlayerTriggerKind.WorldMap or PlayerTriggerKind.Battle)
+                                {
+                                    break;
+                                }
+                                Step();
+                                advanced++;
+                                if (NextTrigger.Kind != waitingFor || waitingFor == PlayerTriggerKind.Playable && nativeInputObserved)
+                                {
+                                    break;
+                                }
                             }
+                        }
+                        finally
+                        {
+                            CommandExecuted -= ObserveWaitInput;
                         }
                         detail = NextTrigger.Kind == PlayerTriggerKind.Waiting ? "Frame budget reached while scripts still wait." : null;
                         break;
@@ -378,7 +395,7 @@ public sealed partial class EventEngine
                         throw new ArgumentOutOfRangeException(nameof(action));
                 }
             }
-            PlayerActionResult result = new(accepted, NextTrigger, advanced, detail);
+            PlayerActionResult result = new(accepted, NextTrigger, advanced, detail, nativeInputObserved);
             actionLog.Add(new PlayerActionObservation(activeActionIndex.Value, sourceField, sourceFrame, action, result));
             return result;
         }
