@@ -15,6 +15,71 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleProductionEffectAdmissionTests
 {
     [Fact]
+    public void Migrate_the_named_production_checkpoint_only_with_authenticated_common_meshes_two_and_three()
+    {
+        string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_MIGRATION_SNAPSHOT");
+        string? expectedHash = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_MIGRATION_SHA256");
+        string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_EVIDENCE");
+        Assert.SkipUnless(source is not null && File.Exists(source) && expectedHash is not null && !string.IsNullOrWhiteSpace(evidence), "A named source, exact SHA256 and distinct migration evidence directory are required.");
+        byte[] bytes = File.ReadAllBytes(source!);
+        string originalHash = Convert.ToHexString(SHA256.HashData(bytes));
+        Assert.Equal(expectedHash, originalHash);
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        using GameAssets assets = new(directory);
+        Assert.Equal(NativeFieldRuntimeProfile.FF8EnExecutableHash, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(directory, "FF8_EN.exe")))));
+        NativeBattleStaticMeshResource[] currentMeshes = assets.ReadNativeEffectMeshes().ToArray();
+        Assert.Equal(new byte[] { 1, 2, 3, 4, 7 }, currentMeshes.Select(mesh => mesh.Id).ToArray());
+        JsonNode original = JsonNode.Parse(bytes)!;
+        JsonArray originalMeshes = Assert.IsType<JsonArray>(original["Battle"]!["Definition"]!["NativeEffectMeshes"]);
+        Assert.Equal(new byte[] { 1, 4, 7 }, originalMeshes.Select(mesh => mesh!["Id"]!.GetValue<byte>()).ToArray());
+        foreach (JsonNode? mesh in originalMeshes)
+        {
+            byte id = mesh!["Id"]!.GetValue<byte>();
+            Assert.True(JsonNode.DeepEquals(mesh, JsonSerializer.SerializeToNode(currentMeshes.Single(candidate => candidate.Id == id))));
+        }
+        JsonNode migrated = original.DeepClone();
+        migrated["Battle"]!["Definition"]!["NativeEffectMeshes"] = JsonSerializer.SerializeToNode(currentMeshes);
+        JsonNode reverted = migrated.DeepClone();
+        reverted["Battle"]!["Definition"]!["NativeEffectMeshes"] = originalMeshes.DeepClone();
+        Assert.True(JsonNode.DeepEquals(original, reverted));
+        Directory.CreateDirectory(evidence!);
+        string idPrefix = "production-mesh-migration-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff");
+        string migratedPath = Path.Combine(evidence!, idPrefix + ".json");
+        using (FileStream stream = new(migratedPath, FileMode.CreateNew))
+        {
+            JsonSerializer.Serialize(stream, migrated);
+        }
+        GameState saved = GameSession.Load(migratedPath);
+        GameSession session = new(saved);
+        using GameWorld world = RestoreWorld(session, directory);
+        BattleSnapshot originalBattle = GameSession.Load(source!).Battle!;
+        BattleSession before = BattleSession.Restore(originalBattle);
+        byte[] beforePixels = new BattleScenePresentation(world.BattleResources, originalBattle.Definition, true).Render(before, 320, 224).ToArray();
+        Assert.Equal(beforePixels, RenderBattle(world));
+        GameSession independent = new(GameSession.Load(migratedPath));
+        using GameWorld clone = RestoreWorld(independent, directory);
+        long callback = world.Battle!.NativeGraphics!.Callback;
+        world.ApplyBattleInput(new(BattleInputKind.Tick));
+        clone.ApplyBattleInput(new(BattleInputKind.Tick));
+        Assert.True(world.Battle.NativeGraphics!.Callback > callback);
+        Assert.Equal(JsonSerializer.Serialize(world.Battle.Capture()), JsonSerializer.Serialize(clone.Battle!.Capture()));
+        Assert.Equal(RenderBattle(world), RenderBattle(clone));
+        session.SetEventState(world.Events.Capture());
+        Publish(evidence, idPrefix + "-checked-next", session.State);
+        Publish(evidence, idPrefix + "-proof", new
+        {
+            OriginalPath = Path.GetFullPath(source!),
+            OriginalSha256 = originalHash,
+            MigratedPath = Path.GetFullPath(migratedPath),
+            MigratedSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(migratedPath))),
+            ChangedPaths = new[] { "Battle.Definition.NativeEffectMeshes: authenticated IDs2/3 inserted; existing1/4/7 byte-identical" },
+            AddedMeshes = currentMeshes.Where(mesh => mesh.Id is 2 or 3).Select(mesh => new { mesh.Id, mesh.Address, Sha256 = Convert.ToHexString(SHA256.HashData(mesh.Bytes.AsSpan())) }).ToArray(),
+            Validation = "Only allowed JSON path changed; original unchanged; load under current factory; unchanged initial pixels; independent next-callback JSON/pixels"
+        });
+        Assert.Equal(originalHash, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(source!))));
+    }
+
+    [Fact]
     public void Continue_the_named_production_checkpoint_through_Blizzard_or_the_next_native_boundary()
     {
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_SNAPSHOT");
@@ -90,6 +155,34 @@ public sealed class NativeBattleProductionEffectAdmissionTests
     [Fact]
     public void Saved_before_entry_component_enters_through_the_game_host_and_materializes_Blizzard_on_its_native_request()
     {
+        var (saved, gameDirectory, evidence, id) = CreateBeforeEntryComponent(false);
+        GameSession session = new(saved);
+        using GameWorld world = RestoreWorld(session, gameDirectory);
+        RunBlizzard(world, session, gameDirectory, evidence, id, true);
+    }
+
+    [Fact]
+    public void Saved_before_entry_component_uses_its_assigned_GF_command_to_materialize_Quezacotl()
+    {
+        var (saved, gameDirectory, evidence, id) = CreateBeforeEntryComponent(true);
+        GameSession session = new(saved);
+        using GameWorld world = RestoreWorld(session, gameDirectory);
+        RunQuezacotl(world, session, gameDirectory, evidence, id, true);
+    }
+
+    [Fact]
+    public void Continue_the_named_production_checkpoint_through_Quezacotl_or_the_next_native_boundary()
+    {
+        string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_GF_SNAPSHOT");
+        Assert.SkipUnless(source is not null && File.Exists(source), "A concrete production-host GF standalone checkpoint is required.");
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        GameSession session = new(GameSession.Load(source!));
+        using GameWorld world = RestoreWorld(session, directory);
+        RunQuezacotl(world, session, directory, Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_EVIDENCE"), "production-gf-continuation-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff"), false);
+    }
+
+    private static (GameState State, string GameDirectory, string? Evidence, string Id) CreateBeforeEntryComponent(bool guardianCommand)
+    {
         string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(gameDirectory), "Installed original battle resources are required.");
         using GameAssets assets = new(gameDirectory);
@@ -106,6 +199,11 @@ public sealed class NativeBattleProductionEffectAdmissionTests
         int magicAbility = vitals.MenuDefinitions.CommandAbilityCommands.Select((command, index) => (command, index)).Single(item => item.command == 2).index + 20;
         vitals = vitals.SetJunctionAbility(0, 0, magicAbility, true).AddMagicUnit(0, 4, out int capacity).RebuildParty().Rest();
         Assert.Equal(0, capacity);
+        if (guardianCommand)
+        {
+            int gfAbility = vitals.MenuDefinitions.CommandAbilityCommands.Select((command, index) => (command, index)).Single(item => item.command == 3).index + 20;
+            vitals = vitals.SetJunctionAbility(0, 1, gfAbility, true);
+        }
         // Supplied component inputs; this is not a story route or a migration from an old field save.
         GameSession source = new(GameSession.CreateColdProcess().State with
         {
@@ -133,7 +231,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
         });
         source.SetWorldControls(NativeWorldControlState.CreateNewGame());
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_EVIDENCE");
-        string id = "production-blizzard-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N")[..8];
+        string id = (guardianCommand ? "production-gf-" : "production-blizzard-") + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N")[..8];
         using (GameWorld initial = new(source, gameDirectory))
         {
             initial.Events.LoadField(999, Program(), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
@@ -144,7 +242,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
             scene["Scene"]!["NativeBattleMusic203"] = 5;
             initial.Events.Restore(JsonSerializer.SerializeToElement(scene));
             source.SetEventState(initial.Events.Capture());
-            Publish(evidence, id + "-inputs", new { SelectorSource = Path.GetFullPath(selectorSource!), SelectorSourceSha256 = Convert.ToHexString(SHA256.HashData(selectorBytes)), CopiedFields = new[] { "EventState.Scene.MusicProcess.Bank201", "EventState.Scene.MusicProcess.Bootstrap", "WorldEntryMemory", "EventRandom" }, ControlledInputs = "Original initial party/stock/commands, cold graphics/sound, source203=5/channel108=-1; old buffers and pending operands unknown; not an old-save migration or story continuation" });
+            Publish(evidence, id + "-inputs", new { SelectorSource = Path.GetFullPath(selectorSource!), SelectorSourceSha256 = Convert.ToHexString(SHA256.HashData(selectorBytes)), CopiedFields = new[] { "EventState.Scene.MusicProcess.Bank201", "EventState.Scene.MusicProcess.Bootstrap", "WorldEntryMemory", "EventRandom" }, AssignedGuardianCommand = guardianCommand, ControlledInputs = "Original initial party/stock, learned Magic assigned to command slot0, optionally learned GF to slot1 before entry, cold graphics/sound, source203=5/channel108=-1; old buffers and pending operands unknown; not an old-save migration or story continuation" });
             Publish(evidence, id + "-before-event", source.State);
             initial.Events.Step();
             initial.Events.Step();
@@ -153,9 +251,100 @@ public sealed class NativeBattleProductionEffectAdmissionTests
             Publish(evidence, id + "-before-entry", source.State);
         }
         GameState saved = string.IsNullOrWhiteSpace(evidence) ? JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(source.State))! : GameSession.Load(Path.Combine(evidence, id + "-before-entry.json"));
-        GameSession session = new(saved);
-        using GameWorld world = RestoreWorld(session, gameDirectory);
-        RunBlizzard(world, session, gameDirectory, evidence, id, true);
+        return (saved, gameDirectory, evidence, id);
+    }
+
+    private static void RunQuezacotl(GameWorld world, GameSession session, string gameDirectory, string? evidence, string id, bool startEncounter)
+    {
+        try
+        {
+            if (startEncounter)
+            {
+                world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.Normal, NativeSeed: 7));
+            }
+            world.ApplyBattleInput(new(BattleInputKind.SetMode, Mode: BattleAtbMode.Normal));
+            session.SetEventState(world.Events.Capture());
+            Publish(evidence, id + "-before-current-gf", session.State);
+            BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+            Assert.NotNull(battle.NativeGraphics);
+            Assert.NotNull(battle.NativeMusicProcess!.Commands);
+            BattleSnapshot initial = battle.Capture();
+            bool requested = initial.ActiveAction is { Ability: BattleAbility.GuardianForce, ActionId: 0 } || battle.QueuedActions.Any(action => action.Ability == BattleAbility.GuardianForce && action.ActionId == 0) || initial.GuardianForceCasts.Length != 0;
+            if (!requested)
+            {
+                for (int callback = 0; callback < 2000 && (!battle.NativeEntryReady || !battle.Combatants.Any(actor => actor.IsPlayer && actor.IsReady && actor.Abilities.Contains(BattleAbility.GuardianForce) && actor.EquipmentIds.Contains(0))); callback++)
+                {
+                    world.ApplyBattleInput(new(BattleInputKind.Tick));
+                }
+                Assert.True(battle.NativeEntryReady);
+                BattleCombatant caster = battle.Combatants.First(actor => actor.IsPlayer && actor.IsReady && actor.Abilities.Contains(BattleAbility.GuardianForce) && actor.EquipmentIds.Contains(0));
+                BattleCombatant target = battle.Combatants.First(actor => !actor.IsPlayer && actor.IsActive && actor.IsAlive);
+                world.ApplyBattleInput(new(BattleInputKind.Action, ActorId: caster.Id, TargetId: target.Id, Ability: BattleAbility.GuardianForce, ActionId: 0));
+                session.SetEventState(world.Events.Capture());
+                Publish(evidence, id + "-requested-gf", session.State);
+            }
+            int completed = battle.Events.Count(item => item.Kind == "ActionComplete");
+            bool materialized = false;
+            bool restored = false;
+            bool packets = false;
+            bool finished = false;
+            for (int callback = 0; callback < 4096; callback++)
+            {
+                world.ApplyBattleInput(new(BattleInputKind.Tick));
+                if (battle.NativeGraphics!.OriginalEffect is { Binding.Effect: 116 } effect)
+                {
+                    Assert.NotNull(effect.Binding.NativeQuezacotlResources);
+                    materialized = true;
+                    packets |= battle.NativeGraphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8");
+                    if (!restored && packets && effect.ReturnedDescriptor > 0)
+                    {
+                        session.SetEventState(world.Events.Capture());
+                        Publish(evidence, id + "-mid-gf", session.State);
+                        GameState mid = string.IsNullOrWhiteSpace(evidence) ? JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))! : GameSession.Load(Path.Combine(evidence, id + "-mid-gf.json"));
+                        GameSession independent = new(mid);
+                        using GameWorld clone = RestoreWorld(independent, gameDirectory);
+                        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Battle!.Capture()));
+                        world.ApplyBattleInput(new(BattleInputKind.Tick));
+                        clone.ApplyBattleInput(new(BattleInputKind.Tick));
+                        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Battle.Capture()));
+                        Assert.Equal(RenderBattle(world), RenderBattle(clone));
+                        PublishPixels(evidence, id + "-mid-gf", RenderBattle(world));
+                        restored = true;
+                    }
+                    if (effect.ReturnedDescriptor == 0 && battle.NativeEffectMemory!.Active == 0)
+                    {
+                        finished = true;
+                        break;
+                    }
+                }
+            }
+            Assert.True(materialized);
+            Assert.True(packets);
+            Assert.True(restored);
+            Assert.True(finished);
+            for (int callback = 0; callback < 128 && battle.Events.Count(item => item.Kind == "ActionComplete") == completed; callback++)
+            {
+                world.ApplyBattleInput(new(BattleInputKind.Tick));
+            }
+            Assert.True(battle.Events.Count(item => item.Kind == "ActionComplete") > completed);
+            Assert.Empty(battle.Capture().GuardianForceCasts);
+            Assert.DoesNotContain(battle.QueuedActions, action => action.Ability == BattleAbility.GuardianForce && action.ActionId == 0);
+            Assert.False(battle.ActiveAction is { Ability: BattleAbility.GuardianForce, ActionId: 0 });
+            session.SetEventState(world.Events.Capture());
+            Publish(evidence, id + "-after-gf", session.State);
+            PublishPixels(evidence, id + "-after-gf", RenderBattle(world));
+        }
+        catch (Exception exception)
+        {
+            session.SetEventState(world.Events.Capture());
+            Publish(evidence, id + "-unsupported", session.State);
+            if (world.Battle is not null)
+            {
+                Publish(evidence, id + "-failed-live.battle", world.Battle.Capture());
+            }
+            Publish(evidence, id + "-failure", new { Error = exception.ToString(), BattleFrame = world.Battle?.Frame, Callback = world.Battle?.NativeGraphics?.Callback });
+            throw;
+        }
     }
 
     private static void RunBlizzard(GameWorld world, GameSession session, string gameDirectory, string? evidence, string id, bool startEncounter)
@@ -175,7 +364,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
             Assert.NotNull(battle.NativeMusicProcess!.Commands);
             Assert.Null(battle.Capture().Definition.NativeEffectCatalog[143].BlizzardResources);
             BattleSnapshot initial = battle.Capture();
-            bool alreadyRequested = initial.ActiveAction is { Ability: BattleAbility.Magic, ActionId: 4 } || initial.QueuedActions.Any(action => action.Ability == BattleAbility.Magic && action.ActionId == 4);
+            bool alreadyRequested = initial.ActiveAction is { Ability: BattleAbility.Magic, ActionId: 4 } || battle.QueuedActions.Any(action => action.Ability == BattleAbility.Magic && action.ActionId == 4);
             if (!alreadyRequested)
             {
                 for (int callback = 0; callback < 2000 && (!battle.NativeEntryReady || !battle.Combatants.Any(actor => actor.IsPlayer && actor.IsReady && actor.MagicStocks.Any(stock => stock.Id == 4 && stock.Count > 0))); callback++)

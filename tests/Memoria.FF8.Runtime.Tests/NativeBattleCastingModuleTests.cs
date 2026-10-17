@@ -11,7 +11,7 @@ public sealed class NativeBattleCastingModuleTests
     {
         Assert.Equal(((byte)1, 0x80000010u), NativeBattleModuleState.SelectModelEffect(255, 0xC0000010));
         Assert.Equal(((byte)255, 0x80000010u), NativeBattleModuleState.SelectModelEffect(255, 0x80000010));
-        Assert.Throws<NotSupportedException>(() => NativeBattleModuleState.Clear().AppendModelEffect(0, 2));
+        Assert.Throws<NotSupportedException>(() => NativeBattleModuleState.Clear().AppendModelEffect(0, 6));
     }
 
     [Fact]

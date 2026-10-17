@@ -23,7 +23,15 @@ public enum NativeBattleModuleKind
     GuardianCastingParticle574670,
     GuardianCastingTrail574580,
     BoneSpriteSeed573560,
-    BoneSprite573640
+    BoneSprite573640,
+    BoneSpriteLargeSeed5736E0,
+    SpectralCastingSeed5737C0,
+    SpectralCastingSeed574260,
+    SpectralCasting573800,
+    SpectralCastingParticle573C40,
+    SpectralCastingGround573DF0,
+    SpectralCastingColumn573F40,
+    SpectralCastingRing5740D0
 }
 
 public enum NativeBattleModuleDrawKind
@@ -134,6 +142,14 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
                 NativeBattleModuleKind.GuardianCastingTrail574580 => state.AdvanceGuardianCastingTrail(index, inputs),
                 NativeBattleModuleKind.BoneSpriteSeed573560 => state.AdvanceBoneSpriteSeed(index, inputs),
                 NativeBattleModuleKind.BoneSprite573640 => state.AdvanceBoneSprite(index, inputs),
+                NativeBattleModuleKind.BoneSpriteLargeSeed5736E0 => state.AdvanceBoneSpriteSeed(index, inputs, 2),
+                NativeBattleModuleKind.SpectralCastingSeed5737C0 => state.AdvanceSpectralCastingSeed(index, 0x3B27),
+                NativeBattleModuleKind.SpectralCastingSeed574260 => state.AdvanceSpectralCastingSeed(index, 0x3C67),
+                NativeBattleModuleKind.SpectralCasting573800 => state.AdvanceSpectralCasting(index, inputs),
+                NativeBattleModuleKind.SpectralCastingParticle573C40 => state.AdvanceSpectralCastingParticle(index, inputs),
+                NativeBattleModuleKind.SpectralCastingGround573DF0 => state.AdvanceSpectralCastingGround(index, inputs),
+                NativeBattleModuleKind.SpectralCastingColumn573F40 => state.AdvanceSpectralCastingColumn(index, inputs),
+                NativeBattleModuleKind.SpectralCastingRing5740D0 => state.AdvanceSpectralCastingRing(index, inputs),
                 _ => throw new NotSupportedException("Native effect-module task requires its original callback owner.")
             };
             state = callback.State;

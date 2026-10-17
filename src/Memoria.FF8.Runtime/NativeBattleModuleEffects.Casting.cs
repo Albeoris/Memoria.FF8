@@ -29,11 +29,11 @@ public sealed partial record NativeBattleModuleState
         {
             throw new InvalidDataException("Native571840 requires its physical graphics model pointer.");
         }
-        if (effect is not (0 or 1 or 4))
+        if (effect is not (0 or 1 or 2 or 3 or 4 or 5))
         {
             throw new NotSupportedException($"Native571840 callback selector{effect} requires its original C816A4 implementation.");
         }
-        NativeBattleModuleKind kind = effect switch { 0 => NativeBattleModuleKind.CastingSeed574C80, 1 => NativeBattleModuleKind.GuardianCastingSeed5742A0, 4 => NativeBattleModuleKind.BoneSpriteSeed573560, _ => throw new InvalidOperationException() };
+        NativeBattleModuleKind kind = effect switch { 0 => NativeBattleModuleKind.CastingSeed574C80, 1 => NativeBattleModuleKind.GuardianCastingSeed5742A0, 2 => NativeBattleModuleKind.SpectralCastingSeed5737C0, 3 => NativeBattleModuleKind.SpectralCastingSeed574260, 4 => NativeBattleModuleKind.BoneSpriteSeed573560, 5 => NativeBattleModuleKind.BoneSpriteLargeSeed5736E0, _ => throw new InvalidOperationException() };
         (NativeBattleModuleState state, int slot) = Append(kind);
         byte[] payload = state.Slots[slot].Payload.ToArray();
         W(payload, 0, 0);

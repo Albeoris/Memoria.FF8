@@ -87,6 +87,59 @@ public sealed class NativeBattleBoneSpriteModuleTests
         Assert.Equal((ushort)0, draw.Phase);
     }
 
+    [Theory]
+    [InlineData(0u)]
+    [InlineData(0xFFFFFFFFu)]
+    public void Selector5DoublesOnlyScaleWithTheSameCrtBoneAndRetainedPayload(uint seed)
+    {
+        NativeCrtRandomState random = new(seed);
+        List<(int Model, byte Bone, short Fraction)> points = [];
+        NativeBattleModuleInputs inputs = Inputs(random) with
+        {
+            ReadModelBone = (model, bone, fraction) =>
+            {
+                points.Add((model, bone, fraction));
+                return new(200, -300, 400);
+            }
+        };
+        NativeBattleModuleState ordinary = RetainedPool().AppendModelEffect(0, 4).Advance(inputs).State;
+        NativeBattleModuleState large = RetainedPool().AppendModelEffect(0, 5).Advance(inputs).State;
+        NativeBattleModuleStep first = ordinary.Advance(inputs);
+        NativeBattleModuleStep second = large.Advance(inputs);
+        Assert.Equal(2, points.Count);
+        Assert.Equal(points[0], points[1]);
+        Assert.Equal(first.CrtRandomAfter, second.CrtRandomAfter);
+        NativeCrtRandomState expected = random.Draw(out _).Draw(out _).Draw(out ushort scale);
+        Assert.Equal(expected, second.CrtRandomAfter);
+        Assert.Equal(2 * (scale % 1152) + 0x1400, Word(second.State.Slots[1].Payload, 16));
+        Assert.Equal(first.State.Slots[1].Payload.RemoveRange(16, 2).ToArray(), second.State.Slots[1].Payload.RemoveRange(16, 2).ToArray());
+        NativeBattleModuleDraw normalDraw = Assert.Single(first.Draws);
+        NativeBattleModuleDraw largeDraw = Assert.Single(second.Draws);
+        Assert.Equal(2 * normalDraw.Scale, largeDraw.Scale);
+        Assert.Equal(-(largeDraw.Scale >> 3), largeDraw.DepthOffset);
+        Assert.Equal(normalDraw.Anchor, largeDraw.Anchor);
+        Assert.Equal(normalDraw.SpriteFlags, largeDraw.SpriteFlags);
+        Assert.Equal(normalDraw.SpritePaletteOffsets.ToArray(), largeDraw.SpritePaletteOffsets.ToArray());
+        Assert.Equal((ushort)1, Word(second.State.Slots[1].Payload, 0));
+    }
+
+    [Fact]
+    public void Selector5PreservesPhaseZeroSoundAndPausedChildContracts()
+    {
+        NativeBattleModuleState state = RetainedPool().AppendModelEffect(0, 5);
+        NativeBattleModuleStep pausedSeed = state.Advance(new(1));
+        Assert.Equal(JsonSerializer.Serialize(state with { PublishedCount = 1 }), JsonSerializer.Serialize(pausedSeed.State));
+        Assert.Empty(pausedSeed.Draws);
+        NativeBattleModuleStep seed = state.Advance(Inputs(new(4)));
+        Assert.Equal(new ushort[] { 19, 20 }, seed.Draws.Select(draw => draw.Sound));
+        Assert.Equal(new NativeCrtRandomState(4), seed.CrtRandomAfter);
+        NativeBattleModuleStep child = seed.State.Advance(Inputs(seed.CrtRandomAfter!));
+        NativeBattleModuleStep restored = JsonSerializer.Deserialize<NativeBattleModuleState>(JsonSerializer.Serialize(child.State))!.Advance(Inputs(child.CrtRandomAfter!) with { GraphicsFlags = 1 });
+        Assert.Equal(JsonSerializer.Serialize(child.State), JsonSerializer.Serialize(restored.State));
+        Assert.Equal(child.CrtRandomAfter, restored.CrtRandomAfter);
+        Assert.Equal((ushort)1, Assert.Single(restored.Draws).Phase);
+    }
+
     [Fact]
     public void UnknownBoneCountOrCrtAndZeroBoneCountRemainStrictAtTheActualSpawn()
     {
@@ -141,10 +194,12 @@ public sealed class NativeBattleBoneSpriteModuleTests
         Assert.Equal(0, step.State.PublishedCount);
     }
 
-    [Fact]
-    public void CompletePoolLifetimeAndJsonResumePreserveAll75CrtDraws()
+    [Theory]
+    [InlineData((byte)4)]
+    [InlineData((byte)5)]
+    public void CompletePoolLifetimeAndJsonResumePreserveAll75CrtDraws(byte selector)
     {
-        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(0, 4);
+        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(0, selector);
         NativeCrtRandomState random = new(12);
         int frames = 0;
         int children = 0;

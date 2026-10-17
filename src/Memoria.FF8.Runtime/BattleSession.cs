@@ -1204,7 +1204,9 @@ public sealed partial class BattleSession
         ValidateNativeHeaderReference(actor, nativeHeaderIndex);
         bool factualHeader = nativeHeaderIndex is not null;
         bool native = nativeAction is not null || graphic is not null || renzokuken is not null || duel is not null;
-        bool factualNativeAction = factualHeader && (native || HasInstalledNativeAction(actor, new(actorId, targetId, ability, actionId) { NativeAction = nativeAction, NativeGraphic = graphic }));
+        bool installedNativeAction = native || HasInstalledNativeAction(actor, new(actorId, targetId, ability, actionId) { NativeAction = nativeAction, NativeGraphic = graphic });
+        bool factualNativeAction = factualHeader && installedNativeAction;
+        bool physicalQueuedNativeAction = allowNativeQueuedState && NativeGraphics is not null && installedNativeAction;
         ValidateNativePlayerReaction(actor, ability, nativeAction, reaction);
         ValidateNativeMenuInvocation(actor, ability, actionId, nativeAction, duel, slots);
         if (renzokuken is not null && (nativeAction is not null || graphic is not null || ability != BattleAbility.LimitBreak || actionId != 5 << 16 || actor.NativeLimit?.Command != 5 || renzokuken.CrisisLevel is < 1 or > 4))
@@ -1233,8 +1235,10 @@ public sealed partial class BattleSession
         //4842B0 grows DWORD20 despite pending flags4/8; only the native clock/status/80 gates stop it.
         //A validated physical action header may therefore retain a nonzero owned gauge between queueing and action-pause publication.
         //Ordinary Attack/Magic resolve installed metadata through the actor/action catalog and legitimately leave nativeAction null.
-        bool retainedNativeGauge = factualNativeAction && actor.NativeAtb is not null;
-        if (nativeHeaderIndex is null && !allowNativeQueuedState && !CanRetainNativeSupportActor(actor, reaction) || actor.Atb != 0 && reaction is null && !retainedNativeGauge || !native && nativeTargetMask == 0 && (actor.IsPlayer == target.IsPlayer) != allies || !validTarget || !unique && !native && !factualNativeAction || !native && !actor.Abilities.Contains(ability))
+        //48E620's successful GF branch queues its FE input without494A60; its already-grown gauge survives before48E830.
+        //Only the physical-bank caller can establish this preheader authority; ordinary managed queues cannot.
+        bool retainedNativeGauge = (factualNativeAction || physicalQueuedNativeAction) && actor.NativeAtb is not null;
+        if (nativeHeaderIndex is null && !allowNativeQueuedState && !CanRetainNativeSupportActor(actor, reaction) || actor.Atb != 0 && reaction is null && !retainedNativeGauge || !native && nativeTargetMask == 0 && (actor.IsPlayer == target.IsPlayer) != allies || !validTarget || !unique && !native && !factualNativeAction && !physicalQueuedNativeAction || !native && !actor.Abilities.Contains(ability))
         {
             throw new InvalidDataException("Invalid queued or active battle action.");
         }

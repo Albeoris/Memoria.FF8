@@ -152,8 +152,9 @@ public sealed partial class BattleSession
 
     private void ValidateNativeCommandBindings(HashSet<string> busy)
     {
-        foreach (NativeBattleCommandBank bank in nativeCommandBanks.Banks)
+        for (int bankIndex = 0; bankIndex < nativeCommandBanks.Banks.Length; bankIndex++)
         {
+            NativeBattleCommandBank bank = nativeCommandBanks.Banks[bankIndex];
             for (int index = 0; index < 22; index++)
             {
                 NativeBattleCommandPacket physical = bank.Packets[index];
@@ -178,6 +179,10 @@ public sealed partial class BattleSession
                 if (physical.ReadByte(1) != (command.NativeQueuedCommand ?? command.NativeAction?.Command))
                 {
                     throw new InvalidDataException("Saved native command differs from its physical command BYTE.");
+                }
+                if (command.Ability == BattleAbility.GuardianForce)
+                {
+                    ValidateNativeGuardianInputBinding(command, physical, bankIndex);
                 }
                 ValidateSavedAction(command.ActorId, command.TargetId, busy, command.Ability, command.ActionId, true, command.NativeAction, command.NativeTargetMask, command.NativeGraphic, command.NativeRenzokuken, command.NativePlayerReaction, allowNativeQueuedState: true, duel: command.NativeDuel, slots: command.NativeSlots);
                 ValidateNativeMagicTargets(command.Ability, command.ActionId, command.NativeMagicTargets);

@@ -197,17 +197,37 @@ public sealed partial class BattleSession
         foreach (BattleGuardianForceCast cast in saved.GuardianForceCasts)
         {
             BattleCombatant actor = GetActor(cast.ActorId);
-            if (saved.Outcome != BattleOutcome.Active || cast.Command.ActorId != actor.Id || cast.Command.Ability != BattleAbility.GuardianForce || !guardianForces.ContainsKey(cast.Command.ActionId) || !actor.EquipmentIds.Contains(cast.Command.ActionId) || cast.RemainingTicks > cast.InitialTicks || !guardianForceCasts.TryAdd(actor.Id, cast) || actor.Atb != 0)
+            //4842B0 decrements the GF charge WORD separately from growing the participant's ATB DWORD.
+            //RestoreNativeAtb already checked the raw gauge and its HUD projection; components retain their zero-gauge invariant.
+            bool retainedRawGauge = saved.NativeGraphics is not null && actor.NativeAtb is not null;
+            if (saved.Outcome != BattleOutcome.Active || cast.Command.ActorId != actor.Id || cast.Command.Ability != BattleAbility.GuardianForce || !guardianForces.ContainsKey(cast.Command.ActionId) || !actor.EquipmentIds.Contains(cast.Command.ActionId) || cast.RemainingTicks > cast.InitialTicks || !guardianForceCasts.TryAdd(actor.Id, cast) || !retainedRawGauge && actor.Atb != 0)
             {
                 throw new InvalidDataException("Invalid saved GF cast owner.");
             }
             NativeBattleScriptTasks tasks = saved.NativeScriptState.Tasks;
-            int callbacks = Enumerable.Range(0, 16).Count(index => tasks.Allocated(index) && tasks.Slots[index].ReadDword(0) == 0x48E620 && tasks.Slots[index].ReadByte(12) == actor.NativeIndex && tasks.Slots[index].ReadByte(14) == 64 + cast.Command.ActionId);
+            int callbacks = Enumerable.Range(0, 16).Count(index => tasks.Allocated(index) && tasks.Slots[index].ReadDword(0) == 0x48E620 && tasks.Slots[index].ReadByte(12) == actor.NativeIndex && tasks.Slots[index].ReadByte(13) == 254 && tasks.Slots[index].ReadByte(14) == 64 + cast.Command.ActionId);
             if (callbacks != 1)
             {
                 throw new InvalidDataException("Saved GF charge requires its single canonical48E620 callback record.");
             }
             actor.IsBusy = true;
+        }
+    }
+
+    private void ValidateNativeGuardianInputBinding(BattleAttackCommand command, NativeBattleCommandPacket physical, int bankIndex)
+    {
+        BattleCombatant actor = GetActor(command.ActorId);
+        BattleActionDefinition action = FindAction(BattleAbility.GuardianForce, command.ActionId);
+        BattleNativeAction? native = action.NativeAction;
+        BattleGuardianForceVital? gf = guardianForces.GetValueOrDefault(command.ActionId);
+        if (command.NativeQueuedCommand is not (3 or 254) || bankIndex != (command.NativeQueuedCommand == 3 ? 2 : 1) || command.NativeHeaderIndex is not null || command.NativeAction is not null || !command.NativeMagicTargets.IsDefaultOrEmpty || guardianForceCasts.ContainsKey(actor.Id) || !actor.IsPlayer || !actor.EquipmentIds.Contains(command.ActionId) || gf is not { Acquired: true, HitPoints: > 0 } || !action.Available || native is null || native.Command != 254 || native.ActionId != command.ActionId + 64)
+        {
+            throw new InvalidDataException("Saved GF input lacks its equipped living GF and original3/FE command owner.");
+        }
+        ushort mask = command.NativeTargetMask != 0 ? command.NativeTargetMask : checked((ushort)(1 << GetActor(command.TargetId).NativeIndex));
+        if (physical.ReadWord(4) != command.ActionId + 64 || physical.ReadByte(2) != 0 || physical.ReadByte(3) != 0 || physical.ReadWord(6) != mask)
+        {
+            throw new InvalidDataException("Saved GF input contradicts its original action WORD, target WORD or flag bytes.");
         }
     }
 }

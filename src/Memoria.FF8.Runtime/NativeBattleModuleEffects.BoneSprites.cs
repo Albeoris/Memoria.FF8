@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeBattleModuleState
 {
-    private NativeBattleModuleCallback AdvanceBoneSpriteSeed(int slot, NativeBattleModuleInputs inputs)
+    private NativeBattleModuleCallback AdvanceBoneSpriteSeed(int slot, NativeBattleModuleInputs inputs, int scaleMultiplier = 1)
     {
         if ((inputs.GraphicsFlags & 1) != 0)
         {
@@ -42,7 +42,8 @@ public sealed partial record NativeBattleModuleState
             W(childPayload, 4, point.X);
             W(childPayload, 6, point.Y);
             W(childPayload, 8, point.Z);
-            W(childPayload, 16, Draw(ref crt) % 1152 + 2560);
+            //5736E0 differs only here: LEA edx,[edx+edx+1400h] instead of573560's ADD edx,A00h.
+            W(childPayload, 16, (Draw(ref crt) % 1152 + 2560) * scaleMultiplier);
             random = crt;
             state = state.StoreCastingPayload(child, childPayload);
         }
