@@ -67,7 +67,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
             }
             else if (slot is { Kind: 1, ArenaOffset: int arenaOffset })
             {
-                if (arenaOffset is < 0 or > NativeBattleEffectArena.Length - 12)
+                if (arenaOffset is < 0 or > NativeBattleEffectArena.Length - 12 || slot.Source is not null || slot.Offset != 0)
                 {
                     throw new InvalidDataException("Native TIM pointer leaves the original effect arena.");
                 }
@@ -79,9 +79,25 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
             else if (slot is { Kind: 0, Rectangle: { } rectangle })
             {
                 RequireRectangle(rectangle);
-                RequireSource(slot.Source!, slot.Offset, checked(2 * rectangle.Width * rectangle.Height));
+                int length = checked(2 * rectangle.Width * rectangle.Height);
+                if (slot.StagingAddress is not null)
+                {
+                    throw new InvalidDataException("Native rectangle upload cannot use a staging TIM pointer.");
+                }
+                if (slot.ArenaOffset is int rectangleOffset)
+                {
+                    RequireArenaRange(rectangleOffset, length);
+                    if (slot.Source is not null || slot.Offset != 0)
+                    {
+                        throw new InvalidDataException("Native rectangle upload requires one source pointer union arm.");
+                    }
+                }
+                else
+                {
+                    RequireSource(slot.Source!, slot.Offset, length);
+                }
             }
-            else if (slot is not null && (slot.Kind != 3 || slot.Copy is null))
+            else if (slot is not null && (slot.Kind != 3 || slot.Copy is null || slot.ArenaOffset is not null || slot.StagingAddress is not null))
             {
                 throw new InvalidDataException("Native texture command requires its original TIM pointer or copy rectangle.");
             }
@@ -152,7 +168,21 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
         {
             throw new NotSupportedException("Native505EB0 increments its count to32 without writing the final slot; the resulting stale-slot drain is unsupported.");
         }
-        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(null, 0)) with { Kind = 3, Copy = new(sourceX, sourceY, width, height, destinationX, destinationY), ArenaOffset = null, StagingAddress = null };
+        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(null, 0)) with { Kind = 3, Copy = new(sourceX, sourceY, width, height, destinationX, destinationY), Source = null, Offset = 0, ArenaOffset = null, StagingAddress = null };
+        return this with { Slots = Slots.SetItem(Count, slot), Count = Count + 1 };
+    }
+
+    public NativeBattleEffectTextureState EnqueueArenaRectangle505DF0(NativeBattleEffectTextureRectangle rectangle, NativeBattleEffectArena arena, int offset)
+    {
+        Validate();
+        RequireRectangle(rectangle);
+        arena.Validate();
+        RequireArenaRange(offset, checked(2 * rectangle.Width * rectangle.Height));
+        if (Count == 31)
+        {
+            throw new NotSupportedException("Native505DF0 increments its count to32 without writing the final slot; the resulting stale-slot drain is unsupported.");
+        }
+        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(null, 0)) with { Kind = 0, Source = null, Offset = 0, Rectangle = rectangle, ArenaOffset = offset, StagingAddress = null };
         return this with { Slots = Slots.SetItem(Count, slot), Count = Count + 1 };
     }
 
@@ -186,13 +216,22 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
                 Copy(pending.Copy!);
                 continue;
             }
-            NativeBattleEffectHeapAllocation source = pending.Kind == 1 && pending.StagingAddress is uint stagingAddress ? MaterializeStagingTim(stagingSource ?? throw new NotSupportedException("Native505D20 requires the latest shared199B018 staging for its retained mutable TIM pointer."), stagingAddress) : pending.Kind == 1 && pending.ArenaOffset is int arenaOffset ? MaterializeArenaTim(arenaSource ?? throw new NotSupportedException("Native505D20 requires the latest effect arena for its retained mutable TIM pointer."), arenaOffset) : pending.Source ?? throw new InvalidDataException("Native TIM upload lost its source.");
             if (pending.Kind == 0)
             {
                 NativeBattleEffectTextureRectangle rectangle = pending.Rectangle!;
-                Write(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height, source.Data.AsSpan().Slice(pending.Offset, checked(2 * rectangle.Width * rectangle.Height)));
+                int length = checked(2 * rectangle.Width * rectangle.Height);
+                if (pending.ArenaOffset is int rectangleOffset)
+                {
+                    NativeBattleEffectArena current = arenaSource ?? throw new NotSupportedException("Native505D20 requires the latest effect arena for its retained mutable rectangle pointer.");
+                    Write(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height, current.Read(rectangleOffset, length));
+                }
+                else
+                {
+                    Write(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height, pending.Source!.Data.AsSpan().Slice(pending.Offset, length));
+                }
                 continue;
             }
+            NativeBattleEffectHeapAllocation source = pending.StagingAddress is uint stagingAddress ? MaterializeStagingTim(stagingSource ?? throw new NotSupportedException("Native505D20 requires the latest shared199B018 staging for its retained mutable TIM pointer."), stagingAddress) : pending.ArenaOffset is int arenaOffset ? MaterializeArenaTim(arenaSource ?? throw new NotSupportedException("Native505D20 requires the latest effect arena for its retained mutable TIM pointer."), arenaOffset) : pending.Source ?? throw new InvalidDataException("Native TIM upload lost its source.");
             int first = pending.Offset + 8;
             Upload(first);
             Upload(checked(first + BlockLength(source, first)));
@@ -313,6 +352,14 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
         if (rectangle.X < 0 || rectangle.Y < 0 || rectangle.Width < 0 || rectangle.Height < 0 || rectangle.X + rectangle.Width > 1024 || rectangle.Y + rectangle.Height > 512)
         {
             throw new InvalidDataException("Native505DF0 rectangle leaves its1024x512 word VRAM.");
+        }
+    }
+
+    private static void RequireArenaRange(int offset, int length)
+    {
+        if (offset < 0 || length < 0 || offset > NativeBattleEffectArena.Length - length)
+        {
+            throw new InvalidDataException("Native rectangle pointer leaves the original effect arena.");
         }
     }
 
