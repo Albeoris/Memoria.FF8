@@ -22,8 +22,7 @@ public static partial class NativeBattlePoseMatrices
         NativeBattleSequenceState state = model.SequenceState ?? throw new NotSupportedException("Native5086F0 requires its actual resource header and pose owner.");
         ushort flags2 = model.Flags2 ?? throw new NotSupportedException("Native5086F0 requires modelWORD2.");
         byte sequence = model.Sequence ?? throw new NotSupportedException("Native5086F0 requires its resource header's current sequenceBYTE0.");
-        NativeBattleDecodedPose pose = source.Sample(state.Pose ?? throw new NotSupportedException("Native5086F0 has no selected pose."), state.PoseFrame114 ?? throw new NotSupportedException("Native5086F0 has no decoded pose frame."), state.PoseFlags109);
-        NativeBattleEffectLocalBounds bounds = ShadowBounds5086F0(source, pose);
+        NativeBattleEffectLocalBounds bounds = ShadowBounds5086F0(source, NativeBattleBodyBoneMatrices.Require(model, source));
         short? minimum = model.MinimumY146;
         if ((flags2 & 8) == 0 && sequence == state.Default2)
         {
@@ -41,7 +40,17 @@ public static partial class NativeBattlePoseMatrices
         {
             throw new InvalidDataException("Native5086F0 requires every actual posed bone matrix.");
         }
-        Matrix[] matrices = BoneMatrices(source, pose);
+        return ShadowBounds5086F0(source, StageBoneMatrices(source, pose));
+    }
+
+    public static NativeBattleEffectLocalBounds ShadowBounds5086F0(NativeBattlePoseSource source, ImmutableArray<NativeBattleActionMatrix> current)
+    {
+        source.Validate();
+        if (current.IsDefaultOrEmpty || current.Length != source.BoneCount)
+        {
+            throw new InvalidDataException("Native5086F0 requires the actual current body bone matrices.");
+        }
+        Matrix[] matrices = current.Select(matrix => new Matrix(matrix.Rotation.ToArray(), matrix.X, matrix.Y, matrix.Z)).ToArray();
         short minX = unchecked((short)(matrices[0].X - 500));
         short maxX = unchecked((short)(matrices[0].X + 500));
         short minY = unchecked((short)matrices[0].Y);

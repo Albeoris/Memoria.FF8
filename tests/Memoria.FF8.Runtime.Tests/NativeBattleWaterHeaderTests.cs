@@ -44,14 +44,11 @@ public sealed class NativeBattleWaterHeaderTests
         Assert.Equal(new byte[] { 0, 1, 2, 3, 4, 5, 6 }, captured.Header.Read(0xCC, 7));
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    [InlineData(-128)]
-    public void Nonpositive_signed_count_still_reads_explicit_first_header_actor_and_writes_slot_target(sbyte count)
+    [Fact]
+    public void Zero_count_still_reads_explicit_first_header_actor_and_writes_slot_target()
     {
         NativeBattleWaterHeader header = Warm();
-        var result = NativeBattleWaterHeaderCapture.CaptureAA4E90(header, Arena(), Bank, 0, 6, 11, 4, Contacts(255), count, Models());
+        var result = NativeBattleWaterHeaderCapture.CaptureAA4E90(header, Arena(), Bank, 0, 6, 11, 4, Contacts(255), 0, Models());
         Assert.Equal(11, result.CurrentHeaderIndex);
         Assert.Equal((byte)4, result.Header.Read(0x48, 1)[0]);
         Assert.Equal((byte)0, result.Header.Read(0x41, 1)[0]);
@@ -59,6 +56,18 @@ public sealed class NativeBattleWaterHeaderTests
         Assert.Equal((byte)4, result.Arena.Read(Slot(0) + 0x1B, 1)[0]);
         Assert.Equal(header.Bytes.Skip(0xCC).Take(7), result.Header.Read(0xCC, 7));
         Assert.Equal(header.Bytes.Skip(0x49).Take(3), result.Header.Read(0x49, 3));
+    }
+
+    [Theory]
+    [InlineData(128)]
+    [InlineData(255)]
+    public void High_contact_count_is_unsigned_and_requires_its_actual_contact_owner(byte count)
+    {
+        Assert.Throws<NotSupportedException>(() => NativeBattleWaterHeaderCapture.CaptureAA4E90(Warm(), Arena(), Bank, 0, 0, 0, 0, [], count, Models()));
+        ImmutableArray<byte> contacts = Enumerable.Repeat((byte)3, count).ToImmutableArray();
+        var result = NativeBattleWaterHeaderCapture.CaptureAA4E90(Warm(), Arena(), Bank, 0, 0, 0, 0, contacts, count, Models());
+        Assert.Equal((byte)1, result.Header.Read(0x41, 1)[0]);
+        Assert.Equal((byte)3, result.Arena.Read(Slot(0) + 0x1B, 1)[0]);
     }
 
     [Theory]

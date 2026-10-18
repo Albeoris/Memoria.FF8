@@ -130,7 +130,7 @@ public sealed class NativeBattleWaterInitializationTests
         Assert.Throws<InvalidDataException>(() => NativeBattleWaterInitialization.InitializeA9B200(NativeBattleScriptedEffectMemory.FromColdProcess(), fixture.Arena, fixture.Profile, fixture.Inputs with { Resource0 = fixture.Inputs.Resource0 with { Address = 0x80000000 } }));
     }
 
-    private static (NativeBattleEffectArena Arena, NativeBattleWater222Profile Profile, NativeBattleWaterInitializationInputs Inputs) Fixture()
+    internal static (NativeBattleEffectArena Arena, NativeBattleWater222Profile Profile, NativeBattleWaterInitializationInputs Inputs) Fixture()
     {
         NativeBattleEffectArena arena = PutDword(PutDword(PutDword(PutDword(NativeBattleEffectArena.Clear(), File0 + 4, 0x70), File0 + 0x10, 0x80), File0 + 0x18, 0x90), File1 + 0x1C, 0x58);
         arena = arena.Write(File1 + 0x58, Enumerable.Repeat((byte)0xA5, 0x800).ToArray());

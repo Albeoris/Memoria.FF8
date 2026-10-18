@@ -18,6 +18,7 @@ public sealed class NativeBattleShadowTests
         //One actual compressed pose: XYZ=(0,-3,0), unscaled identity bone.
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), [1, 0, 0, 0, 8, 0, 0, 0, 1, 0x80, 2, 0]);
         NativeBattleGraphicsModel model = new(0, 3) { Flags2 = flags2, Sequence = sequence, MinimumY146 = 0, SequenceState = new() { Pose = 0, PoseFrame114 = 1 } };
+        model = NativeBattleBodyBoneMatrices.Publish508C90(model, source);
         NativeBattleGraphicsModel published = NativeBattlePoseMatrices.PublishShadowBounds5086F0(model, source);
         Assert.Equal(expectedMinimum, published.MinimumY146);
         Assert.Equal((short)-48, published.GeometryBounds52!.Minimum.Y);

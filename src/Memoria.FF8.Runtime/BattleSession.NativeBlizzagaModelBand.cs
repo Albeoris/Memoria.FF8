@@ -12,7 +12,9 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Blizzaga requires its retained view matrix.");
         graphics = SubmitNativeShadowPackets5088A0(graphics, model, projection, 4112, false);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native Blizzaga requires its actual body skeleton.");
-        ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattlePoseMatrices.ModelGroupMatrices50F190(model, source, view);
+        model = NativeBattlePoseMatrices.ComposeGeometryMatrices5095B0(model, source, view);
+        graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
+        ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(model, source);
         ImmutableArray<NativeBattleRawMesh> geometry = resource.Geometry ?? throw new NotSupportedException("Native Blizzaga requires its actual body geometry.");
         ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Native Blizzaga requires its observed extra geometry presence.");
         bool shared = !linked.IsEmpty && (resource.LinkedGeometryUsesBodySkeleton ?? throw new NotSupportedException("Native Blizzaga requires its actual linked skeleton ownership."));
@@ -44,6 +46,7 @@ public sealed partial class BattleSession
                 Submit(mesh, linkedMatrices, binding);
             }
         }
+        graphics = graphics with { Models = graphics.Models.SetItem(index, NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[index], source)) };
         return (graphics, minimum, maximum);
 
         void Submit(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleModelTextureBinding? binding)

@@ -149,8 +149,10 @@ public static class NativeBattleWaterMeshPreparation
         {
             frame = frame.WriteTemporaryDword(0xE0 + 4 * lane, unchecked((uint)(int)factors[lane]));
         }
-        uint start = ResolveMorphShape(frame, resources, shapeResourceMap, startId);
-        uint end = ResolveMorphShape(frame, resources, shapeResourceMap, endId);
+        uint start = NativeBattleWaterShapeSelection.ResolveB657E0(frame, resources, shapeResourceMap, startId);
+        uint end = NativeBattleWaterShapeSelection.ResolveB657E0(frame, resources, shapeResourceMap, endId);
+        RequireResource(frame, resources, start, 0x580);
+        RequireResource(frame, resources, end, 0x580);
         int startOffset = ArenaOffset(start, 0x580);
         int endOffset = ArenaOffset(end, 0x580);
         uint startCount = Dword(frame.Arena, startOffset + 0x18);
@@ -238,29 +240,6 @@ public static class NativeBattleWaterMeshPreparation
         }
         frame = WriteCoreDword(frame, CoreDword(frame, 0x27973EC) + 0x7C, frame.ReadTemporaryDword(0x60));
         return new(frame, new(attempts.ToImmutable(), allocated));
-    }
-
-    private static uint ResolveMorphShape(NativeBattleWaterExecutionFrame frame, NativeBattleWater222Resources resources, NativeBattleEffectHeapAllocation map, int id)
-    {
-        if (map.Data.IsDefault || map.Data.Length != 16 || CoreDword(frame, CoreDword(frame, 0x27973EC) + 0xAC) != 0x186C8CC)
-        {
-            throw new NotSupportedException("Native Water morph requires its actual shape resource map.");
-        }
-        int resource = map.Data[id];
-        if ((uint)resource > 1)
-        {
-            throw new NotSupportedException("Native Water morph resource map leaves its two current files.");
-        }
-        uint basis = CoreDword(frame, 0x2798A68 + 4u * (uint)resource);
-        int file = ArenaOffset(basis, resources.Files[resource].Data.Length);
-        int directory = checked((int)Dword(frame.Arena, file + 12));
-        if (directory < 0 || directory > resources.Files[resource].Data.Length - 4 - 14 * 4 || Dword(frame.Arena, file + directory) != 14)
-        {
-            throw new InvalidDataException("Native Water current shape directory contradicts its bounded owner.");
-        }
-        uint shape = unchecked(basis + (uint)directory + Dword(frame.Arena, file + directory + 4 + id * 4));
-        RequireResource(frame, resources, shape, 0x580);
-        return shape;
     }
 
     private static void RequireResource(NativeBattleWaterExecutionFrame frame, NativeBattleWater222Resources resources, uint address, int length)

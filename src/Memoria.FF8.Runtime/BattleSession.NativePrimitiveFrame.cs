@@ -89,7 +89,13 @@ public sealed partial class BattleSession
         uint color = model.Color40 ?? throw new NotSupportedException("Native502D40 requires its color DWORD40.");
         uint mask = model.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native502D40 requires its object mask DWORD124.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native502D40 requires its actual previously published camera matrix.");
-        ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattlePoseMatrices.GeometryMatrices(model, source, view);
+        if ((model.Flags2!.Value & 1) != 0)
+        {
+            throw new NotSupportedException("Native502D40 billboard geometry requires its original50CDC0 angle owner.");
+        }
+        model = NativeBattlePoseMatrices.ComposeGeometryMatrices5095B0(model, source, view);
+        graphics = graphics with { Models = graphics.Models.SetItem(model.Index, model) };
+        ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(model, source);
         ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Native502D40 requires its observed linked geometry presence.");
         ImmutableArray<NativeBattleGeometryPrimitive>.Builder primitives = ImmutableArray.CreateBuilder<NativeBattleGeometryPrimitive>();
         bool shared = !linked.IsEmpty && (resource.LinkedGeometryUsesBodySkeleton ?? throw new NotSupportedException("Native linked geometry requires its original507BF0/507E20 resource shape."));

@@ -169,7 +169,9 @@ public sealed partial class BattleSession
                 {
                     model = NativeBattlePoseMatrices.PublishShadowBounds5086F0(model, drawResource.PoseSource ?? throw new NotSupportedException("Native5086F0 requires its actual posed body skeleton."));
                 }
-                graphics = SubmitNativeModelPackets502D40(graphics, model, drawResource);
+                graphics = SubmitNativeModelPackets502D40(graphics with { Models = models.SetItem(index, model) }, model, drawResource);
+                models = graphics.Models;
+                model = models[index];
             }
             if ((model.Flags0 & 2) != 0 && (model.Flags0 & 8) == 0 && !((model.Flags8!.Value & 0x18) != 0 && (model.ResourceFlags44!.Value & 0x40) != 0) && (flags & 0x201) == 0)
             {
@@ -307,6 +309,13 @@ public sealed partial class BattleSession
                         graphics = NativeGraphics;
                     }
                 }
+            }
+            else if ((model.Flags0 & 2) != 0 && model.ModelId4 != 0x8F)
+            {
+                NativeBattleGraphicsResource refreshResource = NativeGraphicsPoseResource(graphics with { Models = models.SetItem(index, model) }, index);
+                model = refreshResource.PoseSource is { } bodySource
+                    ? NativeBattleBodyBoneMatrices.Publish508C90(model, bodySource)
+                    : model with { CurrentBodyBoneMatrices = null };
             }
             if (definition.NativeGraphics?.PrimitiveTables is not null && (model.Flags0 & 2) != 0)
             {

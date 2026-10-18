@@ -286,7 +286,9 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native6D19A0 requires its prior camera matrix.");
         graphics = SubmitNativeShadowPackets5088A0(graphics, target, projection, 4112, false);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native6D19A0 requires its actual body skeleton.");
-        ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattlePoseMatrices.ModelGroupMatrices50F190(target, source, view);
+        target = NativeBattlePoseMatrices.ComposeGeometryMatrices5095B0(target, source, view);
+        graphics = graphics with { Models = graphics.Models.SetItem(model, target) };
+        ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(target, source);
         ImmutableArray<NativeBattleRawMesh> geometry = resource.Geometry ?? throw new NotSupportedException("Native6D19A0 requires its actual body geometry.");
         ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Native6D19A0 requires its observed linked geometry presence.");
         bool shared = !linked.IsEmpty && (resource.LinkedGeometryUsesBodySkeleton ?? throw new NotSupportedException("Native6D19A0 requires its actual linked skeleton ownership."));
@@ -312,6 +314,7 @@ public sealed partial class BattleSession
                 graphics = Submit(graphics, mesh, linkedMatrices, target.LinkedTextureSlots ?? throw new NotSupportedException("Native6D19A0 requires its linked texture relocation."));
             }
         }
+        graphics = graphics with { Models = graphics.Models.SetItem(model, NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[model], source)) };
         return (graphics, extent);
 
         NativeBattleGraphicsState Submit(NativeBattleGraphicsState current, NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleModelTextureBinding? binding)

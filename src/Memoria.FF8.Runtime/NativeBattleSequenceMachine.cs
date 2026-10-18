@@ -47,6 +47,7 @@ public static class NativeBattleSequenceMachine
         if (AdvancePose())
         {
             flags = (ushort)((flags & ~0xC) | 4);
+            PublishBodyPose508C90();
         }
         else
         {
@@ -101,7 +102,15 @@ public static class NativeBattleSequenceMachine
             {
                 state = state with { DecodedPose = poseSource.Sample(progress.Pose, progress.Frame, progress.Flags) };
             }
+            PublishBodyPose508C90();
             return false;
+        }
+
+        void PublishBodyPose508C90()
+        {
+            model = resource.PoseSource is { } bodySource
+                ? NativeBattleBodyBoneMatrices.Publish508C90(model with { SequenceState = state }, bodySource)
+                : model with { CurrentBodyBoneMatrices = null };
         }
 
         void SelectPose(byte pose)

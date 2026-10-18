@@ -53,6 +53,51 @@ public static class NativeBattleWaterMatrixCommands
         int advance;
         switch (instruction & 0x1FF)
         {
+            case 0x104:
+                uint savedDestination = unchecked(0x2798B68u + (uint)(0x20 * (short)Operand(2)));
+                NativeBattleActionMatrix savedEuler = NativeBattleGfMatrices.Euler56CD50(Angles(frame));
+                frame = WriteEuler(frame, savedEuler, 0x20);
+                NativeBattleActionMatrix moduleView = ReadModuleView(frame);
+                NativeBattleActionMatrix savedRotation = NativeBattleGfMatrices.Multiply56C090(moduleView, savedEuler);
+                frame = WriteRotation(frame, savedDestination, savedRotation);
+                NativeBattleFullMacVertex savedTranslation = NativeBattleGfMatrices.TransformMac460840(moduleView, Position(frame));
+                frame = WriteCoreDword(frame, unchecked(savedDestination + 20), unchecked((uint)savedTranslation.X));
+                frame = WriteCoreDword(frame, unchecked(savedDestination + 24), unchecked((uint)savedTranslation.Y));
+                frame = WriteCoreDword(frame, unchecked(savedDestination + 28), unchecked((uint)savedTranslation.Z));
+                frame = frame.WriteTemporaryDword(0xF0, savedTranslation.Flags);
+                frame = WriteCoreWord(frame, unchecked(savedDestination + 18), 0);
+                advance = 4;
+                break;
+            case 0x105:
+                if (instruction >> 12 != 0)
+                {
+                    throw new NotSupportedException("Native selected saved-matrix load requires rotation mode zero.");
+                }
+                uint loadedDestination;
+                (frame, loadedDestination) = AllocateB65480(frame);
+                uint savedSource = unchecked(0x2798B68u + (uint)(0x20 * (short)Operand(2)));
+                NativeBattleFullMacVertex loadedTranslation = NativeBattleGfMatrices.TransformMac460840(ReadMatrix(frame, savedSource), Position(frame));
+                frame = WriteCoreDword(frame, unchecked(loadedDestination + 20), unchecked((uint)loadedTranslation.X));
+                frame = WriteCoreDword(frame, unchecked(loadedDestination + 24), unchecked((uint)loadedTranslation.Y));
+                frame = WriteCoreDword(frame, unchecked(loadedDestination + 28), unchecked((uint)loadedTranslation.Z));
+                frame = frame.WriteTemporaryDword(0xF0, loadedTranslation.Flags);
+                NativeBattleActionMatrix loadedEuler = NativeBattleGfMatrices.Euler56CD50(Angles(frame));
+                frame = WriteEuler(frame, loadedEuler);
+                NativeBattleActionMatrix loadedRotation = NativeBattleGfMatrices.Multiply56C090(ReadRotation(frame, savedSource), loadedEuler);
+                frame = WriteRotation(frame, loadedDestination, loadedRotation);
+                frame = WriteCoreWord(frame, unchecked(loadedDestination + 18), 0);
+                advance = 6;
+                break;
+            case 0xD4:
+                if (instruction != 0x80D4)
+                {
+                    throw new NotSupportedException("Native selected uniform color requires its single-operand variant.");
+                }
+                int channel = unchecked((short)Operand(2));
+                uint color = unchecked((uint)(channel | (channel << 8) | (channel << 16)));
+                frame = WriteCoreDword(frame, 0x2797450, unchecked(pc + 4));
+                uint previousColor = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xCC, 4));
+                return WriteSlotDword(frame, 0xCC, (previousColor & 0xFF000000u) | color);
             case 0x67:
                 if (instruction >> 12 != 0)
                 {
@@ -69,10 +114,7 @@ public static class NativeBattleWaterMatrixCommands
                 NativeBattleActionMatrix euler = NativeBattleGfMatrices.Euler56CD50(Angles(frame));
                 frame = WriteEuler(frame, euler);
                 NativeBattleActionMatrix rotation = NativeBattleGfMatrices.Multiply56C090(view, euler);
-                for (int lane = 0; lane < 9; lane++)
-                {
-                    frame = WriteCoreWord(frame, destination + (uint)(lane * 2), unchecked((ushort)rotation.Rotation[lane]));
-                }
+                frame = WriteRotation(frame, destination, rotation);
                 frame = WriteCoreWord(frame, destination + 18, 0);
                 advance = 4;
                 break;
@@ -102,7 +144,7 @@ public static class NativeBattleWaterMatrixCommands
                 advance = 6;
                 break;
             default:
-                throw new NotSupportedException("Native matrix commands admit only selected operations 63 and 67.");
+                throw new NotSupportedException("Native matrix and uniform-color commands admit only their selected finite operations.");
         }
         return WriteCoreDword(frame, 0x2797450, unchecked(pc + (uint)advance));
 
@@ -117,13 +159,38 @@ public static class NativeBattleWaterMatrixCommands
         }
     }
 
-    private static NativeBattleWaterExecutionFrame WriteEuler(NativeBattleWaterExecutionFrame frame, NativeBattleActionMatrix euler)
+    private static NativeBattleWaterExecutionFrame WriteEuler(NativeBattleWaterExecutionFrame frame, NativeBattleActionMatrix euler, int offset = 0xE0)
     {
         for (int lane = 0; lane < 9; lane++)
         {
-            frame = frame.WriteTemporaryWord(0xE0 + lane * 2, unchecked((ushort)euler.Rotation[lane]));
+            frame = frame.WriteTemporaryWord(offset + lane * 2, unchecked((ushort)euler.Rotation[lane]));
         }
-        return frame with { TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0xF2, false).SetItem(0xF3, false) } };
+        return frame with { TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(offset + 18, false).SetItem(offset + 19, false) } };
+    }
+
+    private static NativeBattleWaterExecutionFrame WriteRotation(NativeBattleWaterExecutionFrame frame, uint address, NativeBattleActionMatrix matrix)
+    {
+        for (int lane = 0; lane < 9; lane++)
+        {
+            frame = WriteCoreWord(frame, unchecked(address + (uint)(lane * 2)), unchecked((ushort)matrix.Rotation[lane]));
+        }
+        return frame;
+    }
+
+    private static NativeBattleActionMatrix ReadRotation(NativeBattleWaterExecutionFrame frame, uint address)
+    {
+        byte[] rotation = frame.Core.Read(address, 18);
+        return new(Enumerable.Range(0, 9).Select(lane => BinaryPrimitives.ReadInt16LittleEndian(rotation.AsSpan(lane * 2))).ToImmutableArray(), 0, 0, 0, 4096);
+    }
+
+    private static NativeBattleActionMatrix ReadModuleView(NativeBattleWaterExecutionFrame frame)
+    {
+        if (frame.ModuleViewBackup.IsDefaultOrEmpty || frame.ModuleViewBackup.Length != 32)
+        {
+            throw new NotSupportedException("Native saved-matrix publication requires the actual module view backup.");
+        }
+        byte[] bytes = frame.ModuleViewBackup.ToArray();
+        return new(Enumerable.Range(0, 9).Select(lane => BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(lane * 2))).ToImmutableArray(), BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(20)), BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(24)), BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(28)), 4096);
     }
 
     private static NativeBattleActionMatrix ReadMatrix(NativeBattleWaterExecutionFrame frame, uint address)

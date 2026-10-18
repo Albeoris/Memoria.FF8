@@ -13,7 +13,17 @@ public sealed partial class BattleSession
         NativeBattleSummonColors rules = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native50F190 requires its authenticated GTE color interpolation constants.");
         uint color = (rules.Interpolate(sourceColor, (counter << 12) / 15, 0) & 0xFFFFFFu) | 0x02000000u;
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native50F190 requires its actual decoded body skeleton.");
-        ImmutableArray<NativeBattleActionMatrix> matrices = deformed ?? NativeBattlePoseMatrices.ModelGroupMatrices50F190(model, source, view);
+        ImmutableArray<NativeBattleActionMatrix> matrices;
+        if (deformed is { } deformation)
+        {
+            matrices = deformation;
+        }
+        else
+        {
+            model = NativeBattlePoseMatrices.ComposeGeometryMatrices5095B0(model, source, view);
+            graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
+            matrices = NativeBattleBodyBoneMatrices.Require(model, source);
+        }
         ImmutableArray<NativeBattleRawMesh> geometry = resource.Geometry ?? throw new NotSupportedException("Native50F190 requires its actual original geometry directory.");
         ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Native50F190 requires its observed linked geometry presence.");
         bool shared = !linked.IsEmpty && (resource.LinkedGeometryUsesBodySkeleton ?? throw new NotSupportedException("Native50F190 requires its original shared-skeleton resource shape."));
@@ -36,6 +46,10 @@ public sealed partial class BattleSession
                 binding = model.LinkedTextureSlots ?? throw new NotSupportedException("Native50F190 requires its executed weapon material relocation.");
             }
             graphics = AppendNativePrimitivePackets(graphics, NativeBattleRawGeometryPackets.Emit5099D0([mesh], matrices, projection, color, 1, null, 17, 4, binding));
+        }
+        if (deformed is null)
+        {
+            graphics = graphics with { Models = graphics.Models.SetItem(index, NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[index], source)) };
         }
         return graphics;
     }

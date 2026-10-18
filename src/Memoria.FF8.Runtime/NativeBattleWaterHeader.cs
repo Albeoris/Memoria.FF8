@@ -39,10 +39,10 @@ public sealed record NativeBattleWaterHeaderCaptureResult(NativeBattleWaterHeade
 
 public static class NativeBattleWaterHeaderCapture
 {
-    public static NativeBattleWaterHeaderCaptureResult CaptureAA4E90(NativeBattleWaterHeader header, NativeBattleEffectArena arena, NativeBattleWaterSlotBank bank, int slotIndex, byte caster, int currentHeaderIndex, byte firstHeaderFirstActor, ImmutableArray<byte> currentContacts, sbyte signedContactCount, ImmutableArray<NativeBattleGraphicsModel> graphics)
+    public static NativeBattleWaterHeaderCaptureResult CaptureAA4E90(NativeBattleWaterHeader header, NativeBattleEffectArena arena, NativeBattleWaterSlotBank bank, int slotIndex, byte caster, int currentHeaderIndex, byte firstHeaderFirstActor, ImmutableArray<byte> currentContacts, byte contactCount, ImmutableArray<NativeBattleGraphicsModel> graphics)
     {
         ValidateRows(graphics);
-        if (caster >= 7 || currentHeaderIndex < 0 || currentHeaderIndex >= NativeBattleActionPacketsState.HeaderCapacity || firstHeaderFirstActor >= 7 || signedContactCount > 0 && (currentContacts.IsDefault || currentContacts.Length < signedContactCount))
+        if (caster >= 7 || currentHeaderIndex < 0 || currentHeaderIndex >= NativeBattleActionPacketsState.HeaderCapacity || firstHeaderFirstActor >= 7 || contactCount > 0 && (currentContacts.IsDefault || currentContacts.Length < contactCount))
         {
             throw new NotSupportedException("Native header capture requires its actual caster, selected header and contact owners.");
         }
@@ -55,7 +55,7 @@ public static class NativeBattleWaterHeaderCapture
         }
         uint seen = 0;
         byte unique = 0;
-        for (int index = 0; index < signedContactCount; index++)
+        for (int index = 0; index < contactCount; index++)
         {
             byte actor = currentContacts[index];
             if (actor >= 7)

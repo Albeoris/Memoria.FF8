@@ -18,23 +18,25 @@ public static partial class NativeBattlePoseMatrices
 
     public static ImmutableArray<NativeBattleActionMatrix> ModelGroupMatrices50F190(NativeBattleGraphicsModel model, NativeBattlePoseSource source, NativeBattleActionMatrix camera)
     {
+        return NativeBattleBodyBoneMatrices.Require(ComposeGeometryMatrices5095B0(model, source, camera), source);
+    }
+
+    public static NativeBattleGraphicsModel ComposeGeometryMatrices5095B0(NativeBattleGraphicsModel model, NativeBattlePoseSource source, NativeBattleActionMatrix camera)
+    {
         camera.Validate();
-        NativeBattleSequenceState state = model.SequenceState ?? throw new NotSupportedException("Native502D40 requires its decoded pose owner.");
-        NativeBattleDecodedPose pose = ReadDecodedPose(state, source);
-        Matrix[] bones = BoneMatrices(source, pose);
+        NativeBattleBodyBoneMatrices.Require(model, source);
         NativeBattleActionMatrix previous = model.GeometryWorldMatrix ?? throw new NotSupportedException("Native502D40 requires its prior502AB0 model matrix; reconstructing it after the current service is unsupported.");
         Matrix world = new(previous.Rotation.ToArray(), previous.X, previous.Y, previous.Z);
         Matrix view = new(camera.Rotation.ToArray(), camera.X, camera.Y, camera.Z);
-        Matrix modelView = Compose(view, world);
-        return bones.Select(bone => Compose(modelView, bone)).Select(matrix => new NativeBattleActionMatrix(matrix.Rotation.ToImmutableArray(), matrix.X, matrix.Y, matrix.Z, 4096)).ToImmutableArray();
+        Matrix basis = Compose(view, world);
+        return NativeBattleBodyBoneMatrices.Compose5095B0(model, new(basis.Rotation.ToImmutableArray(), basis.X, basis.Y, basis.Z, 4096));
     }
 
     public static NativeBattleActionMatrix PublishGeometryWorldMatrix502AB0(NativeBattleGraphicsModel model, NativeBattlePoseSource source)
     {
         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native502AB0 requires its model transform WORDs.");
-        NativeBattleSequenceState state = model.SequenceState ?? throw new NotSupportedException("Native502AB0 requires its decoded pose owner.");
-        NativeBattleDecodedPose pose = ReadDecodedPose(state, source);
-        Matrix matrix = ModelMatrix(model, transform, BoneMatrices(source, pose)[0]);
+        NativeBattleActionMatrix root = NativeBattleBodyBoneMatrices.Require(model, source)[0];
+        Matrix matrix = ModelMatrix(model, transform, new(root.Rotation.ToArray(), root.X, root.Y, root.Z));
         return new(matrix.Rotation.ToImmutableArray(), matrix.X, matrix.Y, matrix.Z, 4096);
     }
 

@@ -30,11 +30,7 @@ public static class NativeBattleWaterStopCommand
         uint idAddress = unchecked(bank + (uint)(0x100 * masked) + 0x12);
         ushort activeId = BinaryPrimitives.ReadUInt16LittleEndian(frame.Arena.Read(NativeBattleWaterExecutionFields.ArenaOffset(idAddress, 2), 2));
         ClearId(activeId, true);
-        int draw = Find(0x2797554, index, true);
-        if (draw >= 0)
-        {
-            Shift(0x2797554, draw);
-        }
+        frame = RemoveDrawB65270(frame, index);
         uint header = NativeBattleWaterExecutionFields.CoreDword(frame, 0x279744C);
         ushort count = NativeBattleWaterExecutionFields.CoreWord(frame, checked(header + 0x18));
         frame = NativeBattleWaterExecutionFields.WriteCoreWord(frame, checked(header + 0x18), unchecked((ushort)(count - 1)));
@@ -90,4 +86,32 @@ public static class NativeBattleWaterStopCommand
             }
         }
     }
+
+    public static NativeBattleWaterExecutionFrame RemoveDrawB65270(NativeBattleWaterExecutionFrame frame, byte index)
+    {
+        for (int cursor = 0; cursor < 128; cursor++)
+        {
+            byte entry = frame.Core.Read(0x2797554 + (uint)cursor, 1)[0];
+            if (entry == 0xFF)
+            {
+                return frame;
+            }
+            if ((entry & 0x7F) != index)
+            {
+                continue;
+            }
+            for (; cursor < 127; cursor++)
+            {
+                byte next = frame.Core.Read(0x2797554 + (uint)cursor + 1, 1)[0];
+                frame = frame with { Core = frame.Core.Write(0x2797554 + (uint)cursor, new byte[] { next }) };
+                if (next == 0xFF)
+                {
+                    return frame;
+                }
+            }
+            throw new NotSupportedException("Native draw removal exhausted its bounded order owner before the shifted terminator.");
+        }
+        throw new NotSupportedException("Native draw removal left its bounded order owner without a match or terminator.");
+    }
+
 }
