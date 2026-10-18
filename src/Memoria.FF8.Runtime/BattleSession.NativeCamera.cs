@@ -133,6 +133,10 @@ public sealed partial class BattleSession
                 {
                     graphics = gilgameshCompleted;
                 }
+                else if (TryWriteNativeShivaCompletion(graphics, address, value, out NativeBattleGraphicsState shivaCompleted))
+                {
+                    graphics = shivaCompleted;
+                }
                 else if (TryWriteNativeCactuarCompletion(graphics, address, value, out NativeBattleGraphicsState cactuarCompleted))
                 {
                     graphics = cactuarCompleted;

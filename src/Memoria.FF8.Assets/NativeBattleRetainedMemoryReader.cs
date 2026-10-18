@@ -65,12 +65,18 @@ public static class NativeBattleRetainedMemoryReader
         {
             throw new InvalidDataException("Authenticated cold primitive depth/OT reset globals contradict the executable profile.");
         }
+        NativeBattleShivaRetainedVector ReadShivaVector(uint address)
+        {
+            byte[] vector = ReadLoaderBytes(address, 8);
+            return new(BinaryPrimitives.ReadInt16LittleEndian(vector), BinaryPrimitives.ReadInt16LittleEndian(vector.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(vector.AsSpan(4)), BinaryPrimitives.ReadInt16LittleEndian(vector.AsSpan(6)));
+        }
         NativeBattleEffectMemory effectMemory = NativeBattleEffectMemory.FromColdProcess() with
         {
             Parameter80 = ReadLoaderBytes(0x1D99A80, 1)[0],
             Parameter82 = ReadLoaderBytes(0x1D99A82, 1)[0],
             ReturnedTaskPointer1D96AAC = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1D96AAC, 4)),
             GuardianCasterBank = checked((byte)BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1D96DC4, 4))),
+            Shiva = new(null, null, null, BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x22BD0E0, 4)), ReadLoaderBytes(0x22BD0E4, 1)[0], new(ReadShivaVector(0x22BC190), ReadShivaVector(0x22BC128)), new(ReadLoaderBytes(0x22BD018, 0x90).ToImmutableArray(), ReadLoaderBytes(0x22BCFD0, 0x34).ToImmutableArray(), null, null, null, null)) { LocalAnchor22BCFC8 = ReadShivaVector(0x22BCFC8), WorldAnchor22BCFC0 = ReadShivaVector(0x22BCFC0) },
             QuezacotlPause = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x25216DC, 4)),
             QuezacotlCompletion17A8 = ReadLoaderBytes(0x25217A8, 1)[0],
             QuezacotlTargetY1774 = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x2521774, 4)),

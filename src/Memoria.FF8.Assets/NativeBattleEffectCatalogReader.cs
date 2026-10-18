@@ -150,6 +150,11 @@ public sealed partial class GameAssets
         {
             int index = catalog[requestedEffect - 1].Entry == 0 ? 0 : requestedEffect - 1;
             NativeBattleEffectBinding binding = catalog[index];
+            if (binding.Effect == 185)
+            {
+                binding = binding with { ShivaResources = ReadNativeShivaResources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 142)
             {
                 binding = binding with { FiraResources = ReadNativeFiraResources() };
