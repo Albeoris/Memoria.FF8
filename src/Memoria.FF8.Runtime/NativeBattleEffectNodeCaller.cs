@@ -75,7 +75,7 @@ internal static class NativeBattleEffectNodeCaller
         {
             int first = frame.State.Emitters ?? throw new NotSupportedException("Native Recover emitter storage has not been cleared.");
             int second = frame.State.Geometry ?? throw new NotSupportedException("Native Recover geometry storage has not been cleared.");
-            NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, taskAddress, first, profile.EmitterBytes, second, profile.GeometryBytes);
+            NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, taskAddress, first, profile.EmitterBytes, second, profile.GeometryBytes, useSharedScratch: true);
             NativeBattleEffectNodeBank bank = new(profile.SourceAddress, frame.State.Data ?? throw new NotSupportedException("Native Recover has no fixed mutable node bank."));
             ushort emitterCursor = frame.State.EmitterScanCursor ?? throw new NotSupportedException("Native Recover emitter scan WORD is unknown.");
             ushort geometryCursor = frame.State.GeometryScanCursor ?? throw new NotSupportedException("Native Recover geometry scan WORD is unknown.");
@@ -117,10 +117,10 @@ internal static class NativeBattleEffectNodeCaller
                 if (profile.FullLife)
                 {
                     NativeBattleFullLifeMeshContext fullLife = new(flags, fade == 0 ? null : memory.Dword(node + 0x16C), fade == 0 ? null : fade, null, null, null, 17, 2);
-                    return (bytes, matrix) => NativeBattleRestorationMeshPackets.EmitBatch884370(bytes, matrix, projection, fullLife, colors);
+                    return (bytes, matrix) => NativeBattleRestorationMeshPackets.EmitBatch884370(bytes, matrix, projection, fullLife, colors, observeFirstThreeFlags: memory.WriteProjectionFlags);
                 }
                 NativeBattleEsunaMeshContext prepared = new(flags, fade == 0 ? null : memory.Dword(node + 0x16C), fade == 0 ? null : fade, 0, 0, 0, new(0, 0, 256, 256), new(0, 0, 256, 256), 17, 2);
-                return (bytes, matrix) => NativeBattleRestorationMeshPackets.EmitBatch88E240(bytes, matrix, projection, prepared, colors);
+                return (bytes, matrix) => NativeBattleRestorationMeshPackets.EmitBatch88E240(bytes, matrix, projection, prepared, colors, observeFirstThreeFlags: memory.WriteProjectionFlags);
             }
         });
         ushort emitters = frame.State.PassEmitterCount ?? throw new NotSupportedException("Native Recover per-pass emitter count was not reset.");

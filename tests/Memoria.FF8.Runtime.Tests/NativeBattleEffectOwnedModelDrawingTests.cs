@@ -51,7 +51,7 @@ public sealed class NativeBattleEffectOwnedModelDrawingTests
     }
 
     [Fact]
-    public void Object_mask_skips_projection_and_body_but_keeps_shadow_and_fails_unproved_alpha_or_bounds_scale()
+    public void Object_mask_skips_projection_and_body_but_keeps_shadow_and_fails_unproved_alpha()
     {
         var fixture = Fixture();
         NativeBattleEffectOwnedModelDraw masked = Draw(fixture.Task.WriteDword(0xAC, 0), fixture.State, fixture.Resource);
@@ -59,7 +59,6 @@ public sealed class NativeBattleEffectOwnedModelDrawingTests
         Assert.Equal(0, masked.ProjectedBytesWritten);
         Assert.All(masked.ProjectedScratch, value => Assert.Equal(0xA5, value));
         Assert.Throws<NotSupportedException>(() => Draw(fixture.Task.WriteByte(0x37, 1), fixture.State, fixture.Resource));
-        Assert.Throws<NotSupportedException>(() => Draw(fixture.Task.WriteWord(0x13E, 2048), fixture.State, fixture.Resource));
         Assert.Throws<InvalidDataException>(() => NativeBattleEffectOwnedModelDrawing.Draw7558A0(fixture.Task, fixture.State, fixture.Resource, View, Projection, Shadow, new(true), NativeBattleGteColorInterpolation.CodeConstants45F270, [0]));
     }
 
@@ -73,6 +72,33 @@ public sealed class NativeBattleEffectOwnedModelDrawingTests
         NativeBattleEffectOwnedModelDraw actual = Draw(restored.Task, restored.State, fixture.Resource);
         Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
         Assert.Equal((ushort)0, original.Task.ReadWord(0x70));
+    }
+
+    [Theory]
+    [InlineData(9216, -5, 1, -10, 5)]
+    [InlineData(5120, -3, 0, -6, 2)]
+    [InlineData(4096, -3, 0, -5, 2)]
+    [InlineData(2048, -2, -1, -3, 0)]
+    [InlineData(-2048, 0, -1, 1, -2)]
+    public void Shadow_XZ_scale_uses_signed_midpoints_and_truncation_toward_zero(int scale, int minX, int maxX, int minZ, int maxZ)
+    {
+        NativeBattleEffectLocalBounds result = NativeBattleEffectOwnedModelDrawing.ScaleShadowBounds7156EE(new(new(-3, 5, -5), new(0, 7, 2)), (short)scale);
+        Assert.Equal(new NativeBattleEffectLocalBounds(new((short)minX, 5, (short)minZ), new((short)maxX, 7, (short)maxZ)), result);
+    }
+
+    [Fact]
+    public void Shadow_scaled_coordinates_wrap_as_words_while_body_projection_is_unchanged()
+    {
+        NativeBattleEffectLocalBounds wrapped = NativeBattleEffectOwnedModelDrawing.ScaleShadowBounds7156EE(new(new(-30000, -10, -30000), new(30000, 10, 30000)), 9216);
+        Assert.Equal(new NativeBattleEffectLocalBounds(new(-1964, -10, -1964), new(1964, 10, 1964)), wrapped);
+        var fixture = Fixture();
+        NativeBattleEffectOwnedModelDraw original = Draw(fixture.Task, fixture.State, fixture.Resource);
+        NativeBattleEffectOwnedModelDraw scaled = Draw(fixture.Task.WriteWord(0x13E, 9216), fixture.State, fixture.Resource);
+        Assert.Equal(NativeBattleEffectOwnedModelDrawing.ScaleShadowBounds7156EE(original.Bounds, 9216), scaled.Bounds);
+        Assert.Equal(unchecked((ushort)scaled.Bounds.Minimum.X), scaled.Task.ReadWord(0x64));
+        Assert.Equal(unchecked((ushort)scaled.Bounds.Maximum.Z), scaled.Task.ReadWord(0x6E));
+        Assert.Equal(original.ProjectedScratch, scaled.ProjectedScratch);
+        Assert.Equal(JsonSerializer.Serialize(original.Packets.Attempts[0]), JsonSerializer.Serialize(scaled.Packets.Attempts[0]));
     }
 
     private static NativeBattleEffectOwnedModelDraw Draw(NativeBattleModulePoolTask task, NativeBattleEffectOwnedModelState state, NativeBattleEffectOwnedModelResource resource) => NativeBattleEffectOwnedModelDrawing.Draw7558A0(task, state, resource, View, Projection, Shadow, new(true), NativeBattleGteColorInterpolation.CodeConstants45F270, Enumerable.Repeat((byte)0xA5, 32).ToImmutableArray());

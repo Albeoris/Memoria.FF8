@@ -19,10 +19,13 @@ internal class NativeBattleEffectNodeMemory
     private readonly bool[] unknown;
     private readonly byte[] taskBytes;
     private bool dirty;
+    private NativeBattleEffectNodeScratch? scratch;
 
-    internal NativeBattleEffectNodeMemory(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, uint taskAddress, int first, int emitterBytes, int second, int geometryBytes)
+    internal NativeBattleEffectNodeMemory(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, uint taskAddress, int first, int emitterBytes, int second, int geometryBytes, bool useSharedScratch = false)
     {
         this.memory = memory;
+        scratch = memory.NodeScratch2793E30;
+        UseSharedScratch = useSharedScratch;
         this.effect = effect;
         this.taskAddress = taskAddress;
         this.first = first;
@@ -73,6 +76,29 @@ internal class NativeBattleEffectNodeMemory
     internal void Word(int offset, ushort value) => BinaryPrimitives.WriteUInt16LittleEndian(Write(offset, 2), value);
     internal void Dword(int offset, uint value) => BinaryPrimitives.WriteUInt32LittleEndian(Write(offset, 4), value);
     internal void Clear(int offset, int count) => Write(offset, count).Clear();
+    internal bool UseSharedScratch { get; }
+    internal NativeBattleVector ReadPlacementEuler() => (scratch ?? NativeBattleEffectNodeScratch.Unknown()).ReadEuler();
+    internal void WritePlacementEuler(NativeBattleVector angles)
+    {
+        if (UseSharedScratch)
+        {
+            scratch = (scratch ?? NativeBattleEffectNodeScratch.Unknown()).WritePlacement(angles);
+        }
+    }
+    internal void WriteProjectionFlags(uint flags)
+    {
+        if (UseSharedScratch)
+        {
+            scratch = (scratch ?? NativeBattleEffectNodeScratch.Unknown()).WriteFlags(flags);
+        }
+    }
+    internal void WriteSpriteMatrix(NativeBattleActionMatrix matrix)
+    {
+        if (UseSharedScratch)
+        {
+            scratch = (scratch ?? NativeBattleEffectNodeScratch.Unknown()).WriteSpriteMatrix(matrix);
+        }
+    }
 
     internal void MarkUnknown(int offset, int count)
     {
@@ -184,7 +210,7 @@ internal class NativeBattleEffectNodeMemory
         }
         NativeBattleEffectHierarchy hierarchy = new(effect.Pools);
         hierarchy = hierarchy.Write(taskAddress, originalTask with { Payload = taskBytes.ToImmutableArray() });
-        return new(memory with { Arena = arena }, effect with { Pools = hierarchy.Pools });
+        return new(memory with { Arena = arena, NodeScratch2793E30 = scratch }, effect with { Pools = hierarchy.Pools });
     }
 
     private ReadOnlySpan<byte> Read(int offset, int count)

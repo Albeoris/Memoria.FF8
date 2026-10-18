@@ -12,9 +12,9 @@ public static class NativeBattleEffectOwnedModelDrawing
     {
         NativeBattleEffectOwnedModel.Validate(task, state, resource);
         NativeBattleDecodedPose pose = state.DecodedPose ?? throw new NotSupportedException("Native effect-owned model drawing requires its actual current decoded pose.");
-        if (task.ReadByte(0x37) != 0 || task.ReadWord(0x13E) != 4096)
+        if (task.ReadByte(0x37) != 0)
         {
-            throw new NotSupportedException("Native effect-owned model drawing requires the proved zero-alpha and unscaled bounds owners.");
+            throw new NotSupportedException("Native effect-owned model drawing requires its proved zero-alpha owner.");
         }
         if (resource.Geometry.IsDefault || resource.Geometry.Length != 1 || projectedScratch.IsDefault)
         {
@@ -33,7 +33,7 @@ public static class NativeBattleEffectOwnedModelDrawing
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         attempts.AddRange(body.Packets.Attempts);
         int allocated = body.Packets.AllocationBytes;
-        NativeBattleEffectLocalBounds bounds = NativeBattlePoseMatrices.ShadowBounds5086F0(resource.PoseSource, pose);
+        NativeBattleEffectLocalBounds bounds = ScaleShadowBounds7156EE(NativeBattlePoseMatrices.ShadowBounds5086F0(resource.PoseSource, pose), Word(0x13E));
         task = task.WriteWord(0x64, unchecked((ushort)bounds.Minimum.X)).WriteWord(0x66, unchecked((ushort)bounds.Minimum.Y)).WriteWord(0x68, unchecked((ushort)bounds.Minimum.Z)).WriteWord(0x6A, unchecked((ushort)bounds.Maximum.X)).WriteWord(0x6C, unchecked((ushort)bounds.Maximum.Y)).WriteWord(0x6E, unchecked((ushort)bounds.Maximum.Z));
         if ((task.ReadByte(0x30) & 0x20) == 0)
         {
@@ -47,4 +47,18 @@ public static class NativeBattleEffectOwnedModelDrawing
 
         short Word(int offset) => unchecked((short)task.ReadWord(offset));
     }
+
+    public static NativeBattleEffectLocalBounds ScaleShadowBounds7156EE(NativeBattleEffectLocalBounds bounds, short scale)
+    {
+        if (scale == 4096)
+        {
+            return bounds;
+        }
+        short centerX = (short)((bounds.Minimum.X + bounds.Maximum.X) / 2);
+        short centerZ = (short)((bounds.Minimum.Z + bounds.Maximum.Z) / 2);
+        return new(new(Scale(bounds.Minimum.X, centerX), bounds.Minimum.Y, Scale(bounds.Minimum.Z, centerZ)), new(Scale(bounds.Maximum.X, centerX), bounds.Maximum.Y, Scale(bounds.Maximum.Z, centerZ)));
+
+        short Scale(short bound, short center) => unchecked((short)(center + unchecked((bound - center) * scale) / 4096));
+    }
+
 }

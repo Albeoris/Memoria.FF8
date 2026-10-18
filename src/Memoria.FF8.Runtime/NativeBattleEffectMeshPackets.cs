@@ -296,7 +296,7 @@ internal static class NativeBattleEffectMeshPackets
 
     internal delegate NativeBattleGfGeometryBatch EmitFace(int group, ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, int byteOffset);
 
-    internal static NativeBattleGfGeometryBatch EmitBatch(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, uint flags, Func<int, NativeBattleVector>? readSelectedVertex, EmitFace emit)
+    internal static NativeBattleGfGeometryBatch EmitBatch(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, uint flags, Func<int, NativeBattleVector>? readSelectedVertex, EmitFace emit, Action<uint>? observeFirstThreeFlags = null)
     {
         matrix.Validate();
         if (mesh.IsDefaultOrEmpty || mesh.Length < 8)
@@ -323,6 +323,7 @@ internal static class NativeBattleEffectMeshPackets
                 {
                     offsets[corner] = BinaryPrimitives.ReadUInt16LittleEndian(face[(4 + 2 * corner)..]);
                 }
+                uint firstThreeFlags = 0;
                 NativeBattleModuleProjectedVertex Project(int corner)
                 {
                     int offset = offsets[corner] * 4;
@@ -336,7 +337,16 @@ internal static class NativeBattleEffectMeshPackets
                         ReadOnlySpan<byte> xyz = Read(checked(8 + offset), 6);
                         vertex = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz[2..]), BinaryPrimitives.ReadInt16LittleEndian(xyz[4..]));
                     }
-                    return NativeBattleModuleProjection.Project45FE10(matrix, vertex, projection);
+                    NativeBattleModuleProjectedVertex projected = NativeBattleModuleProjection.Project45FE10(matrix, vertex, projection);
+                    if (corner < 3)
+                    {
+                        firstThreeFlags |= projected.Flags;
+                        if (corner == 2)
+                        {
+                            observeFirstThreeFlags?.Invoke(firstThreeFlags);
+                        }
+                    }
+                    return projected;
                 }
                 NativeBattleGfGeometryBatch batch = emit(group, face, Project, allocated);
                 attempts.AddRange(batch.Attempts);

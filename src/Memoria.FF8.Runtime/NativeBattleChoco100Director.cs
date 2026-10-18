@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleChoco100AppendLoadedModel(uint ResourceAddress, uint Mask) : NativeBattleChoco97DirectorOperation;
+public sealed record NativeBattleChoco100AppendLoadedModel(uint ResourceAddress, ushort InitializationArgument) : NativeBattleChoco97DirectorOperation;
 public sealed record NativeBattleChoco100AppendContactSecondary(byte Actor) : NativeBattleChoco97DirectorOperation;
 public sealed record NativeBattleChoco100DirectorSound(uint Descriptor, uint Flags, byte Pan) : NativeBattleChoco97DirectorOperation;
 public sealed record NativeBattleChoco100DirectorInputs(NativeBattleChoco97DirectorInputs Services, Func<NativeBattleChoco97DirectorFrame, ImmutableArray<NativeBattleContactPacket>> ReadSelectedContacts);

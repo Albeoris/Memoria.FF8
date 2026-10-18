@@ -31,11 +31,12 @@ public sealed class NativeBattleChoco100DirectorTests
     }
 
     [Fact]
-    public void Mode6_appends_loaded_neutral_before_actual_model_mask3C_and_mode8_preserves_order()
+    public void Mode6_appends_loaded_neutral_before_actual_model_initialization_argument3C_and_mode8_preserves_order()
     {
         List<NativeBattleChoco97DirectorOperation> operations = [];
         Advance(Mode(Frame(23), 5, 6, 6), operations);
         Assert.Equal(new NativeBattleChoco97DirectorOperation[] { new NativeBattleChoco97AppendNeutral(0x10108, 0, 45, 2), new NativeBattleChoco100AppendLoadedModel(0x10118, 0x3C) }, operations);
+        Assert.Equal((ushort)0x3C, Assert.IsType<NativeBattleChoco100AppendLoadedModel>(operations[1]).InitializationArgument);
         operations.Clear();
         Advance(Mode(Frame(23), 7, 8, 8), operations);
         Assert.Equal(new NativeBattleChoco97DirectorOperation[] { new NativeBattleChoco97AppendProgram(0x716950, 0x10130, 0x32C, 3, 0), new NativeBattleChoco99AppendSmall(0x716300, 0x1529F70, 15), new NativeBattleChoco97AppendNeutral(0x1010C, 15, 45, 2) }, operations);

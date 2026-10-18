@@ -41,6 +41,7 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
                 short ry = source[0x34] == 1 ? DrawAngle(ref random) : (short)0;
                 short rz = source[0x34] == 1 ? DrawAngle(ref random) : (short)1024;
                 placementEuler = new(rx, ry, rz);
+                memory.WritePlacementEuler(placementEuler.Value);
                 short[] radius = new short[3];
                 for (int axis = 0; axis < 3; axis++)
                 {
@@ -75,7 +76,7 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
                     euler = draw.Value;
                     break;
                 case 1:
-                    euler = placementEuler ?? throw new NotSupportedException("Native8818A0 requires the actual previously written placement Euler scratch for selector1.");
+                    euler = memory.UseSharedScratch ? memory.ReadPlacementEuler() : placementEuler ?? throw new NotSupportedException("Native node placement selector1 requires its caller's retained Euler scratch owner.");
                     break;
                 default:
                     throw new NotSupportedException("Native8818A0 requires the actual unwritten Euler scratch for its out-of-range selector.");

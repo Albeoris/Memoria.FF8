@@ -12,7 +12,7 @@ public static class NativeBattleCuragaProjectedSprites
         return new(batch.Attempts.Where(attempt => attempt.Primitive is not null).Select(attempt => new NativeBattleAllocatedPrimitive(attempt.Primitive!, attempt.ByteOffsetRelative, 0)).ToImmutableArray(), batch.AllocationBytes);
     }
 
-    public static NativeBattleGfGeometryBatch EmitBatch8DD260(ImmutableArray<byte> resource, ushort phase, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift, short depthBias = 0)
+    public static NativeBattleGfGeometryBatch EmitBatch8DD260(ImmutableArray<byte> resource, ushort phase, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift, short depthBias = 0, Action<NativeBattleActionMatrix>? observeRolledMatrix = null)
     {
         if (resource.IsDefault || depthShift > 31)
         {
@@ -25,6 +25,7 @@ public static class NativeBattleCuragaProjectedSprites
         short sine = unchecked((short)NativeBattleCameraMath.Sine(angle));
         NativeBattleActionMatrix roll = new([cosine, unchecked((short)-sine), 0, sine, cosine, 0, 0, 0, 4096], 0, 0, 0, 4096);
         NativeBattleActionMatrix main = NativeBattleGfMatrices.Multiply56C090(roll, matrix) with { X = matrix.X, Y = matrix.Y, Z = matrix.Z };
+        observeRolledMatrix?.Invoke(main);
         int frame = BinaryPrimitives.ReadUInt16LittleEndian(Read(resource, checked(10 + phase * 2), 2));
         _ = Read(resource, checked(12 + phase * 2), 2); // Context WORD28 reads the next directory entry even though this leaf does not use it.
         uint descriptor = BinaryPrimitives.ReadUInt32LittleEndian(Read(resource, frame, 4));
