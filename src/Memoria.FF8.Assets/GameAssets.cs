@@ -163,7 +163,7 @@ public sealed partial class GameAssets : IDisposable
         }
         using IFlArchive main = OpenArchive("main");
         using IFlArchive menu = OpenArchive("menu");
-        return nativeWeaponShopDefinitions = NativeWeaponShopDefinitionReader.Read(ReadNativeExecutable(), Read(main, "kernel.bin"), Read(menu, "mwepon.bin"), Read(menu, "mwepon.msg"));
+        return nativeWeaponShopDefinitions = NativeWeaponShopDefinitionReader.Read(ReadNativeMemory(), Read(main, "kernel.bin"), Read(menu, "mwepon.bin"), Read(menu, "mwepon.msg"));
     }
 
     public NativeShotAvailabilityState ReadNewGameShotAvailability()

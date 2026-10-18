@@ -21,11 +21,16 @@ public static class NativeWeaponShopDefinitionReader
 
     public static NativeWeaponShopDefinitions Read(byte[] executable, byte[] kernel, byte[] recipes, byte[] messages)
     {
-        string executableHash = Convert.ToHexString(SHA256.HashData(executable));
+        return Read(new NativeExecutableMemory(executable), kernel, recipes, messages);
+    }
+
+    public static NativeWeaponShopDefinitions Read(IGameNativeMemorySource memory, byte[] kernel, byte[] recipes, byte[] messages)
+    {
+        string executableHash = memory.SourceHash;
         string kernelHash = Convert.ToHexString(SHA256.HashData(kernel));
         string recipeHash = Convert.ToHexString(SHA256.HashData(recipes));
         string messageHash = Convert.ToHexString(SHA256.HashData(messages));
-        if (executableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash || kernelHash != "E378FB8F198EDE3DAE858F0DED6670F9BA423AA79ABFFF7237E701DFC7F9E7F6" || recipeHash != "BB9B499DDE640362F8A16A76534E3FFFD695B2F3C58A73CB65EDC16500BD3BA8" || messageHash != "3AA8E9833EA047A2B8E7E9F65CFE0CE26B9FCFDF83114F5B1DA992C980A99B41" || recipes.Length != 396 || messages.Length != 68)
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(executableHash) || kernelHash is not ("E378FB8F198EDE3DAE858F0DED6670F9BA423AA79ABFFF7237E701DFC7F9E7F6" or "6A9E9AA4B99B98AEC966D42537E9E119BF1BC1AF668CE8B791E7EAD00934397B") || recipeHash != "BB9B499DDE640362F8A16A76534E3FFFD695B2F3C58A73CB65EDC16500BD3BA8" || messageHash != "3AA8E9833EA047A2B8E7E9F65CFE0CE26B9FCFDF83114F5B1DA992C980A99B41" || recipes.Length != 396 || messages.Length != 68)
         {
             throw new NotSupportedException("Native weapon shop requires the authenticated original executable, kernel, recipes and message words.");
         }
@@ -51,7 +56,7 @@ public static class NativeWeaponShopDefinitionReader
             ImmutableArray<NativeItemStock> materials = Enumerable.Range(0, 4).Select(slot => new NativeItemStock(recipes[id * 12 + 4 + 2 * slot], recipes[id * 12 + 5 + 2 * slot])).ToImmutableArray();
             rows.Add(new NativeWeaponRecipe(name, weapon[4], recipes[id * 12 + 3], materials, ImmutableArray.CreateRange(weapon.ToArray()), ImmutableArray.CreateRange(recipes.AsSpan(id * 12, 12).ToArray())));
         }
-        NativeWeaponShopDefinitions result = new(executableHash, kernelHash, recipeHash, messageHash, rows.MoveToImmutable(), ImmutableArray.CreateRange(messages), ImmutableArray.CreateRange(executable.AsSpan(0x788918, 256).ToArray()));
+        NativeWeaponShopDefinitions result = new(executableHash, kernelHash, recipeHash, messageHash, rows.MoveToImmutable(), ImmutableArray.CreateRange(messages), ImmutableArray.CreateRange(memory.Read(0xB88918, 256)));
         result.Validate();
         return result;
     }

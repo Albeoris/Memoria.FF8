@@ -140,3 +140,8 @@ public sealed class NativeMagazineArtwork
 
     private sealed record Part(int SourceX, int SourceY, int Width, int Height, int X, int Y);
 }
+
+public sealed partial class GameAssets
+{
+    public byte[] ReadItemIconKinds() => resources.Read(new ResourceKey("tables/item-icon-kinds"));
+}

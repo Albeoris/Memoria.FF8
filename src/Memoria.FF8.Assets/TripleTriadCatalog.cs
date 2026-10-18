@@ -1,20 +1,21 @@
 using Memoria.FF8.Resources;
+using Memoria.FF8.Runtime;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
 using Albeoris.Games.FF8.FlArchives;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Albeoris.Games.FF8.TextEncoding;
-using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
 
-/// <summary>The authenticated English executable's 110 card definitions and original names.</summary>
+/// <summary>The authenticated native image's 110 card definitions and original localized names.</summary>
 public sealed class TripleTriadCatalog
 {
     public const int CardCount = 110;
-    private const int RankTableOffset = 0x796508;
-    private const int NameTableOffset = 0x875074;
+    private const uint RankTableAddress = 0xB96508;
+    private const uint NameTableAddress = 0xC75074;
+    private const int NativeNameTableLength = 1200;
 
     private TripleTriadCatalog(ImmutableArray<TripleTriadCard> cards, ImmutableArray<string> names, ImmutableArray<byte> tradePriorities, TripleTriadNativeAiParameters aiParameters, ImmutableArray<TripleTriadRefinement> refinements)
     {
@@ -59,27 +60,38 @@ public sealed class TripleTriadCatalog
         using Stream input = entry.OpenForRead();
         using MemoryStream data = new();
         input.CopyTo(data);
-        return ReadExecutable(GameDataResources.ReadNativeExecutable(new ResourceService(provider)), data.ToArray());
+        ResourceService resources = new(provider);
+        IGameNativeMemorySource memory = resources.GetSource<IGameNativeMemorySource>() ?? throw new NotSupportedException("The resource source has no authenticated native card memory contract.");
+        byte[] names = provider.Descriptor.Edition == GameDataEdition.Remastered ? resources.Read(new ResourceKey("text/card-names")) : memory.Read(NameTableAddress, NativeNameTableLength);
+        return Read(memory, names, data.ToArray());
     }
 
     public static TripleTriadCatalog ReadExecutable(byte[] executable, byte[]? refinementData = null)
     {
         ArgumentNullException.ThrowIfNull(executable);
-        if (Convert.ToHexString(SHA256.HashData(executable)) != NativeFieldRuntimeProfile.FF8EnExecutableHash)
+        return Read(new NativeExecutableMemory(executable), refinementData: refinementData);
+    }
+
+    public static TripleTriadCatalog Read(IGameNativeMemorySource memory, byte[]? nameData = null, byte[]? refinementData = null)
+    {
+        ArgumentNullException.ThrowIfNull(memory);
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(memory.SourceHash))
         {
-            throw new NotSupportedException("Triple Triad definitions require the authenticated original English executable.");
+            throw new NotSupportedException("Triple Triad definitions require authenticated native data.");
         }
+        nameData ??= memory.Read(NameTableAddress, NativeNameTableLength);
         // Native 534AD0 selectors 2..6 read the eight-byte rows at B96508.
         // 4EF750 draws selectors 2..5 at B88A68's top/bottom/left/right coordinates.
         // Native 5348E0 reads the count-prefixed WORD string table through B964F8.
-        if (BinaryPrimitives.ReadUInt16LittleEndian(executable.AsSpan(NameTableOffset)) != CardCount)
+        if (nameData.Length < 2 + CardCount * 2 || BinaryPrimitives.ReadUInt16LittleEndian(nameData) != CardCount)
         {
             throw new InvalidDataException("Original Triple Triad name count is invalid.");
         }
         FF8Encoding encoding = FF8Encoding.CreateEuropean();
         // The match uses a second byte-identical card table at C74D00; byte5
         // is the native reward-selection priority consumed by 535800/53ADF0.
-        if (!executable.AsSpan(RankTableOffset, CardCount * 8).SequenceEqual(executable.AsSpan(0x874D00, CardCount * 8)))
+        byte[] ranks = memory.Read(RankTableAddress, CardCount * 8);
+        if (!ranks.AsSpan().SequenceEqual(memory.Read(0xC74D00, CardCount * 8)))
         {
             throw new InvalidDataException("Original menu and match card definition tables disagree.");
         }
@@ -88,7 +100,7 @@ public sealed class TripleTriadCatalog
         ImmutableArray<byte>.Builder priorities = ImmutableArray.CreateBuilder<byte>(CardCount);
         for (int id = 0; id < CardCount; id++)
         {
-            ReadOnlySpan<byte> row = executable.AsSpan(RankTableOffset + id * 8, 8);
+            ReadOnlySpan<byte> row = ranks.AsSpan(id * 8, 8);
             if (row[..4].ContainsAnyExceptInRange((byte)1, (byte)10))
             {
                 throw new InvalidDataException($"Original Triple Triad card {id} has an invalid side rank.");
@@ -108,22 +120,26 @@ public sealed class TripleTriadCatalog
             };
             cards.Add(new TripleTriadCard(id, row[0], row[3], row[1], row[2], element));
             priorities.Add(row[5]);
-            int relative = BinaryPrimitives.ReadUInt16LittleEndian(executable.AsSpan(NameTableOffset + 2 + id * 2));
-            int position = NameTableOffset + relative;
-            int zero = Array.IndexOf(executable, (byte)0, position);
-            if (relative < 2 + CardCount * 2 || zero < 0)
+            int relative = BinaryPrimitives.ReadUInt16LittleEndian(nameData.AsSpan(2 + id * 2));
+            if (relative < 2 + CardCount * 2 || relative >= nameData.Length)
             {
                 throw new InvalidDataException($"Original Triple Triad card {id} name has invalid bounds.");
             }
-            names.Add(encoding.GetString(executable.AsSpan(position, zero - position)));
+            int zero = Array.IndexOf(nameData, (byte)0, relative);
+            if (zero < 0)
+            {
+                throw new InvalidDataException($"Original Triple Triad card {id} name has invalid bounds.");
+            }
+            names.Add(encoding.GetString(nameData.AsSpan(relative, zero - relative)));
         }
         ImmutableArray<TripleTriadNativeAiWeights>.Builder profiles = ImmutableArray.CreateBuilder<TripleTriadNativeAiWeights>(8);
+        byte[] aiProfiles = memory.Read(0xC75BF8, 8 * 20);
         for (int index = 0; index < 8; index++)
         {
-            ReadOnlySpan<byte> row = executable.AsSpan(0x875BF8 + index * 20, 20);
+            ReadOnlySpan<byte> row = aiProfiles.AsSpan(index * 20, 20);
             profiles.Add(new TripleTriadNativeAiWeights(BinaryPrimitives.ReadInt32LittleEndian(row), BinaryPrimitives.ReadInt32LittleEndian(row[4..]), BinaryPrimitives.ReadInt32LittleEndian(row[8..]), BinaryPrimitives.ReadInt32LittleEndian(row[12..]), BinaryPrimitives.ReadInt32LittleEndian(row[16..])));
         }
-        TripleTriadNativeAiParameters ai = new(executable.AsSpan(0x875BAF, 73).ToArray().ToImmutableArray(), profiles.MoveToImmutable());
+        TripleTriadNativeAiParameters ai = new(memory.Read(0xC75BAF, 73).ToImmutableArray(), profiles.MoveToImmutable());
         return new TripleTriadCatalog(cards.MoveToImmutable(), names.MoveToImmutable(), priorities.MoveToImmutable(), ai, refinementData is null ? [] : ReadRefinements(refinementData));
     }
 

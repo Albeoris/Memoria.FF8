@@ -12,6 +12,7 @@ internal static class NamedTableResources
         "tables/encounter-weights" => (0xC75F10, 8),
         "tables/cosine" => (0xB80D9C, 512),
         "tables/vibration" => (0xB8DCB0, 412),
+        "tables/item-icon-kinds" => (0xB88024, 22),
         "text/draw-points" => (0xB921E4, 320),
         _ => null
     };

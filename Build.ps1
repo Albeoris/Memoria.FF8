@@ -45,6 +45,14 @@ try {
     if ($Test) {
         Invoke-DotNet @('run', '--project', 'tests/Memoria.Launcher.Tests', '-c', $Configuration)
         Invoke-DotNet @('run', '--project', 'tests/Memoria.FF8.Remastered.Tests', '-c', $Configuration)
+        $previousAppPath = $env:MEMORIA_FF8_APP_PATH
+        try {
+            $env:MEMORIA_FF8_APP_PATH = Join-Path $data 'Memoria.FF8.exe'
+            Invoke-DotNet @('run', '--project', 'tests/Memoria.FF8.App.Tests', '-c', $Configuration, '--', '--filter-class', '*Remastered*')
+        }
+        finally {
+            $env:MEMORIA_FF8_APP_PATH = $previousAppPath
+        }
         Invoke-DotNet @('run', '--project', 'tests/Memoria.FF8.Ui.Tests', '-c', $Configuration)
         Invoke-DotNet @('run', '--project', 'tests/Memoria.FF8.Runtime.Tests', '-c', $Configuration)
     }

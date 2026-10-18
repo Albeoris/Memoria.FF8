@@ -397,7 +397,7 @@ public sealed partial class LiveMenuCatalog
         {
             throw new InvalidDataException("Original field item metadata requires complete four-byte rows.");
         }
-        byte[] itemIconKinds = NativeMagazineArtwork.ReadItemIconKinds(assets.ReadNativeExecutable());
+        byte[] itemIconKinds = assets.ReadItemIconKinds();
         LiveMenuCatalog catalog = new(kernelBytes, kernel, guardianForceNames, cardNames, cardDescriptions, fieldItems, itemIconKinds, TripleTriadCatalog.Load(assets.GameDirectory));
         catalog.ReadLocations(ReadMenu("areames.dc1"), encoding, WorldMapLocations.ReadInstalled(assets.GameDirectory));
         catalog.solomonRing = assets.ReadNativeSolomonRingDefinition();

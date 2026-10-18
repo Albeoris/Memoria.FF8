@@ -9,7 +9,7 @@ public sealed record NativeWeaponShopDefinitions([property: JsonRequired] string
 {
     public void Validate()
     {
-        if (ExecutableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash || new[] { KernelHash, RecipeHash, MessageHash }.Any(hash => hash is not { Length: 64 } || hash.Any(value => !Uri.IsHexDigit(value))) || ArgumentMap.IsDefault || ArgumentMap.Length != 256 || Recipes.IsDefault || Recipes.Length != 33 || Messages.IsDefault || Messages.Length != 68 || Recipes.Any(row => row is null || row.Name is null || row.Materials.IsDefault || row.Materials.Length != 4 || row.Materials.Any(stock => stock is null) || row.KernelWords.IsDefault || row.KernelWords.Length != 12 || row.RecipeWords.IsDefault || row.RecipeWords.Length != 12 || row.Character != row.KernelWords[4] || row.CostBase != row.RecipeWords[3]))
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(ExecutableHash) || new[] { KernelHash, RecipeHash, MessageHash }.Any(hash => hash is not { Length: 64 } || hash.Any(value => !Uri.IsHexDigit(value))) || ArgumentMap.IsDefault || ArgumentMap.Length != 256 || Recipes.IsDefault || Recipes.Length != 33 || Messages.IsDefault || Messages.Length != 68 || Recipes.Any(row => row is null || row.Name is null || row.Materials.IsDefault || row.Materials.Length != 4 || row.Materials.Any(stock => stock is null) || row.KernelWords.IsDefault || row.KernelWords.Length != 12 || row.RecipeWords.IsDefault || row.RecipeWords.Length != 12 || row.Character != row.KernelWords[4] || row.CostBase != row.RecipeWords[3]))
         {
             throw new InvalidDataException("Native weapon shop requires its complete original thirty-three kernel/recipe rows and message words.");
         }

@@ -11,7 +11,7 @@ public sealed record NativeRefinementDefinitions(string ExecutableHash, string K
 {
     public void Validate()
     {
-        if (ExecutableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash || KernelHash != "E378FB8F198EDE3DAE858F0DED6670F9BA423AA79ABFFF7237E701DFC7F9E7F6" || Abilities.IsDefault || Abilities.Length != 24 || Tables.IsDefault || Tables.Length != 5 || Tables.Where((table, kind) => table.IsDefault || table.Length != new[] { 102, 143, 10, 12, 110 }[kind] || table.Any(recipe => recipe is null || recipe.IngredientCount == 0 || recipe.Output == 0 || recipe.OutputCount == 0)).Any() || Abilities.Where((ability, index) => ability is null || index >= 5 && (ability.Kind >= 5 || ability.First > ability.Last || ability.Last >= Tables[ability.Kind].Length)).Any())
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(ExecutableHash) || KernelHash is not ("E378FB8F198EDE3DAE858F0DED6670F9BA423AA79ABFFF7237E701DFC7F9E7F6" or "6A9E9AA4B99B98AEC966D42537E9E119BF1BC1AF668CE8B791E7EAD00934397B") || Abilities.IsDefault || Abilities.Length != 24 || Tables.IsDefault || Tables.Length != 5 || Tables.Where((table, kind) => table.IsDefault || table.Length != new[] { 102, 143, 10, 12, 110 }[kind] || table.Any(recipe => recipe is null || recipe.IngredientCount == 0 || recipe.Output == 0 || recipe.OutputCount == 0)).Any() || Abilities.Where((ability, index) => ability is null || index >= 5 && (ability.Kind >= 5 || ability.First > ability.Last || ability.Last >= Tables[ability.Kind].Length)).Any())
         {
             throw new InvalidDataException("Native refinement requires the authenticated complete kernel ranges and five original recipe tables.");
         }

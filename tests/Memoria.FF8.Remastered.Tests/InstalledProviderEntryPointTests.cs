@@ -20,7 +20,6 @@ public sealed class InstalledProviderEntryPointTests
         Assert.EndsWith(".sgt", new NativeMusicCatalog(directory).MusicFileResolved(0));
         Assert.Throws<NotImplementedException>(() => new NativeWorldForestTables(directory));
         Assert.Throws<NotImplementedException>(() => NativeTripleTriadArtwork.Load(directory));
-        Assert.Throws<NotImplementedException>(() => TripleTriadCatalog.Load(directory));
         Assert.Throws<NotImplementedException>(() => NativeSteamDiscMountReader.Read(directory, 1));
     }
 
@@ -28,6 +27,7 @@ public sealed class InstalledProviderEntryPointTests
     public void NativeUiCatalogsInitializeFromAuthenticatedRemasteredData()
     {
         using GameAssets assets = new(InstalledDirectory());
+        Assert.Equal(TripleTriadCatalog.CardCount, TripleTriadCatalog.Load(assets.GameDirectory).Cards.Length);
         NativeTutorialCatalog tutorials = assets.ReadNativeTutorialCatalog();
         Assert.Equal(Memoria.FF8.Runtime.NativeFieldRuntimeProfile.RemasteredEnImageHash, tutorials.ExecutableHash);
         Assert.Equal(9, tutorials.Tutorials.Length);
