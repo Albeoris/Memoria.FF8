@@ -22,7 +22,8 @@ public sealed class InputTests
         Assert.True(input.BattleInstantVictoryRequested);
         Assert.True(input.BattleDebugRequested);
         Assert.False(input.UiConfirmRequested);
-        Assert.False(input.Read(new KeyboardState(Keys.Enter, Keys.Space, Keys.Escape), true).Confirm);
+        Assert.True(input.Read(new KeyboardState(Keys.Enter, Keys.Space, Keys.Escape), true).Confirm);
+        Assert.True(input.UiCancelRequested);
     }
 
     [Fact]

@@ -48,13 +48,13 @@ Quick save uses `%LOCALAPPDATA%/Memoria.FF8/checkpoint.json` by default. Overrid
 
 Hold the currently bound **Cancel** input for one second to request a movie skip. A progress hint appears while holding. A brief press does not complete the gesture. The gesture follows the Cancel binding; there is no separate movie-skip binding.
 
-When a name-entry interface accepts keyboard text, type the name and use its on-screen editing controls. Ordinary keyboard action bindings are suppressed during text entry. Recovery navigation provides Enter, Escape, arrows, Tab and Page Up / Page Down in settings and text-entry contexts. Enter and Space are not the default gameplay confirm binding.
+When a name-entry interface accepts keyboard text, type the name and use its on-screen editing controls. Ordinary keyboard action bindings are suppressed during text entry. Enter always confirms, Escape always cancels, and the arrow keys always move in their respective directions, alongside your custom bindings. These keys cannot be assigned to other actions, including as part of a combination. Tab and Page Up / Page Down also provide navigation in settings and text-entry contexts.
 
 ## Remapping and device settings
 
-Open **Config → Controls**, choose Keyboard or Controller, then select an action. Choose **Capture key / button combination**, release all controls, hold the desired combination together, and release it to finish. Escape cancels capture; use the dedicated **Bind Escape** action to assign Escape itself.
+Open **Config → Controls** and choose Keyboard or Controller. Each row shows an action and its current bindings. Confirm or click the row to capture a new binding: release all controls, hold the desired combination together, and release it to finish. Escape cancels capture. Press the button assigned to **Card / Details**, shown in Help, to open advanced options for the selected action: capture, clear binding or back.
 
-If the exact combination already belongs to another action, choose whether to keep the current bindings or replace the conflicting bindings. Confirm and Cancel must remain bound. You can clear other actions or restore defaults for one device. Changes save automatically; the other device keeps its bindings.
+If the exact combination already belongs to another action, choose whether to keep the current bindings or replace the conflicting bindings. Controller Confirm and Cancel must remain bound; permanent keyboard alternatives remain available even after clearing custom bindings. You can also restore defaults for one device. Changes save automatically; the other device keeps its bindings.
 
 Controller settings include independent left/right radial dead zones, the run threshold, button labels and vibration. Defaults are 20% dead zones, 50% run threshold, automatic button labels and vibration enabled. Stick directions are used for movement/camera navigation and cannot be captured as action bindings.
 

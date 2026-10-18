@@ -131,6 +131,15 @@ public sealed class ControlsProfile
     private sealed record Binding(ControlAction Action, ControlDevice Device, InputChord Chord);
     private sealed record Document(int Version, Binding[] Bindings, ControllerSettings? Controller = null);
     private readonly Binding[] bindings;
+    private static readonly Binding[] PermanentBindings =
+    [
+        new(ControlAction.Confirm, ControlDevice.Keyboard, new InputChord([Keys.Enter], [])),
+        new(ControlAction.Cancel, ControlDevice.Keyboard, new InputChord([Keys.Escape], [])),
+        new(ControlAction.MoveUp, ControlDevice.Keyboard, new InputChord([Keys.Up], [])),
+        new(ControlAction.MoveDown, ControlDevice.Keyboard, new InputChord([Keys.Down], [])),
+        new(ControlAction.MoveLeft, ControlDevice.Keyboard, new InputChord([Keys.Left], [])),
+        new(ControlAction.MoveRight, ControlDevice.Keyboard, new InputChord([Keys.Right], []))
+    ];
 
     public static IReadOnlyList<ControlActionDefinition> Definitions { get; } = Enum.GetValues<ControlAction>().Where(action => action != ControlAction.SkipMovie).Select(action => new ControlActionDefinition(action, Label(action), action <= ControlAction.MoveRight ? "Movement" : action <= ControlAction.RotateRight ? "Original game" : "Memoria shortcuts")).ToArray();
     public static IReadOnlyList<Buttons> BindableButtons { get; } = [Buttons.A, Buttons.B, Buttons.X, Buttons.Y, Buttons.LeftShoulder, Buttons.RightShoulder, Buttons.LeftTrigger, Buttons.RightTrigger, Buttons.Back, Buttons.Start, Buttons.LeftStick, Buttons.RightStick, Buttons.DPadUp, Buttons.DPadDown, Buttons.DPadLeft, Buttons.DPadRight];
@@ -152,6 +161,12 @@ public sealed class ControlsProfile
 
     public IReadOnlyList<InputChord> GetBindings(ControlAction action, ControlDevice device) => bindings.Where(binding => binding.Action == action && binding.Device == device).Select(binding => binding.Chord with { Keys = [.. binding.Chord.Keys], Buttons = [.. binding.Chord.Buttons] }).ToArray();
 
+    public static IReadOnlyList<InputChord> GetPermanentBindings(ControlAction action, ControlDevice device) => PermanentBindings.Where(binding => binding.Action == action && binding.Device == device).Select(binding => binding.Chord with { Keys = [.. binding.Chord.Keys], Buttons = [.. binding.Chord.Buttons] }).ToArray();
+
+    internal static bool IsPermanentBinding(ControlAction action, ControlDevice device, InputChord chord) => PermanentBindings.Any(binding => binding.Action == action && binding.Device == device && binding.Chord.Same(chord));
+
+    private static bool UsesReservedKeyForAnotherAction(ControlAction action, ControlDevice device, InputChord chord) => PermanentBindings.Any(binding => binding.Action != action && binding.Device == device && binding.Chord.Keys.Any(chord.Keys.Contains));
+
     public IReadOnlyList<ControlAction> FindConflicts(ControlAction action, ControlDevice device, InputChord chord)
     {
         chord = Normalize(chord, device);
@@ -161,6 +176,10 @@ public sealed class ControlsProfile
     public ControlsProfile WithBinding(ControlAction action, ControlDevice device, InputChord chord, bool replaceConflicts = false)
     {
         chord = Normalize(chord, device);
+        if (UsesReservedKeyForAnotherAction(action, device, chord))
+        {
+            throw new InvalidOperationException("Enter is reserved for Confirm, Escape for Cancel, and arrow keys for their movement directions, including in key combinations.");
+        }
         IReadOnlyList<ControlAction> conflicts = FindConflicts(action, device, chord);
         if (conflicts.Count != 0 && !replaceConflicts)
         {
@@ -235,7 +254,7 @@ public sealed class ControlsProfile
 
     internal IReadOnlyList<(ControlAction Action, ControlDevice Device, InputChord Chord)> Match(KeyboardState keyboard, GamePadState controller)
     {
-        Binding[] held = bindings.Where(binding => binding.Chord.Matches(keyboard, controller)).ToArray();
+        Binding[] held = bindings.Concat(PermanentBindings).Where(binding => binding.Chord.Matches(keyboard, controller)).ToArray();
         return held.Where(binding => !held.Any(other => other.Device == binding.Device && other.Chord.Count > binding.Chord.Count && other.Chord.Contains(binding.Chord))).Select(binding => (binding.Action, binding.Device, binding.Chord)).ToArray();
     }
 
@@ -250,7 +269,8 @@ public sealed class ControlsProfile
         {
             throw new InvalidDataException("Unsupported controls profile.");
         }
-        return new ControlsProfile(document.Bindings, document.Controller);
+        Binding[] loaded = document.Bindings.Where(binding => binding.Action != ControlAction.SkipMovie).Select(binding => binding with { Chord = Normalize(binding.Chord, binding.Device) }).Where(binding => !UsesReservedKeyForAnotherAction(binding.Action, binding.Device, binding.Chord)).ToArray();
+        return new ControlsProfile(loaded, document.Controller);
     }
 
     public void Save(string path)
@@ -278,12 +298,9 @@ public sealed class ControlsProfile
                 throw new InvalidDataException("Unknown controls action or device.");
             }
         }
-        foreach (ControlDevice device in Enum.GetValues<ControlDevice>())
+        if (!bindings.Any(binding => binding.Device == ControlDevice.Controller && binding.Action == ControlAction.Confirm) || !bindings.Any(binding => binding.Device == ControlDevice.Controller && binding.Action == ControlAction.Cancel))
         {
-            if (!bindings.Any(binding => binding.Device == device && binding.Action == ControlAction.Confirm) || !bindings.Any(binding => binding.Device == device && binding.Action == ControlAction.Cancel))
-            {
-                throw new InvalidOperationException("Confirm and Cancel must remain assigned. Assign another key/button first, or restore defaults.");
-            }
+            throw new InvalidOperationException("Confirm and Cancel must remain assigned. Assign another key/button first, or restore defaults.");
         }
     }
 

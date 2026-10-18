@@ -80,7 +80,15 @@ internal sealed class KeyboardInput
         IReadOnlyList<InputChord> bindings = Profile.GetBindings(action, LastInputDevice);
         if (bindings.Count == 0)
         {
+            bindings = ControlsProfile.GetPermanentBindings(action, LastInputDevice);
+        }
+        if (bindings.Count == 0)
+        {
             bindings = Profile.GetBindings(action, LastInputDevice == ControlDevice.Keyboard ? ControlDevice.Controller : ControlDevice.Keyboard);
+        }
+        if (bindings.Count == 0)
+        {
+            bindings = ControlsProfile.GetPermanentBindings(action, LastInputDevice == ControlDevice.Keyboard ? ControlDevice.Controller : ControlDevice.Keyboard);
         }
         return bindings.Count == 0 ? "Unbound" : string.Join(" / ", bindings.Select(chord => chord.FormatDisplayName(ControllerPresentation)));
     }
@@ -130,10 +138,10 @@ internal sealed class KeyboardInput
             consumedKeys.UnionWith(match.Chord.Keys);
             consumedButtons.UnionWith(match.Chord.Buttons);
         }
-        var effectiveMatches = matches.Where(match => !match.Chord.Keys.Any(disarmedKeys.Contains) && !match.Chord.Buttons.Any(disarmedButtons.Contains) && (match.Chord.Count > 1 || !match.Chord.Keys.Any(consumedKeys.Contains) && !match.Chord.Buttons.Any(consumedButtons.Contains))).ToArray();
+        var effectiveMatches = matches.Where(match => !match.Chord.Keys.Any(disarmedKeys.Contains) && !match.Chord.Buttons.Any(disarmedButtons.Contains) && (match.Chord.Count > 1 || ControlsProfile.IsPermanentBinding(match.Action, match.Device, match.Chord) || !match.Chord.Keys.Any(consumedKeys.Contains) && !match.Chord.Buttons.Any(consumedButtons.Contains))).ToArray();
         HashSet<ControlAction> effective = effectiveMatches.Select(match => match.Action).ToHashSet();
         bool Down(ControlAction action) => active && effective.Contains(action);
-        bool Pressed(ControlAction action) => Down(action) && !previous.Contains(action) && (previousConnected || !pad.IsConnected || Profile.GetBindings(action, ControlDevice.Keyboard).Any(chord => chord.Matches(current, default)));
+        bool Pressed(ControlAction action) => Down(action) && !previous.Contains(action) && (previousConnected || !pad.IsConnected || effectiveMatches.Any(match => match.Action == action && match.Device == ControlDevice.Keyboard));
         bool RecoveryPressed(Keys key) => active && (RecoveryNavigationEnabled || NamingNavigationEnabled || TextEntryEnabled) && !disarmedKeys.Contains(key) && current.IsKeyDown(key) && previousKeyboard.IsKeyUp(key);
         Vector2 movement = ApplyRadialDeadZone(pad.ThumbSticks.Left, Profile.LeftStickDeadZone);
         Vector2 camera = ApplyRadialDeadZone(pad.ThumbSticks.Right, Profile.RightStickDeadZone);

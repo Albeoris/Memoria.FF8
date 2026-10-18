@@ -6,6 +6,47 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class ControlsMenuTests
 {
+    [Theory]
+    [InlineData("config-keyboard")]
+    [InlineData("config-controller")]
+    public void Bindings_use_full_width_rows_with_right_aligned_buttons_and_only_help_above(string screen)
+    {
+        ControlsProfile profile = ControlsProfile.CreateDefault().WithBinding(ControlAction.Card, ControlDevice.Keyboard, new([Keys.K], []));
+        MenuController menus = Connected(() => profile, next => profile = next);
+        menus.Open(screen);
+        UiView view = menus.BuildView();
+        view.Resize(960, 672);
+        UiList commands = Assert.IsType<UiList>(view.FocusedElement);
+        Assert.True(commands.Bounds.Width > 850);
+        Assert.Equal(UiAlignment.End, commands.SecondaryAlignment);
+        Assert.Equal(menus.Entries.Count, commands.SecondaryItems.Count);
+        int confirm = menus.Entries.ToList().FindIndex(entry => entry.Id == nameof(ControlAction.Confirm));
+        Assert.Contains(screen == "config-keyboard" ? "Enter" : "South button", commands.SecondaryItems[confirm]);
+        menus.SelectEntry(screen, nameof(ControlAction.QuickSave));
+        menus.Navigate(MenuInput.Alternate);
+        Assert.False(menus.IsCapturingControls);
+        Assert.Contains(menus.Entries, entry => entry.Id == "capture");
+        Assert.Contains(menus.Entries, entry => entry.Id == "clear");
+        Assert.DoesNotContain(menus.Entries, entry => entry.Id == "escape");
+        menus.Navigate(MenuInput.Cancel);
+        Assert.Equal(screen, menus.ScreenId);
+        menus.Navigate(MenuInput.Confirm);
+        Assert.True(menus.IsCapturingControls);
+    }
+
+    [Fact]
+    public void Clicking_an_action_starts_capture_directly()
+    {
+        ControlsProfile profile = ControlsProfile.CreateDefault();
+        MenuController menus = Connected(() => profile, next => profile = next);
+        menus.Open("config-keyboard");
+        UiView view = menus.BuildView();
+        UiList commands = Assert.IsType<UiList>(view.FocusedElement);
+        view.Pointer(commands.Bounds.Right - 12, commands.Bounds.Y + 12, true);
+        Assert.True(menus.IsCapturingControls);
+        Assert.Equal("config-keyboard-choice", menus.ScreenId);
+    }
+
     [Fact]
     public void Controls_screens_render_using_the_live_canvas_without_a_graphics_device()
     {
@@ -40,6 +81,11 @@ public sealed class ControlsMenuTests
         Render("conflict");
         menus.Open("config-controls-reset");
         Render("reset");
+        menus.ConnectPreferences(() => new UiPreferences { UiFontSize = 36 }, _ => { });
+        profile = profile.WithBinding(ControlAction.RotateLeft, ControlDevice.Keyboard, new([Keys.LeftControl, Keys.LeftShift, Keys.LeftAlt, Keys.K], []));
+        menus.Open("config-keyboard");
+        menus.SelectEntry("config-keyboard", nameof(ControlAction.CameraRight));
+        Render("keyboard-large-text");
     }
 
     [Fact]

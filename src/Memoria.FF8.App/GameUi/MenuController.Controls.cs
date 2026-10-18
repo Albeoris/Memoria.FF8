@@ -1,4 +1,5 @@
 using Microsoft.Xna.Framework.Input;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
@@ -32,6 +33,26 @@ public sealed partial class MenuController
     private ControllerPresentation CurrentControllerPresentation => CurrentControls.Controller.Presentation == ControllerPresentation.Automatic ? _readControllerPresentation?.Invoke() ?? ControllerPresentation.Generic : CurrentControls.Controller.Presentation;
     private ControlDevice CurrentControlDevice => _readControlDevice?.Invoke() ?? (ScreenId.StartsWith("config-controller", StringComparison.Ordinal) ? ControlDevice.Controller : ControlDevice.Keyboard);
     private string ControlsMapping => BindingText(_controlsAction, _controlsDevice);
+    private bool IsControlsBindingList => ScreenId is "config-keyboard" or "config-controller";
+    private string ControlsChoiceScreen => _controlsDevice == ControlDevice.Keyboard ? "config-keyboard-choice" : "config-controller-choice";
+
+    private UiElement BuildControlsPage()
+    {
+        var page = Grid([1.8f, 5.8f], [1], 5);
+        ControlDevice device = ScreenId == "config-controller" ? ControlDevice.Controller : ControlDevice.Keyboard;
+        string help = IsControlsBindingList ? $"Press {CurrentBindingText(ControlAction.Card)} for advanced options." : ScreenId == "config-controls-conflict" && _pendingChord is not null ? $"{_pendingChord.FormatDisplayName(CurrentControllerPresentation)} is assigned to {string.Join(", ", CurrentControls.FindConflicts(_controlsAction, _controlsDevice, _pendingChord).Select(ControlsLabel))}." : SelectedEntry?.Help ?? CurrentScreen.Help;
+        string title = ScreenId.EndsWith("-choice", StringComparison.Ordinal) || ScreenId == "config-controls-conflict" ? ControlsActionName : CurrentScreen.Title;
+        Place(page, SecondaryHeader("Config", title, help), 0);
+        UiList commands = SecondaryCommands();
+        if (IsControlsBindingList)
+        {
+            commands.SecondaryItems = Entries.Select(entry => Enum.TryParse(entry.Id, out ControlAction action) ? ControlsBindingText(action, device) : "").ToList();
+            commands.SecondaryWidth = 0.36f;
+            commands.SecondaryAlignment = UiAlignment.End;
+        }
+        Place(page, Panel(null, commands), 1);
+        return page;
+    }
 
     internal void ConnectControls(Func<ControlsProfile> read, Action<ControlsProfile> write, Func<ControllerPresentation>? presentation = null, Func<int>? generation = null, Func<ControlDevice>? inputDevice = null)
     {
@@ -130,7 +151,7 @@ public sealed partial class MenuController
         {
             return [new("cancel-capture", "Cancel capture", "Keep the current binding.", Action: new("controls-cancel"))];
         }
-        return [new("capture", "Capture key / button combination", "Release controls, hold the new combination, then release to apply.", Action: new("controls-capture"), Enabled: CanWriteControls), .. _controlsDevice == ControlDevice.Keyboard ? new[] { new MenuEntry("escape", "Bind Escape", "Assign Escape; Escape cancels during capture.", Action: new("controls-escape"), Enabled: CanWriteControls) } : [], new("clear", "Clear binding", "Remove this action's binding for this device.", Action: new("controls-clear"), Enabled: CanWriteControls && _controlsAction is not ControlAction.Confirm and not ControlAction.Cancel), new("back", "Back", "Return to the action list.", Action: new("menu-back"))];
+        return [new("capture", "Capture key / button combination", "Release controls, hold the new combination, then release to apply.", Action: new("controls-capture"), Enabled: CanWriteControls), new("clear", "Clear binding", "Remove this action's binding for this device.", Action: new("controls-clear"), Enabled: CanWriteControls && (_controlsDevice == ControlDevice.Keyboard || _controlsAction is not ControlAction.Confirm and not ControlAction.Cancel)), new("back", "Back", "Return to the action list.", Action: new("menu-back"))];
     }
 
     private IReadOnlyList<string> ControlsChoiceDetails()
@@ -151,6 +172,12 @@ public sealed partial class MenuController
     {
         IReadOnlyList<InputChord> bindings = CurrentControls.GetBindings(action, device);
         return bindings.Count == 0 ? "Unbound" : string.Join(" / ", bindings.Select(binding => binding.FormatDisplayName(CurrentControllerPresentation)));
+    }
+
+    private string ControlsBindingText(ControlAction action, ControlDevice device)
+    {
+        string[] bindings = CurrentControls.GetBindings(action, device).Concat(ControlsProfile.GetPermanentBindings(action, device)).Select(binding => binding.FormatDisplayName(CurrentControllerPresentation)).Distinct().ToArray();
+        return bindings.Length == 0 ? "Unbound" : string.Join(" / ", bindings);
     }
 
     private string CurrentBindingText(ControlAction action)
@@ -203,9 +230,6 @@ public sealed partial class MenuController
                 return true;
             case "controls-cancel":
                 CancelControlsCapture();
-                return true;
-            case "controls-escape":
-                ProposeControlsBinding(new([Keys.Escape], []));
                 return true;
             case "controls-clear":
                 WriteControls(() => CurrentControls.WithoutBinding(_controlsAction, _controlsDevice));

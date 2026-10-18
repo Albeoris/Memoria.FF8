@@ -53,3 +53,5 @@ view.Resize(viewportWidth, viewportHeight);
 ```
 
 `dotnet run --project tests/Memoria.FF8.Ui.Tests` runs headless contract tests.
+
+Vertical lists expand individual rows when the canvas reports wrapped text taller than the configured row height. `AutoRowHeight=false` preserves fixed row heights. The measured row geometry drives scrolling, pagination, pointer placement and hit testing; the pagination footer remains separate. Measurements are cached until row text, font size, available text width or fitted row height changes. Canvases without text measurement retain fixed rows. `SecondaryAlignment=UiAlignment.End` right-aligns secondary text within its column when measurements are available.

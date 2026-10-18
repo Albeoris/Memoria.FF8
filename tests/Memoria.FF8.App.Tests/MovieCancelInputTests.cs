@@ -153,14 +153,14 @@ public sealed class MovieCancelInputTests
     [InlineData(Keys.Escape, false)]
     [InlineData(Keys.Space, true)]
     [InlineData(Keys.Escape, true)]
-    public void Space_and_escape_never_request_movie_skip_or_hold_cancel(Keys key, bool recoveryNavigation)
+    public void Space_and_escape_follow_their_native_action_without_an_immediate_skip(Keys key, bool recoveryNavigation)
     {
         KeyboardInput input = new() { RecoveryNavigationEnabled = recoveryNavigation };
 
         Assert.False(input.Read(new KeyboardState(key), true).Skip);
-        Assert.False(input.CancelHeld);
+        Assert.Equal(key == Keys.Escape, input.CancelHeld);
         Assert.False(input.Read(new KeyboardState(key), true).Skip);
-        Assert.False(input.CancelHeld);
+        Assert.Equal(key == Keys.Escape, input.CancelHeld);
     }
 
     [Fact]
@@ -194,7 +194,7 @@ public sealed class MovieCancelInputTests
             foreach (Keys key in new[] { Keys.Escape, Keys.Space, Keys.C })
             {
                 Assert.False(input.Read(new KeyboardState(key), true).Skip);
-                Assert.False(input.CancelHeld);
+                Assert.Equal(key == Keys.Escape, input.CancelHeld);
             }
             Assert.True(input.Read(new KeyboardState(Keys.K), true).Cancel);
             Assert.True(input.CancelHeld);

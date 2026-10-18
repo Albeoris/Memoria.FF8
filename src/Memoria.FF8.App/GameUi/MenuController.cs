@@ -246,7 +246,13 @@ public sealed partial class MenuController
                 ChangeCharacter(1);
                 break;
             case MenuInput.Alternate:
-                if (ScreenId.StartsWith("status", StringComparison.Ordinal))
+                if (IsControlsBindingList && SelectedEntry?.Action is { Kind: "controls-select" } controlsAction)
+                {
+                    Execute(controlsAction);
+                    Push(ControlsChoiceScreen);
+                    SoundRequested?.Invoke(MenuSound.Confirm);
+                }
+                else if (ScreenId.StartsWith("status", StringComparison.Ordinal))
                 {
                     Push("status-limit");
                 }
@@ -419,6 +425,7 @@ public sealed partial class MenuController
         }
         _selections[ScreenId] = index;
         var entry = entries[index];
+        bool captureBinding = IsControlsBindingList && entry.Action?.Kind == "controls-select";
         if (!entry.Enabled)
         {
             Message = entry.Help;
@@ -437,6 +444,10 @@ public sealed partial class MenuController
         if (entry.Destination != null)
         {
             Push(entry.Destination);
+        }
+        if (captureBinding)
+        {
+            Execute(new("controls-capture"));
         }
         if (entry.Action?.Kind is not ("menu-back" or "name-save"))
         {

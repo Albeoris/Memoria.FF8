@@ -72,6 +72,10 @@ public sealed partial class MenuController
         {
             anchored.Children.Add(BuildNativeCard());
         }
+        else if (IsControlsScreen)
+        {
+            anchored.Children.Add(BuildControlsPage());
+        }
         else if (IsNativeSecondaryScreen)
         {
             anchored.Children.Add(BuildNativeSecondary());

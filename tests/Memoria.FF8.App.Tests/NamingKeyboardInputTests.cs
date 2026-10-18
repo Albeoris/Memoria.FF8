@@ -45,9 +45,10 @@ public sealed class NamingKeyboardInputTests
     [InlineData(Keys.Down, 0, 1)]
     [InlineData(Keys.Left, -1, 0)]
     [InlineData(Keys.Right, 1, 0)]
-    public void Arrow_rebound_to_confirm_only_navigates(Keys arrow, int horizontal, int vertical)
+    public void Reserved_arrows_only_navigate(Keys arrow, int horizontal, int vertical)
     {
-        ControlsProfile profile = ControlsProfile.CreateDefault().WithBinding(ControlAction.Confirm, ControlDevice.Keyboard, new InputChord([arrow], []), true);
+        ControlsProfile profile = ControlsProfile.CreateDefault();
+        Assert.Throws<InvalidOperationException>(() => profile.WithBinding(ControlAction.Confirm, ControlDevice.Keyboard, new InputChord([arrow], []), true));
         KeyboardInput keyboard = new() { NamingNavigationEnabled = true, Profile = profile };
 
         InputFrame frame = keyboard.Read(new KeyboardState(arrow), true);
