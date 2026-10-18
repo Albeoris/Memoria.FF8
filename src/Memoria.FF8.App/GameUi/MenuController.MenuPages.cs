@@ -187,8 +187,8 @@ public sealed partial class MenuController
             string name = names[index];
             var row = Grid([1], [0.7f, 1.8f, 2.1f], 3);
             Place(stats, row, index);
-            Place(row, Label(name, 21), 0);
-            Place(row, Label(Character?.Junctions.GetValueOrDefault(name, "----") ?? "----", 20), 0, 1);
+            Place(row, JunctionSlotLabel(name, name, 21), 0);
+            Place(row, JunctionSlotLabel(name, Character?.Junctions.GetValueOrDefault(name, "----") ?? "----", 20), 0, 1);
             int? current = name == "HP" ? Character?.MaximumHp : Character?.Stats.TryGetValue(name, out int value) == true ? value : null;
             int? projected = preview?.TryGetValue(name, out int next) == true ? next : null;
             string display = Number(current);
@@ -232,12 +232,19 @@ public sealed partial class MenuController
             {
                 continue;
             }
-            Place(row, Label(name, 23), 0);
-            Place(row, Label(Character?.Junctions.GetValueOrDefault(name, "----") ?? "----", 23), 0, 1);
+            Place(row, JunctionSlotLabel(name, name, 23), 0);
+            Place(row, JunctionSlotLabel(name, Character?.Junctions.GetValueOrDefault(name, "----") ?? "----", 23), 0, 1);
             string value = name == "HP" ? Number(Character?.MaximumHp) : Character?.Stats.TryGetValue(name, out int stat) == true ? stat.ToString() : "--";
             Place(row, Label(value, 23), 0, 2);
         }
         return column;
+    }
+
+    private UiLabel JunctionSlotLabel(string slot, string text, float fontSize)
+    {
+        UiLabel label = Label(text, fontSize);
+        label.Muted = !IsDemo && Character?.AvailableJunctionSlots.Contains(slot) != true;
+        return label;
     }
 
     private UiElement BuildItemPage()

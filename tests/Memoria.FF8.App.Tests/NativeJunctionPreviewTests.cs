@@ -9,6 +9,65 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeJunctionPreviewTests
 {
+    [Fact]
+    public void JunctionSlotPresentationRefreshesWhenGuardiansAreAttachedAndRemoved()
+    {
+        Assert.SkipUnless(Directory.Exists(TestResources.GameDirectory), "Installed resources are required.");
+        using GameAssets assets = new(TestResources.GameDirectory);
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).AcquireGuardianForce(1);
+        NativeGuardianForceVital[] forces = vitals.GuardianForces.ToArray();
+        forces[0] = forces[0] with { LearnedBank = forces[0].LearnedBank with { Low = 6UL, High = 0 } };
+        forces[1] = forces[1] with { LearnedBank = forces[1].LearnedBank with { Low = 8UL, High = 0 } };
+        vitals = vitals with { GuardianForces = forces };
+        MenuController menu = new(() => LiveMenuData.Build(new GameState { Scene = SceneKind.Field, CharacterVitals = vitals }, catalog: catalog), action =>
+        {
+            vitals = NativeJunctionMenuInput.Apply(vitals, NativeJunctionMenuProjection.PlayerAction(action));
+        });
+        menu.Open("junction-gf");
+        AssertSlotPresentation(menu);
+        menu.Navigate(MenuInput.Confirm);
+        Assert.Equal("junction-gf", menu.ScreenId);
+        AssertSlotPresentation(menu, "HP", "Str");
+        menu.SelectEntry("junction-gf", "gf-1");
+        menu.Navigate(MenuInput.Confirm);
+        AssertSlotPresentation(menu, "HP", "Str", "Vit");
+        menu.SelectEntry("junction-gf", "gf-0");
+        menu.Navigate(MenuInput.Confirm);
+        AssertSlotPresentation(menu, "Vit");
+        menu.SelectEntry("junction-gf", "gf-1");
+        menu.Navigate(MenuInput.Confirm);
+        AssertSlotPresentation(menu);
+        menu.Open("junction-magic");
+        AssertSlotPresentation(menu);
+        menu.Open("junction-gf");
+        menu.SelectEntry("junction-gf", "gf-0");
+        menu.Navigate(MenuInput.Confirm);
+        menu.Open("junction-magic");
+        AssertSlotPresentation(menu, "HP", "Str");
+        menu.Navigate(MenuInput.Confirm);
+        Assert.Equal("junction-stock", menu.ScreenId);
+        AssertSlotPresentation(menu, "HP", "Str");
+    }
+
+    private static void AssertSlotPresentation(MenuController menu, params string[] available)
+    {
+        UiView view = menu.BuildView();
+        view.Resize(1280, 896);
+        UiElement[] elements = Descendants(view.Root).ToArray();
+        foreach (string stat in new[] { "HP", "Str", "Vit", "Mag", "Spr", "Spd", "Eva", "Hit", "Luck" })
+        {
+            UiLabel name = Assert.Single(elements.OfType<UiLabel>(), label => label.Text == stat);
+            UiElement row = Assert.Single(elements, element => element.Children.Contains(name));
+            UiLabel[] labels = row.Children.OfType<UiLabel>().ToArray();
+            Assert.Equal(3, labels.Length);
+            Assert.Equal(!available.Contains(stat), name.Muted);
+            Assert.Equal(name.Muted, labels[1].Muted);
+            Assert.False(labels[2].Muted);
+            Assert.Null(labels[2].Color);
+        }
+    }
+
     [Theory]
     [InlineData(640, 448)]
     [InlineData(1280, 896)]
