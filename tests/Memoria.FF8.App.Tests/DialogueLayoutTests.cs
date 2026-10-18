@@ -62,8 +62,54 @@ public sealed class DialogueLayoutTests
         var lines = pages.SelectMany(page => page.Lines).ToArray();
         Assert.Equal(0, lines[0].Runs[0].X);
         Assert.All(lines.Skip(1), line => Assert.Equal(Width("«"), line.Runs[0].X));
-        Assert.Equal("aligned»", string.Concat(lines[^1].Runs.Select(run => run.Run.Text)));
+        Assert.Equal(" aligned»", string.Concat(lines[^1].Runs.Select(run => run.Run.Text)));
         Assert.Equal(10 + DialogueLayout.SpeakerGap + pages[0].Lines.Count * 10, pages[0].Height);
+    }
+
+    [Theory]
+    [InlineData("", "")]
+    [InlineData(" ", "")]
+    [InlineData("  ", " ")]
+    [InlineData("\t", "\t")]
+    [InlineData("\u00a0", "\u00a0")]
+    public void Quoted_authored_lines_ignore_exactly_one_leading_space(string prefix, string expectedPrefix)
+    {
+        string text = "Instructor{Line}“First{Page}" + prefix + "{Color BlueBlink}[Place]{Color White} last.”{Line}  After";
+        DialogueDocument document = DialogueTextFormatter.Parse(text);
+        var pages = DialogueLayout.Create(document, new DialogueState(0, 1, text, 20, 20), null, 10, Width);
+        DialogueVisualLine continued = pages[1].Lines[0];
+        Assert.Equal(expectedPrefix + "[Place] last.”", string.Concat(continued.Runs.Select(run => run.Run.Text)));
+        Assert.Equal(Width("“"), continued.Runs[0].X);
+        DialoguePlacedRun colored = Assert.Single(continued.Runs, run => run.Run.Color == Microsoft.Xna.Framework.Color.CornflowerBlue);
+        Assert.True(colored.Run.Blink);
+        Assert.Equal("[Place]", colored.Run.Text);
+        Assert.Equal("  After", string.Concat(pages[1].Lines[1].Runs.Select(run => run.Run.Text)));
+        Assert.Equal(prefix + "[Place] last.”", document.Pages[1].Lines[0].Text);
+    }
+
+    [Fact]
+    public void Ignored_alignment_space_does_not_change_natural_width_or_wrap_other_lines()
+    {
+        string source = "“First{Line}short line wraps{Line}";
+        var expected = Layout(source + "aligned.”");
+        string text = source + " {Color BlueBlink}aligned.”";
+        var actual = DialogueLayout.Create(DialogueTextFormatter.Parse(text), new DialogueState(0, 1, text, 20, 20), null, 10, value =>
+        {
+            Assert.NotEqual(" aligned.”", value);
+            return Width(value);
+        });
+        Assert.Equal(expected.Select(page => page.Width), actual.Select(page => page.Width));
+        Assert.Equal(expected.SelectMany(page => page.Lines).Select(line => line.Width), actual.SelectMany(page => page.Lines).Select(line => line.Width));
+        Assert.Equal(expected.SelectMany(page => page.Lines).Select(line => string.Concat(line.Runs.Select(run => run.Run.Text))), actual.SelectMany(page => page.Lines).Select(line => string.Concat(line.Runs.Select(run => run.Run.Text))));
+    }
+
+    [Fact]
+    public void Quote_alignment_space_does_not_trim_choice_content()
+    {
+        const string text = "“Prompt{Line}  Choice”";
+        var pages = Layout(text, new DialogueState(0, 1, text, 20, 20, FirstChoice: 1, LastChoice: 1));
+        DialogueVisualLine choice = Assert.Single(pages.SelectMany(page => page.Lines), line => line.IsChoice);
+        Assert.Equal("  Choice”", string.Concat(choice.Runs.Select(run => run.Run.Text)));
     }
 
     [Fact]

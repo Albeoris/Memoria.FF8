@@ -36,7 +36,7 @@ internal static class DialogueLayout
         }
         foreach (var sourcePage in sourcePages)
         {
-            float naturalWidth = sourcePage.Lines.Select(line => measure(line.Text) + (line.IsQuoteStart ? 0 : measure(line.HangingIndent))).DefaultIfEmpty(0).Max();
+            float naturalWidth = sourcePage.Lines.Select(line => measure((IsChoice(line) ? line : RemoveQuoteAlignmentSpace(line)).Text) + (line.IsQuoteStart ? 0 : measure(line.HangingIndent))).DefaultIfEmpty(0).Max();
             float width = Math.Min(maximumWidth, Math.Max(requestedWidth, naturalWidth));
             string? speaker = sourcePage.Speaker;
             float speakerWidth = speaker is null ? 0 : measure(speaker);
@@ -88,6 +88,7 @@ internal static class DialogueLayout
             yield return new DialogueVisualLine(runs, x, source.SourceLineIndex, true);
             yield break;
         }
+        source = RemoveQuoteAlignmentSpace(source);
         // Split only at grapheme boundaries. Keep word/whitespace break opportunities where possible.
         List<DialogueRun> elements = [];
         foreach (var run in source.Runs)
@@ -96,14 +97,6 @@ internal static class DialogueLayout
             while (enumerator.MoveNext())
             {
                 elements.Add(run with { Text = enumerator.GetTextElement() });
-            }
-        }
-        if (source.HangingIndent.Length > 0)
-        {
-            // Scripts commonly add a space on continuation lines; replace that with the measured quote indent.
-            while (elements.Count > 0 && string.IsNullOrWhiteSpace(elements[0].Text))
-            {
-                elements.RemoveAt(0);
             }
         }
         int position = 0;
@@ -154,5 +147,19 @@ internal static class DialogueLayout
             first = false;
         }
         while (position < elements.Count);
+    }
+
+    private static DialogueLine RemoveQuoteAlignmentSpace(DialogueLine source)
+    {
+        if (source.HangingIndent.Length == 0 || !source.Text.StartsWith(' '))
+        {
+            return source;
+        }
+        // One authored leading space supplies alignment already provided by the measured quote indent.
+        // Preserve any additional spaces and other whitespace as intentional content.
+        DialogueRun[] runs = source.Runs.ToArray();
+        int first = Array.FindIndex(runs, run => run.Text.Length > 0);
+        runs[first] = runs[first] with { Text = runs[first].Text[1..] };
+        return source with { Runs = runs.Where(run => run.Text.Length > 0).ToArray() };
     }
 }
