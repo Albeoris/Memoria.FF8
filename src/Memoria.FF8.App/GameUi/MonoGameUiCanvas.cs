@@ -21,21 +21,19 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
         foreach (int id in controller.Available)
         {
             string name = controller.Name(id);
-            text.Preload(name, 26 * scale, 440 * scale);
-            text.Preload(name, 19 * scale, 292 * scale);
-            text.Preload($"\u00d7{controller.Remaining(id)}", 18 * scale, 50 * scale);
-        }
-        foreach (int level in controller.Available.Select(id => id / 11 + 1).Distinct())
-        {
-            for (int selected = 0; selected <= 5; selected++)
+            text.Preload(name, 27 * scale, 280 * scale);
+            for (int selected = 0; selected <= Math.Min(5, controller.Remaining(id)); selected++)
             {
-                text.Preload($"Level {level}     {selected} / 5 cards selected", 17 * scale, 440 * scale);
+                text.Preload((controller.Remaining(id) - selected).ToString(), 27 * scale, 50 * scale);
             }
         }
     }
 
     public void PrepareTripleTriadImages(IEnumerable<int> cardIds)
     {
+        _ = GetImage(new UiImageSource(UiImageKind.TripleTriadBackground, 0));
+        _ = GetImage(new UiImageSource(UiImageKind.TripleTriadBoardBackground, 0));
+        _ = GetImage(new UiImageSource(UiImageKind.Icon, 215));
         foreach (int id in cardIds.Distinct())
         {
             _ = GetImage(new UiImageSource(UiImageKind.CardFace, id, 0));

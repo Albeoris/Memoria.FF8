@@ -5,7 +5,7 @@ using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
-/// <summary>Loads original foreground artwork on demand; panel backgrounds remain procedural.</summary>
+/// <summary>Loads original artwork on demand; menu panels remain procedural.</summary>
 internal sealed class MenuArtworkProvider(string gameDirectory)
 {
     private NativeMenuArtwork? portraits;
@@ -29,6 +29,8 @@ internal sealed class MenuArtworkProvider(string gameDirectory)
             UiImageKind.CardElement => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory)).GetElement((TripleTriadElement)source.Id),
             UiImageKind.CardFace => ReadCardFace(source.Id, source.Palette, fontFamily),
             UiImageKind.CardBack => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory)).Back,
+            UiImageKind.TripleTriadBackground => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory)).Background,
+            UiImageKind.TripleTriadBoardBackground => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory)).BoardBackground,
             UiImageKind.Icon => (portraits ??= NativeMenuArtwork.Load(gameDirectory)).GetIcon(source.Id, source.Palette),
             UiImageKind.NativeTutorialPage => (tutorials ??= NativeTutorialArtwork.Load(gameDirectory)).Read(source.Id),
             UiImageKind.Magazine => (magazines ??= NativeMagazineArtwork.Load(gameDirectory)).GetImage(source.Id),

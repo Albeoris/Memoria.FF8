@@ -8,6 +8,26 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativeTripleTriadArtworkTests
 {
     [Fact]
+    public void Authenticated_rules_background_decodes_the_complete_opaque_native_framebuffer()
+    {
+        string gameDirectory = TestResources.GameDirectory;
+        Assert.SkipUnless(File.Exists(Path.Combine(gameDirectory, "FF8_EN.exe")), "Installed original executable is required.");
+        NativeTripleTriadArtwork artwork = NativeTripleTriadArtwork.Load(gameDirectory);
+        PixelImage image = artwork.Background;
+        Assert.Equal(384, image.Width);
+        Assert.Equal(224, image.Height);
+        Assert.All(image.Pixels, pixel => Assert.Equal((byte)255, pixel.A));
+        Assert.Equal("65F3198F9EFC69B35D0B274256779553ABEC4B75665FE28D1D17BCEDB0692CA7", Convert.ToHexString(SHA256.HashData(MemoryMarshal.AsBytes(image.Pixels.AsSpan()))));
+        Assert.Same(image, artwork.Background);
+        PixelImage board = artwork.BoardBackground;
+        Assert.Equal(384, board.Width);
+        Assert.Equal(224, board.Height);
+        Assert.All(board.Pixels, pixel => Assert.Equal((byte)255, pixel.A));
+        Assert.Equal("9E5D2EAF1D98AA0E84243D71070DE674A57EA8B3433140F5CC3C20E209F0604D", Convert.ToHexString(SHA256.HashData(MemoryMarshal.AsBytes(board.Pixels.AsSpan()))));
+        Assert.Same(board, artwork.BoardBackground);
+    }
+
+    [Fact]
     public void Authenticated_native_element_sprites_are_distinct_and_keep_their_transparent_extent()
     {
         string gameDirectory = TestResources.GameDirectory;

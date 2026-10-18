@@ -6,6 +6,7 @@ namespace Memoria.FF8.GameUi;
 /// <summary>Deck selection and human input for the single Triple Triad match implementation.</summary>
 public sealed partial class TripleTriadController
 {
+    public const int CardsPerPage = 9;
     private readonly IReadOnlyList<TripleTriadCard> definitions;
     private readonly IReadOnlyDictionary<int, int> collection;
     private readonly int[] opponent;
@@ -28,7 +29,7 @@ public sealed partial class TripleTriadController
         this.opponent = opponent.ToArray();
         Name = name;
         Rules = rules;
-        available = collection.Where(pair => pair.Value > 0).Select(pair => pair.Key).Order().ToArray();
+        available = collection.Where(pair => pair.Value > 0).Select(pair => pair.Key).OrderDescending().ToArray();
         if (available.Sum(id => collection[id]) < 5 || available.Any(id => !definitions.Any(card => card.Id == id)) || this.opponent.Length is not (0 or 5))
         {
             throw new ArgumentException("Triple Triad requires five available player cards and a complete opponent hand.");
@@ -46,6 +47,7 @@ public sealed partial class TripleTriadController
     public TripleTriadRules Rules { get; }
     public TripleTriadMatch? Match { get; private set; }
     public int Selection { get; private set; }
+    public int SelectionPage => Selection / CardsPerPage;
     public int SelectedHand { get; private set; }
     public int SelectedCell { get; private set; }
     public bool ChoosingCell { get; private set; }
@@ -53,6 +55,7 @@ public sealed partial class TripleTriadController
     public IReadOnlyList<int> TradeSelection => tradeSelection.AsReadOnly();
     public int RequiredTradeCards { get; private set; }
     public bool AwaitingRules { get; private set; }
+    public int RulesSelection { get; private set; }
     public string TradeRuleDescription { get; private set; } = "";
     public Func<IReadOnlyList<int>, TripleTriadMatch>? CreateMatch { get; set; }
     public Func<TripleTriadMatch, TripleTriadMove>? ChooseOpponentMove { get; set; }
@@ -107,15 +110,20 @@ public sealed partial class TripleTriadController
     {
         if (AwaitingRules)
         {
+            if (key is UiKey.Up or UiKey.Down)
+            {
+                SelectRulesChoice(1 - RulesSelection);
+                return;
+            }
             if (key == UiKey.Confirm)
             {
                 if (RuleChoiceRequested is not null)
                 {
-                    RuleChoiceRequested(0);
+                    RuleChoiceRequested(RulesSelection);
                 }
                 else
                 {
-                    CompleteRulesPrompt(true);
+                    CompleteRulesPrompt(RulesSelection == 0);
                 }
             }
             else if (key == UiKey.Cancel)
@@ -151,15 +159,22 @@ public sealed partial class TripleTriadController
         {
             if (key == UiKey.Up)
             {
-                Selection = (Selection + available.Length - 1) % available.Length;
+                int first = SelectionPage * CardsPerPage;
+                int count = Math.Min(CardsPerPage, available.Length - first);
+                Selection = first + (Selection - first + count - 1) % count;
             }
             else if (key == UiKey.Down)
             {
-                Selection = (Selection + 1) % available.Length;
+                int first = SelectionPage * CardsPerPage;
+                int count = Math.Min(CardsPerPage, available.Length - first);
+                Selection = first + (Selection - first + 1) % count;
             }
-            else if (key == UiKey.PageUp || key == UiKey.PageDown)
+            else if (key is UiKey.Left or UiKey.Right or UiKey.PageUp or UiKey.PageDown)
             {
-                Selection = Math.Clamp(Selection + (key == UiKey.PageUp ? -12 : 12), 0, available.Length - 1);
+                int pages = (available.Length + CardsPerPage - 1) / CardsPerPage;
+                int pageDirection = key is UiKey.Left or UiKey.PageUp ? -1 : 1;
+                int page = (SelectionPage + pageDirection + pages) % pages;
+                Selection = Math.Min(page * CardsPerPage + Selection % CardsPerPage, available.Length - 1);
             }
             else if (key == UiKey.Confirm)
             {
@@ -303,7 +318,20 @@ public sealed partial class TripleTriadController
         acceptRules = accepted;
         cancelRules = cancelled;
         AwaitingRules = true;
+        RulesSelection = 0;
         Message = "Review the rules before playing.";
+    }
+
+    public void SelectRulesChoice(int choice)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(choice);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(choice, 1);
+        if (AwaitingRules && RulesSelection != choice)
+        {
+            RulesSelection = choice;
+            RequestSound(TripleTriadSound.Move);
+            Changed?.Invoke();
+        }
     }
 
     public void CompleteRulesPrompt(bool accepted)

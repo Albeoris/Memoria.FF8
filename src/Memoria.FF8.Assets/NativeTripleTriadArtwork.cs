@@ -12,15 +12,23 @@ public sealed class NativeTripleTriadArtwork
     private readonly PixelImage[] elements;
     private readonly PixelImage[] fronts;
 
-    private NativeTripleTriadArtwork(PixelImage[] elements, PixelImage[] fronts, PixelImage back)
+    private NativeTripleTriadArtwork(PixelImage[] elements, PixelImage[] fronts, PixelImage back, PixelImage background, PixelImage boardBackground)
     {
         this.elements = elements;
         this.fronts = fronts;
         Back = back;
+        Background = background;
+        BoardBackground = boardBackground;
     }
 
     /// <summary>The original gold back used by native 53A590 for hidden opponent cards.</summary>
     public PixelImage Back { get; }
+
+    /// <summary>The original 384 by 224 parchment background used by the native rules screen.</summary>
+    public PixelImage Background { get; }
+
+    /// <summary>The original 384 by 224 board background used during card selection and play.</summary>
+    public PixelImage BoardBackground { get; }
 
     public PixelImage GetFront(int cardId)
     {
@@ -74,7 +82,24 @@ public sealed class NativeTripleTriadArtwork
         }
         // Native 53A590: tpage 0x9D, UV (0,192)..(63,255), CLUT 0x3FF0.
         PixelImage back = CropIndexed(cards, 1664, 192, 64, 64, 55 * 256);
-        return new NativeTripleTriadArtwork(elements, fronts, back);
+        // Native 536C80 queues C4AB58 through 539410 as a raw framebuffer image.
+        // The display environment initialized by 537DD0 supplies its 384 by 224 extent.
+        PixelImage background = ReadFramebuffer(executable, 0x84AB58);
+        // Native 5370E0 queues C20B44 through the same framebuffer drawing contract.
+        PixelImage boardBackground = ReadFramebuffer(executable, 0x820B44);
+        return new NativeTripleTriadArtwork(elements, fronts, back, background, boardBackground);
+    }
+
+    private static PixelImage ReadFramebuffer(byte[] executable, int offset)
+    {
+        PixelImage background = new(384, 224);
+        for (int index = 0; index < background.Pixels.Length; index++)
+        {
+            ushort pixel = BinaryPrimitives.ReadUInt16LittleEndian(executable.AsSpan(offset + index * 2));
+            Rgba32 color = Rgba32.FromPsxBgr555Display(pixel);
+            background.Pixels[index] = new Rgba32(color.R, color.G, color.B);
+        }
+        return background;
     }
 
     private static TimImage ReadTim(byte[] executable, int offset)
