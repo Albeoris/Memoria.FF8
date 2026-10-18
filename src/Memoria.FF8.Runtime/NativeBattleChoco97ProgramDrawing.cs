@@ -6,10 +6,11 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleChoco97ProgramResources(NativeBattleGfAnimationSource ProgramSource);
 public sealed record NativeBattleChoco97ProgramDraw(NativeBattleModulePoolTask Task, int Remaining, NativeBattleGfGeometryBatch Packets, ImmutableArray<byte> MorphScratch);
 public sealed record NativeBattleChoco97NodeDraw(NativeBattleGfGeometryBatch Packets, ImmutableArray<byte> MorphScratch);
-internal sealed record NativeBattleChocoProgramProfile(int TaskBytes, int WorkspaceBytes, int ScratchBytes, ImmutableArray<int> ClearOperands)
+internal sealed record NativeBattleChocoProgramProfile(int TaskBytes, int WorkspaceBytes, int ScratchBytes, ImmutableArray<int> ClearOperands, bool Header8000SkipsBasis = false, bool DepthWord86 = false)
 {
     internal static NativeBattleChocoProgramProfile Choco97 { get; } = new(0x540, 0x4AC, 0x3C0, [0x4AC, 0x44C, 0x170, 0x290]);
     internal static NativeBattleChocoProgramProfile Choco98 { get; } = new(0x864, 0x7D0, 0x168, [0x4AC, 0x44C, 0x170, 0x494, 0x7D0]);
+    internal static NativeBattleChocoProgramProfile Choco100 { get; } = new(0x540, 0x4AC, 0x120, [0x4AC, 0x44C, 0x170, 0x32C], true, true);
     internal static NativeBattleChocoProgramProfile Choco99 { get; } = new(0x548, 0x4B4, 0x760, [0x4AC, 0x44C, 0x170, 0xB0, 0x2C, 0x194, 0x30, 0x1E8]);
 }
 
@@ -61,7 +62,7 @@ public static partial class NativeBattleChoco97ProgramDrawing
         int allocated = 0;
         NativeBattleGfAnimationAdvance advanced = Workspace(task, profile).Advance701970(source, unchecked((int)frozen), (current, node) =>
         {
-            NativeBattleChoco97NodeDraw draw = NodeProfiled(source, node, morphScratch, context, projection, colors, profile);
+            NativeBattleChoco97NodeDraw draw = NodeProfiled(source, node, morphScratch, context, projection, colors, profile, profile.DepthWord86 ? unchecked((short)task.ReadWord(0x86)) : (short)0);
             morphScratch = draw.MorphScratch;
             attempts.AddRange(draw.Packets.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(attempt.ByteOffsetRelative + allocated) }));
             allocated = checked(allocated + draw.Packets.AllocationBytes);
@@ -75,7 +76,7 @@ public static partial class NativeBattleChoco97ProgramDrawing
         return NodeProfiled(source, node, morphScratch, context, projection, colors, NativeBattleChocoProgramProfile.Choco97);
     }
 
-    internal static NativeBattleChoco97NodeDraw NodeProfiled(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleChocoProgramProfile profile)
+    internal static NativeBattleChoco97NodeDraw NodeProfiled(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleChocoProgramProfile profile, short depthBias = 0)
     {
         if (node.Data.IsDefault || node.Data.Length != 44)
         {
@@ -123,10 +124,14 @@ public static partial class NativeBattleChoco97ProgramDrawing
             flags |= 0xC0;
         }
         NativeBattleModuleMeshContext operands = new(flags, cue ? node.Color32 : null, cue ? node.Scalar36 : null, null, null, null, 17, 2);
-        return new(NativeBattleModulePackets.EmitBatch572200(source.Data, geometry, selected, ComposeNodeMatrix(node, context), projection, operands, colors), morphScratch);
+        NativeBattleActionMatrix matrix = ComposeNodeMatrix(node, context, profile.Header8000SkipsBasis);
+        NativeBattleGfGeometryBatch packets = depthBias == 0 ? NativeBattleModulePackets.EmitBatch572200(source.Data, geometry, selected, matrix, projection, operands, colors) : NativeBattleChoco100DepthPackets.EmitBatch(source.Data, geometry, selected, matrix, projection, operands, depthBias, colors);
+        return new(packets, morphScratch);
     }
 
-    public static NativeBattleActionMatrix ComposeNodeMatrix(NativeBattleGfAnimationNode node, NativeBattleActionMatrix context)
+    public static NativeBattleActionMatrix ComposeNodeMatrix(NativeBattleGfAnimationNode node, NativeBattleActionMatrix context) => ComposeNodeMatrix(node, context, false);
+
+    internal static NativeBattleActionMatrix ComposeNodeMatrix(NativeBattleGfAnimationNode node, NativeBattleActionMatrix context, bool header8000SkipsBasis)
     {
         NativeBattleActionMatrix matrix = (node.Header & 0x40000) != 0 ? NativeBattleGfMatrices.Euler7015B0(node.Vector16) : NativeBattleGfMatrices.Euler701310(node.Vector16);
         int x = node.Vector8.X;
@@ -135,7 +140,10 @@ public static partial class NativeBattleChoco97ProgramDrawing
         if ((node.Header & 0x200) == 0)
         {
             (x, y, z) = NativeBattleGfMatrices.Rotate56C3D0(context, node.Vector8);
-            matrix = NativeBattleGfMatrices.Multiply56C090(context, matrix);
+            if (!header8000SkipsBasis || (node.Header & 0x8000) == 0)
+            {
+                matrix = NativeBattleGfMatrices.Multiply56C090(context, matrix);
+            }
         }
         NativeBattleVector scale = node.Vector24;
         if (scale is not { X: 4096, Y: 4096, Z: 4096 })

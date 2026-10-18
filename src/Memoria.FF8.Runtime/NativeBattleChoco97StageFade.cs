@@ -6,21 +6,22 @@ public static class NativeBattleChoco97StageFade
 {
     public static NativeBattleChoco97StageFadeStep Advance(NativeBattleModulePoolTask task)
     {
-        if (task.Payload.IsDefault || task.Payload.Length != 0x70 - 12 || task.Callback is not (0x731630 or 0x731A50 or 0x731B40 or 0x7292D0 or 0x7296D0 or 0x7297C0))
+        if (task.Payload.IsDefault || task.Payload.Length != 0x70 - 12 || task.Callback is not (0x731630 or 0x731A50 or 0x731B40 or 0x7292D0 or 0x7296D0 or 0x7297C0 or 0x716A60 or 0x716B50))
         {
             throw new InvalidDataException("Native Choco stage fade requires its actual auxiliary callback and task.");
         }
         short? depth = null;
         bool clearRgb = false;
-        bool fadeOut = task.Callback is 0x731630 or 0x7292D0;
-        bool firstRise = task.Callback is 0x731A50 or 0x7296D0;
+        bool fadeOut = task.Callback is 0x731630 or 0x7292D0 or 0x716B50;
+        bool firstRise = task.Callback is 0x731A50 or 0x7296D0 or 0x716A60;
         switch (unchecked((sbyte)task.ReadByte(0x29)))
         {
             case 0:
                 ushort start = task.Callback switch
                 {
                     0x731630 or 0x7292D0 => 0xC00,
-                    0x731A50 or 0x7296D0 => 0,
+                    0x731A50 or 0x7296D0 or 0x716A60 => 0,
+                    0x716B50 => 0x600,
                     _ => 0x600
                 };
                 task = task.WriteWord(0x1C, start).WriteByte(0x29, 1);

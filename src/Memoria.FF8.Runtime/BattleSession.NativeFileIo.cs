@@ -50,6 +50,15 @@ public sealed partial class BattleSession
                     NativeBattleChoco98IoCompletion choco98Uploaded = NativeBattleChoco98Io.Complete(choco98.Io ?? throw new NotSupportedException("Native Choco98 file completion requires its current IO script."), choco98Memory, completion.Callback);
                     NativeEffectMemory = choco98Uploaded.Memory with { Choco98 = choco98 with { Io = choco98Uploaded.State } };
                     break;
+                case 0x70F130:
+                case 0x70F190:
+                case 0x70F1A0:
+                case 0x70F1C0:
+                    NativeBattleEffectMemory choco100Memory = NativeEffectMemory ?? throw new NotSupportedException("Native Choco100 file completion requires retained effect memory.");
+                    NativeBattleChoco100State choco100 = choco100Memory.Choco100 ?? throw new NotSupportedException("Native Choco100 file completion requires its retained process.");
+                    NativeBattleChoco100IoCompletion choco100Uploaded = NativeBattleChoco100Io.Complete(choco100.Io ?? throw new NotSupportedException("Native Choco100 file completion requires its current IO script."), choco100Memory, completion.Callback);
+                    NativeEffectMemory = choco100Uploaded.Memory with { Choco100 = choco100 with { Io = choco100Uploaded.State } };
+                    break;
                 case 0x718510:
                 case 0x718570:
                 case 0x718580:

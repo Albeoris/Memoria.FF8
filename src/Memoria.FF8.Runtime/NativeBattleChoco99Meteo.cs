@@ -116,10 +116,15 @@ public static class NativeBattleChoco99Meteo
 
     public static NativeBattleChoco99CameraYStep Advance71F880(NativeBattleModulePoolTask task, NativeBattleChoco99CameraYProgram program)
     {
-        Require(task, 0x71F880, 0x40);
+        return AdvanceCameraYProfiled(task, program, 0x71F880);
+    }
+
+    internal static NativeBattleChoco99CameraYStep AdvanceCameraYProfiled(NativeBattleModulePoolTask task, NativeBattleChoco99CameraYProgram program, uint callback)
+    {
+        Require(task, callback, 0x40);
         if (program.Address == 0 || program.Values.IsDefaultOrEmpty || task.ReadDword(0x34) != program.Address)
         {
-            throw new InvalidDataException("Native Choco99 view translation requires its retained bounded WORD program.");
+            throw new InvalidDataException("Native Choco view translation requires its retained bounded WORD program.");
         }
         short? y = null;
         switch (Stage(task))
@@ -135,7 +140,7 @@ public static class NativeBattleChoco99Meteo
                 int index = Word(task, 0x38);
                 if ((uint)index >= program.Values.Length)
                 {
-                    throw new InvalidDataException("Native Choco99 view translation index leaves its actual WORD program.");
+                    throw new InvalidDataException("Native Choco view translation index leaves its actual WORD program.");
                 }
                 short value = program.Values[index];
                 if (value == 127)
@@ -151,7 +156,7 @@ public static class NativeBattleChoco99Meteo
             case 2:
                 break;
             default:
-                throw new NotSupportedException("Native Choco99 view translation leaves its three original phases.");
+                throw new NotSupportedException("Native Choco view translation leaves its three original phases.");
         }
         task = AddCounter(task);
         return new(task, y, Complete(task));

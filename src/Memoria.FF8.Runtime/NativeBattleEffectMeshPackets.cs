@@ -4,7 +4,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 internal sealed record NativeBattleEffectMeshWindow(ushort U, ushort V, NativeBattleTextureWindow Before, NativeBattleTextureWindow After, bool ForceBracket = false, byte? VWrapDimension = null);
-internal sealed record NativeBattleEffectMeshPacketContext(uint Flags, uint? FarColor, int? Fade, ushort? TexturePage, ushort? Clut, uint PackedUvOffset, bool MaterialOverrides, int? DepthBias, int TableBaseBucket, byte DepthShift, NativeBattleEffectMeshWindow? Window = null);
+internal sealed record NativeBattleEffectMeshPacketContext(uint Flags, uint? FarColor, int? Fade, ushort? TexturePage, ushort? Clut, uint PackedUvOffset, bool MaterialOverrides, int? DepthBias, int TableBaseBucket, byte DepthShift, NativeBattleEffectMeshWindow? Window = null, int ScreenMaximumX = 2560, int ScreenMaximumY = 1728, int MinimumDepth = 0);
 
 [Flags]
 internal enum NativeBattleEffectMeshClip
@@ -83,7 +83,7 @@ internal static class NativeBattleEffectMeshPackets
             vertices[3] = readCorner(3);
             packet.Word(8 + 3 * screenStride, vertices[3].Screen);
         }
-        if ((clip & NativeBattleEffectMeshClip.OutsideScreen) != 0 && OutsideScreen(vertices))
+        if ((clip & NativeBattleEffectMeshClip.OutsideScreen) != 0 && OutsideScreen(vertices, context))
         {
             return Rejected();
         }
@@ -108,7 +108,7 @@ internal static class NativeBattleEffectMeshPackets
         int average = Average(vertices);
         if (context.DepthBias is int bias)
         {
-            average = Math.Max(0, unchecked(average + bias));
+            average = Math.Max(context.MinimumDepth, unchecked(average + bias));
         }
         int bucket = checked(context.TableBaseBucket + (average >> context.DepthShift));
         NativeBattleEffectMeshWindow? window = context.Window;
@@ -168,7 +168,7 @@ internal static class NativeBattleEffectMeshPackets
         }
         vertices[3] = readCorner(3);
         packet.Word(20, vertices[3].Screen);
-        if (OutsideScreen(vertices))
+        if (OutsideScreen(vertices, context))
         {
             return Rejected();
         }
@@ -219,7 +219,7 @@ internal static class NativeBattleEffectMeshPackets
             vertices[3] = readCorner(3);
             packet.Word(32, vertices[3].Screen);
         }
-        if (OutsideScreen(vertices))
+        if (OutsideScreen(vertices, context))
         {
             return Rejected();
         }
@@ -241,7 +241,7 @@ internal static class NativeBattleEffectMeshPackets
         int average = Average(vertices);
         if (context.DepthBias is int bias)
         {
-            average = Math.Max(0, unchecked(average + bias));
+            average = Math.Max(context.MinimumDepth, unchecked(average + bias));
         }
         int bucket = checked(context.TableBaseBucket + (average >> context.DepthShift));
         return new([packet.Attempt(new(bucket, packet.Words(), Payload(vertices, vertexColors[0])))], length);
@@ -265,9 +265,9 @@ internal static class NativeBattleEffectMeshPackets
         return color;
     }
 
-    private static bool OutsideScreen(NativeBattleModuleProjectedVertex[] vertices)
+    private static bool OutsideScreen(NativeBattleModuleProjectedVertex[] vertices, NativeBattleEffectMeshPacketContext context)
     {
-        return vertices.All(vertex => Outside(unchecked((short)vertex.Screen), 2560)) || vertices.All(vertex => Outside(unchecked((short)(vertex.Screen >> 16)), 1728));
+        return vertices.All(vertex => Outside(unchecked((short)vertex.Screen), context.ScreenMaximumX)) || vertices.All(vertex => Outside(unchecked((short)(vertex.Screen >> 16)), context.ScreenMaximumY));
     }
 
     private static bool Outside(short value, int end) => value < 0 || value > end;

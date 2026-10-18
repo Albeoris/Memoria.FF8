@@ -232,6 +232,15 @@ public sealed partial class GameAssets
                 binding = binding with { Choco99Resources = ReadNativeChoco99Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 100)
+            {
+                if (binding.Entry != 0x70D390 || binding.Initializer != 0x70D370)
+                {
+                    throw new InvalidDataException("Native Choco100 differs from its original module identity.");
+                }
+                binding = binding with { Choco100Resources = ReadNativeChoco100Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 199)
             {
                 if (binding.Entry != 0x5A8750 || binding.Initializer != 0x5A8730 || binding.InitializerIsRet != false || binding.InitializerResource is not null || binding.InitializerResources is not null || binding.InitializerAsset is not null || binding.InitializerAssets is not null)

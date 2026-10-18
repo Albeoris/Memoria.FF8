@@ -133,6 +133,10 @@ public sealed partial class BattleSession
                 {
                     graphics = cactuarCompleted;
                 }
+                else if (TryWriteNativeChoco100Completion(graphics, address, value, out NativeBattleGraphicsState choco100Completed))
+                {
+                    graphics = choco100Completed;
+                }
                 else if (TryWriteNativeChoco99Completion(graphics, address, value, out NativeBattleGraphicsState choco99Completed))
                 {
                     graphics = choco99Completed;

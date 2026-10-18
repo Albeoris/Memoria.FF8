@@ -5,6 +5,8 @@ namespace Memoria.FF8.Runtime;
 /// <summary>8D8280 replaces the shared actor context's model pointer and target selector.</summary>
 public sealed record NativeBattleCureActorContext(byte Target);
 
+public sealed record NativeBattleCureActorGeometry(NativeBattleRawMesh Mesh, NativeBattleModelTextureBinding Binding);
+
 public static class NativeBattleCureActorAssembly
 {
     public static NativeBattleCureActorPacketBatch Emit8D7110(NativeBattleGraphicsModel model, NativeBattleGraphicsResource resource, NativeBattleActionMatrix copiedCamera, NativeBattleCameraProjection projection, NativeBattleVector center, short verticalOffset, short? contextF4)
@@ -25,35 +27,12 @@ public static class NativeBattleCureActorAssembly
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattlePoseMatrices.StageBoneMatrices(source, pose);
         NativeBattleCureActorMatrices matrices = NativeBattlePoseMatrices.CureActorMatrices8D7110(model.GeometryWorldMatrix ?? throw new NotSupportedException("Native8D7200 requires the previously published model matrix."), copiedCamera, new(0, verticalOffset, 0), 1, center, 8192);
         uint color = model.Color40 ?? throw new NotSupportedException("Native8D7430 requires the actual model color DWORD40.");
-        uint mask = sequence.MeshMask124;
-        ImmutableArray<NativeBattleRawMesh> body = resource.Geometry ?? throw new NotSupportedException("Native8D7430 requires its original body geometry.");
-        ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Native8D7110 requires observed linked geometry presence.");
-        bool shared = !linked.IsEmpty && (resource.LinkedGeometryUsesBodySkeleton ?? throw new NotSupportedException("Native8D7110 requires the actual507E20 linked resource shape."));
-        if (shared && (body.Length < 2 || linked.Length != 1))
-        {
-            throw new NotSupportedException("Native507E20 requires body directory slot1 and its single weapon object.");
-        }
         int processBytes = 0;
         int effectBytes = 0;
         ImmutableArray<NativeBattleCureAllocatedPrimitive>.Builder result = ImmutableArray.CreateBuilder<NativeBattleCureAllocatedPrimitive>();
-        for (int index = 0; index < body.Length; index++)
+        foreach (NativeBattleCureActorGeometry geometry in SelectGeometry8D7110(model, resource, sequence.MeshMask124))
         {
-            if ((mask & (1u << (index & 31))) != 0)
-            {
-                bool weapon = shared && index == 1;
-                Emit(weapon ? linked[0] : body[index], weapon ? model.LinkedTextureSlots : model.BodyTextureSlots);
-            }
-        }
-        if (!shared)
-        {
-            //8D7110's second call uses the body matrices and the same model mask, without502D40's linked Flags0 guard.
-            for (int index = 0; index < linked.Length; index++)
-            {
-                if ((mask & (1u << (index & 31))) != 0)
-                {
-                    Emit(linked[index], model.LinkedTextureSlots);
-                }
-            }
+            Emit(geometry.Mesh, geometry.Binding);
         }
         return new(result.ToImmutable(), processBytes, effectBytes);
 
@@ -69,4 +48,41 @@ public static class NativeBattleCureActorAssembly
             effectBytes = checked(effectBytes + batch.EffectAllocationBytes);
         }
     }
+
+    public static ImmutableArray<NativeBattleCureActorGeometry> SelectGeometry8D7110(NativeBattleGraphicsModel model, NativeBattleGraphicsResource resource, uint mask)
+    {
+        ImmutableArray<NativeBattleRawMesh> body = resource.Geometry ?? throw new NotSupportedException("Native actor drawing requires its original body geometry.");
+        ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Native actor drawing requires observed linked geometry presence.");
+        bool shared = !linked.IsEmpty && (resource.LinkedGeometryUsesBodySkeleton ?? throw new NotSupportedException("Native actor drawing requires its actual linked resource shape."));
+        if (shared && (body.Length < 2 || linked.Length != 1))
+        {
+            throw new NotSupportedException("Native507E20 requires body directory slot1 and its single weapon object.");
+        }
+        ImmutableArray<NativeBattleCureActorGeometry>.Builder selected = ImmutableArray.CreateBuilder<NativeBattleCureActorGeometry>();
+        for (int index = 0; index < body.Length; index++)
+        {
+            if ((mask & (1u << (index & 31))) != 0)
+            {
+                bool weapon = shared && index == 1;
+                Add(weapon ? linked[0] : body[index], weapon ? model.LinkedTextureSlots : model.BodyTextureSlots);
+            }
+        }
+        if (!shared)
+        {
+            for (int index = 0; index < linked.Length; index++)
+            {
+                if ((mask & (1u << (index & 31))) != 0)
+                {
+                    Add(linked[index], model.LinkedTextureSlots);
+                }
+            }
+        }
+        return selected.ToImmutable();
+
+        void Add(NativeBattleRawMesh mesh, NativeBattleModelTextureBinding? binding)
+        {
+            selected.Add(new(mesh, binding ?? throw new NotSupportedException("Native actor drawing requires its executed material relocation.")));
+        }
+    }
+
 }
