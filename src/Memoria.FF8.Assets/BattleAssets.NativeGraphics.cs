@@ -13,7 +13,7 @@ public sealed partial class BattleAssets
         ImmutableArray<NativeBattleGraphicsBinding> bindings = actors.Select(actor => new NativeBattleGraphicsBinding(actor.Id, checked((byte)(actor.IsPlayer ? actor.ModelId : actor.ModelId + 16)), ReadNativeGraphicsResource(actor)) { InitialPosition = actor.IsPlayer ? NativeBattleFormation.PartyPosition(Array.IndexOf(party, actor), party.Length) : encounter is null ? null : encounter.Slots.Single(slot => slot.Slot == actor.SceneSlot).NativePosition ?? throw new InvalidDataException("Native graphics formation lacks its original scene position WORDs.") }).ToImmutableArray();
         //47DAC0 queues enemy103 completions before47DD30/47DBA0 player102/103 descriptors.
         ImmutableArray<string> order = actors.Where(actor => !actor.IsPlayer && actor.InitialActive).Concat(actors.Where(actor => actor.IsPlayer)).Select(actor => actor.Id).ToImmutableArray();
-        return new(rules, bindings, order) { PrimitiveTables = ReadNativePrimitiveTables(), PrimitiveCapabilities = NativeBattlePrimitiveCapabilities.PrimaryRgba8() };
+        return new(rules, bindings, order) { PrimitiveTables = ReadNativePrimitiveTables(), SoftwarePrimitiveTable = ReadNativeSoftwarePrimitiveTable(), PrimitiveCapabilities = NativeBattlePrimitiveCapabilities.PrimaryRgba8() };
     }
 
     public NativeBattleGraphicsResource ReadNativeGraphicsResource(BattleCombatantDefinition actor)

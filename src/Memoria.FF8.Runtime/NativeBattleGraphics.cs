@@ -10,9 +10,10 @@ public sealed record NativeBattleGraphicsBinding(string ActorId, byte ModelId, N
 public sealed record NativeBattlePrimitiveCapabilities([property: JsonRequired] bool GouraudAlpha)
 {
     public NativeBattlePcDirectTextureFormat? DirectTextureFormat { get; init; }
+    public bool? HardwareEnabled { get; init; }
     //The current PC RGBA renderer interpolates both diffuse RGB and alpha; this selects464220's4000-capable branch.
     //Its direct RGBA8 texture target preserves the original five-bit RGB channels through the explicit RGB555 conversion branch.
-    public static NativeBattlePrimitiveCapabilities PrimaryRgba8() => new(true) { DirectTextureFormat = NativeBattlePcDirectTextureFormat.Rgb555 };
+    public static NativeBattlePrimitiveCapabilities PrimaryRgba8() => new(true) { DirectTextureFormat = NativeBattlePcDirectTextureFormat.Rgb555, HardwareEnabled = true };
 }
 
 public sealed partial record NativeBattleGraphicsDefinition(NativeBattleGraphicsRules Rules, ImmutableArray<NativeBattleGraphicsBinding> Bindings, ImmutableArray<string> InitialLoadOrder)

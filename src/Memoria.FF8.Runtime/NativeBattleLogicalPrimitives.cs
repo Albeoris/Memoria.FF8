@@ -282,38 +282,97 @@ public sealed record NativeBattlePrimitiveTables(ImmutableArray<byte> WordLength
     }
 }
 
+public interface INativeBattleLogicalExecutionContext
+{
+    uint LiveMode { get; }
+    bool HardwareEnabled { get; }
+    NativeSoftwarePrimitiveTable SoftwareTable { get; }
+    NativeBattlePcTextureWindowCache? Cache { get; set; }
+    void ExecuteSoftware(NativeBattleLogicalCommand command);
+    void ExecuteNormal(NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode, byte pass);
+    NativeBattlePrimitiveDrawMode SynchronizeDrawMode(NativeBattlePrimitiveDrawMode mode);
+    void EndBatch();
+}
+
 public static class NativeBattleLogicalPasses
 {
     public static (NativeBattlePrimitiveDrawMode Final, ImmutableArray<NativeBattleLogicalResolvedCommand> Commands, NativeBattlePcTextureWindowCache? Cache) Execute(NativeBattleLogicalOrdering ordering, NativeBattlePrimitiveTables tables, NativeBattlePrimitiveDrawMode initial, uint drawFlags, NativeBattlePcTextureWindowCache? cache = null, Func<NativeBattlePrimitiveReference, int, byte[]>? readPhysical = null)
     {
+        return ExecuteCore(ordering, tables, initial, drawFlags, cache, null, readPhysical);
+    }
+
+    public static (NativeBattlePrimitiveDrawMode Final, ImmutableArray<NativeBattleLogicalResolvedCommand> Commands, NativeBattlePcTextureWindowCache? Cache) Execute(NativeBattleLogicalOrdering ordering, NativeBattlePrimitiveTables tables, NativeBattlePrimitiveDrawMode initial, INativeBattleLogicalExecutionContext context, Func<NativeBattlePrimitiveReference, int, byte[]>? readPhysical = null)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return ExecuteCore(ordering, tables, initial, 0, context.Cache, context, readPhysical);
+    }
+
+    private static (NativeBattlePrimitiveDrawMode Final, ImmutableArray<NativeBattleLogicalResolvedCommand> Commands, NativeBattlePcTextureWindowCache? Cache) ExecuteCore(NativeBattleLogicalOrdering ordering, NativeBattlePrimitiveTables tables, NativeBattlePrimitiveDrawMode initial, uint drawFlags, NativeBattlePcTextureWindowCache? cache, INativeBattleLogicalExecutionContext? context, Func<NativeBattlePrimitiveReference, int, byte[]>? readPhysical)
+    {
         tables.Validate();
-        if (ordering.ProxyCursor == NativeBattlePrimitiveOrdering.ProxyCapacity)
+        if (ordering.ProxyCursor >= NativeBattlePrimitiveOrdering.ProxyCapacity)
         {
-            return (initial, [], cache);
+            context?.EndBatch();
+            return (initial, [], context is null ? cache : context.Cache);
         }
         ImmutableArray<NativeBattleLogicalCommand> commands = ordering.Traverse(tables.WordLengths, readPhysical);
-        NativeBattlePrimitiveDrawMode mode = initial;
+        NativeBattlePrimitiveDrawMode mode = context?.SynchronizeDrawMode(initial) ?? initial;
         ImmutableArray<NativeBattleLogicalResolvedCommand>.Builder executed = ImmutableArray.CreateBuilder<NativeBattleLogicalResolvedCommand>();
         ImmutableArray<uint>[] passes = [tables.PreprocessingHandlers, tables.FirstHandlers, tables.SecondHandlers];
         for (byte pass = 0; pass < passes.Length; pass++)
         {
+            if (pass == 1 && context?.HardwareEnabled == false)
+            {
+                break;
+            }
+            SetCache(BeginTexturePass(GetCache(), pass));
             foreach (NativeBattleLogicalCommand command in commands)
             {
-                if (passes[pass][command.Opcode] == 0 || (drawFlags & 1) == 0 && tables.FlaggedCommands[command.Opcode] != 0)
+                if (pass == 0 && context is not null && (context.LiveMode & 2) != 0 && context.SoftwareTable.Handler(command.Opcode) != 0)
+                {
+                    context.ExecuteSoftware(command);
+                    mode = context.SynchronizeDrawMode(mode);
+                }
+                bool category = tables.FlaggedCommands[command.Opcode] != 0;
+                uint liveMode = context?.LiveMode ?? drawFlags;
+                bool hardware = pass != 0 || context?.HardwareEnabled != false;
+                if (passes[pass][command.Opcode] == 0 || category && ((liveMode & 1) == 0 || !hardware))
                 {
                     continue;
                 }
                 mode = mode.ExecuteWords(command.Opcode, command.Words);
                 mode = mode with { TextureSelection = null };
-                executed.Add(new(command, mode, pass));
+                if (context is not null)
+                {
+                    context.ExecuteNormal(command, mode, pass);
+                    mode = context.SynchronizeDrawMode(mode) with { TextureSelection = null };
+                }
+                NativeBattleLogicalResolvedCommand resolved = new(command, mode, pass);
+                if (GetCache() is { } currentCache)
+                {
+                    var selected = SelectTextureCommand(resolved, currentCache);
+                    resolved = selected.Command;
+                    SetCache(selected.Cache);
+                }
+                executed.Add(resolved);
+            }
+            SetCache(EndTexturePass(GetCache(), pass));
+        }
+        context?.EndBatch();
+        return (mode, executed.ToImmutable(), GetCache());
+
+        NativeBattlePcTextureWindowCache? GetCache() => context is null ? cache : context.Cache;
+        void SetCache(NativeBattlePcTextureWindowCache? value)
+        {
+            if (context is null)
+            {
+                cache = value;
+            }
+            else
+            {
+                context.Cache = value;
             }
         }
-        if (cache is null)
-        {
-            return (mode, executed.ToImmutable(), null);
-        }
-        var selected = SelectTextures(executed.ToImmutable(), cache);
-        return (mode, selected.Commands, selected.Cache);
     }
 
     /// <summary>Apply PC resource preparation and selection to an executed OT; also supports a declared cache-reset migration without advancing simulation.</summary>
@@ -326,36 +385,40 @@ public static class NativeBattleLogicalPasses
         ImmutableArray<NativeBattleLogicalResolvedCommand>.Builder selected = ImmutableArray.CreateBuilder<NativeBattleLogicalResolvedCommand>();
         for (byte pass = 0; pass < 3; pass++)
         {
-            if (pass == 1)
-            {
-                cache = cache.Prepare464BD0().Cache;
-            }
+            cache = BeginTexturePass(cache, pass)!;
             foreach (NativeBattleLogicalResolvedCommand command in commands.Where(command => command.Pass == pass))
             {
-                NativeBattlePrimitiveDrawMode mode = command.DrawMode with { TextureSelection = null };
-                if ((command.Command.Opcode & 0xE4) == 0x24)
-                {
-                    ushort page = mode.TexturePage ?? throw new NotSupportedException("Native textured pass requires its executed texture page.");
-                    ushort clut = unchecked((ushort)(command.Command.Words[2] >> 16));
-                    if (pass == 0)
-                    {
-                        cache = cache.Preprocess462F90(page, clut);
-                    }
-                    else
-                    {
-                        uint window = mode.TextureWindowBits ?? throw new NotSupportedException("Native465CE0 requires its retained E2 window bits.");
-                        NativeBattlePcTextureWindowResolve resolved = cache.Resolve465CE0(page, clut, window);
-                        cache = resolved.Cache;
-                        mode = mode with { TextureSelection = resolved.Selection };
-                    }
-                }
-                selected.Add(command with { DrawMode = mode });
+                var item = SelectTextureCommand(command, cache);
+                cache = item.Cache;
+                selected.Add(item.Command);
             }
-            if (pass == 1)
-            {
-                cache = cache.Flush465930();
-            }
+            cache = EndTexturePass(cache, pass)!;
         }
         return (selected.ToImmutable(), cache);
+    }
+
+    private static NativeBattlePcTextureWindowCache? BeginTexturePass(NativeBattlePcTextureWindowCache? cache, byte pass) => pass == 1 ? cache?.Prepare464BD0().Cache : cache;
+    private static NativeBattlePcTextureWindowCache? EndTexturePass(NativeBattlePcTextureWindowCache? cache, byte pass) => pass == 1 ? cache?.Flush465930() : cache;
+
+    private static (NativeBattleLogicalResolvedCommand Command, NativeBattlePcTextureWindowCache Cache) SelectTextureCommand(NativeBattleLogicalResolvedCommand command, NativeBattlePcTextureWindowCache cache)
+    {
+        NativeBattlePrimitiveDrawMode mode = command.DrawMode with { TextureSelection = null };
+        if ((command.Command.Opcode & 0xE4) == 0x24)
+        {
+            ushort page = mode.TexturePage ?? throw new NotSupportedException("Native textured pass requires its executed texture page.");
+            ushort clut = unchecked((ushort)(command.Command.Words[2] >> 16));
+            if (command.Pass == 0)
+            {
+                cache = cache.Preprocess462F90(page, clut);
+            }
+            else
+            {
+                uint window = mode.TextureWindowBits ?? throw new NotSupportedException("Native465CE0 requires its retained E2 window bits.");
+                NativeBattlePcTextureWindowResolve resolved = cache.Resolve465CE0(page, clut, window);
+                cache = resolved.Cache;
+                mode = mode with { TextureSelection = resolved.Selection };
+            }
+        }
+        return (command with { DrawMode = mode }, cache);
     }
 }

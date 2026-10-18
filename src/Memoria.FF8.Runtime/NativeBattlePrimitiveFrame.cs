@@ -23,8 +23,8 @@ public sealed partial record NativeBattlePrimitiveProcess(ushort? TexturePage, b
         }
     }
 
-    public static NativeBattlePrimitiveProcess FromColdProcess() => new(0, 0, null, 0, null) { TextureWindowBits = 0, TextureWindowCache = NativeBattlePcTextureWindowCache.Reset4647A0(null) with { ScaleU = 0, ScaleV = 0 }, DisableTableReset = false, ScreenFadeEB8 = 0, PublicationState03A = 0, Depth = NativeBattlePrimitiveDepthState.FromColdProcess(), Color = NativeBattlePrimitiveColorState.FromColdProcess() };
-    public NativeBattlePrimitiveProcess Initialize500400() => this with { PublicationState03A = 0, PacketBank = "off_B6D070", PacketBuffer = 0, ByteCursor = 0, TablePerspective = TablePerspective.SetItem(0, false) };
+    public static NativeBattlePrimitiveProcess FromColdProcess() => new(0, 0, null, 0, null) { TextureWindowBits = 0, TextureWindowCache = NativeBattlePcTextureWindowCache.Reset4647A0(null) with { ScaleU = 0, ScaleV = 0 }, DisableTableReset = false, ScreenFadeEB8 = 0, PublicationState03A = 0, Depth = NativeBattlePrimitiveDepthState.FromColdProcess(), Color = NativeBattlePrimitiveColorState.FromColdProcess(), Software = NativeBattleSoftwarePrimitiveState.FromInitializedRenderer() };
+    public NativeBattlePrimitiveProcess Initialize500400() => this with { PublicationState03A = 0, PacketBank = "off_B6D070", PacketBuffer = 0, ByteCursor = 0, TablePerspective = TablePerspective.SetItem(0, false), Software = Software?.Initialize500400() };
 
     public NativeBattlePrimitiveProcess Reset500900(uint flags)
     {

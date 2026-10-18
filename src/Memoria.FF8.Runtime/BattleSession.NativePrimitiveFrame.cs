@@ -145,11 +145,20 @@ public sealed partial class BattleSession
         ImmutableArray<NativeBattleLogicalResolvedCommand> commands = [];
         if ((graphics.Flags & 4) != 0)
         {
-            //500400 initializes both original battle drawenvs to(0,0,320,216);45B660→45B6F0 publishes flags1.
             NativeBattlePcTextureWindowCache cache = process.TextureWindowCache ?? throw new NotSupportedException("Native500900 requires its retained PC window-cache owner; explicitly reset it in a separately named snapshot migration.");
-            var pass = NativeBattleLogicalPasses.Execute(pending, tables, new(process.TexturePage) { TextureWindowBits = process.TextureWindowBits }, 1, cache, (reference, count) => ReadNativePhysicalPrimitive(reference, count));
+            NativeBattleSoftwarePrimitiveState software = process.Software ?? throw new NotSupportedException("Native500900 requires its retained software drawing owners; migrate the named snapshot explicitly.");
+            if (software.Texture.LastTPage != process.TexturePage)
+            {
+                throw new NotSupportedException("Native500900 requires consistent retained aliases for its shared cached texture page.");
+            }
+            NativeSoftwarePrimitiveTable softwareTable = definition.NativeGraphics.SoftwarePrimitiveTable ?? throw new NotSupportedException("Native500900 requires its original software dispatch table.");
+            bool hardware = definition.NativeGraphics.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Native500900 requires its explicitly selected hardware execution capability.");
+            NativeBattleSoftwarePrimitiveExecution execution = new(software, memory.Textures ?? throw new NotSupportedException("Native500900 requires its retained shared VRAM image."), softwareTable, hardware, cache);
+            execution.ApplyEnvironment45B660(buffer ^ 1);
+            var pass = NativeBattleLogicalPasses.Execute(pending, tables, new(process.TexturePage) { TextureWindowBits = process.TextureWindowBits }, execution, (reference, count) => ReadNativePhysicalPrimitive(reference, count));
             commands = pass.Commands;
-            process = process with { PublicationState03A = process.PublicationState03A is byte state ? state <= 16 ? (byte)0 : (byte)(state - 16) : null, TexturePage = pass.Final.TexturePage, TextureWindowBits = pass.Final.TextureWindowBits, TextureWindowCache = pass.Cache };
+            process = process with { PublicationState03A = process.PublicationState03A is byte state ? state <= 16 ? (byte)0 : (byte)(state - 16) : null, TexturePage = pass.Final.TexturePage, TextureWindowBits = pass.Final.TextureWindowBits, TextureWindowCache = pass.Cache, Software = execution.State };
+            memory = memory with { Textures = execution.Textures };
             pending = pending.ResetAfterDraw45D080();
         }
         ImmutableArray<int?>.Builder blends = ImmutableArray.CreateBuilder<int?>(graphics.ModuleDraws.Length);
