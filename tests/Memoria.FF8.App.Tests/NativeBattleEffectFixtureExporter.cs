@@ -11,6 +11,7 @@ internal sealed record NativeEffectFixtureRequest(string Id, ushort Effect, byte
     public int AdmissionProbeMaximumCallbacks { get; init; }
     public bool OrdinaryMagicAdmission { get; init; }
     public int PartyModelId { get; init; }
+    public bool HealingContact { get; init; }
 }
 internal sealed record NativeEffectFixtureRequests(NativeEffectFixtureRequest[] Cases);
 internal sealed record NativeEffectFixtureArtifact(string Boundary, string File, string Sha256, long Bytes, long Frame, long NativeCallback);
@@ -207,9 +208,9 @@ internal static class NativeBattleEffectFixtureExporter
             NativeBattleActionPacketsState packets = battle.NativeActionPackets;
             byte sequence = SelectSequence(definition.NativeCommandSequences, native.Command, native.ActionId);
             (packets, int header) = packets.Prepare(new(0, native.Command, sequence, -1, native.ActionId, native.MagicId, null));
-            // Explicit scenario input substitutes an already computed seven-HP damage contact.
+            // Explicit scenario input supplies an already computed seven-HP contact and its healing flag.
             // The native kernel supplies command/action/effect/presentation; no formula or RNG is replayed.
-            (packets, _) = packets.AppendContact(new(new(request.TargetActorIndex, native.DamagePresentation, request.TargetActorIndex == 3 ? (byte)1 : (byte)0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.AppendContact(new(new(request.TargetActorIndex, native.DamagePresentation, request.TargetActorIndex == 3 ? (byte)1 : (byte)0, request.HealingContact ? (byte)1 : (byte)0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
             (packets, _) = packets.Publish(1);
             NativeBattleGraphicsState graphics = before.NativeGraphics ?? throw new InvalidDataException("The current entry lacks its native graphics owner.");
             (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
@@ -247,7 +248,10 @@ internal static class NativeBattleEffectFixtureExporter
                 Save("diagnostic-prefix-limit", battle.Capture());
                 return new(request.Id, request.Effect, "fixture-only", boundary, "The explicit diagnostic prefix budget ended without a live initialized effect; this is not an effect duration bound or completion claim.", artifacts.ToArray());
             }
-            return new(request.Id, request.Effect, "fixture-only", boundary, "Effect execution and termination contract were not supplied; no effect completion was attempted or accepted.", artifacts.ToArray());
+            return new(request.Id, request.Effect, "fixture-only", boundary, "Effect execution and termination contract were not supplied; no effect completion was attempted or accepted.", artifacts.ToArray())
+            {
+                Scenario = request.HealingContact ? "Fresh installed-resource component; controlled post-formula seven-HP healing; manual action104 descriptor; no story continuation or formula admission" : "Fresh installed-resource component; controlled post-formula seven-HP damage; manual action104 descriptor; no story continuation or formula admission"
+            };
         }
         catch (Exception error)
         {

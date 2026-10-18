@@ -1,0 +1,3 @@
+namespace Memoria.FF8.Runtime;
+
+public sealed record NativeBattleRecover93Resources(NativeBattleEffectHeapAllocation Animation, NativeBattleEffectOwnedModelResource Model, NativeBattleEffectHeapAllocation ModelTim, uint DefaultColor44, NativeBattleRecover93NodeResource Nodes, NativeBattleGfAnimationSource ProgramSource, uint SoundAppearance, uint SoundDogTime44, uint VoiceAppearance, uint VoiceDeparture);

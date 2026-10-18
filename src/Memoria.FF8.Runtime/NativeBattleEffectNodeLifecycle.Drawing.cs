@@ -4,14 +4,14 @@ namespace Memoria.FF8.Runtime;
 
 internal sealed partial class NativeBattleEffectNodeLifecycle
 {
-    internal NativeBattleGfGeometryBatch AdvanceAndDraw(ref NativeCrtRandomState random, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleEffectNodePrepareMesh prepareMesh)
+    internal NativeBattleGfGeometryBatch AdvanceAndDraw(ref NativeCrtRandomState random, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleEffectNodePrepareMesh prepareMesh, Action<bool, NativeBattleGfGeometryBatch>? deliver = null)
     {
         Birth();
         AdvanceList(ref random);
-        return DrawNodes(projection, cameraRoll, prepareMesh);
+        return DrawNodes(projection, cameraRoll, prepareMesh, deliver);
     }
 
-    internal NativeBattleGfGeometryBatch DrawNodes(NativeBattleCameraProjection projection, short cameraRoll, NativeBattleEffectNodePrepareMesh prepareMesh)
+    internal NativeBattleGfGeometryBatch DrawNodes(NativeBattleCameraProjection projection, short cameraRoll, NativeBattleEffectNodePrepareMesh prepareMesh, Action<bool, NativeBattleGfGeometryBatch>? deliver = null)
     {
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         Dictionary<uint, ImmutableArray<byte>> resources = [];
@@ -66,6 +66,7 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
                         ushort phase = unchecked((ushort)(short)(sbyte)memory.Byte(node + 0x1D0));
                         batch = NativeBattleCuragaProjectedSprites.EmitBatch8DD260(bytes, phase, matrix, projection, cameraRoll, 17, 2);
                     }
+                    deliver?.Invoke(meshes, batch);
                     foreach (NativeBattleGfGeometryAttempt attempt in batch.Attempts)
                     {
                         attempts.Add(attempt with { ByteOffsetRelative = checked(allocated + attempt.ByteOffsetRelative) });

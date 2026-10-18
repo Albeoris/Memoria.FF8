@@ -117,6 +117,10 @@ public sealed partial class BattleSession
                 {
                     graphics = firaCompleted;
                 }
+                else if (TryWriteNativeRecover93Completion(graphics, address, value, out NativeBattleGraphicsState recoverCompleted))
+                {
+                    graphics = recoverCompleted;
+                }
                 else if (TryWriteNativeSearchCompletion(graphics, address, value, out NativeBattleGraphicsState searchCompleted))
                 {
                     graphics = searchCompleted;
