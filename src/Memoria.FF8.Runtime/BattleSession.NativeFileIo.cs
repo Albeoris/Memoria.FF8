@@ -28,6 +28,12 @@ public sealed partial class BattleSession
                     NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native6C3580 requires its retained effect arena.");
                     NativeEffectMemory = NativeBattleEffectIo.Complete6C3580(memory, ResolveNativeQuezacotlSource).Memory;
                     break;
+                case 0x732590:
+                    NativeBattleEffectMemory moogleMemory = NativeEffectMemory ?? throw new NotSupportedException("Native732590 requires its retained effect arena.");
+                    NativeBattleMoogle96State moogle = moogleMemory.Moogle96 ?? throw new NotSupportedException("Native732590 requires its current Moogle IO owner.");
+                    NativeBattleMoogle96IoCompletion uploaded = NativeBattleMoogle96Io.Complete732590(moogle.Io ?? throw new NotSupportedException("Native732590 requires its retained script and current destination."), moogleMemory);
+                    NativeEffectMemory = uploaded.Memory with { Moogle96 = moogle with { Io = uploaded.State } };
+                    break;
                 default:
                     throw new NotSupportedException($"Native482870 file completion callback{completion.Callback:X8} is unsupported.");
             }

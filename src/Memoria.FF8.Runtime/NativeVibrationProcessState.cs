@@ -194,6 +194,22 @@ public sealed record NativeVibrationProcessState
 
     public bool IsPlaying(int handle) => handle != 0 && Slots[handle & 3].Priority != 0 && Slots[handle & 3].Generation == handle >> 4;
 
+    public NativeVibrationProcessState Stop4A2940(int handle)
+    {
+        Validate();
+        if (handle == -1)
+        {
+            return StopAll();
+        }
+        if (handle == 0)
+        {
+            return this;
+        }
+        int index = handle & 3;
+        NativeVibrationSlot slot = Slots[index];
+        return slot.Priority != 0 && slot.Generation == handle >> 4 ? this with { Slots = Slots.SetItem(index, slot with { Priority = 0 }) } : this;
+    }
+
     public NativeVibrationProcessState StopAll() => this with { Slots = Slots.Select(slot => slot with { Priority = 0 }).ToImmutableArray(), Ports = Ports.SetItem(0, new NativeVibrationPort(0, 0, true)) };
     public NativeVibrationProcessState ClearControllerRequests() => this with { Ports = ImmutableArray.Create(new NativeVibrationPort(0, 0, true), new NativeVibrationPort(0, 0, true)) };
     public NativeVibrationProcessState MarkControllerPending(int port)
