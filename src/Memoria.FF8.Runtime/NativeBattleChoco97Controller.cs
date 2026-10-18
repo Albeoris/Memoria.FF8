@@ -11,31 +11,38 @@ public static class NativeBattleChoco97Controller
 
     public static NativeBattleChoco97Frame Initialize729A60(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleActionPacketsState packets, NativeBattleChoco97Resources resources, NativeCrtRandomState random)
     {
-        if (effect.Binding is not { Effect: 97, Entry: 0x729A60, Initializer: 0x729A40 } || effect.Parameters is null)
+        return InitializeFamily(memory, effect, packets, NativeBattleChocoControllerResources.From(resources), random, false);
+    }
+
+    internal static NativeBattleChoco97Frame InitializeFamily(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleActionPacketsState packets, NativeBattleChocoControllerResources resources, NativeCrtRandomState random, bool choco98)
+    {
+        if ((!choco98 && effect.Binding is not { Effect: 97, Entry: 0x729A60, Initializer: 0x729A40 }) || (choco98 && effect.Binding is not { Effect: 98, Entry: 0x721860, Initializer: 0x721840 }) || effect.Parameters is null)
         {
-            throw new InvalidDataException("Native Choco97 requires its actual entry, initializer and action parameters.");
+            throw new InvalidDataException("Native Choco requires its actual entry, initializer and action parameters.");
         }
-        NativeBattleChoco97State retained = memory.Choco97 ?? throw new NotSupportedException("Native Choco97 requires its explicit cold/imported retained state.");
-        retained.Validate();
-        NativeBattleGfAnimationSource source = retained.ProgramSource ?? (retained.ProgramSourceKnownCold ? resources.ProgramSource : throw new NotSupportedException("Native Choco97 warmed static program source is missing."));
-        if (source.Address != resources.ProgramSource.Address || source.Data.IsDefault || source.Data.Length != resources.ProgramSource.Data.Length || retained.MorphScratch.IsDefault || retained.MorphScratch.Length != 0x3C0)
+        ValidateState(memory, choco98);
+        NativeBattleChocoControllerState retained = NativeBattleChocoControllerState.Read(memory, choco98);
+        uint mainDescriptor = choco98 ? NativeBattleChoco98Controller.MainDescriptor : MainDescriptor;
+        uint mainBank = choco98 ? NativeBattleChoco98Controller.MainBank : MainBank;
+        NativeBattleGfAnimationSource source = retained.ProgramSource ?? (retained.ProgramSourceKnownCold ? resources.ProgramSource : throw new NotSupportedException("Native Choco warmed static program source is missing."));
+        if (source.Address != resources.ProgramSource.Address || source.Data.IsDefault || source.Data.Length != resources.ProgramSource.Data.Length || retained.MorphScratch.IsDefault || retained.MorphScratch.Length != (choco98 ? 0x168 : 0x3C0))
         {
-            throw new InvalidDataException("Native Choco97 program and morph owners contradict their physical extents.");
+            throw new InvalidDataException("Native Choco program and morph owners contradict their physical extents.");
         }
         NativeBattleEffectHierarchy hierarchy = new([
-            NativeBattleEffectTaskPool.Initialize(MainDescriptor, MainBank, 0x64, 2),
-            NativeBattleEffectTaskPool.Initialize(0x2579D48, 0x2579D58, 0x58, 4),
-            NativeBattleEffectTaskPool.Initialize(0x2575350, 0x2575278, 0x48, 3),
-            NativeBattleEffectTaskPool.Initialize(0x2579D38, 0x2579548, 0x2A4, 3),
-            NativeBattleEffectTaskPool.Initialize(0x2579530, 0x2578030, 0x540, 4),
-            NativeBattleEffectTaskPool.Initialize(0x2575458, 0x2575468, 0x70, 100),
-            NativeBattleEffectTaskPool.Initialize(0x257B158, 0x257B018, 0x140, 1),
-            NativeBattleEffectTaskPool.Initialize(0x257B5A8, 0x257B180, 0x30, 2)
+            NativeBattleEffectTaskPool.Initialize(mainDescriptor, mainBank, 0x64, 2),
+            NativeBattleEffectTaskPool.Initialize(choco98 ? 0x2573AC8u : 0x2579D48u, choco98 ? 0x2573AD8u : 0x2579D58u, 0x58, 4),
+            NativeBattleEffectTaskPool.Initialize(choco98 ? 0x256E440u : 0x2575350u, choco98 ? 0x256E368u : 0x2575278u, 0x48, 3),
+            NativeBattleEffectTaskPool.Initialize(choco98 ? 0x2573AB8u : 0x2579D38u, choco98 ? 0x25732C8u : 0x2579548u, 0x2A4, 3),
+            NativeBattleEffectTaskPool.Initialize(choco98 ? 0x25732B0u : 0x2579530u, choco98 ? 0x2571120u : 0x2578030u, (ushort)(choco98 ? 0x864 : 0x540), 4),
+            NativeBattleEffectTaskPool.Initialize(choco98 ? 0x256E548u : 0x2575458u, choco98 ? 0x256E558u : 0x2575468u, 0x70, 100),
+            NativeBattleEffectTaskPool.Initialize(choco98 ? 0x2574ED8u : 0x257B158u, choco98 ? 0x2574D98u : 0x257B018u, 0x140, 1),
+            NativeBattleEffectTaskPool.Initialize(choco98 ? 0x25750D0u : 0x257B5A8u, choco98 ? 0x2574F00u : 0x257B180u, 0x30, 2)
         ]);
-        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(0, 0x729BD0, 0x64);
+        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(0, choco98 ? 0x7219D0u : 0x729BD0u, 0x64);
         hierarchy = appended.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.Headers[effect.Parameters.HeaderIndex7C];
-        int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native Choco97 requires its actual initial contact pointer.");
+        int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native Choco requires its actual initial contact pointer.");
         NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters).WriteByte(0x2C, header.ReadByte(0)).WriteByte(0x2D, packets.ReadContact(contact).Primary.ActorIndex).WriteWord(0x5A, header.ReadByte(16)).WriteWord(0x58, header.ReadByte(17));
         byte lastTarget = unchecked((byte)(root.ReadWord(0x5A) - 1));
         if (lastTarget < root.ReadWord(0x58))
@@ -46,26 +53,32 @@ public static class NativeBattleChoco97Controller
         int textureOffset = TextureOffset(effect);
         if ((effect.Parameters.Flags79 & 1) == 0)
         {
-            NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native Choco97 requires its actual TIM queue owner.");
-            (textures, _) = textures.EnqueueArenaTim505E30(memory.Arena ?? throw new NotSupportedException("Native Choco97 requires its loaded arena."), textureOffset);
+            NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native Choco requires its actual TIM queue owner.");
+            (textures, _) = textures.EnqueueArenaTim505E30(memory.Arena ?? throw new NotSupportedException("Native Choco requires its loaded arena."), textureOffset);
             memory = memory with { Textures = textures };
         }
         retained = retained with { ProgramSource = source, ProgramSourceKnownCold = false, FreezePrimary = 0, FreezeSecondary = 0, NextAllocation = checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)textureOffset + 0x2000) };
-        return new(memory with { Choco97 = retained }, effect with { Pools = hierarchy.Pools, ReturnedDescriptor = MainDescriptor }, random);
+        return new(retained.Write(memory, choco98), effect with { Pools = hierarchy.Pools, ReturnedDescriptor = mainDescriptor }, random);
     }
 
     public static NativeBattleOriginalEffectState WriteCompletionByte(NativeBattleOriginalEffectState effect, uint address, byte value)
     {
-        int index = Enumerable.Range(0, effect.Pools.Length).FirstOrDefault(slot => effect.Pools[slot].DescriptorAddress == MainDescriptor, -1);
+        return WriteCompletionByteFamily(effect, address, value, false);
+    }
+
+    internal static NativeBattleOriginalEffectState WriteCompletionByteFamily(NativeBattleOriginalEffectState effect, uint address, byte value, bool choco98)
+    {
+        uint mainDescriptor = choco98 ? NativeBattleChoco98Controller.MainDescriptor : MainDescriptor;
+        int index = Enumerable.Range(0, effect.Pools.Length).FirstOrDefault(slot => effect.Pools[slot].DescriptorAddress == mainDescriptor, -1);
         if (index < 0)
         {
-            throw new NotSupportedException("Native Choco97 completion requires its retained main pool.");
+            throw new NotSupportedException("Native Choco completion requires its retained main pool.");
         }
         NativeBattleEffectTaskPool pool = effect.Pools[index];
         uint delta = unchecked(address - pool.BankAddress);
         if (delta % pool.Stride != 0x62 || delta / pool.Stride >= pool.Slots.Length)
         {
-            throw new NotSupportedException("Native Choco97 completion pointer is not an actual root BYTE62.");
+            throw new NotSupportedException("Native Choco completion pointer is not an actual root BYTE62.");
         }
         int slot = (int)(delta / pool.Stride);
         return effect with { Pools = effect.Pools.SetItem(index, pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteByte(0x62, value)) }) };
@@ -73,24 +86,31 @@ public static class NativeBattleChoco97Controller
 
     public static NativeBattleChoco97Frame Advance729BD0(NativeBattleChoco97Frame frame, NativeBattleChoco97Inputs inputs, NativeBattleChoco97Resources resources)
     {
+        return AdvanceFamily(frame, inputs, NativeBattleChocoControllerResources.From(resources), false);
+    }
+
+    internal static NativeBattleChoco97Frame AdvanceFamily(NativeBattleChoco97Frame frame, NativeBattleChoco97Inputs inputs, NativeBattleChocoControllerResources resources, bool choco98)
+    {
         frame.Effect.Validate();
-        NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new InvalidDataException("Native Choco97 lost its action parameters.");
+        NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new InvalidDataException("Native Choco lost its action parameters.");
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         hierarchy.Validate();
-        Shared().Validate();
+        ValidateState(frame.Memory, choco98);
+        uint mainDescriptor = choco98 ? NativeBattleChoco98Controller.MainDescriptor : MainDescriptor;
         NativeBattleGraphicsModel[] Models() => Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray();
         NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
         NativeBattleEffectHierarchyStep roots = hierarchy.Advance(0, (current, address) =>
         {
             hierarchy = current;
             NativeBattleModulePoolTask task = hierarchy.Read(address);
-            if (task.Callback != 0x729BD0)
+            if (task.Callback != (choco98 ? 0x7219D0u : 0x729BD0u))
             {
-                throw new NotSupportedException("Native Choco97 root callback changed its contract.");
+                throw new NotSupportedException("Native Choco root callback changed its contract.");
             }
             int textureOffset = TextureOffset(frame.Effect);
             bool odd = (task.ReadWord(0x5C) & 1) != 0;
-            frame = frame with { Effect = frame.Effect with { DrawArenaOffset = textureOffset + (odd ? 0 : 0x1000) }, Memory = frame.Memory with { Choco97 = Shared() with { ViewCopy = MatrixBytes(inputs.View), PrivateBufferAliasOffset = textureOffset + (odd ? 0x1000 : 0x2000) } } };
+            SetShared(Shared() with { ViewCopy = MatrixBytes(inputs.View), PrivateBufferAliasOffset = textureOffset + (odd ? 0x1000 : 0x2000) });
+            frame = frame with { Effect = frame.Effect with { DrawArenaOffset = textureOffset + (odd ? 0 : 0x1000) } };
             task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Models(), inputs.ReadPoseSource);
             Store(address, task);
             switch (Stage(task))
@@ -103,15 +123,21 @@ public static class NativeBattleChoco97Controller
                 case 2:
                     if (task.ReadByte(0x28) == 0)
                     {
-                        NativeBattleChoco97NodeFrame cleared = NativeBattleChoco97Nodes.ClearStorage(NodeFrame(), textureOffset);
-                        AcceptNodes(cleared);
+                        if (choco98)
+                        {
+                            AcceptNodes98(NativeBattleChoco98Nodes.ClearStorage(NodeFrame98(), textureOffset));
+                        }
+                        else
+                        {
+                            AcceptNodes(NativeBattleChoco97Nodes.ClearStorage(NodeFrame(), textureOffset));
+                        }
                         SetShared(Shared() with { NextAllocation = checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)textureOffset + 0x13760) });
                         Store(address, Next(task));
                     }
                     break;
                 case 3:
                     Store(address, Next(task.WriteByte(0x63, 1)));
-                    Append(1, 0x729E20, 0x58, address);
+                    Append(1, choco98 ? 0x721C20u : 0x729E20u, 0x58, address);
                     break;
                 case 4:
                     if (task.ReadByte(0x63) == 0)
@@ -141,10 +167,17 @@ public static class NativeBattleChoco97Controller
                 case 10:
                     break;
                 default:
-                    throw new NotSupportedException("Native Choco97 root phase is unsupported.");
+                    throw new NotSupportedException("Native Choco root phase is unsupported.");
             }
-            NativeBattleChoco97NodeFrame pass = NativeBattleChoco97Nodes.BeginPass(NodeFrame(), inputs.View, frame.Effect.DrawArenaOffset ?? throw new InvalidDataException("Native Choco97 private cursor is missing."));
-            AcceptNodes(pass);
+            int privateCursor = frame.Effect.DrawArenaOffset ?? throw new InvalidDataException("Native Choco private cursor is missing.");
+            if (choco98)
+            {
+                AcceptNodes98(NativeBattleChoco98Nodes.BeginPass(NodeFrame98(), inputs.View, privateCursor));
+            }
+            else
+            {
+                AcceptNodes(NativeBattleChoco97Nodes.BeginPass(NodeFrame(), inputs.View, privateCursor));
+            }
             Store(address, hierarchy.Read(address).WriteWord(0x5E, 0));
             int survivors = 0;
             foreach (int pool in new[] { 1, 2, 7, 6, 3, 4, 5 })
@@ -163,57 +196,64 @@ public static class NativeBattleChoco97Controller
             return new(hierarchy, completion);
         });
         hierarchy = roots.Hierarchy;
-        return frame with { Effect = frame.Effect with { Pools = hierarchy.Pools, ReturnedDescriptor = roots.Survivors == 0 ? 0u : MainDescriptor } };
+        return frame with { Effect = frame.Effect with { Pools = hierarchy.Pools, ReturnedDescriptor = roots.Survivors == 0 ? 0u : mainDescriptor } };
 
         int Run(uint address)
         {
             uint callback = hierarchy.Read(address).Callback;
+            bool admitted = choco98 ? callback is 0x721C20 or 0x722210 or 0x721DF0 or 0x728210 or 0x722920 or 0x722460 or 0x7294C0 or 0x7295D0 or 0x728C60 or 0x728DA0 or 0x7276F0 or 0x7292D0 or 0x7296D0 or 0x7297C0 or 0x728780 : callback is 0x729E20 or 0x72A410 or 0x729FF0 or 0x7306A0 or 0x72AB20 or 0x72A660 or 0x731840 or 0x731950 or 0x731100 or 0x72FBC0 or 0x731630 or 0x731A50 or 0x731B40 or 0x730C10;
+            if (!admitted)
+            {
+                throw new NotSupportedException("Native Choco callback differs from its admitted effect profile.");
+            }
             switch (callback)
             {
                 case 0x729E20:
+                case 0x721C20:
                     Target(address);
                     return Finish(address, true);
                 case 0x72A410:
+                case 0x722210:
                     Director(address);
                     return Finish(address, false);
                 case 0x729FF0:
-                    NativeBattleChoco97IoAdvance io = NativeBattleChoco97Io.Advance729FF0(hierarchy.Read(address), Shared().Io ?? throw new NotSupportedException("Native Choco97 IO has not been initialized."));
-                    SetShared(Shared() with { Io = io.State });
-                    Store(address, io.Task);
-                    if (io.Request is { } request)
-                    {
-                        Emit(new NativeBattleChoco97FileRequest(request));
-                    }
+                case 0x721DF0:
+                    AdvanceIo(address);
                     return Finish(address, false);
                 case 0x7306A0:
+                case 0x728210:
                     Model(address);
                     return Finish(address, false);
                 case 0x72AB20:
+                case 0x722920:
                     Nodes(address);
                     return Finish(address, true);
                 case 0x72A660:
+                case 0x722460:
                     InitialProgram(address);
                     return Finish(address, true);
                 case 0x731840:
+                case 0x7294C0:
                 case 0x731950:
+                case 0x7295D0:
                 case 0x731100:
+                case 0x728C60:
+                case 0x728DA0:
                     Sync();
                     NativeBattleChoco97ProgramStep program = inputs.AdvanceProgram(frame, hierarchy.Read(address));
                     Accept(program.Frame);
                     Store(address, program.Task);
                     return Finish(address, false);
                 case 0x72FBC0:
-                    NativeBattleChoco97CameraTaskStep camera = NativeBattleChoco97CameraTask.Advance72FBC0(hierarchy.Read(address), Shared().Camera, resources.Camera, unchecked((short)Context().Word(0x42)), ContextBytes(0, 8), ContextBytes(8, 8));
-                    SetShared(Shared() with { Camera = camera.Camera });
-                    Store(address, camera.Task);
-                    foreach (NativeBattleMoogleCameraStep publication in camera.Publications)
-                    {
-                        Emit(new NativeBattleChoco97CameraPublish(publication));
-                    }
+                case 0x7276F0:
+                    AdvanceCamera(address);
                     return Finish(address, false);
                 case 0x731630:
+                case 0x7292D0:
                 case 0x731A50:
+                case 0x7296D0:
                 case 0x731B40:
+                case 0x7297C0:
                     NativeBattleChoco97StageFadeStep fade = NativeBattleChoco97StageFade.Advance(hierarchy.Read(address));
                     Store(address, fade.Task);
                     if (fade.Depth is not null || fade.ClearRgb)
@@ -222,13 +262,14 @@ public static class NativeBattleChoco97Controller
                     }
                     return Finish(address, false);
                 case 0x730C10:
+                case 0x728780:
                     Sync();
                     NativeBattleChoco97SpriteDrawStep sprite = inputs.AdvanceSprite(frame, hierarchy.Read(address));
                     Accept(sprite.Frame);
                     Store(address, sprite.Task);
                     return Finish(address, false);
                 default:
-                    throw new NotSupportedException($"Native Choco97 callback{callback:X8} is unsupported.");
+                    throw new NotSupportedException($"Native Choco callback{callback:X8} is unsupported.");
             }
         }
 
@@ -238,29 +279,29 @@ public static class NativeBattleChoco97Controller
             int actor = task.ReadByte(0x2D);
             NativeBattleGraphicsModel model = inputs.ReadModel(actor);
             NativeBattlePoseSource source = inputs.ReadPoseSource(actor);
-            NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native Choco97 target bounds require its current sequence.");
-            NativeBattleDecodedPose pose = sequence.DecodedPose ?? source.Sample(sequence.Pose ?? throw new NotSupportedException("Native Choco97 target pose is unknown."), sequence.PoseFrame114 ?? throw new NotSupportedException("Native Choco97 target frame is unknown."), sequence.PoseFlags109);
+            NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native Choco target bounds require its current sequence.");
+            NativeBattleDecodedPose pose = sequence.DecodedPose ?? source.Sample(sequence.Pose ?? throw new NotSupportedException("Native Choco target pose is unknown."), sequence.PoseFrame114 ?? throw new NotSupportedException("Native Choco target frame is unknown."), sequence.PoseFlags109);
             task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, pose);
             Store(address, task);
             switch (Stage(task))
             {
                 case 0:
-                    byte[] context = new byte[0x54];
-                    BinaryPrimitives.WriteInt16LittleEndian(context.AsSpan(4), 2048);
-                    int[] enemies = Enumerable.Range(3, 4).Where(index => (inputs.ReadModel(index).Flags0 & 2) != 0).ToArray();
-                    if (enemies.Length != 0)
+                    SetShared(Shared() with { Context = NativeBattleChoco97Context.Initialize72A350(inputs.ReadModel) });
+                    ImmutableArray<byte> script = Shared().Io?.Script ?? (Shared().IoScriptKnownCold ? resources.IoScript.Data : throw new NotSupportedException("Native Choco warmed mutable IO script is missing."));
+                    NativeBattleChoco97IoBanks banks = Shared().Io?.Banks ?? Shared().PendingIoBanks ?? throw new NotSupportedException("Native Choco external IO physical owner is unknown.");
+                    uint next = Shared().NextAllocation ?? throw new NotSupportedException("Native Choco next allocation is unknown.");
+                    if (choco98)
                     {
-                        NativeBattleVector[] positions = enemies.Select(index => (inputs.ReadModel(index).Transform ?? throw new NotSupportedException("Native Choco97 centroid requires its active enemy positions.")).Position28).ToArray();
-                        BinaryPrimitives.WriteInt16LittleEndian(context.AsSpan(8), unchecked((short)((positions.Min(position => (int)position.X) + positions.Max(position => (int)position.X)) / 2)));
-                        BinaryPrimitives.WriteInt16LittleEndian(context.AsSpan(12), unchecked((short)((positions.Min(position => (int)position.Z) + positions.Max(position => (int)position.Z)) / 2)));
+                        NativeBattleChoco98IoInitialization initialized = NativeBattleChoco98Io.Initialize721CF0(script, next, banks);
+                        SetShared(Shared() with { Io = NativeBattleChocoControllerIo.From(initialized.State), IoScriptKnownCold = false, PendingIoBanks = null, NextAllocation = initialized.NextAddress });
                     }
-                    SetShared(Shared() with { Context = new(context.ToImmutableArray()) });
-                    ImmutableArray<byte> script = Shared().Io?.Script ?? (Shared().IoScriptKnownCold ? resources.Io.Script.Data : throw new NotSupportedException("Native Choco97 warmed mutable IO script is missing."));
-                    NativeBattleChoco97IoBanks banks = Shared().Io?.Banks ?? Shared().PendingIoBanks ?? throw new NotSupportedException("Native Choco97 external IO physical owner is unknown.");
-                    NativeBattleChoco97IoInitialization initialized = NativeBattleChoco97Io.Initialize729EF0(script, Shared().NextAllocation ?? throw new NotSupportedException("Native Choco97 next allocation is unknown."), banks);
-                    SetShared(Shared() with { Io = initialized.State, IoScriptKnownCold = false, PendingIoBanks = null, NextAllocation = initialized.NextAddress });
-                    Append(7, 0x729FF0, 0x30, address);
-                    Append(2, 0x72A410, 0x48, address);
+                    else
+                    {
+                        NativeBattleChoco97IoInitialization initialized = NativeBattleChoco97Io.Initialize729EF0(script, next, banks);
+                        SetShared(Shared() with { Io = NativeBattleChocoControllerIo.From(initialized.State), IoScriptKnownCold = false, PendingIoBanks = null, NextAllocation = initialized.NextAddress });
+                    }
+                    Append(7, choco98 ? 0x721DF0u : 0x729FF0u, 0x30, address);
+                    Append(2, choco98 ? 0x722210u : 0x72A410u, 0x48, address);
                     Store(address, Next(hierarchy.Read(address)));
                     break;
                 case 1:
@@ -269,10 +310,10 @@ public static class NativeBattleChoco97Controller
                         int headerIndex = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
                         if ((uint)headerIndex >= inputs.Packets.Headers.Length)
                         {
-                            throw new NotSupportedException("Native Choco97 contact header leaves its actual arena.");
+                            throw new NotSupportedException("Native Choco contact header leaves its actual arena.");
                         }
                         NativeBattleActionHeaderSlot header = inputs.Packets.Headers[headerIndex];
-                        int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native Choco97 contact pointer is missing.");
+                        int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native Choco contact pointer is missing.");
                         for (int contact = 0; contact < header.ReadByte(16); contact++)
                         {
                             Emit(new NativeBattleChoco97Contact(checked(firstContact + contact)));
@@ -294,18 +335,82 @@ public static class NativeBattleChoco97Controller
                 case 4:
                     break;
                 default:
-                    throw new NotSupportedException("Native Choco97 target phase is unsupported.");
+                    throw new NotSupportedException("Native Choco target phase is unsupported.");
+            }
+        }
+
+        void AdvanceIo(uint address)
+        {
+            NativeBattleChocoControllerIo io = Shared().Io ?? throw new NotSupportedException("Native Choco IO has not been initialized.");
+            if (choco98)
+            {
+                NativeBattleChoco98IoAdvance step = NativeBattleChoco98Io.Advance721DF0(hierarchy.Read(address), io.To98());
+                SetShared(Shared() with { Io = NativeBattleChocoControllerIo.From(step.State) });
+                Store(address, step.Task);
+                if (step.Request is { } request)
+                {
+                    Emit(new NativeBattleChoco98FileRequest(request));
+                }
+            }
+            else
+            {
+                NativeBattleChoco97IoAdvance step = NativeBattleChoco97Io.Advance729FF0(hierarchy.Read(address), io.To97());
+                SetShared(Shared() with { Io = NativeBattleChocoControllerIo.From(step.State) });
+                Store(address, step.Task);
+                if (step.Request is { } request)
+                {
+                    Emit(new NativeBattleChoco97FileRequest(request));
+                }
+            }
+        }
+
+        bool ReleaseIoWait()
+        {
+            NativeBattleChocoControllerIo io = Shared().Io ?? throw new NotSupportedException("Native Choco IO wait owner is unknown.");
+            if (choco98)
+            {
+                NativeBattleChoco98IoRelease release = NativeBattleChoco98Io.ReleaseWait(io.To98());
+                SetShared(Shared() with { Io = NativeBattleChocoControllerIo.From(release.State) });
+                return release.Released;
+            }
+            NativeBattleChoco97IoRelease prior = NativeBattleChoco97Io.ReleaseWait730590(io.To97());
+            SetShared(Shared() with { Io = NativeBattleChocoControllerIo.From(prior.State) });
+            return prior.Released;
+        }
+
+        void AdvanceCamera(uint address)
+        {
+            NativeBattleModulePoolTask task;
+            NativeBattleMoogleCameraState camera;
+            ImmutableArray<NativeBattleMoogleCameraStep> publications;
+            if (choco98)
+            {
+                NativeBattleChoco98CameraTaskStep step = NativeBattleChoco98CameraTask.Advance7276F0(hierarchy.Read(address), Shared().Camera, resources.Camera98 ?? throw new NotSupportedException("Native Choco98 camera resources are missing."), unchecked((short)Context().Word(0x42)), ContextBytes(0, 8), ContextBytes(8, 8));
+                task = step.Task;
+                camera = step.Camera;
+                publications = step.Publications;
+            }
+            else
+            {
+                NativeBattleChoco97CameraTaskStep step = NativeBattleChoco97CameraTask.Advance72FBC0(hierarchy.Read(address), Shared().Camera, resources.Camera97 ?? throw new NotSupportedException("Native Choco camera resources are missing."), unchecked((short)Context().Word(0x42)), ContextBytes(0, 8), ContextBytes(8, 8));
+                task = step.Task;
+                camera = step.Camera;
+                publications = step.Publications;
+            }
+            Store(address, task);
+            SetShared(Shared() with { Camera = camera });
+            foreach (NativeBattleMoogleCameraStep publication in publications)
+            {
+                Emit(new NativeBattleChoco97CameraPublish(publication));
             }
         }
 
         void Director(uint address)
         {
-            NativeBattleChoco97DirectorInputs directorInputs = new(() => (Shared().Io ?? throw new NotSupportedException("Native Choco97 director IO is unknown.")).WaitReleased, offset => BinaryPrimitives.ReadUInt32LittleEndian((Shared().Io ?? throw new NotSupportedException("Native Choco97 IO directory is unknown.")).Control.AsSpan().Slice(offset)), current =>
+            NativeBattleChoco97DirectorInputs directorInputs = new(() => (Shared().Io ?? throw new NotSupportedException("Native Choco director IO is unknown.")).WaitReleased, offset => BinaryPrimitives.ReadUInt32LittleEndian((Shared().Io ?? throw new NotSupportedException("Native Choco IO directory is unknown.")).Control.AsSpan().Slice(offset)), current =>
             {
                 SetShared(Shared() with { Context = current.Context });
-                NativeBattleChoco97IoRelease release = NativeBattleChoco97Io.ReleaseWait730590(Shared().Io ?? throw new NotSupportedException("Native Choco97 IO wait owner is unknown."));
-                SetShared(Shared() with { Io = release.State });
-                return new(current, release.Released);
+                return new(current, ReleaseIoWait());
             }, (current, operation) =>
             {
                 Store(address, current.Task);
@@ -319,47 +424,48 @@ public static class NativeBattleChoco97Controller
                         SetShared(Shared() with { Context = Context().WriteWord(0x52, unchecked((ushort)vibration.Handle)) });
                         break;
                     case NativeBattleChoco97AppendNeutral neutral:
-                        uint child = Append(3, 0x72AB20, 0x2A4, address);
+                        uint child = Append(3, choco98 ? 0x722920u : 0x72AB20u, 0x2A4, address);
                         Store(child, hierarchy.Read(child).WriteDword(0x30, neutral.Source).WriteWord(0x298, neutral.Delay).WriteWord(0x29C, neutral.Mode).WriteWord(0x29E, neutral.Duration));
                         break;
                     case NativeBattleChoco97AppendProgram program:
-                        child = Append(4, program.Callback, 0x540, address);
+                        child = Append(4, program.Callback, choco98 ? 0x864 : 0x540, address);
                         Store(child, hierarchy.Read(child).WriteDword(0x74, program.Source).WriteDword(0x78, unchecked((uint)(int)(short)program.ClearBytes)).WriteWord(0x80, unchecked((ushort)program.Arg5)).WriteWord(0x82, unchecked((ushort)program.Arg6)));
                         break;
                     case NativeBattleChoco97AppendAux auxiliary:
                         Append(5, auxiliary.Callback, auxiliary.Size, address);
                         break;
                     case NativeBattleChoco97AppendModel:
-                        child = Append(6, 0x7306A0, 0x140, address);
+                        child = Append(6, choco98 ? 0x728210u : 0x7306A0u, 0x140, address);
                         NativeBattleEffectOwnedModelStep model = NativeBattleChoco97Model.Initialize(hierarchy.Read(child), child, resources.Model);
                         Store(child, model.Task);
                         SetShared(Shared() with { Model = model.State });
                         break;
                     case NativeBattleChoco97LoadModelTim:
-                        NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Native Choco97 model TIM queue is unknown.");
+                        NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Native Choco model TIM queue is unknown.");
                         (textures, _) = textures.EnqueueTim505E30(resources.Model.ModelTim);
                         frame = frame with { Memory = frame.Memory with { Textures = textures } };
                         break;
                     case NativeBattleChoco97SetFreeze freeze:
-                        (uint primary, uint secondary) = NativeBattleChoco97Director.SetFreeze730610(Shared().FreezePrimary ?? throw new NotSupportedException("Native Choco97 primary freeze is unknown."), Shared().FreezeSecondary ?? throw new NotSupportedException("Native Choco97 secondary freeze is unknown."), freeze.Value);
+                        (uint primary, uint secondary) = NativeBattleChoco97Director.SetFreeze730610(Shared().FreezePrimary ?? throw new NotSupportedException("Native Choco primary freeze is unknown."), Shared().FreezeSecondary ?? throw new NotSupportedException("Native Choco secondary freeze is unknown."), freeze.Value);
                         SetShared(Shared() with { FreezePrimary = primary, FreezeSecondary = secondary });
                         break;
                     case NativeBattleChoco97StopVibration stop:
                         Emit(new NativeBattleChoco97VibrationStop(stop.Handle));
                         break;
                     default:
-                        throw new NotSupportedException("Native Choco97 director operation is unsupported.");
+                        throw new NotSupportedException("Native Choco director operation is unsupported.");
                 }
                 return new(hierarchy.Read(address), Context());
             });
-            NativeBattleChoco97DirectorStep step = NativeBattleChoco97Director.Advance72A410(new(hierarchy.Read(address), Context()), directorInputs);
+            NativeBattleChoco97DirectorFrame directorFrame = new(hierarchy.Read(address), Context());
+            NativeBattleChoco97DirectorStep step = choco98 ? NativeBattleChoco98Director.Advance722210(directorFrame, directorInputs) : NativeBattleChoco97Director.Advance72A410(directorFrame, directorInputs);
             Store(address, step.Frame.Task);
             SetShared(Shared() with { Context = step.Frame.Context });
         }
 
         void Model(uint address)
         {
-            NativeBattleEffectOwnedModelState owned = Shared().Model ?? throw new NotSupportedException("Native Choco97 owned model has not been initialized.");
+            NativeBattleEffectOwnedModelState owned = Shared().Model ?? throw new NotSupportedException("Native Choco owned model has not been initialized.");
             NativeBattleChoco97ModelInputs modelInputs = new(ContextBytes(0, 8), mode => NativeBattleChoco97CameraTask.ModeAtLeast730E80(Context().Word(0x40), unchecked((short)mode)), mode =>
             {
                 (ushort requested, bool accepted) = NativeBattleChoco97CameraTask.RequestMode730EC0(Context().Word(0x40), Context().Word(0x44), unchecked((short)mode));
@@ -375,9 +481,9 @@ public static class NativeBattleChoco97Controller
                 switch (operation)
                 {
                     case NativeBattleChoco97ModelAppendAuxiliary auxiliary:
-                        if (auxiliary.PoolAddress != 0x2575458)
+                        if (auxiliary.PoolAddress != (choco98 ? 0x256E548u : 0x2575458u))
                         {
-                            throw new NotSupportedException("Native Choco97 model child leaves its physical auxiliary pool.");
+                            throw new NotSupportedException("Native Choco model child leaves its physical auxiliary pool.");
                         }
                         Append(5, auxiliary.Callback, auxiliary.TaskBytes, address);
                         break;
@@ -385,7 +491,7 @@ public static class NativeBattleChoco97Controller
                         Emit(new NativeBattleChoco97Sound(sound.DescriptorAddress, sound.Flags, sound.Pan));
                         break;
                     default:
-                        throw new NotSupportedException("Native Choco97 model operation is unsupported.");
+                        throw new NotSupportedException("Native Choco model operation is unsupported.");
                 }
                 return current with { Task = hierarchy.Read(address) };
             }, current =>
@@ -398,7 +504,7 @@ public static class NativeBattleChoco97Controller
                 Store(address, draw.Task);
                 return draw.Drawing;
             });
-            NativeBattleChoco97ModelAdvance step = NativeBattleChoco97Model.Advance7306A0(hierarchy.Read(address), owned, resources.Model, modelInputs);
+            NativeBattleChoco97ModelAdvance step = choco98 ? NativeBattleChoco98Model.Advance728210(hierarchy.Read(address), owned, resources.Model, modelInputs) : NativeBattleChoco97Model.Advance7306A0(hierarchy.Read(address), owned, resources.Model, modelInputs);
             Store(address, step.Task);
             SetShared(Shared() with { Model = step.State });
             foreach (NativeBattleTextureCopy copy in step.TextureCopies)
@@ -415,8 +521,14 @@ public static class NativeBattleChoco97Controller
             {
                 NativeBattleChoco97NodeResource resource = resources.Nodes.Single(resource => resource.Address == task.ReadDword(0x30));
                 NativeBattleEffectNodeDogOrigins origins = new(ContextVector(0), ContextVector(8));
-                NativeBattleChoco97NodeFrame initialized = NativeBattleChoco97Nodes.InitializeContext(NodeFrame(), address, resource, inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, origins);
-                AcceptNodes(initialized);
+                if (choco98)
+                {
+                    AcceptNodes98(NativeBattleChoco98Nodes.InitializeContext(NodeFrame98(), address, resource, inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, origins));
+                }
+                else
+                {
+                    AcceptNodes(NativeBattleChoco97Nodes.InitializeContext(NodeFrame(), address, resource, inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, origins));
+                }
                 Sync();
                 NativeBattleChoco97NodesStep initial = inputs.AdvanceNodes(frame, address);
                 Accept(initial.Frame);
@@ -435,7 +547,7 @@ public static class NativeBattleChoco97Controller
             }
             else if (phase != 0 && phase != 2)
             {
-                throw new NotSupportedException("Native Choco97 neutral phase is unsupported.");
+                throw new NotSupportedException("Native Choco neutral phase is unsupported.");
             }
         }
 
@@ -445,7 +557,8 @@ public static class NativeBattleChoco97Controller
             int phase = Stage(task);
             if (phase == 0)
             {
-                task = NativeBattleChoco97ProgramDrawing.InitializeWorkspace72A6C0(task, Shared().ProgramSource ?? throw new NotSupportedException("Native Choco97 static program source is missing."), ContextBytes(0, 8));
+                NativeBattleGfAnimationSource source = Shared().ProgramSource ?? throw new NotSupportedException("Native Choco static program source is missing.");
+                task = choco98 ? NativeBattleChoco98ProgramDrawing.InitializeWorkspace7224C0(task, source, ContextBytes(0, 8)) : NativeBattleChoco97ProgramDrawing.InitializeWorkspace72A6C0(task, source, ContextBytes(0, 8));
             }
             if (phase is 0 or 1)
             {
@@ -456,12 +569,12 @@ public static class NativeBattleChoco97Controller
                 task = draw.Task;
                 if (draw.Remaining is null)
                 {
-                    throw new InvalidDataException("Native Choco97 initial program advance lost its actual remaining value.");
+                    throw new InvalidDataException("Native Choco initial program advance lost its actual remaining value.");
                 }
                 if (phase == 0)
                 {
                     Store(address, task);
-                    Emit(new NativeBattleChoco97Sound(0x152B5BC, 0, 128));
+                    Emit(new NativeBattleChoco97Sound(choco98 ? 0x152AF34u : 0x152B5BCu, 0, 128));
                     task = Next(hierarchy.Read(address));
                 }
                 else if (draw.Remaining == 0)
@@ -472,24 +585,35 @@ public static class NativeBattleChoco97Controller
             }
             else if (phase != 2)
             {
-                throw new NotSupportedException("Native Choco97 initial program phase is unsupported.");
+                throw new NotSupportedException("Native Choco initial program phase is unsupported.");
             }
         }
 
-        NativeBattleChoco97State Shared() => frame.Memory.Choco97 ?? throw new NotSupportedException("Native Choco97 retained state is missing.");
-        void SetShared(NativeBattleChoco97State value) => frame = frame with { Memory = frame.Memory with { Choco97 = value } };
-        NativeBattleChoco97Context Context() => Shared().Context ?? throw new NotSupportedException("Native Choco97 target context has not been initialized.");
+        NativeBattleChocoControllerState Shared() => NativeBattleChocoControllerState.Read(frame.Memory, choco98);
+        void SetShared(NativeBattleChocoControllerState value) => frame = frame with { Memory = value.Write(frame.Memory, choco98) };
+        NativeBattleChoco97Context Context() => Shared().Context ?? throw new NotSupportedException("Native Choco target context has not been initialized.");
         ImmutableArray<byte> ContextBytes(int offset, int length) => Context().Data.AsSpan().Slice(offset, length).ToArray().ToImmutableArray();
         NativeBattleVector ContextVector(int offset) => new(unchecked((short)Context().Word(offset)), unchecked((short)Context().Word(offset + 2)), unchecked((short)Context().Word(offset + 4)));
         NativeBattleChoco97NodeFrame NodeFrame()
         {
             Sync();
-            return new(frame.Memory, frame.Effect, Shared().Nodes, Shared().Io, frame.Random);
+            return new(frame.Memory, frame.Effect, Shared().Nodes, Shared().Io?.To97(), frame.Random);
+        }
+        NativeBattleChoco98NodeFrame NodeFrame98()
+        {
+            Sync();
+            return new(frame.Memory, frame.Effect, Shared().Nodes, frame.Random);
         }
         void AcceptNodes(NativeBattleChoco97NodeFrame nodes)
         {
-            NativeBattleChoco97State retained = Shared() with { Nodes = nodes.State, Io = nodes.Io };
-            frame = new(nodes.Memory with { Choco97 = retained }, nodes.Effect, nodes.Random);
+            NativeBattleChocoControllerState retained = Shared() with { Nodes = nodes.State, Io = nodes.Io is null ? null : NativeBattleChocoControllerIo.From(nodes.Io) };
+            frame = new(retained.Write(nodes.Memory, choco98), nodes.Effect, nodes.Random);
+            hierarchy = new(frame.Effect.Pools);
+        }
+        void AcceptNodes98(NativeBattleChoco98NodeFrame nodes)
+        {
+            NativeBattleChocoControllerState retained = Shared() with { Nodes = nodes.State };
+            frame = new(retained.Write(nodes.Memory, choco98), nodes.Effect, nodes.Random);
             hierarchy = new(frame.Effect.Pools);
         }
         void Accept(NativeBattleChoco97Frame value)
@@ -501,7 +625,7 @@ public static class NativeBattleChoco97Controller
         {
             NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(pool, callback, requested, parent, Select);
             hierarchy = appended.Hierarchy;
-            return appended.Address != 0 ? appended.Address : throw new NotSupportedException("Native Choco97 exhausted a required physical task pool.");
+            return appended.Address != 0 ? appended.Address : throw new NotSupportedException("Native Choco exhausted a required physical task pool.");
         }
         void Store(uint address, NativeBattleModulePoolTask task)
         {
@@ -531,7 +655,18 @@ public static class NativeBattleChoco97Controller
         }
     }
 
-    private static int TextureOffset(NativeBattleOriginalEffectState effect) => effect.ResourcePointers.Single(pointer => pointer.GlobalAddress == 0x2575268).ArenaOffset;
+    private static int TextureOffset(NativeBattleOriginalEffectState effect) => effect.ResourcePointers.Single(pointer => pointer.GlobalAddress == (effect.Binding.Effect == 98 ? 0x256E358u : 0x2575268u)).ArenaOffset;
+    private static void ValidateState(NativeBattleEffectMemory memory, bool choco98)
+    {
+        if (choco98)
+        {
+            (memory.Choco98 ?? throw new NotSupportedException("Native Choco98 retained state is missing.")).Validate();
+        }
+        else
+        {
+            (memory.Choco97 ?? throw new NotSupportedException("Native Choco retained state is missing.")).Validate();
+        }
+    }
     private static int Stage(NativeBattleModulePoolTask task) => unchecked((sbyte)task.ReadByte(0x29));
     private static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     private static NativeBattleModulePoolTask Next(NativeBattleModulePoolTask task) => task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1)));

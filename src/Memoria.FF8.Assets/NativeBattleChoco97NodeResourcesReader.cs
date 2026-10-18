@@ -21,7 +21,7 @@ public static class NativeBattleChoco97NodeResourcesReader
         return [first, second];
     }
 
-    private static void Validate(NativeBattleChoco97NodeResource resource)
+    internal static void Validate(NativeBattleChoco97NodeResource resource)
     {
         ImmutableArray<byte> data = resource.Data;
         if (U32(0) != 0)

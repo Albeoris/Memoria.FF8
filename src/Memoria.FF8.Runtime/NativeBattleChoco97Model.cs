@@ -8,10 +8,11 @@ public sealed record NativeBattleChoco97ModelAppendAuxiliary(uint Callback, int 
 public sealed record NativeBattleChoco97ModelSound(uint DescriptorAddress, uint Flags, byte Pan) : NativeBattleChoco97ModelOperation;
 public sealed record NativeBattleChoco97ModelInputs(ImmutableArray<byte> ActorRaw8, Func<int, bool> AtLeast, Func<int, bool> Request, Func<NativeBattleEffectOwnedModelStep, NativeBattleChoco97ModelOperation, NativeBattleEffectOwnedModelStep> Execute, Func<NativeBattleEffectOwnedModelStep, NativeBattleEffectOwnedModelDraw> Draw);
 public sealed record NativeBattleChoco97ModelAdvance(NativeBattleModulePoolTask Task, NativeBattleEffectOwnedModelState State, NativeBattleEffectOwnedModelDraw? Drawing, ImmutableArray<NativeBattleTextureCopy> TextureCopies, bool ReadyToComplete);
-internal sealed record NativeBattleChocoModelProfile(uint AuxiliaryCallback, uint AuxiliaryPool, uint FirstSound, uint? SecondSound, short? TerminalCounter)
+internal sealed record NativeBattleChocoModelProfile(uint AuxiliaryCallback, uint AuxiliaryPool, uint FirstSound, uint? SecondSound, short? TerminalCounter, int AuxiliaryTaskBytes = 0x70, bool NinePhases = false)
 {
     internal static NativeBattleChocoModelProfile Choco97 { get; } = new(0x730C10, 0x2575458, 0x152B5C0, 0x152B5C4, null);
     internal static NativeBattleChocoModelProfile Choco98 { get; } = new(0x728780, 0x256E548, 0x152AF38, null, 20);
+    internal static NativeBattleChocoModelProfile Choco99 { get; } = new(0x71EE40, 0x2565C20, 0x1529FA8, null, null, 0xB0, true);
 }
 
 public static class NativeBattleChoco97Model
@@ -30,6 +31,10 @@ public static class NativeBattleChoco97Model
     {
         NativeBattleEffectOwnedModel.Validate(task, state, resources.Model);
         NativeBattleEffectOwnedModelStep step = new(task, state, false);
+        if (profile.NinePhases && unchecked((sbyte)task.ReadByte(0x29)) > 8)
+        {
+            throw new NotSupportedException("Native Choco model phase leaves its nine original callbacks.");
+        }
         switch (unchecked((sbyte)task.ReadByte(0x29)))
         {
             case 0:
@@ -55,7 +60,7 @@ public static class NativeBattleChoco97Model
                 if (Counter() >= 0)
                 {
                     Select(2);
-                    step = inputs.Execute(step, new NativeBattleChoco97ModelAppendAuxiliary(profile.AuxiliaryCallback, 0x70, profile.AuxiliaryPool));
+                    step = inputs.Execute(step, new NativeBattleChoco97ModelAppendAuxiliary(profile.AuxiliaryCallback, profile.AuxiliaryTaskBytes, profile.AuxiliaryPool));
                     Next();
                 }
                 break;
@@ -95,19 +100,37 @@ public static class NativeBattleChoco97Model
                 }
                 break;
             case 7:
-                Once();
-                if (step.Completed)
+                if (profile.NinePhases)
                 {
-                    Select(5);
-                    Next();
+                    if (inputs.AtLeast(5))
+                    {
+                        step = step with { Task = step.Task.WriteByte(0x26, (byte)(step.Task.ReadByte(0x26) | 5)) };
+                        Next();
+                    }
+                    else
+                    {
+                        Loop();
+                    }
+                }
+                else
+                {
+                    Once();
+                    if (step.Completed)
+                    {
+                        Select(5);
+                        Next();
+                    }
                 }
                 break;
             case 8:
-                Loop();
-                if (profile.TerminalCounter is short terminal ? Counter() >= terminal : inputs.AtLeast(6))
+                if (!profile.NinePhases)
                 {
-                    step = step with { Task = step.Task.WriteByte(0x26, (byte)(step.Task.ReadByte(0x26) | 5)) };
-                    Next();
+                    Loop();
+                    if (profile.TerminalCounter is short terminal ? Counter() >= terminal : inputs.AtLeast(6))
+                    {
+                        step = step with { Task = step.Task.WriteByte(0x26, (byte)(step.Task.ReadByte(0x26) | 5)) };
+                        Next();
+                    }
                 }
                 break;
             case 9:

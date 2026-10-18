@@ -11,15 +11,21 @@ public enum NativeBattleChoco97LoadedProgram
 
 public sealed record NativeBattleChoco97LoadedProgramResources(NativeBattleChoco97LoadedProgram Profile, NativeBattleGfAnimationSource ProgramSource);
 public sealed record NativeBattleChoco97LoadedProgramDraw(NativeBattleModulePoolTask Task, NativeBattleGfAnimationSource Source, ImmutableArray<byte> MorphScratch, NativeBattleGfGeometryBatch Packets, int? Remaining, bool ReadyToComplete);
+internal sealed record NativeBattleChocoProgramVScroll(int Geometry, int Delta);
+internal sealed record NativeBattleChocoLoadedProgramProfile(NativeBattleChocoProgramProfile Core, uint Address, int Length, uint Callback, int Clear, bool TargetOrigin, short OriginY, short OriginZ, bool ImmediateDraw, ImmutableArray<NativeBattleChocoProgramVScroll> Scrolls, uint? PhaseZeroSound);
 
 public static partial class NativeBattleChoco97ProgramDrawing
 {
     public static NativeBattleChoco97LoadedProgramDraw AdvanceLoaded(NativeBattleChoco97LoadedProgram profile, NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, ImmutableArray<byte> actorRaw8, ImmutableArray<byte> targetRaw8, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozen)
     {
-        (uint address, int length, uint callback, int clear, int delta, int[] geometries) = LoadedProfile(profile);
-        RequireTask(task, source);
-        RequireScratch(morphScratch);
-        if (source.Address != address || source.Data.Length != length || task.Callback != callback || task.ReadDword(0x78) != clear)
+        return AdvanceLoadedProfiled(Profile97(profile), task, source, actorRaw8, targetRaw8, morphScratch, view, projection, colors, frozen).Draw;
+    }
+
+    internal static (NativeBattleChoco97LoadedProgramDraw Draw, uint? SoundDescriptor) AdvanceLoadedProfiled(NativeBattleChocoLoadedProgramProfile profile, NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, ImmutableArray<byte> actorRaw8, ImmutableArray<byte> targetRaw8, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozen)
+    {
+        RequireTask(task, source, profile.Core);
+        RequireScratch(morphScratch, profile.Core);
+        if (source.Address != profile.Address || source.Data.Length != profile.Length || task.Callback != profile.Callback || task.ReadDword(0x78) != profile.Clear)
         {
             throw new InvalidDataException("Native Choco loaded program requires its actual callback, file owner and clear operand.");
         }
@@ -30,16 +36,16 @@ public static partial class NativeBattleChoco97ProgramDrawing
         switch (phase)
         {
             case 0:
-                task = InitializeWorkspace72A6C0(task, source, profile == NativeBattleChoco97LoadedProgram.File450 ? targetRaw8 : actorRaw8);
-                if (profile == NativeBattleChoco97LoadedProgram.File445)
+                task = InitializeProfiled(task, source, profile.TargetOrigin ? targetRaw8 : actorRaw8, profile.Core);
+                if (profile.OriginY != 0)
                 {
-                    task = task.WriteWord(0x1E, unchecked((ushort)(task.ReadWord(0x1E) - 384)));
+                    task = task.WriteWord(0x1E, unchecked((ushort)(task.ReadWord(0x1E) + profile.OriginY)));
                 }
-                else if (profile == NativeBattleChoco97LoadedProgram.File449)
+                if (profile.OriginZ != 0)
                 {
-                    task = task.WriteWord(0x1E, unchecked((ushort)(task.ReadWord(0x1E) - 1024))).WriteWord(0x20, unchecked((ushort)(task.ReadWord(0x20) - 384)));
+                    task = task.WriteWord(0x20, unchecked((ushort)(task.ReadWord(0x20) + profile.OriginZ)));
                 }
-                draw = profile != NativeBattleChoco97LoadedProgram.File449;
+                draw = profile.ImmediateDraw;
                 break;
             case 1:
                 draw = true;
@@ -51,7 +57,7 @@ public static partial class NativeBattleChoco97ProgramDrawing
         }
         if (draw)
         {
-            NativeBattleChoco97ProgramDraw step = Advance72A720(task, source, morphScratch, view, projection, colors, frozen);
+            NativeBattleChoco97ProgramDraw step = AdvanceProfiled(task, source, morphScratch, view, projection, colors, frozen, profile.Core);
             task = step.Task;
             packets = step.Packets;
             morphScratch = step.MorphScratch;
@@ -65,22 +71,28 @@ public static partial class NativeBattleChoco97ProgramDrawing
         {
             task = task.WriteByte(0x29, 1);
         }
-        foreach (int geometry in geometries)
+        foreach (NativeBattleChocoProgramVScroll scroll in profile.Scrolls)
         {
-            int offset = ReadInt(source.Data, checked(8 + geometry * 4));
-            source = source with { Data = NativeBattleChoco97Uv.Scroll7311C0(source.Data, offset / 4 * 4, delta) };
+            int offset = ReadInt(source.Data, checked(8 + scroll.Geometry * 4));
+            source = source with { Data = NativeBattleChoco97Uv.Scroll7311C0(source.Data, offset / 4 * 4, scroll.Delta) };
         }
         task = task.WriteWord(0x24, unchecked((ushort)(task.ReadWord(0x24) + 1)));
-        return new(task, source, morphScratch, packets, remaining, (task.ReadByte(0x26) & 1) != 0 && task.ReadByte(0x28) == 0);
+        return (new(task, source, morphScratch, packets, remaining, (task.ReadByte(0x26) & 1) != 0 && task.ReadByte(0x28) == 0), phase == 0 ? profile.PhaseZeroSound : null);
     }
 
     public static (uint Address, int Length, uint Callback, int Clear, int Delta, int[] Geometries) LoadedProfile(NativeBattleChoco97LoadedProgram profile)
     {
+        NativeBattleChocoLoadedProgramProfile selected = Profile97(profile);
+        return (selected.Address, selected.Length, selected.Callback, selected.Clear, selected.Scrolls[0].Delta, selected.Scrolls.Select(scroll => scroll.Geometry).ToArray());
+    }
+
+    private static NativeBattleChocoLoadedProgramProfile Profile97(NativeBattleChoco97LoadedProgram profile)
+    {
         return profile switch
         {
-            NativeBattleChoco97LoadedProgram.File445 => (0x19DB018, 0x4EE0, 0x731840, 0x44C, 12, [0, 3]),
-            NativeBattleChoco97LoadedProgram.File449 => (0x19E4958, 0x3D08, 0x731950, 0x170, 18, [2]),
-            NativeBattleChoco97LoadedProgram.File450 => (0x19E8660, 0x6420, 0x731100, 0x290, 6, [1, 2, 5, 6]),
+            NativeBattleChoco97LoadedProgram.File445 => new(NativeBattleChocoProgramProfile.Choco97, 0x19DB018, 0x4EE0, 0x731840, 0x44C, false, -384, 0, true, [new(0, 12), new(3, 12)], null),
+            NativeBattleChoco97LoadedProgram.File449 => new(NativeBattleChocoProgramProfile.Choco97, 0x19E4958, 0x3D08, 0x731950, 0x170, false, -1024, -384, false, [new(2, 18)], null),
+            NativeBattleChoco97LoadedProgram.File450 => new(NativeBattleChocoProgramProfile.Choco97, 0x19E8660, 0x6420, 0x731100, 0x290, true, 0, 0, true, [new(1, 6), new(2, 6), new(5, 6), new(6, 6)], null),
             _ => throw new NotSupportedException("Native Choco loaded program requires an admitted original caller profile.")
         };
     }

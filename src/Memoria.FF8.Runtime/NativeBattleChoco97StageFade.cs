@@ -6,36 +6,38 @@ public static class NativeBattleChoco97StageFade
 {
     public static NativeBattleChoco97StageFadeStep Advance(NativeBattleModulePoolTask task)
     {
-        if (task.Payload.IsDefault || task.Payload.Length != 0x70 - 12 || task.Callback is not (0x731630 or 0x731A50 or 0x731B40))
+        if (task.Payload.IsDefault || task.Payload.Length != 0x70 - 12 || task.Callback is not (0x731630 or 0x731A50 or 0x731B40 or 0x7292D0 or 0x7296D0 or 0x7297C0))
         {
             throw new InvalidDataException("Native Choco stage fade requires its actual auxiliary callback and task.");
         }
         short? depth = null;
         bool clearRgb = false;
+        bool fadeOut = task.Callback is 0x731630 or 0x7292D0;
+        bool firstRise = task.Callback is 0x731A50 or 0x7296D0;
         switch (unchecked((sbyte)task.ReadByte(0x29)))
         {
             case 0:
                 ushort start = task.Callback switch
                 {
-                    0x731630 => 0xC00,
-                    0x731A50 => 0,
+                    0x731630 or 0x7292D0 => 0xC00,
+                    0x731A50 or 0x7296D0 => 0,
                     _ => 0x600
                 };
                 task = task.WriteWord(0x1C, start).WriteByte(0x29, 1);
-                if (task.Callback != 0x731630)
+                if (!fadeOut)
                 {
                     depth = unchecked((short)start);
                     clearRgb = true;
                 }
                 break;
             case 1:
-                int delta = task.Callback == 0x731630 ? -0x80 : task.Callback == 0x731A50 ? 0x80 : 0x100;
+                int delta = task.Callback == 0x7292D0 ? -0xC0 : fadeOut ? -0x80 : firstRise ? 0x80 : 0x100;
                 short value = unchecked((short)(task.ReadWord(0x1C) + delta));
-                int limit = task.Callback == 0x731A50 ? 0x600 : 0xC00;
-                bool complete = task.Callback == 0x731630 ? value <= 0 : value >= limit;
+                int limit = firstRise ? 0x600 : 0xC00;
+                bool complete = fadeOut ? value <= 0 : value >= limit;
                 if (complete)
                 {
-                    value = task.Callback == 0x731630 ? (short)0 : (short)limit;
+                    value = fadeOut ? (short)0 : (short)limit;
                     task = task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 1)).WriteByte(0x29, 2);
                 }
                 depth = value;

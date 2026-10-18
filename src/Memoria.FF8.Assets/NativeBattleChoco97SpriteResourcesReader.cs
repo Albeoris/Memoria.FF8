@@ -8,8 +8,11 @@ public static class NativeBattleChoco97SpriteResourcesReader
 {
     public static NativeBattleChoco97SpriteResources Read(byte[] executable)
     {
-        NativeExecutableMemory memory = new(executable);
-        const uint address = 0x152B5C8;
+        return Read(new NativeExecutableMemory(executable), 0x152B5C8);
+    }
+
+    internal static NativeBattleChoco97SpriteResources Read(NativeExecutableMemory memory, uint address)
+    {
         ImmutableArray<byte> bytes = NativeBattleEffectStaticResourcesReader.ReadProjectedSprite(memory, address);
         if (bytes.Length != 0x368 || BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan().Slice(8)) != 20)
         {

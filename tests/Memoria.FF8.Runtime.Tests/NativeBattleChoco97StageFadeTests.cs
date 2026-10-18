@@ -9,12 +9,15 @@ public sealed class NativeBattleChoco97StageFadeTests
     [InlineData(0x731630u, -1, 0, 25)]
     [InlineData(0x731A50u, 0, 0x600, 13)]
     [InlineData(0x731B40u, 0x600, 0xC00, 7)]
-    public void Three_original_profiles_preserve_initial_stage_write_timing_and_every_cold_next(uint callback, int firstDepth, int finalDepth, int expectedCallbacks)
+    [InlineData(0x7292D0u, -1, 0, 17)]
+    [InlineData(0x7296D0u, 0, 0x600, 13)]
+    [InlineData(0x7297C0u, 0x600, 0xC00, 7)]
+    public void Original_profiles_preserve_initial_stage_write_timing_and_every_cold_next(uint callback, int firstDepth, int finalDepth, int expectedCallbacks)
     {
         NativeBattleModulePoolTask task = Task(callback);
         NativeBattleChoco97StageFadeStep first = NativeBattleChoco97StageFade.Advance(task);
         Assert.Equal(firstDepth == -1 ? null : (short?)firstDepth, first.Depth);
-        Assert.Equal(callback != 0x731630, first.ClearRgb);
+        Assert.Equal(firstDepth != -1, first.ClearRgb);
         task = first.Task;
         int callbacks = 1;
         NativeBattleChoco97StageFadeStep step;

@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-internal sealed record NativeBattleIoProfile(uint ScriptAddress, int ScriptLength, uint TaskCallback, uint TimCallback, uint DataCallback2, uint DataCallback3, uint DefaultDirectory, bool ExternalFiles)
+internal sealed record NativeBattleIoProfile(uint ScriptAddress, int ScriptLength, uint TaskCallback, uint TimCallback, uint DataCallback2, uint DataCallback3, uint DefaultDirectory, bool ExternalFiles, uint DataCallback4 = 0)
 {
     public static NativeBattleIoProfile Moogle96 { get; } = new(0x152BBA0, 0x60, 0x732390, 0x732590, 0, 0, 0x1D9B018, false);
     public static NativeBattleIoProfile Choco97 { get; } = new(0x152B930, 0x100, 0x729FF0, 0x72A1F0, 0x72A250, 0x72A260, 0x19DB018, true);
@@ -81,7 +81,7 @@ internal static class NativeBattleProfiledIoCore
                     state = WriteControlWord(state, 0x166, 0);
                     task = task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 1)).WriteByte(0x29, 1);
                 }
-                else if (opcode == 1 || profile.ExternalFiles && opcode is 2 or 3)
+                else if (opcode == 1 || IsData(profile, opcode))
                 {
                     if (ControlWord(state, 0x164) != 0)
                     {
@@ -89,12 +89,12 @@ internal static class NativeBattleProfiledIoCore
                     }
                     int cursor = Cursor(profile, state);
                     ushort index = BinaryPrimitives.ReadUInt16LittleEndian(state.Script.AsSpan().Slice(cursor + 4));
-                    uint destination = opcode == 1 ? ControlDword(state, 0x100) : ControlDword(state, checked((opcode == 2 ? 0x104 : 0x124) + 4 * index));
+                    uint destination = opcode == 1 ? ControlDword(state, 0x100) : ControlDword(state, checked((opcode == 2 ? 0x104 : opcode == 3 ? 0x124 : 0x144) + 4 * index));
                     byte[] script = state.Script.ToArray();
                     Dword(script, cursor + 12, destination);
                     state = WriteControlWord(state with { Script = script.ToImmutableArray() }, 0x164, 1);
                     request = CurrentFile(profile, state);
-                    if (opcode is 2 or 3)
+                    if (IsData(profile, opcode))
                     {
                         state = Bookkeep(state, destination, request.DeclaredLength);
                     }
@@ -113,7 +113,7 @@ internal static class NativeBattleProfiledIoCore
                 else if (ControlWord(state, 0x164) == 0)
                 {
                     ushort pollOpcode = Opcode(profile, state);
-                    if (pollOpcode != 1 && (!profile.ExternalFiles || pollOpcode is not (2 or 3)))
+                    if (pollOpcode != 1 && !IsData(profile, pollOpcode))
                     {
                         throw new NotSupportedException("Native file polling requires its actual supported non-stream record.");
                     }
@@ -177,14 +177,16 @@ internal static class NativeBattleProfiledIoCore
         ushort index = BinaryPrimitives.ReadUInt16LittleEndian(state.Script.AsSpan().Slice(cursor + 4));
         int length = BinaryPrimitives.ReadInt32LittleEndian(state.Script.AsSpan().Slice(cursor + 8));
         uint destination = BinaryPrimitives.ReadUInt32LittleEndian(state.Script.AsSpan().Slice(cursor + 12));
-        bool supported = opcode == 1 || profile.ExternalFiles && opcode is 2 or 3;
+        bool supported = opcode == 1 || IsData(profile, opcode);
         bool invalidMoogle = !profile.ExternalFiles && (BinaryPrimitives.ReadUInt32LittleEndian(state.Script.AsSpan().Slice(cursor + 4)) != 0 || id is < 438 or > 441);
         if (!supported || invalidMoogle || ControlWord(state, 0x164) == 0 || length <= 0 || opcode == 1 && (destination != ControlDword(state, 0x100) || length > BufferLength))
         {
             throw new NotSupportedException("Native file operation requires its active owned record and supplied destination extent.");
         }
-        return new(opcode, id, index, destination, length, opcode == 1 ? profile.TimCallback : opcode == 2 ? profile.DataCallback2 : profile.DataCallback3);
+        return new(opcode, id, index, destination, length, opcode == 1 ? profile.TimCallback : opcode == 2 ? profile.DataCallback2 : opcode == 3 ? profile.DataCallback3 : profile.DataCallback4);
     }
+
+    private static bool IsData(NativeBattleIoProfile profile, ushort opcode) => profile.ExternalFiles && (opcode is 2 or 3 || opcode == 4 && profile.DataCallback4 != 0);
 
     internal static void RequireBuffer(uint address)
     {
