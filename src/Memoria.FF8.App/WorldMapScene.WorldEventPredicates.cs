@@ -124,19 +124,21 @@ internal sealed partial class WorldMapScene
                 }
                 return saved.MatchesWorldEventVariable(opcode, operand);
             case 0xFF32:
-                NativeWorldGroundCacheState cache = state.NativeFootRuntime?.GroundCache ?? state.NativeCarRuntime?.GroundCache ?? state.NativeTrainRuntime?.GroundCache ?? state.NativeGardenRuntime?.GroundCache ?? state.NativeRagnarokRuntime?.GroundCache ?? throw new NotSupportedException("World event FF32 requires the executed accepted-ground owner.");
+            case 0xFF33:
+                NativeWorldGroundCacheState cache = state.NativeFootRuntime?.GroundCache ?? state.NativeCarRuntime?.GroundCache ?? state.NativeTrainRuntime?.GroundCache ?? state.NativeGardenRuntime?.GroundCache ?? state.NativeRagnarokRuntime?.GroundCache ?? throw new NotSupportedException($"World event {opcode:X4} requires the executed accepted-ground owner.");
                 bool? passed = null;
                 foreach (NativeWorldGroundAlternative alternative in cache.Alternatives)
                 {
-                    byte flags = assets.ResolveNativeGroundIdentity(alternative.CurrentGround, replacements).TextureFlags;
-                    bool candidate = operand != ((flags & 8) == 0 ? 1 : 0);
+                    WorldTriangle ground = assets.ResolveNativeGroundIdentity(alternative.CurrentGround, replacements);
+                    //546100 compares FF32 as a WORD and FF33 as its low unsigned BYTE.
+                    bool candidate = opcode == 0xFF32 ? operand != ((ground.TextureFlags & 8) == 0 ? 1 : 0) : unchecked((byte)operand) == ground.GroundType;
                     if (passed is bool prior && prior != candidate)
                     {
-                        throw new NotSupportedException("World event FF32 differs across retained accepted ground alternatives.");
+                        throw new NotSupportedException($"World event {opcode:X4} differs across retained accepted ground alternatives.");
                     }
                     passed = candidate;
                 }
-                return passed ?? throw new InvalidDataException("World event FF32 has no accepted ground alternative.");
+                return passed ?? throw new InvalidDataException($"World event {opcode:X4} has no accepted ground alternative.");
             default:
                 throw new NotSupportedException($"Reached unsupported world event predicate 0x{opcode:X4}/{operand}.");
         }
