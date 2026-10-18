@@ -13,7 +13,7 @@ public sealed record NativeTutorialExamLevel(int Level, ImmutableArray<NativeTut
 public sealed record NativeTutorialExamProgress(int PassedTests, int SeeDRank, int CharacterLevel, NativeCharacterVitals? Party = null, IReadOnlyDictionary<int, long>? InformationNumbers = null);
 public sealed record NativeTutorialExamResult(int Score, bool Passed, int PromptIndex, NativeTutorialExamProgress Progress);
 public sealed record NativeTutorialInformationNode(int Id, ushort OriginId, ushort LeftId, ushort RightId, string Title, ImmutableArray<byte> Body);
-public sealed record NativeTutorialInformationLink(int TargetId, string Label);
+public sealed record NativeTutorialInformationLink(int TargetId, string Label, int LineIndex = 0);
 public sealed record NativeTutorialInformationPage(NativeTutorialInformationNode Node, string Text, ImmutableArray<NativeTutorialInformationLink> Links);
 
 /// <summary>Native 4D4960/4D4D30 exam bank and 4D5E00/4D5F10 Information text graph.</summary>
@@ -75,12 +75,14 @@ public sealed class NativeTutorialExamCatalog
         List<byte> label = [];
         List<NativeTutorialInformationLink> links = [];
         int target = -1;
+        int lineIndex = 0;
+        int linkLine = 0;
         bool visible = true;
         void FinishLink()
         {
             if (target >= 0)
             {
-                links.Add(new NativeTutorialInformationLink(target, encoding.GetString(label.ToArray()).Trim()));
+                links.Add(new NativeTutorialInformationLink(target, encoding.GetString(label.ToArray()).Trim(), linkLine));
                 target = -1;
                 label.Clear();
             }
@@ -128,12 +130,17 @@ public sealed class NativeTutorialExamCatalog
                         throw new InvalidDataException("Original Information link is outside its map.");
                     }
                     target = destination;
+                    linkLine = lineIndex;
                 }
                 continue;
             }
             if (value == 2)
             {
                 FinishLink();
+                if (visible)
+                {
+                    lineIndex++;
+                }
             }
             if (value is >= 3 and <= 15)
             {

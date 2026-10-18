@@ -241,12 +241,49 @@ public sealed partial class MenuController
 
     private UiElement BuildNativeExamPage()
     {
-        string title = ScreenId == "tutorial-native-information" ? CurrentNativeInformationPage?.Node.Title ?? CurrentScreen.Title : _nativeExamReview && ScreenId is "tutorial-native-exam-question" or "tutorial-native-exam-result" ? "Review" : CurrentScreen.Title;
-        string text = string.Join("\n", CurrentScreen.Details(this).Select(NativeBrowserText));
-        var page = Grid([1.5f, 5.2f, 2.5f], [1], 5);
-        Place(page, SecondaryHeader("Tutorial", NativeBrowserText(title), ""), 0);
-        Place(page, Panel(null, Lines([text], 25)), 1);
+        if (ScreenId == "tutorial-native-information" && CurrentNativeInformationPage is NativeTutorialInformationPage information)
+        {
+            NativeTutorialDocumentElement document = NativeTutorialDocument(information.Text, 24);
+            document.Id = "native-information-document";
+            for (int index = 0; index < information.Links.Length; index++)
+            {
+                int selected = index;
+                document.AddLink(information.Links[index].LineIndex, new UiButton
+                {
+                    Id = $"information-{index}",
+                    DrawBackground = false,
+                    HighlightSelection = false,
+                    PointerSize = 20 * TextScale,
+                    Click = () => Activate(selected)
+                });
+            }
+            var informationPage = Grid([0.8f, 7.2f], [1], 5);
+            Place(informationPage, NativeTutorialHeading(information.Node.Title), 0);
+            Place(informationPage, Panel(null, document), 1);
+            return informationPage;
+        }
+        string title = _nativeExamReview && ScreenId is "tutorial-native-exam-question" or "tutorial-native-exam-result" ? "Review" : CurrentScreen.Title;
+        string text = string.Join("\n", CurrentScreen.Details(this));
+        var page = Grid([0.8f, 5.2f, 2.5f], [1], 5);
+        Place(page, NativeTutorialHeading(title), 0);
+        NativeTutorialDocumentElement body = NativeTutorialDocument(text, 25);
+        body.Id = "native-exam-document";
+        Place(page, Panel(null, body), 1);
         Place(page, Panel(null, SecondaryCommands()), 2);
         return page;
+    }
+
+    private UiElement NativeTutorialHeading(string title)
+    {
+        var heading = Grid([1], [3.7f, 1.3f], 5);
+        Place(heading, Panel(null, Label(NativeBrowserText(title), 24)), 0);
+        Place(heading, Panel(null, Label("Tutorial", 27)), 0, 1);
+        return heading;
+    }
+
+    private NativeTutorialDocumentElement NativeTutorialDocument(string text, float fontSize)
+    {
+        string expanded = DialogueTextFormatter.ExpandButtonBindings(text, buttons => CurrentBindingText(KeyboardInput.NativeButtonAction(buttons)));
+        return new NativeTutorialDocumentElement(expanded, fontSize * TextScale, (_readPreferences?.Invoke() ?? new UiPreferences()).UiFontFamily);
     }
 }

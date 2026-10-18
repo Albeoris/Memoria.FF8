@@ -129,7 +129,7 @@ internal static partial class DialogueTextFormatter
                 TextTagKey.EscapeKey1 => 0x01,
                 TextTagKey.EscapeKey2 => 0x02,
                 TextTagKey.L1 => 0x04,
-                TextTagKey.R1 => 0x08,
+                TextTagKey.R1 or (TextTagKey)0x23 => 0x08,
                 TextTagKey.Triangle or TextTagKey.Cancel => 0x10,
                 TextTagKey.Circle or TextTagKey.Menu => 0x20,
                 TextTagKey.Cross or TextTagKey.Confirm => 0x40,

@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Text.Json;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -22,6 +23,7 @@ internal static class MenuPreview
         string? characterId = null;
         int nameSubject = 0;
         int namePage = 0;
+        string? inputs = null;
         for (int index = 0; index < args.Length; index++)
         {
             string argument = args[index];
@@ -30,13 +32,16 @@ internal static class MenuPreview
                 expanded = true;
                 continue;
             }
-            if (argument is not ("--screen" or "--output" or "--resolution" or "--game-dir" or "--state" or "--character" or "--name-subject" or "--name-page") || ++index == args.Length)
+            if (argument is not ("--screen" or "--output" or "--resolution" or "--game-dir" or "--state" or "--character" or "--name-subject" or "--name-page" or "--inputs") || ++index == args.Length)
             {
                 throw new ArgumentException($"Unknown or incomplete menu preview argument '{argument}'.");
             }
             string value = args[index];
             switch (argument)
             {
+                case "--inputs":
+                    inputs = value;
+                    break;
                 case "--name-subject":
                     nameSubject = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
                     break;
@@ -117,18 +122,24 @@ internal static class MenuPreview
         {
             UiPreferences preferences = new();
             MenuData? liveData = null;
+            GameState? previewState = null;
             if (statePath is not null)
             {
-                GameState state = GameSession.Load(statePath);
+                previewState = GameSession.Load(statePath);
                 using GameAssets assets = new(gameDirectory);
-                liveData = LiveMenuData.Build(state, catalog: LiveMenuCatalog.ReadInstalled(assets));
+                liveData = LiveMenuData.Build(previewState, catalog: LiveMenuCatalog.ReadInstalled(assets));
             }
             MenuController menus = liveData is null ? new() : new(() => liveData);
             if (screen.StartsWith("tutorial", StringComparison.Ordinal))
             {
                 using GameAssets assets = new(gameDirectory);
-                IReadOnlySet<int> previewUnlocks = statePath is null ? Enumerable.Range(62, 9).ToHashSet() : new HashSet<int>();
+                IReadOnlySet<int> previewUnlocks = previewState is null ? Enumerable.Range(62, 9).ToHashSet() : previewState.EventState is JsonElement eventState && eventState.TryGetProperty("Scene", out JsonElement scene) && scene.TryGetProperty("UnlockedTutorials", out JsonElement unlocked) ? unlocked.EnumerateArray().Select(value => value.GetInt32()).ToHashSet() : new HashSet<int>();
                 menus.ConnectNativeTutorials(assets.ReadNativeTutorialCatalog(), assets.ReadNativeTutorialBrowserCatalog(), () => previewUnlocks, _ => throw new NotSupportedException("Start a native tutorial through its saved request for playback preview."));
+                menus.ConnectNativeTutorialExam(assets.ReadNativeTutorialExamCatalog(), () => new(0, previewState is null ? 0 : previewState.SeeD is { SalaryUiEnabled: true } seeD ? seeD.RankPoints / 100 : -1, liveData?.Characters.FirstOrDefault()?.Level ?? 1, previewState?.CharacterVitals?.DeepCopy()));
+                if (screen is "tutorial-native-information" or "tutorial-native-test" or "tutorial-native-review")
+                {
+                    menus.Execute(new MenuAction("native-exam-open", "information"));
+                }
             }
             menus.ConnectMods(mods);
             menus.ConnectPreferences(() => preferences, action => preferences = preferences.WithSetting(action.SubjectId, action.Value));
@@ -157,6 +168,13 @@ internal static class MenuPreview
                 for (int page = 0; page < namePage; page++)
                 {
                     menus.Navigate(MenuInput.PageRight);
+                }
+            }
+            if (inputs is not null)
+            {
+                foreach (string input in inputs.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    menus.Navigate(Enum.Parse<MenuInput>(input, ignoreCase: true));
                 }
             }
             view = menus.BuildView();

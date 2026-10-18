@@ -60,6 +60,7 @@ internal sealed partial class NativeTutorialTextElement(string text, float nativ
         // Original text tag 5 selects these ICON.SP1 entries through its key table.
         return key switch
         {
+            TextTagKey.DefaultKey => 136,
             TextTagKey.JunctionMarker => 192,
             >= TextTagKey.JunctionAbility and <= TextTagKey.MenuAbility => 216 + (int)key - (int)TextTagKey.JunctionAbility,
             >= TextTagKey.FireElement and <= TextTagKey.HolyElement => 288 + (int)key - (int)TextTagKey.FireElement,
