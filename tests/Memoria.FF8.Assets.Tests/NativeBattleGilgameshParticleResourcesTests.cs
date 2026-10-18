@@ -55,4 +55,3 @@ public sealed class NativeBattleGilgameshParticleResourcesTests
         Assert.Equal(0, current.Survivors);
     }
 }
-

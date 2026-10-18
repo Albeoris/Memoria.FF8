@@ -265,6 +265,3 @@ public sealed class NativeBattleGilgameshParticlesTests
         return new(0, 0, 0, 0, bytes.ToImmutableArray());
     }
 }
-
-
-

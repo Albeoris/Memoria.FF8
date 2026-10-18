@@ -212,4 +212,3 @@ public static class NativeBattleGilgameshModelBanks
     private static uint Clone(int index) => checked(0x21FF800u + (uint)index * 0x9C);
     private static uint CloneControl(int index) => checked(0x21FFC78u + (uint)index * 0x34);
 }
-

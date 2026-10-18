@@ -174,4 +174,3 @@ public sealed class NativeBattleGilgameshModelBankResourcesTests
         BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(0x50), 4096);
     }
 }
-

@@ -9,7 +9,7 @@ public sealed class NativeBattleGilgameshModelAPacketsTests
     public void Accepted_FT3_and_FT4_write_every_byte_sign_extend_UV_and_publish_actual_FIFO_depths()
     {
         NativeBattleRawMesh mesh = Mesh(Quad(), Triangle());
-        NativeBattleGilgameshModelAReveal result = Emit(mesh, Arena(2), 1, 0x80808080);
+        NativeBattleGilgameshModelAReveal result = Emit(mesh, Arena(2), 1, 0x00808080);
         Assert.Equal(72, result.Packets.AllocationBytes);
         Assert.Equal(0x1004, result.LabelEndOffset);
         Assert.Equal(new[] { 0, 32 }, result.Packets.Attempts.Select(attempt => attempt.ByteOffsetRelative).ToArray());
@@ -17,7 +17,7 @@ public sealed class NativeBattleGilgameshModelAPacketsTests
         NativeBattleGeometryPrimitive quad = result.Packets.Attempts[1].Primitive!;
         Assert.Equal(0x07000000u, triangle.Words[0]);
         Assert.Equal(0x09000000u, quad.Words[0]);
-        Assert.Equal(0x80808080u | 0x02000000u | 0x24000000u, triangle.Words[1]);
+        Assert.Equal(0x00808080u | 0x02000000u | 0x24000000u, triangle.Words[1]);
         Assert.Equal(0x11223344u, triangle.Words[3]);
         Assert.Equal(0x00345678u, triangle.Words[5]);
         Assert.Equal(0xFFFFFEDCu, triangle.Words[7]);
@@ -147,6 +147,15 @@ public sealed class NativeBattleGilgameshModelAPacketsTests
         Assert.Throws<NotSupportedException>(() => Emit(Mesh(new NativeBattleRawPolygon(false, new byte[20].ToImmutableArray())), Arena(1)));
     }
 
+    [Fact]
+    public void AddPrim_classifies_the_actual_command_after_unmasked_color_OR_and_requires_prior_SZ0_for_reclassified_triangle()
+    {
+        NativeBattleGilgameshModelAReveal result = Emit(Mesh(Triangle(), Quad()), Arena(2), 1, 0x80808080);
+        Assert.Equal(0xA6808080u, result.Packets.Attempts[0].Primitive!.Words[1]);
+        Assert.Equal(0xAE808080u, result.Packets.Attempts[1].Primitive!.Words[1]);
+        Assert.All(result.Packets.Attempts, attempt => Assert.Equal(new[] { 0, 0, 0, 0 }, attempt.Primitive!.VertexPayload4.ToArray()));
+        Assert.Throws<NotSupportedException>(() => Emit(Mesh(Triangle()), Arena(1), 1, 0x08808080));
+    }
     private const int World = 0x100;
     private const int Labels = 0x1000;
     private static NativeBattleActionMatrix View() => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 3000, 4096);
@@ -207,3 +216,4 @@ public sealed class NativeBattleGilgameshModelAPacketsTests
         return new(true, bytes.ToImmutableArray());
     }
 }
+

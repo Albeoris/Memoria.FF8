@@ -24,4 +24,3 @@ public sealed record NativeBattleGilgameshParticleResources(NativeBattleModuleRe
         }
     }
 }
-

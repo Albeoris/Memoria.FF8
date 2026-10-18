@@ -59,7 +59,8 @@ public static class NativeBattleGilgameshModelAPackets
             NativeBattleGfPacketByteState[] mask = new NativeBattleGfPacketByteState[length];
             Store(0, polygon.Quad ? 0x09000000u : 0x07000000u);
             uint uv1 = BinaryPrimitives.ReadUInt32LittleEndian(polygon.Bytes.AsSpan().Slice(12));
-            Store(4, modelColor | (uv1 & 0x02000000) | (polygon.Quad ? 0x2C000000u : 0x24000000u));
+            uint command = modelColor | (uv1 & 0x02000000) | (polygon.Quad ? 0x2C000000u : 0x24000000u);
+            Store(4, command);
             Store(12, BinaryPrimitives.ReadUInt32LittleEndian(polygon.Bytes.AsSpan().Slice(8)));
             Store(20, uv1 & 0x01FFFFFF);
             if (((projected[0].Flags | projected[1].Flags | projected[2].Flags) & 0x60000) != 0 || !NativeBattleGeometryPackets.Accept510680(projected[0].Screen, projected[1].Screen, projected[2].Screen))
@@ -86,7 +87,24 @@ public static class NativeBattleGilgameshModelAPackets
             short zsf = (polygon.Quad ? registers?.Zsf4 : registers?.Zsf3) ?? throw new NotSupportedException("Native596220 requires its actual current selected ZSF register.");
             uint depth = unchecked(sum * (uint)(int)zsf) >> 12;
             int bucket = unchecked(17 + (int)(depth >> 2));
-            ImmutableArray<int> precision = polygon.Quad ? projected.Select(vertex => (int)vertex.Depth).ToImmutableArray() : [projected[0].Depth, projected[1].Depth, projected[2].Depth, 0];
+            uint commandClass = (command >> 24) & 0xFC;
+            ImmutableArray<int> precision;
+            if (commandClass < 0x20 || commandClass > 0x3C)
+            {
+                precision = [0, 0, 0, 0];
+            }
+            else if ((commandClass & 8) != 0)
+            {
+                if (!polygon.Quad)
+                {
+                    throw new NotSupportedException("Native596220 color high BYTE reclassifies FT3 as a quad and requires its unavailable prior SZ0 owner.");
+                }
+                precision = projected.Select(vertex => (int)vertex.Depth).ToImmutableArray();
+            }
+            else
+            {
+                precision = [projected[0].Depth, projected[1].Depth, projected[2].Depth, 0];
+            }
             ImmutableArray<uint> words = Enumerable.Range(0, length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(index * 4))).ToImmutableArray();
             NativeBattleGeometryPrimitive primitive = new(bucket, words, precision) { PhysicalWriteMask = mask.ToImmutableArray() };
             attempts.Add(new(allocation, bytes.ToImmutableArray(), mask.ToImmutableArray(), primitive));
@@ -119,5 +137,3 @@ public static class NativeBattleGilgameshModelAPackets
         }
     }
 }
-
-
