@@ -12,7 +12,36 @@ public readonly record struct NativeBattleModuleProjectedVertex(uint Screen, ush
 /// <summary>45FE10/45FAA0 module projection, distinct from50F900's bulk body projection.</summary>
 public static class NativeBattleModuleProjection
 {
-    public static NativeBattleModuleProjectedVertex Project45FE10(NativeBattleActionMatrix matrix, NativeBattleVector vertex, NativeBattleCameraProjection projection)
+    public static NativeBattleModuleProjectedVertex Project45FE10(NativeBattleActionMatrix matrix, NativeBattleVector vertex, NativeBattleCameraProjection projection) => ProjectCore(matrix, vertex, projection).Projected;
+
+    public static NativeBattleModuleProjectedVertex Project45FAA0(NativeBattleActionMatrix matrix, NativeBattleVector vertex, NativeBattleCameraProjection projection, short dqa, int dqb)
+    {
+        (NativeBattleModuleProjectedVertex projected, int x, int y, int z, double factor) = ProjectCore(matrix, vertex, projection);
+        uint flags = projected.Flags;
+        if (x is < short.MinValue or > short.MaxValue)
+        {
+            flags |= 0x81000000;
+        }
+        if (y is < short.MinValue or > short.MaxValue)
+        {
+            flags |= 0x80800000;
+        }
+        if (z is < short.MinValue or > short.MaxValue)
+        {
+            flags |= 0x00400000;
+        }
+        double cue = (double)dqa * factor;
+        cue *= 65536d;
+        cue += dqb;
+        int roundedCue = NativeBattlePoseMatrices.RoundNative(cue * (1d / 4096d));
+        if (roundedCue is < 0 or > 4095)
+        {
+            flags |= 0x00001000;
+        }
+        return projected with { Flags = flags };
+    }
+
+    private static (NativeBattleModuleProjectedVertex Projected, int X, int Y, int Z, double Factor) ProjectCore(NativeBattleActionMatrix matrix, NativeBattleVector vertex, NativeBattleCameraProjection projection)
     {
         matrix.Validate();
         ushort h = projection.FocalLength ?? throw new NotSupportedException("Native45FE10 requires its actual GTE H WORD.");
@@ -50,7 +79,7 @@ public static class NativeBattleModuleProjection
         }
         sx = Math.Clamp(sx, -8192, 8184);
         sy = Math.Clamp(sy, -8192, 8184);
-        return new(unchecked((ushort)sx) | unchecked((uint)sy << 16), (ushort)depth, flags);
+        return (new(unchecked((ushort)sx) | unchecked((uint)sy << 16), (ushort)depth, flags), x, y, z, factor);
     }
 }
 
