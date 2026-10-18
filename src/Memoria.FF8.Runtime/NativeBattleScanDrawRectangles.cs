@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -46,29 +47,44 @@ public static class NativeBattleScanDrawRectangles
         {
             NativeBattleScanRect area = readDrawArea49A870();
             contextScratch = contextScratch.Write(12, area.ToBytes()).WriteWord(20, unchecked((ushort)area.X)).WriteWord(22, unchecked((ushort)area.Y));
-            NativeBattleScanRect rectangle = ReadRect(backend, source);
-            rectangle = rectangle with { X = unchecked((short)(rectangle.X + area.X)), Y = unchecked((short)(rectangle.Y + area.Y)) };
-            short originalX = rectangle.X;
-            short originalY = rectangle.Y;
-            bool intersects = false;
-            if (rectangle.Width > 0 && rectangle.Height > 0)
-            {
-                NativeBattleScanIntersection clipped = Intersect4B6350(area, rectangle);
-                rectangle = clipped.Rectangle;
-                intersects = clipped.Visible;
-            }
-            if (rectangle.Width <= 1)
-            {
-                rectangle = rectangle with { Width = 2 };
-            }
-            if (rectangle.Height <= 1)
-            {
-                rectangle = rectangle with { Height = 1 };
-            }
-            contextScratch = contextScratch.Write(0, rectangle.ToBytes()).WriteWord(8, unchecked((ushort)originalX)).WriteWord(10, unchecked((ushort)originalY));
+            (NativeBattleScanByteOwner clipped, bool intersects) = ClipRectangle4B6400(backend, source, area);
+            contextScratch = contextScratch.Write(0, clipped.Bytes.AsSpan());
             backend = backend.Write(destination, contextScratch.Bytes.AsSpan(0, 12));
             return intersects;
         }
+    }
+
+    public static (NativeBattleScanByteOwner Backend, bool Visible) ClipForPresentation4B6400(NativeBattleScanByteOwner backend, NativeBattleScanRect area)
+    {
+        backend.RequireLength(64);
+        (NativeBattleScanByteOwner outer, bool visible) = ClipRectangle4B6400(backend, 8, area);
+        (NativeBattleScanByteOwner inner, _) = ClipRectangle4B6400(backend, 0x10, area);
+        return (backend.Write(0x18, outer.Bytes.AsSpan()).Write(0x24, inner.Bytes.AsSpan()), visible);
+    }
+
+    private static (NativeBattleScanByteOwner Bytes, bool Visible) ClipRectangle4B6400(NativeBattleScanByteOwner backend, int source, NativeBattleScanRect area)
+    {
+        NativeBattleScanRect rectangle = ReadRect(backend, source);
+        rectangle = rectangle with { X = unchecked((short)(rectangle.X + area.X)), Y = unchecked((short)(rectangle.Y + area.Y)) };
+        short originalX = rectangle.X;
+        short originalY = rectangle.Y;
+        bool intersects = false;
+        if (rectangle.Width > 0 && rectangle.Height > 0)
+        {
+            NativeBattleScanIntersection clipped = Intersect4B6350(area, rectangle);
+            rectangle = clipped.Rectangle;
+            intersects = clipped.Visible;
+        }
+        if (rectangle.Width <= 1)
+        {
+            rectangle = rectangle with { Width = 2 };
+        }
+        if (rectangle.Height <= 1)
+        {
+            rectangle = rectangle with { Height = 1 };
+        }
+        NativeBattleScanByteOwner result = new(new byte[12].ToImmutableArray(), new bool[12].ToImmutableArray());
+        return (result.Write(0, rectangle.ToBytes()).WriteWord(8, unchecked((ushort)originalX)).WriteWord(10, unchecked((ushort)originalY)), intersects);
     }
 
     public static NativeBattleScanRectangleFrame EmitFill4B6A80(NativeBattleScanRectangleFrame frame, NativeBattleScanRect rectangle, uint color, uint mode, NativeBattleScanRectangleServices services, Func<int, uint> readStaticWindowCommand)

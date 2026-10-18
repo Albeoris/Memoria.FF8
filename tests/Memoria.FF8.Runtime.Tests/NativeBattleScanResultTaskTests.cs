@@ -4,6 +4,40 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleScanResultTaskTests
 {
+    [Theory]
+    [InlineData(0, 2, 1, 1)]
+    [InlineData(1, 2, 2, 3)]
+    [InlineData(0x7FFF, 2, 0x8000, 1)]
+    public void Alternate_result_advances_pages_then_finishes_instead_of_wrapping(ushort page, ushort count, ushort expectedPage, byte expectedPhase)
+    {
+        var fixture = Fixture(0x850FD0);
+        NativeBattleScanResultTaskFrame frame = Modify(fixture.Frame, fixture.Address, task => task.WriteByte(0x29, 2).WriteWord(0x6C, page).WriteWord(0x6A, count).WriteWord(0x66, 17));
+        NativeBattleScanResultTaskStep next = NativeBattleScanResultTask.Advance850FD0(frame, fixture.Address, 0x20, fixture.Services);
+        Assert.Equal(expectedPage, Task(next.Frame, fixture.Address).ReadWord(0x6C));
+        Assert.Equal(expectedPhase, Task(next.Frame, fixture.Address).ReadByte(0x29));
+        Assert.Equal((ushort)17, Task(next.Frame, fixture.Address).ReadWord(0x66));
+        Assert.Equal(0, next.Result);
+        if (expectedPhase == 3)
+        {
+            NativeBattleScanResultTaskFrame restored = JsonSerializer.Deserialize<NativeBattleScanResultTaskFrame>(JsonSerializer.Serialize(next.Frame))!;
+            NativeBattleScanResultTaskStep closed = NativeBattleScanResultTask.Advance850FD0(restored, fixture.Address, 0x20, fixture.Services);
+            Assert.Equal(2, closed.Result);
+            Assert.Equal((ushort)1, closed.Frame.Complete269D93A);
+        }
+    }
+
+    [Fact]
+    public void Alternate_result_last_page_timer_finishes_and_rejects_the_normal_entry()
+    {
+        var fixture = Fixture(0x850FD0);
+        NativeBattleScanResultTaskFrame frame = Modify(fixture.Frame, fixture.Address, task => task.WriteByte(0x29, 2).WriteWord(0x6A, 1).WriteWord(0x66, 1));
+        Assert.Throws<InvalidDataException>(() => NativeBattleScanResultTask.Advance84FAF0(frame, fixture.Address, 0, fixture.Services));
+        NativeBattleScanResultTaskStep next = NativeBattleScanResultTask.Advance850FD0(frame, fixture.Address, 0, fixture.Services);
+        Assert.Equal((byte)3, Task(next.Frame, fixture.Address).ReadByte(0x29));
+        Assert.Equal((ushort)1, Task(next.Frame, fixture.Address).ReadWord(0x6C));
+        Assert.Equal((ushort)0, Task(next.Frame, fixture.Address).ReadWord(0x66));
+    }
+
     [Fact]
     public void First_phase_builds_actual_pages_and_does_not_initialize_retained_page_word()
     {
@@ -110,7 +144,7 @@ public sealed class NativeBattleScanResultTaskTests
         return frame with { Scan = frame.Scan with { Effect = frame.Scan.Effect with { Pools = hierarchy.Pools } } };
     }
 
-    private static (NativeBattleScanResultTaskFrame Frame, uint Address, NativeBattleScanResultServices Services) Fixture()
+    private static (NativeBattleScanResultTaskFrame Frame, uint Address, NativeBattleScanResultServices Services) Fixture(uint callback = 0x84FAF0)
     {
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
         (packets, _) = packets.Prepare(new(0, 2, 11, 0, 50, 40, null));
@@ -120,7 +154,7 @@ public sealed class NativeBattleScanResultTaskTests
         NativeBattleOriginalEffectState effect = new(40, 39, new(40, 0x84D030, 0x84D010), new(0, 1, 1, 0, 0, 0), null);
         NativeBattleScanFrame scan = NativeBattleScanController.Initialize84D030(NativeBattleEffectMemory.FromColdProcess(), effect, packets);
         NativeBattleEffectHierarchy hierarchy = new(scan.Effect.Pools);
-        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(2, 0x84FAF0, 0x78, hierarchy.Address(0, 0), (_, _, _) => new(0, 0));
+        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(2, callback, 0x78, hierarchy.Address(0, 0), (_, _, _) => new(0, 0));
         scan = scan with { Effect = scan.Effect with { Pools = appended.Hierarchy.Pools } };
         ScanResultTestSource source = new();
         return (new(scan, NativeBattleScanResultMemory.FromColdProcess(), ScanTextFixture.Frame(), 9), appended.Address, source.Services);

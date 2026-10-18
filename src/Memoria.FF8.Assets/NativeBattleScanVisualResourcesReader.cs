@@ -20,6 +20,7 @@ public static class NativeBattleScanVisualResourcesReader
         (uint Address, int Length)[] tables = [(0x15D15A0, 0x24), (0x15D15C4, 0x24), (0x15D15E8, 0x48), (0x15D1630, 0x48), (0x15D1678, 0x50), (0x15D16C8, 0x50)];
         return new(points)
         {
+            Sound15D0B3C = BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0x15D0B3C, 4)),
             MeshesByAddress = meshes.ToImmutableDictionary(address => address, address => NativeBattleEffectStaticResourcesReader.ReadMesh(memory, address)),
             VertexBanksByAddress = vertices.ToImmutableDictionary(address => address, ReadVertexBank),
             TablesByAddress = tables.ToImmutableDictionary(table => table.Address, table => memory.Read(table.Address, table.Length).ToImmutableArray()),

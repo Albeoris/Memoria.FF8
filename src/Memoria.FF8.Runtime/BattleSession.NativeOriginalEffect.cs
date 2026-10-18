@@ -53,6 +53,10 @@ public sealed partial class BattleSession
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Native effect invocation requires its actual loaded module entry.");
         _ = effect.Parameters ?? throw new InvalidDataException("Native effect entry lacks its50AFC0 parameter block.");
+        if (effect.Binding.Entry == 0x84D030)
+        {
+            return RunNativeScan40(graphics, true);
+        }
         if (effect.Binding.Entry == 0xA9B200)
         {
             return EnterNativeWaterA9B200(graphics);

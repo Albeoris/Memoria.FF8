@@ -14,6 +14,22 @@ internal sealed record NativeScanWindowText(int Index, NativeBattleScanRect Oute
 /// <summary>Projects current native text progress into semantic runs for the system text renderer.</summary>
 internal static class NativeScanWindowTextProjection
 {
+    public static IReadOnlyList<NativeScanWindowText> ProjectForViewport(NativeBattleScanTextFrame frame, NativeBattleScanTextExpansionServices services, NativeBattleScanRect drawArea)
+    {
+        NativeBattleScanTextWindows windows = frame.Windows;
+        for (byte index = 0; index < 8; index++)
+        {
+            NativeBattleScanByteOwner backend = windows.Backend(index);
+            if (backend.ReadByte(0x34) == 0 || backend.ReadByte(0x35) == 0 || backend.ReadByte(0x36) != 0)
+            {
+                continue;
+            }
+            (NativeBattleScanByteOwner clipped, bool visible) = NativeBattleScanDrawRectangles.ClipForPresentation4B6400(backend, drawArea);
+            windows = windows with { BackendRows = windows.BackendRows.SetItem(index, clipped.WriteByte(0x35, visible ? (byte)1 : (byte)0)) };
+        }
+        return Project(frame with { Windows = windows }, services);
+    }
+
     public static IReadOnlyList<NativeScanWindowText> Project(NativeBattleScanTextFrame frame, NativeBattleScanTextExpansionServices services)
     {
         ArgumentNullException.ThrowIfNull(frame);

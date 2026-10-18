@@ -1,6 +1,9 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleScanTextExpansionServices(Func<uint, byte> ReadOriginalByte, Func<byte, uint> ResolveNamePointer4B9010);
+public sealed record NativeBattleScanTextExpansionServices(Func<uint, byte> ReadOriginalByte, Func<byte, uint> ResolveNamePointer4B9010)
+{
+    public Func<byte, System.Collections.Immutable.ImmutableArray<byte>>? ReadNameBytes { get; init; }
+}
 public sealed record NativeBattleScanTextLineStep(NativeBattleScanTextFrame Frame, uint SourcePointer);
 
 public static class NativeBattleScanTextExpansion
@@ -37,6 +40,19 @@ public static class NativeBattleScanTextExpansion
             if (token == 3)
             {
                 byte operand = Read();
+                if (services.ReadNameBytes is { } readName)
+                {
+                    System.Collections.Immutable.ImmutableArray<byte> bytes = readName(operand);
+                    int terminator = bytes.AsSpan().IndexOf((byte)0);
+                    if (terminator < 0)
+                    {
+                        throw new InvalidDataException("Native Scan replacement name has no original terminator.");
+                    }
+                    cursor--;
+                    output = output.Write(cursor, bytes.AsSpan()[..(terminator + 1)]);
+                    cursor += terminator;
+                    continue;
+                }
                 uint name = services.ResolveNamePointer4B9010(operand);
                 cursor--;
                 while (true)

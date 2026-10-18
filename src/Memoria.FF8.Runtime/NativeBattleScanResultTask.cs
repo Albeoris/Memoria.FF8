@@ -7,11 +7,21 @@ public static class NativeBattleScanResultTask
 {
     public static NativeBattleScanResultTaskStep Advance84FAF0(NativeBattleScanResultTaskFrame frame, uint address, ushort mappedHeld, NativeBattleScanResultServices services)
     {
+        return Advance(frame, address, mappedHeld, services, false);
+    }
+
+    public static NativeBattleScanResultTaskStep Advance850FD0(NativeBattleScanResultTaskFrame frame, uint address, ushort mappedHeld, NativeBattleScanResultServices services)
+    {
+        return Advance(frame, address, mappedHeld, services, true);
+    }
+
+    private static NativeBattleScanResultTaskStep Advance(NativeBattleScanResultTaskFrame frame, uint address, ushort mappedHeld, NativeBattleScanResultServices services, bool alternate)
+    {
         NativeBattleEffectHierarchy hierarchy = new(frame.Scan.Effect.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address);
-        if (task.Callback != 0x84FAF0 || task.Payload.Length != 0x78 - 12)
+        if (task.Callback != (alternate ? 0x850FD0u : 0x84FAF0u) || task.Payload.Length != 0x78 - 12)
         {
-            throw new InvalidDataException("Native Scan result window requires its84FAF0 seventy-eight-byte task.");
+            throw new InvalidDataException("Native Scan result window requires its matching seventy-eight-byte callback task.");
         }
         task = task.WriteDword(0x60, task.ReadDword(0x5C)).WriteDword(0x5C, mappedHeld);
         switch (unchecked((sbyte)task.ReadByte(0x29)))
@@ -72,7 +82,16 @@ public static class NativeBattleScanResultTask
         void NextPage()
         {
             short page = unchecked((short)(task.ReadWord(0x6C) + 1));
-            task = task.WriteWord(0x6C, page >= unchecked((short)task.ReadWord(0x6A)) ? (ushort)0 : unchecked((ushort)page)).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1)));
+            bool last = page >= unchecked((short)task.ReadWord(0x6A));
+            task = task.WriteWord(0x6C, !alternate && last ? (ushort)0 : unchecked((ushort)page));
+            if (alternate && last)
+            {
+                Next();
+            }
+            else
+            {
+                task = task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1)));
+            }
         }
     }
 }

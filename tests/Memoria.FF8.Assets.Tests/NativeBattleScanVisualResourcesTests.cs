@@ -12,6 +12,7 @@ public sealed class NativeBattleScanVisualResourcesTests
         NativeBattleScanVisualResources resources = game.ReadNativeScanVisualResources();
         NativeExecutableMemory original = new(File.ReadAllBytes(Path.Combine(game.GameDirectory, "FF8_EN.exe")));
         Assert.Equal(16, resources.MeshesByAddress.Count);
+        Assert.Equal(BinaryPrimitives.ReadUInt32LittleEndian(original.Read(0x15D0B3C, 4)), resources.Sound15D0B3C);
         foreach (var item in resources.MeshesByAddress)
         {
             Assert.Equal(item.Key, item.Value.Address);

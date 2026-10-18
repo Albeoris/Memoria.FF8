@@ -4,6 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleScanVisualResources(ImmutableArray<NativeBattleScanReticlePoint> Trajectory15D1898)
 {
+    public required uint Sound15D0B3C { get; init; }
     public required ImmutableDictionary<uint, NativeBattleStaticMeshResource> MeshesByAddress { get; init; }
     public required ImmutableDictionary<uint, ImmutableArray<byte>> VertexBanksByAddress { get; init; }
     public required ImmutableDictionary<uint, ImmutableArray<byte>> TablesByAddress { get; init; }

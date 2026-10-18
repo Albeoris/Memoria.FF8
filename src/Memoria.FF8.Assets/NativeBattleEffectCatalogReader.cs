@@ -153,7 +153,7 @@ public sealed partial class GameAssets
             if (binding.Effect == 40)
             {
                 //84D410 returns a BYTE category; retain its actual indexed source row for every possible result.
-                binding = binding with { ScanTextResources = ReadNativeScanTextResources(), ScanCameraProfiles = Enumerable.Range(0, 256).Select(category => ReadNativeScanCameraProfile((ushort)category)).ToImmutableArray() };
+                binding = binding with { ScanTextResources = ReadNativeScanTextResources(), ScanVisualResources = ReadNativeScanVisualResources(), ScanCameraProfiles = Enumerable.Range(0, 256).Select(category => ReadNativeScanCameraProfile((ushort)category)).ToImmutableArray() };
                 catalog = catalog.SetItem(index, binding);
             }
             if (binding.Effect == 185)

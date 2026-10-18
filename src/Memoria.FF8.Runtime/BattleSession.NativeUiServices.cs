@@ -67,6 +67,7 @@ public sealed partial class BattleSession
                 }
             }
             DispatchNativeUiService();
+            AdvanceNativeScanText537A30();
             //534560's538200 input publication follows the ordinary4A84E0 service polls.
             PublishNativeScanInputFrame();
             if (NativeGraphics.UiServices is { } final)

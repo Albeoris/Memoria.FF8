@@ -220,6 +220,9 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
     public NativeBattleShivaResources? ShivaResources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleScanTextResources? ScanTextResources { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleScanVisualResources? ScanVisualResources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ImmutableArray<NativeBattleScanCameraProfile>? ScanCameraProfiles { get; init; }
     public NativeBattleCuraResources? CuraResources { get; init; }

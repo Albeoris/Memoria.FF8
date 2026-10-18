@@ -25,6 +25,14 @@ public static class NativeBattleScanPhysicalModels
             {
                 row = row.WriteByte(4, category);
             }
+            if (model.Rotation12 is short pitch)
+            {
+                row = row.WriteWord(0x0C, unchecked((ushort)pitch));
+            }
+            if (model.Rotation16 is short roll)
+            {
+                row = row.WriteWord(0x10, unchecked((ushort)roll));
+            }
             if (model.Rotation14 is short yaw)
             {
                 row = row.WriteWord(0x0E, unchecked((ushort)yaw));

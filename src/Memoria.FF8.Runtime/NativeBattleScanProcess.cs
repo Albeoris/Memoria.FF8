@@ -20,6 +20,9 @@ public sealed record NativeBattleScanProcess([property: JsonRequired] NativeBatt
     [JsonRequired]
     public ushort Complete269D93A { get; init; }
 
+    [JsonRequired]
+    public ImmutableDictionary<uint, NativeBattleScanByteOwner> MutableMeshes { get; init; } = ImmutableDictionary<uint, NativeBattleScanByteOwner>.Empty;
+
     public static NativeBattleScanProcess FromColdProcess() => new(null, new(new([Known(196), Known(196)]), [Known(36), Known(36)], Known(4), Known(12)), 0, false, Known(48));
 
     public void Validate()

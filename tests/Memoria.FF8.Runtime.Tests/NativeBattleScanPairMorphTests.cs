@@ -104,6 +104,7 @@ public sealed class NativeBattleScanPairMorphTests
         }.ToImmutableDictionary();
         NativeBattleScanVisualResources resources = new([])
         {
+            Sound15D0B3C = 0,
             TablesByAddress = tables,
             MeshesByAddress = ImmutableDictionary<uint, NativeBattleStaticMeshResource>.Empty,
             VertexBanksByAddress = new Dictionary<uint, ImmutableArray<byte>> { [0x15CFAB4] = Bank(100), [0x15CFC3C] = Bank(200), [0x15CFDC4] = Bank(300), [0x15D02CC] = Bank(400) }.ToImmutableDictionary(),

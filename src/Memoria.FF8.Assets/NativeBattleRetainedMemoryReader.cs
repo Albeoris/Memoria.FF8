@@ -78,6 +78,7 @@ public static class NativeBattleRetainedMemoryReader
             {
                 Text = scanText,
                 Mouse1D2B2E0 = ReadScanOwner(0x1D2B2E0, 16),
+                MutableMeshes = new[] { (Address: 0x15CDDECu, Length: 0x3E8), (Address: 0x15CE1D4u, Length: 0x768) }.ToImmutableDictionary(item => item.Address, item => ReadScanOwner(item.Address, item.Length)),
                 Results = new(ReadScanOwner(0x279CC68, 8), ReadScanOwner(0x279CC70, 32), BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x279CC90, 4)), ReadLoaderBytes(0x279CC94, 1)[0], ReadScanOwner(0x1D2A248, 48), ReadLoaderBytes(0x1D2A278, 1)[0], ReadScanOwner(0x1D29034, 768)),
                 Complete269D93A = BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(0x269D93A, 2)),
                 Presentation = new(ReadScanOwner(0x269A168, 0x50), ReadScanOwner(0x269A1BC, 28), ReadScanOwner(0x269A1D8, 28), ReadScanOwner(0x269CE34, 28), ReadScanOwner(0x269AA78, 24), BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(0x269AA90, 2)), BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(0x269D938, 2)), BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(0x269CE2C, 2)), BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x269CE30, 4)))
