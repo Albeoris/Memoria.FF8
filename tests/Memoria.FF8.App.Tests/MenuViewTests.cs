@@ -8,6 +8,42 @@ public sealed class MenuViewTests
     [Theory]
     [InlineData(640, 448)]
     [InlineData(1280, 896)]
+    [InlineData(1920, 1080)]
+    public void JunctionSubmenusKeepStatsVisibleWithCategoriesAboveAndEntitiesOnRight(int width, int height)
+    {
+        string[] categories = ["junction-options", "junction-off", "junction-auto", "junction-abilities"];
+        string[] entities = ["junction-gf", "junction-command", "junction-command-choice", "junction-ability", "junction-ability-choice"];
+        foreach (string screen in categories.Concat(entities))
+        {
+            MenuController menus = new();
+            menus.Open(screen, true);
+            UiView view = menus.BuildView();
+            view.Resize(width, height);
+            UiElement[] elements = Descendants(view.Root).ToArray();
+            UiElement stats = Assert.Single(elements, element => element.Id == "junction-stats");
+            UiList commands = Assert.Single(elements.OfType<UiList>(), list => list.Id == "commands");
+            UiImage portrait = Assert.Single(elements.OfType<UiImage>(), image => image.Source?.Kind == UiImageKind.CharacterPortrait);
+            Assert.True(commands.Bounds.Bottom <= stats.Bounds.Y);
+            Assert.True(stats.Bounds.Bottom <= view.DesignHeight);
+            Assert.Contains(Descendants(stats).OfType<UiLabel>(), label => label.Text == "Str");
+            Assert.Contains(Descendants(stats).OfType<UiLabel>(), label => label.Text == "Luck");
+            if (categories.Contains(screen))
+            {
+                Assert.Equal(UiOrientation.Horizontal, commands.Orientation);
+                Assert.True(commands.Bounds.Bottom <= portrait.Bounds.Y);
+            }
+            else
+            {
+                Assert.Equal(UiOrientation.Vertical, commands.Orientation);
+                Assert.True(commands.Bounds.X >= portrait.Bounds.Right);
+                Assert.True(commands.Bounds.Y >= portrait.Bounds.Y);
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(640, 448)]
+    [InlineData(1280, 896)]
     public void ItemPartyNamesOccupySeparateRowsBesideInventory(int width, int height)
     {
         MenuController menus = new();

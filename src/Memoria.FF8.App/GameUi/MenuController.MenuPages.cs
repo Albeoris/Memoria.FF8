@@ -87,9 +87,15 @@ public sealed partial class MenuController
         }
         var page = Grid([1.45f, 2.7f, 1.8f], [1], 4);
         UiElement tabs;
-        if (ScreenId == "junction")
+        bool choosingCategory = ScreenId is "junction-options" or "junction-off" or "junction-auto" or "junction-abilities";
+        if (ScreenId == "junction" || choosingCategory)
         {
             tabs = NativeCommandStrip();
+            if (choosingCategory && tabs is UiList categories)
+            {
+                categories.FontSize = 20 * TextScale;
+                categories.TextInset = 26 * TextScale;
+            }
         }
         else
         {
@@ -124,21 +130,29 @@ public sealed partial class MenuController
         Place(experience, Label(Number(Character?.Experience) + "p", 22), 0, 1);
         Place(experience, Label("Next LEVEL", 22), 1);
         Place(experience, Label(Number(Character?.NextLevelExperience) + "p", 22), 1, 1);
-        Place(body, Panel("COMMAND", Lines(Character?.Commands.Take(4).ToArray() ?? ["--"], 25)), 0, 1);
-        if (ScreenId == "junction")
+        bool choosingEntity = ScreenId != "junction" && !choosingCategory;
+        if (choosingEntity)
         {
-            var stats = Grid([1], [1, 1], 12);
-            Place(stats, StatColumn(["HP", "Str", "Vit", "Mag", "Spr"]), 0);
-            Place(stats, StatColumn(["", "Spd", "Eva", "Hit", "Luck"]), 0, 1);
-            Place(page, Panel(null, stats), 2);
+            UiPanel selection = Panel("JUNCTION", Commands(31, 21));
+            selection.Id = "junction-selection";
+            Place(body, selection, 0, 1);
         }
         else
         {
-            var selection = Grid([1], [1, 1], 4);
-            Place(selection, Panel(ScreenId is "junction-options" or "junction-abilities" ? null : "JUNCTION", Commands(31, 23)), 0);
-            Place(selection, Panel(null, JunctionSelectionDetails()), 0, 1);
-            Place(page, selection, 2);
+            Place(body, Panel("COMMAND", Lines(Character?.Commands.Take(4).ToArray() ?? ["--"], 25)), 0, 1);
         }
+        var footer = Grid([1], choosingEntity ? [3, 1.1f] : [1], 4);
+        var stats = Grid([1], [1, 1], 12);
+        Place(stats, StatColumn(["HP", "Str", "Vit", "Mag", "Spr"]), 0);
+        Place(stats, StatColumn(["", "Spd", "Eva", "Hit", "Luck"]), 0, 1);
+        UiPanel status = Panel(null, stats);
+        status.Id = "junction-stats";
+        Place(footer, status, 0);
+        if (choosingEntity)
+        {
+            Place(footer, Panel(null, JunctionSelectionDetails()), 0, 1);
+        }
+        Place(page, footer, 2);
         return page;
     }
 
@@ -190,9 +204,9 @@ public sealed partial class MenuController
         if (ScreenId == "junction-gf")
         {
             MenuGuardianForce? force = Data.GuardianForces.FirstOrDefault(value => value.Id == SelectedEntry?.Id);
-            return Lines(force is null ? ["--"] : [force.Name, $"Lv {Number(force.Level)}    HP {Number(force.CurrentHp)} / {Number(force.MaximumHp)}", "Learning  " + force.Learning], 21);
+            return Lines(force is null ? ["--"] : [force.Name, $"Lv {Number(force.Level)}    HP {Number(force.CurrentHp)} / {Number(force.MaximumHp)}", "Learning  " + force.Learning], 18);
         }
-        return Lines([Character?.Name ?? "--", "HP  " + (Character is null ? "--" : Hp(Character)), "" + (SelectedEntry?.Help ?? CurrentScreen.Help)], 20);
+        return Lines([Character?.Name ?? "--", "HP  " + (Character is null ? "--" : Hp(Character)), "" + (SelectedEntry?.Help ?? CurrentScreen.Help)], 18);
     }
 
     private UiElement StatColumn(string[] names)
