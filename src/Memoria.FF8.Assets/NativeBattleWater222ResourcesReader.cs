@@ -48,7 +48,7 @@ public sealed partial class GameAssets
             NativeBattleEffectBinding binding = NativeBattleWater222ResourcesReader.Binding(executable);
             using IFlArchive magic = OpenArchive("magic");
             ImmutableArray<NativeBattleEffectHeapAllocation> files = NativeBattleEffectInitializerPolicy.Resources(binding).Select(operand => new NativeBattleEffectHeapAllocation(operand.Name, Read(magic, operand.Name).ToImmutableArray())).ToImmutableArray();
-            nativeWater222Resources = NativeBattleWater222ResourcesReader.Read(executable, files);
+            nativeWater222Resources = NativeBattleWater222ResourcesReader.Read(executable, files) with { Io = ReadNativeWaterIoResources() };
         }
         return nativeWater222Resources;
     }

@@ -62,6 +62,9 @@ public sealed record NativeBattleWater222Profile([property: JsonRequired] Native
 
 public sealed record NativeBattleWater222Resources([property: JsonRequired] ImmutableArray<NativeBattleEffectHeapAllocation> Files, [property: JsonRequired] NativeBattleWater222Profile Profile)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleWaterIoResources? Io { get; init; }
+
     public void Validate()
     {
         Profile.Validate();

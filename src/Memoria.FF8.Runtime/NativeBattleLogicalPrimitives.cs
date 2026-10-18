@@ -37,6 +37,20 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
         return this with { Table = EmptyRoots(), Packets = otherEmpty ? [] : Packets };
     }
 
+    public NativeBattleLogicalOrdering ClearRange45D550(int first, int count)
+    {
+        if (Table.IsDefault || first < 0 || count <= 0 || first > Table.Length - count)
+        {
+            throw new InvalidDataException("Native ordering-table clear requires its actual bounded DWORD range.");
+        }
+        ImmutableArray<NativeBattlePrimitiveLink>.Builder roots = Table.ToBuilder();
+        for (int index = first; index < first + count; index++)
+        {
+            roots[index] = new(false, index == first ? -1 : index - 1);
+        }
+        return this with { Table = roots.ToImmutable() };
+    }
+
     public NativeBattleLogicalOrdering SelectTable(byte buffer)
     {
         if (buffer > 1 || TableBuffer is null)

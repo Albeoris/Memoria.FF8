@@ -11,6 +11,37 @@ public sealed class NativeBattleWaterHeaderNextCommandTests
     private const uint Command = 0x2797628;
     private const uint Header = NativeBattleScriptedEffectMemory.Address;
 
+    [Fact]
+    public void TerminalBranchDoesNotResolveProgramOrReadUnknownPc()
+    {
+        NativeBattleWaterExecutionFrame frame = InitialFrame();
+        frame = frame with { Core = frame.Core.Write(Manager + 0xD0, new byte[] { 2, 2 }).MarkUnknown(0x2797450, 4).MarkUnknown(0x2798A6C, 4) };
+        NativeBattleWaterHeaderNextResult result = NativeBattleWaterHeaderNextCommand.Execute(frame, _ => throw new Xunit.Sdk.XunitException("Terminal branch must not resolve a program."), _ => throw new Xunit.Sdk.XunitException("Terminal branch must not resolve resource one."), (_, _, _) => throw new Xunit.Sdk.XunitException("Unexpected reset."), (_, _, _, _) => throw new Xunit.Sdk.XunitException("Unexpected capture."));
+        Assert.Equal(0u, Core(result.Frame, 0x2797450));
+        Assert.Null(result.SlotBank);
+    }
+
+    [Fact]
+    public void LazyProgramResolutionObservesResetWritesAndRestoredCallerContext()
+    {
+        var fixture = NativeBattleWaterInitializationTests.Fixture();
+        NativeBattleWaterExecutionFrame frame = InitialFrame();
+        frame = frame with { Core = frame.Core.Write(Manager + 0xD0, new byte[] { 0, 1 }) };
+        uint slot = Core(frame, 0x27973E8);
+        int resolutions = 0;
+        NativeBattleWaterHeaderNextResult result = NativeBattleWaterHeaderNextCommand.Execute(frame, current =>
+        {
+            resolutions++;
+            Assert.Equal(0x1000u, Core(current, 0x2797450));
+            Assert.Equal(slot, Core(current, 0x27973E8));
+            Assert.Equal((byte)1, current.Core.Read(Manager + 0xD0, 1)[0]);
+            Assert.Equal((ushort)8, Word(current, Header + 0x38));
+            return new(0x1000, 4, 0x1000);
+        }, fixture.Inputs.Resource1, (_, _, _) => fixture.Inputs.HeaderBaseAddress, (_, _, _, _) => Capture(fixture.Inputs, 1, [2]));
+        Assert.Equal(1, resolutions);
+        Assert.Equal(0x1010u, Core(result.Frame, 0x2797450));
+    }
+
     [Theory]
     [InlineData(0, 0)]
     [InlineData(128, 127)]
@@ -100,7 +131,7 @@ public sealed class NativeBattleWaterHeaderNextCommandTests
         frame = CoreDword(frame, 0x2797450, slot);
         frame = frame with { Arena = frame.Arena.Write(SlotOffset(frame) + 2, new byte[] { 0xA5, 0xA5 }) };
         frame = CoreDword(frame, Manager + 0x94, 0xFFFF5678);
-        NativeBattleWaterHeaderNextResult result = NativeBattleWaterHeaderNextCommand.Execute(frame, new(SlotOffset(frame), 0x100, slot), fixture.Inputs.Resource1, (_, _, _) => fixture.Inputs.HeaderBaseAddress, (_, _, _, _) => Capture(fixture.Inputs, 3, [1]));
+        NativeBattleWaterHeaderNextResult result = NativeBattleWaterHeaderNextCommand.Execute(frame, new NativeBattleWaterScriptProgram(SlotOffset(frame), 0x100, slot), fixture.Inputs.Resource1, (_, _, _) => fixture.Inputs.HeaderBaseAddress, (_, _, _, _) => Capture(fixture.Inputs, 3, [1]));
         Assert.Equal(unchecked(slot - 1), Core(result.Frame, 0x2797450));
         Assert.Equal(slot, Core(result.Frame, 0x27973E8));
         Assert.Equal(0xFFFF5678u, BinaryPrimitives.ReadUInt32LittleEndian(result.Frame.Arena.Read(SlotOffset(frame), 4)));
@@ -137,7 +168,7 @@ public sealed class NativeBattleWaterHeaderNextCommandTests
     }
 
     private static NativeBattleWaterResetCaptureInputs Capture(NativeBattleWaterInitializationInputs inputs, int index, ImmutableArray<byte> contacts) => new(inputs.Caster, index, inputs.FirstHeaderFirstActor, contacts, checked((byte)contacts.Length), inputs.Graphics);
-    private static NativeBattleWaterHeaderNextResult Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterInitializationResource resource, Func<NativeBattleScriptedEffectMemory, NativeBattleEffectArena, uint, uint> readHeaderBase, Func<NativeBattleScriptedEffectMemory, NativeBattleEffectArena, uint, byte, NativeBattleWaterResetCaptureInputs> readCapture) => NativeBattleWaterHeaderNextCommand.Execute(frame, new(0x1000, 4, 0x1000), resource, readHeaderBase, readCapture);
+    private static NativeBattleWaterHeaderNextResult Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterInitializationResource resource, Func<NativeBattleScriptedEffectMemory, NativeBattleEffectArena, uint, uint> readHeaderBase, Func<NativeBattleScriptedEffectMemory, NativeBattleEffectArena, uint, byte, NativeBattleWaterResetCaptureInputs> readCapture) => NativeBattleWaterHeaderNextCommand.Execute(frame, new NativeBattleWaterScriptProgram(0x1000, 4, 0x1000), resource, readHeaderBase, readCapture);
     private static NativeBattleWaterExecutionFrame InitialFrame()
     {
         var fixture = NativeBattleWaterInitializationTests.Fixture();

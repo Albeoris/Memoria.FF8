@@ -85,15 +85,17 @@ public static class NativeBattleWaterMeshes
         return ReadShapeCore(file0Length, id, (offset, length) => arena.Read(checked(file0Offset + offset), length));
     }
 
+    public static int SelectedShapeLength(int id) => id switch
+    {
+        2 => 0x218,
+        4 => 0x2A48,
+        13 => 0x5E4,
+        _ => throw new NotSupportedException("Native Water shape is outside its three authenticated selected resources.")
+    };
+
     private static NativeBattleWaterMeshShape ReadShapeCore(int fileLength, int id, Func<int, int, byte[]> readCurrent)
     {
-        int length = id switch
-        {
-            2 => 0x218,
-            4 => 0x2A48,
-            13 => 0x5E4,
-            _ => throw new NotSupportedException("Native Water shape is outside its three authenticated selected resources.")
-        };
+        int length = SelectedShapeLength(id);
         int directory = checked((int)Dword(12));
         if (Dword(directory) != 14)
         {

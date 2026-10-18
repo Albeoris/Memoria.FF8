@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -204,6 +205,15 @@ public sealed class NativeBattleProductionEffectAdmissionTests
             int gfAbility = vitals.MenuDefinitions.CommandAbilityCommands.Select((command, index) => (command, index)).Single(item => item.command == 3).index + 20;
             vitals = vitals.SetJunctionAbility(0, 1, gfAbility, true);
         }
+        NativeBattleRetainedMemory nativeMemory = assets.ReadColdProcessNativeBattleMemory();
+        NativeBattleExecutionStack? selectedStack = null;
+        if (guardianCommand)
+        {
+            selectedStack = ReadSelectedExecutionStack(gameDirectory);
+            NativeBattleEffectMemory effectMemory = Assert.IsType<NativeBattleEffectMemory>(nativeMemory.EffectMemory);
+            Assert.Null(effectMemory.ExecutionStack);
+            nativeMemory = nativeMemory with { EffectMemory = effectMemory with { ExecutionStack = selectedStack } };
+        }
         // Supplied component inputs; this is not a story route or a migration from an old field save.
         GameSession source = new(GameSession.CreateColdProcess().State with
         {
@@ -223,7 +233,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
             GlobalRandom = assets.ReadNewGameGlobalRandom(),
             KnownMagic = assets.ReadNewGameKnownMagic(),
             CrtRandom = new(1),
-            NativeBattleMemory = assets.ReadColdProcessNativeBattleMemory(),
+            NativeBattleMemory = nativeMemory,
             GlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(),
             InputConfiguration = assets.ReadNewGameInputConfiguration(),
             WorldEntryMemory = selectorDocument.RootElement.GetProperty("WorldEntryMemory").Deserialize<NativeWorldEntryMemory>(sourceOptions)!,
@@ -242,7 +252,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
             scene["Scene"]!["NativeBattleMusic203"] = 5;
             initial.Events.Restore(JsonSerializer.SerializeToElement(scene));
             source.SetEventState(initial.Events.Capture());
-            Publish(evidence, id + "-inputs", new { SelectorSource = Path.GetFullPath(selectorSource!), SelectorSourceSha256 = Convert.ToHexString(SHA256.HashData(selectorBytes)), CopiedFields = new[] { "EventState.Scene.MusicProcess.Bank201", "EventState.Scene.MusicProcess.Bootstrap", "WorldEntryMemory", "EventRandom" }, AssignedGuardianCommand = guardianCommand, ControlledInputs = "Original initial party/stock, learned Magic assigned to command slot0, optionally learned GF to slot1 before entry, cold graphics/sound, explicit BATTLEMODE0 before BATTLE94/80, source203=5/channel108=-1; old buffers and pending operands unknown; not an old-save migration or story continuation" });
+            Publish(evidence, id + "-inputs", new { SelectorSource = Path.GetFullPath(selectorSource!), SelectorSourceSha256 = Convert.ToHexString(SHA256.HashData(selectorBytes)), CopiedFields = new[] { "EventState.Scene.MusicProcess.Bank201", "EventState.Scene.MusicProcess.Bootstrap", "WorldEntryMemory", "EventRandom" }, AssignedGuardianCommand = guardianCommand, SelectedExecutionEnvironment = selectedStack, HistoricalStackRecovered = false, ControlledInputs = "Original initial party/stock, learned Magic assigned to command slot0, optionally learned GF to slot1 before entry with an explicitly selected captured execution environment, cold graphics/sound, explicit BATTLEMODE0 before BATTLE94/80, source203=5/channel108=-1; old buffers and pending operands unknown; not an old-save migration or story continuation" });
             Publish(evidence, id + "-before-event", source.State);
             initial.Events.Step();
             initial.Events.Step();
@@ -255,6 +265,36 @@ public sealed class NativeBattleProductionEffectAdmissionTests
         }
         GameState saved = string.IsNullOrWhiteSpace(evidence) ? JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(source.State))! : GameSession.Load(Path.Combine(evidence, id + "-before-entry.json"));
         return (saved, gameDirectory, evidence, id);
+    }
+
+    private static NativeBattleExecutionStack ReadSelectedExecutionStack(string gameDirectory)
+    {
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_STACK_CAPTURE");
+        string? expected = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_STACK_CAPTURE_SHA256");
+        Assert.SkipUnless(path is not null && File.Exists(path) && expected is not null, "Explicitly select an authenticated captured execution environment; missing stack ownership remains unsupported.");
+        byte[] bytes = File.ReadAllBytes(path!);
+        string captureHash = Convert.ToHexString(SHA256.HashData(bytes));
+        Assert.Equal(expected, captureHash);
+        string executableHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe"))));
+        Assert.Equal(NativeFieldRuntimeProfile.FF8EnExecutableHash, executableHash);
+        using JsonDocument capture = JsonDocument.Parse(bytes);
+        Assert.Equal(0, capture.RootElement.GetProperty("exitCode").GetInt32());
+        JsonElement result = capture.RootElement.GetProperty("result");
+        JsonElement observation = Assert.Single(result.GetProperty("breaks").EnumerateArray().SelectMany(point => point.GetProperty("recorded").EnumerateArray()), point => Hex(point.GetProperty("address").GetString()!) == 0x4A24B0 && point.TryGetProperty("callerAddress", out JsonElement caller) && Hex(caller.GetString()!) == 0x569C3D);
+        uint esp = Hex(Assert.Single(observation.GetProperty("registers").EnumerateArray(), register => register.GetProperty("name").GetString() == "esp").GetProperty("value").GetString()!);
+        Assert.Equal(0x4A24B0u, Hex(Assert.Single(observation.GetProperty("registers").EnumerateArray(), register => register.GetProperty("name").GetString() == "eip").GetProperty("value").GetString()!));
+        uint callerAddress = Hex(Assert.Single(observation.GetProperty("stack").EnumerateArray(), slot => slot.GetProperty("offset").GetString() == "+0x0").GetProperty("value").GetString()!);
+        Assert.Equal(0x569C3Du, callerAddress);
+        NativeBattleExecutionStack selected = new(esp, callerAddress, executableHash, captureHash, result.GetProperty("processId").GetInt32(), observation.GetProperty("thread").GetInt32());
+        selected.Validate();
+        Assert.Equal(captureHash, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path!))));
+        return selected;
+
+        static uint Hex(string value)
+        {
+            Assert.StartsWith("0x", value);
+            return uint.Parse(value.AsSpan(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+        }
     }
 
     private static void RunQuezacotl(GameWorld world, GameSession session, string gameDirectory, string? evidence, string id, bool startEncounter)
