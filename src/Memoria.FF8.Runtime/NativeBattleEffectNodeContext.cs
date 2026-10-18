@@ -1,11 +1,13 @@
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Normalized87E230/88D550/8836F0 task/header and actor/target anchor initialization; bank ownership stays with each caller.</summary>
+public sealed record NativeBattleEffectNodeDogOrigins(NativeBattleVector ActorOrigin, NativeBattleVector TargetOrigin);
+
 public static class NativeBattleEffectNodeContext
 {
     private const int Context = 0x34;
 
-    public static NativeBattleModulePoolTask Initialize(NativeBattleModulePoolTask task, NativeBattleModulePoolTask root, NativeBattleEffectParameters parameters, NativeBattleActionPacketsState packets, Func<int, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource, uint executableAddress, bool singleSelectedTarget = false)
+    public static NativeBattleModulePoolTask Initialize(NativeBattleModulePoolTask task, NativeBattleModulePoolTask root, NativeBattleEffectParameters parameters, NativeBattleActionPacketsState packets, Func<int, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource, uint executableAddress, bool singleSelectedTarget = false, NativeBattleEffectNodeDogOrigins? dogOrigins = null)
     {
         WriteWord(0x22, task.ReadWord(0x29A));
         WriteWord(0x24, task.ReadWord(0x29C));
@@ -24,7 +26,7 @@ public static class NativeBattleEffectNodeContext
         }
         WriteWord(0x1A, task.ReadWord(0x29E));
         short mode = unchecked((short)ReadWord(0x24));
-        if (mode == 2)
+        if (mode == 2 && dogOrigins is null)
         {
             //87E4C0/88D7E0/883980 and their target variants skip502170 in this branch and reuse their original uninitialized stack VECTOR.
             throw new NotSupportedException("Native shared node context mode2 requires the observed prior stack VECTOR at87E4C0/88D7E0/883980 and their target variants.");
@@ -52,12 +54,12 @@ public static class NativeBattleEffectNodeContext
             int target = unchecked((int)Read(4 + 4 * index));
             NativeBattleGraphicsModel model = readModel(target);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native87E810 requires targetWORD36 and its model transform.");
-            NativeBattleVector first = Bone(target, 241);
+            NativeBattleVector first = Bone(target, 241, true);
             int offset = index * 16;
             SetVector(0x54 + offset, first with { Y = transform.Angle36 });
             SetVector(0x94 + offset, first with { Y = 0 });
-            SetVector(0xD4 + offset, Bone(target, 241));
-            SetVector(0x114 + offset, Bone(target, 240));
+            SetVector(0xD4 + offset, Bone(target, 241, true));
+            SetVector(0x114 + offset, Bone(target, 240, true));
             short bound60 = (model.GeometryBounds52 ?? throw new NotSupportedException("Native87E810 requires target geometry bounds WORD60.")).Maximum.X;
             SetVector(0x154 + offset, first with { Y = bound60 });
         }
@@ -112,8 +114,12 @@ public static class NativeBattleEffectNodeContext
         Write(0, distance);
         return task;
 
-        NativeBattleVector Bone(int index, byte selector)
+        NativeBattleVector Bone(int index, byte selector, bool target = false)
         {
+            if (mode == 2)
+            {
+                return target ? dogOrigins!.TargetOrigin : dogOrigins!.ActorOrigin;
+            }
             return NativeBattlePoseMatrices.ReadBone(readModel(index), readPoseSource(index), selector, 0);
         }
         uint Read(int offset) => task.ReadDword(Context + offset);

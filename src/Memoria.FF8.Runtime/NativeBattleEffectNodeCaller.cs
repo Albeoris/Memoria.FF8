@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-internal sealed record NativeBattleEffectNodeCallerPolicy(uint SourceAddress, int SourceLength, uint Callback, int EmitterCapacity, int GeometryCapacity, bool FullLife)
+internal sealed record NativeBattleEffectNodeCallerPolicy(uint SourceAddress, int SourceLength, uint Callback, int EmitterCapacity, int GeometryCapacity, bool FullLife, int WorkOffset = 0x10000)
 {
     internal int EmitterBytes => checked(EmitterCapacity * 0x6C);
     internal int GeometryBytes => checked(GeometryCapacity * 0x2A0);
@@ -13,7 +13,7 @@ internal static class NativeBattleEffectNodeCaller
     public static NativeBattleRecover93NodeFrame ClearStorage(NativeBattleEffectNodeCallerPolicy profile, NativeBattleRecover93NodeFrame frame, int initializerTimArenaOffset)
     {
         frame.State.Validate(profile.SourceLength, profile.EmitterBytes, profile.GeometryBytes);
-        int first = checked(initializerTimArenaOffset + 0x10000);
+        int first = checked(initializerTimArenaOffset + profile.WorkOffset);
         int second = checked(first + profile.EmitterBytes);
         if (initializerTimArenaOffset < 0 || first > NativeBattleEffectArena.Length - profile.EmitterBytes - profile.GeometryBytes)
         {
@@ -34,7 +34,7 @@ internal static class NativeBattleEffectNodeCaller
         return frame with { State = frame.State with { PassEmitterCount = 0, PassGeometryCount = 0, CopiedCamera = copiedCamera, PrivateDrawCursor = privateDrawCursor } };
     }
 
-    public static NativeBattleRecover93NodeFrame Initialize74EC00(NativeBattleEffectNodeCallerPolicy profile, NativeBattleRecover93NodeFrame frame, uint taskAddress, NativeBattleRecover93NodeResource resource, NativeBattleActionPacketsState packets, Func<int, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource)
+    public static NativeBattleRecover93NodeFrame Initialize74EC00(NativeBattleEffectNodeCallerPolicy profile, NativeBattleRecover93NodeFrame frame, uint taskAddress, NativeBattleRecover93NodeResource resource, NativeBattleActionPacketsState packets, Func<int, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource, NativeBattleEffectNodeDogOrigins? dogOrigins = null)
     {
         frame.State.Validate(profile.SourceLength, profile.EmitterBytes, profile.GeometryBytes);
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
@@ -43,7 +43,7 @@ internal static class NativeBattleEffectNodeCaller
         {
             throw new InvalidDataException("Native Recover context has a different callback or source owner.");
         }
-        if (task.ReadWord(0x29C) != 0)
+        if (task.ReadWord(0x29C) != 0 && (task.ReadWord(0x29C) != 2 || dogOrigins is null))
         {
             throw new NotSupportedException("Native Recover's first proved node context requires mode0; Dog mode2 is not supplied.");
         }
@@ -58,7 +58,7 @@ internal static class NativeBattleEffectNodeCaller
             BinaryPrimitives.WriteUInt32LittleEndian(fixedBytes, 1);
             retained = retained with { InitializationFlag = 1, Data = fixedBytes.ToImmutableArray() };
         }
-        task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Native Recover requires its actual action parameters."), packets, readModel, readPoseSource, profile.SourceAddress);
+        task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Native Recover requires its actual action parameters."), packets, readModel, readPoseSource, profile.SourceAddress, dogOrigins: dogOrigins);
         return frame with { State = retained, Effect = frame.Effect with { Pools = hierarchy.Write(taskAddress, task).Pools } };
     }
 

@@ -200,6 +200,11 @@ public sealed partial class GameAssets
                 binding = binding with { Reverse94Resources = ReadNativeReverse94Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 96)
+            {
+                binding = binding with { Moogle96Resources = ReadNativeMoogle96Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Entry == 0x61ABA0)
             {
                 binding = binding with { BlizzardResources = ReadNativeBlizzardResources() };

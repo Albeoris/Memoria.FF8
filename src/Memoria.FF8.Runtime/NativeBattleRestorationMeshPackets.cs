@@ -91,11 +91,17 @@ public static class NativeBattleRestorationMeshPackets
         });
     }
 
+    public static NativeBattleGfGeometryBatch EmitFt3_884940(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, NativeBattleFullLifeMeshContext context, NativeBattleSummonColors? colors = null, int byteOffset = 0)
+    {
+        return NativeBattleEffectMeshPackets.EmitTextured(face, readCorner, false, false, Normalize(context, true), colors, byteOffset);
+    }
+
     public static NativeBattleGfGeometryBatch EmitBatch884370(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleFullLifeMeshContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null)
     {
         return NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, context.Flags, readSelectedVertex, (group, face, readCorner, offset) => group switch
         {
             1 => EmitF4_8846C0(face, readCorner, context, colors, offset),
+            2 => EmitFt3_884940(face, readCorner, context, colors, offset),
             3 => EmitFt4_884B80(face, readCorner, context, colors, offset),
             5 => EmitG4_885050(face, readCorner, context, colors, offset),
             _ => throw new NotSupportedException($"Native884370 group{group} requires its own original polygon leaf.")

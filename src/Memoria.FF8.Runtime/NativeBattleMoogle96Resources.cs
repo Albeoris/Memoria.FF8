@@ -1,0 +1,6 @@
+using System.Collections.Immutable;
+
+namespace Memoria.FF8.Runtime;
+
+public sealed record NativeBattleMoogle96VibrationResource(uint Address, NativeVibrationBank Bank);
+public sealed record NativeBattleMoogle96Resources(NativeBattleEffectOwnedModelResource Model, uint DefaultColor44, NativeBattleMoogleCameraResources Camera, NativeBattleMoogle96VibrationResource Vibration, NativeBattleEffectHeapAllocation IoScript, NativeBattleEffectHeapAllocation NodesA, NativeBattleEffectHeapAllocation NodesB, NativeBattleGfAnimationSource ProgramSource, ImmutableArray<NativeBattleEffectHeapAllocation> TextureSequences, ImmutableArray<NativeBattleEffectFileAsset> Files, uint SoundAppearance, uint SoundLater);
