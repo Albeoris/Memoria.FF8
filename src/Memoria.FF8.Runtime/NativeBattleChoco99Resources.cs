@@ -1,0 +1,5 @@
+using System.Collections.Immutable;
+
+namespace Memoria.FF8.Runtime;
+
+public sealed record NativeBattleChoco99Resources(NativeBattleChoco99IoResources Io, ImmutableArray<NativeBattleChoco97NodeResource> Nodes, NativeBattleGfAnimationSource ProgramSource, NativeBattleChoco97ModelResources Model, NativeBattleChoco99CameraResources Camera, NativeBattleChoco97SpriteResources Sprite, NativeBattleChoco99ParticleResources Particles, NativeBattleChoco99MeteoResources Meteo, NativeBattleChoco99SecondaryResources Secondary, NativeBattleMoogle96VibrationResource Vibration, uint SoundInitial, uint SoundModel, uint SoundHide, uint SoundRestore);

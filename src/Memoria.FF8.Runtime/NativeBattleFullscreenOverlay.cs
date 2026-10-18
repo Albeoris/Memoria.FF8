@@ -46,9 +46,19 @@ public static class NativeBattleFullscreenOverlay
 
     public static NativeBattleFullscreenOverlayStep Advance8DDEC0(NativeBattleFullscreenOverlayFrame frame, uint address, uint pause2795914, NativeBattleFullscreenOverlayProgram program)
     {
+        return AdvanceProfiled(frame, address, pause2795914, program, false);
+    }
+
+    public static NativeBattleFullscreenOverlayStep Advance8DDC30(NativeBattleFullscreenOverlayFrame frame, uint address, uint pause2795914, NativeBattleFullscreenOverlayProgram program)
+    {
+        return AdvanceProfiled(frame, address, pause2795914, program, true);
+    }
+
+    private static NativeBattleFullscreenOverlayStep AdvanceProfiled(NativeBattleFullscreenOverlayFrame frame, uint address, uint pause2795914, NativeBattleFullscreenOverlayProgram program, bool delayedCaller)
+    {
         NativeBattleEffectHierarchy hierarchy = new(frame.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address);
-        if (task.Callback != Callback || task.Payload.Length < 0x40 - 12 || task.ReadDword(0x34) != program.Address || program.Address == 0 || program.Commands.IsDefaultOrEmpty)
+        if (task.Callback != (delayedCaller ? 0x8DDC30u : Callback) || task.Payload.Length < 0x40 - 12 || task.ReadDword(0x34) != program.Address || program.Address == 0 || program.Commands.IsDefaultOrEmpty)
         {
             throw new InvalidDataException("Native fullscreen callback requires its actual40-byte task and bounded program owner.");
         }
@@ -57,12 +67,18 @@ public static class NativeBattleFullscreenOverlay
         switch (unchecked((sbyte)task.ReadByte(0x29)))
         {
             case 0:
-                task = Add(task, 0x38, -1);
-                if (Word(task, 0x38) <= 0)
+                if (!delayedCaller || pause2795914 == 0)
                 {
-                    task = task.WriteWord(0x38, 0);
-                    ExecuteProgram();
-                    task = task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1)));
+                    task = Add(task, 0x38, -1);
+                    if (Word(task, 0x38) <= 0)
+                    {
+                        task = task.WriteWord(0x38, 0);
+                        if (!delayedCaller)
+                        {
+                            ExecuteProgram();
+                        }
+                        task = task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1)));
+                    }
                 }
                 break;
             case 1:

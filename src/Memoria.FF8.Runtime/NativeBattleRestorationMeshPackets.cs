@@ -101,6 +101,16 @@ public static class NativeBattleRestorationMeshPackets
         return NativeBattleEffectMeshPackets.EmitTextured(face, readCorner, false, false, Normalize(context, true), colors, byteOffset);
     }
 
+    public static NativeBattleGfGeometryBatch EmitGt3_885310(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, NativeBattleFullLifeMeshContext context, NativeBattleSummonColors? colors = null, int byteOffset = 0)
+    {
+        return NativeBattleEffectMeshPackets.EmitTextured(face, readCorner, false, true, Normalize(context, true), colors, byteOffset);
+    }
+
+    public static NativeBattleGfGeometryBatch EmitGt4_885570(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, NativeBattleFullLifeMeshContext context, NativeBattleSummonColors? colors = null, int byteOffset = 0)
+    {
+        return NativeBattleEffectMeshPackets.EmitTextured(face, readCorner, true, true, Normalize(context, true), colors, byteOffset);
+    }
+
     public static NativeBattleGfGeometryBatch EmitBatch884370(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleFullLifeMeshContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null)
     {
         return NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, context.Flags, readSelectedVertex, (group, face, readCorner, offset) => group switch
@@ -110,6 +120,8 @@ public static class NativeBattleRestorationMeshPackets
             3 => EmitFt4_884B80(face, readCorner, context, colors, offset),
             4 => EmitG3_884E20(face, readCorner, context, colors, offset),
             5 => EmitG4_885050(face, readCorner, context, colors, offset),
+            6 => EmitGt3_885310(face, readCorner, context, colors, offset),
+            7 => EmitGt4_885570(face, readCorner, context, colors, offset),
             _ => throw new NotSupportedException($"Native884370 group{group} requires its own original polygon leaf.")
         });
     }
