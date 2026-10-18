@@ -238,7 +238,12 @@ internal static class NativeBattleEffectMeshPackets
         {
             packet.Word(4 + corner * 8, vertexColors[corner]);
         }
-        int bucket = checked(context.TableBaseBucket + (Average(vertices) >> context.DepthShift));
+        int average = Average(vertices);
+        if (context.DepthBias is int bias)
+        {
+            average = Math.Max(0, unchecked(average + bias));
+        }
+        int bucket = checked(context.TableBaseBucket + (average >> context.DepthShift));
         return new([packet.Attempt(new(bucket, packet.Words(), Payload(vertices, vertexColors[0])))], length);
 
         NativeBattleGfGeometryBatch Rejected()

@@ -1,0 +1,3 @@
+namespace Memoria.FF8.Runtime;
+
+public sealed record NativeBattleRush91Resources(NativeBattleEffectHeapAllocation Animation, NativeBattleEffectOwnedModelResource Model, NativeBattleEffectHeapAllocation ModelTim, uint DefaultColor44, NativeBattleSearchSpriteResource Sprite12, NativeBattleStaticMeshResource ParticleMesh, NativeBattleEffectHeapAllocation Nodes, NativeBattleGfAnimationSource ProgramSource, NativeBattleEffectHeapAllocation HeightProgram, NativeBattleFullscreenOverlayProgram OverlayProgram, uint SoundAppearance);

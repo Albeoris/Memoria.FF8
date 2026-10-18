@@ -59,6 +59,11 @@ public static class NativeBattleRestorationMeshPackets
         return NativeBattleEffectMeshPackets.EmitTextured(face, readCorner, true, true, Normalize(context), colors, byteOffset);
     }
 
+    public static NativeBattleGfGeometryBatch EmitG4_88F470(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, NativeBattleEsunaMeshContext context, NativeBattleSummonColors? colors = null, int byteOffset = 0)
+    {
+        return NativeBattleEffectMeshPackets.EmitGouraud(face, readCorner, true, Normalize(context), colors, byteOffset);
+    }
+
     public static NativeBattleGfGeometryBatch EmitF4_8846C0(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, NativeBattleFullLifeMeshContext context, NativeBattleSummonColors? colors = null, int byteOffset = 0)
     {
         return NativeBattleEffectMeshPackets.EmitFlatQuad(face, readCorner, Normalize(context, false), colors, byteOffset);
@@ -80,6 +85,7 @@ public static class NativeBattleRestorationMeshPackets
         {
             2 => EmitFt3_88E820(face, readCorner, context, colors, offset),
             3 => EmitFt4_88ECA0(face, readCorner, context, colors, offset),
+            5 => EmitG4_88F470(face, readCorner, context, colors, offset),
             7 => EmitGt4_88FC50(face, readCorner, context, colors, offset),
             _ => throw new NotSupportedException($"Native88E240 group{group} requires its own original polygon leaf.")
         });

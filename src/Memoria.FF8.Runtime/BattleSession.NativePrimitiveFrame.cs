@@ -173,6 +173,14 @@ public sealed partial class BattleSession
         {
             return (memory.Arena ?? throw new NotSupportedException("Native retained effect packet alias requires its original arena.")).Read(reference.ByteOffset, count);
         }
+        if (reference.Bank == NativeBattleFullscreenOverlay.PacketBank)
+        {
+            if (reference.Buffer != 0)
+            {
+                throw new InvalidDataException("Native fullscreen static packets have a single physical buffer.");
+            }
+            return (memory.FullscreenOverlay ?? throw new NotSupportedException("Native fullscreen packet alias requires its retained static bytes.")).Read(reference.ByteOffset, count);
+        }
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native retained common packet alias requires its physical banks.");
         return (process with { PacketBank = reference.Bank, PacketBuffer = reference.Buffer }).ReadCommonPacket(reference.ByteOffset, count);
     }

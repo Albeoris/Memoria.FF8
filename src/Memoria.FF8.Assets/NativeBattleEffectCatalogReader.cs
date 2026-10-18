@@ -180,6 +180,11 @@ public sealed partial class GameAssets
                 binding = binding with { AeroResources = ReadNativeAeroResources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 91)
+            {
+                binding = binding with { Rush91Resources = ReadNativeRush91Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 92)
             {
                 binding = binding with { SearchResources = ReadNativeSearchResources() };

@@ -173,6 +173,8 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
     public NativeBattleRecover93Resources? Recover93Resources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleRecover93Resources? Reverse94Resources { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleRush91Resources? Rush91Resources { get; init; }
     public bool? InitializerIsRet { get; init; }
     public NativeBattleEffectInitializerAsset? InitializerAsset { get; init; }
     public NativeBattleEffectInitializerResource? InitializerResource { get; init; }
