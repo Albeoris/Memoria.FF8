@@ -6,6 +6,42 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Party cache WORDs370/372 and summoned GF WORD24; separate from already-computed combatant HP.</summary>
 public sealed record NativeBattlePartyPresentedVital([property: JsonRequired] ushort HitPoints, [property: JsonRequired] ushort MaximumHitPoints, [property: JsonRequired] ushort? GuardianForceHitPoints, [property: JsonRequired] ushort? GuardianForceMaximumHitPoints)
 {
+    [JsonRequired]
+    public int DisplayedHitPointsQ12 { get; init; }
+
+    [JsonRequired]
+    public int? DisplayedGuardianForceHitPointsQ12 { get; init; }
+
+    public NativeBattlePartyPresentedVital AdvanceHud4B0500(bool guardianForceActive)
+    {
+        int hp = AdvanceDisplayed(DisplayedHitPointsQ12, HitPoints, MaximumHitPoints);
+        int? gf = DisplayedGuardianForceHitPointsQ12;
+        if (guardianForceActive)
+        {
+            gf = AdvanceDisplayed(gf ?? throw new NotSupportedException("Native4B0500 requires the started GF HUD accumulator."), GuardianForceHitPoints ?? throw new NotSupportedException("Native4B0500 requires the started GF cache."), GuardianForceMaximumHitPoints!.Value);
+        }
+        return this with { DisplayedHitPointsQ12 = hp, DisplayedGuardianForceHitPointsQ12 = gf };
+    }
+
+    private static int AdvanceDisplayed(int current, ushort hitPoints, ushort maximumHitPoints)
+    {
+        int target = unchecked((short)hitPoints) << 12;
+        int step = (unchecked((short)maximumHitPoints) << 12) / 96;
+        if (step == 0)
+        {
+            step = 4096;
+        }
+        if (current < target)
+        {
+            return Math.Min(unchecked(current + step), target);
+        }
+        if (current > target)
+        {
+            return Math.Max(0, Math.Max(unchecked(current - step), target));
+        }
+        return current;
+    }
+
     public NativeBattlePartyPresentedVital Apply(NativeBattleContactHalf half)
     {
         short amount = unchecked((short)half.Amount6);
@@ -38,7 +74,7 @@ public sealed record NativeBattlePartyPresentation([property: JsonRequired] Immu
 {
     public void Validate()
     {
-        if (Rows.IsDefault || Rows.Length != 3 || Rows.Any(row => row is not null && (row.GuardianForceHitPoints is null) != (row.GuardianForceMaximumHitPoints is null)))
+        if (Rows.IsDefault || Rows.Length != 3 || Rows.Any(row => row is not null && ((row.GuardianForceHitPoints is null) != (row.GuardianForceMaximumHitPoints is null) || (row.GuardianForceHitPoints is null) != (row.DisplayedGuardianForceHitPointsQ12 is null))))
         {
             throw new InvalidDataException("Native party presentation requires three physical cache rows and paired GF HP owners.");
         }
@@ -75,6 +111,34 @@ public sealed partial class BattleSession
         return gf is null ? new(unchecked((short)row.HitPoints), unchecked((short)row.MaximumHitPoints)) : new(unchecked((short)(row.GuardianForceHitPoints ?? throw new NotSupportedException("Native HUD lacks the actually started GF cache."))), unchecked((short)row.GuardianForceMaximumHitPoints!.Value));
     }
 
+    public BattlePresentedVital ReadDisplayedVital(string actorId, int? guardianForceId = null)
+    {
+        BattlePresentedVital cached = ReadPresentedVital(actorId, guardianForceId);
+        if (nativePartyPresentation is null)
+        {
+            return cached;
+        }
+        NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(GetActor(actorId).NativeIndex);
+        int displayed = guardianForceId is null ? row.DisplayedHitPointsQ12 : row.DisplayedGuardianForceHitPointsQ12 ?? throw new NotSupportedException("Native HUD lacks the actually started GF accumulator.");
+        return cached with { HitPoints = displayed / 4096 };
+    }
+
+    private void AdvanceNativePresentedVitals4B0500()
+    {
+        if (nativePartyPresentation is null)
+        {
+            return;
+        }
+        ImmutableArray<NativeBattlePartyPresentedVital?> rows = nativePartyPresentation.Rows;
+        foreach (BattleCombatant actor in combatants.Where(actor => actor.IsPlayer && actor.NativeIndex is >= 0 and < 3))
+        {
+            NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(actor.NativeIndex);
+            //48E620 clears the GF-panel flag when it removes the charge task, after any earlier logical cancellation.
+            rows = rows.SetItem(actor.NativeIndex, row.AdvanceHud4B0500(guardianForceCasts.ContainsKey(actor.Id)));
+        }
+        nativePartyPresentation = nativePartyPresentation with { Rows = rows };
+    }
+
     private void InitializeNativePartyPresentation()
     {
         if (definition.NativeGraphics is null)
@@ -84,7 +148,7 @@ public sealed partial class BattleSession
         NativeBattlePartyPresentedVital?[] rows = new NativeBattlePartyPresentedVital?[3];
         foreach (BattleCombatant actor in combatants.Where(actor => actor.IsPlayer && actor.NativeIndex is >= 0 and < 3))
         {
-            rows[actor.NativeIndex] = new(checked((ushort)actor.CurrentHp), checked((ushort)actor.MaximumHp), null, null);
+            rows[actor.NativeIndex] = new(checked((ushort)actor.CurrentHp), checked((ushort)actor.MaximumHp), null, null) { DisplayedHitPointsQ12 = actor.CurrentHp << 12, DisplayedGuardianForceHitPointsQ12 = null };
         }
         nativePartyPresentation = new(rows.ToImmutableArray());
     }
@@ -96,7 +160,7 @@ public sealed partial class BattleSession
             return;
         }
         NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(actor.NativeIndex);
-        nativePartyPresentation = nativePartyPresentation with { Rows = nativePartyPresentation.Rows.SetItem(actor.NativeIndex, row with { GuardianForceHitPoints = gf.HitPoints, GuardianForceMaximumHitPoints = gf.MaximumHitPoints }) };
+        nativePartyPresentation = nativePartyPresentation with { Rows = nativePartyPresentation.Rows.SetItem(actor.NativeIndex, row with { GuardianForceHitPoints = gf.HitPoints, GuardianForceMaximumHitPoints = gf.MaximumHitPoints, DisplayedGuardianForceHitPointsQ12 = gf.HitPoints << 12 }) };
     }
 
     private void PublishNativePresentedContact(NativeBattleContactHalf half)

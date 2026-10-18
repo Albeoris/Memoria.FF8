@@ -23,6 +23,8 @@ public sealed record NativeBattleEffectTask([property: JsonRequired] ushort Flag
     public short HalfWidth { get; init; }
     [JsonRequired]
     public uint Color { get; init; }
+    [JsonRequired]
+    public NativeBattleDamageTextAnchor? TextAnchor { get; init; }
 }
 
 public sealed record NativeBattleEffectsStep(NativeBattleEffectsState State, ImmutableArray<byte> ResetModelStatuses);
@@ -30,6 +32,9 @@ public sealed record NativeBattleEffectsStep(NativeBattleEffectsState State, Imm
 /// <summary>Exact20-slot allocator and published callback count from506BD0/508420/500900.</summary>
 public sealed record NativeBattleEffectsState([property: JsonRequired] ImmutableArray<NativeBattleEffectTask> Slots, [property: JsonRequired] int? Head, [property: JsonRequired] int? Tail, [property: JsonRequired] byte PublishedCount)
 {
+    [JsonRequired]
+    public ImmutableArray<NativeBattleDamageTextDraw> TextDraws { get; init; } = [];
+
     public static NativeBattleEffectsState Clear()
     {
         //508300 clears all20*32 bytes, both descriptor links and initialBYTE1D96A88.
@@ -38,6 +43,10 @@ public sealed record NativeBattleEffectsState([property: JsonRequired] Immutable
 
     public void Validate()
     {
+        if (TextDraws.IsDefault || TextDraws.Any(draw => draw is null || draw.Glyphs.IsDefaultOrEmpty))
+        {
+            throw new InvalidDataException("Native damage text requires its last executed presentation commands.");
+        }
         if (Slots.IsDefault || Slots.Length != 20 || Head is < 0 or >= 20 || Tail is < 0 or >= 20 || PublishedCount > 20 || Slots.Any(task => task is null || task.Next is < 0 or >= 20 || !Enum.IsDefined(task.Kind) || task.Glyphs.IsDefault || task.Glyphs.Length > 8 || (task.Flags0 & 1) != 0 && (task.Kind == NativeBattleEffectKind.None || task.ModelIndex >= 7 || task.Kind == NativeBattleEffectKind.DamageText5069B0 && task.Frame >= 10)))
         {
             throw new InvalidDataException("Native effect tasks require20 physical slots, valid callback payloads and separately published task count.");
@@ -101,12 +110,12 @@ public sealed record NativeBattleEffectsState([property: JsonRequired] Immutable
             glyphs = amount.ToString(System.Globalization.CultureInfo.InvariantCulture).Select(digit => (byte)(56 + digit - '0')).Append((byte)0).ToArray();
             halfWidth = checked((short)(4 * (glyphs.Length - 1)));
         }
-        NativeBattleEffectTask task = Slots[slot] with { Flags0 = (ushort)(Slots[slot].Flags0 | 1), State2 = 0, Next = Head, Kind = NativeBattleEffectKind.DamageText5069B0, ModelIndex = modelIndex, Frame = 0, Glyphs = glyphs.ToImmutableArray(), HalfWidth = halfWidth, Color = (contactFlags & 0x100) != 0 ? 0x408040u : 0x808080u };
+        NativeBattleEffectTask task = Slots[slot] with { Flags0 = (ushort)(Slots[slot].Flags0 | 1), State2 = 0, Next = Head, Kind = NativeBattleEffectKind.DamageText5069B0, ModelIndex = modelIndex, Frame = 0, Glyphs = glyphs.ToImmutableArray(), HalfWidth = halfWidth, Color = (contactFlags & 0x100) != 0 ? 0x408040u : 0x808080u, TextAnchor = null };
         //5083F0 deliberately leaves Tail unchanged, including an empty-list Tail0.
         return this with { Slots = Slots.SetItem(slot, task), Head = slot };
     }
 
-    public NativeBattleEffectsStep Advance(IReadOnlyList<NativeBattleGraphicsModel> models)
+    public NativeBattleEffectsStep Advance(IReadOnlyList<NativeBattleGraphicsModel> models, Func<byte, NativeBattleDamageTextAnchor>? projectTextAnchor = null)
     {
         Validate();
         if (models.Count != 7)
@@ -115,6 +124,7 @@ public sealed record NativeBattleEffectsState([property: JsonRequired] Immutable
         }
         ImmutableArray<NativeBattleEffectTask> slots = Slots;
         ImmutableArray<byte>.Builder resetModels = ImmutableArray.CreateBuilder<byte>();
+        ImmutableArray<NativeBattleDamageTextDraw>.Builder textDraws = ImmutableArray.CreateBuilder<NativeBattleDamageTextDraw>();
         int? head = Head;
         int? previous = null;
         int survivors = 0;
@@ -133,6 +143,11 @@ public sealed record NativeBattleEffectsState([property: JsonRequired] Immutable
             }
             else
             {
+                if (task.Frame == 0)
+                {
+                    task = task with { TextAnchor = (projectTextAnchor ?? throw new NotSupportedException("Native5069B0 requires its first callback model/camera projection."))(task.ModelIndex) };
+                }
+                textDraws.Add(NativeBattleDamageText.Layout5069B0(task));
                 byte frame = unchecked((byte)(task.Frame + 1));
                 task = task with { Frame = frame };
                 slots = slots.SetItem(index, task);
@@ -157,7 +172,7 @@ public sealed record NativeBattleEffectsState([property: JsonRequired] Immutable
                 survivors++;
             }
         }
-        return new(this with { Slots = slots, Head = head, Tail = previous, PublishedCount = checked((byte)survivors) }, resetModels.ToImmutable());
+        return new(this with { Slots = slots, Head = head, Tail = previous, PublishedCount = checked((byte)survivors), TextDraws = textDraws.ToImmutable() }, resetModels.ToImmutable());
     }
 
     private int FreeSlot()

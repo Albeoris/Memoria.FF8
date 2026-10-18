@@ -214,6 +214,11 @@ internal sealed class BattleScenePresentation
         canvas.PushClip(viewport);
         try
         {
+            if (session.NativeGraphics is { } graphics)
+            {
+                BattleDamageTextPresentation.Draw(graphics.Effects.TextDraws, canvas, viewport);
+                return;
+            }
             foreach (BattleImpactCue cue in impactTimeline.Collect(session))
             {
                 string target = cue.Event.TargetId!;
@@ -245,7 +250,7 @@ internal sealed class BattleScenePresentation
                 }
                 UiColor color = cue.IsHealing ? new UiColor(105, 255, 130, alpha) : cue.IsPhysical ? new UiColor(255, 255, 255, alpha) : new UiColor(220, 130, 255, alpha);
                 float rise = (cue.Age * 0.8f + MathF.Sin(Math.Min(1, cue.Age / 12f) * MathF.PI) * 10) * scale;
-                canvas.Text(cue.Event.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture), 24 * scale, new UiRect(x - 30 * scale, y - 24 * scale - rise, 120 * scale, 38 * scale), color);
+                canvas.OutlinedText(cue.Event.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture), 24 * scale, new UiRect(x - 30 * scale, y - 24 * scale - rise, 120 * scale, 38 * scale), color, new UiColor(0, 0, 0, alpha), scale);
             }
         }
         finally

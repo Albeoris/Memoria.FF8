@@ -89,7 +89,7 @@ internal sealed class BattleHudElement : UiElement
             BattleGuardianForceCast? cast = session.GuardianForceCasts.FirstOrDefault(cast => cast.ActorId == actor.Id);
             BattleGuardianForceVital? gf = cast is null ? null : session.GuardianForces.Single(gf => gf.Id == cast.Command.ActionId);
             string label = gf is null ? actor.Name : controller.GuardianForceDisplayName(gf.Id);
-            BattlePresentedVital presented = session.ReadPresentedVital(actor.Id, gf?.Id);
+            BattlePresentedVital presented = session.ReadDisplayedVital(actor.Id, gf?.Id);
             int hp = presented.HitPoints;
             int maximumHp = presented.MaximumHitPoints;
             bool shownAlive = hp > 0;

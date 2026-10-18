@@ -91,7 +91,7 @@ public sealed partial class BattleSession
         graphics = SubmitNativeModulePackets(graphics);
         graphics = ConsumeNativeGraphicsContacts(graphics);
         models = graphics.Models;
-        NativeBattleEffectsStep effects = graphics.Effects.Advance(models);
+        NativeBattleEffectsStep effects = graphics.Effects.Advance(models, index => ProjectNativeDamageText(graphics, index));
         foreach (byte index in effects.ResetModelStatuses)
         {
             graphics = ApplyNativeGraphicsStatus509CD0(graphics with { Models = models }, index, 16);

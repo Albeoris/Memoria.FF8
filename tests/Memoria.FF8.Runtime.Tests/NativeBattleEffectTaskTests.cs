@@ -13,11 +13,11 @@ public sealed class NativeBattleEffectTaskTests
         Assert.Equal(new byte[] { 57, 58, 59, 60, 61, 0 }, state.Slots[0].Glyphs);
         for (int callback = 1; callback < 10; callback++)
         {
-            state = state.Advance(Models()).State;
+            state = state.Advance(Models(), _ => new(160, 100)).State;
             Assert.Equal((byte)1, state.PublishedCount);
             Assert.Equal((byte)callback, state.Slots[0].Frame);
         }
-        state = state.Advance(Models()).State;
+        state = state.Advance(Models(), _ => new(160, 100)).State;
         Assert.Equal((byte)0, state.PublishedCount);
         Assert.Null(state.Head);
         Assert.Null(state.Tail);
@@ -50,7 +50,7 @@ public sealed class NativeBattleEffectTaskTests
         Assert.Equal(1, state.Head);
         Assert.Equal(1, state.Tail);
         Assert.Equal((ushort)1, state.Slots[0].Flags0);
-        state = state.Advance(Models()).State;
+        state = state.Advance(Models(), _ => new(160, 100)).State;
         Assert.Equal((byte)1, state.PublishedCount);
         Assert.Equal((byte)0, state.Slots[0].Frame);
         Assert.Equal((ushort)1, state.Slots[0].Flags0);
@@ -67,7 +67,7 @@ public sealed class NativeBattleEffectTaskTests
         Assert.Same(state, state.PrependDamageText(3, 0, 1));
         Assert.Throws<InvalidOperationException>(() => state.AppendStatusReset(3));
         Assert.Equal((byte)0, state.PublishedCount);
-        Assert.Equal((byte)20, state.Advance(Models()).State.PublishedCount);
+        Assert.Equal((byte)20, state.Advance(Models(), _ => new(160, 100)).State.PublishedCount);
     }
 
     [Fact]
@@ -76,11 +76,11 @@ public sealed class NativeBattleEffectTaskTests
         NativeBattleEffectsState state = NativeBattleEffectsState.Clear().AppendStatusReset(3).PrependDamageText(4, 0x100, 9);
         Assert.Equal(1, state.Head);
         Assert.Equal(0, state.Tail);
-        state = state.Advance(Models()).State;
+        state = state.Advance(Models(), _ => new(160, 100)).State;
         NativeBattleEffectsState restored = JsonSerializer.Deserialize<NativeBattleEffectsState>(JsonSerializer.Serialize(state))!;
         for (int frame = 0; frame < 12; frame++)
         {
-            state = state.Advance(Models()).State;
+            state = state.Advance(Models(), _ => new(160, 100)).State;
             restored = restored.Advance(Models()).State;
         }
         Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));

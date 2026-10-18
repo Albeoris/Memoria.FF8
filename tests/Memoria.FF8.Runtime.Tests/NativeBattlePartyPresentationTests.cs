@@ -51,5 +51,54 @@ public sealed class NativeBattlePartyPresentationTests
         Assert.Throws<InvalidDataException>(() => new NativeBattlePartyPresentation([new(500, 1000, 20, null), null, null]).Validate());
     }
 
+    [Fact]
+    public void HudDamageUsesMaximumBasedQ12StepAndClampsAtContactTarget()
+    {
+        NativeBattlePartyPresentedVital row = new(500, 1000, null, null) { DisplayedHitPointsQ12 = 500 << 12 };
+        row = row.Apply(Half(0, 37));
+        Assert.Equal(500 << 12, row.DisplayedHitPointsQ12);
+        int[] expected = [489, 479, 468, 463];
+        foreach (int hp in expected)
+        {
+            row = row.AdvanceHud4B0500(false);
+            Assert.Equal(hp, row.DisplayedHitPointsQ12 / 4096);
+        }
+        Assert.Equal(463 << 12, row.DisplayedHitPointsQ12);
+        Assert.Equal(row, row.AdvanceHud4B0500(false));
+    }
+
+    [Fact]
+    public void HudHealingRetargetsWithoutDiscardingFractionalProgress()
+    {
+        NativeBattlePartyPresentedVital row = new(500, 1000, null, null) { DisplayedHitPointsQ12 = 500 << 12 };
+        row = row.Apply(Half(1, 100)).AdvanceHud4B0500(false);
+        Assert.Equal((500 << 12) + (1000 << 12) / 96, row.DisplayedHitPointsQ12);
+        row = row.Apply(Half(0, 120)).AdvanceHud4B0500(false);
+        Assert.Equal(500 << 12, row.DisplayedHitPointsQ12);
+        Assert.Equal(480, row.HitPoints);
+    }
+
+    [Fact]
+    public void GuardianHudHasIndependentStepAndStopsWhenItsCacheFlagIsClear()
+    {
+        NativeBattlePartyPresentedVital row = new(500, 1000, 100, 200) { DisplayedHitPointsQ12 = 500 << 12, DisplayedGuardianForceHitPointsQ12 = 100 << 12 };
+        row = row.Apply(Half(0x20, 37));
+        Assert.Equal(100 << 12, row.AdvanceHud4B0500(false).DisplayedGuardianForceHitPointsQ12);
+        row = row.AdvanceHud4B0500(true);
+        Assert.Equal((100 << 12) - (200 << 12) / 96, row.DisplayedGuardianForceHitPointsQ12);
+        Assert.Equal(500 << 12, row.DisplayedHitPointsQ12);
+    }
+
+    [Fact]
+    public void MidCountJsonKeepsFractionalNextCallbackAndRejectsMissingAccumulators()
+    {
+        NativeBattlePartyPresentedVital row = new(500, 1000, null, null) { DisplayedHitPointsQ12 = 500 << 12 };
+        row = row.Apply(Half(0, 37)).AdvanceHud4B0500(false);
+        NativeBattlePartyPresentedVital restored = JsonSerializer.Deserialize<NativeBattlePartyPresentedVital>(JsonSerializer.Serialize(row))!;
+        Assert.Equal(row.AdvanceHud4B0500(false), restored.AdvanceHud4B0500(false));
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattlePartyPresentedVital>("{\"HitPoints\":500,\"MaximumHitPoints\":1000,\"GuardianForceHitPoints\":null,\"GuardianForceMaximumHitPoints\":null}"));
+        Assert.Throws<InvalidDataException>(() => new NativeBattlePartyPresentation([new(500, 1000, 100, 200), null, null]).Validate());
+    }
+
     private static NativeBattleContactHalf Half(byte hitFlags, ushort amount) => new(0, 4, 0, hitFlags, 0, amount, 0);
 }
