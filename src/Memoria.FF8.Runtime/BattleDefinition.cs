@@ -195,6 +195,7 @@ public sealed record BattleDefinition
     public BattleGuardianForceVital[] GuardianForces { get; init; } = [];
     public byte? NativeBattleSpeed { get; init; }
     public uint? NativeSavedOptions { get; init; }
+    public ImmutableArray<byte> NativeInputButtonMap { get; init; } = [];
     public NativePocketStationState? NativePocketStation { get; init; }
     public string? NativeChocoboName { get; init; }
     public NativeLimitProgress? LimitProgress { get; init; }

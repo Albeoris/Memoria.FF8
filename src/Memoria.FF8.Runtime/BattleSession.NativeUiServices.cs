@@ -67,6 +67,8 @@ public sealed partial class BattleSession
                 }
             }
             DispatchNativeUiService();
+            //534560's538200 input publication follows the ordinary4A84E0 service polls.
+            PublishNativeScanInputFrame();
             if (NativeGraphics.UiServices is { } final)
             {
                 bool retained = NativeEffectMemory?.PrimitiveProcess?.DisableTableReset ?? throw new NotSupportedException("Native47CF60 pause completion requires its actual1CFF834 owner.");
@@ -87,6 +89,8 @@ public sealed partial class BattleSession
         {
             return;
         }
+        //4A84E0 calls49E9C0 before its pause-gated UI/ATB consumers.
+        PublishNativeScanInputFrame();
         services = services.AdvancePublication();
         NativeGraphics = graphics with { UiServices = services };
         if (services.PauseDE9)

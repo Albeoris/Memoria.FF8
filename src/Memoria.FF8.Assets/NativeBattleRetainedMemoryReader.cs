@@ -70,8 +70,15 @@ public static class NativeBattleRetainedMemoryReader
             byte[] vector = ReadLoaderBytes(address, 8);
             return new(BinaryPrimitives.ReadInt16LittleEndian(vector), BinaryPrimitives.ReadInt16LittleEndian(vector.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(vector.AsSpan(4)), BinaryPrimitives.ReadInt16LittleEndian(vector.AsSpan(6)));
         }
+        NativeBattleScanByteOwner ReadScanOwner(uint address, int length) => new(ReadLoaderBytes(address, length).ToImmutableArray(), Enumerable.Repeat(true, length).ToImmutableArray());
+        NativeBattleScanTextProcess scanText = new(new(Enumerable.Range(0, 8).Select(index => ReadScanOwner(checked(0x1D2B330u + (uint)(index * 60)), 60)).ToImmutableArray(), Enumerable.Range(0, 8).ToImmutableDictionary(index => (byte)index, index => ReadScanOwner(checked(0x1D2B550u + (uint)(index * 64)), 64))), new(ReadScanOwner(0x1A79008, 0x2E), ReadScanOwner(0x1A79038, 0x50)), ReadLoaderBytes(0x1D7660C, 1)[0], unchecked((sbyte)ReadLoaderBytes(0x1D2B51C, 1)[0]), ReadScanOwner(0x1D2B524, 12), BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1D76608, 4)), false);
         NativeBattleEffectMemory effectMemory = NativeBattleEffectMemory.FromColdProcess() with
         {
+            Scan = new(null, new(new([ReadScanOwner(0x1D2B110, 196), ReadScanOwner(0x1D2B1D4, 196)]), [ReadScanOwner(0x1D2B298, 36), ReadScanOwner(0x1D2B2BC, 36)], ReadScanOwner(0x1D2B2F0, 4), ReadScanOwner(0x209CEE4, 12)), BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1CD01FC, 4)), false, ReadScanOwner(0x269AAA8, 48))
+            {
+                Text = scanText,
+                Presentation = new(ReadScanOwner(0x269A168, 0x50), ReadScanOwner(0x269A1BC, 28), ReadScanOwner(0x269A1D8, 28), ReadScanOwner(0x269CE34, 28), ReadScanOwner(0x269AA78, 24), BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(0x269AA90, 2)), BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(0x269D938, 2)), BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(0x269CE2C, 2)), BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x269CE30, 4)))
+            },
             Parameter80 = ReadLoaderBytes(0x1D99A80, 1)[0],
             Parameter82 = ReadLoaderBytes(0x1D99A82, 1)[0],
             ReturnedTaskPointer1D96AAC = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1D96AAC, 4)),

@@ -88,6 +88,7 @@ internal sealed partial class RecreateGame
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.GuardianBoost));
         }
+        active.PublishNativeScanMappedButtons(keyboard.HeldFieldButtons);
         active.AdvanceNativeGraphicsPresentation(elapsed, battleIdleWorkBudget ?? TargetElapsedTime);
         if (ReferenceEquals(active, world?.Battle))
         {

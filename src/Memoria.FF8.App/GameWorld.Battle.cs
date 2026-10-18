@@ -99,6 +99,7 @@ internal sealed partial class GameWorld
         definition = definition with
         {
             NativeSavedOptions = (session.State.InputConfiguration ?? assets.ReadNewGameInputConfiguration()).Options,
+            NativeInputButtonMap = (session.State.InputConfiguration ?? assets.ReadNewGameInputConfiguration()).ButtonMap,
             NativeSupportRules = BattleResources.ReadNativeSupportRules(),
             NativeGraphics = BattleResources.ReadNativeGraphicsDefinition(definition.Combatants, assets.ReadNativeBattleGraphicsRules(), encounter),
             NativeClockRules = BattleResources.ReadNativeClockRules(),
