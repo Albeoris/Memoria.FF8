@@ -34,6 +34,14 @@ public sealed partial class BattleSession
                     NativeBattleMoogle96IoCompletion uploaded = NativeBattleMoogle96Io.Complete732590(moogle.Io ?? throw new NotSupportedException("Native732590 requires its retained script and current destination."), moogleMemory);
                     NativeEffectMemory = uploaded.Memory with { Moogle96 = moogle with { Io = uploaded.State } };
                     break;
+                case 0x72A1F0:
+                case 0x72A250:
+                case 0x72A260:
+                    NativeBattleEffectMemory chocoMemory = NativeEffectMemory ?? throw new NotSupportedException("Native Choco file completion requires retained effect memory.");
+                    NativeBattleChoco97State choco = chocoMemory.Choco97 ?? throw new NotSupportedException("Native Choco file completion requires its retained process.");
+                    NativeBattleChoco97IoCompletion chocoUploaded = NativeBattleChoco97Io.Complete(choco.Io ?? throw new NotSupportedException("Native Choco file completion requires its current IO script."), chocoMemory, completion.Callback);
+                    NativeEffectMemory = chocoUploaded.Memory with { Choco97 = choco with { Io = chocoUploaded.State } };
+                    break;
                 default:
                     throw new NotSupportedException($"Native482870 file completion callback{completion.Callback:X8} is unsupported.");
             }

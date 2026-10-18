@@ -9,6 +9,27 @@ public sealed class NativeBattleChoco97ProgramDrawingTests
     private static NativeBattleCameraProjection Projection => new(Context, 216, 160, 108);
     private static NativeBattleSummonColors Colors => NativeBattleGteColorInterpolation.CodeConstants45F270;
 
+    [Theory]
+    [InlineData(0x4AC)]
+    [InlineData(0x44C)]
+    [InlineData(0x170)]
+    [InlineData(0x290)]
+    public void Admitted_initialization_clears_only_requested_DWORD_span_and_keeps_the_raw_origin(int clearBytes)
+    {
+        byte[] sourceBytes = new byte[16];
+        BinaryPrimitives.WriteUInt32LittleEndian(sourceBytes.AsSpan(4), 8);
+        NativeBattleGfAnimationSource source = new(0x1000, sourceBytes.ToImmutableArray());
+        NativeBattleModulePoolTask task = new NativeBattleModulePoolTask(1, 0, null, 0x72A660, Enumerable.Repeat((byte)0xA5, 0x540 - 12).ToImmutableArray()).WriteDword(0x74, source.Address).WriteDword(0x78, (uint)clearBytes);
+        NativeBattleModulePoolTask initialized = NativeBattleChoco97ProgramDrawing.InitializeWorkspace72A6C0(task, source, [1, 0, 2, 0, 3, 0, 4, 0]);
+        int start = 0x94 - 12;
+        Assert.Equal(source.Address, initialized.ReadDword(0x94));
+        Assert.All(initialized.Payload.Skip(start + 4).Take(clearBytes - 4), value => Assert.Equal((byte)0, value));
+        Assert.All(initialized.Payload.Skip(start + clearBytes), value => Assert.Equal((byte)0xA5, value));
+        Assert.Equal((ushort)2, initialized.ReadWord(0x1E));
+        Assert.Equal((ushort)4, initialized.ReadWord(0x22));
+        Assert.Throws<InvalidDataException>(() => NativeBattleChoco97ProgramDrawing.InitializeWorkspace72A6C0(task.WriteDword(0x78, 0x171), source, new byte[8].ToImmutableArray()));
+    }
+
     [Fact]
     public void Header200_bypasses_basis_for_position_and_rotation_and_40000_selects_the_actual_Euler_order()
     {
@@ -39,7 +60,7 @@ public sealed class NativeBattleChoco97ProgramDrawingTests
     public void Partial_morph_writes_only_XYZ_and_retains_W_extra_scratch_and_authored_source()
     {
         NativeBattleGfAnimationSource source = Source();
-        ImmutableArray<byte> scratch = Enumerable.Repeat((byte)0xA5, 0x288).ToImmutableArray();
+        ImmutableArray<byte> scratch = Enumerable.Repeat((byte)0xA5, 0x3C0).ToImmutableArray();
         NativeBattleChoco97NodeDraw actual = NativeBattleChoco97ProgramDrawing.Node72A840(source, Node(0, geometry: 0, second: 1, ratio: 2048), scratch, Context, Projection, Colors);
         Assert.Equal((short)200, BinaryPrimitives.ReadInt16LittleEndian(actual.MorphScratch.AsSpan()));
         Assert.Equal((short)0, BinaryPrimitives.ReadInt16LittleEndian(actual.MorphScratch.AsSpan().Slice(2)));

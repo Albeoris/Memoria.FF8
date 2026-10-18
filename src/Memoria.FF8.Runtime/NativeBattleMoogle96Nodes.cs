@@ -49,7 +49,7 @@ public static class NativeBattleMoogle96Nodes
             0x1696DE8 => 0x33D4,
             _ => throw new NotSupportedException("Native Moogle node source is outside its two retained bank owners.")
         };
-        return new(source, length, Callback, 40, 100, true, 0x2000);
+        return new(source, length, Callback, 40, 100, true, 0x2000, CommonSprites: true);
     }
     public static NativeBattleMoogle96NodeFrame ClearStorage(NativeBattleMoogle96NodeFrame frame, int initializerTimArenaOffset)
     {

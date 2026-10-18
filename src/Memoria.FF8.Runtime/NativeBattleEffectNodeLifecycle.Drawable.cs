@@ -18,6 +18,10 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
             {
                 Morph881540(resource, Pointer(memory.ContextDword(0x230), ByteCurve(0x130)), Pointer(memory.ContextDword(0x230), ByteCurve(0x134)), WordCurve(0x138));
             }
+            if (inputs.ResourceUpdate is { } update)
+            {
+                bank.ReplaceData(update(bank, resource, kind, memory.Byte(node + 0x1D6)));
+            }
         }
         short ax = unchecked((short)memory.Word(node + 0xCC));
         short ay = unchecked((short)memory.Word(node + 0xCE));

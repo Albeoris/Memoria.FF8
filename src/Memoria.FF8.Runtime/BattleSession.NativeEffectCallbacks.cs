@@ -49,6 +49,10 @@ public sealed partial class BattleSession
         {
             return RunNativeCactuar199(graphics, false);
         }
+        if (effect.Binding.Entry == 0x729A60)
+        {
+            return AdvanceNativeChoco729BD0(graphics);
+        }
         if (effect.Binding.Entry == 0x731DE0)
         {
             return AdvanceNativeMoogle731F70(graphics);

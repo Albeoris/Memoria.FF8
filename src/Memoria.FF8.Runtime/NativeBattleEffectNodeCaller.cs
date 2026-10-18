@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-internal sealed record NativeBattleEffectNodeCallerPolicy(uint SourceAddress, int SourceLength, uint Callback, int EmitterCapacity, int GeometryCapacity, bool FullLife, int WorkOffset = 0x10000)
+internal sealed record NativeBattleEffectNodeCallerPolicy(uint SourceAddress, int SourceLength, uint Callback, int EmitterCapacity, int GeometryCapacity, bool FullLife, int WorkOffset = 0x10000, bool CommonSprites = false)
 {
     internal int EmitterBytes => checked(EmitterCapacity * 0x6C);
     internal int GeometryBytes => checked(GeometryCapacity * 0x2A0);
@@ -62,7 +62,7 @@ internal static class NativeBattleEffectNodeCaller
         return frame with { State = retained, Effect = frame.Effect with { Pools = hierarchy.Write(taskAddress, task).Pools } };
     }
 
-    public static NativeBattleRecover93NodeStep Advance74F6E0(NativeBattleEffectNodeCallerPolicy profile, NativeBattleRecover93NodeFrame frame, uint taskAddress, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors colors)
+    public static NativeBattleRecover93NodeStep Advance74F6E0(NativeBattleEffectNodeCallerPolicy profile, NativeBattleRecover93NodeFrame frame, uint taskAddress, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors colors, Func<NativeBattleEffectNodeBank, uint, int, byte, ImmutableArray<byte>>? resourceUpdate = null)
     {
         frame.State.Validate(profile.SourceLength, profile.EmitterBytes, profile.GeometryBytes);
         if (new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(taskAddress).Callback != profile.Callback)
@@ -80,6 +80,7 @@ internal static class NativeBattleEffectNodeCaller
             ushort emitterCursor = frame.State.EmitterScanCursor ?? throw new NotSupportedException("Native Recover emitter scan WORD is unknown.");
             ushort geometryCursor = frame.State.GeometryScanCursor ?? throw new NotSupportedException("Native Recover geometry scan WORD is unknown.");
             NativeBattleEffectNodeInputs inputs = new(frame.State.CopiedCamera ?? throw new NotSupportedException("Native Recover copied-camera owner is missing."), readModel, (parent, source, target) => NativeBattleEffectNodeAllocation.AllocateEmitter(memory, first, profile.EmitterCapacity, ref emitterCursor, parent, source, target), (emitter, source) => NativeBattleEffectNodeAllocation.AllocateGeometry(memory, second, profile.GeometryCapacity, ref geometryCursor, emitter, source));
+            inputs = inputs with { ResourceUpdate = resourceUpdate };
             NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, inputs);
             List<(bool Mesh, NativeBattleGfGeometryBatch Batch)> deliveries = [];
             NativeCrtRandomState random = frame.Random;
@@ -88,10 +89,10 @@ internal static class NativeBattleEffectNodeCaller
             frame = frame with { Memory = written.Memory, Effect = written.Effect, Random = random, State = frame.State with { Data = bank.Data, EmitterScanCursor = emitterCursor, GeometryScanCursor = geometryCursor } };
             foreach ((bool mesh, NativeBattleGfGeometryBatch batch) in deliveries)
             {
-                if (mesh)
+                if (mesh || profile.CommonSprites)
                 {
                     commonMeshes.Add(batch);
-                    NativeBattleCommonPacketWrite packets = NativeBattleCommonPacketArena.Append(frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Recover meshes require their actual common packet owner."), ordering, batch);
+                    NativeBattleCommonPacketWrite packets = NativeBattleCommonPacketArena.Append(frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native nodes require their actual common packet owner."), ordering, batch);
                     frame = frame with { Memory = frame.Memory with { PrimitiveProcess = packets.Process } };
                     ordering = packets.Ordering;
                 }

@@ -73,6 +73,7 @@ public sealed class NativeBattleMoogle96PresentationTests
         bool sawVibration = false;
         bool sawMusicZero = false;
         bool sawPrivate = false;
+        bool sawCommonNodeSprites = false;
         NativeBattlePrimitiveReference? directorPacket = null;
         long? directorPacketCallback = null;
         bool sawMutableUv = false;
@@ -187,6 +188,11 @@ public sealed class NativeBattleMoogle96PresentationTests
                 }
                 NativeBattlePrimitiveFrame frame = current.NativeGraphics.PrimitiveFrame!;
                 sawPrivate |= frame.LastCommands.Any(item => item.Command.Packet.Bank == "20DFAB8");
+                if (state?.Nodes.Work.PassGeometryCount > 0)
+                {
+                    Assert.Equal(afterEffect!.DrawArenaOffset, state.Nodes.Work.PrivateDrawCursor);
+                    sawCommonNodeSprites |= frame.LastCommands.Any(item => item.Command.Packet.Bank is "off_B6D070" or "off_B6D094" && item.Command.Opcode is 0x2C or 0x2E);
+                }
                 if (directorPacket is null && Tasks(afterEffect, 0x7327B0).Any() && FindDirectorPhysicalPacket(current) is { } physical)
                 {
                     directorPacket = physical;
@@ -215,7 +221,8 @@ public sealed class NativeBattleMoogle96PresentationTests
             Assert.Equal(new byte[] { 0, 1, 2 }, modelPoses.Order().ToArray());
             Assert.All(new byte[] { 1, 2, 10, 12, 13, 14 }, phase => Assert.Contains(phase, cameraPhases));
             Assert.True(cameras.Count > 2);
-            Assert.True(sawMutableUv && sawTwoBanks && sawPrivate);
+            Assert.True(sawMutableUv && sawTwoBanks && sawCommonNodeSprites);
+            Assert.False(sawPrivate);
             Assert.NotNull(directorPacket);
             Assert.True(stageCleared && sawMusicZero && sawVibration);
             Assert.True(sawEnemyRestoreWithOverride);
@@ -276,7 +283,7 @@ public sealed class NativeBattleMoogle96PresentationTests
 
         void Report(string status, string? blocker)
         {
-            object report = new { Status = status, FirstBlocker = blocker, Scenario = "Fresh controlled post-formula seven-HP party healing; ordinary command admission remains separate", SourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath!))), Callbacks = callbacks, DiagnosticMaximumCallbacks = maximum, ContactHpObservableTransitions = contacts, Completions = completions, FileIds = fileIds, FileCompletionObservableTransitions = fileCompletions, DogModes = modes.Order().ToArray(), ModelPoses = modelPoses.Order().ToArray(), CameraPhases = cameraPhases.Order().ToArray(), CameraStates = cameras.Count, StagePeak = stagePeak, VibrationHandle = vibrationHandle, SawVibrationOwned = sawVibration, SawMusicZero = sawMusicZero, SawMutableUv = sawMutableUv, SawTwoNodeBanks = sawTwoBanks, SawEnemyRestoreWithRetainedOverride = sawEnemyRestoreWithOverride, SawPrivatePackets = sawPrivate, DirectorCommonPhysicalPacket = directorPacket, DirectorPacketCallback = directorPacketCallback, DirectorPacketObservation = "Retained COMMON proxy and12physicalbytes with zero tag length; no parsed E1 command at this reference", Boundaries = boundaries, BinarySha256 = NativeBattleEffectFamilyRunner.CollectBinaryHashes(), Pending = new[] { "Whole-entry native differential comparison", "Hardware audibility and vibration", "Other targets/headers", "Formula and ordinary command admission" } };
+            object report = new { Status = status, FirstBlocker = blocker, Scenario = "Fresh controlled post-formula seven-HP party healing; ordinary command admission remains separate", SourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath!))), Callbacks = callbacks, DiagnosticMaximumCallbacks = maximum, ContactHpObservableTransitions = contacts, Completions = completions, FileIds = fileIds, FileCompletionObservableTransitions = fileCompletions, DogModes = modes.Order().ToArray(), ModelPoses = modelPoses.Order().ToArray(), CameraPhases = cameraPhases.Order().ToArray(), CameraStates = cameras.Count, StagePeak = stagePeak, VibrationHandle = vibrationHandle, SawVibrationOwned = sawVibration, SawMusicZero = sawMusicZero, SawMutableUv = sawMutableUv, SawTwoNodeBanks = sawTwoBanks, SawEnemyRestoreWithRetainedOverride = sawEnemyRestoreWithOverride, SawPrivatePackets = sawPrivate, SawCommonNodeSprites = sawCommonNodeSprites, DirectorCommonPhysicalPacket = directorPacket, DirectorPacketCallback = directorPacketCallback, DirectorPacketObservation = "Retained COMMON proxy and12physicalbytes with zero tag length; no parsed E1 command at this reference", Boundaries = boundaries, BinarySha256 = NativeBattleEffectFamilyRunner.CollectBinaryHashes(), Pending = new[] { "Whole-entry native differential comparison", "Hardware audibility and vibration", "Other targets/headers", "Formula and ordinary command admission" } };
             File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
         }
     }

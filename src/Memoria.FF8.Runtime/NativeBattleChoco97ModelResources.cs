@@ -1,0 +1,3 @@
+namespace Memoria.FF8.Runtime;
+
+public sealed record NativeBattleChoco97ModelResources(NativeBattleEffectOwnedModelResource Model, NativeBattleEffectHeapAllocation ModelTim, uint DefaultColor44, NativeBattleMoogle96TextureProgram TextureProgram, NativeBattleMoogle96TextureTable TextureTable);

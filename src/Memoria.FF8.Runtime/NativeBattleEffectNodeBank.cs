@@ -55,6 +55,9 @@ internal sealed class NativeBattleEffectNodeBank
     }
 }
 
-internal sealed record NativeBattleEffectNodeInputs(NativeBattleActionMatrix? CopiedCamera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<uint, sbyte, sbyte, int?> AllocateEmitter, Func<int, sbyte, int?> AllocateGeometry);
+internal sealed record NativeBattleEffectNodeInputs(NativeBattleActionMatrix? CopiedCamera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<uint, sbyte, sbyte, int?> AllocateEmitter, Func<int, sbyte, int?> AllocateGeometry)
+{
+    public Func<NativeBattleEffectNodeBank, uint, int, byte, ImmutableArray<byte>>? ResourceUpdate { get; init; }
+}
 internal delegate NativeBattleGfGeometryBatch NativeBattleEffectNodeMeshInstance(ImmutableArray<byte> resource, NativeBattleActionMatrix matrix);
 internal delegate NativeBattleEffectNodeMeshInstance NativeBattleEffectNodePrepareMesh(int node, byte[] source);

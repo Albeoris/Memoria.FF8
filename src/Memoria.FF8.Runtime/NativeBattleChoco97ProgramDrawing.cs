@@ -7,18 +7,19 @@ public sealed record NativeBattleChoco97ProgramResources(NativeBattleGfAnimation
 public sealed record NativeBattleChoco97ProgramDraw(NativeBattleModulePoolTask Task, int Remaining, NativeBattleGfGeometryBatch Packets, ImmutableArray<byte> MorphScratch);
 public sealed record NativeBattleChoco97NodeDraw(NativeBattleGfGeometryBatch Packets, ImmutableArray<byte> MorphScratch);
 
-public static class NativeBattleChoco97ProgramDrawing
+public static partial class NativeBattleChoco97ProgramDrawing
 {
     private const int WorkspaceBytes = 0x4AC;
 
     public static NativeBattleModulePoolTask InitializeWorkspace72A6C0(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, ImmutableArray<byte> actorRaw8)
     {
         RequireTask(task, source);
-        if (task.ReadDword(0x78) != WorkspaceBytes || actorRaw8.IsDefault || actorRaw8.Length != 8)
+        int clearBytes = unchecked((int)task.ReadDword(0x78));
+        if (clearBytes is not (0x4AC or 0x44C or 0x170 or 0x290) || actorRaw8.IsDefault || actorRaw8.Length != 8)
         {
             throw new InvalidDataException("Native Choco program requires its actual workspace size and raw actor origin.");
         }
-        task = Store(task, Workspace(task).Initialize7016B0(source, WorkspaceBytes));
+        task = Store(task, Workspace(task).Initialize7016B0(source, clearBytes));
         return task.WriteDword(0x1C, BinaryPrimitives.ReadUInt32LittleEndian(actorRaw8.AsSpan())).WriteDword(0x20, BinaryPrimitives.ReadUInt32LittleEndian(actorRaw8.AsSpan().Slice(4))).WriteDword(0x50, 4096).WriteDword(0x54, 4096).WriteDword(0x58, 4096);
     }
 
@@ -120,7 +121,7 @@ public static class NativeBattleChoco97ProgramDrawing
 
     private static void RequireScratch(ImmutableArray<byte> scratch)
     {
-        if (scratch.IsDefault || scratch.Length < 80 * 8)
+        if (scratch.IsDefault || scratch.Length != 0x3C0)
         {
             throw new NotSupportedException("Native Choco program requires its explicitly retained morph scratch owner.");
         }

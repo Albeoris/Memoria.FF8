@@ -24,7 +24,7 @@ public sealed class NativeBattleChoco97ProgramResourcesTests
         NativeBattleActionMatrix view = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 18000, 4096);
         NativeBattleCameraProjection projection = new(view, 216, 160, 108);
         NativeBattleSummonColors colors = game.ReadNativeBattleGraphicsRules().SummonColors!;
-        ImmutableArray<byte> scratch = Enumerable.Repeat((byte)0xA5, 0x288).ToImmutableArray();
+        ImmutableArray<byte> scratch = Enumerable.Repeat((byte)0xA5, 0x3C0).ToImmutableArray();
         int primitives = 0;
         bool morphed = false;
         int remaining = -1;
