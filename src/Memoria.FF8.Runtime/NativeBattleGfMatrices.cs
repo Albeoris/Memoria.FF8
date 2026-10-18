@@ -5,6 +5,18 @@ namespace Memoria.FF8.Runtime;
 /// <summary>701310's axis conventions and the original56C090/56C3D0 matrix operations.</summary>
 public static class NativeBattleGfMatrices
 {
+    public static NativeBattleActionMatrix Normalize67AAE0(NativeBattleActionMatrix source)
+    {
+        source.Validate();
+        var column1 = NativeBattleActionGeometryRules.NormalizeVector56BC50(source.Rotation[1], source.Rotation[4], source.Rotation[7]);
+        var column0 = NativeBattleActionGeometryRules.NormalizeVector56BC50(column1.Y, -column1.X, 0);
+        int x = unchecked(column0.Y * column1.Z - column0.Z * column1.Y) >> 12;
+        int y = unchecked(column0.Z * column1.X - column0.X * column1.Z) >> 12;
+        int z = unchecked(column0.X * column1.Y - column0.Y * column1.X) >> 12;
+        var column2 = NativeBattleActionGeometryRules.NormalizeVector56BC50(x, y, z);
+        return source with { Rotation = [unchecked((short)column0.X), unchecked((short)column1.X), unchecked((short)column2.X), unchecked((short)column0.Y), unchecked((short)column1.Y), unchecked((short)column2.Y), unchecked((short)column0.Z), unchecked((short)column1.Z), unchecked((short)column2.Z)] };
+    }
+
     public static NativeBattleActionMatrix Euler701310(NativeBattleVector angles)
     {
         (NativeBattleActionMatrix x, NativeBattleActionMatrix y, NativeBattleActionMatrix z) = AxisMatrices(angles);

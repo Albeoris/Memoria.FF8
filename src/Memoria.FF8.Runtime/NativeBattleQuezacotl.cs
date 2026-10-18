@@ -122,7 +122,7 @@ public static class NativeBattleQuezacotl
         bool childBoundary = payload[3] != 0;
         if (childBoundary)
         {
-            state = state with { Billboard17B0 = Normalize67AAE0(view ?? throw new NotSupportedException("Native6C3760 requires its prior native camera matrix before private child submission.")) };
+            state = state with { Billboard17B0 = NativeBattleGfMatrices.Normalize67AAE0(view ?? throw new NotSupportedException("Native6C3760 requires its prior native camera matrix before private child submission.")) };
         }
         else if (pause == 0)
         {
@@ -131,18 +131,6 @@ public static class NativeBattleQuezacotl
         main = main with { Slots = main.Slots.SetItem(0, task with { Payload = payload.ToImmutableArray() }) };
         pools = pools.Select(pool => pool.DescriptorAddress == main.DescriptorAddress ? main : pool).ToImmutableArray();
         return new(memory, effect with { Pools = pools, Quezacotl = state, DrawArenaOffset = draw }, vibration, childBoundary);
-    }
-
-    private static NativeBattleActionMatrix Normalize67AAE0(NativeBattleActionMatrix source)
-    {
-        source.Validate();
-        var column1 = NativeBattleActionGeometryRules.NormalizeVector56BC50(source.Rotation[1], source.Rotation[4], source.Rotation[7]);
-        var column0 = NativeBattleActionGeometryRules.NormalizeVector56BC50(column1.Y, -column1.X, 0);
-        int x = unchecked(column0.Y * column1.Z - column0.Z * column1.Y) >> 12;
-        int y = unchecked(column0.Z * column1.X - column0.X * column1.Z) >> 12;
-        int z = unchecked(column0.X * column1.Y - column0.Y * column1.X) >> 12;
-        var column2 = NativeBattleActionGeometryRules.NormalizeVector56BC50(x, y, z);
-        return source with { Rotation = [unchecked((short)column0.X), unchecked((short)column1.X), unchecked((short)column2.X), unchecked((short)column0.Y), unchecked((short)column1.Y), unchecked((short)column2.Y), unchecked((short)column0.Z), unchecked((short)column1.Z), unchecked((short)column2.Z)] };
     }
 
     private static NativeBattleQuezacotlResources RequireResources(NativeBattleOriginalEffectState effect)

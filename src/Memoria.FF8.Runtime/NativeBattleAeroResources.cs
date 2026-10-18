@@ -1,0 +1,3 @@
+namespace Memoria.FF8.Runtime;
+
+public sealed record NativeBattleAeroResources(NativeBattleEffectHeapAllocation Animation, NativeBattleGfAnimationSource SourceA, NativeBattleGfAnimationSource SourceB, NativeBattleStaticMeshResource ParticleMesh, uint Sound);
