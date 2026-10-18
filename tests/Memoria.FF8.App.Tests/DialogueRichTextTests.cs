@@ -37,6 +37,7 @@ public sealed class DialogueRichTextTests
     public void Button_symbols_keep_junction_marker_and_unresolved_tags_distinct()
     {
         Assert.Equal("J/{Key 255}/{Key Unknown}", DialogueTextFormatter.Format("{Key 65}/{Key 255}/{Key Unknown}"));
+        Assert.Equal("J", DialogueTextFormatter.Format("{Key JunctionMarker}"));
     }
 
     [Fact]

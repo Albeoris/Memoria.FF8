@@ -64,11 +64,11 @@ public sealed class NativeTutorialBrowserTests
                 UiImage image = Descendants(view.Root).OfType<UiImage>().Single(image => image.Source?.Kind == UiImageKind.NativeTutorialPage);
                 Assert.Equal(page.Id, image.Source?.Id);
                 Assert.Equal(384f / 256f, image.Bounds.Width / image.Bounds.Height, precision: 4);
-                var labels = Descendants(view.Root).OfType<UiLabel>().Where(label => label.Id?.StartsWith("native-tutorial-text-", StringComparison.Ordinal) == true).ToArray();
+                var labels = Descendants(view.Root).OfType<NativeTutorialTextElement>().ToArray();
                 Assert.Equal(page.Placements.Length, labels.Length);
                 foreach (NativeTutorialPageText placement in page.Placements)
                 {
-                    UiLabel label = labels.Single(label => label.Id == $"native-tutorial-text-{placement.TextIndex}");
+                    NativeTutorialTextElement label = labels.Single(label => label.Id == $"native-tutorial-text-{placement.TextIndex}");
                     Assert.False(string.IsNullOrWhiteSpace(label.Text));
                     Assert.Equal((24 + placement.X) / 384f, label.Anchors.Left);
                     Assert.Equal((8 + placement.Y) / 256f, label.Anchors.Top);

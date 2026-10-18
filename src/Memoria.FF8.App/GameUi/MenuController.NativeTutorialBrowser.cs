@@ -162,10 +162,9 @@ public sealed partial class MenuController
         int originY = System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(page.Metadata.AsSpan().Slice(2, 2));
         foreach (NativeTutorialPageText placement in page.Placements)
         {
-            canvas.Children.Add(new UiLabel
+            canvas.Children.Add(new NativeTutorialTextElement(NativeBrowserText(placement.Value), 384 - originX - placement.X, _readPreferences?.Invoke().UiFontFamily)
             {
                 Id = $"native-tutorial-text-{placement.TextIndex}",
-                Text = NativeBrowserText(placement.Value),
                 FontSize = 27 * TextScale,
                 Anchors = new UiAnchors((originX + placement.X) / 384f, (originY + placement.Y) / 256f, 1, 1)
             });

@@ -91,7 +91,7 @@ internal static partial class DialogueTextFormatter
                 case "Term":
                     Append(TermName(ParseEnum<TextTagTerm>(parameter, kind)));
                     break;
-                case "Key" when parameter == "65":
+                case "Key" when Enum.TryParse(parameter, out TextTagKey key) && key == TextTagKey.JunctionMarker:
                     // Native common message4 uses key65 for the junctioned-magic J marker.
                     Append("J");
                     break;

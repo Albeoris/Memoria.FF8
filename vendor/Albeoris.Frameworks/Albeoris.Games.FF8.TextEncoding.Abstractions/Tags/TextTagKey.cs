@@ -1,7 +1,7 @@
 namespace Albeoris.Games.FF8.TextEncoding.Tags;
 
 /// <summary>
-/// Input keys and buttons that can be referenced by a <see cref="TextTagCode.Key"/> tag.
+/// Input keys, buttons and inline icons that can be referenced by a <see cref="TextTagCode.Key"/> tag.
 /// </summary>
 public enum TextTagKey : byte
 {
@@ -25,5 +25,20 @@ public enum TextTagKey : byte
     Square = 0x37,
     DefaultKey = 0x38,
     EndKey = 0x3B,
-    PartyKey = 0x64,
+    JunctionMarker = 0x41,
+    JunctionAbility = 0x45,
+    CommandAbility = 0x46,
+    ActionAbility = 0x47,
+    CharacterAbility = 0x48,
+    PartyAbility = 0x49,
+    GuardianForceAbility = 0x4A,
+    MenuAbility = 0x4B,
+    FireElement = 0x5D,
+    IceElement = 0x5E,
+    ThunderElement = 0x5F,
+    EarthElement = 0x60,
+    PoisonElement = 0x61,
+    WindElement = 0x62,
+    WaterElement = 0x63,
+    HolyElement = 0x64,
 }
