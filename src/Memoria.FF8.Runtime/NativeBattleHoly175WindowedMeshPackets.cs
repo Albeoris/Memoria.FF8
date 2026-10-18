@@ -75,6 +75,8 @@ public static class NativeBattleHoly175WindowedMeshPackets
         {
             return Rejected();
         }
+        AdjustAxis(context.UOffset % context.Window.Width, 0, context.Window.Width);
+        AdjustAxis(context.VOffset % context.Window.Height, 1, context.Window.Height);
         int nclip = NativeBattleModulePackets.Nclip(vertices[0].Screen, vertices[1].Screen, vertices[2].Screen);
         if (nclip == 0 || nclip < 0 && (context.Flags & (gouraud ? 0x20u : 0x10u)) == 0)
         {
@@ -86,8 +88,6 @@ public static class NativeBattleHoly175WindowedMeshPackets
         }
         vertices[3] = readCorner(3);
         packet.Word(screenOffsets[3], vertices[3].Screen);
-        AdjustAxis(context.UOffset % context.Window.Width, 0, context.Window.Width);
-        AdjustAxis(context.VOffset % context.Window.Height, 1, context.Window.Height);
         if (vertices.All(vertex => unchecked((short)vertex.Screen) is < 0 or > 2560) || vertices.All(vertex => unchecked((short)(vertex.Screen >> 16)) is < 0 or > 1728))
         {
             return Rejected();

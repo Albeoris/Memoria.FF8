@@ -14,6 +14,10 @@ public sealed record NativeBattlePrimitiveDrawMode([property: JsonRequired] usho
     public NativeBattlePcTextureWindowSelection? TextureSelection { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? TexturePixelSnapshot { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeSoftwareNormalViewportDerived? NormalViewport { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeSoftwareViewportInputs? ViewportInputs { get; init; }
     public int? BlendMode => TexturePage is ushort page ? (page >> 5) & 3 : null;
 
     public NativeBattlePrimitivePassResult ExecutePass(ImmutableArray<NativeBattlePrimitiveCommand> commands, ImmutableArray<uint> nativeHandlers)

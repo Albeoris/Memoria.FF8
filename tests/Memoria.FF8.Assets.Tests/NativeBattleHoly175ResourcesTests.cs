@@ -19,6 +19,31 @@ public sealed class NativeBattleHoly175ResourcesTests
         Assert.Equal(0xC420, resources.Tim.Data.Length);
         Assert.Equal("FF8_EN:D59180", resources.SoundDescriptor.Identity);
         Assert.Equal(4, resources.SoundDescriptor.Data.Length);
+        Assert.Equal("FF8_EN:D59250", resources.CaptureDirectory!.Identity);
+        Assert.Equal(32, resources.CaptureDirectory.Data.Length);
+        Assert.Equal("FF8_EN:D59188", resources.DelayTable!.Identity);
+        Assert.Equal(48, resources.DelayTable.Data.Length);
+        Assert.Equal("FF8_EN:D591D0", resources.RayRows!.Identity);
+        Assert.Equal(64, resources.RayRows.Data.Length);
+        Assert.Equal("FF8_EN:D59210", resources.WindowColors!.Identity);
+        Assert.Equal(64, resources.WindowColors.Data.Length);
+        NativeBattleEffectBinding installed = game.ReadNativeEffectCatalogForEffects([175])[174];
+        Assert.Equal(0x5D1AD0u, installed.Entry);
+        Assert.Equal(0x5D1AB0u, installed.Initializer);
+        Assert.Equal(new NativeBattleEffectInitializerResource("mag174.tim", 0x2392CE0), installed.InitializerResource);
+        Assert.Same(resources, installed.Holy175Resources);
+        Assert.Equal(new uint[] { 4382, 15, 4156, 11, 4124, 11, 4382, 15 }, Enumerable.Range(0, 8).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(resources.CaptureDirectory.Data.AsSpan().Slice(index * 4))).ToArray());
+        Assert.Equal("FF8_EN:D592C0", resources.CaptureBlackPackets!.Identity);
+        Assert.Equal(48, resources.CaptureBlackPackets.Data.Length);
+        for (int index = 0; index < 2; index++)
+        {
+            ReadOnlySpan<byte> black = resources.CaptureBlackPackets.Data.AsSpan().Slice(index * 24, 24);
+            Assert.Equal((byte)5, black[3]);
+            Assert.Equal(0x28000000u, BinaryPrimitives.ReadUInt32LittleEndian(black.Slice(4)));
+            Assert.Equal(320u, BinaryPrimitives.ReadUInt32LittleEndian(black.Slice(12)));
+            Assert.Equal(248u << 16, BinaryPrimitives.ReadUInt32LittleEndian(black.Slice(16)));
+            Assert.Equal(248u << 16 | 320u, BinaryPrimitives.ReadUInt32LittleEndian(black.Slice(20)));
+        }
         Assert.Equal(BinaryPrimitives.ReadUInt32LittleEndian(resources.SoundDescriptor.Data.AsSpan()), resources.Sound);
         Assert.Equal(new uint[] { 0xD522CC, 0xD52374, 0xD523E8, 0xD524C4 }, resources.ProjectedSprites.Select(sprite => sprite.Address).ToArray());
         Assert.Equal(new[] { 0xA8, 0x74, 0xDC, 0x334 }, resources.ProjectedSprites.Select(sprite => sprite.Bytes.Length).ToArray());

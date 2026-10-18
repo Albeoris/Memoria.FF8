@@ -34,7 +34,7 @@ public static class NativeBattleHoly175ResourcesReader
             }
             meshes.Add(mesh);
         }
-        return new(Allocation(0xD45188, 0xD24), Allocation(0xD45EAC, 0xC420), sprites.ToImmutable(), meshes.ToImmutable(), Allocation(0xD59180, 4));
+        return new(Allocation(0xD45188, 0xD24), Allocation(0xD45EAC, 0xC420), sprites.ToImmutable(), meshes.ToImmutable(), Allocation(0xD59180, 4)) { WindowColors = Allocation(0xD59210, 64), DelayTable = Allocation(0xD59188, 48), RayRows = Allocation(0xD591D0, 64), CaptureDirectory = Allocation(0xD59250, 32), CaptureBlackPackets = Allocation(0xD592C0, 48) };
 
         NativeBattleEffectHeapAllocation Allocation(uint address, int length) => new($"FF8_EN:{address:X}", NativeBattleEffectStaticResourcesReader.Read(memory, address, length));
     }

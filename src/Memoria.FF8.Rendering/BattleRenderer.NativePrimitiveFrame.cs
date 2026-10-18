@@ -141,8 +141,33 @@ public sealed partial class BattleRenderer
                     NativeBattlePcTextureWindowSelection window = resolved.DrawMode.TextureSelection!;
                     coordinates *= new Vector2(window.ScaleU, window.ScaleV);
                 }
-                float unit = (command.Flags20 & 1) != 0 ? 1 : 0.125f;
-                return new(unchecked((short)coordinate) * unit * Width / 320, unchecked((short)(coordinate >> 16)) * unit * Height / 216, projected[corner].Depth, projected[corner].ReciprocalW, coordinates, diffuse.Rgb, diffuse.Alpha);
+                short signedX = unchecked((short)coordinate);
+                short signedY = unchecked((short)(coordinate >> 16));
+                float x;
+                float y;
+                if (resolved.DrawMode.NormalViewport is not null || resolved.DrawMode.ViewportInputs is not null)
+                {
+                    NativeSoftwareNormalViewportDerived viewport = resolved.DrawMode.NormalViewport ?? throw new NotSupportedException("Native polygon viewport metadata requires its retained derived outputs.");
+                    NativeSoftwareViewportInputs inputs = resolved.DrawMode.ViewportInputs ?? throw new NotSupportedException("Native polygon viewport metadata requires its actual viewport inputs.");
+                    if (inputs.Width <= 0 || inputs.Height <= 0)
+                    {
+                        throw new InvalidDataException("Native polygon viewport inputs require positive dimensions.");
+                    }
+                    bool fullCoordinates = (command.Flags20 & 1) != 0;
+                    float scaleX = fullCoordinates ? viewport.ScaleX : viewport.LowCoordinateScaleX;
+                    float scaleY = fullCoordinates ? viewport.ScaleY : viewport.LowCoordinateScaleY;
+                    float nativeX = (float)((double)signedX * scaleX + viewport.NormalOffsetX);
+                    float nativeY = (float)((double)signedY * scaleY + viewport.NormalOffsetY);
+                    x = (float)(((double)nativeX + 0.5) * Width / inputs.Width);
+                    y = (float)(((double)nativeY + 0.5) * Height / inputs.Height);
+                }
+                else
+                {
+                    float unit = (command.Flags20 & 1) != 0 ? 1 : 0.125f;
+                    x = signedX * unit * Width / 320;
+                    y = signedY * unit * Height / 216;
+                }
+                return new(x, y, projected[corner].Depth, projected[corner].ReciprocalW, coordinates, diffuse.Rgb, diffuse.Alpha);
             }
             int blend = semi && resolved.Pass == 2 ? resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native semi-transparent polygon requires its inherited ABR.") : -1;
             PrimitiveVertex a = At(0);

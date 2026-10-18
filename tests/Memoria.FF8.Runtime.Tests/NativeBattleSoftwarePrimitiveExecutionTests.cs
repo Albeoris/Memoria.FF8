@@ -115,9 +115,40 @@ public sealed class NativeBattleSoftwarePrimitiveExecutionTests
         }
     }
 
+    [Fact]
+    public void ModeThreePolygonsRetainTheirExecutedViewportAcrossLaterEnvironmentChangesAndJsonRestore()
+    {
+        NativeBattleSoftwarePrimitiveExecution original = Capture();
+        NativeSoftwareDrawingEnvironmentState environment = NativeSoftwareDrawingEnvironment.Recalculate45B6F0(new(576, 256, 895, 487, 576, 256, 0, 0, 0, null));
+        NativeBattleSoftwarePrimitiveState state = original.State with { Environment = environment, ViewportInputs = new(640, 480, 3, -7) };
+        state = JsonSerializer.Deserialize<NativeBattleSoftwarePrimitiveState>(JsonSerializer.Serialize(state))!;
+        NativeBattleSoftwarePrimitiveExecution execution = new(state, original.Textures, Table(), true, original.Cache!);
+        NativeBattleLogicalCommand triangle = Triangle();
+        execution.ExecuteNormal(triangle, new(0), 1);
+        NativeBattleLogicalResolvedCommand resolved = execution.RetainTexturePixels(new(triangle, new(0), 1));
+        Assert.Equal(state.ViewportInputs, resolved.DrawMode.ViewportInputs);
+        Assert.Equal(NativeSoftwareNormalViewport.Calculate45B6F0(environment, state.ViewportInputs!), resolved.DrawMode.NormalViewport);
+        execution.ExecuteNormal(Command(0xE3, 0), new(0), 1);
+        Assert.Equal(2f, resolved.DrawMode.NormalViewport!.ScaleX);
+        Assert.Equal(2.5f, resolved.DrawMode.NormalViewport.NormalOffsetX);
+        Assert.Equal(-7.5f, resolved.DrawMode.NormalViewport.NormalOffsetY);
+        Assert.Equal(JsonSerializer.Serialize(resolved), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleLogicalResolvedCommand>(JsonSerializer.Serialize(resolved))));
+    }
+
+    [Fact]
+    public void NondefaultNormalGeometryRequiresExplicitViewportAndUnprovedTileRemainsUnsupported()
+    {
+        NativeBattleSoftwarePrimitiveExecution original = Capture();
+        NativeBattleLogicalCommand triangle = Triangle();
+        Assert.Throws<NotSupportedException>(() => original.ExecuteNormal(triangle, new(0), 1));
+        NativeBattleSoftwarePrimitiveExecution execution = new(original.State with { ViewportInputs = new(640, 480, 0, 0) }, original.Textures, Table(), true, original.Cache!);
+        NativeBattleLogicalCommand tile = new(new("test", 0, 0), 1, 0x60, [0x600000FF, 0, 0x00010001], 1, [], null);
+        Assert.Throws<NotSupportedException>(() => execution.ExecuteNormal(tile, new(0), 1));
+    }
+
     private static NativeBattleSoftwarePrimitiveExecution Capture()
     {
-        NativeBattleSoftwarePrimitiveState state = NativeBattleSoftwarePrimitiveState.FromInitializedRenderer().Initialize500400();
+        NativeBattleSoftwarePrimitiveState state = NativeBattleSoftwarePrimitiveState.FromInitializedRenderer().Initialize500400() with { ViewportInputs = null };
         byte[] record = state.EnvironmentBuffers!.Buffer1.ToArray();
         Word(0, 704);
         Word(2, 256);

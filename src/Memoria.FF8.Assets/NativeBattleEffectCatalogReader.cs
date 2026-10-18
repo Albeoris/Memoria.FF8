@@ -214,6 +214,15 @@ public sealed partial class GameAssets
                 catalog = catalog.SetItem(index, binding with { Cactuar199Resources = ReadNativeCactuar199Resources() });
                 continue;
             }
+            if (binding.Effect == 175)
+            {
+                if (binding.Entry != 0x5D1AD0 || binding.Initializer != 0x5D1AB0)
+                {
+                    throw new InvalidDataException("Native Holy differs from its original entry and initializer identity.");
+                }
+                binding = binding with { Holy175Resources = ReadNativeHoly175Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 105)
             {
                 if (binding.Entry != 0x6D3DB0 || binding.Initializer != 0x6D3DC0)

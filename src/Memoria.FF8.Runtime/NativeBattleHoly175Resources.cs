@@ -7,6 +7,19 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleHoly175SpriteResource(uint Address, ImmutableArray<byte> Bytes);
 public sealed record NativeBattleHoly175Resources(NativeBattleEffectHeapAllocation Animation, NativeBattleEffectHeapAllocation Tim, ImmutableArray<NativeBattleHoly175SpriteResource> ProjectedSprites, ImmutableArray<NativeBattleStaticMeshResource> Meshes, NativeBattleEffectHeapAllocation SoundDescriptor)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleEffectHeapAllocation? CaptureDirectory { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleEffectHeapAllocation? CaptureBlackPackets { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleEffectHeapAllocation? DelayTable { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleEffectHeapAllocation? RayRows { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleEffectHeapAllocation? WindowColors { get; init; }
+
     [JsonIgnore] public uint Sound => BinaryPrimitives.ReadUInt32LittleEndian(SoundDescriptor.Data.AsSpan());
 
     public NativeBattleHoly175SpriteResource Sprite(uint address)

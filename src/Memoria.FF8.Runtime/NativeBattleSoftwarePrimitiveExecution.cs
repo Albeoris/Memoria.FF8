@@ -73,7 +73,9 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         else
         {
             NativeSoftwareEnvironmentDerived environment = State.Environment.Derived ?? throw new NotSupportedException("Native normal drawing requires its published environment.");
-            if (environment.Mode != 1 || environment.Rectangle != new NativeSoftwareDrawingRectangle(0, 0, 320, 216) || environment.DrawPositionX != 0 || environment.DrawPositionY != 0)
+            bool defaultEnvironment = environment.Mode == 1 && environment.Rectangle == new NativeSoftwareDrawingRectangle(0, 0, 320, 216) && environment.DrawPositionX == 0 && environment.DrawPositionY == 0;
+            bool polygon = (command.Opcode & 0xE0) == 0x20;
+            if (!defaultEnvironment && (State.ViewportInputs is null || !polygon))
             {
                 throw new NotSupportedException("Native normal geometry requires the viewport scale and offset outputs for this drawing environment.");
             }
@@ -99,6 +101,11 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
 
     public NativeBattleLogicalResolvedCommand RetainTexturePixels(NativeBattleLogicalResolvedCommand command)
     {
+        if (command.Pass != 0 && (command.Command.Opcode & 0xE0) == 0x20 && State.ViewportInputs is { } viewport)
+        {
+            NativeSoftwareNormalViewportDerived normal = NativeSoftwareNormalViewport.Calculate45B6F0(State.Environment, viewport);
+            command = command with { DrawMode = command.DrawMode with { NormalViewport = normal, ViewportInputs = viewport } };
+        }
         if (command.Pass == 0 || command.DrawMode.TextureSelection is not { } selection)
         {
             return command;
