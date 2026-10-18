@@ -29,6 +29,16 @@ internal static class SystemTextLayout
 
     internal static int RasterMargin(float size) => (int)MathF.Ceiling(size * RasterScale);
 
+    public static Microsoft.Xna.Framework.Vector2 MeasureWrapped(string text, float size, float maximumWidth, string? fontFamily = null)
+    {
+        using SystemTextMeasurer measurer = CreateMeasurer(size, fontFamily);
+        List<string> lines = Wrap(text, measurer.Measure, maximumWidth);
+        // Layout needs the advances used by wrapping, including spaces and side bearings.
+        // Round outward to the raster grid so scaled bounds still fit the measured line.
+        float width = MathF.Ceiling(lines.Max(measurer.Measure) * RasterScale) / RasterScale;
+        return new Microsoft.Xna.Framework.Vector2(width, lines.Count * measurer.LineHeight);
+    }
+
     public static Bitmap Rasterize(string text, float size, float maximumWidth, string? fontFamily = null, bool preserveLineMetrics = false)
     {
         using SystemTextMeasurer measurer = CreateMeasurer(size, fontFamily);

@@ -28,7 +28,7 @@ public sealed class UiTextPopup : UiElement
         UiSize measured = canvas.MeasureText(Text, FontSize, maximumTextWidth);
         float width = Math.Clamp(MathF.Ceiling(measured.Width) + Padding.Horizontal, Math.Min(MinimumWidth, maximumWidth), maximumWidth);
         float textWidth = width - Padding.Horizontal;
-        // Cropped glyph widths and wrapping advances can differ, so measure at the final drawing width.
+        // Wrapping can change after clamping the panel to its final width.
         measured = canvas.MeasureText(Text, FontSize, textWidth);
         float height = Math.Min(Bounds.Height, MathF.Ceiling(measured.Height) + Padding.Vertical);
         float left = Math.Clamp(Bounds.X + Bounds.Width * CenterX - width / 2, Bounds.X, Bounds.Right - width);

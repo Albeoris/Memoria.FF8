@@ -120,8 +120,8 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IBattleMessageCanvas, IDi
 
     public UiSize MeasureText(string text, float fontSize, float maximumWidth)
     {
-        using Bitmap glyphs = SystemTextLayout.Rasterize(text, fontSize, maximumWidth);
-        return new UiSize(glyphs.Width / (float)SystemTextLayout.RasterScale, glyphs.Height / (float)SystemTextLayout.RasterScale);
+        Microsoft.Xna.Framework.Vector2 measured = SystemTextLayout.MeasureWrapped(text, fontSize, maximumWidth);
+        return new UiSize(measured.X, measured.Y);
     }
 
     public void BattleMessage(DialogueDocument document, float size, UiRect bounds, double seconds)

@@ -152,7 +152,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
 
     public UiSize MeasureText(string value, float size, float maximumWidth)
     {
-        Vector2 measured = text.MeasureWrapped(value, size, maximumWidth);
+        Vector2 measured = SystemTextLayout.MeasureWrapped(value, size, maximumWidth, text.FontFamily);
         return new UiSize(measured.X, measured.Y);
     }
 

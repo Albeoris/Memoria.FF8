@@ -10,6 +10,29 @@ public sealed class TripleTriadRulesViewTests
 {
     private const TripleTriadRules AllRules = TripleTriadRules.Open | TripleTriadRules.Same | TripleTriadRules.Plus | TripleTriadRules.SameWall | TripleTriadRules.Elemental | TripleTriadRules.SuddenDeath | TripleTriadRules.Random;
 
+    [Theory]
+    [InlineData(595, 486, "One")]
+    [InlineData(960, 672, "One")]
+    [InlineData(1440, 1008, "All cards from the losing hand")]
+    [InlineData(1200, 672, "One")]
+    public void RealFontRowsFitWithoutWrappingAndWindowRemainsCentered(int width, int height, string tradeRule)
+    {
+        using Bitmap bitmap = new(1, 1);
+        using BattlePreviewCanvas measurer = new(bitmap, "");
+        RecordingCanvas canvas = new() { TextMeasurer = measurer };
+        UiView view = Create(TripleTriadRules.Open, tradeRule).BuildView();
+        view.Resize(width, height);
+        view.Draw(canvas, new UiTheme());
+        Assert.Equal(width / 2f, canvas.PanelBounds.X + canvas.PanelBounds.Width / 2, 3);
+        Assert.Equal(height / 2f, canvas.PanelBounds.Y + canvas.PanelBounds.Height / 2, 3);
+        foreach (var row in canvas.Texts.Where(row => row.Text != "INFO."))
+        {
+            using SystemTextMeasurer font = SystemTextLayout.CreateMeasurer(row.FontSize);
+            Assert.Equal(new[] { row.Text }, SystemTextLayout.Wrap(row.Text, font.Measure, row.Bounds.Width));
+            Assert.True(row.Bounds.Height >= font.LineHeight, row.Text);
+        }
+    }
+
     [Fact]
     public void RulesWindowUsesOriginalBackgroundAndGrowsToFitUnwrappedContent()
     {
@@ -140,6 +163,7 @@ public sealed class TripleTriadRulesViewTests
 
     private sealed class RecordingCanvas : IUiCanvas
     {
+        public IUiCanvas? TextMeasurer { get; init; }
         public List<(string Text, float FontSize, UiRect Bounds)> Texts { get; } = [];
         public List<UiImageSource> Images { get; } = [];
         public List<float> MeasurementWidths { get; } = [];
@@ -169,7 +193,7 @@ public sealed class TripleTriadRulesViewTests
         public UiSize MeasureText(string text, float fontSize, float maximumWidth)
         {
             MeasurementWidths.Add(maximumWidth);
-            return new UiSize(NaturalWidth(text, fontSize), fontSize);
+            return TextMeasurer?.MeasureText(text, fontSize, maximumWidth) ?? new UiSize(NaturalWidth(text, fontSize), fontSize);
         }
 
         public void Image(UiImageSource source, UiRect bounds)
