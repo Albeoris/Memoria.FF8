@@ -1,0 +1,3 @@
+namespace Memoria.FF8.Runtime;
+
+public sealed record NativeBattleBlizzaraResources(NativeBattleEffectHeapAllocation Animation, NativeBattleModuleResource Sprite16, NativeBattleStaticMeshResource SkyMesh, NativeBattleStaticMeshResource RingMesh, NativeBattleStaticMeshResource PrimaryMesh, NativeBattleStaticMeshResource PartnerMesh, uint Sound);

@@ -165,6 +165,11 @@ public sealed partial class GameAssets
                 binding = binding with { ThundaraResources = ReadNativeThundaraResources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 103)
+            {
+                binding = binding with { BlizzaraResources = ReadNativeBlizzaraResources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Entry == 0x61ABA0)
             {
                 binding = binding with { BlizzardResources = ReadNativeBlizzardResources() };

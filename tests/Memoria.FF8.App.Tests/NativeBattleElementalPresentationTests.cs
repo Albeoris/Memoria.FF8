@@ -35,6 +35,7 @@ public sealed class NativeBattleElementalPresentationTests
             142 => new(142, 0x61CE10, 0x24BFB68, 0x24BFB78, 0x61DD90, 0x61CEC0, 45, 300003, 0x100, [9, 11, 14, 20]),
             143 => new(143, 0x61BFE0, 0x24BECE0, 0x24BECF0, 0x61CDA0, 0x61C0A0, 70, 300056, 0, [4, 14, 33, 48, 60]),
             102 => new(102, 0x6DC2D0, 0x2544DD0, 0x2544DE0, 0x6DC390, 0x6DC510, 38, 300009, 0x101, [4, 12, 24, 26, 31], [0x2544DF0, 0x2544E00], false),
+            103 => new(103, 0x6DA300, 0x2543EB8, 0x2543EC8, 0x6DA3A0, 0x6DAA30, 72, 300015, 0x101, [20, 30, 45, 50, 60, 69], [0x2543ED8, 0x2543EE8, 0x2543EF8, 0x2543F08], false),
             _ => throw new NotSupportedException("The fixture needs a proved elemental presentation recipe.")
         };
         Assert.True(initialGraphics.ActionGraphics is null || initialGraphics.ActionGraphics.HeaderIndex == headerIndex);
@@ -202,7 +203,7 @@ public sealed class NativeBattleElementalPresentationTests
     }
 
     private static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot, EffectCase spec) => snapshot.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: not null } effect && effect.Binding.Effect == spec.Effect && effect.Binding.Entry == spec.Entry ? effect : null;
-    private static NativeBattleModulePoolTask? Controller(NativeBattleOriginalEffectState? effect, EffectCase spec) => effect?.Pools.Single(pool => pool.DescriptorAddress == spec.ChildDescriptor).Slots.SingleOrDefault(task => (task.Flags & 1) != 0 && task.Callback == spec.ControllerCallback && task.ReadWord(14) == 0);
+    private static NativeBattleModulePoolTask? Controller(NativeBattleOriginalEffectState? effect, EffectCase spec) => effect?.Pools.SingleOrDefault(pool => pool.DescriptorAddress == spec.ChildDescriptor)?.Slots.SingleOrDefault(task => (task.Flags & 1) != 0 && task.Callback == spec.ControllerCallback && task.ReadWord(14) == 0);
     private static bool ChildrenLive(NativeBattleOriginalEffectState effect, EffectCase spec) => effect.Pools.Any(pool => (pool.DescriptorAddress == spec.ChildDescriptor || spec.AdditionalChildDescriptors?.Contains(pool.DescriptorAddress) == true) && pool.Head is not null);
     private static ushort? RootCounter(NativeBattleOriginalEffectState? effect, EffectCase spec) => effect?.Pools.Single(pool => pool.DescriptorAddress == spec.MainDescriptor).Slots.Single(task => task.Callback == spec.RootCallback).ReadWord(12);
     private sealed record EffectCase(ushort Effect, uint Entry, uint MainDescriptor, uint ChildDescriptor, uint RootCallback, uint ControllerCallback, int MaximumLocalCallbacks, uint Sound, uint SoundFlags, int[] Phases, uint[]? AdditionalChildDescriptors = null, bool ChangesStage = true);
