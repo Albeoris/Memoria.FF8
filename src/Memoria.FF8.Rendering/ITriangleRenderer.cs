@@ -69,6 +69,12 @@ public interface ITriangleRenderer
     void End();
 }
 
+/// <summary>Ordered screen-space line segments using the same material and depth state as triangles.</summary>
+public interface ILineRenderer
+{
+    void DrawLine(in TriangleVertex a, in TriangleVertex b, in TriangleMaterial material);
+}
+
 /// <summary>Optional readback of the active scene after pending triangles have been submitted.</summary>
 public interface IFramebufferCaptureRenderer
 {

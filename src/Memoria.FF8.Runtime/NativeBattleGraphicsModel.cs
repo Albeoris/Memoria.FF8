@@ -51,10 +51,14 @@ public sealed record NativeBattleGraphicsRemoval(NativeBattleGraphicsModel Model
 
 public static class NativeBattleGraphicsModels
 {
-    public static NativeBattleGraphicsModel[] ClearBank()
+    public static NativeBattleGraphicsModel[] ClearBank(System.Collections.Immutable.ImmutableArray<uint?>? retainedColors40 = null)
     {
         //502340 clears only Flags0 of each of seven records. Unknown retained fields must not be supplied as zeros.
-        return Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 0)).ToArray();
+        if (retainedColors40 is { } colors && (colors.IsDefault || colors.Length != 7))
+        {
+            throw new InvalidDataException("Native502340 requires the retained seven model-color DWORDs.");
+        }
+        return Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 0) { Color40 = retainedColors40?[index] }).ToArray();
     }
 
     public static NativeBattleGraphicsModel CompleteLoad(NativeBattleGraphicsModel model, byte modelId, uint projectedStatusFlags, ref NativeGlobalRandomState random, byte? information246 = null)

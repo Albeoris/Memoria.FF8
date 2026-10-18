@@ -10,7 +10,7 @@ public sealed class NativeBattleScanTests
     [InlineData(159)]
     public void NativeScanSetsTheOriginalModelBitAndPersistsItAcrossStandaloneRestore(int model)
     {
-        BattleSession battle = Create(model - 16);
+        BattleSession battle = Create(model);
 
         Hit(battle);
 
@@ -33,7 +33,30 @@ public sealed class NativeBattleScanTests
         Hit(battle);
 
         Assert.Equal(messages, battle.Events.Count(entry => entry.Kind == "Scan"));
-        Assert.True(battle.Capture().NativeScannedModels!.Contains(17));
+        Assert.True(battle.Capture().NativeScannedModels!.Contains(1));
+    }
+
+    [Theory]
+    [InlineData(61, false, 3, 0)]
+    [InlineData(61, true, 1, 1)]
+    [InlineData(77, false, 1, 1)]
+    public void Contact_flags_use_descriptor_model_history_and_preserve_success_bit_when_known_Scan_is_suppressed(int priorModel, bool alwaysShow, byte flags, int messages)
+    {
+        BattleSession battle = Create(61, alwaysShow, history: Empty().Add(priorModel));
+        battle.QueueNativePlayerCommand("party", "enemy", 2, 1);
+        for (int admission = 0; admission < 7 && battle.NativeActionPackets.ActionCount == 0; admission++)
+        {
+            battle.Tick();
+        }
+        Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
+        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.Headers[0];
+        NativeBattleContactPacket packet = battle.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value);
+        Assert.Equal(flags, packet.Primary.Flags2);
+        Assert.Equal(messages, battle.Events.Count(entry => entry.Kind == "Scan"));
+        NativeScannedModels after = battle.Capture().NativeScannedModels!;
+        Assert.True(after.Contains(61));
+        Assert.True(after.Contains(priorModel));
+        Assert.Equal(after.Words, BattleSession.Restore(battle.Capture()).Capture().NativeScannedModels!.Words);
     }
 
     [Fact]
@@ -67,7 +90,7 @@ public sealed class NativeBattleScanTests
         }
     }
 
-    private static BattleSession Create(int enemyModel = 1, bool alwaysShow = false, bool known = true)
+    private static BattleSession Create(int enemyModel = 1, bool alwaysShow = false, bool known = true, NativeScannedModels? history = null)
     {
         BattleNativeAction scan = new(2, 1, 1, 1)
         {
@@ -93,13 +116,15 @@ public sealed class NativeBattleScanTests
         return new(new BattleDefinition
         {
             NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
+            NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             Name = "Native Scan component",
-            NativeScannedModels = known ? Empty() : null,
+            NativeScannedModels = known ? history ?? Empty() : null,
             NativeScanAlwaysShow = alwaysShow,
+            NativeActions = [scan],
             ActionDefinitions = [new(BattleAbility.Magic, 1, "Scan", BattleActionEffect.Native, 0, false) { NativeAction = scan }],
             Combatants =
             [
-                new() { Id = "party", Name = "Party", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, MagicStocks = [new(1, 2)], Abilities = [BattleAbility.Attack, BattleAbility.Magic] },
+                new() { Id = "party", Name = "Party", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, MagicStocks = [new(1, 2)], Abilities = [BattleAbility.Attack, BattleAbility.Magic], NativeCommands = [new(2, "Scan", 0x50, 1)] },
                 new() { Id = "enemy", Name = "Enemy", ModelId = enemyModel }
             ]
         }, BattleAtbMode.Normal);

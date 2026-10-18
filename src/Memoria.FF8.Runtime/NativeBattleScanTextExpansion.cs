@@ -67,7 +67,7 @@ public static class NativeBattleScanTextExpansion
                     cursor++;
                 }
             }
-            else if (token == 6)
+            else if (token is 5 or 6)
             {
                 output = output.WriteByte(cursor++, Read());
             }

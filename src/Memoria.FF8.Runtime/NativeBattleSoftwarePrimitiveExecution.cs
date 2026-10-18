@@ -109,7 +109,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
 
     public NativeBattleLogicalResolvedCommand RetainTexturePixels(NativeBattleLogicalResolvedCommand command)
     {
-        if (command.Pass != 0 && (command.Command.Opcode & 0xE0) == 0x20 && State.ViewportInputs is { } viewport)
+        if (command.Pass != 0 && (command.Command.Opcode & 0xE0) is 0x20 or 0x40 && State.ViewportInputs is { } viewport)
         {
             NativeSoftwareNormalViewportDerived normal = NativeSoftwareNormalViewport.Calculate45B6F0(State.Environment, viewport);
             command = command with { DrawMode = command.DrawMode with { NormalViewport = normal, ViewportInputs = viewport } };

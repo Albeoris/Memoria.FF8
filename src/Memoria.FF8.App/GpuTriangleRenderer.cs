@@ -7,7 +7,7 @@ using Vector4N = System.Numerics.Vector4;
 namespace Memoria.FF8;
 
 /// <summary>Ordered hardware triangle rasterizer; scene decoding remains in the shared rendering library.</summary>
-public sealed class GpuTriangleRenderer : ITriangleRenderer, IFramebufferCaptureRenderer, IDisposable
+public sealed class GpuTriangleRenderer : ITriangleRenderer, ILineRenderer, IFramebufferCaptureRenderer, IDisposable
 {
     private readonly GraphicsDevice device;
     private readonly Effect effect;
@@ -18,6 +18,7 @@ public sealed class GpuTriangleRenderer : ITriangleRenderer, IFramebufferCapture
     private readonly GpuVertex[] vertices = new GpuVertex[12288];
     private readonly HashSet<PixelImage> dynamicUploads = new(ReferenceEqualityComparer.Instance);
     private TriangleMaterial pendingMaterial;
+    private PrimitiveType pendingPrimitiveType;
     private int vertexCount;
     private RenderTargetBinding[] previousTargets = [];
     private Viewport previousViewport;
@@ -87,14 +88,31 @@ public sealed class GpuTriangleRenderer : ITriangleRenderer, IFramebufferCapture
         {
             throw new InvalidOperationException("Begin must precede Draw.");
         }
-        if (vertexCount > 0 && (pendingMaterial != material || vertexCount + 3 > vertices.Length))
+        if (vertexCount > 0 && (pendingPrimitiveType != PrimitiveType.TriangleList || pendingMaterial != material || vertexCount + 3 > vertices.Length))
         {
             Flush();
         }
         pendingMaterial = material;
+        pendingPrimitiveType = PrimitiveType.TriangleList;
         vertices[vertexCount++] = new(a);
         vertices[vertexCount++] = new(b);
         vertices[vertexCount++] = new(c);
+    }
+
+    public void DrawLine(in TriangleVertex a, in TriangleVertex b, in TriangleMaterial material)
+    {
+        if (!active)
+        {
+            throw new InvalidOperationException("Begin must precede DrawLine.");
+        }
+        if (vertexCount > 0 && (pendingPrimitiveType != PrimitiveType.LineList || pendingMaterial != material || vertexCount + 2 > vertices.Length))
+        {
+            Flush();
+        }
+        pendingMaterial = material;
+        pendingPrimitiveType = PrimitiveType.LineList;
+        vertices[vertexCount++] = new(a);
+        vertices[vertexCount++] = new(b);
     }
 
     public bool TryCaptureArgb(out uint[] pixels)
@@ -159,7 +177,7 @@ public sealed class GpuTriangleRenderer : ITriangleRenderer, IFramebufferCapture
         {
             pass.Apply();
             device.SamplerStates[0] = sampler;
-            device.DrawUserPrimitives(PrimitiveType.TriangleList, vertices, 0, vertexCount / 3);
+            device.DrawUserPrimitives(pendingPrimitiveType, vertices, 0, vertexCount / (pendingPrimitiveType == PrimitiveType.LineList ? 2 : 3));
             FrameDrawCalls++;
         }
         vertexCount = 0;

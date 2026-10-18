@@ -15,7 +15,7 @@ public sealed partial class BattleRenderer
     private NativeBattleEffectTextureState? nativeTextureOwner;
     private NativeBattlePcDirectTextureFormat? nativeDirectTextureFormat;
     private readonly List<NativeRasterTriangle> nativeTriangles = [];
-    private readonly record struct NativeRasterTriangle(PrimitiveVertex A, PrimitiveVertex B, PrimitiveVertex C, PixelImage? Texture, int Blend, byte Pass, float Area, int Left, int Right, int Top, int Bottom);
+    private readonly record struct NativeRasterTriangle(PrimitiveVertex A, PrimitiveVertex B, PrimitiveVertex C, PixelImage? Texture, int Blend, byte Pass, float Area, int Left, int Right, int Top, int Bottom, bool Line = false);
 
     /// <summary>Render the executed original battle OT into a viewport representing its320x216 draw environment.</summary>
     public byte[] RenderNativePrimitiveFrame(NativeBattlePrimitiveFrame frame, NativeBattleEffectTextureState? textures, BattleCamera? overlayCamera = null, NativeBattlePrimitiveCapabilities? capabilities = null, NativeBattlePcTextureWindowCache? textureWindowCache = null)
@@ -50,6 +50,11 @@ public sealed partial class BattleRenderer
                 continue;
             }
             NativeBattleLogicalCommand command = resolved.Command;
+            if (command.Opcode is 0x40 or 0x42)
+            {
+                DrawNativePrimitiveLine(frame, resolved);
+                continue;
+            }
             if ((command.Opcode & 0xFC) == 0x60)
             {
                 DrawNativePrimitiveTile(frame, resolved);
@@ -135,33 +140,8 @@ public sealed partial class BattleRenderer
                     NativeBattlePcTextureWindowSelection window = resolved.DrawMode.TextureSelection!;
                     coordinates *= new Vector2(window.ScaleU, window.ScaleV);
                 }
-                short signedX = unchecked((short)coordinate);
-                short signedY = unchecked((short)(coordinate >> 16));
-                float x;
-                float y;
-                if (resolved.DrawMode.NormalViewport is not null || resolved.DrawMode.ViewportInputs is not null)
-                {
-                    NativeSoftwareNormalViewportDerived viewport = resolved.DrawMode.NormalViewport ?? throw new NotSupportedException("Native polygon viewport metadata requires its retained derived outputs.");
-                    NativeSoftwareViewportInputs inputs = resolved.DrawMode.ViewportInputs ?? throw new NotSupportedException("Native polygon viewport metadata requires its actual viewport inputs.");
-                    if (inputs.Width <= 0 || inputs.Height <= 0)
-                    {
-                        throw new InvalidDataException("Native polygon viewport inputs require positive dimensions.");
-                    }
-                    bool fullCoordinates = (command.Flags20 & 1) != 0;
-                    float scaleX = fullCoordinates ? viewport.ScaleX : viewport.LowCoordinateScaleX;
-                    float scaleY = fullCoordinates ? viewport.ScaleY : viewport.LowCoordinateScaleY;
-                    float nativeX = (float)((double)signedX * scaleX + viewport.NormalOffsetX);
-                    float nativeY = (float)((double)signedY * scaleY + viewport.NormalOffsetY);
-                    x = (float)(((double)nativeX + 0.5) * Width / inputs.Width);
-                    y = (float)(((double)nativeY + 0.5) * Height / inputs.Height);
-                }
-                else
-                {
-                    float unit = (command.Flags20 & 1) != 0 ? 1 : 0.125f;
-                    x = signedX * unit * Width / 320;
-                    y = signedY * unit * Height / 216;
-                }
-                return new(x, y, projected[corner].Depth, projected[corner].ReciprocalW, coordinates, diffuse.Rgb, diffuse.Alpha);
+                Vector2 position = NativePrimitivePosition(coordinate, command.Flags20, resolved.DrawMode);
+                return new(position.X, position.Y, projected[corner].Depth, projected[corner].ReciprocalW, coordinates, diffuse.Rgb, diffuse.Alpha);
             }
             int blend = semi && resolved.Pass == 2 ? resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native semi-transparent polygon requires its inherited ABR.") : -1;
             PrimitiveVertex a = At(0);
@@ -198,7 +178,14 @@ public sealed partial class BattleRenderer
             // Every stripe executes the original submission order, with exclusive color/depth rows.
             foreach (NativeRasterTriangle triangle in nativeTriangles)
             {
-                RasterNativePrimitive(triangle, top, bottom);
+                if (triangle.Line)
+                {
+                    RasterNativeLine(triangle, top, bottom);
+                }
+                else
+                {
+                    RasterNativePrimitive(triangle, top, bottom);
+                }
             }
         }
     }

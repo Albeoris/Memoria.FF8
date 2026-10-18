@@ -4,7 +4,10 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleScanTargetFrame(NativeBattleScanFrame Scan, ImmutableArray<NativeBattleGraphicsModel> Models, ImmutableArray<NativeBattleScanByteOwner> PhysicalModels);
 public sealed record NativeBattleScanTargetStep(NativeBattleScanTargetFrame Frame, int Result);
-public sealed record NativeBattleScanTargetInputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<uint, byte> ReadExternalByte, Func<NativeBattleScanTargetFrame, uint, uint, byte, NativeBattleScanTargetFrame> Sound501330, Func<NativeBattleScanTargetFrame, int, NativeBattleScanTargetFrame> ApplyContact506690);
+public sealed record NativeBattleScanTargetInputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<uint, byte> ReadExternalByte, Func<NativeBattleScanTargetFrame, uint, uint, byte, NativeBattleScanTargetFrame> Sound501330, Func<NativeBattleScanTargetFrame, int, NativeBattleScanTargetFrame> ApplyContact506690)
+{
+    public Func<int, byte>? ReadResourceSequence { get; init; }
+}
 
 public static class NativeBattleScanTarget
 {
@@ -49,7 +52,7 @@ public static class NativeBattleScanTarget
             case 0:
                 NativeBattleScanProcess process = frame.Scan.Memory.Scan ?? throw new NotSupportedException("Native Scan target requires its retained presentation process.");
                 frame = frame with { Scan = frame.Scan with { Memory = frame.Scan.Memory with { Scan = process with { Presentation = process.Presentation with { Result269D938 = 0, Exit269CE2C = 0 } } } } };
-                NativeBattleScanModelSelectionResult selection = NativeBattleScanModelSelection.Select84D320(frame.PhysicalModels, task.ReadByte(0x2D), inputs.ReadExternalByte);
+                NativeBattleScanModelSelectionResult selection = NativeBattleScanModelSelection.Select84D320(frame.PhysicalModels, task.ReadByte(0x2D), inputs.ReadExternalByte, inputs.ReadResourceSequence);
                 process = frame.Scan.Memory.Scan!;
                 NativeBattleScanByteOwner selected = process.Presentation.Selection269A1BC;
                 for (int index = 0; index < 7; index++)

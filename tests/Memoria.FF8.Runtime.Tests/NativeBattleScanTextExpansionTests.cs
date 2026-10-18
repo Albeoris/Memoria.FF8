@@ -115,7 +115,6 @@ public sealed class NativeBattleScanTextExpansionTests
 
     [Theory]
     [InlineData(4)]
-    [InlineData(5)]
     [InlineData(8)]
     [InlineData(0x18)]
     [InlineData(0xE8)]

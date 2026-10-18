@@ -53,6 +53,16 @@ internal static class NativeScanWindowDrawing
                     {
                         float x = left + (window.OriginalRectangle.X + 6 + line.X) * scale;
                         float y = top + (window.OriginalRectangle.Y + 6 + line.Y) * scale;
+                        float lineSize = size;
+                        if (line.FitWidth)
+                        {
+                            float width = line.Line.Runs.Sum(run => canvas is INativeScanTextCanvas native ? native.ScanTextAdvance(run.Text, size) : canvas.MeasureText(run.Text, size, float.PositiveInfinity).Width);
+                            float available = Math.Max(0, clip.X + clip.Width - x);
+                            if (width > available && available > 0)
+                            {
+                                lineSize *= available / width;
+                            }
+                        }
                         foreach (DialogueRun run in line.Line.Runs)
                         {
                             Color source = run.Color;
@@ -60,13 +70,13 @@ internal static class NativeScanWindowDrawing
                             UiColor color = new(Channel(source.R, intensity), Channel(source.G, intensity), Channel(source.B, intensity), (byte)Math.Clamp((int)(source.A * opacity), 0, 255));
                             if (canvas is INativeScanTextCanvas native)
                             {
-                                native.ScanTextRun(run.Text, size, x, y, color);
-                                x += native.ScanTextAdvance(run.Text, size);
+                                native.ScanTextRun(run.Text, lineSize, x, y, color);
+                                x += native.ScanTextAdvance(run.Text, lineSize);
                             }
                             else
                             {
-                                UiSize measured = canvas.MeasureText(run.Text, size, float.PositiveInfinity);
-                                canvas.Text(run.Text, size, new UiRect(x, y, Math.Max(1, measured.Width + size), Math.Max(16 * scale, measured.Height)), color, UiAlignment.Start);
+                                UiSize measured = canvas.MeasureText(run.Text, lineSize, float.PositiveInfinity);
+                                canvas.Text(run.Text, lineSize, new UiRect(x, y, Math.Max(1, measured.Width + lineSize), Math.Max(16 * scale, measured.Height)), color, UiAlignment.Start);
                                 x += measured.Width;
                             }
                         }

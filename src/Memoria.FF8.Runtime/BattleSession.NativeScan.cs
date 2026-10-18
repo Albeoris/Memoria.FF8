@@ -43,7 +43,7 @@ public sealed partial class BattleSession
             switch (task.Callback)
             {
                 case 0x84D230:
-                    NativeBattleScanTargetStep target = NativeBattleScanTarget.Advance84D230(new(current, graphics.Models, NativeBattleScanPhysicalModels.Capture(graphics.Models)), address, new(nativeActionPackets, PoseSource, ReadExternal, Sound, Contact));
+                    NativeBattleScanTargetStep target = NativeBattleScanTarget.Advance84D230(new(current, graphics.Models, NativeBattleScanPhysicalModels.Capture(graphics.Models)), address, new(nativeActionPackets, PoseSource, ReadExternal, Sound, Contact) { ReadResourceSequence = ReadResourceSequence });
                     graphics = graphics with { Models = target.Frame.Models };
                     return new(target.Frame.Scan, target.Result);
                 case 0x84D4B0:
@@ -143,7 +143,7 @@ public sealed partial class BattleSession
         }
         NativeBattleScanViewerProfile Profile(NativeBattleScanFrame current, int actor)
         {
-            ushort category = NativeBattleScanModelSelection.Category84D410(NativeBattleScanPhysicalModels.Capture(graphics.Models), checked((short)actor), ReadExternal);
+            ushort category = NativeBattleScanModelSelection.Category84D410(NativeBattleScanPhysicalModels.Capture(graphics.Models), checked((short)actor), ReadExternal, ReadResourceSequence);
             NativeBattleScanCameraProfile profile = current.Effect.Binding.ScanCameraProfiles?.Single(item => item.Category == category) ?? throw new NotSupportedException("Native Scan requires its original category camera profile.");
             return new(category, new(profile.Bytes, Enumerable.Repeat(true, 16).ToImmutableArray()));
         }
@@ -172,6 +172,7 @@ public sealed partial class BattleSession
             return f with { Memory = f.Memory with { Scan = f.Memory.Scan! with { Text = captured } } };
         }
         uint Options() => definition.NativeSavedOptions ?? throw new NotSupportedException("Native Scan requires its actual saved input mapping.");
+        byte ReadResourceSequence(int actor) => graphics.Models[actor].Sequence ?? throw new NotSupportedException("Native Scan category requires its current resource sequence header BYTE0.");
         byte ReadExternal(uint pointer) => throw new NotSupportedException($"Native Scan model source{pointer:X8} requires its retained owner.");
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Native Scan requires its current camera.");
         void PublishCamera(NativeBattleScanByteOwner eye, NativeBattleScanByteOwner target, ushort zoom)

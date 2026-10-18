@@ -3,7 +3,10 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.GameUi;
 
-internal sealed record NativeScanTextLine(DialogueLine Line, int X, int Y);
+internal sealed record NativeScanTextLine(DialogueLine Line, int X, int Y)
+{
+    public bool FitWidth { get; init; }
+}
 internal sealed record NativeScanWindowText(int Index, NativeBattleScanRect Outer, NativeBattleScanRect Inner, ushort Progress, ushort Intensity, byte Priority, IReadOnlyList<NativeScanTextLine> Lines)
 {
     public required NativeBattleScanRect OriginalRectangle { get; init; }
@@ -66,6 +69,7 @@ internal static class NativeScanWindowTextProjection
                 NativeBattleScanTextLineStep next = NativeBattleScanTextExpansion.AdvanceLine4B8AC0(working with { Formatting1D7660C = (byte)style }, source, services.ReadOriginalByte);
                 List<byte> text = [6, (byte)(0x20 | style)];
                 int cursor = 0;
+                bool fitWidth = false;
                 byte terminal;
                 while (true)
                 {
@@ -75,7 +79,25 @@ internal static class NativeScanWindowTextProjection
                         terminal = token;
                         break;
                     }
-                    if (token == 6)
+                    if (token == 5)
+                    {
+                        fitWidth = true;
+                        byte icon = working.ExpandedContext128.ReadByte(cursor++);
+                        string label = icon switch
+                        {
+                            0x5D => "Fire",
+                            0x5E => "Ice",
+                            0x5F => "Thunder",
+                            0x60 => "Earth",
+                            0x61 => "Poison",
+                            0x62 => "Wind",
+                            0x63 => "Water",
+                            0x64 => "Holy",
+                            _ => throw new NotSupportedException($"Scan inline icon{icon:X2} requires its semantic system-font presentation.")
+                        };
+                        text.AddRange(encoding.GetBytes(label));
+                    }
+                    else if (token == 6)
                     {
                         style = working.ExpandedContext128.ReadByte(cursor++) & 0xF;
                         text.Add(6);
@@ -93,7 +115,7 @@ internal static class NativeScanWindowTextProjection
                 {
                     x += 32;
                 }
-                lines.Add(new(line, x, y));
+                lines.Add(new(line, x, y) { FitWidth = fitWidth });
                 if (terminal != 2)
                 {
                     break;

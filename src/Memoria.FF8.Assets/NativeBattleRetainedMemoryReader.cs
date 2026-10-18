@@ -167,7 +167,7 @@ public static class NativeBattleRetainedMemoryReader
         {
             throw new InvalidDataException("Authenticated cold507F80 dummy geometry header contradicts its zero-filled loader image.");
         }
-        NativeBattleRetainedMemory result = new(packets, allocation, mirrors, scratch, effectIoResult, hash) { ElementAttack = Enumerable.Range(0, 7).Select(index => (byte?)ReadLoaderBytes(checked(0x1D27BD5u + 208u * (uint)index), 1)[0]).ToImmutableArray(), EffectMemory = effectMemory, ModelTextureCache = NativeBattleModelTextureCache.FromColdProcess(), ModelCpuResources = NativeBattleModelCpuResources.FromColdProcess(), FileStaging = NativeBattleFileStaging.Unknown().Write(0x1D999C0, emptyGeometry), Stage = NativeBattleStageState.FromColdProcess(), Camera = camera, ActionMemory = actionMemory, FileIo = NativeBattleFileIoState.FromColdProcess() };
+        NativeBattleRetainedMemory result = new(packets, allocation, mirrors, scratch, effectIoResult, hash) { ModelColors40 = Enumerable.Range(0, 7).Select(index => (uint?)BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(checked(0x1D972E8u + 156u * (uint)index), 4))).ToImmutableArray(), ElementAttack = Enumerable.Range(0, 7).Select(index => (byte?)ReadLoaderBytes(checked(0x1D27BD5u + 208u * (uint)index), 1)[0]).ToImmutableArray(), EffectMemory = effectMemory, ModelTextureCache = NativeBattleModelTextureCache.FromColdProcess(), ModelCpuResources = NativeBattleModelCpuResources.FromColdProcess(), FileStaging = NativeBattleFileStaging.Unknown().Write(0x1D999C0, emptyGeometry), Stage = NativeBattleStageState.FromColdProcess(), Camera = camera, ActionMemory = actionMemory, FileIo = NativeBattleFileIoState.FromColdProcess() };
         result.Validate();
         return result;
 

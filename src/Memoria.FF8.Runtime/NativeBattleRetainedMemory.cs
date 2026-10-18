@@ -33,6 +33,8 @@ public sealed record NativeBattleRetainedMemory([property: JsonRequired] NativeB
     [JsonRequired]
     public NativeBattleEffectMemory? EffectMemory { get; init; }
     public NativeBattleStageState? Stage { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<uint?>? ModelColors40 { get; init; }
     public NativeBattleModelTextureCache? ModelTextureCache { get; init; }
     public NativeBattleModelLoader? ModelLoader { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -53,13 +55,13 @@ public sealed record NativeBattleRetainedMemory([property: JsonRequired] NativeB
     {
         //Authenticated FF8_EN .data zero-fill: packet arenas, DF9/DFD/E01 and the three party E30/E38 mirrors.
         NativeBattleActionScratch scratch = new() { DeferredEffectsE00 = false, GuardianFormulaE1E = false, GuardianBoostPercent = 0, FinisherPendingE03 = false, LastPublishedTargetCountE05 = 0, FinisherActionIndexE2E = 0, ActorIndex = 0, Command = 0, Action = 0, EventActorB0F = 0, EventLane = 0 };
-        return new(NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]), new(0, false, false), new([0, 0, 0], [0u, 0u, 0u]), scratch, 0, NativeFieldRuntimeProfile.FF8EnExecutableHash) { ElementAttack = [0, 0, 0, 0, 0, 0, 0], EffectMemory = NativeBattleEffectMemory.FromColdProcess(), Stage = NativeBattleStageState.FromColdProcess(), ModelTextureCache = NativeBattleModelTextureCache.FromColdProcess(), ModelCpuResources = NativeBattleModelCpuResources.FromColdProcess(), FileStaging = NativeBattleFileStaging.Unknown().Write(0x1D999C0, new byte[4]), Camera = NativeBattleCameraState.FromColdProcess(), FileIo = NativeBattleFileIoState.FromColdProcess(), ActionMemory = NativeBattleActionMemory.FromLoaderBytes(new byte[56]) };
+        return new(NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]), new(0, false, false), new([0, 0, 0], [0u, 0u, 0u]), scratch, 0, NativeFieldRuntimeProfile.FF8EnExecutableHash) { ModelColors40 = [0u, 0u, 0u, 0u, 0u, 0u, 0u], ElementAttack = [0, 0, 0, 0, 0, 0, 0], EffectMemory = NativeBattleEffectMemory.FromColdProcess(), Stage = NativeBattleStageState.FromColdProcess(), ModelTextureCache = NativeBattleModelTextureCache.FromColdProcess(), ModelCpuResources = NativeBattleModelCpuResources.FromColdProcess(), FileStaging = NativeBattleFileStaging.Unknown().Write(0x1D999C0, new byte[4]), Camera = NativeBattleCameraState.FromColdProcess(), FileIo = NativeBattleFileIoState.FromColdProcess(), ActionMemory = NativeBattleActionMemory.FromLoaderBytes(new byte[56]) };
     }
 
     public static NativeBattleRetainedMemory Capture(BattleSnapshot snapshot, string? coldExecutableSha256)
     {
         NativeBattleActionScratch scratch = snapshot.NativeActionScratch ?? throw new InvalidDataException("Native retained memory requires its actual action scratch owner.");
-        NativeBattleRetainedMemory result = new(snapshot.NativeActionPackets ?? throw new InvalidDataException("Native retained memory requires the actual action packet owner."), snapshot.NativeScriptState.AllocationControl, snapshot.NativePartyStatusMirrors ?? throw new InvalidDataException("Native retained memory requires its actual party status mirrors."), scratch with { ComponentCompletion = null }, snapshot.NativeEffectIoResult, coldExecutableSha256) { ElementAttack = snapshot.NativeElementAttack, EffectMemory = snapshot.NativeEffectMemory, Stage = snapshot.NativeStage, ModelTextureCache = snapshot.NativeModelTextureCache, ModelLoader = snapshot.NativeModelLoader, FileStaging = snapshot.NativeFileStaging, ModelCpuResources = snapshot.NativeModelCpuResources, Camera = snapshot.NativeCamera, FileIo = snapshot.NativeFileIo, VibrationProcess = snapshot.NativeVibrationProcess, MusicProcess = snapshot.NativeMusicProcess, ActionMemory = snapshot.NativeActionMemory ?? throw new InvalidDataException("Native retained action memory is missing.") };
+        NativeBattleRetainedMemory result = new(snapshot.NativeActionPackets ?? throw new InvalidDataException("Native retained memory requires the actual action packet owner."), snapshot.NativeScriptState.AllocationControl, snapshot.NativePartyStatusMirrors ?? throw new InvalidDataException("Native retained memory requires its actual party status mirrors."), scratch with { ComponentCompletion = null }, snapshot.NativeEffectIoResult, coldExecutableSha256) { ModelColors40 = snapshot.Definition.NativeRetainedMemory?.ModelColors40 is null ? null : snapshot.NativeGraphics?.Models.Select(model => model.Color40).ToImmutableArray() ?? snapshot.Definition.NativeRetainedMemory.ModelColors40, ElementAttack = snapshot.NativeElementAttack, EffectMemory = snapshot.NativeEffectMemory, Stage = snapshot.NativeStage, ModelTextureCache = snapshot.NativeModelTextureCache, ModelLoader = snapshot.NativeModelLoader, FileStaging = snapshot.NativeFileStaging, ModelCpuResources = snapshot.NativeModelCpuResources, Camera = snapshot.NativeCamera, FileIo = snapshot.NativeFileIo, VibrationProcess = snapshot.NativeVibrationProcess, MusicProcess = snapshot.NativeMusicProcess, ActionMemory = snapshot.NativeActionMemory ?? throw new InvalidDataException("Native retained action memory is missing.") };
         result.Validate();
         return result;
     }
@@ -69,6 +71,10 @@ public sealed record NativeBattleRetainedMemory([property: JsonRequired] NativeB
         if (ActionPackets is null || PartyStatusMirrors is null || ActionScratch is null || ElementAttack.IsDefault || ElementAttack.Length != 7 || ActionScratch.ComponentCompletion is not null || ColdExecutableSha256 is not null && (ColdExecutableSha256.Length != 64 || !ColdExecutableSha256.All(Uri.IsHexDigit)))
         {
             throw new InvalidDataException("Native retained battle memory lacks its physical owners or valid cold-image provenance.");
+        }
+        if (ModelColors40 is { } colors && (colors.IsDefault || colors.Length != 7))
+        {
+            throw new InvalidDataException("Native retained model colors require the seven physical DWORDs.");
         }
         ActionPackets.Validate();
         PartyStatusMirrors.Validate();

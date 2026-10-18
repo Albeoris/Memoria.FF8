@@ -9,12 +9,12 @@ public static class NativeBattleScanModelSelection
     public const uint ModelBase = 0x1D972C0;
     public const int ModelStride = 0x9C;
 
-    public static NativeBattleScanModelSelectionResult Select84D320(ImmutableArray<NativeBattleScanByteOwner> models, short actor, Func<uint, byte> readExternalByte)
+    public static NativeBattleScanModelSelectionResult Select84D320(ImmutableArray<NativeBattleScanByteOwner> models, short actor, Func<uint, byte> readExternalByte, Func<int, byte>? readResourceSequence = null)
     {
         Validate(models);
         uint source = Address(actor);
         uint selected = Minimum501FF0(models, source);
-        byte category = Category84D410(models, actor, readExternalByte);
+        byte category = Category84D410(models, actor, readExternalByte, readResourceSequence);
         HashSet<uint> included = [];
         if (category == 0x54)
         {
@@ -70,7 +70,7 @@ public static class NativeBattleScanModelSelection
         return minimum;
     }
 
-    public static byte Category84D410(ImmutableArray<NativeBattleScanByteOwner> models, short actor, Func<uint, byte> readExternalByte)
+    public static byte Category84D410(ImmutableArray<NativeBattleScanByteOwner> models, short actor, Func<uint, byte> readExternalByte, Func<int, byte>? readResourceSequence = null)
     {
         Validate(models);
         ArgumentNullException.ThrowIfNull(readExternalByte);
@@ -79,12 +79,14 @@ public static class NativeBattleScanModelSelection
         return category switch
         {
             0x24 or 0x25 => model.ReadDword(0x7C) == uint.MaxValue ? (byte)0xA0 : category,
-            0x2B => readExternalByte(model.ReadDword(0x74)) != 1 ? (byte)0xA1 : category,
-            0x77 => readExternalByte(model.ReadDword(0x74)) != 1 ? (byte)0xA2 : category,
+            0x2B => Sequence() != 1 ? (byte)0xA1 : category,
+            0x77 => Sequence() != 1 ? (byte)0xA2 : category,
             0x3B => model.ReadWord(0x9A) switch { 0x1800 => 0xA3, 0x2000 => 0xA4, _ => category },
-            0x4B => readExternalByte(model.ReadDword(0x74)) != 1 ? (byte)0xA5 : category,
+            0x4B => Sequence() != 1 ? (byte)0xA5 : category,
             _ => category
         };
+
+        byte Sequence() => readResourceSequence is not null ? readResourceSequence(actor) : readExternalByte(model.ReadDword(0x74));
     }
 
     private static uint Address(int actor)

@@ -55,6 +55,10 @@ public static class NativeBattleScanPhysicalModels
             {
                 row = row.WriteDword(0x30, scalePointer);
             }
+            if (model.SequenceState is { } sequence)
+            {
+                row = row.WriteDword(0x7C, sequence.MeshMask124);
+            }
             if (model.GeometryWorldMatrix is { } matrix)
             {
                 matrix.Validate();
