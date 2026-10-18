@@ -1,4 +1,5 @@
 using Memoria.FF8.Runtime;
+using System.Text;
 
 namespace Memoria.FF8;
 
@@ -7,6 +8,7 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        Console.OutputEncoding = new UTF8Encoding(false);
         Console.SetError(new ConsoleErrorWriter(Console.Error, !Console.IsErrorRedirected));
         try
         {

@@ -57,7 +57,9 @@ The direct engine has additional launch and diagnostic modes documented in the [
 | Missing engine or dependency | Extract the whole archive. Keep `Data/` beside the launcher; do not move the launcher alone. |
 | No installation found | Use Browse. Verify the selected folder contains the supported original installation. |
 | Media setup fails | Check network and write access. Read the installation error or use manual setup above. |
-| Game exits immediately | Read the full error in the launcher, including the engine's exit code. Keep that text when reporting the issue. |
+| Game exits unexpectedly | The launcher shows the exit code, recent error output and the saved log path. Keep the log when reporting the issue. |
 | A scene or feature is unsupported | Record the error and an independently loadable save when available. Do not assume a different resource provider makes the edition playable. |
 
 Memoria is still in development. Current rendering, battle and event support has limitations; a successful launch does not establish complete game coverage. See [controls](controls.md), [saves](saves.md) and [Debug Room](debug-room.md) for everyday use.
+
+Every launch from the launcher saves console output and errors as they arrive in a separate UTF-8 log under `%LOCALAPPDATA%/Memoria/FF8/logs/`. Logs survive game crashes and release updates. If that location cannot be written, the launcher tries `%TEMP%/Memoria.FF8/logs/`; if neither works, the error remains visible in the launcher with a warning that it could not be saved. A process terminated without reporting an error may leave only its last console output and exit code. Direct engine launches use their own console and are not captured by the launcher.

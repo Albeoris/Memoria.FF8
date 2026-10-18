@@ -62,6 +62,9 @@ public sealed class LauncherTests : IDisposable
         string nextPackage = Path.Combine(directory, "Next release");
         Assert.Equal(Path.Combine(nextPackage, "Mods"), GameInstallationSelection.CreateStartInfo(nextPackage, game).ArgumentList[3]);
         Assert.False(result.UseShellExecute);
+        Assert.True(result.RedirectStandardOutput);
+        Assert.True(result.RedirectStandardError);
+        Assert.True(result.CreateNoWindow);
     }
 
     [Fact]

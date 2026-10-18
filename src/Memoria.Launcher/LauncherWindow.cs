@@ -215,7 +215,9 @@ internal sealed partial class LauncherWindow : Window
                 return;
             }
             status.Text = "Starting the game…";
+            using GameProcessDiagnostics diagnostics = new();
             using Process process = Process.Start(start) ?? throw new InvalidOperationException("The game process could not be started.");
+            Task capture = diagnostics.CaptureAsync(process);
             bool remembered = false;
             while (!process.HasExited)
             {
@@ -229,6 +231,8 @@ internal sealed partial class LauncherWindow : Window
                 await Task.Delay(200);
             }
             await process.WaitForExitAsync();
+            await capture;
+            string completion = diagnostics.Complete(process.ExitCode);
             WindowState = WindowState.Normal;
             Activate();
             if (process.ExitCode == 0)
@@ -237,11 +241,11 @@ internal sealed partial class LauncherWindow : Window
                 {
                     Remember(selected.Directory);
                 }
-                status.Text = "The game has closed. Ready to play again.";
+                status.Text = completion;
             }
             else
             {
-                status.Text = $"The game exited with code {process.ExitCode}.";
+                status.Text = completion;
                 MessageBox.Show(this, status.Text, "Memoria", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
