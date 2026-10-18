@@ -100,6 +100,8 @@ try {
             }
         }
     }
+    & (Join-Path $root 'tools/New-DistributionManifest.ps1') -PackageRoot $staging
+
     # Replace only this script's known output directory after every publish succeeds.
     $resolvedArtifacts = [IO.Path]::GetFullPath($artifacts)
     $resolvedPackage = [IO.Path]::GetFullPath($package)
@@ -127,6 +129,16 @@ try {
     }
     finally {
         $zip.Dispose()
+    }
+    if ($Test) {
+        $previousDistributionPath = $env:MEMORIA_FF8_DISTRIBUTION_PATH
+        try {
+            $env:MEMORIA_FF8_DISTRIBUTION_PATH = $archive
+            Invoke-DotNet @('run', '--project', 'tests/Memoria.Launcher.Tests', '-c', $Configuration, '--', '--filter-class', '*DistributionArchiveTests')
+        }
+        finally {
+            $env:MEMORIA_FF8_DISTRIBUTION_PATH = $previousDistributionPath
+        }
     }
     Write-Host "Distribution: $package"
     Write-Host "Archive: $archive"

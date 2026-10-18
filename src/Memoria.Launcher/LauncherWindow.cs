@@ -9,7 +9,7 @@ using Microsoft.Win32;
 
 namespace Memoria.Launcher;
 
-internal sealed class LauncherWindow : Window
+internal sealed partial class LauncherWindow : Window
 {
     private readonly ComboBox installations = new() { MinHeight = 32, IsEditable = false };
     private readonly Button browse = new() { Content = "Browse…", MinWidth = 92, Margin = new Thickness(10, 0, 0, 0) };
@@ -27,16 +27,16 @@ internal sealed class LauncherWindow : Window
     {
         Title = "Memoria — FINAL FANTASY VIII";
         Width = 740;
-        Height = 470;
+        Height = 600;
         MinWidth = 600;
-        MinHeight = 430;
+        MinHeight = 560;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         FontFamily = new FontFamily("Segoe UI");
         FontSize = 14;
         Background = new SolidColorBrush(Color.FromRgb(245, 247, 250));
 
         Grid layout = new() { Margin = new Thickness(28) };
-        foreach (GridLength height in new[] { GridLength.Auto, GridLength.Auto, GridLength.Auto, GridLength.Auto, new GridLength(1, GridUnitType.Star), GridLength.Auto })
+        foreach (GridLength height in new[] { GridLength.Auto, GridLength.Auto, GridLength.Auto, GridLength.Auto, GridLength.Auto, new GridLength(1, GridUnitType.Star), GridLength.Auto })
         {
             layout.RowDefinitions.Add(new RowDefinition { Height = height });
         }
@@ -57,10 +57,11 @@ internal sealed class LauncherWindow : Window
         mediaProgressPanel.Children.Add(mediaProgressText);
         mediaSection.Children.Add(mediaProgressPanel);
         Add(layout, mediaSection, 3);
-        Add(layout, status, 4);
+        Add(layout, CreateUpdatePanel(), 4);
+        Add(layout, status, 5);
         play.HorizontalAlignment = HorizontalAlignment.Right;
         play.Margin = new Thickness(0, 16, 0, 0);
-        Add(layout, play, 5);
+        Add(layout, play, 6);
         Content = layout;
         browse.Click += Browse;
         mediaSetup.Click += async (_, _) => await RunSetupAsync();
@@ -99,6 +100,7 @@ internal sealed class LauncherWindow : Window
         {
             SetBusy(false);
         }
+        await CheckUpdatesAsync();
     }
 
     private void Browse(object sender, RoutedEventArgs args)
@@ -281,6 +283,8 @@ internal sealed class LauncherWindow : Window
         browse.IsEnabled = !value;
         mediaSetup.IsEnabled = !value;
         play.IsEnabled = !value;
+        releaseUpdate.IsEnabled = !value && !checkingUpdates;
+        nightlyUpdate.IsEnabled = !value && !checkingUpdates;
     }
 
     private void OnClosing(object? sender, CancelEventArgs args)
@@ -289,6 +293,10 @@ internal sealed class LauncherWindow : Window
         {
             args.Cancel = true;
             status.Text = "Wait for the current operation to finish, or close the game before closing the launcher.";
+        }
+        else
+        {
+            updateLifetime.Cancel();
         }
     }
 }

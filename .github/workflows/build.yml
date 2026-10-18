@@ -36,7 +36,7 @@ jobs:
             gh release create "$env:GITHUB_REF_NAME" --repo "$env:GITHUB_REPOSITORY" --verify-tag --generate-notes
             if ($LASTEXITCODE -ne 0) { throw 'Could not create the versioned release.' }
           }
-          gh release upload "$env:GITHUB_REF_NAME" artifacts/Memoria-FF8-win-x64.zip --repo "$env:GITHUB_REPOSITORY" --clobber
+          gh release upload "$env:GITHUB_REF_NAME" "artifacts/Memoria-FF8-win-x64.zip#$env:GITHUB_SHA" --repo "$env:GITHUB_REPOSITORY" --clobber
           if ($LASTEXITCODE -ne 0) { throw 'Could not upload the versioned distribution.' }
 
   nightly:
@@ -69,7 +69,7 @@ jobs:
           }
           gh api --method PATCH "repos/$env:GITHUB_REPOSITORY/git/refs/tags/nightly" -f "sha=$env:GITHUB_SHA" -F force=true
           if ($LASTEXITCODE -ne 0) { throw 'Could not advance the nightly source tag.' }
-          gh release upload nightly artifacts/Memoria-FF8-win-x64.zip --repo "$env:GITHUB_REPOSITORY" --clobber
+          gh release upload nightly "artifacts/Memoria-FF8-win-x64.zip#$env:GITHUB_SHA" --repo "$env:GITHUB_REPOSITORY" --clobber
           if ($LASTEXITCODE -ne 0) { throw 'Could not upload the nightly distribution.' }
           $updatedAt = [DateTime]::UtcNow.ToString("yyyy-MM-dd HH:mm:ss 'UTC'", [Globalization.CultureInfo]::InvariantCulture)
           gh release edit nightly --repo "$env:GITHUB_REPOSITORY" --title "Nightly - $updatedAt"

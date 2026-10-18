@@ -38,6 +38,12 @@ Watch the [gameplay video](https://youtu.be/QnqDSBLkN58).
 
 Download the Windows archive from [Releases](https://github.com/Albeoris/Memoria.FF8/releases), extract it, and open `Memoria.Launcher.exe`. Keep the adjacent `Data/` directory intact. The launcher discovers installations, offers manual folder selection, sets up FFmpeg with your consent and remembers your last successful selection.
 
+The launcher checks GitHub for the latest versioned release and nightly build at startup. Use **Latest release** or **Nightly** to download and install the selected build. Installation shows its version and download size before confirmation; switching channels can install an older build. Internet access is only required for checking and downloading updates, and a failed check does not prevent Play.
+
+Updates verify the archive's GitHub SHA-256 digest and its complete file inventory before installation. A separate copy of the launcher waits for the current process to close, backs up existing distribution files, installs new files, removes obsolete distribution files, and restarts Memoria. Mods, saves, settings and files outside the distribution inventory are preserved; conflicting unowned files stop installation. Run the launcher from a writable extracted folder and close other game processes before updating. No administrator rights are requested.
+
+The distribution inventory is `Data/distribution.json`. Older archives without this inventory must first be extracted into a new folder. Do not unpack an archive over an existing installation: obsolete files would remain. Failed installation restores the previous files; after interruption, startup attempts recovery from `.memoria-update`. Keep that folder if recovery reports an error, close processes using the installation, and start the launcher again. The next update removes the previous completed transaction's temporary files and backups.
+
 Follow [Installation and first launch](docs/players/getting-started.md) for requirements and troubleshooting. The release includes the required .NET runtimes.
 
 ## Build
