@@ -9,6 +9,7 @@ namespace Memoria.FF8.App.Tests;
 internal sealed record NativeEffectFixtureRequest(string Id, ushort Effect, byte Command, ushort ActionId, byte TargetActorIndex, int EntryMaximumCallbacks, int ProcessTimeoutSeconds)
 {
     public int AdmissionProbeMaximumCallbacks { get; init; }
+    public bool OrdinaryMagicAdmission { get; init; }
 }
 internal sealed record NativeEffectFixtureRequests(NativeEffectFixtureRequest[] Cases);
 internal sealed record NativeEffectFixtureArtifact(string Boundary, string File, string Sha256, long Bytes, long Frame, long NativeCallback);
@@ -83,6 +84,15 @@ internal static class NativeBattleEffectFixtureExporter
                 new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, MaximumHp = 1000, CurrentHp = 100, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 },
                 new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = formation.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
             ];
+            if (request.OrdinaryMagicAdmission)
+            {
+                if (request.Command != 2 || request.TargetActorIndex != 3 || request.AdmissionProbeMaximumCallbacks == 0)
+                {
+                    throw new InvalidDataException("The ordinary Magic component requires its original command2 row, enemy target and explicit producer budget.");
+                }
+                actors[0] = actors[0] with { Abilities = [BattleAbility.Attack, BattleAbility.Magic], MagicStocks = [new(request.ActionId, 2)], Magic = 30, NativeStatusResistances = new byte[40] };
+                actors[1] = actors[1] with { MaximumHp = 10000, CurrentHp = 10000, Spirit = 5, NativeStatusResistances = new byte[40] };
+            }
             // The same declared fresh cold owners as the existing Thunder and guardian components.
             // This creates an independent fixture; it never fills missing fields in a saved game.
             BattleDefinition definition = new()
@@ -115,9 +125,13 @@ internal static class NativeBattleEffectFixtureExporter
                 NativeStageCameraSelectors = [formation.PrimaryCamera, formation.AlternativeCamera],
                 NativeStageCameraControl = stage.NativeCameraControl
             };
+            if (request.OrdinaryMagicAdmission)
+            {
+                definition = definition with { NativeStatusRules = assets.ReadNativeStatusRules(0), NativeBattleSpeed = 0 };
+            }
             definition = NativeBattleComponentInputs.PrepareMusic(definition, game.GameDirectory, 0, 5, -1);
             boundary = "before-entry";
-            BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+            BattleSession battle = new(definition, request.OrdinaryMagicAdmission ? BattleAtbMode.Normal : BattleAtbMode.TurnBased);
             Save(boundary, battle.Capture());
             // Continue this component's actual entry producer; never replay travel or restore a partial owner.
             boundary = "battle-entry";
@@ -133,6 +147,44 @@ internal static class NativeBattleEffectFixtureExporter
             boundary = "after-entry";
             BattleSnapshot before = battle.Capture();
             Save(boundary, before);
+            if (request.OrdinaryMagicAdmission)
+            {
+                boundary = "before-ordinary-input";
+                Save(boundary, before);
+                battle.QueueAction("party", "enemy", BattleAbility.Magic, request.ActionId);
+                for (int count = 0; count < request.AdmissionProbeMaximumCallbacks; count++)
+                {
+                    BattleSnapshot prior = battle.Capture();
+                    try
+                    {
+                        battle.Tick();
+                    }
+                    catch (Exception error)
+                    {
+                        Save("before-ordinary-blocker", prior);
+                        return new(request.Id, request.Effect, "blocked", boundary, error.GetType().Name + ": " + error.Message, artifacts.ToArray()) { Scenario = "Fresh declared-stock original-resource Magic command; ordinary logical formula/header producer; no manually supplied contacts or descriptor104" };
+                    }
+                    BattleSnapshot current = battle.Capture();
+                    if (current.NativeGraphics!.Descriptors.Queue.Any(slot => current.NativeGraphics.Descriptors.Packets[slot].Command == 104))
+                    {
+                        BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == "party");
+                        if (caster.MagicStocks.Single(stock => stock.Id == request.ActionId).Count != 1)
+                        {
+                            throw new InvalidDataException("The ordinary producer did not consume exactly one declared spell stock.");
+                        }
+                        BattleSession independent = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(current))!);
+                        if (JsonSerializer.Serialize(current) != JsonSerializer.Serialize(independent.Capture()))
+                        {
+                            throw new InvalidDataException("The ordinary produced-header snapshot failed independent JSON restore.");
+                        }
+                        boundary = "ordinary-produced-action104";
+                        Save(boundary, current);
+                        return new(request.Id, request.Effect, "fixture-only", boundary, null, artifacts.ToArray()) { Scenario = "Fresh declared-stock original-resource Magic command; formula/header producer and stock2-to1; no manually supplied contacts or descriptor104", Pending = ["Independent next producer callback", "Whole ordinary action completion", "Native comparison"] };
+                    }
+                }
+                Save("ordinary-producer-limit", battle.Capture());
+                return new(request.Id, request.Effect, "blocked", boundary, "The ordinary producer did not enqueue action104 within its explicit diagnostic callback budget.", artifacts.ToArray()) { Scenario = "Fresh declared-stock original-resource Magic command; ordinary producer; no manually supplied contact" };
+            }
             boundary = "controlled-post-formula";
             BattleCombatantSnapshot target = before.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex);
             NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("The current contact target lacks its native status owner.");
