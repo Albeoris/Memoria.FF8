@@ -23,10 +23,30 @@ public sealed partial record NativeBattlePrimitiveProcess
             {
                 throw new InvalidDataException("Native common packet batch requires matching data and original byte masks.");
             }
-            RequireCommonRange(write.Offset, write.Data.Length, capacity);
+            RequireCommonRange(write.Offset, write.Data.Length, CommonPacketWriteCapacity);
             changed |= write.Mask.Any(value => value != NativeBattleGfPacketByteState.Untouched);
         }
         if (!changed)
+        {
+            return this;
+        }
+        ImmutableArray<NativeBattleCommonPacketStore>.Builder first = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
+        ImmutableArray<NativeBattleCommonPacketStore>.Builder second = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
+        foreach (NativeBattleCommonPacketStore write in writes)
+        {
+            foreach (CommonSlice slice in CommonSlices(write.Offset, write.Data.Length))
+            {
+                NativeBattleCommonPacketStore part = slice.Count == write.Data.Length ? write with { Offset = slice.Offset } : new(slice.Offset, write.Data.AsSpan().Slice(slice.SourceOffset, slice.Count).ToArray().ToImmutableArray(), write.Mask.AsSpan().Slice(slice.SourceOffset, slice.Count).ToArray().ToImmutableArray());
+                (slice.Bank == bank ? first : second).Add(part);
+            }
+        }
+        NativeBattlePrimitiveProcess result = ApplyCommonSliceWrites(bank, capacity, first.ToImmutable());
+        return result.ApplyCommonSliceWrites(bank + 1, capacity, second.ToImmutable());
+    }
+
+    private NativeBattlePrimitiveProcess ApplyCommonSliceWrites(int bank, int capacity, ImmutableArray<NativeBattleCommonPacketStore> writes)
+    {
+        if (!writes.Any(write => write.Mask.Any(value => value != NativeBattleGfPacketByteState.Untouched)))
         {
             return this;
         }

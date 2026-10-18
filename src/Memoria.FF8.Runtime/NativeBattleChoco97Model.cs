@@ -8,6 +8,11 @@ public sealed record NativeBattleChoco97ModelAppendAuxiliary(uint Callback, int 
 public sealed record NativeBattleChoco97ModelSound(uint DescriptorAddress, uint Flags, byte Pan) : NativeBattleChoco97ModelOperation;
 public sealed record NativeBattleChoco97ModelInputs(ImmutableArray<byte> ActorRaw8, Func<int, bool> AtLeast, Func<int, bool> Request, Func<NativeBattleEffectOwnedModelStep, NativeBattleChoco97ModelOperation, NativeBattleEffectOwnedModelStep> Execute, Func<NativeBattleEffectOwnedModelStep, NativeBattleEffectOwnedModelDraw> Draw);
 public sealed record NativeBattleChoco97ModelAdvance(NativeBattleModulePoolTask Task, NativeBattleEffectOwnedModelState State, NativeBattleEffectOwnedModelDraw? Drawing, ImmutableArray<NativeBattleTextureCopy> TextureCopies, bool ReadyToComplete);
+internal sealed record NativeBattleChocoModelProfile(uint AuxiliaryCallback, uint AuxiliaryPool, uint FirstSound, uint? SecondSound, short? TerminalCounter)
+{
+    internal static NativeBattleChocoModelProfile Choco97 { get; } = new(0x730C10, 0x2575458, 0x152B5C0, 0x152B5C4, null);
+    internal static NativeBattleChocoModelProfile Choco98 { get; } = new(0x728780, 0x256E548, 0x152AF38, null, 20);
+}
 
 public static class NativeBattleChoco97Model
 {
@@ -17,6 +22,11 @@ public static class NativeBattleChoco97Model
     }
 
     public static NativeBattleChoco97ModelAdvance Advance7306A0(NativeBattleModulePoolTask task, NativeBattleEffectOwnedModelState state, NativeBattleChoco97ModelResources resources, NativeBattleChoco97ModelInputs inputs)
+    {
+        return AdvanceProfiled(task, state, resources, inputs, NativeBattleChocoModelProfile.Choco97);
+    }
+
+    internal static NativeBattleChoco97ModelAdvance AdvanceProfiled(NativeBattleModulePoolTask task, NativeBattleEffectOwnedModelState state, NativeBattleChoco97ModelResources resources, NativeBattleChoco97ModelInputs inputs, NativeBattleChocoModelProfile profile)
     {
         NativeBattleEffectOwnedModel.Validate(task, state, resources.Model);
         NativeBattleEffectOwnedModelStep step = new(task, state, false);
@@ -45,7 +55,7 @@ public static class NativeBattleChoco97Model
                 if (Counter() >= 0)
                 {
                     Select(2);
-                    step = inputs.Execute(step, new NativeBattleChoco97ModelAppendAuxiliary(0x730C10, 0x70, 0x2575458));
+                    step = inputs.Execute(step, new NativeBattleChoco97ModelAppendAuxiliary(profile.AuxiliaryCallback, 0x70, profile.AuxiliaryPool));
                     Next();
                 }
                 break;
@@ -54,7 +64,7 @@ public static class NativeBattleChoco97Model
                 if (step.Completed && inputs.AtLeast(1))
                 {
                     Select(3);
-                    step = inputs.Execute(step, new NativeBattleChoco97ModelSound(0x152B5C0, 0, 128));
+                    step = inputs.Execute(step, new NativeBattleChoco97ModelSound(profile.FirstSound, 0, 128));
                     Next();
                 }
                 break;
@@ -77,7 +87,10 @@ public static class NativeBattleChoco97Model
                 if (inputs.Request(4))
                 {
                     Select(4);
-                    step = inputs.Execute(step, new NativeBattleChoco97ModelSound(0x152B5C4, 0, 128));
+                    if (profile.SecondSound is uint sound)
+                    {
+                        step = inputs.Execute(step, new NativeBattleChoco97ModelSound(sound, 0, 128));
+                    }
                     Next();
                 }
                 break;
@@ -91,7 +104,7 @@ public static class NativeBattleChoco97Model
                 break;
             case 8:
                 Loop();
-                if (inputs.AtLeast(6))
+                if (profile.TerminalCounter is short terminal ? Counter() >= terminal : inputs.AtLeast(6))
                 {
                     step = step with { Task = step.Task.WriteByte(0x26, (byte)(step.Task.ReadByte(0x26) | 5)) };
                     Next();

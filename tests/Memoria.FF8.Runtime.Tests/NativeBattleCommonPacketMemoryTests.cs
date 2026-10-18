@@ -115,11 +115,13 @@ public sealed class NativeBattleCommonPacketMemoryTests
     }
 
     [Theory]
-    [InlineData("off_B6D070", 114688)]
-    [InlineData("off_B6D094", 147456)]
-    public void Physical_capacity_is_validated_before_any_mask_run_even_when_excess_bytes_are_untouched(string bank, int capacity)
+    [InlineData("off_B6D070", 229376, 0)]
+    [InlineData("off_B6D070", 114688, 1)]
+    [InlineData("off_B6D094", 294912, 0)]
+    [InlineData("off_B6D094", 147456, 1)]
+    public void Physical_capacity_is_validated_before_any_mask_run_even_when_excess_bytes_are_untouched(string bank, int capacity, byte buffer)
     {
-        NativeBattlePrimitiveProcess process = Process with { PacketBank = bank };
+        NativeBattlePrimitiveProcess process = Process with { PacketBank = bank, PacketBuffer = buffer };
         NativeBattlePrimitiveProcess last = process.ApplyCommonWrite(capacity - 1, [7], Known(1));
         Assert.Equal(new byte[] { 7 }, last.ReadCommonPacket(capacity - 1, 1));
         Assert.Throws<InvalidDataException>(() => process.ApplyCommonWrite(capacity - 1, [7, 8], [NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Untouched]));

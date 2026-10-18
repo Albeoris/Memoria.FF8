@@ -17,9 +17,7 @@ public sealed partial class BattleSession
                 return graphics;
             }
             NativeBattlePrimitiveProcess process = NativeEffectMemory?.PrimitiveProcess ?? throw new NotSupportedException("Native502D40 shadow requires its actual packet bank/cursor.");
-            int capacity = process.PacketBank == "off_B6D070" ? 114688 : process.PacketBank == "off_B6D094" ? 147456 : throw new NotSupportedException("Native502D40 shadow requires its allocated process packet bank.");
-            int cursor = process.ByteCursor ?? throw new NotSupportedException("Native502D40 shadow requires its actual1D8E054 packet cursor.");
-            if (capacity - cursor <= 0xF0)
+            if (process.NativeRemaining500820() <= 0xF0)
             {
                 return graphics;
             }

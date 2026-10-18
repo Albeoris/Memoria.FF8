@@ -49,7 +49,7 @@ public sealed class NativeBattleChoco97PresentationTests
         BattleAudioPresentation audio = new(_ => { }, playModule: heard.Add);
         audio.Update(battle);
         heard.Clear();
-        HashSet<string> requested = ["io-pending", "model-pose0", "static-node-uv", "mode2", "mode4", "loaded-program-uv", "contact-before", "stage-fade", "camera-tail", "common-io"];
+        HashSet<string> requested = ["io-pending", "model-pose0", "static-node-live", "mode2", "mode4", "loaded-program-uv", "contact-before", "stage-fade", "camera-tail", "common-io"];
         List<Boundary> boundaries = [];
         List<short> files = [];
         HashSet<uint> barriers = [];
@@ -225,7 +225,7 @@ public sealed class NativeBattleChoco97PresentationTests
             Assert.Equal(Enumerable.Range(0, 20).Select(value => (ushort)value).ToArray(), spriteFrames.Order().ToArray());
             Assert.All(Enumerable.Range(0, 7).Select(value => (ushort)value), mode => Assert.Contains(mode, modes));
             Assert.Equal(2, relocatedNodes.Count);
-            Assert.Equal(2, mutatedNodes.Count);
+            Assert.Equal(new[] { NativeBattleChoco97Nodes.LoadedAddress }, mutatedNodes.Order());
             Assert.Equal(3, mutatedPrograms.Count);
             Assert.True(commonIo && visible);
             Assert.True(sawEnemyCentroid);
@@ -285,9 +285,9 @@ public sealed class NativeBattleChoco97PresentationTests
         {
             return "model-pose0";
         }
-        if (requested.Contains("static-node-uv") && state?.Nodes.StaticData is { } data && NodeUChanged(resources.Nodes.Single(item => item.Address == NativeBattleChoco97Nodes.StaticAddress), data))
+        if (requested.Contains("static-node-live") && state?.Nodes.StaticData is { } data && U32(data, 0) == 1 && Tasks(effect, NativeBattleChoco97Nodes.Callback).Any(task => task.ReadDword(0x30) == NativeBattleChoco97Nodes.StaticAddress && task.ReadByte(0x29) == 1 && task.ReadWord(0x34 + 0x14) > 0 && task.ReadWord(0x34 + 0x16) > 0))
         {
-            return "static-node-uv";
+            return "static-node-live";
         }
         if (requested.Contains("mode2") && state?.Context?.Word(0x40) == 2 && Tasks(effect, 0x731840).Any())
         {

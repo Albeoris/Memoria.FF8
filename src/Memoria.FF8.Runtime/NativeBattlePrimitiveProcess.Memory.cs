@@ -5,71 +5,93 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleCommonPacketMemory([property: JsonRequired] NativeBattleEffectArena? Bank070Buffer0, [property: JsonRequired] NativeBattleEffectArena? Bank070Buffer1, [property: JsonRequired] NativeBattleEffectArena? Bank094Buffer0, [property: JsonRequired] NativeBattleEffectArena? Bank094Buffer1);
 
-/// <summary>Four retained native common packet heaps; observing a write never proves any other byte zero.</summary>
+/// <summary>Four unique half-slices of the two native common packet owners; observing a write never proves any other byte zero.</summary>
 public sealed partial record NativeBattlePrimitiveProcess
 {
     public NativeBattleCommonPacketMemory? CommonPacketMemory { get; init; }
 
+    [JsonIgnore]
+    public int CommonPacketNominalCapacity
+    {
+        get
+        {
+            _ = CommonBank(out int capacity);
+            return capacity;
+        }
+    }
+
+    [JsonIgnore]
+    public int CommonPacketWriteCapacity => checked((2 - PacketBuffer) * CommonPacketNominalCapacity);
+
+    public uint NativeRemaining500820()
+    {
+        int cursor = ByteCursor ?? throw new NotSupportedException("Native remaining packet bytes require the actual current cursor.");
+        return unchecked((uint)(CommonPacketNominalCapacity - cursor));
+    }
+
+    public static NativeBattlePrimitiveReference NormalizeCommonReference(NativeBattlePrimitiveReference reference)
+    {
+        int stride = reference.Bank switch { "off_B6D070" => 114688, "off_B6D094" => 147456, _ => 0 };
+        if (stride == 0)
+        {
+            return reference;
+        }
+        if (reference.Buffer > 1 || reference.ByteOffset < 0)
+        {
+            throw new InvalidDataException("Native common packet identity requires its actual selected buffer and offset.");
+        }
+        return reference with { Buffer = 0, ByteOffset = checked(reference.ByteOffset + reference.Buffer * stride) };
+    }
+
     public NativeBattlePrimitiveProcess ApplyCommonWrite(int offset, ImmutableArray<byte> data, ImmutableArray<NativeBattleGfPacketByteState> mask)
     {
-        int bank = CommonBank(out int capacity);
-        if (data.IsDefault || mask.IsDefault)
-        {
-            throw new InvalidDataException("Native common packet write requires explicit data and byte-state masks.");
-        }
-        RequireCommonRange(offset, data.Length, capacity);
-        ValidateCommonPacketMemory();
-        if (data.Length != mask.Length || mask.Any(value => value is not (NativeBattleGfPacketByteState.Untouched or NativeBattleGfPacketByteState.Known or NativeBattleGfPacketByteState.Unknown)))
-        {
-            throw new InvalidDataException("Native common packet write requires matching data and explicit byte-state masks.");
-        }
-        if (mask.All(value => value == NativeBattleGfPacketByteState.Untouched))
-        {
-            return this;
-        }
-        NativeBattleEffectArena memory = CommonArena(bank) ?? UnknownCommonArena(capacity);
-        int cursor = 0;
-        while (cursor < mask.Length)
-        {
-            NativeBattleGfPacketByteState state = mask[cursor];
-            int end = cursor + 1;
-            while (end < mask.Length && mask[end] == state)
-            {
-                end++;
-            }
-            if (state == NativeBattleGfPacketByteState.Known)
-            {
-                memory = memory.Write(checked(offset + cursor), data.AsSpan().Slice(cursor, end - cursor));
-            }
-            else if (state == NativeBattleGfPacketByteState.Unknown)
-            {
-                memory = memory.MarkUnknown(checked(offset + cursor), end - cursor);
-            }
-            cursor = end;
-        }
-        return StoreCommonArena(bank, memory);
+        return ApplyCommonWrites([new(offset, data, mask)]);
     }
 
     public NativeBattlePrimitiveProcess MarkCommonUnknown(int offset, int length)
     {
-        int bank = CommonBank(out int capacity);
-        RequireCommonRange(offset, length, capacity);
         ValidateCommonPacketMemory();
-        if (length == 0)
+        ImmutableArray<CommonSlice> slices = CommonSlices(offset, length);
+        NativeBattlePrimitiveProcess result = this;
+        int capacity = CommonPacketNominalCapacity;
+        foreach (CommonSlice slice in slices)
         {
-            return this;
+            NativeBattleEffectArena memory = result.CommonArena(slice.Bank) ?? UnknownCommonArena(capacity);
+            result = result.StoreCommonArena(slice.Bank, memory.MarkUnknown(slice.Offset, slice.Count));
         }
-        NativeBattleEffectArena memory = CommonArena(bank) ?? UnknownCommonArena(capacity);
-        return StoreCommonArena(bank, memory.MarkUnknown(offset, length));
+        return result;
     }
 
     public byte[] ReadCommonPacket(int offset, int count)
     {
-        int bank = CommonBank(out int capacity);
-        RequireCommonRange(offset, count, capacity);
         ValidateCommonPacketMemory();
-        NativeBattleEffectArena memory = CommonArena(bank) ?? throw new NotSupportedException("Native common packet read requires the retained owner of this physical bank and buffer.");
-        return memory.Read(offset, count);
+        ImmutableArray<CommonSlice> slices = CommonSlices(offset, count);
+        byte[] result = new byte[count];
+        foreach (CommonSlice slice in slices)
+        {
+            NativeBattleEffectArena memory = CommonArena(slice.Bank) ?? throw new NotSupportedException("Native common packet read requires the retained owner of every consumed physical slice.");
+            memory.Read(slice.Offset, slice.Count).CopyTo(result, slice.SourceOffset);
+        }
+        return result;
+    }
+
+    private readonly record struct CommonSlice(int Bank, int Offset, int Count, int SourceOffset);
+
+    private ImmutableArray<CommonSlice> CommonSlices(int offset, int count)
+    {
+        int bank = CommonBank(out int stride);
+        RequireCommonRange(offset, count, CommonPacketWriteCapacity);
+        ImmutableArray<CommonSlice>.Builder slices = ImmutableArray.CreateBuilder<CommonSlice>();
+        int cursor = 0;
+        while (cursor < count)
+        {
+            int relative = checked(offset + cursor);
+            int local = relative % stride;
+            int length = Math.Min(count - cursor, stride - local);
+            slices.Add(new(bank + relative / stride, local, length, cursor));
+            cursor += length;
+        }
+        return slices.ToImmutable();
     }
 
     public void ValidateCommonPacketMemory()

@@ -10,13 +10,15 @@ public sealed class NativeBattleChoco97ModelTests
     private static NativeBattleActionMatrix View => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 16000, 4096);
     private static NativeBattleCameraProjection Projection => new(View, 216, 160, 108);
 
-    [Fact]
-    public void Original_model_retains_all_six_poses_and_projects_full_body_records_without_crossing_scratch_extent()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Original_model_retains_all_six_poses_and_projects_full_body_records_without_crossing_scratch_extent(bool choco98)
     {
         using GameAssets game = Installed();
-        NativeBattleChoco97ModelResources resources = game.ReadNativeChoco97ModelResources();
-        Assert.Same(resources, game.ReadNativeChoco97ModelResources());
-        Assert.Equal(0x168354Cu, resources.Model.Address);
+        NativeBattleChoco97ModelResources resources = Resources(game, choco98);
+        Assert.Same(resources, Resources(game, choco98));
+        Assert.Equal(choco98 ? 0x167482Cu : 0x168354Cu, resources.Model.Address);
         Assert.Equal(0x4EE8, resources.Model.Bytes.Length);
         Assert.Equal(new[] { 0x18, 0x688, 0x39FC, 0x4EDC, 0x4EE8 }, Enumerable.Range(0, 5).Select(resources.Model.Section).ToArray());
         Assert.Equal(34, resources.Model.PoseSource.BoneCount);
@@ -26,11 +28,21 @@ public sealed class NativeBattleChoco97ModelTests
         Assert.Equal(602, mesh.Polygons.Count(polygon => !polygon.Quad));
         Assert.Equal(48, mesh.Polygons.Count(polygon => polygon.Quad));
         Assert.Equal(0x4220, resources.ModelTim.Data.Length);
+        Assert.Equal(choco98 ? 0x152B580u : 0x152BB58u, resources.TextureProgram.Address);
+        Assert.Equal(resources.Model.Address + 0x4EDCu, resources.TextureTable.Address);
+        if (choco98)
+        {
+            NativeBattleChoco97ModelResources previous = game.ReadNativeChoco97ModelResources();
+            Assert.Equal(previous.Model.Bytes.ToArray(), resources.Model.Bytes.ToArray());
+            Assert.Equal(previous.ModelTim.Data.ToArray(), resources.ModelTim.Data.ToArray());
+            Assert.Equal(previous.TextureProgram.Data.ToArray(), resources.TextureProgram.Data.ToArray());
+            Assert.NotEqual(previous.Model.Address, resources.Model.Address);
+        }
         NativeBattleGraphicsRules rules = game.ReadNativeBattleGraphicsRules();
         int accepted = 0;
         for (short pose = 0; pose < 6; pose++)
         {
-            NativeBattleEffectOwnedModelStep step = NativeBattleChoco97Model.Initialize(Task(), 0x257B018, resources);
+            NativeBattleEffectOwnedModelStep step = Initialize(resources, choco98);
             Assert.Equal((ushort)1, step.Task.ReadWord(0xDE));
             step = NativeBattleEffectOwnedModel.Select8DD190(step.Task.WriteDword(0x114, 0x1800).WriteDword(0x118, 0x1800).WriteDword(0x11C, 0x1800), step.State, resources.Model, pose);
             NativeBattleEffectOwnedModelDraw draw = Draw(step, Scratch(8), resources, rules);
@@ -54,13 +66,15 @@ public sealed class NativeBattleChoco97ModelTests
         Assert.True(accepted > 0);
     }
 
-    [Fact]
-    public void Ten_model_phases_keep_child_completion_independent_and_restore_body_texture_order()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Ten_model_phases_keep_child_completion_independent_and_restore_body_texture_order(bool choco98)
     {
         using GameAssets game = Installed();
-        NativeBattleChoco97ModelResources resources = game.ReadNativeChoco97ModelResources();
+        NativeBattleChoco97ModelResources resources = Resources(game, choco98);
         NativeBattleGraphicsRules rules = game.ReadNativeBattleGraphicsRules();
-        NativeBattleEffectOwnedModelStep initialized = NativeBattleChoco97Model.Initialize(Task(), 0x257B018, resources);
+        NativeBattleEffectOwnedModelStep initialized = Initialize(resources, choco98);
         Saved current = new(initialized.Task, initialized.State, Scratch());
         HashSet<byte> phases = [];
         List<NativeBattleChoco97ModelOperation> operations = [];
@@ -73,7 +87,7 @@ public sealed class NativeBattleChoco97ModelTests
             Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(Step(restored)));
             operations.AddRange(next.Operations);
             Assert.False(next.Advance.ReadyToComplete);
-            if (current.Task.ReadByte(0x29) == 8)
+            if (current.Task.ReadByte(0x29) == 8 && next.Advance.Task.ReadByte(0x29) == 9)
             {
                 Assert.Null(next.Advance.Drawing);
                 Assert.Empty(next.Advance.TextureCopies);
@@ -84,8 +98,8 @@ public sealed class NativeBattleChoco97ModelTests
         Assert.Equal((byte)9, current.Task.ReadByte(0x29));
         Assert.Equal(Enumerable.Range(0, 9).Select(index => (byte)index).ToArray(), phases.Order().ToArray());
         NativeBattleChoco97ModelAppendAuxiliary auxiliary = Assert.Single(operations.OfType<NativeBattleChoco97ModelAppendAuxiliary>());
-        Assert.Equal((0x730C10u, 0x70, 0x2575458u), (auxiliary.Callback, auxiliary.TaskBytes, auxiliary.PoolAddress));
-        Assert.Equal(new uint[] { 0x152B5C0, 0x152B5C4 }, operations.OfType<NativeBattleChoco97ModelSound>().Select(sound => sound.DescriptorAddress).ToArray());
+        Assert.Equal((choco98 ? 0x728780u : 0x730C10u, 0x70, choco98 ? 0x256E548u : 0x2575458u), (auxiliary.Callback, auxiliary.TaskBytes, auxiliary.PoolAddress));
+        Assert.Equal(choco98 ? new uint[] { 0x152AF38 } : new uint[] { 0x152B5C0, 0x152B5C4 }, operations.OfType<NativeBattleChoco97ModelSound>().Select(sound => sound.DescriptorAddress).ToArray());
         StepResult held = Step(current);
         Assert.False(held.Advance.ReadyToComplete);
         Assert.Null(held.Advance.Drawing);
@@ -97,7 +111,7 @@ public sealed class NativeBattleChoco97ModelTests
         {
             List<NativeBattleChoco97ModelOperation> emitted = [];
             NativeBattleChoco97ModelInputs inputs = new([10, 0, 20, 0, 30, 0, 40, 0], _ => true, _ => true, Execute, step => Draw(step, saved.Scratch, resources, rules));
-            NativeBattleChoco97ModelAdvance advance = NativeBattleChoco97Model.Advance7306A0(saved.Task, saved.State, resources, inputs);
+            NativeBattleChoco97ModelAdvance advance = Advance(saved.Task, saved.State, resources, inputs, choco98);
             return new(advance, new(advance.Task, advance.State, advance.Drawing?.ProjectedScratch ?? saved.Scratch), emitted.ToImmutableArray());
 
             NativeBattleEffectOwnedModelStep Execute(NativeBattleEffectOwnedModelStep step, NativeBattleChoco97ModelOperation operation)
@@ -108,12 +122,14 @@ public sealed class NativeBattleChoco97ModelTests
         }
     }
 
-    [Fact]
-    public void Original_texture_program_uses_its_model_section_atlas_and_stops_without_rehydration()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Original_texture_program_uses_its_model_section_atlas_and_stops_without_rehydration(bool choco98)
     {
         using GameAssets game = Installed();
-        NativeBattleChoco97ModelResources resources = game.ReadNativeChoco97ModelResources();
-        NativeBattleEffectOwnedModelStep initialized = NativeBattleChoco97Model.Initialize(Task(), 0x257B018, resources);
+        NativeBattleChoco97ModelResources resources = Resources(game, choco98);
+        NativeBattleEffectOwnedModelStep initialized = Initialize(resources, choco98);
         NativeBattleModulePoolTask task = initialized.Task.WriteDword(0x110, resources.TextureProgram.Address);
         List<NativeBattleTextureCopy> copies = [];
         for (int callback = 0; task.ReadDword(0x110) != 0 && callback < 512; callback++)
@@ -131,8 +147,54 @@ public sealed class NativeBattleChoco97ModelTests
         Assert.Empty(NativeBattleMoogle96TextureMotion.Advance739890(task, resources.TextureProgram, resources.TextureTable).Copies);
     }
 
+    [Fact]
+    public void Profile98_terminal_uses_signed_loop_counter_while97_keeps_its_external_mode_predicate()
+    {
+        using GameAssets game = Installed();
+        NativeBattleGraphicsRules rules = game.ReadNativeBattleGraphicsRules();
+        foreach (bool choco98 in new[] { false, true })
+        {
+            NativeBattleChoco97ModelResources resources = Resources(game, choco98);
+            NativeBattleEffectOwnedModelStep initialized = Initialize(resources, choco98);
+            NativeBattleModulePoolTask scaled = initialized.Task.WriteDword(0x114, 0x1800).WriteDword(0x118, 0x1800).WriteDword(0x11C, 0x1800);
+            NativeBattleEffectOwnedModelStep selected = NativeBattleEffectOwnedModel.Select8DD190(scaled, initialized.State, resources.Model, 5);
+            int predicates = 0;
+            NativeBattleChoco97ModelInputs inputs = new([], AtLeast, _ => throw new InvalidDataException("Terminal phase must not request a mode."), (_, _) => throw new InvalidDataException("Terminal phase must not append or emit sound."), step => Draw(step, Scratch(), resources, rules));
+            NativeBattleChoco97ModelAdvance next = Advance(selected.Task.WriteByte(0x29, 8).WriteWord(0x136, 19), selected.State, resources, inputs, choco98);
+            Assert.Equal((byte)(choco98 ? 9 : 8), next.Task.ReadByte(0x29));
+            Assert.Equal(choco98 ? 0 : 1, predicates);
+            Assert.Equal(choco98, next.Drawing is null);
+            Assert.Equal(choco98, next.ReadyToComplete);
+            if (choco98)
+            {
+                NativeBattleChoco97ModelAdvance beforeThreshold = Advance(selected.Task.WriteByte(0x29, 8).WriteWord(0x136, 18), selected.State, resources, inputs, true);
+                Assert.Equal((byte)8, beforeThreshold.Task.ReadByte(0x29));
+                Assert.NotNull(beforeThreshold.Drawing);
+                NativeBattleChoco97ModelAdvance signedWrap = Advance(selected.Task.WriteByte(0x29, 8).WriteWord(0x136, 0x7FFF), selected.State, resources, inputs, true);
+                Assert.Equal((ushort)0x8000, signedWrap.Task.ReadWord(0x136));
+                Assert.Equal((byte)8, signedWrap.Task.ReadByte(0x29));
+                Assert.NotNull(signedWrap.Drawing);
+                Assert.Equal(0, predicates);
+            }
+
+            bool AtLeast(int mode)
+            {
+                Assert.False(choco98);
+                Assert.Equal(6, mode);
+                predicates++;
+                return false;
+            }
+        }
+    }
+
     private static NativeBattleEffectOwnedModelDraw Draw(NativeBattleEffectOwnedModelStep step, ImmutableArray<byte> scratch, NativeBattleChoco97ModelResources resources, NativeBattleGraphicsRules rules) => NativeBattleEffectOwnedModelDrawing.Draw7558A0(step.Task, step.State, resources.Model, View, Projection, rules.ShadowSource!, NativeBattlePrimitiveCapabilities.PrimaryRgba8(), rules.SummonColors!, scratch);
-    private static NativeBattleModulePoolTask Task() => new(1, 0, null, 0x7306A0, new byte[0x140 - 12].ToImmutableArray());
+    private static NativeBattleChoco97ModelResources Resources(GameAssets game, bool choco98) => choco98 ? game.ReadNativeChoco98ModelResources() : game.ReadNativeChoco97ModelResources();
+    private static NativeBattleEffectOwnedModelStep Initialize(NativeBattleChoco97ModelResources resources, bool choco98)
+    {
+        NativeBattleModulePoolTask task = new(1, 0, null, choco98 ? 0x728210u : 0x7306A0u, new byte[0x140 - 12].ToImmutableArray());
+        return choco98 ? NativeBattleChoco98Model.Initialize(task, 0x2574D98, resources) : NativeBattleChoco97Model.Initialize(task, 0x257B018, resources);
+    }
+    private static NativeBattleChoco97ModelAdvance Advance(NativeBattleModulePoolTask task, NativeBattleEffectOwnedModelState state, NativeBattleChoco97ModelResources resources, NativeBattleChoco97ModelInputs inputs, bool choco98) => choco98 ? NativeBattleChoco98Model.Advance728210(task, state, resources, inputs) : NativeBattleChoco97Model.Advance7306A0(task, state, resources, inputs);
     private static ImmutableArray<byte> Scratch(int guardBytes = 0) => Enumerable.Repeat((byte)0xA5, 0xCD0 + guardBytes).ToImmutableArray();
     private static GameAssets Installed()
     {

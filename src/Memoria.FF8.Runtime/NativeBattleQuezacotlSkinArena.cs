@@ -11,7 +11,7 @@ public static class NativeBattleQuezacotlSkinArena
         int common = process.ByteCursor ?? throw new NotSupportedException("Native6C6770 requires its allocated common packet cursor.");
         string bank = process.PacketBank ?? throw new NotSupportedException("Native6C6770 requires its allocated common packet bank.");
         int draw = effect.DrawArenaOffset ?? throw new NotSupportedException("Native6C6770 requires its actual effect draw cursor.");
-        int capacity = bank == "off_B6D070" ? 114688 : bank == "off_B6D094" ? 147456 : throw new NotSupportedException("Native6C6770 has an unowned common packet bank.");
+        int capacity = process.CommonPacketWriteCapacity;
         if (batch.Writes.IsDefault || batch.CommonAllocationBytes < 0 || batch.EffectAllocationBytes < 0 || (batch.CommonAllocationBytes & 3) != 0 || (batch.EffectAllocationBytes & 3) != 0 || common > capacity - batch.CommonAllocationBytes || draw > NativeBattleEffectArena.Length - batch.EffectAllocationBytes)
         {
             throw new InvalidDataException("Native6C6770 final physical packet cursors leave their actual allocated banks.");

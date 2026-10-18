@@ -63,7 +63,7 @@ public sealed partial class BattleSession
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native module packet emission requires its original arena cursor.");
         int cursor = process.ByteCursor ?? throw new NotSupportedException("Native module packet emission has no observed packet cursor.");
         string bank = process.PacketBank ?? throw new NotSupportedException("Native module packet emission has no allocated logical arena.");
-        int capacity = bank == "off_B6D070" ? 114688 : bank == "off_B6D094" ? 147456 : throw new NotSupportedException("Native module packet emission requires an unknown original arena.");
+        int capacity = process.CommonPacketWriteCapacity;
         int next = checked(cursor + batch.AllocationBytes);
         if (batch.AllocationBytes < 0 || next > capacity)
         {

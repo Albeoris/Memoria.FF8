@@ -30,7 +30,7 @@ public sealed class NativeBattleStagePaletteTests
         {
             Assert.Equal((ushort)0xC210, BinaryPrimitives.ReadUInt16LittleEndian(row.AsSpan(2 * index)));
         }
-        Assert.Throws<InvalidDataException>(() => NativeBattleStagePalette.Write506CF0(before with { ByteCursor = 114688 - 508 }));
+        Assert.Throws<InvalidDataException>(() => NativeBattleStagePalette.Write506CF0(before with { ByteCursor = before.CommonPacketWriteCapacity - 508 }));
         Assert.Throws<NotSupportedException>(() => NativeBattleStagePalette.Write506CF0(NativeBattlePrimitiveProcess.FromColdProcess()));
     }
 }

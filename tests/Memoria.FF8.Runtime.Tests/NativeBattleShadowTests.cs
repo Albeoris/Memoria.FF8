@@ -112,7 +112,7 @@ public sealed class NativeBattleShadowTests
         Assert.Equal(252, written.Process.ByteCursor);
         Assert.Equal(new[] { 12, 20, 48, 76, 104, 132, 160, 188, 216, 244 }, written.Ordering.Proxies.Select(proxy => proxy.Packet.ByteOffset));
         Assert.Equal((byte)1, written.Process.ReadCommonPacket(247, 1)[0]);
-        Assert.Throws<InvalidDataException>(() => NativeBattleCommonPacketArena.Append(source with { ByteCursor = 114688 - 236 }, NativeBattleLogicalOrdering.Clear(), batch));
+        Assert.Throws<InvalidDataException>(() => NativeBattleCommonPacketArena.Append(source with { ByteCursor = source.CommonPacketWriteCapacity - 236 }, NativeBattleLogicalOrdering.Clear(), batch));
     }
 
     [Fact]

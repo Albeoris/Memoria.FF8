@@ -32,7 +32,7 @@ public sealed partial class BattleSession
         foreach (NativeBattleGeometryPrimitive primitive in primitives)
         {
             int next = checked(cursor + primitive.Words.Length * 4);
-            int capacity = bank == "off_B6D070" ? 114688 : bank == "off_B6D094" ? 147456 : throw new NotSupportedException("Native callback requires an unknown original packet arena.");
+            int capacity = process.CommonPacketWriteCapacity;
             if (next > capacity)
             {
                 throw new NotSupportedException("Native primitive packet cursor reaches its original arena capacity.");

@@ -17,7 +17,7 @@ public sealed partial record NativeBattlePrimitiveProcess(ushort? TexturePage, b
     {
         ValidateCommonPacketMemory();
         TextureWindowCache?.Validate();
-        if (TextureWindowBits is > 0xFFFFFF || Buffer80 is > 1 || PacketBuffer > 1 || TablePerspective.IsDefault || TablePerspective.Length != 2 || (PacketBank is null) != (ByteCursor is null) || PacketBank is not (null or "off_B6D070" or "off_B6D094") || ByteCursor is < 0 || ByteCursor is int cursor && (cursor & 3) != 0 || PacketBank == "off_B6D070" && ByteCursor is > 114688 || PacketBank == "off_B6D094" && ByteCursor is > 147456 || Depth is { } depth && (!float.IsFinite(depth.BucketMix) || !float.IsFinite(depth.RemainingWeight) || depth.BucketMix is < 0 or > 1 || depth.RemainingWeight is < 0 or > 1))
+        if (TextureWindowBits is > 0xFFFFFF || Buffer80 is > 1 || PacketBuffer > 1 || TablePerspective.IsDefault || TablePerspective.Length != 2 || (PacketBank is null) != (ByteCursor is null) || PacketBank is not (null or "off_B6D070" or "off_B6D094") || ByteCursor is < 0 || ByteCursor is int cursor && (cursor & 3) != 0 || PacketBank is not null && ByteCursor > CommonPacketWriteCapacity || Depth is { } depth && (!float.IsFinite(depth.BucketMix) || !float.IsFinite(depth.RemainingWeight) || depth.BucketMix is < 0 or > 1 || depth.RemainingWeight is < 0 or > 1))
         {
             throw new InvalidDataException("Native primitive process requires bounded logical banks, original per-bank descriptors and finite retained GPU depth state.");
         }

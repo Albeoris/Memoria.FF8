@@ -40,7 +40,7 @@ public static class NativeBattleCommonPacketArena
         process.Validate();
         int start = process.ByteCursor ?? throw new NotSupportedException("Native common packet receipts require their allocated current cursor.");
         string bank = process.PacketBank ?? throw new NotSupportedException("Native common packet receipts require their allocated physical bank.");
-        int capacity = bank == "off_B6D070" ? 114688 : 147456;
+        int capacity = process.CommonPacketWriteCapacity;
         if (batch.Attempts.IsDefault || batch.AllocationBytes < 0 || (batch.AllocationBytes & 3) != 0 || start > capacity - batch.AllocationBytes)
         {
             throw new InvalidDataException("Native common packet receipts require their bounded aligned final allocation.");

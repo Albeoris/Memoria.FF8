@@ -100,7 +100,7 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
             packetIndices = new(source.Packets.Length);
             for (int index = 0; index < source.Packets.Length; index++)
             {
-                packetIndices.TryAdd(source.Packets[index].Reference, index);
+                packetIndices.TryAdd(NativeBattlePrimitiveProcess.NormalizeCommonReference(source.Packets[index].Reference), index);
                 RegisterPacketRange(source.Packets[index], index);
             }
         }
@@ -110,6 +110,7 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
 
         public void InvalidatePacketRange(NativeBattlePrimitiveReference reference, int length)
         {
+            reference = NativeBattlePrimitiveProcess.NormalizeCommonReference(reference);
             if (length == 0 || !packetRanges.TryGetValue((reference.Bank, reference.Buffer), out SortedSet<(int Offset, int Index)>? ranges))
             {
                 return;
@@ -119,7 +120,8 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
             foreach ((int _, int index) in ranges.GetViewBetween((minimum, int.MinValue), (maximum, int.MaxValue)))
             {
                 NativeBattleLogicalPacket packet = packets[index];
-                if (!packet.RequiresPhysicalRead && packet.Reference.Bank == reference.Bank && packet.Reference.Buffer == reference.Buffer && packet.Reference.ByteOffset < reference.ByteOffset + length && reference.ByteOffset < packet.Reference.ByteOffset + packet.Words.Length * 4)
+                NativeBattlePrimitiveReference physical = NativeBattlePrimitiveProcess.NormalizeCommonReference(packet.Reference);
+                if (!packet.RequiresPhysicalRead && physical.Bank == reference.Bank && physical.Buffer == reference.Buffer && physical.ByteOffset < reference.ByteOffset + length && reference.ByteOffset < physical.ByteOffset + packet.Words.Length * 4)
                 {
                     packets[index] = packet with { RequiresPhysicalRead = true };
                 }
@@ -132,13 +134,14 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
             {
                 return;
             }
-            var key = (packet.Reference.Bank, packet.Reference.Buffer);
+            NativeBattlePrimitiveReference reference = NativeBattlePrimitiveProcess.NormalizeCommonReference(packet.Reference);
+            var key = (reference.Bank, reference.Buffer);
             if (!packetRanges.TryGetValue(key, out SortedSet<(int Offset, int Index)>? ranges))
             {
                 ranges = [];
                 packetRanges.Add(key, ranges);
             }
-            ranges.Add((packet.Reference.ByteOffset, index));
+            ranges.Add((reference.ByteOffset, index));
             maximumPacketBytes = Math.Max(maximumPacketBytes, checked(packet.Words.Length * 4));
         }
 
@@ -152,14 +155,15 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
             InvalidatePacketRange(reference, words.Length * 4);
             LastHeaderLink = LinkAddress(table[bucket], tableBuffer);
             NativeBattleLogicalPacket packet = new(reference, words, table[bucket]) { NextTableBuffer = tableBuffer };
-            if (packetIndices.TryGetValue(reference, out int existing))
+            NativeBattlePrimitiveReference identity = NativeBattlePrimitiveProcess.NormalizeCommonReference(reference);
+            if (packetIndices.TryGetValue(identity, out int existing))
             {
                 packets[existing] = packet;
                 RegisterPacketRange(packet, existing);
             }
             else
             {
-                packetIndices.Add(reference, packets.Count);
+                packetIndices.Add(identity, packets.Count);
                 RegisterPacketRange(packet, packets.Count);
                 packets.Add(packet);
             }
@@ -185,7 +189,7 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
         {
             throw new InvalidDataException("Native logical OT requires its original4386 roots, proxy bank and command length table.");
         }
-        Dictionary<NativeBattlePrimitiveReference, NativeBattleLogicalPacket> memory = Packets.ToDictionary(packet => packet.Reference);
+        Dictionary<NativeBattlePrimitiveReference, NativeBattleLogicalPacket> memory = Packets.ToDictionary(packet => NativeBattlePrimitiveProcess.NormalizeCommonReference(packet.Reference));
         HashSet<(byte Bank, bool Proxy, int Index)> visited = [];
         ImmutableArray<NativeBattleLogicalCommand>.Builder commands = ImmutableArray.CreateBuilder<NativeBattleLogicalCommand>();
         NativeBattlePrimitiveLink cursor = new(false, Table.Length - 1);
@@ -213,7 +217,7 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
                 throw new InvalidDataException("Native logical OT has a missing proxy row.");
             }
             NativeBattleLogicalProxy proxy = Proxies[cursor.Index];
-            if (!memory.TryGetValue(proxy.Packet, out NativeBattleLogicalPacket? packet))
+            if (!memory.TryGetValue(NativeBattlePrimitiveProcess.NormalizeCommonReference(proxy.Packet), out NativeBattleLogicalPacket? packet))
             {
                 throw new NotSupportedException("Native logical OT reached an unobserved original packet owner.");
             }

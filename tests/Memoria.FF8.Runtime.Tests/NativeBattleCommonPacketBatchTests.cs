@@ -55,7 +55,7 @@ public sealed class NativeBattleCommonPacketBatchTests
         NativeBattlePrimitiveProcess process = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400();
         Assert.Same(process, process.ApplyCommonWrites([]));
         Assert.Same(process, process.ApplyCommonWrites([new(0, [9], [NativeBattleGfPacketByteState.Untouched])]));
-        Assert.Throws<InvalidDataException>(() => process.ApplyCommonWrites([new(0, [9], Known(1)), new(114688, [7], Known(1))]));
+        Assert.Throws<InvalidDataException>(() => process.ApplyCommonWrites([new(0, [9], Known(1)), new(229376, [7], Known(1))]));
         Assert.Throws<InvalidDataException>(() => process.ApplyCommonWrites([new(0, [9], [])]));
         Assert.Throws<InvalidDataException>(() => process.ApplyCommonWrites([new(0, [9], [(NativeBattleGfPacketByteState)255])]));
         Assert.Null(process.CommonPacketMemory);

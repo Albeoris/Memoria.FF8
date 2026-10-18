@@ -8,8 +8,11 @@ public static class NativeBattleChoco97ModelResourcesReader
 {
     public static NativeBattleChoco97ModelResources Read(byte[] executable)
     {
-        NativeExecutableMemory memory = new(executable);
-        const uint address = 0x168354C;
+        return Read(new NativeExecutableMemory(executable), 0x168354C, 0x1688434, 0x152BB58);
+    }
+
+    internal static NativeBattleChoco97ModelResources Read(NativeExecutableMemory memory, uint address, uint timAddress, uint programAddress)
+    {
         ImmutableArray<byte> bytes = memory.Read(address, 0x4EE8).ToImmutableArray();
         int[] offsets = [0x18, 0x688, 0x39FC, 0x4EDC, 0x4EE8];
         if (BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan()) != 4)
@@ -32,7 +35,7 @@ public static class NativeBattleChoco97ModelResourcesReader
         }
         geometry[0].Validate();
         NativeBattleEffectOwnedModelResource model = new(address, bytes, pose, geometry);
-        return new(model, new("FF8_EN:1688434", memory.Read(0x1688434, 0x4220).ToImmutableArray()), BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0xB8B9A8, 4)), new(0x152BB58, memory.Read(0x152BB58, 32).ToImmutableArray()), new(address + (uint)offsets[3], bytes.Slice(offsets[3], offsets[4] - offsets[3])));
+        return new(model, new($"FF8_EN:{timAddress:X}", memory.Read(timAddress, 0x4220).ToImmutableArray()), BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0xB8B9A8, 4)), new(programAddress, memory.Read(programAddress, 32).ToImmutableArray()), new(address + (uint)offsets[3], bytes.Slice(offsets[3], offsets[4] - offsets[3])));
     }
 }
 
