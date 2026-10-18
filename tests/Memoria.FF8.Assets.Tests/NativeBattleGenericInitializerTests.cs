@@ -55,7 +55,9 @@ public sealed class NativeBattleGenericInitializerTests
             Assert.Equal(selected.Binding.InitializerResource, restored.Binding.InitializerResource);
         }
         Assert.Single(assets.ReadNativeEffectCatalog().Where(binding => binding.InitializerAsset is not null));
-        Assert.Throws<NotSupportedException>(() => assets.ReadNativeEffectCatalogForEffects([6]));
+        NativeBattleEffectBinding ordered = assets.ReadNativeEffectCatalogForEffects([6])[5];
+        Assert.Equal(2, NativeBattleEffectInitializerPolicy.Resources(ordered).Length);
+        Assert.Equal(2, NativeBattleEffectInitializerPolicy.Assets(ordered).Length);
         Assert.Throws<ArgumentOutOfRangeException>(() => assets.ReadNativeEffectCatalogForEffects([0]));
         NativeBattleOriginalEffectState unsupported = NativeBattleOriginalEffects.Select(6, catalog);
         Assert.Throws<NotSupportedException>(() => NativeBattleOriginalEffects.Initialize(NativeBattleEffectMemory.FromColdProcess(), unsupported));

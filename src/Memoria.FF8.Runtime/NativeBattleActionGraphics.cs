@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -154,9 +155,17 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleBlizzardResources? BlizzardResources { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleFiraResources? FiraResources { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleFiragaResources? FiragaResources { get; init; }
     public bool? InitializerIsRet { get; init; }
     public NativeBattleEffectInitializerAsset? InitializerAsset { get; init; }
     public NativeBattleEffectInitializerResource? InitializerResource { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<NativeBattleEffectInitializerResource>? InitializerResources { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<NativeBattleEffectInitializerAsset>? InitializerAssets { get; init; }
     public NativeBattleEffectProgramResources? ProgramResources { get; init; }
     public NativeBattleEffect3Resources? Effect3Resources { get; init; }
     public NativeBattleEffect107Resources? Effect107Resources { get; init; }

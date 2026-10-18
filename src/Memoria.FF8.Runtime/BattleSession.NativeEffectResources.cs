@@ -24,7 +24,7 @@ public static class NativeBattleEffectResourceResolver
         }
         NativeBattleEffectBinding original = selected.Binding;
         NativeBattleEffectBinding materialized = resolve(original.Effect) ?? throw new InvalidDataException("Native50AF20 resource resolver returned no original selected binding.");
-        if (materialized.Effect != original.Effect || materialized.Entry != original.Entry || materialized.Initializer != original.Initializer || materialized.InitializerIsRet != original.InitializerIsRet || materialized.InitializerResource != original.InitializerResource)
+        if (materialized.Effect != original.Effect || materialized.Entry != original.Entry || materialized.Initializer != original.Initializer || materialized.InitializerIsRet != original.InitializerIsRet || materialized.InitializerResource != original.InitializerResource || materialized.InitializerResources.HasValue != original.InitializerResources.HasValue || !NativeBattleEffectInitializerPolicy.Resources(materialized).SequenceEqual(NativeBattleEffectInitializerPolicy.Resources(original)))
         {
             throw new InvalidDataException("Native50AF20 resource resolver changed the original selected effect metadata.");
         }

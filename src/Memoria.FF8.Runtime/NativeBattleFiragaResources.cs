@@ -1,0 +1,3 @@
+namespace Memoria.FF8.Runtime;
+
+public sealed record NativeBattleFiragaResources(NativeBattleEffectHeapAllocation Animation, NativeBattleModuleResource Sprite16, NativeBattleStaticMeshResource FlareMesh, NativeBattleStaticMeshResource PortalMesh, NativeBattleStaticMeshResource OrbitMesh, NativeBattleStaticMeshResource RingMesh, uint Sound);

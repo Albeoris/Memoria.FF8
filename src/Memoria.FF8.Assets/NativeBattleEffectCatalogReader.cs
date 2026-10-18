@@ -24,7 +24,8 @@ public static class NativeBattleEffectCatalogReader
             uint initializer = ReadAddress(0xC81DB8 + 4u * (uint)(effect - 1));
             ValidateCallback(entry);
             ValidateCallback(initializer);
-            result.Add(new(effect, entry, initializer) { InitializerIsRet = initializer == 0 ? null : FirstByte(initializer) == 0xC3, InitializerResource = initializer == 0 ? null : ReadInitializer(initializer) });
+            ImmutableArray<NativeBattleEffectInitializerResource> initializerResources = initializer == 0 ? [] : ReadInitializer(initializer);
+            result.Add(new(effect, entry, initializer) { InitializerIsRet = initializer == 0 ? null : FirstByte(initializer) == 0xC3, InitializerResource = initializerResources.Length == 1 ? initializerResources[0] : null, InitializerResources = initializerResources.Length > 1 ? initializerResources : null });
         }
         return result.MoveToImmutable();
 
@@ -49,15 +50,37 @@ public static class NativeBattleEffectCatalogReader
             return executable.AsSpan(checked((int)(rva - section.VirtualAddress + section.PointerToRawData)), count);
         }
 
-        NativeBattleEffectInitializerResource? ReadInitializer(uint address)
+        ImmutableArray<NativeBattleEffectInitializerResource> ReadInitializer(uint address)
         {
             ReadOnlySpan<byte> code = Bytes(address, 19);
-            if (code[0] != 0x68 || code[5] != 0xE8 || code[10] != 0x83 || code[11] != 0xC4 || code[12] != 4 || code[13] != 0xA3 || code[18] != 0xC3 || address + 10L + BinaryPrimitives.ReadInt32LittleEndian(code[6..]) != 0x571B80)
+            if (code[0] != 0x68 || code[5] != 0xE8 || address + 10L + BinaryPrimitives.ReadInt32LittleEndian(code[6..]) != 0x571B80)
             {
-                return null;
+                return [];
             }
-            uint nameAddress = BinaryPrimitives.ReadUInt32LittleEndian(code[1..]);
-            uint global = BinaryPrimitives.ReadUInt32LittleEndian(code[14..]);
+            if (code[10] == 0x83 && code[11] == 0xC4 && code[12] == 4 && code[13] == 0xA3 && code[18] == 0xC3)
+            {
+                return [ReadResource(BinaryPrimitives.ReadUInt32LittleEndian(code[1..]), BinaryPrimitives.ReadUInt32LittleEndian(code[14..]))];
+            }
+            if (code[10] != 0x68 || code[15] != 0xA3)
+            {
+                return [];
+            }
+            code = Bytes(address, 34);
+            if (code[20] != 0xE8 || address + 25L + BinaryPrimitives.ReadInt32LittleEndian(code[21..]) != 0x571B80 || code[25] != 0x83 || code[26] != 0xC4 || code[27] != 8 || code[28] != 0xA3 || code[33] != 0xC3)
+            {
+                return [];
+            }
+            NativeBattleEffectInitializerResource first = ReadResource(BinaryPrimitives.ReadUInt32LittleEndian(code[1..]), BinaryPrimitives.ReadUInt32LittleEndian(code[16..]));
+            NativeBattleEffectInitializerResource second = ReadResource(BinaryPrimitives.ReadUInt32LittleEndian(code[11..]), BinaryPrimitives.ReadUInt32LittleEndian(code[29..]));
+            if (first.GlobalAddress == second.GlobalAddress)
+            {
+                throw new InvalidDataException("Native two-load initializer aliases its publication globals.");
+            }
+            return [first, second];
+        }
+
+        NativeBattleEffectInitializerResource ReadResource(uint nameAddress, uint global)
+        {
             long globalRva = global - (long)reader.PEHeaders.PEHeader!.ImageBase;
             if (!reader.PEHeaders.SectionHeaders.Any(section => (section.SectionCharacteristics & SectionCharacteristics.MemWrite) != 0 && globalRva >= section.VirtualAddress && globalRva + 4 <= section.VirtualAddress + section.VirtualSize))
             {
@@ -127,6 +150,16 @@ public sealed partial class GameAssets
         {
             int index = catalog[requestedEffect - 1].Entry == 0 ? 0 : requestedEffect - 1;
             NativeBattleEffectBinding binding = catalog[index];
+            if (binding.Effect == 142)
+            {
+                binding = binding with { FiraResources = ReadNativeFiraResources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 143)
+            {
+                binding = binding with { FiragaResources = ReadNativeFiragaResources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Entry == 0x61ABA0)
             {
                 binding = binding with { BlizzardResources = ReadNativeBlizzardResources() };
@@ -192,12 +225,22 @@ public sealed partial class GameAssets
                 binding = binding with { RecoveryResources = ReadNativeRecoveryResources(binding.Effect) };
                 catalog = catalog.SetItem(index, binding);
             }
-            if (binding.Initializer == 0 || binding.InitializerIsRet == true || binding.InitializerAsset is not null)
+            if (binding.Initializer == 0 || binding.InitializerIsRet == true)
             {
                 continue;
             }
-            NativeBattleEffectInitializerResource resource = binding.InitializerResource ?? throw new NotSupportedException($"Native effect{binding.Effect} initializer{binding.Initializer:X} has no proved straight-line571B80 resource loader.");
-            catalog = catalog.SetItem(index, binding with { InitializerAsset = new(resource.Name, Read(magic, resource.Name).ToImmutableArray()) });
+            ImmutableArray<NativeBattleEffectInitializerResource> resources = NativeBattleEffectInitializerPolicy.Resources(binding);
+            if (resources.IsEmpty)
+            {
+                throw new NotSupportedException($"Native effect{binding.Effect} initializer{binding.Initializer:X} has no proved straight-line571B80 resource loader.");
+            }
+            ImmutableArray<NativeBattleEffectInitializerAsset> supplied = NativeBattleEffectInitializerPolicy.Assets(binding);
+            if (!supplied.IsEmpty)
+            {
+                continue;
+            }
+            ImmutableArray<NativeBattleEffectInitializerAsset> assets = resources.Select(resource => new NativeBattleEffectInitializerAsset(resource.Name, Read(magic, resource.Name).ToImmutableArray())).ToImmutableArray();
+            catalog = catalog.SetItem(index, binding.InitializerResources is null ? binding with { InitializerAsset = assets[0] } : binding with { InitializerAssets = assets });
         }
         return catalog;
     }

@@ -37,6 +37,8 @@ public sealed record NativeBattleOriginalEffectState([property: JsonRequired] us
     public NativeBattleRestorationState? Restoration { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleRecoveryState? Recovery { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleFiragaState? Firaga { get; init; }
 
     public void Validate()
     {
@@ -44,6 +46,11 @@ public sealed record NativeBattleOriginalEffectState([property: JsonRequired] us
         {
             throw new InvalidDataException("Native effect service lacks its selected entry, parameter block or returned physical task descriptor.");
         }
+        if (Binding.InitializerResources is not null || Binding.InitializerAssets is not null)
+        {
+            _ = NativeBattleEffectInitializerPolicy.Assets(Binding);
+        }
+        Firaga?.Validate();
         foreach (NativeBattleEffectTaskPool pool in Pools)
         {
             pool.Validate();
@@ -59,21 +66,25 @@ public static class NativeBattleOriginalEffects
 {
     public static (NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect) Initialize(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState selected)
     {
+        ImmutableArray<NativeBattleEffectInitializerResource> resources = NativeBattleEffectInitializerPolicy.Resources(selected.Binding);
+        ImmutableArray<NativeBattleEffectInitializerAsset> assets = NativeBattleEffectInitializerPolicy.Assets(selected.Binding);
         if (selected.Binding.Initializer == 0x6C3560)
         {
+            if (selected.Binding.InitializerResources is not null || selected.Binding.InitializerAssets is not null)
+            {
+                throw new InvalidDataException("The specialized native initializer cannot replace its resource contract with a generic asset list.");
+            }
             return NativeBattleQuezacotl.Initialize6C3560(memory, selected);
         }
-        NativeBattleEffectInitializerAsset? asset = selected.Binding.InitializerAsset;
-        NativeBattleEffectInitializerResource? resource = selected.Binding.InitializerResource;
-        if (resource is not null)
+        if (!resources.IsEmpty)
         {
-            if (selected.Binding.Initializer == 0 || selected.Binding.InitializerIsRet == true || string.IsNullOrEmpty(resource.Name) || resource.GlobalAddress == 0)
+            if (selected.Binding.Initializer == 0 || selected.Binding.InitializerIsRet == true || resources.Any(resource => string.IsNullOrEmpty(resource.Name) || resource.GlobalAddress == 0))
             {
                 throw new InvalidDataException("Native effect resource descriptor contradicts its actual initializer.");
             }
-            if (asset is null || asset.Name != resource.Name || asset.Data.IsDefault)
+            if (assets.Length != resources.Length || assets.Where((asset, index) => asset is null || asset.Name != resources[index].Name || asset.Data.IsDefault).Any())
             {
-                throw new NotSupportedException($"Native initializer{selected.Binding.Initializer:X} requires its actual {resource.Name} asset loaded by571B80.");
+                throw new NotSupportedException($"Native initializer{selected.Binding.Initializer:X} requires every ordered original571B80 asset.");
             }
         }
         else if (selected.Binding.Initializer != 0 && selected.Binding.InitializerIsRet != true)
@@ -81,11 +92,16 @@ public static class NativeBattleOriginalEffects
             throw new NotSupportedException($"Native50AF20 effect{selected.Binding.Effect} initializer{selected.Binding.Initializer:X} requires its original resource-loading contract.");
         }
         memory = memory.BeginLoad(selected.SelectedIndex);
-        if (resource is not null)
+        ImmutableArray<NativeBattleEffectResourcePointer>.Builder pointers = ImmutableArray.CreateBuilder<NativeBattleEffectResourcePointer>(resources.Length);
+        for (int index = 0; index < resources.Length; index++)
         {
             int offset = memory.Cursor;
-            memory = memory.LoadIntoArena(asset!.Data.AsSpan());
-            selected = selected with { ResourcePointers = [new(resource.GlobalAddress, offset)] };
+            memory = memory.LoadIntoArena(assets[index].Data.AsSpan());
+            pointers.Add(new(resources[index].GlobalAddress, offset));
+        }
+        if (pointers.Count > 0)
+        {
+            selected = selected with { ResourcePointers = pointers.MoveToImmutable() };
         }
         return (memory, selected);
     }

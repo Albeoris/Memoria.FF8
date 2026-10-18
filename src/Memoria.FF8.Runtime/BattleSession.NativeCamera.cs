@@ -113,6 +113,10 @@ public sealed partial class BattleSession
                 {
                     graphics = completed;
                 }
+                else if (TryWriteNativeFiraCompletion(graphics, address, value, out NativeBattleGraphicsState firaCompleted))
+                {
+                    graphics = firaCompleted;
+                }
                 else
                 {
                     WriteNativeAuxiliaryCompletionByte(address, value);
