@@ -72,4 +72,12 @@ public sealed class UiTheme
     {
         canvas.MenuPointer(new UiRect(x, y, size * 1.5f, size));
     }
+
+    internal void PointerBefore(IUiCanvas canvas, float contentLeft, float y, float size = 10)
+    {
+        if (size > 0)
+        {
+            Pointer(canvas, contentLeft - 4 - size * 1.5f, y, size);
+        }
+    }
 }

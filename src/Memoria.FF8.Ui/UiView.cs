@@ -87,7 +87,7 @@ public sealed class UiView
         GetTransform(out float scale, out float offsetX, out float offsetY);
         IUiCanvas transformed = scale == 1 && offsetX == 0 && offsetY == 0 ? canvas : new ScaledCanvas(canvas, scale, offsetX, offsetY);
         Root.Draw(transformed, theme);
-        // Frame captions straddle panel edges and must survive the panels' content clips.
+        // Frame captions and selection pointers can extend beyond the panels' content clips.
         canvas.PushClip(new UiRect(0, 0, _viewportWidth, _viewportHeight));
         try
         {

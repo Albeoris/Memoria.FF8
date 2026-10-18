@@ -16,12 +16,16 @@ public sealed class UiToggle : UiElement
         if (IsFocused && Enabled)
         {
             canvas.Fill(Bounds.Inset(1), theme.Highlight);
-            theme.Pointer(canvas, Bounds.X + 4, Bounds.Y + (Bounds.Height - 10) / 2);
         }
 
         UiColor color = Enabled ? theme.Foreground : theme.Muted;
         canvas.Text(Text, theme.FontSize, new UiRect(Bounds.X + 22, Bounds.Y, Math.Max(0, Bounds.Width - 94), Bounds.Height), color, UiAlignment.Center);
         canvas.Text(Value ? "On" : "Off", theme.FontSize, new UiRect(Bounds.Right - 65, Bounds.Y, 60, Bounds.Height), color, UiAlignment.Center);
+    }
+
+    protected override void DrawPointer(IUiCanvas canvas, UiTheme theme)
+    {
+        theme.PointerBefore(canvas, Bounds.X + 22, Bounds.Y + (Bounds.Height - 10) / 2);
     }
 
     public override bool Key(UiKey key)
@@ -131,17 +135,17 @@ public class UiSlider : UiSettingRow
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
     {
         UiColor color = Enabled ? theme.Foreground : theme.Muted;
-        if (IsFocused && Enabled)
-        {
-            theme.Pointer(canvas, Bounds.X + 4, Bounds.Y + 7);
-        }
-
         canvas.Text(Text, theme.FontSize, new UiRect(Bounds.X + 24, Bounds.Y + 1, Math.Max(0, Bounds.Width - 38), Bounds.Height * 0.6f), color);
         UiRect track = Track;
         canvas.Fill(track, theme.BorderDark);
         float ratio = Max == Min ? 0 : (Value - Min) / (Max - Min);
         canvas.Fill(new UiRect(track.X, track.Y, track.Width * ratio, track.Height), theme.Muted);
         canvas.Fill(new UiRect(track.X + Math.Max(0, track.Width - 6) * ratio, track.Y - 3, Math.Min(6, track.Width), 10), color);
+    }
+
+    protected override void DrawPointer(IUiCanvas canvas, UiTheme theme)
+    {
+        theme.PointerBefore(canvas, Bounds.X + 24, Bounds.Y + 7);
     }
 
     public override bool Key(UiKey key)

@@ -180,10 +180,6 @@ public sealed class UiList : UiElement
                 {
                     canvas.Fill(row.Inset(1), theme.Highlight);
                 }
-                if (IsFocused && Enabled)
-                {
-                    theme.Pointer(canvas, row.X + 5, row.Y + (row.Height - PointerSize) / 2, PointerSize);
-                }
             }
 
             float trailingWidth = reserveTrailingImage ? Math.Min(rowHeight, Math.Max(0, row.Width - TextInset - 4)) : 0;
@@ -224,6 +220,27 @@ public sealed class UiList : UiElement
             float top = Bounds.Y + (Bounds.Height - thumbHeight) * ScrollOffset / Math.Max(1, Items.Count - VisibleRows);
             canvas.Fill(new UiRect(Bounds.Right - 3, top, 2, thumbHeight), theme.Muted);
         }
+    }
+
+    protected override void DrawPointer(IUiCanvas canvas, UiTheme theme)
+    {
+        if (!ShowSelection || SelectedIndex < 0)
+        {
+            return;
+        }
+
+        bool horizontal = Orientation == UiOrientation.Horizontal;
+        float rowHeight = RenderedRowHeight;
+        int visibleRows = UsesPagination ? Math.Min(VisibleRows, EffectivePageSize) : (int)Math.Ceiling(Math.Max(0, Bounds.Height) / rowHeight);
+        if (!horizontal && (SelectedIndex < ScrollOffset || SelectedIndex >= ScrollOffset + visibleRows))
+        {
+            return;
+        }
+
+        UiRect row = horizontal
+            ? new UiRect(Bounds.X + SelectedIndex * Bounds.Width / Items.Count, Bounds.Y, Bounds.Width / Items.Count, Bounds.Height)
+            : new UiRect(Bounds.X, Bounds.Y + (SelectedIndex - ScrollOffset) * rowHeight, Bounds.Width, rowHeight);
+        theme.PointerBefore(canvas, row.X + TextInset, row.Y + (row.Height - PointerSize) / 2, PointerSize);
     }
 
     public override bool Key(UiKey key)

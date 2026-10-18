@@ -124,7 +124,7 @@ public sealed class SettingRowTests
     [Fact]
     public void Slider_pointer_and_draw_use_the_same_scaled_and_letterboxed_coordinates()
     {
-        UiNumericSlider slider = new() { Text = "Volume", Max = 100, Step = 25, ValueWidth = 66 };
+        UiNumericSlider slider = new() { Text = "Volume", Max = 100, Step = 25, ValueWidth = 66, PointerSize = 20, TextInset = 35 };
         UiView view = new(slider) { DesignWidth = 600, DesignHeight = 40 };
         view.Resize(1200, 200);
         RecordingCanvas canvas = new();
@@ -136,6 +136,8 @@ public sealed class SettingRowTests
         Assert.Equal(50, slider.Value);
         Assert.True(track.Y >= 60);
         Assert.Equal(2, Assert.Single(canvas.Pointers).Width / (slider.PointerSize * 1.5f));
+        Assert.Equal(2 * slider.PointerSize, Assert.Single(canvas.Pointers).Height);
+        Assert.Equal(2 * (slider.LabelBounds.X - 4), Assert.Single(canvas.Pointers).Right);
         slider.Arrange(new UiRect(0, 0, 40, 12));
         canvas = new RecordingCanvas();
         slider.Draw(canvas, theme);

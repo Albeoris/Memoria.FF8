@@ -50,12 +50,12 @@ public abstract class UiSettingRow : UiElement
 
     protected void DrawLabel(IUiCanvas canvas, UiTheme theme)
     {
-        if (IsFocused && Enabled)
-        {
-            theme.Pointer(canvas, Bounds.X + 4, Bounds.Y + (Bounds.Height - PointerSize) / 2, PointerSize);
-        }
-
         canvas.Text(Text, FontSize > 0 ? FontSize : theme.FontSize, LabelBounds, Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center);
+    }
+
+    protected override void DrawPointer(IUiCanvas canvas, UiTheme theme)
+    {
+        theme.PointerBefore(canvas, LabelBounds.X, Bounds.Y + (Bounds.Height - PointerSize) / 2, PointerSize);
     }
 }
 
@@ -200,6 +200,11 @@ public sealed class UiNumericSlider : UiSlider
         }
 
         canvas.Text(Value.ToString(ValueFormat, CultureInfo.InvariantCulture), FontSize > 0 ? FontSize : theme.FontSize, NumberBounds, Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center);
+    }
+
+    protected override void DrawPointer(IUiCanvas canvas, UiTheme theme)
+    {
+        theme.PointerBefore(canvas, LabelBounds.X, Bounds.Y + (Bounds.Height - PointerSize) / 2, PointerSize);
     }
 
     private void DrawBar(IUiCanvas canvas, UiRect track, UiTheme theme)

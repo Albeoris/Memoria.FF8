@@ -86,6 +86,14 @@ public class UiElement
         {
             child.DrawAdornments(canvas, theme);
         }
+        if (IsFocused && Enabled)
+        {
+            DrawPointer(canvas, theme);
+        }
+    }
+
+    protected virtual void DrawPointer(IUiCanvas canvas, UiTheme theme)
+    {
     }
 
     public virtual UiElement? HitTest(float x, float y)
@@ -217,12 +225,17 @@ public sealed class UiButton : UiElement
             canvas.Fill(Bounds.Inset(3), theme.Highlight);
         }
 
-        if (IsFocused && Enabled)
-        {
-            theme.Pointer(canvas, Bounds.X + 7, Bounds.Y + (Bounds.Height - PointerSize) / 2, PointerSize);
-        }
-
         canvas.Text(Text, FontSize > 0 ? FontSize : theme.FontSize, new UiRect(Bounds.X + 24, Bounds.Y, Math.Max(0, Bounds.Width - 32), Bounds.Height), Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center);
+    }
+
+    protected override void DrawPointer(IUiCanvas canvas, UiTheme theme)
+    {
+        float contentLeft = Children.Where(child => child.Visible).Select(child => child.Bounds.X).DefaultIfEmpty(Bounds.X + 24).Min();
+        if (!string.IsNullOrEmpty(Text))
+        {
+            contentLeft = Math.Min(contentLeft, Bounds.X + 24);
+        }
+        theme.PointerBefore(canvas, contentLeft, Bounds.Y + (Bounds.Height - PointerSize) / 2, PointerSize);
     }
 
     public override bool Key(UiKey key)

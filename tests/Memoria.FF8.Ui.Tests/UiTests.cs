@@ -273,7 +273,7 @@ public sealed class UiTests
         UiRect pointer = Assert.Single(canvas.Pointers);
         UiRect image = Assert.Single(canvas.Images).Bounds;
         UiRect text = Assert.Single(canvas.AlignedTexts).Bounds;
-        Assert.Equal(new UiRect(5, 10, 30, 20), pointer);
+        Assert.Equal(new UiRect(1, 10, 30, 20), pointer);
         Assert.True(pointer.Right < image.X);
         Assert.True(image.Right < text.X);
         Assert.Equal(20, pointer.Y + pointer.Height / 2);
@@ -305,7 +305,7 @@ public sealed class UiTests
         Assert.Equal(new[] { 46f, 246f, 446f }, canvas.AlignedTexts.Select(text => text.Bounds.X));
         Assert.All(canvas.AlignedTexts, text => Assert.Equal(120, text.Bounds.Height));
         Assert.Single(canvas.Fills);
-        Assert.Equal(new UiRect(410, 50, 30, 20), Assert.Single(canvas.Pointers));
+        Assert.Equal(new UiRect(408, 50, 30, 20), Assert.Single(canvas.Pointers));
 
         list.Key(UiKey.Left);
         list.Key(UiKey.PageUp);
@@ -376,6 +376,24 @@ public sealed class UiTests
         Assert.Contains(canvas.Fills, fill => fill.Color == theme.Highlight);
         Assert.True(canvas.Lines > 0);
         Assert.Equal(theme.FontSize, Assert.Single(canvas.TextDetails).FontSize);
+
+        UiAnchorPanel root = new();
+        UiPanel panel = new() { Anchors = new UiAnchors(0.25f, 0.25f, 0.75f, 0.75f) };
+        UiButton composite = new() { DrawBackground = false, HighlightSelection = false };
+        UiLabel label = new() { Text = "Status" };
+        composite.Children.Add(label);
+        panel.Children.Add(composite);
+        root.Children.Add(panel);
+        view = new UiView(root);
+        view.Resize(200, 120);
+        canvas = new RecordingCanvas();
+        view.Draw(canvas, theme);
+        UiRect pointer = Assert.Single(canvas.Pointers);
+        Assert.Equal(panel.Bounds.X, label.Bounds.X);
+        Assert.Equal(label.Bounds.X - 4, pointer.Right);
+        Assert.True(pointer.X < panel.Bounds.X);
+        Assert.Equal(new UiRect(0, 0, 200, 120), Assert.Single(canvas.PointerClips));
+        Assert.Equal(0, canvas.ClipDepth);
     }
 
     [Fact]
@@ -440,7 +458,7 @@ public sealed class UiTests
         Assert.Equal(UiAlignment.Center, text.Alignment);
         Assert.Equal(new UiRect(46, 0, 146, 80), text.Bounds);
         UiRect pointer = Assert.Single(canvas.Pointers);
-        Assert.Equal(new UiRect(10, 30, 30, 20), pointer);
+        Assert.Equal(new UiRect(8, 30, 30, 20), pointer);
         Assert.Equal(text.Bounds.Y + text.Bounds.Height / 2, pointer.Y + pointer.Height / 2);
         Assert.Equal(0, canvas.Lines);
     }
@@ -817,6 +835,7 @@ public sealed class UiTests
         public List<(float FontSize, UiColor Color)> TextDetails { get; } = new();
         public List<(UiRect Bounds, UiAlignment Alignment)> AlignedTexts { get; } = new();
         public List<UiRect> Pointers { get; } = new();
+        public List<UiRect> PointerClips { get; } = new();
         public List<(UiImageSource Source, UiRect Bounds)> Images { get; } = new();
 
         public void Fill(UiRect bounds, UiColor color)
@@ -844,6 +863,7 @@ public sealed class UiTests
         public void MenuPointer(UiRect bounds)
         {
             Pointers.Add(bounds);
+            PointerClips.Add(_clips.Count > 0 ? _clips.Peek() : default);
         }
 
         public void Line(float x1, float y1, float x2, float y2, UiColor color, float thickness)
