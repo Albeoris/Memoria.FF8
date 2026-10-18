@@ -13,6 +13,18 @@ public sealed record NativeBattleShivaResources(NativeBattleEffectHeapAllocation
     public required NativeBattleEffectOwnedModelResource Model544 { get; init; }
     public required ImmutableArray<int> TextureValuesD3250C { get; init; }
     public required ImmutableArray<int> ClippingVertexSelectorsD32524 { get; init; }
+    public required NativeBattleModuleResource ModelParticleSpriteD208B0 { get; init; }
+    public required NativeBattleStaticMeshResource AnchorMeshD31A74 { get; init; }
+    public required NativeBattleStaticMeshResource RingMeshD3048C { get; init; }
+    public required NativeBattleStaticMeshResource RingMeshD309A4 { get; init; }
+    public required NativeBattleStaticMeshResource ChildMeshD21B9C { get; init; }
+    public required NativeBattleStaticMeshResource ScrollMeshD2A50C { get; init; }
+    public required NativeBattleEffectHeapAllocation SpawnRowsD324F8 { get; init; }
+    public required NativeBattleStaticMeshResource FinalMeshD257CC { get; init; }
+    public required NativeBattleStaticMeshResource FinalMeshD27E6C { get; init; }
+    public required NativeBattleModuleResource LateParticleSpriteD20E10 { get; init; }
+    public required NativeBattleStaticMeshResource SecondShatterMeshD2BA3C { get; init; }
+    public required NativeBattleStaticMeshResource SecondShatterMeshD2D600 { get; init; }
 
     public int CameraRandomDivisor => 48;
     public uint VibrationAddress => 0xD32344;
@@ -35,6 +47,25 @@ public sealed record NativeBattleShivaResources(NativeBattleEffectHeapAllocation
             throw new InvalidDataException("Native Shiva resources require their actual particle sprite and arena-loaded544 model.");
         }
         ParticleSpriteD20AD0.Validate();
+        if (ModelParticleSpriteD208B0 is not { Address: 0xD208B0 } || ModelParticleSpriteD208B0.Bytes.IsDefault || ModelParticleSpriteD208B0.Bytes.Length != 0x144 || SpawnRowsD324F8 is null || SpawnRowsD324F8.Data.IsDefault || SpawnRowsD324F8.Data.Length != 16)
+        {
+            throw new InvalidDataException("Native Shiva model particles require their original sprite and four spawn parameter rows.");
+        }
+        ModelParticleSpriteD208B0.Validate();
+        RequireMesh(AnchorMeshD31A74, 0xD31A74, 0x8D0);
+        RequireMesh(RingMeshD3048C, 0xD3048C, 0x518);
+        RequireMesh(RingMeshD309A4, 0xD309A4, 0x9E8);
+        RequireMesh(ChildMeshD21B9C, 0xD21B9C, 0x3C30);
+        RequireMesh(ScrollMeshD2A50C, 0xD2A50C, 0x1530);
+        RequireMesh(FinalMeshD257CC, 0xD257CC, 0x26A0);
+        RequireMesh(FinalMeshD27E6C, 0xD27E6C, 0x26A0);
+        RequireMesh(SecondShatterMeshD2BA3C, 0xD2BA3C, 0x1BC4);
+        RequireMesh(SecondShatterMeshD2D600, 0xD2D600, 0x1BC4);
+        if (LateParticleSpriteD20E10 is not { Address: 0xD20E10 } || LateParticleSpriteD20E10.Bytes.IsDefault || LateParticleSpriteD20E10.Bytes.Length != 0x1AC)
+        {
+            throw new InvalidDataException("Native Shiva late particles require their complete original sprite source.");
+        }
+        LateParticleSpriteD20E10.Validate();
         Model544.PoseSource.Validate();
         foreach (NativeBattleRawMesh mesh in Model544.Geometry)
         {
@@ -51,6 +82,14 @@ public sealed record NativeBattleShivaResources(NativeBattleEffectHeapAllocation
         if (!Model544.Bytes.AsSpan().SequenceEqual(Files[1].Data.AsSpan()))
         {
             throw new InvalidDataException("Native Shiva model source differs from its original544 stream owner.");
+        }
+    }
+
+    private static void RequireMesh(NativeBattleStaticMeshResource mesh, uint address, int length)
+    {
+        if (mesh is null || mesh.Address != address || mesh.Bytes.IsDefault || mesh.Bytes.Length != length)
+        {
+            throw new InvalidDataException("Native Shiva requires each complete original selected mesh source.");
         }
     }
 }

@@ -296,7 +296,7 @@ internal static class NativeBattleEffectMeshPackets
 
     internal delegate NativeBattleGfGeometryBatch EmitFace(int group, ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, int byteOffset);
 
-    internal static NativeBattleGfGeometryBatch EmitBatch(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, uint flags, Func<int, NativeBattleVector>? readSelectedVertex, EmitFace emit, Action<uint>? observeFirstThreeFlags = null)
+    internal static NativeBattleGfGeometryBatch EmitBatch(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, uint flags, Func<int, NativeBattleVector>? readSelectedVertex, EmitFace emit, Action<uint>? observeFirstThreeFlags = null, Func<NativeBattleVector, NativeBattleModuleProjectedVertex>? projectFourth = null)
     {
         matrix.Validate();
         if (mesh.IsDefaultOrEmpty || mesh.Length < 8)
@@ -337,7 +337,7 @@ internal static class NativeBattleEffectMeshPackets
                         ReadOnlySpan<byte> xyz = Read(checked(8 + offset), 6);
                         vertex = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz[2..]), BinaryPrimitives.ReadInt16LittleEndian(xyz[4..]));
                     }
-                    NativeBattleModuleProjectedVertex projected = NativeBattleModuleProjection.Project45FE10(matrix, vertex, projection);
+                    NativeBattleModuleProjectedVertex projected = corner == 3 && projectFourth is not null ? projectFourth(vertex) : NativeBattleModuleProjection.Project45FE10(matrix, vertex, projection);
                     if (corner < 3)
                     {
                         firstThreeFlags |= projected.Flags;

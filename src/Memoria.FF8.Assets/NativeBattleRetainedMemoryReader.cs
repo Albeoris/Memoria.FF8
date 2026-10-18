@@ -76,7 +76,7 @@ public static class NativeBattleRetainedMemoryReader
             Parameter82 = ReadLoaderBytes(0x1D99A82, 1)[0],
             ReturnedTaskPointer1D96AAC = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1D96AAC, 4)),
             GuardianCasterBank = checked((byte)BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1D96DC4, 4))),
-            Shiva = new(null, null, null, BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x22BD0E0, 4)), ReadLoaderBytes(0x22BD0E4, 1)[0], new(ReadShivaVector(0x22BC190), ReadShivaVector(0x22BC128)), new(ReadLoaderBytes(0x22BD018, 0x90).ToImmutableArray(), ReadLoaderBytes(0x22BCFD0, 0x34).ToImmutableArray(), null, null, null, null)) { LocalAnchor22BCFC8 = ReadShivaVector(0x22BCFC8), WorldAnchor22BCFC0 = ReadShivaVector(0x22BCFC0) },
+            Shiva = new(null, null, null, BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x22BD0E0, 4)), ReadLoaderBytes(0x22BD0E4, 1)[0], new(ReadShivaVector(0x22BC190), ReadShivaVector(0x22BC128)), new(ReadLoaderBytes(0x22BD018, 0x90).ToImmutableArray(), ReadLoaderBytes(0x22BCFD0, 0x34).ToImmutableArray(), null, null, null, null)) { LocalAnchor22BCFC8 = ReadShivaVector(0x22BCFC8), WorldAnchor22BCFC0 = ReadShivaVector(0x22BCFC0), BillboardMatrix22BD0E8 = ReadLoaderBytes(0x22BD0E8, 32).ToImmutableArray(), SpawnedChildD32508 = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0xD32508, 4)) },
             QuezacotlPause = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x25216DC, 4)),
             QuezacotlCompletion17A8 = ReadLoaderBytes(0x25217A8, 1)[0],
             QuezacotlTargetY1774 = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x2521774, 4)),

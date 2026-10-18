@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -8,6 +9,10 @@ public sealed record NativeBattleShivaProcess([property: JsonRequired] NativeBat
     public NativeBattleShivaRetainedVector LocalAnchor22BCFC8 { get; init; } = new(0, 0, 0, 0);
     [JsonRequired]
     public NativeBattleShivaRetainedVector WorldAnchor22BCFC0 { get; init; } = new(0, 0, 0, 0);
+    [JsonRequired]
+    public ImmutableArray<byte> BillboardMatrix22BD0E8 { get; init; } = new byte[32].ToImmutableArray();
+    [JsonRequired]
+    public uint SpawnedChildD32508 { get; init; }
 
     public static NativeBattleShivaProcess FromColdProcess() => new(null, null, null, 0, 0, new(new(0, 0, 0, 0), new(0, 0, 0, 0)), NativeBattleCactuarRawModelState.FromColdProcess());
 
@@ -20,6 +25,10 @@ public sealed record NativeBattleShivaProcess([property: JsonRequired] NativeBat
         if (RawModel is null || RawModel.Model.IsDefault || RawModel.Model.Length != 0x90 || RawModel.Control.IsDefault || RawModel.Control.Length != 0x34 || RawModel.ProjectedScratch is not null)
         {
             throw new InvalidDataException("Native Shiva requires its original model/control banks and the single shared projected arena owner.");
+        }
+        if (BillboardMatrix22BD0E8.IsDefault || BillboardMatrix22BD0E8.Length != 32)
+        {
+            throw new InvalidDataException("Native Shiva billboard drawing requires its complete retained matrix bytes.");
         }
         Entry?.World.Validate();
         WorldView?.Validate();

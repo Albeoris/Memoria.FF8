@@ -59,7 +59,7 @@ public static class NativeBattleShivaPlaneClipping
         }
         if (mask == 0)
         {
-            return (distances[0] | distances[1] | distances[2]) > 0 ? triangle : [];
+            return unchecked((short)((ushort)distances[0] | (ushort)distances[1] | (ushort)distances[2])) > 0 ? triangle : [];
         }
         if (mask == 7)
         {
@@ -116,8 +116,9 @@ public static class NativeBattleShivaPlaneClipping
                 double value = matrix.Rotation[row * 3 + 2] * (vertex.Position.Z / 4096d);
                 value += matrix.Rotation[row * 3 + 1] * (vertex.Position.Y / 4096d);
                 value += matrix.Rotation[row * 3] * (vertex.Position.X / 4096d);
-                value += row == 0 ? matrix.X : row == 1 ? matrix.Y : matrix.Z;
-                short transformed = (short)Math.Clamp(NativeBattlePoseMatrices.RoundNative(value), short.MinValue, short.MaxValue);
+                int translation = row == 0 ? matrix.X : row == 1 ? matrix.Y : matrix.Z;
+                int translated = unchecked(NativeBattlePoseMatrices.RoundNative(value) + translation);
+                short transformed = (short)Math.Clamp(translated, short.MinValue, short.MaxValue);
                 BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(row * 2), transformed);
             }
             arena = arena.Write(checked(0x33000 + index * 8), bytes);

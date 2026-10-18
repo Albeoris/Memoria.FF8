@@ -20,6 +20,8 @@ public sealed class NativeBattleShivaResourcesTests
         Assert.Equal(original.ReadLoader(0x22BD018, 0x90), cold.RawModel.Model.ToArray());
         Assert.Equal(original.ReadLoader(0x22BCFD0, 0x34), cold.RawModel.Control.ToArray());
         Assert.Null(cold.RawModel.ProjectedScratch);
+        Assert.Equal(original.ReadLoader(0x22BD0E8, 32), cold.BillboardMatrix22BD0E8.ToArray());
+        Assert.Equal(BinaryPrimitives.ReadUInt32LittleEndian(original.ReadLoader(0xD32508, 4)), cold.SpawnedChildD32508);
         Assert.Equal(BinaryPrimitives.ReadInt16LittleEndian(original.ReadLoader(0x22BC196, 2)), cold.Geometry.Current.W);
         Assert.Equal(BinaryPrimitives.ReadInt32LittleEndian(original.ReadLoader(0x22BD0E0, 4)), cold.VibrationHandle);
         Assert.Equal(original.ReadLoader(0x22BD0E4, 1)[0], cold.SoundReady);
@@ -152,6 +154,53 @@ public sealed class NativeBattleShivaResourcesTests
             Assert.NotEmpty(mesh.Vertices);
             Assert.NotEmpty(mesh.Polygons);
         });
+    }
+
+    [Fact]
+    public void Original_later_model_particles_keep_all_named_mesh_groups_sprite_frames_and_signed_spawn_rows()
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        NativeBattleShivaResources resources = game.ReadNativeShivaResources();
+        (NativeBattleStaticMeshResource Mesh, uint Vertices, int[] Groups)[] meshes =
+        [
+            (resources.AnchorMeshD31A74, 73, [0, 0, 0, 0, 24, 48, 0, 0]),
+            (resources.RingMeshD3048C, 50, [0, 0, 0, 0, 0, 36, 0, 0]),
+            (resources.RingMeshD309A4, 96, [0, 0, 0, 0, 0, 72, 0, 0]),
+            (resources.ChildMeshD21B9C, 433, [0, 0, 0, 288, 0, 0, 24, 120]),
+            (resources.ScrollMeshD2A50C, 157, [0, 0, 0, 80, 0, 0, 12, 52]),
+            (resources.FinalMeshD257CC, 231, [0, 0, 400, 0, 0, 0, 0, 0]),
+            (resources.FinalMeshD27E6C, 231, [0, 0, 400, 0, 0, 0, 0, 0]),
+            (resources.SecondShatterMeshD2BA3C, 166, [0, 0, 287, 0, 0, 0, 0, 0]),
+            (resources.SecondShatterMeshD2D600, 166, [0, 0, 287, 0, 0, 0, 0, 0])
+        ];
+        foreach (var selected in meshes)
+        {
+            Assert.Equal(selected.Vertices, BinaryPrimitives.ReadUInt32LittleEndian(selected.Mesh.Bytes.AsSpan().Slice(4)));
+            Assert.Equal(selected.Groups, MeshGroups(selected.Mesh));
+        }
+        Assert.Equal(0xD208B0u, resources.ModelParticleSpriteD208B0.Address);
+        Assert.Equal(0x144, resources.ModelParticleSpriteD208B0.Bytes.Length);
+        Assert.Equal((ushort)5, BinaryPrimitives.ReadUInt16LittleEndian(resources.ModelParticleSpriteD208B0.Bytes.AsSpan().Slice(8)));
+        for (int frame = 0; frame < 5; frame++)
+        {
+            Assert.NotEmpty(resources.ModelParticleSpriteD208B0.SpriteFrame(frame).Quads);
+        }
+        Assert.Equal(new short[] { 6, -7900, 8, -6100, 10, -3700, 14, -1700 }, Enumerable.Range(0, 8).Select(index => BinaryPrimitives.ReadInt16LittleEndian(resources.SpawnRowsD324F8.Data.AsSpan().Slice(index * 2))));
+        Assert.Equal(0xD257CCu, resources.FinalMeshD257CC.Address);
+        Assert.Equal(0xD27E6Cu, resources.FinalMeshD27E6C.Address);
+        Assert.Equal(0x26A0, resources.FinalMeshD257CC.Bytes.Length);
+        Assert.Equal(0x26A0, resources.FinalMeshD27E6C.Bytes.Length);
+        Assert.Equal(0xD2BA3Cu, resources.SecondShatterMeshD2BA3C.Address);
+        Assert.Equal(0xD2D600u, resources.SecondShatterMeshD2D600.Address);
+        Assert.Equal(0x1BC4, resources.SecondShatterMeshD2BA3C.Bytes.Length);
+        Assert.Equal(0x1BC4, resources.SecondShatterMeshD2D600.Bytes.Length);
+        Assert.Equal(0xD20E10u, resources.LateParticleSpriteD20E10.Address);
+        Assert.Equal(0x1AC, resources.LateParticleSpriteD20E10.Bytes.Length);
+        Assert.Equal((ushort)16, BinaryPrimitives.ReadUInt16LittleEndian(resources.LateParticleSpriteD20E10.Bytes.AsSpan().Slice(8)));
+        for (int frame = 0; frame < 16; frame++)
+        {
+            Assert.NotEmpty(resources.LateParticleSpriteD20E10.SpriteFrame(frame).Quads);
+        }
     }
 
     [Fact]

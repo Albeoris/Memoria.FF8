@@ -161,7 +161,7 @@ public sealed class NativeBattleShivaModelParticlesTests
     public void Fresh_ring_spawn_uses_three_samples_and_no_draw_then_continues_from_independent_JSON(bool forward)
     {
         NativeBattleShivaEarlyTaskFrame frame = Fixture(forward ? 0x5C6040u : 0x5C5D90u, forward ? (ushort)13 : (ushort)11);
-        NativeBattleShivaEarlyTaskStep result = Ring(frame, forward, 0, null!, (_, _) => throw new InvalidOperationException("Fresh ring records are drawn only on the next callback."));
+        NativeBattleShivaEarlyTaskStep result = Ring(frame, forward, 0, NativeBattleCuragaMatrices.Identity8DD770(), (_, _) => throw new InvalidOperationException("Fresh ring records are drawn only on the next callback."));
         Assert.Equal(new NativeCrtRandomState(0x18BE873A), result.Frame.Random);
         Assert.Equal(forward ? 4u : 2u, Dword(result.Frame.Memory.Arena!, 0x2C000));
         Assert.Equal(forward ? (ushort)6185 : (ushort)361, Word(result.Frame.Memory.Arena!, 0x2C006));

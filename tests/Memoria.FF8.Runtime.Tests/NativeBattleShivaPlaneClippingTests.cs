@@ -13,7 +13,7 @@ public sealed class NativeBattleShivaPlaneClippingTests
         Assert.Equal((short)0, NativeBattleShivaPlaneClipping.Distance460860(new(1, 2, 3), plane));
         Assert.Equal(short.MaxValue, NativeBattleShivaPlaneClipping.Distance460860(new(0, short.MinValue, 0), plane));
         Assert.Equal((short)0, NativeBattleShivaPlaneClipping.Distance460860(new(-1, 0, 0), new(1, 0, 0, 0)));
-        Assert.Equal((short)49, NativeBattleShivaPlaneClipping.CreatePlane5C3130(new(32767, 32767, 32767), new(32767, 32767, 32767)).W);
+        Assert.Equal((short)48, NativeBattleShivaPlaneClipping.CreatePlane5C3130(new(32767, 32767, 32767), new(32767, 32767, 32767)).W);
     }
 
     [Fact]
@@ -71,6 +71,9 @@ public sealed class NativeBattleShivaPlaneClippingTests
         Assert.Equal((short)8, BinaryPrimitives.ReadInt16LittleEndian(first.AsSpan(4)));
         Assert.Throws<NotSupportedException>(() => arena.Read(0x33006, 2));
         Assert.Throws<NotSupportedException>(() => arena.Read(0x3300E, 2));
+        NativeBattleActionMatrix fractional = Matrix(1, 0, 0) with { Rotation = [2048, 0, 0, 0, 4096, 0, 0, 0, 4096] };
+        NativeBattleEffectArena rounded = NativeBattleShivaPlaneClipping.TransformVertices5C50D0(arena, new([new(new(1, 0, 0), 0)], []), [fractional]);
+        Assert.Equal((short)1, BinaryPrimitives.ReadInt16LittleEndian(rounded.Read(0x33000, 2)));
     }
 
     [Theory]
@@ -88,8 +91,11 @@ public sealed class NativeBattleShivaPlaneClippingTests
         Assert.Equal(quad ? 0x2C808080u : 0x24808080u, attempt.Primitive.Words[1]);
         Assert.Equal(0xAABB0123u, attempt.Primitive.Words[3]);
         Assert.Equal(0xCCDD0456u, attempt.Primitive.Words[5]);
-        Assert.All(attempt.WriteMask.Take(packetBytes - 2), state => Assert.Equal(NativeBattleGfPacketByteState.Known, state));
-        Assert.All(attempt.WriteMask.Skip(packetBytes - 2), state => Assert.Equal(NativeBattleGfPacketByteState.Untouched, state));
+        for (int offset = 0; offset < packetBytes; offset++)
+        {
+            bool unwritten = offset is 30 or 31 || quad && offset is 38 or 39;
+            Assert.Equal(unwritten ? NativeBattleGfPacketByteState.Untouched : NativeBattleGfPacketByteState.Known, attempt.WriteMask[offset]);
+        }
         Assert.Equal(attempt.WriteMask.ToArray(), attempt.Primitive.PhysicalWriteMask!.Value.ToArray());
     }
 

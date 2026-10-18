@@ -53,6 +53,10 @@ public sealed partial class BattleSession
         {
             return RunNativeCactuar199(graphics, false);
         }
+        if (effect.Binding.Entry == 0x5C0D50)
+        {
+            return RunNativeShiva185(graphics, false);
+        }
         if (effect.Binding.Entry == 0xA9B200)
         {
             return AdvanceNativeWaterA9B870(graphics);

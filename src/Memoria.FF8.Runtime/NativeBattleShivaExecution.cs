@@ -12,7 +12,7 @@ public sealed record NativeBattleShivaPackets(NativeBattleGfGeometryBatch Batch,
 public sealed record NativeBattleShivaSprites(NativeBattleModulePacketBatch Batch) : NativeBattleShivaOperation;
 public sealed record NativeBattleShivaTextureCopyOperation(NativeBattleEffectVramCopy Copy) : NativeBattleShivaOperation;
 public sealed record NativeBattleShivaModelService(NativeBattleShivaModelOperation Operation) : NativeBattleShivaOperation;
-public sealed record NativeBattleShivaInputs(uint GraphicsFlags, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, short Zsf3, short Zsf4, short Dqa, int Dqb, short CameraRoll, Func<int> Pending508500, Func<NativeBattleCameraPose> ReadCameraPose, Func<NativeBattleShivaFrame, NativeBattleShivaOperation, NativeBattleShivaFrame> Execute);
+public sealed record NativeBattleShivaInputs(uint GraphicsFlags, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, short Zsf3, short Zsf4, short Dqa, int Dqb, Func<int> Pending508500, Func<NativeBattleCameraPose> ReadCameraPose, Func<NativeBattleShivaFrame, NativeBattleShivaOperation, NativeBattleShivaFrame> Execute);
 
 public static class NativeBattleShivaExecution
 {
@@ -111,6 +111,76 @@ public static class NativeBattleShivaExecution
                     AcceptEarly(shards.Frame);
                     Emit(new NativeBattleShivaPackets(shards.Packets, false));
                     return shards.Result;
+                case 0x5C4AD0:
+                    NativeBattleShivaModelStep model = NativeBattleShivaModelTask.Advance5C4AD0(ModelFrame(), Slot(address), new(inputs.GraphicsFlags, resources.Model544, resources.TextureValuesD3250C, InitializePlane, CopyModelTexture, DrawPlane, DrawRawModel, ExecuteModel));
+                    AcceptModel(model.Frame);
+                    return model.Result;
+                case 0x5C5950:
+                    NativeBattleShivaEarlyTaskStep modelParticles = NativeBattleShivaModelParticles.Advance5C5950(EarlyFrame(), Slot(address), inputs.GraphicsFlags, World, checked((byte)resources.Model544.PoseSource.BoneCount), resources.ModelParticleSpriteD208B0, SampleModelBone, DrawSprite);
+                    AcceptEarly(modelParticles.Frame);
+                    return modelParticles.Result;
+                case 0x5C5BE0:
+                    NativeBattleShivaEarlyTaskStep anchor = NativeBattleShivaModelParticles.Advance5C5BE0(EarlyFrame(), Slot(address), inputs.GraphicsFlags, World, resources.AnchorMeshD31A74, SampleModelBone, DrawBillboardMesh);
+                    AcceptEarly(anchor.Frame);
+                    return anchor.Result;
+                case 0x5C5D90:
+                    NativeBattleShivaEarlyTaskStep radial = NativeBattleShivaModelParticles.Advance5C5D90(EarlyFrame(), Slot(address), inputs.GraphicsFlags, CurrentView(), resources.RingMeshD3048C, DrawModelMesh);
+                    AcceptEarly(radial.Frame);
+                    return radial.Result;
+                case 0x5C6040:
+                    NativeBattleShivaEarlyTaskStep ring = NativeBattleShivaModelParticles.Advance5C6040(EarlyFrame(), Slot(address), inputs.GraphicsFlags, Shared.WorldView ?? throw new NotSupportedException("Native Shiva model rings require the published world/view matrix."), resources.RingMeshD309A4, DrawModelMesh);
+                    AcceptEarly(ring.Frame);
+                    return ring.Result;
+                case 0x5C6FF0:
+                    NativeBattleShivaEarlyTaskStep scrolling = NativeBattleShivaScrollingTask.Advance5C6FF0(EarlyFrame(), Slot(address), inputs.GraphicsFlags, Shared.WorldView ?? throw new NotSupportedException("Native Shiva scrolling requires its published world/view matrix."), resources.ScrollMeshD2A50C, DrawScrollingMesh);
+                    AcceptEarly(scrolling.Frame);
+                    return scrolling.Result;
+                case 0x5C6690:
+                    NativeBattleShivaEarlyTaskStep spawner = NativeBattleShivaLateChildren.Advance5C6690(EarlyFrame(), Slot(address), inputs.GraphicsFlags, resources.SpawnRowsD324F8.Data);
+                    AcceptEarly(spawner.Frame);
+                    return spawner.Result;
+                case 0x5C6870:
+                    NativeBattleShivaEarlyTaskStep column = NativeBattleShivaLateChildren.Advance5C6870(EarlyFrame(), Slot(address), inputs.GraphicsFlags, Shared.WorldView ?? throw new NotSupportedException("Native Shiva columns require the published world/view matrix."), resources.ChildMeshD21B9C, DrawModelMesh);
+                    AcceptEarly(column.Frame);
+                    return column.Result;
+                case 0x5C69E0:
+                    NativeBattleShivaEarlyTaskStep delayed = NativeBattleShivaLateChildren.Advance5C69E0(EarlyFrame(), Slot(address), inputs.GraphicsFlags, Shared.WorldView ?? throw new NotSupportedException("Native Shiva delayed geometry requires the published world/view matrix."), resources.BurstMeshD3138C, DrawModelMesh);
+                    AcceptEarly(delayed.Frame);
+                    return delayed.Result;
+                case 0x5C62F0:
+                case 0x5C6BB0:
+                case 0x5C71B0:
+                case 0x5C7CA0:
+                    NativeBattleActionMatrix viewWorld = Shared.WorldView ?? throw new NotSupportedException("Native Shiva late particles require the published world/view matrix.");
+                    NativeBattleShivaEarlyTaskStep late = task.Callback switch
+                    {
+                        0x5C62F0 => NativeBattleShivaBillboardBanks.Advance5C62F0(EarlyFrame(), Slot(address), inputs.GraphicsFlags, viewWorld, resources.LateParticleSpriteD20E10, DrawLateSprite),
+                        0x5C6BB0 => NativeBattleShivaBillboardBanks.Advance5C6BB0(EarlyFrame(), Slot(address), inputs.GraphicsFlags, viewWorld, resources.LateParticleSpriteD20E10, DrawLateSprite),
+                        0x5C71B0 => NativeBattleShivaBillboardBanks.Advance5C71B0(EarlyFrame(), Slot(address), inputs.GraphicsFlags, viewWorld, resources.ParticleSpriteD20AD0, DrawLateSprite),
+                        _ => NativeBattleShivaBillboardBanks.Advance5C7CA0(EarlyFrame(), Slot(address), inputs.GraphicsFlags, viewWorld, resources.ModelParticleSpriteD208B0, DrawLateSprite)
+                    };
+                    AcceptEarly(late.Frame);
+                    return late.Result;
+                case 0x5C77C0:
+                    NativeBattleShivaFinalStep shatter = NativeBattleShivaFinalShatter.Advance5C77C0(FinalFrame(), Slot(address), inputs.GraphicsFlags, new(Shared.WorldView ?? throw new NotSupportedException("Native Shiva final geometry requires its published world/view matrix."), resources.FinalMeshD257CC, resources.FinalMeshD27E6C, inputs.Projection, inputs.Zsf3, inputs.Colors, SubmitFinalPackets, DrawFinalMesh, DrawFinalScroll));
+                    AcceptFinal(shatter.Frame);
+                    Emit(new NativeBattleShivaPackets(shatter.CommonPackets, false));
+                    return shatter.Result;
+                case 0x5C2DE0:
+                    NativeBattleShivaFinalStep secondSpawner = NativeBattleShivaSecondShatter.Advance5C2DE0(FinalFrame(), Slot(address), inputs.GraphicsFlags);
+                    AcceptFinal(secondSpawner.Frame);
+                    return secondSpawner.Result;
+                case 0x5C2E90:
+                    NativeBattleShivaFinalInputs secondGeometry = SecondGeometryInputs();
+                    NativeBattleShivaFinalStep secondShatter = NativeBattleShivaSecondShatter.Advance5C2E90(FinalFrame(), Slot(address), inputs.GraphicsFlags, new(secondGeometry, resources.ClippingVertexSelectorsD32524, inputs.Zsf4, inputs.Dqa, inputs.Dqb, DrawCommonFinalMesh));
+                    AcceptFinal(secondShatter.Frame);
+                    Emit(new NativeBattleShivaPackets(secondShatter.CommonPackets, false));
+                    return secondShatter.Result;
+                case 0x5C4140:
+                    NativeBattleShivaFinalStep halo = NativeBattleShivaSecondShatter.Advance5C4140(FinalFrame(), Slot(address), inputs.GraphicsFlags, SecondGeometryInputs(), DrawCommonFinalScroll);
+                    AcceptFinal(halo.Frame);
+                    Emit(new NativeBattleShivaPackets(halo.CommonPackets, false));
+                    return halo.Result;
                 default:
                     throw new NotSupportedException($"Native Shiva callback{task.Callback:X8} requires its original complete child contract.");
             }
@@ -118,13 +188,130 @@ public static class NativeBattleShivaExecution
 
         private NativeBattleShivaEarlyTaskFrame EarlyFrame() => new(Frame.Memory, Children, Frame.Random, Shared.Geometry);
 
+        private NativeBattleActionMatrix CurrentView() => inputs.Projection.View ?? throw new NotSupportedException("Native Shiva requires its published current camera view.");
+
+        private NativeBattleVector SampleModelBone(NativeBattleShivaEarlyTaskFrame current, int bone, int fraction)
+        {
+            NativeBattleShivaProcess process = current.Memory.Shiva ?? throw new NotSupportedException("Native Shiva model particles require their actual current raw model.");
+            return NativeBattleShivaModelBones.Read502170(process.RawModel, resources.Model544, bone, checked((short)fraction));
+        }
+
+        private NativeBattleShivaEarlyTaskFrame DrawModelMesh(NativeBattleShivaEarlyTaskFrame current, NativeBattleShivaModelMeshDraw draw)
+        {
+            AcceptEarly(current);
+            Emit(new NativeBattleShivaPackets(NativeBattleModulePackets.EmitBatch572200(draw.Resource.Bytes, 0, draw.Resource.Bytes.AsSpan().Slice(8).ToArray().ToImmutableArray(), draw.Matrix, inputs.Projection, draw.Context, inputs.Colors), false));
+            return EarlyFrame();
+        }
+
+        private NativeBattleShivaEarlyTaskFrame DrawBillboardMesh(NativeBattleShivaEarlyTaskFrame current, NativeBattleShivaModelBillboardDraw draw)
+        {
+            NativeBattleModuleDraw billboard = new(NativeBattleModuleDrawKind.Sprite, 0) { Anchor = draw.Anchor, Scale = draw.Scale, DepthOffset = draw.DepthOffset, SpriteFlags = 0 };
+            NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.ModuleSpriteCamera(billboard, CurrentView(), 0);
+            return DrawModelMesh(current, new(draw.Resource, matrix, draw.Context));
+        }
+
+        private NativeBattleShivaEarlyTaskFrame DrawScrollingMesh(NativeBattleShivaEarlyTaskFrame current, NativeBattleShivaScrollingDraw draw)
+        {
+            AcceptEarly(current);
+            Emit(new NativeBattleShivaPackets(NativeBattleShivaScrollingPackets.Emit64E080(draw.Resource, draw.Matrix, inputs.Projection, draw.Context, inputs.Zsf3, inputs.Zsf4, inputs.Dqa, inputs.Dqb, inputs.Colors), false));
+            return EarlyFrame();
+        }
+
+        private NativeBattleShivaEarlyTaskFrame DrawLateSprite(NativeBattleShivaEarlyTaskFrame current, NativeBattleShivaLateSpriteDraw draw)
+        {
+            AcceptEarly(current);
+            Emit(new NativeBattleShivaSprites(NativeBattleShivaBillboardBanks.Emit571C80(draw, inputs.Projection, inputs.ReadCameraPose().Roll)));
+            return EarlyFrame();
+        }
+
         private NativeBattleShivaModelFrame ModelFrame() => new(Frame.Memory, Children, Shared.RawModel, Shared.Geometry, Shared.Entry!.Counter22BD010);
+
+        private NativeBattleShivaFinalFrame FinalFrame() => new(Frame.Memory, Children, Frame.Random, Shared.Entry!.Counter22BD010, Frame.DrawCursor ?? throw new NotSupportedException("Native Shiva final geometry requires its current physical private draw cursor."));
+
+        private NativeBattleShivaFinalInputs SecondGeometryInputs() => new(Shared.WorldView ?? throw new NotSupportedException("Native Shiva secondary geometry requires its published world/view matrix."), resources.SecondShatterMeshD2BA3C, resources.SecondShatterMeshD2D600, inputs.Projection, inputs.Zsf3, inputs.Colors, SubmitFinalPackets, DrawFinalMesh, DrawFinalScroll);
+
+        private void AcceptFinal(NativeBattleShivaFinalFrame current)
+        {
+            Frame = Frame with { Memory = current.Memory, Random = current.Random, DrawCursor = current.PrivateDrawOffset };
+            SetChildren(current.Pool);
+            SetShared(Shared with { Entry = Shared.Entry! with { Counter22BD010 = current.Phase22BD010 } });
+        }
+
+        private NativeBattleShivaFinalFrame SubmitFinalPackets(NativeBattleShivaFinalFrame current, NativeBattleGfGeometryBatch batch)
+        {
+            AcceptFinal(current);
+            Emit(new NativeBattleShivaPackets(batch, true));
+            return FinalFrame();
+        }
+
+        private NativeBattleShivaFinalFrame DrawFinalMesh(NativeBattleShivaFinalFrame current, NativeBattleShivaFinalMeshDraw draw)
+        {
+            return SubmitFinalPackets(current, EmitStandardMesh(draw));
+        }
+
+        private NativeBattleGfGeometryBatch EmitStandardMesh(NativeBattleShivaFinalMeshDraw draw)
+        {
+            NativeBattleGfGeometryContext source = draw.Context;
+            if (source.DepthBias != 0)
+            {
+                throw new NotSupportedException("Native Shiva standard mesh uses its actual zero depth bias.");
+            }
+            return NativeBattleModulePackets.EmitBatch572200(draw.Resource.Bytes, 0, draw.Resource.Bytes.AsSpan().Slice(8).ToArray().ToImmutableArray(), draw.Matrix, inputs.Projection, new(source.Flags, source.FarColor, source.DepthCue, source.TexturePage, source.Clut, 0, source.TableBaseBucket, source.DepthShift), inputs.Colors);
+        }
+
+        private NativeBattleShivaFinalFrame DrawCommonFinalMesh(NativeBattleShivaFinalFrame current, NativeBattleShivaFinalMeshDraw draw)
+        {
+            AcceptFinal(current);
+            Emit(new NativeBattleShivaPackets(EmitStandardMesh(draw), false));
+            return FinalFrame();
+        }
+
+        private NativeBattleShivaFinalFrame DrawFinalScroll(NativeBattleShivaFinalFrame current, NativeBattleShivaScrollingDraw draw)
+        {
+            return SubmitFinalPackets(current, NativeBattleShivaScrollingPackets.Emit64E080(draw.Resource, draw.Matrix, inputs.Projection, draw.Context, inputs.Zsf3, inputs.Zsf4, inputs.Dqa, inputs.Dqb, inputs.Colors));
+        }
+
+        private NativeBattleShivaFinalFrame DrawCommonFinalScroll(NativeBattleShivaFinalFrame current, NativeBattleShivaScrollingDraw draw)
+        {
+            AcceptFinal(current);
+            Emit(new NativeBattleShivaPackets(NativeBattleShivaScrollingPackets.Emit64E080(draw.Resource, draw.Matrix, inputs.Projection, draw.Context, inputs.Zsf3, inputs.Zsf4, inputs.Dqa, inputs.Dqb, inputs.Colors), false));
+            return FinalFrame();
+        }
 
         private void AcceptModel(NativeBattleShivaModelFrame current)
         {
             Frame = Frame with { Memory = current.Memory };
             SetChildren(current.Pool);
             SetShared(Shared with { RawModel = current.RawModel, Geometry = current.Geometry, Entry = Shared.Entry! with { Counter22BD010 = current.EntryCounter22BD010 } });
+        }
+
+        private NativeBattleShivaDistortionSetup InitializePlane(NativeBattleShivaModelFrame current, NativeBattleVector point, NativeBattleVector normal)
+        {
+            NativeBattleShivaPlane plane = NativeBattleShivaPlaneClipping.CreatePlane5C3130(point, normal);
+            byte[] bytes = new byte[0x1A8];
+            bool[] known = new bool[bytes.Length];
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(0xB8), plane.X);
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(0xBA), plane.Y);
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(0xBC), plane.Z);
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(0xBE), plane.W);
+            Array.Fill(known, true, 0xB8, 8);
+            return new(current, new(bytes.ToImmutableArray(), known.ToImmutableArray()));
+        }
+
+        private NativeBattleShivaModelFrame DrawPlane(NativeBattleShivaModelFrame current, NativeBattleShivaDistortionContext context)
+        {
+            AcceptModel(current);
+            if (!context.Known.Skip(0xB8).Take(8).All(value => value) || !context.Known.Skip(4).Take(4).All(value => value) || BinaryPrimitives.ReadUInt32LittleEndian(context.Bytes.AsSpan().Slice(4)) != NativeBattleEffectNodeMemory.ArenaAddress + 0x33000)
+            {
+                throw new NotSupportedException("Native Shiva plane drawing requires its constructed plane and actual shared XYZ pointer.");
+            }
+            NativeBattleShivaPlane plane = new(Word(0xB8), Word(0xBA), Word(0xBC), Word(0xBE));
+            NativeBattleShivaPlaneDraw draw = NativeBattleShivaPlaneClipping.Draw5C5060(Frame.Memory.Arena ?? throw new NotSupportedException("Native Shiva plane drawing requires its current mutable XYZ arena."), current.RawModel, resources.Model544, Shared.WorldView ?? throw new NotSupportedException("Native Shiva plane drawing requires its published world/view matrix."), inputs.Projection, plane, resources.ClippingVertexSelectorsD32524, inputs.Zsf3, inputs.Zsf4, inputs.Dqa, inputs.Dqb);
+            Frame = Frame with { Memory = Frame.Memory with { Arena = draw.Arena } };
+            Emit(new NativeBattleShivaPackets(draw.Batch, false));
+            return ModelFrame();
+
+            short Word(int offset) => BinaryPrimitives.ReadInt16LittleEndian(context.Bytes.AsSpan().Slice(offset));
         }
 
         private NativeBattleShivaModelFrame CopyModelTexture(NativeBattleShivaModelFrame current, int selector, int variant)
@@ -167,7 +354,26 @@ public static class NativeBattleShivaExecution
         private NativeBattleShivaModelFrame ExecuteModel(NativeBattleShivaModelFrame current, NativeBattleShivaModelOperation operation)
         {
             AcceptModel(current);
-            Emit(new NativeBattleShivaModelService(operation));
+            if (operation is NativeBattleShivaModelInitializer { Address: 0x5C5BB0 })
+            {
+                AcceptEarly(NativeBattleShivaModelParticles.Initialize5C5BB0(EarlyFrame()));
+            }
+            else if (operation is NativeBattleShivaModelInitializer { Address: 0x5C6FA0 })
+            {
+                AcceptEarly(NativeBattleShivaScrollingTask.Initialize5C6FA0(EarlyFrame()));
+            }
+            else if (operation is NativeBattleShivaModelInitializer { Address: 0x5C7180 })
+            {
+                AcceptEarly(NativeBattleShivaBillboardBanks.Initialize5C7180(EarlyFrame()));
+            }
+            else if (operation is NativeBattleShivaModelInitializer { Address: 0x5C7570 })
+            {
+                AcceptFinal(NativeBattleShivaFinalShatter.Initialize5C7570(FinalFrame(), resources.FinalMeshD257CC, resources.FinalMeshD27E6C));
+            }
+            else
+            {
+                Emit(new NativeBattleShivaModelService(operation));
+            }
             return ModelFrame();
         }
 
@@ -184,7 +390,7 @@ public static class NativeBattleShivaExecution
             NativeBattleModuleMeshContext source = draw.Context;
             NativeBattleGfGeometryContext context = new(source.Flags, source.FarColor ?? 0, source.Fade ?? 0, source.TexturePage, source.Clut, 0, source.TableBaseBucket, source.DepthShift);
             NativeBattleShivaMeshPacketResult packets = NativeBattleShivaMeshPackets.Emit5C1B50(draw.Resource, default, draw.Matrix, inputs.Projection, context, draw.MaximumCount, draw.WindowCount, inputs.Zsf4, inputs.Dqa, inputs.Dqb, inputs.Colors, readSelectedVertex: ReadVertex);
-            Emit(new NativeBattleShivaPackets(packets.Batch, true));
+            Emit(new NativeBattleShivaPackets(packets.Batch, false));
             return EarlyFrame();
 
             NativeBattleVector ReadVertex(int offset)
@@ -197,7 +403,7 @@ public static class NativeBattleShivaExecution
         private NativeBattleShivaEarlyTaskFrame DrawSprite(NativeBattleShivaEarlyTaskFrame current, NativeBattleModuleDraw draw)
         {
             AcceptEarly(current);
-            Emit(new NativeBattleShivaSprites(NativeBattleModulePackets.EmitSprite571DC0(draw, inputs.Projection, inputs.CameraRoll, 17, 2)));
+            Emit(new NativeBattleShivaSprites(NativeBattleModulePackets.EmitSprite571DC0(draw, inputs.Projection, inputs.ReadCameraPose().Roll, 17, 2)));
             return EarlyFrame();
         }
 

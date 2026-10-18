@@ -45,7 +45,19 @@ public static class NativeBattleShivaResourcesReader
             ParticleSpriteD20AD0 = NativeBattleEffectStaticResourcesReader.ReadSprite(memory, 0xD20AD0),
             Model544 = ReadModel544(loadedFiles[1].Data),
             TextureValuesD3250C = Enumerable.Range(0, 6).Select(index => unchecked((int)U32(checked(0xD3250Cu + (uint)(index * 4))))).ToImmutableArray(),
-            ClippingVertexSelectorsD32524 = Enumerable.Range(0, 56).Select(index => unchecked((int)U32(checked(0xD32524u + (uint)(index * 4))))).ToImmutableArray()
+            ClippingVertexSelectorsD32524 = Enumerable.Range(0, 56).Select(index => unchecked((int)U32(checked(0xD32524u + (uint)(index * 4))))).ToImmutableArray(),
+            ModelParticleSpriteD208B0 = NativeBattleEffectStaticResourcesReader.ReadSprite(memory, 0xD208B0),
+            AnchorMeshD31A74 = NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0xD31A74u),
+            RingMeshD3048C = NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0xD3048Cu),
+            RingMeshD309A4 = NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0xD309A4u),
+            ChildMeshD21B9C = NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0xD21B9Cu),
+            ScrollMeshD2A50C = NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0xD2A50Cu),
+            SpawnRowsD324F8 = new("FF8_EN:D324F8", Read(0xD324F8, 16)),
+            FinalMeshD257CC = NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0xD257CCu),
+            FinalMeshD27E6C = NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0xD27E6Cu),
+            LateParticleSpriteD20E10 = NativeBattleEffectStaticResourcesReader.ReadSprite(memory, 0xD20E10),
+            SecondShatterMeshD2BA3C = NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0xD2BA3Cu),
+            SecondShatterMeshD2D600 = NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0xD2D600u)
         };
         result.Validate();
         return result;
