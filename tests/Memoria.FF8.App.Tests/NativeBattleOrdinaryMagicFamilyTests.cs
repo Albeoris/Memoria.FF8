@@ -21,7 +21,7 @@ public sealed class NativeBattleOrdinaryMagicFamilyTests
         string id = Environment.GetEnvironmentVariable("MEMORIA_FF8_ORDINARY_FAMILY_CASE") ?? throw new InvalidDataException("One external case identity per process is required.");
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_ORDINARY_FAMILY_OUTPUT") ?? throw new InvalidDataException("A distinct external case output directory is required.");
         NativeBattleOrdinaryMagicCase item = (JsonSerializer.Deserialize<NativeBattleOrdinaryMagicCases>(File.ReadAllBytes(manifest!)) ?? throw new InvalidDataException("The ordinary case manifest is null.")).Cases.Single(item => item.Id == id);
-        Assert.Contains(item.Effect, new ushort[] { 2, 142, 143, 3, 102, 144, 103, 104, 118 });
+        Assert.Contains(item.Effect, new ushort[] { 2, 142, 143, 3, 102, 144, 103, 104, 118, 105 });
         Assert.True(item.EntryMaximumCallbacks > 0 && item.ProducerMaximumCallbacks > 0 && item.MaximumTicks > 0 && item.ProcessTimeoutSeconds > 0);
         Assert.False(Directory.Exists(output) && Directory.EnumerateFileSystemEntries(output).Any(), "Output must be a distinct empty directory.");
         Directory.CreateDirectory(output);

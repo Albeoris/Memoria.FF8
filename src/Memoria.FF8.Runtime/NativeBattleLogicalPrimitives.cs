@@ -291,6 +291,7 @@ public interface INativeBattleLogicalExecutionContext
     void ExecuteSoftware(NativeBattleLogicalCommand command);
     void ExecuteNormal(NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode, byte pass);
     NativeBattlePrimitiveDrawMode SynchronizeDrawMode(NativeBattlePrimitiveDrawMode mode);
+    NativeBattleLogicalResolvedCommand RetainTexturePixels(NativeBattleLogicalResolvedCommand command) => command;
     void EndBatch();
 }
 
@@ -341,11 +342,11 @@ public static class NativeBattleLogicalPasses
                     continue;
                 }
                 mode = mode.ExecuteWords(command.Opcode, command.Words);
-                mode = mode with { TextureSelection = null };
+                mode = mode with { TextureSelection = null, TexturePixelSnapshot = null };
                 if (context is not null)
                 {
                     context.ExecuteNormal(command, mode, pass);
-                    mode = context.SynchronizeDrawMode(mode) with { TextureSelection = null };
+                    mode = context.SynchronizeDrawMode(mode) with { TextureSelection = null, TexturePixelSnapshot = null };
                 }
                 NativeBattleLogicalResolvedCommand resolved = new(command, mode, pass);
                 if (GetCache() is { } currentCache)
@@ -354,7 +355,7 @@ public static class NativeBattleLogicalPasses
                     resolved = selected.Command;
                     SetCache(selected.Cache);
                 }
-                executed.Add(resolved);
+                executed.Add(context?.RetainTexturePixels(resolved) ?? resolved);
             }
             SetCache(EndTexturePass(GetCache(), pass));
         }
@@ -402,7 +403,7 @@ public static class NativeBattleLogicalPasses
 
     private static (NativeBattleLogicalResolvedCommand Command, NativeBattlePcTextureWindowCache Cache) SelectTextureCommand(NativeBattleLogicalResolvedCommand command, NativeBattlePcTextureWindowCache cache)
     {
-        NativeBattlePrimitiveDrawMode mode = command.DrawMode with { TextureSelection = null };
+        NativeBattlePrimitiveDrawMode mode = command.DrawMode with { TextureSelection = null, TexturePixelSnapshot = null };
         if ((command.Command.Opcode & 0xE4) == 0x24)
         {
             ushort page = mode.TexturePage ?? throw new NotSupportedException("Native textured pass requires its executed texture page.");

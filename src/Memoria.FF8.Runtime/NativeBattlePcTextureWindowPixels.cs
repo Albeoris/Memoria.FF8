@@ -1,5 +1,7 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -7,6 +9,8 @@ namespace Memoria.FF8.Runtime;
 /// <summary>The original indexed/direct texture words retained by a cached PC region before VRAM invalidation.</summary>
 public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] int X, [property: JsonRequired] int Y, [property: JsonRequired] int Width, [property: JsonRequired] int Height, [property: JsonRequired] ImmutableArray<byte> Data)
 {
+    private static readonly ConditionalWeakTable<NativeBattleEffectTextureState, ConcurrentDictionary<(int Row, NativeBattlePrimitiveTextureWindow Rectangle), NativeBattlePcTextureWindowPixels>> Captures = new();
+
     public void Validate()
     {
         if (X is < 0 or >= 1024 || Y is < 0 or >= 512 || Width is < 1 or > 256 || Height is < 1 or > 256 || X + Width > 1024 || Y + Height > 512 || Data.IsDefault || Data.Length != 2 * Width * Height)
@@ -35,6 +39,14 @@ public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] 
     }
 
     public static NativeBattlePcTextureWindowPixels Capture(int row, NativeBattlePrimitiveTextureWindow rectangle, NativeBattleEffectTextureState textures)
+    {
+        ArgumentNullException.ThrowIfNull(rectangle);
+        ArgumentNullException.ThrowIfNull(textures);
+        ConcurrentDictionary<(int Row, NativeBattlePrimitiveTextureWindow Rectangle), NativeBattlePcTextureWindowPixels> captures = Captures.GetValue(textures, static _ => new());
+        return captures.GetOrAdd((row, rectangle), key => CaptureUncached(key.Row, key.Rectangle, textures));
+    }
+
+    private static NativeBattlePcTextureWindowPixels CaptureUncached(int row, NativeBattlePrimitiveTextureWindow rectangle, NativeBattleEffectTextureState textures)
     {
         if (row is < 0 or >= 96)
         {

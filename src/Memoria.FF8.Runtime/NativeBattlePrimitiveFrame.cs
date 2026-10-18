@@ -50,6 +50,7 @@ public sealed record NativeBattlePrimitiveFrame(NativeBattleLogicalOrdering Pend
     public bool? LastDescriptorPerspective { get; init; }
     public NativeBattlePrimitiveDepthState? LastDepthState { get; init; }
     public NativeBattlePrimitiveColorState? LastColorState { get; init; }
+    public ImmutableArray<NativeBattlePcTextureWindowPixels>? LastTextureSnapshots { get; init; }
     public static NativeBattlePrimitiveFrame Clear() => new(NativeBattleLogicalOrdering.Clear(), [], []);
 }
 

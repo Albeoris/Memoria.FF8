@@ -143,6 +143,7 @@ public sealed partial class BattleSession
         NativeBattlePrimitiveColorState? color = process.Color;
         NativeBattleLogicalOrdering pending = frame.Pending.SelectTable(buffer);
         ImmutableArray<NativeBattleLogicalResolvedCommand> commands = [];
+        ImmutableArray<NativeBattlePcTextureWindowPixels>? textureSnapshots = null;
         if ((graphics.Flags & 4) != 0)
         {
             NativeBattlePcTextureWindowCache cache = process.TextureWindowCache ?? throw new NotSupportedException("Native500900 requires its retained PC window-cache owner; explicitly reset it in a separately named snapshot migration.");
@@ -157,6 +158,7 @@ public sealed partial class BattleSession
             execution.ApplyEnvironment45B660(buffer ^ 1);
             var pass = NativeBattleLogicalPasses.Execute(pending, tables, new(process.TexturePage) { TextureWindowBits = process.TextureWindowBits }, execution, (reference, count) => ReadNativePhysicalPrimitive(reference, count));
             commands = pass.Commands;
+            textureSnapshots = execution.TextureSnapshots;
             process = process with { PublicationState03A = process.PublicationState03A is byte state ? state <= 16 ? (byte)0 : (byte)(state - 16) : null, TexturePage = pass.Final.TexturePage, TextureWindowBits = pass.Final.TextureWindowBits, TextureWindowCache = pass.Cache, Software = execution.State };
             memory = memory with { Textures = execution.Textures };
             pending = pending.ResetAfterDraw45D080();
@@ -172,7 +174,7 @@ public sealed partial class BattleSession
         {
             pending = pending.ClearRoots45D550();
         }
-        return graphics with { PrimitiveFrame = frame with { Pending = pending, LastCommands = commands, LastModuleBlendModes = blends.ToImmutable(), LastDescriptorPerspective = descriptor, LastDepthState = depth, LastColorState = color } };
+        return graphics with { PrimitiveFrame = frame with { Pending = pending, LastCommands = commands, LastModuleBlendModes = blends.ToImmutable(), LastDescriptorPerspective = descriptor, LastDepthState = depth, LastColorState = color, LastTextureSnapshots = textureSnapshots } };
     }
 
     private byte[] ReadNativePhysicalPrimitive(NativeBattlePrimitiveReference reference, int count)
@@ -189,6 +191,14 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Native fullscreen static packets have a single physical buffer.");
             }
             return (memory.FullscreenOverlay ?? throw new NotSupportedException("Native fullscreen packet alias requires its retained static bytes.")).Read(reference.ByteOffset, count);
+        }
+        if (reference.Bank == NativeBattleThundaga105CaptureMemory.PacketBank)
+        {
+            if (reference.Buffer != 0)
+            {
+                throw new InvalidDataException("Native capture statics have one physical packet bank.");
+            }
+            return (memory.Thundaga105Capture ?? throw new NotSupportedException("Native capture packet alias requires its retained static bytes.")).Read(reference.ByteOffset, count);
         }
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native retained common packet alias requires its physical banks.");
         return (process with { PacketBank = reference.Bank, PacketBuffer = reference.Buffer }).ReadCommonPacket(reference.ByteOffset, count);

@@ -179,6 +179,8 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
     public NativeBattleMoogle96Resources? Moogle96Resources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleCactuar199Resources? Cactuar199Resources { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleThundaga105Resources? Thundaga105Resources { get; init; }
     public bool? InitializerIsRet { get; init; }
     public NativeBattleEffectInitializerAsset? InitializerAsset { get; init; }
     public NativeBattleEffectInitializerResource? InitializerResource { get; init; }

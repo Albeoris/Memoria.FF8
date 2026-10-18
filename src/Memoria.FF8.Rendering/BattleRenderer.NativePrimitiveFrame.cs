@@ -51,7 +51,7 @@ public sealed partial class BattleRenderer
         nativeDirectTextureFormat = capabilities?.DirectTextureFormat;
         foreach (NativeBattleLogicalResolvedCommand resolved in frame.LastCommands)
         {
-            if (resolved.Pass == 0 || resolved.Command.Opcode is 0xE1 or 0xE2)
+            if (resolved.Pass == 0 || resolved.Command.Opcode is >= 0xE1 and <= 0xE6)
             {
                 continue;
             }
@@ -91,7 +91,21 @@ public sealed partial class BattleRenderer
                 _ = resolved.DrawMode.TextureWindowBits ?? throw new NotSupportedException("Native465CE0 requires its retained45BC60 texture-window owner; explicitly migrate the named snapshot.");
                 NativeBattlePcTextureWindowSelection window = resolved.DrawMode.TextureSelection ?? throw new NotSupportedException("Native465CE0 requires its executed PC window-cache selection; explicitly migrate the named snapshot.");
                 window.Validate();
-                NativeBattlePcTextureWindowPixels? retainedPixels = textureWindowCache is not null ? textureWindowCache.PixelWords(window) : window.UsesRetainedPixelWords == false ? null : throw new NotSupportedException("Native texture selection requires its retained cache pixel owner.");
+                NativeBattlePcTextureWindowPixels? retainedPixels;
+                if (resolved.DrawMode.TexturePixelSnapshot is int snapshot)
+                {
+                    ImmutableArray<NativeBattlePcTextureWindowPixels> snapshots = frame.LastTextureSnapshots ?? throw new NotSupportedException("Native texture draw requires its executed resource pixel snapshots.");
+                    if ((uint)snapshot >= snapshots.Length)
+                    {
+                        throw new InvalidDataException("Native texture draw refers outside its retained resource pixel snapshots.");
+                    }
+                    retainedPixels = snapshots[snapshot];
+                    retainedPixels.ValidateMapping(window.Row, new(window.X, window.Y, window.Width, window.Height));
+                }
+                else
+                {
+                    retainedPixels = textureWindowCache is not null ? textureWindowCache.PixelWords(window) : window.UsesRetainedPixelWords == false ? null : throw new NotSupportedException("Native texture selection requires its retained cache pixel owner.");
+                }
                 ushort clut = (ushort)(command.Words[2] >> 16);
                 byte? alternateShift = null;
                 if (resolved.DrawMode.BlendMode == 2)

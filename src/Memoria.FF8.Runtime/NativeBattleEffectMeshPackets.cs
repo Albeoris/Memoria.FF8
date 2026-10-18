@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-internal sealed record NativeBattleEffectMeshWindow(ushort U, ushort V, NativeBattleTextureWindow Before, NativeBattleTextureWindow After, bool ForceBracket = false);
+internal sealed record NativeBattleEffectMeshWindow(ushort U, ushort V, NativeBattleTextureWindow Before, NativeBattleTextureWindow After, bool ForceBracket = false, byte? VWrapDimension = null);
 internal sealed record NativeBattleEffectMeshPacketContext(uint Flags, uint? FarColor, int? Fade, ushort? TexturePage, ushort? Clut, uint PackedUvOffset, bool MaterialOverrides, int? DepthBias, int TableBaseBucket, byte DepthShift, NativeBattleEffectMeshWindow? Window = null);
 
 [Flags]
@@ -115,7 +115,7 @@ internal static class NativeBattleEffectMeshPackets
         if (window is not null && (window.ForceBracket || (window.U | window.V) != 0))
         {
             AdjustAxis(window.U, 0, unchecked((byte)window.After.Width));
-            AdjustAxis(window.V, 1, unchecked((byte)window.After.Height));
+            AdjustAxis(window.V, 1, window.VWrapDimension ?? unchecked((byte)window.After.Height));
         }
         NativeBattleGeometryPrimitive primitive = new(bucket, packet.Words(), Payload(vertices, color));
         if (window is not null && (window.ForceBracket || (window.U | window.V) != 0))

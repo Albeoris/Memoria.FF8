@@ -214,6 +214,15 @@ public sealed partial class GameAssets
                 catalog = catalog.SetItem(index, binding with { Cactuar199Resources = ReadNativeCactuar199Resources() });
                 continue;
             }
+            if (binding.Effect == 105)
+            {
+                if (binding.Entry != 0x6D3DB0 || binding.Initializer != 0x6D3DC0)
+                {
+                    throw new InvalidDataException("Native Thundaga105 differs from its original entry and initializer identity.");
+                }
+                binding = binding with { Thundaga105Resources = ReadNativeThundaga105Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Entry == 0x61ABA0)
             {
                 binding = binding with { BlizzardResources = ReadNativeBlizzardResources() };
