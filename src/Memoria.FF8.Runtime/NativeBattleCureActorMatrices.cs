@@ -12,16 +12,18 @@ public static partial class NativeBattlePoseMatrices
         originalModelWorld.Validate();
         camera.Validate();
         Matrix world = new(originalModelWorld.Rotation.ToArray(), originalModelWorld.X, originalModelWorld.Y, originalModelWorld.Z);
-        Matrix moved = world;
-        if (translationMode == 0)
-        {
-            (int x, int y, int z) = ApplyRounded(world, localOffset.X, localOffset.Y, localOffset.Z);
-            moved = world with { X = unchecked(world.X + (short)x), Y = unchecked(world.Y + (short)y), Z = unchecked(world.Z + (short)z) };
-        }
-        else if (translationMode == 1)
-        {
-            moved = world with { X = unchecked(world.X + localOffset.X), Y = unchecked(world.Y + localOffset.Y), Z = unchecked(world.Z + localOffset.Z) };
-        }
+        NativeBattleActionMatrix movedAction = CureMovedModelWorld8D7200(originalModelWorld, localOffset, translationMode);
+        Matrix main = Compose(new(camera.Rotation.ToArray(), camera.X, camera.Y, camera.Z), world);
+        return new(movedAction, ToActionMatrix(main), CureOverlayMatrix8D72C0(originalModelWorld, movedAction, effectCenter, projectionDistance));
+    }
+
+    /// <summary>8D72C0 consumes the actual original and moved actor matrices for its projected overlay basis.</summary>
+    public static NativeBattleActionMatrix CureOverlayMatrix8D72C0(NativeBattleActionMatrix originalModelWorld, NativeBattleActionMatrix movedModelWorld, NativeBattleVector effectCenter, int projectionDistance)
+    {
+        originalModelWorld.Validate();
+        movedModelWorld.Validate();
+        Matrix world = new(originalModelWorld.Rotation.ToArray(), originalModelWorld.X, originalModelWorld.Y, originalModelWorld.Z);
+        Matrix moved = new(movedModelWorld.Rotation.ToArray(), movedModelWorld.X, movedModelWorld.Y, movedModelWorld.Z);
         //8D72C0 copies only WORDs from the moved DWORD translation into its temporary origin.
         NativeBattleVector origin = new(unchecked((short)moved.X), unchecked((short)moved.Y), unchecked((short)moved.Z));
         NativeBattleVector direction = NormalizeLong56BD20(origin.X - effectCenter.X, origin.Y - effectCenter.Y, origin.Z - effectCenter.Z);
@@ -42,8 +44,25 @@ public static partial class NativeBattlePoseMatrices
         short dz = unchecked((short)(world.Z - origin.Z));
         (int tx, int ty, int tz) = ApplyRounded(basis, dx, dy, dz);
         Matrix overlay = new(rotation, tx, ty, unchecked(tz + projectionDistance));
-        Matrix main = Compose(new(camera.Rotation.ToArray(), camera.X, camera.Y, camera.Z), world);
-        return new(ToActionMatrix(moved), ToActionMatrix(main), ToActionMatrix(overlay));
+        return ToActionMatrix(overlay);
+    }
+
+    /// <summary>8D7200's copied world matrix and optional local or world translation.</summary>
+    public static NativeBattleActionMatrix CureMovedModelWorld8D7200(NativeBattleActionMatrix originalModelWorld, NativeBattleVector localOffset, short translationMode)
+    {
+        originalModelWorld.Validate();
+        Matrix world = new(originalModelWorld.Rotation.ToArray(), originalModelWorld.X, originalModelWorld.Y, originalModelWorld.Z);
+        Matrix moved = world;
+        if (translationMode == 0)
+        {
+            (int x, int y, int z) = ApplyRounded(world, localOffset.X, localOffset.Y, localOffset.Z);
+            moved = world with { X = unchecked(world.X + (short)x), Y = unchecked(world.Y + (short)y), Z = unchecked(world.Z + (short)z) };
+        }
+        else if (translationMode == 1)
+        {
+            moved = world with { X = unchecked(world.X + localOffset.X), Y = unchecked(world.Y + localOffset.Y), Z = unchecked(world.Z + localOffset.Z) };
+        }
+        return ToActionMatrix(moved);
     }
 
     /// <summary>56BD20 retains X as an x87 value but stores normalized Y/Z through single-precision locals.</summary>

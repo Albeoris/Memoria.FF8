@@ -127,13 +127,13 @@ public sealed class NativeBattleBio22ResourcesTests
     }
 
     [Fact]
-    public void Five_original_kind_zero_sprites_keep_all_seventy_one_frames_and_complete_extents()
+    public void Seven_original_kind_zero_sprites_keep_all_ninety_nine_frames_and_complete_extents()
     {
         using GameAssets game = Installed();
         NativeBattleBio22Resources resources = game.ReadNativeBio22Resources();
-        uint[] addresses = [0x1614F74, 0x1615120, 0x16152CC, 0x1615440, 0x16156F8];
-        int[] lengths = [0x1AC, 0x1AC, 0x174, 0x174, 0x160];
-        int[] counts = [16, 16, 13, 13, 13];
+        uint[] addresses = [0x1614F74, 0x1615120, 0x16152CC, 0x1615440, 0x16156F8, 0x1615858, 0x16155B4];
+        int[] lengths = [0x1AC, 0x1AC, 0x174, 0x174, 0x160, 0x1AC, 0x144];
+        int[] counts = [16, 16, 13, 13, 13, 16, 12];
         Assert.Equal(addresses, resources.Sprites.Select(sprite => sprite.Address));
         int frames = 0;
         for (int index = 0; index < resources.Sprites.Length; index++)
@@ -159,7 +159,7 @@ public sealed class NativeBattleBio22ResourcesTests
             Assert.Throws<InvalidDataException>(() => sprite.SpriteFrame(-1));
             Assert.Throws<InvalidDataException>(() => sprite.SpriteFrame(counts[index]));
         }
-        Assert.Equal(71, frames);
+        Assert.Equal(99, frames);
         Assert.Throws<NotSupportedException>(() => resources.Sprite(0));
     }
 
@@ -187,7 +187,7 @@ public sealed class NativeBattleBio22ResourcesTests
         Assert.Same(restored.MorphSources[0], restored.MorphFirst);
         Assert.Same(restored.MorphSources[1], restored.MorphSecond);
         JsonObject node = JsonNode.Parse(serialized)!.AsObject();
-        Assert.Equal(new[] { "Animation", "BillboardCounts", "FourthMeshBaseline", "MeshBaseline", "MorphPointers", "MorphSources", "OverlayProgram", "PlanarCounts", "SecondFamilyInitialSources", "SecondFamilyMorphPointers", "SecondFamilyMorphSources", "SecondMeshBaseline", "SoundDescriptor", "Sprites", "ThirdMeshBaseline" }, node.Select(property => property.Key).Order().ToArray());
+        Assert.Equal(new[] { "Animation", "BillboardCounts", "FourthMeshBaseline", "LaterBillboardCounts", "LaterPlanarCounts", "MeshBaseline", "MorphPointers", "MorphSources", "OverlayProgram", "PaletteBaseline", "PalettePointers", "PaletteSources", "PlanarCounts", "SecondFamilyInitialSources", "SecondFamilyMorphPointers", "SecondFamilyMorphSources", "SecondMeshBaseline", "SoundDescriptor", "Sprites", "ThirdMeshBaseline" }, node.Select(property => property.Key).Order().ToArray());
         node.Remove("MorphSources");
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleBio22Resources>(node.ToJsonString()));
     }

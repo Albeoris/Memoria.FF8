@@ -81,6 +81,7 @@ public static class NativeBattleRetainedMemoryReader
             Bio22Geometry = NativeBattleBio22Geometry.FromColdProcess(NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0x1615CE4)),
             Bio22SecondaryGeometry = NativeBattleBio22Geometry.FromColdProcess(NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0x1617E3C)),
             Bio22ThirdGeometry = NativeBattleBio22Geometry.FromColdProcess(NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0x1619888)),
+            Bio22Palette = NativeBattleBio22Palette.FromColdProcess(new("FF8_EN:16146E8", NativeBattleEffectStaticResourcesReader.Read(memory, 0x16146E8, 0x220))),
             Bio22FourthGeometry = NativeBattleBio22Geometry.FromColdProcess(NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0x161F750)),
             DoubleMorph = new(NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0x163FFD0u).Bytes),
             TripleMorph = new(NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0x1627970u).Bytes),

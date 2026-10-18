@@ -338,7 +338,7 @@ public sealed partial class BattleSession
             effectMemory = effectMemory.PublishSound();
             if ((graphics.Flags & 8) != 0 && effectMemory.Textures is { } textures)
             {
-                NativeBattleEffectTextureDrain drain = textures.Drain505D20(effectMemory.Arena, NativeFileStaging);
+                NativeBattleEffectTextureDrain drain = textures.Drain505D20(effectMemory.Arena, NativeFileStaging, address => NativeBattleProcessTim.Resolve(effectMemory, address));
                 NativeBattlePrimitiveProcess? process = effectMemory.PrimitiveProcess;
                 if (process?.TextureWindowCache is { } cache)
                 {

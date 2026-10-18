@@ -14,6 +14,8 @@ public sealed class NativeBattleBio22ColdIngressTests
         Assert.Equal(resources.SecondMeshBaseline.Bytes.ToArray(), memory.Bio22SecondaryGeometry!.Bytes.ToArray());
         Assert.Equal(resources.ThirdMeshBaseline.Bytes.ToArray(), memory.Bio22ThirdGeometry!.Bytes.ToArray());
         Assert.Equal(resources.FourthMeshBaseline.Bytes.ToArray(), memory.Bio22FourthGeometry!.Bytes.ToArray());
+        Assert.Equal(resources.PaletteBaseline.Data.ToArray(), memory.Bio22Palette!.Bytes.ToArray());
+        Assert.Null(NativeBattleEffectMemory.FromColdProcess().Bio22Palette);
         memory.Validate();
         Assert.Throws<InvalidDataException>(() => (memory with { Bio22Geometry = memory.Bio22SecondaryGeometry }).Validate());
         Assert.Throws<InvalidDataException>(() => (memory with { Bio22ThirdGeometry = memory.Bio22FourthGeometry }).Validate());

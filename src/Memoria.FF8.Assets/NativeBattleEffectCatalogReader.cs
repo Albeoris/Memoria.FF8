@@ -322,6 +322,11 @@ public sealed partial class GameAssets
                 binding = binding with { TripleResources = ReadNativeTripleResources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Entry == 0x89A6B0)
+            {
+                binding = binding with { Bio22Resources = ReadNativeBio22Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Entry == 0x889D60)
             {
                 binding = binding with { CuraResources = ReadNativeCuraResources() };

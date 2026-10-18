@@ -16,6 +16,21 @@ public sealed record NativeBattleBio22Resources([property: JsonRequired] NativeB
     [JsonRequired]
     public NativeBattleEffectHeapAllocation BillboardCounts { get; init; } = null!;
 
+    [JsonRequired]
+    public NativeBattleEffectHeapAllocation PaletteBaseline { get; init; } = null!;
+
+    [JsonRequired]
+    public NativeBattleEffectHeapAllocation PalettePointers { get; init; } = null!;
+
+    [JsonRequired]
+    public ImmutableArray<NativeBattleEffectHeapAllocation> PaletteSources { get; init; }
+
+    [JsonRequired]
+    public NativeBattleEffectHeapAllocation LaterPlanarCounts { get; init; } = null!;
+
+    [JsonRequired]
+    public NativeBattleEffectHeapAllocation LaterBillboardCounts { get; init; } = null!;
+
     [JsonIgnore]
     public NativeBattleEffectHeapAllocation MorphFirst => MorphSources[0];
 
@@ -39,6 +54,25 @@ public sealed record NativeBattleBio22Resources([property: JsonRequired] NativeB
 
     public void Validate()
     {
+        Allocation(LaterPlanarCounts, "FF8_EN:162698C", 0x19);
+        Allocation(LaterBillboardCounts, "FF8_EN:16269AC", 0x15);
+        Allocation(PaletteBaseline, "FF8_EN:16146E8", 0x220);
+        NativeBattleBio22Palette.ValidateTim(PaletteBaseline.Data);
+        Allocation(PalettePointers, "FF8_EN:1614F68", 12);
+        uint[] paletteAddresses = [0x1614D48, 0x1614B28, 0x1614908];
+        if (PaletteSources.IsDefault || PaletteSources.Length != 3)
+        {
+            throw new InvalidDataException("Native Bio requires its three original palette source TIMs.");
+        }
+        for (int index = 0; index < paletteAddresses.Length; index++)
+        {
+            Allocation(PaletteSources[index], $"FF8_EN:{paletteAddresses[index]:X}", 0x220);
+            NativeBattleBio22Palette.ValidateTim(PaletteSources[index].Data);
+            if (BinaryPrimitives.ReadUInt32LittleEndian(PalettePointers.Data.AsSpan().Slice(4 * index)) != paletteAddresses[index])
+            {
+                throw new InvalidDataException("Native Bio palette directory order contradicts its source owners.");
+            }
+        }
         Allocation(OverlayProgram, "FF8_EN:162693C", 0x10);
         Allocation(PlanarCounts, "FF8_EN:162694C", 0x15);
         Allocation(BillboardCounts, "FF8_EN:162696C", 0x15);
@@ -60,11 +94,11 @@ public sealed record NativeBattleBio22Resources([property: JsonRequired] NativeB
                 throw new InvalidDataException("Native Bio morph source counts or pointer directory contradict their complete resource owners.");
             }
         }
-        if (Sprites.IsDefault || Sprites.Length != 5)
+        if (Sprites.IsDefault || Sprites.Length != 7)
         {
-            throw new InvalidDataException("Native Bio requires its five complete original particle sprites.");
+            throw new InvalidDataException("Native Bio requires its seven complete original particle sprites.");
         }
-        (uint Address, int Length, int Frames)[] spriteProfiles = [(0x1614F74, 0x1AC, 16), (0x1615120, 0x1AC, 16), (0x16152CC, 0x174, 13), (0x1615440, 0x174, 13), (0x16156F8, 0x160, 13)];
+        (uint Address, int Length, int Frames)[] spriteProfiles = [(0x1614F74, 0x1AC, 16), (0x1615120, 0x1AC, 16), (0x16152CC, 0x174, 13), (0x1615440, 0x174, 13), (0x16156F8, 0x160, 13), (0x1615858, 0x1AC, 16), (0x16155B4, 0x144, 12)];
         for (int index = 0; index < spriteProfiles.Length; index++)
         {
             NativeBattleModuleResource sprite = Sprites[index];

@@ -8,14 +8,16 @@ public sealed record NativeBattleScriptedGraphicsMemory([property: JsonRequired]
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public short? Zsf3 { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public short? Zsf4 { get; init; }
 
-    public NativeBattleScriptedGraphicsMemory InitializeGeom56BAA0() => this with { Zsf3 = 0x155, Dqa = 0, Dqb = 0 };
+    public NativeBattleScriptedGraphicsMemory InitializeGeom56BAA0() => this with { Zsf3 = 0x155, Zsf4 = 0x100, Dqa = 0, Dqb = 0 };
 
     public const uint DepthAddress = 0x2798C18;
     public const int DepthLength = 0x2A8;
     public const uint ViewBackupAddress = 0x2796F90;
 
-    public static NativeBattleScriptedGraphicsMemory FromColdProcess() => new(NativeBattleEffectArena.Clear(), new byte[32].ToImmutableArray(), 0, 0) { Zsf3 = 0 };
+    public static NativeBattleScriptedGraphicsMemory FromColdProcess() => new(NativeBattleEffectArena.Clear(), new byte[32].ToImmutableArray(), 0, 0) { Zsf3 = 0, Zsf4 = 0 };
 
     public void Validate()
     {

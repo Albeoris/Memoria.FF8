@@ -181,11 +181,16 @@ public sealed class NativeBattleBio22GeometryTaskTests
         NativeBattleStaticMeshResource second = Mesh(0x1617E3C, 42, 0xA38);
         byte[] animation = new byte[0x918];
         BinaryPrimitives.WriteUInt16LittleEndian(animation.AsSpan(6), (ushort)animation.Length);
-        NativeBattleBio22Resources resources = new(new("FF8_EN:1626014", animation.ToImmutableArray()), first, second, sources.MoveToImmutable(), new("FF8_EN:16189CC", pointers.ToImmutableArray()), new("FF8_EN:16146E4", new byte[4].ToImmutableArray()), Mesh(0x1619888, 467, 0x5028), Mesh(0x161F750, 258, 0x4038), [Source(0x16189E8, 467), Source(0x161E8B0, 467)], Directory([0x1623FA0, 0x16247B8, 0x1624FD0, 0x16257E8, 0x1623788]), [Source(0x1623FA0, 258), Source(0x16247B8, 258), Source(0x1624FD0, 258), Source(0x16257E8, 258), Source(0x1623788, 258)], [Sprite(0x1614F74, 0x1AC, 16), Sprite(0x1615120, 0x1AC, 16), Sprite(0x16152CC, 0x174, 13), Sprite(0x1615440, 0x174, 13), Sprite(0x16156F8, 0x160, 13)])
+        NativeBattleBio22Resources resources = new(new("FF8_EN:1626014", animation.ToImmutableArray()), first, second, sources.MoveToImmutable(), new("FF8_EN:16189CC", pointers.ToImmutableArray()), new("FF8_EN:16146E4", new byte[4].ToImmutableArray()), Mesh(0x1619888, 467, 0x5028), Mesh(0x161F750, 258, 0x4038), [Source(0x16189E8, 467), Source(0x161E8B0, 467)], Directory([0x1623FA0, 0x16247B8, 0x1624FD0, 0x16257E8, 0x1623788]), [Source(0x1623FA0, 258), Source(0x16247B8, 258), Source(0x1624FD0, 258), Source(0x16257E8, 258), Source(0x1623788, 258)], [Sprite(0x1614F74, 0x1AC, 16), Sprite(0x1615120, 0x1AC, 16), Sprite(0x16152CC, 0x174, 13), Sprite(0x1615440, 0x174, 13), Sprite(0x16156F8, 0x160, 13), Sprite(0x1615858, 0x1AC, 16), Sprite(0x16155B4, 0x144, 12)])
         {
             OverlayProgram = new("FF8_EN:162693C", new byte[0x10].ToImmutableArray()),
             PlanarCounts = new("FF8_EN:162694C", new byte[0x15].ToImmutableArray()),
-            BillboardCounts = new("FF8_EN:162696C", new byte[0x15].ToImmutableArray())
+            BillboardCounts = new("FF8_EN:162696C", new byte[0x15].ToImmutableArray()),
+            LaterPlanarCounts = new("FF8_EN:162698C", new byte[0x19].ToImmutableArray()),
+            LaterBillboardCounts = new("FF8_EN:16269AC", new byte[0x15].ToImmutableArray()),
+            PaletteBaseline = new("FF8_EN:16146E8", NativeBattleBio22PaletteTests.Tim(0)),
+            PaletteSources = new uint[] { 0x1614D48, 0x1614B28, 0x1614908 }.Select(address => new NativeBattleEffectHeapAllocation($"FF8_EN:{address:X}", NativeBattleBio22PaletteTests.Tim(0))).ToImmutableArray(),
+            PalettePointers = Directory([0x1614D48, 0x1614B28, 0x1614908]) with { Identity = "FF8_EN:1614F68" }
         };
         resources.Validate();
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Bio22Geometry = NativeBattleBio22Geometry.FromColdProcess(first), Bio22SecondaryGeometry = NativeBattleBio22Geometry.FromColdProcess(second) };
