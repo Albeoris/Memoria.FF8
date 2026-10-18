@@ -205,6 +205,15 @@ public sealed partial class GameAssets
                 binding = binding with { Moogle96Resources = ReadNativeMoogle96Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 199)
+            {
+                if (binding.Entry != 0x5A8750 || binding.Initializer != 0x5A8730 || binding.InitializerIsRet != false || binding.InitializerResource is not null || binding.InitializerResources is not null || binding.InitializerAsset is not null || binding.InitializerAssets is not null)
+                {
+                    throw new InvalidDataException("Native Cactuar199 differs from its actual heap-resource initializer contract.");
+                }
+                catalog = catalog.SetItem(index, binding with { Cactuar199Resources = ReadNativeCactuar199Resources() });
+                continue;
+            }
             if (binding.Entry == 0x61ABA0)
             {
                 binding = binding with { BlizzardResources = ReadNativeBlizzardResources() };

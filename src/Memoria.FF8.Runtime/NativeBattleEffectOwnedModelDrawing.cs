@@ -29,38 +29,10 @@ public static class NativeBattleEffectOwnedModelDrawing
         task = task.WriteWord(0x82, 0).WriteDword(0x84, unchecked((uint)world.X)).WriteDword(0x88, unchecked((uint)world.Y)).WriteDword(0x8C, unchecked((uint)world.Z));
         NativeBattleActionMatrix modelView = NativeBattlePoseMatrices.Compose56C2F0(view, world);
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattlePoseMatrices.ComposeCurrentPose(resource.PoseSource, pose, modelView);
-        byte[] scratch = projectedScratch.ToArray();
-        int bytesWritten = 0;
-        ImmutableArray<NativeBattleGeometryPrimitive> body = [];
-        if ((task.ReadDword(0xAC) & 1) != 0)
-        {
-            NativeBattleRawMesh mesh = resource.Geometry[0];
-            mesh.Validate();
-            NativeBattleProjectedVertex[] vertices = mesh.Vertices.Select(vertex => NativeBattleGeometryProjection.Project50F900(vertex.Bone < bones.Length ? bones[vertex.Bone] : throw new InvalidDataException("Native effect-owned model lacks its actual selected bone matrix."), vertex.Position, projection, new(0, 0, 320, 216))).ToArray();
-            bytesWritten = checked(vertices.Length * 8);
-            if (bytesWritten > scratch.Length)
-            {
-                throw new InvalidDataException("Native effect-owned model projection leaves its actual supplied scratch allocation.");
-            }
-            for (int index = 0; index < vertices.Length; index++)
-            {
-                BinaryPrimitives.WriteUInt32LittleEndian(scratch.AsSpan(index * 8), vertices[index].Screen);
-                BinaryPrimitives.WriteUInt32LittleEndian(scratch.AsSpan(index * 8 + 4), vertices[index].DepthAndClip);
-            }
-            body = NativeBattleRawGeometryPackets.EmitProjected5099D0(mesh.Polygons, vertices, task.ReadDword(0x58), 17, 4, 0, null, colors);
-        }
+        NativeBattleRawModelBodyDraw body = NativeBattleRawModelBodyDrawing.Draw5099D0(resource.Geometry[0], bones, projection, task.ReadDword(0x58), task.ReadDword(0xAC), projectedScratch, colors);
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
-        int allocated = 0;
-        foreach (NativeBattleGeometryPrimitive primitive in body)
-        {
-            byte[] data = new byte[primitive.Words.Length * 4];
-            for (int index = 0; index < primitive.Words.Length; index++)
-            {
-                BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(index * 4), primitive.Words[index]);
-            }
-            attempts.Add(new(allocated, data.ToImmutableArray(), primitive.PhysicalWriteMask ?? Enumerable.Repeat(NativeBattleGfPacketByteState.Known, data.Length).ToImmutableArray(), primitive));
-            allocated += data.Length;
-        }
+        attempts.AddRange(body.Packets.Attempts);
+        int allocated = body.Packets.AllocationBytes;
         NativeBattleEffectLocalBounds bounds = NativeBattlePoseMatrices.ShadowBounds5086F0(resource.PoseSource, pose);
         task = task.WriteWord(0x64, unchecked((ushort)bounds.Minimum.X)).WriteWord(0x66, unchecked((ushort)bounds.Minimum.Y)).WriteWord(0x68, unchecked((ushort)bounds.Minimum.Z)).WriteWord(0x6A, unchecked((ushort)bounds.Maximum.X)).WriteWord(0x6C, unchecked((ushort)bounds.Maximum.Y)).WriteWord(0x6E, unchecked((ushort)bounds.Maximum.Z));
         if ((task.ReadByte(0x30) & 0x20) == 0)
@@ -71,7 +43,7 @@ public static class NativeBattleEffectOwnedModelDrawing
             attempts.AddRange(shadow.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(attempt.ByteOffsetRelative + allocated) }));
             allocated += shadow.AllocationBytes;
         }
-        return new(task, bounds, scratch.ToImmutableArray(), bytesWritten, new(attempts.ToImmutable(), allocated));
+        return new(task, bounds, body.ProjectedScratch, body.ProjectedBytesWritten, new(attempts.ToImmutable(), allocated));
 
         short Word(int offset) => unchecked((short)task.ReadWord(offset));
     }

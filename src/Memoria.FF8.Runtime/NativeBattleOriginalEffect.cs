@@ -10,6 +10,7 @@ public sealed record NativeBattleEffectParameters([property: JsonRequired] byte 
     public byte? Parameter82 { get; init; }
 }
 public sealed record NativeBattleEffectResourcePointer([property: JsonRequired] uint GlobalAddress, [property: JsonRequired] int ArenaOffset);
+public sealed record NativeBattleEffectHeapResourcePointer([property: JsonRequired] uint GlobalAddress, [property: JsonRequired] int AllocationIndex);
 
 /// <summary>50AF20's selected module and the descriptor returned by its original entry.</summary>
 public sealed record NativeBattleOriginalEffectState([property: JsonRequired] ushort RequestedEffect, [property: JsonRequired] int SelectedIndex, [property: JsonRequired] NativeBattleEffectBinding Binding, [property: JsonRequired] NativeBattleEffectParameters? Parameters, [property: JsonRequired] uint? ReturnedDescriptor)
@@ -18,6 +19,8 @@ public sealed record NativeBattleOriginalEffectState([property: JsonRequired] us
     public ImmutableArray<NativeBattleEffectTaskPool> Pools { get; init; } = [];
     [JsonRequired]
     public ImmutableArray<NativeBattleEffectResourcePointer> ResourcePointers { get; init; } = [];
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<NativeBattleEffectHeapResourcePointer>? HeapResourcePointers { get; init; }
     [JsonRequired]
     public uint? FireDrawBuffer { get; init; }
     public ImmutableArray<int>? FireModelCompletion { get; init; }
@@ -50,6 +53,10 @@ public sealed record NativeBattleOriginalEffectState([property: JsonRequired] us
         {
             _ = NativeBattleEffectInitializerPolicy.Assets(Binding);
         }
+        if (HeapResourcePointers is { } heapPointers && (heapPointers.IsDefaultOrEmpty || heapPointers.Any(pointer => pointer is null || pointer.GlobalAddress == 0 || pointer.AllocationIndex is < 0 or >= 256) || heapPointers.Select(pointer => pointer.GlobalAddress).Distinct().Count() != heapPointers.Length || heapPointers.Any(pointer => ResourcePointers.Any(arena => arena.GlobalAddress == pointer.GlobalAddress))))
+        {
+            throw new InvalidDataException("Native heap resource globals require explicit distinct allocation-slot owners, separate from arena pointers.");
+        }
         Firaga?.Validate();
         foreach (NativeBattleEffectTaskPool pool in Pools)
         {
@@ -60,12 +67,31 @@ public sealed record NativeBattleOriginalEffectState([property: JsonRequired] us
             throw new InvalidDataException("Native6298A0 requires its seven DEE360 completion DWORDs.");
         }
     }
+
+    public NativeBattleEffectHeapAllocation ReadHeapResource(NativeBattleEffectMemory memory, uint globalAddress)
+    {
+        Validate();
+        memory.Validate();
+        if (HeapResourcePointers is not { } pointers || pointers.SingleOrDefault(pointer => pointer.GlobalAddress == globalAddress) is not { } owner)
+        {
+            throw new NotSupportedException("Native heap resource has no retained publication owner for this global.");
+        }
+        if (owner.AllocationIndex >= memory.AllocationCount || memory.Allocations[owner.AllocationIndex] is not { } allocation)
+        {
+            throw new NotSupportedException("Native heap resource publication points outside the retained allocated prefix.");
+        }
+        return allocation;
+    }
 }
 
 public static class NativeBattleOriginalEffects
 {
     public static (NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect) Initialize(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState selected)
     {
+        if (selected.Binding.Initializer == 0x5A8730 || selected.Binding.Cactuar199Resources is not null)
+        {
+            return InitializeCactuar5A8730(memory, selected);
+        }
         ImmutableArray<NativeBattleEffectInitializerResource> resources = NativeBattleEffectInitializerPolicy.Resources(selected.Binding);
         ImmutableArray<NativeBattleEffectInitializerAsset> assets = NativeBattleEffectInitializerPolicy.Assets(selected.Binding);
         if (selected.Binding.Initializer == 0x6C3560)
@@ -104,6 +130,25 @@ public static class NativeBattleOriginalEffects
             selected = selected with { ResourcePointers = pointers.MoveToImmutable() };
         }
         return (memory, selected);
+    }
+
+    private static (NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect) InitializeCactuar5A8730(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState selected)
+    {
+        NativeBattleEffectBinding binding = selected.Binding;
+        if (binding is not { Effect: 199, Entry: 0x5A8750, Initializer: 0x5A8730 } || binding.InitializerIsRet == true || binding.InitializerResource is not null || binding.InitializerResources is not null || binding.InitializerAsset is not null || binding.InitializerAssets is not null)
+        {
+            throw new InvalidDataException("Native Cactuar199 requires its exact5718E0 heap initializer rather than an arena-loader descriptor.");
+        }
+        NativeBattleCactuar199Resources resources = binding.Cactuar199Resources ?? throw new NotSupportedException("Native Cactuar199 requires its original heap initializer resource.");
+        NativeBattleEffectHeapAllocation tim = resources.InitializerHeapTim;
+        if (tim is null || tim.Identity != "mag198.tim" || tim.Data.IsDefaultOrEmpty)
+        {
+            throw new InvalidDataException("Native Cactuar199 requires the complete original mag198.tim heap resource.");
+        }
+        NativeBattleEffectHeapLoad loaded = memory.BeginLoad(selected.SelectedIndex).LoadHeap5718E0(tim);
+        NativeBattleOriginalEffectState initialized = selected with { ResourcePointers = [], HeapResourcePointers = [new(0x225A82C, loaded.AllocationIndex)] };
+        initialized.Validate();
+        return (loaded.Memory, initialized);
     }
 
     public static NativeBattleOriginalEffectState Select(ushort effect, ImmutableArray<NativeBattleEffectBinding> catalog)
