@@ -8,16 +8,7 @@ public sealed partial class BattleSession
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect!;
         NativeBattleFiraResources resources = effect.Binding.FiraResources ?? throw new NotSupportedException("Native61CE10 requires its original Fira resources.");
-        if ((effect.Parameters!.Flags79 & 1) == 0)
-        {
-            NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native61CE10 requires retained effect memory.");
-            NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native61CE10 requires its texture queue.");
-            textures = textures.Register5099A0(resources.Animation);
-            int source = effect.ResourcePointers.Single(pointer => pointer.GlobalAddress == 0x24C10A8).ArenaOffset;
-            textures = textures.EnqueueArenaTim505E30(memory.Arena!, source).State;
-            NativeEffectMemory = memory with { Textures = textures };
-            NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native61CE10 requires its camera process.")).RegisterControlResource(textures.Animation);
-        }
+        RegisterNativeOriginalEffectAnimation(effect, resources.Animation, 0x24C10A8);
         return graphics with { OriginalEffect = NativeBattleFiraController.Initialize61CE10(effect, nativeActionPackets) };
     }
 

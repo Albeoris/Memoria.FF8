@@ -160,6 +160,11 @@ public sealed partial class GameAssets
                 binding = binding with { FiragaResources = ReadNativeFiragaResources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 102)
+            {
+                binding = binding with { ThundaraResources = ReadNativeThundaraResources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Entry == 0x61ABA0)
             {
                 binding = binding with { BlizzardResources = ReadNativeBlizzardResources() };
