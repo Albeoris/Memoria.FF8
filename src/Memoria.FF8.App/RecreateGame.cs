@@ -69,7 +69,11 @@ internal sealed partial class RecreateGame : Game
         this.session = session;
         startup = new StartupSequence(StartupSequence.ShouldPlay(options));
         movieClock = new MovieClock(session, options.GameDirectory, options.MediaToolsDirectory);
-        playerSaves = new PlayerSaveStore(options.SavePath);
+        playerSaves = new PlayerSaveStore(options.SavePath, locationName: state =>
+        {
+            EnsureLiveMenuCatalog();
+            return liveMenuCatalog!.LocationName(state);
+        });
         saveMenu = new PlayerSaveMenu(playerSaves);
         saveMenu.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
         globalSettings.ImportLegacyFiles(options.SavePath);

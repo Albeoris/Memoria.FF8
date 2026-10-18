@@ -3,7 +3,12 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
-internal sealed record PlayerSaveEntry(int Slot, string Label, DateTime? SavedAt, string Details, bool CanLoad);
+internal sealed record PlayerSaveEntry(int Slot, string Label, DateTime? SavedAt, string Details, bool CanLoad)
+{
+    public TimeSpan? PlayTime { get; init; }
+    public IReadOnlyList<int> PartyPortraits { get; init; } = [];
+    public string PlayTimeText => PlayTime is { } time ? FormattableString.Invariant($"{(long)time.TotalHours:00}:{time.Minutes:00}:{time.Seconds:00}") : "--:--:--";
+}
 
 /// <summary>Player saves have their own namespace; configured checkpoints are never menu targets.</summary>
 internal sealed class PlayerSaveStore
@@ -15,12 +20,14 @@ internal sealed class PlayerSaveStore
     public static string DefaultDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoria.FF8", "player-saves");
     private readonly string directory;
     private readonly string researchCheckpoint;
+    private readonly Func<GameState, string?>? locationName;
     private int quickSaveCount = DefaultQuickSaveCount;
 
-    public PlayerSaveStore(string researchCheckpoint, string? directory = null)
+    public PlayerSaveStore(string researchCheckpoint, string? directory = null, Func<GameState, string?>? locationName = null)
     {
         this.directory = Path.GetFullPath(directory ?? DefaultDirectory);
         this.researchCheckpoint = Path.GetFullPath(researchCheckpoint);
+        this.locationName = locationName;
     }
 
     public void SetQuickSaveCount(int count)
@@ -155,13 +162,12 @@ internal sealed class PlayerSaveStore
             }
             savedAt ??= File.GetLastWriteTime(path);
             GameState state = LoadPath(path);
-            string location = state.Scene switch
+            string location = locationName?.Invoke(state) ?? "Unavailable";
+            return new PlayerSaveEntry(slot, label, savedAt, location, true)
             {
-                SceneKind.WorldMap => "World map",
-                SceneKind.Movie => $"Movie {state.MovieIndex:00} at {state.MovieSeconds:F1}s",
-                _ => $"{state.FieldName} (field {state.FieldId})"
+                PlayTime = state.Playtime is { } playtime ? TimeSpan.FromSeconds(playtime.Seconds) : null,
+                PartyPortraits = state.CharacterVitals is { } vitals ? vitals.CombatParty.Where(row => row != 255).Select(row => (int)vitals.Records[row].CharacterId).ToArray() : []
             };
-            return new PlayerSaveEntry(slot, label, savedAt, location, true);
         }
         catch (Exception exception) when (IsUnavailable(exception))
         {

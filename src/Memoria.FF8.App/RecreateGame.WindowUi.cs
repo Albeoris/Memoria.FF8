@@ -47,7 +47,7 @@ internal sealed partial class RecreateGame
         }
 
         entries.AddRange(saveMenu.VisibleEntries);
-        string key = string.Join("|", saveMenu.Mode, saveMenu.Bank, saveMenu.Page, saveMenu.SelectedSlot, saveMenu.ConfirmOverwrite, saveMenu.Message, string.Join(";", entries), keyboard.Profile.GetHashCode(), keyboard.ControllerPresentation, keyboard.LastInputDevice);
+        string key = string.Join("|", saveMenu.Mode, saveMenu.Bank, saveMenu.Page, saveMenu.SelectedSlot, saveMenu.ConfirmOverwrite, saveMenu.Message, string.Join(";", entries.Select(entry => $"{entry}:{string.Join(",", entry.PartyPortraits)}")), keyboard.Profile.GetHashCode(), keyboard.ControllerPresentation, keyboard.LastInputDevice);
         if (savesWindowUi is null || savesWindowKey != key)
         {
             UiAnchorPanel root = new();
@@ -103,13 +103,26 @@ internal sealed partial class RecreateGame
             PlayerSaveEntry entry = entries[index];
             UiButton block = new() { GridRow = index, Id = "save-slot-" + entry.Slot, HighlightSelection = false, PointerSize = 20 };
             UiGrid metadata = new() { Margin = new UiThickness(35, 3, 8, 3), Gap = 1 };
+            metadata.RowDefinitions.Add(UiGridLength.Pixel(28));
             metadata.RowDefinitions.Add(UiGridLength.Star());
-            metadata.RowDefinitions.Add(UiGridLength.Star());
-            metadata.ColumnDefinitions.Add(UiGridLength.Star(1.5f));
             metadata.ColumnDefinitions.Add(UiGridLength.Star());
-            metadata.Children.Add(new UiLabel { Text = entry.Label, FontSize = 20, Muted = loading && !entry.CanLoad });
-            metadata.Children.Add(new UiLabel { GridColumn = 1, Text = entry.SavedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "", FontSize = 16, Muted = true });
-            metadata.Children.Add(new UiLabel { GridRow = 1, GridColumnSpan = 2, Text = entry.Details, FontSize = 20, Muted = loading && !entry.CanLoad });
+            metadata.ColumnDefinitions.Add(UiGridLength.Pixel(204));
+            UiGrid heading = new() { Gap = 8 };
+            heading.RowDefinitions.Add(UiGridLength.Star());
+            heading.ColumnDefinitions.Add(UiGridLength.Star());
+            heading.ColumnDefinitions.Add(UiGridLength.Pixel(130));
+            heading.Children.Add(new UiLabel { Text = entry.Label, FontSize = 20, Muted = loading && !entry.CanLoad });
+            heading.Children.Add(new UiLabel { GridColumn = 1, Text = entry.CanLoad ? entry.PlayTimeText : "", FontSize = 20 });
+            metadata.Children.Add(heading);
+            metadata.Children.Add(new UiLabel { GridRow = 1, Text = entry.Details, FontSize = 20, Muted = loading && !entry.CanLoad });
+            UiGrid portraits = new() { GridColumn = 1, GridRowSpan = 2, Margin = new UiThickness(4), Gap = 4 };
+            portraits.RowDefinitions.Add(UiGridLength.Star());
+            for (int member = 0; member < entry.PartyPortraits.Count; member++)
+            {
+                portraits.ColumnDefinitions.Add(UiGridLength.Pixel(62));
+                portraits.Children.Add(new UiImage { GridColumn = member, Source = new UiImageSource(UiImageKind.CharacterPortrait, entry.PartyPortraits[member]) });
+            }
+            metadata.Children.Add(portraits);
             block.Children.Add(metadata);
             blocks.Children.Add(block);
         }

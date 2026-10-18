@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 using Microsoft.Xna.Framework.Input;
 
@@ -97,9 +98,51 @@ public sealed class PlayerSaveTests : IDisposable
         IReadOnlyList<PlayerSaveEntry> entries = store.ReadEntries(true);
         Assert.Equal(61, entries.Count);
         Assert.True(entries[0].CanLoad);
-        Assert.Contains("bghoke_2", entries[1].Details);
+        Assert.Equal("Unavailable", entries[1].Details);
         Assert.NotNull(entries[1].SavedAt);
         Assert.False(entries[2].CanLoad);
+    }
+
+    [Theory]
+    [InlineData(0u, "00:00:00")]
+    [InlineData(90061u, "25:01:01")]
+    public void Slot_metadata_uses_saved_native_time_and_resolves_each_saved_location(uint seconds, string expectedTime)
+    {
+        var resolvedFields = new List<int>();
+        var store = new PlayerSaveStore(Path.Combine(directory, "research.json"), Path.Combine(directory, "player-saves"), saved =>
+        {
+            resolvedFields.Add(saved.FieldId);
+            return saved.FieldId == 180 ? "Balamb Garden- Infirmary" : "Balamb Garden- Hall";
+        });
+        var session = new GameSession(new GameState { Scene = SceneKind.Field, FieldId = 180, Playtime = new NativePlaytimeState(seconds, 0, 0), ExamTimer = NativeExamTimerState.FromColdProcess() });
+        store.Save(1, session);
+        store.Save(2, new GameSession(new GameState { Scene = SceneKind.Field, FieldId = 181 }));
+        session.SetPosition(99, 48);
+        IReadOnlyList<PlayerSaveEntry> entries = store.ReadEntries(false);
+        Assert.Equal(new[] { 180, 181 }, resolvedFields);
+        Assert.Equal("Balamb Garden- Infirmary", entries[0].Details);
+        Assert.Equal("Balamb Garden- Hall", entries[1].Details);
+        Assert.Equal(TimeSpan.FromSeconds(seconds), entries[0].PlayTime);
+        Assert.Equal(expectedTime, entries[0].PlayTimeText);
+        Assert.Null(entries[1].PlayTime);
+        Assert.Equal("--:--:--", entries[1].PlayTimeText);
+        Assert.Empty(entries[0].PartyPortraits);
+        Assert.True(entries[1].CanLoad);
+    }
+
+    [Fact]
+    public void Slot_portraits_preserve_saved_party_order_and_skip_empty_slots()
+    {
+        Assert.SkipUnless(Directory.Exists(TestResources.GameDirectory), "Installed character resources are required.");
+        using GameAssets assets = new(TestResources.GameDirectory);
+        NativeCharacterVitals initial = assets.ReadNewGameCharacterVitals();
+        NativeCharacterVitals vitals = initial with { CombatParty = [1, 255, 0] };
+        PlayerSaveStore store = CreateStore();
+        store.Save(1, new GameSession(new GameState { Scene = SceneKind.Field, CharacterVitals = vitals }));
+        PlayerSaveEntry entry = store.ReadEntries(false)[0];
+        Assert.True(entry.CanLoad);
+        Assert.Equal(new[] { (int)vitals.Records[1].CharacterId, vitals.Records[0].CharacterId }, entry.PartyPortraits);
+        Assert.Equal(vitals.CombatParty, store.Load(1).CharacterVitals!.CombatParty);
     }
 
     [Fact]
