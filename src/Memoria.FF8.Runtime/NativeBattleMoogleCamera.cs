@@ -31,9 +31,9 @@ public static class NativeBattleMoogleCamera
         {
             throw new InvalidDataException("Native Moogle camera requires its actual72-byte source and raw8-byte anchor.");
         }
-        if (continuation is not (0 or 1) || Word(source.Data, 0x24) != 0)
+        if (continuation is not (0 or 1) || Word(source.Data, 0x24) is not (0 or 1))
         {
-            throw new NotSupportedException("Native Moogle camera supports only the reached anchor mode0 and continuation0/1.");
+            throw new NotSupportedException("Native Moogle camera supports only the reached anchor modes0/1 and continuation0/1.");
         }
         byte[] data = state.Data.ToArray();
         NativeBattleActionMatrix basis = NativeBattleCuragaMatrices.RotateY8DD8A0(NativeBattleCuragaMatrices.Identity8DD770(), Word(data, 0xE8));
@@ -59,9 +59,10 @@ public static class NativeBattleMoogleCamera
         Set(data, 0xC8, unchecked(Word(data, 0xC8) + Word(data, 0xE8)) & 4095);
         for (int end = 0; end < 2; end++)
         {
-            int destination = 0x64 + end * 8;
+            bool mode1 = Word(source.Data, 0x24) == 1;
+            int destination = (mode1 ? 0x74 : 0x64) + end * 8;
             anchor.AsSpan().CopyTo(data.AsSpan(destination));
-            int origin = 4 + end * 8;
+            int origin = (mode1 ? 0x14 : 4) + end * 8;
             NativeBattleVector rotated = NativeBattleGfMatrices.RotateShort56C4F0(basis, new(Word(source.Data, origin), Word(source.Data, origin + 2), Word(source.Data, origin + 4)));
             Set(data, destination, Word(data, destination) + rotated.X);
             Set(data, destination + 2, Word(data, destination + 2) + rotated.Y);
@@ -74,9 +75,9 @@ public static class NativeBattleMoogleCamera
     {
         state.Validate();
         byte[] data = state.Data.ToArray();
-        if (Word(data, 0xCE) != 0)
+        if (Word(data, 0xCE) is not (0 or 1))
         {
-            throw new NotSupportedException("Native Moogle camera anchor modes beyond0 require their separate raw owner contract.");
+            throw new NotSupportedException("Native Moogle camera anchor modes beyond0/1 require their separate raw owner contract.");
         }
         Set(data, 0xE2, Word(data, 0xE2) + 1);
         uint pointer = U32(data, 0x50);
@@ -126,18 +127,10 @@ public static class NativeBattleMoogleCamera
         Set(data, 0xDE, Lerp(Word(data, 0xBE), Word(data, 0xC0)));
         for (int axis = 0; axis < 3; axis++)
         {
-            Set(data, 0x5C + axis * 2, Lerp(Word(data, 0x64 + axis * 2), Word(data, 0x6C + axis * 2)));
+            bool mode1 = Word(data, 0xCE) == 1;
+            Set(data, (mode1 ? 0x54 : 0x5C) + axis * 2, Lerp(Word(data, (mode1 ? 0x74 : 0x64) + axis * 2), Word(data, (mode1 ? 0x7C : 0x6C) + axis * 2)));
         }
-        NativeBattleActionMatrix rotation = NativeBattleCuragaMatrices.RotateY8DD8A0(NativeBattleCuragaMatrices.Identity8DD770(), Word(data, 0xDA));
-        rotation = NativeBattleCuragaMatrices.RotateX8DD7E0(rotation, Word(data, 0xD8));
-        NativeBattleVector offsetVector = NativeBattleGfMatrices.Transform460840(rotation, new(0, 0, Word(data, 0xDE)));
-        Set(data, 0x54, Word(data, 0x5C) + offsetVector.X);
-        Set(data, 0x56, Word(data, 0x5E) + offsetVector.Y);
-        Set(data, 0x58, Word(data, 0x60) + offsetVector.Z);
-        // This fourth WORD is unconsumed native stack padding; zero is a canonical representation, never a native equality claim.
-        Set(data, 0x5A, 0);
-        NativeBattleCameraPose pose = new(new(Word(data, 0x54), Word(data, 0x56), Word(data, 0x58)), new(Word(data, 0x5C), Word(data, 0x5E), Word(data, 0x60)), Word(data, 0xE0), Word(data, 0xDC));
-        return new(new(data.ToImmutableArray(), false), complete, pose);
+        return RecomputePublication(state with { Data = data.ToImmutableArray() }) with { Complete = complete };
 
         short Lerp(short start, short end) => unchecked((short)(start + unchecked((end - start) * Word(data, 0xD0)) / 4096));
         int Angle(short start, short end, bool decreasing)
@@ -152,6 +145,34 @@ public static class NativeBattleMoogleCamera
             }
             return (start + unchecked((end - start) * Word(data, 0xD0)) / 4096) & 4095;
         }
+    }
+
+    public static NativeBattleMoogleCameraStep RecomputePublication(NativeBattleMoogleCameraState state)
+    {
+        state.Validate();
+        byte[] data = state.Data.ToArray();
+        short mode = Word(data, 0xCE);
+        if (mode is not (0 or 1))
+        {
+            throw new NotSupportedException("Native effect camera publication requires its reached mode0/1.");
+        }
+        NativeBattleActionMatrix rotation = NativeBattleCuragaMatrices.RotateY8DD8A0(NativeBattleCuragaMatrices.Identity8DD770(), Word(data, 0xDA));
+        rotation = NativeBattleCuragaMatrices.RotateX8DD7E0(rotation, Word(data, 0xD8));
+        NativeBattleVector offset = NativeBattleGfMatrices.Transform460840(rotation, new(0, 0, Word(data, 0xDE)));
+        short[] eye = new short[3];
+        int[] offsets = [offset.X, offset.Y, offset.Z];
+        for (int axis = 0; axis < 3; axis++)
+        {
+            eye[axis] = unchecked((short)(Word(data, (mode == 1 ? 0x54 : 0x5C) + axis * 2) + offsets[axis]));
+            Set(data, (mode == 1 ? 0x5C : 0x54) + axis * 2, mode == 1 ? eye[axis] + offsets[axis] : eye[axis]);
+        }
+        if (mode == 0)
+        {
+            // This fourth WORD is unconsumed native stack padding; zero is canonical, never a native equality claim.
+            Set(data, 0x5A, 0);
+        }
+        NativeBattleCameraPose pose = new(new(eye[0], eye[1], eye[2]), new(Word(data, 0x5C), Word(data, 0x5E), Word(data, 0x60)), Word(data, 0xE0), Word(data, 0xDC));
+        return new(new(data.ToImmutableArray(), mode == 1 && state.EyePaddingKnown), false, pose);
     }
 
     public static NativeBattleCameraState Publish733150(NativeBattleMoogleCameraStep step, NativeBattleCameraState camera)

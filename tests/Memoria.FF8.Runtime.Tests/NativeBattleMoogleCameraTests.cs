@@ -107,7 +107,7 @@ public sealed class NativeBattleMoogleCameraTests
     [Fact]
     public void UnsupportedAnchorAndContinuationSelectorsFailBeforeInventingAnotherCamera()
     {
-        Assert.Throws<NotSupportedException>(() => NativeBattleMoogleCamera.Initialize732B10(NativeBattleMoogleCamera.Reset732AF0(), Source((0x24, 1)), Anchor(), 0));
+        Assert.Throws<NotSupportedException>(() => NativeBattleMoogleCamera.Initialize732B10(NativeBattleMoogleCamera.Reset732AF0(), Source((0x24, 2)), Anchor(), 0));
         Assert.Throws<NotSupportedException>(() => NativeBattleMoogleCamera.Initialize732B10(NativeBattleMoogleCamera.Reset732AF0(), Source(), Anchor(), 2));
     }
 
