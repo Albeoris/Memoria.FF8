@@ -152,6 +152,11 @@ public static class NativeBattleWaterSlots
 
     public static NativeBattleEffectArena AdvancePhysicsA9BB90(NativeBattleEffectArena arena, NativeBattleWaterSlotBank bank, int index, ImmutableArray<byte> activeOrder)
     {
+        return UpdateSelected(IntegratePhysicsA9BB90(arena, bank, index), bank, index, activeOrder);
+    }
+
+    public static NativeBattleEffectArena IntegratePhysicsA9BB90(NativeBattleEffectArena arena, NativeBattleWaterSlotBank bank, int index)
+    {
         SlotAccess slot = new(arena, bank, index);
         byte flags = slot.Byte(0x1A);
         for (int lane = 0; lane < 6; lane++)
@@ -166,8 +171,7 @@ public static class NativeBattleWaterSlots
         {
             slot.Dword(0x50 + 4 * lane, unchecked(slot.Dword(0x50 + 4 * lane) + slot.Dword(0x68 + 4 * lane)));
         }
-        NativeBattleEffectArena positioned = CachePositionAA17D0(slot.Arena, bank, index);
-        return UpdateSelected(positioned, bank, index, activeOrder);
+        return CachePositionAA17D0(slot.Arena, bank, index);
     }
 
     public static NativeBattleEffectArena ApplyVectorPostAction(NativeBattleEffectArena arena, NativeBattleWaterSlotBank bank, int index, ImmutableArray<byte> activeOrder, NativeBattleWaterVectorPostAction action)

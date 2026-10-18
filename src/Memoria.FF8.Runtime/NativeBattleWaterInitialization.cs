@@ -30,19 +30,10 @@ public static class NativeBattleWaterInitialization
         uint command = profile.OwnerAddress(4);
         Dword(0x2798A68, inputs.Resource0.Address);
         Dword(0x2798A6C, inputs.Resource1.Address);
-        TempDword(0x100, frame.Address);
-        TempDword(0x104, frame.Address + 0x100);
-        for (int index = 0; index < 5; index++)
-        {
-            TempDword(0x108 + 4 * index, profile.OwnerAddress(index));
-        }
-        Dword(0x2797624, frame.Address);
-        Dword(0x27973B8, frame.Address + 0x100);
-        Dword(0x27973EC, profile.OwnerAddress(0));
-        Dword(0x27973C4, profile.OwnerAddress(1));
-        Dword(0x279744C, profile.OwnerAddress(2));
-        Dword(0x27973BC, profile.OwnerAddress(3));
-        Dword(0x27973C0, profile.OwnerAddress(4));
+        NativeBattleWaterFrameBindingResult binding = NativeBattleWaterFrameBinding.Bind(core, frame, profile);
+        core = binding.Core;
+        temporary = binding.TemporaryFrame.Bytes.ToArray();
+        known = binding.TemporaryFrame.Known.ToArray();
         Dword(manager + 0xC0, inputs.ActionParametersAddress);
         Dword(manager + 0xBC, 0);
         Word(manager, 0);
