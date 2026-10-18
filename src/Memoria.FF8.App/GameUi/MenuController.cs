@@ -58,7 +58,7 @@ public sealed partial class MenuController
     public bool IsSelectingCharacter => _characterSelectionDestination.Length > 0;
     public string CharacterSelectionDestination => _characterSelectionDestination;
     public int CharacterSelectionIndex => _characterSelectionIndex;
-    public IReadOnlyList<MenuCharacter> CharacterChoices => Data.Characters.Where(character => character.InParty && !string.IsNullOrWhiteSpace(character.Id)).ToArray();
+    public IReadOnlyList<MenuCharacter> CharacterChoices => Data.Characters.Where(character => !string.IsNullOrWhiteSpace(character.Id)).OrderByDescending(character => character.InParty).ToArray();
     public MenuGuardianForce? GuardianForce => Data.GuardianForces.FirstOrDefault(g => g.Id == _gfId) ?? Data.GuardianForces.FirstOrDefault();
     public MenuItem? Item => _itemId.Length == 0 ? Data.Items.FirstOrDefault() : Data.Items.FirstOrDefault(i => i.Id == _itemId);
     public MenuMagic? Magic => _magicId.Length > 0 ? Data.Magic.FirstOrDefault(m => m.Id == _magicId && m.CharacterId == Character?.Id) : Data.Magic.FirstOrDefault(m => m.CharacterId == Character?.Id);
@@ -333,7 +333,7 @@ public sealed partial class MenuController
         IReadOnlyList<MenuCharacter> choices = CharacterChoices;
         if (choices.Count == 0)
         {
-            Message = "No party characters are available.";
+            Message = "No characters are available.";
             return;
         }
         _characterSelectionDestination = destination;
@@ -352,7 +352,7 @@ public sealed partial class MenuController
         }
         if (choices.Count == 0)
         {
-            Message = "No party characters are available.";
+            Message = "No characters are available.";
             return;
         }
         if (input == MenuInput.Confirm)

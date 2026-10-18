@@ -13,7 +13,7 @@ public sealed partial class MenuController
         var partyArea = Grid([1, 1, 1, 3], [1], 0);
         partyArea.Margin = new UiThickness(20, 0, 10, 0);
         Place(page, partyArea, 1);
-        MenuCharacter[] party = CharacterChoices.ToArray();
+        MenuCharacter[] party = CharacterChoices.Where(character => character.InParty).ToArray();
         for (int index = 0; index < 3; index++)
         {
             MenuCharacter? character = party.ElementAtOrDefault(index);
@@ -37,7 +37,7 @@ public sealed partial class MenuController
                 Place(partyArea, status, index);
             }
         }
-        MenuCharacter[] reserveCharacters = Data.Characters.Where(character => !character.InParty).ToArray();
+        MenuCharacter[] reserveCharacters = CharacterChoices.Where(character => !character.InParty).ToArray();
         var reserves = Grid(Enumerable.Repeat(1f, Math.Max(3, (reserveCharacters.Length + 1) / 2)).ToArray(), [1, 1], 3);
         for (int index = 0; index < reserveCharacters.Length; index++)
         {
@@ -46,7 +46,18 @@ public sealed partial class MenuController
             Place(member, Portrait(character), 0, 0, 2);
             Place(member, Label(character.Name, 26), 0, 1);
             Place(member, Label($"Lv {Number(character.Level)}   HP {character.HpDisplay ?? Number(character.CurrentHp)}", 20), 1, 1);
-            Place(reserves, member, index / 2, index % 2);
+            if (IsSelectingCharacter)
+            {
+                string characterId = character.Id;
+                UiButton choice = new() { Id = characterId, DrawBackground = false, HighlightSelection = false, Click = () => ChooseCharacter(characterId) };
+                member.Margin = new UiThickness(24, 0, 0, 0);
+                choice.Children.Add(member);
+                Place(reserves, choice, index / 2, index % 2);
+            }
+            else
+            {
+                Place(reserves, member, index / 2, index % 2);
+            }
         }
         Place(partyArea, Panel(null, reserves), 3);
         var sidebar = Grid([6.3f, 0.3f, 1.4f], [1], 0);

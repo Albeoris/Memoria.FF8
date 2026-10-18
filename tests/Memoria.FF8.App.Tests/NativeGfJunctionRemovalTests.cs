@@ -9,17 +9,20 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeGfJunctionRemovalTests
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void LiveOffMenuRemovesTheSelectedCategoryWithoutHealingOrChangingStock(bool all)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void LiveOffMenuRemovesTheSelectedCategoryWithoutHealingOrChangingStock(bool all, bool reserve)
     {
         using GameAssets assets = InstalledAssets();
-        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).ToggleGuardianForceJunction(0, 0);
+        int owner = reserve ? 3 : 0;
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).ToggleGuardianForceJunction(owner, 0);
         NativeCharacterVital[] records = vitals.Records.ToArray();
         byte[] magic = new byte[20];
         magic[0] = 1;
-        records[0] = records[0] with { HitPoints = new NativeHpWord(1, 1), Status = 4, Junction = records[0].Junction with { Commands = 21, Abilities = 39, MagicJunctions = magic } };
-        vitals = vitals with { Records = records };
+        records[owner] = records[owner] with { MemberFlags = (byte)(records[owner].MemberFlags | 1), HitPoints = new NativeHpWord(1, 1), Status = 4, Junction = records[owner].Junction with { Commands = 21, Abilities = 39, MagicJunctions = magic } };
+        vitals = vitals with { Records = records, CombatParty = [0, 255, 255] };
         string original = JsonSerializer.Serialize(vitals);
         NativeCharacterVitals source = vitals;
         List<PlayerAction> actions = [];
@@ -29,7 +32,21 @@ public sealed class NativeGfJunctionRemovalTests
             actions.Add(input);
             vitals = NativeJunctionMenuInput.Apply(vitals, input);
         });
-        controller.Open("junction-off");
+        controller.Open();
+        controller.Navigate(MenuInput.Confirm);
+        int ownerIndex = controller.CharacterChoices.ToList().FindIndex(character => character.Id == $"character-{owner}");
+        Assert.True(ownerIndex >= 0);
+        for (int step = 0; step < ownerIndex; step++)
+        {
+            controller.Navigate(MenuInput.Down);
+        }
+        controller.BuildView();
+        controller.Navigate(MenuInput.Confirm);
+        Assert.Equal("junction", controller.ScreenId);
+        Assert.Equal(!reserve, controller.Character!.InParty);
+        controller.Navigate(MenuInput.Down);
+        controller.Navigate(MenuInput.Confirm);
+        Assert.Equal("junction-off", controller.ScreenId);
         if (all)
         {
             controller.Navigate(MenuInput.Down);
@@ -37,19 +54,20 @@ public sealed class NativeGfJunctionRemovalTests
         controller.Navigate(MenuInput.Confirm);
         PlayerAction applied = Assert.Single(actions);
         Assert.Equal(PlayerActionKind.RemoveJunctions, applied.Kind);
+        Assert.Equal(owner, applied.Value);
         Assert.Equal(all ? "1" : "0", applied.Text);
-        Assert.All(vitals.Records[0].Junction.MagicJunctions, spell => Assert.Equal(0, spell));
-        Assert.Equal(all ? (ushort)0 : (ushort)1, vitals.Records[0].Junction.GuardianForces);
-        Assert.Equal(all ? 0u : 21u, vitals.Records[0].Junction.Commands);
-        Assert.Equal(all ? 0u : 39u, vitals.Records[0].Junction.Abilities);
-        Assert.Equal(new NativeHpWord(1, 1), vitals.Records[0].HitPoints);
-        Assert.Equal((ushort)4, vitals.Records[0].Status);
-        Assert.Equal(source.Records[0].MagicInventory, vitals.Records[0].MagicInventory);
-        Assert.Equal(source.Records.Skip(1), vitals.Records.Skip(1));
+        Assert.All(vitals.Records[owner].Junction.MagicJunctions, spell => Assert.Equal(0, spell));
+        Assert.Equal(all ? (ushort)0 : (ushort)1, vitals.Records[owner].Junction.GuardianForces);
+        Assert.Equal(all ? 0u : 21u, vitals.Records[owner].Junction.Commands);
+        Assert.Equal(all ? 0u : 39u, vitals.Records[owner].Junction.Abilities);
+        Assert.Equal(new NativeHpWord(1, 1), vitals.Records[owner].HitPoints);
+        Assert.Equal((ushort)4, vitals.Records[owner].Status);
+        Assert.Equal(source.Records[owner].MagicInventory, vitals.Records[owner].MagicInventory);
+        Assert.Equal(source.Records.Where((_, row) => row != owner), vitals.Records.Where((_, row) => row != owner));
         Assert.Equal(original, JsonSerializer.Serialize(source));
         NativeCharacterVitals restored = JsonSerializer.Deserialize<NativeCharacterVitals>(JsonSerializer.Serialize(vitals))!;
         restored.Validate();
-        Assert.Equal(vitals.Records[0], restored.Records[0]);
+        Assert.Equal(vitals.Records[owner], restored.Records[owner]);
     }
 
     [Fact]

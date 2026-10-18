@@ -54,8 +54,9 @@ public sealed class MenuViewTests
         Assert.DoesNotContain(elements.OfType<UiImage>(), image => image.Source?.Kind == UiImageKind.CharacterPortrait);
         UiList inventory = Assert.Single(elements.OfType<UiList>(), list => list.Id == "commands");
         Assert.Equal(menus.Data.Items.Count, inventory.Items.Count);
-        UiLabel[] names = menus.CharacterChoices.Select(character => Assert.Single(elements.OfType<UiLabel>(), label => label.Text == character.Name)).ToArray();
-        Assert.Equal(menus.CharacterChoices.Count, names.Length);
+        MenuCharacter[] party = menus.Data.Characters.Where(character => character.InParty).ToArray();
+        UiLabel[] names = party.Select(character => Assert.Single(elements.OfType<UiLabel>(), label => label.Text == character.Name)).ToArray();
+        Assert.Equal(party.Length, names.Length);
         Assert.All(names, name => Assert.True(name.Bounds.X > inventory.Bounds.Right));
         for (int index = 1; index < names.Length; index++)
         {

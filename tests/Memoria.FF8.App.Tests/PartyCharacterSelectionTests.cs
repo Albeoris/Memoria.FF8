@@ -9,7 +9,47 @@ public sealed class PartyCharacterSelectionTests
     [InlineData("junction")]
     [InlineData("magic")]
     [InlineData("status")]
-    public void MainCharacterCommandsRequireAnExplicitPartyChoice(string destination)
+    public void KeyboardReachesReserveCharactersAfterPartyAndWrapsWithoutFillingEmptyPartySlots(string destination)
+    {
+        MenuData data = ReorderedLiveData();
+        MenuController controller = new(() => data);
+        controller.Open();
+        SelectMainCommand(controller, destination);
+        controller.Navigate(MenuInput.Confirm);
+        controller.Navigate(MenuInput.Up);
+        Assert.Equal("0", controller.BuildView().FocusedElement!.Id);
+        Assert.DoesNotContain(Descendants(controller.View!.Root).OfType<UiLabel>(), label => label.Text == "Empty party slot");
+        UiPanel emptyPartySlot = Assert.Single(Descendants(controller.View.Root).OfType<UiPanel>(), panel => panel.Id == "party-status-2");
+        Assert.DoesNotContain(Descendants(emptyPartySlot).OfType<UiLabel>(), label => label.Text == "Renamed reserve");
+        controller.Navigate(MenuInput.Down);
+        Assert.Equal("7", controller.BuildView().FocusedElement!.Id);
+        controller.Navigate(MenuInput.Down);
+        controller.Navigate(MenuInput.Down);
+        Assert.Equal("0", controller.BuildView().FocusedElement!.Id);
+        controller.Navigate(MenuInput.Confirm);
+        Assert.Equal(destination, controller.ScreenId);
+        Assert.Equal("0", controller.Character!.Id);
+    }
+
+    [Fact]
+    public void ReserveOnlyRosterStillAllowsCharacterSelection()
+    {
+        MenuData data = new();
+        data.Characters.Add(new MenuCharacter { Id = "3", NativeId = 3, Name = "Quistis", InParty = false });
+        MenuController controller = new(() => data);
+        controller.Open();
+        controller.Navigate(MenuInput.Confirm);
+        Assert.Equal("3", controller.BuildView().FocusedElement!.Id);
+        controller.Navigate(MenuInput.Confirm);
+        Assert.Equal("junction", controller.ScreenId);
+        Assert.Equal("3", controller.Character!.Id);
+    }
+
+    [Theory]
+    [InlineData("junction")]
+    [InlineData("magic")]
+    [InlineData("status")]
+    public void MainCharacterCommandsRequireAnExplicitCharacterChoice(string destination)
     {
         MenuData data = ReorderedLiveData();
         List<MenuAction> requests = [];
@@ -23,7 +63,7 @@ public sealed class PartyCharacterSelectionTests
         Assert.True(controller.IsSelectingCharacter);
         Assert.Equal(destination, controller.CharacterSelectionDestination);
         Assert.Equal(commandIndex, controller.SelectedIndex);
-        Assert.Equal(new[] { "7", "2" }, controller.CharacterChoices.Select(character => character.Id));
+        Assert.Equal(new[] { "7", "2", "0" }, controller.CharacterChoices.Select(character => character.Id));
         Assert.Equal("Renamed leader", controller.CharacterChoices[0].Name);
 
         controller.Navigate(MenuInput.Down);
@@ -52,7 +92,7 @@ public sealed class PartyCharacterSelectionTests
         SelectMainCommand(controller, "junction");
         controller.Navigate(MenuInput.Confirm);
         Assert.Equal(1, controller.CharacterSelectionIndex);
-        controller.Navigate(MenuInput.Down);
+        controller.Navigate(MenuInput.Up);
         Assert.Equal(0, controller.CharacterSelectionIndex);
         controller.Navigate(MenuInput.Cancel);
 
@@ -120,9 +160,12 @@ public sealed class PartyCharacterSelectionTests
     }
 
     [Theory]
-    [InlineData(960, 672)]
-    [InlineData(1280, 720)]
-    public void ClickingAPartyPaneSelectsThatExactCharacter(int width, int height)
+    [InlineData(640, 448, "0")]
+    [InlineData(960, 672, "2")]
+    [InlineData(1280, 720, "2")]
+    [InlineData(1280, 896, "0")]
+    [InlineData(1920, 1080, "0")]
+    public void ClickingACharacterPaneSelectsThatExactCharacter(int width, int height, string characterId)
     {
         MenuData data = ReorderedLiveData();
         List<MenuAction> requests = [];
@@ -131,28 +174,27 @@ public sealed class PartyCharacterSelectionTests
         controller.Navigate(MenuInput.Confirm);
         UiView view = controller.BuildView();
         view.Resize(width, height);
-        UiButton choice = Descendants(view.Root).OfType<UiButton>().Single(button => button.Id == "2");
+        UiButton choice = Descendants(view.Root).OfType<UiButton>().Single(button => button.Id == characterId);
         float scale = Math.Min(width / view.DesignWidth, height / view.DesignHeight);
         float offsetX = (width - view.DesignWidth * scale) / 2;
         float offsetY = (height - view.DesignHeight * scale) / 2;
         view.Pointer(offsetX + (choice.Bounds.X + choice.Bounds.Width / 2) * scale, offsetY + (choice.Bounds.Y + choice.Bounds.Height / 2) * scale, true);
         Assert.Equal("junction", controller.ScreenId);
-        Assert.Equal("2", controller.Character!.Id);
+        Assert.Equal(characterId, controller.Character!.Id);
         Assert.Empty(requests);
     }
 
     [Fact]
-    public void PickerRejectsReserveEmptyAndStaleChoicesAndOpenResetsTheMode()
+    public void PickerRejectsEmptyAndStaleChoicesAndOpenResetsTheMode()
     {
         MenuData data = ReorderedLiveData();
         MenuController controller = new(() => data);
         controller.Open();
         controller.Navigate(MenuInput.Confirm);
-        controller.ChooseCharacter("0");
         controller.ChooseCharacter("");
         controller.ChooseCharacter("255");
         Assert.True(controller.IsSelectingCharacter);
-        data.Characters.Single(character => character.Id == "2").InParty = false;
+        data.Characters.RemoveAll(character => character.Id == "2");
         controller.ChooseCharacter("2");
         Assert.True(controller.IsSelectingCharacter);
         Assert.Equal("main", controller.ScreenId);
@@ -163,16 +205,15 @@ public sealed class PartyCharacterSelectionTests
     }
 
     [Fact]
-    public void MissingPartyDoesNotOpenACharacterScreen()
+    public void MissingCharactersDoNotOpenACharacterScreen()
     {
         MenuData data = new();
-        data.Characters.Add(new MenuCharacter { Id = "0", Name = "Reserve", InParty = false });
         MenuController controller = new(() => data);
         controller.Open();
         controller.Navigate(MenuInput.Confirm);
         Assert.Equal("main", controller.ScreenId);
         Assert.False(controller.IsSelectingCharacter);
-        Assert.Equal("No party characters are available.", controller.Message);
+        Assert.Equal("No characters are available.", controller.Message);
     }
 
     [Fact]
