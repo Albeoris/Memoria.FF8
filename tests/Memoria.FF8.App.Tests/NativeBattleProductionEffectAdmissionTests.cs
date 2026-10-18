@@ -234,7 +234,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
         string id = (guardianCommand ? "production-gf-" : "production-blizzard-") + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N")[..8];
         using (GameWorld initial = new(source, gameDirectory))
         {
-            initial.Events.LoadField(999, Program(), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            initial.Events.LoadField(999, Program(initializeBattleMode: true), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             JsonNode scene = JsonNode.Parse(initial.Events.Capture().GetRawText())!;
             // Only observed selector/bootstrap are supplied from the preserved source; other owners are explicit component inputs.
             scene["Scene"]!["MusicProcess"] = JsonSerializer.SerializeToNode(new NativeMusicProcessState(1, null, null, null, sourceBank, null, bootstrap));
@@ -242,11 +242,14 @@ public sealed class NativeBattleProductionEffectAdmissionTests
             scene["Scene"]!["NativeBattleMusic203"] = 5;
             initial.Events.Restore(JsonSerializer.SerializeToElement(scene));
             source.SetEventState(initial.Events.Capture());
-            Publish(evidence, id + "-inputs", new { SelectorSource = Path.GetFullPath(selectorSource!), SelectorSourceSha256 = Convert.ToHexString(SHA256.HashData(selectorBytes)), CopiedFields = new[] { "EventState.Scene.MusicProcess.Bank201", "EventState.Scene.MusicProcess.Bootstrap", "WorldEntryMemory", "EventRandom" }, AssignedGuardianCommand = guardianCommand, ControlledInputs = "Original initial party/stock, learned Magic assigned to command slot0, optionally learned GF to slot1 before entry, cold graphics/sound, source203=5/channel108=-1; old buffers and pending operands unknown; not an old-save migration or story continuation" });
+            Publish(evidence, id + "-inputs", new { SelectorSource = Path.GetFullPath(selectorSource!), SelectorSourceSha256 = Convert.ToHexString(SHA256.HashData(selectorBytes)), CopiedFields = new[] { "EventState.Scene.MusicProcess.Bank201", "EventState.Scene.MusicProcess.Bootstrap", "WorldEntryMemory", "EventRandom" }, AssignedGuardianCommand = guardianCommand, ControlledInputs = "Original initial party/stock, learned Magic assigned to command slot0, optionally learned GF to slot1 before entry, cold graphics/sound, explicit BATTLEMODE0 before BATTLE94/80, source203=5/channel108=-1; old buffers and pending operands unknown; not an old-save migration or story continuation" });
             Publish(evidence, id + "-before-event", source.State);
             initial.Events.Step();
             initial.Events.Step();
             Assert.Equal((ushort)94, initial.Events.PendingInteractiveBattle!.Encounter);
+            Assert.Equal((ushort)0, initial.Events.PendingInteractiveBattle.FlagConsumer!.PersistentModeFlags);
+            Assert.Contains(initial.Events.Scene.NativeBattleFlagWrites!, write => write.Writer == NativeBattleFlagWriter.BattleMode && write.RawOperand == 0 && write.PersistentFlags == 0 && write.ActiveFlags == 0);
+            Assert.Equal((ushort)0x80, initial.Events.Scene.NativeBattleFlagWrites![^1].ActiveFlags);
             source.SetEventState(initial.Events.Capture());
             Publish(evidence, id + "-before-entry", source.State);
         }
@@ -447,7 +450,9 @@ public sealed class NativeBattleProductionEffectAdmissionTests
             world.EnsureField();
             return world;
         }
-        world.Events.LoadField(999, Program(), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        byte[] controlledProgram = Program(initializeBattleMode: true);
+        bool explicitMode = events.GetProperty("ProgramHash").GetString() == Convert.ToHexString(SHA256.HashData(controlledProgram));
+        world.Events.LoadField(999, explicitMode ? controlledProgram : Program(), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         world.Events.Restore(events);
         return world;
     }
@@ -495,9 +500,14 @@ public sealed class NativeBattleProductionEffectAdmissionTests
         bitmap.Save(stream, ImageFormat.Png);
     }
 
-    private static byte[] Program()
+    private static byte[] Program(bool initializeBattleMode = false)
     {
         (Jsm.Opcode Opcode, int Parameter)[] operations = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0), (Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 94), (Jsm.Opcode.PSHN_L, 0x80), (Jsm.Opcode.BATTLE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
+        if (initializeBattleMode)
+        {
+            // This fresh component declares its saved return mode through the actual full-word writer.
+            operations = [.. operations.Take(3), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.BATTLEMODE, 0), .. operations.Skip(3)];
+        }
         const int operationsOffset = 16;
         byte[] bytes = new byte[operationsOffset + operations.Length * 4];
         bytes[3] = 1;

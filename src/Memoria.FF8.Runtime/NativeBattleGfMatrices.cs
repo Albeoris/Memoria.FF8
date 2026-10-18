@@ -2,6 +2,8 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
+public readonly record struct NativeBattleFullMacVertex(int X, int Y, int Z, uint Flags);
+
 /// <summary>701310's axis conventions and the original56C090/56C3D0 matrix operations.</summary>
 public static class NativeBattleGfMatrices
 {
@@ -122,8 +124,30 @@ public static class NativeBattleGfMatrices
     /// <summary>460840 followed by45E3E0: rounded rotation, DWORD translation and saturated signed IR WORDs.</summary>
     public static NativeBattleVector Transform460840(NativeBattleActionMatrix matrix, NativeBattleVector vector)
     {
+        NativeBattleFullMacVertex mac = TransformMac460840(matrix, vector);
+        return new((short)Math.Clamp(mac.X, short.MinValue, short.MaxValue), (short)Math.Clamp(mac.Y, short.MinValue, short.MaxValue), (short)Math.Clamp(mac.Z, short.MinValue, short.MaxValue));
+    }
+
+    public static NativeBattleFullMacVertex TransformMac460840(NativeBattleActionMatrix matrix, NativeBattleVector vector)
+    {
         (int x, int y, int z) = Rotate56C3D0(matrix, vector);
-        return new((short)Math.Clamp(unchecked(x + matrix.X), short.MinValue, short.MaxValue), (short)Math.Clamp(unchecked(y + matrix.Y), short.MinValue, short.MaxValue), (short)Math.Clamp(unchecked(z + matrix.Z), short.MinValue, short.MaxValue));
+        x = unchecked(x + matrix.X);
+        y = unchecked(y + matrix.Y);
+        z = unchecked(z + matrix.Z);
+        uint flags = 0;
+        if (x is < short.MinValue or > short.MaxValue)
+        {
+            flags |= 0x81000000;
+        }
+        if (y is < short.MinValue or > short.MaxValue)
+        {
+            flags |= 0x80800000;
+        }
+        if (z is < short.MinValue or > short.MaxValue)
+        {
+            flags |= 0x00400000;
+        }
+        return new(x, y, z, flags);
     }
     public static NativeBattleActionMatrix Compose6C6060(NativeBattleGfAnimationNode node, NativeBattleActionMatrix view, NativeBattleActionMatrix? billboard, NativeBattleVector basePosition)
     {
