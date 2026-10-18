@@ -42,6 +42,10 @@ public sealed partial record NativeBattleEffectMemory([property: JsonRequired] N
         NodeScratch2793E30?.Validate();
         ScriptedEffects?.Validate();
         ScriptedGraphics?.Validate();
+        Bio22Geometry?.ValidateForAddress(0x1615CE4);
+        Bio22SecondaryGeometry?.ValidateForAddress(0x1617E3C);
+        Bio22ThirdGeometry?.ValidateForAddress(0x1619888);
+        Bio22FourthGeometry?.ValidateForAddress(0x161F750);
         DoubleMorph?.Validate();
         TripleMorph?.Validate();
         ModelColorOverrides?.Validate();

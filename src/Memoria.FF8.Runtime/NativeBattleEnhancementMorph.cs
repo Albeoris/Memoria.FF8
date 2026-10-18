@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-/// <summary>The identical8D57C0/89E6E0 source-count XYZ morph; fourth WORDs and all mesh records remain current.</summary>
+/// <summary>The identical8D57C0/89E6E0/89B0D0 source-count XYZ morph; fourth WORDs and all mesh records remain current.</summary>
 public static class NativeBattleEnhancementMorph
 {
     public static void Validate(ImmutableArray<byte> bytes)
@@ -21,12 +21,16 @@ public static class NativeBattleEnhancementMorph
 
     public static ImmutableArray<byte> Morph(ImmutableArray<byte> current, ImmutableArray<byte> first, ImmutableArray<byte> second, short ratio)
     {
-        Validate(current);
         if (first.IsDefault || first.Length < 8)
         {
             throw new InvalidDataException("Native enhancement morph requires its original first shape count.");
         }
         int count = BinaryPrimitives.ReadInt32LittleEndian(first.AsSpan().Slice(4));
+        if (count <= 0)
+        {
+            return current;
+        }
+        Validate(current);
         return NativeBattleGfMorphGeometry.Morph45E9D0(first, 8, second, 8, count, ratio, current, 8);
     }
 }
