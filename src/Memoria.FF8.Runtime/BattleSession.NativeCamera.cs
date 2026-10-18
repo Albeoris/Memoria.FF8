@@ -129,6 +129,10 @@ public sealed partial class BattleSession
                 {
                     graphics = thundagaCompleted;
                 }
+                else if (TryWriteNativeGilgameshCompletion(graphics, address, value, out NativeBattleGraphicsState gilgameshCompleted))
+                {
+                    graphics = gilgameshCompleted;
+                }
                 else if (TryWriteNativeCactuarCompletion(graphics, address, value, out NativeBattleGraphicsState cactuarCompleted))
                 {
                     graphics = cactuarCompleted;

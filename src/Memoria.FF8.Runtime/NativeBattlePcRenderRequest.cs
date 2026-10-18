@@ -57,6 +57,21 @@ public sealed record NativeBattlePcRenderRequest([property: JsonRequired] uint R
         return this with { Requested = unchecked((uint)argument0 + 1u) };
     }
 
+    /// <summary>Publish the deferred PC draw command beside the executed OT. The renderer performs capture after the scene and UI.</summary>
+    public NativeBattlePcRenderRequest PublishTail47CF60(bool pauseDE9, NativeBattlePcRenderViewport? viewport)
+    {
+        Validate();
+        if (pauseDE9 || Requested == 0)
+        {
+            return this with { PublishedTail = null };
+        }
+        if (viewport is null)
+        {
+            throw new NotSupportedException("Native PC render-tail requires its current viewport owner.");
+        }
+        return this with { Requested = 0, PublishedTail = new(Requested, viewport) };
+    }
+
     public NativeBattlePcRenderRequest Tail47CF60(bool pauseDE9, NativeBattlePcRenderViewport? viewport, Action<NativeBattlePcRenderTailReceipt>? render56D1D0)
     {
         Validate();

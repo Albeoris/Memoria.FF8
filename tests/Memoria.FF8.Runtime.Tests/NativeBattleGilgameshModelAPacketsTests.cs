@@ -216,4 +216,3 @@ public sealed class NativeBattleGilgameshModelAPacketsTests
         return new(true, bytes.ToImmutableArray());
     }
 }
-

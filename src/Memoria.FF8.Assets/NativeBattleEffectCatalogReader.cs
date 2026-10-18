@@ -250,6 +250,15 @@ public sealed partial class GameAssets
                 binding = binding with { Water222Resources = ReadNativeWater222Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 330)
+            {
+                if (binding.Entry != 0x58DCF0 || binding.Initializer != 0x58D740)
+                {
+                    throw new InvalidDataException("Native Excalipoor330 differs from its original module identity.");
+                }
+                catalog = catalog.SetItem(index, binding with { GilgameshResources = ReadNativeGilgameshEffectResources() });
+                continue;
+            }
             if (binding.Effect == 199)
             {
                 if (binding.Entry != 0x5A8750 || binding.Initializer != 0x5A8730 || binding.InitializerIsRet != false || binding.InitializerResource is not null || binding.InitializerResources is not null || binding.InitializerAsset is not null || binding.InitializerAssets is not null)

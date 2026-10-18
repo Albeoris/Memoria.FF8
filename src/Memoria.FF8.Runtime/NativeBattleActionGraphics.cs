@@ -214,6 +214,8 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
     public NativeBattleTripleResources? TripleResources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleBio22Resources? Bio22Resources { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleGilgameshEffectResources? GilgameshResources { get; init; }
     public NativeBattleCuraResources? CuraResources { get; init; }
     public NativeBattleCuragaResources? CuragaResources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

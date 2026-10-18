@@ -133,5 +133,3 @@ public static class NativeBattleGilgameshModelA
         }
     }
 }
-
-

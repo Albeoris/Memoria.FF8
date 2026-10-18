@@ -147,7 +147,7 @@ public sealed class NativeBattleGilgameshDirectorTests
             [191] = [new(file, 752, UseWorkBuffer: true)],
             [218] = [new(wave, UseWorkBuffer: true)],
             [223] = [Op(file, 755, 0xE000), Op(particle, 0x596A60), Op(child, 0x596970)],
-            [233] = [Op(NativeBattleGilgameshDirectorService.BeginExit)],
+            [233] = [Op(NativeBattleGilgameshDirectorService.Title)],
             [237] = [Op(upload, 0xE000)],
             [238] = [Op(file, 757, 0xE000)],
             [243] = [Volume()],

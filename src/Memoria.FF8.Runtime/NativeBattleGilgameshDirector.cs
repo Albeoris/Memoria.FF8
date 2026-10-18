@@ -13,7 +13,7 @@ public enum NativeBattleGilgameshDirectorService
     AppendParticle,
     Volume,
     FadeTask,
-    BeginExit,
+    Title,
     QueueColor,
     StopVibrationIfActive,
     Stage
@@ -133,7 +133,7 @@ public static class NativeBattleGilgameshDirector
                 Child(0x596970);
                 break;
             case 233:
-                Emit(NativeBattleGilgameshDirectorService.BeginExit);
+                Emit(NativeBattleGilgameshDirectorService.Title);
                 break;
             case 237:
                 Upload(0xE000);
