@@ -70,6 +70,12 @@ public static class NativeBattleWaterFrameBinding
     public static NativeBattleWaterFrameBindingResult Bind(NativeBattleScriptedEffectMemory core, NativeBattleWaterTemporaryFrame temporaryFrame, NativeBattleWater222Profile profile)
     {
         profile.Validate();
+        return Bind(core, temporaryFrame, new NativeBattleScriptedInitializationDirectories(profile.InitializationDirectory, profile.OwnerDirectory));
+    }
+
+    public static NativeBattleWaterFrameBindingResult Bind(NativeBattleScriptedEffectMemory core, NativeBattleWaterTemporaryFrame temporaryFrame, NativeBattleScriptedInitializationDirectories directories)
+    {
+        directories.Validate();
         uint address = temporaryFrame.Address;
         if (temporaryFrame.Bytes.IsDefault || temporaryFrame.Known.IsDefault || temporaryFrame.Bytes.Length != 0x180 || temporaryFrame.Known.Length != 0x180 || address == 0 || address > uint.MaxValue - 0x180)
         {
@@ -81,15 +87,15 @@ public static class NativeBattleWaterFrameBinding
         TemporaryDword(0x104, address + 0x100);
         for (int index = 0; index < 5; index++)
         {
-            TemporaryDword(0x108 + 4 * index, profile.OwnerAddress(index));
+            TemporaryDword(0x108 + 4 * index, directories.OwnerAddress(index));
         }
         Store(0x2797624, address);
         Store(0x27973B8, address + 0x100);
-        Store(0x27973EC, profile.OwnerAddress(0));
-        Store(0x27973C4, profile.OwnerAddress(1));
-        Store(0x279744C, profile.OwnerAddress(2));
-        Store(0x27973BC, profile.OwnerAddress(3));
-        Store(0x27973C0, profile.OwnerAddress(4));
+        Store(0x27973EC, directories.OwnerAddress(0));
+        Store(0x27973C4, directories.OwnerAddress(1));
+        Store(0x279744C, directories.OwnerAddress(2));
+        Store(0x27973BC, directories.OwnerAddress(3));
+        Store(0x27973C0, directories.OwnerAddress(4));
         return new(core, temporaryFrame with { Bytes = bytes.ToImmutableArray(), Known = known.ToImmutableArray() });
 
         void Store(uint destination, uint value)

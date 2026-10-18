@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 
@@ -24,9 +25,16 @@ public sealed class NativeBattleSharedEffectLoadingTests
     }
 
     [Fact]
-    public void Shiva_uses_the_shared_initializer_and_preserves_current_process_parameters()
+    public void Break_uses_the_shared_initializer_and_preserves_current_process_parameters()
     {
         using GameAssets assets = new(TestResources.GameDirectory);
+        using BattleAssets battle = new(assets.GameDirectory);
+        BattleNativeAction action = battle.NativeActions.Single(action => action.Command == 2 && action.Name == "Break");
+        Assert.Equal((ushort)117, action.MagicId);
+        BattleNativeKernelRecord row = battle.NativeKernelRecords.Single(row => row.Section == action.KernelSection && row.Index == action.KernelIndex);
+        Assert.Equal(1, row.Section);
+        Assert.Equal(row.Bytes.ToArray(), action.RawRecord.ToArray());
+        Assert.Equal((ushort)117, BinaryPrimitives.ReadUInt16LittleEndian(row.Bytes.AsSpan().Slice(4, 2)));
         var catalog = assets.ReadNativeEffectCatalogForEffects([117]);
         NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(117, catalog);
         Assert.Equal(0x6C16A0u, selected.Binding.Entry);

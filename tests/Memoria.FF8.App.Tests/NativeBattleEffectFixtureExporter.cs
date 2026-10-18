@@ -143,6 +143,8 @@ internal static class NativeBattleEffectFixtureExporter
                 NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([request.Effect]),
                 NativeCommonEffectTexture = game.ReadNativeCommonEffectTexture(),
                 NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
+                NativeScannedModels = game.ReadNewGameScannedModels(),
+                NativeScanAlwaysShow = (game.ReadNewGameInputConfiguration().Options & 0x100) != 0,
                 NativeActionCameraRules = game.ReadNativeActionCameraRules(),
                 NativeStageSource = stage.NativeSource,
                 NativeStageCameraBank = stage.NativeCameraBank,

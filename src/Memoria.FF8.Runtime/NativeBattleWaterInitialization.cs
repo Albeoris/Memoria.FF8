@@ -16,23 +16,29 @@ public static class NativeBattleWaterInitialization
 {
     public static NativeBattleWaterInitializationResult InitializeA9B200(NativeBattleScriptedEffectMemory core, NativeBattleEffectArena arena, NativeBattleWater222Profile profile, NativeBattleWaterInitializationInputs inputs)
     {
+        profile.Validate();
+        return InitializeScriptedEntry(core, arena, new(profile.InitializationDirectory, profile.OwnerDirectory), inputs, new(0x2796BA8, 0x2796BB8, 0x10, 1, 0xA9B870));
+    }
+
+    public static NativeBattleWaterInitializationResult InitializeScriptedEntry(NativeBattleScriptedEffectMemory core, NativeBattleEffectArena arena, NativeBattleScriptedInitializationDirectories directories, NativeBattleWaterInitializationInputs inputs, NativeBattleWaterInitialPoolRequest poolRequest)
+    {
         core.Validate();
         arena.Validate();
-        profile.Validate();
+        directories.Validate();
         Resource(inputs.Resource0, 0x1C);
         Resource(inputs.Resource1, 0x20);
         NativeBattleWaterTemporaryFrame frame = inputs.TemporaryFrame;
-        if (frame.Bytes.IsDefault || frame.Known.IsDefault || frame.Bytes.Length != 0x180 || frame.Known.Length != 0x180 || frame.Address == 0 || frame.Address > uint.MaxValue - 0x180 || inputs.ActionParametersAddress == 0 || inputs.HeaderBaseAddress == 0 || profile.OwnerAddress(2) != NativeBattleScriptedEffectMemory.Address)
+        if (frame.Bytes.IsDefault || frame.Known.IsDefault || frame.Bytes.Length != 0x180 || frame.Known.Length != 0x180 || frame.Address == 0 || frame.Address > uint.MaxValue - 0x180 || inputs.ActionParametersAddress == 0 || inputs.HeaderBaseAddress == 0 || directories.OwnerAddress(2) != NativeBattleScriptedEffectMemory.Address)
         {
             throw new InvalidDataException("Native initialization requires its actual bounded temporary frame and parameter/header bindings.");
         }
         byte[] temporary = frame.Bytes.ToArray();
         bool[] known = frame.Known.ToArray();
-        uint manager = profile.OwnerAddress(0);
-        uint command = profile.OwnerAddress(4);
+        uint manager = directories.OwnerAddress(0);
+        uint command = directories.OwnerAddress(4);
         Dword(0x2798A68, inputs.Resource0.Address);
         Dword(0x2798A6C, inputs.Resource1.Address);
-        NativeBattleWaterFrameBindingResult binding = NativeBattleWaterFrameBinding.Bind(core, frame, profile);
+        NativeBattleWaterFrameBindingResult binding = NativeBattleWaterFrameBinding.Bind(core, frame, directories);
         core = binding.Core;
         temporary = binding.TemporaryFrame.Bytes.ToArray();
         known = binding.TemporaryFrame.Known.ToArray();
@@ -94,7 +100,7 @@ public static class NativeBattleWaterInitialization
         Word(manager + 0xA0, 0x0233);
         Word(command, 1);
         NativeBattleWaterResetResult reset = ResetAA4B60(core, arena, new(frame.Address, temporary.ToImmutableArray(), known.ToImmutableArray()), inputs.Resource1, (_, _, _) => inputs.HeaderBaseAddress, (_, _, _, _) => new(inputs.Caster, inputs.CurrentHeaderIndex, inputs.FirstHeaderFirstActor, inputs.Contacts, inputs.ContactCount, inputs.Graphics));
-        return new(reset.Core, reset.Arena, reset.SlotBank, reset.TemporaryFrame, reset.CurrentHeaderIndex, new(0x2796BA8, 0x2796BB8, 0x10, 1, 0xA9B870));
+        return new(reset.Core, reset.Arena, reset.SlotBank, reset.TemporaryFrame, reset.CurrentHeaderIndex, poolRequest);
 
         void Resource(NativeBattleWaterInitializationResource resource, int minimum)
         {
@@ -105,7 +111,7 @@ public static class NativeBattleWaterInitialization
         }
 
         uint ResourcePointer(NativeBattleWaterInitializationResource resource, int offset) => unchecked(resource.Address + BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(resource.ArenaOffset + offset, 4)));
-        uint Directory(int offset) => unchecked(inputs.InitializationDirectoryAddress + profile.InitializationOffset(offset));
+        uint Directory(int offset) => unchecked(inputs.InitializationDirectoryAddress + directories.InitializationOffset(offset));
         void Zero(uint address, int length) => core = core.Write(address, new byte[length]);
         void Byte(uint address, byte value) => core = core.Write(address, new byte[] { value });
 
