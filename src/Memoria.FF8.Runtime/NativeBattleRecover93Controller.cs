@@ -14,22 +14,23 @@ public static class NativeBattleRecover93Controller
 
     public static NativeBattleRecover93Frame Initialize74E390(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleActionPacketsState packets, NativeBattleRecover93Resources resources, NativeCrtRandomState random)
     {
-        if (effect.Binding.Entry != 0x74E390 || effect.Parameters is null)
+        NativeBattleAngeloRestorationProfile profile = NativeBattleAngeloRestorationProfile.ForBinding(effect.Binding);
+        if (effect.Parameters is null)
         {
             throw new InvalidDataException("Native Recover93 requires its original74E390 entry and actual action parameters.");
         }
         NativeBattleEffectHierarchy hierarchy = new([
-            NativeBattleEffectTaskPool.Initialize(MainDescriptor, MainBank, 0x64, 2),
-            NativeBattleEffectTaskPool.Initialize(0x2594038, 0x2594048, 0x58, 4),
-            NativeBattleEffectTaskPool.Initialize(0x2592630, 0x2592558, 0x48, 3),
-            NativeBattleEffectTaskPool.Initialize(ModelDescriptor, ModelBank, 0x140, 1),
-            NativeBattleEffectTaskPool.Initialize(0x2593D98, 0x2593AF0, 0x2A4, 1),
-            NativeBattleEffectTaskPool.Initialize(0x2592738, 0x2592748, 0xB0, 20),
-            NativeBattleEffectTaskPool.Initialize(0x2593510, 0x2593520, 0x58, 8),
-            NativeBattleEffectTaskPool.Initialize(0x2593AD8, 0x25937E0, 0x17C, 2),
-            NativeBattleEffectTaskPool.Initialize(0x2594028, 0x2593DA8, 0x40, 10)
+            NativeBattleEffectTaskPool.Initialize(profile.MainDescriptor, profile.MainBank, 0x64, 2),
+            NativeBattleEffectTaskPool.Initialize(profile.Global(0x2594038), profile.Global(0x2594048), 0x58, 4),
+            NativeBattleEffectTaskPool.Initialize(profile.Global(0x2592630), profile.Global(0x2592558), 0x48, 3),
+            NativeBattleEffectTaskPool.Initialize(profile.ModelDescriptor, profile.ModelBank, 0x140, 1),
+            NativeBattleEffectTaskPool.Initialize(profile.Global(0x2593D98), profile.Global(0x2593AF0), 0x2A4, 1),
+            NativeBattleEffectTaskPool.Initialize(profile.Global(0x2592738), profile.Global(0x2592748), 0xB0, 20),
+            NativeBattleEffectTaskPool.Initialize(profile.Global(0x2593510), profile.Global(0x2593520), 0x58, 8),
+            NativeBattleEffectTaskPool.Initialize(profile.Global(0x2593AD8), profile.Global(0x25937E0), 0x17C, 2),
+            NativeBattleEffectTaskPool.Initialize(profile.Global(0x2594028), profile.Global(0x2593DA8), 0x40, 10)
         ]);
-        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(0, 0x74E520, 0x64);
+        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(0, profile.Code(0x74E520), 0x64);
         hierarchy = appended.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.Headers[effect.Parameters.HeaderIndex7C];
         int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native Recover93 requires an original header/contact owner.");
@@ -50,14 +51,15 @@ public static class NativeBattleRecover93Controller
             (textures, _) = textures.EnqueueArenaTim505E30(memory.Arena ?? throw new NotSupportedException("Native Recover93 requires its loaded arena."), textureOffset);
             memory = memory with { Textures = textures };
         }
-        NativeBattleRecover93State retained = memory.Recover93 ?? new(null, [], null, null, null, 0, 0, NativeBattleRecover93NodeState.FromColdProcess());
-        memory = memory with { Recover93 = retained with { Global2594D88 = 0, Global259350C = 0 } };
-        return new(memory, effect with { Pools = hierarchy.Pools, ReturnedDescriptor = MainDescriptor }, random);
+        NativeBattleRecover93State retained = profile.Read(memory) ?? new(null, [], null, null, null, 0, 0, NativeBattleRecover93NodeState.FromColdProcess());
+        memory = profile.Write(memory, retained with { Global2594D88 = 0, Global259350C = 0 });
+        return new(memory, effect with { Pools = hierarchy.Pools, ReturnedDescriptor = profile.MainDescriptor }, random);
     }
 
     public static NativeBattleOriginalEffectState WriteCompletionByte(NativeBattleOriginalEffectState effect, uint address, byte value)
     {
-        int index = Enumerable.Range(0, effect.Pools.Length).FirstOrDefault(slot => effect.Pools[slot].DescriptorAddress == MainDescriptor, -1);
+        NativeBattleAngeloRestorationProfile profile = NativeBattleAngeloRestorationProfile.ForBinding(effect.Binding);
+        int index = Enumerable.Range(0, effect.Pools.Length).FirstOrDefault(slot => effect.Pools[slot].DescriptorAddress == profile.MainDescriptor, -1);
         if (index < 0)
         {
             throw new NotSupportedException("Native Recover93 completion has no retained root bank.");
@@ -75,10 +77,11 @@ public static class NativeBattleRecover93Controller
     public static NativeBattleRecover93Frame Advance74E520(NativeBattleRecover93Frame frame, NativeBattleRecover93Inputs inputs, NativeBattleRecover93Resources resources)
     {
         frame.Effect.Validate();
+        NativeBattleAngeloRestorationProfile profile = NativeBattleAngeloRestorationProfile.ForBinding(frame.Effect.Binding);
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new InvalidDataException("Native Recover93 lost its action parameters.");
         NativeBattleEffectHierarchy state = new(frame.Effect.Pools);
         state.Validate();
-        if (frame.Memory.Recover93 is null)
+        if (profile.Read(frame.Memory) is null)
         {
             throw new InvalidDataException("Native Recover93 lost its explicitly initialized shared state.");
         }
@@ -88,10 +91,10 @@ public static class NativeBattleRecover93Controller
         {
             state = current;
             NativeBattleModulePoolTask task = state.Read(address);
-            Require(task, 0x74E520);
+            Require(task, profile.Code(0x74E520));
             int baseOffset = TextureOffset(frame.Effect);
             bool odd = (task.ReadWord(0x5C) & 1) != 0;
-            frame = frame with { Effect = frame.Effect with { DrawArenaOffset = baseOffset + (odd ? 0 : 0x8000) }, Memory = frame.Memory with { Recover93 = Shared() with { ViewCopy = MatrixBytes(inputs.View), PrivateAuxiliaryOffset = baseOffset + (odd ? 0x8000 : 0x10000) } } };
+            frame = frame with { Effect = frame.Effect with { DrawArenaOffset = baseOffset + (odd ? 0 : 0x8000) }, Memory = profile.Write(frame.Memory, Shared() with { ViewCopy = MatrixBytes(inputs.View), PrivateAuxiliaryOffset = baseOffset + (odd ? 0x8000 : 0x10000) }) };
             task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Models(), inputs.ReadPoseSource);
             Store(address, task);
             switch (Stage(task))
@@ -105,13 +108,13 @@ public static class NativeBattleRecover93Controller
                     if (task.ReadByte(0x28) == 0)
                     {
                         NativeBattleRecover93NodeFrame cleared = NativeBattleRecover93Nodes.ClearStorage(new(frame.Memory, frame.Effect, Shared().Nodes, frame.Random), baseOffset);
-                        frame = frame with { Memory = cleared.Memory with { Recover93 = Shared() with { Nodes = cleared.State } } };
+                        frame = frame with { Memory = profile.Write(cleared.Memory, Shared() with { Nodes = cleared.State }) };
                         Store(address, Next(task));
                     }
                     break;
                 case 3:
                     Store(address, Next(task.WriteByte(0x63, 1)));
-                    Append(1, 0x74E780, 0x58, address);
+                    Append(1, profile.Code(0x74E780), 0x58, address);
                     break;
                 case 4:
                     if (task.ReadByte(0x63) == 0)
@@ -145,7 +148,7 @@ public static class NativeBattleRecover93Controller
                     throw new NotSupportedException("Native Recover93 root stage is unsupported.");
             }
             NativeBattleRecover93NodeFrame pass = NativeBattleRecover93Nodes.BeginPass(new(frame.Memory, frame.Effect, Shared().Nodes, frame.Random), inputs.View, frame.Effect.DrawArenaOffset ?? throw new InvalidDataException("Native Recover93 lost its actual private cursor."));
-            frame = frame with { Memory = frame.Memory with { Recover93 = Shared() with { Nodes = pass.State } } };
+            frame = frame with { Memory = profile.Write(frame.Memory, Shared() with { Nodes = pass.State }) };
             Store(address, state.Read(address).WriteWord(0x5E, 0));
             int survivors = 0;
             for (int pool = 1; pool < 9; pool++)
@@ -165,11 +168,15 @@ public static class NativeBattleRecover93Controller
             return new(state, completed);
         });
         state = rootStep.Hierarchy;
-        return frame with { Effect = frame.Effect with { Pools = state.Pools, ReturnedDescriptor = rootStep.Survivors == 0 ? 0u : MainDescriptor } };
+        return frame with { Effect = frame.Effect with { Pools = state.Pools, ReturnedDescriptor = rootStep.Survivors == 0 ? 0u : profile.MainDescriptor } };
 
         int Run(uint address)
         {
             uint callback = state.Read(address).Callback;
+            if (profile.Effect == 94)
+            {
+                callback = new uint[] { 0x74E780, 0x74E8B0, 0x7544E0, 0x74EB70, 0x754E60, 0x754950 }.SingleOrDefault(candidate => profile.Code(candidate) == callback);
+            }
             switch (callback)
             {
                 case 0x74E780:
@@ -214,8 +221,8 @@ public static class NativeBattleRecover93Controller
                     ImmutableArray<byte> world = World(actor);
                     world.AsSpan().CopyTo(dog.AsSpan(8));
                     BinaryPrimitives.WriteUInt16LittleEndian(dog.AsSpan(0x4A), (ushort)((NativeWorldScriptedPathMath.NativeAngle(unchecked((short)(ReadWord(world, 0) - BinaryPrimitives.ReadInt16LittleEndian(dog))), ReadWord(world, 4)) - 2048) & 4095));
-                    frame = frame with { Memory = frame.Memory with { Recover93 = Shared() with { DogControl = dog.ToImmutableArray() } } };
-                    Append(2, 0x74E8B0, 0x48, address);
+                    frame = frame with { Memory = profile.Write(frame.Memory, Shared() with { DogControl = dog.ToImmutableArray() }) };
+                    Append(2, profile.Code(0x74E8B0), 0x48, address);
                     Store(address, Next(task));
                     break;
                 case 1:
@@ -259,13 +266,13 @@ public static class NativeBattleRecover93Controller
                 SetDog(0x46, 0);
                 if (DogWord(0x40) == 1)
                 {
-                    uint child = Append(3, 0x7544E0, 0x140, address);
+                    uint child = Append(3, profile.Code(0x7544E0), 0x140, address);
                     NativeBattleEffectOwnedModelStep initialized = NativeBattleEffectOwnedModel.Initialize8DD0F0(state.Read(child), child, resources.Model, 3, resources.DefaultColor44);
                     Store(child, initialized.Task);
                     SetModel(initialized.State);
-                    child = Append(4, 0x74EB70, 0x2A4, address);
-                    Store(child, state.Read(child).WriteDword(0x30, NativeBattleRecover93Nodes.SourceAddress).WriteWord(0x298, 44).WriteWord(0x29C, 0).WriteWord(0x29E, 30));
-                    Append(5, 0x754E60, 0xB0, address);
+                    child = Append(4, profile.Code(0x74EB70), 0x2A4, address);
+                    Store(child, state.Read(child).WriteDword(0x30, profile.SourceAddress).WriteWord(0x298, 44).WriteWord(0x29C, 0).WriteWord(0x29E, 30));
+                    Append(5, profile.Code(0x754E60), 0xB0, address);
                 }
             }
             if (DogWord(0x42) != DogWord(0x44))
@@ -343,7 +350,7 @@ public static class NativeBattleRecover93Controller
                     if (task.ReadWord(0x136) == 19)
                     {
                         Store(address, task);
-                        uint child = Append(7, 0x754950, 0x17C, address);
+                        uint child = Append(7, profile.Code(0x754950), 0x17C, address);
                         NativeBattleVector position = OwnedBone(address + 0x30, 24);
                         Store(child, Position(state.Read(child), 0x1C, position).WriteDword(0x74, resources.ProgramSource.Address).WriteDword(0x78, 0xE0).WriteWord(0x80, 0).WriteWord(0x82, 0));
                     }
@@ -373,7 +380,7 @@ public static class NativeBattleRecover93Controller
                 state = new(frame.Effect.Pools);
                 task = drawn.Task;
             }
-            frame = frame with { Memory = frame.Memory with { Recover93 = Shared() with { PublishedModelMatrix = Slice(task, 0x70, 32) } } };
+            frame = frame with { Memory = profile.Write(frame.Memory, Shared() with { PublishedModelMatrix = Slice(task, 0x70, 32) }) };
             task = task.WriteDword(0x84, unchecked((uint)Word(task, 0x4C))).WriteDword(0x88, unchecked((uint)Word(task, 0x4E))).WriteDword(0x8C, unchecked((uint)Word(task, 0x50)));
             Store(address, task);
         }
@@ -386,7 +393,7 @@ public static class NativeBattleRecover93Controller
             {
                 Sync();
                 NativeBattleRecover93NodeFrame initialized = NativeBattleRecover93Nodes.Initialize74EC00(new(frame.Memory, frame.Effect, Shared().Nodes, frame.Random), address, resources.Nodes, inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource);
-                frame = frame with { Memory = initialized.Memory with { Recover93 = Shared() with { Nodes = initialized.State } }, Effect = initialized.Effect, Random = initialized.Random };
+                frame = frame with { Memory = profile.Write(initialized.Memory, Shared() with { Nodes = initialized.State }), Effect = initialized.Effect, Random = initialized.Random };
                 state = new(frame.Effect.Pools);
                 task = Next(state.Read(address));
                 Store(address, task);
@@ -517,15 +524,15 @@ public static class NativeBattleRecover93Controller
                     break;
                 }
             }
-            frame = frame with { Memory = frame.Memory with { Recover93 = Shared() with { Models = index < 0 ? models.Add(model) : models.SetItem(index, model) } } };
+            frame = frame with { Memory = profile.Write(frame.Memory, Shared() with { Models = index < 0 ? models.Add(model) : models.SetItem(index, model) }) };
         }
-        NativeBattleRecover93State Shared() => frame.Memory.Recover93 ?? throw new InvalidDataException("Native Recover93 shared state is absent.");
+        NativeBattleRecover93State Shared() => profile.Read(frame.Memory) ?? throw new InvalidDataException("Native Recover93 shared state is absent.");
         short DogWord(int offset) => ReadWord(Shared().DogControl ?? throw new InvalidDataException("Native Recover93 dog state has not been cleared by its target producer."), offset);
         void SetDog(int offset, int value)
         {
             byte[] bytes = (Shared().DogControl ?? throw new InvalidDataException("Native Recover93 dog state is absent.")).ToArray();
             BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(offset), unchecked((ushort)value));
-            frame = frame with { Memory = frame.Memory with { Recover93 = Shared() with { DogControl = bytes.ToImmutableArray() } } };
+            frame = frame with { Memory = profile.Write(frame.Memory, Shared() with { DogControl = bytes.ToImmutableArray() }) };
         }
         ImmutableArray<byte> World(int actor)
         {
@@ -573,7 +580,7 @@ public static class NativeBattleRecover93Controller
 
     }
 
-    private static int TextureOffset(NativeBattleOriginalEffectState effect) => effect.ResourcePointers.Single(pointer => pointer.GlobalAddress == 0x2592548).ArenaOffset;
+    private static int TextureOffset(NativeBattleOriginalEffectState effect) => effect.ResourcePointers.Single(pointer => pointer.GlobalAddress == NativeBattleAngeloRestorationProfile.ForBinding(effect.Binding).Global(0x2592548)).ArenaOffset;
     private static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     private static short ReadWord(ImmutableArray<byte> bytes, int offset) => BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan().Slice(offset));
     private static int Stage(NativeBattleModulePoolTask task) => unchecked((sbyte)task.ReadByte(0x29));

@@ -5,33 +5,35 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState EnterNativeRecover9374E390(NativeBattleGraphicsState graphics)
+    private NativeBattleGraphicsState EnterNativeAngeloRestoration(NativeBattleGraphicsState graphics)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect!;
-        NativeBattleRecover93Resources resources = effect.Binding.Recover93Resources ?? throw new NotSupportedException("Native Recover93 requires its original resources.");
-        NativeBattleRecover93Frame frame = NativeBattleRecover93Controller.Initialize74E390(NativeEffectMemory ?? throw new NotSupportedException("Native Recover93 requires retained effect memory."), effect, nativeActionPackets, resources, nativeCrtRandom ?? throw new NotSupportedException("Native Recover93 requires its CRT random owner."));
+        NativeBattleAngeloRestorationProfile profile = NativeBattleAngeloRestorationProfile.ForBinding(effect.Binding);
+        NativeBattleRecover93Resources resources = (profile.Effect == 93 ? effect.Binding.Recover93Resources : effect.Binding.Reverse94Resources) ?? throw new NotSupportedException("Native Angelo restoration requires its original per-module resources.");
+        NativeBattleRecover93Frame frame = NativeBattleRecover93Controller.Initialize74E390(NativeEffectMemory ?? throw new NotSupportedException("Native Angelo restoration requires retained effect memory."), effect, nativeActionPackets, resources, nativeCrtRandom ?? throw new NotSupportedException("Native Angelo restoration requires its CRT random owner."));
         NativeEffectMemory = frame.Memory;
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
     }
 
-    private NativeBattleGraphicsState AdvanceNativeRecover9374E520(NativeBattleGraphicsState graphics)
+    private NativeBattleGraphicsState AdvanceNativeAngeloRestoration(NativeBattleGraphicsState graphics)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect!;
-        NativeBattleRecover93Resources resources = effect.Binding.Recover93Resources ?? throw new NotSupportedException("Native Recover93 requires its original resources.");
-        NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Recover93 requires its published projection.");
-        NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Recover93 requires its retained view matrix.");
-        NativeBattleGraphicsDefinition definition = this.definition.NativeGraphics ?? throw new NotSupportedException("Native Recover93 requires original graphics rules.");
-        NativeBattleSummonColors colors = definition.Rules.SummonColors ?? throw new NotSupportedException("Native Recover93 requires its depth-cue constants.");
-        NativeBattleRecover93Frame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Recover93 requires retained effect memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Recover93 requires retained CRT random state."));
-        frame = NativeBattleRecover93Controller.Advance74E520(frame, new(nativeActionPackets, view, actor => graphics.Models[actor], actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Recover93 requires the selected actor pose source."), ReadWorld, ReadBone, DrawModel, AdvanceProgram, AdvanceNodes, Execute), resources);
+        NativeBattleAngeloRestorationProfile profile = NativeBattleAngeloRestorationProfile.ForBinding(effect.Binding);
+        NativeBattleRecover93Resources resources = (profile.Effect == 93 ? effect.Binding.Recover93Resources : effect.Binding.Reverse94Resources) ?? throw new NotSupportedException("Native Angelo restoration requires its original per-module resources.");
+        NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Angelo restoration requires its published projection.");
+        NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Angelo restoration requires its retained view matrix.");
+        NativeBattleGraphicsDefinition definition = this.definition.NativeGraphics ?? throw new NotSupportedException("Native Angelo restoration requires original graphics rules.");
+        NativeBattleSummonColors colors = definition.Rules.SummonColors ?? throw new NotSupportedException("Native Angelo restoration requires its depth-cue constants.");
+        NativeBattleRecover93Frame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Angelo restoration requires retained effect memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Angelo restoration requires retained CRT random state."));
+        frame = NativeBattleRecover93Controller.Advance74E520(frame, new(nativeActionPackets, view, actor => graphics.Models[actor], actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Angelo restoration requires the selected actor pose source."), ReadWorld, ReadBone, DrawModel, AdvanceProgram, AdvanceNodes, Execute), resources);
         NativeEffectMemory = frame.Memory;
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
 
         ImmutableArray<byte> ReadWorld(int actor)
         {
-            NativeBattleModelTransform transform = graphics.Models[actor].Transform ?? throw new NotSupportedException("Native Recover93 requires the actual target transform.");
+            NativeBattleModelTransform transform = graphics.Models[actor].Transform ?? throw new NotSupportedException("Native Angelo restoration requires the actual target transform.");
             byte[] bytes = new byte[8];
             BinaryPrimitives.WriteInt16LittleEndian(bytes, transform.Position28.X);
             BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(2), transform.Position28.Y);
@@ -42,28 +44,28 @@ public sealed partial class BattleSession
 
         NativeBattleVector ReadBone(NativeBattleRecover93Frame current, uint pointer, byte selector)
         {
-            NativeBattleRecover93State shared = current.Memory.Recover93!;
+            NativeBattleRecover93State shared = profile.Read(current.Memory)!;
             NativeBattleEffectOwnedModelState model = shared.Models.Single(candidate => candidate.TaskAddress + 0x30 == pointer);
             NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(current.Effect.Pools).Read(model.TaskAddress);
             ImmutableArray<short> rotation = Enumerable.Range(0, 9).Select(index => unchecked((short)task.ReadWord(0x70 + index * 2))).ToImmutableArray();
             NativeBattleActionMatrix world = new(rotation, unchecked((int)task.ReadDword(0x84)), unchecked((int)task.ReadDword(0x88)), unchecked((int)task.ReadDword(0x8C)), 4096);
-            return NativeBattlePoseMatrices.ReadEffectOwnedBone(resources.Model.PoseSource, model.DecodedPose ?? throw new NotSupportedException("Native Recover93 requires its current independent model pose."), world, selector);
+            return NativeBattlePoseMatrices.ReadEffectOwnedBone(resources.Model.PoseSource, model.DecodedPose ?? throw new NotSupportedException("Native Angelo restoration requires its current independent model pose."), world, selector);
         }
 
         NativeBattleRecover93ModelDrawStep DrawModel(NativeBattleRecover93Frame current, NativeBattleModulePoolTask task, NativeBattleEffectOwnedModelState model)
         {
-            NativeBattleRecover93State shared = current.Memory.Recover93!;
+            NativeBattleRecover93State shared = profile.Read(current.Memory)!;
             int size = checked(resources.Model.Geometry[0].Vertices.Length * 8);
             if (shared.ProjectedScratch is null && (task.ReadDword(0xAC) & 1) == 0)
             {
-                throw new NotSupportedException("Native Recover93 cannot read an uninitialized projected scratch owner.");
+                throw new NotSupportedException("Native Angelo restoration cannot read an uninitialized projected scratch owner.");
             }
-            NativeBattleEffectOwnedModelDraw drawn = NativeBattleEffectOwnedModelDrawing.Draw7558A0(task, model, resources.Model, view, projection, definition.Rules.ShadowSource ?? throw new NotSupportedException("Native Recover93 requires its original shadow source."), definition.PrimitiveCapabilities ?? throw new NotSupportedException("Native Recover93 requires its selected device capabilities."), colors, shared.ProjectedScratch ?? new byte[size].ToImmutableArray());
+            NativeBattleEffectOwnedModelDraw drawn = NativeBattleEffectOwnedModelDrawing.Draw7558A0(task, model, resources.Model, view, projection, definition.Rules.ShadowSource ?? throw new NotSupportedException("Native Angelo restoration requires its original shadow source."), definition.PrimitiveCapabilities ?? throw new NotSupportedException("Native Angelo restoration requires its selected device capabilities."), colors, shared.ProjectedScratch ?? new byte[size].ToImmutableArray());
             if (shared.ProjectedScratch is null && drawn.ProjectedBytesWritten != size)
             {
-                throw new InvalidDataException("Native Recover93's first body draw did not establish every projected record.");
+                throw new InvalidDataException("Native Angelo restoration's first body draw did not establish every projected record.");
             }
-            current = current with { Memory = current.Memory with { Recover93 = shared with { ProjectedScratch = drawn.ProjectedScratch } } };
+            current = current with { Memory = profile.Write(current.Memory, shared with { ProjectedScratch = drawn.ProjectedScratch }) };
             return new(Append(current, drawn.Packets), drawn.Task);
         }
 
@@ -75,13 +77,13 @@ public sealed partial class BattleSession
 
         NativeBattleRecover93NodesStep AdvanceNodes(NativeBattleRecover93Frame current, uint address)
         {
-            NativeBattleRecover93State shared = current.Memory.Recover93!;
-            NativeBattleRecover93NodeState nodes = shared.Nodes with { PrivateDrawCursor = current.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Recover93 requires its current private cursor.") };
+            NativeBattleRecover93State shared = profile.Read(current.Memory)!;
+            NativeBattleRecover93NodeState nodes = shared.Nodes with { PrivateDrawCursor = current.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Angelo restoration requires its current private cursor.") };
             NativeBattleRecover93NodeFrame nodeFrame = new(current.Memory, current.Effect, nodes, current.Random);
-            NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Recover93 requires its initialized ordering table.");
+            NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Angelo restoration requires its initialized ordering table.");
             NativeBattleRecover93NodeStep advanced = NativeBattleRecover93Nodes.Advance74F6E0(nodeFrame, address, actor => graphics.Models[actor], projection, NativeCamera!.Roll, primitive.Pending, colors);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = advanced.Ordering } };
-            NativeBattleEffectMemory memory = advanced.Frame.Memory with { Recover93 = advanced.Frame.Memory.Recover93! with { Nodes = advanced.Frame.State } };
+            NativeBattleEffectMemory memory = profile.Write(advanced.Frame.Memory, profile.Read(advanced.Frame.Memory)! with { Nodes = advanced.Frame.State });
             return new(new(memory, advanced.Frame.Effect with { DrawArenaOffset = advanced.Frame.State.PrivateDrawCursor }, advanced.Frame.Random), advanced.Complete);
         }
 
@@ -101,20 +103,20 @@ public sealed partial class BattleSession
                 case NativeBattleRecover93Voice voice:
                     if (voice.Second != 1)
                     {
-                        throw new NotSupportedException("Native Recover93 requires its reached voice logging operand.");
+                        throw new NotSupportedException("Native Angelo restoration requires its reached voice logging operand.");
                     }
                     PublishNativeModuleSound(new(voice.Descriptor, 0, null) { RawPan = checked((uint)voice.First), Volume = checked((uint)voice.Third) });
                     return current;
                 case NativeBattleRecover93UploadModelTim:
-                    NativeBattleEffectTextureState textures = current.Memory.Textures ?? throw new NotSupportedException("Native Recover93 requires its texture owner.");
+                    NativeBattleEffectTextureState textures = current.Memory.Textures ?? throw new NotSupportedException("Native Angelo restoration requires its texture owner.");
                     (textures, _) = textures.EnqueueTim505E30(resources.ModelTim);
                     return current with { Memory = current.Memory with { Textures = textures } };
                 case NativeBattleRecover93StageClearRgb:
-                    NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native Recover93 requires its actual stage group owners.");
+                    NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native Angelo restoration requires its actual stage group owners.");
                     NativeStage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = 0, ColorFlags = group.ColorFlags & 0xFF000000 }).ToImmutableArray() };
                     return current;
                 case NativeBattleRecover93StageDepth depth:
-                    NativeBattleStageState depthStage = NativeStage ?? throw new NotSupportedException("Native Recover93 requires its actual stage group owners.");
+                    NativeBattleStageState depthStage = NativeStage ?? throw new NotSupportedException("Native Angelo restoration requires its actual stage group owners.");
                     NativeStage = depthStage with { Groups = depthStage.Groups.Select(group => group with { ColorDepth = depth.Value }).ToImmutableArray() };
                     return current;
                 case NativeBattleRecover93CommonTextureLoad load:
@@ -122,36 +124,40 @@ public sealed partial class BattleSession
                     graphics = graphics with { Auxiliary = auxiliary };
                     return current;
                 default:
-                    throw new NotSupportedException("Native Recover93 operation requires its original callback.");
+                    throw new NotSupportedException("Native Angelo restoration operation requires its original callback.");
             }
         }
 
         NativeBattleRecover93Frame Append(NativeBattleRecover93Frame current, NativeBattleGfGeometryBatch batch)
         {
-            NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Recover93 requires its initialized ordering table.");
+            NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Angelo restoration requires its initialized ordering table.");
             NativeBattleEffectPacketWrite privateWrite = NativeBattleEffectPacketArena.Append(current.Memory, current.Effect.DrawArenaOffset!.Value, primitive.Pending, batch);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = privateWrite.Ordering } };
             return current with { Memory = privateWrite.Memory, Effect = current.Effect with { DrawArenaOffset = privateWrite.Cursor } };
         }
     }
 
-    private bool TryWriteNativeRecover93Completion(NativeBattleGraphicsState graphics, uint address, byte value, out NativeBattleGraphicsState updated)
+    private bool TryWriteNativeAngeloRestorationCompletion(NativeBattleGraphicsState graphics, uint address, byte value, out NativeBattleGraphicsState updated)
     {
         updated = graphics;
-        uint delta = unchecked(address - NativeBattleRecover93Controller.MainBank);
-        if (delta >= 0xC8 || delta % 0x64 != 0x62)
+        foreach (NativeBattleAngeloRestorationProfile profile in new[] { NativeBattleAngeloRestorationProfile.Recover93, NativeBattleAngeloRestorationProfile.Reverse94 })
         {
-            return false;
+            uint delta = unchecked(address - profile.MainBank);
+            if (delta >= 0xC8 || delta % 0x64 != 0x62)
+            {
+                continue;
+            }
+            if (NativeEffectMemory?.DetachedReturnedTask is { } detached && detached.Binding.Entry == profile.Entry)
+            {
+                NativeEffectMemory = NativeEffectMemory with { DetachedReturnedTask = NativeBattleRecover93Controller.WriteCompletionByte(detached, address, value) };
+            }
+            else
+            {
+                NativeBattleOriginalEffectState effect = graphics.OriginalEffect is { } current && current.Binding.Entry == profile.Entry ? current : throw new NotSupportedException("Native Angelo restoration completion lost its physical task owner.");
+                updated = graphics with { OriginalEffect = NativeBattleRecover93Controller.WriteCompletionByte(effect, address, value) };
+            }
+            return true;
         }
-        if (NativeEffectMemory?.DetachedReturnedTask is { Binding.Entry: 0x74E390 } detached)
-        {
-            NativeEffectMemory = NativeEffectMemory with { DetachedReturnedTask = NativeBattleRecover93Controller.WriteCompletionByte(detached, address, value) };
-        }
-        else
-        {
-            NativeBattleOriginalEffectState effect = graphics.OriginalEffect is { Binding.Entry: 0x74E390 } current ? current : throw new NotSupportedException("Native Recover93 completion lost its physical task owner.");
-            updated = graphics with { OriginalEffect = NativeBattleRecover93Controller.WriteCompletionByte(effect, address, value) };
-        }
-        return true;
+        return false;
     }
 }

@@ -7,13 +7,19 @@ public static class NativeBattleRecover93NodeResourcesReader
 {
     public static NativeBattleRecover93NodeResource Read(byte[] executable)
     {
+        return Read(executable, NativeBattleAngeloRestorationProfile.Recover93);
+    }
+
+    internal static NativeBattleRecover93NodeResource Read(byte[] executable, NativeBattleAngeloRestorationProfile profile)
+    {
         NativeExecutableMemory memory = new(executable);
-        byte[] bytes = memory.Read(NativeBattleRecover93Nodes.SourceAddress, NativeBattleRecover93Nodes.SourceLength);
+        byte[] bytes = memory.Read(profile.SourceAddress, profile.SourceLength);
         if (BinaryPrimitives.ReadUInt32LittleEndian(bytes) != 0)
         {
             throw new InvalidDataException("Native Recover node source requires its original cold initialization DWORD.");
         }
-        int[] emitterOffsets = [0x1B10, 0x1C68, 0x1DC0, 0x1F18, 0x2070];
+        bool reverse = profile.Effect == 94;
+        int[] emitterOffsets = reverse ? [0x23F0, 0x2548, 0x26A0, 0x27F8, 0x2950, 0x2AA8] : [0x1B10, 0x1C68, 0x1DC0, 0x1F18, 0x2070];
         for (int table = 0; table < 4; table++)
         {
             for (int index = 0; index < 16; index++)
@@ -21,6 +27,13 @@ public static class NativeBattleRecover93NodeResourcesReader
                 uint expected = table switch
                 {
                     0 when index < emitterOffsets.Length => (uint)emitterOffsets[index],
+                    1 when reverse && index == 0 => 0x104,
+                    1 when reverse && index == 1 => 0x248,
+                    1 when reverse && index == 3 => 0x38C,
+                    1 when reverse && index == 4 => 0x4D0,
+                    1 when reverse && index == 5 => 0x614,
+                    2 when reverse && index == 2 => 0x7DC,
+                    _ when reverse => 0,
                     1 when index == 3 => 0x104,
                     1 when index == 4 => 0x1FC,
                     2 when index == 0 => 0x328,

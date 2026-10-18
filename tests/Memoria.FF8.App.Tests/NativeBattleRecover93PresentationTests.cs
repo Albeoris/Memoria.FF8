@@ -13,12 +13,21 @@ public sealed class NativeBattleRecover93PresentationTests
     [Fact]
     public void External_Recover_cast_completes_with_original_resources_and_independent_live_restores()
     {
-        string? sourcePath = Environment.GetEnvironmentVariable("MEMORIA_FF8_RECOVER93_SNAPSHOT");
-        Assert.SkipUnless(!string.IsNullOrWhiteSpace(sourcePath), "Set MEMORIA_FF8_RECOVER93_SNAPSHOT to a complete queued Recover healing party-contact fixture.");
-        string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_RECOVER93_OUTPUT") ?? throw new InvalidDataException("A distinct MEMORIA_FF8_RECOVER93_OUTPUT directory is required.");
+        RunExternal(93);
+    }
+
+    internal static void RunExternal(ushort effectId)
+    {
+        NativeBattleAngeloRestorationProfile profile = effectId switch { 93 => NativeBattleAngeloRestorationProfile.Recover93, 94 => NativeBattleAngeloRestorationProfile.Reverse94, _ => throw new NotSupportedException("The external restoration gate requires its proved physical profile.") };
+        bool revival = effectId == 94;
+        int targetIndex = revival ? 1 : 0;
+        string prefix = revival ? "MEMORIA_FF8_REVERSE94_" : "MEMORIA_FF8_RECOVER93_";
+        string? sourcePath = Environment.GetEnvironmentVariable(prefix + "SNAPSHOT");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(sourcePath), "Set " + prefix + "SNAPSHOT to a complete queued controlled post-formula restoration fixture.");
+        string output = Environment.GetEnvironmentVariable(prefix + "OUTPUT") ?? throw new InvalidDataException("A distinct " + prefix + "OUTPUT directory is required.");
         Assert.False(Directory.Exists(output) && Directory.EnumerateFileSystemEntries(output).Any(), "Output must be a distinct empty directory.");
         Directory.CreateDirectory(output);
-        int maximum = Environment.GetEnvironmentVariable("MEMORIA_FF8_RECOVER93_MAX_CALLBACKS") is { } supplied ? int.Parse(supplied) : 512;
+        int maximum = Environment.GetEnvironmentVariable(prefix + "MAX_CALLBACKS") is { } supplied ? int.Parse(supplied) : 512;
         Assert.True(maximum > 0, "The explicit diagnostic callback budget must be positive.");
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         using GameAssets game = new(directory);
@@ -32,22 +41,32 @@ public sealed class NativeBattleRecover93PresentationTests
         int headerIndex = (int)(offset / 20);
         NativeBattleActionHeaderSlot header = packets.Headers[headerIndex];
         Assert.Equal((byte)240, header.ReadByte(1));
-        Assert.Equal((ushort)12, NativeBattleActionGraphics.Word(header, 4));
-        Assert.Equal((ushort)93, NativeBattleActionGraphics.Word(header, 6));
+        Assert.Equal((ushort)(revival ? 13 : 12), NativeBattleActionGraphics.Word(header, 4));
+        Assert.Equal(effectId, NativeBattleActionGraphics.Word(header, 6));
         Assert.Equal((byte)0, header.ReadByte(17));
         Assert.True(graphics.ActionGraphics is null || graphics.ActionGraphics.HeaderIndex == headerIndex);
         NativeBattleContactPacket contact = packets.ReadContact(header.FirstContactIndex ?? throw new InvalidDataException("The fixture lacks its explicit contact owner."));
-        Assert.Equal((byte)0, contact.Primary.ActorIndex);
+        Assert.Equal((byte)targetIndex, contact.Primary.ActorIndex);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         Assert.Equal((byte)1, (byte)(contact.Primary.HitFlags3 & 1));
         Assert.Equal((byte)255, contact.Secondary.ActorIndex);
         Assert.Equal((byte)4, graphics.Models[0].ModelId4);
-        ushort initialHp = source.NativePartyPresentation!.Rows[0]!.HitPoints;
-        Assert.Equal((ushort)100, initialHp);
+        ushort initialHp = source.NativePartyPresentation!.Rows[targetIndex]!.HitPoints;
+        Assert.Equal((ushort)(revival ? 0 : 100), initialHp);
         ushort expectedHp = (ushort)(initialHp + 7);
-        NativeBattleEffectBinding installed = game.ReadNativeEffectCatalogForEffects([93])[92];
-        Assert.Equal(JsonSerializer.Serialize(installed), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[92]));
-        NativeBattleRecover93Resources resources = installed.Recover93Resources!;
+        if (revival)
+        {
+            BattleCombatantSnapshot target = source.Combatants.Single(actor => actor.NativeParticipant?.ActorIndex == targetIndex);
+            NativeBattleStatusSnapshot status = target.NativeStatus!;
+            Assert.Equal(7, target.CurrentHp);
+            Assert.Equal(0, status.Saved & 1);
+            Assert.Equal((ushort)(status.Saved | 1), status.Presentation.Saved);
+            Assert.Equal(0, contact.Primary.SavedStatuses4 & 1);
+            Assert.Equal((ushort)100, source.NativePartyPresentation.Rows[0]!.HitPoints);
+        }
+        NativeBattleEffectBinding installed = game.ReadNativeEffectCatalogForEffects([effectId])[effectId - 1];
+        Assert.Equal(JsonSerializer.Serialize(installed), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[effectId - 1]));
+        NativeBattleRecover93Resources resources = (revival ? installed.Reverse94Resources : installed.Recover93Resources)!;
         BattleSession battle = BattleSession.Restore(source);
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(battle.Capture()));
         BattleScenePresentation scene = new(assets, source.Definition, true);
@@ -74,15 +93,15 @@ public sealed class NativeBattleRecover93PresentationTests
             NativeBattleRestorationPresentationTests.Publish(output, "initial-rendered", source, scene.Render(battle, 320, 224));
             while (HasAction(battle))
             {
-                Assert.True(callbacks < maximum, "The explicit Recover diagnostic callback budget was exceeded; it is not a native effect duration.");
+                Assert.True(callbacks < maximum, "The explicit restoration diagnostic callback budget was exceeded; it is not a native effect duration.");
                 prior = battle.Capture();
-                NativeBattleOriginalEffectState? beforeEffect = Selected(prior);
-                int? fadeCounter = Live(beforeEffect, 0x754E60)?.ReadWord(0x24);
+                NativeBattleOriginalEffectState? beforeEffect = Selected(prior, profile);
+                int? fadeCounter = Live(beforeEffect, profile.Code(0x754E60))?.ReadWord(0x24);
                 if (fadeCounter == 35)
                 {
                     stageHighBytes = prior.NativeStage!.Groups.Select(group => group.ColorFlags & 0xFF000000u).ToArray();
                 }
-                string? name = BoundaryName(beforeEffect, requested);
+                string? name = BoundaryName(beforeEffect, requested, profile);
                 BattleSession? cold = null;
                 if (name is not null)
                 {
@@ -96,14 +115,14 @@ public sealed class NativeBattleRecover93PresentationTests
                 audio.Update(battle);
                 BattleSnapshot current = battle.Capture();
                 Assert.Equal(prior.NativeGraphics!.Callback + 1, current.NativeGraphics!.Callback);
-                NativeBattleOriginalEffectState? afterEffect = Selected(current);
+                NativeBattleOriginalEffectState? afterEffect = Selected(current, profile);
                 initialized |= afterEffect?.ReturnedDescriptor is > 0;
                 if (beforeEffect?.ReturnedDescriptor is > 0 && afterEffect?.ReturnedDescriptor == 0)
                 {
                     completions++;
                 }
-                ushort previousHp = prior.NativePartyPresentation!.Rows[0]!.HitPoints;
-                ushort hp = current.NativePartyPresentation!.Rows[0]!.HitPoints;
+                ushort previousHp = prior.NativePartyPresentation!.Rows[targetIndex]!.HitPoints;
+                ushort hp = current.NativePartyPresentation!.Rows[targetIndex]!.HitPoints;
                 if (previousHp != hp)
                 {
                     Assert.Equal(initialHp, previousHp);
@@ -111,7 +130,11 @@ public sealed class NativeBattleRecover93PresentationTests
                     contactTransitions++;
                 }
                 Assert.True(hp == initialHp || hp == expectedHp);
-                Assert.Equal(source.NativeGraphics.Models[0].ActiveStagedResourceRow100, current.NativeGraphics.Models[0].ActiveStagedResourceRow100);
+                Assert.Equal(graphics.Models[targetIndex].ActiveStagedResourceRow100, current.NativeGraphics.Models[targetIndex].ActiveStagedResourceRow100);
+                if (revival)
+                {
+                    Assert.Equal((ushort)100, current.NativePartyPresentation.Rows[0]!.HitPoints);
+                }
                 sawModelTim |= current.NativeEffectMemory?.Textures?.Slots.Any(item => item?.Source?.Identity == resources.ModelTim.Identity) == true;
                 if (fadeCounter is >= 35 and <= 76)
                 {
@@ -159,10 +182,18 @@ public sealed class NativeBattleRecover93PresentationTests
             Assert.Equal(1536, stagePeak);
             Assert.All(battle.NativeStage!.Groups, group => Assert.Equal((short)0, group.ColorDepth));
             Assert.Equal(stageHighBytes!, battle.NativeStage.Groups.Select(group => group.ColorFlags).ToArray());
-            Assert.Equal(expectedHp, battle.Capture().NativePartyPresentation!.Rows[0]!.HitPoints);
+            Assert.Equal(expectedHp, battle.Capture().NativePartyPresentation!.Rows[targetIndex]!.HitPoints);
+            if (revival)
+            {
+                BattleCombatantSnapshot target = battle.Capture().Combatants.Single(actor => actor.NativeParticipant?.ActorIndex == targetIndex);
+                Assert.Equal(7, target.CurrentHp);
+                Assert.Equal(0, target.NativeStatus!.Saved & 1);
+                Assert.NotNull(target.NativeStatus.Presentation.Saved);
+                Assert.Equal(0, target.NativeStatus.Presentation.Saved.GetValueOrDefault() & 1);
+            }
             NativeBattleOriginalEffectState finished = Assert.IsType<NativeBattleOriginalEffectState>(battle.NativeGraphics!.OriginalEffect);
-            Assert.Equal((ushort)93, finished.Binding.Effect);
-            Assert.Equal(0x74E390u, finished.Binding.Entry);
+            Assert.Equal(effectId, finished.Binding.Effect);
+            Assert.Equal(profile.Entry, finished.Binding.Entry);
             Assert.Equal(0u, finished.ReturnedDescriptor);
             Assert.All(finished.Pools, pool => Assert.All(pool.Slots, task => Assert.Equal(0, task.Flags & 1)));
             Assert.Equal(0, battle.NativeEffectMemory!.Active);
@@ -198,24 +229,24 @@ public sealed class NativeBattleRecover93PresentationTests
 
         void Report(string status, string? blocker)
         {
-            object report = new { Status = status, FirstBlocker = blocker, SourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath!))), Callbacks = callbacks, DiagnosticMaximumCallbacks = maximum, ContactObservableTransitions = contactTransitions, Completions = completions, SawModelTim = sawModelTim, StageCleared = stageCleared, StagePeak = stagePeak, StageDepths = stageDepths, Boundaries = boundaries, BinarySha256 = NativeBattleEffectFamilyRunner.CollectBinaryHashes(), Pending = new[] { "Whole-entry native differential comparison", "Hardware audibility", "Other targets/headers", "Formula and ordinary command admission", "Common frame packet count includes ordinary actor/stage packets" } };
+            object report = new { Status = status, FirstBlocker = blocker, Effect = effectId, Scenario = revival ? "Controlled post-formula revival; logical target already holds seven HP while prior displayed HP/status retain KO" : "Controlled post-formula seven-HP healing", SourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath!))), Callbacks = callbacks, DiagnosticMaximumCallbacks = maximum, ContactObservableTransitions = contactTransitions, Completions = completions, SawModelTim = sawModelTim, StageCleared = stageCleared, StagePeak = stagePeak, StageDepths = stageDepths, Boundaries = boundaries, BinarySha256 = NativeBattleEffectFamilyRunner.CollectBinaryHashes(), Pending = new[] { "Whole-entry native differential comparison", "Hardware audibility", "Other targets/headers", "Formula and ordinary command admission", "Common frame packet count includes ordinary actor/stage packets" } };
             using FileStream stream = new(Path.Combine(output, "result.json"), FileMode.CreateNew);
             JsonSerializer.Serialize(stream, report, new JsonSerializerOptions { WriteIndented = true });
         }
     }
 
-    private static string? BoundaryName(NativeBattleOriginalEffectState? effect, HashSet<string> requested)
+    private static string? BoundaryName(NativeBattleOriginalEffectState? effect, HashSet<string> requested, NativeBattleAngeloRestorationProfile profile)
     {
-        NativeBattleModulePoolTask? model = Live(effect, 0x7544E0);
+        NativeBattleModulePoolTask? model = Live(effect, profile.Code(0x7544E0));
         if (requested.Contains("model-start") && model?.ReadByte(0x29) == 1)
         {
             return "model-start";
         }
-        if (requested.Contains("program-live") && Live(effect, 0x754950)?.ReadDword(0x98) == 1)
+        if (requested.Contains("program-live") && Live(effect, profile.Code(0x754950))?.ReadDword(0x98) == 1)
         {
             return "program-live";
         }
-        NativeBattleModulePoolTask? fade = Live(effect, 0x754E60);
+        NativeBattleModulePoolTask? fade = Live(effect, profile.Code(0x754E60));
         if (fade is not null)
         {
             string name = "fade-" + fade.ReadWord(0x24);
@@ -228,7 +259,7 @@ public sealed class NativeBattleRecover93PresentationTests
     }
 
     private static NativeBattleModulePoolTask? Live(NativeBattleOriginalEffectState? effect, uint callback) => effect?.Pools.SelectMany(pool => pool.Slots).SingleOrDefault(task => (task.Flags & 1) != 0 && task.Callback == callback);
-    private static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: not null, Binding.Effect: 93, Binding.Entry: 0x74E390 } effect ? effect : null;
+    private static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot, NativeBattleAngeloRestorationProfile profile) => snapshot.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: not null } effect && effect.Binding.Effect == profile.Effect && effect.Binding.Entry == profile.Entry ? effect : null;
     private static bool HasAction(BattleSession battle) => battle.NativeGraphics!.Descriptors.Queue.Any(slot => battle.NativeGraphics.Descriptors.Packets[slot].Command == 104);
     private sealed record Boundary(string Name, long BeforeCallback, long AfterCallback, int PrivatePackets, int CommonFramePackets, int ChangedRgbPixels, string RgbaSha256);
 }

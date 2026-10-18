@@ -117,7 +117,7 @@ public sealed partial class BattleSession
                 {
                     graphics = firaCompleted;
                 }
-                else if (TryWriteNativeRecover93Completion(graphics, address, value, out NativeBattleGraphicsState recoverCompleted))
+                else if (TryWriteNativeAngeloRestorationCompletion(graphics, address, value, out NativeBattleGraphicsState recoverCompleted))
                 {
                     graphics = recoverCompleted;
                 }

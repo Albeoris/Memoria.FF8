@@ -9,9 +9,9 @@ public sealed record NativeBattleRecover93NodeState([property: JsonRequired] uin
 {
     public static NativeBattleRecover93NodeState FromColdProcess() => new(0, null, null, null, null, null, null, null, null, null, null, null);
 
-    public void Validate()
+    public void Validate(NativeBattleAngeloRestorationProfile profile)
     {
-        if (Data is { } bytes && (bytes.IsDefault || bytes.Length != NativeBattleRecover93Nodes.SourceLength || BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan()) != InitializationFlag))
+        if (Data is { } bytes && (bytes.IsDefault || bytes.Length != profile.SourceLength || BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan()) != InitializationFlag))
         {
             throw new InvalidDataException("Native Recover node bank contradicts its exact retained initialization owner.");
         }
@@ -19,7 +19,7 @@ public sealed record NativeBattleRecover93NodeState([property: JsonRequired] uin
         {
             throw new NotSupportedException("Native Recover fixed node data is missing; original data cannot replace it.");
         }
-        if (Emitters is int first && (first < 0 || first > NativeBattleEffectArena.Length - NativeBattleRecover93Nodes.EmitterBytes - NativeBattleRecover93Nodes.GeometryBytes || Geometry != first + NativeBattleRecover93Nodes.EmitterBytes))
+        if (Emitters is int first && (first < 0 || first > NativeBattleEffectArena.Length - profile.EmitterBytes - profile.GeometryBytes || Geometry != first + profile.EmitterBytes))
         {
             throw new InvalidDataException("Native Recover node ranges leave their actual contiguous arena owner.");
         }
@@ -40,20 +40,22 @@ public static class NativeBattleRecover93Nodes
 
     public static NativeBattleRecover93NodeFrame ClearStorage(NativeBattleRecover93NodeFrame frame, int initializerTimArenaOffset)
     {
-        frame.State.Validate();
+        NativeBattleAngeloRestorationProfile profile = NativeBattleAngeloRestorationProfile.ForBinding(frame.Effect.Binding);
+        frame.State.Validate(profile);
         int first = checked(initializerTimArenaOffset + 0x10000);
-        int second = checked(first + EmitterBytes);
-        if (initializerTimArenaOffset < 0 || first > NativeBattleEffectArena.Length - EmitterBytes - GeometryBytes)
+        int second = checked(first + profile.EmitterBytes);
+        if (initializerTimArenaOffset < 0 || first > NativeBattleEffectArena.Length - profile.EmitterBytes - profile.GeometryBytes)
         {
             throw new NotSupportedException("Native Recover's actual initializer tail does not fit its1MB arena owner.");
         }
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Recover nodes require the executed571B80 arena resource owner.");
-        arena = arena.Write(first, new byte[EmitterBytes]).Write(second, new byte[GeometryBytes]);
+        arena = arena.Write(first, new byte[profile.EmitterBytes]).Write(second, new byte[profile.GeometryBytes]);
         return frame with { Memory = frame.Memory with { Arena = arena }, State = frame.State with { Emitters = first, Geometry = second, EmitterScanCursor = 0, GeometryScanCursor = 0, Word2594BB0 = 0, Word2592550 = 0 } };
     }
 
     public static NativeBattleRecover93NodeFrame BeginPass(NativeBattleRecover93NodeFrame frame, NativeBattleActionMatrix copiedCamera, int privateDrawCursor)
     {
+        _ = NativeBattleAngeloRestorationProfile.ForBinding(frame.Effect.Binding);
         copiedCamera.Validate();
         if ((uint)privateDrawCursor >= NativeBattleEffectArena.Length)
         {
@@ -64,10 +66,11 @@ public static class NativeBattleRecover93Nodes
 
     public static NativeBattleRecover93NodeFrame Initialize74EC00(NativeBattleRecover93NodeFrame frame, uint taskAddress, NativeBattleRecover93NodeResource resource, NativeBattleActionPacketsState packets, Func<int, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource)
     {
-        frame.State.Validate();
+        NativeBattleAngeloRestorationProfile profile = NativeBattleAngeloRestorationProfile.ForBinding(frame.Effect.Binding);
+        frame.State.Validate(profile);
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(taskAddress);
-        if (task.Callback != ContextCallback || task.ReadDword(0x30) != SourceAddress)
+        if (task.Callback != profile.Code(ContextCallback) || task.ReadDword(0x30) != profile.SourceAddress)
         {
             throw new InvalidDataException("Native Recover context has a different callback or source owner.");
         }
@@ -75,25 +78,26 @@ public static class NativeBattleRecover93Nodes
         {
             throw new NotSupportedException("Native Recover's first proved node context requires mode0; Dog mode2 is not supplied.");
         }
-        if (resource.Data.IsDefault || resource.Data.Length != SourceLength || BinaryPrimitives.ReadUInt32LittleEndian(resource.Data.AsSpan()) != 0)
+        if (resource.Data.IsDefault || resource.Data.Length != profile.SourceLength || BinaryPrimitives.ReadUInt32LittleEndian(resource.Data.AsSpan()) != 0)
         {
             throw new InvalidDataException("Native Recover requires its complete authenticated cold node resource.");
         }
         NativeBattleRecover93NodeState retained = frame.State;
         if (retained.InitializationFlag == 0)
         {
-            byte[] fixedBytes = NativeBattleEffectNodeBankFixups.Relocate(retained.Data ?? resource.Data, SourceAddress);
+            byte[] fixedBytes = NativeBattleEffectNodeBankFixups.Relocate(retained.Data ?? resource.Data, profile.SourceAddress);
             BinaryPrimitives.WriteUInt32LittleEndian(fixedBytes, 1);
             retained = retained with { InitializationFlag = 1, Data = fixedBytes.ToImmutableArray() };
         }
-        task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Native Recover requires its actual action parameters."), packets, readModel, readPoseSource, SourceAddress);
+        task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Native Recover requires its actual action parameters."), packets, readModel, readPoseSource, profile.SourceAddress);
         return frame with { State = retained, Effect = frame.Effect with { Pools = hierarchy.Write(taskAddress, task).Pools } };
     }
 
     public static NativeBattleRecover93NodeStep Advance74F6E0(NativeBattleRecover93NodeFrame frame, uint taskAddress, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors colors)
     {
-        frame.State.Validate();
-        if (new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(taskAddress).Callback != ContextCallback)
+        NativeBattleAngeloRestorationProfile profile = NativeBattleAngeloRestorationProfile.ForBinding(frame.Effect.Binding);
+        frame.State.Validate(profile);
+        if (new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(taskAddress).Callback != profile.Code(ContextCallback))
         {
             throw new InvalidDataException("Native Recover node advancement requires its original context callback.");
         }
@@ -103,11 +107,11 @@ public static class NativeBattleRecover93Nodes
         {
             int first = frame.State.Emitters ?? throw new NotSupportedException("Native Recover emitter storage has not been cleared.");
             int second = frame.State.Geometry ?? throw new NotSupportedException("Native Recover geometry storage has not been cleared.");
-            NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, taskAddress, first, EmitterBytes, second, GeometryBytes);
-            NativeBattleEffectNodeBank bank = new(SourceAddress, frame.State.Data ?? throw new NotSupportedException("Native Recover has no fixed mutable node bank."));
+            NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, taskAddress, first, profile.EmitterBytes, second, profile.GeometryBytes);
+            NativeBattleEffectNodeBank bank = new(profile.SourceAddress, frame.State.Data ?? throw new NotSupportedException("Native Recover has no fixed mutable node bank."));
             ushort emitterCursor = frame.State.EmitterScanCursor ?? throw new NotSupportedException("Native Recover emitter scan WORD is unknown.");
             ushort geometryCursor = frame.State.GeometryScanCursor ?? throw new NotSupportedException("Native Recover geometry scan WORD is unknown.");
-            NativeBattleEffectNodeInputs inputs = new(frame.State.CopiedCamera ?? throw new NotSupportedException("Native Recover copied-camera owner is missing."), readModel, (parent, source, target) => NativeBattleEffectNodeAllocation.AllocateEmitter(memory, first, 20, ref emitterCursor, parent, source, target), (emitter, source) => NativeBattleEffectNodeAllocation.AllocateGeometry(memory, second, 70, ref geometryCursor, emitter, source));
+            NativeBattleEffectNodeInputs inputs = new(frame.State.CopiedCamera ?? throw new NotSupportedException("Native Recover copied-camera owner is missing."), readModel, (parent, source, target) => NativeBattleEffectNodeAllocation.AllocateEmitter(memory, first, profile.EmitterCapacity, ref emitterCursor, parent, source, target), (emitter, source) => NativeBattleEffectNodeAllocation.AllocateGeometry(memory, second, profile.GeometryCapacity, ref geometryCursor, emitter, source));
             NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, inputs);
             List<(bool Mesh, NativeBattleGfGeometryBatch Batch)> deliveries = [];
             NativeCrtRandomState random = frame.Random;

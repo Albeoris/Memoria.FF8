@@ -37,9 +37,9 @@ public sealed partial class BattleSession
         {
             return graphics;
         }
-        if (effect.Binding.Entry == 0x74E390)
+        if (effect.Binding.Entry is 0x74E390 or 0x7475F0)
         {
-            return AdvanceNativeRecover9374E520(graphics);
+            return AdvanceNativeAngeloRestoration(graphics);
         }
         if (effect.Binding.Entry == 0x755130)
         {

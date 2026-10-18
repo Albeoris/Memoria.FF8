@@ -12,6 +12,7 @@ internal sealed record NativeEffectFixtureRequest(string Id, ushort Effect, byte
     public bool OrdinaryMagicAdmission { get; init; }
     public int PartyModelId { get; init; }
     public bool HealingContact { get; init; }
+    public bool RevivalContact { get; init; }
 }
 internal sealed record NativeEffectFixtureRequests(NativeEffectFixtureRequest[] Cases);
 internal sealed record NativeEffectFixtureArtifact(string Boundary, string File, string Sha256, long Bytes, long Frame, long NativeCallback);
@@ -29,9 +30,13 @@ internal static class NativeBattleEffectFixtureExporter
         {
             throw new InvalidDataException("A fixture request requires identity, native effect, positive entry callback budget and external process deadline.");
         }
-        if (request.TargetActorIndex is not (0 or 3))
+        if (request.TargetActorIndex is not (0 or 3) && !(request.RevivalContact && request.TargetActorIndex == 1))
         {
             throw new InvalidDataException("This two-actor component supports explicit party0 or enemy3 contact targets only.");
+        }
+        if (request.RevivalContact && (!request.HealingContact || request.TargetActorIndex != 1 || request.OrdinaryMagicAdmission))
+        {
+            throw new InvalidDataException("The controlled revival component requires its second party target, healing contact and explicit post-formula input.");
         }
         if (request.PartyModelId is < 0 or > 10)
         {
@@ -90,6 +95,10 @@ internal static class NativeBattleEffectFixtureExporter
                 new() { Id = "party", Name = request.PartyModelId == 0 ? "Squall" : "Party", IsPlayer = true, ModelId = request.PartyModelId, WeaponId = assets.WeaponDefinitions.First(weapon => weapon.CharacterId == request.PartyModelId).Id, MaximumHp = 1000, CurrentHp = 100, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 },
                 new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = formation.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
             ];
+            if (request.RevivalContact)
+            {
+                actors = [actors[0], new() { Id = "target", Name = "Target", IsPlayer = true, ModelId = 0, WeaponId = 0, MaximumHp = 1000, CurrentHp = 7, NativeDeathCount = 0 }, actors[1]];
+            }
             if (request.OrdinaryMagicAdmission)
             {
                 if (request.Command != 2 || request.TargetActorIndex != 3 || request.AdmissionProbeMaximumCallbacks == 0)
@@ -194,9 +203,29 @@ internal static class NativeBattleEffectFixtureExporter
             boundary = "controlled-post-formula";
             BattleCombatantSnapshot target = before.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex);
             NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("The current contact target lacks its native status owner.");
-            if (request.TargetActorIndex == 0)
+            if (request.TargetActorIndex < 3)
             {
-                target = target with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
+                ushort priorSaved = request.RevivalContact ? (ushort)(status.Saved | 1) : status.Saved;
+                target = target with { NativeStatus = status with { Presentation = new(priorSaved, status.Battle) } };
+                if (request.RevivalContact)
+                {
+                    // This fresh controlled post-formula component keeps the prior KO display while the logical result already holds seven HP.
+                    NativeBattlePartyPresentation party = before.NativePartyPresentation ?? throw new InvalidDataException("The revival fixture requires its initialized party display.");
+                    before = before with { NativePartyPresentation = party with { Rows = party.Rows.SetItem(1, party.Rows[1]! with { HitPoints = 0 }) }, NativePartyStatusMirrors = before.NativePartyStatusMirrors!.Observe(1, priorSaved, status.Battle) };
+                    NativeBattleGraphicsState priorGraphics = before.NativeGraphics!;
+                    NativeBattleGraphicsModel targetModel = priorGraphics.Models[1];
+                    uint flags = definition.NativeGraphics!.Rules.Project(priorSaved, status.Battle);
+                    uint added = flags & ~(targetModel.Flags8 ?? throw new InvalidDataException("The revival fixture requires its existing graphics status."));
+                    ImmutableArray<byte?> timers = targetModel.StatusTimers;
+                    for (int bit = 0; bit < 32; bit++)
+                    {
+                        if ((added & (1u << bit)) != 0)
+                        {
+                            timers = timers.SetItem(bit, 0);
+                        }
+                    }
+                    before = before with { NativeGraphics = priorGraphics with { Models = priorGraphics.Models.SetItem(1, targetModel with { Flags8 = flags, StatusTimers = timers }) } };
+                }
             }
             else
             {
@@ -250,7 +279,7 @@ internal static class NativeBattleEffectFixtureExporter
             }
             return new(request.Id, request.Effect, "fixture-only", boundary, "Effect execution and termination contract were not supplied; no effect completion was attempted or accepted.", artifacts.ToArray())
             {
-                Scenario = request.HealingContact ? "Fresh installed-resource component; controlled post-formula seven-HP healing; manual action104 descriptor; no story continuation or formula admission" : "Fresh installed-resource component; controlled post-formula seven-HP damage; manual action104 descriptor; no story continuation or formula admission"
+                Scenario = request.RevivalContact ? "Fresh installed-resource three-actor component; controlled post-formula seven-HP revival with prior KO display; manual action104 descriptor; no story continuation or formula admission" : request.HealingContact ? "Fresh installed-resource component; controlled post-formula seven-HP healing; manual action104 descriptor; no story continuation or formula admission" : "Fresh installed-resource component; controlled post-formula seven-HP damage; manual action104 descriptor; no story continuation or formula admission"
             };
         }
         catch (Exception error)
