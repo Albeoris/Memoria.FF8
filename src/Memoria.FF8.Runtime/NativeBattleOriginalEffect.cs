@@ -131,11 +131,6 @@ public static class NativeBattleOriginalEffects
         {
             selected = selected with { ResourcePointers = pointers.MoveToImmutable() };
         }
-        if (selected.Binding.Initializer == 0x58D740)
-        {
-            NativeBattleGilgameshProcess gilgamesh = memory.Gilgamesh ?? throw new NotSupportedException("Native58D740 requires its retained Gilgamesh process; explicitly migrate the selected snapshot.");
-            memory = memory with { Gilgamesh = gilgamesh with { Variant = 3 } };
-        }
         return (memory, selected);
     }
 

@@ -82,6 +82,29 @@ public sealed class NativeBattleGilgameshEntryTests
         Assert.Throws<NotSupportedException>(() => Initialize((fixture.Memory, fixture.Effect, empty, fixture.Models)));
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData(1)]
+    [InlineData(int.MinValue)]
+    [InlineData(int.MaxValue)]
+    public void Controller_entry_publishes_variant3_over_cold_or_retained_DWORD_without_replacing_other_process_owners(int? retainedVariant)
+    {
+        var fixture = Fixture();
+        NativeBattleGilgameshProcess retained = fixture.Memory.Gilgamesh! with { Variant = retainedVariant };
+        NativeBattleGilgameshFrame frame = new(fixture.Memory with { Gilgamesh = retained }, fixture.Effect, new(123));
+        NativeBattleGilgameshFrame entered = NativeBattleGilgameshController.Initialize58DCF0(frame, fixture.Packets, fixture.Models);
+        NativeBattleGilgameshProcess current = entered.Memory.Gilgamesh!;
+        Assert.Equal(3, current.Variant);
+        Assert.Equal(retainedVariant, frame.Memory.Gilgamesh!.Variant);
+        Assert.NotNull(current.Entry);
+        Assert.Same(retained.Models, current.Models);
+        Assert.Same(retained.SwordTrail, current.SwordTrail);
+        Assert.Same(retained.OpeningFlare, current.OpeningFlare);
+        Assert.Equal(frame.Random, entered.Random);
+        NativeBattleGilgameshEntryStep expected = Initialize(fixture);
+        Assert.Equal(JsonSerializer.Serialize(expected.State), JsonSerializer.Serialize(current.Entry));
+        Assert.Equal(JsonSerializer.Serialize(expected.Effect), JsonSerializer.Serialize(entered.Effect));
+    }
     private static NativeBattleGilgameshEntryStep Initialize((NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleActionPacketsState Packets, ImmutableArray<NativeBattleGraphicsModel> Models) fixture) => NativeBattleGilgameshEntry.Initialize58DCF0(fixture.Memory, fixture.Effect, fixture.Packets, fixture.Models);
 
     private static T RoundTrip<T>(T value) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value))!;

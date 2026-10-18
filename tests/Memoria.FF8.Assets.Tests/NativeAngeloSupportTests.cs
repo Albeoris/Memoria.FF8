@@ -26,24 +26,50 @@ public sealed class NativeAngeloSupportTests
     }
 
     [Fact]
-    public void LethalReverseRetainsItsKoActorAndPreventsOutcomeUntilTheRevivalPacketCompletes()
+    public void LethalReverseCommitsRevivalBeforeItsPreparedPresentationAndDoesNotReviveTwiceAfterRestore()
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, 4, true);
         AdvanceUntilSupport(battle);
-        Assert.False(battle.Combatants[0].IsAlive);
+        //483400 prepares48D200/48E830 synchronously; the queued command mirrors facts already committed by the death callback.
+        Assert.True(battle.Combatants[0].IsAlive);
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
         BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
         Assert.Equal(BattleNativePlayerReaction.AngeloReverse, queued.NativePlayerReaction);
         Assert.Equal((ushort)0x4001, queued.NativeTargetMask);
-        BattleSession restored = BattleSession.Restore(battle.Capture());
-        for (int frame = 0; frame < 128 && !battle.Combatants[0].IsAlive; frame++)
+        Assert.NotNull(queued.NativeHeaderIndex);
+        BattleSnapshot prepared = battle.Capture();
+        NativeBattleActionHeaderSlot header = prepared.NativeActionPackets!.Headers[queued.NativeHeaderIndex!.Value];
+        Assert.Equal((byte)240, header.ReadByte(1));
+        Assert.Equal((ushort)13, NativeBattleActionGraphics.Word(header, 4));
+        NativeBattleContactPacket contact = prepared.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value);
+        Assert.Equal((byte)0, contact.Primary.ActorIndex);
+        Assert.Equal((byte)255, contact.Secondary.ActorIndex);
+        int revivedHp = battle.Combatants[0].CurrentHp;
+        Assert.Equal(checked((ushort)revivedHp), contact.Primary.Amount6);
+        Assert.Equal(1, contact.Primary.HitFlags3 & 1);
+        BattleEvent healing = Assert.Single(battle.Events, item => item.Kind == "Healing");
+        Assert.Equal("rinoa", healing.TargetId);
+        Assert.Equal(revivedHp, healing.Amount);
+        string json = JsonSerializer.Serialize(prepared);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
+        Assert.Equal(json, JsonSerializer.Serialize(restored.Capture()));
+        Assert.Equal(contact.Encode(), restored.Capture().NativeActionPackets!.ReadContact(header.FirstContactIndex.Value).Encode());
+        for (int frame = 0; frame < 128 && (battle.ActiveAction is not null || battle.QueuedActions.Count != 0); frame++)
         {
             battle.Tick();
             restored.Tick();
+            Assert.Equal(revivedHp, battle.Combatants[0].CurrentHp);
+            Assert.Equal(BattleOutcome.Active, battle.Outcome);
+            Assert.Single(battle.Events, item => item.Kind == "Healing");
+            Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
         }
+        Assert.Null(battle.ActiveAction);
+        Assert.Empty(battle.QueuedActions);
         Assert.True(battle.Combatants[0].IsAlive);
+        Assert.Equal(revivedHp, battle.Combatants[0].CurrentHp);
+        Assert.Single(battle.Events, item => item.Kind == "Healing");
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }

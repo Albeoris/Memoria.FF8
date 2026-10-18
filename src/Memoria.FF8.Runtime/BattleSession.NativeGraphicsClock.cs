@@ -353,6 +353,7 @@ public sealed partial class BattleSession
             NativeEffectMemory = effectMemory;
         }
         NativeGraphics = FinishNativePrimitiveFrame500900(NativeGraphics!);
+        NativeGraphics = PublishNativePcRenderTail47CF60(NativeGraphics);
     }
 
     private NativeBattleGraphicsState AdvanceNativeGraphicsRequests(NativeBattleGraphicsState graphics)

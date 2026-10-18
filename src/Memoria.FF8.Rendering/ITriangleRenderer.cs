@@ -18,7 +18,8 @@ public enum TriangleBlend
     AlphaAdd,
     HalfAdd,
     Subtract,
-    QuarterAdd
+    QuarterAdd,
+    SourceAlphaBoth
 }
 public enum TriangleDepthComparison
 {
@@ -66,4 +67,10 @@ public interface ITriangleRenderer
     void Begin(int width, int height, Vector4 clearColor, float clearDepth = 1);
     void Draw(in TriangleVertex a, in TriangleVertex b, in TriangleVertex c, in TriangleMaterial material);
     void End();
+}
+
+/// <summary>Optional readback of the active scene after pending triangles have been submitted.</summary>
+public interface IFramebufferCaptureRenderer
+{
+    bool TryCaptureArgb(out uint[] pixels);
 }

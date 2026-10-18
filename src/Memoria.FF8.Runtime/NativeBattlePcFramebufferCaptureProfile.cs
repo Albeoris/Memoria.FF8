@@ -84,11 +84,14 @@ public sealed record NativeBattlePcFramebufferBlend([property: JsonRequired] uin
 
 public sealed record NativeBattlePcFramebufferCaptureProfile([property: JsonRequired] NativeBattlePcFramebufferFormat Format, [property: JsonRequired] uint SourceBlendCapabilities, [property: JsonRequired] uint DestinationBlendCapabilities, [property: JsonRequired] uint LegacyCapabilities350, [property: JsonRequired] bool OverrideTextureMapBlend, [property: JsonRequired] bool OverrideBlend, [property: JsonRequired] NativeBattlePcFramebufferBlend? BlendOverride, [property: JsonRequired] bool LinearFiltering)
 {
-    public static NativeBattlePcFramebufferCaptureProfile PrimaryRgba8() => new(NativeBattlePcFramebufferFormat.Rgb555(), 0x10, 0x20, 1, false, false, null, false);
+    [JsonRequired] public int SurfaceWidth { get; init; }
+    [JsonRequired] public int SurfaceHeight { get; init; }
+
+    public static NativeBattlePcFramebufferCaptureProfile PrimaryRgba8() => new(NativeBattlePcFramebufferFormat.Rgb555(), 0x10, 0x20, 1, false, false, null, false) { SurfaceWidth = 640, SurfaceHeight = 480 };
 
     public void Validate()
     {
-        if (Format is null || OverrideBlend && BlendOverride is null)
+        if (Format is null || OverrideBlend && BlendOverride is null || SurfaceWidth is < 1 or > 8192 || SurfaceHeight is < 1 or > 8192)
         {
             throw new InvalidDataException("Native PC capture requires its current device format and active blend override owner.");
         }

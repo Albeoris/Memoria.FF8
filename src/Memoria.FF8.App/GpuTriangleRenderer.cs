@@ -7,7 +7,7 @@ using Vector4N = System.Numerics.Vector4;
 namespace Memoria.FF8;
 
 /// <summary>Ordered hardware triangle rasterizer; scene decoding remains in the shared rendering library.</summary>
-public sealed class GpuTriangleRenderer : ITriangleRenderer, IDisposable
+public sealed class GpuTriangleRenderer : ITriangleRenderer, IFramebufferCaptureRenderer, IDisposable
 {
     private readonly GraphicsDevice device;
     private readonly Effect effect;
@@ -95,6 +95,32 @@ public sealed class GpuTriangleRenderer : ITriangleRenderer, IDisposable
         vertices[vertexCount++] = new(a);
         vertices[vertexCount++] = new(b);
         vertices[vertexCount++] = new(c);
+    }
+
+    public bool TryCaptureArgb(out uint[] pixels)
+    {
+        if (!active || workingTarget is null)
+        {
+            throw new InvalidOperationException("Active framebuffer capture requires a current triangle scene.");
+        }
+        Flush();
+        Color[] colors = new Color[width * height];
+        try
+        {
+            workingTarget.GetData(colors);
+        }
+        catch (InvalidOperationException)
+        {
+            pixels = [];
+            return false;
+        }
+        pixels = new uint[colors.Length];
+        for (int index = 0; index < colors.Length; index++)
+        {
+            Color color = colors[index];
+            pixels[index] = (uint)(color.A << 24 | color.R << 16 | color.G << 8 | color.B);
+        }
+        return true;
     }
 
     private void Flush()
@@ -209,8 +235,8 @@ public sealed class GpuTriangleRenderer : ITriangleRenderer, IDisposable
         }
         state = new BlendState
         {
-            ColorSourceBlend = blend is TriangleBlend.Alpha or TriangleBlend.AlphaAdd or TriangleBlend.HalfAdd ? Microsoft.Xna.Framework.Graphics.Blend.SourceAlpha : Microsoft.Xna.Framework.Graphics.Blend.One,
-            ColorDestinationBlend = blend == TriangleBlend.Replace ? Microsoft.Xna.Framework.Graphics.Blend.Zero : blend is TriangleBlend.Alpha or TriangleBlend.HalfAdd ? Microsoft.Xna.Framework.Graphics.Blend.InverseSourceAlpha : Microsoft.Xna.Framework.Graphics.Blend.One,
+            ColorSourceBlend = blend is TriangleBlend.Alpha or TriangleBlend.AlphaAdd or TriangleBlend.HalfAdd or TriangleBlend.SourceAlphaBoth ? Microsoft.Xna.Framework.Graphics.Blend.SourceAlpha : Microsoft.Xna.Framework.Graphics.Blend.One,
+            ColorDestinationBlend = blend == TriangleBlend.Replace ? Microsoft.Xna.Framework.Graphics.Blend.Zero : blend == TriangleBlend.SourceAlphaBoth ? Microsoft.Xna.Framework.Graphics.Blend.SourceAlpha : blend is TriangleBlend.Alpha or TriangleBlend.HalfAdd ? Microsoft.Xna.Framework.Graphics.Blend.InverseSourceAlpha : Microsoft.Xna.Framework.Graphics.Blend.One,
             ColorBlendFunction = blend == TriangleBlend.Subtract ? BlendFunction.ReverseSubtract : BlendFunction.Add,
             AlphaSourceBlend = preserveTargetAlpha ? Microsoft.Xna.Framework.Graphics.Blend.Zero : Microsoft.Xna.Framework.Graphics.Blend.One,
             AlphaDestinationBlend = preserveTargetAlpha ? Microsoft.Xna.Framework.Graphics.Blend.One : Microsoft.Xna.Framework.Graphics.Blend.Zero,

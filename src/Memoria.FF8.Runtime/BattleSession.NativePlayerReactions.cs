@@ -75,6 +75,20 @@ public sealed partial class BattleSession
         BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.NativeIndex is >= 0 and < 16 && (mask & (1 << candidate.NativeIndex)) != 0) ?? actor;
         BattleAbility ability = reaction == BattleNativePlayerReaction.Counter ? BattleAbility.Attack : reaction == BattleNativePlayerReaction.AutoPotion ? BattleAbility.Item : BattleAbility.EnemyAbility;
         BattleAttackCommand queued = new(actor.Id, target.Id, ability, id) { NativePlayerReaction = reaction, NativeQueuedCommand = command, NativeAction = native, NativeTargetMask = mask, ReservedNativeItemSlot = command == 4 ? ConsumeNativeItem(id) : null };
+        queued = PrepareNativeEventCommand(actor, queued);
+        if (nativeProductionContext is not null && queued.NativeHeaderIndex is int headerIndex)
+        {
+            byte lane = nativeActionScratch.EventLane ?? throw new NotSupportedException("Native483400 requires its current event batch BYTE B0E.");
+            if (lane == 0)
+            {
+                //483400 clears the last published header's BYTE17 before queuing its intermediate48D1F0 callback.
+                nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(headerIndex, 1);
+                if (NativeGraphics is { } graphics)
+                {
+                    NativeGraphics = QueueNativeDescriptor(graphics, 10, 0x47DD90);
+                }
+            }
+        }
         //483400 bypasses4847F0: keep ATB and Defend/Charged, and do not run the compelled player-input selector.
         actor.IsBusy = true;
         actions.Enqueue(queued);

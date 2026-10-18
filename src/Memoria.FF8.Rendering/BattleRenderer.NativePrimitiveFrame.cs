@@ -20,14 +20,8 @@ public sealed partial class BattleRenderer
     /// <summary>Render the executed original battle OT into a viewport representing its320x216 draw environment.</summary>
     public byte[] RenderNativePrimitiveFrame(NativeBattlePrimitiveFrame frame, NativeBattleEffectTextureState? textures, BattleCamera? overlayCamera = null, NativeBattlePrimitiveCapabilities? capabilities = null, NativeBattlePcTextureWindowCache? textureWindowCache = null)
     {
-        if (overlayCamera is BattleCamera camera)
-        {
-            Begin(camera);
-        }
-        else
-        {
-            sceneProjectionReady = false;
-        }
+        //The executed OT already owns projected XY/depth; a native WAIT can legitimately publish coincident eye and target.
+        sceneProjectionReady = false;
         TriangleRenderer?.Begin(Width, Height, new Vector4(0, 0, 0, 1));
         if (TriangleRenderer is null)
         {
@@ -181,6 +175,7 @@ public sealed partial class BattleRenderer
         }
         if (TriangleRenderer is not null)
         {
+            DrawNativePcRenderTail(frame.LastPcRenderTail, capabilities);
             TriangleRenderer.End();
             return pixels;
         }
@@ -193,6 +188,7 @@ public sealed partial class BattleRenderer
         {
             Parallel.For(0, stripes, new ParallelOptions { MaxDegreeOfParallelism = stripes }, RasterStripe);
         }
+        DrawNativePcRenderTail(frame.LastPcRenderTail, capabilities);
         return pixels;
 
         void RasterStripe(int stripe)

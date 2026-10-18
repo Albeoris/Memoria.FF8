@@ -18,7 +18,7 @@ public sealed partial class BattleSession
         EnqueueNativePacket(actor, command, $"native graphics252/1 effect{magicId}");
     }
 
-    private void EnqueueNativePacket(BattleCombatant actor, BattleAttackCommand command, string name, bool playerInput = false)
+    private BattleAttackCommand PrepareNativeEventCommand(BattleCombatant actor, BattleAttackCommand command)
     {
         if ((nativeAiDepth != 0 || nativeCallbackTail is not null || nativeProductionContext is not null) && command.NativeRenzokuken is null)
         {
@@ -28,6 +28,12 @@ public sealed partial class BattleSession
             PrepareNativeLimitCommand(command);
             command = ProduceNativeQueuedCommand(actor, GetActor(command.TargetId), command);
         }
+        return command;
+    }
+
+    private void EnqueueNativePacket(BattleCombatant actor, BattleAttackCommand command, string name, bool playerInput = false)
+    {
+        command = PrepareNativeEventCommand(actor, command);
         actor.Atb = 0;
         actor.IsBusy = true;
         if (playerInput)

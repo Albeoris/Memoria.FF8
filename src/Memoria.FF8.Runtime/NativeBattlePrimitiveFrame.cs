@@ -51,6 +51,7 @@ public sealed record NativeBattlePrimitiveFrame(NativeBattleLogicalOrdering Pend
     public NativeBattlePrimitiveDepthState? LastDepthState { get; init; }
     public NativeBattlePrimitiveColorState? LastColorState { get; init; }
     public ImmutableArray<NativeBattlePcTextureWindowPixels>? LastTextureSnapshots { get; init; }
+    public NativeBattlePcRenderTailReceipt? LastPcRenderTail { get; init; }
     public static NativeBattlePrimitiveFrame Clear() => new(NativeBattleLogicalOrdering.Clear(), [], []);
 }
 

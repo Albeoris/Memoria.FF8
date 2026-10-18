@@ -256,8 +256,8 @@ public sealed partial class GameAssets
                 {
                     throw new InvalidDataException("Native Excalipoor330 differs from its original module identity.");
                 }
-                catalog = catalog.SetItem(index, binding with { GilgameshResources = ReadNativeGilgameshEffectResources() });
-                continue;
+                binding = binding with { GilgameshResources = ReadNativeGilgameshEffectResources() };
+                catalog = catalog.SetItem(index, binding);
             }
             if (binding.Effect == 199)
             {

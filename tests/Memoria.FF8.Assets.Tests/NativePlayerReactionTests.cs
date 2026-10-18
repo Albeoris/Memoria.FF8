@@ -1,5 +1,6 @@
 using Memoria.FF8.Runtime;
 using System.Collections.Immutable;
+using System.Text.Json;
 
 namespace Memoria.FF8.Assets.Tests;
 
@@ -11,17 +12,51 @@ public sealed class NativePlayerReactionTests
         using GameAssets game = new(GameDirectory());
         using BattleAssets assets = new(GameDirectory());
         BattleSession battle = Create(game, assets, 0x40004, [new(1, 2), new(3, 2)], 100);
+        int initialHp = battle.Combatants[0].CurrentHp;
         AdvanceUntilReaction(battle);
         BattleSnapshot saved = battle.Capture();
         Assert.Equal([BattleNativePlayerReaction.Counter, BattleNativePlayerReaction.AutoPotion], saved.QueuedActions.Select(command => command.NativePlayerReaction!.Value).ToArray());
         Assert.True(battle.Combatants[0].Atb > 0);
         Assert.Equal(3, saved.QueuedActions[1].ActionId);
         Assert.Equal(1, saved.NativeItemInventory!.Single(stock => stock.ItemId == 3).Count);
-        Assert.Equal((byte?)0, saved.Combatants[0].NativeParticipant!.LastHealing);
-        BattleSession restored = BattleSession.Restore(saved);
-        Assert.Equal(saved.QueuedActions, restored.Capture().QueuedActions);
+        //483400 commits each reaction's physical action facts before publishing its queued presentation mirror.
+        Assert.Equal((byte?)1, saved.Combatants[0].NativeParticipant!.LastHealing);
+        Assert.All(saved.QueuedActions, command => Assert.NotNull(command.NativeHeaderIndex));
+        NativeBattleActionHeaderSlot counter = saved.NativeActionPackets!.Headers[saved.QueuedActions[0].NativeHeaderIndex!.Value];
+        NativeBattleActionHeaderSlot potion = saved.NativeActionPackets.Headers[saved.QueuedActions[1].NativeHeaderIndex!.Value];
+        Assert.Equal((byte)1, counter.ReadByte(1));
+        Assert.Equal((byte)4, potion.ReadByte(1));
+        Assert.Equal((ushort)3, NativeBattleActionGraphics.Word(potion, 4));
+        NativeBattleContactPacket counterContact = saved.NativeActionPackets.ReadContact(counter.FirstContactIndex!.Value);
+        NativeBattleContactPacket healingContact = saved.NativeActionPackets.ReadContact(potion.FirstContactIndex!.Value);
+        Assert.Equal((byte)3, counterContact.Primary.ActorIndex);
+        Assert.Equal((byte)0, healingContact.Primary.ActorIndex);
+        BattleEvent healing = Assert.Single(battle.Events, item => item.Kind == "Healing");
+        Assert.Equal("party", healing.TargetId);
+        Assert.True(healing.Amount > 0);
+        Assert.Equal(checked((ushort)healing.Amount), healingContact.Primary.Amount6);
+        Assert.Equal(1, healingContact.Primary.HitFlags3 & 1);
+        BattleEvent received = Assert.Single(battle.Events, item => item.Kind == "Damage" && item.ActorId == "enemy");
+        Assert.Equal(initialHp - received.Amount + healing.Amount, battle.Combatants[0].CurrentHp);
+        string json = JsonSerializer.Serialize(saved);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
+        Assert.Equal(json, JsonSerializer.Serialize(restored.Capture()));
         Assert.Equal(saved.NativeItemInventory, restored.Capture().NativeItemInventory);
         Assert.Equal(battle.Combatants[0].Atb, restored.Combatants[0].Atb);
+        int[] committedHp = battle.Combatants.Select(actor => actor.CurrentHp).ToArray();
+        for (int frame = 0; frame < 128 && (battle.ActiveAction is not null || battle.QueuedActions.Count != 0); frame++)
+        {
+            battle.Tick();
+            restored.Tick();
+            Assert.Equal(committedHp, battle.Combatants.Select(actor => actor.CurrentHp));
+            Assert.Single(battle.Events, item => item.Kind == "Healing");
+            Assert.Equal(saved.NativeItemInventory, battle.Capture().NativeItemInventory);
+            Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        }
+        Assert.Null(battle.ActiveAction);
+        Assert.Empty(battle.QueuedActions);
+        Assert.Equal(BattleOutcome.Active, battle.Outcome);
+        Assert.Equal(1, battle.Capture().NativeItemInventory!.Single(stock => stock.ItemId == 3).Count);
     }
 
     [Theory]

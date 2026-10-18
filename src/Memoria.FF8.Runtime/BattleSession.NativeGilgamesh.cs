@@ -37,6 +37,14 @@ public sealed partial class BattleSession
                     NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Gilgamesh requires its current common packet owner."), primitive.Pending, packets.Batch);
                     graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
                     return current with { Memory = current.Memory with { PrimitiveProcess = written.Process } };
+                case NativeBattleGilgameshPacketCursorAdvance advance:
+                    NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native sword trail requires its current common packet cursor.");
+                    int cursor = checked((process.ByteCursor ?? throw new NotSupportedException("Native sword trail requires its allocated packet bank.")) + advance.Bytes);
+                    if (advance.Bytes < 0 || cursor > process.CommonPacketWriteCapacity)
+                    {
+                        throw new InvalidDataException("Native sword-trail cursor publication leaves its actual packet allocation.");
+                    }
+                    return current with { Memory = current.Memory with { PrimitiveProcess = process with { ByteCursor = cursor } } };
                 case NativeBattleGilgameshSprites sprites:
                     graphics = AppendNativeModulePacketBatch(graphics, sprites.Batch, null, null);
                     return current with { Memory = NativeEffectMemory ?? throw new NotSupportedException("Native Gilgamesh sprite submission lost its current memory.") };

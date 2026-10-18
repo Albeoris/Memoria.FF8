@@ -99,7 +99,8 @@ public sealed partial class BattleSession
             {
                 continue;
             }
-            ValidateCurrentNativeQueuedHeader(command);
+            //47DD90 may already have cleared C0/C1; the final10 still owns these retained physical header mirrors.
+            ValidateNativeHeaderReference(GetActor(command.ActorId), command.NativeHeaderIndex);
             captured.Add(command);
         }
         return captured.ToArray();
@@ -107,7 +108,7 @@ public sealed partial class BattleSession
 
     private BattleActionPresentation? CaptureNativeEventPresentation()
     {
-        if (ActiveAction is not { NativeHeaderIndex: int headerIndex } action || headerIndex >= nativeActionPackets.ActionCount)
+        if (ActiveAction is not { NativeHeaderIndex: int headerIndex } action || headerIndex >= nativeActionPackets.ActionCount && nativeActionPackets.ActiveHeaderIndex != headerIndex)
         {
             return null;
         }

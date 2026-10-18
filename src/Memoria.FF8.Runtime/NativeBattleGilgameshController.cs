@@ -6,6 +6,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleGilgameshFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
 public abstract record NativeBattleGilgameshOperation;
 public sealed record NativeBattleGilgameshPackets(NativeBattleGfGeometryBatch Batch) : NativeBattleGilgameshOperation;
+public sealed record NativeBattleGilgameshPacketCursorAdvance(int Bytes) : NativeBattleGilgameshOperation;
 public sealed record NativeBattleGilgameshSprites(NativeBattleModulePacketBatch Batch) : NativeBattleGilgameshOperation;
 public sealed record NativeBattleGilgameshService(NativeBattleGilgameshDirectorOperation Operation) : NativeBattleGilgameshOperation;
 public sealed record NativeBattleGilgameshContacts(int First, int Count) : NativeBattleGilgameshOperation;
@@ -21,7 +22,7 @@ public static partial class NativeBattleGilgameshController
         NativeBattleGilgameshProcess retained = frame.Memory.Gilgamesh ?? throw new NotSupportedException("Native Gilgamesh requires its retained process model owners; explicitly migrate a needed snapshot.");
         retained.Validate();
         NativeBattleGilgameshEntryStep initialized = NativeBattleGilgameshEntry.Initialize58DCF0(frame.Memory, frame.Effect, packets, models);
-        return frame with { Memory = initialized.Memory with { Gilgamesh = retained with { Entry = initialized.State } }, Effect = initialized.Effect };
+        return frame with { Memory = initialized.Memory with { Gilgamesh = retained with { Entry = initialized.State, Variant = 3 } }, Effect = initialized.Effect };
     }
 
     public static NativeBattleGilgameshFrame Advance596B70(NativeBattleGilgameshFrame frame, NativeBattleGilgameshEffectResources resources, NativeBattleGilgameshInputs inputs)
@@ -86,7 +87,7 @@ public static partial class NativeBattleGilgameshController
         {
             (int index, int slot) = Locate(address);
             NativeBattleEffectTaskPool pool = Frame.Effect.Pools[index];
-            Frame = Frame with { Effect = Frame.Effect with { Pools = Frame.Effect.Pools.SetItem(index, pool with { Slots = pool.Slots.SetItem(slot, task) }) } };
+            Frame = Frame with { Effect = Frame.Effect with { Pools = Frame.Effect.Pools.SetItem(index, pool with { Slots = pool.Slots.SetItem(slot, task with { Next = pool.Slots[slot].Next }) }) } };
         }
 
         private uint Append(uint callback, bool particle = false)
@@ -197,6 +198,16 @@ public static partial class NativeBattleGilgameshController
                     Write(address, nestedMesh.UpdatedTask);
                     Emit(new NativeBattleGilgameshPackets(nestedMesh.Batch));
                     return nestedMesh.Result;
+                case 0x5943D0:
+                    NativeBattleGilgameshSwordTrailStep trail = NativeBattleGilgameshSwordTrail.Step5943D0(Shared.SwordTrail, task, Shared.Variant ?? throw new NotSupportedException("Native5943D0 requires its initialized sword selector."), ReadSwordBone, WorldView, inputs.Projection, Frame.Memory.ScriptedGraphics, inputs.Colors, resources.SwordTrail, inputs.GraphicsFlags);
+                    SetShared(Shared with { SwordTrail = trail.State });
+                    Write(address, trail.UpdatedTask);
+                    if (trail.PoolCursorAdvance is int advance)
+                    {
+                        Emit(new NativeBattleGilgameshPackets(trail.Packets));
+                        Emit(new NativeBattleGilgameshPacketCursorAdvance(checked(advance - trail.Packets.AllocationBytes)));
+                    }
+                    return trail.Result;
                 case 0x594FD0:
                     NativeBattleGilgameshSwordStep swords = NativeBattleGilgameshSwords.Step594FD0(Shared.Models, Arena, task, resources.Models.StaticModels, WorldView, inputs.Projection, Frame.Memory.ScriptedGraphics, inputs.GraphicsFlags);
                     Frame = Frame with { Memory = Frame.Memory with { Arena = swords.Arena, Gilgamesh = Shared with { Models = swords.ModelMemory } } };
@@ -312,8 +323,13 @@ public static partial class NativeBattleGilgameshController
         {
             switch (callback)
             {
+                case 0x5943A0:
+                    NativeBattleGilgameshSwordTrailInitialization trail = NativeBattleGilgameshSwordTrail.Initialize5943A0(Children, Shared.SwordTrail);
+                    SetChildren(trail.Pool);
+                    SetShared(Shared with { SwordTrail = trail.State });
+                    break;
                 case 0x5947F0:
-                    NativeBattleGilgameshSwordParticleInitialization swords = NativeBattleGilgameshSwordParticles.Initialize5947F0(Children, Frame.Effect.Pools[2], Shared.Variant ?? throw new NotSupportedException("Native5947F0 requires its initialized variant WORD."), resources.SwordParticles);
+                    NativeBattleGilgameshSwordParticleInitialization swords = NativeBattleGilgameshSwordParticles.Initialize5947F0(Children, Frame.Effect.Pools[2], unchecked((short)(Shared.Variant ?? throw new NotSupportedException("Native5947F0 requires its initialized variant WORD."))), resources.SwordParticles);
                     Frame = Frame with { Effect = Frame.Effect with { Pools = Frame.Effect.Pools.SetItem(1, swords.Children).SetItem(2, swords.Particles) } };
                     break;
                 case 0x592D00:

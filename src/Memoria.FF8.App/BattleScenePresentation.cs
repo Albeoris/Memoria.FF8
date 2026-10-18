@@ -26,6 +26,7 @@ internal sealed class BattleScenePresentation
     private BattleCamera? renderedCamera;
     private BattleRenderer? renderer;
     private NativeBattlePrimitiveFrame? renderedPrimitiveFrame;
+    private NativeBattlePcRenderTailReceipt? renderedPcRenderTail;
     private NativeBattleEffectTextureState? renderedTextures;
     private NativeBattlePcTextureWindowCache? renderedTextureWindows;
     private byte[]? renderedPixels;
@@ -113,7 +114,7 @@ internal sealed class BattleScenePresentation
             NativeBattlePrimitiveFrame frame = rawGraphics.PrimitiveFrame ?? throw new NotSupportedException("Native battle presentation requires its executed original primitive frame; migrate the named standalone snapshot explicitly.");
             NativeBattleEffectTextureState? textures = session.NativeEffectMemory?.Textures;
             NativeBattlePcTextureWindowCache? windows = session.NativeEffectMemory?.PrimitiveProcess?.TextureWindowCache;
-            bool unchanged = ReferenceEquals(renderedPrimitiveFrame, frame) && ReferenceEquals(renderedTextures, textures) && ReferenceEquals(renderedTextureWindows, windows) && renderedCamera == selectedCamera;
+            bool unchanged = ReferenceEquals(renderedPrimitiveFrame, frame) && ReferenceEquals(renderedPcRenderTail, frame.LastPcRenderTail) && ReferenceEquals(renderedTextures, textures) && ReferenceEquals(renderedTextureWindows, windows) && renderedCamera == selectedCamera;
             if (triangleRenderer is null && renderedPixels is not null && unchanged)
             {
                 return renderedPixels;
@@ -127,6 +128,7 @@ internal sealed class BattleScenePresentation
                 renderedPixels = null;
                 byte[] result = renderer.RenderNativePrimitiveFrame(frame, textures, selectedCamera, primitiveCapabilities, windows);
                 renderedPrimitiveFrame = frame;
+                renderedPcRenderTail = frame.LastPcRenderTail;
                 renderedTextures = textures;
                 renderedTextureWindows = windows;
                 renderedCamera = selectedCamera;
@@ -137,6 +139,7 @@ internal sealed class BattleScenePresentation
             renderedGpu = null;
             renderedPixels = renderer.RenderNativePrimitiveFrame(frame, textures, selectedCamera, primitiveCapabilities, windows);
             renderedPrimitiveFrame = frame;
+            renderedPcRenderTail = frame.LastPcRenderTail;
             renderedTextures = textures;
             renderedTextureWindows = windows;
             renderedCamera = selectedCamera;

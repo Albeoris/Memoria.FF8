@@ -44,6 +44,19 @@ public sealed class NativeBattleDescriptorActionCompletionTests
     }
 
     [Fact]
+    public void ActivatedPhysicalHeaderSurvivesIntermediateDd90CountsResetAndColdJsonUntilFinalEvent()
+    {
+        var fixture = Fixture();
+        NativeBattleActionPacketsState packets = fixture.Session.NativeActionPackets.ActivateHeader(0).ResetCounts();
+        packets = JsonSerializer.Deserialize<NativeBattleActionPacketsState>(JsonSerializer.Serialize(packets))!;
+        Field("nativeActionPackets").SetValue(fixture.Session, packets);
+        Complete(fixture.Session, fixture.Graphics, 0x47DDA0);
+        Assert.Null(fixture.Session.ActiveAction);
+        Assert.Single(fixture.Session.Events, item => item.Kind == "ActionComplete");
+        Assert.False(fixture.Session.Combatants[0].IsBusy);
+    }
+
+    [Fact]
     public void HeaderlessPresentationIsNotHydratedByAnUnrelatedNativeEvent()
     {
         var fixture = Fixture();
