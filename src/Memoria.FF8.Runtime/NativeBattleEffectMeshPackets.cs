@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-internal sealed record NativeBattleEffectMeshWindow(ushort U, ushort V, NativeBattleTextureWindow Before, NativeBattleTextureWindow After);
+internal sealed record NativeBattleEffectMeshWindow(ushort U, ushort V, NativeBattleTextureWindow Before, NativeBattleTextureWindow After, bool ForceBracket = false);
 internal sealed record NativeBattleEffectMeshPacketContext(uint Flags, uint? FarColor, int? Fade, ushort? TexturePage, ushort? Clut, uint PackedUvOffset, bool MaterialOverrides, int? DepthBias, int TableBaseBucket, byte DepthShift, NativeBattleEffectMeshWindow? Window = null);
 
 [Flags]
@@ -20,7 +20,7 @@ internal static class NativeBattleEffectMeshPackets
 {
     internal static NativeBattleGfGeometryBatch EmitTextured(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, bool quad, bool gouraud, NativeBattleEffectMeshPacketContext context, NativeBattleSummonColors? colors, int byteOffset, NativeBattleEffectMeshClip clip = NativeBattleEffectMeshClip.Standard)
     {
-        if (face.Length != (gouraud ? 36 : quad ? 24 : 20) || gouraud && !quad || context.DepthShift > 31)
+        if (face.Length != (gouraud ? quad ? 36 : 28 : quad ? 24 : 20) || context.DepthShift > 31)
         {
             throw new InvalidDataException("Native textured mesh leaf requires its original face extent and depth shift.");
         }
@@ -34,10 +34,10 @@ internal static class NativeBattleEffectMeshPackets
         uint firstUv = unchecked(BinaryPrimitives.ReadUInt32LittleEndian(face[12..]) + offset);
         uint secondUv = unchecked(BinaryPrimitives.ReadUInt32LittleEndian(face[16..]) + offset);
         uint finalUvs = quad ? unchecked(BinaryPrimitives.ReadUInt32LittleEndian(face[20..]) + offset + (offset << 16)) : unchecked((uint)BinaryPrimitives.ReadUInt16LittleEndian(face[10..]) + offset);
-        int length = gouraud ? 52 : quad ? 40 : 32;
+        int length = gouraud ? quad ? 52 : 40 : quad ? 40 : 32;
         int screenStride = gouraud ? 12 : 8;
         int secondUvOffset = gouraud ? 24 : 20;
-        int[] uvOffsets = quad ? [12, secondUvOffset, gouraud ? 36 : 28, gouraud ? 48 : 36] : [12, 20, 28];
+        int[] uvOffsets = quad ? [12, secondUvOffset, gouraud ? 36 : 28, gouraud ? 48 : 36] : gouraud ? [12, 24, 36] : [12, 20, 28];
         uint[] uvWords = quad ? [firstUv, secondUv, finalUvs, finalUvs >> 16] : [firstUv, secondUv, finalUvs];
         SkinWrites packet = new(length, byteOffset);
         packet.Word(0, (uint)(length / 4 - 1) << 24);
@@ -89,12 +89,12 @@ internal static class NativeBattleEffectMeshPackets
         }
         if (gouraud)
         {
-            ImmutableArray<uint> vertexColors = [color, BinaryPrimitives.ReadUInt32LittleEndian(face[24..]), BinaryPrimitives.ReadUInt32LittleEndian(face[28..]), BinaryPrimitives.ReadUInt32LittleEndian(face[32..])];
+            ImmutableArray<uint> vertexColors = quad ? [color, BinaryPrimitives.ReadUInt32LittleEndian(face[24..]), BinaryPrimitives.ReadUInt32LittleEndian(face[28..]), BinaryPrimitives.ReadUInt32LittleEndian(face[32..])] : [color, BinaryPrimitives.ReadUInt32LittleEndian(face[20..]), BinaryPrimitives.ReadUInt32LittleEndian(face[24..])];
             if ((context.Flags & 0x80) != 0)
             {
-                vertexColors = NativeBattleGteColorInterpolation.Gouraud45F4C0(vertexColors, true, RequiredFade(context), RequiredFar(context), RequiredConstants(colors));
+                vertexColors = NativeBattleGteColorInterpolation.Gouraud45F4C0(vertexColors, quad, RequiredFade(context), RequiredFar(context), RequiredConstants(colors));
             }
-            for (int corner = 0; corner < 4; corner++)
+            for (int corner = 0; corner < vertices.Length; corner++)
             {
                 packet.Word(4 + corner * 12, vertexColors[corner]);
             }
@@ -112,13 +112,13 @@ internal static class NativeBattleEffectMeshPackets
         }
         int bucket = checked(context.TableBaseBucket + (average >> context.DepthShift));
         NativeBattleEffectMeshWindow? window = context.Window;
-        if (window is not null && (window.U | window.V) != 0)
+        if (window is not null && (window.ForceBracket || (window.U | window.V) != 0))
         {
             AdjustAxis(window.U, 0, unchecked((byte)window.After.Width));
             AdjustAxis(window.V, 1, unchecked((byte)window.After.Height));
         }
         NativeBattleGeometryPrimitive primitive = new(bucket, packet.Words(), Payload(vertices, color));
-        if (window is not null && (window.U | window.V) != 0)
+        if (window is not null && (window.ForceBracket || (window.U | window.V) != 0))
         {
             return NativeBattleEffectTextureWindows.Bracket(packet.Attempt(null), primitive, window.Before, window.After);
         }

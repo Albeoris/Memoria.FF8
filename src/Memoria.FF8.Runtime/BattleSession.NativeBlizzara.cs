@@ -40,7 +40,7 @@ public sealed partial class BattleSession
                     return current with { Memory = NativeEffectMemory! };
                 case NativeBattleBlizzaraMainDraw draw:
                     NativeBattleActionMatrix world = new([-4096, 0, 0, 0, draw.YScale, 0, 0, 0, -4096], unchecked((short)draw.Task.ReadWord(28)), unchecked((short)draw.Task.ReadWord(30)), unchecked((short)draw.Task.ReadWord(32)), 4096);
-                    NativeBattleActionMatrix matrix = NativeBattleBlizzardFaceMotion.Compose(view, world);
+                    NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.Compose56C2F0(view, world);
                     return AppendGeometry(current, NativeBattleBlizzaraDrawing.EmitMainMesh(NativeBattleBlizzaraFaces.ReadPrimaryMesh(current.Memory, draw.Sequence), NativeBattleBlizzaraFaces.ExpandedVertices(draw.Task), matrix, projection, draw.Flags));
                 case NativeBattleBlizzaraDraw draw:
                     if (draw.Task.Callback is 0x6DBB20 or 0x6DBD20)

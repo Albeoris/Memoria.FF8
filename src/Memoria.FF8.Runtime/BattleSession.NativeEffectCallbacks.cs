@@ -45,6 +45,10 @@ public sealed partial class BattleSession
         {
             return AdvanceNativeEffect107(graphics);
         }
+        if (effect.Binding.Entry == 0x6D6310)
+        {
+            return AdvanceNativeBlizzaga6D6400(graphics);
+        }
         if (effect.Binding.Entry == 0x6DA300)
         {
             return AdvanceNativeBlizzara6DA3A0(graphics);

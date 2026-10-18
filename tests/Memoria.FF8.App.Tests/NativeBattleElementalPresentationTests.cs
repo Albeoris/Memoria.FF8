@@ -36,6 +36,7 @@ public sealed class NativeBattleElementalPresentationTests
             143 => new(143, 0x61BFE0, 0x24BECE0, 0x24BECF0, 0x61CDA0, 0x61C0A0, 70, 300056, 0, [4, 14, 33, 48, 60]),
             102 => new(102, 0x6DC2D0, 0x2544DD0, 0x2544DE0, 0x6DC390, 0x6DC510, 38, 300009, 0x101, [4, 12, 24, 26, 31], [0x2544DF0, 0x2544E00], false),
             103 => new(103, 0x6DA300, 0x2543EB8, 0x2543EC8, 0x6DA3A0, 0x6DAA30, 72, 300015, 0x101, [20, 30, 45, 50, 60, 69], [0x2543ED8, 0x2543EE8, 0x2543EF8, 0x2543F08], false),
+            104 => new(104, 0x6D6310, 0x2543E20, 0x2543E30, 0x6D6400, 0x6D67E0, 100, 300089, 0x101, [8, 28, 33, 51, 68, 82, 97], [0x2543E40, 0x2543E50, 0x2543E60, 0x2543E70, 0x2543E80]),
             _ => throw new NotSupportedException("The fixture needs a proved elemental presentation recipe.")
         };
         Assert.True(initialGraphics.ActionGraphics is null || initialGraphics.ActionGraphics.HeaderIndex == headerIndex);
