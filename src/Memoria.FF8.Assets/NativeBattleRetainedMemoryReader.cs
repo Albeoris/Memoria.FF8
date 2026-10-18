@@ -77,6 +77,9 @@ public static class NativeBattleRetainedMemoryReader
             Scan = new(null, new(new([ReadScanOwner(0x1D2B110, 196), ReadScanOwner(0x1D2B1D4, 196)]), [ReadScanOwner(0x1D2B298, 36), ReadScanOwner(0x1D2B2BC, 36)], ReadScanOwner(0x1D2B2F0, 4), ReadScanOwner(0x209CEE4, 12)), BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1CD01FC, 4)), false, ReadScanOwner(0x269AAA8, 48))
             {
                 Text = scanText,
+                Mouse1D2B2E0 = ReadScanOwner(0x1D2B2E0, 16),
+                Results = new(ReadScanOwner(0x279CC68, 8), ReadScanOwner(0x279CC70, 32), BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x279CC90, 4)), ReadLoaderBytes(0x279CC94, 1)[0], ReadScanOwner(0x1D2A248, 48), ReadLoaderBytes(0x1D2A278, 1)[0], ReadScanOwner(0x1D29034, 768)),
+                Complete269D93A = BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(0x269D93A, 2)),
                 Presentation = new(ReadScanOwner(0x269A168, 0x50), ReadScanOwner(0x269A1BC, 28), ReadScanOwner(0x269A1D8, 28), ReadScanOwner(0x269CE34, 28), ReadScanOwner(0x269AA78, 24), BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(0x269AA90, 2)), BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(0x269D938, 2)), BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(0x269CE2C, 2)), BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x269CE30, 4)))
             },
             Parameter80 = ReadLoaderBytes(0x1D99A80, 1)[0],

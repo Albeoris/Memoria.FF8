@@ -18,6 +18,7 @@ public sealed class NativeBattleScanColdProcessTests
         Check(scan.Input.RawSamples[1], 0x1D2B2BC, 36);
         Check(scan.Input.Settings, 0x1D2B2F0, 4);
         Check(scan.Input.PollPointers, 0x209CEE4, 12);
+        Check(scan.Mouse1D2B2E0, 0x1D2B2E0, 16);
         Check(scan.InteractiveInput269AAA8, 0x269AAA8, 48);
         Assert.Equal(BinaryPrimitives.ReadUInt32LittleEndian(original.ReadLoader(0x1CD01FC, 4)), scan.PhysicalButtons1CD01FC);
         Assert.False(scan.InputInitialized);
@@ -43,6 +44,14 @@ public sealed class NativeBattleScanColdProcessTests
         Assert.Equal(BinaryPrimitives.ReadUInt16LittleEndian(original.ReadLoader(0x269D938, 2)), scan.Presentation.Result269D938);
         Assert.Equal(BinaryPrimitives.ReadUInt16LittleEndian(original.ReadLoader(0x269CE2C, 2)), scan.Presentation.Exit269CE2C);
         Assert.Equal(BinaryPrimitives.ReadUInt32LittleEndian(original.ReadLoader(0x269CE30, 4)), scan.Presentation.PrimaryModel269CE30);
+        Check(scan.Results.Element8, 0x279CC68, 8);
+        Check(scan.Results.Pages32, 0x279CC70, 32);
+        Check(scan.Results.Scratch48, 0x1D2A248, 48);
+        Check(scan.Results.Ring768, 0x1D29034, 768);
+        Assert.Equal(BinaryPrimitives.ReadUInt32LittleEndian(original.ReadLoader(0x279CC90, 4)), scan.Results.Count);
+        Assert.Equal(original.ReadLoader(0x279CC94, 1)[0], scan.Results.Empty);
+        Assert.Equal(original.ReadLoader(0x1D2A278, 1)[0], scan.Results.Cursor);
+        Assert.Equal(BinaryPrimitives.ReadUInt16LittleEndian(original.ReadLoader(0x269D93A, 2)), scan.Complete269D93A);
 
         void Check(NativeBattleScanByteOwner owner, uint address, int length)
         {

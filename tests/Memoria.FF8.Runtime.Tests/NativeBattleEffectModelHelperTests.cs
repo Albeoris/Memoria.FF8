@@ -70,7 +70,7 @@ public sealed class NativeBattleEffectModelHelperTests
 
     private static NativeBattleGraphicsModel Model(int index, NativeBattleVector position, short angle)
     {
-        return new(index, 3) { ModelId4 = (byte)index, Rotation12 = 0, Rotation14 = 0, Rotation16 = 0, Transform = new(position, position, 0, angle, 16384), SequenceState = new() { Pose = 0, PoseFrame114 = 1 } };
+        return new(index, 3) { ScaleVectorAddress48 = 0, ModelId4 = (byte)index, Rotation12 = 0, Rotation14 = 0, Rotation16 = 0, Transform = new(position, position, 0, angle, 16384), SequenceState = new() { Pose = 0, PoseFrame114 = 1 } };
     }
 
     private static NativeBattleModulePoolTask Task() => NativeBattleEffectTaskPool.Initialize(0x2000, 0x1000, 100, 1).Slots[0];

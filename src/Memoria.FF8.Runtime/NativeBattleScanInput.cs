@@ -88,6 +88,18 @@ public sealed record NativeBattleScanInputBank([property: JsonRequired] Immutabl
         return device.ReadWord(record + 2);
     }
 
+    public ushort Read49EDE0(int port, int historyOffset)
+    {
+        (NativeBattleScanByteOwner device, int record) = Select(port, historyOffset);
+        return device.ReadWord(record + 0x10);
+    }
+
+    public ushort Read49ED80(int port, int historyOffset)
+    {
+        (NativeBattleScanByteOwner device, int record) = Select(port, historyOffset);
+        return (ushort)(device.ReadWord(record + 8) | device.ReadWord(record + 0x0A) | device.ReadWord(record + 0x0C) | device.ReadWord(record + 0x0E));
+    }
+
     public int Read49F0A0(int port, int axis, int historyOffset)
     {
         (NativeBattleScanByteOwner device, int record) = Select(port, historyOffset);

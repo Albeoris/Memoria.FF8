@@ -9,6 +9,8 @@ public sealed record NativeBattleModelTransform(NativeBattleVector Initial20, Na
     public short Scale154 { get; init; } = 4096;
 }
 
+public readonly record struct NativeBattleModelScaleVector(int X, int Y, int Z);
+
 /// <summary>508C90 bone matrices and502170/571400 model anchors, with native WORD stores and biased-double matrix conversion.</summary>
 public static partial class NativeBattlePoseMatrices
 {
@@ -153,12 +155,13 @@ public static partial class NativeBattlePoseMatrices
         return result;
     }
 
-    private static Matrix ModelMatrix(NativeBattleGraphicsModel model, NativeBattleModelTransform transform, Matrix root)
+    private static Matrix ModelMatrix(NativeBattleGraphicsModel model, NativeBattleModelTransform transform, Matrix root, NativeBattleModelScaleVector? pointedScale)
     {
         Matrix rotation = Rotation(new(model.Rotation12 ?? throw new NotSupportedException("Native model lacks rotationWORD12."), model.Rotation14 ?? throw new NotSupportedException("Native model lacks rotationWORD14."), model.Rotation16 ?? throw new NotSupportedException("Native model lacks rotationWORD16.")));
         int[] scale = [transform.Scale154 * transform.Scale148.X >> 12, transform.Scale154 * transform.Scale148.Y >> 12, transform.Scale154 * transform.Scale148.Z >> 12];
         var (beforeX, _, beforeZ) = ApplyRounded(rotation, root.X, root.Y, root.Z);
-        Matrix scaled = Scale(rotation, scale);
+        Matrix scaled = pointedScale is { } vector ? Scale(rotation, [vector.X, vector.Y, vector.Z]) : rotation;
+        scaled = Scale(scaled, scale);
         var (afterX, _, afterZ) = ApplyRounded(scaled, root.X, root.Y, root.Z);
         return scaled with { X = unchecked(transform.Position28.X + beforeX - afterX), Y = unchecked(transform.Position28.Y + transform.Vertical34), Z = unchecked(transform.Position28.Z + beforeZ - afterZ) };
     }

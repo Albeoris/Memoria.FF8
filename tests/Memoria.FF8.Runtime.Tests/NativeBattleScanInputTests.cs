@@ -6,6 +6,19 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleScanInputTests
 {
     [Fact]
+    public void Ui_edges_and_repeat_read_the_selected_history_lanes_without_status_or_held_reads()
+    {
+        NativeBattleScanByteOwner selector = Unknown(196).WriteByte(0xC2, 2);
+        int record = 0x1C + 7 * 20;
+        NativeBattleScanByteOwner device = Unknown(196).WriteByte(0x18, 0).WriteWord(record + 0x10, 0x8001).WriteWord(record + 8, 0x0100).WriteWord(record + 0x0A, 0x0200).WriteWord(record + 0x0C, 0x0400).WriteWord(record + 0x0E, 0x0800);
+        NativeBattleScanInputBank bank = new([Unknown(196), selector, device]);
+        Assert.Equal((ushort)0x8001, bank.Read49EDE0(-1, 1));
+        Assert.Equal((ushort)0x0F00, bank.Read49ED80(3, 9));
+        Assert.Throws<NotSupportedException>(() => bank.Read49ED30(1, 1));
+        Assert.Throws<NotSupportedException>(() => bank.Read49EDE0(1, 0));
+    }
+
+    [Fact]
     public void Raw_reader_selects_physical_device_and_wraps_history_without_status_or_button_mapping()
     {
         NativeBattleScanByteOwner selector = Unknown(196).WriteByte(0xC2, 2);

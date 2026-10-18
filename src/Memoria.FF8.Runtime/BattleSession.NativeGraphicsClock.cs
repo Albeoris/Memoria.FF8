@@ -320,7 +320,7 @@ public sealed partial class BattleSession
             if (definition.NativeGraphics?.PrimitiveTables is not null && (model.Flags0 & 2) != 0)
             {
                 NativeBattleGraphicsResource matrixResource = NativeGraphicsPoseResource(graphics with { Models = models.SetItem(index, model) }, index);
-                model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, matrixResource.PoseSource ?? throw new NotSupportedException("Native502AB0 requires its actual body skeleton source.")) };
+                model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, matrixResource.PoseSource ?? throw new NotSupportedException("Native502AB0 requires its actual body skeleton source."), ReadNativeModelScaleVector502AB0(graphics, model)) };
             }
             models = models.SetItem(index, model);
         }

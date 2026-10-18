@@ -6,6 +6,28 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattlePoseTests
 {
     [Fact]
+    public void Model_scale_pointer_compounds_two_word_truncations_and_requires_its_live_vector()
+    {
+        NativeBattleGraphicsModel model = new(0, 3)
+        {
+            ScaleVectorAddress48 = 0x269D008,
+            ModelId4 = 0,
+            Rotation12 = 0,
+            Rotation14 = 512,
+            Rotation16 = 0,
+            Transform = new(new(100, 200, 300), new(100, 200, 300), 0, 0, 4096) { Scale148 = new(4095, 4096, 4096) },
+            SequenceState = new() { Pose = 0, PoseFrame114 = 1 }
+        };
+        model = NativeBattleBodyBoneMatrices.Publish508C90(model, Source());
+        Assert.Throws<NotSupportedException>(() => NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, Source()));
+        NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, Source(), new(8191, 4096, 4096));
+        Assert.Equal((short)5789, matrix.Rotation[0]);
+        Assert.NotEqual((short)5790, matrix.Rotation[0]);
+        Assert.Throws<NotSupportedException>(() => NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model with { ScaleVectorAddress48 = 0 }, Source(), new(4096, 4096, 4096)));
+        Assert.Throws<NotSupportedException>(() => NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model with { ScaleVectorAddress48 = null }, Source()));
+    }
+
+    [Fact]
     public void Slow_pose_replays_each_half_delta_with_signed_truncation_instead_of_interpolating_absolute_frames()
     {
         NativeBattlePoseSource source = Source();
@@ -26,7 +48,7 @@ public sealed class NativeBattlePoseTests
     [InlineData(2048, 84, 152, 118)]
     public void Native_anchor_uses_header_aliases_parent_lengths_world_rotation_and_model_scale(short yaw, short x, short y, short z)
     {
-        NativeBattleGraphicsModel model = new(0, 3) { ModelId4 = 0, Rotation12 = 0, Rotation14 = yaw, Rotation16 = 0, Transform = new(new(100, 200, 300), new(100, 200, 300), 0, 0, 16384), SequenceState = new() { Pose = 0, PoseFrame114 = 1 } };
+        NativeBattleGraphicsModel model = new(0, 3) { ScaleVectorAddress48 = 0, ModelId4 = 0, Rotation12 = 0, Rotation14 = yaw, Rotation16 = 0, Transform = new(new(100, 200, 300), new(100, 200, 300), 0, 0, 16384), SequenceState = new() { Pose = 0, PoseFrame114 = 1 } };
 
         model = NativeBattleBodyBoneMatrices.Publish508C90(model, Source());
         model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, Source()) };
@@ -54,7 +76,7 @@ public sealed class NativeBattlePoseTests
     [InlineData(1, false, 126, 172, 662)]
     public void Actor_relative_camera_uses_the_model_or_aliased_bone_basis_and_mirrors_only_local_X(byte alias, bool mirror, short x, short y, short z)
     {
-        NativeBattleGraphicsModel model = new(0, 3) { ModelId4 = 0, Rotation12 = 0, Rotation14 = 0, Rotation16 = 0, Transform = new(new(100, 200, 300), new(100, 200, 300), 0, 0, 2048), SequenceState = new() { Pose = 0, PoseFrame114 = 1 } };
+        NativeBattleGraphicsModel model = new(0, 3) { ScaleVectorAddress48 = 0, ModelId4 = 0, Rotation12 = 0, Rotation14 = 0, Rotation16 = 0, Transform = new(new(100, 200, 300), new(100, 200, 300), 0, 0, 2048), SequenceState = new() { Pose = 0, PoseFrame114 = 1 } };
 
         model = NativeBattleBodyBoneMatrices.Publish508C90(model, Source());
         model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, Source()) };
@@ -64,7 +86,7 @@ public sealed class NativeBattlePoseTests
     [Fact]
     public void BoneAndCameraReadRetainedMatrixUntilTheActualModelPublisherRuns()
     {
-        NativeBattleGraphicsModel model = new(0, 3) { ModelId4 = 0, Rotation12 = 0, Rotation14 = 0, Rotation16 = 0, Transform = new(new(100, 200, 300), new(100, 200, 300), 0, 0, 2048), SequenceState = new() { Pose = 0, PoseFrame114 = 1 } };
+        NativeBattleGraphicsModel model = new(0, 3) { ScaleVectorAddress48 = 0, ModelId4 = 0, Rotation12 = 0, Rotation14 = 0, Rotation16 = 0, Transform = new(new(100, 200, 300), new(100, 200, 300), 0, 0, 2048), SequenceState = new() { Pose = 0, PoseFrame114 = 1 } };
         Assert.Throws<NotSupportedException>(() => NativeBattlePoseMatrices.ReadBone(model, Source(), 240, 0));
         model = NativeBattleBodyBoneMatrices.Publish508C90(model, Source());
         model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, Source()) };

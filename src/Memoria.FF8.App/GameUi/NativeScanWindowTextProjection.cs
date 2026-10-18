@@ -6,6 +6,8 @@ namespace Memoria.FF8.GameUi;
 internal sealed record NativeScanTextLine(DialogueLine Line, int X, int Y);
 internal sealed record NativeScanWindowText(int Index, NativeBattleScanRect Outer, NativeBattleScanRect Inner, ushort Progress, ushort Intensity, byte Priority, IReadOnlyList<NativeScanTextLine> Lines)
 {
+    public required NativeBattleScanRect OriginalRectangle { get; init; }
+    public required byte BackendFlags38 { get; init; }
     public DialogueDocument Document => new([new DialoguePage(Lines.Select(line => line.Line).ToArray())]);
 }
 
@@ -85,7 +87,11 @@ internal static class NativeScanWindowTextProjection
                 lineIndex++;
                 y += 16;
             }
-            windows.Add(new(index, Rect(backend, 0x18), Rect(backend, 0x24), row.ReadWord(0x1C), row.ReadWord(0x1A), backend.ReadByte(0x37), lines));
+            windows.Add(new(index, Rect(backend, 0x18), Rect(backend, 0x24), row.ReadWord(0x1C), row.ReadWord(0x1A), backend.ReadByte(0x37), lines)
+            {
+                OriginalRectangle = Rect(row, 0),
+                BackendFlags38 = backend.ReadByte(0x38)
+            });
         }
         return windows;
     }

@@ -11,6 +11,15 @@ public sealed record NativeBattleScanProcess([property: JsonRequired] NativeBatt
     [JsonRequired]
     public NativeBattleScanPresentationMemory Presentation { get; init; } = NativeBattleScanPresentationMemory.FromColdProcess();
 
+    [JsonRequired]
+    public NativeBattleScanByteOwner Mouse1D2B2E0 { get; init; } = Known(16);
+
+    [JsonRequired]
+    public NativeBattleScanResultMemory Results { get; init; } = NativeBattleScanResultMemory.FromColdProcess();
+
+    [JsonRequired]
+    public ushort Complete269D93A { get; init; }
+
     public static NativeBattleScanProcess FromColdProcess() => new(null, new(new([Known(196), Known(196)]), [Known(36), Known(36)], Known(4), Known(12)), 0, false, Known(48));
 
     public void Validate()
@@ -19,6 +28,8 @@ public sealed record NativeBattleScanProcess([property: JsonRequired] NativeBatt
         InteractiveInput269AAA8.RequireLength(48);
         Text.Validate();
         Presentation.Validate();
+        Mouse1D2B2E0.RequireLength(16);
+        Results.Validate();
     }
 
     private static NativeBattleScanByteOwner Known(int length) => new(new byte[length].ToImmutableArray(), Enumerable.Repeat(true, length).ToImmutableArray());

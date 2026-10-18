@@ -10,6 +10,8 @@ public sealed partial record NativeBattleGraphicsModel(int Index, ushort Flags0)
     public byte? EffectCounter97 { get; init; }
     public uint? Color40 { get; init; }
     public uint? Color44 { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public uint? ScaleVectorAddress48 { get; init; }
     public NativeBattleEffectLocalBounds? GeometryBounds52 { get; init; }
     public short? MinimumY146 { get; init; }
     public byte? CameraSequence130 { get; init; }
@@ -73,7 +75,7 @@ public static class NativeBattleGraphicsModels
             }
         }
         //5027D0 copies resourceDWORD100 to originalDWORD104, ending any temporary magic-resource override.
-        return model with { CurrentBodyBoneMatrices = null, Flags0 = 3, Flags2 = 4, ModelId4 = modelId, Kind5 = 0, Phase6 = null, Alpha7 = null, MinimumY146 = 0, CameraSequence130 = (byte)(frame % 6), CameraAccumulator131 = (byte)appearance, HasLinkedModelRing140 = false, LinkedModelIndex140 = null, BlinkCountdown144 = (byte)(blink % 45 + 15), SequenceByte145 = sequenceByte145, Flags8 = projectedStatusFlags, Flags8KnownMask = 0, Flags8KnownBits = 0, StatusTimers = timers, Rotation12 = 0, Rotation14 = model.Index >= 3 ? (short)2048 : (short)0, Rotation16 = 0, ResourceFlags44 = 1, ResourceMagicId = null, Sequence = 8, SequenceFrame = 0 };
+        return model with { CurrentBodyBoneMatrices = null, ScaleVectorAddress48 = 0, Flags0 = 3, Flags2 = 4, ModelId4 = modelId, Kind5 = 0, Phase6 = null, Alpha7 = null, MinimumY146 = 0, CameraSequence130 = (byte)(frame % 6), CameraAccumulator131 = (byte)appearance, HasLinkedModelRing140 = false, LinkedModelIndex140 = null, BlinkCountdown144 = (byte)(blink % 45 + 15), SequenceByte145 = sequenceByte145, Flags8 = projectedStatusFlags, Flags8KnownMask = 0, Flags8KnownBits = 0, StatusTimers = timers, Rotation12 = 0, Rotation14 = model.Index >= 3 ? (short)2048 : (short)0, Rotation16 = 0, ResourceFlags44 = 1, ResourceMagicId = null, Sequence = 8, SequenceFrame = 0 };
     }
 
     private static byte InitializeSequenceByte145(byte information246)

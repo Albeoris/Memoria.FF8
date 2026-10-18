@@ -32,11 +32,16 @@ public static partial class NativeBattlePoseMatrices
         return NativeBattleBodyBoneMatrices.Compose5095B0(model, new(basis.Rotation.ToImmutableArray(), basis.X, basis.Y, basis.Z, 4096));
     }
 
-    public static NativeBattleActionMatrix PublishGeometryWorldMatrix502AB0(NativeBattleGraphicsModel model, NativeBattlePoseSource source)
+    public static NativeBattleActionMatrix PublishGeometryWorldMatrix502AB0(NativeBattleGraphicsModel model, NativeBattlePoseSource source, NativeBattleModelScaleVector? pointedScale = null)
     {
+        uint pointer = model.ScaleVectorAddress48 ?? throw new NotSupportedException("Native502AB0 requires the retained model DWORD30 scale pointer; migrate the named older snapshot explicitly.");
+        if (pointer == 0 && pointedScale is not null || pointer != 0 && pointedScale is null)
+        {
+            throw new NotSupportedException("Native502AB0 requires the actual three DWORD scale values exactly when its model pointer is nonnull.");
+        }
         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native502AB0 requires its model transform WORDs.");
         NativeBattleActionMatrix root = NativeBattleBodyBoneMatrices.Require(model, source)[0];
-        Matrix matrix = ModelMatrix(model, transform, new(root.Rotation.ToArray(), root.X, root.Y, root.Z));
+        Matrix matrix = ModelMatrix(model, transform, new(root.Rotation.ToArray(), root.X, root.Y, root.Z), pointedScale);
         return new(matrix.Rotation.ToImmutableArray(), matrix.X, matrix.Y, matrix.Z, 4096);
     }
 
