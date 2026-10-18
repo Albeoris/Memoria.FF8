@@ -10,6 +10,7 @@ internal sealed record NativeBattleChocoProgramProfile(int TaskBytes, int Worksp
 {
     internal static NativeBattleChocoProgramProfile Choco97 { get; } = new(0x540, 0x4AC, 0x3C0, [0x4AC, 0x44C, 0x170, 0x290]);
     internal static NativeBattleChocoProgramProfile Choco98 { get; } = new(0x864, 0x7D0, 0x168, [0x4AC, 0x44C, 0x170, 0x494, 0x7D0]);
+    internal static NativeBattleChocoProgramProfile Choco99 { get; } = new(0x548, 0x4B4, 0x760, [0x4AC, 0x44C, 0x170, 0xB0, 0x2C, 0x194, 0x30, 0x1E8]);
 }
 
 public static partial class NativeBattleChoco97ProgramDrawing
@@ -21,14 +22,23 @@ public static partial class NativeBattleChoco97ProgramDrawing
 
     internal static NativeBattleModulePoolTask InitializeProfiled(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, ImmutableArray<byte> actorRaw8, NativeBattleChocoProgramProfile profile)
     {
-        RequireTask(task, source, profile);
-        int clearBytes = unchecked((int)task.ReadDword(0x78));
-        if (!profile.ClearOperands.Contains(clearBytes) || actorRaw8.IsDefault || actorRaw8.Length != 8)
+        if (actorRaw8.IsDefault || actorRaw8.Length != 8)
         {
             throw new InvalidDataException("Native Choco program requires its actual workspace size and raw actor origin.");
         }
-        task = Store(task, Workspace(task, profile).Initialize7016B0(source, clearBytes), profile);
+        task = InitializeWorkspaceProfiled(task, source, profile);
         return task.WriteDword(0x1C, BinaryPrimitives.ReadUInt32LittleEndian(actorRaw8.AsSpan())).WriteDword(0x20, BinaryPrimitives.ReadUInt32LittleEndian(actorRaw8.AsSpan().Slice(4))).WriteDword(0x50, 4096).WriteDword(0x54, 4096).WriteDword(0x58, 4096);
+    }
+
+    internal static NativeBattleModulePoolTask InitializeWorkspaceProfiled(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, NativeBattleChocoProgramProfile profile)
+    {
+        RequireTask(task, source, profile);
+        int clearBytes = unchecked((int)task.ReadDword(0x78));
+        if (!profile.ClearOperands.Contains(clearBytes))
+        {
+            throw new InvalidDataException("Native Choco program requires its actual workspace clear operand.");
+        }
+        return Store(task, Workspace(task, profile).Initialize7016B0(source, clearBytes), profile);
     }
 
     public static NativeBattleChoco97ProgramDraw Advance72A720(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozen)
@@ -40,7 +50,13 @@ public static partial class NativeBattleChoco97ProgramDrawing
     {
         RequireTask(task, source, profile);
         RequireScratch(morphScratch, profile);
-        NativeBattleActionMatrix context = NativeBattleSearchProgramDrawing.ComposeContext758D70(task, view);
+        return AdvanceWithExplicitContext(task, source, morphScratch, NativeBattleSearchProgramDrawing.ComposeContext758D70(task, view), projection, colors, frozen, profile);
+    }
+
+    internal static NativeBattleChoco97ProgramDraw AdvanceWithExplicitContext(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozen, NativeBattleChocoProgramProfile profile)
+    {
+        RequireTask(task, source, profile);
+        RequireScratch(morphScratch, profile);
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
         NativeBattleGfAnimationAdvance advanced = Workspace(task, profile).Advance701970(source, unchecked((int)frozen), (current, node) =>
