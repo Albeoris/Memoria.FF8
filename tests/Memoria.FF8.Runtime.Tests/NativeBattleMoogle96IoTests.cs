@@ -41,7 +41,7 @@ public sealed class NativeBattleMoogle96IoTests
     }
 
     [Fact]
-    public void File_copy_enforces_declared_identity_and_keeps_busy_cursor_task_and_upload_queue_separate()
+    public void File_copy_enforces_file_identity_and_actual_buffer_extent_and_keeps_busy_cursor_task_and_upload_queue_separate()
     {
         NativeBattleMoogle96IoState state = NativeBattleMoogle96Io.ReleaseWait733A80(NativeBattleMoogle96Io.Initialize7322A0(Script(), Buffer).State).State;
         NativeBattleMoogle96IoAdvance begun = NativeBattleMoogle96Io.Advance732390(Task(), state);
@@ -49,7 +49,12 @@ public sealed class NativeBattleMoogle96IoTests
         NativeBattleFileIoState queue = NativeBattleFileIoState.FromColdProcess();
         NativeBattleEffectFileAsset file = new(438, "fixture", Enumerable.Repeat((byte)0xA5, 16).ToImmutableArray());
         Assert.Throws<InvalidDataException>(() => NativeBattleMoogle96Io.CopyAndQueueFile(begun.State, memory, queue, file with { FileId = 439 }));
-        Assert.Throws<InvalidDataException>(() => NativeBattleMoogle96Io.CopyAndQueueFile(begun.State, memory, queue, file with { Data = [0] }));
+        Assert.Throws<InvalidDataException>(() => NativeBattleMoogle96Io.CopyAndQueueFile(begun.State, memory, queue, file with { Data = [] }));
+        Assert.Throws<NotSupportedException>(() => NativeBattleMoogle96Io.CopyAndQueueFile(begun.State, memory, queue, file with { Data = new byte[0xA001].ToImmutableArray() }));
+        NativeBattleEffectMemory retained = memory with { Arena = memory.Arena!.Write(0x20001, [0xBC]) };
+        NativeBattleMoogle96IoQueued shorter = NativeBattleMoogle96Io.CopyAndQueueFile(begun.State, retained, queue, file with { Data = [0] });
+        Assert.Equal(new byte[] { 0, 0xBC }, shorter.Memory.Arena!.Read(0x20000, 2));
+        Assert.Equal((int?)1, shorter.FileIo.Rows[0].FileResult);
         NativeBattleMoogle96IoQueued copied = NativeBattleMoogle96Io.CopyAndQueueFile(begun.State, memory, queue, file);
         Assert.Equal(file.Data.ToArray(), copied.Memory.Arena!.Read(0x20000, 16));
         Assert.Equal(0, copied.Memory.Textures!.Count);
