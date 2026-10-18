@@ -12,13 +12,15 @@ public sealed partial class TripleTriadController
     private readonly int[] opponent;
     private readonly List<int> deck = [];
     private readonly int[] available;
+    private int[][] recentDecks = [];
+    private bool completingRecentDeck;
     private UiView? view;
     private Action<int[]>? tradeCompleted;
     private readonly List<int> tradeSelection = [];
     private Action? acceptRules;
     private Action? cancelRules;
 
-    public TripleTriadController(IReadOnlyList<TripleTriadCard> definitions, IReadOnlyDictionary<int, int> collection, IReadOnlyList<int> opponent, Func<int, string> name, TripleTriadRules rules = TripleTriadRules.Open)
+    public TripleTriadController(IReadOnlyList<TripleTriadCard> definitions, IReadOnlyDictionary<int, int> collection, IReadOnlyList<int> opponent, Func<int, string> name, TripleTriadRules rules = TripleTriadRules.Open, IReadOnlyList<int[]>? recentDecks = null)
     {
         ArgumentNullException.ThrowIfNull(definitions);
         ArgumentNullException.ThrowIfNull(collection);
@@ -34,6 +36,7 @@ public sealed partial class TripleTriadController
         {
             throw new ArgumentException("Triple Triad requires five available player cards and a complete opponent hand.");
         }
+        SetRecentDecks(recentDecks ?? []);
         // Validate the supplied opponent without consuming any collection or random state.
         if (this.opponent.Length == 5)
         {
@@ -47,7 +50,13 @@ public sealed partial class TripleTriadController
     public TripleTriadRules Rules { get; }
     public TripleTriadMatch? Match { get; private set; }
     public int Selection { get; private set; }
-    public int SelectionPage => Selection / CardsPerPage;
+    public IReadOnlyList<int[]> RecentDecks => recentDecks;
+    public int RecentDeckSelection { get; private set; } = -1;
+    private int FirstPageCardCount => CardsPerPage - recentDecks.Length;
+    public int SelectionPage => Selection < FirstPageCardCount ? 0 : 1 + (Selection - FirstPageCardCount) / CardsPerPage;
+    public int SelectionPageCount => 1 + (Math.Max(0, available.Length - FirstPageCardCount) + CardsPerPage - 1) / CardsPerPage;
+    public int FirstVisibleCard => SelectionPage == 0 ? 0 : FirstPageCardCount + (SelectionPage - 1) * CardsPerPage;
+    public int VisibleCardCount => Math.Min(SelectionPage == 0 ? FirstPageCardCount : CardsPerPage, available.Length - FirstVisibleCard);
     public int SelectedHand { get; private set; }
     public int SelectedCell { get; private set; }
     public bool ChoosingCell { get; private set; }
@@ -62,27 +71,75 @@ public sealed partial class TripleTriadController
     public Action<TripleTriadMatch>? RestartDraw { get; set; }
     public Action<int>? RuleChoiceRequested { get; set; }
     public float PromptFade { get; set; }
-    public string Message { get; private set; } = "Choose five cards. Confirm adds; Cancel removes the last choice.";
+    public string Message { get; private set; } = "Choose five cards. Cancel removes the last choice.";
+    public event Action<int[]>? DeckConfirmed;
     public event Action? Changed;
     public event Action? CompletionRequested;
 
     public int Remaining(int id) => collection.GetValueOrDefault(id) - deck.Count(card => card == id);
     public TripleTriadCard Card(int id) => definitions.Single(card => card.Id == id);
 
-    public void ChooseCard(int id)
+    public void SetRecentDecks(IReadOnlyList<int[]> decks)
     {
-        if (AwaitingRules || Match is not null || !available.Contains(id) || Remaining(id) <= 0)
+        ArgumentNullException.ThrowIfNull(decks);
+        recentDecks = decks.Where(hand => hand is { Length: 5 } && hand.All(id => definitions.Any(card => card.Id == id))).Take(3).Select(hand => hand.ToArray()).ToArray();
+        RecentDeckSelection = recentDecks.Length > 0 && SelectionPage == 0 ? 0 : -1;
+    }
+
+    public bool IsRecentDeckCardAvailable(int deckIndex, int slot)
+    {
+        int[] hand = recentDecks[deckIndex];
+        int id = hand[slot];
+        return hand.Take(slot + 1).Count(card => card == id) <= collection.GetValueOrDefault(id);
+    }
+
+    public void ChooseDeck(int index)
+    {
+        if (AwaitingRules || Match is not null || (uint)index >= recentDecks.Length)
         {
             return;
         }
-        deck.Add(id);
+        deck.Clear();
+        for (int slot = 0; slot < 5; slot++)
+        {
+            if (IsRecentDeckCardAvailable(index, slot))
+            {
+                deck.Add(recentDecks[index][slot]);
+            }
+        }
+        Selection = 0;
+        RecentDeckSelection = -1;
+        completingRecentDeck = deck.Count < 5;
         RequestSound(TripleTriadSound.Confirm);
+        CompleteDeckSelection();
+        Changed?.Invoke();
+    }
+
+    private void CompleteDeckSelection()
+    {
         if (deck.Count == 5)
         {
             Match = CreateMatch?.Invoke(deck) ?? TripleTriadMatch.Create(definitions, deck, opponent, Rules);
             SelectFirstHand();
             Message = "Choose a card, then a square.";
+            DeckConfirmed?.Invoke(deck.ToArray());
         }
+        else if (completingRecentDeck)
+        {
+            Message = $"Deck incomplete: choose {5 - deck.Count} more card(s).";
+        }
+    }
+
+    public void ChooseCard(int id)
+    {
+        if (AwaitingRules || Match is not null || deck.Count >= 5 || !available.Contains(id) || Remaining(id) <= 0)
+        {
+            return;
+        }
+        RecentDeckSelection = -1;
+        deck.Add(id);
+        RequestSound(TripleTriadSound.Confirm);
+        CompleteDeckSelection();
         Changed?.Invoke();
     }
 
@@ -157,32 +214,43 @@ public sealed partial class TripleTriadController
         }
         if (Match is null)
         {
-            if (key == UiKey.Up)
+            if (key is UiKey.Up or UiKey.Down)
             {
-                int first = SelectionPage * CardsPerPage;
-                int count = Math.Min(CardsPerPage, available.Length - first);
-                Selection = first + (Selection - first + count - 1) % count;
-            }
-            else if (key == UiKey.Down)
-            {
-                int first = SelectionPage * CardsPerPage;
-                int count = Math.Min(CardsPerPage, available.Length - first);
-                Selection = first + (Selection - first + 1) % count;
+                int historyRows = SelectionPage == 0 ? recentDecks.Length : 0;
+                int row = RecentDeckSelection >= 0 ? RecentDeckSelection : historyRows + Selection - FirstVisibleCard;
+                int count = historyRows + VisibleCardCount;
+                row = (row + (key == UiKey.Up ? count - 1 : 1)) % count;
+                RecentDeckSelection = row < historyRows ? row : -1;
+                if (RecentDeckSelection < 0)
+                {
+                    Selection = FirstVisibleCard + row - historyRows;
+                }
             }
             else if (key is UiKey.Left or UiKey.Right or UiKey.PageUp or UiKey.PageDown)
             {
-                int pages = (available.Length + CardsPerPage - 1) / CardsPerPage;
+                int row = RecentDeckSelection >= 0 ? 0 : Selection - FirstVisibleCard;
                 int pageDirection = key is UiKey.Left or UiKey.PageUp ? -1 : 1;
-                int page = (SelectionPage + pageDirection + pages) % pages;
-                Selection = Math.Min(page * CardsPerPage + Selection % CardsPerPage, available.Length - 1);
+                int page = (SelectionPage + pageDirection + SelectionPageCount) % SelectionPageCount;
+                int first = page == 0 ? 0 : FirstPageCardCount + (page - 1) * CardsPerPage;
+                int count = Math.Min(page == 0 ? FirstPageCardCount : CardsPerPage, available.Length - first);
+                Selection = first + Math.Min(row, count - 1);
+                RecentDeckSelection = -1;
             }
             else if (key == UiKey.Confirm)
             {
-                ChooseCard(available[Selection]);
+                if (RecentDeckSelection >= 0)
+                {
+                    ChooseDeck(RecentDeckSelection);
+                }
+                else
+                {
+                    ChooseCard(available[Selection]);
+                }
             }
             else if (key == UiKey.Cancel && deck.Count > 0)
             {
                 deck.RemoveAt(deck.Count - 1);
+                CompleteDeckSelection();
                 Changed?.Invoke();
             }
             return;

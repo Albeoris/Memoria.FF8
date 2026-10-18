@@ -14,7 +14,8 @@ public enum UiImageKind
     CardElement,
     AngeloPortrait,
     TripleTriadBackground,
-    TripleTriadBoardBackground
+    TripleTriadBoardBackground,
+    CardFaceGrayscale
 }
 
 /// <summary>Stable artwork identity, independent of translated or player-assigned display names.</summary>

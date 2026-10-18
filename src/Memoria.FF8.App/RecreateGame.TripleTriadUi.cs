@@ -36,6 +36,7 @@ internal sealed partial class RecreateGame
         {
             tripleTriadAudio?.Dispose();
             presentedTripleTriad = controller;
+            new TripleTriadDeckHistory(globalSettings.TripleTriadDeckHistoryPath).Connect(controller);
             if (fieldAudio is not null)
             {
                 tripleTriadAudio = new TripleTriadAudioPresentation(fieldAudio, controller);

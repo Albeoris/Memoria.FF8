@@ -179,6 +179,10 @@ public sealed class TripleTriadSelectionViewTests
         Render("match-occupied-cursor");
         controller.BeginTradeSelection([0, 1, 2, 3, 4], 1, _ => throw new InvalidOperationException("Rendering must not settle cards."));
         Render("trade-selection");
+        controller = new TripleTriadController(catalog.Cards, Enumerable.Range(0, 23).ToDictionary(id => id, id => id == 22 ? 2 : 1), [0, 1, 2, 3, 4], catalog.Name, recentDecks: [[22, 22, 22, 21, 109], [20, 19, 18, 17, 16], [15, 14, 13, 12, 11]]);
+        Render("selection-recent-decks");
+        controller.ChooseDeck(0);
+        Render("selection-recent-incomplete");
         Console.WriteLine($"Triple Triad selection original-resource renders: {output}");
 
         void Render(string name)
@@ -190,6 +194,65 @@ public sealed class TripleTriadSelectionViewTests
             view.Draw(canvas, new UiTheme());
             bitmap.Save(Path.Combine(output, name + ".png"), ImageFormat.Png);
         }
+    }
+
+    [Fact]
+    public void RecentDeckKeyboardRowsAndPagesKeepEveryOwnedCardReachable()
+    {
+        TripleTriadController controller = Create();
+        controller.SetRecentDecks([[22, 21, 20, 19, 18], [17, 16, 15, 14, 13], [12, 11, 10, 9, 8]]);
+        Assert.Equal(0, controller.RecentDeckSelection);
+        controller.Navigate(UiKey.Down);
+        Assert.Equal(1, controller.RecentDeckSelection);
+        controller.Navigate(UiKey.Down);
+        Assert.Equal(2, controller.RecentDeckSelection);
+        controller.Navigate(UiKey.Down);
+        Assert.Equal(-1, controller.RecentDeckSelection);
+        Assert.Equal(0, controller.Selection);
+        controller.Navigate(UiKey.Up);
+        Assert.Equal(2, controller.RecentDeckSelection);
+        List<int> cards = [];
+        for (int page = 0; page < controller.SelectionPageCount; page++)
+        {
+            cards.AddRange(controller.Available.Skip(controller.FirstVisibleCard).Take(controller.VisibleCardCount));
+            controller.Navigate(UiKey.PageDown);
+        }
+        Assert.Equal(controller.Available, cards);
+        Assert.Equal(0, controller.SelectionPage);
+        controller.Navigate(UiKey.Up);
+        Assert.Equal(2, controller.RecentDeckSelection);
+        controller.Navigate(UiKey.Confirm);
+        Assert.Equal([12, 11, 10, 9, 8], controller.Deck);
+        Assert.NotNull(controller.Match);
+    }
+
+    [Fact]
+    public void RecentDeckPointerUsesRenderedRowsAndGraysOnlyMissingCopiesOnFirstPage()
+    {
+        TripleTriadController controller = Create();
+        controller.SetRecentDecks([[22, 22, 22, 21, 90], [20, 19, 18, 17, 16], [15, 14, 13, 12, 11]]);
+        UiView view = controller.BuildView();
+        RecordingCanvas canvas = Draw(view);
+        Assert.Equal(["Recent deck 1", "Recent deck 2", "Recent deck 3"], canvas.Texts.Where(line => line.Text.StartsWith("Recent deck", StringComparison.Ordinal)).Select(line => line.Text));
+        var missing = canvas.Images.Where(image => image.Source.Kind == UiImageKind.CardFaceGrayscale).ToArray();
+        Assert.Equal([22, 90], missing.Select(image => image.Source.Id));
+        Assert.Equal(6, canvas.Images.Count(image => image.Source.Kind == UiImageKind.Icon && image.Source.Id == 215));
+        UiRect recent = Assert.Single(canvas.Texts, line => line.Text == "Recent deck 1").Bounds;
+        Click(view, recent);
+        Assert.Equal([22, 22, 21], controller.Deck);
+        Assert.Null(controller.Match);
+        canvas = Draw(view);
+        Assert.Contains(canvas.Texts, line => line.Text.Contains("2 more", StringComparison.Ordinal));
+        controller.Navigate(UiKey.Right);
+        canvas = Draw(view);
+        Assert.DoesNotContain(canvas.Texts, line => line.Text.StartsWith("Recent deck", StringComparison.Ordinal));
+        Assert.DoesNotContain(canvas.Images, image => image.Source.Kind == UiImageKind.CardFaceGrayscale);
+        Assert.Equal(9, canvas.Images.Count(image => image.Source.Kind == UiImageKind.Icon && image.Source.Id == 215));
+        controller.Navigate(UiKey.Left);
+        canvas = Draw(view);
+        Click(view, Assert.Single(canvas.Texts, line => line.Text == "Recent deck 2").Bounds);
+        Assert.Equal([20, 19, 18, 17, 16], controller.Deck);
+        Assert.NotNull(controller.Match);
     }
 
     private static TripleTriadController Create()

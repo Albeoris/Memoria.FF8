@@ -111,6 +111,67 @@ public sealed class TripleTriadControllerTests
         Assert.DoesNotContain("card-mod", menu.SupportedActions);
     }
 
+    [Fact]
+    public void RecentDeckReplacesSelectionCountsCopiesAndAllowsCancelThenCompletion()
+    {
+        Dictionary<int, int> collection = new() { [0] = 2, [1] = 1, [2] = 1, [3] = 1, [4] = 1 };
+        TripleTriadController controller = new(Cards, collection, [5, 6, 7, 8, 9], id => id.ToString(), recentDecks: [[0, 0, 0, 1, 90]]);
+        Assert.True(controller.IsRecentDeckCardAvailable(0, 0));
+        Assert.True(controller.IsRecentDeckCardAvailable(0, 1));
+        Assert.False(controller.IsRecentDeckCardAvailable(0, 2));
+        Assert.False(controller.IsRecentDeckCardAvailable(0, 4));
+        controller.ChooseCard(4);
+        int[]? confirmed = null;
+        controller.DeckConfirmed += hand => confirmed = hand;
+        controller.ChooseDeck(0);
+        Assert.Equal([0, 0, 1], controller.Deck);
+        Assert.Null(controller.Match);
+        Assert.Null(confirmed);
+        Assert.Contains("2 more", controller.Message);
+        controller.Navigate(UiKey.Cancel);
+        Assert.Equal([0, 0], controller.Deck);
+        Assert.Contains("3 more", controller.Message);
+        controller.ChooseCard(1);
+        controller.ChooseCard(2);
+        controller.ChooseCard(3);
+        Assert.NotNull(controller.Match);
+        Assert.Equal([0, 0, 1, 2, 3], confirmed!);
+        Assert.Equal(2, collection[0]);
+    }
+
+    [Fact]
+    public void HistoryConfirmationStartsOnceAndRestoreDoesNotPublishDeck()
+    {
+        TripleTriadController controller = new(Cards, Enumerable.Range(0, 5).ToDictionary(id => id, _ => 1), [5, 6, 7, 8, 9], id => id.ToString(), recentDecks: [[4, 3, 2, 1, 0]]);
+        List<int[]> confirmed = [];
+        controller.DeckConfirmed += hand => confirmed.Add(hand);
+        controller.Navigate(UiKey.Confirm);
+        Assert.NotNull(controller.Match);
+        Assert.Equal([4, 3, 2, 1, 0], Assert.Single(confirmed));
+        controller.ChooseDeck(0);
+        controller.ChooseCard(0);
+        controller.RestoreMatch(controller.Match!);
+        Assert.Single(confirmed);
+        TripleTriadController restored = Create();
+        restored.DeckConfirmed += hand => confirmed.Add(hand);
+        restored.RestoreDeck([0, 1, 2, 3, 4]);
+        restored.RestoreMatch(controller.Match!);
+        Assert.Single(confirmed);
+    }
+
+    [Fact]
+    public void FailedDealDoesNotPublishRecentDeck()
+    {
+        TripleTriadController controller = Create();
+        controller.SetRecentDecks([[0, 1, 2, 3, 4]]);
+        int confirmations = 0;
+        controller.DeckConfirmed += _ => confirmations++;
+        controller.CreateMatch = _ => throw new InvalidOperationException("Unsupported deal.");
+        Assert.Throws<InvalidOperationException>(() => controller.ChooseDeck(0));
+        Assert.Null(controller.Match);
+        Assert.Equal(0, confirmations);
+    }
+
     private static TripleTriadController Create() => new(Cards, Enumerable.Range(0, 5).ToDictionary(id => id, _ => 1), [5, 6, 7, 8, 9], id => id.ToString());
 
     [Fact]

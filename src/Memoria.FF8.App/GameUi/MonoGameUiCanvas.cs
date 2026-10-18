@@ -16,7 +16,11 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
 
     public void PrepareTripleTriad(TripleTriadController controller)
     {
-        PrepareTripleTriadImages(controller.Available.Concat(controller.Match?.InitialHands.SelectMany(hand => hand) ?? []));
+        PrepareTripleTriadImages(controller.Available.Concat(controller.RecentDecks.SelectMany(deck => deck)).Concat(controller.Match?.InitialHands.SelectMany(hand => hand) ?? []));
+        foreach (int id in controller.RecentDecks.SelectMany(deck => deck).Distinct())
+        {
+            _ = GetImage(new UiImageSource(UiImageKind.CardFaceGrayscale, id));
+        }
         float scale = Math.Min(device.Viewport.Width / 960f, device.Viewport.Height / 672f);
         foreach (int id in controller.Available)
         {
@@ -66,9 +70,9 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
 
     private Texture2D GetImage(UiImageSource source)
     {
-        if (source.Kind == UiImageKind.CardFace && cardFontFamily != text.FontFamily)
+        if (source.Kind is UiImageKind.CardFace or UiImageKind.CardFaceGrayscale && cardFontFamily != text.FontFamily)
         {
-            foreach (UiImageSource key in images.Keys.Where(key => key.Kind == UiImageKind.CardFace).ToArray())
+            foreach (UiImageSource key in images.Keys.Where(key => key.Kind is UiImageKind.CardFace or UiImageKind.CardFaceGrayscale).ToArray())
             {
                 images[key].Dispose();
                 images.Remove(key);

@@ -16,7 +16,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory)
     private TripleTriadCatalog? cardDefinitions;
     private CardFaceComposer? cardComposer;
     private string? cardFontFamily;
-    private readonly Dictionary<(int Id, int Owner), PixelImage> cardFaces = [];
+    private readonly Dictionary<(int Id, int Owner, bool Grayscale), PixelImage> cardFaces = [];
 
     public PixelImage Read(UiImageSource source, string fontFamily = SystemFontCatalog.DefaultFamily)
     {
@@ -28,6 +28,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory)
             UiImageKind.Card => (cards ??= CardArtwork.Load(gameDirectory)).GetFront(source.Id),
             UiImageKind.CardElement => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory)).GetElement((TripleTriadElement)source.Id),
             UiImageKind.CardFace => ReadCardFace(source.Id, source.Palette, fontFamily),
+            UiImageKind.CardFaceGrayscale => ReadCardFace(source.Id, source.Palette, fontFamily, grayscale: true),
             UiImageKind.CardBack => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory)).Back,
             UiImageKind.TripleTriadBackground => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory)).Background,
             UiImageKind.TripleTriadBoardBackground => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory)).BoardBackground,
@@ -39,7 +40,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory)
         };
     }
 
-    private PixelImage ReadCardFace(int cardId, int owner, string fontFamily)
+    private PixelImage ReadCardFace(int cardId, int owner, string fontFamily, bool grayscale = false)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(cardId);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(cardId, CardArtwork.CardCount);
@@ -49,15 +50,36 @@ internal sealed class MenuArtworkProvider(string gameDirectory)
             cardFontFamily = fontFamily;
             cardFaces.Clear();
         }
-        if (!cardFaces.TryGetValue((cardId, owner), out PixelImage? image))
+        if (!cardFaces.TryGetValue((cardId, owner, grayscale), out PixelImage? image))
         {
+            if (grayscale)
+            {
+                image = ToGrayscale(ReadCardFace(cardId, owner, fontFamily));
+                cardFaces.Add((cardId, owner, true), image);
+                return image;
+            }
             tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory);
             cardDefinitions ??= TripleTriadCatalog.Load(gameDirectory);
             var card = cardDefinitions.Cards[cardId];
             PixelImage? element = card.Element == TripleTriadElement.None ? null : tripleTriad.GetElement(card.Element);
             image = cardComposer!.Compose(tripleTriad.GetFront(cardId), card, owner, element);
-            cardFaces.Add((cardId, owner), image);
+            cardFaces.Add((cardId, owner, false), image);
         }
         return image;
+    }
+
+    internal static PixelImage ToGrayscale(PixelImage source)
+    {
+        PixelImage result = new(source.Width, source.Height);
+        for (int y = 0; y < source.Height; y++)
+        {
+            for (int x = 0; x < source.Width; x++)
+            {
+                Rgba32 pixel = source[x, y];
+                byte luminance = (byte)((299 * pixel.R + 587 * pixel.G + 114 * pixel.B + 500) / 1000);
+                result[x, y] = new Rgba32(luminance, luminance, luminance, pixel.A);
+            }
+        }
+        return result;
     }
 }

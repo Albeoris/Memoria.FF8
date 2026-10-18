@@ -95,6 +95,7 @@ internal static class TripleTriadPractice
         Dictionary<int, int> collection = saved?.Collection ?? Enumerable.Range(0, 110).ToDictionary(id => id, id => inventory is null ? 1 : Math.Max(0, inventory.AvailableCount(id)));
         int[] opponentHand = saved?.Opponent ?? ParseDeck(opponent);
         TripleTriadController controller = new(catalog.Cards, collection, opponentHand, catalog.Name, saved?.Match.Rules ?? rules);
+        new TripleTriadDeckHistory(new GlobalSettingsPaths().TripleTriadDeckHistoryPath).Connect(controller);
         uint randomState = saved?.RandomState ?? inventory?.TripleTriadRandomState ?? 0;
         controller.ChooseOpponentMove = match =>
         {
