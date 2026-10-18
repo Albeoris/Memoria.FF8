@@ -121,6 +121,10 @@ public sealed partial class BattleSession
                 {
                     graphics = recoverCompleted;
                 }
+                else if (TryWriteNativeCactuarCompletion(graphics, address, value, out NativeBattleGraphicsState cactuarCompleted))
+                {
+                    graphics = cactuarCompleted;
+                }
                 else if (TryWriteNativeMoogleCompletion(graphics, address, value, out NativeBattleGraphicsState moogleCompleted))
                 {
                     graphics = moogleCompleted;

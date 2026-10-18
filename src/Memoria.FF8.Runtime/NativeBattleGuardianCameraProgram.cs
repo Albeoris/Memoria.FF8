@@ -16,6 +16,12 @@ public sealed record NativeBattleGuardianCameraStep(NativeBattleGuardianCameraTa
 /// <summary>63E960/63E9C0's reached paired camera-program contracts over explicit retained owners.</summary>
 public static class NativeBattleGuardianCameraProgram
 {
+    public static NativeBattleGuardianCameraProcess FromColdProcess()
+    {
+        NativeBattleGuardianCameraBank bank = new(0, 0, 0, 0, new(0, 0, 0), new(0, 0, 0), new(0, 0, 0), 0);
+        return new(bank, bank, 0, new(new(0, 0, 0), new(0, 0, 0), null, 0));
+    }
+
     public static NativeBattleGuardianCameraTask Begin63E960(NativeBattleGuardianCameraProcess process, ImmutableArray<byte> program, int randomDivisor, Func<int>? random = null)
     {
         ArgumentNullException.ThrowIfNull(process);

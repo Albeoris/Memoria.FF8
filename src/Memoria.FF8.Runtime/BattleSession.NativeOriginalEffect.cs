@@ -53,6 +53,10 @@ public sealed partial class BattleSession
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Native effect invocation requires its actual loaded module entry.");
         _ = effect.Parameters ?? throw new InvalidDataException("Native effect entry lacks its50AFC0 parameter block.");
+        if (effect.Binding.Entry == 0x5A8750)
+        {
+            return RunNativeCactuar199(graphics, true);
+        }
         if (effect.Binding.Entry == 0x731DE0)
         {
             return EnterNativeMoogle731DE0(graphics);
