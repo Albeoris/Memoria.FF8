@@ -1,0 +1,293 @@
+using System.Collections.Immutable;
+
+namespace Memoria.FF8.Runtime;
+
+public sealed record NativeBattleGilgameshFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
+public abstract record NativeBattleGilgameshOperation;
+public sealed record NativeBattleGilgameshPackets(NativeBattleGfGeometryBatch Batch) : NativeBattleGilgameshOperation;
+public sealed record NativeBattleGilgameshSprites(NativeBattleModulePacketBatch Batch) : NativeBattleGilgameshOperation;
+public sealed record NativeBattleGilgameshService(NativeBattleGilgameshDirectorOperation Operation) : NativeBattleGilgameshOperation;
+public sealed record NativeBattleGilgameshContacts(int First, int Count) : NativeBattleGilgameshOperation;
+public sealed record NativeBattleGilgameshCameraPublish(NativeBattleGuardianCameraStep Step) : NativeBattleGilgameshOperation;
+public sealed record NativeBattleGilgameshTextureLoad(uint CompletionAddress) : NativeBattleGilgameshOperation;
+public sealed record NativeBattleGilgameshPcRequest(int Mode) : NativeBattleGilgameshOperation;
+public sealed record NativeBattleGilgameshInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short Dqa, int Dqb, NativeBattleSummonColors Colors, Func<byte, NativeBattleModuleAnchor> ReadAnchor571400, Func<int> Pending508500, Func<NativeBattleCameraPose> ReadCameraPose, Func<NativeBattleGilgameshFrame, NativeBattleGilgameshOperation, NativeBattleGilgameshFrame> Execute);
+
+public static partial class NativeBattleGilgameshController
+{
+    public static NativeBattleGilgameshFrame Initialize58DCF0(NativeBattleGilgameshFrame frame, NativeBattleActionPacketsState packets, ImmutableArray<NativeBattleGraphicsModel> models)
+    {
+        NativeBattleGilgameshProcess retained = frame.Memory.Gilgamesh ?? throw new NotSupportedException("Native Gilgamesh requires its retained process model owners; explicitly migrate a needed snapshot.");
+        retained.Validate();
+        NativeBattleGilgameshEntryStep initialized = NativeBattleGilgameshEntry.Initialize58DCF0(frame.Memory, frame.Effect, packets, models);
+        return frame with { Memory = initialized.Memory with { Gilgamesh = retained with { Entry = initialized.State } }, Effect = initialized.Effect };
+    }
+
+    public static NativeBattleGilgameshFrame Advance596B70(NativeBattleGilgameshFrame frame, NativeBattleGilgameshEffectResources resources, NativeBattleGilgameshInputs inputs)
+    {
+        Execution execution = new(frame, resources, inputs);
+        NativeBattleGuardianPoolStep step = NativeBattleGilgameshScheduler.Advance(Pools(frame.Effect), (pools, descriptor, slot) =>
+        {
+            execution.Frame = execution.Frame with { Effect = execution.Frame.Effect with { Pools = [pools.Main, pools.Children, pools.Particles!] } };
+            NativeBattleEffectTaskPool pool = execution.Frame.Effect.Pools.Single(current => current.DescriptorAddress == descriptor);
+            int result = execution.Advance(checked(pool.BankAddress + (uint)(slot * pool.Stride)));
+            return new(Pools(execution.Frame.Effect), result);
+        });
+        return execution.Frame with { Effect = execution.Frame.Effect with { Pools = [step.Pools.Main, step.Pools.Children, step.Pools.Particles!], ReturnedDescriptor = step.Survivors == 0 ? 0 : step.Pools.Main.DescriptorAddress } };
+    }
+
+    private static NativeBattleGuardianEffectPools Pools(NativeBattleOriginalEffectState effect)
+    {
+        if (effect.Binding.Entry != 0x58DCF0 || effect.Pools.IsDefault || effect.Pools.Length != 3)
+        {
+            throw new InvalidDataException("Native Gilgamesh requires its executed Excalipoor entry and three raw task banks.");
+        }
+        return new(effect.Pools[0], effect.Pools[1], effect.Pools[2]);
+    }
+
+    private sealed partial class Execution(NativeBattleGilgameshFrame frame, NativeBattleGilgameshEffectResources resources, NativeBattleGilgameshInputs inputs)
+    {
+        public NativeBattleGilgameshFrame Frame { get; set; } = frame;
+        private NativeBattleGilgameshProcess Shared => Frame.Memory.Gilgamesh ?? throw new NotSupportedException("Native Gilgamesh requires its retained process.");
+        private NativeBattleActionMatrix World => Shared.Entry?.World ?? throw new NotSupportedException("Native Gilgamesh requires its executed entry world matrix.");
+        private NativeBattleActionMatrix WorldView => Shared.WorldView ?? throw new NotSupportedException("Native Gilgamesh requires its current published world-view matrix.");
+        private NativeBattleEffectArena Arena => Frame.Memory.Arena ?? throw new NotSupportedException("Native Gilgamesh requires its current arena.");
+        private NativeBattleEffectParameters Parameters => Frame.Effect.Parameters ?? throw new NotSupportedException("Native Gilgamesh requires its current action parameters.");
+        private NativeBattleActionHeaderSlot Header => inputs.Packets.Headers[Parameters.HeaderIndex7C];
+        private NativeBattleEffectTaskPool Children => Frame.Effect.Pools[1];
+        private bool Paused => (inputs.GraphicsFlags & 0x201) != 0;
+
+        private void SetShared(NativeBattleGilgameshProcess state) => Frame = Frame with { Memory = Frame.Memory with { Gilgamesh = state } };
+        private void SetChildren(NativeBattleEffectTaskPool pool) => Frame = Frame with { Effect = Frame.Effect with { Pools = Frame.Effect.Pools.SetItem(1, pool) } };
+        private void Emit(NativeBattleGilgameshOperation operation) => Frame = inputs.Execute(Frame, operation);
+
+        private (int Pool, int Slot) Locate(uint address)
+        {
+            for (int index = 0; index < Frame.Effect.Pools.Length; index++)
+            {
+                NativeBattleEffectTaskPool pool = Frame.Effect.Pools[index];
+                uint offset = unchecked(address - pool.BankAddress);
+                if (offset < pool.Slots.Length * pool.Stride && offset % pool.Stride == 0)
+                {
+                    return (index, (int)(offset / pool.Stride));
+                }
+            }
+            throw new InvalidDataException("Native Gilgamesh callback address leaves its physical raw banks.");
+        }
+
+        private NativeBattleModulePoolTask Read(uint address)
+        {
+            (int pool, int slot) = Locate(address);
+            return Frame.Effect.Pools[pool].Slots[slot];
+        }
+
+        private void Write(uint address, NativeBattleModulePoolTask task)
+        {
+            (int index, int slot) = Locate(address);
+            NativeBattleEffectTaskPool pool = Frame.Effect.Pools[index];
+            Frame = Frame with { Effect = Frame.Effect with { Pools = Frame.Effect.Pools.SetItem(index, pool with { Slots = pool.Slots.SetItem(slot, task) }) } };
+        }
+
+        private uint Append(uint callback, bool particle = false)
+        {
+            int index = particle ? 2 : 1;
+            NativeBattleEffectTaskPool pool = Frame.Effect.Pools[index];
+            int slot;
+            (pool, slot) = pool.Append(callback);
+            pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, 0).WriteWord(14, 0)) };
+            Frame = Frame with { Effect = Frame.Effect with { Pools = Frame.Effect.Pools.SetItem(index, pool) } };
+            return checked(pool.BankAddress + (uint)(slot * pool.Stride));
+        }
+
+        public int Advance(uint address)
+        {
+            NativeBattleModulePoolTask task = Read(address);
+            switch (task.Callback)
+            {
+                case 0x592300:
+                    NativeBattleGilgameshDirectorStep director = NativeBattleGilgameshDirector.Advance592300(task, new(inputs.GraphicsFlags, () => SetShared(Shared with { WorldView = NativeBattleGfMatrices.Compose56C2F0(inputs.Projection.View ?? throw new NotSupportedException("Native Gilgamesh requires its current camera view."), World) }), inputs.Pending508500, Director));
+                    Write(address, director.Task);
+                    return director.Result;
+                case 0x63E9C0:
+                    NativeBattleGuardianCameraTask camera = Shared.CameraTask ?? throw new NotSupportedException("Native Gilgamesh requires its current camera task.");
+                    NativeBattleGuardianCameraStep cameraStep = NativeBattleGuardianCameraProgram.Advance63E9C0(camera, World, inputs.ReadCameraPose(), (inputs.GraphicsFlags & 1) != 0);
+                    SetShared(Shared with { CameraTask = cameraStep.Task });
+                    Write(address, task.WriteWord(12, cameraStep.Task.Frame).WriteDword(20, checked(0xCD0874u + (uint)cameraStep.Task.Offset)));
+                    Emit(new NativeBattleGilgameshCameraPublish(cameraStep));
+                    return cameraStep.Result;
+                case 0x592BC0:
+                    NativeBattleGilgameshFlashStep flash = NativeBattleGilgameshFlash.Step592BC0(task, inputs.GraphicsFlags);
+                    Write(address, flash.UpdatedTask);
+                    Emit(new NativeBattleGilgameshPackets(flash.Batch));
+                    return flash.Result;
+                case 0x592E90:
+                case 0x592F90:
+                case 0x5930C0:
+                    NativeBattleGilgameshOpeningStep opening = NativeBattleGilgameshOpening.Step(task, resources.Opening, WorldView, inputs.Projection, inputs.GraphicsFlags, inputs.Colors);
+                    Write(address, opening.UpdatedTask);
+                    Emit(new NativeBattleGilgameshPackets(opening.Batch));
+                    return opening.Result;
+                case 0x591470:
+                    NativeBattleGilgameshFlareStep flare = NativeBattleGilgameshFlare.Step591470(task, resources.Flare, inputs.Projection, inputs.GraphicsFlags);
+                    Write(address, flare.UpdatedTask);
+                    Emit(new NativeBattleGilgameshPackets(flare.Batch));
+                    return flare.Result;
+                case 0x591F50:
+                    NativeBattleGilgameshFinalRingStep ring = NativeBattleGilgameshFinalRing.Step591F50(task, resources.FinalRing, inputs.Projection.View ?? throw new NotSupportedException("Native ring requires its current view."), inputs.Projection, inputs.GraphicsFlags, inputs.Colors);
+                    Write(address, ring.UpdatedTask);
+                    Emit(new NativeBattleGilgameshPackets(ring.Batch));
+                    return ring.Result;
+                case 0x5920E0:
+                    int first = Header.FirstContactIndex ?? throw new NotSupportedException("Native Excalipoor requires its physical contact pointer.");
+                    int count = Header.ReadByte(16);
+                    ImmutableArray<byte> actors = Enumerable.Range(first, count).Select(index => inputs.Packets.ReadContact(index).Primary.ActorIndex).ToImmutableArray();
+                    NativeBattleGilgameshAttackStep attack = NativeBattleGilgameshExcalipoorAttack.Advance5920E0(task, Children, Frame.Random, inputs.GraphicsFlags, actors, inputs.ReadAnchor571400);
+                    SetChildren(attack.Children);
+                    Write(address, attack.Task);
+                    Frame = Frame with { Random = attack.Random };
+                    if (attack.Contact)
+                    {
+                        Emit(new NativeBattleGilgameshContacts(first, count));
+                    }
+                    return attack.Result;
+                case 0x5915C0:
+                case 0x591850:
+                case 0x591B80:
+                    NativeBattleGilgameshParticleStep particles = NativeBattleGilgameshParticles.Step(task, Arena, Frame.Random, resources.Particles, inputs.Projection.View ?? throw new NotSupportedException("Native Gilgamesh particles require the camera view."), inputs.Projection, inputs.GraphicsFlags);
+                    return PublishParticles(address, particles);
+                case 0x593770:
+                case 0x5939C0:
+                    NativeBattleGilgameshParticleStep common = NativeBattleGilgameshCommonParticles.Step(task, Arena, Frame.Random, resources.CommonParticles, WorldView, inputs.Projection, inputs.GraphicsFlags);
+                    return PublishParticles(address, common);
+                case 0x593E80:
+                    NativeBattleGilgameshPointStep points = NativeBattleGilgameshPointBurst.Step593E80(task, Arena, Frame.Random, resources.Points, inputs.GraphicsFlags, point => NativeBattleModuleProjection.Project45FAA0(WorldView, point, inputs.Projection, inputs.Dqa, inputs.Dqb));
+                    Frame = Frame with { Memory = Frame.Memory with { Arena = points.Arena }, Random = points.Random };
+                    Write(address, points.Task);
+                    Emit(new NativeBattleGilgameshPackets(points.Packets));
+                    return points.Result;
+                case 0x593600:
+                case 0x594210:
+                    NativeBattleGilgameshMeshAuxiliaryStep mesh = NativeBattleGilgameshMeshAuxiliaries.Step(task, resources.MeshAuxiliaries, WorldView, inputs.Projection, inputs.GraphicsFlags, inputs.Colors);
+                    Write(address, mesh.UpdatedTask);
+                    Emit(new NativeBattleGilgameshPackets(mesh.Batch));
+                    return mesh.Result;
+                case 0x593C70:
+                    NativeBattleGilgameshNestedAppend nested = NativeBattleGilgameshCommonParticles.Step593C70(task, Children, Frame.Random, inputs.GraphicsFlags);
+                    SetChildren(nested.Pool);
+                    Frame = Frame with { Random = nested.Random };
+                    Write(address, nested.UpdatedTask);
+                    return nested.Result;
+                case 0x593D20:
+                    NativeBattleGilgameshMeshAuxiliaryStep nestedMesh = NativeBattleGilgameshCommonParticles.Step593D20(task, resources.CommonParticles, WorldView, inputs.Projection, inputs.GraphicsFlags, inputs.Colors);
+                    Write(address, nestedMesh.UpdatedTask);
+                    Emit(new NativeBattleGilgameshPackets(nestedMesh.Batch));
+                    return nestedMesh.Result;
+                case 0x595D50:
+                case 0x5966B0:
+                case 0x596710:
+                case 0x596800:
+                case 0x596970:
+                case 0x596A60:
+                    NativeBattleGilgameshModelBankStep bank = NativeBattleGilgameshModelBanks.Step(Shared.Models, Arena, task, resources.Models, WorldView, inputs.Projection, inputs.Colors, inputs.GraphicsFlags);
+                    Frame = Frame with { Memory = Frame.Memory with { Arena = bank.Arena, Gilgamesh = Shared with { Models = bank.ModelMemory } } };
+                    Write(address, bank.UpdatedTask);
+                    foreach (NativeBattleGfGeometryBatch batch in bank.Packets)
+                    {
+                        Emit(new NativeBattleGilgameshPackets(batch));
+                    }
+                    return bank.Result;
+                case 0x592A00:
+                case 0x592A50:
+                    NativeBattleGilgameshCommonStep fade = NativeBattleGilgameshCommonTasks.StepFade(task, inputs.GraphicsFlags, (mode, _, _, _, _) => Emit(new NativeBattleGilgameshPcRequest(mode)));
+                    Write(address, fade.UpdatedTask);
+                    return fade.Result;
+                case 0x592AE0:
+                case 0x592B60:
+                    NativeBattleGilgameshCommonStep stage = NativeBattleGilgameshCommonTasks.StepStage(task, inputs.GraphicsFlags, (depth, color) => Emit(new NativeBattleGilgameshService(new(NativeBattleGilgameshDirectorService.Stage, depth, color))));
+                    Write(address, stage.UpdatedTask);
+                    return stage.Result;
+                case 0x596B30:
+                    NativeBattleGilgameshCommonStep texture = NativeBattleGilgameshCommonTasks.Step596B30(task, NativeBattleEffectNodeMemory.ArenaAddress, address, (_, completion, _) =>
+                    {
+                        Emit(new NativeBattleGilgameshTextureLoad(completion));
+                        return Read(address);
+                    });
+                    Write(address, texture.UpdatedTask);
+                    return texture.Result;
+                default:
+                    throw new NotSupportedException($"Native Gilgamesh callback{task.Callback:X8} requires its complete original contract.");
+            }
+        }
+
+        private int PublishParticles(uint address, NativeBattleGilgameshParticleStep step)
+        {
+            Frame = Frame with { Memory = Frame.Memory with { Arena = step.Arena }, Random = step.Random };
+            Write(address, step.UpdatedTask);
+            foreach (NativeBattleModulePacketBatch batch in step.Packets)
+            {
+                Emit(new NativeBattleGilgameshSprites(batch));
+            }
+            return step.Result;
+        }
+
+        private void Director(NativeBattleGilgameshDirectorOperation operation)
+        {
+            switch (operation.Service)
+            {
+                case NativeBattleGilgameshDirectorService.Camera:
+                    NativeBattleGuardianCameraProcess camera = Frame.Memory.GuardianCameraProcess ?? throw new NotSupportedException("Native Gilgamesh requires its retained camera banks.");
+                    SetShared(Shared with { CameraTask = NativeBattleGuardianCameraProgram.Begin63E960(camera, resources.Director.CameraProgram.Data, 0) });
+                    uint address = Append(0x63E9C0);
+                    Write(address, Read(address).WriteDword(20, 0xCD0874).WriteDword(24, 0x21FF3A0).WriteDword(28, 0x2200FC0));
+                    break;
+                case NativeBattleGilgameshDirectorService.AppendChild:
+                case NativeBattleGilgameshDirectorService.AppendParticle:
+                    Append(checked((uint)operation.First), operation.Service == NativeBattleGilgameshDirectorService.AppendParticle);
+                    break;
+                case NativeBattleGilgameshDirectorService.Initializer:
+                    Initialize(checked((uint)operation.First));
+                    break;
+                case NativeBattleGilgameshDirectorService.FadeTask:
+                    SetChildren(NativeBattleGilgameshCommonTasks.Append5929B0(Children, operation.First, checked((ushort)operation.Second)));
+                    break;
+                default:
+                    Emit(new NativeBattleGilgameshService(operation));
+                    break;
+            }
+        }
+
+        private void Initialize(uint callback)
+        {
+            switch (callback)
+            {
+                case 0x592D00:
+                    NativeBattleGilgameshOpeningInitialization opening = NativeBattleGilgameshOpening.Initialize592D00(Children, Frame.Random);
+                    SetChildren(opening.Pool);
+                    Frame = Frame with { Random = opening.Random };
+                    break;
+                case 0x593550:
+                    NativeBattleGilgameshMeshAuxiliaryInitialization first = NativeBattleGilgameshMeshAuxiliaries.Initialize593550(Children, Frame.Random);
+                    SetChildren(first.Pool);
+                    Frame = Frame with { Random = first.Random };
+                    break;
+                case 0x594160:
+                    NativeBattleGilgameshMeshAuxiliaryInitialization second = NativeBattleGilgameshMeshAuxiliaries.Initialize594160(Children, Frame.Random, resources.MeshAuxiliaries);
+                    SetChildren(second.Pool);
+                    Frame = Frame with { Random = second.Random };
+                    break;
+                case 0x592AB0:
+                    SetChildren(NativeBattleGilgameshCommonTasks.Append592AB0(Children));
+                    break;
+                case 0x592B30:
+                    SetChildren(NativeBattleGilgameshCommonTasks.Append592B30(Children));
+                    break;
+                case 0x5904D0:
+                case 0x5904F0:
+                    Emit(new NativeBattleGilgameshService(new(NativeBattleGilgameshDirectorService.Initializer, checked((int)callback))));
+                    break;
+                default:
+                    throw new NotSupportedException($"Native Gilgamesh initializer{callback:X8} requires its complete original contract.");
+            }
+        }
+    }
+}

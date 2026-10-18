@@ -35,15 +35,15 @@ public sealed class NativeBattleGilgameshFlashTests
     }
 
     [Fact]
-    public void Producer_stores_all24_bytes_in_physical_order_and_preserves_known_or_unknown_precision()
+    public void Producer_stores_all24_bytes_in_physical_order_and_publishes_original_nonpolygon_proxy_zeros()
     {
-        NativeBattleGfGeometryBatch batch = NativeBattleGilgameshFlash.Emit592C60(0x101, -1, 0x123, -2, [11, 22, 33, 44]);
+        NativeBattleGfGeometryBatch batch = NativeBattleGilgameshFlash.Emit592C60(0x101, -1, 0x123, -2);
         Assert.Equal(24, batch.AllocationBytes);
         Assert.Equal(new[] { 0, 16 }, batch.Attempts.Select(attempt => attempt.ByteOffsetRelative).ToArray());
         Assert.Equal(new uint[] { 0x03000000, 0x6223FF01, 0, 0x06C00A00 }, batch.Attempts[0].Primitive!.Words.ToArray());
         Assert.Equal(new uint[] { 0x01000000, 0xE1000220 }, batch.Attempts[1].Primitive!.Words.ToArray());
-        Assert.Equal(new[] { 11, 22, 33, 44 }, batch.Attempts[0].Primitive!.VertexPayload4.ToArray());
-        Assert.Empty(batch.Attempts[1].Primitive!.VertexPayload4);
+        Assert.Equal(new[] { 0, 0, 0, 0 }, batch.Attempts[0].Primitive!.VertexPayload4.ToArray());
+        Assert.Equal(new[] { 0, 0, 0, 0 }, batch.Attempts[1].Primitive!.VertexPayload4.ToArray());
         NativeBattleLogicalOrdering.Builder links = new(NativeBattleLogicalOrdering.Clear());
         foreach (NativeBattleGfGeometryAttempt attempt in batch.Attempts)
         {
@@ -80,7 +80,7 @@ public sealed class NativeBattleGilgameshFlashTests
         Assert.Equal(new byte[] { 0x20, 2, 0, 0xE1 }, written.Process.ReadCommonPacket(52, 4));
         Assert.Equal(new NativeBattlePrimitiveLink(true, 1), written.Ordering.Table[17]);
         Assert.Equal(new NativeBattlePrimitiveLink(true, 0), written.Ordering.Packets[1].Next);
-        Assert.All(written.Ordering.Proxies, proxy => Assert.Empty(proxy.VertexPayload4));
+        Assert.All(written.Ordering.Proxies, proxy => Assert.Equal(new[] { 0, 0, 0, 0 }, proxy.VertexPayload4.ToArray()));
     }
     private static NativeBattleModulePoolTask Task(short counter) => new NativeBattleModulePoolTask(5, 7, null, 0x592BC0, Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray()).WriteWord(12, unchecked((ushort)counter));
 }

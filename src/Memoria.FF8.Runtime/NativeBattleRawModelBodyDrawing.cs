@@ -8,9 +8,9 @@ public sealed record NativeBattleRawModelBodyDraw(ImmutableArray<byte> Projected
 /// <summary>One packed object's posed body projection and5099D0 packets, without shadow or bounds side effects.</summary>
 public static class NativeBattleRawModelBodyDrawing
 {
-    public static NativeBattleRawModelBodyDraw Draw5099D0(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleCameraProjection projection, uint color, uint objectMask, ImmutableArray<byte> projectedScratch, NativeBattleSummonColors colors)
+    public static NativeBattleRawModelBodyDraw Draw5099D0(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleCameraProjection projection, uint color, uint objectMask, ImmutableArray<byte> projectedScratch, NativeBattleSummonColors colors, byte depthShift = 4)
     {
-        if (bones.IsDefault || projectedScratch.IsDefault)
+        if (bones.IsDefault || projectedScratch.IsDefault || depthShift > 31)
         {
             throw new InvalidDataException("Native raw body drawing requires explicit bone matrices and projected scratch owners.");
         }
@@ -31,7 +31,7 @@ public static class NativeBattleRawModelBodyDrawing
                 BinaryPrimitives.WriteUInt32LittleEndian(scratch.AsSpan(index * 8), vertices[index].Screen);
                 BinaryPrimitives.WriteUInt32LittleEndian(scratch.AsSpan(index * 8 + 4), vertices[index].DepthAndClip);
             }
-            body = NativeBattleRawGeometryPackets.EmitProjected5099D0(mesh.Polygons, vertices, color, 17, 4, 0, null, colors);
+            body = NativeBattleRawGeometryPackets.EmitProjected5099D0(mesh.Polygons, vertices, color, 17, depthShift, 0, null, colors);
         }
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;

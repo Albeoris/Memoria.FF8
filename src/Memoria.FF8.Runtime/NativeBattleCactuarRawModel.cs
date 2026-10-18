@@ -8,6 +8,8 @@ public sealed record NativeBattleCactuarRawModelState([property: JsonRequired] I
 {
     public static NativeBattleCactuarRawModelState FromColdProcess() => new(new byte[0x90].ToImmutableArray(), new byte[0x34].ToImmutableArray(), null, null, null, null);
 }
+public sealed record NativeBattleRawModelBinding(uint ControlAddress, byte DepthShift);
+
 public sealed record NativeBattleCactuarRawModelStep(NativeBattleCactuarRawModelState State, bool Completed);
 public sealed record NativeBattleCactuarRawModelDraw(NativeBattleCactuarRawModelState State, int ProjectedBytesWritten, NativeBattleGfGeometryBatch Packets);
 
@@ -17,9 +19,10 @@ public static class NativeBattleCactuarRawModel
     public const uint ModelAddress = 0x225A838;
     public const uint ControlAddress = 0x2259998;
 
-    public static NativeBattleCactuarRawModelState Initialize5A8F40(NativeBattleCactuarRawModelState state, NativeBattleEffectOwnedModelResource resource, uint workingBase, ushort argument1)
+    public static NativeBattleCactuarRawModelState Initialize5A8F40(NativeBattleCactuarRawModelState state, NativeBattleEffectOwnedModelResource resource, uint workingBase, ushort argument1, NativeBattleRawModelBinding? binding = null)
     {
         RequireStorage(state);
+        uint controlAddress = ResolveBinding(binding).ControlAddress;
         resource.PoseSource.Validate();
         if (workingBase == 0 || resource.Address == 0 || resource.Bytes.IsDefault || resource.Bytes.Length < 20)
         {
@@ -32,11 +35,11 @@ public static class NativeBattleCactuarRawModel
         WriteDword(model, 0x28, 0x00808080);
         model[0x60] = 0;
         model[0x61] = 0;
-        WriteDword(model, 0x64, ControlAddress + 0xC);
-        WriteDword(model, 0x68, ControlAddress + 0xC);
+        WriteDword(model, 0x64, controlAddress + 0xC);
+        WriteDword(model, 0x68, controlAddress + 0xC);
         WriteDword(model, 0x78, 0);
         WriteDword(model, 0x7C, uint.MaxValue);
-        WriteDword(model, 0x84, ControlAddress);
+        WriteDword(model, 0x84, controlAddress);
         WriteDword(model, 0x8C, 0);
         for (int index = 0; index < 3; index++)
         {
@@ -47,9 +50,9 @@ public static class NativeBattleCactuarRawModel
         return state with { Model = model.ToImmutableArray(), Control = control.ToImmutableArray(), ResourceAddress = resource.Address, WorkingBase = workingBase };
     }
 
-    public static NativeBattleCactuarRawModelState Select5A8FB0(NativeBattleCactuarRawModelState state, NativeBattleEffectOwnedModelResource resource, short animation)
+    public static NativeBattleCactuarRawModelState Select5A8FB0(NativeBattleCactuarRawModelState state, NativeBattleEffectOwnedModelResource resource, short animation, NativeBattleRawModelBinding? binding = null)
     {
-        Validate(state, resource);
+        Validate(state, resource, binding);
         RequireNormalSpeed(state);
         ImmutableArray<byte> counts = NativeBattlePoseDecoder.ReadFrameCounts(resource.PoseSource.Animations.AsSpan());
         if (animation < 0 || animation >= counts.Length || animation > byte.MaxValue)
@@ -67,9 +70,9 @@ public static class NativeBattleCactuarRawModel
         return state with { Model = model.ToImmutableArray(), DecodedPose = first.Pose };
     }
 
-    public static NativeBattleCactuarRawModelStep Advance5A8FD0(NativeBattleCactuarRawModelState state, NativeBattleEffectOwnedModelResource resource)
+    public static NativeBattleCactuarRawModelStep Advance5A8FD0(NativeBattleCactuarRawModelState state, NativeBattleEffectOwnedModelResource resource, NativeBattleRawModelBinding? binding = null)
     {
-        Validate(state, resource);
+        Validate(state, resource, binding);
         RequireNormalSpeed(state);
         NativeBattleDecodedPose pose = state.DecodedPose ?? throw new NotSupportedException("Native raw model must select its current pose before advancing.");
         byte[] model = state.Model.ToArray();
@@ -81,7 +84,7 @@ public static class NativeBattleCactuarRawModel
         }
         if (model[0x72] >= model[0x73])
         {
-            return new((model[0] & 1) == 0 ? Select5A8FB0(state, resource, (short)animation) : state, true);
+            return new((model[0] & 1) == 0 ? Select5A8FB0(state, resource, (short)animation, binding) : state, true);
         }
         NativeBattlePoseFirstFrame next = NativeBattlePoseDecoder.AdvanceRegular508F90(resource.PoseSource.Animations.AsSpan(), resource.PoseSource.BoneCount, animation, pose, ReadWord(model, 0x6E), ReadWord(model, 0x70));
         WriteWord(model, 0x6E, next.ByteOffset);
@@ -91,9 +94,9 @@ public static class NativeBattleCactuarRawModel
         return new(state with { Model = model.ToImmutableArray(), DecodedPose = next.Pose }, false);
     }
 
-    public static NativeBattleCactuarRawModelDraw Draw5A9010(NativeBattleCactuarRawModelState state, NativeBattleEffectOwnedModelResource resource, NativeBattleActionMatrix parent, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleCactuarRawModelDraw Draw5A9010(NativeBattleCactuarRawModelState state, NativeBattleEffectOwnedModelResource resource, NativeBattleActionMatrix parent, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleRawModelBinding? binding = null, ImmutableArray<byte>? projectedScratch = null)
     {
-        Validate(state, resource);
+        Validate(state, resource, binding);
         NativeBattleDecodedPose pose = state.DecodedPose ?? throw new NotSupportedException("Native raw model body requires its current decoded skeleton.");
         if (state.Model[7] != 0)
         {
@@ -112,12 +115,12 @@ public static class NativeBattleCactuarRawModel
         NativeBattleActionMatrix modelView = NativeBattlePoseMatrices.Compose56C2F0(parent, local);
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattlePoseMatrices.ComposeCurrentPose(resource.PoseSource, pose, modelView);
         int length = checked(resource.Geometry[0].Vertices.Length * 8);
-        ImmutableArray<byte> scratch = state.ProjectedScratch ?? new byte[length].ToImmutableArray();
+        ImmutableArray<byte> scratch = projectedScratch ?? (binding is not null ? throw new NotSupportedException("Native explicitly bound raw model requires its actual shared projected scratch prefix.") : state.ProjectedScratch ?? new byte[length].ToImmutableArray());
         if (scratch.IsDefault || scratch.Length != length)
         {
             throw new InvalidDataException("Native raw model projected scratch contradicts its complete vertex owner.");
         }
-        NativeBattleRawModelBodyDraw draw = NativeBattleRawModelBodyDrawing.Draw5099D0(resource.Geometry[0], bones, projection, ReadDword(state.Model.AsSpan(), 0x28), mask, scratch, colors);
+        NativeBattleRawModelBodyDraw draw = NativeBattleRawModelBodyDrawing.Draw5099D0(resource.Geometry[0], bones, projection, ReadDword(state.Model.AsSpan(), 0x28), mask, scratch, colors, ResolveBinding(binding).DepthShift);
         if (draw.ProjectedBytesWritten != length)
         {
             throw new InvalidDataException("Native raw model body did not establish its complete projected scratch.");
@@ -125,11 +128,12 @@ public static class NativeBattleCactuarRawModel
         return new(state with { ProjectedScratch = draw.ProjectedScratch }, draw.ProjectedBytesWritten, draw.Packets);
     }
 
-    public static void Validate(NativeBattleCactuarRawModelState state, NativeBattleEffectOwnedModelResource resource)
+    public static void Validate(NativeBattleCactuarRawModelState state, NativeBattleEffectOwnedModelResource resource, NativeBattleRawModelBinding? binding = null)
     {
         RequireStorage(state);
+        uint controlAddress = ResolveBinding(binding).ControlAddress;
         resource.PoseSource.Validate();
-        if (state.ResourceAddress != resource.Address || state.WorkingBase is not > 0 || ReadDword(state.Model.AsSpan(), 0x64) != ControlAddress + 0xC || ReadDword(state.Model.AsSpan(), 0x68) != ControlAddress + 0xC || ReadDword(state.Model.AsSpan(), 0x84) != ControlAddress)
+        if (state.ResourceAddress != resource.Address || state.WorkingBase is not > 0 || ReadDword(state.Model.AsSpan(), 0x64) != controlAddress + 0xC || ReadDword(state.Model.AsSpan(), 0x68) != controlAddress + 0xC || ReadDword(state.Model.AsSpan(), 0x84) != controlAddress)
         {
             throw new InvalidDataException("Native raw model pointers contradict its symbolic model/control/source owners.");
         }
@@ -145,6 +149,16 @@ public static class NativeBattleCactuarRawModel
             throw new InvalidDataException("Native raw model control or decoded skeleton contradicts its source.");
         }
     }
+    private static NativeBattleRawModelBinding ResolveBinding(NativeBattleRawModelBinding? binding)
+    {
+        NativeBattleRawModelBinding actual = binding ?? new(ControlAddress, 4);
+        if (actual.ControlAddress == 0 || (actual.ControlAddress & 3) != 0 || actual.DepthShift > 31)
+        {
+            throw new InvalidDataException("Native raw model requires its aligned control owner and actual depth shift.");
+        }
+        return actual;
+    }
+
     private static void RequireStorage(NativeBattleCactuarRawModelState state)
     {
         if (state.Model.IsDefault || state.Model.Length != 0x90 || state.Control.IsDefault || state.Control.Length != 0x34)
