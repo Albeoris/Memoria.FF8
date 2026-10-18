@@ -18,6 +18,16 @@ public sealed class NativeBattleWater222ResourcesTests
         Assert.Equal(new byte[] { 0x80, 0x81, 0x81, 0x81, 0x81, 0xFF, 0xFF, 0xFF }, resources.Profile.Tables.Data.Skip(80).Take(8));
         Assert.Equal(new byte[] { 1, 1, 1, 1, 1, 0xFF, 0xFF, 0xFF }, resources.Profile.Tables.Data.Skip(88).Take(8));
         Assert.All(resources.Profile.Tables.Data.Skip(96), value => Assert.Equal((byte)0, value));
+        Assert.Equal("FF8_EN:186C84C", resources.Profile.InitializationDirectory.Identity);
+        Assert.Equal(0x1C, resources.Profile.InitializationDirectory.Data.Length);
+        Assert.Equal(new uint[] { 0x20, 0x48, 0x70, 0x78, 0x80, 0, 0x90 }, Enumerable.Range(0, 7).Select(index => resources.Profile.InitializationOffset(index * 4)));
+        Assert.Equal("FF8_EN:186C944", resources.Profile.OwnerDirectory.Identity);
+        Assert.Equal(new uint[] { 0x2797690, 0x803FF000, 0x2797068, 0x27975D8, 0x2797628 }, Enumerable.Range(0, 5).Select(resources.Profile.OwnerAddress));
+        for (int offset = 0; offset <= 0x18; offset += 4)
+        {
+            Assert.Equal(System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(resources.Profile.InitializationDirectory.Data.AsSpan().Slice(offset)), resources.Profile.InitializationOffset(offset));
+        }
+
         int[] offsets = [0x799C, 0x858, 0x10858, 0x11858, 0x21858];
         int[] lengths = [0x10000, 0x10000, 0x1000, 0x10000, 0x4000];
         for (int index = 0; index < 5; index++)

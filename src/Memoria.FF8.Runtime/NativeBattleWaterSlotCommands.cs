@@ -4,7 +4,22 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>A transient description of slots within the current resource arena, without a second byte owner.</summary>
-public sealed record NativeBattleWaterSlotBank(int FileOffset, int FileLength, int Capacity);
+public sealed record NativeBattleWaterSlotBank(int FileOffset, int FileLength, int Capacity, int SlotBaseOffset)
+{
+    internal int SlotOffset(NativeBattleEffectArena arena, int index)
+    {
+        arena.Validate();
+        if (FileOffset < 0 || FileLength < 0x20 || FileOffset > NativeBattleEffectArena.Length - FileLength || Capacity <= 0 || index < 0 || index >= Capacity)
+        {
+            throw new InvalidDataException("Native slot bank requires its bounded current resource and physical index.");
+        }
+        if (SlotBaseOffset < FileOffset || (long)SlotBaseOffset + (long)Capacity * 0x100 > (long)FileOffset + FileLength)
+        {
+            throw new InvalidDataException("Native slot bank leaves its current resource extent.");
+        }
+        return checked(SlotBaseOffset + index * 0x100);
+    }
+}
 
 public static class NativeBattleWaterSlots
 {
@@ -173,18 +188,8 @@ public static class NativeBattleWaterSlots
 
         public SlotAccess(NativeBattleEffectArena arena, NativeBattleWaterSlotBank bank, int index)
         {
-            arena.Validate();
-            if (bank.FileOffset < 0 || bank.FileLength < 0x20 || bank.FileOffset > NativeBattleEffectArena.Length - bank.FileLength || bank.Capacity <= 0 || index < 0 || index >= bank.Capacity)
-            {
-                throw new InvalidDataException("Native slot bank requires its bounded current resource and physical index.");
-            }
-            uint relative = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(bank.FileOffset + 0x1C, 4));
-            if ((long)relative + (long)bank.Capacity * 0x100 > bank.FileLength)
-            {
-                throw new InvalidDataException("Native slot bank leaves its current resource extent.");
-            }
+            Offset = bank.SlotOffset(arena, index);
             Arena = arena;
-            Offset = checked(bank.FileOffset + (int)relative + index * 0x100);
         }
 
         public byte Byte(int offset) => Arena.Read(Offset + offset, 1)[0];

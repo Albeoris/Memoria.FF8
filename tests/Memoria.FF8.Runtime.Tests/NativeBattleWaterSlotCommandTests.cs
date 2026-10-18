@@ -9,7 +9,7 @@ public sealed class NativeBattleWaterSlotCommandTests
 {
     private const int FileOffset = 0x400;
     private const int SlotsOffset = FileOffset + 0x58;
-    private static readonly NativeBattleWaterSlotBank Bank = new(FileOffset, 0x858, 8);
+    private static readonly NativeBattleWaterSlotBank Bank = new(FileOffset, 0x858, 8, SlotsOffset);
 
     [Fact]
     public void InitializationClearsOnlySuffixAndUsesActualTicksAndHeader()
@@ -68,7 +68,8 @@ public sealed class NativeBattleWaterSlotCommandTests
         Assert.Throws<InvalidDataException>(() => NativeBattleWaterSlots.LookupB65370(arena, Bank, 0, Order(8), 44));
         Assert.Throws<InvalidDataException>(() => NativeBattleWaterSlots.LookupB65370(arena, Bank with { FileLength = 0x857 }, 0, Order(), 44));
         Assert.Throws<InvalidDataException>(() => NativeBattleWaterSlots.CachePositionAA17D0(arena, Bank, 8));
-        Assert.Throws<NotSupportedException>(() => NativeBattleWaterSlots.CachePositionAA17D0(arena.MarkUnknown(FileOffset + 0x1C, 4), Bank, 0));
+        Assert.Throws<InvalidDataException>(() => NativeBattleWaterSlots.CachePositionAA17D0(arena, Bank with { SlotBaseOffset = FileOffset - 1 }, 0));
+        NativeBattleWaterSlots.CachePositionAA17D0(arena.MarkUnknown(FileOffset + 0x1C, 4), Bank, 0);
     }
 
     [Fact]
@@ -148,7 +149,7 @@ public sealed class NativeBattleWaterSlotCommandTests
     }
 
     [Fact]
-    public void BankRemainsAnArenaAliasAcrossJsonAndContinuesFromUpdatedFileHeader()
+    public void BankRemainsAnArenaAliasAcrossJsonAndRetainsCachedBaseDespiteChangedFileHeader()
     {
         NativeBattleEffectArena arena = Dword(Create(), 0, 0x50, -65536);
         NativeBattleEffectArena restored = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(arena))!;
@@ -158,7 +159,13 @@ public sealed class NativeBattleWaterSlotCommandTests
         Assert.Equal((ushort)0xFFFF, ReadWord(second, 0, 0x8C));
         second = Dword(second, 1, 0x50, 0x12340000);
         second = second.Write(FileOffset + 0x1C, new byte[] { 0x58, 1, 0, 0 });
-        NativeBattleWaterSlotBank shifted = Bank with { Capacity = 7 };
+        second = NativeBattleWaterSlots.CachePositionAA17D0(second, Bank, 0);
+        Assert.Equal((ushort)0xFFFF, ReadWord(second, 0, 0x8C));
+        second = second.MarkUnknown(FileOffset + 0x1C, 4);
+        NativeBattleWaterSlotBank retained = JsonSerializer.Deserialize<NativeBattleWaterSlotBank>(JsonSerializer.Serialize(Bank))!;
+        second = NativeBattleWaterSlots.CachePositionAA17D0(second, retained, 0);
+        Assert.Equal((ushort)0xFFFF, ReadWord(second, 0, 0x8C));
+        NativeBattleWaterSlotBank shifted = retained with { Capacity = 7, SlotBaseOffset = SlotsOffset + 0x100 };
         second = NativeBattleWaterSlots.CachePositionAA17D0(second, shifted, 0);
         Assert.Equal((ushort)0x1234, ReadWord(second, 1, 0x8C));
     }

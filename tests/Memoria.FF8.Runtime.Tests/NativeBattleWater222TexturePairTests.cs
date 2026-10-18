@@ -99,6 +99,36 @@ public sealed class NativeBattleWater222TexturePairTests
         Assert.Throws<NotSupportedException>(() => NativeBattleWater222TexturePair.Resolve(resources.Profile, resources.Files, 5, false));
     }
 
+    [Fact]
+    public void Initialization_and_owner_directories_preserve_raw_values_and_are_required_on_restore()
+    {
+        byte[] initialization = Enumerable.Range(0, 0x1C).Select(index => unchecked((byte)(index * 7 + 1))).ToArray();
+        byte[] owners = new byte[0x14];
+        BinaryPrimitives.WriteUInt32LittleEndian(owners.AsSpan(4), 0x803FF000);
+        NativeBattleWater222Profile profile = Resources().Profile with
+        {
+            InitializationDirectory = new("initialization", initialization.ToImmutableArray()),
+            OwnerDirectory = new("owners", owners.ToImmutableArray())
+        };
+        NativeBattleWater222Profile restored = JsonSerializer.Deserialize<NativeBattleWater222Profile>(JsonSerializer.Serialize(profile))!;
+        restored.Validate();
+        Assert.Equal(0x803FF000u, restored.OwnerAddress(1));
+        Assert.Equal(initialization, restored.InitializationDirectory.Data);
+        for (int offset = 0; offset <= 0x18; offset += 4)
+        {
+            Assert.Equal(BinaryPrimitives.ReadUInt32LittleEndian(initialization.AsSpan(offset)), restored.InitializationOffset(offset));
+        }
+        Assert.Throws<ArgumentOutOfRangeException>(() => restored.InitializationOffset(2));
+        Assert.Throws<ArgumentOutOfRangeException>(() => restored.InitializationOffset(0x1C));
+        Assert.Throws<ArgumentOutOfRangeException>(() => restored.OwnerAddress(-1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => restored.OwnerAddress(5));
+        Assert.Throws<InvalidDataException>(() => (profile with { InitializationDirectory = new("short", []) }).Validate());
+        Assert.Throws<InvalidDataException>(() => (profile with { OwnerDirectory = new("short", []) }).Validate());
+        System.Text.Json.Nodes.JsonObject missing = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(profile))!.AsObject();
+        missing.Remove(nameof(NativeBattleWater222Profile.OwnerDirectory));
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleWater222Profile>(missing.ToJsonString()));
+    }
+
     private static void Ignore(NativeBattleWater222UploadPlan plan)
     {
     }
@@ -128,6 +158,6 @@ public sealed class NativeBattleWater222TexturePairTests
             data[0x120 + index * 2] = (byte)(0x40 + index);
             data[0x121 + index * 2] = 0x55;
         }
-        return new([new("file0", new byte[0x1799C].ToImmutableArray()), new("file1", data.ToImmutableArray())], new(new("tables", tables.ToImmutableArray())));
+        return new([new("file0", new byte[0x1799C].ToImmutableArray()), new("file1", data.ToImmutableArray())], new(new("tables", tables.ToImmutableArray()), new("initialization", new byte[0x1C].ToImmutableArray()), new("owners", new byte[0x14].ToImmutableArray())));
     }
 }

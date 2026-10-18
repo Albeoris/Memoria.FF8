@@ -25,7 +25,7 @@ public static class NativeBattleWater222ResourcesReader
             throw new InvalidDataException("Native Water files must follow the initializer's actual resource order.");
         }
         NativeExecutableMemory memory = new(executable);
-        NativeBattleWater222Resources result = new(files, new(new("FF8_EN:186C86C", memory.Read(0x186C86C, 0x70).ToImmutableArray())));
+        NativeBattleWater222Resources result = new(files, new(new("FF8_EN:186C86C", memory.Read(0x186C86C, 0x70).ToImmutableArray()), new("FF8_EN:186C84C", memory.Read(0x186C84C, 0x1C).ToImmutableArray()), new("FF8_EN:186C944", memory.Read(0x186C944, 0x14).ToImmutableArray())));
         result.Validate();
         for (int index = 0; index < 5; index++)
         {
