@@ -6,6 +6,11 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleHoly175State([property: JsonRequired] bool ColdSourcesUnmaterialized, [property: JsonRequired] NativeBattleHoly175WarpState Warp, [property: JsonRequired] NativeBattleEffectArena BlackPackets, [property: JsonRequired] NativeBattleEffectArena Sprite31Rows, [property: JsonRequired] NativeBattleEffectArena Sprite4Rows, [property: JsonRequired] NativeBattleEffectArena Visibility, [property: JsonRequired] NativeBattleEffectArena MatrixBanks, [property: JsonRequired] NativeBattleEffectArena StaticMatrix, [property: JsonRequired] uint? WarpTextured, [property: JsonRequired] uint? WarpAlive, [property: JsonRequired] int? SelectedActor, [property: JsonRequired] int? CasterActor)
 {
+    [JsonRequired]
+    public short? CaptureOffsetX { get; init; }
+    [JsonRequired]
+    public short? CaptureOffsetY { get; init; }
+
     public static NativeBattleHoly175State FromColdProcess() => new(true, NativeBattleHoly175WarpState.Unknown(), Unknown(48), Unknown(100 * 24), Unknown(80 * 24), Unknown(7 * 24), NativeBattleEffectArena.Clear(), NativeBattleEffectArena.Clear(), null, null, null, null);
 
     public NativeBattleHoly175State Materialize(NativeBattleHoly175Resources resources)

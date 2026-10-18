@@ -121,6 +121,10 @@ public sealed partial class BattleSession
                 {
                     graphics = recoverCompleted;
                 }
+                else if (TryWriteNativeHoly175Completion(graphics, address, value, out NativeBattleGraphicsState holyCompleted))
+                {
+                    graphics = holyCompleted;
+                }
                 else if (TryWriteNativeThundaga105Completion(graphics, address, value, out NativeBattleGraphicsState thundagaCompleted))
                 {
                     graphics = thundagaCompleted;

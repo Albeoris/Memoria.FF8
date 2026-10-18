@@ -146,6 +146,23 @@ public sealed class NativeBattleSoftwarePrimitiveExecutionTests
         Assert.Throws<NotSupportedException>(() => execution.ExecuteNormal(tile, new(0), 1));
     }
 
+    [Fact]
+    public void PreparationBoundaryPublishesSoftwarePixelsBeforeNormalEnvironmentInvalidatesPreparedResources()
+    {
+        NativeBattleSoftwarePrimitiveExecution execution = Capture();
+        execution.Cache = execution.Cache!.Preprocess462F90(0x11B, 0).Prepare464BD0().Cache;
+        execution.ExecuteSoftware(Triangle());
+        execution.BeginPass(1);
+        execution.Cache = execution.Cache.Prepare464BD0().Cache;
+        execution.ExecuteNormal(Command(0xE4, 831u | 383u << 10), new(0), 1);
+        NativeBattlePcTextureWindowRegion cached = execution.Cache.Rows[91].Regions[0];
+        Assert.False(cached.CurrentPixels);
+        Assert.Equal((ushort)31, cached.RetainedPixels!.ReadWord(707, 259));
+        Assert.Equal((ushort)31, BinaryPrimitives.ReadUInt16LittleEndian(execution.Textures.ReadVram().AsSpan(2 * (259 * 1024 + 707))));
+        Assert.Equal(704 << 16, execution.State.Environment.Derived!.DrawOffsetX);
+        Assert.Equal<uint?>(0, execution.State.Environment.Debug);
+    }
+
     private static NativeBattleSoftwarePrimitiveExecution Capture()
     {
         NativeBattleSoftwarePrimitiveState state = NativeBattleSoftwarePrimitiveState.FromInitializedRenderer().Initialize500400() with { ViewportInputs = null };

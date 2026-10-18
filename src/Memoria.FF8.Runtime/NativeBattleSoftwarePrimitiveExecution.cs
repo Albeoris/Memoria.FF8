@@ -29,6 +29,14 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
     public ImmutableArray<NativeBattlePcTextureWindowPixels> TextureSnapshots => textureSnapshots.ToImmutableArray();
     public uint LiveMode => State.Environment.Derived?.Mode ?? throw new NotSupportedException("Native primitive dispatch requires its actual published drawing environment.");
 
+    public void BeginPass(byte pass)
+    {
+        if (pass == 1)
+        {
+            PublishImage();
+        }
+    }
+
     public void ApplyEnvironment45B660(int buffer)
     {
         NativeSoftwareDrawingEnvironmentBuffers buffers = State.EnvironmentBuffers ?? throw new NotSupportedException("Native environment publication requires its retained pair of initialized DRAWENV records.");

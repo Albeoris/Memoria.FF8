@@ -1,0 +1,97 @@
+using System.Buffers.Binary;
+using System.Collections.Immutable;
+
+namespace Memoria.FF8.Runtime.Tests;
+
+public sealed class NativeBattleChoco97ProgramDrawingTests
+{
+    private static NativeBattleActionMatrix Context => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 100, 200, 4096, 4096);
+    private static NativeBattleCameraProjection Projection => new(Context, 216, 160, 108);
+    private static NativeBattleSummonColors Colors => NativeBattleGteColorInterpolation.CodeConstants45F270;
+
+    [Fact]
+    public void Header200_bypasses_basis_for_position_and_rotation_and_40000_selects_the_actual_Euler_order()
+    {
+        NativeBattleActionMatrix basis = Context with { Rotation = [8192, 4096, 0, 0, 4096, 0, 0, 0, 4096] };
+        NativeBattleGfAnimationNode node = Node(0x40200);
+        NativeBattleActionMatrix direct = NativeBattleChoco97ProgramDrawing.ComposeNodeMatrix(node, basis);
+        Assert.Equal((30100, 20200, 4096), (direct.X, direct.Y, direct.Z));
+        Assert.Equal(NativeBattleGfMatrices.Euler7015B0(node.Vector16).Rotation.ToArray(), direct.Rotation.ToArray());
+        NativeBattleActionMatrix transformed = NativeBattleChoco97ProgramDrawing.ComposeNodeMatrix(Node(0x40000), basis);
+        Assert.Equal((80100, 20200, 4096), (transformed.X, transformed.Y, transformed.Z));
+        NativeBattleActionMatrix ordinary = NativeBattleChoco97ProgramDrawing.ComposeNodeMatrix(Node(0x200), basis);
+        NativeBattleActionMatrix unused400 = NativeBattleChoco97ProgramDrawing.ComposeNodeMatrix(Node(0x600), basis);
+        Assert.Equal(ordinary.Rotation.ToArray(), unused400.Rotation.ToArray());
+        Assert.NotEqual(ordinary.Rotation.ToArray(), direct.Rotation.ToArray());
+    }
+
+    [Theory]
+    [InlineData(0u, 1)]
+    [InlineData(0x100u, 2)]
+    public void Column_scale_and_rounded_matrix_diagonal_keep_distinct_halfway_results(uint header, int expected)
+    {
+        NativeBattleGfAnimationNode node = Node(header, angles: new(0, 0, 0), scale: new(2048, 4096, 4096));
+        NativeBattleActionMatrix actual = NativeBattleChoco97ProgramDrawing.ComposeNodeMatrix(node, Context with { Rotation = [3, 0, 0, 0, 4096, 0, 0, 0, 4096] });
+        Assert.Equal((short)expected, actual.Rotation[0]);
+    }
+
+    [Fact]
+    public void Partial_morph_writes_only_XYZ_and_retains_W_extra_scratch_and_authored_source()
+    {
+        NativeBattleGfAnimationSource source = Source();
+        ImmutableArray<byte> scratch = Enumerable.Repeat((byte)0xA5, 0x288).ToImmutableArray();
+        NativeBattleChoco97NodeDraw actual = NativeBattleChoco97ProgramDrawing.Node72A840(source, Node(0, geometry: 0, second: 1, ratio: 2048), scratch, Context, Projection, Colors);
+        Assert.Equal((short)200, BinaryPrimitives.ReadInt16LittleEndian(actual.MorphScratch.AsSpan()));
+        Assert.Equal((short)0, BinaryPrimitives.ReadInt16LittleEndian(actual.MorphScratch.AsSpan().Slice(2)));
+        Assert.Equal((short)200, BinaryPrimitives.ReadInt16LittleEndian(actual.MorphScratch.AsSpan().Slice(4)));
+        Assert.All(actual.MorphScratch.Skip(6), value => Assert.Equal((byte)0xA5, value));
+        Assert.Equal(Source().Data.ToArray(), source.Data.ToArray());
+        NativeBattleChoco97NodeDraw direct = NativeBattleChoco97ProgramDrawing.Node72A840(source, Node(0, geometry: 0, second: 1, ratio: 4096), scratch, Context, Projection, Colors);
+        Assert.Equal(scratch.ToArray(), direct.MorphScratch.ToArray());
+        Assert.Throws<NotSupportedException>(() => NativeBattleChoco97ProgramDrawing.Node72A840(source, Node(0, geometry: 0, second: 1, ratio: 2048), default, Context, Projection, Colors));
+        NativeBattleChoco97NodeDraw skipped = NativeBattleChoco97ProgramDrawing.Node72A840(new(0, []), Node(0, scale: new(0, 0, 0)), default, Context, Projection, Colors);
+        Assert.Empty(skipped.Packets.Attempts);
+    }
+
+    private static NativeBattleGfAnimationNode Node(uint header, NativeBattleVector? angles = null, NativeBattleVector? scale = null, ushort geometry = 0, short second = 0, short ratio = 0)
+    {
+        byte[] bytes = new byte[44];
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(2), geometry);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4), header);
+        Put(8, new(30000, 20000, 0));
+        Put(16, angles ?? new(512, 768, 1024));
+        Put(24, scale ?? new(4096, 4096, 4096));
+        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(38), ratio);
+        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(42), second);
+        return new(0, 0, bytes.ToImmutableArray());
+
+        void Put(int offset, NativeBattleVector value)
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(offset), value.X);
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(offset + 2), value.Y);
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(offset + 4), value.Z);
+        }
+    }
+
+    private static NativeBattleGfAnimationSource Source()
+    {
+        byte[] bytes = new byte[72];
+        Put32(0, 1);
+        Put32(4, 72);
+        Put32(8, 12);
+        Put32(12, 28);
+        Put32(16, 1);
+        Put32(20, 2);
+        PutVertex(24, 100, 200, 300);
+        PutVertex(32, 300, -200, 100);
+        return new(0x1000, bytes.ToImmutableArray());
+
+        void Put32(int offset, uint value) => BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(offset), value);
+        void PutVertex(int offset, short x, short y, short z)
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(offset), x);
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(offset + 2), y);
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(offset + 4), z);
+        }
+    }
+}

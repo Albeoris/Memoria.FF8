@@ -1,10 +1,9 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleHoly175CaptureMemory(ImmutableArray<byte> BlackPackets, short OffsetX, short OffsetY)
+public sealed record NativeBattleHoly175CaptureMemory(ImmutableArray<byte> BlackPackets, short? OffsetX, short? OffsetY)
 {
     public const string PacketBank = "holy-capture";
 
@@ -18,11 +17,6 @@ public sealed record NativeBattleHoly175CaptureMemory(ImmutableArray<byte> Black
     }
 }
 
-public sealed partial record NativeBattleEffectMemory
-{
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleHoly175CaptureMemory? Holy175Capture { get; init; }
-}
 public sealed record NativeBattleHoly175CaptureWrite(NativeBattlePrimitiveProcess Process, NativeBattleLogicalOrdering Ordering, NativeBattleStageState Stage, NativeBattleHoly175CaptureMemory Memory, int StagePackets);
 
 public static class NativeBattleHoly175CapturePackets

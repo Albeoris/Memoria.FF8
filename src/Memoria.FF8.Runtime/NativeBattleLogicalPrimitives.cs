@@ -292,6 +292,9 @@ public interface INativeBattleLogicalExecutionContext
     void ExecuteNormal(NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode, byte pass);
     NativeBattlePrimitiveDrawMode SynchronizeDrawMode(NativeBattlePrimitiveDrawMode mode);
     NativeBattleLogicalResolvedCommand RetainTexturePixels(NativeBattleLogicalResolvedCommand command) => command;
+    void BeginPass(byte pass)
+    {
+    }
     void EndBatch();
 }
 
@@ -326,6 +329,7 @@ public static class NativeBattleLogicalPasses
             {
                 break;
             }
+            context?.BeginPass(pass);
             SetCache(BeginTexturePass(GetCache(), pass));
             foreach (NativeBattleLogicalCommand command in commands)
             {

@@ -37,6 +37,10 @@ public sealed partial class BattleSession
         {
             return graphics;
         }
+        if (effect.Binding.Entry == 0x5D1AD0)
+        {
+            return RunNativeHoly175(graphics, false);
+        }
         if (effect.Binding.Entry == 0x6D3DB0)
         {
             return RunNativeThundaga105(graphics, false);

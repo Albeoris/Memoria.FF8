@@ -200,13 +200,21 @@ public sealed partial class BattleSession
             }
             return (memory.Thundaga105Capture ?? throw new NotSupportedException("Native capture packet alias requires its retained static bytes.")).Read(reference.ByteOffset, count);
         }
+        if (reference.Bank == NativeBattleHoly175WarpDrawing.PacketBank)
+        {
+            if (reference.Buffer != 0)
+            {
+                throw new InvalidDataException("Native Holy warp packets require their two interleaved banks in one physical owner.");
+            }
+            return (memory.Holy175 ?? throw new NotSupportedException("Native Holy warp alias requires its retained physical packet owner.")).Warp.PhysicalPackets.Read(reference.ByteOffset, count);
+        }
         if (reference.Bank == NativeBattleHoly175CaptureMemory.PacketBank)
         {
             if (reference.Buffer > 1 || reference.ByteOffset / 24 != reference.Buffer)
             {
                 throw new InvalidDataException("Native Holy capture packet alias requires its actual selected physical record.");
             }
-            return (memory.Holy175Capture ?? throw new NotSupportedException("Native Holy capture packet alias requires its retained static bytes.")).Read(reference.ByteOffset, count);
+            return (memory.Holy175 ?? throw new NotSupportedException("Native Holy capture packet alias requires its retained static bytes.")).BlackPackets.Read(reference.ByteOffset, count);
         }
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native retained common packet alias requires its physical banks.");
         return (process with { PacketBank = reference.Bank, PacketBuffer = reference.Buffer }).ReadCommonPacket(reference.ByteOffset, count);
