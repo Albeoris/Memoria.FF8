@@ -135,16 +135,57 @@ public static class NativeBattleEffectOwnedModel
 
 public static partial class NativeBattlePoseMatrices
 {
-    public static ImmutableArray<NativeBattleActionMatrix> EffectOwnedGeometryMatrices(NativeBattlePoseSource source, NativeBattleDecodedPose pose, NativeBattleActionMatrix world, NativeBattleActionMatrix view)
+    public static NativeBattleVector ReadEffectOwnedBone(NativeBattlePoseSource source, NativeBattleDecodedPose pose, NativeBattleActionMatrix world, byte selector, short fraction = 0)
     {
         source.Validate();
         world.Validate();
-        view.Validate();
         if (pose.Bones.IsDefault || pose.Bones.Length != source.BoneCount)
         {
             throw new InvalidDataException("Native effect model requires every current decoded bone.");
         }
+        Matrix[] bones = BoneMatrices(source, pose);
+        int bone = selector;
+        if (selector >= 240)
+        {
+            int offset = selector - 236;
+            if (offset >= 16)
+            {
+                throw new NotSupportedException("Native effect model selector exceeds its skeleton header aliases.");
+            }
+            bone = source.Skeleton[offset];
+            if ((bone & 0x80) != 0)
+            {
+                fraction = 4096;
+                bone &= 0x7F;
+            }
+        }
+        if (bone >= bones.Length)
+        {
+            throw new InvalidDataException("Native effect model bone selector exceeds its original skeleton.");
+        }
+        Matrix selected = Compose(new(world.Rotation.ToArray(), world.X, world.Y, world.Z), bones[bone]);
+        short parent = ReadWord(source.Skeleton, 16 + bone * 48);
+        int distance = parent < 0 ? 0 : fraction * ReadWord(source.Skeleton, 18 + bone * 48) >> 12;
+        return new(unchecked((short)(selected.X + ((long)selected.Rotation[2] * distance >> 12))), unchecked((short)(selected.Y + ((long)selected.Rotation[5] * distance >> 12))), unchecked((short)(selected.Z + ((long)selected.Rotation[8] * distance >> 12))));
+    }
+
+    public static ImmutableArray<NativeBattleActionMatrix> EffectOwnedGeometryMatrices(NativeBattlePoseSource source, NativeBattleDecodedPose pose, NativeBattleActionMatrix world, NativeBattleActionMatrix view)
+    {
+        world.Validate();
+        view.Validate();
         Matrix modelView = Compose(new(view.Rotation.ToArray(), view.X, view.Y, view.Z), new(world.Rotation.ToArray(), world.X, world.Y, world.Z));
-        return BoneMatrices(source, pose).Select(bone => Compose(modelView, bone)).Select(matrix => new NativeBattleActionMatrix(matrix.Rotation.ToImmutableArray(), matrix.X, matrix.Y, matrix.Z, 4096)).ToImmutableArray();
+        return ComposeCurrentPose(source, pose, new(modelView.Rotation.ToImmutableArray(), modelView.X, modelView.Y, modelView.Z, 4096));
+    }
+
+    public static ImmutableArray<NativeBattleActionMatrix> ComposeCurrentPose(NativeBattlePoseSource source, NativeBattleDecodedPose pose, NativeBattleActionMatrix modelView)
+    {
+        source.Validate();
+        modelView.Validate();
+        if (pose.Bones.IsDefault || pose.Bones.Length != source.BoneCount)
+        {
+            throw new InvalidDataException("Native effect model requires every current decoded bone.");
+        }
+        Matrix composed = new(modelView.Rotation.ToArray(), modelView.X, modelView.Y, modelView.Z);
+        return BoneMatrices(source, pose).Select(bone => Compose(composed, bone)).Select(matrix => new NativeBattleActionMatrix(matrix.Rotation.ToImmutableArray(), matrix.X, matrix.Y, matrix.Z, 4096)).ToImmutableArray();
     }
 }

@@ -142,7 +142,7 @@ public sealed class NativeBattleCuragaProjectedSpritesTests
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(restored));
     }
 
-    private static byte[] Quad()
+    internal static byte[] Quad()
     {
         byte[] result = new byte[20];
         result[0] = 16;
@@ -153,7 +153,7 @@ public sealed class NativeBattleCuragaProjectedSpritesTests
         return result;
     }
 
-    private static ImmutableArray<byte> Resource(bool extended, params byte[][] quads)
+    internal static ImmutableArray<byte> Resource(bool extended, params byte[][] quads)
     {
         byte[] result = new byte[20 + quads.Length * 20];
         result[4] = 0xFF;

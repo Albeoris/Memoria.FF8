@@ -10,6 +10,7 @@ internal sealed record NativeEffectFixtureRequest(string Id, ushort Effect, byte
 {
     public int AdmissionProbeMaximumCallbacks { get; init; }
     public bool OrdinaryMagicAdmission { get; init; }
+    public int PartyModelId { get; init; }
 }
 internal sealed record NativeEffectFixtureRequests(NativeEffectFixtureRequest[] Cases);
 internal sealed record NativeEffectFixtureArtifact(string Boundary, string File, string Sha256, long Bytes, long Frame, long NativeCallback);
@@ -30,6 +31,10 @@ internal static class NativeBattleEffectFixtureExporter
         if (request.TargetActorIndex is not (0 or 3))
         {
             throw new InvalidDataException("This two-actor component supports explicit party0 or enemy3 contact targets only.");
+        }
+        if (request.PartyModelId is < 0 or > 10)
+        {
+            throw new InvalidDataException("The fresh component requires an explicit original party model index.");
         }
     }
 
@@ -81,7 +86,7 @@ internal static class NativeBattleEffectFixtureExporter
             BattleStage stage = assets.LoadStage(formation.StageId);
             BattleCombatantDefinition[] actors =
             [
-                new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, MaximumHp = 1000, CurrentHp = 100, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 },
+                new() { Id = "party", Name = request.PartyModelId == 0 ? "Squall" : "Party", IsPlayer = true, ModelId = request.PartyModelId, WeaponId = assets.WeaponDefinitions.First(weapon => weapon.CharacterId == request.PartyModelId).Id, MaximumHp = 1000, CurrentHp = 100, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 },
                 new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = formation.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
             ];
             if (request.OrdinaryMagicAdmission)

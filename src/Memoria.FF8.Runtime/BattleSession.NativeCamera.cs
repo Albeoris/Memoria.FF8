@@ -117,6 +117,10 @@ public sealed partial class BattleSession
                 {
                     graphics = firaCompleted;
                 }
+                else if (TryWriteNativeSearchCompletion(graphics, address, value, out NativeBattleGraphicsState searchCompleted))
+                {
+                    graphics = searchCompleted;
+                }
                 else
                 {
                     WriteNativeAuxiliaryCompletionByte(address, value);

@@ -62,11 +62,16 @@ public static partial class NativeBattlePoseMatrices
 
     public static NativeBattleShadowGeometry ShadowGeometry5088A0(NativeBattleGraphicsModel model, NativeBattleEffectLocalBounds bounds, NativeBattleActionMatrix camera, NativeBattleShadowSource source, bool gouraudShadows)
     {
+        NativeBattleActionMatrix previous = model.GeometryWorldMatrix ?? throw new NotSupportedException("Native5088A0 requires the retained model matrix at+40h.");
+        short groundY = (model.Transform ?? throw new NotSupportedException("Native5088A0 requires modelWORD36.")).Angle36;
+        return ShadowGeometry5088A0(previous, groundY, bounds, camera, source, gouraudShadows);
+    }
+
+    public static NativeBattleShadowGeometry ShadowGeometry5088A0(NativeBattleActionMatrix previous, short groundY, NativeBattleEffectLocalBounds bounds, NativeBattleActionMatrix camera, NativeBattleShadowSource source, bool gouraudShadows)
+    {
         source.Validate();
         camera.Validate();
-        NativeBattleActionMatrix previous = model.GeometryWorldMatrix ?? throw new NotSupportedException("Native5088A0 requires the retained model matrix at+40h.");
         previous.Validate();
-        short groundY = (model.Transform ?? throw new NotSupportedException("Native5088A0 requires modelWORD36.")).Angle36;
         short centerX = unchecked((short)((bounds.Minimum.X + bounds.Maximum.X) / 2));
         short centerZ = unchecked((short)((bounds.Minimum.Z + bounds.Maximum.Z) / 2));
         short radiusX = unchecked((short)(bounds.Maximum.X - centerX));

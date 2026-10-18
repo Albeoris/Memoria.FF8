@@ -6,13 +6,13 @@ namespace Memoria.FF8.Runtime;
 /// <summary>880450's flags-zero call to 8DD260/8DD3A0, with its current GTE matrix and original frame directory.</summary>
 public static class NativeBattleCuragaProjectedSprites
 {
-    public static NativeBattleModulePacketBatch Emit8DD260(ImmutableArray<byte> resource, ushort phase, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift)
+    public static NativeBattleModulePacketBatch Emit8DD260(ImmutableArray<byte> resource, ushort phase, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift, short depthBias = 0)
     {
-        NativeBattleGfGeometryBatch batch = EmitBatch8DD260(resource, phase, matrix, projection, cameraRoll, tableBaseBucket, depthShift);
+        NativeBattleGfGeometryBatch batch = EmitBatch8DD260(resource, phase, matrix, projection, cameraRoll, tableBaseBucket, depthShift, depthBias);
         return new(batch.Attempts.Where(attempt => attempt.Primitive is not null).Select(attempt => new NativeBattleAllocatedPrimitive(attempt.Primitive!, attempt.ByteOffsetRelative, 0)).ToImmutableArray(), batch.AllocationBytes);
     }
 
-    public static NativeBattleGfGeometryBatch EmitBatch8DD260(ImmutableArray<byte> resource, ushort phase, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift)
+    public static NativeBattleGfGeometryBatch EmitBatch8DD260(ImmutableArray<byte> resource, ushort phase, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift, short depthBias = 0)
     {
         if (resource.IsDefault || depthShift > 31)
         {
@@ -72,7 +72,7 @@ public static class NativeBattleCuragaProjectedSprites
             packet.Byte(29, bottom);
             packet.Byte(37, bottom);
             packet.Word(32, d.Screen);
-            int bucket = retainedBucket ?? checked(tableBaseBucket + (((a.Depth + b.Depth + c.Depth + d.Depth) >> 4) >> depthShift));
+            int bucket = retainedBucket ?? checked(tableBaseBucket + (Math.Max(0, ((a.Depth + b.Depth + c.Depth + d.Depth) >> 4) + depthBias) >> depthShift));
             uint opcode = quad[3] & 0xFCu;
             ImmutableArray<int> payload = opcode is < 0x20 or > 0x3C ? [0, 0, 0, 0] : (opcode & 8) != 0 ? [a.Depth, b.Depth, c.Depth, d.Depth] : [b.Depth, c.Depth, d.Depth, 0];
             NativeBattleGeometryPrimitive primitive = new(bucket, packet.Words(), payload);
