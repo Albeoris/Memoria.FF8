@@ -6,14 +6,14 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleDiablos325ProgrammeDraw(NativeBattleEffectMemory Memory, NativeBattleModulePoolTask Task, NativeBattleGfGeometryBatch Packets);
 
-public static class NativeBattleDiablos325Programme
+public static partial class NativeBattleDiablos325Programme
 {
     private static readonly int[] Lengths = [12, 12, 20, 24, 20, 24, 28, 36];
 
     public static NativeBattleDiablos325ProgrammeDraw Advance654654(NativeBattleDiablos325Frame frame, NativeBattleModulePoolTask task, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
     {
         int counter = unchecked((short)task.ReadWord(0xC));
-        if (counter is < 9 or > 102)
+        if (counter is < 9 or > 172)
         {
             throw new NotSupportedException("Native Diablos opening programme requires its current reached timeline window.");
         }
@@ -23,7 +23,7 @@ public static class NativeBattleDiablos325Programme
         {
             throw new NotSupportedException("Native Diablos requires its two original geometry selector tables.");
         }
-        NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Diablos programme requires its current camera view.");
+        _ = projection.View ?? throw new NotSupportedException("Native Diablos programme requires its current camera view.");
         short fade = counter < 17 ? checked((short)(256 + (17 - counter) * 512)) : (short)0;
         NativeBattleEffectMemory memory = frame.Memory;
         NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(0x264 - 12, 0xE0));
@@ -31,86 +31,11 @@ public static class NativeBattleDiablos325Programme
         int allocated = 0;
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.OpeningProgramme, unchecked((int)state.Pause5180), (current, node) =>
         {
-            if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
-            {
-                return current;
-            }
-            int index = unchecked((short)node.GeometryIndex);
-            if ((uint)index >= resources.PrimitiveKinds.Length)
-            {
-                throw new InvalidDataException("Native Diablos programme geometry index leaves its original selector tables.");
-            }
-            if (resources.TextureKinds[index] == 0x31)
-            {
-                throw new NotSupportedException("Native Diablos special texture window requires its actually produced phase BYTE.");
-            }
-            NativeBattleGfAnimationSource source = resources.OpeningProgramme;
-            int geometry = Int(source.Data, checked(8 + index * 4));
-            int count = Int(source.Data, checked(geometry + 4));
-            int selected = 0;
-            ImmutableArray<NativeBattleVector> morph = [];
-            if (node.Word40 == node.Word42 || node.Scalar38 is 0 or 4096)
-            {
-                int shape = node.Word40 == node.Word42 || node.Scalar38 == 0 ? node.Word40 : node.Word42;
-                selected = checked(geometry + 12 + shape * count * 8);
-            }
-            else
-            {
-                morph = NativeBattleGfMorphGeometry.MorphVertices701390(source.Data, geometry, node.Word40, node.Word42, node.Scalar38);
-                NativeBattleEffectArenaWriter writer = new(memory.Arena ?? throw new NotSupportedException("Native Diablos morph requires its current effect arena."));
-                for (int vertex = 0; vertex < morph.Length; vertex++)
-                {
-                    byte[] xyz = new byte[6];
-                    BinaryPrimitives.WriteInt16LittleEndian(xyz, morph[vertex].X);
-                    BinaryPrimitives.WriteInt16LittleEndian(xyz.AsSpan(2), morph[vertex].Y);
-                    BinaryPrimitives.WriteInt16LittleEndian(xyz.AsSpan(4), morph[vertex].Z);
-                    writer.Write(checked(0xD94 + vertex * 8), xyz);
-                }
-                memory = memory with { Arena = writer.Freeze() };
-            }
-            uint flags = (node.Header & 0x4000) != 0 ? 0x2000u : 0x2030u;
-            if ((node.Header & 0x2000) != 0)
-            {
-                flags |= 12;
-            }
-            uint? far = node.Scalar36 != 0 ? node.Color32 : null;
-            int cue = node.Scalar36;
-            if (node.Scalar36 != 0)
-            {
-                flags |= 0xC0;
-            }
-            if (fade != 0)
-            {
-                flags |= 0xC0;
-                far = 0;
-                cue = fade;
-            }
-            NativeBattleActionMatrix matrix = Compose656B70(node, new(0, 0, unchecked((short)state.MidZ51E0)), view);
-            NativeBattleGfGeometryContext context = new(flags, far ?? 0, cue, null, null, 512, 17, 2);
-            NativeBattleGfGeometryBatch batch = resources.PrimitiveKinds[index] == 0x30
-                ? NativeBattleGfGeometryPackets.EmitBatch7043B0(source.Data, geometry, default, matrix, projection, context, colors, Vertex)
-                : Alternate(source.Data, geometry, matrix, projection, context, colors, Vertex);
-            NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native Diablos programme requires its current far-color controls.");
-            NativeBattleModelRendererRegisters registers = process.ModelRendererRegisters ?? new(null, null, null, null, null);
-            registers = far is uint rgb ? registers.PublishModelColor(rgb) : registers with { FarRed = null, FarGreen = null, FarBlue = null };
-            memory = memory with { PrimitiveProcess = process with { ModelRendererRegisters = registers } };
-            attempts.AddRange(batch.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(allocated + attempt.ByteOffsetRelative) }));
-            allocated = checked(allocated + batch.AllocationBytes);
+            NativeBattleDiablos325NodeDraw drawn = Emit656B70(memory, resources.OpeningProgramme, node, projection, colors, new(0, 0, unchecked((short)state.MidZ51E0)), 512, fade, resources.PrimitiveKinds, resources.TextureKinds);
+            memory = drawn.Memory;
+            attempts.AddRange(drawn.Packets.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(allocated + attempt.ByteOffsetRelative) }));
+            allocated = checked(allocated + drawn.Packets.AllocationBytes);
             return current;
-
-            NativeBattleVector Vertex(int offset)
-            {
-                if (offset < 0 || (offset & 7) != 0 || offset / 8 >= count)
-                {
-                    throw new InvalidDataException("Native Diablos selected vertex leaves its actual shape bank.");
-                }
-                if (!morph.IsEmpty)
-                {
-                    return morph[offset / 8];
-                }
-                ReadOnlySpan<byte> bytes = source.Data.AsSpan().Slice(checked(selected + offset), 6);
-                return new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes[2..]), BinaryPrimitives.ReadInt16LittleEndian(bytes[4..]));
-            }
         });
         byte[] payload = task.Payload.ToArray();
         advanced.Workspace.Data.AsSpan().CopyTo(payload.AsSpan(0x264 - 12, 0xE0));

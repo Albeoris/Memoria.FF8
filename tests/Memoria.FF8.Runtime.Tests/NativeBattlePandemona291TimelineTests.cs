@@ -6,6 +6,17 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed partial class NativeBattlePandemona291EntryTests
 {
+    [Fact]
+    public void Final_opening_camera_overrides_orbit_with_native_next_scene_pose_and_focal()
+    {
+        NativeBattleCameraState camera = NativeBattleCameraState.FromColdProcess() with { CurrentPose = new(new(10, 20, 30), new(40, 50, 60), 240, 0), FocalLength = 240, Roll = 0, EyePaddingF6 = 9, TargetPaddingFE = 7 };
+        NativeBattleCameraState result = NativeBattlePandemona291Timeline.AdvanceOpeningCamera(camera, 1900, 39);
+        Assert.Equal(new NativeBattleCameraPose(new(-4096, -1208, -7210), new(0, -2984, -212), 288, 0), result.CurrentPose);
+        Assert.Equal((short)288, result.FocalLength);
+        Assert.Equal((short)9, result.EyePaddingF6);
+        Assert.Equal((short)7, result.TargetPaddingFE);
+    }
+
     [Theory]
     [InlineData(0, true)]
     [InlineData(17, false)]

@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleWaterShapeSelection
 {
-    public static (uint Directory, uint Selected) ResolveCinematic(NativeBattleWaterExecutionFrame frame, INativeBattleScriptedTextureProfile profile, short index)
+    public static (uint Directory, uint Selected) ResolveCinematic(NativeBattleWaterExecutionFrame frame, INativeBattleScriptedTextureProfile profile, int index)
     {
         uint manager = CoreDword(frame, 0x27973EC);
         uint map = unchecked(profile.InitializationAddress + profile.InitializationOffset(0x10));

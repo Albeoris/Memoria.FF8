@@ -27,6 +27,10 @@ public static class NativeBattleWaterMeshPreparation
         {
             return PrepareRotatedUniform(frame, bank, index, globalFocal);
         }
+        if (wrapper == 0x39)
+        {
+            return PrepareRotatedUniform(frame, bank, index, globalFocal, 3);
+        }
         if (wrapper is not (1 or 2))
         {
             throw new NotSupportedException("Native Water mesh wrapper is outside the selected ordinary preparation.");
@@ -97,13 +101,13 @@ public static class NativeBattleWaterMeshPreparation
         return new(frame, scaled with { X = translated.X, Y = translated.Y, Z = translated.Z }, globalFocal) { LocalClip = new(clip, flags) };
     }
 
-    private static NativeBattleWaterMeshPrepared PrepareRotatedUniform(NativeBattleWaterExecutionFrame frame, NativeBattleWaterSlotBank bank, int index, short globalFocal)
+    private static NativeBattleWaterMeshPrepared PrepareRotatedUniform(NativeBattleWaterExecutionFrame frame, NativeBattleWaterSlotBank bank, int index, short globalFocal, int rotationMode = 0)
     {
         int slot = bank.SlotOffset(frame.Arena, index);
         NativeBattleVector angles = new(SignedWord(frame.Arena, slot + 0x8C), SignedWord(frame.Arena, slot + 0x8E), 0);
         frame = frame.WriteTemporaryWord(0x90, unchecked((ushort)angles.X)).WriteTemporaryWord(0x92, unchecked((ushort)angles.Y)).WriteTemporaryWord(0x94, 0);
         NativeBattleActionMatrix euler;
-        (frame, euler) = NativeBattleWaterMatrixCommands.BuildRotationB65590(frame, angles, 0);
+        (frame, euler) = NativeBattleWaterMatrixCommands.BuildRotationB65590(frame, angles, rotationMode);
         uint address = NativeBattleWaterMatrixCommands.ResolveB65520(frame, bank, index, Word(frame.Arena, slot + 0x9C));
         byte[] raw = frame.Core.Read(address, 18);
         NativeBattleActionMatrix basis = new(Enumerable.Range(0, 9).Select(lane => BinaryPrimitives.ReadInt16LittleEndian(raw.AsSpan(lane * 2))).ToImmutableArray(), unchecked((int)CoreDword(frame, address + 20)), unchecked((int)CoreDword(frame, address + 24)), unchecked((int)CoreDword(frame, address + 28)), 4096);

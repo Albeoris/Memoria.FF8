@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
@@ -10,6 +11,11 @@ public sealed record NativeBattleDiablos325Resources(NativeBattleGfAnimationSour
     public ImmutableArray<byte> PuffSprite { get; init; } = [];
     public ImmutableArray<byte> PrimitiveKinds { get; init; } = [];
     public ImmutableArray<byte> TextureKinds { get; init; } = [];
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<byte>? ParticlePrimitiveKinds { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<byte>? ParticleTextureKinds { get; init; }
 
     public void Validate()
     {

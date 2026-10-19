@@ -26,6 +26,7 @@ public static class NativeBattleScriptedMeshPackets
         }
         (uint expected, int stride, int length, int corners, int indices) = group.Type switch
         {
+            6 => (0xAEB5B0u, 12, 28, 3, 4),
             2 => (0xB5C720u, 20, 28, 3, 14),
             7 => (0xB27E90u, 20, 36, 3, 12),
             8 => (0xB28110u, 20, 32, 3, 10),
@@ -65,7 +66,7 @@ public static class NativeBattleScriptedMeshPackets
             NativeBattleWaterMeshResult reused = NativeBattleWaterMeshPackets.EmitSelected(frame, group, projectedRecords, depths, outputPointer, resolveActualOtBucket, Shade, depthScale);
             return new(reused.Frame, reused.Packets, lighting, registers);
         }
-        if (group.Type == 16)
+        if (group.Type is 6 or 16)
         {
             frame = frame.WriteTemporaryDword(0xF0, 0);
         }
@@ -89,7 +90,7 @@ public static class NativeBattleScriptedMeshPackets
                 screens[corner] = BinaryPrimitives.ReadUInt32LittleEndian(projectedRecords.AsSpan().Slice(offset));
                 depthAndClip[corner] = BinaryPrimitives.ReadUInt32LittleEndian(projectedRecords.AsSpan().Slice(offset + 4));
                 rawDepth[corner] = NativePrecision53.RoundInteger(unchecked((ushort)depths[offset / 8]) * (double)depthScale);
-                StoreDword(group.Type == 16 ? 16 + corner * 4 : group.Type == 19 ? 8 + corner * 12 : 8 + corner * 8, screens[corner]);
+                StoreDword(group.Type is 6 or 16 ? 16 + corner * 4 : group.Type == 19 ? 8 + corner * 12 : 8 + corner * 8, screens[corner]);
             }
             bool reject = (frame.ReadTemporaryDword(0x90) & 0x10) == 0 && NativeBattleModulePackets.Nclip(screens[0], screens[1], screens[2]) < 0;
             reject |= ((depthAndClip.Aggregate(0u, (value, next) => value | next) >> 16) & 0x46) != 0;
@@ -112,11 +113,11 @@ public static class NativeBattleScriptedMeshPackets
                         StoreDword(4 + corner * 8, Shade(material));
                     }
                 }
-                else if (group.Type == 16)
+                else if (group.Type is 6 or 16)
                 {
                     StoreDword(4, frame.ReadTemporaryDword(0x50));
                     StoreDword(8, 0);
-                    uint material = BinaryPrimitives.ReadUInt32LittleEndian(face) | frame.ReadTemporaryDword(0x8C) | 0x28000000u;
+                    uint material = BinaryPrimitives.ReadUInt32LittleEndian(face) | frame.ReadTemporaryDword(0x8C) | (group.Type == 6 ? 0x20000000u : 0x28000000u);
                     StoreDword(12, Shade(material));
                 }
                 else

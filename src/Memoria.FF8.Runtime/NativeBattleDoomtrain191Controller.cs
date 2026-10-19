@@ -45,7 +45,7 @@ public static class NativeBattleDoomtrain191Controller
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 0x24, 100);
         (children, int childSlot) = children.Append(0x63F2D0);
         children = Put(children, childSlot, children.Slots[childSlot].WriteWord(0xC, 0));
-        state = state with { BaseMatrix = Pack(rotation, state.BaseMatrix, false), ArenaAddress = NativeBattleEffectNodeMemory.ArenaAddress, WorkPointers = offsets.Append(0x37000).Select(value => unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)value)).ToImmutableArray(), Caster = parameters.Actor78, FirstTarget = actor, LookupCounter = 0 };
+        state = state with { BaseMatrix = Pack(rotation, state.BaseMatrix, true), ArenaAddress = NativeBattleEffectNodeMemory.ArenaAddress, WorkPointers = offsets.Append(0x37000).Select(value => unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)value)).ToImmutableArray(), Caster = parameters.Actor78, FirstTarget = actor, LookupCounter = 0 };
         return new(memory with { Arena = arena, Textures = textures, Doomtrain191 = state }, effect with { Pools = [main, children], ReturnedDescriptor = MainDescriptor }, random);
     }
 
@@ -276,6 +276,7 @@ public static class NativeBattleDoomtrain191Controller
         int Append(uint callback)
         {
             (children, int slot) = children.Append(callback);
+            children = Put(children, slot, children.Slots[slot].WriteWord(0xC, 0));
             return slot;
         }
 
@@ -311,7 +312,7 @@ public static class NativeBattleDoomtrain191Controller
         return bytes.ToImmutableArray();
     }
 
-    private static NativeBattlePackedMatrix32 Pack(NativeBattleActionMatrix matrix, NativeBattlePackedMatrix32 previous, bool unknownPadding)
+    internal static NativeBattlePackedMatrix32 Pack(NativeBattleActionMatrix matrix, NativeBattlePackedMatrix32 previous, bool unknownPadding)
     {
         byte[] bytes = previous.Bytes.ToArray();
         bool[] known = Enumerable.Repeat(true, 32).ToArray();

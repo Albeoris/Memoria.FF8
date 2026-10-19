@@ -7,6 +7,14 @@ public sealed record NativeBattleGfGeometryContext(uint Flags, uint FarColor, in
 
 internal sealed record NativeBattleMeshPacketContext(uint Flags, uint? FarColor, int? DepthCue, ushort? TexturePage, ushort? Clut, uint? PackedUvOffset, int DepthBias, int TableBaseBucket, byte DepthShift);
 
+internal sealed record NativeBattleMeshPacketVariant(uint? UniformFlatColor, uint? GouraudTint, bool DeferInitialGouraudColor, bool RejectZeroArea)
+{
+    public Action<uint>? ObserveFlags { get; init; }
+    public Action<int>? ObserveArea { get; init; }
+    public Action<uint>? ObserveFourthScreen { get; init; }
+    public Action<uint>? ObserveAverageDepth { get; init; }
+}
+
 public enum NativeBattleGfPacketByteState : byte
 {
     Untouched,
@@ -123,7 +131,7 @@ public static class NativeBattleGfGeometryPackets
         return EmitAttempt(face, vertices, group, Normalize(context), colors, byteOffsetRelative, observeDepth);
     }
 
-    internal static NativeBattleGfGeometryAttempt EmitAttempt(ReadOnlySpan<byte> face, IReadOnlyList<NativeBattleModuleProjectedVertex> vertices, int group, NativeBattleMeshPacketContext context, NativeBattleSummonColors? colors, int byteOffsetRelative = 0, Action<ushort>? observeDepth = null)
+    internal static NativeBattleGfGeometryAttempt EmitAttempt(ReadOnlySpan<byte> face, IReadOnlyList<NativeBattleModuleProjectedVertex> vertices, int group, NativeBattleMeshPacketContext context, NativeBattleSummonColors? colors, int byteOffsetRelative = 0, Action<ushort>? observeDepth = null, NativeBattleMeshPacketVariant? variant = null)
     {
         bool quad = (group & 1) != 0;
         bool textured = (group & 2) != 0;
@@ -146,6 +154,14 @@ public static class NativeBattleGfGeometryPackets
         writes.Word(0, (uint)(length - 1) << 24);
         uint flags = context.Flags;
         uint command = BinaryPrimitives.ReadUInt32LittleEndian(face);
+        if (!gouraud && variant?.UniformFlatColor is uint uniform)
+        {
+            if (!textured)
+            {
+                throw new NotSupportedException("Native uniform mesh color requires its selected textured group.");
+            }
+            command = uniform | (quad ? 0x2C000000u : 0x24000000u);
+        }
         if ((flags & (gouraud ? 2u : 1u)) != 0)
         {
             command |= 0x2000000;
@@ -154,7 +170,10 @@ public static class NativeBattleGfGeometryPackets
         {
             command &= 0xFDFFFFFF;
         }
-        writes.Word(1, command);
+        if (!gouraud || variant?.DeferInitialGouraudColor != true)
+        {
+            writes.Word(1, command);
+        }
         uint[] uvs = new uint[textured ? count : 0];
         if (textured)
         {
@@ -171,6 +190,7 @@ public static class NativeBattleGfGeometryPackets
                 writes.Word(ScreenWord(corner) + 1, uvs[corner]);
             }
         }
+        variant?.ObserveFlags?.Invoke(firstFlags);
         // Quad leaves gate the first RTPT flags only; following45FAA0 RTPS flags are never tested.
         if ((firstFlags & 0x60000) != 0)
         {
@@ -198,7 +218,8 @@ public static class NativeBattleGfGeometryPackets
             writes.Word(ScreenWord(1) + 1, uvs[1]);
         }
         int nclip = NativeBattleModulePackets.Nclip(vertices[0].Screen, vertices[1].Screen, vertices[2].Screen);
-        if (nclip < 0 && (flags & (gouraud ? 0x20u : 0x10u)) == 0)
+        variant?.ObserveArea?.Invoke(nclip);
+        if (nclip == 0 && variant?.RejectZeroArea == true || nclip < 0 && (flags & (gouraud ? 0x20u : 0x10u)) == 0)
         {
             return writes.Finish(null);
         }
@@ -211,6 +232,7 @@ public static class NativeBattleGfGeometryPackets
             // The fourth RTPS occurs only after first-three near and NCLIP admission.
             observeDepth?.Invoke(vertices[3].Depth);
             writes.Word(ScreenWord(3), vertices[3].Screen);
+            variant?.ObserveFourthScreen?.Invoke(vertices[3].Screen);
         }
         if (vertices.All(vertex => unchecked((ushort)vertex.Screen) > 0xA00) || vertices.All(vertex => (vertex.Screen >> 16) > 0x6C0))
         {
@@ -224,6 +246,21 @@ public static class NativeBattleGfGeometryPackets
             for (int corner = 1; corner < count; corner++)
             {
                 vertexColors[corner] = BinaryPrimitives.ReadUInt32LittleEndian(face[(colorOffset + (corner - 1) * 4)..]);
+            }
+        }
+        if (gouraud && variant?.GouraudTint is uint tint)
+        {
+            for (int corner = 0; corner < vertexColors.Length; corner++)
+            {
+                uint original = vertexColors[corner];
+                uint modulated = original & 0xFF000000;
+                for (int channel = 0; channel < 3; channel++)
+                {
+                    int shift = channel * 8;
+                    uint product = ((original >> shift) & 255) * ((tint >> shift) & 255);
+                    modulated |= (uint)unchecked((byte)(product >> 7)) << shift;
+                }
+                vertexColors[corner] = modulated;
             }
         }
         if ((flags & (gouraud ? 0x80u : 0x40u)) != 0)
@@ -242,6 +279,7 @@ public static class NativeBattleGfGeometryPackets
         }
         // 56BAA0 establishes ZSF3=155h/ZSF4=100h;AVSZ performs unsigned SHR12 before context bias and signed clamp.
         uint average = unchecked((uint)vertices.Sum(vertex => (int)vertex.Depth) * (quad ? 0x100u : 0x155u)) >> 12;
+        variant?.ObserveAverageDepth?.Invoke(average);
         int biased = Math.Max(unchecked((int)average + context.DepthBias), 0);
         int bucket = checked(context.TableBaseBucket + (biased >> context.DepthShift));
         for (int corner = 0; corner < vertexColors.Length; corner++)
@@ -274,7 +312,7 @@ public static class NativeBattleGfGeometryPackets
         return bytes.AsSpan().Slice(offset, length);
     }
 
-    private sealed class ProjectedCorners(ushort[] offsets, Func<ushort, NativeBattleModuleProjectedVertex> project) : IReadOnlyList<NativeBattleModuleProjectedVertex>
+    internal sealed class ProjectedCorners(ushort[] offsets, Func<ushort, NativeBattleModuleProjectedVertex> project) : IReadOnlyList<NativeBattleModuleProjectedVertex>
     {
         public int Count => offsets.Length;
         public NativeBattleModuleProjectedVertex this[int index] => project(offsets[index]);

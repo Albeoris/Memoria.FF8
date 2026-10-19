@@ -39,6 +39,11 @@ public static class NativeBattlePandemona291ResourcesReader
         uint[] trailAddresses = [0x139FAF8, 0x139FC30, 0x139FD68, 0x139FEA0];
         ImmutableArray<NativeBattleStaticMeshResource> trails = trailAddresses.Select((address, index) => new NativeBattleStaticMeshResource((byte)index, address, memory.Read(address, 0x134).ToImmutableArray())).ToImmutableArray();
         resources = resources with { AnimationSources = animations, Vibration = vibration, OpeningSound = BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0x13B7A48, 4)), SurfaceProgram = new(0x13AFF48, memory.Read(0x13AFF48, 0xD54).ToImmutableArray()), TrailModels = trails, TrailTrigonometry = memory.Read(0x13B7BB8, 0x4000).ToImmutableArray(), SurfaceTextureKinds = memory.Read(0x13EF440, 1).ToImmutableArray() };
+        uint[] layerAddresses = [0x13A0E58, 0x13A4F88, 0x13A6508];
+        int[] layerLengths = [0x3428, 0xF68, 0x16E8];
+        uint[] targetAddresses = [0x13A4280, 0x13A5EF0, 0x13A7BF0];
+        int[] targetLengths = [0xD08, 0x618, 0x918];
+        resources = resources with { LayerGeometry = layerAddresses.Select((address, index) => new NativeBattleStaticMeshResource((byte)index, address, memory.Read(address, layerLengths[index]).ToImmutableArray())).ToImmutableArray(), LayerTargets = targetAddresses.Select((address, index) => new NativeBattleStaticMeshResource((byte)index, address, memory.Read(address, targetLengths[index]).ToImmutableArray())).ToImmutableArray(), LayerSprite = new(0x13AFCC0, NativeBattleEffectStaticResourcesReader.ReadProjectedSprite(memory, 0x13AFCC0)) };
         resources.Validate();
         return resources;
     }

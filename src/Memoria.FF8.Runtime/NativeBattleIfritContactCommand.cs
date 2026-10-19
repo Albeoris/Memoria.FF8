@@ -3,13 +3,23 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-/// <summary>The generic cinematic contact command, selecting all contacts or the first current-slot match.</summary>
+/// <summary>Cinematic contact selection over current action packets, with explicit saved-actor selection.</summary>
 public static class NativeBattleIfritContactCommand
 {
     public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterContextServices services)
     {
+        return Execute(frame, services, false);
+    }
+
+    public static NativeBattleWaterExecutionFrame ExecuteSavedActors(NativeBattleWaterExecutionFrame frame, NativeBattleWaterContextServices services)
+    {
+        return Execute(frame, services, true);
+    }
+
+    private static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterContextServices services, bool savedActorSelection)
+    {
         ushort instruction = frame.ReadTemporaryWord(0x14A);
-        if ((instruction & 0x0FFF) != 0x022)
+        if ((instruction & 0x01FF) != 0x022)
         {
             throw new NotSupportedException("Native cinematic contact command requires its selected instruction.");
         }
@@ -24,20 +34,42 @@ public static class NativeBattleIfritContactCommand
                 frame = services.ApplyContact506690(frame, unchecked(contacts + (uint)(0x18 * index)));
             }
         }
-        else
+        else if (savedActorSelection && instruction >> 12 == 1)
         {
-            byte wanted = ReadSlot(frame, 0x1B, 1)[0];
-            for (int index = 0; index < count; index++)
+            uint header = CoreDword(frame, 0x279744C);
+            int saved = unchecked((sbyte)frame.Core.Read(unchecked(header + 0x17A), 1)[0]);
+            if (saved == 0)
             {
-                uint contact = unchecked(contacts + (uint)(0x18 * index));
-                if (ReadAction(contact, 1)[0] == wanted)
+                ApplyFirst(contacts, ReadSlot(frame, 0x1B, 1)[0]);
+            }
+            else
+            {
+                for (int index = saved; index > 0; index--)
                 {
-                    frame = services.ApplyContact506690(frame, contact);
-                    break;
+                    byte wanted = frame.Core.Read(unchecked(header + 0x173u + (uint)index), 1)[0];
+                    uint currentContacts = BinaryPrimitives.ReadUInt32LittleEndian(ReadAction(unchecked(action + 8), 4));
+                    ApplyFirst(currentContacts, wanted);
                 }
             }
         }
+        else
+        {
+            ApplyFirst(contacts, ReadSlot(frame, 0x1B, 1)[0]);
+        }
         return WriteCoreDword(frame, 0x2797450, unchecked(CoreDword(frame, 0x2797450) + 2));
+
+        void ApplyFirst(uint first, byte wanted)
+        {
+            for (int index = 0; index < count; index++)
+            {
+                uint contact = unchecked(first + (uint)(0x18 * index));
+                if (ReadAction(contact, 1)[0] == wanted)
+                {
+                    frame = services.ApplyContact506690(frame, contact);
+                    return;
+                }
+            }
+        }
 
         byte[] ReadAction(uint address, int length)
         {

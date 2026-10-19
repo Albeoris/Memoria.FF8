@@ -38,6 +38,14 @@ public static class NativeBattleDiablos325OpeningTail
         {
             return NativeBattleDiablos325Orbit.Reset6563D1(frame, camera);
         }
+        else if (counter is >= 123 and <= 152)
+        {
+            return NativeBattleDiablos325MidCamera.Advance656429(frame, camera, counter);
+        }
+        else if (counter == 153)
+        {
+            return NativeBattleDiablos325MidCamera.Reset6564BC(frame, camera);
+        }
         return new(frame, camera);
     }
 }

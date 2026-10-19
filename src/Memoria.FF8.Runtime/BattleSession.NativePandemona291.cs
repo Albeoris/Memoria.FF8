@@ -59,9 +59,28 @@ public sealed partial class BattleSession
                     var drawn = DrawNativePandemona291Surface(current, address, age, graphics);
                     graphics = drawn.Graphics;
                     return drawn.Frame;
+                },
+                DrawLayers = (current, age) =>
+                {
+                    var drawn = DrawNativePandemona291Layers(current, age, graphics);
+                    graphics = drawn.Graphics;
+                    return drawn.Frame;
                 }
             };
-            NativeBattlePandemona291MasterInputs inputs = new(construction, (current, address, task) => task.Callback == 0x6ED900 ? NativeBattlePandemona291Timeline.Advance6ED900(current, address, task, timeline) : throw new NotSupportedException($"Native Pandemona callback0x{task.Callback:X8} at0x{address:X8} requires its complete timeline contract."));
+            NativeBattlePandemona291MasterInputs inputs = new(construction, (current, address, task) =>
+            {
+                if (task.Callback == 0x6ED900)
+                {
+                    return NativeBattlePandemona291Timeline.Advance6ED900(current, address, task, timeline);
+                }
+                if (task.Callback == 0x6F0ED0)
+                {
+                    var particle = AdvanceNativePandemona291LayerParticle(current, address, task, graphics);
+                    graphics = particle.Graphics;
+                    return particle.Step;
+                }
+                throw new NotSupportedException($"Native Pandemona callback0x{task.Callback:X8} at0x{address:X8} requires its complete timeline contract.");
+            });
             frame = NativeBattlePandemona291Controller.Advance6ED350(frame, (depth, flags) =>
             {
                 NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native5713E0 requires its retained stage groups.");

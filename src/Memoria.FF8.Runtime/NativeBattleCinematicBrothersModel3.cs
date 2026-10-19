@@ -64,8 +64,26 @@ public static class NativeBattleCinematicBrothersModel3
                 frame = frame with { Arena = NativeBattleArenaPose.WriteMatrix(frame.Arena, offset, NativeBattlePoseMatrices.Compose56C2F0(parent, local), true) };
             }
         }
-        int maxX = unchecked((int)Dword(skeleton + 0x34));
-        int maxZ = unchecked((int)Dword(skeleton + 0x3C));
+        frame = DrawPreparedRing(frame, count, unchecked((int)Dword(skeleton + 0x34)), unchecked((int)Dword(skeleton + 0x3C)), (current, index) => NativeBattleArenaPose.ReadMatrix(current.Arena, ArenaOffset(unchecked(skeleton + 32u + (uint)index * 48), 32)), (current, index) => BinaryPrimitives.ReadInt16LittleEndian(current.Arena.Read(ArenaOffset(unchecked(skeleton + 18u + (uint)index * 48), 2), 2)), new(0, 0, 0), depth, height, intensity, NativeBattleCameraMath.Sine(512), null, services);
+        if (parent is not null)
+        {
+            Restore();
+        }
+        return frame;
+
+        uint Dword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(address, 4), 4));
+
+        void Restore()
+        {
+            NativeBattleDecodedPose pose = NativeBattleArenaPose.ReadCurrentPose(frame.Arena, skeletonOffset, count);
+            frame = frame with { Arena = NativeBattleArenaPose.RestoreBoneMatrices(frame.Arena, skeletonOffset, pose) };
+        }
+    }
+
+    public static NativeBattleWaterExecutionFrame DrawPreparedRing(NativeBattleWaterExecutionFrame frame, int count, int rootX, int rootZ, Func<NativeBattleWaterExecutionFrame, int, NativeBattleActionMatrix> readBone, Func<NativeBattleWaterExecutionFrame, int, short> readLength, NativeBattleVector centerOffset, int depth, short height, int intensity, int diagonalFactor, Func<NativeBattleWaterExecutionFrame, uint>? readColor, NativeBattleCinematicBrothersModelServices services)
+    {
+        int maxX = rootX;
+        int maxZ = rootZ;
         int minX = unchecked(maxX - 500);
         int minZ = unchecked(maxZ - 500);
         maxX = unchecked(maxX + 500);
@@ -73,9 +91,8 @@ public static class NativeBattleCinematicBrothersModel3
         frame = frame.WriteTemporaryDword(0xD0, 0);
         for (int index = 1; index < count; index++)
         {
-            uint matrixAddress = unchecked(skeleton + 32u + (uint)index * 48);
-            NativeBattleActionMatrix bone = NativeBattleArenaPose.ReadMatrix(frame.Arena, ArenaOffset(matrixAddress, 32));
-            frame = frame.WriteTemporaryWord(0xD4, unchecked((ushort)SignedWord(matrixAddress - 14)));
+            NativeBattleActionMatrix bone = readBone(frame, index);
+            frame = frame.WriteTemporaryWord(0xD4, unchecked((ushort)readLength(frame, index)));
             NativeBattleVector input = TemporaryVector(0xD0);
             frame = services.PublishInput(frame, frame.TemporaryFrame.Address + 0xD0);
             NativeBattleFullMacVertex mac = NativeBattleGfMatrices.TransformMac460840(bone, input);
@@ -103,7 +120,7 @@ public static class NativeBattleCinematicBrothersModel3
         int centerZ = unchecked(minZ + maxZ) / 2;
         int radiusX = unchecked(maxX - centerX);
         int radiusZ = unchecked(maxZ - centerZ);
-        StoreVector(0xD0, new(unchecked((short)centerX), 0, unchecked((short)centerZ)));
+        StoreVector(0xD0, new(unchecked((short)(centerX + centerOffset.X)), 0, unchecked((short)(centerZ + centerOffset.Z))));
         byte[] rotation = frame.Core.Read(0x27979E8, 18);
         NativeBattleActionMatrix view = new(Enumerable.Range(0, 9).Select(index => BinaryPrimitives.ReadInt16LittleEndian(rotation.AsSpan(index * 2))).ToImmutableArray(), unchecked((int)CoreDword(frame, 0x27979FC)), unchecked((int)CoreDword(frame, 0x2797A00)), unchecked((int)CoreDword(frame, 0x2797A04)), 4096);
         frame = services.PublishInput(frame, frame.TemporaryFrame.Address + 0xD0);
@@ -112,7 +129,7 @@ public static class NativeBattleCinematicBrothersModel3
         StoreVector(0xD8, center);
         frame = frame.WriteTemporaryDword(0xFC, centerMac.Flags);
         NativeBattleActionMatrix camera = view with { X = center.X, Y = center.Y, Z = center.Z };
-        int sine = NativeBattleCameraMath.Sine(512);
+        int sine = diagonalFactor;
         int diagonalZ = unchecked(sine * radiusZ) >> 12;
         int diagonalX = unchecked(sine * radiusX) >> 12;
         (int X, int Z)[] points = [(0, radiusZ), (diagonalX, diagonalZ), (radiusX, 0), (diagonalX, unchecked(-diagonalZ)), (0, unchecked(-radiusZ)), (unchecked(-diagonalX), unchecked(-diagonalZ)), (unchecked(-radiusX), 0), (unchecked(-diagonalX), diagonalZ), (0, 0)];
@@ -132,7 +149,7 @@ public static class NativeBattleCinematicBrothersModel3
         {
             uint ordering = depth == -1 ? unchecked(services.ReadFallbackOrdering() + 0x4064u) : unchecked(ReadControlOrdering() + (unchecked((uint)depth) & 0x3FFC));
             uint output = CoreDword(frame, CoreDword(frame, 0x27973EC) + 0x7C);
-            uint color = 0x32000000u | (unchecked((uint)intensity) & 255) * 0x10101u;
+            uint color = readColor is null ? 0x32000000u | (unchecked((uint)intensity) & 255) * 0x10101u : readColor(frame);
             ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>(8);
             for (int index = 0; index < 8; index++)
             {
@@ -149,10 +166,6 @@ public static class NativeBattleCinematicBrothersModel3
             frame = services.Append(frame, output, ordering, new(attempts.MoveToImmutable(), 288));
             frame = WriteCoreDword(frame, CoreDword(frame, 0x27973EC) + 0x7C, unchecked(output + 288));
         }
-        if (parent is not null)
-        {
-            Restore();
-        }
         return frame;
 
         uint ReadControlOrdering()
@@ -161,15 +174,9 @@ public static class NativeBattleCinematicBrothersModel3
             uint relative = unchecked(address - frame.TemporaryFrame.Address);
             return relative <= 0x17C ? frame.ReadTemporaryDword((int)relative) : CoreDword(frame, address);
         }
-        uint Dword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(address, 4), 4));
-        short SignedWord(uint address) => BinaryPrimitives.ReadInt16LittleEndian(frame.Arena.Read(ArenaOffset(address, 2), 2));
+
         NativeBattleVector TemporaryVector(int offset) => new(unchecked((short)frame.ReadTemporaryWord(offset)), unchecked((short)frame.ReadTemporaryWord(offset + 2)), unchecked((short)frame.ReadTemporaryWord(offset + 4)));
         void StoreVector(int offset, NativeBattleVector value) => frame = frame.WriteTemporaryWord(offset, unchecked((ushort)value.X)).WriteTemporaryWord(offset + 2, unchecked((ushort)value.Y)).WriteTemporaryWord(offset + 4, unchecked((ushort)value.Z));
-        void Restore()
-        {
-            NativeBattleDecodedPose pose = NativeBattleArenaPose.ReadCurrentPose(frame.Arena, skeletonOffset, count);
-            frame = frame with { Arena = NativeBattleArenaPose.RestoreBoneMatrices(frame.Arena, skeletonOffset, pose) };
-        }
     }
 
     private static NativeBattleActionMatrix ReadTemporaryMatrix(NativeBattleWaterExecutionFrame frame, int offset)

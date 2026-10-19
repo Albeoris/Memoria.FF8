@@ -4,6 +4,11 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleDoomtrain191Resources(NativeBattleEffectHeapAllocation ModelTim, NativeBattleEffectHeapAllocation CameraProgram, NativeBattleMoogle96VibrationResource Vibration, NativeBattleEffectHeapAllocation Sounds, int InitialStream, ImmutableArray<NativeBattleEffectFileAsset> Files)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleDoomtrain191RigResources? OpeningRigs { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleDoomtrain191SkyResources? Sky { get; init; }
+
     public void Validate()
     {
         Vibration.Bank.Validate();

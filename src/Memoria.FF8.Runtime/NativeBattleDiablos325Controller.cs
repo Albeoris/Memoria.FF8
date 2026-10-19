@@ -42,7 +42,7 @@ public static class NativeBattleDiablos325Controller
                 NativeBattleEffectTaskPool? particles = frame.Effect.Pools.SingleOrDefault(item => item.DescriptorAddress == 0x2505190);
                 if (particles?.Head is not null)
                 {
-                    throw new NotSupportedException("Native Diablos requires its original ordered particle callback services.");
+                    frame = (inputs.AdvanceParticles ?? throw new NotSupportedException("Native Diablos requires its original ordered particle callback services."))(frame);
                 }
             }
             frame = frame with { Memory = frame.Memory with { Diablos325 = state } };

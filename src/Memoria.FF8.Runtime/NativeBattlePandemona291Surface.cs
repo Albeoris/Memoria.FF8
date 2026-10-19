@@ -72,12 +72,15 @@ public static class NativeBattlePandemona291Surface
         {
             return new([], 0);
         }
-        NativeBattleEsunaMeshContext context = prepared.Context;
+        return EmitGeometry701DD0(source.Data.AsSpan().Slice(prepared.GeometryOffset).ToArray().ToImmutableArray(), prepared.Matrix, prepared.Context, projection, colors, zsf4, readSelected, observeInput, observeFlags, projectFourth);
+    }
+
+    public static NativeBattleGfGeometryBatch EmitGeometry701DD0(ImmutableArray<byte> geometry, NativeBattleActionMatrix matrix, NativeBattleEsunaMeshContext context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, short zsf4, Func<int, NativeBattleVector> readSelected, Action<int>? observeInput = null, Action<uint>? observeFlags = null, Func<NativeBattleVector, NativeBattleModuleProjectedVertex>? projectFourth = null)
+    {
         NativeBattleEffectMeshWindow window = new(context.UOffset, context.VOffset, context.WindowBefore, context.WindowAfter);
         NativeBattleEffectMeshPacketContext operands = new(context.Flags, context.FarColor, context.Fade, null, null, 0, false, context.DepthBias, context.TableBaseBucket, context.DepthShift, window);
-        ImmutableArray<byte> geometry = source.Data.AsSpan().Slice(prepared.GeometryOffset).ToArray().ToImmutableArray();
         int corner = -1;
-        return NativeBattleEffectMeshPackets.EmitBatch(geometry, prepared.Matrix, projection, context.Flags, offset =>
+        return NativeBattleEffectMeshPackets.EmitBatch(geometry, matrix, projection, context.Flags, offset =>
         {
             corner++;
             if (corner is 0 or 3)

@@ -7,6 +7,7 @@ public sealed record NativeBattlePandemona291TimelineServices(Func<NativeBattleP
 {
     public Func<NativeBattlePandemona291Frame, uint, NativeBattlePandemona291Frame>? DrawTrails { get; init; }
     public Func<NativeBattlePandemona291Frame, uint, int, NativeBattlePandemona291Frame>? DrawSurface { get; init; }
+    public Func<NativeBattlePandemona291Frame, int, NativeBattlePandemona291Frame>? DrawLayers { get; init; }
 }
 
 public static class NativeBattlePandemona291Timeline
@@ -14,9 +15,9 @@ public static class NativeBattlePandemona291Timeline
     public static NativeBattlePandemona291ChildStep Advance6ED900(NativeBattlePandemona291Frame frame, uint address, NativeBattleModulePoolTask task, NativeBattlePandemona291TimelineServices services)
     {
         int age = unchecked((short)task.ReadWord(0xC));
-        if (age is < 0 or >= 25)
+        if (age is < 0 or >= 40)
         {
-            throw new NotSupportedException($"Native Pandemona6ED900 age{age} requires its animated layers6F2A30.");
+            throw new NotSupportedException($"Native Pandemona6ED900 age{age} requires its next scene after the opening layers.");
         }
         NativeBattlePandemona291State state = frame.Memory.Pandemona291 ?? throw new NotSupportedException("Native Pandemona timeline requires its current module owner.");
         frame = frame with { Memory = frame.Memory with { Pandemona291 = state with { Flash25562F0 = unchecked((uint)(age < 8 ? age * 350 : 2800)) } } };
@@ -46,6 +47,16 @@ public static class NativeBattlePandemona291Timeline
                 frame = frame with { Random = spawned.Random };
             }
             frame = frame with { Memory = frame.Memory with { Arena = arena } };
+        }
+        if (age >= 25)
+        {
+            frame = (services.DrawLayers ?? throw new NotSupportedException("Native Pandemona requires its animated layers6F2A30."))(frame, age);
+            uint pause = frame.Memory.Pandemona291!.Pause2556258 ?? throw new NotSupportedException("Native Pandemona requires its current pause DWORD.");
+            if (pause == 0)
+            {
+                frame = NativeBattlePandemona291LayerParticles.Spawn6EDBCF(frame, age);
+            }
+            arena = frame.Memory.Arena!;
         }
         bool activeTrails = false;
         for (int index = 0; index < 128; index++)
@@ -103,6 +114,10 @@ public static class NativeBattlePandemona291Timeline
         NativeBattleCameraPose pose = age == 0 ? new(new(0, -1200, unchecked((short)(center - 200))), new(0, -900, unchecked((short)(center - 2000))), 240, 0) : (camera.CurrentPose ?? throw new NotSupportedException("Native Pandemona requires its current canonical eye and target WORDs.")) with { FocalLength = camera.FocalLength, Roll = camera.Roll };
         pose = NativeBattleCarbuncle278Camera.Orbit683D10(pose, 0, unchecked((552 - age) << 3));
         pose = pose with { Eye = pose.Eye with { Y = -1200 } };
+        if (age == 39)
+        {
+            pose = pose with { Eye = new(-4096, -1208, unchecked((short)(center - 9110))), Target = new(0, -2984, unchecked((short)(center - 2112))), FocalLength = 288 };
+        }
         return camera.WriteEffectGlobals(pose);
     }
 }

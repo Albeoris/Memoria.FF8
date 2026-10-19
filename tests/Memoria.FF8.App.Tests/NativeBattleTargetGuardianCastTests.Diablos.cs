@@ -7,7 +7,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed partial class NativeBattleTargetGuardianCastTests
 {
     [Fact]
-    public void Installed_Diablos_ordinary_entry_and_opening_programme_window_restores_before_paired_wings()
+    public void Installed_Diablos_ordinary_entry_restores_third_stream_reset_before_playback()
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select installed original resources with MEMORIA_FF8_GAME_DIR.");
@@ -60,7 +60,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(source))!);
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(first.Capture()));
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
-        while (Counter(first.Capture()) < 105)
+        while (Counter(first.Capture()) < 175)
         {
             first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
             second.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
@@ -69,10 +69,10 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         }
         BattleSnapshot boundary = first.Capture();
         byte[] boundaryPixels = scene.Render(first, 320, 224).ToArray();
-        NativeBattleRestorationPresentationTests.Publish(output, "before-particle-bank", boundary, boundaryPixels);
+        NativeBattleRestorationPresentationTests.Publish(output, "before-third-stream-playback", boundary, boundaryPixels);
         NotSupportedException error = Assert.Throws<NotSupportedException>(() => first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero));
         NotSupportedException independentError = Assert.Throws<NotSupportedException>(() => second.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero));
-        Assert.Contains("6548B9", error.Message);
+        Assert.Contains("65551D", error.Message);
         Assert.Equal(error.Message, independentError.Message);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "entry-and-opening-programme-validated", boundary.Frame, NativeCallback = boundary.NativeGraphics!.Callback, Counter = Counter(boundary), Boundary = error.Message }));

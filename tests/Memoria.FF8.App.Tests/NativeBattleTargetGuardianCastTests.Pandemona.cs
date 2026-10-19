@@ -68,7 +68,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         }
         BattleSnapshot boundary = live.Capture();
         NativeBattleRestorationPresentationTests.Publish(output, "before-timeline", boundary, scene.Render(live, 320, 224).ToArray());
-        for (int opening = 0; opening < 25; opening++)
+        for (int opening = 0; opening < 40; opening++)
         {
             live.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
             independent.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
@@ -76,11 +76,11 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             Assert.Equal(scene.Render(live, 320, 224).ToArray(), scene.Render(independent, 320, 224).ToArray());
         }
         boundary = live.Capture();
-        Assert.Equal((ushort)25, boundary.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25562A8).Slots[0].ReadWord(0xC));
-        NativeBattleRestorationPresentationTests.Publish(output, "before-surface", boundary, scene.Render(live, 320, 224).ToArray());
+        Assert.Equal((ushort)40, boundary.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25562A8).Slots[0].ReadWord(0xC));
+        NativeBattleRestorationPresentationTests.Publish(output, "before-next-scene", boundary, scene.Render(live, 320, 224).ToArray());
         NotSupportedException actual = Assert.Throws<NotSupportedException>(() => live.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero));
         NotSupportedException resumed = Assert.Throws<NotSupportedException>(() => independent.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero));
-        Assert.Contains("6F2A30", actual.Message);
+        Assert.Contains("next scene", actual.Message);
         Assert.Equal(actual.Message, resumed.Message);
         Assert.Equal(JsonSerializer.Serialize(live.Capture()), JsonSerializer.Serialize(independent.Capture()));
         NativeBattleRestorationPresentationTests.Publish(output, "failed-timeline-live", live.Capture(), null);

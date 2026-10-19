@@ -91,6 +91,25 @@ public static class NativeBattleWaterParticles
                     }
                 }
                 break;
+            case 0x14:
+                short vectorSelector = unchecked((short)ProgramWord(frame, program, unchecked(pc + 2)));
+                int vectorIndex = NativeBattleWaterSlots.LookupB65370(frame.Arena, bank, CurrentIndex(frame, bank), ActiveOrder(frame), vectorSelector);
+                int vectorSlot = bank.SlotOffset(frame.Arena, vectorIndex);
+                bool angles = (instruction & 0x8000) != 0;
+                int vectorSource = angles ? 0x8C : 0x94;
+                int vectorDestination = angles ? 0x10 : 0x14;
+                ushort vectorMask = angles ? instruction : unchecked((ushort)(instruction << 1));
+                for (int lane = 0; lane < 4; lane++)
+                {
+                    if ((vectorMask & 0x8000) != 0)
+                    {
+                        short value = BinaryPrimitives.ReadInt16LittleEndian(frame.Arena.Read(vectorSlot + vectorSource + lane * 2, 2));
+                        frame = ParticleDword(frame, vectorDestination + lane * 4, unchecked((uint)(value << 8)));
+                    }
+                    vectorMask = unchecked((ushort)(vectorMask << 1));
+                }
+                next = 4;
+                break;
             case 0x15:
                 short positionSelector = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
                 int positionIndex = NativeBattleWaterSlots.LookupB65370(frame.Arena, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank), frame.Core.Read(0x2797454, 128).ToImmutableArray(), positionSelector);

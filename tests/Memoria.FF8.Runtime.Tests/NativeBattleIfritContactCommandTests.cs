@@ -96,6 +96,93 @@ public sealed class NativeBattleIfritContactCommandTests
         Assert.Throws<NotSupportedException>(() => NativeBattleIfritContactCommand.Execute(frame.WriteTemporaryWord(0x14A, 0x1039), services));
     }
 
+    [Fact]
+    public void Saved_actor_mode_walks_reverse_list_reloads_contact_base_and_retains_native_count_and_header()
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0x1022, 3, 1, 2, 3);
+        uint header = NativeBattleScriptedEffectMemory.Address;
+        frame = frame with { Core = frame.Core.Write(header + 0x174, [2, 3, 2]).Write(header + 0x17A, [3]), Arena = frame.Arena.MarkUnknown(0x201B, 1).Write(0x7000, [3]).Write(0x7018, [2]) };
+        List<uint> calls = [];
+        NativeBattleWaterExecutionFrame result = NativeBattleIfritContactCommand.ExecuteSavedActors(frame, Services() with
+        {
+            ApplyContact506690 = (current, contact) =>
+            {
+                calls.Add(contact);
+                current = current with { Arena = current.Arena.Write(0x5008, BitConverter.GetBytes(Address(0x7000))).Write(0x5010, [0]) };
+                current = WaterSchedulerFixture.CoreDword(current, 0x279744C, header + 0x300);
+                current = WaterSchedulerFixture.CoreDword(current, 0x279775C, Address(0x8000));
+                return WaterSchedulerFixture.CoreDword(current, 0x2797450, uint.MaxValue - 1);
+            }
+        });
+        Assert.Equal(new[] { Address(0x6018), Address(0x7000), Address(0x7018) }, calls);
+        Assert.Equal(0u, Pc(result));
+        Assert.Equal((ushort)0x1234, result.ReadTemporaryWord(0x13E));
+        Assert.Equal(header + 0x300, WaterSchedulerFixture.ReadCoreDword(result, 0x279744C));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(0x80)]
+    [InlineData(0xFF)]
+    public void Saved_actor_zero_falls_back_to_slot_while_negative_count_reads_neither_slot_nor_records(byte saved)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0x1022, 1, 4);
+        frame = frame with { Core = frame.Core.Write(NativeBattleScriptedEffectMemory.Address + 0x17A, [saved]).MarkUnknown(NativeBattleScriptedEffectMemory.Address + 0x174, 6) };
+        if (saved != 0)
+        {
+            frame = frame with { Arena = frame.Arena.MarkUnknown(0x201B, 1).MarkUnknown(0x6000, 1) };
+        }
+        int applied = 0;
+        NativeBattleWaterExecutionFrame result = NativeBattleIfritContactCommand.ExecuteSavedActors(frame, Services() with { ApplyContact506690 = (current, _) =>
+        {
+            applied++;
+            return current;
+        } });
+        Assert.Equal(saved == 0 ? 1 : 0, applied);
+        Assert.Equal(0x1002u, Pc(result));
+    }
+
+    [Theory]
+    [InlineData(0x0E22, 1)]
+    [InlineData(0x8E22, 3)]
+    [InlineData(0x9E22, 1)]
+    public void Saved_variant_other_modes_ignore_saved_header_and_native_modifier_bits(ushort instruction, int expected)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(instruction, 3, 4, 4, 4);
+        frame = frame with { Core = frame.Core.MarkUnknown(NativeBattleScriptedEffectMemory.Address + 0x17A, 1) };
+        List<uint> calls = [];
+        NativeBattleWaterExecutionFrame result = NativeBattleIfritContactCommand.ExecuteSavedActors(frame, Services() with { ApplyContact506690 = (current, contact) =>
+        {
+            calls.Add(contact);
+            return current;
+        } });
+        Assert.Equal(expected, calls.Count);
+        Assert.Equal(0x1002u, Pc(result));
+    }
+
+    [Fact]
+    public void Saved_actor_zero_contact_count_still_reads_each_saved_actor_and_live_action_base()
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0x1022, 0);
+        frame = frame with { Core = frame.Core.Write(NativeBattleScriptedEffectMemory.Address + 0x17A, [1]).MarkUnknown(NativeBattleScriptedEffectMemory.Address + 0x174, 1), Arena = frame.Arena.MarkUnknown(0x201B, 1).MarkUnknown(0x6000, 0x100) };
+        Assert.Throws<NotSupportedException>(() => NativeBattleIfritContactCommand.ExecuteSavedActors(frame, Services()));
+    }
+
+    [Fact]
+    public void Saved_actor_snapshot_and_Water_entry_use_the_same_current_contact_kernel()
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0x1022, 2, 3, 4);
+        frame = frame with { Core = frame.Core.Write(NativeBattleScriptedEffectMemory.Address + 0x174, [3, 4]).Write(NativeBattleScriptedEffectMemory.Address + 0x17A, [2]) };
+        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterContextServices services = Services() with
+        {
+            ApplyContact506690 = (current, _) => current.WriteTemporaryWord(0x100, unchecked((ushort)(current.ReadTemporaryWord(0x100) + 1)))
+        };
+        NativeBattleWaterExecutionFrame expected = NativeBattleIfritContactCommand.ExecuteSavedActors(frame, services);
+        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(NativeBattleIfritContactCommand.ExecuteSavedActors(restored, services)));
+        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(NativeBattleWaterContextCommands.Execute(frame, new(0, 0, 0), services)));
+    }
+
     private static NativeBattleWaterExecutionFrame Fixture(ushort instruction, byte count, params byte[] actors)
     {
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create().WriteTemporaryWord(0x14A, instruction).WriteTemporaryWord(0x13E, 0x1234);

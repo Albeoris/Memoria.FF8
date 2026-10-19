@@ -17,6 +17,8 @@ public sealed class NativeBattleDiablos325ResourcesTests
         resources.Validate();
         Assert.Equal(new byte[] { 0x30, 0x30, 0x31, 0x30 }, resources.PrimitiveKinds);
         Assert.Equal(new byte[] { 0x30, 0x30, 0x30, 0x30 }, resources.TextureKinds);
+        Assert.Equal(new byte[] { 0x31 }, resources.ParticlePrimitiveKinds!.Value);
+        Assert.Equal(new byte[] { 0x30 }, resources.ParticleTextureKinds!.Value);
         Assert.Equal(Enumerable.Range(727, 6).Select(id => (short)id), resources.Files.Select(file => file.FileId));
         Assert.Equal(new[] { "MAG324_H.00", "MAG324_H.01", "MAG324_H.02", "MAG324_H.03", "MAG324_H.04", "MAG324_H.05" }, resources.Files.Select(file => file.Name));
         Assert.All(resources.Files, file => Assert.NotEmpty(file.Data));

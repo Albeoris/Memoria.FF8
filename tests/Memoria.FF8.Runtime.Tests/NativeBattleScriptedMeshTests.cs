@@ -16,7 +16,11 @@ public sealed class NativeBattleScriptedMeshTests
     [InlineData(0xB105B0u, 1)]
     [InlineData(0xB105B0u, 2)]
     [InlineData(0xAEC030u, 3)]
-    public void Flat_F4_uses_native_mode_prefix_material_single_color_scaled_depths_and_partial_rejection_writes(uint handler, int rejection)
+    [InlineData(0xAEB5B0u, 0)]
+    [InlineData(0xAEB5B0u, 1)]
+    [InlineData(0xAEB5B0u, 2)]
+    [InlineData(0xAEB5B0u, 3)]
+    public void Flat_faces_use_native_mode_prefix_material_single_color_scaled_depths_and_partial_rejection_writes(uint handler, int rejection)
     {
         NativeBattleWaterExecutionFrame frame = NativeBattleWaterMeshPacketTests.Frame().WriteTemporaryDword(0x90, rejection == 3 ? 0x10u : 0u);
         byte[] face = new byte[12];
@@ -34,23 +38,25 @@ public sealed class NativeBattleScriptedMeshTests
         {
             BinaryPrimitives.WriteUInt32LittleEndian(records.AsSpan(16), 0xFFF60014);
         }
-        NativeBattleWaterMeshGroup group = new(16, 1, face.ToImmutableArray());
-        NativeBattleScriptedMeshSubmission Run(NativeBattleWaterExecutionFrame current) => NativeBattleScriptedMeshPackets.EmitSelected(current, group, handler, 0, records.ToImmutableArray(), [0xFFFF000A, 20, 30, 40], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), pointer => (int)(pointer / 4), 0.5f);
+        bool triangle = handler == 0xAEB5B0;
+        int length = triangle ? 28 : 32;
+        NativeBattleWaterMeshGroup group = new(triangle ? (short)6 : (short)16, 1, face.ToImmutableArray());
+        NativeBattleScriptedMeshSubmission Run(NativeBattleWaterExecutionFrame current) => NativeBattleScriptedMeshPackets.EmitSelected(current, group, handler, 0, records.AsSpan(0, triangle ? 24 : 32).ToArray().ToImmutableArray(), triangle ? [0xFFFF000A, 20, 30] : [0xFFFF000A, 20, 30, 40], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), pointer => (int)(pointer / 4), 0.5f);
         NativeBattleScriptedMeshSubmission result = Run(frame);
         NativeBattleGfGeometryAttempt packet = Assert.Single(result.Packets.Attempts);
         Assert.Equal(0u, result.Frame.ReadTemporaryDword(0xF0));
-        Assert.Equal(NativeBattleGfPacketByteState.Known, packet.WriteMask[31]);
+        Assert.Equal(NativeBattleGfPacketByteState.Known, packet.WriteMask[length - 1]);
         bool accepted = rejection is 0 or 3;
-        Assert.Equal(accepted ? 32 : 0, result.Packets.AllocationBytes);
+        Assert.Equal(accepted ? length : 0, result.Packets.AllocationBytes);
         if (accepted)
         {
             Assert.NotNull(packet.Primitive);
-            Assert.Equal((byte)7, packet.Data[3]);
+            Assert.Equal((byte)(length / 4 - 1), packet.Data[3]);
             Assert.Equal(0xE1000003u, BinaryPrimitives.ReadUInt32LittleEndian(packet.Data.AsSpan().Slice(4)));
             Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(packet.Data.AsSpan().Slice(8)));
-            Assert.Equal(0x28808080u, BinaryPrimitives.ReadUInt32LittleEndian(packet.Data.AsSpan().Slice(12)));
-            Assert.Equal(new[] { 5, 10, 15, 20 }, packet.Primitive.VertexPayload4);
-            Assert.Equal((int)((frame.ReadTemporaryDword(0x5C) + 248) / 4), packet.Primitive.Bucket);
+            Assert.Equal(triangle ? 0x20808080u : 0x28808080u, BinaryPrimitives.ReadUInt32LittleEndian(packet.Data.AsSpan().Slice(12)));
+            Assert.Equal(new[] { 5, 10, 15, triangle ? 0 : 20 }, packet.Primitive.VertexPayload4);
+            Assert.Equal((int)((frame.ReadTemporaryDword(0x5C) + (triangle ? 200 : 248)) / 4), packet.Primitive.Bucket);
         }
         else
         {

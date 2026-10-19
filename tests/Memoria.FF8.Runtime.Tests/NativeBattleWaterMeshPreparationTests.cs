@@ -58,9 +58,11 @@ public sealed class NativeBattleWaterMeshPreparationTests
     }
 
     [Theory]
-    [InlineData(256)]
-    [InlineData(-128)]
-    public void Type1B_rotates_then_uniformly_scales_with_unscaled_full_MAC_translation_and_current_focal(short scale)
+    [InlineData(256, (byte)0x1B)]
+    [InlineData(-128, (byte)0x1B)]
+    [InlineData(256, (byte)0x39)]
+    [InlineData(-128, (byte)0x39)]
+    public void Rotated_uniform_wrappers_keep_their_Euler_order_unscaled_full_MAC_translation_and_current_focal(short scale, byte wrapper)
     {
         NativeBattleWaterExecutionFrame frame = Fixture();
         short[] rotation = [4096, 1024, 512, 2048, 4096, 0, -1024, 256, 4096];
@@ -72,9 +74,10 @@ public sealed class NativeBattleWaterMeshPreparationTests
         frame = SlotWord(frame, 0, 0x94, 30000);
         frame = SlotWord(frame, 0, 0x96, unchecked((ushort)-20000));
         frame = SlotWord(frame, 0, 0x98, 10000);
-        NativeBattleWaterMeshPrepared result = NativeBattleWaterMeshPreparation.PrepareWrapper(frame, Bank, 0, 0x1B, 216);
+        NativeBattleWaterMeshPrepared result = NativeBattleWaterMeshPreparation.PrepareWrapper(frame, Bank, 0, wrapper, 216);
         NativeBattleActionMatrix basis = new(rotation.ToImmutableArray(), 50000, -60000, 100000, 4096);
-        NativeBattleActionMatrix expected = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleGfMatrices.Multiply56C090(basis, NativeBattleGfMatrices.Euler56CD50(new(384, -257, 0))), scale << 4, scale << 4, scale << 4);
+        NativeBattleActionMatrix euler = wrapper == 0x39 ? NativeBattleGfMatrices.Euler56CE30(new(384, -257, 0)) : NativeBattleGfMatrices.Euler56CD50(new(384, -257, 0));
+        NativeBattleActionMatrix expected = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleGfMatrices.Multiply56C090(basis, euler), scale << 4, scale << 4, scale << 4);
         Assert.Equal(expected.Rotation, result.Matrix.Rotation);
         Assert.Equal((76250, -65000, 101250), (result.Matrix.X, result.Matrix.Y, result.Matrix.Z));
         Assert.Equal((short)216, result.Focal);

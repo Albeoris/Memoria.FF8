@@ -115,7 +115,6 @@ public sealed class NativeBattleGuardianCameraProgramTests
     }
 
     [Theory]
-    [InlineData(4)]
     [InlineData(7)]
     [InlineData(9)]
     [InlineData(10)]
@@ -208,6 +207,46 @@ public sealed class NativeBattleGuardianCameraProgramTests
         Assert.Equal(2, end.Result);
         Assert.Equal(234, end.Task.Offset);
         Assert.False(end.Published);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(-1)]
+    public void Polynomial_camera_uses_ordered_fixed_point_curve_samples_and_reaches_endpoint_before_termination(int sign)
+    {
+        NativeBattleGuardianCameraTask task = NativeBattleGuardianCameraProgram.Begin63E960(Process(), Words(0x81, 0, 0, 0, 0x41, 0, 0, -100, 0x84, 2, 2, 100, 0, 0, 100, 100, 0, 0x40, 2, 0x8000), sign == 1 ? 0 : 2, () => 1);
+        NativeBattleGuardianCameraStep first = NativeBattleGuardianCameraProgram.Advance63E9C0(task, Identity, Pose, false);
+        Assert.Equal(new NativeBattleCameraPoint(unchecked((short)(sign * 75)), 25, 0), first.Pose.Target);
+        Assert.Equal(2048, first.Task.Process.Target.Accumulator);
+        Assert.Equal(3, first.Task.Process.Target.ControlPoints!.Value.Length);
+        NativeBattleGuardianCameraStep second = NativeBattleGuardianCameraProgram.Advance63E9C0(first.Task, Identity, first.Pose, false);
+        Assert.Equal(new NativeBattleCameraPoint(unchecked((short)(sign * 100)), 100, 0), second.Pose.Target);
+        NativeBattleGuardianCameraStep restored = NativeBattleGuardianCameraProgram.Advance63E9C0(JsonSerializer.Deserialize<NativeBattleGuardianCameraTask>(JsonSerializer.Serialize(first.Task))!, Identity, first.Pose, false);
+        Assert.Equal(JsonSerializer.Serialize(second), JsonSerializer.Serialize(restored));
+        Assert.Equal(2, NativeBattleGuardianCameraProgram.Advance63E9C0(second.Task, Identity, second.Pose, false).Result);
+    }
+
+    [Fact]
+    public void Polynomial_pause_preserves_progress_and_full_control_points_without_reading_the_next_command()
+    {
+        NativeBattleGuardianCameraTask task = NativeBattleGuardianCameraProgram.Begin63E960(Process(), Words(0x84, 2, 2, 100, 0, 0, 100, 100, 0, 0x40, 2), 0);
+        NativeBattleGuardianCameraStep first = NativeBattleGuardianCameraProgram.Advance63E9C0(task, Identity, Pose, false);
+        NativeBattleGuardianCameraStep paused = NativeBattleGuardianCameraProgram.Advance63E9C0(first.Task, Identity, first.Pose, true);
+        Assert.Equal(first.Task.Offset, paused.Task.Offset);
+        Assert.Equal(first.Task.Frame, paused.Task.Frame);
+        Assert.Equal(first.Task.Process.Target, paused.Task.Process.Target);
+        Assert.Equal(first.Pose, paused.Pose);
+    }
+
+    [Fact]
+    public void Following_camera_predicts_the_polynomial_bank_final_control_point_and_rejects_zero_duration()
+    {
+        NativeBattleGuardianCameraTask task = NativeBattleGuardianCameraProgram.Begin63E960(Process(), Words(0x81, 0, 0, 0, 0x41, 0, 0, -100, 0x84, 2, 2, 50, 0, 0, 100, 0, 0, 0x45, 2, 100, 0, -100), 0);
+        NativeBattleGuardianCameraStep first = NativeBattleGuardianCameraProgram.Advance63E9C0(task, Identity, Pose, false);
+        Assert.Equal(0, first.Task.Process.Eye.Step);
+        Assert.Equal(100, first.Task.Process.Eye.Accumulator);
+        NativeBattleGuardianCameraTask zero = NativeBattleGuardianCameraProgram.Begin63E960(Process(), Words(0x84, 0, 0), 0);
+        Assert.Throws<NotSupportedException>(() => NativeBattleGuardianCameraProgram.Advance63E9C0(zero, Identity, Pose, false));
     }
 
     private static NativeBattleGuardianCameraBank Bank(NativeBattleVector position) => new(0, 0, 0, 0, position, default, default, 0);

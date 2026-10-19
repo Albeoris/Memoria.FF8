@@ -44,6 +44,19 @@ public sealed class NativeBattleDoomtrain191Tests
     }
 
     [Fact]
+    public void Euler_result_invalidates_cold_known_padding_instead_of_retaining_the_identity_seed_padding()
+    {
+        var fixture = Fixture();
+        NativeBattleDoomtrain191State owner = fixture.Frame.Memory.Doomtrain191!;
+        owner = owner with { BaseMatrix = owner.BaseMatrix with { Known = Enumerable.Repeat(true, 32).ToImmutableArray() } };
+        fixture = fixture with { Frame = fixture.Frame with { Memory = fixture.Frame.Memory with { Doomtrain191 = owner } } };
+        NativeBattleDoomtrain191Frame result = Initialize(fixture);
+        Assert.False(result.Memory.Doomtrain191!.BaseMatrix.Known[18]);
+        Assert.False(result.Memory.Doomtrain191.BaseMatrix.Known[19]);
+        Assert.All(result.Memory.Doomtrain191.BaseMatrix.Known.Take(18), value => Assert.True(value));
+    }
+
+    [Fact]
     public void Zero_displacement_still_requires_the_current_target_matrix_and_warm_missing_module_state_is_not_recreated()
     {
         var fixture = Fixture();
@@ -136,16 +149,16 @@ public sealed class NativeBattleDoomtrain191Tests
         Assert.Equal((ushort)0, second.ReadWord(0x20));
     }
 
-    private sealed record TestFixture(NativeBattleDoomtrain191Frame Frame, ImmutableArray<NativeBattleGraphicsModel> Models, NativeBattleActionPacketsState Packets, NativeBattleDoomtrain191Resources Resources);
+    internal sealed record TestFixture(NativeBattleDoomtrain191Frame Frame, ImmutableArray<NativeBattleGraphicsModel> Models, NativeBattleActionPacketsState Packets, NativeBattleDoomtrain191Resources Resources);
 
-    private static NativeBattleDoomtrain191Frame Initialize(TestFixture fixture) => NativeBattleDoomtrain191Controller.Initialize63E730(fixture.Frame.Memory, fixture.Frame.Effect, Inputs(fixture), fixture.Resources, fixture.Frame.Random);
+    internal static NativeBattleDoomtrain191Frame Initialize(TestFixture fixture) => NativeBattleDoomtrain191Controller.Initialize63E730(fixture.Frame.Memory, fixture.Frame.Effect, Inputs(fixture), fixture.Resources, fixture.Frame.Random);
 
-    private static NativeBattleDoomtrain191Inputs Inputs(TestFixture fixture)
+    internal static NativeBattleDoomtrain191Inputs Inputs(TestFixture fixture)
     {
         return new(fixture.Packets, actor => fixture.Models[actor], _ => new(999, -999, 123), () => fixture.Frame.Memory.Doomtrain191!.CameraBackup, () => new(new(0, 0, 0), new(0, 0, 1), 256, 0), () => 0, () => 0, (current, _) => current, (_, _) => throw new InvalidOperationException("Unexpected native leaf."));
     }
 
-    private static TestFixture Fixture()
+    internal static TestFixture Fixture()
     {
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
         (packets, _) = packets.Prepare(new(0, 2, 4, 0, 2, 191, null));

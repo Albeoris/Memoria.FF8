@@ -39,10 +39,19 @@ public sealed class NativeBattleCinematicResourcesTests
         Assert.Same(complete, assets.ReadNativeCinematicResources(effect));
         Assert.Equal(resources.StaticData.Data, complete.StaticData.Data);
         Assert.All(Enumerable.Range(profile.SourceBase, profile.LastSource - profile.SourceBase + 1), id => Assert.Single(complete.Files, file => file.FileId == id));
-        foreach (int opcode in new[] { 0, 2, 3, 0x30, 0x37, 0x39, 0x3F, 0x47, 0x4B, 0x81, 0xA1, 0xA4 })
+        foreach (int opcode in new[] { 0, 2, 3, 0x30, 0x37, 0x39, 0x3F, 0x47, 0x4B, 0x81, 0x82, 0x90, 0x9B, 0xA1, 0xA4, 0xB2, 0xFB })
         {
             uint selected = BinaryPrimitives.ReadUInt32LittleEndian(complete.ReadStatic(profile.InstructionTable + (uint)(4 * opcode), 4));
             uint expected = BinaryPrimitives.ReadUInt32LittleEndian(original.Read(0x1874F10u + (uint)(4 * opcode), 4));
+            if (opcode == 0x90 && effect is not (202 or 205))
+            {
+                Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(effect, "vm_table", opcode, selected));
+                continue;
+            }
+            if (opcode == 0x90 && effect is 202 or 205)
+            {
+                expected = selected;
+            }
             Assert.Equal(expected, NativeBattleCinematicDispatch.RequireSlot(effect, "vm_table", opcode, selected));
         }
         foreach (int draw in new[] { 1, 2, 3, 6 })
@@ -64,6 +73,9 @@ public sealed class NativeBattleCinematicResourcesTests
     [InlineData(202, 41, 0xB1B5C0u)]
     [InlineData(202, 43, 0xB1B9E0u)]
     [InlineData(205, 3, 0xAF5810u)]
+    [InlineData(205, 38, 0xAF59D0u)]
+    [InlineData(206, 56, 0xAE52C0u)]
+    [InlineData(206, 57, 0xAEAAE0u)]
     public void Selected_draw_variants_match_their_actual_original_table_index(int effect, int index, uint expected)
     {
         using GameAssets assets = new(TestResources.GameDirectory);

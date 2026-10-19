@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
@@ -18,37 +17,7 @@ public static class NativeBattleWaterContextCommands
         switch (instruction)
         {
             case 0x1022:
-                uint manager = CoreDword(frame, 0x27973EC);
-                uint action = CoreDword(frame, unchecked(manager + 0xCC));
-                uint contacts = BinaryPrimitives.ReadUInt32LittleEndian(ReadAction(unchecked(action + 8), 4));
-                int count = unchecked((sbyte)ReadAction(unchecked(action + 0x10), 1)[0]);
-                uint contactHeader = CoreDword(frame, 0x279744C);
-                int saved = unchecked((sbyte)frame.Core.Read(unchecked(contactHeader + 0x17A), 1)[0]);
-                if (saved == 0)
-                {
-                    ApplyFirst(ReadSlot(frame, 0x1B, 1)[0]);
-                }
-                else
-                {
-                    for (int i = saved; i > 0; i--)
-                    {
-                        ApplyFirst(frame.Core.Read(unchecked(contactHeader + 0x173u + (uint)i), 1)[0]);
-                    }
-                }
-                return Advance(2);
-
-                void ApplyFirst(byte wanted)
-                {
-                    for (int i = 0; i < count; i++)
-                    {
-                        uint contact = unchecked(contacts + (uint)(0x18 * i));
-                        if (ReadAction(contact, 1)[0] == wanted)
-                        {
-                            frame = services.ApplyContact506690(frame, contact);
-                            return;
-                        }
-                    }
-                }
+                return NativeBattleIfritContactCommand.ExecuteSavedActors(frame, services);
             case 0x1039:
                 frame = services.ApplyCamera50A730(frame);
                 return Advance(4);
@@ -77,16 +46,6 @@ public static class NativeBattleWaterContextCommands
         }
 
         NativeBattleWaterExecutionFrame Advance(uint amount) => WriteCoreDword(frame, 0x2797450, unchecked(CoreDword(frame, 0x2797450) + amount));
-
-        byte[] ReadAction(uint address, int length)
-        {
-            if (address >= NativeBattleEffectNodeMemory.ArenaAddress && (long)address - NativeBattleEffectNodeMemory.ArenaAddress <= NativeBattleEffectArena.Length - length)
-            {
-                return frame.Arena.Read(ArenaOffset(address, length), length);
-            }
-            byte[] bytes = services.ReadActionBytes(frame, address, length);
-            return bytes is not null && bytes.Length == length ? bytes : throw new InvalidDataException("Native context read lost its exact addressed action-packet extent.");
-        }
     }
 
     public static NativeBattleWaterExecutionFrame ExecuteRing(NativeBattleWaterExecutionFrame frame, NativeBattleWaterContextServices services)

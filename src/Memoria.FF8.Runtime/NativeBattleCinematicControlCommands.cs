@@ -5,6 +5,31 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleCinematicControlCommands
 {
+    public static NativeBattleWaterExecutionFrame WaitWhileCachedAtLeastFB(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program)
+    {
+        short offset = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
+        short threshold = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 4, 2));
+        uint address = unchecked(CoreDword(frame, 0x27973E8) + (uint)(0x8C + offset));
+        short value = BinaryPrimitives.ReadInt16LittleEndian(frame.Arena.Read(ArenaOffset(address, 2), 2));
+        return value >= threshold ? frame.WriteTemporaryWord(0x13E, SlotWord(frame, 0xC8)) : NativeBattleScriptedCommandReads.Advance(frame, 6);
+    }
+
+    public static NativeBattleWaterExecutionFrame StoreRenderMaskB2(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program)
+    {
+        byte value = NativeBattleScriptedCommandReads.Program(frame, program, 2, 1)[0];
+        uint manager = CoreDword(frame, 0x27973EC);
+        frame = frame with { Core = frame.Core.Write(unchecked(manager + 0xA2), [value]) };
+        return NativeBattleScriptedCommandReads.Advance(frame, 4);
+    }
+
+    public static NativeBattleWaterExecutionFrame ClearFlags9B(NativeBattleWaterExecutionFrame frame)
+    {
+        byte mask = (byte)((frame.ReadTemporaryWord(0x14A) >> 9) & 0x7F);
+        byte current = ReadSlot(frame, 0xDE, 1)[0];
+        frame = frame with { Arena = frame.Arena.Write(SlotOffset(frame, 0xDE, 1), [(byte)(current & ~mask)]) };
+        return NativeBattleScriptedCommandReads.Advance(frame, 2);
+    }
+
     public static NativeBattleWaterExecutionFrame BakeCachedPositionF2(NativeBattleWaterExecutionFrame frame)
     {
         for (int lane = 0; lane < 3; lane++)

@@ -31,7 +31,7 @@ public static class NativeBattleDiablos325ResourcesReader
         ImmutableArray<byte> vibrationBytes = memory.Read(0xFD6658, 0x148).ToImmutableArray();
         ImmutableArray<int> offsets = Enumerable.Range(0, 64).Select(index => BinaryPrimitives.ReadInt32LittleEndian(vibrationBytes.AsSpan().Slice(index * 4, 4))).ToImmutableArray();
         NativeVibrationBank vibration = new(memory.SourceHash, offsets, vibrationBytes);
-        NativeBattleDiablos325Resources resources = new(new(0xFD8584, memory.Read(0xFD8584, 0x3890).ToImmutableArray()), vibration) { WellGeometry = memory.Read(0xFD6B6C, 6680).ToImmutableArray(), PuffSprite = memory.Read(0xFD67A0, 116).ToImmutableArray(), PrimitiveKinds = memory.Read(0xFE0FB8, 4).ToImmutableArray(), TextureKinds = memory.Read(0xFE0FC0, 4).ToImmutableArray(), Sounds = Enumerable.Range(0, 6).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(checked(0xFD6640u + (uint)index * 4), 4))).ToImmutableArray() };
+        NativeBattleDiablos325Resources resources = new(new(0xFD8584, memory.Read(0xFD8584, 0x3890).ToImmutableArray()), vibration) { WellGeometry = memory.Read(0xFD6B6C, 6680).ToImmutableArray(), PuffSprite = memory.Read(0xFD67A0, 116).ToImmutableArray(), PrimitiveKinds = memory.Read(0xFE0FB8, 4).ToImmutableArray(), TextureKinds = memory.Read(0xFE0FC0, 4).ToImmutableArray(), ParticlePrimitiveKinds = memory.Read(0xFE0FC8, 1).ToImmutableArray(), ParticleTextureKinds = memory.Read(0xFE0FB4, 1).ToImmutableArray(), Sounds = Enumerable.Range(0, 6).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(checked(0xFD6640u + (uint)index * 4), 4))).ToImmutableArray() };
         resources.Validate();
         return resources;
     }

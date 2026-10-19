@@ -11,6 +11,10 @@ public sealed record NativeBattlePandemona291Resources(NativeBattleEffectHeapAll
     public System.Collections.Immutable.ImmutableArray<byte> TrailTrigonometry { get; init; } = [];
     public System.Collections.Immutable.ImmutableArray<byte> SurfaceTextureKinds { get; init; } = [];
 
+    public System.Collections.Immutable.ImmutableArray<NativeBattleStaticMeshResource> LayerGeometry { get; init; } = [];
+    public System.Collections.Immutable.ImmutableArray<NativeBattleStaticMeshResource> LayerTargets { get; init; } = [];
+    public NativeBattlePandemona291SpriteResource? LayerSprite { get; init; }
+
     public void Validate()
     {
         if (FirstTim is null || FirstTim.Data.IsDefault || FirstTim.Data.Length != 0x31620 || SecondTim is null || SecondTim.Data.IsDefault || SecondTim.Data.Length != 0x2220)

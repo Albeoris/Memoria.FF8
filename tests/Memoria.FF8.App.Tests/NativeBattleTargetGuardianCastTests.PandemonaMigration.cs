@@ -20,6 +20,12 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         RunPandemonaResourceMigration("5352FA47035D42020E55C6ADA558CD471A158816E7DD71FA2CFD8BF4AF9FF040", 79, 7, 25, ["SurfaceTextureKinds"]);
     }
 
+    [Fact]
+    public void Explicitly_migrate_Pandemona_layer_resources_and_continue_the_preserved_boundary()
+    {
+        RunPandemonaResourceMigration("4E620CFE47B2300C464EBB282C4A3815F16591AAB40E27E5C751350B2C5677C9", 86, 15, 40, ["LayerGeometry", "LayerTargets", "LayerSprite"]);
+    }
+
     private static void RunPandemonaResourceMigration(string sourceHash, int sourceFrame, int callbacks, ushort nextAge, string[] fields)
     {
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_PANDEMONA_MIGRATION_SOURCE");
@@ -92,15 +98,8 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         }
         BattleSnapshot boundary = live.Capture();
         Assert.Equal(nextAge, boundary.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25562A8).Slots[0].ReadWord(0xC));
-        string boundaryName = nextAge == 18 ? "before-surface-animation" : "before-animated-layers";
+        string boundaryName = nextAge == 18 ? "before-surface-animation" : nextAge == 25 ? "before-animated-layers" : "before-next-scene";
         NativeBattleRestorationPresentationTests.Publish(output!, boundaryName, boundary, scene.Render(live, 320, 224).ToArray());
-        if (nextAge == 25)
-        {
-            NotSupportedException next = Assert.Throws<NotSupportedException>(() => live.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero));
-            Assert.Contains("6F2A30", next.Message);
-            NotSupportedException resumed = Assert.Throws<NotSupportedException>(() => independent.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero));
-            Assert.Equal(next.Message, resumed.Message);
-        }
         Assert.Equal(sourceHash, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(source!))));
         File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "resources-only-migration-and-callbacks-validated", SourceHash = sourceHash, Changes = owners.SelectMany(owner => fields.Select(field => owner + "." + field)).ToArray(), RevertEqualsOriginal = true, Callbacks = callbacks, boundary.Frame, NativeCallback = boundary.NativeGraphics!.Callback, Boundary = boundaryName }));
     }

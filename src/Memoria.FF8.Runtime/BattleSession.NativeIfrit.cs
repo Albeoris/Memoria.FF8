@@ -146,6 +146,12 @@ public sealed partial class BattleSession
             {
                 case 0xF2:
                     return NativeBattleCinematicControlCommands.BakeCachedPositionF2(current);
+                case 0x9B:
+                    return NativeBattleCinematicControlCommands.ClearFlags9B(current);
+                case 0xFB:
+                    return NativeBattleCinematicControlCommands.WaitWhileCachedAtLeastFB(current, program);
+                case 0xB2:
+                    return NativeBattleCinematicControlCommands.StoreRenderMaskB2(current, program);
                 case 0x1A:
                     return NativeBattleCinematicControlCommands.RegisterUpdateBlock1A(current, program);
                 case 0x1C:
@@ -206,7 +212,7 @@ public sealed partial class BattleSession
                     return NativeBattleWaterChildCommands.Execute5D(current, program, bank, checked(current.TemporaryFrame.Address + 0x100));
                 case 0x4F:
                 case 0x90:
-                    if (selectedHandler is 0xB62F70 or 0xAFDA00)
+                    if (selectedHandler is 0xB62F70 or 0xAFDA00 or 0xB23AF0)
                     {
                         var offscreenStep = ExecuteNativeCinematicOffscreen(current, program, assets[1].Data.Length, graphics);
                         graphics = offscreenStep.Graphics;
@@ -274,7 +280,7 @@ public sealed partial class BattleSession
                 case 0x20:
                     return NativeBattleWaterContextCommands.Execute(current, program, context);
                 case 0x22:
-                    return NativeBattleIfritContactCommand.Execute(current, context);
+                    return selectedHandler is 0xAFA6E0 or 0xAEF450 ? NativeBattleIfritContactCommand.ExecuteSavedActors(current, context) : NativeBattleIfritContactCommand.Execute(current, context);
                 case 0x93:
                 case 0xAA:
                     return NativeBattleScriptedLightCommands.Execute(current, program, bank, index);
@@ -549,6 +555,18 @@ public sealed partial class BattleSession
             return NativeBattleCinematicDraw.Run(profile, current, PrepareLighting, (frame, kind) =>
             {
                 uint selectedDrawHandler = NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "draw_table", kind, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.DrawTable + 4u * kind), 4)));
+                if (selectedDrawHandler == 0xAE52C0)
+                {
+                    var wire = DrawNativeCinematicWireGrid38(frame, assets[1].Data.Length, resources, graphics);
+                    graphics = wire.Graphics;
+                    return wire.Frame;
+                }
+                if (selectedDrawHandler == 0xAF59D0)
+                {
+                    var actor = DrawNativeCinematicBrothersActor38(frame, graphics);
+                    graphics = actor.Graphics;
+                    return actor.Frame;
+                }
                 if (selectedDrawHandler == 0xAF6040)
                 {
                     var clone = DrawNativeCinematicActorClone48(frame, assets[1].Data.Length, graphics);
@@ -645,7 +663,7 @@ public sealed partial class BattleSession
                         return scrollFrame;
                     });
                 }
-                if (kind is 1 or 2 or 9 or 0x1B)
+                if (kind is 1 or 2 or 9 or 0x1B or 0x39)
                 {
                     var drawn = DrawNativeCinematicMesh(frame, kind, assets[1].Data.Length, resources, graphics);
                     graphics = drawn.Graphics;

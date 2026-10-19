@@ -9,6 +9,61 @@ public sealed class NativeBattleCinematicControlCommandsTests
     private const int Model = 0x18000;
 
     [Theory]
+    [InlineData(-2, -32768, -1, false)]
+    [InlineData(8, -1, -1, true)]
+    [InlineData(8, 32767, -32768, true)]
+    [InlineData(8, -32768, 32767, false)]
+    public void WaitFB_reads_signed_relative_cached_word_and_yields_without_advancing_PC_only_while_at_least_threshold(short offset, short value, short threshold, bool wait)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0xF0FB, unchecked((ushort)offset));
+        frame = frame with { Arena = frame.Arena.Write(0x1004, BitConverter.GetBytes(threshold)).Write(0x208C + offset, BitConverter.GetBytes(value)) };
+        frame = WaterSchedulerFixture.SlotWord(frame, 0, 0xC8, 0xFF80);
+        if (!wait)
+        {
+            frame = frame with { Arena = frame.Arena.MarkUnknown(0x20C8, 2) };
+        }
+        NativeBattleWaterExecutionFrame result = NativeBattleCinematicControlCommands.WaitWhileCachedAtLeastFB(frame, Program);
+        Assert.Equal(wait ? 0x1000u : 0x1006u, Pc(result));
+        Assert.Equal(wait ? (ushort)0xFF80 : frame.ReadTemporaryWord(0x13E), result.ReadTemporaryWord(0x13E));
+        Assert.Same(frame.Arena, result.Arena);
+        Assert.Same(frame.Random, result.Random);
+        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicControlCommands.WaitWhileCachedAtLeastFB(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!, Program)));
+    }
+
+    [Theory]
+    [InlineData((byte)0)]
+    [InlineData((byte)0xFF)]
+    public void Render_mask_B2_stores_only_low_operand_BYTE_and_preserves_adjacent_manager_fields(byte value)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0xB2, value);
+        frame = frame with { Arena = frame.Arena.MarkUnknown(0x1003, 3), Core = frame.Core.MarkUnknown(0x2797690 + 0xA1, 1).MarkUnknown(0x2797690 + 0xA3, 1) };
+        NativeBattleWaterExecutionFrame result = NativeBattleCinematicControlCommands.StoreRenderMaskB2(frame, Program);
+        Assert.Equal(value, result.Core.Read(0x2797690 + 0xA2, 1)[0]);
+        Assert.Throws<NotSupportedException>(() => result.Core.Read(0x2797690 + 0xA1, 1));
+        Assert.Throws<NotSupportedException>(() => result.Core.Read(0x2797690 + 0xA3, 1));
+        Assert.Equal(0x1004u, Pc(result));
+        Assert.Same(frame.Arena, result.Arena);
+        Assert.Same(frame.TemporaryFrame, result.TemporaryFrame);
+        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicControlCommands.StoreRenderMaskB2(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!, Program)));
+    }
+
+    [Theory]
+    [InlineData((ushort)0x009B, (byte)0xFF)]
+    [InlineData((ushort)0x409B, (byte)0xDF)]
+    [InlineData((ushort)0xFE9B, (byte)0x80)]
+    public void Clear9B_uses_only_the_seven_instruction_flag_bits_without_reading_an_operand(ushort instruction, byte expected)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(instruction, 0);
+        frame = frame with { Arena = frame.Arena.Write(0x20DE, [0xFF]).MarkUnknown(0x1000, 6).MarkUnknown(0x20C0, 4) };
+        NativeBattleWaterExecutionFrame result = NativeBattleCinematicControlCommands.ClearFlags9B(frame);
+        Assert.Equal(expected, result.Arena.Read(0x20DE, 1)[0]);
+        Assert.Equal(0x1002u, Pc(result));
+        Assert.Same(frame.TemporaryFrame, result.TemporaryFrame);
+        Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x20C0, 4));
+        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicControlCommands.ClearFlags9B(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+    }
+
+    [Theory]
     [InlineData(-32768, -1, 32767)]
     [InlineData(0, 1, -2)]
     public void Cached_position_F2_bakes_signed_WORDs_into_motion_and_disables_update_without_an_operand(short x, short y, short z)

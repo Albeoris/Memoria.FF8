@@ -55,7 +55,7 @@ public static class NativeBattleDiablos325Wings
         }
     }
 
-    private static ImmutableArray<byte> ReadGeometry(NativeBattleEffectArena arena, uint source)
+    internal static ImmutableArray<byte> ReadGeometry(NativeBattleEffectArena arena, uint source)
     {
         uint cursor = unchecked(source + Read(source));
         for (int group = 0; group < 8; group++)

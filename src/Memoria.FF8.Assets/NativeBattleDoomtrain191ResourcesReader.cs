@@ -40,7 +40,12 @@ public static class NativeBattleDoomtrain191ResourcesReader
         {
             throw new InvalidDataException("Native Doomtrain requires its original complete camera terminator and vibration program extent.");
         }
+        result = result with { OpeningRigs = new(NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0xE375BCu), NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0xE38E78u), NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0xE396B0u), NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0xE3B83Cu), new(0, 0xE346B0, 0, 0, NativeBattleEffectStaticResourcesReader.ReadProjectedSprite(memory, 0xE346B0))) };
+        ImmutableArray<byte> skyPalette = NativeBattleEffectStaticResourcesReader.Read(memory, 0xE3C8DC, 128);
+        result = result with { Sky = new(NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0xE3496Cu), Allocation(0xE3702C, 0x590), Enumerable.Range(0, 32).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(skyPalette.AsSpan().Slice(index * 4))).ToImmutableArray()) };
         result.Validate();
+        ImmutableArray<byte> rainColors = NativeBattleEffectStaticResourcesReader.Read(memory, 0xE3C988, 256);
+        result = result with { Sky = result.Sky! with { RainColors = Enumerable.Range(0, 64).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(rainColors.AsSpan().Slice(index * 4))).ToImmutableArray() } };
         return result;
 
         NativeBattleEffectHeapAllocation Allocation(uint address, int length) => new($"FF8_EN:{address:X}", NativeBattleEffectStaticResourcesReader.Read(memory, address, length));

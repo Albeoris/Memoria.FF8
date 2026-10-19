@@ -5,7 +5,11 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>One process-retained63E9C0 camera bank. Starting a program resets only its countdown.</summary>
-public sealed record NativeBattleGuardianCameraBank([property: JsonRequired] ushort Opcode, [property: JsonRequired] ushort Remaining, [property: JsonRequired] int Accumulator, [property: JsonRequired] int Step, [property: JsonRequired] NativeBattleVector Current, [property: JsonRequired] NativeBattleVector Origin, [property: JsonRequired] NativeBattleVector Delta, [property: JsonRequired] short Curve);
+public sealed record NativeBattleGuardianCameraBank([property: JsonRequired] ushort Opcode, [property: JsonRequired] ushort Remaining, [property: JsonRequired] int Accumulator, [property: JsonRequired] int Step, [property: JsonRequired] NativeBattleVector Current, [property: JsonRequired] NativeBattleVector Origin, [property: JsonRequired] NativeBattleVector Delta, [property: JsonRequired] short Curve)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<NativeBattleVector>? ControlPoints { get; init; }
+}
 
 public sealed record NativeBattleGuardianCameraProcess([property: JsonRequired] NativeBattleGuardianCameraBank Eye, [property: JsonRequired] NativeBattleGuardianCameraBank Target, [property: JsonRequired] int Sign, [property: JsonRequired] NativeBattleCameraPose? PreviousPose);
 
@@ -101,6 +105,20 @@ public static class NativeBattleGuardianCameraProgram
                         selected = selected with { Remaining = unchecked((ushort)duration), Curve = curve, Accumulator = 0, Step = Divide(4096, duration), Origin = selected.Current, Delta = Subtract(destination, selected.Current) };
                         break;
                     }
+                    case 4:
+                    {
+                        short duration = ReadScalar();
+                        ushort descriptor = ReadWord();
+                        int count = descriptor & 15;
+                        ImmutableArray<NativeBattleVector>.Builder points = ImmutableArray.CreateBuilder<NativeBattleVector>(count + 1);
+                        points.Add(selected.Current);
+                        for (int index = 0; index < count; index++)
+                        {
+                            points.Add(ReadVector());
+                        }
+                        selected = selected with { Remaining = unchecked((ushort)duration), Curve = unchecked((short)(descriptor & 0xFFF0)), Accumulator = 0, Step = Divide(4096, duration), ControlPoints = points.MoveToImmutable() };
+                        break;
+                    }
                     case 5:
                     {
                         int distance = Distance(Subtract(other.Current, selected.Current));
@@ -117,7 +135,7 @@ public static class NativeBattleGuardianCameraProgram
                         }
                         else if (other.Opcode == 4)
                         {
-                            throw new NotSupportedException("Native63ECE4 requires the selected bank's original polynomial control-point owner.");
+                            future = Points(other)[^1];
                         }
                         int endDistance = Distance(Subtract(destination, future));
                         selected = selected with { Remaining = unchecked((ushort)duration), Origin = selected.Current, Delta = DivideDifference(destination, selected.Current, duration), Accumulator = distance, Step = Divide(unchecked(endDistance - distance), duration) };
@@ -196,6 +214,26 @@ public static class NativeBattleGuardianCameraProgram
                 bank = bank with { Accumulator = progress, Current = Add(bank.Origin, ScaleQ12(bank.Delta, eased)) };
                 break;
             }
+            case 4:
+            {
+                int progress = unchecked(bank.Accumulator + bank.Step);
+                int eased = Ease63F240(progress, bank.Curve);
+                ImmutableArray<NativeBattleVector> points = Points(bank);
+                NativeBattleEffectArena source = NativeBattleEffectArena.Clear();
+                for (int index = 0; index < points.Length; index++)
+                {
+                    byte[] bytes = new byte[6];
+                    BinaryPrimitives.WriteInt16LittleEndian(bytes, unchecked((short)points[index].X));
+                    BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(2), unchecked((short)points[index].Y));
+                    BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(4), unchecked((short)points[index].Z));
+                    source = source.Write(index * 8, bytes);
+                }
+                NativeBattleEffectArena work = NativeBattleGilgameshSwordTrailCurve.Prepare571620(points.Length, source, 0, NativeBattleEffectArena.Clear());
+                NativeBattleEffectArena output = NativeBattleGilgameshSwordTrailCurve.Evaluate571690(points.Length, work, eased, NativeBattleEffectArena.Clear(), 0);
+                byte[] current = output.Read(0, 6);
+                bank = bank with { Accumulator = progress, Current = new(BinaryPrimitives.ReadInt16LittleEndian(current), BinaryPrimitives.ReadInt16LittleEndian(current.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(current.AsSpan(4))) };
+                break;
+            }
             case 5:
             {
                 NativeBattleVector origin = Add(bank.Origin, bank.Delta);
@@ -204,12 +242,16 @@ public static class NativeBattleGuardianCameraProgram
                 bank = bank with { Origin = origin, Accumulator = distance, Current = Subtract(other.Current, ScaleQ12(direction, distance)) };
                 break;
             }
-            case 4:
             case 7:
             case 9:
                 throw new NotSupportedException($"Native63E9C0 retained opcode{bank.Opcode} requires its original animation contract.");
         }
         return bank with { Remaining = unchecked((ushort)(bank.Remaining - 1)) };
+    }
+
+    private static ImmutableArray<NativeBattleVector> Points(NativeBattleGuardianCameraBank bank)
+    {
+        return bank.ControlPoints is { IsDefaultOrEmpty: false } points ? points : throw new NotSupportedException("Native63E9C0 polynomial camera requires its actual retained control points.");
     }
 
     public static int Ease63F240(int progress, short curve)
