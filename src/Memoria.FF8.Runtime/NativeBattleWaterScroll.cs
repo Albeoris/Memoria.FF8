@@ -10,7 +10,7 @@ public sealed record NativeBattleWaterScrollStep(byte Counter43, ImmutableArray<
 /// <summary>Selected vertical texture transfer over explicit current resource and retained rectangle-ring owners.</summary>
 public static class NativeBattleWaterScroll
 {
-    public static NativeBattleWaterScrollStep DrawA9C140(NativeBattleWater222Profile profile, ImmutableArray<NativeBattleEffectHeapAllocation> currentFiles, NativeBattleWaterScrollPayload payload, short scroll96, byte counter43, Action<NativeBattleWaterRectangleWrite> submit)
+    public static NativeBattleWaterScrollStep DrawA9C140(INativeBattleScriptedTextureProfile profile, ImmutableArray<NativeBattleEffectHeapAllocation> currentFiles, NativeBattleWaterScrollPayload payload, short scroll96, byte counter43, Action<NativeBattleWaterRectangleWrite> submit)
     {
         NativeBattleWater222UploadPlan source = NativeBattleWater222TexturePair.Resolve(profile, currentFiles, payload.TextureId, false);
         short width = source.Rectangle.Width;

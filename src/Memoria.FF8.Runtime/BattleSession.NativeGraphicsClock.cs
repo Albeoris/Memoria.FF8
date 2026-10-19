@@ -88,6 +88,7 @@ public sealed partial class BattleSession
         graphics = AdvanceNativeAuxiliary(graphics);
         graphics = AdvanceNativeModuleEffects(graphics);
         graphics = AdvanceNativeOriginalEffect(graphics);
+        flags = graphics.Flags;
         graphics = SubmitNativeModulePackets(graphics);
         graphics = ConsumeNativeGraphicsContacts(graphics);
         models = graphics.Models;

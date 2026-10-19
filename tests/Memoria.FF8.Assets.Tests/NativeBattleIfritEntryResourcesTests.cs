@@ -15,5 +15,19 @@ public sealed class NativeBattleIfritEntryResourcesTests
         directories.Validate();
         Assert.Equal(new uint[] { 0x20, 0xD8, 0x190, 0x1A8, 0x1C0, 0, 0x1DC }, Enumerable.Range(0, 7).Select(index => directories.InitializationOffset(index * 4)));
         Assert.Equal(new uint[] { 0x2797690, 0x803FF000, NativeBattleScriptedEffectMemory.Address, 0x27975D8, 0x2797628 }, Enumerable.Range(0, 5).Select(directories.OwnerAddress));
+        NativeBattleScriptedInitializationDirectories loaded = game.ReadNativeIfritInitializationDirectories();
+        Assert.Equal(directories.InitializationDirectory.Data, loaded.InitializationDirectory.Data);
+        Assert.Equal(directories.OwnerDirectory.Data, loaded.OwnerDirectory.Data);
+        Assert.Same(loaded, game.ReadNativeIfritInitializationDirectories());
+        NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([201])[200];
+        Assert.Same(loaded, binding.ScriptedInitializationDirectories);
+        Assert.Null(binding.Water222Resources);
+        Assert.Equal(new[] { "mag200_b.00", "mag200_b.01" }, NativeBattleEffectInitializerPolicy.Assets(binding).Select(asset => asset.Name));
+    }
+
+    [Fact]
+    public void Reader_rejects_an_unauthenticated_executable()
+    {
+        Assert.Throws<NotSupportedException>(() => NativeBattleIfritResourcesReader.Read(new byte[64]));
     }
 }

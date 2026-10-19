@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Immutable;
 using System.Runtime.InteropServices;
 
@@ -15,9 +16,15 @@ internal sealed class NativeBattleEffectArenaWriter
     private readonly List<Region> regions;
     private readonly List<NativeBattleEffectUnknownRegion> unknown;
     private readonly List<(int Offset, byte[] Data)> writes = [];
+    private readonly NativeBattleEffectArenaTransaction? transaction;
+    private byte[]? storage;
+    private Region[]? checkpointRegions;
+    private NativeBattleEffectUnknownRegion[]? checkpointUnknown;
+    private readonly List<(int Offset, byte[] Data)> undo = [];
 
     public NativeBattleEffectArenaWriter(NativeBattleEffectArena source)
     {
+        transaction = source.Transaction;
         source.Validate();
         this.source = source;
         regions = source.Regions.Select((region, index) => new Region(region.Offset, region.Data.Length, index)).ToList();
@@ -26,12 +33,28 @@ internal sealed class NativeBattleEffectArenaWriter
 
     public NativeBattleEffectArenaWriter Write(int offset, ReadOnlySpan<byte> bytes)
     {
+        if (transaction is not null)
+        {
+            transaction.Write(offset, bytes);
+            return this;
+        }
         RequireRange(offset, bytes.Length);
         if (bytes.IsEmpty)
         {
             return this;
         }
-        writes.Add((offset, bytes.ToArray()));
+        if (storage is null)
+        {
+            writes.Add((offset, bytes.ToArray()));
+        }
+        else
+        {
+            if (checkpointRegions is not null)
+            {
+                undo.Add((offset, storage.AsSpan(offset, bytes.Length).ToArray()));
+            }
+            bytes.CopyTo(storage.AsSpan(offset));
+        }
         int end = offset + bytes.Length;
         int first = regions.FindIndex(region => region.End >= offset);
         if (first < 0)
@@ -73,6 +96,11 @@ internal sealed class NativeBattleEffectArenaWriter
 
     public NativeBattleEffectArenaWriter MarkUnknown(int offset, int length)
     {
+        if (transaction is not null)
+        {
+            transaction.MarkUnknown(offset, length);
+            return this;
+        }
         RequireRange(offset, length);
         if (length == 0)
         {
@@ -100,6 +128,10 @@ internal sealed class NativeBattleEffectArenaWriter
 
     public NativeBattleEffectArena Freeze()
     {
+        if (transaction is not null)
+        {
+            return transaction.View;
+        }
         ImmutableArray<NativeBattleEffectMemoryRegion>.Builder result = ImmutableArray.CreateBuilder<NativeBattleEffectMemoryRegion>(regions.Count);
         foreach (Region region in regions)
         {
@@ -109,6 +141,12 @@ internal sealed class NativeBattleEffectArenaWriter
                 continue;
             }
             byte[] bytes = new byte[region.Length];
+            if (storage is not null)
+            {
+                storage.AsSpan(region.Offset, region.Length).CopyTo(bytes);
+                result.Add(new(region.Offset, ImmutableCollectionsMarshal.AsImmutableArray(bytes)));
+                continue;
+            }
             foreach (NativeBattleEffectMemoryRegion original in source.Regions)
             {
                 int first = Math.Max(region.Offset, original.Offset);
@@ -130,6 +168,74 @@ internal sealed class NativeBattleEffectArenaWriter
             result.Add(new(region.Offset, ImmutableCollectionsMarshal.AsImmutableArray(bytes)));
         }
         return new(result.MoveToImmutable()) { UnknownRegions = unknown.ToImmutableArray() };
+    }
+
+    internal void BeginReadThrough()
+    {
+        if (storage is not null || transaction is not null || writes.Count != 0)
+        {
+            throw new InvalidOperationException("An arena transaction must begin from one immutable source.");
+        }
+        storage = ArrayPool<byte>.Shared.Rent(NativeBattleEffectArena.Length);
+        Array.Clear(storage, 0, NativeBattleEffectArena.Length);
+        foreach (NativeBattleEffectMemoryRegion region in source.Regions)
+        {
+            region.Data.AsSpan().CopyTo(storage.AsSpan(region.Offset));
+        }
+    }
+
+    internal byte[] ReadThrough(int offset, int count)
+    {
+        RequireRange(offset, count);
+        if (count > 0 && unknown.Any(region => region.Offset < offset + count && region.Offset + region.Length > offset))
+        {
+            throw new NotSupportedException($"Native effect arena read intersects unresolved physical bytes at arena offset 0x{offset:X} for {count} bytes; unknown padding or pointer data cannot be substituted.");
+        }
+        return (storage ?? throw new InvalidOperationException("Arena transaction storage is not active.")).AsSpan(offset, count).ToArray();
+    }
+
+    internal void BeginCheckpoint()
+    {
+        if (checkpointRegions is not null || storage is null)
+        {
+            throw new InvalidOperationException("Arena callback checkpoints cannot be nested.");
+        }
+        checkpointRegions = regions.ToArray();
+        checkpointUnknown = unknown.ToArray();
+    }
+
+    internal void CommitCheckpoint()
+    {
+        checkpointRegions = null;
+        checkpointUnknown = null;
+        undo.Clear();
+    }
+
+    internal void RollbackCheckpoint()
+    {
+        if (checkpointRegions is null || checkpointUnknown is null || storage is null)
+        {
+            throw new InvalidOperationException("Arena callback rollback requires its active checkpoint.");
+        }
+        for (int index = undo.Count - 1; index >= 0; index--)
+        {
+            var write = undo[index];
+            write.Data.AsSpan().CopyTo(storage.AsSpan(write.Offset));
+        }
+        regions.Clear();
+        regions.AddRange(checkpointRegions);
+        unknown.Clear();
+        unknown.AddRange(checkpointUnknown);
+        CommitCheckpoint();
+    }
+
+    internal void EndReadThrough()
+    {
+        if (storage is { } rented)
+        {
+            storage = null;
+            ArrayPool<byte>.Shared.Return(rented);
+        }
     }
 
     private static void RequireRange(int offset, int length)

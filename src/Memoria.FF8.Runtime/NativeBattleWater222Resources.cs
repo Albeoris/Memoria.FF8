@@ -4,8 +4,29 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleWater222Profile([property: JsonRequired] NativeBattleEffectHeapAllocation Tables, [property: JsonRequired] NativeBattleEffectHeapAllocation InitializationDirectory, [property: JsonRequired] NativeBattleEffectHeapAllocation OwnerDirectory)
+public sealed record NativeBattleWater222Profile([property: JsonRequired] NativeBattleEffectHeapAllocation Tables, [property: JsonRequired] NativeBattleEffectHeapAllocation InitializationDirectory, [property: JsonRequired] NativeBattleEffectHeapAllocation OwnerDirectory) : INativeBattleScriptedTextureProfile
 {
+    int INativeBattleScriptedTextureProfile.TextureCount => 5;
+    uint INativeBattleScriptedTextureProfile.InitializationAddress => 0x186C84C;
+    uint INativeBattleScriptedTextureProfile.OwnerDirectoryAddress => 0x186C944;
+
+    public ReadOnlySpan<byte> ReadStatic(uint address, int length)
+    {
+        Validate();
+        if (length < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(length));
+        }
+        foreach ((uint start, NativeBattleEffectHeapAllocation owner) in new[] { (0x186C84Cu, InitializationDirectory), (0x186C86Cu, Tables), (0x186C944u, OwnerDirectory) })
+        {
+            long offset = (long)address - start;
+            if (offset >= 0 && offset <= owner.Data.Length - (long)length)
+            {
+                return owner.Data.AsSpan().Slice((int)offset, length);
+            }
+        }
+        throw new NotSupportedException("Native Water static access leaves its authenticated directories.");
+    }
     public void Validate()
     {
         if (Tables is null || Tables.Data.IsDefault || Tables.Data.Length != 0x70 || InitializationDirectory is null || InitializationDirectory.Data.IsDefault || InitializationDirectory.Data.Length != 0x1C || OwnerDirectory is null || OwnerDirectory.Data.IsDefault || OwnerDirectory.Data.Length != 0x14)
@@ -80,7 +101,7 @@ public sealed record NativeBattleWater222TextureStep(byte Count, uint Instructio
 
 public static class NativeBattleWater222TexturePair
 {
-    public static NativeBattleWater222TextureStep Transfer27(NativeBattleWater222Profile profile, ImmutableArray<NativeBattleEffectHeapAllocation> currentFiles, int textureIndex, byte busy, byte count, uint instructionPointer, ushort currentWait, Action<NativeBattleWater222UploadPlan> submit)
+    public static NativeBattleWater222TextureStep Transfer27(INativeBattleScriptedTextureProfile profile, ImmutableArray<NativeBattleEffectHeapAllocation> currentFiles, int textureIndex, byte busy, byte count, uint instructionPointer, ushort currentWait, Action<NativeBattleWater222UploadPlan> submit)
     {
         if (busy != 0)
         {
@@ -106,11 +127,11 @@ public static class NativeBattleWater222TexturePair
         return new(count, unchecked(instructionPointer + 4), false, null, uploads.ToImmutable());
     }
 
-    public static NativeBattleWater222UploadPlan Resolve(NativeBattleWater222Profile profile, ImmutableArray<NativeBattleEffectHeapAllocation> currentFiles, int textureIndex, bool clut)
+    public static NativeBattleWater222UploadPlan Resolve(INativeBattleScriptedTextureProfile profile, ImmutableArray<NativeBattleEffectHeapAllocation> currentFiles, int textureIndex, bool clut)
     {
         NativeBattleEffectTextureRectangle rectangle = profile.Rectangle(textureIndex, clut);
         int source = profile.Source(textureIndex, clut);
-        if (currentFiles.IsDefault || currentFiles.Length != 2 || currentFiles[source] is null || currentFiles[source].Data.IsDefault)
+        if (currentFiles.IsDefault || (uint)source >= currentFiles.Length || currentFiles[source] is null || currentFiles[source].Data.IsDefault)
         {
             throw new NotSupportedException("Native Water transfer requires the selected current file bytes.");
         }

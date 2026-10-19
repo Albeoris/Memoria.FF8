@@ -34,6 +34,47 @@ public sealed class NativeBattleQuezacotlSkinArenaTests
         Assert.Equal(3, restored.Memory.PrimitiveProcess!.ReadCommonPacket(64, 3).Length);
     }
 
+    [Fact]
+    public void Whole_skin_producer_matches_interleaved_scalar_stores_without_copying_each_packet_bank_per_store()
+    {
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(116);
+        memory = memory with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400(), Arena = memory.Arena!.Write(0, new byte[0x20000]) };
+        NativeBattleOriginalEffectState effect = new(116, 115, new(116, 0x6C3550, 0x6C3560), null, null) { DrawArenaOffset = 0x10000 };
+        NativeBattleQuezacotlPacketWrite scalar = new(memory, effect, NativeBattleLogicalOrdering.Clear());
+        ImmutableArray<NativeBattleQuezacotlSkinWrite>.Builder writes = ImmutableArray.CreateBuilder<NativeBattleQuezacotlSkinWrite>();
+        List<NativeBattleQuezacotlSkinBatch> scalarBatches = [];
+        int common = 0;
+        int draw = 0;
+        for (int index = 0; index < 64; index++)
+        {
+            NativeBattleQuezacotlSkinBank bank = index % 3 == 0 ? NativeBattleQuezacotlSkinBank.VertexScratch : index % 3 == 1 ? NativeBattleQuezacotlSkinBank.Common : NativeBattleQuezacotlSkinBank.Effect;
+            NativeBattleGeometryPrimitive primitive = new(20 + index % 7, [0x04000000, 0x20010203, (uint)index, 2, 3], [100, 110, 120, 0]);
+            NativeBattleGfGeometryAttempt attempt = bank == NativeBattleQuezacotlSkinBank.VertexScratch
+                ? new(0, Enumerable.Repeat((byte)index, 12).ToImmutableArray(), [.. Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 9), NativeBattleGfPacketByteState.Unknown, NativeBattleGfPacketByteState.Untouched, NativeBattleGfPacketByteState.Known], null)
+                : Packet(primitive);
+            int commonBytes = bank == NativeBattleQuezacotlSkinBank.Common ? attempt.PacketLength : 0;
+            int effectBytes = bank == NativeBattleQuezacotlSkinBank.Effect ? attempt.PacketLength : 0;
+            scalarBatches.Add(new([new(bank, attempt)], commonBytes, effectBytes));
+            int offset = bank == NativeBattleQuezacotlSkinBank.Common ? common : bank == NativeBattleQuezacotlSkinBank.Effect ? draw : 0;
+            writes.Add(new(bank, attempt with { ByteOffsetRelative = offset }));
+            common += commonBytes;
+            draw += effectBytes;
+        }
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        foreach (NativeBattleQuezacotlSkinBatch scalarBatch in scalarBatches)
+        {
+            scalar = NativeBattleQuezacotlSkinArena.Append(scalar.Memory, scalar.Effect, scalar.Ordering, scalarBatch);
+        }
+        long scalarBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        NativeBattleQuezacotlSkinBatch batch = new(writes.ToImmutable(), common, draw);
+        before = GC.GetAllocatedBytesForCurrentThread();
+        NativeBattleQuezacotlPacketWrite result = NativeBattleQuezacotlSkinArena.Append(memory, effect, NativeBattleLogicalOrdering.Clear(), batch);
+        long batchBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.Equal(JsonSerializer.Serialize(scalar), JsonSerializer.Serialize(result));
+        Assert.True(batchBytes < scalarBytes / 8, $"Scalar allocated {scalarBytes} bytes; batch allocated {batchBytes} bytes.");
+        Assert.Equal(new byte[12], memory.Arena.Read(0x8D0, 12));
+    }
+
     private static NativeBattleGfGeometryAttempt Packet(NativeBattleGeometryPrimitive primitive)
     {
         byte[] bytes = new byte[primitive.Words.Length * 4];

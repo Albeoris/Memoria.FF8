@@ -16,6 +16,9 @@ public static class NativeBattleQuezacotlSkinArena
         {
             throw new InvalidDataException("Native6C6770 final physical packet cursors leave their actual allocated banks.");
         }
+        NativeBattleEffectArenaWriter arena = new(memory.Arena ?? throw new NotSupportedException("Native6C6770 requires its actual effect arena."));
+        NativeBattleLogicalOrdering.Builder links = new(ordering);
+        ImmutableArray<NativeBattleCommonPacketStore>.Builder commonStores = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
         foreach (NativeBattleQuezacotlSkinWrite write in batch.Writes)
         {
             NativeBattleGfGeometryAttempt attempt = write.Attempt;
@@ -26,9 +29,8 @@ public static class NativeBattleQuezacotlSkinArena
             if (write.Bank == NativeBattleQuezacotlSkinBank.Common)
             {
                 int address = checked(common + attempt.ByteOffsetRelative);
-                NativeBattleLogicalOrdering.Builder links = new(ordering);
                 links.InvalidatePacketRange(new(bank, process.PacketBuffer, address), attempt.PacketLength);
-                process = process.ApplyCommonWrite(address, attempt.Data, attempt.WriteMask);
+                commonStores.Add(new(address, attempt.Data, attempt.WriteMask));
                 if (attempt.Primitive is { } primitive)
                 {
                     if (attempt.ByteOffsetRelative > batch.CommonAllocationBytes - attempt.PacketLength || primitive.Words.Length * 4 != attempt.PacketLength)
@@ -39,10 +41,9 @@ public static class NativeBattleQuezacotlSkinArena
                     links.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, address), primitive.Words, 0, primitive.VertexPayload4);
                     if (linked)
                     {
-                        process = process.ApplyCommonWrite(address, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink).ToImmutableArray(), [NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known]);
+                        commonStores.Add(new(address, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink).ToImmutableArray(), [NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known]));
                     }
                 }
-                ordering = links.ToImmutable();
             }
             else
             {
@@ -57,13 +58,11 @@ public static class NativeBattleQuezacotlSkinArena
                 }
                 int address = checked((scratch ? 0x8D0 : draw) + attempt.ByteOffsetRelative);
                 NativeBattleGfGeometryAttempt local = attempt with { ByteOffsetRelative = 0 };
-                NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(memory, address, ordering, new([local], attempt.Primitive is null ? 0 : attempt.PacketLength));
-                memory = written.Memory;
-                ordering = written.Ordering;
+                NativeBattleEffectPacketArena.AppendAttempts(arena, links, address, new([local], attempt.Primitive is null ? 0 : attempt.PacketLength));
             }
         }
-        process = process with { ByteCursor = checked(common + batch.CommonAllocationBytes) };
+        process = process.ApplyCommonWrites(commonStores.ToImmutable()) with { ByteCursor = checked(common + batch.CommonAllocationBytes) };
         process.Validate();
-        return new(memory with { PrimitiveProcess = process }, effect with { DrawArenaOffset = checked(draw + batch.EffectAllocationBytes) }, ordering);
+        return new(memory with { Arena = arena.Freeze(), PrimitiveProcess = process }, effect with { DrawArenaOffset = checked(draw + batch.EffectAllocationBytes) }, links.ToImmutable());
     }
 }

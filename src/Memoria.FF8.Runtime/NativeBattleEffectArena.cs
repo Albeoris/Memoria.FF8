@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -10,11 +11,14 @@ public sealed record NativeBattleEffectUnknownRegion([property: JsonRequired] in
 public sealed record NativeBattleEffectArena([property: JsonRequired] ImmutableArray<NativeBattleEffectMemoryRegion> Regions)
 {
     public const int Length = 0x100000;
+    [JsonIgnore]
+    internal NativeBattleEffectArenaTransaction? Transaction { get; init; }
     public ImmutableArray<NativeBattleEffectUnknownRegion> UnknownRegions { get; init; } = [];
     public static NativeBattleEffectArena Clear() => new([]);
 
     public void Validate()
     {
+        Transaction?.RequireActive();
         if (Regions.IsDefault || UnknownRegions.IsDefault)
         {
             throw new InvalidDataException("Native effect arena requires its explicit cleared memory owner.");
@@ -41,6 +45,10 @@ public sealed record NativeBattleEffectArena([property: JsonRequired] ImmutableA
 
     public byte[] Read(int offset, int count)
     {
+        if (Transaction is { } transaction)
+        {
+            return transaction.Read(offset, count);
+        }
         Validate();
         RequireRange(offset, count);
         if (count > 0 && UnknownRegions.Any(region => region.Offset < offset + count && region.Offset + region.Length > offset))
@@ -53,8 +61,10 @@ public sealed record NativeBattleEffectArena([property: JsonRequired] ImmutableA
     private byte[] ReadStorage(int offset, int count)
     {
         byte[] result = new byte[count];
-        foreach (NativeBattleEffectMemoryRegion region in Regions)
+        int firstRegion = FirstRegionEndingAt(offset, false);
+        for (int index = firstRegion; index < Regions.Length && Regions[index].Offset < offset + count; index++)
         {
+            NativeBattleEffectMemoryRegion region = Regions[index];
             int first = Math.Max(offset, region.Offset);
             int end = Math.Min(offset + count, region.Offset + region.Data.Length);
             if (end > first)
@@ -67,6 +77,11 @@ public sealed record NativeBattleEffectArena([property: JsonRequired] ImmutableA
 
     public NativeBattleEffectArena Write(int offset, ReadOnlySpan<byte> bytes)
     {
+        if (Transaction is { } transaction)
+        {
+            transaction.Write(offset, bytes);
+            return this;
+        }
         Validate();
         RequireRange(offset, bytes.Length);
         if (bytes.Length == 0)
@@ -74,36 +89,69 @@ public sealed record NativeBattleEffectArena([property: JsonRequired] ImmutableA
             return this;
         }
         int writeEnd = offset + bytes.Length;
-        NativeBattleEffectMemoryRegion[] overlap = Regions.Where(region => region.Offset <= writeEnd && region.Offset + region.Data.Length >= offset).ToArray();
-        int first = overlap.Select(region => region.Offset).Append(offset).Min();
-        int end = overlap.Select(region => region.Offset + region.Data.Length).Append(offset + bytes.Length).Max();
-        byte[] data = ReadStorage(first, end - first);
-        bytes.CopyTo(data.AsSpan(offset - first));
-        ImmutableArray<NativeBattleEffectUnknownRegion>.Builder unknown = ImmutableArray.CreateBuilder<NativeBattleEffectUnknownRegion>();
-        foreach (NativeBattleEffectUnknownRegion region in UnknownRegions)
+        int firstRegion = FirstRegionEndingAt(offset, true);
+        int afterRegion = firstRegion;
+        while (afterRegion < Regions.Length && Regions[afterRegion].Offset <= writeEnd)
         {
-            int regionEnd = region.Offset + region.Length;
-            if (region.Offset >= writeEnd || regionEnd <= offset)
+            afterRegion++;
+        }
+        bool changesUnknown = UnknownRegions.Any(region => region.Offset < writeEnd && region.Offset + region.Length > offset);
+        if (afterRegion == firstRegion + 1)
+        {
+            NativeBattleEffectMemoryRegion existing = Regions[firstRegion];
+            if (!changesUnknown && existing.Offset <= offset && existing.Offset + existing.Data.Length >= writeEnd && existing.Data.AsSpan().Slice(offset - existing.Offset, bytes.Length).SequenceEqual(bytes))
             {
-                unknown.Add(region);
-            }
-            else
-            {
-                if (region.Offset < offset)
-                {
-                    unknown.Add(new(region.Offset, offset - region.Offset));
-                }
-                if (regionEnd > writeEnd)
-                {
-                    unknown.Add(new(writeEnd, regionEnd - writeEnd));
-                }
+                return this;
             }
         }
-        return this with { Regions = Regions.Except(overlap).Append(new(first, data.ToImmutableArray())).OrderBy(region => region.Offset).ToImmutableArray(), UnknownRegions = unknown.ToImmutable() };
+        int first = firstRegion == afterRegion ? offset : Math.Min(offset, Regions[firstRegion].Offset);
+        int end = firstRegion == afterRegion ? writeEnd : Math.Max(writeEnd, Regions[afterRegion - 1].Offset + Regions[afterRegion - 1].Data.Length);
+        byte[] data = new byte[end - first];
+        for (int index = firstRegion; index < afterRegion; index++)
+        {
+            NativeBattleEffectMemoryRegion region = Regions[index];
+            region.Data.AsSpan().CopyTo(data.AsSpan(region.Offset - first));
+        }
+        bytes.CopyTo(data.AsSpan(offset - first));
+        ImmutableArray<NativeBattleEffectUnknownRegion> updatedUnknown = UnknownRegions;
+        if (changesUnknown)
+        {
+            ImmutableArray<NativeBattleEffectUnknownRegion>.Builder unknown = ImmutableArray.CreateBuilder<NativeBattleEffectUnknownRegion>();
+            foreach (NativeBattleEffectUnknownRegion region in UnknownRegions)
+            {
+                int regionEnd = region.Offset + region.Length;
+                if (region.Offset >= writeEnd || regionEnd <= offset)
+                {
+                    unknown.Add(region);
+                }
+                else
+                {
+                    if (region.Offset < offset)
+                    {
+                        unknown.Add(new(region.Offset, offset - region.Offset));
+                    }
+                    if (regionEnd > writeEnd)
+                    {
+                        unknown.Add(new(writeEnd, regionEnd - writeEnd));
+                    }
+                }
+            }
+            updatedUnknown = unknown.ToImmutable();
+        }
+        ImmutableArray<NativeBattleEffectMemoryRegion>.Builder regions = ImmutableArray.CreateBuilder<NativeBattleEffectMemoryRegion>(Regions.Length - (afterRegion - firstRegion) + 1);
+        regions.AddRange(Regions.AsSpan().Slice(0, firstRegion));
+        regions.Add(new(first, ImmutableCollectionsMarshal.AsImmutableArray(data)));
+        regions.AddRange(Regions.AsSpan().Slice(afterRegion));
+        return this with { Regions = regions.MoveToImmutable(), UnknownRegions = updatedUnknown };
     }
 
     public NativeBattleEffectArena MarkUnknown(int offset, int count)
     {
+        if (Transaction is { } transaction)
+        {
+            transaction.MarkUnknown(offset, count);
+            return this;
+        }
         Validate();
         RequireRange(offset, count);
         if (count == 0)
@@ -112,10 +160,31 @@ public sealed record NativeBattleEffectArena([property: JsonRequired] ImmutableA
         }
         int first = offset;
         int end = offset + count;
-        NativeBattleEffectUnknownRegion[] overlap = UnknownRegions.Where(region => region.Offset <= end && region.Offset + region.Length >= first).ToArray();
-        first = overlap.Select(region => region.Offset).Append(first).Min();
-        end = overlap.Select(region => region.Offset + region.Length).Append(end).Max();
-        return this with { UnknownRegions = UnknownRegions.Except(overlap).Append(new(first, end - first)).OrderBy(region => region.Offset).ToImmutableArray() };
+        int firstRegion = 0;
+        while (firstRegion < UnknownRegions.Length && UnknownRegions[firstRegion].Offset + UnknownRegions[firstRegion].Length < offset)
+        {
+            firstRegion++;
+        }
+        int afterRegion = firstRegion;
+        while (afterRegion < UnknownRegions.Length && UnknownRegions[afterRegion].Offset <= end)
+        {
+            afterRegion++;
+        }
+        if (firstRegion < afterRegion)
+        {
+            NativeBattleEffectUnknownRegion existing = UnknownRegions[firstRegion];
+            if (afterRegion == firstRegion + 1 && existing.Offset <= offset && existing.Offset + existing.Length >= end)
+            {
+                return this;
+            }
+            first = Math.Min(first, existing.Offset);
+            end = Math.Max(end, UnknownRegions[afterRegion - 1].Offset + UnknownRegions[afterRegion - 1].Length);
+        }
+        ImmutableArray<NativeBattleEffectUnknownRegion>.Builder unknown = ImmutableArray.CreateBuilder<NativeBattleEffectUnknownRegion>(UnknownRegions.Length - (afterRegion - firstRegion) + 1);
+        unknown.AddRange(UnknownRegions.AsSpan().Slice(0, firstRegion));
+        unknown.Add(new(first, end - first));
+        unknown.AddRange(UnknownRegions.AsSpan().Slice(afterRegion));
+        return this with { UnknownRegions = unknown.MoveToImmutable() };
     }
 
     private static void RequireRange(int offset, int count)
@@ -124,6 +193,27 @@ public sealed record NativeBattleEffectArena([property: JsonRequired] ImmutableA
         {
             throw new InvalidDataException("Native effect memory access exceeds20DFAB8..21DFAB8.");
         }
+    }
+
+    private int FirstRegionEndingAt(int offset, bool includeAdjacent)
+    {
+        int first = 0;
+        int after = Regions.Length;
+        while (first < after)
+        {
+            int middle = first + (after - first) / 2;
+            NativeBattleEffectMemoryRegion region = Regions[middle];
+            int end = region.Offset + region.Data.Length;
+            if (end < offset || !includeAdjacent && end == offset)
+            {
+                first = middle + 1;
+            }
+            else
+            {
+                after = middle;
+            }
+        }
+        return first;
     }
 }
 

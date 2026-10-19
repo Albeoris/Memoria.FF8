@@ -69,6 +69,7 @@ public sealed partial class BattleSession
                     NativeEffectMemory = choco99Uploaded.Memory with { Choco99 = choco99 with { Io = choco99Uploaded.State } };
                     break;
                 case 0xAA0ED0:
+                case 0xB2BB40:
                     NativeBattleEffectMemory scriptedMemory = NativeEffectMemory ?? throw new NotSupportedException("Native scripted-effect completion requires its current effect memory.");
                     NativeBattleScriptedEffectMemory scripted = scriptedMemory.ScriptedEffects ?? throw new NotSupportedException("Native scripted-effect completion requires its retained process owner.");
                     NativeEffectMemory = scriptedMemory with { ScriptedEffects = NativeBattleWaterIoCommands.CompleteAA0ED0(scripted) };

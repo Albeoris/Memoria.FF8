@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Selected current-resource base commands and raw slot-head expansion.</summary>
 public static class NativeBattleWaterWorkCommands
 {
-    public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program)
+    public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, uint? magicTextureBufferAddress = null)
     {
         ushort instruction = frame.ReadTemporaryWord(0x14A);
         uint pc = NativeBattleWaterExecutionFields.CoreDword(frame, 0x2797450);
@@ -14,20 +14,25 @@ public static class NativeBattleWaterWorkCommands
         {
             case 0x21:
                 int mode = (instruction >> 12) & 7;
-                if ((instruction & 0x8000) == 0 || mode > 2)
-                {
-                    throw new NotSupportedException("Native work bases require their selected current-resource variants.");
-                }
                 uint high = Operand(4);
                 uint immediate = (high << 16) | Operand(2);
-                uint resource = NativeBattleWaterExecutionFields.CoreDword(frame, 0x2798A6C);
-                uint header = unchecked(resource + 0x1C);
-                uint relative = BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(NativeBattleWaterExecutionFields.ArenaOffset(header, 4), 4));
-                uint target = unchecked(resource + relative + immediate);
+                uint baseAddress;
+                if ((instruction & 0x8000) != 0)
+                {
+                    uint resource = NativeBattleWaterExecutionFields.CoreDword(frame, 0x2798A6C);
+                    uint header = unchecked(resource + 0x1C);
+                    uint relative = BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(NativeBattleWaterExecutionFields.ArenaOffset(header, 4), 4));
+                    baseAddress = unchecked(resource + relative);
+                }
+                else
+                {
+                    baseAddress = magicTextureBufferAddress ?? throw new NotSupportedException("Native work bases require their actual published magic texture buffer.");
+                }
+                uint target = unchecked(baseAddress + immediate);
                 uint manager = Manager();
                 switch (mode)
                 {
-                    case 0:
+                    default:
                         frame = NativeBattleWaterExecutionFields.WriteCoreDword(frame, checked(manager + 0x74), target);
                         frame = NativeBattleWaterExecutionFields.WriteCoreDword(frame, checked(manager + 0x70), target);
                         break;

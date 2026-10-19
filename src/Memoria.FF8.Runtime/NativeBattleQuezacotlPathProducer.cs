@@ -122,12 +122,13 @@ public static class NativeBattleQuezacotlPathProducer
                 return new(memory, null);
             }
         }
-        arena = NativeBattleQuezacotlParticleProducer.Word(arena, row, vertex);
-        arena = NativeBattleQuezacotlParticleProducer.Word(arena, row + 2, width);
-        arena = NativeBattleQuezacotlParticleProducer.Word(arena, row + 0x14, intensity);
-        arena = NativeBattleQuezacotlParticleProducer.Word(arena, row + 0x16, decay);
-        arena = NativeBattleQuezacotlParticleProducer.Dword(arena, row + 0x18, 0);
-        return new(memory with { Arena = arena }, row);
+        NativeBattleEffectArenaWriter writer = new(arena);
+        NativeBattleQuezacotlParticleProducer.Word(writer, row, vertex);
+        NativeBattleQuezacotlParticleProducer.Word(writer, row + 2, width);
+        NativeBattleQuezacotlParticleProducer.Word(writer, row + 0x14, intensity);
+        NativeBattleQuezacotlParticleProducer.Word(writer, row + 0x16, decay);
+        NativeBattleQuezacotlParticleProducer.Dword(writer, row + 0x18, 0);
+        return new(memory with { Arena = writer.Freeze() }, row);
     }
 
     public static int RowOffset(uint pointer)

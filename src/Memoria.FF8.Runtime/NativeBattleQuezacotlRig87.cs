@@ -161,12 +161,13 @@ public static partial class NativeBattleQuezacotlRig86
         int skeleton = checked((int)(BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(Directory, 4)) - ArenaAddress));
         int count = arena.Read(skeleton, 1)[0];
         NativeBattleActionMatrix model = ReadMatrix(arena, 0x68);
+        NativeBattleEffectArenaWriter writer = new(arena);
         for (int index = 0; index < count; index++)
         {
-            NativeBattleActionMatrix bone = ReadBoneMatrix(memory with { Arena = arena }, index);
-            arena = WriteMatrix(arena, skeleton + 32 + index * 48, NativeBattlePoseMatrices.ComposeStageCamera([bone], model, 0)[0], true);
+            NativeBattleActionMatrix bone = ReadBoneMatrix(memory, index);
+            WriteMatrix(writer, skeleton + 32 + index * 48, NativeBattlePoseMatrices.ComposeStageCamera([bone], model, 0)[0], true);
         }
-        return new(memory with { Arena = arena }, effect);
+        return new(memory with { Arena = writer.Freeze() }, effect);
     }
 
     public static NativeBattleQuezacotlRigWrite Restore508C90(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect)
@@ -191,18 +192,19 @@ public static partial class NativeBattleQuezacotlRig86
 
     private static NativeBattleEffectArena WritePose(NativeBattleEffectArena arena, int skeleton, NativeBattleDecodedPose pose)
     {
-        arena = arena.Write(skeleton + 1, [(byte)((arena.Read(skeleton + 1, 1)[0] & ~1) | (pose.HasScale ? 1 : 0))]);
-        arena = WriteVector(arena, skeleton + 8, pose.Translation);
+        NativeBattleEffectArenaWriter writer = new(arena);
+        writer.Write(skeleton + 1, [(byte)((arena.Read(skeleton + 1, 1)[0] & ~1) | (pose.HasScale ? 1 : 0))]);
+        WriteVector(writer, skeleton + 8, pose.Translation);
         for (int index = 0; index < pose.Bones.Length; index++)
         {
             int offset = skeleton + 16 + index * 48;
-            arena = WriteVector(arena, offset + 4, pose.Bones[index].Rotation);
+            WriteVector(writer, offset + 4, pose.Bones[index].Rotation);
             if (pose.HasScale)
             {
-                arena = WriteVector(arena, offset + 10, pose.Bones[index].Scale);
+                WriteVector(writer, offset + 10, pose.Bones[index].Scale);
             }
         }
-        return arena;
+        return writer.Freeze();
     }
 
     private static NativeBattleEffectArena RestoreBoneMatrices(NativeBattleEffectArena arena, int skeleton, NativeBattleDecodedPose pose)
@@ -216,11 +218,12 @@ public static partial class NativeBattleQuezacotlRig86
         }
         ImmutableArray<NativeBattleRigBone> bones = definition.MoveToImmutable();
         ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattlePoseMatrices.RigBoneMatrices(scale, bones, pose);
+        NativeBattleEffectArenaWriter writer = new(arena);
         for (int index = 0; index < matrices.Length; index++)
         {
-            arena = WriteMatrix(arena, skeleton + 32 + index * 48, matrices[index], bones[index].Parent >= 0 || pose.HasScale);
+            WriteMatrix(writer, skeleton + 32 + index * 48, matrices[index], bones[index].Parent >= 0 || pose.HasScale);
         }
-        return arena;
+        return writer.Freeze();
     }
 
     private static NativeBattleActionMatrix ReadMatrix(NativeBattleEffectArena arena, int offset)
@@ -232,6 +235,13 @@ public static partial class NativeBattleQuezacotlRig86
 
     private static NativeBattleEffectArena WriteMatrix(NativeBattleEffectArena arena, int offset, NativeBattleActionMatrix matrix, bool unknownPadding)
     {
+        NativeBattleEffectArenaWriter writer = new(arena);
+        WriteMatrix(writer, offset, matrix, unknownPadding);
+        return writer.Freeze();
+    }
+
+    private static void WriteMatrix(NativeBattleEffectArenaWriter writer, int offset, NativeBattleActionMatrix matrix, bool unknownPadding)
+    {
         byte[] raw = new byte[32];
         for (int index = 0; index < 9; index++)
         {
@@ -240,8 +250,11 @@ public static partial class NativeBattleQuezacotlRig86
         BinaryPrimitives.WriteInt32LittleEndian(raw.AsSpan(20), matrix.X);
         BinaryPrimitives.WriteInt32LittleEndian(raw.AsSpan(24), matrix.Y);
         BinaryPrimitives.WriteInt32LittleEndian(raw.AsSpan(28), matrix.Z);
-        arena = arena.Write(offset, raw);
-        return unknownPadding ? arena.MarkUnknown(offset + 18, 2) : arena;
+        writer.Write(offset, raw);
+        if (unknownPadding)
+        {
+            writer.MarkUnknown(offset + 18, 2);
+        }
     }
 
     private static NativeBattleVector ReadVector(NativeBattleEffectArena arena, int offset)
@@ -252,10 +265,17 @@ public static partial class NativeBattleQuezacotlRig86
 
     private static NativeBattleEffectArena WriteVector(NativeBattleEffectArena arena, int offset, NativeBattleVector vector)
     {
+        NativeBattleEffectArenaWriter writer = new(arena);
+        WriteVector(writer, offset, vector);
+        return writer.Freeze();
+    }
+
+    private static void WriteVector(NativeBattleEffectArenaWriter writer, int offset, NativeBattleVector vector)
+    {
         byte[] raw = new byte[6];
         BinaryPrimitives.WriteInt16LittleEndian(raw, vector.X);
         BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(2), vector.Y);
         BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(4), vector.Z);
-        return arena.Write(offset, raw);
+        writer.Write(offset, raw);
     }
 }

@@ -9,12 +9,19 @@ public readonly record struct NativeBattleModuleProjectedVertex(uint Screen, ush
     public static implicit operator NativeBattleProjectedVertex(NativeBattleModuleProjectedVertex vertex) => new(vertex.Screen, vertex.Depth | (vertex.Flags & 0xFFFF0000));
 }
 
+public readonly record struct NativeBattleModuleDepthCueVertex(NativeBattleModuleProjectedVertex Projected, uint Cue);
+
 /// <summary>45FE10/45FAA0 module projection, distinct from50F900's bulk body projection.</summary>
 public static class NativeBattleModuleProjection
 {
     public static NativeBattleModuleProjectedVertex Project45FE10(NativeBattleActionMatrix matrix, NativeBattleVector vertex, NativeBattleCameraProjection projection) => ProjectCore(matrix, vertex, projection).Projected;
 
     public static NativeBattleModuleProjectedVertex Project45FAA0(NativeBattleActionMatrix matrix, NativeBattleVector vertex, NativeBattleCameraProjection projection, short dqa, int dqb)
+    {
+        return ProjectWithCue45FAA0(matrix, vertex, projection, dqa, dqb).Projected;
+    }
+
+    public static NativeBattleModuleDepthCueVertex ProjectWithCue45FAA0(NativeBattleActionMatrix matrix, NativeBattleVector vertex, NativeBattleCameraProjection projection, short dqa, int dqb)
     {
         (NativeBattleModuleProjectedVertex projected, int x, int y, int z, double factor) = ProjectCore(matrix, vertex, projection);
         uint flags = projected.Flags;
@@ -38,7 +45,7 @@ public static class NativeBattleModuleProjection
         {
             flags |= 0x00001000;
         }
-        return projected with { Flags = flags };
+        return new(projected with { Flags = flags }, (uint)Math.Clamp(roundedCue, 0, 0xFFF));
     }
 
     private static (NativeBattleModuleProjectedVertex Projected, int X, int Y, int Z, double Factor) ProjectCore(NativeBattleActionMatrix matrix, NativeBattleVector vertex, NativeBattleCameraProjection projection)

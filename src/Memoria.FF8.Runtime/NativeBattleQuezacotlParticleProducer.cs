@@ -54,13 +54,16 @@ public static class NativeBattleQuezacotlParticleProducer
                 return new(memory, null);
             }
         }
-        arena = WriteVector(arena, row, position);
-        arena = Word(arena, row + 6, width);
-        arena = Word(arena, row + 0xE, 2);
-        arena = Word(arena, row + 0x20, 512);
-        arena = Word(arena, row + 0x22, 768);
-        arena = arena.Write(row + 0x24, [0, 0, 0, 0]);
-        return new(memory with { Arena = arena }, row);
+        NativeBattleEffectArenaWriter writer = new(arena);
+        byte[] raw = new byte[6];
+        PutVector(raw, 0, position);
+        writer.Write(row, raw);
+        Word(writer, row + 6, width);
+        Word(writer, row + 0xE, 2);
+        Word(writer, row + 0x20, 512);
+        Word(writer, row + 0x22, 768);
+        writer.Write(row + 0x24, [0, 0, 0, 0]);
+        return new(memory with { Arena = writer.Freeze() }, row);
     }
 
     public static NativeBattleQuezacotlParticleSpawn Spawn6C7D10(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleQuezacotlParticleArguments arguments)
@@ -149,6 +152,20 @@ public static class NativeBattleQuezacotlParticleProducer
         byte[] raw = new byte[4];
         BinaryPrimitives.WriteUInt32LittleEndian(raw, value);
         return arena.Write(address, raw);
+    }
+
+    internal static void Word(NativeBattleEffectArenaWriter writer, int address, short value)
+    {
+        Span<byte> raw = stackalloc byte[2];
+        BinaryPrimitives.WriteInt16LittleEndian(raw, value);
+        writer.Write(address, raw);
+    }
+
+    internal static void Dword(NativeBattleEffectArenaWriter writer, int address, uint value)
+    {
+        Span<byte> raw = stackalloc byte[4];
+        BinaryPrimitives.WriteUInt32LittleEndian(raw, value);
+        writer.Write(address, raw);
     }
 
     internal static NativeBattleEffectArena WriteVector(NativeBattleEffectArena arena, int address, NativeBattleVector vector)

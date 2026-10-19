@@ -38,4 +38,18 @@ public sealed class NativeBattleEffectArenaTests
         Assert.Throws<InvalidDataException>(() => arena.Write(0xFFFFF, [1, 2]));
         Assert.Throws<InvalidDataException>(() => arena.Read(0, int.MaxValue));
     }
+
+    [Fact]
+    public void Writes_own_their_private_buffer_and_keep_prior_snapshots_immutable()
+    {
+        byte[] bytes = [1, 2, 3, 4];
+        NativeBattleEffectArena first = NativeBattleEffectArena.Clear().Write(0x100, bytes);
+        bytes[0] = 99;
+        NativeBattleEffectArena second = first.Write(0x101, [8, 9]);
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, first.Read(0x100, 4));
+        Assert.Equal(new byte[] { 1, 8, 9, 4 }, second.Read(0x100, 4));
+        byte[] exposedRead = second.Read(0x100, 4);
+        exposedRead[0] = 77;
+        Assert.Equal(new byte[] { 1, 8, 9, 4 }, second.Read(0x100, 4));
+    }
 }

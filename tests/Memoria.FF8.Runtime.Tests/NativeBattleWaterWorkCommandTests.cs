@@ -138,7 +138,6 @@ public sealed class NativeBattleWaterWorkCommandTests
     public void ActualAccessBoundariesAndUnsupportedModesFailWithoutCappingOrHydration()
     {
         Assert.Throws<NotSupportedException>(() => Run(Fixture(0x0021)));
-        Assert.Throws<NotSupportedException>(() => Run(Fixture(0xB021)));
         Assert.Throws<InvalidDataException>(() => Run(Fixture(0xA021), 6));
         NativeBattleWaterExecutionFrame unknown = Fixture(0x8021);
         unknown = unknown with { Arena = unknown.Arena.MarkUnknown(ResourceOffset + 0x1C, 4) };
@@ -148,6 +147,52 @@ public sealed class NativeBattleWaterWorkCommandTests
         end = WaterSchedulerFixture.CoreDword(end, Manager + 0x90, NativeBattleEffectNodeMemory.ArenaAddress + NativeBattleEffectArena.Length - 4);
         Assert.Throws<NotSupportedException>(() => Run(end));
         Assert.Equal((ushort)0, BinaryPrimitives.ReadUInt16LittleEndian(end.Core.Read(NativeBattleScriptedEffectMemory.Address + 0x38, 2)));
+    }
+
+    [Theory]
+    [InlineData(0x0021)]
+    [InlineData(0x3021)]
+    [InlineData(0x7021)]
+    [InlineData(0xB021)]
+    [InlineData(0xF021)]
+    public void Arena_and_default_work_modes_use_the_selected_base_without_reading_size_or_parity(ushort instruction)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(instruction, 0, 5);
+        frame = frame with { Arena = frame.Arena.MarkUnknown(0x1006, 2) };
+        if ((instruction & 0x8000) == 0)
+        {
+            frame = frame with { Core = frame.Core.MarkUnknown(0x2798A6C, 4), Arena = frame.Arena.MarkUnknown(ResourceOffset + 0x1C, 4) };
+        }
+        uint baseAddress = (instruction & 0x8000) != 0 ? Resource + 0x58 : NativeBattleEffectNodeMemory.ArenaAddress;
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterWorkCommands.Execute(frame, new(0x1000, 8, Pc), NativeBattleEffectNodeMemory.ArenaAddress);
+        Assert.Equal(unchecked(baseAddress + 0x50000), WaterSchedulerFixture.ReadCoreDword(result, Manager + 0x70));
+        Assert.Equal(unchecked(baseAddress + 0x50000), WaterSchedulerFixture.ReadCoreDword(result, Manager + 0x74));
+        Assert.Equal(unchecked(Pc + 8), WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+    }
+
+    [Theory]
+    [InlineData(0x1021, 0)]
+    [InlineData(0x2021, -128)]
+    [InlineData(0x2021, 0)]
+    [InlineData(0x2021, 128)]
+    public void Arena_base_modes_preserve_signed_private_size_and_live_aliases(ushort instruction, short size)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(instruction, 0, 4, unchecked((ushort)size)).WriteTemporaryByte(0x141, 0xFF);
+        frame = frame with { Core = frame.Core.MarkUnknown(0x2798A6C, 4) };
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterWorkCommands.Execute(frame, new(0x1000, 8, Pc), NativeBattleEffectNodeMemory.ArenaAddress);
+        uint target = NativeBattleEffectNodeMemory.ArenaAddress + 0x40000;
+        if (instruction == 0x1021)
+        {
+            Assert.Equal(target, WaterSchedulerFixture.ReadCoreDword(result, Manager + 0xB8));
+        }
+        else
+        {
+            Assert.Equal(target, WaterSchedulerFixture.ReadCoreDword(result, Manager + 0xD4));
+            Assert.Equal(unchecked((uint)(size << 7)), WaterSchedulerFixture.ReadCoreDword(result, Manager + 0xDC));
+            Assert.Equal(unchecked(target - (uint)(size << 7)), WaterSchedulerFixture.ReadCoreDword(result, Manager + 0xD8));
+        }
+        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleWaterWorkCommands.Execute(restored, new(0x1000, 8, Pc), NativeBattleEffectNodeMemory.ArenaAddress)));
     }
 
     private static NativeBattleWaterExecutionFrame Fixture(ushort instruction, ushort low = 0, ushort high = 0, ushort size = 0)

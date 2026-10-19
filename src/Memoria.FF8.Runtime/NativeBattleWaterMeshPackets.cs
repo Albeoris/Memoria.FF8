@@ -9,7 +9,7 @@ public sealed record NativeBattleWaterMeshResult(NativeBattleWaterExecutionFrame
 /// <summary>Selected mesh packet stores over already projected native records and their separate depth owner.</summary>
 public static class NativeBattleWaterMeshPackets
 {
-    public static NativeBattleWaterMeshResult EmitSelected(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, ImmutableArray<byte> projectedRecords, ImmutableArray<uint> separateDepths, uint outputPointer, Func<uint, int> resolveActualOtBucket)
+    public static NativeBattleWaterMeshResult EmitSelected(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, ImmutableArray<byte> projectedRecords, ImmutableArray<uint> separateDepths, uint outputPointer, Func<uint, int> resolveActualOtBucket, Func<uint, uint>? shadeMaterial = null)
     {
         (int stride, int length, int corners, int indexOffset, int sxyOffset) = group.Type switch
         {
@@ -80,7 +80,7 @@ public static class NativeBattleWaterMeshPackets
                         material |= semi | (group.Type == 7 ? 0x30000000u : group.Type == 9 ? 0x34000000u : 0x38000000u);
                     }
                     int offset = group.Type == 9 ? 4 + corner * 12 : 12 + corner * 8;
-                    Dword(offset, NativeBattleWaterMeshColor.Modulate4601B0(material, setup.Modulation));
+                    Dword(offset, shadeMaterial is null ? NativeBattleWaterMeshColor.Modulate4601B0(material, setup.Modulation) : shadeMaterial(material));
                 }
                 uint sum = 0;
                 foreach (uint value in depthAndClip)

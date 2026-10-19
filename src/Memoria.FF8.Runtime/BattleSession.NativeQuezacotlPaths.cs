@@ -14,43 +14,74 @@ public sealed partial class BattleSession
         {
             return graphics;
         }
-        //508420 reuses one native stack depth for all path tasks; nothing from another pool or frame is assumed.
-        uint? outlineDirection = null;
-        NativeBattleEffectTaskStep stepped = before.Advance((current, index) =>
+        using NativeBattleEffectArenaTransaction transaction = new(memory.Arena ?? throw new NotSupportedException("Native secondary pool requires its retained arena."));
+        memory = memory with { Arena = transaction.View };
+        NativeBattleEffectMemory committedMemory = memory;
+        NativeBattleGraphicsState committedGraphics = graphics;
+        bool checkpointActive = false;
+        try
         {
-            if (current.Slots[index].Callback != 0x6C7800)
+            //508420 reuses one native stack depth for all path tasks; nothing from another pool or frame is assumed.
+            uint? outlineDirection = null;
+            NativeBattleEffectTaskStep stepped = before.Advance((current, index) =>
             {
-                throw new NotSupportedException($"Native Quezacotl path callback{current.Slots[index].Callback:X} is not implemented.");
-            }
-            NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native6C7800 requires its current ordering table.");
-            NativeBattleQuezacotlPathStep path = NativeBattleQuezacotlPathCallbacks.Advance6C7800(memory, effect, current, index, frame.Pending, NativeCamera?.Projection ?? throw new NotSupportedException("Native6C7800 requires its prior projection registers."), depthTrace.DepthFifo4, outlineDirection);
-            memory = path.Memory;
-            effect = path.Effect;
-            depthTrace.ObserveFinal(path.DepthFifo4);
-            outlineDirection = path.FinalOutlineDirectionDword;
-            graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = path.Ordering } };
-            NativeEffectMemory = memory;
-            NativeGraphics = graphics;
-            return new(path.Pool, path.Returned);
-        });
-        NativeBattleEffectTaskPool pool = stepped.Pool;
-        for (int index = 0; index < pool.Slots.Length; index++)
-        {
-            int address = checked((int)(pool.BankAddress - NativeBattleQuezacotlPathProducer.ArenaAddress) + index * pool.Stride);
-            if (before.Slots[index].Flags != pool.Slots[index].Flags)
+                transaction.BeginCheckpoint();
+                checkpointActive = true;
+                if (current.Slots[index].Callback != 0x6C7800)
+                {
+                    throw new NotSupportedException($"Native Quezacotl path callback{current.Slots[index].Callback:X} is not implemented.");
+                }
+                NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native6C7800 requires its current ordering table.");
+                NativeBattleQuezacotlPathStep path = NativeBattleQuezacotlPathCallbacks.Advance6C7800(memory, effect, current, index, frame.Pending, NativeCamera?.Projection ?? throw new NotSupportedException("Native6C7800 requires its prior projection registers."), depthTrace.DepthFifo4, outlineDirection);
+                memory = path.Memory;
+                effect = path.Effect;
+                depthTrace.ObserveFinal(path.DepthFifo4);
+                outlineDirection = path.FinalOutlineDirectionDword;
+                graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = path.Ordering } };
+                transaction.CommitCheckpoint();
+                checkpointActive = false;
+                committedMemory = memory;
+                committedGraphics = graphics;
+                return new(path.Pool, path.Returned);
+            });
+            transaction.BeginCheckpoint();
+            checkpointActive = true;
+            NativeBattleEffectTaskPool pool = stepped.Pool;
+            for (int index = 0; index < pool.Slots.Length; index++)
             {
-                byte[] flags = new byte[2];
-                BinaryPrimitives.WriteUInt16LittleEndian(flags, pool.Slots[index].Flags);
-                memory = memory with { Arena = memory.Arena!.Write(address, flags) };
+                int address = checked((int)(pool.BankAddress - NativeBattleQuezacotlPathProducer.ArenaAddress) + index * pool.Stride);
+                if (before.Slots[index].Flags != pool.Slots[index].Flags)
+                {
+                    byte[] flags = new byte[2];
+                    BinaryPrimitives.WriteUInt16LittleEndian(flags, pool.Slots[index].Flags);
+                    memory = memory with { Arena = memory.Arena!.Write(address, flags) };
+                }
+                if (before.Slots[index].Next != pool.Slots[index].Next)
+                {
+                    memory = memory with { Arena = NativeBattleQuezacotlParticleProducer.Dword(memory.Arena!, address + 4, pool.Slots[index].Next is int next ? checked(pool.BankAddress + (uint)next * pool.Stride) : 0) };
+                }
             }
-            if (before.Slots[index].Next != pool.Slots[index].Next)
-            {
-                memory = memory with { Arena = NativeBattleQuezacotlParticleProducer.Dword(memory.Arena!, address + 4, pool.Slots[index].Next is int next ? checked(pool.BankAddress + (uint)next * pool.Stride) : 0) };
-            }
+            memory = memory with { QuezacotlSecondaryHeads = memory.QuezacotlSecondaryHeads!.Value.SetItem(2, pool.Head is int head ? checked(pool.BankAddress + (uint)head * pool.Stride) : 0) };
+            effect = effect with { Pools = effect.Pools.Select(existing => existing.DescriptorAddress == pool.DescriptorAddress ? pool : existing).ToImmutableArray() };
+            graphics = graphics with { OriginalEffect = effect };
+            transaction.CommitCheckpoint();
+            checkpointActive = false;
+            return graphics;
         }
-        memory = memory with { QuezacotlSecondaryHeads = memory.QuezacotlSecondaryHeads!.Value.SetItem(2, pool.Head is int head ? checked(pool.BankAddress + (uint)head * pool.Stride) : 0) };
-        effect = effect with { Pools = effect.Pools.Select(existing => existing.DescriptorAddress == pool.DescriptorAddress ? pool : existing).ToImmutableArray() };
-        NativeEffectMemory = memory;
-        return graphics with { OriginalEffect = effect };
+        catch
+        {
+            if (checkpointActive)
+            {
+                transaction.RollbackCheckpoint();
+            }
+            memory = committedMemory;
+            graphics = committedGraphics;
+            throw;
+        }
+        finally
+        {
+            NativeEffectMemory = memory with { Arena = transaction.Freeze() };
+            NativeGraphics = graphics;
+        }
     }
 }

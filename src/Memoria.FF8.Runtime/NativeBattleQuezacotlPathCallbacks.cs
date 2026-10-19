@@ -17,6 +17,7 @@ public static class NativeBattleQuezacotlPathCallbacks
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native6C7800 requires its retained row and task memory.");
         int address = checked((int)(pool.BankAddress - NativeBattleQuezacotlPathProducer.ArenaAddress) + index * pool.Stride);
         byte[] task = arena.Read(address + 12, 20);
+        bool taskDirty = false;
         uint? outlineDirection = incomingOutlineDirectionDword;
         bool paused = (memory.QuezacotlPause ?? throw new NotSupportedException("Native6C7800 requires its retained pause DWORD.")) != 0;
         if (!paused)
@@ -82,15 +83,17 @@ public static class NativeBattleQuezacotlPathCallbacks
                 Set16(0xC, unchecked((short)(T16(0xC) + 1)));
                 Set32(0x1C, pointer);
             }
+            NativeBattleEffectArenaWriter rowUpdates = new(arena);
             foreach (int row in Chain())
             {
                 short intensity = R16(row + 0x14);
                 if (intensity > 0)
                 {
                     intensity = unchecked((short)(intensity + R16(row + 0x16)));
-                    arena = NativeBattleQuezacotlParticleProducer.Word(arena, row + 0x14, intensity > 0 ? intensity : (short)0);
+                    NativeBattleQuezacotlParticleProducer.Word(rowUpdates, row + 0x14, intensity > 0 ? intensity : (short)0);
                 }
             }
+            arena = rowUpdates.Freeze();
         }
         ImmutableArray<int?> fifo = incomingDepthFifo4;
         int count = T16(0xC);
@@ -186,13 +189,13 @@ public static class NativeBattleQuezacotlPathCallbacks
         void Set16(int offset, short value)
         {
             BinaryPrimitives.WriteInt16LittleEndian(task.AsSpan(offset - 12), value);
-            arena = NativeBattleQuezacotlParticleProducer.Word(arena, address + offset, value);
+            taskDirty = true;
         }
 
         void Set32(int offset, uint value)
         {
             BinaryPrimitives.WriteUInt32LittleEndian(task.AsSpan(offset - 12), value);
-            arena = NativeBattleQuezacotlParticleProducer.Dword(arena, address + offset, value);
+            taskDirty = true;
         }
 
         List<int> Chain()
@@ -214,6 +217,11 @@ public static class NativeBattleQuezacotlPathCallbacks
 
         void SyncPool()
         {
+            if (taskDirty)
+            {
+                arena = arena.Write(address + 12, task);
+                taskDirty = false;
+            }
             pool = pool with { Slots = pool.Slots.SetItem(index, pool.Slots[index] with { Payload = task.ToImmutableArray() }) };
             memory = memory with { Arena = arena };
             effect = effect with { Pools = effect.Pools.Select(existing => existing.DescriptorAddress == pool.DescriptorAddress ? pool : existing).ToImmutableArray() };

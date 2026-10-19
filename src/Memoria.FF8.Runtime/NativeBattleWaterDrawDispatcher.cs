@@ -18,7 +18,10 @@ public sealed record NativeBattleWaterDrawServices(
     Func<NativeBattleWaterExecutionFrame, ImmutableArray<NativeBattleGraphicsModel>, NativeBattleWaterExecutionFrame> PublishModels,
     NativeBattleWaterActorPoseServices ActorPose,
     Func<NativeBattleWaterExecutionFrame, uint, int, byte[]> ReadMetadata,
-    Func<uint, int> ResolveActualOtBucket);
+    Func<uint, int> ResolveActualOtBucket)
+{
+    public Func<NativeBattleWaterMeshProjected, int, NativeBattleWaterMeshSubmission>? SubmitMesh { get; init; }
+}
 
 /// <summary>The selected draw callers over current resource, graphics and packet owners.</summary>
 public static class NativeBattleWaterDrawDispatcher
@@ -39,7 +42,7 @@ public static class NativeBattleWaterDrawDispatcher
                 NativeBattleWaterMeshProjected projected = NativeBattleWaterMeshPreparation.MorphProject(prepared, bank, currentIndex, input.Resources, map, extent, projection, input.Dqa, input.Dqb, services.ReadDepthOwner(frame));
                 frame = services.PublishDepthOwner(projected.Frame, projected.DepthOwner);
                 projected = projected with { Frame = frame };
-                NativeBattleWaterMeshSubmission mesh = NativeBattleWaterMeshPreparation.Submit(projected, extent, services.ResolveActualOtBucket);
+                NativeBattleWaterMeshSubmission mesh = services.SubmitMesh is { } submitMesh ? submitMesh(projected, extent) : NativeBattleWaterMeshPreparation.Submit(projected, extent, services.ResolveActualOtBucket);
                 return Submit(mesh.Frame, mesh.Packets);
             case 0x05:
                 return NativeBattleWaterRectangleCommands.AdvanceDraw5(frame, ResolveMatrix, DrawRectangles);

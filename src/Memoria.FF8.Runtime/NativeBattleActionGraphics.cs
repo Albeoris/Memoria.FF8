@@ -188,6 +188,10 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleWater222Resources? Water222Resources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleScriptedInitializationDirectories? ScriptedInitializationDirectories { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleCinematicResources? CinematicResources { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleCactuar199Resources? Cactuar199Resources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleThundaga105Resources? Thundaga105Resources { get; init; }

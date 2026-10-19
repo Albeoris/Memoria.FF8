@@ -151,16 +151,18 @@ public static partial class NativeBattleQuezacotlRig86
         AddPool(0x2521728, 0x3BA5C, 0x80, 16);
         AddPool(0x2521718, 0x3C27C, 0x3C, 32);
         AddPool(0x2521708, 0x3F200, 0x20, 128);
+        NativeBattleEffectArenaWriter writer = new(arena);
         for (int index = 0; index < 256; index++)
         {
-            arena = arena.Write(0x3CA02 + index * 0x28, [0xFF, 0xFF]);
+            writer.Write(0x3CA02 + index * 0x28, [0xFF, 0xFF]);
         }
-        arena = arena.Write(0x3F1FC, [0, 0, 0, 0]);
+        writer.Write(0x3F1FC, [0, 0, 0, 0]);
         for (int index = 0; index < 512; index++)
         {
-            arena = arena.Write(0x40200 + index * 0x1C, [0xFF, 0xFF]);
+            writer.Write(0x40200 + index * 0x1C, [0xFF, 0xFF]);
         }
-        arena = arena.Write(0x43A00, [0, 0, 0, 0]);
+        writer.Write(0x43A00, [0, 0, 0, 0]);
+        arena = writer.Freeze();
         byte[] savedCamera = new byte[16];
         BinaryPrimitives.WriteInt16LittleEndian(savedCamera, camera.Target.X);
         BinaryPrimitives.WriteInt16LittleEndian(savedCamera.AsSpan(2), camera.Target.Y);

@@ -22,7 +22,7 @@ public static class NativeBattleIfritEntry
         NativeBattleWaterInitializationResult initialized = NativeBattleWaterInitialization.InitializeScriptedEntry(core, arena, directories, inputs, new(0x2796E18, 0x2796E28, 0x10, 1, 0xB25DF0));
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2796E18, 0x2796E28, 0x10, 1);
         (pool, _) = pool.Append(0xB25DF0);
-        return new(memory with { Arena = initialized.Arena, ScriptedEffects = initialized.Core }, effect with { Pools = [pool], ReturnedDescriptor = pool.DescriptorAddress }, initialized.SlotBank, initialized.TemporaryFrame, initialized.CurrentHeaderIndex);
+        return new(memory with { Arena = initialized.Arena, ScriptedEffects = initialized.Core, Ifrit201 = new(initialized.TemporaryFrame.Bytes[0x145]) }, effect with { Pools = [pool], ReturnedDescriptor = pool.DescriptorAddress }, initialized.SlotBank, initialized.TemporaryFrame, initialized.CurrentHeaderIndex);
 
         void RequireResource(uint publication, NativeBattleWaterInitializationResource resource)
         {

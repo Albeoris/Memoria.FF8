@@ -181,7 +181,7 @@ public static class NativeBattleWaterMeshPreparation
         return frame;
     }
 
-    public static NativeBattleWaterMeshSubmission Submit(NativeBattleWaterMeshProjected projected, int actualShapeExtent, Func<uint, int> resolveActualOtBucket)
+    public static NativeBattleWaterMeshSubmission Submit(NativeBattleWaterMeshProjected projected, int actualShapeExtent, Func<uint, int> resolveActualOtBucket, Func<uint, uint>? shadeMaterial = null)
     {
         if (projected.ProxyScale != 1d)
         {
@@ -228,7 +228,7 @@ public static class NativeBattleWaterMeshPreparation
             }
             RequireShape(shape, actualShapeExtent, cursor, checked(faces * stride));
             NativeBattleWaterMeshGroup group = new(type, faces, frame.Arena.Read(ArenaOffset(cursor, faces * stride), faces * stride).ToImmutableArray());
-            NativeBattleWaterMeshResult drawn = NativeBattleWaterMeshPackets.EmitSelected(frame, group, records, depths, frame.ReadTemporaryDword(0x60), resolveActualOtBucket);
+            NativeBattleWaterMeshResult drawn = NativeBattleWaterMeshPackets.EmitSelected(frame, group, records, depths, frame.ReadTemporaryDword(0x60), resolveActualOtBucket, shadeMaterial);
             foreach (NativeBattleGfGeometryAttempt attempt in drawn.Packets.Attempts)
             {
                 attempts.Add(attempt with { ByteOffsetRelative = checked(attempt.ByteOffsetRelative + allocated) });

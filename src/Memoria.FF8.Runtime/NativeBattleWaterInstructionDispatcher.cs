@@ -16,7 +16,10 @@ public sealed record NativeBattleWaterInstructionServices(
     Func<NativeBattleWaterExecutionFrame, NativeBattleEffectTextureState> ReadTextures,
     Func<NativeBattleWaterExecutionFrame, NativeBattleEffectTextureState, NativeBattleWaterExecutionFrame> PublishTextures,
     Func<NativeBattleWaterExecutionFrame, NativeBattleWaterFileReadRequest, NativeBattleWaterExecutionFrame> SubmitFileRead,
-    Func<NativeBattleWaterExecutionFrame, uint> ReadIncomingEcx);
+    Func<NativeBattleWaterExecutionFrame, uint> ReadIncomingEcx)
+{
+    public uint? MagicTextureBufferAddress { get; init; }
+}
 
 /// <summary>Finite instruction orchestration over the current resource arena and explicit engine services.</summary>
 public static class NativeBattleWaterInstructionDispatcher
@@ -98,7 +101,7 @@ public static class NativeBattleWaterInstructionDispatcher
                 return NativeBattleWaterContextCommands.Execute(frame, Program(), services.Context);
             case 0x21:
             case 0x7D:
-                return NativeBattleWaterWorkCommands.Execute(frame, Program());
+                return NativeBattleWaterWorkCommands.Execute(frame, Program(), services.MagicTextureBufferAddress);
             case 0x23:
             case 0x24:
             case 0x2A:
@@ -162,10 +165,20 @@ public static class NativeBattleWaterInstructionDispatcher
     public static NativeBattleWaterSlotBank CurrentBank(NativeBattleWaterExecutionFrame frame, NativeBattleWater222Resources resources)
     {
         NativeBattleWaterInitializationResource file = Resource1(frame, resources);
+        return CurrentBank(frame, file.Length);
+    }
+
+    public static NativeBattleWaterSlotBank CurrentBank(NativeBattleWaterExecutionFrame frame, int resource1Length)
+    {
+        if (resource1Length <= 0)
+        {
+            throw new InvalidDataException("Native scripted slots require their current resource extent.");
+        }
+        int resourceOffset = ArenaOffset(CoreDword(frame, 0x2798A6C), resource1Length);
         uint manager = CoreDword(frame, 0x27973EC);
         int slotBase = ArenaOffset(CoreDword(frame, checked(manager + 0x90)), 0);
         int capacity = CoreWord(frame, checked(CoreDword(frame, 0x279744C) + 0x38));
-        return new(file.ArenaOffset, file.Length, capacity, slotBase);
+        return new(resourceOffset, resource1Length, capacity, slotBase);
     }
 
     public static int CurrentIndex(NativeBattleWaterExecutionFrame frame, NativeBattleWaterSlotBank bank)
@@ -189,18 +202,33 @@ public static class NativeBattleWaterInstructionDispatcher
 
     public static NativeBattleWaterExecutionFrame UpdateCurrent(NativeBattleWaterExecutionFrame frame, NativeBattleWater222Resources resources)
     {
-        NativeBattleWaterSlotBank bank = CurrentBank(frame, resources);
+        return UpdateCurrent(frame, resources.Files[1].Data.Length);
+    }
+
+    public static NativeBattleWaterExecutionFrame UpdateCurrent(NativeBattleWaterExecutionFrame frame, int resource1Length)
+    {
+        NativeBattleWaterSlotBank bank = CurrentBank(frame, resource1Length);
         ImmutableArray<byte> active = ReadSlot(frame, 0x18, 1)[0] == 3 ? ActiveOrder(frame) : [];
         return frame with { Arena = NativeBattleWaterSlots.UpdateSelected(frame.Arena, bank, CurrentIndex(frame, bank), active) };
     }
 
     public static NativeBattleWaterExecutionFrame CacheCurrent(NativeBattleWaterExecutionFrame frame, NativeBattleWater222Resources resources)
     {
-        NativeBattleWaterSlotBank bank = CurrentBank(frame, resources);
+        return CacheCurrent(frame, resources.Files[1].Data.Length);
+    }
+
+    public static NativeBattleWaterExecutionFrame CacheCurrent(NativeBattleWaterExecutionFrame frame, int resource1Length)
+    {
+        NativeBattleWaterSlotBank bank = CurrentBank(frame, resource1Length);
         return frame with { Arena = NativeBattleWaterSlots.CachePositionAA17D0(frame.Arena, bank, CurrentIndex(frame, bank)) };
     }
 
     private static NativeBattleWaterExecutionFrame ExecuteVector(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWater222Resources resources)
+    {
+        return ExecuteVector(frame, program, resources.Files[1].Data.Length);
+    }
+
+    public static NativeBattleWaterExecutionFrame ExecuteVector(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, int resource1Length)
     {
         uint pc = CoreDword(frame, 0x2797450);
         uint relative = unchecked(pc - program.Address);
@@ -215,11 +243,11 @@ public static class NativeBattleWaterInstructionDispatcher
         frame = WriteCoreDword(frame, 0x2797450, unchecked(program.Address + (uint)vector.NextOffset));
         if (vector.PostAction == NativeBattleWaterVectorPostAction.RefreshPosition)
         {
-            frame = CacheCurrent(UpdateCurrent(frame, resources), resources);
+            frame = CacheCurrent(UpdateCurrent(frame, resource1Length), resource1Length);
         }
         else if (vector.PostAction == NativeBattleWaterVectorPostAction.RefreshAcceleration)
         {
-            NativeBattleWaterSlotBank bank = CurrentBank(frame, resources);
+            NativeBattleWaterSlotBank bank = CurrentBank(frame, resource1Length);
             frame = frame with { Arena = NativeBattleWaterSlots.RefreshAccelerationAA27F0(frame.Arena, bank, CurrentIndex(frame, bank)) };
         }
         return frame;

@@ -6,6 +6,8 @@ public sealed partial record NativeBattleEffectMemory
     public NativeBattleEffectBinding? Entry21DFEC4 { get; init; }
     public NativeBattleEffectBinding? Entry21DFEC8 { get; init; }
     public byte? Parameter82 { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public uint? MagicTextureBufferAddress1D99A88 { get; init; }
 
     public NativeBattleEffectMemory PublishEntry50AF20(NativeBattleEffectBinding binding, bool destination21DFEC0)
     {
@@ -13,7 +15,7 @@ public sealed partial record NativeBattleEffectMemory
         {
             throw new InvalidDataException("Native50AF20 requires its actual selected nonzero module entry.");
         }
-        return destination21DFEC0 ? this with { Entry21DFEC0 = binding } : this with { Entry21DFEC4 = binding };
+        return destination21DFEC0 ? this with { Entry21DFEC0 = binding, MagicTextureBufferAddress1D99A88 = NativeBattleEffectNodeMemory.ArenaAddress } : this with { Entry21DFEC4 = binding, MagicTextureBufferAddress1D99A88 = NativeBattleEffectNodeMemory.ArenaAddress };
     }
 
     public NativeBattleEffectMemory CopyEntry50B830()

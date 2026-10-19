@@ -14,6 +14,7 @@ public static class NativeBattleQuezacotlParticleCallbacks
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native6C7EA0 requires its current linked row bank.");
         int address = checked((int)(pool.BankAddress - NativeBattleQuezacotlParticleProducer.ArenaAddress) + index * pool.Stride);
         byte[] task = arena.Read(address + 12, pool.Stride - 12);
+        bool taskDirty = false;
         bool paused = (memory.QuezacotlPause ?? throw new NotSupportedException("Native6C7EA0 requires its retained pause owner.")) != 0;
         if (!paused)
         {
@@ -103,6 +104,7 @@ public static class NativeBattleQuezacotlParticleCallbacks
                     Set16(0x2E, unchecked((short)(T16(0x2E) - 1)));
                 }
             }
+            NativeBattleEffectArenaWriter rowUpdates = new(arena);
             foreach (int row in Chain())
             {
                 short width = R16(row + 0x20);
@@ -112,7 +114,7 @@ public static class NativeBattleQuezacotlParticleCallbacks
                 }
                 short acceleration = R16(row + 0x22);
                 width = unchecked((short)(width + acceleration));
-                arena = NativeBattleQuezacotlParticleProducer.Word(arena, row + 0x20, Math.Max(width, (short)0));
+                NativeBattleQuezacotlParticleProducer.Word(rowUpdates, row + 0x20, Math.Max(width, (short)0));
                 if (width <= 0)
                 {
                     continue;
@@ -120,24 +122,27 @@ public static class NativeBattleQuezacotlParticleCallbacks
                 short wait = R16(row + 0xE);
                 if (wait != 0 && acceleration <= 0)
                 {
-                    arena = NativeBattleQuezacotlParticleProducer.Word(arena, row + 0xE, unchecked((short)(wait - 1)));
+                    NativeBattleQuezacotlParticleProducer.Word(rowUpdates, row + 0xE, unchecked((short)(wait - 1)));
                 }
                 else if (acceleration > -384)
                 {
-                    arena = NativeBattleQuezacotlParticleProducer.Word(arena, row + 0x22, unchecked((short)(acceleration - 320)));
+                    NativeBattleQuezacotlParticleProducer.Word(rowUpdates, row + 0x22, unchecked((short)(acceleration - 320)));
                 }
             }
+            arena = rowUpdates.Freeze();
         }
         List<int> chain = Chain();
         NativeBattleGteDepthTrace trace = depthTrace ?? new();
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native6C7EA0 requires its prior current view matrix.");
+        NativeBattleEffectArenaWriter projectedRows = new(arena);
         foreach (int row in chain)
         {
             NativeBattleModuleProjectedVertex projected = NativeBattleModuleProjection.Project45FE10(view, RVec(row), projection);
-            arena = NativeBattleQuezacotlParticleProducer.Dword(arena, row + 0x10, projected.Screen);
-            arena = NativeBattleQuezacotlParticleProducer.Dword(arena, row + 0x14, (uint)(projected.Depth >> 2));
+            NativeBattleQuezacotlParticleProducer.Dword(projectedRows, row + 0x10, projected.Screen);
+            NativeBattleQuezacotlParticleProducer.Dword(projectedRows, row + 0x14, (uint)(projected.Depth >> 2));
             trace.Push(projected.Depth);
         }
+        arena = projectedRows.Freeze();
         int count = T16(0xE);
         if (count >= 2)
         {
@@ -206,13 +211,13 @@ public static class NativeBattleQuezacotlParticleCallbacks
         void Set16(int offset, short value)
         {
             BinaryPrimitives.WriteInt16LittleEndian(task.AsSpan(offset - 12), value);
-            arena = NativeBattleQuezacotlParticleProducer.Word(arena, address + offset, value);
+            taskDirty = true;
         }
 
         void Set32(int offset, uint value)
         {
             BinaryPrimitives.WriteUInt32LittleEndian(task.AsSpan(offset - 12), value);
-            arena = NativeBattleQuezacotlParticleProducer.Dword(arena, address + offset, value);
+            taskDirty = true;
         }
 
         void SetVec(int offset, NativeBattleVector value)
@@ -241,6 +246,11 @@ public static class NativeBattleQuezacotlParticleCallbacks
 
         void SyncPool()
         {
+            if (taskDirty)
+            {
+                arena = arena.Write(address + 12, task);
+                taskDirty = false;
+            }
             pool = pool with { Slots = pool.Slots.SetItem(index, pool.Slots[index] with { Payload = task.ToImmutableArray() }) };
             effect = effect with { Pools = effect.Pools.Select(existing => existing.DescriptorAddress == pool.DescriptorAddress ? pool : existing).ToImmutableArray() };
             memory = memory with { Arena = arena };

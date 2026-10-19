@@ -5,7 +5,10 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleWaterCallbackInput(NativeBattleWater222Resources Resources, ushort GraphicsFlags, ImmutableArray<byte> ViewMatrix, uint OrderingTablePointer, uint CommonCursor, short Focal);
-public sealed record NativeBattleWaterCallbackServices(Func<NativeBattleWaterExecutionFrame, uint, ushort> ReadInstruction, Func<NativeBattleWaterExecutionFrame, ushort, NativeBattleWaterExecutionFrame> ExecuteInstruction, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> UpdateSlot, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> DrawSlot, Func<NativeBattleWaterExecutionFrame, uint, int, NativeBattleWaterExecutionFrame> ClearOrderingTable, Func<NativeBattleWaterExecutionFrame, short, NativeBattleWaterExecutionFrame> PublishFocal);
+public sealed record NativeBattleWaterCallbackServices(Func<NativeBattleWaterExecutionFrame, uint, ushort> ReadInstruction, Func<NativeBattleWaterExecutionFrame, ushort, NativeBattleWaterExecutionFrame> ExecuteInstruction, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> UpdateSlot, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> DrawSlot, Func<NativeBattleWaterExecutionFrame, uint, int, NativeBattleWaterExecutionFrame> ClearOrderingTable, Func<NativeBattleWaterExecutionFrame, short, NativeBattleWaterExecutionFrame> PublishFocal)
+{
+    public Func<NativeBattleWaterExecutionFrame, short>? ReadCurrentFocal { get; init; }
+}
 public sealed record NativeBattleWaterCallbackResult(NativeBattleWaterExecutionFrame Frame, uint CommonCursor, uint TaskResult);
 
 /// <summary>The callback order around explicit proved command, update, draw and graphics services.</summary>
@@ -14,65 +17,18 @@ public static class NativeBattleWaterCallback
     public static NativeBattleWaterCallbackResult RunA9B870(NativeBattleWaterExecutionFrame frame, NativeBattleWaterCallbackInput input, NativeBattleWaterCallbackServices services, int instructionBudget = 4096, int traversalBudget = 256)
     {
         input.Resources.Validate();
-        if (input.ViewMatrix.IsDefault || input.ViewMatrix.Length != 32 || traversalBudget <= 0)
-        {
-            throw new InvalidDataException("Native effect callback requires its current view and bounded diagnostic traversal.");
-        }
-        ArgumentNullException.ThrowIfNull(services.ReadInstruction);
-        ArgumentNullException.ThrowIfNull(services.ExecuteInstruction);
-        ArgumentNullException.ThrowIfNull(services.UpdateSlot);
         ArgumentNullException.ThrowIfNull(services.DrawSlot);
-        ArgumentNullException.ThrowIfNull(services.ClearOrderingTable);
-        ArgumentNullException.ThrowIfNull(services.PublishFocal);
-        frame = NativeBattleWaterFrameBinding.Bind(frame, input.Resources.Profile);
-        uint manager = Manager(frame);
-        frame = WriteCoreWord(frame, manager + 0x32, unchecked((ushort)(CoreWord(frame, manager + 0x32) + 1)));
-        frame = frame.WriteTemporaryByte(0x141, (byte)(CoreByte(frame, manager + 0x32) & 1));
-        frame = frame with { Random = frame.Random.Draw(out _) };
-        if ((CoreWord(frame, manager) & 0x0400) != 0)
-        {
-            uint context = CoreDword(frame, 0x27973BC);
-            frame = WriteCoreDword(frame, context + 0x2C, unchecked(input.OrderingTablePointer + 0xC));
-            frame = WriteCoreWord(frame, context + 0x24, 0);
-        }
-        frame = WriteCoreByte(frame, manager + 0x35, (input.GraphicsFlags & 1) != 0 ? (byte)0xFF : (byte)0);
-        frame = frame.WriteTemporaryByte(0x140, frame.ReadTemporaryByte(0x141));
-        frame = frame.WriteTemporaryDword(0x138, unchecked(input.OrderingTablePointer + 0x44));
-        byte[] view = input.ViewMatrix.ToArray();
-        view[0x12] = 0;
-        view[0x13] = 0;
-        frame = frame with { Core = frame.Core.Write(0x27979E8, view), ModuleViewBackup = view.ToImmutableArray() };
-        frame = WriteCoreDword(frame, manager + 0x7C, input.CommonCursor);
-        frame = WriteCoreDword(frame, manager + 0xD8, CoreDword(frame, manager + 0xD4));
-        int parity = unchecked((sbyte)frame.ReadTemporaryByte(0x140));
-        uint alternate = unchecked(CoreDword(frame, manager + 0x84) + (uint)(parity * (int)CoreDword(frame, manager + 0x8C)));
-        frame = WriteCoreDword(frame, manager + 0x88, alternate);
-        if ((CoreWord(frame, Manager(frame)) & 0x8000) != 0)
-        {
-            frame = services.ClearOrderingTable(frame, frame.ReadTemporaryDword(0x138), 0x1000);
-        }
-        if ((CoreWord(frame, Manager(frame)) & 0x8000) != 0)
-        {
-            frame = ApplyDebugA9BA90(frame);
-        }
-        frame = WriteCoreByte(frame, Manager(frame) + 0xD2, 0);
-        if (CoreByte(frame, Manager(frame) + 0x35) == 0)
-        {
-            frame = NativeBattleWaterScriptScheduler.RunScriptPass(true, frame, services.ReadInstruction, services.ExecuteInstruction, instructionBudget);
-            frame = RunPhysicsA9BB90(frame, input.Resources, services.UpdateSlot, traversalBudget);
-            frame = NativeBattleWaterScriptScheduler.RunScriptPass(false, frame, services.ReadInstruction, services.ExecuteInstruction, instructionBudget);
-        }
-        frame = WriteCoreWord(frame, CoreDword(frame, 0x27973BC) + 4, 0);
-        frame = frame.WriteTemporaryWord(0x146, 0);
-        frame = RunDrawAA0030(frame, services.DrawSlot, traversalBudget);
-        frame = services.PublishFocal(frame, input.Focal);
-        uint cursor = CoreDword(frame, Manager(frame) + 0x7C);
-        uint command = CoreDword(frame, 0x27973C0);
-        uint result = (CoreWord(frame, command + 0xA) & 0x8000) == 0 ? 2u : 0u;
-        return new(frame, cursor, result);
+        NativeBattleScriptedCallbackInput sharedInput = new(new(input.Resources.Profile.InitializationDirectory, input.Resources.Profile.OwnerDirectory), input.Resources.Files[1].Data.Length, input.GraphicsFlags, input.ViewMatrix, input.OrderingTablePointer, input.CommonCursor, input.Focal);
+        NativeBattleScriptedCallbackServices sharedServices = new(services.ReadInstruction, services.ExecuteInstruction, services.UpdateSlot, (current, budget) => RunDrawAA0030(current, services.DrawSlot, budget), services.ClearOrderingTable, services.PublishFocal) { ReadCurrentFocal = services.ReadCurrentFocal };
+        return NativeBattleScriptedCallback.Run(frame, sharedInput, sharedServices, instructionBudget, traversalBudget);
     }
 
     public static NativeBattleWaterExecutionFrame RunPhysicsA9BB90(NativeBattleWaterExecutionFrame frame, NativeBattleWater222Resources resources, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> updateSlot, int traversalBudget = 256)
+    {
+        return RunPhysicsA9BB90(frame, resources.Files[1].Data.Length, updateSlot, traversalBudget);
+    }
+
+    public static NativeBattleWaterExecutionFrame RunPhysicsA9BB90(NativeBattleWaterExecutionFrame frame, int resource1Length, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> updateSlot, int traversalBudget = 256)
     {
         frame = frame.WriteTemporaryByte(0x144, 0);
         int traversed = 0;
@@ -92,10 +48,10 @@ public static class NativeBattleWaterCallback
                 uint manager = Manager(frame);
                 uint slot = unchecked(CoreDword(frame, manager + 0x90) + 0x100u * index);
                 frame = WriteCoreDword(frame, 0x27973E8, slot);
-                int file = ArenaOffset(CoreDword(frame, 0x2798A6C), resources.Files[1].Data.Length);
+                int file = ArenaOffset(CoreDword(frame, 0x2798A6C), resource1Length);
                 int slotBase = ArenaOffset(CoreDword(frame, manager + 0x90), 0);
                 int capacity = CoreWord(frame, CoreDword(frame, 0x279744C) + 0x38);
-                NativeBattleWaterSlotBank bank = new(file, resources.Files[1].Data.Length, capacity, slotBase);
+                NativeBattleWaterSlotBank bank = new(file, resource1Length, capacity, slotBase);
                 frame = frame with { Arena = NativeBattleWaterSlots.IntegratePhysicsA9BB90(frame.Arena, bank, index) };
                 byte type = ReadSlot(frame, 0x18, 1)[0];
                 frame = updateSlot(frame, type);
@@ -106,6 +62,13 @@ public static class NativeBattleWaterCallback
 
     public static NativeBattleWaterExecutionFrame RunDrawAA0030(NativeBattleWaterExecutionFrame frame, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> drawSlot, int traversalBudget = 256)
     {
+        return RunDrawSlots(frame, current => current, drawSlot, traversalBudget);
+    }
+
+    public static NativeBattleWaterExecutionFrame RunDrawSlots(NativeBattleWaterExecutionFrame frame, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> prepareSlot, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> drawSlot, int traversalBudget = 256)
+    {
+        ArgumentNullException.ThrowIfNull(prepareSlot);
+        ArgumentNullException.ThrowIfNull(drawSlot);
         frame = frame.WriteTemporaryDword(0, 0);
         frame = frame.WriteTemporaryDword(4, CoreDword(frame, Manager(frame) + 0x7C));
         int traversed = 0;
@@ -122,6 +85,7 @@ public static class NativeBattleWaterCallback
             uint manager = Manager(frame);
             frame = WriteCoreDword(frame, 0x27973E8, unchecked(CoreDword(frame, manager + 0x90) + 0x100u * entry));
             frame = frame.WriteTemporaryDword(0x14C, unchecked(frame.ReadTemporaryDword(0x138) + 4u * (uint)(SlotWord(frame, 0x48) & 0x0FFF)));
+            frame = prepareSlot(frame);
             bool separate = (ReadSlot(frame, 0x4C, 1)[0] & 1) != 0;
             if (separate)
             {

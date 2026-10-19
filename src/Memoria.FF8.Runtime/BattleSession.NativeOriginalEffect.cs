@@ -61,6 +61,10 @@ public sealed partial class BattleSession
         {
             return EnterNativeWaterA9B200(graphics);
         }
+        if (effect.Binding.Entry == 0xB25780)
+        {
+            return EnterNativeIfritB25780(graphics);
+        }
         if (effect.Binding.Entry == 0x5D1AD0)
         {
             return RunNativeHoly175(graphics, true);

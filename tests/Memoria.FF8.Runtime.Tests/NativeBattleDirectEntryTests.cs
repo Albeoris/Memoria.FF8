@@ -34,10 +34,12 @@ public sealed class NativeBattleDirectEntryTests
         Assert.Equal(first, memory.Entry21DFEC4);
         Assert.Equal(first, memory.Entry21DFEC8);
         Assert.Equal(second, memory.Entry21DFEC0);
+        Assert.Equal(NativeBattleEffectNodeMemory.ArenaAddress, memory.MagicTextureBufferAddress1D99A88);
         NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
         Assert.Equal(first.Entry, restored.Entry21DFEC4!.Entry);
         Assert.Equal(second.Entry, restored.Entry21DFEC0!.Entry);
         Assert.Equal(first.Entry, restored.Entry21DFEC8!.Entry);
+        Assert.Equal(NativeBattleEffectNodeMemory.ArenaAddress, restored.MagicTextureBufferAddress1D99A88);
         NativeBattleOriginalEffectState current = new(2, 1, second, null, 0);
         Assert.Throws<NotSupportedException>(() => restored.RequireDirectEntry21DFEC4(current));
         Assert.Throws<NotSupportedException>(() => NativeBattleEffectMemory.FromColdProcess().RequireDirectEntry21DFEC4(current));

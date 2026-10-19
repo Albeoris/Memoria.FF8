@@ -7,6 +7,12 @@ public static partial class NativeBattleEffectPacketArena
     {
         NativeBattleEffectArenaWriter arena = new(memory.Arena ?? throw new NotSupportedException("Native effect packet attempts require their actual571870 arena bytes."));
         NativeBattleLogicalOrdering.Builder links = new(ordering);
+        AppendAttempts(arena, links, cursor, batch, flags20, moduleDraw);
+        return new(memory with { Arena = arena.Freeze() }, checked(cursor + batch.AllocationBytes), links.ToImmutable());
+    }
+
+    internal static void AppendAttempts(NativeBattleEffectArenaWriter arena, NativeBattleLogicalOrdering.Builder links, int cursor, NativeBattleGfGeometryBatch batch, ushort flags20 = 0, int? moduleDraw = null)
+    {
         if (batch.Attempts.IsDefault || batch.AllocationBytes < 0 || (batch.AllocationBytes & 3) != 0 || cursor < 0 || (cursor & 3) != 0 || cursor > NativeBattleEffectArena.Length - batch.AllocationBytes)
         {
             throw new InvalidDataException("Native effect packet attempts require their original ordered stores/links and aligned allocation.");
@@ -62,6 +68,5 @@ public static partial class NativeBattleEffectPacketArena
         {
             throw new InvalidDataException("Native accepted effect packet extent differs from its original final cursor.");
         }
-        return new(memory with { Arena = arena.Freeze() }, checked(cursor + batch.AllocationBytes), links.ToImmutable());
     }
 }

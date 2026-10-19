@@ -82,7 +82,7 @@ public sealed partial class BattleSession
             NativeEffectMemory = queued.Memory;
             NativeFileIo = queued.FileIo;
             return ReadMemory(current);
-        }, current => checked(current.TemporaryFrame.Address + 0x100));
+        }, current => checked(current.TemporaryFrame.Address + 0x100)) { MagicTextureBufferAddress = RequireWaterMemory().MagicTextureBufferAddress1D99A88 };
         NativeBattleWaterActorPoseServices actors = new((current, actor) =>
         {
             NativeBattlePoseSource source = PoseSource(actor.Index);
@@ -109,7 +109,7 @@ public sealed partial class BattleSession
         {
             graphics = graphics with { Models = models.Select((model, index) => model with { CurrentBodyBoneMatrices = graphics.Models[index].CurrentBodyBoneMatrices }).ToImmutableArray() };
             return current;
-        }, actors, ReadMetadata, OtBucket);
+        }, actors, ReadMetadata, OtBucket) { SubmitMesh = SubmitMesh };
         NativeBattleWaterCallbackServices callbacks = new((current, pc) => NativeBattleWaterInstructionDispatcher.ReadInstruction(current, pc, instructions), (current, opcode) => NativeBattleWaterInstructionDispatcher.Execute(current, opcode, resources, instructions), (current, _) => NativeBattleWaterInstructionDispatcher.UpdateCurrent(current, resources), (current, kind) =>
         {
             NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, resources);
@@ -123,7 +123,7 @@ public sealed partial class BattleSession
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Water requires its current ordering table.");
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = primitive.Pending.ClearRange45D550(checked((int)(address / 4)), count) } };
             return current;
-        }, PublishFocal);
+        }, PublishFocal) { ReadCurrentFocal = _ => NativeCamera?.FocalLength ?? throw new NotSupportedException("Native Water callback requires its current scalar camera focal.") };
         NativeBattleWater222Frame advanced = NativeBattleWater222Controller.AdvanceA9B870(new(RequireWaterMemory(), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Water CRT state is unknown.")), input, callbacks, WaterTemporaryAddress, RequireWaterMemory);
         NativeEffectMemory = advanced.Memory;
         nativeCrtRandom = advanced.Random;
@@ -224,6 +224,29 @@ public sealed partial class BattleSession
                 return resources.Profile.Tables.Data.AsSpan((int)(address - 0x186C86C), length).ToArray();
             }
             return current.Arena.Read(ArenaOffset(address, length), length);
+        }
+        NativeBattleWaterMeshSubmission SubmitMesh(NativeBattleWaterMeshProjected projected, int extent)
+        {
+            uint cursor = projected.Frame.ReadTemporaryDword(0x6C);
+            short count = BinaryPrimitives.ReadInt16LittleEndian(projected.Frame.Arena.Read(ArenaOffset(cursor + 2, 2), 2));
+            if (count == -1)
+            {
+                return NativeBattleWaterMeshPreparation.Submit(projected, extent, OtBucket);
+            }
+            NativeBattleScriptedLightingMemory retainedLighting = RequireWaterMemory().ScriptedLighting ?? throw new NotSupportedException("Native Water requires its retained shared lighting register owner.");
+            NativeBattleScriptedColorRegisters colorRegisters = RequireWaterMemory().ScriptedColorRegisters ?? throw new NotSupportedException("Native Water requires its retained shared normal-color registers.");
+            retainedLighting.Validate();
+            colorRegisters.Validate();
+            NativeBattleScriptedMaterialStep setup = NativeBattleScriptedMaterial.Prepare(projected.Frame, colorRegisters);
+            colorRegisters = setup.Registers;
+            NativeBattleWaterMeshSubmission result = NativeBattleWaterMeshPreparation.Submit(projected with { Frame = setup.Frame }, extent, OtBucket, material =>
+            {
+                ImmutableArray<byte> normal = colorRegisters.NormalInput ?? throw new NotSupportedException("Native Water material requires its published packed normal input.");
+                colorRegisters = NativeBattleScriptedNormalColor.Transform4601B0(setup.Lighting, NativeBattleScriptedMeshPreparation.Vector(normal.AsSpan()), material, colorRegisters);
+                return colorRegisters.Rgb[2] ?? throw new NotSupportedException("Native Water material did not publish RGB2.");
+            });
+            NativeEffectMemory = RequireWaterMemory() with { ScriptedLighting = setup.Lighting, ScriptedColorRegisters = colorRegisters };
+            return result;
         }
         NativeBattleWaterExecutionFrame SubmitPackets(NativeBattleWaterExecutionFrame current, uint start, NativeBattleGfGeometryBatch batch)
         {

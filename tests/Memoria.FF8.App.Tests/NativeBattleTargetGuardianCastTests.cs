@@ -8,10 +8,68 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleTargetGuardianCastTests
 {
     [Fact]
+    public void Installed_Quezacotl_ordinary_command_completes_graphics_contact_and_disk_continuations() => Run(0, 116);
+
+    [Fact]
     public void Installed_Shiva_ordinary_command_completes_graphics_contact_and_disk_continuations() => Run(1, 185);
 
     [Fact]
     public void Installed_Ifrit_ordinary_command_completes_graphics_contact_and_disk_continuations() => Run(2, 201);
+
+    [Fact]
+    public void Installed_Ifrit_entry_reaches_the_shared_scripted_opening_and_independent_disk_state() => Run(2, 201, true);
+
+    [Fact]
+    public void Continue_the_named_cinematic_guardian_checkpoint_to_completion()
+    {
+        string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_CINEMATIC_SNAPSHOT");
+        string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_CINEMATIC_EVIDENCE");
+        Assert.SkipUnless(source is not null && output is not null, "Select a standalone cinematic guardian snapshot and a distinct evidence directory.");
+        Assert.False(Directory.Exists(output));
+        Directory.CreateDirectory(output!);
+        BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(source!))!;
+        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession battle = BattleSession.Restore(snapshot);
+        Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(battle.Capture()));
+        battle.AttachNativeEffectResourceResolver(id => game.ReadNativeEffectCatalogForEffects([id])[id - 1]);
+        BattleScenePresentation scene = new(assets, snapshot.Definition, true);
+        BattleSnapshot before = snapshot;
+        try
+        {
+            for (int index = 0; index < 4096; index++)
+            {
+                before = battle.Capture();
+                battle.Tick();
+                if (battle.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: > 0 } && index == 60)
+                {
+                    NativeBattleRestorationPresentationTests.Publish(output!, "midpoint", battle.Capture(), scene.Render(battle, 320, 224).ToArray());
+                }
+                if (Released(battle.Capture()))
+                {
+                    BattleSnapshot completed = battle.Capture();
+                    NativeBattleRestorationPresentationTests.Publish(output!, "completed", completed, scene.Render(battle, 320, 224).ToArray());
+                    BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(completed))!);
+                    Assert.Equal(JsonSerializer.Serialize(completed), JsonSerializer.Serialize(clone.Capture()));
+                    battle.Tick();
+                    clone.Tick();
+                    Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
+                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition, true).Render(clone, 320, 224).ToArray());
+                    NativeBattleRestorationPresentationTests.Publish(output!, "completed-next", battle.Capture(), scene.Render(battle, 320, 224).ToArray());
+                    File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", completed.Frame, NativeCallback = completed.NativeGraphics!.Callback }));
+                    return;
+                }
+            }
+            Assert.Fail("The guardian did not complete within its diagnostic callback bound.");
+        }
+        catch (Exception error)
+        {
+            NativeBattleRestorationPresentationTests.Publish(output!, "before-boundary", before, null);
+            NativeBattleRestorationPresentationTests.Publish(output!, "failed-live", battle.Capture(), null);
+            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "blocked", error = error.ToString(), before.Frame, NativeCallback = before.NativeGraphics?.Callback }));
+            throw;
+        }
+    }
 
     [Fact]
     public void Resume_the_named_target_guardian_checkpoint_for_one_callback()
@@ -39,7 +97,7 @@ public sealed class NativeBattleTargetGuardianCastTests
         Console.WriteLine($"Guardian checkpoint {snapshot.Frame}/{snapshot.NativeGraphics.Callback} continued at {first.Frame}/{first.NativeGraphics.Callback}; whole JSON and RGBA agree.");
     }
 
-    private static void Run(int guardian, ushort effectId)
+    private static void Run(int guardian, ushort effectId, bool openingOnly = false)
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select installed original resources with MEMORIA_FF8_GAME_DIR.");
@@ -98,6 +156,16 @@ public sealed class NativeBattleTargetGuardianCastTests
                     Assert.Equal((byte)254, current.NativeActionScratch!.Command);
                     Assert.Equal((ushort)(64 + guardian), current.NativeActionScratch.Action);
                     selected = true;
+                    if (openingOnly)
+                    {
+                        Assert.Equal(201, effectId);
+                        Assert.NotNull(current.NativeEffectMemory!.Ifrit201);
+                        Assert.NotNull(graphics.OriginalEffect!.Binding.ScriptedInitializationDirectories);
+                        Assert.Equal(0xB25DF0u, Assert.Single(Assert.Single(graphics.OriginalEffect.Pools).Slots).Callback);
+                        _ = SaveAndLoad("scripted-opening");
+                        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "opening-validated", guardian, effectId, current.Frame, NativeCallback = graphics.Callback, Boundary = "Initialized original Ifrit resources and retained shared cinematic task; full cast remains pending" }));
+                        return;
+                    }
                     cameraChanged |= beforeCamera != JsonSerializer.Serialize(current.NativeCamera);
                     castingHidden |= (graphics.Models[0].Flags0 & 8) != 0;
                     NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame!;
@@ -223,7 +291,7 @@ public sealed class NativeBattleTargetGuardianCastTests
     private static bool Released(BattleSnapshot snapshot)
     {
         NativeBattleGraphicsState graphics = snapshot.NativeGraphics!;
-        return snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.GuardianForceCasts.Length == 0 && snapshot.NativeClock!.ActionPause == 0 && graphics.Descriptors.Queue.IsEmpty && graphics.OriginalEffect is { ReturnedDescriptor: 0 } effect && effect.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0));
+        return snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.GuardianForceCasts.Length == 0 && snapshot.NativeClock!.ActionPause == 0 && graphics.Descriptors.Queue.IsEmpty && graphics.OriginalEffect is { ReturnedDescriptor: 0 } effect && (effect.Binding.Effect == 116 ? snapshot.NativeEffectMemory is { Active: 0 } && !graphics.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Action104) : effect.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0)));
     }
 
     private static int CountRgbChanges(byte[] first, byte[] second)
@@ -287,6 +355,7 @@ public sealed class NativeBattleTargetGuardianCastTests
             NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([effectId]),
             NativeCommonEffectTexture = game.ReadNativeCommonEffectTexture(),
             NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
+            NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap,
             NativeActionCameraRules = game.ReadNativeActionCameraRules(),
             NativeStageSource = stage.NativeSource,
             NativeStageCameraBank = stage.NativeCameraBank,
