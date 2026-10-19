@@ -25,6 +25,16 @@ public static class MenuDemoData
             var character = new MenuCharacter { Id = i.ToString(), NativeId = characterIdentities[i], Name = names[i], InParty = i < 3, Level = 18 + i, CurrentHp = 720 + i * 93, MaximumHp = 1300 + i * 111, Experience = 18000 + i * 500, NextLevelExperience = 500, Weapon = weapons[i], LimitBreak = limits[i] };
             character.Commands.AddRange(["Attack", "Magic", "GF", "Draw"]);
             character.Abilities.AddRange(["Str+20%", "HP+20%", "Mug"]);
+            foreach (string command in new[] { "Magic", "GF", "Draw", "Item", "Card", "Doom", "Darkside", "Recover", "Treatment", "Revive", "Death", "Mad Rush", "Defend", "Kamikaze", "Absorb", "LV Down", "LV Up" })
+            {
+                character.AvailableCommands.Add(new MenuAbilityChoice(command, command) { Icon = NativeAbilityMenuMetadata.Icon(20), Description = "Choose a fixture command." });
+            }
+            string[] passiveAbilities = new[] { "Empty", "HP+20%", "HP+40%", "HP+80%", "Str+20%", "Str+40%", "Str+60%", "Vit+20%", "Mag+20%", "Spr+20%", "Spd+20%", "Luck+50%", "Mug", "Auto-Protect", "Auto-Shell", "Auto-Haste", "Auto-Reflect", "Auto-Potion", "Move-HP Up", "Cover", "Counter", "Return Damage" };
+            for (int ability = 0; ability < passiveAbilities.Length; ability++)
+            {
+                string name = passiveAbilities[ability];
+                character.AvailableAbilities.Add(new MenuAbilityChoice(name, name) { Icon = ability == 0 ? null : NativeAbilityMenuMetadata.Icon(ability < 12 ? 39 : 58), Description = "Choose a fixture ability." });
+            }
             foreach (var stat in new[] { "Str", "Vit", "Mag", "Spr", "Spd", "Eva", "Hit", "Luck" })
             {
                 character.Stats[stat] = 20 + i * 3;

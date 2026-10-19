@@ -16,10 +16,9 @@ public static class MenuCatalog
             Link("junction-options", "Junction", "Junction a GF or magic."),
             Link("junction-off", "Off", "Remove magic or all junctions."),
             Link("junction-auto", "Auto", "Choose an Auto priority."),
-            Link("junction-abilities", "Ability", "Set command and character abilities.")
+            Link("junction-command", "Ability", "Set command and character abilities.")
         ], Stats, MenuLayout.Junction, true);
         Add("junction-options", "Junction", "Choose GF or Magic.", _ => [Link("junction-gf", "GF", "Select a Guardian Force to junction."), Link("junction-magic", "Magic", "Junction stocked magic to a stat."), Link("junction-element", "Elem-Atk/Def", "Elemental attack and defense junction slots."), Link("junction-status", "ST-Atk/Def", "Status attack and defense junction slots.")], Stats, MenuLayout.Junction);
-        Add("junction-abilities", "Ability", "Set command and character abilities.", _ => [Link("junction-command", "Command", "Set command abilities."), Link("junction-ability", "Character", "Set passive character abilities.")], Stats, MenuLayout.Junction);
         Add("junction-gf", "Junction · GF", "Choose a GF to junction or remove. A GF assigned to another character must first be removed.", c => c.Data.GuardianForces.Select(g => new MenuEntry(g.Id, $"{(c.Character?.GuardianForceIds.Contains(g.Id) == true ? "J " : "")}{g.Name}", $"Junction {g.Name} to {c.Character?.Name}.", Action: new MenuAction("junction-gf", g.Id), Enabled: c.IsDemo || !c.Data.Characters.Any(owner => owner.Id != c.Character?.Id && owner.GuardianForceIds.Contains(g.Id)))).ToArray(), c => ["Character: " + (c.Character?.Name ?? "Unavailable"), "Junctioned GF:", .. c.Data.GuardianForces.Where(g => c.Character?.GuardianForceIds.Contains(g.Id) == true).Select(g => g.Name).Take(10), .. Boundary(c)], MenuLayout.Junction);
         Add("junction-magic", "Junction · Magic", "Choose the stat, then the stocked spell.", c => Slots(c, ["HP", "Str", "Vit", "Mag", "Spr", "Spd", "Eva", "Hit", "Luck"]), Stats, MenuLayout.Junction);
         Add("junction-element", "Junction · Elemental", "Junction stocked magic to unlocked elemental attack and defense slots.", c => Slots(c, ["Elem-Atk", "Elem-Def 1", "Elem-Def 2", "Elem-Def 3", "Elem-Def 4"]), Stats, MenuLayout.Junction);
@@ -27,9 +26,9 @@ public static class MenuCatalog
         Add("junction-stock", "Junction · Select magic", "Choose stocked magic. A spell can be junctioned to one slot at a time.", c => JunctionStock(c), c => [$"Slot: {c.JunctionSlot}", "Current: " + (c.Character?.Junctions.GetValueOrDefault(c.JunctionSlot) ?? "--")], MenuLayout.Junction);
         Add("junction-off", "Junction · Off", "Remove a junction category.", _ => [Action("magic", "Magic", "Remove stat / elemental / status magic junctions.", "junction-off", value: "Magic"), Action("all", "All", "Remove GF and magic junctions.", "junction-off", value: "All")], Stats, MenuLayout.Junction);
         Add("junction-auto", "Junction · Auto", "Choose an optimization priority.", _ => [Action("attack", "Atk", "Automatically junction magic to prioritize attack.", "junction-auto", value: "Attack"), Action("magic", "Mag", "Automatically junction magic to prioritize magic power.", "junction-auto", value: "Magic"), Action("defense", "Def", "Automatically junction magic to prioritize defense.", "junction-auto", value: "Defense")], Stats, MenuLayout.Junction);
-        Add("junction-command", "Junction · Command", "Choose a configurable command slot.", c => Enumerable.Range(1, 3).Select(slot => new MenuEntry(slot.ToString(), $"Slot {slot + 1}   {c.Character?.Commands.ElementAtOrDefault(slot) ?? "Unavailable"}", "Select a command for this slot.", "junction-command-choice", new MenuAction("select-command-slot", slot.ToString()))).ToArray(), c => ["Attack occupies the fixed first slot.", "Three configurable command slots follow.", .. CharacterDetails(c)], MenuLayout.Junction);
+        Add("junction-command", "Junction · Command", "Choose a configurable command slot.", c => Enumerable.Range(1, 3).Select(slot => new MenuEntry(slot.ToString(), c.Character?.Commands.ElementAtOrDefault(slot) ?? "--", "Select a command for this slot.", "junction-command-choice", new MenuAction("select-command-slot", slot.ToString()))).ToArray(), c => ["Attack occupies the fixed first slot.", "Three configurable command slots follow.", .. CharacterDetails(c)], MenuLayout.Junction);
         Add("junction-command-choice", "Junction · Select Command", "Choose a learned command from the junctioned GFs.", c => CommandChoices(c), c => [$"Selected command slot: {c.CommandSlot + 1}", .. CharacterDetails(c)], MenuLayout.Junction);
-        Add("junction-ability", "Junction · Ability", "Choose a passive ability slot.", c => Enumerable.Range(0, c.IsDemo ? 3 : c.Character?.AbilitySlots ?? 2).Select(slot => new MenuEntry(slot.ToString(), $"Slot {slot + 1}   {c.Character?.Abilities.ElementAtOrDefault(slot) ?? "--"}", "Select a learned ability for this slot.", "junction-ability-choice", new MenuAction("select-ability-slot", slot.ToString()))).ToArray(), c => ["Assigned abilities:", .. (c.Character?.Abilities ?? []).Take(4)], MenuLayout.Junction);
+        Add("junction-ability", "Junction · Ability", "Choose a passive ability slot.", c => Enumerable.Range(0, c.IsDemo ? 3 : c.Character?.AbilitySlots ?? 2).Select(slot => new MenuEntry(slot.ToString(), c.Character?.Abilities.ElementAtOrDefault(slot) ?? "--", "Select a learned ability for this slot.", "junction-ability-choice", new MenuAction("select-ability-slot", slot.ToString()))).ToArray(), c => ["Assigned abilities:", .. (c.Character?.Abilities ?? []).Take(4)], MenuLayout.Junction);
         Add("junction-ability-choice", "Junction · Select Ability", "Choose a learned passive ability from the junctioned GFs.", c => PassiveChoices(c), c => [$"Selected ability slot: {c.AbilitySlot + 1}"], MenuLayout.Junction);
 
         Add("item", "Item", "Use and arrange inventory.", _ => [Link("item-use", "Use", "Choose an item and character target."), Link("item-rearrange", "Rearrange", "Exchange two inventory positions."), Action("sort", "Sort", "Sort the explicit fixture inventory by name.", "item-sort")], InventoryDetails, main: true);
@@ -147,18 +146,18 @@ public static class MenuCatalog
     {
         if (c.IsDemo)
         {
-            return new[] { "Magic", "GF", "Draw", "Item", "Card", "Doom", "Darkside", "Recover", "Treatment", "Revive", "Death", "Mad Rush", "Defend", "Kamikaze", "Absorb", "LV Down", "LV Up" }.Select(command => Action(command, command, "Choose a fixture command.", "junction-command", value: command)).ToArray();
+            return (c.Character?.AvailableCommands ?? []).Select(choice => Action(choice.Id, choice.Name, choice.Description, "junction-command", subject: choice.Id, value: choice.Name)).ToArray();
         }
-        return new[] { new MenuEntry("0", "Empty", "Remove the command from this slot.", Action: new MenuAction("junction-command", "0")) }.Concat((c.Character?.AvailableCommands ?? []).Select(choice => new MenuEntry(choice.Id, choice.Name, "Equip this learned command.", Action: new MenuAction("junction-command", choice.Id)))).ToArray();
+        return new[] { new MenuEntry("0", "Empty", "Remove the command from this slot.", Action: new MenuAction("junction-command", "0")) }.Concat((c.Character?.AvailableCommands ?? []).Select(choice => new MenuEntry(choice.Id, choice.Name, choice.Description, Action: new MenuAction("junction-command", choice.Id)))).ToArray();
     }
 
     private static IReadOnlyList<MenuEntry> PassiveChoices(MenuController c)
     {
         if (c.IsDemo)
         {
-            return new[] { "Empty", "HP+20%", "HP+40%", "HP+80%", "Str+20%", "Str+40%", "Str+60%", "Vit+20%", "Mag+20%", "Spr+20%", "Spd+20%", "Luck+50%", "Mug", "Auto-Protect", "Auto-Shell", "Auto-Haste", "Auto-Reflect", "Auto-Potion", "Move-HP Up", "Cover", "Counter", "Return Damage" }.Select(ability => Action(ability, ability, "Choose a fixture ability.", "junction-ability", value: ability)).ToArray();
+            return (c.Character?.AvailableAbilities ?? []).Select(choice => Action(choice.Id, choice.Name, choice.Description, "junction-ability", subject: choice.Id, value: choice.Name)).ToArray();
         }
-        return new[] { new MenuEntry("0", "Empty", "Remove the ability from this slot.", Action: new MenuAction("junction-ability", "0")) }.Concat((c.Character?.AvailableAbilities ?? []).Select(choice => new MenuEntry(choice.Id, choice.Name, "Equip this learned ability.", Action: new MenuAction("junction-ability", choice.Id)))).ToArray();
+        return new[] { new MenuEntry("0", "Empty", "Remove the ability from this slot.", Action: new MenuAction("junction-ability", "0")) }.Concat((c.Character?.AvailableAbilities ?? []).Select(choice => new MenuEntry(choice.Id, choice.Name, choice.Description, Action: new MenuAction("junction-ability", choice.Id)))).ToArray();
     }
 
     private static IReadOnlyList<MenuEntry> JunctionStock(MenuController c)

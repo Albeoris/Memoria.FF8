@@ -95,9 +95,13 @@ public sealed partial class MenuController
         {
             return BuildMagicJunction();
         }
+        if (ScreenId is "junction-command" or "junction-ability" or "junction-command-choice" or "junction-ability-choice")
+        {
+            return BuildAbilityJunction();
+        }
         var page = Grid([1.45f, 2.7f, 1.8f], [1], 4);
         UiElement tabs;
-        bool choosingCategory = ScreenId is "junction-options" or "junction-off" or "junction-auto" or "junction-abilities";
+        bool choosingCategory = ScreenId is "junction-options" or "junction-off" or "junction-auto";
         if (ScreenId == "junction" || choosingCategory)
         {
             tabs = NativeCommandStrip();
@@ -111,7 +115,7 @@ public sealed partial class MenuController
         {
             var strip = new UiGrid { Columns = 4, Gap = 0 };
             string[] names = ["Junction", "Off", "Auto", "Ability"];
-            string[] destinations = ["junction-options", "junction-off", "junction-auto", "junction-abilities"];
+            string[] destinations = ["junction-options", "junction-off", "junction-auto", "junction-command"];
             for (int index = 0; index < names.Length; index++)
             {
                 string destination = destinations[index];

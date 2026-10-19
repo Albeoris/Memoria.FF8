@@ -178,6 +178,10 @@ public sealed partial class MenuController
             NavigateCharacterSelection(input);
             return;
         }
+        if (NavigateAbilityJunction(input))
+        {
+            return;
+        }
         var entries = Entries;
         if (IsConfigSettingsScreen && input is MenuInput.PageUp or MenuInput.PageDown)
         {

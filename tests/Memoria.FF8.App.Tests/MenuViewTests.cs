@@ -11,8 +11,8 @@ public sealed class MenuViewTests
     [InlineData(1920, 1080)]
     public void JunctionSubmenusKeepStatsVisibleWithCategoriesAboveAndEntitiesOnRight(int width, int height)
     {
-        string[] categories = ["junction-options", "junction-off", "junction-auto", "junction-abilities"];
-        string[] entities = ["junction-gf", "junction-command", "junction-command-choice", "junction-ability", "junction-ability-choice"];
+        string[] categories = ["junction-options", "junction-off", "junction-auto"];
+        string[] entities = ["junction-gf"];
         foreach (string screen in categories.Concat(entities))
         {
             MenuController menus = new();
@@ -174,7 +174,7 @@ public sealed class MenuViewTests
             Assert.Equal(categories[index], menus.ScreenId);
             Assert.NotNull(menus.BuildView().Root);
         }
-        string[] roots = ["junction-off", "junction-auto", "junction-abilities"];
+        string[] roots = ["junction-off", "junction-auto", "junction-command"];
         for (int index = 0; index < roots.Length; index++)
         {
             menus.Open("junction", true);
@@ -183,12 +183,106 @@ public sealed class MenuViewTests
         }
         menus.Open("junction", true);
         ActivateEntry(menus, 3);
-        ActivateEntry(menus, 0);
         Assert.Equal("junction-command", menus.ScreenId);
+        Assert.Equal("1", menus.SelectedEntry?.Id);
+    }
+
+    [Theory]
+    [InlineData(640, 448)]
+    [InlineData(1280, 896)]
+    [InlineData(1920, 1080)]
+    public void JunctionAbilitiesShowCommandSlotsAbovePassiveSlotsAndCandidatesOnRight(int width, int height)
+    {
+        string[] screens = ["junction-command", "junction-ability", "junction-command-choice", "junction-ability-choice"];
+        foreach (string screen in screens)
+        {
+            MenuController menus = new();
+            menus.Open(screen, true);
+            UiView view = menus.BuildView();
+            view.Resize(width, height);
+            UiElement[] elements = Descendants(view.Root).ToArray();
+            UiElement commandSlots = Assert.Single(elements, element => element.Id == "junction-command-slots");
+            UiElement passiveSlots = Assert.Single(elements, element => element.Id == "junction-passive-slots");
+            UiElement candidates = Assert.Single(elements, element => element.Id == "junction-ability-choices");
+            Assert.True(commandSlots.Bounds.Bottom <= passiveSlots.Bounds.Y);
+            Assert.True(commandSlots.Bounds.Right <= candidates.Bounds.X);
+            Assert.True(passiveSlots.Bounds.Right <= candidates.Bounds.X);
+            Assert.True(passiveSlots.Bounds.Bottom <= view.DesignHeight);
+            Assert.True(candidates.Bounds.Bottom <= view.DesignHeight);
+            UiList active = Assert.Single(elements.OfType<UiList>(), list => list.Id == "commands");
+            UiElement activePanel = screen.EndsWith("-choice", StringComparison.Ordinal) ? candidates : screen == "junction-command" ? commandSlots : passiveSlots;
+            Assert.Contains(active, Descendants(activePanel));
+            Assert.Same(active, view.FocusedElement);
+            Assert.NotEmpty(Descendants(candidates).OfType<UiList>().SelectMany(list => list.Items));
+        }
+    }
+
+    [Fact]
+    public void JunctionAbilitySlotNavigationCrossesGroupsAndCancelReturnsToJunction()
+    {
+        MenuController menus = new();
         menus.Open("junction", true);
         ActivateEntry(menus, 3);
-        ActivateEntry(menus, 1);
+        menus.Navigate(MenuInput.Down);
+        menus.Navigate(MenuInput.Down);
+        Assert.Equal("3", menus.SelectedEntry?.Id);
+        menus.Navigate(MenuInput.Down);
         Assert.Equal("junction-ability", menus.ScreenId);
+        Assert.Equal("0", menus.SelectedEntry?.Id);
+        menus.Navigate(MenuInput.Up);
+        Assert.Equal("junction-command", menus.ScreenId);
+        Assert.Equal("3", menus.SelectedEntry?.Id);
+        menus.Navigate(MenuInput.Down);
+        menus.Navigate(MenuInput.Confirm);
+        Assert.Equal("junction-ability-choice", menus.ScreenId);
+        Assert.Equal(0, menus.AbilitySlot);
+        menus.Navigate(MenuInput.Cancel);
+        Assert.Equal("junction-ability", menus.ScreenId);
+        Assert.Equal("0", menus.SelectedEntry?.Id);
+        menus.Navigate(MenuInput.Cancel);
+        Assert.Equal("junction", menus.ScreenId);
+    }
+
+    [Theory]
+    [InlineData("junction-command")]
+    [InlineData("junction-ability")]
+    public void JunctionCandidatePreviewDoesNotEquipBeforeSelectingASlot(string screen)
+    {
+        MenuController menus = new();
+        menus.Open(screen, true);
+        string[] commands = menus.Character!.Commands.ToArray();
+        string[] abilities = menus.Character.Abilities.ToArray();
+        UiView view = menus.BuildView();
+        view.Resize(960, 672);
+        UiElement panel = Assert.Single(Descendants(view.Root), element => element.Id == "junction-ability-choices");
+        UiList candidates = Assert.Single(Descendants(panel).OfType<UiList>());
+        view.Pointer(candidates.Bounds.X + candidates.Bounds.Width / 2, candidates.Bounds.Y + candidates.RowHeight / 2, true);
+        Assert.Equal(screen, menus.ScreenId);
+        Assert.Equal(commands, menus.Character.Commands);
+        Assert.Equal(abilities, menus.Character.Abilities);
+    }
+
+    [Theory]
+    [InlineData("junction-command", "junction-passive-slots", "junction-ability-choice", 0)]
+    [InlineData("junction-ability", "junction-command-slots", "junction-command-choice", 2)]
+    public void JunctionInactiveSlotClickSelectsItsGroupAndOpensCandidates(string screen, string panelId, string destination, int row)
+    {
+        MenuController menus = new();
+        menus.Open(screen, true);
+        UiView view = menus.BuildView();
+        view.Resize(960, 672);
+        UiElement panel = Assert.Single(Descendants(view.Root), element => element.Id == panelId);
+        UiList slots = Assert.Single(Descendants(panel).OfType<UiList>());
+        view.Pointer(slots.Bounds.X + slots.Bounds.Width / 2, slots.Bounds.Y + slots.RowHeight * (row + 0.5f), true);
+        Assert.Equal(destination, menus.ScreenId);
+        if (destination == "junction-command-choice")
+        {
+            Assert.Equal(row + 1, menus.CommandSlot);
+        }
+        else
+        {
+            Assert.Equal(row, menus.AbilitySlot);
+        }
     }
 
     [Theory]

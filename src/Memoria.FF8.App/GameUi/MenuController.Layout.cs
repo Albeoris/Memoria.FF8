@@ -295,6 +295,16 @@ public sealed partial class MenuController
         {
             return null;
         }
+        if (action.Kind is "junction-command" or "junction-ability")
+        {
+            IReadOnlyList<MenuAbilityChoice> choices = action.Kind == "junction-command" ? Character?.AvailableCommands ?? [] : Character?.AvailableAbilities ?? [];
+            return choices.FirstOrDefault(choice => choice.Id == action.SubjectId)?.Icon;
+        }
+        if (action.Kind is "select-command-slot" or "select-ability-slot")
+        {
+            IReadOnlyList<MenuAbilityChoice> choices = action.Kind == "select-command-slot" ? Character?.AvailableCommands ?? [] : Character?.AvailableAbilities ?? [];
+            return choices.FirstOrDefault(choice => choice.Name == entry.Label)?.Icon;
+        }
         string? characterId = action.Kind switch
         {
             "select-character" => action.SubjectId,
