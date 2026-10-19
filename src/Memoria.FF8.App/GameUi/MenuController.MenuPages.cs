@@ -75,7 +75,6 @@ public sealed partial class MenuController
         Place(header, Panel(null, commands ?? new UiElement()), 0);
         Place(header, Panel(null, Label(title, 27)), 0, 1);
         UiElement help = Help();
-        help.Margin = new UiThickness(8, 0);
         Place(header, help, 1, 0, 1, 2);
         return header;
     }
