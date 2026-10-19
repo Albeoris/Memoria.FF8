@@ -210,5 +210,3 @@ public sealed class FieldSoundDepartureTests
         return bytes;
     }
 }
-
-
