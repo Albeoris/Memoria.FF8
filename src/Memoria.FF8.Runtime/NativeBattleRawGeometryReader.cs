@@ -22,6 +22,7 @@ public static class NativeBattleRawGeometryReader
             int groups = U16(cursor);
             cursor += 2;
             var vertices = ImmutableArray.CreateBuilder<NativeBattleRawVertex>();
+            var packed = ImmutableArray.CreateBuilder<NativeBattleRawVertexGroup>();
             var bones = ImmutableArray.CreateBuilder<short>();
             for (int group = 0; group < groups; group++)
             {
@@ -32,6 +33,7 @@ public static class NativeBattleRawGeometryReader
                 {
                     throw new InvalidDataException("Native enemy geometry references an absent skeleton bone.");
                 }
+                packed.Add(new(bone, unchecked((short)total), Bytes(cursor, checked(total * 6 + 6)).ToImmutableArray()));
                 bones.Add(unchecked((short)bone));
                 for (int vertex = 0; vertex < total; vertex++)
                 {
@@ -55,7 +57,7 @@ public static class NativeBattleRawGeometryReader
                 }
             }
             observeObject?.Invoke(mesh, counts, facePayload, cursor);
-            meshes.Add(new(vertices.ToImmutable(), polygons.ToImmutable()) { BoneGroups = bones.ToImmutable() });
+            meshes.Add(new(vertices.ToImmutable(), polygons.ToImmutable()) { BoneGroups = bones.ToImmutable(), PackedVertexGroups = packed.ToImmutable() });
         }
         return meshes.ToImmutable();
 

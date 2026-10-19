@@ -141,12 +141,13 @@ public sealed class NativeBattleCinematicResourcesTests
         Assert.Equal((byte)255, resources.Source(0, true));
         int vibrationStart = BinaryPrimitives.ReadInt32LittleEndian(file.Data.AsSpan().Slice(0x24));
         Assert.Equal(0x2540, vibrationStart);
-        Assert.Equal(64, resources.Vibration.Offsets.Length);
-        Assert.Equal(0, resources.Vibration.Offsets[0]);
-        Assert.Equal(0x100, resources.Vibration.Offsets[1]);
-        Assert.All(resources.Vibration.Offsets.Skip(2), offset => Assert.Equal(0, offset));
-        Assert.Equal(0x2DE, resources.Vibration.Bytes.Length);
-        Assert.Equal(file.Data.AsSpan().Slice(vibrationStart, resources.Vibration.Bytes.Length).ToArray(), resources.Vibration.Bytes.ToArray());
+        NativeVibrationBank vibration = Assert.IsType<NativeVibrationBank>(resources.Vibration);
+        Assert.Equal(64, vibration.Offsets.Length);
+        Assert.Equal(0, vibration.Offsets[0]);
+        Assert.Equal(0x100, vibration.Offsets[1]);
+        Assert.All(vibration.Offsets.Skip(2), offset => Assert.Equal(0, offset));
+        Assert.Equal(0x2DE, vibration.Bytes.Length);
+        Assert.Equal(file.Data.AsSpan().Slice(vibrationStart, vibration.Bytes.Length).ToArray(), vibration.Bytes.ToArray());
     }
 
     [Fact]

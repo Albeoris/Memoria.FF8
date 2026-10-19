@@ -66,7 +66,7 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
                 memory.Dword(node + 0x4C + component * 4, memory.ContextDword(offset + component * 4));
             }
         }
-        AddRotatedSourceOffset(node, source);
+        AddRotatedSourceOffset(node, source, target);
     }
 
     internal void FollowParent(int node, ReadOnlySpan<byte> source)
@@ -96,12 +96,17 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
         }
     }
 
-    private void AddRotatedSourceOffset(int node, ReadOnlySpan<byte> source)
+    private void AddRotatedSourceOffset(int node, ReadOnlySpan<byte> source, bool scaleTarget = false)
     {
         short x = unchecked((short)(BinaryPrimitives.ReadInt32LittleEndian(source) / 65536));
         short y = unchecked((short)(BinaryPrimitives.ReadInt32LittleEndian(source[4..]) / 65536));
         short z = unchecked((short)(BinaryPrimitives.ReadInt32LittleEndian(source[8..]) / 65536));
-        NativeBattleVector delta = NativeBattleCuragaMatrices.RotateVector45DF80(ReadMatrix(node + 0x2C), new(x, y, z));
+        NativeBattleActionMatrix placement = ReadMatrix(node + 0x2C);
+        if (scaleTarget && inputs.ActorScale is { } actorScale)
+        {
+            placement = NativeBattlePoseMatrices.Scale56BEF0(placement, actorScale.X, actorScale.Y, actorScale.Z);
+        }
+        NativeBattleVector delta = NativeBattleCuragaMatrices.RotateVector45DF80(placement, new(x, y, z));
         memory.Dword(node + 0x4C, unchecked(memory.Dword(node + 0x4C) + (uint)(delta.X << 16)));
         memory.Dword(node + 0x50, unchecked(memory.Dword(node + 0x50) + (uint)(delta.Y << 16)));
         memory.Dword(node + 0x54, unchecked(memory.Dword(node + 0x54) + (uint)(delta.Z << 16)));

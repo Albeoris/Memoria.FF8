@@ -79,11 +79,33 @@ public sealed partial class BattleSession
 
         byte[] ReadAction(uint address, int length)
         {
+            if (address >= WaterParametersAddress && (long)address - WaterParametersAddress <= 12L - length)
+            {
+                NativeBattleEffectParameters current = outputParameters ?? throw new NotSupportedException("Native cinematic action parameter memory requires its current owner.");
+                uint physicalHeader = WaterHeadersAddress + checked((uint)(20 * current.HeaderIndex7C));
+                return Enumerable.Range(checked((int)(address - WaterParametersAddress)), length).Select(offset => offset switch
+                {
+                    0 => current.Actor78,
+                    1 => current.Flags79,
+                    2 => (byte)current.TargetMask7A,
+                    3 => (byte)(current.TargetMask7A >> 8),
+                    >= 4 and < 8 => unchecked((byte)(physicalHeader >> ((offset - 4) * 8))),
+                    8 => current.Parameter80 ?? throw new NotSupportedException("Native cinematic action parameter80 is unknown."),
+                    9 => current.Parameter81,
+                    10 => current.Parameter82 ?? throw new NotSupportedException("Native cinematic action parameter82 is unknown."),
+                    11 => current.Parameter83,
+                    _ => throw new NotSupportedException("Native cinematic read leaves its actual action parameter block.")
+                }).ToArray();
+            }
             if (address >= WaterHeadersAddress && address < WaterContactsAddress)
             {
                 uint relative = address - WaterHeadersAddress;
                 NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[checked((int)(relative / 20))];
                 return Enumerable.Range((int)(relative % 20), length).Select(header.ReadByte).ToArray();
+            }
+            if (length < 0 || address < WaterContactsAddress || (long)address - WaterContactsAddress > nativeActionPackets.Contacts.Length * 24L - length)
+            {
+                throw new NotSupportedException("Native cinematic action read leaves its actual header, contact and parameter owners.");
             }
             uint contact = address - WaterContactsAddress;
             byte[] bytes = nativeActionPackets.ReadContact(checked((int)(contact / 24))).Encode();
@@ -164,6 +186,8 @@ public sealed partial class BattleSession
                     return NativeBattleCinematicContactBranch46.Execute(current, program, context.ReadActionBytes, (_, actor) => NativeBattleStatusBits(combatants.Single(combatant => combatant.NativeIndex == actor)));
                 case 0x49:
                     return NativeBattleCinematicActorStore48.BranchScale49(current, program, address => graphics.Models[PhysicalActorIndex(address)]);
+                case 0x64:
+                    return NativeBattleCinematicActorSelector64.Execute(current, program, context.ReadActionBytes);
                 case 0x66:
                     NativeBattleEffectMemory cameraMemory = RequireWaterMemory();
                     NativeBattleScriptedColorRegisters cameraRegisters = cameraMemory.ScriptedColorRegisters ?? throw new NotSupportedException("Native camera-relative matrix requires retained packed input registers.");
@@ -436,7 +460,7 @@ public sealed partial class BattleSession
                         {
                             throw new InvalidDataException("Native cinematic vibration resource does not match its current file header.");
                         }
-                        return resources.Vibration;
+                        return resources.Vibration ?? throw new NotSupportedException("Native cinematic vibration requires an actual original pattern directory.");
                     });
                     NativeVibrationProcess = vibration.Vibration;
                     return vibration.Frame;
@@ -598,6 +622,12 @@ public sealed partial class BattleSession
             return NativeBattleCinematicDraw.Run(profile, current, PrepareLighting, (frame, kind) =>
             {
                 uint selectedDrawHandler = NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "draw_table", kind, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.DrawTable + 4u * kind), 4)));
+                if (selectedDrawHandler is 0xA49C20 or 0xA3F700)
+                {
+                    var monster = DrawNativeCinematicMonsterActor(frame, selectedDrawHandler == 0xA3F700, assets[1].Data.Length, resources, ModelServices(0), graphics);
+                    graphics = monster.Graphics;
+                    return monster.Frame;
+                }
                 if (selectedDrawHandler == 0xAEA550)
                 {
                     NativeBattleEffectMemory feedbackMemory = RequireWaterMemory();

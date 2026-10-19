@@ -104,6 +104,10 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
                 memory.Word(node + 0x1A0 + instance * 8, unchecked((ushort)(memory.Dword(node + 0xC8) + (uint)(int)BinaryPrimitives.ReadInt16LittleEndian(source.AsSpan(0x38)))));
             }
         }
+        if (inputs.ActorScale is { } actorScale)
+        {
+            WriteRotation(node + 0xAC, NativeBattlePoseMatrices.Scale56BEF0(RotationAt(node + 0xAC), actorScale.X, actorScale.Y, actorScale.Z));
+        }
         return bank;
 
         byte ByteCurve(int field)

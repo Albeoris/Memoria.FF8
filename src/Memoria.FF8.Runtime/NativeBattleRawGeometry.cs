@@ -2,10 +2,13 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
+public sealed record NativeBattleRawVertexGroup(ushort Bone, short Count, ImmutableArray<byte> Bytes);
+
 public sealed record NativeBattleRawVertex(NativeBattleVector Position, ushort Bone);
 public sealed record NativeBattleRawPolygon(bool Quad, ImmutableArray<byte> Bytes);
 public sealed record NativeBattleRawMesh(ImmutableArray<NativeBattleRawVertex> Vertices, ImmutableArray<NativeBattleRawPolygon> Polygons)
 {
+    public ImmutableArray<NativeBattleRawVertexGroup>? PackedVertexGroups { get; init; }
     public int? StageGroup { get; init; }
     public ImmutableArray<short>? BoneGroups { get; init; }
 

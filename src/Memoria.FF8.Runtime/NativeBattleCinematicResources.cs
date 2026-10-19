@@ -19,7 +19,7 @@ public interface INativeBattleScriptedTextureProfile
 public sealed record NativeBattleCinematicTextureProfile([property: JsonRequired] int Count, [property: JsonRequired] uint InitializationAddress, [property: JsonRequired] uint OwnerDirectoryAddress, [property: JsonRequired] uint PixelRectangleAddress, [property: JsonRequired] uint ClutRectangleAddress, [property: JsonRequired] uint PixelSourceMapAddress, [property: JsonRequired] uint ClutSourceMapAddress);
 
 /// <summary>One immutable static owner supplies the cinematic directories and their selected texture tables.</summary>
-public sealed record NativeBattleCinematicResources([property: JsonRequired] uint StaticAddress, [property: JsonRequired] NativeBattleEffectHeapAllocation StaticData, [property: JsonRequired] NativeBattleCinematicTextureProfile TextureProfile, [property: JsonRequired] NativeVibrationBank Vibration) : INativeBattleScriptedTextureProfile
+public sealed record NativeBattleCinematicResources([property: JsonRequired] uint StaticAddress, [property: JsonRequired] NativeBattleEffectHeapAllocation StaticData, [property: JsonRequired] NativeBattleCinematicTextureProfile TextureProfile, [property: JsonRequired] NativeVibrationBank? Vibration) : INativeBattleScriptedTextureProfile
 {
     public ImmutableArray<NativeBattleArchiveFile> Files { get; init; } = [];
 
@@ -29,7 +29,7 @@ public sealed record NativeBattleCinematicResources([property: JsonRequired] uin
 
     public void Validate()
     {
-        if (StaticData is null || StaticData.Data.IsDefaultOrEmpty || TextureProfile is null || TextureProfile.Count <= 0 || TextureProfile.Count > 256 || Vibration is null)
+        if (StaticData is null || StaticData.Data.IsDefaultOrEmpty || TextureProfile is null || TextureProfile.Count <= 0 || TextureProfile.Count > 256)
         {
             throw new InvalidDataException("Native cinematic resources require their complete static owner, texture descriptor and vibration bank.");
         }
@@ -46,7 +46,12 @@ public sealed record NativeBattleCinematicResources([property: JsonRequired] uin
                 throw new InvalidDataException("Native cinematic texture descriptor differs from its original initialization directory.");
             }
         }
-        Vibration.Validate();
+        NativeBattleCinematicProfile profile = NativeBattleCinematicProfile.ForInitializationAddress(TextureProfile.InitializationAddress);
+        if (profile.HasVibrationDirectory != (Vibration is not null))
+        {
+            throw new InvalidDataException("Native cinematic vibration availability differs from its selected original resource profile.");
+        }
+        Vibration?.Validate();
     }
 
     public ReadOnlySpan<byte> ReadStatic(uint address, int length)

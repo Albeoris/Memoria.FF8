@@ -62,7 +62,12 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
                         radius[1] = unchecked((short)-radius[1]);
                     }
                 }
-                NativeBattleVector unit = NativeBattleCuragaMatrices.RotateVector45DF80(NativeBattleCuragaMatrices.Euler8818A0(placementEuler.Value), new(0, -4096, 0));
+                NativeBattleActionMatrix spread = NativeBattleCuragaMatrices.Euler8818A0(placementEuler.Value);
+                if (inputs.ActorScale is { } actorScale)
+                {
+                    spread = NativeBattlePoseMatrices.Scale56BEF0(spread, actorScale.X, actorScale.Y, actorScale.Z);
+                }
+                NativeBattleVector unit = NativeBattleCuragaMatrices.RotateVector45DF80(spread, new(0, -4096, 0));
                 Add(local, unchecked(radius[0] * unit.X << 4));
                 Add(local + 4, source[0x34] == 1 ? unchecked(radius[1] * unit.Y << 4) : radius[1] << 16);
                 Add(local + 8, unchecked(radius[2] * unit.Z << 4));

@@ -19,7 +19,20 @@ public static class NativeBattleCinematicResourcesReader
         {
             throw new InvalidDataException("Native cinematic vibration requires its complete original first resource header.");
         }
+        NativeVibrationBank? vibration = ReadVibration(initialFile0);
+        uint[] descriptor = Enumerable.Range(0, 4).Select(index => checked(profile.InitializationAddress + BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(profile.InitializationAddress + (uint)(index * 4), 4)))).ToArray();
+        NativeBattleCinematicResources result = new(profile.InitializationAddress, new("cinematic-static", memory.Read(profile.InitializationAddress, profile.StaticLength).ToImmutableArray()), new(profile.TextureCount, profile.InitializationAddress, profile.OwnerDirectoryAddress, descriptor[0], descriptor[1], descriptor[2], descriptor[3]), vibration);
+        result.Validate();
+        return result;
+    }
+
+    private static NativeVibrationBank? ReadVibration(ImmutableArray<byte> initialFile0)
+    {
         int vibrationStart = BinaryPrimitives.ReadInt32LittleEndian(initialFile0.AsSpan().Slice(0x24));
+        if (vibrationStart == 0)
+        {
+            return null;
+        }
         if (vibrationStart < 0x28 || vibrationStart > initialFile0.Length - 4)
         {
             throw new InvalidDataException("Native cinematic vibration header leaves its actual resource file.");
@@ -65,9 +78,7 @@ public static class NativeBattleCinematicResourcesReader
         }
         NativeVibrationBank vibration = new(Convert.ToHexString(SHA256.HashData(initialFile0.AsSpan())), offsets.MoveToImmutable(), vibrationBytes.ToArray().ToImmutableArray());
         vibration.Validate();
-        uint[] descriptor = Enumerable.Range(0, 4).Select(index => checked(profile.InitializationAddress + BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(profile.InitializationAddress + (uint)(index * 4), 4)))).ToArray();
-        NativeBattleCinematicResources result = new(profile.InitializationAddress, new("cinematic-static", memory.Read(profile.InitializationAddress, profile.StaticLength).ToImmutableArray()), new(profile.TextureCount, profile.InitializationAddress, profile.OwnerDirectoryAddress, descriptor[0], descriptor[1], descriptor[2], descriptor[3]), vibration);
-        result.Validate();
-        return result;
+        return vibration;
     }
+
 }

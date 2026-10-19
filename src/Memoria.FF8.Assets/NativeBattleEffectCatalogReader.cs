@@ -150,6 +150,30 @@ public sealed partial class GameAssets
         {
             int index = catalog[requestedEffect - 1].Entry == 0 ? 0 : requestedEffect - 1;
             NativeBattleEffectBinding binding = catalog[index];
+            if (binding.Effect == 32)
+            {
+                binding = binding with { ProtectResources = ReadNativeProtectResources() };
+            }
+            if (binding.Effect == 33)
+            {
+                binding = binding with { ShellResources = ReadNativeShellResources() };
+            }
+            if (binding.Effect == 168)
+            {
+                binding = binding with { SleepingGas168Resources = ReadNativeSleepingGas168Resources() };
+            }
+            if (binding.Effect == 106)
+            {
+                binding = binding with { ReflectResources = ReadNativeReflectResources() };
+            }
+            if (binding.Effect == 11)
+            {
+                binding = binding with { Storm11Resources = ReadNativeStorm11Resources() };
+            }
+            if (binding.Effect is 120 or 122)
+            {
+                binding = binding with { StatusMagicResources = ReadNativeStatusMagicResources(binding.Effect) };
+            }
             if (binding.Effect == 40)
             {
                 //84D410 returns a BYTE category; retain its actual indexed source row for every possible result.
@@ -307,7 +331,7 @@ public sealed partial class GameAssets
                 catalog = catalog.SetItem(index, binding);
                 continue;
             }
-            if (binding.Effect is 6 or 201 or 202 or 203 or 204 or 205 or 206)
+            if (NativeBattleCinematicProfile.IsSupported(binding.Effect))
             {
                 binding = binding with { ScriptedInitializationDirectories = ReadNativeCinematicInitializationDirectories(binding.Effect), CinematicResources = ReadNativeCinematicResources(binding.Effect) };
                 catalog = catalog.SetItem(index, binding);

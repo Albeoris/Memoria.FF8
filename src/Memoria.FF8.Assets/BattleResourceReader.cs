@@ -1,7 +1,8 @@
-﻿using System.Numerics;
+using System.Numerics;
 using Albeoris.Games.FF8.Imaging;
 using System.Collections.Immutable;
 using Memoria.FF8.Resources;
+using Memoria.FF8.Runtime;
 using Albeoris.Games.FF8.Imaging.Tim;
 
 namespace Memoria.FF8.Assets;
@@ -117,6 +118,7 @@ internal static partial class BattleResourceReader
             int groups = Count(reader.ReadUInt16(), 1024, "vertex groups");
             List<BattleVertex> vertices = [];
             List<short> nativeBoneGroups = [];
+            List<NativeBattleRawVertexGroup> nativePackedVertexGroups = [];
             for (int group = 0; group < groups; group++)
             {
                 int bone = reader.ReadUInt16();
@@ -126,6 +128,14 @@ internal static partial class BattleResourceReader
                 {
                     throw new InvalidDataException($"Battle geometry references bone {bone} outside {boneCount}.");
                 }
+                long payloadStart = reader.BaseStream.Position;
+                byte[] packed = reader.ReadBytes(checked(vertexCount * 6 + 6));
+                if (packed.Length != vertexCount * 6 + 6)
+                {
+                    throw new InvalidDataException("Native vertex group requires its complete addressed payload and adjacent bytes.");
+                }
+                nativePackedVertexGroups.Add(new(checked((ushort)bone), checked((short)vertexCount), packed.ToImmutableArray()));
+                reader.BaseStream.Position = payloadStart;
                 for (int index = 0; index < vertexCount; index++)
                 {
                     short x = reader.ReadInt16();
@@ -194,7 +204,7 @@ internal static partial class BattleResourceReader
                 }
                 faces.Add(new BattleFace(indices, uv, texture, new Rgba32(128, 128, 128, 255)) { NativeMaterial = new(page, clut, nativeUv), NativePolygon = System.Collections.Immutable.ImmutableArray.CreateRange(nativePolygon) });
             }
-            meshes.Add(new BattleMesh(vertices, faces) { NativeBoneGroups = System.Collections.Immutable.ImmutableArray.CreateRange(nativeBoneGroups) });
+            meshes.Add(new BattleMesh(vertices, faces) { NativeBoneGroups = System.Collections.Immutable.ImmutableArray.CreateRange(nativeBoneGroups), NativePackedVertexGroups = nativePackedVertexGroups.ToImmutableArray() });
         }
         return meshes;
     }

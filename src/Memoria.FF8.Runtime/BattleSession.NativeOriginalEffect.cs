@@ -53,6 +53,30 @@ public sealed partial class BattleSession
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Native effect invocation requires its actual loaded module entry.");
         _ = effect.Parameters ?? throw new InvalidDataException("Native effect entry lacks its50AFC0 parameter block.");
+        if (effect.Binding.Entry == 0x866010)
+        {
+            return EnterNativeShell(graphics);
+        }
+        if (effect.Binding.Entry == 0x86B9A0)
+        {
+            return EnterNativeProtect(graphics);
+        }
+        if (effect.Binding.Entry == 0x5E1750)
+        {
+            return EnterNativeSleepingGas168(graphics);
+        }
+        if (effect.Binding.Entry == 0x6D2AE0)
+        {
+            return EnterNativeReflect(graphics);
+        }
+        if (effect.Binding.Entry == 0x6EA500)
+        {
+            return EnterNativeStorm11(graphics);
+        }
+        if (effect.Binding.Entry is 0x6BD8E0 or 0x6BE960)
+        {
+            return EnterNativeStatusMagic(graphics);
+        }
         if (effect.Binding.Entry == 0x84D030)
         {
             return RunNativeScan40(graphics, true);
@@ -61,7 +85,7 @@ public sealed partial class BattleSession
         {
             return EnterNativeWaterA9B200(graphics);
         }
-        if (effect.Binding.Effect is 6 or 201 or 202 or 203 or 204 or 205 or 206)
+        if (NativeBattleCinematicProfile.IsSupported(effect.Binding.Effect))
         {
             return EnterNativeCinematic(graphics);
         }

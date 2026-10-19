@@ -119,12 +119,12 @@ public sealed partial class BattleSession
                 }
                 NativeBattleRawMesh mesh = index == 1 ? linked[0] : geometry[index];
                 NativeBattleModelTextureBinding selectedBinding = index == 1 ? model.LinkedTextureSlots ?? throw new NotSupportedException("Native507E20 requires its executed weapon texture relocation.") : binding;
-                primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0([mesh], matrices, projection, color, 1, null, 17, 4, selectedBinding));
+                primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0([mesh], matrices, projection, color, 1, null, 17, 4, selectedBinding, publishProjectedScratch: PublishNativeBodyProjectionScratch));
             }
         }
         else if (bodyDraw)
         {
-            primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0(geometry, matrices, projection, color, mask, null, 17, 4, resource.GeometryRelocated507550 ? null : binding));
+            primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0(geometry, matrices, projection, color, mask, null, 17, 4, resource.GeometryRelocated507550 ? null : binding, publishProjectedScratch: PublishNativeBodyProjectionScratch));
         }
         if (bodyDraw)
         {
@@ -136,11 +136,17 @@ public sealed partial class BattleSession
             ImmutableArray<NativeBattleActionMatrix> linkedMatrices = NativeBattlePoseMatrices.LinkedGeometryMatrices502D40(model, resource.LinkedPoseSource ?? throw new NotSupportedException("Native linked geometry requires its original independent skeleton."), view);
             if (ResetAndEnterNativeModelRenderer5099D0(color))
             {
-                ImmutableArray<NativeBattleGeometryPrimitive> linkedPrimitives = NativeBattleRawGeometryPackets.Emit5099D0(linked, linkedMatrices, projection, color, uint.MaxValue, null, 17, 4, model.LinkedTextureSlots ?? throw new NotSupportedException("Native linked geometry requires its executed507400 material relocation."));
+                ImmutableArray<NativeBattleGeometryPrimitive> linkedPrimitives = NativeBattleRawGeometryPackets.Emit5099D0(linked, linkedMatrices, projection, color, uint.MaxValue, null, 17, 4, model.LinkedTextureSlots ?? throw new NotSupportedException("Native linked geometry requires its executed507400 material relocation."), publishProjectedScratch: PublishNativeBodyProjectionScratch);
                 graphics = AppendNativeModelRendererPackets(graphics, linkedPrimitives, true);
             }
         }
         return graphics;
+    }
+
+    private void PublishNativeBodyProjectionScratch(IReadOnlyList<NativeBattleProjectedVertex> vertices)
+    {
+        ushort maximum = NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Native body projection requires its loaded scratch allocation maximum.");
+        NativeFileStaging = NativeBattleBodyProjectionScratch.Publish(NativeFileStaging ?? throw new NotSupportedException("Native body projection requires its canonical shared byte owner."), maximum, vertices);
     }
 
     private void PublishNativeModelRendererColor(uint color)
@@ -234,6 +240,14 @@ public sealed partial class BattleSession
         if (reference.Bank == "20DFAB8" && reference.Buffer == 0)
         {
             return (memory.Arena ?? throw new NotSupportedException("Native retained effect packet alias requires its original arena.")).Read(reference.ByteOffset, count);
+        }
+        if (reference.Bank == "2523C98")
+        {
+            if (reference.Buffer != 0)
+            {
+                throw new InvalidDataException("Native Reflect packet banks share one contiguous physical owner.");
+            }
+            return (memory.Reflect106 ?? throw new NotSupportedException("Native Reflect packet alias requires its retained executable banks.")).Packets.Read(reference.ByteOffset, count);
         }
         if (reference.Bank == NativeBattleFullscreenOverlay.PacketBank)
         {

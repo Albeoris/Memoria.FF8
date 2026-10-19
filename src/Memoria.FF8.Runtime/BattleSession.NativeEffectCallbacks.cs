@@ -37,6 +37,30 @@ public sealed partial class BattleSession
         {
             return graphics;
         }
+        if (effect.Binding.Entry is 0x6BD8E0 or 0x6BE960)
+        {
+            return AdvanceNativeStatusMagic(graphics);
+        }
+        if (effect.Binding.Entry == 0x6EA500)
+        {
+            return AdvanceNativeStorm11(graphics);
+        }
+        if (effect.Binding.Entry == 0x6D2AE0)
+        {
+            return AdvanceNativeReflect(graphics);
+        }
+        if (effect.Binding.Entry == 0x86B9A0)
+        {
+            return AdvanceNativeProtect(graphics);
+        }
+        if (effect.Binding.Entry == 0x866010)
+        {
+            return AdvanceNativeShell(graphics);
+        }
+        if (effect.Binding.Entry == 0x5E1750)
+        {
+            return AdvanceNativeSleepingGas168(graphics);
+        }
         if (effect.Binding.Entry == 0x84D030)
         {
             return RunNativeScan40(graphics, false);
@@ -65,7 +89,7 @@ public sealed partial class BattleSession
         {
             return AdvanceNativeWaterA9B870(graphics);
         }
-        if (effect.Binding.Effect is 6 or 201 or 202 or 203 or 204 or 205 or 206)
+        if (NativeBattleCinematicProfile.IsSupported(effect.Binding.Effect))
         {
             return AdvanceNativeCinematic(graphics);
         }
