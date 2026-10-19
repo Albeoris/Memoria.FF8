@@ -12,10 +12,38 @@ public sealed partial class MenuController
         {
             Id = "magazine",
             Title = "Magazine",
-            Help = "Turn the page or return to the inventory.",
-            Entries = c => [new("previous", "Previous page", c.MagazinePageReason(c._magazineIndex - 1) ?? "Turn to the previous original page.", Action: new MenuAction("magazine-page", Value: "-1"), Enabled: c.Item?.NativeMagazinePages.Length > 1 && c.MagazinePageReason(c._magazineIndex - 1) is null), new("next", "Next page", c.MagazinePageReason(c._magazineIndex + 1) ?? "Turn to the next original page.", Action: new MenuAction("magazine-page", Value: "1"), Enabled: c.Item?.NativeMagazinePages.Length > 1 && c.MagazinePageReason(c._magazineIndex + 1) is null), new("close", "Close", "Return to the inventory.", Action: new MenuAction("menu-back"))],
+            Help = "Use the arrows to turn pages or Cancel to return to the inventory.",
             BuildContent = (c, panel) => panel.Children.Add(c.BuildMagazinePage())
         });
+    }
+
+    private bool TryNavigateMagazine(MenuInput input)
+    {
+        if (ScreenId != "magazine")
+        {
+            return false;
+        }
+        if (input == MenuInput.Cancel)
+        {
+            Back();
+            return true;
+        }
+        int delta = input switch
+        {
+            MenuInput.Left or MenuInput.Up or MenuInput.PageLeft or MenuInput.PageUp => -1,
+            MenuInput.Right or MenuInput.Down or MenuInput.PageRight or MenuInput.PageDown => 1,
+            _ => 0
+        };
+        if (delta != 0 && Item?.NativeMagazinePages.Length > 1)
+        {
+            int previous = _magazineIndex;
+            ShowMagazinePage(_magazineIndex + delta);
+            if (_magazineIndex != previous)
+            {
+                SoundRequested?.Invoke(MenuSound.Move);
+            }
+        }
+        return true;
     }
 
     private void ShowMagazinePage(int index)
@@ -57,19 +85,7 @@ public sealed partial class MenuController
         }
         var selected = pages[Math.Clamp(_magazineIndex, 0, pages.Length - 1)];
         var layout = selected.Layout ?? throw new NotSupportedException("Magazine page lacks its original layout and artwork descriptors.");
-        var page = new UiGrid { Columns = 1, Gap = 4 };
-        page.RowDefinitions.Add(UiGridLength.Star());
-        page.RowDefinitions.Add(UiGridLength.Pixel(34));
         string? fontFamily = _readPreferences?.Invoke().UiFontFamily;
-        Place(page, new MagazinePageElement(layout, fontFamily) { Id = "magazine-page" }, 0);
-        var footer = Grid([1], [1, 3], 0);
-        Place(footer, Label($"Page {_magazineIndex + 1}/{pages.Length}", 16), 0);
-        UiList commands = Commands(30, 16);
-        commands.Orientation = UiOrientation.Horizontal;
-        commands.PointerSize = 14;
-        commands.TextInset = 24;
-        Place(footer, commands, 0, 1);
-        Place(page, footer, 1);
-        return page;
+        return new MagazinePageElement(layout, fontFamily) { Id = "magazine-page" };
     }
 }

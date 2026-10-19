@@ -165,6 +165,10 @@ public sealed partial class MenuController
         {
             return;
         }
+        if (TryNavigateMagazine(input))
+        {
+            return;
+        }
         if (TryNavigateNativeTutorialBrowser(input))
         {
             return;

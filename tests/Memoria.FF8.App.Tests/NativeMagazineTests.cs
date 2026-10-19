@@ -3,6 +3,7 @@ using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -50,32 +51,40 @@ public sealed class NativeMagazineTests
     [Fact]
     public void ViewerDispatchesFirstPageWrapsTurnsAndClosesWithoutTargetSelection()
     {
-        using GameAssets assets = Assets();
-        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
         MenuData data = new();
-        data.Items.Add(new MenuItem { Id = "item-177", Name = catalog.ItemName(177)!, Quantity = 1, NativeMagazinePages = catalog.MagazinePages(177) });
+        NativeMagazinePage[] pages = Enumerable.Range(0, 4).Select(index => new NativeMagazinePage(177, (byte)index, 255, 255, 255, []) { Layout = new NativeMagazineLayout(0, 0, 320, 240, [], [], null) }).ToArray();
+        data.Items.Add(new MenuItem { Id = "item-177", Name = "Magazine", Quantity = 1, NativeMagazinePages = pages });
         List<MenuAction> actions = [];
         MenuController controller = new(() => data, actions.Add);
         controller.Open("item-use");
         controller.Navigate(MenuInput.Confirm);
         Assert.Equal("magazine", controller.ScreenId);
         Assert.Equal(new MenuAction("magazine-read", "item-177", Value: "0"), Assert.Single(actions));
-        Assert.NotNull(controller.BuildView());
+        UiView view = controller.BuildView();
+        UiElement page = Assert.Single(Assert.Single(Assert.Single(view.Root.Children).Children).Children);
+        Assert.Equal("magazine-page", page.Id);
+        Assert.Equal(new UiRect(0, 0, view.DesignWidth, view.DesignHeight), page.Bounds);
+        Assert.Empty(controller.Entries);
         controller.Navigate(MenuInput.Confirm);
-        Assert.Equal("3", actions.Last().Value);
-        controller.Navigate(MenuInput.Down);
-        controller.Navigate(MenuInput.Confirm);
-        Assert.Equal("0", actions.Last().Value);
+        Assert.Single(actions);
+        foreach ((MenuInput input, string expected) in new[] { (MenuInput.Left, "3"), (MenuInput.Right, "0"), (MenuInput.Down, "1"), (MenuInput.Up, "0") })
+        {
+            controller.Navigate(input);
+            Assert.Equal(expected, actions.Last().Value);
+        }
         controller.Navigate(MenuInput.Cancel);
         Assert.Equal("item-use", controller.ScreenId);
         Assert.Equal(1, data.Items[0].Quantity);
         data.Items[0].NativeMagazinePageUnavailableReasons[3] = "Required saved page owner is unavailable.";
         controller.Navigate(MenuInput.Confirm);
-        Assert.False(controller.Entries.Single(entry => entry.Id == "previous").Enabled);
         int dispatched = actions.Count;
-        controller.Navigate(MenuInput.Up);
-        controller.Navigate(MenuInput.Confirm);
+        controller.Navigate(MenuInput.Left);
         Assert.Equal(dispatched, actions.Count);
+        Assert.Equal("Required saved page owner is unavailable.", controller.Message);
+        controller.Navigate(MenuInput.Right);
+        Assert.Equal("1", actions.Last().Value);
+        controller.Navigate(MenuInput.Cancel);
+        Assert.Equal("item-use", controller.ScreenId);
     }
 
     [Fact]

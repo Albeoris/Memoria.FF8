@@ -95,7 +95,7 @@ public sealed partial class MenuController
             Place(page, Footer(), 2);
         }
         AddTutorialMessage(anchored);
-        _view = new UiView(root) { DesignWidth = 960, DesignHeight = ScreenId == "magazine" ? 752 : 672, Cancel = Back };
+        _view = new UiView(root) { DesignWidth = 960, DesignHeight = ScreenId == "magazine" ? 720 : 672, Cancel = Back };
         _view.Resize(_view.DesignWidth, _view.DesignHeight);
         var focusables = FocusableDescendants(root).ToArray();
         string? selectedCharacterId = CharacterChoices.ElementAtOrDefault(CharacterSelectionIndex)?.Id;

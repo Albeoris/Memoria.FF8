@@ -52,7 +52,8 @@ public sealed class NativeMagazineRenderTests
             Assert.Equal(0, element.Bounds.X);
             Assert.Equal(0, element.Bounds.Y);
             Assert.Equal(view.DesignWidth, element.Bounds.Width);
-            Assert.InRange(element.Bounds.Height, view.DesignHeight * 0.85f, view.DesignHeight);
+            Assert.Equal(view.DesignHeight, element.Bounds.Height);
+            Assert.DoesNotContain(Descendants(view.Root), element => element is UiList);
             BoundsCanvas canvas = new(width, height, page.PageId);
             view.Draw(canvas, new UiTheme());
             canvas.AssertComplete();
