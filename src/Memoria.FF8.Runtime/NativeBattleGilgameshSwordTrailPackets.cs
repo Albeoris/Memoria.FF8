@@ -4,11 +4,12 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleGilgameshSwordTrailPacketResult(NativeBattleGfGeometryBatch Batch, int PoolCursorAdvance);
+public sealed record NativeBattleSwordTrailObservation(uint FirstThreeFlags, uint? AverageDepth, uint PreviousColor, uint? EndColor);
 
 /// <summary>5943D0's thirty G4 pairs and native extra36-byte final pool publication.</summary>
 public static class NativeBattleGilgameshSwordTrailPackets
 {
-    public static NativeBattleGilgameshSwordTrailPacketResult Emit(NativeBattleGilgameshSwordTrailState state, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory? registers, NativeBattleSummonColors colors, uint baseColor)
+    public static NativeBattleGilgameshSwordTrailPacketResult Emit(NativeBattleGilgameshSwordTrailState state, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory? registers, NativeBattleSummonColors colors, uint baseColor, Action<NativeBattleSwordTrailObservation>? observe = null)
     {
         state.Validate();
         if ((baseColor >> 24) != 0x3A)
@@ -24,8 +25,10 @@ public static class NativeBattleGilgameshSwordTrailPackets
             points[0] = NativeBattleModuleProjection.Project45FE10(worldView, ReadPoint(NativeBattleGilgameshSwordTrailState.CurveA, segment), projection);
             points[1] = NativeBattleModuleProjection.Project45FE10(worldView, ReadPoint(NativeBattleGilgameshSwordTrailState.CurveA, segment + 1), projection);
             points[2] = NativeBattleModuleProjection.Project45FE10(worldView, ReadPoint(NativeBattleGilgameshSwordTrailState.CurveB, segment), projection);
-            if (((points[0].Flags | points[1].Flags | points[2].Flags) & 0x60000) != 0)
+            uint firstThreeFlags = points[0].Flags | points[1].Flags | points[2].Flags;
+            if ((firstThreeFlags & 0x60000) != 0)
             {
+                observe?.Invoke(new(firstThreeFlags, null, previousEnd, null));
                 byte[] bytes = new byte[36];
                 BinaryPrimitives.WriteUInt32LittleEndian(bytes, 0x08000000);
                 ImmutableArray<NativeBattleGfPacketByteState> mask = Enumerable.Range(0, 36).Select(index => index < 4 ? NativeBattleGfPacketByteState.Known : NativeBattleGfPacketByteState.Untouched).ToImmutableArray();
@@ -40,6 +43,7 @@ public static class NativeBattleGilgameshSwordTrailPackets
             uint start = previousEnd;
             uint end = colors.Interpolate(baseColor, segment * 4096 / 30, 0);
             previousEnd = end;
+            observe?.Invoke(new(firstThreeFlags, depth, start, end));
             attempts.Add(Packet(allocation, bucket, points, [start, end, start, end]));
             attempts.Add(Packet(allocation + 36, bucket, points, [0x3A000000, 0x3A000000, start, end]));
             allocation = checked(allocation + 72);

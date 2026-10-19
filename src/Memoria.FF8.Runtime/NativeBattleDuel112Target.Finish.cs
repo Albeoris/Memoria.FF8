@@ -52,7 +52,7 @@ public static partial class NativeBattleDuel112Target
             if (particles.Slots.Any(candidate => (candidate.Flags & 1) == 0))
             {
                 (particles, int textureSlot) = particles.Append(0x6CD870);
-                particles = particles with { Slots = particles.Slots.SetItem(textureSlot, particles.Slots[textureSlot] with { Payload = new byte[36].ToImmutableArray(), ResourcePointers = null }) };
+                particles = particles with { Slots = particles.Slots.SetItem(textureSlot, particles.Slots[textureSlot] with { Payload = new byte[36].ToImmutableArray(), ResourcePointers = null, UnknownPayloadRanges = null }) };
             }
             frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(4, particles) } };
         }

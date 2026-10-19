@@ -7,13 +7,18 @@ namespace Memoria.FF8.Runtime;
 /// <summary>One original508300 task: WORD flags/state, physical link, callback and retained suffix.</summary>
 public sealed partial record NativeBattleModulePoolTask([property: JsonRequired] ushort Flags, [property: JsonRequired] ushort State, [property: JsonRequired] int? Next, [property: JsonRequired] uint Callback, [property: JsonRequired] ImmutableArray<byte> Payload)
 {
-    public ushort ReadWord(int offset) => BinaryPrimitives.ReadUInt16LittleEndian(Payload.AsSpan().Slice(offset - 12));
+    public ushort ReadWord(int offset)
+    {
+        RequireKnownPayload(offset, 2);
+        return BinaryPrimitives.ReadUInt16LittleEndian(Payload.AsSpan().Slice(offset - 12));
+    }
 
     public NativeBattleModulePoolTask WriteWord(int offset, ushort value)
     {
+        RequirePayloadRange(offset, 2);
         byte[] payload = Payload.ToArray();
         BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(offset - 12), value);
-        return (this with { Payload = payload.ToImmutableArray() }).WithoutResourcePointers(offset, 2);
+        return (this with { Payload = payload.ToImmutableArray() }).WithoutResourcePointers(offset, 2).WithoutUnknownPayload(offset, 2);
     }
 }
 
@@ -41,6 +46,7 @@ public sealed record NativeBattleEffectTaskPool([property: JsonRequired] uint De
         }
         foreach (NativeBattleModulePoolTask task in Slots)
         {
+            task.ValidateUnknownPayloadRanges();
             task.ValidateResourcePointers();
         }
         HashSet<int> seen = [];

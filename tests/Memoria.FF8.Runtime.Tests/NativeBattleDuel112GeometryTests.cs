@@ -16,20 +16,20 @@ public sealed class NativeBattleDuel112GeometryTests
             BinaryPrimitives.WriteInt16LittleEndian(mesh.AsSpan(10 + 8 * index), (short)(100 - 100 * index));
             BinaryPrimitives.WriteInt16LittleEndian(mesh.AsSpan(12 + 8 * index), 50);
         }
-        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0x20E0000, Enumerable.Repeat((byte)0xCC, 24).ToArray());
-        NativeBattleFileStaging restored = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(staging))!;
+        NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().Write(0x548, Enumerable.Repeat((byte)0xCC, 24).ToArray());
+        NativeBattleEffectArena restored = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(arena))!;
         NativeBattleActionMatrix matrix = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
-        NativeBattleFileStaging result = NativeBattleDuel112Geometry.Deform6CD7F0(mesh, staging, 0x20E0000, matrix, 100, 100, 200);
+        NativeBattleEffectArena result = NativeBattleDuel112Geometry.Deform6CD7F0(mesh, arena, 0x548, matrix, 100, 100, 200);
         for (int index = 0; index < 3; index++)
         {
-            byte[] vertex = result.Read(0x20E0000u + 8u * (uint)index, 8);
+            byte[] vertex = result.Read(0x548 + 8 * index, 8);
             Assert.Equal(7, BinaryPrimitives.ReadInt16LittleEndian(vertex));
             Assert.Equal(100 - 100 * index, BinaryPrimitives.ReadInt16LittleEndian(vertex.AsSpan(2)));
             Assert.Equal(50 - 200 * index, BinaryPrimitives.ReadInt16LittleEndian(vertex.AsSpan(4)));
             Assert.Equal(new byte[] { 0xCC, 0xCC }, vertex.AsSpan(6).ToArray());
         }
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleDuel112Geometry.Deform6CD7F0(mesh, restored, 0x20E0000, matrix, 100, 100, 200)));
-        Assert.Throws<DivideByZeroException>(() => NativeBattleDuel112Geometry.Deform6CD7F0(mesh, staging, 0x20E0000, matrix, 100, 0, 200));
+        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleDuel112Geometry.Deform6CD7F0(mesh, restored, 0x548, matrix, 100, 100, 200)));
+        Assert.Throws<DivideByZeroException>(() => NativeBattleDuel112Geometry.Deform6CD7F0(mesh, arena, 0x548, matrix, 100, 0, 200));
     }
 
     [Fact]

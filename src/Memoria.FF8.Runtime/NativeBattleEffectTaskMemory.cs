@@ -24,7 +24,7 @@ public static class NativeBattleEffectTaskMemory
     {
         if (Find(pools, address, length, out int pool, out int slot, out int offset))
         {
-            bytes = pools[pool].Slots[slot].Payload.AsSpan().Slice(offset - 12, length).ToArray();
+            bytes = pools[pool].Slots[slot].ReadBytes(offset, length);
             return true;
         }
         bytes = [];
@@ -82,6 +82,13 @@ public static class NativeBattleEffectTaskMemory
                 task.Payload.AsSpan().CopyTo(data.AsSpan(12));
                 int target = checked(offset + slot * pool.Stride);
                 arena = arena.Write(target, data);
+                if (task.UnknownPayloadRanges is { } unknown)
+                {
+                    foreach (NativeBattleEffectUnknownRegion range in unknown)
+                    {
+                        arena = arena.MarkUnknown(checked(target + range.Offset), range.Length);
+                    }
+                }
                 if (task.ResourcePointers is { } pointers)
                 {
                     foreach ((int field, NativeBattleResourcePointer pointer) in pointers)

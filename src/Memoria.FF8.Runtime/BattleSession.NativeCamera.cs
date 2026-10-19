@@ -200,6 +200,18 @@ public sealed partial class BattleSession
                 {
                     graphics = fatedCircle162Completed;
                 }
+                else if (TryWriteNativeNoMercy200Completion(graphics, address, value, out NativeBattleGraphicsState noMercy200Completed))
+                {
+                    graphics = noMercy200Completed;
+                }
+                else if (TryWriteNativeBlastingZone164Completion(graphics, address, value, out NativeBattleGraphicsState blastingZone164Completed))
+                {
+                    graphics = blastingZone164Completed;
+                }
+                else if (TryWriteNativeDuel112Completion(graphics, address, value, out NativeBattleGraphicsState duel112Completed))
+                {
+                    graphics = duel112Completed;
+                }
                 else if (TryWriteNativeRoughDivide163Completion(graphics, address, value, out NativeBattleGraphicsState roughDivide163Completed))
                 {
                     graphics = roughDivide163Completed;
@@ -207,6 +219,10 @@ public sealed partial class BattleSession
                 else if (TryWriteNativeAngelWing84Completion(graphics, address, value, out NativeBattleGraphicsState angelWing84Completed))
                 {
                     graphics = angelWing84Completed;
+                }
+                else if (TryWriteNativeRinoa86Completion(graphics, address, value, out NativeBattleGraphicsState rinoa86Completed))
+                {
+                    graphics = rinoa86Completed;
                 }
                 else if (TryWriteNativeShot197Completion(graphics, address, value, out NativeBattleGraphicsState shot197Completed))
                 {

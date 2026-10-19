@@ -17,6 +17,10 @@ public sealed class NativeBattleDuel112ResourcesTests
         Assert.Equal(new uint[] { 0x12C5650, 0x12C5794 }, resources.Sprites.Select(sprite => sprite.Address));
         Assert.Equal(new uint[] { 0x12C5928, 0x12C7230 }, resources.Meshes.Select(mesh => mesh.Address));
         Assert.Equal(208, BinaryPrimitives.ReadInt32LittleEndian(resources.Read(0x12C592C, 4).AsSpan()));
+        Assert.Equal(original.Read(0x12C3618, 0x2038), resources.ReadActorDat().ToArray());
+        Assert.Equal(0x10, NativeBattleDatDirectory.Section(resources.ReadActorDat().AsSpan(), 0));
+        Assert.Equal(0x202C, NativeBattleDatDirectory.Section(resources.ReadActorDat().AsSpan(), 1));
+        Assert.Equal(0x2038, NativeBattleDatDirectory.Section(resources.ReadActorDat().AsSpan(), 2));
         foreach (uint address in new uint[] { 0x12C7420, 0x12C8020, 0x12CA7B4, 0x12CB40C, 0x12D19F4, 0x12D4684, 0x12D8D28, 0x12D9DC0 })
         {
             NativeBattleGfAnimationSource source = resources.Hierarchy(address);

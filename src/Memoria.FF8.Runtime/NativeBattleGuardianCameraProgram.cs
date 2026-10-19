@@ -15,10 +15,13 @@ public sealed record NativeBattleGuardianCameraProcess([property: JsonRequired] 
 
 public sealed record NativeBattleGuardianCameraTask([property: JsonRequired] NativeBattleGuardianCameraProcess Process, [property: JsonRequired] ImmutableArray<byte> Program, [property: JsonRequired] int Offset, [property: JsonRequired] ushort Frame, [property: JsonRequired] bool Complete);
 
-public sealed record NativeBattleGuardianCameraStep(NativeBattleGuardianCameraTask Task, NativeBattleCameraPose Pose, int Result, bool Published);
+public sealed record NativeBattleGuardianCameraStep(NativeBattleGuardianCameraTask Task, NativeBattleCameraPose Pose, int Result, bool Published)
+{
+    public NativeBattleEffectArena? Temporary432 { get; init; }
+}
 
 /// <summary>63E960/63E9C0's reached paired camera-program contracts over explicit retained owners.</summary>
-public static class NativeBattleGuardianCameraProgram
+public static partial class NativeBattleGuardianCameraProgram
 {
     public static NativeBattleGuardianCameraProcess FromColdProcess()
     {
@@ -47,7 +50,7 @@ public static class NativeBattleGuardianCameraProgram
         return new(process with { Sign = sign }, program, 0, 0, false);
     }
 
-    public static NativeBattleGuardianCameraStep Advance63E9C0(NativeBattleGuardianCameraTask task, NativeBattleActionMatrix matrix, NativeBattleCameraPose pose, bool paused, ImmutableArray<short> scalarVariables = default)
+    public static NativeBattleGuardianCameraStep Advance63E9C0(NativeBattleGuardianCameraTask task, NativeBattleActionMatrix matrix, NativeBattleCameraPose pose, bool paused, ImmutableArray<short> scalarVariables = default, NativeBattleEffectArena? temporary432 = null)
     {
         ArgumentNullException.ThrowIfNull(task);
         ArgumentNullException.ThrowIfNull(matrix);
@@ -58,7 +61,7 @@ public static class NativeBattleGuardianCameraProgram
         {
             throw new InvalidDataException("Native63E9C0 requires its live task, original program and retained sign.");
         }
-        //The balanced1B0-byte5082B0/5082D0 temporary has no escaping pointer in these reached opcodes.
+        NativeBattleEffectArena? temporary = temporary432;
         NativeBattleGuardianCameraProcess process = task.Process;
         int offset = task.Offset;
         short? focal = pose.FocalLength;
@@ -80,7 +83,7 @@ public static class NativeBattleGuardianCameraProgram
                 if (opcode > 10)
                 {
                     process = eye ? process with { Eye = selected } : process with { Target = selected };
-                    return new(task with { Process = process, Offset = offset, Complete = true }, pose with { FocalLength = focal, Roll = roll }, 2, false);
+                    return new(task with { Process = process, Offset = offset, Complete = true }, pose with { FocalLength = focal, Roll = roll }, 2, false) { Temporary432 = temporary };
                 }
                 switch (opcode)
                 {
@@ -94,6 +97,7 @@ public static class NativeBattleGuardianCameraProgram
                     {
                         short duration = ReadScalar();
                         NativeBattleVector destination = ReadVector();
+                        temporary = TemporaryPoint(temporary, 0, destination);
                         selected = selected with { Remaining = unchecked((ushort)duration), Delta = DivideDifference(destination, selected.Current, duration) };
                         break;
                     }
@@ -102,6 +106,7 @@ public static class NativeBattleGuardianCameraProgram
                         short duration = ReadScalar();
                         short curve = unchecked((short)ReadWord());
                         NativeBattleVector destination = ReadVector();
+                        temporary = TemporaryPoint(temporary, 0, destination);
                         selected = selected with { Remaining = unchecked((ushort)duration), Curve = curve, Accumulator = 0, Step = Divide(4096, duration), Origin = selected.Current, Delta = Subtract(destination, selected.Current) };
                         break;
                     }
@@ -121,9 +126,12 @@ public static class NativeBattleGuardianCameraProgram
                     }
                     case 5:
                     {
-                        int distance = Distance(Subtract(other.Current, selected.Current));
+                        NativeBattleVector difference = Subtract(other.Current, selected.Current);
+                        temporary = TemporaryPoint(temporary, 0, difference);
+                        int distance = Distance(difference);
                         short duration = ReadScalar();
                         NativeBattleVector destination = ReadVector();
+                        temporary = TemporaryPoint(temporary, 0, destination);
                         NativeBattleVector future = other.Current;
                         if (other.Opcode == 2)
                         {
@@ -137,7 +145,10 @@ public static class NativeBattleGuardianCameraProgram
                         {
                             future = Points(other)[^1];
                         }
-                        int endDistance = Distance(Subtract(destination, future));
+                        temporary = TemporaryPoint(temporary, 8, future)?.MarkUnknown(14, 2);
+                        NativeBattleVector endDifference = Subtract(destination, future);
+                        temporary = TemporaryPoint(temporary, 0, endDifference);
+                        int endDistance = Distance(endDifference);
                         selected = selected with { Remaining = unchecked((ushort)duration), Origin = selected.Current, Delta = DivideDifference(destination, selected.Current, duration), Accumulator = distance, Step = Divide(unchecked(endDistance - distance), duration) };
                         break;
                     }
@@ -152,12 +163,12 @@ public static class NativeBattleGuardianCameraProgram
                 }
                 process = eye ? process with { Eye = selected } : process with { Target = selected };
             }
-            process = process with { Eye = Update(process.Eye, process.Target) };
-            process = process with { Target = Update(process.Target, process.Eye) };
+            process = process with { Eye = Update(process.Eye, process.Target, ref temporary) };
+            process = process with { Target = Update(process.Target, process.Eye, ref temporary) };
         }
-        NativeBattleCameraPose published = new(World(process.Eye.Current), World(process.Target.Current), focal, roll);
+        NativeBattleCameraPose published = new(World(process.Eye.Current, 0), World(process.Target.Current, 8), focal, roll);
         process = process with { PreviousPose = pose };
-        return new(task with { Process = process, Offset = offset, Frame = paused ? task.Frame : unchecked((ushort)(task.Frame + 1)) }, published, 0, true);
+        return new(task with { Process = process, Offset = offset, Frame = paused ? task.Frame : unchecked((ushort)(task.Frame + 1)) }, published, 0, true) { Temporary432 = temporary };
 
         ushort ReadWord()
         {
@@ -193,14 +204,16 @@ public static class NativeBattleGuardianCameraProgram
             return new(x, y, z);
         }
 
-        NativeBattleCameraPoint World(NativeBattleVector local)
+        NativeBattleCameraPoint World(NativeBattleVector local, int destination)
         {
             NativeBattleVector rotated = NativeBattleGfMatrices.RotateShort56C4F0(matrix, local);
-            return new(unchecked((short)(rotated.X + (short)matrix.X)), unchecked((short)(rotated.Y + (short)matrix.Y)), unchecked((short)(rotated.Z + (short)matrix.Z)));
+            NativeBattleVector world = new(unchecked((short)(rotated.X + (short)matrix.X)), unchecked((short)(rotated.Y + (short)matrix.Y)), unchecked((short)(rotated.Z + (short)matrix.Z)));
+            temporary = TemporaryPoint(temporary, destination, world);
+            return new(world.X, world.Y, world.Z);
         }
     }
 
-    private static NativeBattleGuardianCameraBank Update(NativeBattleGuardianCameraBank bank, NativeBattleGuardianCameraBank other)
+    private static NativeBattleGuardianCameraBank Update(NativeBattleGuardianCameraBank bank, NativeBattleGuardianCameraBank other, ref NativeBattleEffectArena? temporary)
     {
         switch (bank.Opcode)
         {
@@ -228,7 +241,11 @@ public static class NativeBattleGuardianCameraProgram
                     BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(4), unchecked((short)points[index].Z));
                     source = source.Write(index * 8, bytes);
                 }
-                NativeBattleEffectArena work = NativeBattleGilgameshSwordTrailCurve.Prepare571620(points.Length, source, 0, NativeBattleEffectArena.Clear());
+                NativeBattleEffectArena work = NativeBattleGilgameshSwordTrailCurve.Prepare571620(points.Length, source, 0, temporary is null ? NativeBattleEffectArena.Clear() : TemporarySlice(temporary, 16, 400));
+                if (temporary is not null)
+                {
+                    temporary = TemporaryPublish(temporary, 16, work, 400);
+                }
                 NativeBattleEffectArena output = NativeBattleGilgameshSwordTrailCurve.Evaluate571690(points.Length, work, eased, NativeBattleEffectArena.Clear(), 0);
                 byte[] current = output.Read(0, 6);
                 bank = bank with { Accumulator = progress, Current = new(BinaryPrimitives.ReadInt16LittleEndian(current), BinaryPrimitives.ReadInt16LittleEndian(current.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(current.AsSpan(4))) };
@@ -238,7 +255,12 @@ public static class NativeBattleGuardianCameraProgram
             {
                 NativeBattleVector origin = Add(bank.Origin, bank.Delta);
                 int distance = unchecked(bank.Accumulator + bank.Step);
-                NativeBattleVector direction = NativeBattlePoseMatrices.NormalizeLong56BD20(other.Current.X - origin.X, other.Current.Y - origin.Y, other.Current.Z - origin.Z);
+                int dx = other.Current.X - origin.X;
+                int dy = other.Current.Y - origin.Y;
+                int dz = other.Current.Z - origin.Z;
+                temporary = TemporaryLongVector(temporary, 16, dx, dy, dz);
+                NativeBattleVector direction = NativeBattlePoseMatrices.NormalizeLong56BD20(dx, dy, dz);
+                temporary = TemporaryPoint(temporary, 0, direction);
                 bank = bank with { Origin = origin, Accumulator = distance, Current = Subtract(other.Current, ScaleQ12(direction, distance)) };
                 break;
             }

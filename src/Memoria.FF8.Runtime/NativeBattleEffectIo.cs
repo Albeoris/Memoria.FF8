@@ -94,7 +94,7 @@ public static class NativeBattleEffectIo
         {
             throw new InvalidDataException("Native534150 was not selected by the actual effect initializer.");
         }
-        return CompleteDescriptor(memory, resolveSource ?? ReadArena, false);
+        return CompleteDescriptor(memory, resolveSource ?? ReadArena, null);
 
         NativeBattleEffectHeapAllocation ReadArena(uint address, int? length)
         {
@@ -114,10 +114,20 @@ public static class NativeBattleEffectIo
         {
             throw new InvalidDataException("Native6C3580 was not selected by the actual6C3560 initializer.");
         }
-        return CompleteDescriptor(memory, resolveSource, true);
+        return CompleteDescriptor(memory, resolveSource, _ => [NativeBattleEffectNodeMemory.ArenaAddress + 0x2C6A4, NativeBattleEffectNodeMemory.ArenaAddress + 0x348C4, NativeBattleEffectNodeMemory.ArenaAddress + 0x38AE4]);
     }
 
-    private static NativeBattleEffectIoCompletion CompleteDescriptor(NativeBattleEffectMemory memory, Func<uint, int?, NativeBattleEffectHeapAllocation> resolveSource, bool quezacotl)
+    public static NativeBattleEffectIoCompletion Complete689810(NativeBattleEffectMemory memory, Func<uint, int?, NativeBattleEffectHeapAllocation> resolveSource)
+    {
+        NativeBattleEffectIoState io = memory.EffectIo ?? throw new NotSupportedException("Native689810 requires its retained callback/controller pointers.");
+        if (io.Callback != 0x689810)
+        {
+            throw new InvalidDataException("Native689810 was not selected by the actual6897F0 initializer.");
+        }
+        return CompleteDescriptor(memory, resolveSource, pointer => [pointer, unchecked(pointer + 0x4220)]);
+    }
+
+    private static NativeBattleEffectIoCompletion CompleteDescriptor(NativeBattleEffectMemory memory, Func<uint, int?, NativeBattleEffectHeapAllocation> resolveSource, Func<uint, ImmutableArray<uint>>? type16Textures)
     {
         NativeBattleEffectIoState io = memory.EffectIo ?? throw new NotSupportedException("Native effect completion requires its retained descriptor callback owner.");
         int controller = io.ControllerOffset ?? throw new NotSupportedException("Native6C3580 requires its actual534110 current controller.");
@@ -135,14 +145,7 @@ public static class NativeBattleEffectIo
             {
                 throw new NotSupportedException("Native effect completion requires the actual505E30 upload queue.");
             }
-            if (pointer is >= 0x20DFAB8 and < 0x21DFAB8)
-            {
-                (textures, _) = textures.EnqueueArenaTim505E30(arena, checked((int)(pointer - 0x20DFAB8)));
-            }
-            else
-            {
-                (textures, _) = textures.EnqueueTim505E30(resolveSource(pointer, null));
-            }
+            EnqueueTexture(pointer);
             delay = unchecked((byte)type);
         }
         else if (type <= 4)
@@ -159,15 +162,15 @@ public static class NativeBattleEffectIo
         }
         else
         {
-            if (quezacotl && type == 0x10)
+            if (type16Textures is not null && type == 0x10)
             {
                 if (textures is null)
                 {
                     throw new NotSupportedException("Native6C3580 requires its actual505E30 upload queue.");
                 }
-                foreach (int offset in new[] { 0x2C6A4, 0x348C4, 0x38AE4 })
+                foreach (uint address in type16Textures(pointer))
                 {
-                    (textures, _) = textures.EnqueueArenaTim505E30(arena, offset);
+                    EnqueueTexture(address);
                 }
             }
             delay = 0;
@@ -179,6 +182,18 @@ public static class NativeBattleEffectIo
             memory = memory with { SummonStream = new(stream.Number, stream.SourceAddress) };
         }
         return new(memory, stream);
+
+        void EnqueueTexture(uint address)
+        {
+            if (address is >= 0x20DFAB8 and < 0x21DFAB8)
+            {
+                (textures, _) = textures!.EnqueueArenaTim505E30(arena, checked((int)(address - 0x20DFAB8)));
+            }
+            else
+            {
+                (textures, _) = textures!.EnqueueTim505E30(resolveSource(address, null));
+            }
+        }
     }
 
 }

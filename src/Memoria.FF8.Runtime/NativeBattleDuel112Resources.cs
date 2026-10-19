@@ -21,6 +21,13 @@ public sealed record NativeBattleDuel112Resources(ImmutableArray<byte> StaticDat
 
     public NativeBattleGfAnimationSource Hierarchy(uint address) => new(address, Read(address, checked((int)(EndAddress - address))));
 
+    public ImmutableArray<byte> ReadActorDat()
+    {
+        ImmutableArray<byte> bytes = Read(Address, checked((int)(0x12C5650u - Address)));
+        _ = NativeBattleDatDirectory.Section(bytes.AsSpan(), 2);
+        return bytes;
+    }
+
     public void Validate()
     {
         _ = Read(Address, checked((int)(EndAddress - Address)));

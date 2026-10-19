@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleDuel112Geometry
 {
-    public static NativeBattleFileStaging Deform6CD7F0(ReadOnlySpan<byte> source, NativeBattleFileStaging staging, uint destination, NativeBattleActionMatrix matrix, short maximumY, short rangeY, short amplitude)
+    public static NativeBattleEffectArena Deform6CD7F0(ReadOnlySpan<byte> source, NativeBattleEffectArena arena, int destination, NativeBattleActionMatrix matrix, short maximumY, short rangeY, short amplitude)
     {
         if (source.Length < 8)
         {
@@ -29,9 +29,9 @@ public static class NativeBattleDuel112Geometry
             BinaryPrimitives.WriteInt16LittleEndian(xyz, transformed.X);
             BinaryPrimitives.WriteInt16LittleEndian(xyz.AsSpan(2), transformed.Y);
             BinaryPrimitives.WriteInt16LittleEndian(xyz.AsSpan(4), unchecked((short)(transformed.Z - shift)));
-            staging = staging.Write(checked(destination + 8u * (uint)index), xyz);
+            arena = arena.Write(checked(destination + 8 * index), xyz);
         }
-        return staging;
+        return arena;
     }
 
     public static NativeBattleVector Midpoint6CD8B0(uint actor, Func<uint, byte, short, NativeBattleVector> readBone)

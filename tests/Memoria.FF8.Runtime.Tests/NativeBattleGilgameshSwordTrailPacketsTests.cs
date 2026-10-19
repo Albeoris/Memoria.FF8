@@ -70,6 +70,26 @@ public sealed class NativeBattleGilgameshSwordTrailPacketsTests
         Assert.Equal(68, 32 + result.PoolCursorAdvance);
     }
 
+    [Fact]
+    public void ScratchObserverReportsRejectedFlagsWithoutReplacingPriorDepthOrColor()
+    {
+        NativeBattleGilgameshSwordTrailState state = Curves();
+        state = state with { Memory = Point(state.Memory, NativeBattleGilgameshSwordTrailState.CurveB, 1, new(100, 0, -4000)) };
+        List<NativeBattleSwordTrailObservation> observations = [];
+        NativeBattleGilgameshSwordTrailPacketResult observed = NativeBattleGilgameshSwordTrailPackets.Emit(state, View(), Projection(), Registers(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0x3A303090, observations.Add);
+        Assert.Equal(JsonSerializer.Serialize(Emit(state)), JsonSerializer.Serialize(observed));
+        Assert.Equal(30, observations.Count);
+        Assert.Equal(562u, observations[0].AverageDepth);
+        Assert.Equal(0x3A303090u, observations[0].PreviousColor);
+        Assert.Equal(0x3A303090u, observations[0].EndColor);
+        Assert.NotEqual(0u, observations[1].FirstThreeFlags & 0x60000);
+        Assert.Null(observations[1].AverageDepth);
+        Assert.Null(observations[1].EndColor);
+        Assert.Equal(0x3A303090u, observations[2].PreviousColor);
+        Assert.Equal(750u, observations[2].AverageDepth);
+        Assert.Equal(NativeBattleGteColorInterpolation.CodeConstants45F270.Interpolate(0x3A303090, 2 * 4096 / 30, 0), observations[2].EndColor);
+    }
+
     private static NativeBattleGilgameshSwordTrailPacketResult Emit(NativeBattleGilgameshSwordTrailState state) => NativeBattleGilgameshSwordTrailPackets.Emit(state, View(), Projection(), Registers(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0x3A303090);
     private static NativeBattleActionMatrix View() => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 3000, 4096);
     private static NativeBattleCameraProjection Projection() => new(null, 288, 160, 108);

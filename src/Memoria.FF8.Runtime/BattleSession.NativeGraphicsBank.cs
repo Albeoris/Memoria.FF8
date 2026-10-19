@@ -31,6 +31,7 @@ public sealed partial class BattleSession
         NativeStage = NativeStage?.Reset506C50();
         if (NativeEffectMemory is { } effectMemory)
         {
+            NativeFileStaging = NativeBattleTemporaryMemory.Reset5082F0(NativeFileStaging ?? NativeBattleFileStaging.Unknown());
             //500870 calls501160: DB8 is reset, while the pending DB4 field is retained.
             NativeEffectMemory = effectMemory.InitializeReturnedTask500870() with { ScriptedGraphics = effectMemory.ScriptedGraphics?.InitializeGeom56BAA0(), SoundPublishedFlags = 0, Textures = effectMemory.Textures?.Initialize500400(), SummonStream = (effectMemory.SummonStream ?? NativeBattleSummonStreamState.Unknown()).Reset501160() };
         }

@@ -1,0 +1,40 @@
+using System.Collections.Immutable;
+
+namespace Memoria.FF8.Runtime;
+
+public sealed partial record NativeBattleFileStaging
+{
+    public NativeBattleFileStaging MarkUnknown(uint address, int length)
+    {
+        if (length < 0 || (ulong)address + (uint)length > (ulong)uint.MaxValue + 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(length));
+        }
+        if (length == 0)
+        {
+            return this;
+        }
+        NativeBattleFileStaging current = address < BaseAddress ? Rebase(address) : this;
+        int first = current.Offset(address);
+        int end = checked(first + length);
+        ImmutableArray<NativeBattleEffectMemoryRegion>.Builder known = ImmutableArray.CreateBuilder<NativeBattleEffectMemoryRegion>();
+        foreach (NativeBattleEffectMemoryRegion region in current.KnownRanges)
+        {
+            int regionEnd = checked(region.Offset + region.Data.Length);
+            if (regionEnd <= first || region.Offset >= end)
+            {
+                known.Add(region);
+                continue;
+            }
+            if (region.Offset < first)
+            {
+                known.Add(new(region.Offset, region.Data.Slice(0, first - region.Offset)));
+            }
+            if (regionEnd > end)
+            {
+                known.Add(new(end, region.Data.Slice(end - region.Offset, regionEnd - end)));
+            }
+        }
+        return (current with { KnownRanges = known.ToImmutable() }).InvalidateResourcePointers(address, length);
+    }
+}

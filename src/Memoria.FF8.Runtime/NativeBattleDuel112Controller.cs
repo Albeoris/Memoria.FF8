@@ -85,7 +85,7 @@ public static class NativeBattleDuel112Controller
                     if (targets.Slots.Any(candidate => (candidate.Flags & 1) == 0))
                     {
                         (targets, int targetSlot) = targets.Append(0x6CBF90);
-                        targets = targets with { Slots = targets.Slots.SetItem(targetSlot, targets.Slots[targetSlot] with { Payload = new byte[0xF48 - 12].ToImmutableArray(), ResourcePointers = null }) };
+                        targets = targets with { Slots = targets.Slots.SetItem(targetSlot, targets.Slots[targetSlot] with { Payload = new byte[0xF48 - 12].ToImmutableArray(), ResourcePointers = null, UnknownPayloadRanges = null }) };
                         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, targets) } };
                         frame = initializeTarget(frame, targetSlot, sequence);
                         task = task.WriteByte(14, unchecked((byte)(sequence + 1)));
@@ -133,4 +133,21 @@ public static class NativeBattleDuel112Controller
     }
 
     private static NativeBattleFileStaging Dword(NativeBattleFileStaging staging, uint address, uint value) => staging.Write(address, BitConverter.GetBytes(value));
+
+    public static NativeBattleOriginalEffectState WriteCompletionByte(NativeBattleOriginalEffectState effect, uint address, byte value)
+    {
+        uint delta = unchecked(address - (Arena + 0xF48));
+        if (effect.Binding.Entry != 0x6CBBE0 || effect.Pools.Length != 5 || delta >= 16 * 48 || delta % 48 != 14)
+        {
+            throw new InvalidDataException("Native Duel completion requires its actual inline texture-task byte.");
+        }
+        NativeBattleEffectTaskPool pool = effect.Pools[4];
+        int slot = (int)(delta / 48);
+        NativeBattleModulePoolTask task = pool.Slots[slot];
+        if (pool.BankAddress != Arena + 0xF48 || pool.DescriptorAddress != 0x2521920 || task.Callback != 0x6CD870 || (task.Flags & 1) == 0)
+        {
+            throw new InvalidDataException("Native Duel completion lost its active physical texture task.");
+        }
+        return effect with { Pools = effect.Pools.SetItem(4, pool with { Slots = pool.Slots.SetItem(slot, task.WriteByte(14, value)) }) };
+    }
 }

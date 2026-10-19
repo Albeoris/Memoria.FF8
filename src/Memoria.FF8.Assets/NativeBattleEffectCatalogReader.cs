@@ -310,6 +310,29 @@ public sealed partial class GameAssets
                 binding = binding with { Shot193Resources = ReadNativeShot193Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 112)
+            {
+                if (binding.Entry != 0x6CBBE0 || binding.Initializer != 0x6CBBF0 || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag111.tim", 0x25218E4))
+                {
+                    throw new InvalidDataException("Native Duel112 differs from its original entry and texture publication.");
+                }
+                binding = binding with { Duel112Resources = ReadNativeDuel112Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 200)
+            {
+                if (binding.Entry != 0x6391D0 || binding.Initializer != 0x575530 || binding.InitializerIsRet != true)
+                {
+                    throw new InvalidDataException("Native No Mercy differs from its original entry and empty initializer.");
+                }
+                binding = binding with { NoMercy200Resources = ReadNativeNoMercy200Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 164)
+            {
+                binding = binding with { BlastingZone164Resources = ReadNativeBlastingZone164Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 163)
             {
                 binding = binding with { RoughDivide163Resources = ReadNativeRoughDivide163Resources() };
@@ -318,6 +341,11 @@ public sealed partial class GameAssets
             if (binding.Effect == 84)
             {
                 binding = binding with { AngelWing84Resources = ReadNativeAngelWing84Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 86)
+            {
+                binding = binding with { Rinoa86Resources = ReadNativeRinoa86Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
             if (binding.Effect == 198)

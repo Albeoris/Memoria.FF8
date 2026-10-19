@@ -83,7 +83,7 @@ public sealed record NativeBattleEffectHierarchy([property: JsonRequired] Immuta
         byte[] bytes = child.Payload.ToArray();
         //IDIV-style division is exact here because the admitted allocation size is at least12.
         bytes.AsSpan(0, (requestedBytes - 12) / 4 * 4).Clear();
-        child = child with { Payload = bytes.ToImmutableArray() };
+        child = (child with { Payload = bytes.ToImmutableArray() }).WithoutResourcePointers(12, (requestedBytes - 12) / 4 * 4).WithoutUnknownPayload(12, (requestedBytes - 12) / 4 * 4);
         if (parentAddress == 0)
         {
             child = child.WriteDword(0x18, 0).WriteDword(0x14, 0).WriteDword(0x10, address);
@@ -148,21 +148,31 @@ public sealed record NativeBattleEffectHierarchy([property: JsonRequired] Immuta
 
 public static class NativeBattleEffectTaskPayload
 {
-    public static byte ReadByte(this NativeBattleModulePoolTask task, int offset) => task.Payload[offset - 12];
+    public static byte ReadByte(this NativeBattleModulePoolTask task, int offset)
+    {
+        task.RequireKnownPayload(offset, 1);
+        return task.Payload[offset - 12];
+    }
 
-    public static uint ReadDword(this NativeBattleModulePoolTask task, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan().Slice(offset - 12));
+    public static uint ReadDword(this NativeBattleModulePoolTask task, int offset)
+    {
+        task.RequireKnownPayload(offset, 4);
+        return BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan().Slice(offset - 12));
+    }
 
     public static NativeBattleModulePoolTask WriteByte(this NativeBattleModulePoolTask task, int offset, byte value)
     {
+        task.RequirePayloadRange(offset, 1);
         byte[] bytes = task.Payload.ToArray();
         bytes[offset - 12] = value;
-        return (task with { Payload = bytes.ToImmutableArray() }).WithoutResourcePointers(offset, 1);
+        return (task with { Payload = bytes.ToImmutableArray() }).WithoutResourcePointers(offset, 1).WithoutUnknownPayload(offset, 1);
     }
 
     public static NativeBattleModulePoolTask WriteDword(this NativeBattleModulePoolTask task, int offset, uint value)
     {
+        task.RequirePayloadRange(offset, 4);
         byte[] bytes = task.Payload.ToArray();
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(offset - 12), value);
-        return (task with { Payload = bytes.ToImmutableArray() }).WithoutResourcePointers(offset, 4);
+        return (task with { Payload = bytes.ToImmutableArray() }).WithoutResourcePointers(offset, 4).WithoutUnknownPayload(offset, 4);
     }
 }
