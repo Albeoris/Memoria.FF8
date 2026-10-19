@@ -97,17 +97,23 @@ internal sealed partial class GameWorld
 
     internal ActorVisual CreateVisual(ActorState actor)
     {
+        return CreateVisual(actor, true);
+    }
+
+    private ActorVisual CreateVisual(ActorState actor, bool resolveNativeDrawing, bool? inspectionVisible = null)
+    {
         DebugActorView? view = session.State.DebugView?.Actors.GetValueOrDefault(actor.ObjectId);
         bool patched = modActors.TryGetValue(actor.ObjectId, out var mod) && IsActorPatchActive(mod.Patch);
         int modelId = patched ? mod.ModelId : actor.RenderModelId;
         bool inheritedVisible = view?.Visible ?? actor.Active && (patched || actor.Visible);
-        bool visible = (inspectionObjects.TryGetValue(actor.ObjectId, out bool inspectedVisible) ? inspectedVisible : inheritedVisible) && !Events.IsNativeModelDrawPending;
-        if (visible && actor.NativeEyes?.Patch is not null)
+        bool visible = (inspectionVisible ?? (inspectionObjects.TryGetValue(actor.ObjectId, out bool inspectedVisible) ? inspectedVisible : inheritedVisible)) && !Events.IsNativeModelDrawPending;
+        bool validateNativeDrawing = resolveNativeDrawing && (visible || inspectionVisible is true);
+        if (validateNativeDrawing && actor.NativeEyes?.Patch is not null)
         {
             // TODO(TD-015): project the authenticated native VRAM eye copy.
             throw new NotSupportedException("Drawing a native eye VRAM copy is not implemented; its authenticated headless state is retained.");
         }
-        IReadOnlyDictionary<int, Vector3>? translations = visible && modelId >= 0 && !patched ? Events.GetNativeModelPartTranslations(actor.ObjectId) : null;
+        IReadOnlyDictionary<int, Vector3>? translations = validateNativeDrawing && modelId >= 0 && !patched ? Events.GetNativeModelPartTranslations(actor.ObjectId) : null;
         int animationId = view?.AnimationId ?? (patched ? mod.Patch.AnimationId : actor.AnimationId);
         float frame = view?.Frame ?? (patched ? Events.Frame % presentationField!.GetAnimationFrameCount(modelId, animationId) : actor.AnimationFrame);
         return new ActorVisual(actor.ObjectId, modelId, view?.X ?? actor.X + actor.DisplayOffset.X, view?.Y ?? actor.Y + actor.DisplayOffset.Y, view?.Z ?? actor.Z + actor.DisplayOffset.Z, patched ? mod.Patch.Direction ?? actor.Direction : actor.Direction, animationId, frame, visible, RootTranslationZ: actor.RootTranslationZ, FirstControlRotation: patched ? null : actor.FirstControlRotation, AdditionalControlDisabled: !patched && actor.AdditionalControlDisabled, PolygonColor: actor.PolygonColor, GroundShadowRadius601To608: actor.NativeShadowSet?.Radius601To608, GroundShadowLevel609: actor.NativeShadowLevel?.Level609 ?? actor.NativeShadowAllocation?.Level609, GroundShadowCentre: new Vector3(actor.X, actor.Y, actor.Z), GroundShadowRadii601To608: actor.NativeShadowForm?.Radii601To608, SkinTranslations: translations, PrimitiveTransparencyEnabled: actor.PrimitiveTransparencyEnabled);

@@ -47,7 +47,7 @@ internal sealed partial class GameWorld
         }
         foreach (ActorState actor in Events.Actors)
         {
-            var visual = CreateVisual(actor);
+            var visual = CreateVisual(actor, false);
             bool patched = modActors.TryGetValue(actor.ObjectId, out var mod);
             string modelName = visual.ModelId >= 0 && visual.ModelId < presentationField!.Models.Count ? presentationField.Models[visual.ModelId].Name : "no model";
             entries.Add(new($"object:{actor.ObjectId}", SceneInspectorKind.Object, $"Object {actor.ObjectId} / {modelName}", visual.Visible,
@@ -97,7 +97,11 @@ internal sealed partial class GameWorld
                 inspectionBackgrounds[new(int.Parse(parts[1]), int.Parse(parts[2]), int.Parse(parts[3]))] = enabled;
                 break;
             case SceneInspectorKind.Object:
-                inspectionObjects[int.Parse(parts[1])] = enabled;
+                int objectId = int.Parse(parts[1]);
+                ActorState actor = Events.Actors.Single(actor => actor.ObjectId == objectId);
+                // Validate the proposed presentation before publishing an override to the inspector and renderer.
+                CreateVisual(actor, true, enabled);
+                inspectionObjects[objectId] = enabled;
                 break;
             case SceneInspectorKind.Event:
                 var key = (int.Parse(parts[1]), int.Parse(parts[2]));

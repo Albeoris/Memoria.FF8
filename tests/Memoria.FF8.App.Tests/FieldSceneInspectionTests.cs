@@ -12,6 +12,61 @@ namespace Memoria.FF8.App.Tests;
 public sealed class FieldSceneInspectionTests
 {
     [Fact]
+    public void Registration_only_frame_cannot_defer_visibility_validation_until_the_next_callback()
+    {
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.FieldSceneInspection.1")));
+        using GameWorld world = new(session, TestResources.GameDirectory);
+        world.EnsureField();
+        FieldAssets field = world.Field!;
+        world.Events.LoadField(field.Id, field.Jsm, [], nativeRuntimeProfile: world.Events.NativeRuntimeProfile);
+        world.Events.Step();
+        Assert.True(world.Events.IsNativeModelDrawPending);
+        NativeFieldModelInstance instance = world.Events.Scene.ModelParts!.Instances.First();
+        string id = $"object:{instance.ObjectId}";
+        JsonElement before = world.Events.Capture();
+
+        Assert.Throws<NotSupportedException>(() => world.ApplySceneInspection(new(id, true)));
+
+        Assert.True(JsonElement.DeepEquals(before, world.Events.Capture()));
+        SceneInspectorEntry entry = Assert.Single(world.ReadSceneInspection()!.Entries, entry => entry.Id == id);
+        Assert.False(entry.Enabled);
+        Assert.Contains("Temporary visibility: inherited", entry.Details);
+        world.ApplySceneInspection(new(Reset: true));
+        Assert.True(JsonElement.DeepEquals(before, world.Events.Capture()));
+    }
+
+    [Fact]
+    public void Unavailable_native_actor_cannot_poison_inspector_refresh_rendering_or_reset()
+    {
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.FieldSceneInspection.1")));
+        using GameWorld world = new(session, TestResources.GameDirectory);
+        world.EnsureField();
+        Assert.True(world.Events.NativeRuntimeProfile is { IsVerified: true });
+        NativeFieldModelPartsState bank = Assert.IsType<NativeFieldModelPartsState>(world.Events.Scene.ModelParts);
+        ActorState actor = world.Events.Actors.First(actor => (!actor.Active || !actor.Visible) && actor.RenderModelId >= 0 && !bank.Instances.Any(instance => instance.ObjectId == actor.ObjectId));
+        string id = $"object:{actor.ObjectId}";
+        JsonElement before = world.Events.Capture();
+        byte[] baseline = world.Render(TimeSpan.Zero).ToArray();
+        SceneInspectorController inspector = new(world.ReadSceneInspection, world.ApplySceneInspection, () => { });
+        inspector.SetKind(SceneInspectorKind.Object);
+        inspector.Select(Array.FindIndex(inspector.Entries.ToArray(), entry => entry.Id == id));
+        Assert.Equal(id, inspector.Selected!.Id);
+
+        inspector.ToggleSelected();
+
+        Assert.Contains("Cannot apply override:", inspector.Message);
+        Assert.False(inspector.Selected!.Enabled);
+        Assert.Contains("Temporary visibility: inherited", inspector.Selected.Details);
+        Assert.False(world.CreateVisual(actor).Visible);
+        Assert.Equal(baseline, world.Render(TimeSpan.Zero));
+        Assert.True(JsonElement.DeepEquals(before, world.Events.Capture()));
+        inspector.ResetAll();
+        Assert.False(inspector.Selected!.Enabled);
+        Assert.Equal(baseline, world.Render(TimeSpan.Zero));
+        Assert.True(JsonElement.DeepEquals(before, world.Events.Capture()));
+    }
+
+    [Fact]
     public void Loaded_scene_inventory_matches_original_layers_objects_and_scripts_without_changing_vm_state()
     {
         GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.FieldSceneInspection.1")));
