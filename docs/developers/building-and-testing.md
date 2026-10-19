@@ -41,10 +41,12 @@ Ordinary builds use the checked-in compiled title shader. Shader regeneration an
 ## Distribution checks
 
 ```powershell
-./Build.ps1 -Test
+./Build.ps1
 ```
 
-This runs the published-resource check plus launcher, UI and runtime tests. It does not run every optional integration or gameplay acceptance check. Both normal and test builds validate the distribution before creating the ZIP.
+This validates published resources and the completed distribution before creating the ZIP, including compatibility with the frozen first automatic updater.
+
+The optional `-Test` switch adds Remastered, launcher, selected Remastered App, UI and the entire Runtime.Tests project. Runtime.Tests includes battle-effect tests, so this switch is a broad test run rather than the default check for a focused change. Run focused tests separately when only part of that selection is relevant or authorized. It does not run every optional integration or gameplay acceptance check.
 
 GitHub Actions runs this build on pushes to `main` and on `v*` tags. A successful `main` build updates the `nightly` prerelease; a version tag publishes its corresponding release. The Windows runner supplies the SDK.
 
@@ -54,7 +56,7 @@ Tests use executable runners. Most projects use xUnit; `Memoria.FF8.Events.Tests
 
 ```powershell
 dotnet run --project tests/Memoria.FF8.Ui.Tests -c Release
-dotnet run --project tests/Memoria.FF8.Runtime.Tests -c Release
+dotnet run --project tests/Memoria.FF8.Runtime.Tests -c Release -- --filter-class '*NativePcSaveCompressionTests'
 dotnet run --project tests/Memoria.FF8.App.Tests -c Release -- --filter-class '*MediaToolsInstallationTests'
 ```
 
@@ -71,6 +73,8 @@ dotnet run --project tests/Memoria.FF8.App.Tests -c Release -- --filter-class '*
 | `Memoria.FF8.Remastered.Tests` | Optional synthetic and installed Remastered resource checks. |
 
 Some tests require a locally supplied game or a specific fixture. A skipped optional test does not establish support for its scenario. The separate [acceptance tool](../../tests/Memoria.FF8.Acceptance/Memoria.FF8.Acceptance.csproj) also requires external tooling and inputs; it is not a portable game test included in `Build.ps1 -Test`.
+
+Choose filters for the contract being changed; the examples are not a mandatory checklist. Battle-effect tests must be limited to affected effects unless the user explicitly requests other tests. A complete effect-suite run requires changes affecting all effects or an explicit request for that complete suite. Aggregate commands and shared infrastructure changes do not override that scope. Documentation-only changes need document, link and diff checks rather than engine builds or gameplay runs.
 
 ## Optional local inputs
 

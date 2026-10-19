@@ -53,8 +53,10 @@ Follow [Installation and first launch](docs/players/getting-started.md) for requ
 From a source checkout, use Windows, PowerShell 7 and the .NET 10 SDK:
 
 ```powershell
-./Build.ps1 -Test
+./Build.ps1
 ```
+
+This validates and packages the distribution. Run focused tests for the changed contract separately; see [Build and test](docs/developers/building-and-testing.md). The optional `-Test` switch runs broader checks, including the entire Runtime.Tests project and its battle-effect tests.
 
 GitHub Actions serializes packaging by commit SHA. Main pushes, version tags and manual reruns reuse the same tested distribution, including when a tag is pushed after its main build finishes. Release and nightly publication both use that ZIP. Failed builds can be retried; a successful build is not repeated after an upload or publication failure.
 
