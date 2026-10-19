@@ -77,6 +77,8 @@ public sealed class WorldMapSceneTests
         string directory = GameDirectory();
         var session = ComponentSession();
         using var scene = new WorldMapScene(session, directory);
+        Assert.Equal(24, scene.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 24)).FramesAdvanced);
+        Assert.Equal((24576, -29406), (scene.State.X, scene.State.Z));
         session.SetWorldState(scene.State with { CameraYaw = 0, BodyYaw = 1024 });
 
         PlayerActionResult move = scene.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1));

@@ -268,5 +268,6 @@ public sealed class NativeCarWorldTests
         session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
         session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
         session.InitializeNewGameSalaryTable(assets.ReadNativeSalaryTable());
+        session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
     }
 }

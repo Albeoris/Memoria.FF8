@@ -74,15 +74,29 @@ public sealed class NativeTrainRideTests
         Assert.Equal(salaryCounter, session.SeeD.SalaryMovementCounter);
     }
 
-    [Fact]
-    public void LoaderUsesRealByte103TrackMaskAndCannotBorrowModeTwoEndpointSemantics()
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(1, 0)]
+    public void LoaderCopiesFieldByte265ToWorldHeader103ForTrackMaskAndCannotBorrowModeTwoEndpointSemantics(byte field265, byte field103)
     {
         Assert.SkipUnless(Directory.Exists(GameDirectory), "Installed original world resources are required.");
         using GameAssets initialization = new(GameDirectory);
         GameSession session = CreateComponent(initialization);
-        session.SetWorldControls(session.WorldControls! with { EventFlags103 = 1 });
+        session.SetWorldControls(session.WorldControls! with { EventFlags103 = field103 });
+        session.SetWorldEntryMemory(session.WorldEntryMemory!.WriteBytes(265, 1, field265));
         using PreparedWorldEntry ticket = WorldEntryPreflight.Prepare(session.State, GameDirectory, new(64, 16, -1));
-        Assert.Null(ticket.InitialState.NativeTrainRuntime!.Alternate);
+        NativeTrainWorldRuntimeState train = ticket.InitialState.NativeTrainRuntime!;
+        Assert.Equal(field265, train.Load.Allocation.EventFlags103);
+        Assert.Equal(0, train.Primary.TrackIndex);
+        if (field265 == 0)
+        {
+            Assert.NotNull(train.Alternate);
+            Assert.Equal(1, train.Alternate.TrackIndex);
+        }
+        else
+        {
+            Assert.Null(train.Alternate);
+        }
         Assert.Null(ticket.InitialState.NativeScriptedRuntime);
         Assert.Throws<NotSupportedException>(() => WorldEntryPreflight.Prepare(session.State, GameDirectory, new(64, 16, 53)));
         Assert.Equal(SceneKind.Field, session.State.Scene);
@@ -98,7 +112,7 @@ public sealed class NativeTrainRideTests
         var car = NativeCarWorldRuntimeState.Create(initial, NativeWorldGroundCacheState.CreateFresh(new(0, 0, 0, 0)), NativeWorldProcess.FromColdProcess());
         var previous = new WorldState { Frame = 500, X = 12390, Z = -26709, NativeHeight = -301, BodyYaw = 2256, CameraYaw = 2256, NativeCarRuntime = car };
         NativeSavedWorldCarReturn receipt = NativeSavedWorldCarReturn.Create(previous, 262, 40, 1);
-        GameState departure = session.State with { Scene = SceneKind.Field, FieldId = 265, EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int>() { [256] = 290 }), CharacterVitals = assets.ReadNewGameCharacterVitals(), Economy = assets.ReadNewGameEconomy(), DepartingWorldState = previous, SavedWorld = initial.WithOrdinaryCarEntry().WithCarReturn(receipt) };
+        GameState departure = session.State with { Scene = SceneKind.Field, FieldId = 265, FieldLoadContext = null, WorldEntryMemory = session.State.WorldEntryMemory!.WriteBytes(256, 2, 290), CharacterVitals = assets.ReadNewGameCharacterVitals(), Economy = assets.ReadNewGameEconomy(), DepartingWorldState = previous, SavedWorld = initial.WithOrdinaryCarEntry().WithCarReturn(receipt) };
         session.Restore(departure);
         return session;
     }

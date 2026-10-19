@@ -18,6 +18,7 @@ public sealed class WorldForestMovementTests
     {
         GameSession session = ComponentSession();
         using WorldMapScene scene = new(session, GameDirectory());
+        Assert.True(scene.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: NativeWorldEntryControl.DelayAfterCallback(scene.State.Frame, 0))).Accepted);
         PlaceDiagnosticFoot(session, scene, 18381, -68272);
         scene.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Frames: 8));
         Assert.NotEqual(18381, scene.State.X);
@@ -84,8 +85,25 @@ public sealed class WorldForestMovementTests
         session.StartNewGame();
         using GameWorld world = new(session, GameDirectory());
         world.EnsureField();
-        session.Restore(session.State with { Scene = SceneKind.WorldMap, WorldArrival = new WorldTransition(0, 0, 0) });
+        for (int callback = 0; callback < 8 && world.Events.Scene.WorldMusicSelection is null; callback++)
+        {
+            Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
+        }
+        Assert.Equal(SceneKind.Field, session.State.Scene);
+        NativeWorldMusicSelection selection = Assert.IsType<NativeWorldMusicSelection>(world.Events.Scene.WorldMusicSelection);
+        Assert.Equal(NativeWorldMusicSelectionOrigin.ExecutedClear, selection.Origin);
+        // Component entry executes the native music loader without claiming a traveled field departure.
+        using WorldAssets assets = new(GameDirectory());
+        WorldTransition packet = new(0, 0, 0);
+        Action commitMusic = world.Events.PrepareWorldMusic(packet, assets.ReadMusicResource, assets.ReadMusicFileResource);
+        session.RequestWorld(packet);
+        commitMusic();
+        NativeWorldMusicLoad music = Assert.IsType<NativeWorldMusicLoad>(world.Events.Scene.WorldMusicLoad);
+        Assert.Equal(NativeWorldMusicOperation.Stop, music.Operation);
+        Assert.Equal(packet, music.Packet);
+        session.SetEventState(world.Events.Capture());
         world.EnsureField();
+        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: NativeWorldEntryControl.DelayAfterCallback(world.WorldScene!.State.Frame, 0))).Accepted);
         PlaceDiagnosticFoot(session, world.WorldScene!, 10866, -80300);
         PlayerActionResult result = world.Apply(new PlayerAction(PlayerActionKind.Wait));
         Assert.Equal(PlayerTriggerKind.FieldTransition, result.Trigger.Kind);
