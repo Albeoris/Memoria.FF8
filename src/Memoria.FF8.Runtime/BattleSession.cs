@@ -209,7 +209,7 @@ public sealed partial class BattleSession
         {
             throw new ArgumentOutOfRangeException(nameof(maxFrames));
         }
-        HashSet<string> waiting = combatants.Where(actor => IsNativeBattleCapable(actor) && !actor.Suspended && !actor.IsBusy && !actor.IsReady).Select(actor => actor.Id).ToHashSet(StringComparer.Ordinal);
+        HashSet<string> waiting = combatants.Where(actor => IsNativeBattleCapable(actor) && !actor.Suspended && (!actor.IsBusy || guardianForceCasts.ContainsKey(actor.Id) && (actor.NativeCombatantFlags & 0x400) == 0) && !actor.IsReady).Select(actor => actor.Id).ToHashSet(StringComparer.Ordinal);
         if (!CanExplicitlyAdvanceTurn || waiting.Count == 0)
         {
             return 0;

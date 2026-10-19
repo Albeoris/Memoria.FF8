@@ -7,6 +7,115 @@ namespace Memoria.FF8.Battle.Tests;
 public sealed class GuardianForceCastTests
 {
     [Fact]
+    public void Turn_based_pass_waits_for_the_native_charge_pause_to_release_when_no_other_turn_can_progress()
+    {
+        BattleDefinition original = CreateTurnBasedWithReadyAlly(350).Capture().Definition;
+        BattleDefinition definition = original with { Combatants = original.Combatants.Select(actor => actor.Id == "enemy" ? actor with { InitialAtb = BattleSession.AtbMaximum } : actor.Id == "player" ? actor with { NativeCombatantFlags = actor.NativeCombatantFlags | 0x400 } : actor).ToArray() };
+        BattleSession session = new(definition, BattleAtbMode.TurnBased);
+        session.QueueAction("player", "enemy", BattleAbility.GuardianForce, 0);
+        session.QueueAttack("enemy", "ally");
+        BattleSnapshot paused = session.Capture();
+
+        Assert.Equal(0, session.AdvanceTurn());
+        Assert.Equal(JsonSerializer.Serialize(paused), JsonSerializer.Serialize(session.Capture()));
+
+        BattleCombatantSnapshot caster = paused.Combatants[0];
+        session = BattleSession.Restore(paused with { Combatants = [caster with { NativeParticipant = caster.NativeParticipant! with { NativeCombatantFlags = caster.NativeParticipant.NativeCombatantFlags!.Value & ~0x400u } }, .. paused.Combatants.Skip(1)] });
+        Assert.Equal(20, session.AdvanceTurn());
+        Assert.Equal((ushort)0, Assert.Single(session.GuardianForceCasts).RemainingTicks);
+    }
+
+    [Theory]
+    [InlineData(0u, 20)]
+    [InlineData(2u, 14)]
+    [InlineData(4u, 40)]
+    public void Turn_based_charge_automatically_reaches_its_turn_when_nobody_else_is_ready(uint statuses, int expectedFrames)
+    {
+        BattleSession session = Create(compatibility: 350, statuses: statuses);
+        session.SetMode(BattleAtbMode.TurnBased);
+        session.QueueAction("player", "enemy", BattleAbility.GuardianForce, 0);
+        BattleSession restored = BattleSession.Restore(session.Capture());
+
+        session.Tick();
+        restored.Tick();
+
+        Assert.Equal(expectedFrames, session.Frame);
+        Assert.Empty(session.GuardianForceCasts);
+        Assert.Equal(BattleAbility.GuardianForce, Assert.Single(session.QueuedActions).Ability);
+        Assert.Null(session.ActiveAction);
+        Assert.Equal(expectedFrames, session.Combatants.Single(actor => actor.Id == "enemy").Atb);
+        Assert.Single(session.Events, item => item.Kind == "GuardianForceReady");
+        Assert.Equal(JsonSerializer.Serialize(session.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Turn_based_pass_counts_charge_as_the_next_turn_when_every_other_unready_actor_is_busy(bool windup)
+    {
+        BattleDefinition original = CreateTurnBasedWithReadyAlly(350).Capture().Definition;
+        BattleSession session = new(original with { Combatants = original.Combatants.Select(actor => actor.Id == "enemy" ? actor with { InitialAtb = BattleSession.AtbMaximum } : actor).ToArray() }, BattleAtbMode.TurnBased);
+        session.QueueAction("player", "enemy", BattleAbility.GuardianForce, 0);
+        session.QueueAttack("enemy", "ally");
+        if (windup)
+        {
+            session.Tick();
+        }
+        BattleSnapshot before = session.Capture();
+        Assert.All(session.Combatants.Where(actor => !actor.IsReady), actor => Assert.True(actor.IsBusy));
+        Assert.Equal((ushort)40, Assert.Single(session.GuardianForceCasts).RemainingTicks);
+        SaveChargeSnapshot(session, windup ? "before-pass-windup" : "before-pass-queued");
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(before))!);
+
+        Assert.Equal(20, session.AdvanceTurn());
+        Assert.Equal(20, restored.AdvanceTurn());
+
+        Assert.Equal(before.Frame + 20, session.Frame);
+        Assert.Equal((ushort)0, Assert.Single(session.GuardianForceCasts).RemainingTicks);
+        Assert.True(session.Combatants.Single(actor => actor.Id == "ally").IsReady);
+        Assert.Equal(before.ActiveAction, session.ActiveAction);
+        Assert.Equal(JsonSerializer.Serialize(before.QueuedActions), JsonSerializer.Serialize(session.Capture().QueuedActions));
+        Assert.DoesNotContain(session.Events, item => item.Kind == "GuardianForceReady");
+        Assert.Equal(JsonSerializer.Serialize(session.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        SaveChargeSnapshot(session, windup ? "after-pass-windup" : "after-pass-queued");
+    }
+
+    [Fact]
+    public void Resume_the_explicit_Gf_charge_standalone_without_recreating_the_encounter()
+    {
+        string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_GF_CHARGE_SNAPSHOT");
+        Assert.SkipUnless(source is not null && File.Exists(source), "An optional standalone GF charge snapshot is required.");
+        BattleSnapshot saved = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(source!))!;
+        BattleSession session = BattleSession.Restore(saved);
+        Assert.Equal(JsonSerializer.Serialize(saved), JsonSerializer.Serialize(session.Capture()));
+        Assert.True(Assert.Single(session.GuardianForceCasts).RemainingTicks > 0);
+        BattleActionPresentation? action = session.ActiveAction;
+
+        Assert.True(session.AdvanceTurn() > 0);
+
+        Assert.Equal((ushort)0, Assert.Single(session.GuardianForceCasts).RemainingTicks);
+        Assert.Equal(action, session.ActiveAction);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(session.Capture()))!);
+        session.Tick();
+        restored.Tick();
+        Assert.Empty(session.GuardianForceCasts);
+        Assert.Single(session.Events, item => item.Kind == "GuardianForceReady");
+        Assert.Equal(JsonSerializer.Serialize(session.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        SaveChargeSnapshot(session, "resumed-charge-complete");
+    }
+
+    private static void SaveChargeSnapshot(BattleSession session, string name)
+    {
+        if (Environment.GetEnvironmentVariable("MEMORIA_FF8_GF_CHARGE_OUTPUT_DIRECTORY") is not string directory)
+        {
+            return;
+        }
+        Directory.CreateDirectory(directory);
+        using FileStream stream = new(Path.Combine(directory, name + ".battle.json"), FileMode.CreateNew, FileAccess.Write);
+        JsonSerializer.Serialize(stream, session.Capture());
+    }
+
+    [Fact]
     public void Turn_based_ready_ally_holds_charge_until_pass_reaches_completion_and_the_script_publishes_it()
     {
         BattleSession session = CreateTurnBasedWithReadyAlly(350);
