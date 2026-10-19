@@ -46,6 +46,18 @@ public sealed class NativeBattleDuelEchoPacketsTests
         Assert.Equal(0x00100010u, result.Context.ReadDword(40));
     }
 
+    [Fact]
+    public void NativeRejectedVertexCopiesUnknownScreenAndDepthWithoutInventingTheirValues()
+    {
+        NativeBattleDuelEchoPacketsResult result = NativeBattleDuelEchoPackets.Emit68AAE0(Context(1, 0), 12, Faces().AsSpan(0, 16).ToArray().ToImmutableArray(), _ => new(0xAABBCCDD, 0x1234, 16) { KnownBytesMask = 0xC0 }, 17, 0, 0x155, 0x100);
+        Assert.Empty(result.Batch.Attempts);
+        Assert.Throws<NotSupportedException>(() => result.Context.ReadDword(40));
+        Assert.Throws<NotSupportedException>(() => result.Context.ReadWord(44));
+        Assert.Equal(16, result.Context.ReadWord(46));
+        Assert.Throws<NotSupportedException>(() => NativeBattleDuelEchoPackets.Emit68AAE0(Context(1, 0), 12, Faces().AsSpan(0, 16).ToArray().ToImmutableArray(), _ => new(0, 0, 16) { KnownBytesMask = 0x3F }, 17, 0, 0x155, 0x100));
+        Assert.Throws<NotSupportedException>(() => NativeBattleDuelEchoPackets.Emit68AAE0(Context(1, 0), 12, Faces().AsSpan(0, 16).ToArray().ToImmutableArray(), _ => new(0, 0, 0) { KnownBytesMask = 0xC0 }, 17, 0, 0x155, 0x100));
+    }
+
     private static NativeBattleModulePoolTask Context(ushort triangles, ushort quads) => new NativeBattleModulePoolTask(1, 0, null, 0, ImmutableArray.CreateRange(new byte[88])).WriteWord(20, triangles).WriteWord(22, quads).WriteDword(32, 0x123456);
 
     private static NativeBattleDuelEchoProjectedVertex Vertex(int index) => index switch

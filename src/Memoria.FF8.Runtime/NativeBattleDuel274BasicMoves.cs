@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleDuel274MoveInputs(Func<int, NativeBattleGraphicsModel> ReadModel, Action<int, NativeBattleGraphicsModel> WriteModel, Func<int, short, NativeBattleVector> ReadBone502170, Func<int, int, NativeBattleActionMatrix> ReadBoneMatrix68A790, Func<NativeBattleDuel274Frame, uint, NativeBattleDuel274Frame> DrawEcho68A7B0, Func<NativeBattleDuel274Frame, uint, NativeBattleDuel274Frame> CaptureEcho68ADF0, Func<NativeBattleDuel274Frame, NativeBattleGfGeometryBatch, NativeBattleDuel274Frame> Submit, Func<NativeBattleDuel274Frame, NativeBattleModulePoolTask, int, short, short, short, NativeBattleDuel274Frame> Draw571C80, Func<NativeBattleDuel274Frame, NativeBattleModulePoolTask, NativeBattleDuel274Frame> Draw68B270, Func<NativeBattleDuel274Frame, int, NativeBattleDuel274Frame> Contact506690, Func<NativeBattleDuel274Frame, bool, NativeBattleDuel274Frame> Flash5712C0, Func<NativeBattleDuel274Frame, uint, NativeBattleDuel274Frame> Sound501330);
 
-public static class NativeBattleDuel274BasicMoves
+public static partial class NativeBattleDuel274BasicMoves
 {
     public static NativeBattleDuel274Frame Advance68A050(NativeBattleDuel274Frame frame, int slot, NativeBattleDuel274Resources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleDuel274MoveInputs inputs)
     {

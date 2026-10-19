@@ -6,6 +6,8 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleDuel212Resources(ImmutableArray<byte> StaticData, ImmutableArray<byte> ColdGlobals, ImmutableArray<byte> SelectorTable, ImmutableArray<NativeBattleSearchSpriteResource> Sprites, ImmutableArray<NativeBattleStaticMeshResource> Meshes, NativeBattleEffectHeapAllocation InitialTim)
 {
+    public ImmutableArray<NativeBattleEffectFileAsset> Files { get; init; }
+
     public const uint Address = 0x1181070;
     public const uint EndAddress = 0x11AC200;
 
@@ -34,6 +36,10 @@ public sealed record NativeBattleDuel212Resources(ImmutableArray<byte> StaticDat
         if (ColdGlobals.IsDefault || ColdGlobals.Length != 0x68 || SelectorTable.IsDefault || SelectorTable.Length != 80 || Sprites.IsDefault || Sprites.Length != 2 || Meshes.IsDefault || Meshes.Length != 5 || InitialTim is null || InitialTim.Data.IsDefaultOrEmpty)
         {
             throw new InvalidDataException("Native Burning Rave requires original texture, geometry, selectors and loader globals.");
+        }
+        if (Files.IsDefault || Files.Length != 2 || !Files.Select(file => file.FileId).SequenceEqual(new short[] { 360, 361 }) || Files.Any(file => file.Data.IsDefaultOrEmpty))
+        {
+            throw new InvalidDataException("Native Burning Rave requires both original reload files.");
         }
         _ = ReadActorDat();
     }

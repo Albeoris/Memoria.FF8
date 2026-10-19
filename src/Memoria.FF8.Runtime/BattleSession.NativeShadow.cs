@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState SubmitNativeShadowPackets5088A0(NativeBattleGraphicsState graphics, NativeBattleGraphicsModel model, NativeBattleCameraProjection projection, int tableBaseBucket, bool ordinaryModel)
+    private NativeBattleGraphicsState SubmitNativeShadowPackets5088A0(NativeBattleGraphicsState graphics, NativeBattleGraphicsModel model, NativeBattleCameraProjection projection, int tableBaseBucket, bool ordinaryModel, byte depthShift = 16)
     {
         if (this.definition.NativeGraphics?.PrimitiveTables is null || (model.Flags0 & 0x20) != 0)
         {
@@ -31,7 +31,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native5088A0 requires its retained packet memory.");
         NativeBattlePrimitiveProcess packets = memory.PrimitiveProcess ?? throw new NotSupportedException("Native5088A0 requires its actual common packet cursor.");
         NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native5088A0 requires its initialized OT.");
-        NativeBattleGfGeometryBatch batch = NativeBattleShadowPackets.EmitBatch5088A0(vertices, model.Color44 ?? throw new NotSupportedException("Native5088A0 requires modelDWORD44."), gouraud, tableBaseBucket, 16);
+        NativeBattleGfGeometryBatch batch = NativeBattleShadowPackets.EmitBatch5088A0(vertices, model.Color44 ?? throw new NotSupportedException("Native5088A0 requires modelDWORD44."), gouraud, tableBaseBucket, depthShift);
         NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(packets, frame.Pending, batch);
         NativeEffectMemory = memory with { PrimitiveProcess = written.Process };
         return graphics with { PrimitiveFrame = frame with { Pending = written.Ordering } };

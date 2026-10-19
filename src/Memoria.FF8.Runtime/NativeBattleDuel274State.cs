@@ -2,9 +2,12 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDuel274State([property: JsonRequired] bool ColdGlobalsPublished)
+public sealed record NativeBattleDuel274State([property: JsonRequired] bool ColdGlobalsPublished, [property: JsonRequired] bool MutableImagePublished = false)
 {
-    public static NativeBattleDuel274State FromColdProcess() => new(false);
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleDuel274Resources? Resources { get; init; }
+
+    public static NativeBattleDuel274State FromColdProcess() => new(false, false);
 }
 
 public sealed partial record NativeBattleEffectMemory

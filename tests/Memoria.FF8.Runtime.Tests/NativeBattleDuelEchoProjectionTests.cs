@@ -39,6 +39,7 @@ public sealed class NativeBattleDuelEchoProjectionTests
             bytes.AsSpan().CopyTo(cache.AsSpan(offset));
         });
         Assert.Equal(new[] { (24, 8), (32, 8), (40, 8), (54, 2) }, writes);
+        Assert.Equal((ushort)25, BinaryPrimitives.ReadUInt16LittleEndian(cache.AsSpan(28)));
         Assert.Equal((ushort)0, BinaryPrimitives.ReadUInt16LittleEndian(cache.AsSpan(30)));
         Assert.Equal((ushort)10, BinaryPrimitives.ReadUInt16LittleEndian(cache.AsSpan(38)));
         Assert.Equal((ushort)5, BinaryPrimitives.ReadUInt16LittleEndian(cache.AsSpan(46)));
@@ -48,4 +49,22 @@ public sealed class NativeBattleDuelEchoProjectionTests
         Assert.Equal(32, result.VertexBytes);
         Assert.Equal(0u, result.Context.ReadDword(44));
     }
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void PositiveSz3BelowFourStillUsesOnlyZeroQuarterDepthClipWrite(short z)
+    {
+        NativeBattleActionMatrix identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
+        NativeBattleModulePoolTask context = new(0, 0, null, 0, ImmutableArray.CreateRange(new byte[100]));
+        byte[] source = new byte[8];
+        BinaryPrimitives.WriteUInt16LittleEndian(source, 1);
+        BinaryPrimitives.WriteInt16LittleEndian(source.AsSpan(6), z);
+        List<(int Offset, ImmutableArray<byte> Bytes)> writes = [];
+        NativeBattleDuelEchoProjectionResult result = NativeBattleDuelEchoProjection.Project6A2A90(context, 12, source.ToImmutableArray(), identity, new(identity, 100, 0, 0), 0, (offset, bytes) => writes.Add((offset, bytes)));
+        Assert.Equal(6, Assert.Single(writes).Offset);
+        Assert.Equal(new byte[] { 16, 0 }, writes[0].Bytes);
+        Assert.Equal(0u, result.Context.ReadDword(44));
+    }
+
 }

@@ -40,9 +40,10 @@ public static class NativeBattleDuelEchoProjection
             int source = 2 + index * 6;
             NativeBattleVector point = new(BinaryPrimitives.ReadInt16LittleEndian(vertices.AsSpan().Slice(source)), BinaryPrimitives.ReadInt16LittleEndian(vertices.AsSpan().Slice(source + 2)), BinaryPrimitives.ReadInt16LittleEndian(vertices.AsSpan().Slice(source + 4)));
             NativeBattleModuleProjectedVertex projected = NativeBattleModuleProjection.Project45FE10(matrix, point, projection);
-            context = context.WriteDword(offset + 28, projected.Screen).WriteDword(offset + 32, projected.Depth);
+            ushort depth = (ushort)(projected.Depth >> 2);
+            context = context.WriteDword(offset + 28, projected.Screen).WriteDword(offset + 32, depth);
             int destination = checked(vertexOffset + index * 8);
-            if (projected.Depth == 0)
+            if (depth == 0)
             {
                 writeCpu(checked(destination + 6), BitConverter.GetBytes((ushort)16).ToImmutableArray());
                 continue;
@@ -54,7 +55,7 @@ public static class NativeBattleDuelEchoProjection
             context = context.WriteWord(offset + 34, clip);
             byte[] bytes = new byte[8];
             BinaryPrimitives.WriteUInt32LittleEndian(bytes, projected.Screen);
-            BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(4), projected.Depth);
+            BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(4), depth);
             BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(6), clip);
             writeCpu(destination, bytes.ToImmutableArray());
         }

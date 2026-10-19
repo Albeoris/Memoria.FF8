@@ -14,7 +14,7 @@ public static class NativeBattleDuel274Controller
         NativeBattleDuel274State state = frame.Memory.Duel274 ?? throw new NotSupportedException("Native Duel opening requires its retained process owner.");
         if (!state.ColdGlobalsPublished)
         {
-            frame = frame with { Memory = frame.Memory with { Duel274 = new(true) }, Staging = frame.Staging.Write(0x25084D8, new byte[2]) };
+            frame = frame with { Memory = frame.Memory with { Duel274 = state with { ColdGlobalsPublished = true } }, Staging = frame.Staging.Write(0x25084D8, new byte[2]) };
         }
         byte selector = parameters.Parameter80 ?? throw new NotSupportedException("Native Duel opening requires its actual selector BYTE80.");
         if (selector != 0)

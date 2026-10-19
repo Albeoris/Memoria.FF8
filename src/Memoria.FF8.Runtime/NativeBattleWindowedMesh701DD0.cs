@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleWindowedMesh701DD0Result(NativeBattleFileStaging Staging, NativeBattleGfGeometryBatch Batch);
 
-/// <summary>701DD0's reached FT4/G3/G4/GT4 leaves and its physical context suffix.</summary>
+/// <summary>701DD0's reached FT3/FT4/G3/G4/GT4 leaves and its physical context suffix.</summary>
 public static class NativeBattleWindowedMesh701DD0
 {
     public static NativeBattleWindowedMesh701DD0Result Emit(NativeBattleFileStaging staging, uint temporary, uint meshAddress, ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEsunaMeshContext context, NativeBattleSummonColors colors, Func<int, NativeBattleVector> readSelectedVertex)
@@ -25,11 +25,12 @@ public static class NativeBattleWindowedMesh701DD0
             NativeBattleModuleProjectedVertex?[] vertices = new NativeBattleModuleProjectedVertex?[4];
             NativeBattleGfGeometryBatch leaf = group switch
             {
+                2 => EmitFt3_7023B0(face, Project, context, colors, offset),
                 3 => NativeBattleRestorationMeshPackets.EmitFt4_88ECA0(face, Project, context, colors, offset),
                 4 => NativeBattleRestorationMeshPackets.EmitG3_88F220(face, Project, context, colors, offset),
                 5 => NativeBattleRestorationMeshPackets.EmitG4_88F470(face, Project, context, colors, offset),
                 7 => NativeBattleRestorationMeshPackets.EmitGt4_88FC50(face, Project, context, colors, offset),
-                _ => throw new NotSupportedException("Native701DD0 requires its reached FT4/G3/G4/GT4 polygon group.")
+                _ => throw new NotSupportedException("Native701DD0 requires its reached FT3/FT4/G3/G4/GT4 polygon group.")
             };
             if (vertices.Take(3).All(vertex => vertex is not null))
             {
@@ -58,6 +59,19 @@ public static class NativeBattleWindowedMesh701DD0
                 return value;
             }
         }
+    }
+
+    private static NativeBattleGfGeometryBatch EmitFt3_7023B0(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> project, NativeBattleEsunaMeshContext context, NativeBattleSummonColors colors, int offset)
+    {
+        NativeBattleGfGeometryBatch batch = NativeBattleRestorationMeshPackets.EmitFt3_88E820(face, project, context, colors, offset);
+        if (batch.AllocationBytes != 0)
+        {
+            return batch;
+        }
+        NativeBattleGfGeometryAttempt attempt = batch.Attempts.Single();
+        byte[] bytes = attempt.Data.ToArray();
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4), BinaryPrimitives.ReadUInt32LittleEndian(face));
+        return new([attempt with { Data = bytes.ToImmutableArray() }], 0);
     }
 
     private static NativeBattleFileStaging Dword(NativeBattleFileStaging staging, uint address, uint value) => staging.Write(address, BitConverter.GetBytes(value));

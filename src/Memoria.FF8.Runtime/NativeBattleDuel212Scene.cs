@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleDuel212Stage(int Intensity) : NativeBattleDuel212Operation;
 public sealed record NativeBattleDuel212Contacts : NativeBattleDuel212Operation;
-public sealed record NativeBattleDuel212Program(uint Address, int Offset, int Size, NativeBattleActionMatrix Basis, string Windows, string? DepthFlags, string? EmitFlags, short Depth, short SecondaryDepth, short VerticalOffset) : NativeBattleDuel212Operation;
+public sealed record NativeBattleDuel212Program(uint Address, int Offset, int Size, NativeBattleActionMatrix Basis, string Windows, string? DepthFlags, string? EmitFlags, short Depth, short SecondaryDepth, short VerticalOffset, bool Initialize) : NativeBattleDuel212Operation;
 public sealed record NativeBattleDuel212RestoreModels : NativeBattleDuel212Operation;
 public sealed record NativeBattleDuel212GroundBirths(NativeBattleVector Origin) : NativeBattleDuel212Operation;
 public sealed record NativeBattleDuel212BoneEmission(byte First, byte Second, uint PointAddress) : NativeBattleDuel212Operation;
@@ -125,7 +125,7 @@ public static partial class NativeBattleDuel212Controller
         }
         void Program(uint address, int offset, int size, NativeBattleActionMatrix basis, string windows, string? depthFlags, string? emitFlags, short depth, short secondary, short? vertical)
         {
-            Execute(new NativeBattleDuel212Program(address, offset, size, NativeBattleGfMatrices.Compose56C2F0(inputs.Drawing.View, basis), windows, depthFlags, emitFlags, depth, secondary, vertical ?? 0));
+            Execute(new NativeBattleDuel212Program(address, offset, size, NativeBattleGfMatrices.Compose56C2F0(inputs.Drawing.View, basis), windows, depthFlags, emitFlags, depth, secondary, vertical ?? 0, address == 0x11883AC ? tick == 2 : address == 0x1187F2C ? tick == 81 : address == 0x1184ACC ? tick == 84 : tick is 94 or 109));
         }
     }
 

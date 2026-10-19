@@ -52,6 +52,15 @@ public static class NativeBattleEffectCatalogReader
 
         ImmutableArray<NativeBattleEffectInitializerResource> ReadInitializer(uint address)
         {
+            if (address == 0x6897F0)
+            {
+                ReadOnlySpan<byte> special = Bytes(address, 29);
+                if (special[0] != 0x68 || special[5] != 0xC7 || special[6] != 5 || BinaryPrimitives.ReadUInt32LittleEndian(special[7..]) != 0x1DCD6E8 || BinaryPrimitives.ReadUInt32LittleEndian(special[11..]) != 0x689810 || special[15] != 0xE8 || address + 20L + BinaryPrimitives.ReadInt32LittleEndian(special[16..]) != 0x571B80 || special[20] != 0x83 || special[21] != 0xC4 || special[22] != 4 || special[23] != 0xA3 || BinaryPrimitives.ReadUInt32LittleEndian(special[24..]) != 0x2508410 || special[28] != 0xC3)
+                {
+                    throw new InvalidDataException("Native Duel opening initializer differs from its original callback and texture publication.");
+                }
+                return [ReadResource(BinaryPrimitives.ReadUInt32LittleEndian(special[1..]), 0x2508410)];
+            }
             ReadOnlySpan<byte> code = Bytes(address, 19);
             if (code[0] != 0x68 || code[5] != 0xE8 || address + 10L + BinaryPrimitives.ReadInt32LittleEndian(code[6..]) != 0x571B80)
             {
@@ -317,6 +326,15 @@ public sealed partial class GameAssets
                     throw new InvalidDataException("Native Duel112 differs from its original entry and texture publication.");
                 }
                 binding = binding with { Duel112Resources = ReadNativeDuel112Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 274)
+            {
+                if (binding.Entry != 0x6897E0 || binding.Initializer != 0x6897F0 || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag273.tim", 0x2508410))
+                {
+                    throw new InvalidDataException("Native Duel opening differs from its original entry, initializer and texture publication.");
+                }
+                binding = binding with { Duel274Resources = ReadNativeDuel274Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
             if (binding.Effect == 200)

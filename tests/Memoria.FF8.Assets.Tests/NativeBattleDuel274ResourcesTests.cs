@@ -6,7 +6,7 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativeBattleDuel274ResourcesTests
 {
     [Fact]
-    public void OriginalOpeningResourcesRetainActorDirectoryFiveSpriteEntriesAndMoveDurations()
+    public void OriginalOpeningResourcesRetainActorDirectorySpritesMeshesCameraAndMoveDurations()
     {
         using GameAssets assets = new(TestResources.GameDirectory);
         NativeBattleDuel274Resources resources = assets.ReadNativeDuel274Resources();
@@ -14,7 +14,12 @@ public sealed class NativeBattleDuel274ResourcesTests
         resources.Validate();
 
         Assert.Equal(original.Read(NativeBattleDuel274Resources.Address, checked((int)(NativeBattleDuel274Resources.EndAddress - NativeBattleDuel274Resources.Address))), resources.StaticData.ToArray());
-        Assert.Equal(new uint[] { 0x10E778C, 0x10E7958, 0x10E7A34, 0x10E7ADC, 0x10E7C54 }, resources.Sprites.Select(sprite => sprite.Address));
+        Assert.Equal(new uint[] { 0x10E778C, 0x10E7958, 0x10E7A34, 0x10E7ADC, 0x10E7C54, 0x10E7868 }, resources.Sprites.Select(sprite => sprite.Address));
+        Assert.Equal(new uint[] { 0x10E7E18, 0x10E9360, 0x10E9530 }, resources.Meshes.Select(mesh => mesh.Address));
+        Assert.Equal(new short[] { 715, 716 }, resources.Files.Select(file => file.FileId));
+        Assert.Equal(new[] { "MAG273_H.00", "MAG273_H.01" }, resources.Files.Select(file => file.Name));
+        Assert.All(resources.Files, file => Assert.False(file.Data.IsDefaultOrEmpty));
+        Assert.Equal(original.Read(0x110BE7C, checked((int)(NativeBattleDuel274Resources.EndAddress - 0x110BE7C))), resources.ReadCameraBank().ToArray());
         Assert.Equal(original.Read(0x10E2998, 0x4DF4), resources.ReadActorDat().ToArray());
         Assert.Equal(0x10, NativeBattleDatDirectory.Section(resources.ReadActorDat().AsSpan(), 0));
         Assert.Equal(0x4DC0, NativeBattleDatDirectory.Section(resources.ReadActorDat().AsSpan(), 1));

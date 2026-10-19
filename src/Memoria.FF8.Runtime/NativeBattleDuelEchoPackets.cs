@@ -3,7 +3,10 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public readonly record struct NativeBattleDuelEchoProjectedVertex(uint Screen, ushort Depth, ushort Clip);
+public readonly record struct NativeBattleDuelEchoProjectedVertex(uint Screen, ushort Depth, ushort Clip)
+{
+    public byte KnownBytesMask { get; init; } = byte.MaxValue;
+}
 public sealed record NativeBattleDuelEchoPacketsResult(NativeBattleModulePoolTask Context, NativeBattleGfGeometryBatch Batch);
 
 /// <summary>68AAE0's original flat-lit textured echo faces over a retained projected vertex stream.</summary>
@@ -41,7 +44,19 @@ public static class NativeBattleDuelEchoPackets
                     int vertex = BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(corner * 2)) & 0xFFF;
                     NativeBattleDuelEchoProjectedVertex selected = readVertex(vertex);
                     vertices[corner] = selected;
-                    context = context.WriteDword(offset + 28 + corner * 8, selected.Screen).WriteDword(offset + 32 + corner * 8, selected.Depth | (uint)selected.Clip << 16);
+                    int target = offset + 28 + corner * 8;
+                    context = context.WriteDword(target, selected.Screen).WriteDword(target + 4, selected.Depth | (uint)selected.Clip << 16);
+                    for (int current = 0; current < 8; current++)
+                    {
+                        if ((selected.KnownBytesMask & (1 << current)) == 0)
+                        {
+                            context = context.MarkPayloadUnknown(target + current, 1);
+                        }
+                    }
+                    if ((selected.KnownBytesMask & 0xC0) != 0xC0)
+                    {
+                        throw new NotSupportedException("Native Duel echo clip comparison requires its actual projected clip WORD.");
+                    }
                     if (selected.Clip >= 16)
                     {
                         clipped = true;
@@ -51,6 +66,10 @@ public static class NativeBattleDuelEchoPackets
                 }
                 if (!clipped && (clipAnd & 0xFF) == 0)
                 {
+                    if (vertices.Any(vertex => vertex.KnownBytesMask != byte.MaxValue))
+                    {
+                        throw new NotSupportedException("Native Duel echo area and depth require the actual projected screen and depth bytes.");
+                    }
                     int area = NativeBattleModulePackets.Nclip(vertices[0].Screen, vertices[1].Screen, vertices[2].Screen);
                     context = context.WriteDword(offset + 60, unchecked((uint)area));
                     if (area >= 0)

@@ -244,6 +244,7 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
     public NativeBattleNoMercy200Resources? NoMercy200Resources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleDuel112Resources? Duel112Resources { get; init; }
+    public NativeBattleDuel274Resources? Duel274Resources { get; init; }
     public NativeBattleFatedCircle162Resources? FatedCircle162Resources { get; init; }
     public NativeBattleShot194Resources? Shot194Resources { get; init; }
     public NativeBattleShot192Resources? Shot192Resources { get; init; }

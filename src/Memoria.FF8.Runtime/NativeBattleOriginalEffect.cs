@@ -126,6 +126,15 @@ public static class NativeBattleOriginalEffects
             throw new NotSupportedException($"Native50AF20 effect{selected.Binding.Effect} initializer{selected.Binding.Initializer:X} requires its original resource-loading contract.");
         }
         memory = memory.BeginLoad(selected.SelectedIndex);
+        if (selected.Binding.Initializer == 0x6897F0)
+        {
+            if (selected.Binding is not { Effect: 274, Entry: 0x6897E0 } || resources.Length != 1 || resources[0] != new NativeBattleEffectInitializerResource("mag273.tim", 0x2508410))
+            {
+                throw new InvalidDataException("Native Duel opening initializer requires its original callback and single texture load.");
+            }
+            NativeBattleEffectIoState io = memory.EffectIo ?? throw new NotSupportedException("Native Duel opening initializer requires its actual file callback owner.");
+            memory = memory with { EffectIo = io with { Callback = 0x689810 } };
+        }
         ImmutableArray<NativeBattleEffectResourcePointer>.Builder pointers = ImmutableArray.CreateBuilder<NativeBattleEffectResourcePointer>(resources.Length);
         for (int index = 0; index < resources.Length; index++)
         {
