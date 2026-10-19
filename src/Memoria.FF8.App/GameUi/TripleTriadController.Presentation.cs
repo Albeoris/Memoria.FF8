@@ -16,7 +16,9 @@ public enum TripleTriadSound
     Draw,
     Same,
     Plus,
-    Combo
+    Combo,
+    CardReceived,
+    NewCard
 }
 
 /// <summary>Transient presentation never changes the saved match, AI, RNG or inventory.</summary>
@@ -35,7 +37,7 @@ public sealed partial class TripleTriadController
 
     public event Action<TripleTriadSound>? SoundRequested;
     public TripleTriadMoveResult? PresentedMove { get; private set; }
-    public bool IsAnimating => PresentedMove is not null;
+    public bool IsAnimating => PresentedMove is not null || IsTradeAnimating;
     public double PlacementProgress => Math.Clamp(presentationTime / PlacementDuration, 0, 1);
     public string? CaptureAnnouncement
     {
@@ -94,6 +96,11 @@ public sealed partial class TripleTriadController
         if (elapsed < TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(nameof(elapsed));
+        }
+        if (TradePhase != TripleTriadTradePhase.None)
+        {
+            AdvanceTradePresentation(elapsed);
+            return;
         }
         if (PresentedMove is not { } move)
         {

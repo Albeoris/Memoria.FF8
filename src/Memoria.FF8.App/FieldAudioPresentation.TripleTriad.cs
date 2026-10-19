@@ -20,7 +20,8 @@ internal sealed partial class FieldAudioPresentation
             TripleTriadSound.Move or TripleTriadSound.Confirm => 1,
             TripleTriadSound.Cancel => 9,
             TripleTriadSound.Error => 16,
-            TripleTriadSound.Place => 89,
+            TripleTriadSound.Place or TripleTriadSound.CardReceived => 89,
+            TripleTriadSound.NewCard => 18,
             TripleTriadSound.Flip => 90,
             TripleTriadSound.Win or TripleTriadSound.Lose or TripleTriadSound.Draw or TripleTriadSound.Same or TripleTriadSound.Plus or TripleTriadSound.Combo => null,
             _ => throw new ArgumentOutOfRangeException(nameof(cue))

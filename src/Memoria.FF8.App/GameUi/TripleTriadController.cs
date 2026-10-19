@@ -147,6 +147,10 @@ public sealed partial class TripleTriadController
     {
         ArgumentNullException.ThrowIfNull(match);
         ClearPresentation();
+        ClearTradePresentation();
+        TradingHand = null;
+        tradeCompleted = null;
+        tradeSelection.Clear();
         Match = TripleTriadMatch.Restore(definitions, match.CaptureSnapshot());
         ChoosingCell = false;
         SelectFirstHand();
@@ -198,6 +202,23 @@ public sealed partial class TripleTriadController
         }
         if (TradingHand is not null)
         {
+            if (TradePhase == TripleTriadTradePhase.ConfirmingSelection)
+            {
+                NavigateTradeConfirmation(key);
+                return;
+            }
+            if (AwaitingTradeConfirmation)
+            {
+                if (key is UiKey.Confirm or UiKey.Cancel)
+                {
+                    ConfirmTradeTransfer();
+                }
+                return;
+            }
+            if (TradePhase != TripleTriadTradePhase.None && TradePhase != TripleTriadTradePhase.Selecting)
+            {
+                return;
+            }
             if (key is UiKey.Up or UiKey.Left)
             {
                 Selection = (Selection + 4) % 5;
@@ -209,6 +230,10 @@ public sealed partial class TripleTriadController
             else if (key == UiKey.Confirm)
             {
                 SelectTradeCard(Selection);
+            }
+            else if (key == UiKey.Cancel && presentationEnabled && TradePhase == TripleTriadTradePhase.Selecting && tradeSelection.Contains(Selection))
+            {
+                StartTradeChoice(Selection, true);
             }
             return;
         }
@@ -372,11 +397,22 @@ public sealed partial class TripleTriadController
         {
             throw new ArgumentException("Card trading requires five losing-hand cards and one to five choices.");
         }
+        if (presentationEnabled)
+        {
+            IReadOnlyList<int> playerHand = Match?.InitialHands[0] ?? available.SelectMany(id => Enumerable.Repeat(id, collection[id])).Take(5).ToArray();
+            BeginTradeSettlement(playerHand, losingHand, Enumerable.Range(0, 10).Select(index => index < 5 ? 0 : 1).ToArray(), TripleTriadTradeRule.One, required, true, [], completed);
+            return;
+        }
         TradingHand = losingHand.ToArray();
         RequiredTradeCards = required;
         tradeCompleted = completed;
         tradeSelection.Clear();
         Selection = 0;
+        TradingToPlayer = true;
+        IReadOnlyList<int> originalPlayerHand = Match?.InitialHands[0] ?? available.SelectMany(id => Enumerable.Repeat(id, collection[id])).Take(5).ToArray();
+        tradeCards = originalPlayerHand.Concat(losingHand).ToArray();
+        tradeOwners = Enumerable.Range(0, 10).Select(index => index < 5 ? 0 : 1).ToArray();
+        SetTradePhase(TripleTriadTradePhase.Selecting);
         Message = $"Choose {required} card(s) to take.";
     }
 
@@ -418,7 +454,17 @@ public sealed partial class TripleTriadController
 
     public void SelectTradeCard(int slot)
     {
-        if (TradingHand is null || (uint)slot >= 5 || tradeSelection.Contains(slot))
+        if (IsAnimating || AwaitingTradeConfirmation || TradePhase == TripleTriadTradePhase.ConfirmingSelection || TradingHand is null || (uint)slot >= 5)
+        {
+            return;
+        }
+        if (presentationEnabled && TradePhase == TripleTriadTradePhase.Selecting)
+        {
+            Selection = slot;
+            StartTradeChoice(slot, true);
+            return;
+        }
+        if (tradeSelection.Contains(slot))
         {
             return;
         }
@@ -429,6 +475,7 @@ public sealed partial class TripleTriadController
             Action<int[]> completed = tradeCompleted!;
             TradingHand = null;
             tradeCompleted = null;
+            ClearTradePresentation();
             completed(tradeSelection.ToArray());
         }
     }

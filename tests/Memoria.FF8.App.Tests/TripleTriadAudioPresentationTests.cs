@@ -18,6 +18,8 @@ public sealed class TripleTriadAudioPresentationTests
         Assert.Equal(16u, FieldAudioPresentation.ResolveTripleTriadSound(TripleTriadSound.Error));
         Assert.Equal(89u, FieldAudioPresentation.ResolveTripleTriadSound(TripleTriadSound.Place));
         Assert.Equal(90u, FieldAudioPresentation.ResolveTripleTriadSound(TripleTriadSound.Flip));
+        Assert.Equal(89u, FieldAudioPresentation.ResolveTripleTriadSound(TripleTriadSound.CardReceived));
+        Assert.Equal(18u, FieldAudioPresentation.ResolveTripleTriadSound(TripleTriadSound.NewCard));
         foreach (TripleTriadSound cue in new[] { TripleTriadSound.Same, TripleTriadSound.Plus, TripleTriadSound.Combo, TripleTriadSound.Lose, TripleTriadSound.Draw })
         {
             Assert.Null(FieldAudioPresentation.ResolveTripleTriadSound(cue));
@@ -32,7 +34,7 @@ public sealed class TripleTriadAudioPresentationTests
         var catalog = new NativeMusicCatalog(directory);
         Assert.Equal("070s-card.sgt", Path.GetFileName(catalog.MusicFile(FieldAudioPresentation.TripleTriadMusicTrack, -1)));
         Assert.Equal("001s-Win.sgt", Path.GetFileName(catalog.MusicFile(FieldAudioPresentation.TripleTriadVictoryTrack, -1)));
-        foreach (uint effect in new uint[] { 1, 9, 16, 89, 90 })
+        foreach (uint effect in new uint[] { 1, 9, 16, 18, 89, 90 })
         {
             PcmAudio pcm = PcmAudioDecoder.ReadSample(directory, EventEngine.MapGlobalSoundSample(effect));
             Assert.True(pcm.Bytes.Length > 0);

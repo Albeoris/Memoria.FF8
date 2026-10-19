@@ -43,7 +43,7 @@ internal sealed class TripleTriadElementView(TripleTriadController controller) :
         }
         if (controller.Match is not null || controller.TradingHand is not null)
         {
-            canvas.OutlinedText(controller.IsAnimating ? controller.CaptureAnnouncement ?? "" : controller.Message, 20, new UiRect(240, 635, 480, 30), theme.Foreground, new UiColor(0, 0, 0), 1);
+            canvas.OutlinedText(controller.IsAnimating && controller.TradingHand is null ? controller.CaptureAnnouncement ?? "" : controller.Message, 20, new UiRect(160, 635, 640, 30), theme.Foreground, new UiColor(0, 0, 0), 1);
         }
         DrawPromptFade(canvas);
     }
@@ -95,18 +95,82 @@ internal sealed class TripleTriadElementView(TripleTriadController controller) :
 
     private void DrawTrade(IUiCanvas canvas, UiTheme theme)
     {
-        canvas.OutlinedText($"Choose your winnings   {controller.TradeSelection.Count} / {controller.RequiredTradeCards}", 25, new UiRect(152, 164, 656, 42), theme.Foreground, new UiColor(0, 0, 0), 1);
-        for (int slot = 0; slot < 5; slot++)
+        bool selecting = controller.TradePhase == TripleTriadTradePhase.Selecting;
+        if (selecting)
         {
-            int id = controller.TradingHand![slot];
-            UiRect bounds = TradeBounds(slot);
-            DrawCard(canvas, theme, bounds, id, controller.TradeSelection.Contains(slot) ? 0 : 1, controller.Selection == slot);
-            canvas.OutlinedText(controller.Name(id), 18, new UiRect(bounds.X, bounds.Bottom + 10, bounds.Width, 66), theme.Foreground, new UiColor(0, 0, 0), 1);
-            if (controller.TradeSelection.Contains(slot))
+            canvas.OutlinedText($"Choose your winnings   {controller.TradeSelection.Count} / {controller.RequiredTradeCards}", 25, new UiRect(152, 30, 656, 42), theme.Foreground, new UiColor(0, 0, 0), 1);
+        }
+        for (int index = 0; index < 10; index++)
+        {
+            if (controller.IsTradeCardRemoved(index) || index == controller.TradingCardIndex)
             {
-                canvas.OutlinedText("Selected", 17, new UiRect(bounds.X, 478, bounds.Width, 28), theme.Foreground, new UiColor(0, 0, 0), 1);
+                continue;
+            }
+            DrawExchangeCard(index);
+        }
+        if (controller.TradingCardIndex >= 0)
+        {
+            DrawExchangeCard(controller.TradingCardIndex);
+        }
+        if (controller.TradePhase == TripleTriadTradePhase.ConfirmingSelection)
+        {
+            theme.Panel(canvas, new UiRect(330, 254, 300, 156));
+            canvas.Text("Are you sure?", 24, new UiRect(354, 270, 260, 32), theme.Foreground);
+            canvas.Text("Yes", 24, new UiRect(400, 312, 190, 36), theme.Foreground);
+            canvas.Text("No", 24, new UiRect(400, 354, 190, 36), theme.Foreground);
+            theme.Pointer(canvas, 350, 316 + controller.TradeConfirmationSelection * 42, 26);
+        }
+
+        void DrawExchangeCard(int index)
+        {
+            int id = controller.TradeCards[index];
+            UiRect bounds = ExchangeBounds(index);
+            float width = controller.PresentedTradeWidth(index);
+            UiRect turned = new(bounds.X + bounds.Width * (1 - width) / 2, bounds.Y, bounds.Width * width, bounds.Height);
+            bool selected = selecting && index == controller.Selection + 5;
+            DrawCard(canvas, theme, turned, controller.PresentedTradeBack(index) ? null : id, controller.PresentedTradeOwner(index), selected);
+            if (controller.TradingCardIndex < 0 || index == controller.TradingCardIndex && controller.AwaitingTradeConfirmation)
+            {
+                UiColor color = TradeNameColor(id, theme);
+                canvas.OutlinedText(controller.Name(id), 18, new UiRect(bounds.X - 8, bounds.Bottom + 5, bounds.Width + 16, 28), color, new UiColor(0, 0, 0), 1);
             }
         }
+    }
+
+    private UiColor TradeNameColor(int id, UiTheme theme) => !controller.HasAcquiredCard(id) ? new UiColor(100, 149, 237) : controller.CollectionCount(id) == 0 ? new UiColor(255, 255, 0) : theme.Foreground;
+
+    private UiRect ExchangeBounds(int index)
+    {
+        float x = (index % 5 - 2) * 64;
+        float y = index < 5 ? 40 : -40;
+        float z = 512;
+        float progress = (float)controller.TradeProgress;
+        if (controller.TradePhase == TripleTriadTradePhase.Entering)
+        {
+            float source = index < 5 ? 416 : -416;
+            x = source + (x - source) * MathF.Sin(progress * MathF.PI / 2);
+        }
+        if (index == controller.TradingCardIndex)
+        {
+            if (controller.TradePhase == TripleTriadTradePhase.Moving)
+            {
+                x *= 1 - progress;
+                y = y * (1 - progress) - 112 * MathF.Sin(progress * MathF.PI);
+                z = 512 - 256 * progress;
+            }
+            else
+            {
+                x = 0;
+                y = controller.TradePhase == TripleTriadTradePhase.Exiting ? (controller.PresentedTradeOwner(index) == 0 ? 112 : -112) * progress : 0;
+                z = 256;
+            }
+        }
+        else if (controller.TradePhase == TripleTriadTradePhase.Flipping && controller.PresentedTradeWidth(index) < 1)
+        {
+            z -= 32 * MathF.Sin(progress * MathF.PI);
+        }
+        float scale = 512 / z;
+        return new UiRect(480 + (x - 32) * 2.5f * scale, 336 + (y - 32) * 3 * scale, 160 * scale, 192 * scale);
     }
 
     private void DrawSelection(IUiCanvas canvas, UiTheme theme)
@@ -253,7 +317,6 @@ internal sealed class TripleTriadElementView(TripleTriadController controller) :
 
     private static UiRect CellBounds(int cell) => new(240 + cell % 3 * 160, 48 + cell / 3 * 192, 160, 192);
     private static UiRect HandBounds(int hand, int owner) => new(owner == 0 ? 755 : 45, 24 + hand * 108, 160, 192);
-    private static UiRect TradeBounds(int slot) => new(152 + slot * 132, 226, 124, 157);
     private static UiRect RecentDeckRowBounds(int row) => new(157, 115 + row * 56, 384, 56);
     private static UiRect SelectionRowBounds(int row, int historyRows) => new(157, 115 + historyRows * 56 + row * 39, 384, 39);
 
@@ -285,10 +348,31 @@ internal sealed class TripleTriadElementView(TripleTriadController controller) :
         }
         if (controller.TradingHand is not null)
         {
+            if (controller.TradePhase == TripleTriadTradePhase.ConfirmingSelection)
+            {
+                for (int choice = 0; choice < 2; choice++)
+                {
+                    if (new UiRect(350, 312 + choice * 42, 250, 36).Contains(x, y))
+                    {
+                        if (controller.TradeConfirmationSelection != choice)
+                        {
+                            controller.Navigate(UiKey.Down);
+                        }
+                        controller.Navigate(UiKey.Confirm);
+                        break;
+                    }
+                }
+                return;
+            }
+            if (controller.AwaitingTradeConfirmation)
+            {
+                controller.Navigate(UiKey.Confirm);
+                return;
+            }
             for (int slot = 0; slot < 5; slot++)
             {
-                UiRect card = TradeBounds(slot);
-                if (new UiRect(card.X, card.Y, card.Width, 280).Contains(x, y))
+                UiRect card = ExchangeBounds(slot + 5);
+                if (card.Contains(x, y))
                 {
                     controller.SelectTradeCard(slot);
                     return;

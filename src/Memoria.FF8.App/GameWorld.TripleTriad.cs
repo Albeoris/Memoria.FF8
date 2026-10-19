@@ -81,7 +81,7 @@ internal sealed partial class GameWorld
             throw new InvalidDataException("Saved Triple Triad module disagrees with its original request or saved RNG.");
         }
         ValidateTripleTriadDeal(request, cards, play);
-        Dictionary<int, int> collection = Enumerable.Range(0, 110).ToDictionary(id => id, id => Math.Max(0, cards.AvailableCount(id)));
+        Dictionary<int, int> collection = Enumerable.Range(0, 110).ToDictionary(id => id, id => cards.AvailableCount(id));
         TripleTriadController controller = new(tripleTriadCatalog.Cards, collection, play.OpponentHand, tripleTriadCatalog.Name, request.Rules);
         controller.CreateMatch = selected =>
         {
@@ -280,21 +280,19 @@ internal sealed partial class GameWorld
             TripleTriadTradeRule.All => 5,
             _ => 0
         };
-        if (match.Outcome == TripleTriadOutcome.Draw || rule == TripleTriadTradeRule.Direct)
+        if (match.Outcome == TripleTriadOutcome.Draw)
         {
-            CompleteTripleTriad([]);
+            count = 0;
         }
-        else if (match.Outcome == TripleTriadOutcome.PlayerWin && rule is TripleTriadTradeRule.One or TripleTriadTradeRule.Diff)
+        NativeTripleTriadPlayState play = session.State.TripleTriadPlay!;
+        bool chooseCards = match.Outcome == TripleTriadOutcome.PlayerWin && count < 5 && rule is TripleTriadTradeRule.One or TripleTriadTradeRule.Diff;
+        IReadOnlyList<int> losingHand = match.Outcome == TripleTriadOutcome.PlayerWin ? play.OpponentHand : play.SelectedCards;
+        int[] slots = [];
+        if (!chooseCards)
         {
-            tripleTriad!.BeginTradeSelection(session.State.TripleTriadPlay!.OpponentHand, count, CompleteTripleTriad);
+            slots = count == 5 ? [0, 1, 2, 3, 4] : Enumerable.Range(0, 5).OrderByDescending(slot => tripleTriadCatalog!.TradePriority(losingHand[slot])).ThenBy(slot => slot).Take(count).ToArray();
         }
-        else
-        {
-            NativeTripleTriadPlayState play = session.State.TripleTriadPlay!;
-            IReadOnlyList<int> losingHand = match.Outcome == TripleTriadOutcome.PlayerWin ? play.OpponentHand : play.SelectedCards;
-            int[] slots = Enumerable.Range(0, 5).OrderByDescending(slot => tripleTriadCatalog!.TradePriority(losingHand[slot])).ThenBy(slot => slot).Take(count).ToArray();
-            CompleteTripleTriad(slots);
-        }
+        tripleTriad!.BeginTradeSettlement(play.SelectedCards, play.OpponentHand, match.OriginalInstanceFinalOwners, rule, count, chooseCards, slots, CompleteTripleTriad);
     }
 
     private void CompleteTripleTriad(int[] selectedSlots)
