@@ -8,6 +8,8 @@ public sealed record NativeBattleScriptedColorRegisters([property: JsonRequired]
 {
     public ImmutableArray<byte>? NormalInput { get; init; }
     public uint? Material { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<bool>? NormalInputKnown { get; init; }
 
     public static NativeBattleScriptedColorRegisters Unknown() => new([null, null, null], [null, null, null], [null, null, null], null);
 
@@ -16,6 +18,10 @@ public sealed record NativeBattleScriptedColorRegisters([property: JsonRequired]
         if (NormalInput is { } normal && (normal.IsDefault || normal.Length != 8))
         {
             throw new InvalidDataException("Native normal color input requires both actual packed V0 DWORDs.");
+        }
+        if (NormalInputKnown is { } known && (NormalInput is null || known.IsDefault || known.Length != 8))
+        {
+            throw new InvalidDataException("Native normal color requires the actual known mask for its packed input.");
         }
         if (Mac.IsDefault || Ir.IsDefault || Rgb.IsDefault || Mac.Length != 3 || Ir.Length != 3 || Rgb.Length != 3)
         {

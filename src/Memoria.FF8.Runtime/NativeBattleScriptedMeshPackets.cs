@@ -8,6 +8,14 @@ public static class NativeBattleScriptedMeshPackets
 {
     public static NativeBattleScriptedMeshSubmission EmitSelected(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, uint actualHandler, int shapeExtent, ImmutableArray<byte> projectedRecords, ImmutableArray<uint> depths, uint outputPointer, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveActualOtBucket, float depthScale = 1f)
     {
+        if (group.Type == 19 && actualHandler == 0xB117F0)
+        {
+            return NativeBattleScriptedClippedMeshPackets.EmitGt4(frame, group, actualHandler, projectedRecords, depths, outputPointer, lighting, registers, resolveActualOtBucket, depthScale);
+        }
+        if (group.Type == 18 && actualHandler == 0xB11580)
+        {
+            return NativeBattleScriptedClippedMeshPackets.EmitFt4(frame, group, actualHandler, projectedRecords, depths, outputPointer, lighting, registers, resolveActualOtBucket, depthScale);
+        }
         if (group.Type == 8 && actualHandler == 0xB11100)
         {
             return NativeBattleScriptedClippedMeshPackets.EmitFt3(frame, group, actualHandler, projectedRecords, depths, outputPointer, lighting, registers, resolveActualOtBucket, depthScale);
@@ -92,7 +100,7 @@ public static class NativeBattleScriptedMeshPackets
                     uint shape = frame.ReadTemporaryDword(0x68);
                     NativeBattleScriptedMeshPreparation.RequireShape(shape, shapeExtent, normal, 8);
                     byte[] raw = frame.Arena.Read(NativeBattleWaterExecutionFields.ArenaOffset(normal, 8), 8);
-                    registers = registers with { NormalInput = raw.ToImmutableArray() };
+                    registers = registers with { NormalInput = raw.ToImmutableArray(), NormalInputKnown = null };
                     for (int corner = 0; corner < corners; corner++)
                     {
                         uint material = BinaryPrimitives.ReadUInt32LittleEndian(face.AsSpan(corner * 4)) | (group.Type == 2 ? 0x32000000u : 0x3A000000u);

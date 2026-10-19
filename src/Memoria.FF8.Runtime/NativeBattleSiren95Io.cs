@@ -51,6 +51,31 @@ public static class NativeBattleSiren95Io
         return new(frame with { Memory = memory }, queued.FileIo);
     }
 
+    public static NativeBattleGfAnimationSource ReadProgrammeSource(NativeBattleEffectMemory memory, uint address)
+    {
+        NativeBattleChoco97IoBanks banks = NativeBattleProcessFileBanks.Read(memory);
+        long offset = (long)address - banks.BaseAddress;
+        if (offset < 0 || offset >= banks.Length)
+        {
+            throw new NotSupportedException("Native Siren programme leaves its current physical file bank.");
+        }
+        int end = banks.Length;
+        foreach (NativeBattleEffectUnknownRegion unknown in banks.Bytes.UnknownRegions)
+        {
+            if ((long)unknown.Offset + unknown.Length <= offset)
+            {
+                continue;
+            }
+            end = Math.Min(end, unknown.Offset);
+            break;
+        }
+        if (end <= offset)
+        {
+            throw new NotSupportedException("Native Siren programme starts in unknown current file bytes.");
+        }
+        return new(address, banks.Read(address, checked(end - (int)offset)).ToImmutableArray());
+    }
+
     public static NativeBattleSiren95Frame Complete(NativeBattleSiren95Frame frame, uint callback)
     {
         var completed = NativeBattleProfiledIoCore.Complete(Profile, Core(frame), frame.Memory, callback, (state, memory, source) =>

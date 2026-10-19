@@ -6,8 +6,10 @@ public sealed record NativeBattleWaterMeshColorSetup(NativeBattleWaterExecutionF
 public static class NativeBattleWaterMeshColor
 {
     public static NativeBattleWaterMeshColorSetup PrepareA9E8A0(NativeBattleWaterExecutionFrame frame)
+        => PrepareA9E8A0(frame, frame.ReadTemporaryDword(0x84));
+
+    public static NativeBattleWaterMeshColorSetup PrepareA9E8A0(NativeBattleWaterExecutionFrame frame, uint modulation)
     {
-        uint modulation = frame.ReadTemporaryDword(0x84);
         frame = frame.WriteTemporaryDword(0xE0, 0x10001000);
         frame = frame.WriteTemporaryDword(0xE4, 0x00001000);
         frame = frame.WriteTemporaryDword(0xE8, 0);

@@ -4,7 +4,7 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCinematicSpriteProjection(NativeBattleWaterExecutionFrame Frame, int Cue);
+public sealed record NativeBattleCinematicSpriteProjection(NativeBattleWaterExecutionFrame Frame, int QuarterDepth);
 public sealed record NativeBattleCinematicSprite2EServices(Func<NativeBattleWaterExecutionFrame, NativeBattleCinematicSpriteProjection> ProjectAnchor, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append);
 
 /// <summary>The cinematic textured quad centered on the projected anchor.</summary>
@@ -36,7 +36,7 @@ public static class NativeBattleCinematicSprite2E
         ushort top = unchecked((ushort)(frame.ReadTemporaryWord(0xD2) - halfHeight));
         StoreWord(0x12, top);
         StoreWord(0xA, top);
-        uint bucketOffset = unchecked((uint)((projected.Cue >> 2) & ~3));
+        uint bucketOffset = unchecked((uint)((projected.QuarterDepth >> 2) & ~3));
         ushort bottom = unchecked((ushort)(frame.ReadTemporaryWord(0xD2) + halfHeight));
         StoreWord(0x22, bottom);
         StoreWord(0x1A, bottom);

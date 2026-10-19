@@ -6,6 +6,10 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleCarbuncle278Vibration(NativeBattleCarbuncle278Frame Frame, int Handle);
 public sealed record NativeBattleCarbuncle278Inputs(NativeBattleActionPacketsState Packets, Func<NativeBattleCarbuncle278Frame, NativeBattleVector, NativeBattleEffectLocalBounds, NativeBattleCarbuncle278Frame> Mirror, Func<NativeBattleCarbuncle278Frame, NativeBattleCarbuncle278Vibration> StartVibration)
 {
+    public Func<NativeBattleCarbuncle278Frame, NativeBattleModulePoolTask, NativeBattleCarbuncle278ModelStep>? PresentReturn { get; init; }
+    public Func<NativeBattleCarbuncle278Frame, NativeBattleCarbuncle278Frame>? BeginFinalTexture { get; init; }
+    public Func<NativeBattleCarbuncle278Frame, int, NativeBattleCarbuncle278Frame>? StopVibration { get; init; }
+    public Func<NativeBattleCarbuncle278Frame, NativeBattleCarbuncle278Frame>? RestoreActors { get; init; }
     public Func<NativeBattleCarbuncle278Frame, NativeBattleModulePoolTask, uint, NativeBattleCarbuncle278ModelStep>? DrawRecipientRange { get; init; }
     public Func<NativeBattleCarbuncle278Frame, NativeBattleModulePoolTask, NativeBattleCarbuncle278Frame>? ApplyRecipientContact { get; init; }
     public Func<NativeBattleCarbuncle278Frame, NativeBattleModulePoolTask, NativeBattleCarbuncle278ModelStep>? DrawRecipientChild { get; init; }

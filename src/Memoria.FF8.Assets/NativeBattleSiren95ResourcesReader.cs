@@ -43,7 +43,11 @@ public static class NativeBattleSiren95ResourcesReader
         NativeExecutableMemory memory = new(executable);
         NativeBattleSiren95Resources result = new(NativeBattleEffectStaticResourcesReader.Read(memory, 0x1533850, 0x180), files);
         ImmutableArray<byte> vibration = NativeBattleEffectStaticResourcesReader.Read(memory, 0x16A3FB0, 0x13A);
-        result = result with { Vibration = new(0x16A3FB0, new(NativeFieldRuntimeProfile.FF8EnExecutableHash, [0, 0x100], vibration)), SoundDescriptors = new("FF8_EN:1533014", NativeBattleEffectStaticResourcesReader.Read(memory, 0x1533014, 0x10)), CameraPrograms = new("FF8_EN:1533A98", NativeBattleEffectStaticResourcesReader.Read(memory, 0x1533A98, 0x358)) };
+        result = result with { Vibration = new(0x16A3FB0, new(NativeFieldRuntimeProfile.FF8EnExecutableHash, [0, 0x100], vibration)), SoundDescriptors = new("FF8_EN:1533014", NativeBattleEffectStaticResourcesReader.Read(memory, 0x1533014, 0x10)), CameraPrograms = new("FF8_EN:1533A98", NativeBattleEffectStaticResourcesReader.Read(memory, 0x1533A98, 0x358)), PhaseOneSource = new(0x16A5380, NativeBattleEffectStaticResourcesReader.Read(memory, 0x16A5380, 0x5A00)) };
+        result = result with { PhaseOneSprites = new("FF8_EN:1533024", NativeBattleEffectStaticResourcesReader.Read(memory, 0x1533024, 0x1AC)) };
+        result = result with { PhaseTwoSprites = new("FF8_EN:15335CC", NativeBattleEffectStaticResourcesReader.Read(memory, 0x15335CC, 0xF8)) };
+        byte[] overlay = memory.Read(0x1533E10, 0x60);
+        result = result with { OverlayProgram = new(0x1533E10, Enumerable.Range(0, 24).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(overlay.AsSpan(index * 4))).ToImmutableArray()) };
         result.Validate();
         return result;
     }

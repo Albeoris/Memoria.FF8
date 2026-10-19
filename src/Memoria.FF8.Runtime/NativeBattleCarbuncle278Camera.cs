@@ -76,6 +76,41 @@ public static class NativeBattleCarbuncle278Camera
         return camera.WriteEffectGlobals(pose);
     }
 
+    public static NativeBattleCameraState AdvanceReturnWindow(NativeBattleCameraState camera, int floor, ushort counter, NativeBattleVector? anchor)
+    {
+        if (counter is < 215 or >= 283)
+        {
+            throw new ArgumentOutOfRangeException(nameof(counter));
+        }
+        NativeBattleCameraPose pose = camera.CurrentPose ?? throw new NotSupportedException("Native Carbuncle return camera requires its current eye and target WORDs.");
+        pose = pose with { FocalLength = camera.FocalLength, Roll = camera.Roll };
+        if (counter < 231)
+        {
+            NativeBattleVector target = anchor ?? throw new NotSupportedException("Native Carbuncle return camera requires its current posed vertex anchor.");
+            pose = pose with { Target = new(target.X, target.Y, target.Z) };
+            if (counter == 215)
+            {
+                pose = pose with { Eye = new(0, pose.Target.Y, unchecked((short)(floor + 2000))) };
+            }
+            pose = Orbit683D10(pose, 0, 4000);
+        }
+        else if (counter == 231)
+        {
+            pose = pose with { Target = new(0, -300, unchecked((short)floor)), Eye = new(0, -600, unchecked((short)(floor + 2000))) };
+        }
+        else if (counter >= 247)
+        {
+            int angle = NativeBattleCameraMath.Sine((counter - 247) << 7) >> 7;
+            pose = Orbit683D10(pose, angle, 4150);
+            pose = pose with { Eye = pose.Eye with { Y = unchecked((short)(pose.Eye.Y - 50)) }, Target = pose.Target with { Y = unchecked((short)(pose.Target.Y - 30)) } };
+        }
+        else
+        {
+            return camera;
+        }
+        return camera.WriteEffectGlobals(pose);
+    }
+
     public static NativeBattleCameraPose Orbit683D10(NativeBattleCameraPose pose, int angle, int fraction)
     {
         int y = unchecked((pose.Eye.Y - pose.Target.Y) * fraction) >> 12;

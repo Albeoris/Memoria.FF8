@@ -131,9 +131,9 @@ public static partial class NativeBattleChoco97ProgramDrawing
 
     public static NativeBattleActionMatrix ComposeNodeMatrix(NativeBattleGfAnimationNode node, NativeBattleActionMatrix context) => ComposeNodeMatrix(node, context, false);
 
-    internal static NativeBattleActionMatrix ComposeNodeMatrix(NativeBattleGfAnimationNode node, NativeBattleActionMatrix context, bool header8000SkipsBasis)
+    internal static NativeBattleActionMatrix ComposeNodeMatrix(NativeBattleGfAnimationNode node, NativeBattleActionMatrix context, bool header8000SkipsBasis, bool allowAlternateEuler = true)
     {
-        NativeBattleActionMatrix matrix = (node.Header & 0x40000) != 0 ? NativeBattleGfMatrices.Euler7015B0(node.Vector16) : NativeBattleGfMatrices.Euler701310(node.Vector16);
+        NativeBattleActionMatrix matrix = allowAlternateEuler && (node.Header & 0x40000) != 0 ? NativeBattleGfMatrices.Euler7015B0(node.Vector16) : NativeBattleGfMatrices.Euler701310(node.Vector16);
         int x = node.Vector8.X;
         int y = node.Vector8.Y;
         int z = node.Vector8.Z;

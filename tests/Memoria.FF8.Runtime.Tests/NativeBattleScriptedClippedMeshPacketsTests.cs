@@ -6,6 +6,64 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleScriptedClippedMeshPacketsTests
 {
     [Fact]
+    public void Clipped_GT4_keeps_four_raw_colors_and_padded_UVs_after_the_three_point_winding_test()
+    {
+        byte[] face = new byte[36];
+        uint[] colors = [0x02010203, 0xAB040506, 0xCD070809, 0xEF0A0B0C];
+        for (int index = 0; index < colors.Length; index++)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(face.AsSpan(index * 4), colors[index]);
+        }
+        ushort[] words = [0x1234, 0x5678, 0x9ABC, 0xDEF0, 0, 8, 16, 24, 0xFFF0, 0x20];
+        for (int index = 0; index < words.Length; index++)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(face.AsSpan(16 + index * 2), words[index]);
+        }
+        NativeBattleWaterMeshGroup group = new(19, 1, face.ToImmutableArray());
+        NativeBattleScriptedMeshSubmission result = NativeBattleScriptedMeshPackets.EmitSelected(Frame(), group, 0xB117F0, 32, Records([0, 10, 20, 30], [8, 8, 8, 0]), [65535, 11, 13, 19], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), value => (int)(value / 4), 0.5f);
+        NativeBattleGfGeometryAttempt packet = Assert.Single(result.Packets.Attempts);
+        Assert.Equal(52, result.Packets.AllocationBytes);
+        Assert.Equal(0x5034u, result.Frame.ReadTemporaryDword(0x60));
+        Assert.Equal(new[] { 32768, 6, 6, 10 }, packet.Primitive!.VertexPayload4);
+        for (int corner = 0; corner < 4; corner++)
+        {
+            Assert.Equal(colors[corner] | (corner == 0 ? 0x3C000000u : 0u), Word32(packet, 4 + 12 * corner));
+            Assert.Equal(words[corner], Word16(packet, 12 + 12 * corner));
+        }
+        Assert.Equal((ushort)0xFFF3, Word16(packet, 14));
+        Assert.Equal((ushort)0x30, Word16(packet, 26));
+        Assert.All(packet.WriteMask.Skip(50), value => Assert.Equal(NativeBattleGfPacketByteState.Untouched, value));
+        Assert.Equal(2712, packet.Primitive.Bucket);
+    }
+
+    [Fact]
+    public void Clipped_FT4_intersects_all_four_flags_and_uses_four_depths_with_the_native_packet_layout()
+    {
+        byte[] face = new byte[24];
+        BinaryPrimitives.WriteUInt32LittleEndian(face, 0x02010203);
+        ushort[] words = [0x12FF, 0x3344, 0x5566, 0x7788, 0, 8, 16, 24, 0xFFF0, 0x20];
+        for (int index = 0; index < words.Length; index++)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(face.AsSpan(4 + 2 * index), words[index]);
+        }
+        NativeBattleWaterMeshGroup group = new(18, 1, face.ToImmutableArray());
+        NativeBattleScriptedMeshSubmission result = NativeBattleScriptedClippedMeshPackets.EmitFt4(Frame(), group, 0xB11580, Records([0, 10, 20, 30], [8, 8, 8, 0]), [65535, 11, 13, 19], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), address => (int)(address / 4), 0.5f);
+        NativeBattleGfGeometryAttempt packet = Assert.Single(result.Packets.Attempts);
+        Assert.Equal(40, result.Packets.AllocationBytes);
+        Assert.Equal(0x5028u, result.Frame.ReadTemporaryDword(0x60));
+        Assert.Equal(2712, packet.Primitive!.Bucket);
+        Assert.Equal(new[] { 32768, 6, 6, 10 }, packet.Primitive.VertexPayload4);
+        Assert.Equal(0x2E010203u, Word32(packet, 4));
+        Assert.Equal((ushort)0x7788, Word16(packet, 36));
+        Assert.Equal((ushort)0xFFF3, Word16(packet, 14));
+        Assert.Equal((ushort)0x30, Word16(packet, 22));
+        Assert.Equal(NativeBattleGfPacketByteState.Untouched, packet.WriteMask[38]);
+        Assert.Equal(NativeBattleGfPacketByteState.Untouched, packet.WriteMask[39]);
+        NativeBattleScriptedMeshSubmission clipped = NativeBattleScriptedClippedMeshPackets.EmitFt4(Frame(), group, 0xB11580, Records([0, 10, 20, 30], [8, 8, 8, 8]), [1, 2, 3, 4], 0x5000, result.Lighting, result.Registers, _ => throw new InvalidOperationException(), 1);
+        Assert.All(Assert.Single(clipped.Packets.Attempts).WriteMask, value => Assert.Equal(NativeBattleGfPacketByteState.Untouched, value));
+    }
+
+    [Fact]
     public void Clipped_FT3_uses_direct_material_color_and_preserves_partial_packet_layout()
     {
         byte[] face = new byte[20];
@@ -105,8 +163,8 @@ public sealed class NativeBattleScriptedClippedMeshPacketsTests
 
     private static ImmutableArray<byte> Records(uint[] screens, ushort[] clips)
     {
-        byte[] bytes = new byte[24];
-        for (int index = 0; index < 3; index++)
+        byte[] bytes = new byte[checked(screens.Length * 8)];
+        for (int index = 0; index < screens.Length; index++)
         {
             BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(index * 8), screens[index]);
             BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(index * 8 + 4), 60000);

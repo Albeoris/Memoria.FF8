@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleCinematicAnchorTests
 {
     [Fact]
-    public void Selected_basis_transforms_cached_position_before_global_point_projection_and_returns_cue_instead_of_depth()
+    public void Selected_basis_transforms_cached_position_before_global_point_projection_and_returns_quarter_depth_separate_from_cue()
     {
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create();
         frame = WaterSchedulerFixture.SlotWord(frame, 0, 0x12, 7);
@@ -28,7 +28,8 @@ public sealed class NativeBattleCinematicAnchorTests
         NativeBattleCinematicSpriteProjection result = NativeBattleCinematicAnchor.Project(frame, bank, new(null, 216, 160, 108), 0, 8192);
         Assert.Equal((ushort)149, result.Frame.ReadTemporaryWord(0xD0));
         Assert.Equal((ushort)114, result.Frame.ReadTemporaryWord(0xD2));
-        Assert.Equal(2, result.Cue);
+        Assert.Equal(1000, result.QuarterDepth);
+        Assert.Equal(1000, NativeBattleCinematicAnchor.Project(frame, bank, new(null, 216, 160, 108), 0, 0).QuarterDepth);
         Assert.Equal(0u, result.Frame.ReadTemporaryDword(0xFC));
         Assert.Equal(frame.ReadTemporaryDword(0xF0), result.Frame.ReadTemporaryDword(0xF0));
         Assert.Same(frame.Core, result.Frame.Core);

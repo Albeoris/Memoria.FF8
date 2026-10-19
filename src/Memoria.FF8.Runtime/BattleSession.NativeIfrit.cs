@@ -143,6 +143,42 @@ public sealed partial class BattleSession
             int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank);
             switch (opcode)
             {
+                case 0x1C:
+                    return NativeBattleCinematicControlCommands.StoreRelative1C(current, program);
+                case 0xB0:
+                    return NativeBattleCinematicControlCommands.WaitRandomB0(current, program);
+                case 0x57:
+                    return NativeBattleScriptedCommandReads.Advance(current, 2);
+                case 0x89:
+                {
+                    uint modelAddress = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(current, 0xBC, 4));
+                    byte shapeIndex = current.Arena.Read(ArenaOffset(unchecked(modelAddress + 8), 1), 1)[0];
+                    uint shapeAddress = NativeBattleWaterShapeSelection.ResolveCinematic(current, resources, shapeIndex).Selected;
+                    return NativeBattleCinematicModelRefresh89.Execute(current, (frame, selector) => NativeBattleWaterMatrixCommands.ResolveB65520(frame, bank, selector), ModelServices(shapeAddress));
+                }
+                case 0x72:
+                    return NativeBattleCinematicActorRotation72.Execute(current, (_, address, length) =>
+                    {
+                        uint relative = unchecked(address - 0x1D972C0);
+                        int row = checked((int)(relative / 156));
+                        uint offset = relative % 156;
+                        if (row >= graphics.Models.Length || length != 2 || offset is not (12 or 14 or 16))
+                        {
+                            throw new NotSupportedException("Native cinematic actor rotation requires its exact current model WORD.");
+                        }
+                        NativeBattleGraphicsModel actor = graphics.Models[row];
+                        short value = (offset switch
+                        {
+                            12 => actor.Rotation12,
+                            14 => actor.Rotation14,
+                            _ => actor.Rotation16
+                        }) ?? throw new NotSupportedException("Native cinematic actor rotation is unknown.");
+                        return BitConverter.GetBytes(value);
+                    });
+                case 0xCE:
+                    return NativeBattleCinematicControlCommands.SetRelativeActorIdCE(current, program);
+                case 0xD3:
+                    return NativeBattleCinematicControlCommands.ScaleReferencedPositionColorD3(current, program, ResolveCurrentNode);
                 case 0x7C:
                     return NativeBattleCinematicPolar7C.Execute(current, program);
                 case 0x9C:
@@ -158,6 +194,8 @@ public sealed partial class BattleSession
                         return offscreenStep.Frame;
                     }
                     return NativeBattleScriptedCommandReads.Advance(current, opcode == 0x4F ? 8u : 10u);
+                case 0x10C:
+                    return NativeBattleCinematicFlagControl10C.Execute(current, program);
                 case 0x10D:
                     return NativeBattleCinematicControlCommands.Wait10D(current, program, ResolveCurrentNode);
                 case 0x120:
@@ -442,6 +480,12 @@ public sealed partial class BattleSession
                     graphics = points.Graphics;
                     return points.Frame;
                 }
+                if (selectedDrawHandler == 0xB1E6C0)
+                {
+                    var grid = DrawNativeCinematicGrid28(frame, assets[1].Data.Length, resources, graphics);
+                    graphics = grid.Graphics;
+                    return grid.Frame;
+                }
                 if (selectedDrawHandler == 0xB11C30)
                 {
                     var columns = DrawNativeCinematicColumns2D(frame, graphics);
@@ -466,9 +510,9 @@ public sealed partial class BattleSession
                     graphics = overlay.Graphics;
                     return overlay.Frame;
                 }
-                if (kind == 6)
+                if (kind is 5 or 6)
                 {
-                    var drawn = DrawNativeCinematicParticles(frame, Program(frame, CoreDword(frame, 0x2798A68)), assets[1].Data.Length, resources, graphics);
+                    var drawn = DrawNativeCinematicRectangles(frame, kind == 6 ? Program(frame, CoreDword(frame, 0x2798A68)) : null, assets[1].Data.Length, resources, graphics, kind);
                     graphics = drawn.Graphics;
                     return drawn.Frame;
                 }

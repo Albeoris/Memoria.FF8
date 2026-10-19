@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleSiren95State([property: JsonRequired] NativeBattleEffectArena Globals, [property: JsonRequired] uint? DirectorAddress1533010)
+public sealed partial record NativeBattleSiren95State([property: JsonRequired] NativeBattleEffectArena Globals, [property: JsonRequired] uint? DirectorAddress1533010)
 {
     public const uint GlobalAddress = 0x257F8A0;
     public const int GlobalLength = 0x10454;

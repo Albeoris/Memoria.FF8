@@ -88,4 +88,3 @@ public sealed class NativeBattleSiren95ProgrammeTests
         return source;
     }
 }
-

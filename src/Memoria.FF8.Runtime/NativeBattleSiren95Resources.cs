@@ -12,6 +12,18 @@ public sealed record NativeBattleSiren95Resources(ImmutableArray<byte> IoScript,
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleEffectHeapAllocation? CameraPrograms { get; init; }
 
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleGfAnimationSource? PhaseOneSource { get; init; }
+
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleEffectHeapAllocation? PhaseOneSprites { get; init; }
+
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleEffectHeapAllocation? PhaseTwoSprites { get; init; }
+
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleFullscreenOverlayProgram? OverlayProgram { get; init; }
+
     public void Validate()
     {
         Vibration?.Bank.Validate();

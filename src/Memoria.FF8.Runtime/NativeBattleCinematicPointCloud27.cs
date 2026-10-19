@@ -4,7 +4,7 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCinematicPointProjection(NativeBattleWaterExecutionFrame Frame, uint Screen, int Cue);
+public sealed record NativeBattleCinematicPointProjection(NativeBattleWaterExecutionFrame Frame, uint Screen, int QuarterDepth);
 public sealed record NativeBattleCinematicPointCloud27Services(Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> PrepareAnchor, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleCinematicPointProjection> ProjectPoint, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append);
 
 /// <summary>The retained cinematic point cloud and its independent blink counters.</summary>
@@ -72,7 +72,7 @@ public static class NativeBattleCinematicPointCloud27
             NativeBattleCinematicPointProjection projected = services.ProjectPoint(frame, unchecked(points + (uint)(index * 16)));
             frame = projected.Frame;
             StoreDword(unchecked(scratch + (uint)(index * 8)), projected.Screen);
-            StoreDword(unchecked(scratch + (uint)(index * 8 + 4)), unchecked((uint)projected.Cue));
+            StoreDword(unchecked(scratch + (uint)(index * 8 + 4)), unchecked((uint)projected.QuarterDepth));
         }
         uint currentManager = CoreDword(frame, 0x27973EC);
         scratch = CoreDword(frame, unchecked(currentManager + 0x74));

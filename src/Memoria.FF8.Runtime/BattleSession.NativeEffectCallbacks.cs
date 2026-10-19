@@ -81,6 +81,10 @@ public sealed partial class BattleSession
         {
             return RunNativeCarbuncle278(graphics, false);
         }
+        if (effect.Binding.Effect == 325)
+        {
+            return RunNativeDiablos325(graphics, false);
+        }
         if (effect.Binding.Entry == 0x70D390)
         {
             return AdvanceNativeChoco70EB00(graphics);

@@ -124,5 +124,19 @@ public sealed class NativeBattleCarbuncle278ResourcesTests
         Assert.True(range.FarColorWritten);
         Assert.Equal(768, range.Packets.Attempts.Length);
         Assert.Equal(14016, range.Packets.AllocationBytes);
+        Assert.Equal(new uint[] { 0x10BD170, 0x10BD2FC }, resources.ReturnSprites.Select(sprite => sprite.Address).ToArray());
+        for (int index = 0; index < resources.ReturnSprites.Length; index++)
+        {
+            NativeBattleModuleResource spriteResource = resources.ReturnSprites[index];
+            Assert.Equal(396, spriteResource.Bytes.Length);
+            Assert.Equal(40, spriteResource.ProjectedFrame571C80(0).Quads.Length);
+            Assert.Equal(20, spriteResource.ProjectedFrame571C80(13).Quads.Length);
+            Assert.Throws<InvalidDataException>(() => spriteResource.ProjectedFrame571C80(14));
+            NativeBattleModulePoolTask particle = new(1, 0, null, 0x683DC0, new byte[16].ToImmutableArray());
+            NativeBattleModuleDraw particleDraw = NativeBattleCarbuncle278ReturnParticles.Draw683DC0(particle.WriteWord(0x1A, (ushort)index), resources.ReturnSprites);
+            Assert.Same(spriteResource, particleDraw.Resource);
+            Assert.Equal(2048, particleDraw.Scale);
+            Assert.Equal(-512, particleDraw.DepthOffset);
+        }
     }
 }

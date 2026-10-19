@@ -109,10 +109,7 @@ public sealed class NativeBattleCarbuncle278RangeContinuationTests
         Assert.Equal((byte)2, header[4]);
         NativeBattleEffectFileAsset last = installed.Files.Single(file => file.FileId == 718);
         Assert.Equal(last.Data.ToArray(), boundary.NativeEffectMemory.Arena.Read(0x23ECC, last.Data.Length));
-        Exception? error = Record.Exception(() => first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero));
-        Assert.NotNull(error);
-        Assert.Contains("returning creature model", error.ToString());
-        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "recipient-families-released-before-creature-return", boundary.Frame, NativeCallback = boundary.NativeGraphics!.Callback, Creature = Creature(boundary).ReadWord(0xC), Callbacks = callbacks, Error = error.ToString() }));
+        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "recipient-families-released", boundary.Frame, NativeCallback = boundary.NativeGraphics!.Callback, Creature = Creature(boundary).ReadWord(0xC), Callbacks = callbacks }));
         Assert.Equal(original, File.ReadAllText(input!));
 
         void AddResources(JsonNode current, string path)

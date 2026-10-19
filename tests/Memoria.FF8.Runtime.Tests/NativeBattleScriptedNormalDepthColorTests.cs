@@ -30,12 +30,48 @@ public sealed class NativeBattleScriptedNormalDepthColorTests
     }
 
     [Fact]
+    public void Material_float_intermediate_is_not_rounded_to_NCCS_MAC_before_depth_interpolation()
+    {
+        NativeBattleScriptedColorRegisters result = NativeBattleScriptedNormalDepthColor.Transform45EE80(Lighting(11), new(0, 0, 0), 0x00404040, 2048, new(0, 0, 0, null, null), NativeBattleScriptedColorRegisters.Unknown());
+        Assert.Equal(new int?[] { 1, 1, 1 }, result.Mac);
+    }
+
+    [Fact]
     public void Far_controls_are_signed_float_stored_DWORDs_and_require_real_publication()
     {
         NativeBattleScriptedColorRegisters initial = NativeBattleScriptedColorRegisters.Unknown();
         NativeBattleScriptedColorRegisters result = NativeBattleScriptedNormalDepthColor.Transform45EE80(Lighting(0), new(0, 0, 0), 0, 4096, new(16777217, unchecked((uint)-32), 0, null, null), initial);
         Assert.Equal(new int?[] { 16777216, -32, 0 }, result.Mac);
         Assert.Throws<NotSupportedException>(() => NativeBattleScriptedNormalDepthColor.Transform45EE80(Lighting(0), new(0, 0, 0), 0, 0, new(null, 0, 0, null, null), initial));
+    }
+
+    [Fact]
+    public void Partial_packed_normal_known_mask_survives_both_shaders_and_snapshot()
+    {
+        NativeBattleScriptedColorRegisters registers = NativeBattleScriptedColorRegisters.Unknown() with { NormalInput = new byte[8].ToImmutableArray(), NormalInputKnown = new bool[] { true, true, true, true, true, true, false, false }.ToImmutableArray() };
+        NativeBattleScriptedColorRegisters result = NativeBattleScriptedNormalDepthColor.Transform45EE80(Lighting(0), new(0, 0, 0), 0, 0, new(0, 0, 0, null, null), registers);
+        result = NativeBattleScriptedNormalColor.Transform4601B0(Lighting(0), new(0, 0, 0), 0, result);
+        Assert.Equal(registers.NormalInputKnown, result.NormalInputKnown);
+        string json = System.Text.Json.JsonSerializer.Serialize(result);
+        NativeBattleScriptedColorRegisters restored = System.Text.Json.JsonSerializer.Deserialize<NativeBattleScriptedColorRegisters>(json)!;
+        Assert.Equal(registers.NormalInputKnown!.Value.ToArray(), restored.NormalInputKnown!.Value.ToArray());
+        restored.Validate();
+    }
+
+    [Fact]
+    public void Explicit_lighting_argument_does_not_consume_or_publish_temporary84_and_resets_old_input_mask()
+    {
+        NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create();
+        frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0x84, false) } };
+        NativeBattleScriptedColorRegisters initial = NativeBattleScriptedColorRegisters.Unknown() with { NormalInput = new byte[8].ToImmutableArray(), NormalInputKnown = Enumerable.Repeat(false, 8).ToImmutableArray() };
+        NativeBattleScriptedMaterialStep result = NativeBattleScriptedMaterial.Prepare(frame, initial, 0x00030201);
+        Assert.False(result.Frame.TemporaryFrame.Known[0x84]);
+        Assert.Null(result.Registers.NormalInputKnown);
+        Assert.Equal(new byte[] { 0, 16, 0, 16, 0, 16, 0, 0 }, result.Registers.NormalInput!.Value.ToArray());
+        Assert.Equal(96u, result.Frame.ReadTemporaryDword(0xEC));
+        Assert.Equal(32, result.Lighting.ColorMatrix!.Rotation[0]);
+        Assert.Equal(64, result.Lighting.ColorMatrix.Rotation[3]);
+        Assert.Equal(96, result.Lighting.ColorMatrix.Rotation[6]);
     }
 
     private static NativeBattleScriptedLightingMemory Lighting(int back)

@@ -36,7 +36,7 @@ public sealed partial class BattleSession
             NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native cinematic points require their actual projection controls.");
             byte[] point = current.Arena.Read(ArenaOffset(address, 6), 6);
             NativeBattleModuleDepthCueVertex projected = NativeBattleModuleProjection.ProjectWithCue45FAA0(matrix ?? throw new InvalidOperationException("Native cinematic point basis has not been prepared."), NativeBattleScriptedMeshPreparation.Vector(point), projection, registers.Dqa, registers.Dqb);
-            return new(current, projected.Projected.Screen, unchecked((int)projected.Cue));
+            return new(current, projected.Projected.Screen, projected.Projected.Depth >> 2);
         }, (current, output, ordering, batch) =>
         {
             var written = AppendNativeCinematicPackets(current, output, ordering, batch, graphics);

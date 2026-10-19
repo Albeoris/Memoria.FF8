@@ -120,7 +120,7 @@ public static class NativeBattleScriptedMeshPreparation
             for (int index = 0; index < normals; index++)
             {
                 byte[] raw = frame.Arena.Read(ArenaOffset(unchecked(normalSource + (uint)(index * 8)), 8), 8);
-                registers = registers with { NormalInput = raw.ToImmutableArray(), Material = material };
+                registers = registers with { NormalInput = raw.ToImmutableArray(), NormalInputKnown = null, Material = material };
                 registers = NativeBattleScriptedNormalColor.Transform4601B0(lighting, Vector(raw), material, registers);
                 uint color = registers.Rgb[2] ?? throw new NotSupportedException("Native cinematic normal shader did not publish RGB2.");
                 frame = frame with { Arena = frame.Arena.Write(ArenaOffset(unchecked(normalWork + (uint)(index * 8)), 4), BitConverter.GetBytes(color)) };

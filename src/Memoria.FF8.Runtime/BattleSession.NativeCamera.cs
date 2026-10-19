@@ -153,6 +153,10 @@ public sealed partial class BattleSession
                 {
                     graphics = choco98Completed;
                 }
+                else if (TryWriteNativeCarbuncle278Completion(graphics, address, value, out NativeBattleGraphicsState carbuncleCompleted))
+                {
+                    graphics = carbuncleCompleted;
+                }
                 else if (TryWriteNativeTonberry90Completion(graphics, address, value, out NativeBattleGraphicsState tonberryCompleted))
                 {
                     graphics = tonberryCompleted;

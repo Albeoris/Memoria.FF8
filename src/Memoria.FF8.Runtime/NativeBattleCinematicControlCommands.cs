@@ -5,6 +5,50 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleCinematicControlCommands
 {
+    public static NativeBattleWaterExecutionFrame StoreRelative1C(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program)
+    {
+        short displacement = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
+        uint target = unchecked(CoreDword(frame, 0x27973E8) + (uint)displacement);
+        int length = frame.ReadTemporaryWord(0x14A) >> 9 == 1 ? 2 : 1;
+        byte[] value = NativeBattleScriptedCommandReads.Program(frame, program, 4, length);
+        frame = frame with { Arena = frame.Arena.Write(ArenaOffset(target, length), value) };
+        return NativeBattleScriptedCommandReads.Advance(frame, 6);
+    }
+
+    public static NativeBattleWaterExecutionFrame WaitRandomB0(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program)
+    {
+        short operand = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
+        NativeCrtRandomState random = frame.Random.Draw(out ushort draw);
+        int sampled = unchecked((int)((uint)(draw * operand) >> 15));
+        int delay = unchecked((short)SlotWord(frame, 0xC8) * sampled);
+        frame = NativeBattleScriptedCommandReads.Advance(frame with { Random = random }, 4);
+        return delay == 0 ? frame : frame.WriteTemporaryWord(0x13E, unchecked((ushort)delay));
+    }
+
+    public static NativeBattleWaterExecutionFrame ScaleReferencedPositionColorD3(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, Func<NativeBattleWaterExecutionFrame, short, uint> resolveSlot)
+    {
+        short selector = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
+        uint source = resolveSlot(frame, selector);
+        short factor = BinaryPrimitives.ReadInt16LittleEndian(frame.Arena.Read(ArenaOffset(unchecked(source + 0x8C), 2), 2));
+        uint color = 0;
+        for (int lane = 0; lane < 3; lane++)
+        {
+            short component = BinaryPrimitives.ReadInt16LittleEndian(frame.Arena.Read(ArenaOffset(unchecked(source + 0x94 + (uint)(2 * lane)), 2), 2));
+            color |= unchecked((uint)Math.Clamp(component * factor / 256, 0, 255)) << (lane * 8);
+        }
+        color |= (uint)ReadSlot(frame, 0xCF, 1)[0] << 24;
+        frame = WriteSlotDword(frame, 0xCC, color);
+        return NativeBattleScriptedCommandReads.Advance(frame, 4);
+    }
+
+    public static NativeBattleWaterExecutionFrame SetRelativeActorIdCE(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program)
+    {
+        byte actor = ReadSlot(frame, 0x1B, 1)[0];
+        ushort displacement = BinaryPrimitives.ReadUInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
+        frame = WriteSlotWord(frame, 0x12, unchecked((ushort)(actor + displacement)));
+        return NativeBattleScriptedCommandReads.Advance(frame, 4);
+    }
+
     public static NativeBattleWaterExecutionFrame SetResourceCursor120(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program)
     {
         int page = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));

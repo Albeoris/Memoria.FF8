@@ -261,6 +261,15 @@ public sealed partial class GameAssets
                 binding = binding with { Carbuncle278Resources = ReadNativeCarbuncle278Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 325)
+            {
+                if (binding.Entry != 0x6541E0 || binding.Initializer != 0x6541F0)
+                {
+                    throw new InvalidDataException("Native Diablos differs from its original module identity.");
+                }
+                binding = binding with { Diablos325Resources = ReadNativeDiablos325Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 95)
             {
                 if (binding.Entry != 0x739DA0 || binding.Initializer != 0x739D80)

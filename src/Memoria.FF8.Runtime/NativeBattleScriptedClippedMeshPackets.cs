@@ -11,7 +11,7 @@ public static class NativeBattleScriptedClippedMeshPackets
         {
             throw new NotSupportedException("Native clipped GT3 requires its selected cinematic handler.");
         }
-        return EmitTriangle(frame, group, records, depths, output, lighting, registers, resolveBucket, depthScale);
+        return EmitPolygon(frame, group, records, depths, output, lighting, registers, resolveBucket, depthScale);
     }
 
     public static NativeBattleScriptedMeshSubmission EmitFt3(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, uint handler, ImmutableArray<byte> records, ImmutableArray<uint> depths, uint output, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveBucket, float depthScale)
@@ -20,17 +20,37 @@ public static class NativeBattleScriptedClippedMeshPackets
         {
             throw new NotSupportedException("Native clipped FT3 requires its selected cinematic handler.");
         }
-        return EmitTriangle(frame, group, records, depths, output, lighting, registers, resolveBucket, depthScale);
+        return EmitPolygon(frame, group, records, depths, output, lighting, registers, resolveBucket, depthScale);
     }
 
-    private static NativeBattleScriptedMeshSubmission EmitTriangle(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, ImmutableArray<byte> records, ImmutableArray<uint> depths, uint output, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveBucket, float depthScale)
+    public static NativeBattleScriptedMeshSubmission EmitFt4(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, uint handler, ImmutableArray<byte> records, ImmutableArray<uint> depths, uint output, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveBucket, float depthScale)
     {
-        bool gouraud = group.Type == 9;
-        int stride = gouraud ? 28 : 20;
-        int packetLength = gouraud ? 40 : 32;
+        if (group.Type != 18 || handler != 0xB11580)
+        {
+            throw new NotSupportedException("Native clipped FT4 requires its selected cinematic handler.");
+        }
+        return EmitPolygon(frame, group, records, depths, output, lighting, registers, resolveBucket, depthScale);
+    }
+
+    public static NativeBattleScriptedMeshSubmission EmitGt4(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, uint handler, ImmutableArray<byte> records, ImmutableArray<uint> depths, uint output, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveBucket, float depthScale)
+    {
+        if (group.Type != 19 || handler != 0xB117F0)
+        {
+            throw new NotSupportedException("Native clipped GT4 requires its selected cinematic handler.");
+        }
+        return EmitPolygon(frame, group, records, depths, output, lighting, registers, resolveBucket, depthScale);
+    }
+
+    private static NativeBattleScriptedMeshSubmission EmitPolygon(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, ImmutableArray<byte> records, ImmutableArray<uint> depths, uint output, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveBucket, float depthScale)
+    {
+        bool gouraud = group.Type is 9 or 19;
+        bool quad = group.Type is 18 or 19;
+        int corners = quad ? 4 : 3;
+        int stride = quad ? gouraud ? 36 : 24 : gouraud ? 28 : 20;
+        int packetLength = quad && gouraud ? 52 : quad || gouraud ? 40 : 32;
         int vertexStride = gouraud ? 12 : 8;
-        int indexOffset = gouraud ? 18 : 10;
-        int uvOffset = gouraud ? 12 : 4;
+        int indexOffset = quad ? gouraud ? 24 : 12 : gouraud ? 18 : 10;
+        int uvOffset = gouraud ? quad ? 16 : 12 : 4;
         if (group.Count <= 0 || group.Faces.IsDefault || group.Faces.Length != checked(group.Count * stride) || records.IsDefault || records.Length % 8 != 0 || depths.IsDefault)
         {
             throw new InvalidDataException("Native clipped GT3 requires its complete face, projected and depth owners.");
@@ -40,12 +60,12 @@ public static class NativeBattleScriptedClippedMeshPackets
         for (int index = 0; index < group.Count; index++)
         {
             ReadOnlySpan<byte> face = group.Faces.AsSpan().Slice(index * stride, stride);
-            uint[] screens = new uint[3];
-            int[] projectedOffsets = new int[3];
+            uint[] screens = new uint[corners];
+            int[] projectedOffsets = new int[corners];
             int[] rawDepth = new int[4];
             uint sum = 0;
             ushort intersection = ushort.MaxValue;
-            for (int corner = 0; corner < 3; corner++)
+            for (int corner = 0; corner < corners; corner++)
             {
                 int offset = BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(indexOffset + corner * 2));
                 if ((offset & 7) != 0 || offset > records.Length - 8 || offset / 8 >= depths.Length)
@@ -61,7 +81,7 @@ public static class NativeBattleScriptedClippedMeshPackets
             NativeBattleGeometryPrimitive? primitive = null;
             if (intersection == 0)
             {
-                for (int corner = 0; corner < 3; corner++)
+                for (int corner = 0; corner < corners; corner++)
                 {
                     screens[corner] = BinaryPrimitives.ReadUInt32LittleEndian(records.AsSpan().Slice(projectedOffsets[corner], 4));
                     StoreDword(8 + corner * vertexStride, screens[corner]);
@@ -70,19 +90,19 @@ public static class NativeBattleScriptedClippedMeshPackets
                 {
                     data[3] = unchecked((byte)(packetLength / 4 - 1));
                     mask[3] = NativeBattleGfPacketByteState.Known;
-                    for (int corner = 0; corner < 3; corner++)
+                    for (int corner = 0; corner < corners; corner++)
                     {
                         sum += BinaryPrimitives.ReadUInt16LittleEndian(records.AsSpan().Slice(projectedOffsets[corner] + 4, 2));
                         if (gouraud || corner == 0)
                         {
                             uint color = BinaryPrimitives.ReadUInt32LittleEndian(face.Slice(corner * 4));
-                            StoreDword(4 + corner * vertexStride, corner == 0 ? color | (gouraud ? 0x34000000u : 0x24000000u) : color);
+                            StoreDword(4 + corner * vertexStride, corner == 0 ? color | (quad ? gouraud ? 0x3C000000u : 0x2C000000u : gouraud ? 0x34000000u : 0x24000000u) : color);
                         }
                         StoreWord(12 + corner * vertexStride, BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(uvOffset + corner * 2)));
                     }
-                    StoreWord(14, unchecked((ushort)(BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(gouraud ? 24 : 16)) + frame.ReadTemporaryDword(0x54))));
-                    StoreWord(gouraud ? 26 : 22, unchecked((ushort)(BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(gouraud ? 26 : 18)) | frame.ReadTemporaryDword(0x50))));
-                    int bucket = resolveBucket(unchecked(frame.ReadTemporaryDword(0x5C) + ((sum / 3) & 0x3FFCu)));
+                    StoreWord(14, unchecked((ushort)(BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(quad ? gouraud ? 32 : 20 : gouraud ? 24 : 16)) + frame.ReadTemporaryDword(0x54))));
+                    StoreWord(gouraud ? 26 : 22, unchecked((ushort)(BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(quad ? gouraud ? 34 : 22 : gouraud ? 26 : 18)) | frame.ReadTemporaryDword(0x50))));
+                    int bucket = resolveBucket(unchecked(frame.ReadTemporaryDword(0x5C) + ((sum / (uint)corners) & 0x3FFCu)));
                     ImmutableArray<uint> words = Enumerable.Range(0, packetLength / 4).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(word * 4))).ToImmutableArray();
                     primitive = new(bucket, words, rawDepth.ToImmutableArray());
                 }

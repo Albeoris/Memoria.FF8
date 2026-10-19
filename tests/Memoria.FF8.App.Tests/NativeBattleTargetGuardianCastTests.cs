@@ -47,6 +47,9 @@ public sealed partial class NativeBattleTargetGuardianCastTests
     public void Installed_Siren_ordinary_command_completes_graphics_contact_and_disk_continuations() => Run(3, 95);
 
     [Fact]
+    public void Installed_Carbuncle_ordinary_command_completes_graphics_contact_and_disk_continuations() => Run(6, 278);
+
+    [Fact]
     public void Continue_the_named_cinematic_guardian_checkpoint_to_completion()
     {
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_CINEMATIC_SNAPSHOT");
@@ -197,7 +200,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                         return;
                     }
                     cameraChanged |= beforeCamera != JsonSerializer.Serialize(current.NativeCamera);
-                    castingHidden |= (graphics.Models[0].Flags0 & 8) != 0;
+                    castingHidden |= (graphics.Models[0].Flags0 & (effectId == 278 ? 4 : 8)) != 0;
                     NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame!;
                     ImmutableHashSet<NativeBattlePrimitiveReference> effectPackets = visible ? [] : GuardianPacketReferences(prior, current, effectId, game);
                     if (!visible && effectPackets.Count > 0)
@@ -248,7 +251,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                         clone = SaveAndLoad(boundary);
                     }
                 }
-                if (!contact && current.Combatants.Single(actor => actor.Id == "enemy").CurrentHp != 9999)
+                if (!contact && current.Events.Any(entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == target))
                 {
                     contact = true;
                     clone = SaveAndLoad("contact");
@@ -268,11 +271,23 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             Assert.True(castingHidden);
             Assert.True(contact);
             Assert.NotEmpty(sounds);
-            Assert.True(stopSoundCalls > 0);
-            BattleEvent damage = Assert.Single(battle.Events, entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy");
-            Assert.Equal(9999 - damage.Amount, completed.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
+            if (effectId != 278)
+            {
+                Assert.True(stopSoundCalls > 0);
+            }
+            BattleEvent damage = Assert.Single(battle.Events, entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == target);
+            Assert.Equal((target == "party" ? 1000 : 9999) - damage.Amount, completed.Combatants.Single(actor => actor.Id == target).CurrentHp);
             Assert.True(visibleRgbChanges > 0);
-            Assert.InRange(completed.Combatants.Single(actor => actor.Id == "enemy").CurrentHp, 1, 9998);
+            if (effectId == 278)
+            {
+                Assert.Equal(0, damage.Amount);
+                Assert.Equal(9999, completed.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
+                Assert.True((completed.Combatants.Single(actor => actor.Id == "party").NativeStatus!.Battle & 128) != 0);
+            }
+            else
+            {
+                Assert.InRange(completed.Combatants.Single(actor => actor.Id == "enemy").CurrentHp, 1, 9998);
+            }
             Assert.True(Released(completed));
             Assert.Equal(0, completed.NativeGraphics!.Models[0].Flags0 & 0xC);
             if (effectId == 185)

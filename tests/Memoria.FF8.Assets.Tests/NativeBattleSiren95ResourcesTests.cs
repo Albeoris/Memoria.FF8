@@ -26,6 +26,15 @@ public sealed class NativeBattleSiren95ResourcesTests
         Assert.Equal((ushort)4, resources.Vibration.Bank.ReadWord(0x102));
         Assert.Equal(16, resources.SoundDescriptors!.Data.Length);
         Assert.NotEqual(0u, BinaryPrimitives.ReadUInt32LittleEndian(resources.SoundDescriptors.Data.AsSpan()));
+        Assert.Equal(0x358, resources.CameraPrograms!.Data.Length);
+        Assert.Equal(0x16A5380u, resources.PhaseOneSource!.Address);
+        Assert.Equal(0x5A00, resources.PhaseOneSource.Data.Length);
+        Assert.Equal(0x1AC, resources.PhaseOneSprites!.Data.Length);
+        Assert.Equal(0xF8, resources.PhaseTwoSprites!.Data.Length);
+        Assert.Equal((ushort)0xE0, BinaryPrimitives.ReadUInt16LittleEndian(resources.PhaseTwoSprites.Data.AsSpan().Slice(26)));
+        Assert.Equal(0x1533E10u, resources.OverlayProgram!.Address);
+        Assert.Equal(24, resources.OverlayProgram.Commands.Length);
+        Assert.Equal(0xFF000000u, resources.OverlayProgram.Commands[^1]);
         string json = JsonSerializer.Serialize(resources);
         Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleSiren95Resources>(json)));
     }

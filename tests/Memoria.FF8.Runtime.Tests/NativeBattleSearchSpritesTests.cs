@@ -53,5 +53,18 @@ public sealed class NativeBattleSearchSpritesTests
         Assert.Empty(NativeBattleSearchSprites.Draw7582A0(Task().WriteByte(0x26, 4), [], view, Projection, 0).Attempts);
     }
 
+    [Fact]
+    public void Uniform_scale_is_applied_to_transposed_view_before_GTE_rounding_without_scaling_translation()
+    {
+        NativeBattleModulePoolTask task = Task().WriteWord(0x1C, 4096);
+        NativeBattleActionMatrix view = View with { Rotation = [4095, 0, 0, 0, 4096, 0, 0, 0, 4096], X = 70000 };
+        NativeBattleActionMatrix scaled = NativeBattleSearchSprites.Matrix(task, view, 0x3000);
+        Assert.Equal((short)12282, scaled.Rotation[0]);
+        Assert.Equal((short)12288, scaled.Rotation[4]);
+        Assert.Equal(74095, scaled.X);
+        Assert.Equal(1000, scaled.Z);
+        Assert.Equal(NativeBattleSearchSprites.Matrix(task, view).Rotation.ToArray(), NativeBattleSearchSprites.Matrix(task, view, 4096).Rotation.ToArray());
+    }
+
     private static NativeBattleModulePoolTask Task() => new(1, 0, null, 0x7582A0, new byte[0x88 - 12].ToImmutableArray());
 }

@@ -47,6 +47,6 @@ public static class NativeBattleScriptedNormalColor
             }
             output |= (uint)Math.Clamp(rgb, 0, 255) << (channel * 8);
         }
-        return new([.. mac], [.. ir], [registers.Rgb[1], registers.Rgb[2], output], flags) { NormalInput = registers.NormalInput, Material = material };
+        return new([.. mac], [.. ir], [registers.Rgb[1], registers.Rgb[2], output], flags) { NormalInput = registers.NormalInput, NormalInputKnown = registers.NormalInputKnown, Material = material };
     }
 }

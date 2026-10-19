@@ -4,6 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleCarbuncle278Resources(NativeBattleStaticMeshResource MirrorBoundsMesh)
 {
+    public ImmutableArray<NativeBattleModuleResource> ReturnSprites { get; init; } = [];
     public NativeBattleStaticMeshResource? RecipientRingMesh { get; init; }
     public NativeBattleStaticMeshResource? RecipientRayMesh { get; init; }
     public NativeBattleModuleResource? RecipientShardSprite { get; init; }

@@ -5,7 +5,7 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleCinematicGridValue(NativeBattleWaterExecutionFrame Frame, uint Value);
-public sealed record NativeBattleCinematicGridProjection(NativeBattleWaterExecutionFrame Frame, int Cue);
+public sealed record NativeBattleCinematicGridProjection(NativeBattleWaterExecutionFrame Frame, int QuarterDepth);
 public sealed record NativeBattleCinematicGrid28Services(Func<NativeBattleWaterExecutionFrame, short, NativeBattleWaterExecutionFrame> TexturePage, Func<NativeBattleWaterExecutionFrame, short, NativeBattleCinematicGridValue> TextureClut, Func<NativeBattleWaterExecutionFrame, short, uint> ResolveSlot, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> PrepareBasis, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> SetLighting, Func<NativeBattleWaterExecutionFrame, short, short, int, NativeBattleWaterExecutionFrame> SetDepthCue, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> SetFarColor, Func<NativeBattleWaterExecutionFrame, uint, uint, uint, uint, uint, uint, NativeBattleCinematicGridProjection> ProjectNormal, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append);
 
 /// <summary>A textured grid with projected normals, interpolated colors and per-cell ordering.</summary>
@@ -60,7 +60,7 @@ public static class NativeBattleCinematicGrid28
                 NativeBattleCinematicGridProjection projection = services.ProjectNormal(frame, unchecked(temporary + 0xC0), unchecked(temporary + 0xC8), unchecked(temporary + 0xE0), work, unchecked(work + 8), unchecked(temporary + 0xFC));
                 frame = projection.Frame;
                 uint color = Dword(unchecked(work + 8));
-                StoreWord(unchecked(work + 4), unchecked((ushort)projection.Cue));
+                StoreWord(unchecked(work + 4), unchecked((ushort)projection.QuarterDepth));
                 StoreDword(unchecked(work + 8), color | command);
                 work = unchecked(work + 12);
                 frame = frame.WriteTemporaryWord(0xC4, unchecked((ushort)(frame.ReadTemporaryWord(0xC4) + 0x100)));

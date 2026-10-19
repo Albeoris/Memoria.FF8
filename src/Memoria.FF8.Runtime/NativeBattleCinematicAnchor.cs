@@ -26,6 +26,6 @@ public static class NativeBattleCinematicAnchor
         short x = unchecked((short)(unchecked((short)projected.Projected.Screen) >> 3));
         short y = unchecked((short)(unchecked((short)(projected.Projected.Screen >> 16)) >> 3));
         frame = frame.WriteTemporaryWord(0xD0, unchecked((ushort)x)).WriteTemporaryWord(0xD2, unchecked((ushort)y)).WriteTemporaryDword(0xFC, projected.Projected.Flags);
-        return new(frame, unchecked((int)projected.Cue));
+        return new(frame, projected.Projected.Depth >> 2);
     }
 }

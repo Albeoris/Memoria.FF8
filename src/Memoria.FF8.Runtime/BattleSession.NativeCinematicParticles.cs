@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicParticles(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, int secondFileLength, NativeBattleCinematicResources resources, NativeBattleGraphicsState graphics)
+    private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicRectangles(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram? program, int secondFileLength, NativeBattleCinematicResources resources, NativeBattleGraphicsState graphics, byte kind)
     {
         NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, secondFileLength);
         int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank);
@@ -23,11 +23,21 @@ public sealed partial class BattleSession
                 NativeBattleCinematicDispatch.RequireSlot(profile.Effect, table, slot, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(address + 4u * (uint)slot), 4)));
             }
         };
-        frame = NativeBattleWaterParticles.AdvanceType6(frame, program, bank, services);
+        frame = kind switch
+        {
+            5 => NativeBattleWaterRectangleCommands.AdvanceDraw5(frame, services.ResolveMatrixRow, DrawRectangles),
+            6 => NativeBattleWaterParticles.AdvanceType6(frame, program ?? throw new NotSupportedException("Native cinematic particles require their current programme."), bank, services),
+            _ => throw new NotSupportedException("Native cinematic rectangles require their actual selected draw caller.")
+        };
         return (frame, graphics);
 
         NativeBattleWaterExecutionFrame DrawRectangles(NativeBattleWaterExecutionFrame current, NativeBattleActionMatrix matrix)
         {
+            if (kind == 5)
+            {
+                uint selected = BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.SpriteTable + 9u * 4), 4));
+                NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "spr_table", 9, selected);
+            }
             NativeBattleScriptedGraphicsMemory registers = RequireWaterMemory().ScriptedGraphics ?? throw new NotSupportedException("Native cinematic particles require their retained depth-cue controls.");
             NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native cinematic particles require their current camera projection.");
             NativeBattleWaterParticleRectangleResult drawn = NativeBattleWaterParticleRectanglePackets.DrawA9EE90(current, matrix, projection, registers.Zsf3 ?? throw new NotSupportedException("Native cinematic particles require their current ZSF3."), registers.Dqa, registers.Dqb, OtBucket);
