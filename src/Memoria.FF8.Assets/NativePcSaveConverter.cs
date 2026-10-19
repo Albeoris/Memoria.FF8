@@ -181,7 +181,7 @@ public static partial class NativePcSaveConverter
         byte entity = block[World + 105];
         NativeSavedWorldState result = defaults with
         {
-            Origin = defaults.Origin with { Kind = NativeSavedWorldOriginKind.OriginalSave },
+            Origin = new NativeSavedWorldOrigin(NativeSavedWorldState.CurrentProofVersion, NativeSavedWorldOriginKind.OriginalSave, NativeSavedWorldState.OriginalSaveInitializationRule),
             InitialMapDisplayMode110 = block[World + 110] == 3 ? (byte)0 : block[World + 110],
             Slot4 = new NativeSavedWorldVehicleSlot(block[World + 98], Pose(48)),
             Slot5 = new NativeSavedWorldVehicleSlot(block[World + 99], Pose(60)),
@@ -197,30 +197,27 @@ public static partial class NativePcSaveConverter
             GardenReturn = null,
             RagnarokReturn = null
         };
-        if (!active)
-        {
-            return result;
-        }
         ushort lastField = ReadWord(block, Event + 84);
         ushort story = ReadWord(block, Event + 256);
         ushort camera = ReadWord(block, World + 96);
         byte map = block[World + 110] == 3 ? (byte)0 : block[World + 110];
-        short location = unchecked((short)ReadWord(block, 388));
+        // A field save's preview names its current field, not the earlier saved world location.
+        short location = active ? unchecked((short)ReadWord(block, 388)) : (short)0;
         if (entity <= 2)
         {
-            result = result with { FootReturn = new NativeSavedWorldFootReturn { ProofVersion = 1, Rule = NativeSavedWorldFootReturn.SaveRule, SourceWorldFrame = 0, LastFieldId = lastField, StoryWord = story, WorldMode = 0, Pose0 = Pose(0), CameraYaw96 = camera, EntityType105 = entity, Channel106 = 255, Channel107 = 255, AnimationVariant108 = block[World + 108], MapDisplayMode110 = map, MapLocationId = location } };
+            result = result with { FootReturn = new NativeSavedWorldFootReturn { ProofVersion = 1, Rule = NativeSavedWorldFootReturn.OriginalSaveRule, SourceWorldFrame = 0, LastFieldId = lastField, StoryWord = story, WorldMode = 0, Pose0 = Pose(0), CameraYaw96 = camera, EntityType105 = entity, Channel106 = 255, Channel107 = 255, AnimationVariant108 = block[World + 108], MapDisplayMode110 = map, MapLocationId = location } };
         }
         else if (entity == 48)
         {
-            result = result with { GardenReturn = new NativeSavedWorldGardenReturn(1, NativeSavedWorldGardenReturn.SaveRule, 0, lastField, story, Pose(36), camera, entity, 255, 255, block[World + 108], map, location) };
+            result = result with { GardenReturn = new NativeSavedWorldGardenReturn(1, NativeSavedWorldGardenReturn.OriginalSaveRule, 0, lastField, story, Pose(36), camera, entity, 255, 255, block[World + 108], map, location) };
         }
         else if (entity == 50)
         {
-            result = result with { RagnarokReturn = new NativeSavedWorldRagnarokReturn(NativeSavedWorldRagnarokReturn.CurrentRule, 0, lastField, story, Pose(24), camera, map, location) };
+            result = result with { RagnarokReturn = new NativeSavedWorldRagnarokReturn(NativeSavedWorldRagnarokReturn.OriginalSaveRule, 0, lastField, story, Pose(24), camera, map, location) };
         }
         else
         {
-            result = result with { FootReturn = new NativeSavedWorldFootReturn { ProofVersion = 1, Rule = NativeSavedWorldFootReturn.SaveRule, SourceWorldFrame = 0, LastFieldId = lastField, StoryWord = story, WorldMode = 0, Pose0 = Pose(0), CameraYaw96 = camera, EntityType105 = 0, Channel106 = 255, Channel107 = 255, AnimationVariant108 = 0, MapDisplayMode110 = map, MapLocationId = location } };
+            result = result with { FootReturn = new NativeSavedWorldFootReturn { ProofVersion = 1, Rule = NativeSavedWorldFootReturn.OriginalSaveRule, SourceWorldFrame = 0, LastFieldId = lastField, StoryWord = story, WorldMode = 0, Pose0 = Pose(0), CameraYaw96 = camera, EntityType105 = 0, Channel106 = 255, Channel107 = 255, AnimationVariant108 = 0, MapDisplayMode110 = map, MapLocationId = location } };
         }
         return result;
     }

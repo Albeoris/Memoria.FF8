@@ -98,6 +98,59 @@ public sealed class NativePcSaveConverterTests
     }
 
     [Fact]
+    public void Imported_field_later_entry62_uses_its_saved_native_foot_and_parked_garden_poses()
+    {
+        using WorldAssets assets = new(TestResources.GameDirectory);
+        NativeSavedWorldPose parked = new(30000, -7000, -120, 64);
+        WorldState foot = new() { Frame = 71, X = 31500, Z = -6200, NativeHeight = -32, BodyYaw = 165, CameraYaw = 199 };
+        NativeSavedWorldState saved = NativeSavedWorldState.CreateNewGame().WithFootReturn(NativeSavedWorldFootReturn.Create(foot, 257, 750, 3, 0, 0)) with { GardenPose3 = parked };
+        GameState field = Defaults() with { FieldId = 257, FieldArrival = new FieldTransition(257, 10, 20, 0, 0), SavedWorld = saved, WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame().WriteBytes(256, 2, 750) };
+        NativePcSaveData data = NativePcSaveCodec.Decode(NativePcSaveConverter.Export(field));
+        BinaryPrimitives.WriteUInt16LittleEndian(data.Block.AsSpan(388), 500);
+        GameState imported = NativePcSaveConverter.Import(NativePcSaveCodec.Encode(data), Defaults(), _ => "fixture");
+        Assert.Equal(SceneKind.Field, imported.Scene);
+        Assert.Equal(NativeSavedWorldFootReturn.OriginalSaveRule, imported.SavedWorld!.FootReturn!.Rule);
+        Assert.Equal((short)0, imported.SavedWorld.FootReturn.MapLocationId);
+        NativeGardenWorldAllocation allocation = assets.ReadParkedGardenAllocation(new WorldTransition(62, 0, -1), imported.WorldEntryMemory!, imported.EventMemory, imported.SavedWorld, imported.CharacterVitals!);
+        Assert.Equal(parked, allocation.GardenPose);
+        Assert.Equal(new NativeWorldPathPosition(30000, -120, 7000), allocation.Objects[allocation.Garden64Index].Position);
+        Assert.Equal(new NativeWorldPathPosition(31500, -32, 6200), allocation.Objects[allocation.FootObjectIndex].Position);
+        Assert.Equal((ushort)199, allocation.CameraYaw);
+        Assert.Equal(new NativeSavedWorldPose(31500, -6200, -32, 165), imported.SavedWorld.FootReturn.Pose0);
+    }
+
+    [Theory]
+    [InlineData(48)]
+    [InlineData(50)]
+    public void Imported_field_retains_vehicle_saved_reload_auxiliaries(int entity)
+    {
+        NativePcSaveData data = NativePcSaveCodec.Decode(NativePcSaveConverter.Export(Defaults()));
+        int world = NativePcSaveData.MainOffset + 4624;
+        int pose = world + (entity == 48 ? 36 : 24);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.Block.AsSpan(pose), 12345);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.Block.AsSpan(pose + 4), 23456);
+        BinaryPrimitives.WriteUInt16LittleEndian(data.Block.AsSpan(pose + 8), 77);
+        BinaryPrimitives.WriteUInt16LittleEndian(data.Block.AsSpan(pose + 10), 123);
+        BinaryPrimitives.WriteUInt16LittleEndian(data.Block.AsSpan(world + 96), 321);
+        data.Block[world + 105] = (byte)entity;
+        BinaryPrimitives.WriteUInt16LittleEndian(data.Block.AsSpan(388), 500);
+        GameState imported = NativePcSaveConverter.Import(NativePcSaveCodec.Encode(data), Defaults(), _ => "fixture");
+        NativeSavedWorldState saved = imported.SavedWorld!;
+        if (entity == 48)
+        {
+            Assert.Equal(NativeSavedWorldGardenReturn.OriginalSaveRule, saved.GardenReturn!.Rule);
+            Assert.Equal(new NativeSavedWorldPose(12345, 23456, 77, 123), saved.GardenReturn.Pose3);
+            Assert.Equal((ushort)321, saved.GardenReturn.CameraYaw96);
+        }
+        else
+        {
+            Assert.Equal(NativeSavedWorldRagnarokReturn.OriginalSaveRule, saved.RagnarokReturn!.Rule);
+            Assert.Equal(new NativeSavedWorldPose(12345, 23456, 77, 123), saved.RagnarokReturn.Pose2);
+            Assert.Equal((ushort)321, saved.RagnarokReturn.CameraYaw96);
+        }
+    }
+
+    [Fact]
     public void Installed_original_fixture_imports_and_exports_current_initialized_owners()
     {
         string? fixture = Environment.GetEnvironmentVariable("MEMORIA_FF8_PC_SAVE_FIXTURE");

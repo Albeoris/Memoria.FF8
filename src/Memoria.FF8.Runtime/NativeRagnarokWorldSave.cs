@@ -5,6 +5,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeSavedWorldRagnarokReturn([property: JsonRequired] string Rule, [property: JsonRequired] long SourceWorldFrame, [property: JsonRequired] ushort LastFieldId, [property: JsonRequired] ushort StoryWord, [property: JsonRequired] NativeSavedWorldPose Pose2, [property: JsonRequired] ushort CameraYaw96, [property: JsonRequired] byte MapDisplayMode110, [property: JsonRequired] short MapLocationId)
 {
     public const string CurrentRule = "ff8-en-ragnarok-field-return-549e80-pose2-v1";
+    public const string OriginalSaveRule = "ff8-original-save-ragnarok-position-v1";
 
     public static NativeSavedWorldRagnarokReturn Create(WorldState world, ushort lastField, ushort story, short location)
     {
@@ -21,7 +22,7 @@ public sealed record NativeSavedWorldRagnarokReturn([property: JsonRequired] str
 
     public void Validate()
     {
-        if (Rule != CurrentRule || SourceWorldFrame < 0 || Pose2 is null || Pose2.X is < -131072 or >= 131072 || Pose2.RawZ is < -98304 or >= 98304 || Pose2.Yaw >= 4096 || CameraYaw96 >= 4096 || MapDisplayMode110 > 2 || MapLocationId is < sbyte.MinValue or > sbyte.MaxValue)
+        if (Rule is not (CurrentRule or OriginalSaveRule) || SourceWorldFrame < 0 || Pose2 is null || Pose2.X is < -131072 or >= 131072 || Pose2.RawZ is < -98304 or >= 98304 || Pose2.Yaw >= 4096 || CameraYaw96 >= 4096 || MapDisplayMode110 > 2 || MapLocationId is < sbyte.MinValue or > sbyte.MaxValue)
         {
             throw new InvalidDataException("Ragnarok return lost its actual pose2, camera or ordinary saved auxiliary authority.");
         }
