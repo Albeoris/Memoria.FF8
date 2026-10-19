@@ -48,11 +48,13 @@ public sealed class UpdateInstallerTests : IDisposable
         Assert.False(File.Exists(Path.Combine(Work, "journal.json")));
     }
 
-    [Fact]
-    public void BundledNativeModsUpdateUntouchedDefaultsAndInstallMissingFiles()
+    [Theory]
+    [InlineData("Mods/Memoria/Example/")]
+    [InlineData("Data/BundledMods/Memoria/Example/")]
+    public void BundledNativeModsUpdateUntouchedDefaultsAndInstallMissingFiles(string prefix)
     {
-        const string existing = "Mods/Memoria/Example/fields/existing.json";
-        const string added = "Mods/Memoria/Example/fields/added.json";
+        string existing = prefix + "fields/existing.json";
+        string added = prefix + "fields/added.json";
         AddPackageFile(root, existing, "old default");
         AddPackageFile(Staged, existing, "new default");
         AddPackageFile(Staged, added, "added default");
@@ -62,11 +64,13 @@ public sealed class UpdateInstallerTests : IDisposable
         PackageManifest.Verify(root, PackageManifest.Read(root));
     }
 
-    [Fact]
-    public void BundledNativeModsPreserveEditsAndPreexistingFilesAcrossUpdates()
+    [Theory]
+    [InlineData("Mods/Memoria/Example/")]
+    [InlineData("Data/BundledMods/Memoria/Example/")]
+    public void BundledNativeModsPreserveEditsAndPreexistingFilesAcrossUpdates(string prefix)
     {
-        const string edited = "Mods/Memoria/Example/fields/edited.json";
-        const string unowned = "Mods/Memoria/Example/mod.ini";
+        string edited = prefix + "fields/edited.json";
+        string unowned = prefix + "mod.ini";
         AddPackageFile(root, edited, "old default");
         Write(root, edited, "user edit");
         Write(root, unowned, "enabled = 0");
@@ -86,11 +90,13 @@ public sealed class UpdateInstallerTests : IDisposable
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void RemovingBundledNativeModFilesPreservesOnlyUserEdits(bool edited)
+    [InlineData("Mods/Memoria/Example/", false)]
+    [InlineData("Mods/Memoria/Example/", true)]
+    [InlineData("Data/BundledMods/Memoria/Example/", false)]
+    [InlineData("Data/BundledMods/Memoria/Example/", true)]
+    public void RemovingBundledNativeModFilesPreservesOnlyUserEdits(string prefix, bool edited)
     {
-        const string relative = "Mods/Memoria/Example/fields/obsolete.json";
+        string relative = prefix + "fields/obsolete.json";
         AddPackageFile(root, relative, "old default");
         if (edited)
         {
@@ -104,11 +110,13 @@ public sealed class UpdateInstallerTests : IDisposable
         }
     }
 
-    [Fact]
-    public void FailedUpdateRestoresUntouchedBundledDefaultsAndPreservesEdits()
+    [Theory]
+    [InlineData("Mods/Memoria/Example/")]
+    [InlineData("Data/BundledMods/Memoria/Example/")]
+    public void FailedUpdateRestoresUntouchedBundledDefaultsAndPreservesEdits(string prefix)
     {
-        const string untouched = "Mods/Memoria/Example/fields/untouched.json";
-        const string edited = "Mods/Memoria/Example/fields/edited.json";
+        string untouched = prefix + "fields/untouched.json";
+        string edited = prefix + "fields/edited.json";
         AddPackageFile(root, untouched, "old default");
         AddPackageFile(root, edited, "old default");
         Write(root, edited, "user edit");

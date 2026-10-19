@@ -112,6 +112,39 @@ public sealed class MemoriaRuntimeTests : IDisposable
         Assert.Equal("Memoria/Explicit", Assert.Single(runtime.Catalog.Packages).Id);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BundledDefaultsLoadWithoutUserModsAndYieldToGameAndSelectedRoots(bool explicitRoot)
+    {
+        string application = Path.Combine(root, "Data");
+        string bundled = Path.Combine(application, "BundledMods");
+        string game = Path.Combine(root, "game");
+        string selected = explicitRoot ? Path.Combine(root, "custom") : root;
+        string path = Path.Combine(bundled, "Memoria", "Example", "fields", "sample.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, "bundled");
+        Directory.CreateDirectory(Path.Combine(root, "Mods"));
+        File.WriteAllText(Path.Combine(root, "Memoria.Launcher.exe"), "launcher");
+        using ModRuntime runtime = new(application, watch: false, additionalBaseDirectories: [game], modsDirectory: explicitRoot ? Path.Combine(selected, "Mods") : null);
+        Publish(runtime);
+        Assert.Equal("bundled", System.Text.Encoding.UTF8.GetString(Assert.Single(runtime.Catalog.Files).ReadBytes()));
+        Assert.Equal(bundled, runtime.ModsDirectories[^1]);
+        Assert.True(runtime.SetEnabled("Memoria/Example", false).Success);
+        Publish(runtime);
+        Assert.Empty(runtime.Catalog.Files);
+        Assert.True(runtime.SetEnabled("Memoria/Example", true).Success);
+        Publish(runtime);
+        Write(selected, "Memoria/Example/fields/sample.json", "selected");
+        runtime.RequestRefresh();
+        Publish(runtime);
+        Assert.Equal("selected", System.Text.Encoding.UTF8.GetString(Assert.Single(runtime.Catalog.Files).ReadBytes()));
+        Write(game, "Memoria/Example/fields/sample.json", "game");
+        runtime.RequestRefresh();
+        Publish(runtime);
+        Assert.Equal("game", System.Text.Encoding.UTF8.GetString(Assert.Single(runtime.Catalog.Files).ReadBytes()));
+    }
+
     private static void Write(string baseDirectory, string relative, string content)
     {
         string path = Path.Combine(baseDirectory, "Mods", relative);

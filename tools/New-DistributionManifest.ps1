@@ -22,10 +22,6 @@ $manifestPath = Join-Path $root 'Data/distribution.json'
 $files = @(
     Get-Item -LiteralPath (Join-Path $root 'Memoria.Launcher.exe')
     Get-ChildItem -LiteralPath (Join-Path $root 'Data') -File -Recurse | Where-Object FullName -ne $manifestPath
-    $nativeMods = Join-Path $root 'Mods/Memoria'
-    if (Test-Path -LiteralPath $nativeMods -PathType Container) {
-        Get-ChildItem -LiteralPath $nativeMods -File -Recurse
-    }
 )
 $inventory = @($files | Sort-Object FullName | ForEach-Object {
     [ordered]@{

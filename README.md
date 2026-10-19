@@ -63,15 +63,16 @@ The result is `artifacts/Memoria-FF8-win-x64.zip`, with this layout:
 ```text
 Memoria.Launcher.exe
 Data/
+  BundledMods/
+    Memoria/
+      Fix_CidUnpixelated/
 Mods/
   Tonberry/
   Demaster/
   Junction/
-  Memoria/
-    Fix_CidUnpixelated/
 ```
 
-Tonberry, Demaster and Junction directories are empty and ready for user-installed mods. `Memoria/Fix_CidUnpixelated` is a bundled native [field mod](docs/modding/field-mods.md); it contains scene configuration and loads all game resources from your installation.
+Tonberry, Demaster and Junction directories are empty and ready for user-installed mods. `Data/BundledMods/Memoria/Fix_CidUnpixelated` is a bundled native [field mod](docs/modding/field-mods.md); it contains scene configuration and loads all game resources from your installation. Game-directory and selected user mods take priority over bundled packages with the same ID. Bundled files stay under `Data/` so existing launchers can install future releases.
 
 The required Albeoris.Frameworks source is [vendored](vendor/Albeoris.Frameworks/README.md). No sibling repository or submodule is needed. See [Build and test](docs/developers/building-and-testing.md) for development builds, test projects and optional local inputs.
 

@@ -22,11 +22,12 @@ public sealed class DistributionArchiveTests
             }
             foreach (string relative in new[] { "README.md", "fields/bghall_6.json" })
             {
-                string path = "Mods/Memoria/Fix_CidUnpixelated/" + relative;
+                string path = "Data/BundledMods/Memoria/Fix_CidUnpixelated/" + relative;
                 Assert.True(File.Exists(Path.Combine(destination, path)));
                 Assert.Contains(manifest.Files, file => file.Path == path);
             }
-            Assert.False(File.Exists(Path.Combine(destination, "Mods/Memoria/Fix_CidUnpixelated/mod.ini")));
+            Assert.False(File.Exists(Path.Combine(destination, "Data/BundledMods/Memoria/Fix_CidUnpixelated/mod.ini")));
+            Assert.False(Directory.Exists(Path.Combine(destination, "Mods", "Memoria")));
         }
         finally
         {

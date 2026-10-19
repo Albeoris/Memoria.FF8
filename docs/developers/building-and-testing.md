@@ -16,7 +16,8 @@ The script publishes a self-contained x64 launcher and engine, plus the x86 Dire
 | --- | --- |
 | `artifacts/package/Memoria.Launcher.exe` | Start the local packaged application. |
 | `artifacts/package/Data/` | Engine, runtimes, audio host and distribution notices. |
-| `artifacts/package/Mods/` | Empty `Tonberry/`, `Demaster/` and `Junction/` directories, plus the bundled native `Memoria/Fix_CidUnpixelated` package. |
+| `artifacts/package/Data/BundledMods/` | Bundled native `Memoria/Fix_CidUnpixelated` defaults, discovered after user packages. |
+| `artifacts/package/Mods/` | Empty `Tonberry/`, `Demaster/` and `Junction/` directories for user packages. |
 | `artifacts/Memoria-FF8-win-x64.zip` | The distributable archive; its root contains the launcher, `Data/` and `Mods/`. |
 
 `Build.ps1` replaces its generated package directory on a successful build. Keep personal saves, mod packages and independently installed tools outside disposable build outputs, or preserve them before rebuilding.
@@ -86,3 +87,11 @@ Fixture catalogs and original game data stay local. Use neutral fixture identifi
 ## Report a reproducible failure
 
 Keep the command, error text, affected mode and a suitable standalone snapshot when available. Automated exploration writes a reproduction manifest; see [Automatic exploration](../players/automatic-exploration.md). The [control API](../reference/control-api.md) can inspect a running session and advance it in bounded steps. Preview modes are useful for layout checks but do not prove GPU rendering or complete gameplay support.
+
+### Automatic update compatibility
+
+Every `Build.ps1` run validates the completed ZIP with the frozen first automatic updater in `tools/Memoria.FF8.Updater.Compatibility`, independently of the current updater. Extraction, installation from a minimal older inventory, rollback and preservation of user files must pass before the build succeeds. CI publishes only after this gate. Keep this baseline immutable; add additional contracts when necessary rather than replacing older supported contracts.
+
+Schema 1 update payloads must remain under `Data/`, with `Memoria.Launcher.exe` at the root. Only the existing empty `Mods/Tonberry/`, `Mods/Demaster/` and `Mods/Junction/` scaffolding belongs outside that payload. Put future bundled resources under `Data/` and retain the schema contract so already installed launchers can update directly.
+
+An older launcher that rejected an archive before installation can retry against the next compatible release; manually creating the missing directory does not change its archive policy. This fix takes effect for those installations when a compatible ZIP is published.

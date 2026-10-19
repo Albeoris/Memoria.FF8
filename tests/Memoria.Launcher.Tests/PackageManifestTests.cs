@@ -41,10 +41,11 @@ public sealed class PackageManifestTests : IDisposable
         Assert.Equal("local-build", PackageManifest.LoadOptional(directory)!.BuildId);
     }
 
-    [Fact]
-    public void ArchiveIncludesOnlyInventoriedNativeModFiles()
+    [Theory]
+    [InlineData("Mods/Memoria/Fix_CidUnpixelated/fields/bghall_6.json")]
+    [InlineData("Data/BundledMods/Memoria/Fix_CidUnpixelated/fields/bghall_6.json")]
+    public void ArchiveIncludesOnlyInventoriedNativeModFiles(string path)
     {
-        const string path = "Mods/Memoria/Fix_CidUnpixelated/fields/bghall_6.json";
         PackageManifest manifest = Manifest();
         manifest = manifest with { Files = [.. manifest.Files, FileRecord(path, "payload")] };
         string destination = Path.Combine(directory, "native-mod");

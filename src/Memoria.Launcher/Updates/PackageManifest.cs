@@ -280,7 +280,7 @@ internal sealed record PackageManifest(int SchemaVersion, string BuildId, string
 
     internal static bool IsBundledModPath(string path)
     {
-        return path.StartsWith("Mods/Memoria/", StringComparison.OrdinalIgnoreCase) && path.Count(character => character == '/') >= 3;
+        return (path.StartsWith("Mods/Memoria/", StringComparison.OrdinalIgnoreCase) && path.Count(character => character == '/') >= 3) || (path.StartsWith("Data/BundledMods/Memoria/", StringComparison.OrdinalIgnoreCase) && path.Count(character => character == '/') >= 4);
     }
 
     private static bool IsAllowedDirectory(string path)

@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Frozen/PackageManifest.cs" LogicalName="Frozen.PackageManifest.cs" />
+    <EmbeddedResource Include="Frozen/UpdateInstaller.cs" LogicalName="Frozen.UpdateInstaller.cs" />
+  </ItemGroup>
+</Project>

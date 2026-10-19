@@ -38,7 +38,13 @@ public sealed partial class ModRuntime : IModService, IDisposable
     public ModRuntime(string? applicationBaseDirectory = null, Func<ModFormat, bool>? isCompatible = null, Func<ModCatalogSnapshot, ModPreparationResult>? prepare = null, bool watch = true, TimeSpan? debounce = null, IEnumerable<string>? additionalBaseDirectories = null, string? modsDirectory = null)
     {
         modsRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(modsDirectory ?? DefaultModsDirectory(applicationBaseDirectory ?? AppContext.BaseDirectory)));
-        ModsDirectories = Array.AsReadOnly((additionalBaseDirectories ?? []).Select(directory => Path.Combine(directory, "Mods")).Append(modsRoot).Select(directory => Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory))).Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+        IEnumerable<string> roots = (additionalBaseDirectories ?? []).Select(directory => Path.Combine(directory, "Mods")).Append(modsRoot);
+        string bundledMods = Path.Combine(applicationBaseDirectory ?? AppContext.BaseDirectory, "BundledMods");
+        if (Directory.Exists(bundledMods))
+        {
+            roots = roots.Append(bundledMods);
+        }
+        ModsDirectories = Array.AsReadOnly(roots.Select(directory => Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory))).Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
         this.isCompatible = isCompatible ?? (_ => true);
         this.prepare = prepare ?? (_ => ModPreparationResult.Accepted);
         this.debounce = debounce ?? TimeSpan.FromMilliseconds(250);

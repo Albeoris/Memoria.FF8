@@ -37,7 +37,7 @@ $bundledMods = Join-Path $root 'Mods/Memoria'
 $bundledModFiles = @(Get-ChildItem -LiteralPath $bundledMods -File -Recurse)
 $expectedModFiles = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
 foreach ($file in $bundledModFiles) {
-    $relative = 'Mods/Memoria/' + [IO.Path]::GetRelativePath($bundledMods, $file.FullName).Replace('\', '/')
+    $relative = 'Data/BundledMods/Memoria/' + [IO.Path]::GetRelativePath($bundledMods, $file.FullName).Replace('\', '/')
     $destination = Join-Path $staging $relative
     New-Item -ItemType Directory -Force -Path ([IO.Path]::GetDirectoryName($destination)) | Out-Null
     Copy-Item -LiteralPath $file.FullName -Destination $destination
@@ -146,6 +146,8 @@ try {
     finally {
         $zip.Dispose()
     }
+    # Validate with the immutable installed-updater contract on every build, including builds without -Test.
+    Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Updater.Compatibility', '-c', $Configuration, '--', $archive)
     if ($Test) {
         $previousDistributionPath = $env:MEMORIA_FF8_DISTRIBUTION_PATH
         try {
