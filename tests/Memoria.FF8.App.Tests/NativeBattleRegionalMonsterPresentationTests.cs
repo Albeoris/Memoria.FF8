@@ -198,9 +198,13 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
     internal static BattleDefinition CreateDefinition(GameAssets game, BattleAssets assets, int model, int level, int slot, NativeBattleAiDefinition installedAi, BattleNativeAction action)
     {
         BattleEncounter formation = Enumerable.Range(0, 1024).Select(assets.LoadEncounter).First(item => item.Slots.Any(enemy => enemy.ModelId == model));
+        if (action.Command == 252 && action.MagicId is 17 or 18)
+        {
+            formation = Enumerable.Range(0, 1024).Select(assets.LoadEncounter).First(item => item.Slots.Any(enemy => enemy.ModelId == 91 && enemy.Slot == 2) && item.Slots.Any(enemy => enemy.ModelId == 74) && item.Slots.Any(enemy => enemy.ModelId == 73));
+        }
         if (action.Command == 252 && action.MagicId == 248)
         {
-            formation = Enumerable.Range(0, 1024).Select(assets.LoadEncounter).First(item => item.Slots.Count == 3 && item.Slots.All(enemy => enemy.ModelId == 71));
+            formation = Enumerable.Range(0, 1024).Select(assets.LoadEncounter).First(item => item.Enemies.Count == 3 && item.Enemies.All(enemy => enemy.ModelId == 71));
         }
         BattleEnemyPlacement placement = formation.Slots.First(enemy => enemy.ModelId == model);
         BattleStage stage = assets.LoadStage(formation.StageId);
@@ -231,20 +235,33 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
         }
         if (action.Command == 252 && action.MagicId == 248)
         {
-            foreach (BattleEnemyPlacement companionPlacement in formation.Slots.Where(enemy => enemy.Slot != placement.Slot))
+            foreach (BattleEnemyPlacement companionPlacement in formation.Enemies.Where(enemy => enemy.Slot != placement.Slot))
             {
                 NativeBattleAiDefinition companionAi = assets.ReadEnemyAi(model, level) with { Scripts = [[0], [0], [0], [0], [0]] };
                 BattleCombatantDefinition companion = actors[1] with { Id = $"companion-{companionPlacement.Slot}", SceneSlot = companionPlacement.Slot, NativeAi = companionAi };
                 actors = [.. actors, companion];
             }
         }
-        if (action.MagicId is 17 or 42)
+        if (action.Command == 252 && action.MagicId is 17 or 18)
+        {
+            List<BattleCombatantDefinition> tower = [];
+            foreach (BattleEnemyPlacement towerPlacement in formation.Slots.Where(enemy => enemy.Slot < 2).OrderBy(enemy => enemy.Slot))
+            {
+                int towerModel = towerPlacement.ModelId;
+                BattleEnemyNativeProjection towerStats = assets.ReadEnemyNativeStats(towerModel).Project(level);
+                NativeBattleAiDefinition towerAi = assets.ReadEnemyAi(towerModel, level) with { Scripts = [[0], [0], [0], [0], [0]] };
+                tower.Add(new() { Id = $"tower-{towerPlacement.Slot}", Name = assets.ReadEnemyName(towerModel), ModelId = towerModel, SceneSlot = towerPlacement.Slot, Level = level, MaximumHp = towerStats.MaximumHp, CurrentHp = towerStats.MaximumHp, Attack = towerStats.Strength, Defense = towerStats.Vitality, Magic = towerStats.Magic, Spirit = towerStats.Spirit, Speed = 1, ElementDefenses = towerStats.ElementDefenses.Select(value => (int)value).ToArray(), NativeStatusResistances = assets.ReadEnemyNativeStatusData(towerModel).Resistances.ToArray(), Information246 = assets.ReadEnemyNativeInformation246(towerModel), NativeCombatantFlags = assets.ReadEnemyNativeCombatantFlags(towerModel), NativeAi = towerAi });
+            }
+            // Keep the original tower physical allocation order for the fixed camera reference50.
+            actors = [actors[0], .. tower, actors[1]];
+        }
+        if (action.MagicId is 17 or 18 or 42)
         {
             NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
             BattleCombatantDefinition zell = new() { Id = "party-1", Name = "Zell", IsPlayer = true, ModelId = 1, WeaponId = vitals.Records[1].Weapon, MaximumHp = 30000, CurrentHp = 30000, NativeCharacterFlag100 = assets.ReadCharacterNativeConditionFlag100(1), NativeStatusResistances = assets.ReadPlayerNativeStatusData(vitals, 1).Resistances.ToArray(), NativeDeathCount = 0 };
-            int thirdCharacter = action.MagicId == 17 ? 5 : 2;
+            int thirdCharacter = action.MagicId is 17 or 18 ? 5 : 2;
             BattleCombatantDefinition third = new() { Id = "party-2", Name = thirdCharacter == 5 ? "Selphie" : "Irvine", IsPlayer = true, ModelId = thirdCharacter, WeaponId = vitals.Records[thirdCharacter].Weapon, MaximumHp = 30000, CurrentHp = 30000, NativeCharacterFlag100 = assets.ReadCharacterNativeConditionFlag100(thirdCharacter), NativeStatusResistances = assets.ReadPlayerNativeStatusData(vitals, thirdCharacter).Resistances.ToArray(), NativeDeathCount = 0 };
-            actors = [actors[0], zell, third, actors[1]];
+            actors = [actors[0], zell, third, .. actors.Skip(1)];
         }
         BattleDefinition baseline = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, 0, 116);
         string? stackProfile = Environment.GetEnvironmentVariable("MEMORIA_FF8_MONSTER_STACK_PROFILE");

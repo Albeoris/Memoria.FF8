@@ -182,6 +182,20 @@ public sealed partial class BattleSession
             int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank);
             switch (opcode)
             {
+                case 0x2D:
+                    return NativeBattleCinematicPresentationCommands.SetGraphicsFlag2D(current, graphics.Flags, value => graphics = graphics with { Flags = value });
+                case 0x53:
+                    return NativeBattleCinematicPresentationCommands.FadeMusic53(current, program, (duration, direct) =>
+                    {
+                        if (!direct && (ResolvedNativeFlags & 2) != 0)
+                        {
+                            return;
+                        }
+                        uint channel = direct ? 0u : unchecked((uint)(short)(NativeMusicProcess?.ReturnChannel ?? throw new NotSupportedException("Native cinematic music fade requires its retained return channel.")));
+                        NativeGlobalSoundProcess soundOwner = NativeGlobalSoundProcess ?? throw new NotSupportedException("Native cinematic music fade requires its actual sound process.");
+                        NativeMusicPlaybackState playback = soundOwner.MusicPlayback ?? throw new NotSupportedException("Native cinematic music fade requires its actual playback owner.");
+                        NativeGlobalSoundProcess = soundOwner with { MusicPlayback = playback.FadeGain46BBC0(channel, unchecked((byte)duration), 0) };
+                    });
                 case 0x46:
                     return NativeBattleCinematicContactBranch46.Execute(current, program, context.ReadActionBytes, (_, actor) => NativeBattleStatusBits(combatants.Single(combatant => combatant.NativeIndex == actor)));
                 case 0x49:
@@ -646,6 +660,12 @@ public sealed partial class BattleSession
             return NativeBattleCinematicDraw.Run(profile, current, PrepareLighting, (frame, kind) =>
             {
                 uint selectedDrawHandler = NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "draw_table", kind, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.DrawTable + 4u * kind), 4)));
+                if (selectedDrawHandler == 0xB4BBE0)
+                {
+                    var breakup = DrawNativeControl18Breakup(frame, assets[1].Data.Length, graphics);
+                    graphics = breakup.Graphics;
+                    return breakup.Frame;
+                }
                 if (selectedDrawHandler is 0xA49C20 or 0xA3F700)
                 {
                     var monster = DrawNativeCinematicMonsterActor(frame, selectedDrawHandler == 0xA3F700, assets[1].Data.Length, resources, ModelServices(0), graphics);
@@ -828,7 +848,7 @@ public sealed partial class BattleSession
                         return scrollFrame;
                     });
                 }
-                if (selectedDrawHandler is 0xB198C0 or 0xB58FA0 or 0xB59150)
+                if (selectedDrawHandler is 0xB198C0 or 0xB58FA0 or 0xB59150 or 0xB4B450)
                 {
                     return NativeBattleCinematicRowScroll.Draw(frame, resources, selectedDrawHandler == 0xB59150, (scrollFrame, rectangle, source) =>
                     {

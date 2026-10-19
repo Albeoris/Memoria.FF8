@@ -38,7 +38,7 @@ public static class NativeBattleScriptedMeshPackets
             19 => (0xB290B0u, 36, 52, 4, 24),
             _ => throw new NotSupportedException("Native cinematic primitive writer requires its selected proved handler.")
         };
-        if (actualHandler != expected && !(group.Type == 16 && actualHandler == 0xAEC030))
+        if (actualHandler != expected && !(group.Type == 16 && actualHandler is 0xAEC030 or 0xB50540))
         {
             throw new NotSupportedException($"Native cinematic primitive {group.Type:X} selected unsupported handler {actualHandler:X8}.");
         }
@@ -89,7 +89,9 @@ public static class NativeBattleScriptedMeshPackets
                 }
                 screens[corner] = BinaryPrimitives.ReadUInt32LittleEndian(projectedRecords.AsSpan().Slice(offset));
                 depthAndClip[corner] = BinaryPrimitives.ReadUInt32LittleEndian(projectedRecords.AsSpan().Slice(offset + 4));
-                rawDepth[corner] = NativePrecision53.RoundInteger(unchecked((ushort)depths[offset / 8]) * (double)depthScale);
+                double scaledDepth = unchecked((ushort)depths[offset / 8]) * (double)depthScale;
+                //The Type16 clones use55AD90's signed64-bit truncation and consume its low DWORD.
+                rawDepth[corner] = group.Type == 16 ? unchecked((int)(long)scaledDepth) : NativePrecision53.RoundInteger(scaledDepth);
                 StoreDword(group.Type is 6 or 16 ? 16 + corner * 4 : group.Type == 19 ? 8 + corner * 12 : 8 + corner * 8, screens[corner]);
             }
             bool reject = (frame.ReadTemporaryDword(0x90) & 0x10) == 0 && NativeBattleModulePackets.Nclip(screens[0], screens[1], screens[2]) < 0;

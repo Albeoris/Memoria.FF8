@@ -6,7 +6,7 @@ public sealed partial class BattleSession
     {
         if ((uint)index >= 7 || graphics.ActorIds[index] is not string actorId)
         {
-            throw new InvalidDataException("Native graphics pose has no allocated resource owner.");
+            throw new InvalidDataException($"Native graphics pose index {index} has no allocated resource owner.");
         }
         NativeBattleGraphicsBinding binding = FindNativeGraphicsBinding(actorId) ?? throw new InvalidDataException("Native graphics pose lost its original model resource.");
         if (graphics.Models[index].ActiveStagedResourceRow100 is not null)

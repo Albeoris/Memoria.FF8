@@ -418,6 +418,11 @@ public static partial class NativeBattleCinematicDispatch
     private static readonly FrozenDictionary<(int Effect, string Table, int Index), uint> ControlVariantSlots = new Dictionary<(int Effect, string Table, int Index), uint>
     {
         [(18, "vm_table", 0x42)] = 0xB57280,
+        [(18, "vm_table", 0x2D)] = 0xB53970,
+        [(18, "vm_table", 0x53)] = 0xB4AAC0,
+        [(18, "draw_table", 0x16)] = 0xB4BBE0,
+        [(18, "prim_table", 16)] = 0xB50540,
+        [(18, "draw_table", 0x10)] = 0xB4B450,
         [(248, "vm_table", 0x42)] = 0x9C8CC0,
         [(248, "vm_table", 0x9A)] = 0x9C5700,
     }.ToFrozenDictionary();
