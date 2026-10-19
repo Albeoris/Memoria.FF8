@@ -7,10 +7,15 @@ public static partial class NativeBattleRenzokukenVariantController
 {
     public static NativeBattleRenzokuken160Frame Enter61DE70(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleActionPacketsState packets, NativeBattleRenzokuken160Resources resources, NativeCrtRandomState random)
     {
-        NativeBattleRenzokukenVariantProfile profile = NativeBattleRenzokukenVariantProfile.Renzokuken141;
+        return Enter(NativeBattleRenzokukenVariantProfile.Renzokuken141, memory, effect, packets, resources, random);
+    }
+
+    public static NativeBattleRenzokuken160Frame Enter(NativeBattleRenzokukenVariantProfile frameProfile, NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleActionPacketsState packets, NativeBattleRenzokuken160Resources resources, NativeCrtRandomState random)
+    {
+        NativeBattleRenzokukenVariantProfile profile = frameProfile;
         if (effect.Binding.Effect != profile.Effect || effect.Binding.Entry != profile.Entry || effect.Binding.Initializer != profile.Initializer || effect.Parameters is not { } parameters || resources.ActorResource.MagicId != profile.Effect)
         {
-            throw new InvalidDataException("Native61DE70 requires its original141 binding, action parameters and embedded actor resource.");
+            throw new InvalidDataException("Native Renzokuken variant requires its original binding, action parameters and embedded actor resource.");
         }
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
         int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native61DE70 requires its physical first-contact pointer.");
@@ -19,10 +24,14 @@ public static partial class NativeBattleRenzokukenVariantController
         ImmutableDictionary<ushort, NativeBattleRenzokukenVariantState> states = memory.RenzokukenVariants ?? ImmutableDictionary<ushort, NativeBattleRenzokukenVariantState>.Empty;
         NativeBattleRenzokukenVariantState retained = states.GetValueOrDefault(profile.Effect) ?? new(NativeBattleRenzokuken160State.FromColdProcess(), default, default, null);
         NativeBattleRenzokukenVariantState state = retained with { Core = retained.Core.Enter(parameters.Actor78, parameters.HeaderIndex7C, target, initial), RetainedResources = resources };
+        if (profile.HasContactOffsets)
+        {
+            state = state with { LateMatrix = state.LateMatrix ?? new(new short[9].ToImmutableArray(), 0, 0, 0, 4096), ContactPadding = state.ContactPadding ?? new(0, 0, 0) };
+        }
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(profile.MainDescriptor, profile.MainBank, 16, 1);
         (main, int mainSlot) = main.Append(profile.RootCallback);
         main = main with { Slots = main.Slots.SetItem(mainSlot, main.Slots[mainSlot].WriteWord(12, 0)) };
-        NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(profile.ChildDescriptor, profile.ChildBank, 36, 100);
+        NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(profile.ChildDescriptor, profile.ChildBank, 36, profile.ChildCapacity);
         (children, int childSlot) = children.Append(profile.ControllerCallback);
         children = children with { Slots = children.Slots.SetItem(childSlot, children.Slots[childSlot].WriteWord(12, 0)) };
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native61DE70 requires its actual texture owner.");
@@ -34,7 +43,11 @@ public static partial class NativeBattleRenzokukenVariantController
 
     public static NativeBattleRenzokuken160Frame Advance61F710(NativeBattleRenzokuken160Frame frame, Func<NativeBattleRenzokuken160Frame, NativeBattleEffectTaskPool, int, NativeBattleRenzokuken160ChildStep> advanceChild, Func<NativeBattleRenzokuken160Frame, NativeBattleRenzokuken160Frame> drawParticles)
     {
-        NativeBattleRenzokukenVariantProfile profile = NativeBattleRenzokukenVariantProfile.Renzokuken141;
+        return AdvanceRoot(frame, NativeBattleRenzokukenVariantProfile.Renzokuken141, advanceChild, drawParticles);
+    }
+
+    public static NativeBattleRenzokuken160Frame AdvanceRoot(NativeBattleRenzokuken160Frame frame, NativeBattleRenzokukenVariantProfile profile, Func<NativeBattleRenzokuken160Frame, NativeBattleEffectTaskPool, int, NativeBattleRenzokuken160ChildStep> advanceChild, Func<NativeBattleRenzokuken160Frame, NativeBattleRenzokuken160Frame> drawParticles)
+    {
         if (frame.Effect.Pools.Length != 2 || frame.Effect.Pools[0].DescriptorAddress != profile.MainDescriptor || frame.Effect.Pools[1].DescriptorAddress != profile.ChildDescriptor)
         {
             throw new InvalidDataException("Native61F710 lost its original task descriptors.");
@@ -61,11 +74,15 @@ public static partial class NativeBattleRenzokukenVariantController
 
     public static NativeBattleRenzokuken160ChildStep Advance61DF70(NativeBattleRenzokuken160Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRenzokuken160Inputs inputs, NativeBattleRenzokuken160Resources resources)
     {
+        return AdvanceController(frame, pool, slot, inputs, resources, NativeBattleRenzokukenVariantProfile.Renzokuken141);
+    }
+
+    public static NativeBattleRenzokuken160ChildStep AdvanceController(NativeBattleRenzokuken160Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRenzokuken160Inputs inputs, NativeBattleRenzokuken160Resources resources, NativeBattleRenzokukenVariantProfile profile)
+    {
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {
             return new(frame, pool, 0);
         }
-        NativeBattleRenzokukenVariantProfile profile = NativeBattleRenzokukenVariantProfile.Renzokuken141;
         NativeBattleModulePoolTask task = pool.Slots[slot];
         short counter = unchecked((short)task.ReadWord(12));
         NativeBattleRenzokuken160State state = ReadState(frame).Core;
@@ -102,13 +119,9 @@ public static partial class NativeBattleRenzokukenVariantController
         {
             Execute(new NativeBattleRenzokuken160SharedTask(profile.SharedEmitterCallback, 0, state.Actor));
         }
-        if (counter == 51)
+        if (counter == profile.LateFrame)
         {
-            (pool, int lateSlot) = pool.Append(0x61F590);
-            frame = frame with { Random = frame.Random.Draw(out ushort scale) };
-            short speed = unchecked((short)(scale % 2560 + 7168));
-            pool = pool with { Slots = pool.Slots.SetItem(lateSlot, pool.Slots[lateSlot].WriteWord(12, 0).WriteWord(28, unchecked((ushort)(speed / 3))).WriteWord(30, unchecked((ushort)(speed / 3)))) };
-            frame = Store(frame, ReadState(frame) with { LateOrigin = state.Origin, LateDirection = state.Direction });
+            (frame, pool) = PrepareLate(frame, pool, profile, inputs);
         }
         if (counter <= 16)
         {

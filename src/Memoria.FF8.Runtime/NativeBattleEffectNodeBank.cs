@@ -59,6 +59,9 @@ internal sealed record NativeBattleEffectNodeInputs(NativeBattleActionMatrix? Co
 {
     public Func<NativeBattleEffectNodeBank, uint, int, byte, ImmutableArray<byte>>? ResourceUpdate { get; init; }
     public NativeBattleModelScaleVector? ActorScale { get; init; }
+    public NativeBattleEffectNodeSpawnOrigin? SpawnOrigin { get; init; }
 }
 internal delegate NativeBattleGfGeometryBatch NativeBattleEffectNodeMeshInstance(ImmutableArray<byte> resource, NativeBattleActionMatrix matrix);
 internal delegate NativeBattleEffectNodeMeshInstance NativeBattleEffectNodePrepareMesh(int node, byte[] source);
+
+internal delegate NativeBattleVector NativeBattleEffectNodeSpawnOrigin(ref NativeCrtRandomState random);

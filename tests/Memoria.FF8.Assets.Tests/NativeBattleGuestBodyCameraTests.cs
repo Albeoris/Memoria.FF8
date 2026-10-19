@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
 
@@ -17,5 +18,26 @@ public sealed class NativeBattleGuestBodyCameraTests
         Assert.Equal(480, sound.Length);
         Assert.Equal(camera, model.NativeActionCameraBank!.Data.ToArray());
         Assert.NotEqual(sound, model.NativeActionCameraBank.Data.ToArray());
+    }
+    [Fact]
+    public void OriginalLoadedBodyMatricesStartAfterSixteenBytesOfEachBoneRecord()
+    {
+        using BattleAssets assets = new(TestResources.GameDirectory);
+        var dat = assets.ReadNativeModelDatSource(7, false, 0);
+        BattleModel body = assets.LoadPlayer(7);
+        NativeBattleGraphicsModel loaded = NativeBattleBodyBoneMatrices.PublishLoadedSkeleton(new(0, 2), body.NativePoseSource!);
+        int skeleton = dat.Section(0);
+        for (int bone = 0; bone < body.Bones.Count; bone++)
+        {
+            int record = skeleton + 16 + 48 * bone;
+            NativeBattleActionMatrix matrix = loaded.CurrentBodyBoneMatrices!.Matrices[bone];
+            for (int lane = 0; lane < 9; lane++)
+            {
+                Assert.Equal(BinaryPrimitives.ReadInt16LittleEndian(dat.Bytes.AsSpan().Slice(record + 16 + lane * 2, 2)), matrix.Rotation[lane]);
+            }
+            Assert.Equal(BinaryPrimitives.ReadInt32LittleEndian(dat.Bytes.AsSpan().Slice(record + 36, 4)), matrix.X);
+            Assert.Equal(BinaryPrimitives.ReadInt32LittleEndian(dat.Bytes.AsSpan().Slice(record + 40, 4)), matrix.Y);
+            Assert.Equal(BinaryPrimitives.ReadInt32LittleEndian(dat.Bytes.AsSpan().Slice(record + 44, 4)), matrix.Z);
+        }
     }
 }

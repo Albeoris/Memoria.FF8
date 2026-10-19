@@ -99,7 +99,7 @@ public sealed class NativeBattleAngelWing84ControllerTests
         Assert.Equal(1, hierarchy.Read(appended.Address).ReadByte(38) & 1);
     }
 
-    private static (NativeBattleAngelWing84Frame Frame, NativeBattleAngelWing84Inputs Inputs) Fixture()
+    internal static (NativeBattleAngelWing84Frame Frame, NativeBattleAngelWing84Inputs Inputs) Fixture()
     {
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
         (packets, _) = packets.Prepare(new(2, 2, 11, 0, 27, 84, null));

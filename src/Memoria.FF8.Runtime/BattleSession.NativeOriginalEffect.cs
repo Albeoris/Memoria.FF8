@@ -177,6 +177,18 @@ public sealed partial class BattleSession
         {
             return EnterNativeStatusMagic(graphics);
         }
+        if (effect.Binding.Entry == 0x5A6C20)
+        {
+            return EnterNativeRenzokukenVariant(graphics, effect.Binding.Renzokuken259Resources ?? throw new NotSupportedException("Native259 requires its original immutable resources."), NativeBattleRenzokukenVariantProfile.Renzokuken259);
+        }
+        if (effect.Binding.Entry == 0x58B930)
+        {
+            return EnterNativeRenzokukenVariant(graphics, effect.Binding.Renzokuken332Resources ?? throw new NotSupportedException("Native332 requires its original immutable resources."), NativeBattleRenzokukenVariantProfile.Renzokuken332);
+        }
+        if (effect.Binding.Entry == 0x589BD0)
+        {
+            return EnterNativeRenzokukenVariant(graphics, effect.Binding.Renzokuken333Resources ?? throw new NotSupportedException("Native333 requires its original immutable resources."), NativeBattleRenzokukenVariantProfile.Renzokuken333);
+        }
         if (effect.Binding.Entry == 0x61DE70)
         {
             return EnterNativeRenzokuken141(graphics, effect.Binding.Renzokuken141Resources ?? throw new NotSupportedException("Native141 requires its original immutable resource bundle."));
@@ -184,6 +196,14 @@ public sealed partial class BattleSession
         if (effect.Binding.Entry == 0x5FF080)
         {
             return EnterNativeRenzokuken160(graphics);
+        }
+        if (effect.Binding.Entry == 0x5B7190)
+        {
+            return EnterNativeShot193(graphics);
+        }
+        if (effect.Binding.Entry == 0x5B96F0)
+        {
+            return EnterNativeShot192(graphics);
         }
         if (effect.Binding.Entry == 0x5B1900)
         {

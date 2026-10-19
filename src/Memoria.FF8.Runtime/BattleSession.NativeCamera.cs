@@ -196,6 +196,14 @@ public sealed partial class BattleSession
                 {
                     graphics = chocoCompleted;
                 }
+                else if (TryWriteNativeShot193Completion(graphics, address, value, out NativeBattleGraphicsState shot193Completed))
+                {
+                    graphics = shot193Completed;
+                }
+                else if (TryWriteNativeShot192Completion(graphics, address, value, out NativeBattleGraphicsState shot192Completed))
+                {
+                    graphics = shot192Completed;
+                }
                 else if (TryWriteNativeMoogleCompletion(graphics, address, value, out NativeBattleGraphicsState moogleCompleted))
                 {
                     graphics = moogleCompleted;

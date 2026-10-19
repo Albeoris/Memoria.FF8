@@ -23,7 +23,7 @@ public sealed partial record NativeBattleEffectArena
             {
                 throw new InvalidDataException("Native arena resource pointer has an invalid source owner.");
             }
-            if (pointer?.StagingAddress is uint numeric)
+            if ((pointer?.StagingAddress ?? pointer?.Cpu?.PhysicalAddress) is uint numeric)
             {
                 if (IntersectsUnknown(entry.Key, 4) || BinaryPrimitives.ReadUInt32LittleEndian(ReadStorage(entry.Key, 4)) != numeric)
                 {
@@ -54,7 +54,7 @@ public sealed partial record NativeBattleEffectArena
         if (pointers is not null && pointers.TryGetValue(offset, out NativeBattleResourcePointer? pointer))
         {
             var bytes = ReadSnapshot(offset, 4);
-            if (pointer?.StagingAddress is uint numeric)
+            if ((pointer?.StagingAddress ?? pointer?.Cpu?.PhysicalAddress) is uint numeric)
             {
                 if (bytes.Known.Any(value => !value) || BinaryPrimitives.ReadUInt32LittleEndian(bytes.Data) != numeric)
                 {
@@ -74,7 +74,7 @@ public sealed partial record NativeBattleEffectArena
     {
         RequireRange(offset, 4);
         NativeBattleEffectArena current;
-        if (pointer?.StagingAddress is uint numeric)
+        if ((pointer?.StagingAddress ?? pointer?.Cpu?.PhysicalAddress) is uint numeric)
         {
             byte[] bytes = new byte[4];
             BinaryPrimitives.WriteUInt32LittleEndian(bytes, numeric);

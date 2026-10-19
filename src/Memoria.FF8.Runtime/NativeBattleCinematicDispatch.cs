@@ -1044,6 +1044,8 @@ public static partial class NativeBattleCinematicDispatch
 
     private static readonly FrozenDictionary<(string Table, int Index), uint> Slots = new Dictionary<(string Table, int Index), uint>
     {
+        [("vm_table", 96)] = 0xB2CE00,
+        [("vm_table", 110)] = 0xB2CF70,
         [("vm_table", 100)] = 0xB2B0E0,
         [("bone_table", 0)] = 0xB262E0,
         [("bone_table", 1)] = 0xB262E0,

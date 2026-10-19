@@ -59,6 +59,8 @@ public sealed record NativeBattleRenzokuken160Resources(NativeBattleEffectHeapAl
     public ImmutableArray<ushort> StreakAgeOffsets { get; init; } = [];
     public ImmutableArray<ushort> StreakPaletteOffsets { get; init; } = [];
     public NativeBattleVector StreakReferencePoint { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<NativeBattleVector>? ContactOffsets { get; init; }
 }
 public sealed record NativeBattleRenzokuken160Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
 public sealed record NativeBattleRenzokuken160Sprite(NativeBattleSearchSpriteResource Resource, ushort Frame, NativeBattleVector Position, short Scale, uint? Color, ushort Flags);

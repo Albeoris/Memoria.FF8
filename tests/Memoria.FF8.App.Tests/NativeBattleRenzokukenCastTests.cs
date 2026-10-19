@@ -7,9 +7,12 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleRenzokukenCastTests
 {
     [Theory]
-    [InlineData((ushort)160, 4)]
-    [InlineData((ushort)141, 5)]
-    public void Installed_selected_Renzokuken_completes_original_effect_and_standalones(ushort effectId, int contacts)
+    [InlineData((ushort)160, 4, (byte)1)]
+    [InlineData((ushort)141, 5, (byte)1)]
+    [InlineData((ushort)259, 6, (byte)2)]
+    [InlineData((ushort)332, 7, (byte)3)]
+    [InlineData((ushort)333, 8, (byte)4)]
+    public void Installed_selected_Renzokuken_completes_original_effect_and_standalones(ushort effectId, int contacts, byte crisis)
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select the installed original game resources.");
@@ -35,9 +38,9 @@ public sealed class NativeBattleRenzokukenCastTests
             NativeBattleRandomState random = Enumerable.Range(0, 256).Select(seed => NativeBattleRandomState.Initialize((byte)seed)).First(candidate =>
             {
                 candidate = candidate.Draw(out byte resource).Draw(out byte finisher);
-                return definition.Combatants[1].NativeRenzokukenMagicIds[2 + resource % 2] == effectId && !NativeBattleRenzokukenRules.HasFinisher(1, finisher);
+                return definition.Combatants[1].NativeRenzokukenMagicIds[crisis + 1 + resource % 2] == effectId && !NativeBattleRenzokukenRules.HasFinisher(crisis, finisher);
             });
-            battle = BattleSession.Restore(battle.Capture() with { NativeLimits = [new("party", 1)], Random = random });
+            battle = BattleSession.Restore(battle.Capture() with { NativeLimits = [new("party", crisis)], Random = random });
             Publish("before-command");
             battle.QueueNativePlayerCommand("party", "enemy", 5, 0);
             CompareNext("queued");

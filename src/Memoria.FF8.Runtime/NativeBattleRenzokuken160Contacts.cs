@@ -5,11 +5,15 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleRenzokuken160Controller
 {
-    public static NativeBattleRenzokuken160ChildStep Advance600110(NativeBattleRenzokuken160Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRenzokuken160Inputs inputs, NativeBattleRenzokuken160Resources resources, uint impactCallback = 0x6004A0)
+    public static NativeBattleRenzokuken160ChildStep Advance600110(NativeBattleRenzokuken160Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRenzokuken160Inputs inputs, NativeBattleRenzokuken160Resources resources, uint impactCallback = 0x6004A0, Func<int, NativeBattleRenzokukenContactOrigin>? readOrigin = null)
     {
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {
             return new(frame, pool, 0);
+        }
+        if (frame.Effect.Binding.Effect is 332 or 333 && readOrigin is null)
+        {
+            throw new NotSupportedException("Native seven/eight-contact Renzokuken requires the actual actor-matrix contact-offset transform.");
         }
         if (inputs.AbSegments.IsDefaultOrEmpty || resources.ContactLeadFrames.Length < inputs.AbSegments.Length - 1)
         {
@@ -34,11 +38,12 @@ public static partial class NativeBattleRenzokuken160Controller
             created = created.WriteWord(28, scale).WriteWord(30, scale);
             pool = pool with { Slots = pool.Slots.SetItem(child, created) };
             NativeBattleRenzokuken160State state = State(frame);
+            NativeBattleRenzokukenContactOrigin origin = readOrigin?.Invoke(contact) ?? new(state.Origin, state.OriginPadding);
             int impact = contact * 156;
-            Write(impacts, impact, state.Origin.X);
-            Write(impacts, impact + 2, state.Origin.Y);
-            Write(impacts, impact + 4, state.Origin.Z);
-            Write(impacts, impact + 6, state.OriginPadding);
+            Write(impacts, impact, origin.Position.X);
+            Write(impacts, impact + 2, origin.Position.Y);
+            Write(impacts, impact + 4, origin.Position.Z);
+            WritePadding(impacts, impact + 6, origin.Padding, 0, contact);
             Dword(impacts, impact + 8, state.Direction.X);
             Dword(impacts, impact + 12, state.Direction.Y);
             Dword(impacts, impact + 16, state.Direction.Z);
@@ -62,10 +67,10 @@ public static partial class NativeBattleRenzokuken160Controller
                 int offset = 12 * index;
                 Write(sparks, offset, 0);
                 Write(sparks, offset + 2, Rand() % 1536 + 2560);
-                Write(sparks, offset + 4, state.Origin.X);
-                Write(sparks, offset + 6, state.Origin.Y);
-                Write(sparks, offset + 8, state.Origin.Z);
-                Write(sparks, offset + 10, state.OriginPadding);
+                Write(sparks, offset + 4, origin.Position.X);
+                Write(sparks, offset + 6, origin.Position.Y);
+                Write(sparks, offset + 8, origin.Position.Z);
+                WritePadding(sparks, offset + 10, origin.Padding, 1, index);
                 Write(sparks, offset + 4, Read(sparks, offset + 4) + Rand() % 350 - 175);
                 Write(sparks, offset + 6, Read(sparks, offset + 6) + Rand() % 350 - 175);
                 Write(sparks, offset + 8, Read(sparks, offset + 8) + Rand() % 350 - 175);
@@ -80,10 +85,10 @@ public static partial class NativeBattleRenzokuken160Controller
                 int offset = 20 * index;
                 Write(debris, offset, 0);
                 Write(debris, offset + 2, Rand() % 2048 + 3072);
-                Write(debris, offset + 4, state.Origin.X);
-                Write(debris, offset + 6, state.Origin.Y);
-                Write(debris, offset + 8, state.Origin.Z);
-                Write(debris, offset + 10, state.OriginPadding);
+                Write(debris, offset + 4, origin.Position.X);
+                Write(debris, offset + 6, origin.Position.Y);
+                Write(debris, offset + 8, origin.Position.Z);
+                WritePadding(debris, offset + 10, origin.Padding, 2, index);
                 int velocity = Rand() % 200 + 140;
                 Write(debris, offset + 12, Rand() % 200 + (unchecked(velocity * state.Direction.X) >> 12) - 100);
                 Write(debris, offset + 14, Rand() % 200 + (unchecked(velocity * state.Direction.Y) >> 12) - 100);
@@ -100,6 +105,18 @@ public static partial class NativeBattleRenzokuken160Controller
         frame = WriteState(frame, State(frame) with { Sparks = sparks.ToImmutableArray(), Debris = debris.ToImmutableArray(), ImpactStates = impacts.ToImmutableArray() });
         task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
         return new(frame, pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot] with { Payload = task.Payload }) }, unchecked((short)task.ReadWord(12)) >= State(frame).Duration - 1 ? 2 : 0);
+
+        void WritePadding(byte[] bytes, int offset, ushort? value, int bank, int index)
+        {
+            if (value is ushort known)
+            {
+                Write(bytes, offset, known);
+            }
+            else
+            {
+                frame = NativeBattleRenzokukenVariantController.MarkContactPaddingUnknown(frame, bank, index);
+            }
+        }
 
         int Rand()
         {

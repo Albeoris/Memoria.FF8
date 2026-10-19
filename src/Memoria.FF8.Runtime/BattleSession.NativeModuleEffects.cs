@@ -23,6 +23,9 @@ public sealed partial class BattleSession
             {
                 0x5FF4E0 or 0x5FF770 => AdvanceNativeRenzokuken160Shared(graphics, modules, slot, inputs),
                 0x61E2F0 or 0x61E580 => AdvanceNativeRenzokuken141Shared(graphics, modules, slot, inputs),
+                0x5A70A0 or 0x5A7330 => AdvanceNativeRenzokukenVariantShared(graphics, modules, slot, inputs, NativeBattleRenzokukenVariantProfile.Renzokuken259),
+                0x58BE50 or 0x58C0E0 => AdvanceNativeRenzokukenVariantShared(graphics, modules, slot, inputs, NativeBattleRenzokukenVariantProfile.Renzokuken332),
+                0x58A0C0 or 0x58A350 => AdvanceNativeRenzokukenVariantShared(graphics, modules, slot, inputs, NativeBattleRenzokukenVariantProfile.Renzokuken333),
                 _ => throw new NotSupportedException($"Native shared callback {callback:X8} requires its original executable implementation.")
             };
             graphics = advanced;

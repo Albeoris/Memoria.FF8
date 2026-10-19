@@ -187,11 +187,11 @@ public sealed partial class BattleSession
                         NativeMusicPlaybackState playback = soundOwner.MusicPlayback ?? throw new NotSupportedException("Native cinematic music fade requires its actual playback owner.");
                         NativeGlobalSoundProcess = soundOwner with { MusicPlayback = playback.FadeGain46BBC0(channel, unchecked((byte)duration), 0) };
                     });
-                case 0xAB when profile.Effect is 261 or 262 or 263:
+                case 0xAB when profile.Effect is 228 or 261 or 262 or 263:
                     return NativeBattleCinematicActorResourceAB.Execute(current, program, (resourceFrame, actorPointer, row) =>
                     {
                         int actorIndex = PhysicalActorIndex(actorPointer);
-                        uint directory = profile.Effect switch { 261 => 0x187C20C, 262 => 0x187A2A4, 263 => 0x1877DAC, _ => throw new InvalidOperationException() };
+                        uint directory = profile.Effect switch { 228 => 0x18821A0, 261 => 0x187C20C, 262 => 0x187A2A4, 263 => 0x1877DAC, _ => throw new InvalidOperationException() };
                         if (!resources.AdditionalStaticData.TryGetValue(directory, out ImmutableArray<byte> bytes))
                         {
                             throw new NotSupportedException("Native cinematic actor resource requires its original static DAT; migrate the selected older snapshot explicitly.");
@@ -211,6 +211,12 @@ public sealed partial class BattleSession
                         graphics = SelectNativeHeaderSequence(graphics, checked((byte)PhysicalActorIndex(actorPointer)), sequence);
                         return resourceFrame;
                     });
+                case 0xAD:
+                case 0x6E when profile.Effect is 228 or 261 or 262 or 263:
+                case 0x60 when profile.Effect is 228 or 261 or 262 or 263:
+                    var anchored = ExecuteNativeCinematicActorAnchorCommand(current, program, graphics, UpdateSlot);
+                    graphics = anchored.Graphics;
+                    return anchored.Frame;
                 case 0x46:
                     return NativeBattleCinematicContactBranch46.Execute(current, program, context.ReadActionBytes, (_, actor) => NativeBattleStatusBits(combatants.Single(combatant => combatant.NativeIndex == actor)));
                 case 0x49:
@@ -693,6 +699,12 @@ public sealed partial class BattleSession
                 if (NativeBattleCinematicDispatch.IsNoOp(profile.Effect, "draw_table", kind, selectedDrawHandler))
                 {
                     return frame;
+                }
+                if (selectedDrawHandler == 0x950B50)
+                {
+                    var trail = DrawNativeKiros262Trail(frame, graphics);
+                    graphics = trail.Graphics;
+                    return trail.Frame;
                 }
                 if (selectedDrawHandler == 0xAEA550)
                 {

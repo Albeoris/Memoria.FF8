@@ -275,6 +275,21 @@ public sealed partial class GameAssets
             {
                 binding = binding with { StatusMagicResources = ReadNativeStatusMagicResources(binding.Effect) };
             }
+            if (binding.Effect == 259)
+            {
+                binding = binding with { Renzokuken259Resources = ReadNativeRenzokuken259Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 332)
+            {
+                binding = binding with { Renzokuken332Resources = ReadNativeRenzokuken332Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 333)
+            {
+                binding = binding with { Renzokuken333Resources = ReadNativeRenzokuken333Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 141)
             {
                 binding = binding with { Renzokuken141Resources = ReadNativeRenzokuken141Resources() };
@@ -283,6 +298,16 @@ public sealed partial class GameAssets
             if (binding.Effect == 160)
             {
                 binding = binding with { Renzokuken160Resources = ReadNativeRenzokuken160Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 193)
+            {
+                binding = binding with { Shot193Resources = ReadNativeShot193Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 192)
+            {
+                binding = binding with { Shot192Resources = ReadNativeShot192Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
             if (binding.Effect == 196)

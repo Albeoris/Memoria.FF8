@@ -56,7 +56,11 @@ public static class NativeBattleVictoryResources
             }
             int[] offsets = [12, 16, 20, 44];
             NativeBattleModelCpuResourceRow original = cpu.Rows[owner.CpuRow!.Value];
-            return original.Fields.TryGetValue(offsets[field], out NativeBattleModelCpuReference? reference) && reference is not null ? new(reference, null) : null;
+            if (!original.Fields.TryGetValue(offsets[field], out NativeBattleModelCpuReference? reference))
+            {
+                return null;
+            }
+            return reference is null ? new(null, 0) : new(reference, null);
         }
     }
 

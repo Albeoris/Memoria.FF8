@@ -29,6 +29,13 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
         for (int instance = 0; instance < instanceCount; instance++)
         {
             int local = node + 0x12C + instance * 16;
+            if (inputs.SpawnOrigin is not null)
+            {
+                NativeBattleVector origin = inputs.SpawnOrigin(ref random);
+                memory.Dword(emitter + 0x4C, unchecked((uint)(origin.X << 16)));
+                memory.Dword(emitter + 0x50, unchecked((uint)(origin.Y << 16)));
+                memory.Dword(emitter + 0x54, unchecked((uint)(origin.Z << 16)));
+            }
             memory.Copy(emitter + 0x4C, node + 0xDC + instance * 16, 16);
             if (source[0x22] == 0)
             {

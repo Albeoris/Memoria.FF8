@@ -92,7 +92,7 @@ internal static class NativeBattleEffectNodeCaller
         return frame with { Effect = frame.Effect with { Pools = hierarchy.Write(taskAddress, task).Pools } };
     }
 
-    public static NativeBattleRecover93NodeStep Advance74F6E0(NativeBattleEffectNodeCallerPolicy profile, NativeBattleRecover93NodeFrame frame, uint taskAddress, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors colors, Func<NativeBattleEffectNodeBank, uint, int, byte, ImmutableArray<byte>>? resourceUpdate = null, Func<NativeBattleEffectNodeMemory, int, byte[], NativeBattleEffectNodeMeshInstance>? prepareMeshOverride = null)
+    public static NativeBattleRecover93NodeStep Advance74F6E0(NativeBattleEffectNodeCallerPolicy profile, NativeBattleRecover93NodeFrame frame, uint taskAddress, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors colors, Func<NativeBattleEffectNodeBank, uint, int, byte, ImmutableArray<byte>>? resourceUpdate = null, Func<NativeBattleEffectNodeMemory, int, byte[], NativeBattleEffectNodeMeshInstance>? prepareMeshOverride = null, NativeBattleEffectNodeSpawnOrigin? spawnOrigin = null)
     {
         frame.State.Validate(profile.SourceLength, profile.EmitterBytes, profile.GeometryBytes);
         if (new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(taskAddress).Callback != profile.Callback)
@@ -110,7 +110,7 @@ internal static class NativeBattleEffectNodeCaller
             ushort emitterCursor = frame.State.EmitterScanCursor ?? throw new NotSupportedException("Native Recover emitter scan WORD is unknown.");
             ushort geometryCursor = frame.State.GeometryScanCursor ?? throw new NotSupportedException("Native Recover geometry scan WORD is unknown.");
             NativeBattleEffectNodeInputs inputs = new(frame.State.CopiedCamera ?? throw new NotSupportedException("Native Recover copied-camera owner is missing."), readModel, (parent, source, target) => NativeBattleEffectNodeAllocation.AllocateEmitter(memory, first, profile.EmitterCapacity, ref emitterCursor, parent, source, target), (emitter, source) => NativeBattleEffectNodeAllocation.AllocateGeometry(memory, second, profile.GeometryCapacity, ref geometryCursor, emitter, source));
-            inputs = inputs with { ResourceUpdate = resourceUpdate };
+            inputs = inputs with { ResourceUpdate = resourceUpdate, SpawnOrigin = spawnOrigin };
             NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, inputs);
             List<(bool Mesh, NativeBattleGfGeometryBatch Batch)> deliveries = [];
             NativeCrtRandomState random = frame.Random;

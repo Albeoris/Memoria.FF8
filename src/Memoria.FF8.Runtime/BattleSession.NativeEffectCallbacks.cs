@@ -161,6 +161,18 @@ public sealed partial class BattleSession
         {
             return AdvanceNativeGastricJuice169(graphics);
         }
+        if (effect.Binding.Entry == 0x5A6C20)
+        {
+            return AdvanceNativeRenzokukenVariant(graphics, NativeBattleRenzokukenVariantProfile.Renzokuken259);
+        }
+        if (effect.Binding.Entry == 0x58B930)
+        {
+            return AdvanceNativeRenzokukenVariant(graphics, NativeBattleRenzokukenVariantProfile.Renzokuken332);
+        }
+        if (effect.Binding.Entry == 0x589BD0)
+        {
+            return AdvanceNativeRenzokukenVariant(graphics, NativeBattleRenzokukenVariantProfile.Renzokuken333);
+        }
         if (effect.Binding.Entry == 0x61DE70)
         {
             return AdvanceNativeRenzokuken141(graphics);
@@ -168,6 +180,14 @@ public sealed partial class BattleSession
         if (effect.Binding.Entry == 0x5FF080)
         {
             return AdvanceNativeRenzokuken160(graphics);
+        }
+        if (effect.Binding.Entry == 0x5B7190)
+        {
+            return AdvanceNativeShot193(graphics);
+        }
+        if (effect.Binding.Entry == 0x5B96F0)
+        {
+            return AdvanceNativeShot192(graphics);
         }
         if (effect.Binding.Entry == 0x5B1900)
         {

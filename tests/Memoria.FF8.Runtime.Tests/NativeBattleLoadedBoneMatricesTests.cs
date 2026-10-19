@@ -53,9 +53,9 @@ public sealed class NativeBattleLoadedBoneMatricesTests
     public void AZeroMatrixInTheOriginalRigRemainsZeroInsteadOfBecomingAnIdentityOrGuessedPose()
     {
         NativeBattlePoseSource source = Source();
-        source = source with { Skeleton = source.Skeleton.SetItem(24, 0).SetItem(25, 0) };
+        source = source with { Skeleton = source.Skeleton.SetItem(32, 0).SetItem(33, 0) };
         byte[] skeleton = source.Skeleton.ToArray();
-        Array.Clear(skeleton, 24 + 48, 32);
+        Array.Clear(skeleton, 32 + 48, 32);
         source = source with { Skeleton = skeleton.ToImmutableArray() };
         NativeBattleGraphicsModel model = NativeBattleBodyBoneMatrices.PublishLoadedSkeleton(Model(), source);
         Assert.All(model.CurrentBodyBoneMatrices!.Matrices[1].Rotation, lane => Assert.Equal((short)0, lane));
@@ -92,7 +92,7 @@ public sealed class NativeBattleLoadedBoneMatricesTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(66), 200);
         for (int bone = 0; bone < 2; bone++)
         {
-            int matrix = 24 + 48 * bone;
+            int matrix = 32 + 48 * bone;
             for (int lane = 0; lane < 3; lane++)
             {
                 BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(matrix + lane * 8), 4096);

@@ -25,7 +25,11 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
     public ImmutableDictionary<int, int?> AnimationPointers { get; init; } = ImmutableDictionary<int, int?>.Empty;
     public ushort? ScratchMaximum { get; init; }
     public static NativeBattleModelCpuResources Unknown() => new(NativeBattleModelCpuBanks.Unknown(), Enumerable.Range(0, 11).Select(_ => NativeBattleModelCpuResourceRow.Unknown()).ToImmutableArray());
-    public static NativeBattleModelCpuResources FromColdProcess() => Unknown() with { Palettes = NativeBattleModelCpuBank.Unknown().Write(0, new byte[0xC00]) };
+    public static NativeBattleModelCpuResources FromColdProcess()
+    {
+        ImmutableDictionary<int, NativeBattleModelCpuReference?> pointers = new[] { 8, 12, 16, 20, 24, 28, 32, 40, 44, 48 }.ToImmutableDictionary(offset => offset, _ => (NativeBattleModelCpuReference?)null);
+        return Unknown() with { Palettes = NativeBattleModelCpuBank.Unknown().Write(0, new byte[0xC00]), Rows = Enumerable.Range(0, 11).Select(_ => new NativeBattleModelCpuResourceRow(pointers)).ToImmutableArray() };
+    }
 
     public void Validate()
     {

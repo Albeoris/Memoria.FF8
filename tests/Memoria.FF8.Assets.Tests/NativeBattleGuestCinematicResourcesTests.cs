@@ -50,9 +50,9 @@ public sealed class NativeBattleGuestCinematicResourcesTests
                 Assert.Equal((byte)0xC3, original.Read(actual, 1)[0]);
             }
         }
-        if (effect is 261 or 262 or 263)
+        if (effect is 228 or 261 or 262 or 263)
         {
-            uint directory = effect switch { 261 => 0x187C20C, 262 => 0x187A2A4, 263 => 0x1877DAC, _ => throw new InvalidOperationException() };
+            uint directory = effect switch { 228 => 0x18821A0, 261 => 0x187C20C, 262 => 0x187A2A4, 263 => 0x1877DAC, _ => throw new InvalidOperationException() };
             int count = BinaryPrimitives.ReadInt32LittleEndian(original.Read(directory, 4));
             int length = BinaryPrimitives.ReadInt32LittleEndian(original.Read(directory + 4u + 4u * (uint)count, 4));
             Assert.Equal(original.Read(directory, length), resources.AdditionalStaticData[directory].ToArray());

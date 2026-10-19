@@ -84,6 +84,7 @@ public static class NativeBattleCinematicResourcesReader
         NativeBattleCinematicResources result = new(profile.InitializationAddress, new("cinematic-static", memory.Read(profile.InitializationAddress, profile.StaticLength).ToImmutableArray()), new(profile.TextureCount, profile.InitializationAddress, profile.OwnerDirectoryAddress, descriptor[0], descriptor[1], descriptor[2], descriptor[3]), vibration);
         uint actorDirectory = profile.Effect switch
         {
+            228 => 0x18821A0,
             261 => 0x187C20C,
             262 => 0x187A2A4,
             263 => 0x1877DAC,
