@@ -78,14 +78,14 @@ internal static class SnapshotStorage
         Header? header = ReadHeader(stream, options);
         if (header is null)
         {
-            return JsonSerializer.Deserialize<GameState>(stream, options) ?? throw new InvalidDataException("Empty checkpoint.");
+            return SnapshotDefaults.Deserialize(stream, options);
         }
         using SHA256 hash = SHA256.Create();
         using CryptoStream hashed = new(stream, hash, CryptoStreamMode.Read, leaveOpen: true);
         GameState state;
         using (GZipStream compressed = new(hashed, CompressionMode.Decompress, leaveOpen: true))
         {
-            state = JsonSerializer.Deserialize<GameState>(compressed, options) ?? throw new InvalidDataException("Empty checkpoint.");
+            state = SnapshotDefaults.Deserialize(compressed, options);
             compressed.CopyTo(Stream.Null);
         }
         hashed.CopyTo(Stream.Null);

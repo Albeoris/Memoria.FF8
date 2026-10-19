@@ -61,7 +61,9 @@ Keep distinct filenames for milestones. Prefer a stable point before or after an
 
 ## Compatibility and migrations
 
-Snapshots are validated engine state, not a promise of compatibility with every historical revision. An engine correction may introduce a required owner or stronger consistency checks. Missing information must not be replaced by guessed values at load time.
+When loading a snapshot outside an executing battle, properties absent from the save are filled recursively from the initial process state also used by New Game. This includes newly added guardian process blocks. Recorded values, including explicit nulls, zeroes, false flags and complete arrays, are preserved. Loading does not rewrite the source file; the next save records the completed state. New saves explicitly retain null properties so they remain distinct from missing properties.
+
+Initial process values do not reset the current field or story progress. A running battle, an incomplete battle snapshot or an effect process with an executed entry must retain its recorded execution state; missing live counters are not synthesized. Existing validation still checks saved types, resource ownership, consistency and compressed-file checksums. Snapshots therefore remain validated engine state rather than a promise of compatibility with every historical revision. Changes that require information beyond known initial values may still need a migration.
 
 When a migration is necessary:
 

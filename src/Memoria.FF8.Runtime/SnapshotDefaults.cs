@@ -1,0 +1,73 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
+
+namespace Memoria.FF8.Runtime;
+
+/// <summary>Completes absent saved properties from the same initial state used by New Game.</summary>
+internal static class SnapshotDefaults
+{
+    internal static GameState Deserialize(Stream stream, JsonSerializerOptions options)
+    {
+        JsonObject saved = JsonSerializer.Deserialize<JsonObject>(stream, options) ?? throw new JsonException("Expected a saved game object.");
+        // Execution snapshots require their saved counters and matching retained-memory copies verbatim.
+        if (saved["Battle"] is JsonObject existingBattle && !IsIdleBattle(existingBattle))
+        {
+            return saved.Deserialize<GameState>(options) ?? throw new JsonException("Empty checkpoint.");
+        }
+        GameSession initial = GameSession.CreateColdProcess();
+        JsonObject defaults = JsonSerializer.SerializeToNode(initial.State, options)!.AsObject();
+        Complete(saved, defaults);
+
+        // A live battle is a continuation, not a new process. Its missing execution state must remain invalid.
+        if (saved["Battle"] is JsonObject battle)
+        {
+            JsonObject retained = defaults["NativeBattleMemory"]!.AsObject();
+            CompleteProperty(battle, "NativeEffectMemory", retained["EffectMemory"]);
+            if (battle["Definition"] is JsonObject definition)
+            {
+                CompleteProperty(definition, "NativeRetainedMemory", retained);
+            }
+        }
+
+        return saved.Deserialize<GameState>(options) ?? throw new JsonException("Empty checkpoint.");
+    }
+
+    private static bool IsIdleBattle(JsonObject battle)
+    {
+        if (!IsKnownNull(battle, "ActiveAction") || !IsKnownNull(battle, "NativeTimedAction") || battle["QueuedActions"] is not JsonArray { Count: 0 } || battle["GuardianForceCasts"] is not JsonArray { Count: 0 })
+        {
+            return false;
+        }
+        // Match the pending native work checked by BattleSession.HasPendingTurn, including deferred completions.
+        return battle["NativeActionScratch"] is JsonObject scratch && IsKnownNull(scratch, "ComponentCompletion")
+            && battle["NativeScriptState"] is JsonObject script && script["WaitCounters"] is JsonArray { Count: 0 } && script["AllocationControl"] is JsonObject allocation && allocation["ActionGate"] is JsonValue gate && gate.TryGetValue(out bool pending) && !pending
+            && battle["NativeGraphics"] is JsonObject graphics && IsKnownNull(graphics, "OriginalEffect") && graphics["Requests"] is JsonArray { Count: 0 } && graphics["Descriptors"] is JsonObject descriptors && descriptors["Queue"] is JsonArray { Count: 0 };
+    }
+
+    private static bool IsKnownNull(JsonObject value, string name) => value.TryGetPropertyValue(name, out JsonNode? property) && property is null;
+
+    private static void Complete(JsonObject saved, JsonObject defaults, bool effectMemory = false)
+    {
+        foreach ((string name, JsonNode? value) in defaults)
+        {
+            // Retained effect processes with an executed entry need their own saved counters.
+            if (effectMemory && value is JsonObject process && process.ContainsKey("Entry") && process["Entry"] is null && saved[name] is JsonObject currentProcess && currentProcess["Entry"] is JsonObject)
+            {
+                continue;
+            }
+            CompleteProperty(saved, name, value);
+        }
+    }
+
+    private static void CompleteProperty(JsonObject saved, string name, JsonNode? value)
+    {
+        if (!saved.TryGetPropertyValue(name, out JsonNode? current))
+        {
+            saved.Add(name, value?.DeepClone());
+        }
+        else if (current is JsonObject savedObject && value is JsonObject defaultObject)
+        {
+            Complete(savedObject, defaultObject, name is "EffectMemory" or "NativeEffectMemory");
+        }
+    }
+}

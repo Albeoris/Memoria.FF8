@@ -129,13 +129,17 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         Console.WriteLine($"Guardian checkpoint {snapshot.Frame}/{snapshot.NativeGraphics.Callback} continued at {first.Frame}/{first.NativeGraphics.Callback}; whole JSON and RGBA agree.");
     }
 
-    private static void Run(int guardian, ushort effectId, bool openingOnly = false)
+    private static void Run(int guardian, ushort effectId, bool openingOnly = false, NativeBattleRetainedMemory? retainedMemory = null)
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select installed original resources with MEMORIA_FF8_GAME_DIR.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
         BattleDefinition definition = CreateDefinition(game, assets, guardian, effectId);
+        if (retainedMemory is not null)
+        {
+            definition = definition with { NativeRetainedMemory = retainedMemory };
+        }
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_TARGET_GUARDIAN_EVIDENCE") ?? Path.GetTempPath(), "guardian-" + guardian + "-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         Console.WriteLine($"Ordinary guardian-cast evidence: {output}");

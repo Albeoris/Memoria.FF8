@@ -1,14 +1,33 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace Memoria.FF8.Runtime;
 
 public sealed partial class GameSession : IEventServices
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, Converters = { new JsonStringEnumConverter() } };
-    private static readonly JsonSerializerOptions CompactJsonOptions = new(JsonOptions) { WriteIndented = false, Converters = { new ImmutableBytesJsonConverter() } };
+    private static readonly JsonSerializerOptions SnapshotJsonOptions = CreateSnapshotJsonOptions();
+    private static readonly JsonSerializerOptions CompactJsonOptions = new(SnapshotJsonOptions) { WriteIndented = false, Converters = { new ImmutableBytesJsonConverter() } };
     private SceneKind movieReturnScene;
     private bool acceleratingMovie;
+
+    private static JsonSerializerOptions CreateSnapshotJsonOptions()
+    {
+        DefaultJsonTypeInfoResolver resolver = new();
+        resolver.Modifiers.Add(type =>
+        {
+            foreach (JsonPropertyInfo property in type.Properties)
+            {
+                if (property.AttributeProvider?.GetCustomAttributes(typeof(JsonIgnoreAttribute), true).OfType<JsonIgnoreAttribute>().Any(attribute => attribute.Condition == JsonIgnoreCondition.WhenWritingNull) == true)
+                {
+                    // Missing means use an initial value on load; an intentional null must therefore be written.
+                    property.ShouldSerialize = (_, _) => true;
+                }
+            }
+        });
+        return new() { WriteIndented = true, TypeInfoResolver = resolver, Converters = { new JsonStringEnumConverter() } };
+    }
 
     public GameSession(GameState state)
     {
@@ -439,7 +458,7 @@ public sealed partial class GameSession : IEventServices
                 }
                 else
                 {
-                    JsonSerializer.Serialize(stream, State, JsonOptions);
+                    JsonSerializer.Serialize(stream, State, SnapshotJsonOptions);
                 }
                 stream.Flush(true);
             }
