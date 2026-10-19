@@ -150,7 +150,7 @@ try {
         $previousDistributionPath = $env:MEMORIA_FF8_DISTRIBUTION_PATH
         try {
             $env:MEMORIA_FF8_DISTRIBUTION_PATH = $archive
-            Invoke-DotNet @('run', '--project', 'tests/Memoria.Launcher.Tests', '-c', $Configuration, '--', '--filter-class', '*DistributionArchiveTests')
+            Invoke-DotNet @('run', '--project', 'tests/Memoria.Launcher.Tests', '-c', $Configuration, '--no-build', '--', '--filter-class', '*DistributionArchiveTests')
         }
         finally {
             $env:MEMORIA_FF8_DISTRIBUTION_PATH = $previousDistributionPath

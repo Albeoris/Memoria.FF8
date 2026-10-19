@@ -54,6 +54,10 @@ From a source checkout, use Windows, PowerShell 7 and the .NET 10 SDK:
 ./Build.ps1 -Test
 ```
 
+GitHub Actions serializes packaging by commit SHA. Main pushes, version tags and manual reruns reuse the same tested distribution, including when a tag is pushed after its main build finishes. Release and nightly publication both use that ZIP. Failed builds can be retried; a successful build is not repeated after an upload or publication failure.
+
+Distribution artifacts are retained for 90 days. Keep workflow run records: if the original ZIP expires or is deleted, publication fails instead of rebuilding the commit. Use the original ZIP from an existing release for manual publication in that case. NuGet packages are cached between commits; the already compressed distribution ZIP is uploaded without another compression pass.
+
 The result is `artifacts/Memoria-FF8-win-x64.zip`, with this layout:
 
 ```text
