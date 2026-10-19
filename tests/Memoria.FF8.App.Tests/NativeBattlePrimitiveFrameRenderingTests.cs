@@ -1,5 +1,7 @@
 using System.Collections.Immutable;
 using System.Buffers.Binary;
+using Albeoris.Games.FF8.Imaging;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 
@@ -7,6 +9,73 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattlePrimitiveFrameRenderingTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Native_hd_materials_preserve_normalized_window_UVs_and_source_checked_cache_reuse(bool windowed)
+    {
+        const ushort page = 0x80;
+        int origin = windowed ? 8 : 0;
+        uint window = windowed ? NativeBattleQuezacotlGeometryPackets.TextureWindowCommand(new(8, 0, 8, 8)) & 0xFFFFFF : 0;
+        const uint uv = 2 | 3 << 8;
+        NativeBattleLogicalCommand command = new(new("off_B6D070", 0, 0), 1, 0x2C, [0x2C808080, Point(10, 10), uv, Point(30, 10), (uint)page << 16 | uv, Point(10, 30), uv, Point(30, 30), uv], 1, [], null) { OrderingBucket = 50 };
+        NativeBattlePrimitiveFrame frame = Frame([new(command, TexturedMode(page, window), 1)]);
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess();
+        TextureCapture capture = new();
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
+        renderer.RenderNativePrimitiveFrame(frame, state);
+        System.Numerics.Vector2 originalUv = capture.Uv;
+        PixelImage hd = new(24, 24, Enumerable.Repeat(new Rgba32(10, 20, 30, 255), 24 * 24).ToArray());
+        NativeBattleTextureReplacement replacement = new(page, 0, origin, 0, 8, 8, hd, 4, new byte[64].ToImmutableArray(), new byte[512].ToImmutableArray());
+        renderer.RenderNativePrimitiveFrame(frame, state, replacements: [replacement]);
+        PixelImage first = capture.Texture!;
+        Assert.Equal((windowed ? 8 : 256) * 3, first.Width);
+        Assert.Equal(originalUv, capture.Uv);
+        Assert.Equal(hd[0, 0], first[0, 0]);
+        renderer.RenderNativePrimitiveFrame(frame, state, replacements: [replacement]);
+        Assert.Same(first, capture.Texture);
+        NativeBattleEffectTextureState unrelated = state.Upload45BD30(400, 400, 1, 1, [1, 2]);
+        renderer.RenderNativePrimitiveFrame(frame, unrelated, replacements: [replacement]);
+        Assert.Same(first, capture.Texture);
+        NativeBattleEffectTextureState changedPalette = state.Upload45BD30(0, 0, 1, 1, [1, 0]);
+        renderer.RenderNativePrimitiveFrame(frame, changedPalette, replacements: [replacement]);
+        Assert.NotSame(first, capture.Texture);
+        Assert.Equal(originalUv, capture.Uv);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Native_hd_materials_preserve_rendered_checker_placement_in_full_pages_and_windows(bool windowed)
+    {
+        const ushort page = 0x80;
+        const ushort clut = 0x4000;
+        short origin = (short)(windowed ? 8 : 0);
+        byte[] words = Enumerable.Repeat(new byte[] { 1, 1, 1, 1, 2, 2, 2, 2 }, 8).SelectMany(row => row).ToArray();
+        byte[] palette = new byte[512];
+        BinaryPrimitives.WriteUInt16LittleEndian(palette.AsSpan(2), 31);
+        BinaryPrimitives.WriteUInt16LittleEndian(palette.AsSpan(4), 0x3E0);
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30((short)(origin / 2), 0, 4, 8, words).Upload45BD30(0, 256, 256, 1, palette);
+        PixelImage original = NativeBattleEffectTextureReader.DecodePcRegion(state, page, clut, origin, 0, 8, 8);
+        PixelImage hd = new(24, 24);
+        for (int row = 0; row < hd.Height; row++)
+        {
+            for (int column = 0; column < hd.Width; column++)
+            {
+                hd[column, row] = original[column / 3, row / 3];
+            }
+        }
+        NativeBattleTextureReplacement replacement = new(page, clut, origin, 0, 8, 8, hd, 4, words.ToImmutableArray(), palette.ToImmutableArray());
+        uint window = windowed ? NativeBattleQuezacotlGeometryPackets.TextureWindowCommand(new(8, 0, 8, 8)) & 0xFFFFFF : 0;
+        uint u = windowed ? 0u : (uint)origin;
+        NativeBattleLogicalCommand command = new(new("off_B6D070", 0, 0), 1, 0x2C, [0x2C808080, Point(10, 10), (uint)clut << 16 | u, Point(30, 10), (uint)page << 16 | u + 7, Point(10, 30), u | 7 << 8, Point(30, 30), u + 7 | 7 << 8], 1, [], null) { OrderingBucket = 50 };
+        NativeBattlePrimitiveFrame frame = Frame([new(command, TexturedMode(page, window, clut), 1)]);
+        byte[] baseline = new BattleRenderer(320, 216).RenderNativePrimitiveFrame(frame, state).ToArray();
+        byte[] selected = new BattleRenderer(320, 216).RenderNativePrimitiveFrame(frame, state, replacements: [replacement]);
+        Assert.NotEqual(baseline.AsSpan(4 * (20 * 320 + 12), 4).ToArray(), baseline.AsSpan(4 * (20 * 320 + 28), 4).ToArray());
+        Assert.Equal(baseline, selected);
+    }
+
     [Fact]
     public void Unrelated_VRAM_upload_reuses_decoded_material_but_palette_and_page_changes_replace_it()
     {
@@ -61,6 +130,7 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
     private sealed class TextureCapture : ITriangleRenderer
     {
         public Albeoris.Games.FF8.Imaging.PixelImage? Texture { get; private set; }
+        public System.Numerics.Vector2 Uv { get; private set; }
 
         public void Begin(int width, int height, System.Numerics.Vector4 clearColor, float clearDepth = 1)
         {
@@ -70,6 +140,7 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         public void Draw(in TriangleVertex a, in TriangleVertex b, in TriangleVertex c, in TriangleMaterial material)
         {
             Texture = material.Texture;
+            Uv = a.Uv;
         }
 
         public void End()

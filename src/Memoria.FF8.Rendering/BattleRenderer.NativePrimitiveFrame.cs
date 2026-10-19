@@ -14,11 +14,12 @@ public sealed partial class BattleRenderer
     private Dictionary<NativeTextureKey, PixelImage> previousNativeTexturePages = [];
     private NativeBattleEffectTextureState? nativeTextureOwner;
     private NativeBattlePcDirectTextureFormat? nativeDirectTextureFormat;
+    private IReadOnlyList<NativeBattleTextureReplacement>? nativeModelReplacements;
     private readonly List<NativeRasterTriangle> nativeTriangles = [];
     private readonly record struct NativeRasterTriangle(PrimitiveVertex A, PrimitiveVertex B, PrimitiveVertex C, PixelImage? Texture, int Blend, byte Pass, float Area, int Left, int Right, int Top, int Bottom, bool Line = false);
 
     /// <summary>Render the executed original battle OT into a viewport representing its320x216 draw environment.</summary>
-    public byte[] RenderNativePrimitiveFrame(NativeBattlePrimitiveFrame frame, NativeBattleEffectTextureState? textures, BattleCamera? overlayCamera = null, NativeBattlePrimitiveCapabilities? capabilities = null, NativeBattlePcTextureWindowCache? textureWindowCache = null)
+    public byte[] RenderNativePrimitiveFrame(NativeBattlePrimitiveFrame frame, NativeBattleEffectTextureState? textures, BattleCamera? overlayCamera = null, NativeBattlePrimitiveCapabilities? capabilities = null, NativeBattlePcTextureWindowCache? textureWindowCache = null, IReadOnlyList<NativeBattleTextureReplacement>? replacements = null)
     {
         //The executed OT already owns projected XY/depth; a native WAIT can legitimately publish coincident eye and target.
         sceneProjectionReady = false;
@@ -37,6 +38,8 @@ public sealed partial class BattleRenderer
         (nativeTexturePages, previousNativeTexturePages) = (previousNativeTexturePages, nativeTexturePages);
         nativeTexturePages.Clear();
         NativeBattleEffectTextureState? previousTextureOwner = nativeTextureOwner;
+        bool sameReplacements = ReferenceEquals(nativeModelReplacements, replacements) || nativeModelReplacements is not null && replacements is not null && nativeModelReplacements.SequenceEqual(replacements);
+        nativeModelReplacements = replacements?.ToArray();
         if (nativeDirectTextureFormat != capabilities?.DirectTextureFormat)
         {
             previousNativeTexturePages.Clear();
@@ -118,10 +121,14 @@ public sealed partial class BattleRenderer
                 NativeTextureKey key = new(page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, retainedPixels);
                 if (!nativeTexturePages.TryGetValue(key, out texture))
                 {
-                    bool reusable = previousNativeTexturePages.TryGetValue(key, out texture) && (ReferenceEquals(previousTextureOwner, textures) || previousTextureOwner is not null && textures is not null && NativeBattleEffectTextureReader.HasSamePcRegionSource(previousTextureOwner, textures, page, clut, window.X, window.Y, window.Width, window.Height, retainedPixels));
+                    bool reusable = sameReplacements && previousNativeTexturePages.TryGetValue(key, out texture) && (ReferenceEquals(previousTextureOwner, textures) || previousTextureOwner is not null && textures is not null && NativeBattleEffectTextureReader.HasSamePcRegionSource(previousTextureOwner, textures, page, clut, window.X, window.Y, window.Width, window.Height, retainedPixels));
                     if (!reusable)
                     {
                         texture = NativeBattleEffectTextureReader.DecodePcRegion(textures ?? throw new NotSupportedException("Native polygon texture sampling requires its retained VRAM owner."), page, clut, window.X, window.Y, window.Width, window.Height, alternateShift, capabilities?.DirectTextureFormat, retainedPixels);
+                        if (replacements is not null && alternateShift is null)
+                        {
+                            texture = NativeBattleEffectTextureReader.ApplyModelReplacements(texture, textures!, page, clut, window.X, window.Y, retainedPixels, replacements);
+                        }
                     }
                     nativeTexturePages.Add(key, texture!);
                 }

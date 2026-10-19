@@ -60,7 +60,7 @@ public static partial class NativeBattleEffectTextureReader
                     int y = pageY + row;
                     ushort actual = retainedPixels is null ? BinaryPrimitives.ReadUInt16LittleEndian(bank.AsSpan(2 * (y * 1024 + x))) : retainedPixels.ReadWord(x, y);
                     int expectedOffset = 2 * ((row - replacement.V) * replacement.WordWidth + (column - replacement.U) / 2);
-                    if (actual != BinaryPrimitives.ReadUInt16LittleEndian(replacement.PixelWords.AsSpan(expectedOffset)))
+                    if (actual != BinaryPrimitives.ReadUInt16LittleEndian(replacement.PixelWords.AsSpan()[expectedOffset..]))
                     {
                         return false;
                     }

@@ -31,6 +31,10 @@ public static class NativeBattleTextureReplacements
         for (int texture = 0; texture < count; texture++)
         {
             TextureValue value = textures.GetTexture(texture);
+            if (!value.Provenance.StartsWith("remastered:", StringComparison.Ordinal))
+            {
+                continue;
+            }
             if (value.Image.Width == value.LogicalWidth && value.Image.Height == value.LogicalHeight)
             {
                 continue;
@@ -61,9 +65,11 @@ public static class NativeBattleTextureReplacements
                 {
                     throw new NotSupportedException("Native replacement material leaves its original texture page.");
                 }
-                if (materials.Add((material.TexturePage, material.Clut, u, v)))
+                ushort page = (ushort)(material.TexturePage & 0x19F);
+                ushort clut = (ushort)(material.Clut & 0x7FFF);
+                if (materials.Add((page, clut, u, v)))
                 {
-                    result.Add(new(material.TexturePage, material.Clut, u, v, value.LogicalWidth, value.LogicalHeight, value.Image, wordWidth, words, palette));
+                    result.Add(new(page, clut, u, v, value.LogicalWidth, value.LogicalHeight, value.Image, wordWidth, words, palette));
                 }
             }
         }

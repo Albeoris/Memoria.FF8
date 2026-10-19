@@ -1,4 +1,5 @@
 using System.Numerics;
+using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
@@ -7,7 +8,7 @@ using Memoria.FF8.Ui;
 namespace Memoria.FF8;
 
 /// <summary>The live host and GPU-independent diagnostic preview render the same installed scene and actor presentation.</summary>
-internal sealed class BattleScenePresentation
+internal sealed partial class BattleScenePresentation
 {
     private readonly BattleStage stage;
     private readonly BattleAssets assets;
@@ -32,6 +33,8 @@ internal sealed class BattleScenePresentation
     private byte[]? renderedPixels;
     private GpuTriangleRenderer? renderedGpu;
     private long renderedGpuVersion;
+    private readonly Dictionary<(BattleModel Model, NativeBattleModelTextureBinding Binding, bool Weapon), (PixelImage[] Images, IReadOnlyList<NativeBattleTextureReplacement> Replacements)> replacementBindings = [];
+    private IReadOnlyList<NativeBattleTextureReplacement>? renderedModelReplacements;
 
     public BattleScenePresentation(BattleAssets assets, BattleDefinition definition, bool useEncounter)
     {
@@ -114,7 +117,8 @@ internal sealed class BattleScenePresentation
             NativeBattlePrimitiveFrame frame = rawGraphics.PrimitiveFrame ?? throw new NotSupportedException("Native battle presentation requires its executed original primitive frame; migrate the named standalone snapshot explicitly.");
             NativeBattleEffectTextureState? textures = session.NativeEffectMemory?.Textures;
             NativeBattlePcTextureWindowCache? windows = session.NativeEffectMemory?.PrimitiveProcess?.TextureWindowCache;
-            bool unchanged = ReferenceEquals(renderedPrimitiveFrame, frame) && ReferenceEquals(renderedPcRenderTail, frame.LastPcRenderTail) && ReferenceEquals(renderedTextures, textures) && ReferenceEquals(renderedTextureWindows, windows) && renderedCamera == selectedCamera;
+            IReadOnlyList<NativeBattleTextureReplacement> replacements = NativeModelReplacements(session, rawGraphics);
+            bool unchanged = ReferenceEquals(renderedPrimitiveFrame, frame) && ReferenceEquals(renderedPcRenderTail, frame.LastPcRenderTail) && ReferenceEquals(renderedTextures, textures) && ReferenceEquals(renderedTextureWindows, windows) && renderedCamera == selectedCamera && renderedModelReplacements is not null && renderedModelReplacements.SequenceEqual(replacements);
             if (triangleRenderer is null && renderedPixels is not null && unchanged)
             {
                 return renderedPixels;
@@ -126,22 +130,24 @@ internal sealed class BattleScenePresentation
             if (triangleRenderer is not null)
             {
                 renderedPixels = null;
-                byte[] result = renderer.RenderNativePrimitiveFrame(frame, textures, selectedCamera, primitiveCapabilities, windows);
+                byte[] result = renderer.RenderNativePrimitiveFrame(frame, textures, selectedCamera, primitiveCapabilities, windows, replacements.Count == 0 ? null : replacements);
                 renderedPrimitiveFrame = frame;
                 renderedPcRenderTail = frame.LastPcRenderTail;
                 renderedTextures = textures;
                 renderedTextureWindows = windows;
+                renderedModelReplacements = replacements;
                 renderedCamera = selectedCamera;
                 renderedGpu = triangleRenderer as GpuTriangleRenderer;
                 renderedGpuVersion = renderedGpu?.PresentationVersion ?? 0;
                 return result;
             }
             renderedGpu = null;
-            renderedPixels = renderer.RenderNativePrimitiveFrame(frame, textures, selectedCamera, primitiveCapabilities, windows);
+            renderedPixels = renderer.RenderNativePrimitiveFrame(frame, textures, selectedCamera, primitiveCapabilities, windows, replacements.Count == 0 ? null : replacements);
             renderedPrimitiveFrame = frame;
             renderedPcRenderTail = frame.LastPcRenderTail;
             renderedTextures = textures;
             renderedTextureWindows = windows;
+            renderedModelReplacements = replacements;
             renderedCamera = selectedCamera;
             return renderedPixels;
         }
