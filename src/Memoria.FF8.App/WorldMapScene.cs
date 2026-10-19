@@ -337,15 +337,17 @@ internal sealed partial class WorldMapScene : IDisposable
         bool worldMessageConfirm = sourceDialogue is { CanConfirm: true, FirstChoice: null } && action.Kind == PlayerActionKind.Confirm;
         bool gardenAction = (State.NativeGardenRuntime is not null || State.NativeRagnarokRuntime is not null) && action.Kind == PlayerActionKind.Confirm;
         bool ragnarokButtons = State.NativeRagnarokRuntime is not null && State.NativeFootRuntime is null && action.Kind == PlayerActionKind.WorldButtons;
+        bool carButtons = State.NativeCarRuntime is not null && action.Kind == PlayerActionKind.WorldButtons;
+        bool vehicleButtons = ragnarokButtons || carButtons;
         if (action.WorldButtons != 0 && (action.Kind is not (PlayerActionKind.Move or PlayerActionKind.Wait) || (action.WorldButtons & ~0x02) != 0))
         {
             throw new ArgumentException("Ordinary world button levels support only the camera toggle mask on Move or Wait actions.", nameof(action));
         }
-        if (ragnarokButtons && action.Value is < 0 or > ushort.MaxValue)
+        if (vehicleButtons && action.Value is < 0 or > ushort.MaxValue)
         {
             throw new ArgumentOutOfRangeException(nameof(action), "Native world digital button masks require an unsigned WORD.");
         }
-        if (ragnarokButtons && (action.Value & 0x800) != 0)
+        if (vehicleButtons && (action.Value & 0x800) != 0)
         {
             throw new NotSupportedException("The ordinary world menu button requires its native menu transition and buffered input mutation owner.");
         }
@@ -353,7 +355,7 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             throw new NotSupportedException("Ragnarok Move adapts only digital throttle/steering; submit WorldButtons for exact ordinary vertical controls.");
         }
-        bool accepted = action.Kind is PlayerActionKind.Move or PlayerActionKind.Wait || stationChoice || gardenAction || ragnarokButtons || worldMessageConfirm;
+        bool accepted = action.Kind is PlayerActionKind.Move or PlayerActionKind.Wait || stationChoice || gardenAction || vehicleButtons || worldMessageConfirm;
         int advanced = 0;
         WorldState candidate = State;
         WorldState previousCallback = candidate;
@@ -373,7 +375,7 @@ internal sealed partial class WorldMapScene : IDisposable
                 int priorGraphics = salary.VibrationProcess?.GraphicsSpeed20409F0 ?? throw new NotSupportedException("Native world movement requires its canonical retained graphics magnitude.");
                 bool gardenFootAtCallback = candidate.NativeGardenRuntime is not null && candidate.NativeFootRuntime is not null;
                 bool ragnarokFootAtCallback = candidate.NativeRagnarokRuntime is not null && candidate.NativeFootRuntime is not null;
-                uint buttons = ragnarokButtons ? unchecked((uint)action.Value) : (gardenAction || worldMessageConfirm) && index == 0 ? 0x40u : 0;
+                uint buttons = vehicleButtons ? unchecked((uint)action.Value) : (gardenAction || worldMessageConfirm) && index == 0 ? 0x40u : 0;
                 buttons |= action.WorldButtons;
                 if (action.Kind == PlayerActionKind.Move)
                 {
@@ -381,9 +383,10 @@ internal sealed partial class WorldMapScene : IDisposable
                     buttons |= action.Horizontal == -1 ? 0x2000u : action.Horizontal == 1 ? 0x8000u : 0;
                 }
                 salary = salary.WithWorldInputSample(buttons);
+                (float horizontal, float vertical) = carButtons ? ControllerGameplayInput.ReadCarAxes(buttons, action.Horizontal, action.Vertical) : (action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0);
                 WorldState callbackStart = candidate;
                 previousCallback = candidate;
-                candidate = Step(candidate, action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0, action.CameraHorizontal, priorGraphics, buttons, salary.WorldEntryMemory, ref salary, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out fieldEntry, out uint movementUnits, out int graphicsSpeed);
+                candidate = Step(candidate, horizontal, vertical, action.CameraHorizontal, priorGraphics, buttons, salary.WorldEntryMemory, ref salary, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out fieldEntry, out uint movementUnits, out int graphicsSpeed);
                 if (consumeGardenRequest)
                 {
                     salary = salary.ConsumeGardenScriptRequest();
@@ -399,7 +402,7 @@ internal sealed partial class WorldMapScene : IDisposable
                 if (candidate.NativeCarRuntime is { } fuelCar)
                 {
                     salary = salary.PrepareCarFuel(fuelCar.EntityType, candidate.GroundType ?? throw new NotSupportedException("Native car fuel requires its actual current terrain type."), graphicsSpeed);
-                    salary = salary.AdvanceCarCameraCooldown(action.Kind == PlayerActionKind.Move && ReadSignedMovementComponent(-action.Vertical) != 0, action.Kind == PlayerActionKind.Move && ReadSignedMovementComponent(-action.Horizontal) != 0);
+                    salary = salary.AdvanceCarCameraCooldown(ReadSignedMovementComponent(-vertical) != 0, ReadSignedMovementComponent(-horizontal) != 0);
                 }
                 if (advanceUi && (callbackStart.NativeRagnarokRuntime is null || ragnarokFootAtCallback) && (callbackStart.NativeGardenRuntime is null || callbackStart.NativeFootRuntime is not null))
                 {

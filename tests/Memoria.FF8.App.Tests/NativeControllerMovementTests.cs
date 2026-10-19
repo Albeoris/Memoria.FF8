@@ -92,37 +92,61 @@ public sealed class NativeControllerMovementTests
     [Theory]
     [InlineData(0.5f, -0.5f, 15, 1)]
     [InlineData(-0.5f, 0.5f, -16, -1)]
-    public void Secondary_stick_routes_fractional_vehicle_axes_to_the_existing_native_motor(float horizontal, float vertical, int yawDelta, int speed)
+    public void Primary_steering_and_secondary_throttle_route_to_the_existing_native_car_motor(float horizontal, float vertical, int yawDelta, int speed)
     {
         GameSession session = WorldEntrySession();
         NativeWorldEntryMemory memory = session.State.WorldEntryMemory!.WriteBytes(256, 2, 40).WriteBytes(265, 1, 128);
         session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), WorldEntryMemory = memory });
         using WorldMapScene scene = new(session, GameDirectory());
-        InputFrame input = new(-1, 1, false, false, false, false, MenuVertical: 1, MenuHorizontal: -1, CameraHorizontal: horizontal, SecondaryVertical: vertical, SecondaryHorizontal: horizontal);
-        InputFrame routed = ControllerGameplayInput.Resolve(input, session.State);
-        Assert.Equal((horizontal, vertical, 0f, 0f), (routed.Horizontal, routed.Vertical, routed.CameraHorizontal, routed.SecondaryVertical));
-        Assert.Equal((1, -1), (routed.MenuVertical, routed.MenuHorizontal));
-        Assert.True(scene.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: routed.Horizontal, Vertical: routed.Vertical, CameraHorizontal: routed.CameraHorizontal)).Accepted);
+        InputFrame input = new(horizontal, 1, false, false, false, false, MenuVertical: 1, MenuHorizontal: -1, CameraHorizontal: -horizontal, SecondaryVertical: vertical, SecondaryHorizontal: -horizontal);
+        PlayerAction action = ControllerGameplayInput.CreateWorldAction(input, session.State, 0);
+        Assert.Equal((PlayerActionKind.WorldButtons, horizontal, vertical, 0f), (action.Kind, action.Horizontal, action.Vertical, action.CameraHorizontal));
+        Assert.True(scene.Apply(action).Accepted);
         Assert.Equal(2256 + yawDelta, scene.State.BodyYaw);
         Assert.Equal(speed, scene.State.NativeCarRuntime!.Speed);
+        Assert.Equal(0, session.State.WorldProcess!.InputHistory!.CurrentButtons);
 
-        InputFrame keyboardCamera = new(0.25f, -0.75f, false, false, false, false, CameraHorizontal: 1);
-        InputFrame retained = ControllerGameplayInput.Resolve(keyboardCamera, session.State);
-        Assert.Equal((0.25f, -0.75f), (retained.Horizontal, retained.Vertical));
-        Assert.Equal((0f, 0f), (retained.CameraHorizontal, retained.SecondaryVertical));
-        InputFrame steeringOnly = ControllerGameplayInput.Resolve(input with { SecondaryVertical = 0 }, session.State);
-        Assert.Equal((horizontal, 1f), (steeringOnly.Horizontal, steeringOnly.Vertical));
-        InputFrame throttleOnly = ControllerGameplayInput.Resolve(input with { SecondaryHorizontal = 0 }, session.State);
-        Assert.Equal((-1f, vertical), (throttleOnly.Horizontal, throttleOnly.Vertical));
+        GameSession restored = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+        using WorldMapScene second = new(restored, GameDirectory());
+        Assert.True(scene.Apply(action).Accepted);
+        Assert.True(second.Apply(action).Accepted);
+        Assert.Equal(JsonSerializer.Serialize(session.State), JsonSerializer.Serialize(restored.State));
     }
 
     [Theory]
     [InlineData(SceneKind.Field)]
     [InlineData(SceneKind.WorldMap)]
-    public void Secondary_stick_preserves_field_and_foot_camera_input(SceneKind scene)
+    public void World_host_preserves_field_and_foot_movement_and_camera_input(SceneKind scene)
     {
         InputFrame input = new(0.75f, -0.25f, false, false, false, false, MenuVertical: 1, CameraHorizontal: -0.5f, SecondaryVertical: 0.25f, SecondaryHorizontal: -0.5f);
-        Assert.Equal(input, ControllerGameplayInput.Resolve(input, new GameState { Scene = scene }));
+        PlayerAction action = ControllerGameplayInput.CreateWorldAction(input, new GameState { Scene = scene }, 2);
+        Assert.Equal((PlayerActionKind.Move, input.Horizontal, input.Vertical, input.CameraHorizontal, (ushort)2), (action.Kind, action.Horizontal, action.Vertical, action.CameraHorizontal, action.WorldButtons));
+    }
+
+    [Theory]
+    [InlineData(0x80, 2, 0)]
+    [InlineData(0x10, -2, 0)]
+    [InlineData(0x90, -2, 0)]
+    [InlineData(0x1000, 0, 0)]
+    [InlineData(0x4000, 0, 0)]
+    [InlineData(0x2080, 2, 31)]
+    [InlineData(0x8080, 2, -32)]
+    [InlineData(0xA080, 2, -32)]
+    public void Car_button_packets_preserve_native_throttle_steering_and_exact_input_history(int buttons, int speed, int yawDelta)
+    {
+        GameSession session = WorldEntrySession();
+        NativeWorldEntryMemory memory = session.State.WorldEntryMemory!.WriteBytes(256, 2, 40).WriteBytes(265, 1, 128);
+        session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), WorldEntryMemory = memory });
+        using WorldMapScene scene = new(session, GameDirectory());
+        GameSession restored = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+        using WorldMapScene second = new(restored, GameDirectory());
+        PlayerAction action = new(PlayerActionKind.WorldButtons, buttons);
+        Assert.True(scene.Apply(action).Accepted);
+        Assert.True(second.Apply(action).Accepted);
+        Assert.Equal(speed, scene.State.NativeCarRuntime!.Speed);
+        Assert.Equal(2256 + yawDelta, scene.State.BodyYaw);
+        Assert.Equal(buttons, session.State.WorldProcess!.InputHistory!.CurrentButtons);
+        Assert.Equal(JsonSerializer.Serialize(session.State), JsonSerializer.Serialize(restored.State));
     }
 
     [Fact]

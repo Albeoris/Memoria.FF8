@@ -64,6 +64,7 @@ internal sealed class KeyboardInput
     public bool GunbladeTriggerRequested { get; private set; }
     public bool GuardianBoostRequested { get; private set; }
     public ushort HeldFieldButtons { get; private set; }
+    public ushort HeldControlButtons { get; private set; }
 
     public string NativeButtonBindingHint(ushort buttons)
     {
@@ -202,6 +203,7 @@ internal sealed class KeyboardInput
                 HeldFieldButtons |= mask;
             }
         }
+        HeldControlButtons = HeldFieldButtons;
         bool digitalMovement = Down(ControlAction.MoveUp) || Down(ControlAction.MoveDown) || Down(ControlAction.MoveLeft) || Down(ControlAction.MoveRight);
         if (active && !digitalMovement && movement.LengthSquared() > 0 && movement.Length() < Profile.WalkRunThreshold)
         {

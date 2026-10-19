@@ -555,7 +555,6 @@ internal sealed partial class RecreateGame : Game
 
     private void UpdateWorldMap(TimeSpan elapsed, InputFrame input)
     {
-        input = ControllerGameplayInput.Resolve(input, session.State);
         if (fieldFaulted)
         {
             return;
@@ -604,8 +603,7 @@ internal sealed partial class RecreateGame : Game
             worldSimulationClock.Accumulate(options.ControlStep ? TimeSpan.Zero : elapsed);
             while (worldSimulationClock.TryStep())
             {
-                ushort worldButtons = (ushort)(keyboard.HeldFieldButtons & 0x02);
-                PlayerAction action = input.Horizontal != 0 || input.Vertical != 0 ? new PlayerAction(PlayerActionKind.Move, Horizontal: input.Horizontal, Vertical: input.Vertical, CameraHorizontal: input.CameraHorizontal, WorldButtons: worldButtons) : new PlayerAction(PlayerActionKind.Wait, CameraHorizontal: input.CameraHorizontal, WorldButtons: worldButtons);
+                PlayerAction action = ControllerGameplayInput.CreateWorldAction(input, session.State, keyboard.HeldControlButtons);
                 metrics.Simulate(world.Apply(action).FramesAdvanced);
                 if (session.State.Scene != SceneKind.WorldMap)
                 {

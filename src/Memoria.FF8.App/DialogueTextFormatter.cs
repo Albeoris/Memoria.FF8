@@ -124,23 +124,14 @@ internal static partial class DialogueTextFormatter
             {
                 return match.Value;
             }
-            ushort buttons = key switch
+            // Native logical20..2F and fixed30..3F use button indices, not the enum's action names.
+            // The admitted native mapping is identity; host bindings supply the current device labels.
+            byte code = (byte)key;
+            ushort buttons = code is >= 0x20 and <= 0x3F ? (ushort)(1 << (code & 0x0F)) : (ushort)0;
+            if ((buttons & 0x0600) != 0)
             {
-                TextTagKey.EscapeKey1 => 0x01,
-                TextTagKey.EscapeKey2 => 0x02,
-                TextTagKey.L1 => 0x04,
-                TextTagKey.R1 or (TextTagKey)0x23 => 0x08,
-                TextTagKey.Triangle or TextTagKey.Cancel => 0x10,
-                TextTagKey.Circle or TextTagKey.Menu => 0x20,
-                TextTagKey.Cross or TextTagKey.Confirm => 0x40,
-                TextTagKey.Square or TextTagKey.Cards => 0x80,
-                TextTagKey.Select or TextTagKey.EndKey => 0x100,
-                TextTagKey.UpKey => 0x1000,
-                TextTagKey.RightKey => 0x2000,
-                TextTagKey.DownKey => 0x4000,
-                TextTagKey.LeftKey => 0x8000,
-                _ => 0
-            };
+                return match.Value;
+            }
             return buttons == 0 ? match.Value : (buttonBindingHint ?? DefaultButtonBindingHint)(buttons);
         });
     }

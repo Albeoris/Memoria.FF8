@@ -9,6 +9,18 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeWorldTutorialTextTests
 {
     [Fact]
+    public void Original_driving_tutorial_resolves_reverse_and_forward_to_the_native_motor_buttons()
+    {
+        using WorldAssets assets = new(TestResources.GameDirectory);
+        string text = assets.ReadWorldMessage(49);
+        string formatted = DialogueTextFormatter.Format(text, buttonBindingHint: buttons => $"[{buttons:X4}]");
+        Assert.Contains("[0010]:Back", formatted, StringComparison.Ordinal);
+        Assert.Contains("[0080]:Forward", formatted, StringComparison.Ordinal);
+        Assert.Contains("[0040]:Get on/off", formatted, StringComparison.Ordinal);
+        Assert.Contains("[0002]:Change POV", formatted, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void HistoricalFieldCheckpointStillLoadsWithoutInventingItsMissingMessageSpeed()
     {
         GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.NativeWorldTutorialTextTests.1")));
@@ -59,29 +71,37 @@ public sealed class NativeWorldTutorialTextTests
         Assert.True(staged.SavedWorldEvents!.WorldEventFlags116!.Matches(0x003F));
     }
 
-    [Fact]
-    public void ActualCarCallbacksRetainReadinessAndRestoreWhileArrowIsHeld()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ActualCarCallbacksRetainReadinessAndRestoreWhileArrowIsHeld(bool nativeButtons)
     {
         GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.AutoPlayCarWorldTests.1")));
         using GameWorld world = new(session, TestResources.GameDirectory, validateWorldPresentation: false);
         world.EnsureField();
         Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 30)).Accepted);
         Assert.Equal(49, world.CurrentDialogue!.MessageId);
-        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1)).Accepted);
+        PlayerAction hold = nativeButtons ? new(PlayerActionKind.WorldButtons, 0x1000) : new(PlayerActionKind.Move, Horizontal: 1);
+        Assert.True(world.Apply(hold).Accepted);
         Assert.Equal(49, world.CurrentDialogue!.MessageId);
         GameSession restored = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
         using GameWorld second = new(restored, TestResources.GameDirectory, validateWorldPresentation: false);
         second.EnsureField();
         for (int tick = 0; tick < 250 && session.State.World!.EventUi!.MatchesTextComplete(9, 1) != true; tick++)
         {
-            PlayerAction hold = new(PlayerActionKind.Move, Horizontal: 1);
             Assert.Equal(world.Apply(hold), second.Apply(hold));
         }
         Assert.True(session.State.World!.EventUi!.MatchesTextComplete(9, 1));
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(restored.State)));
         Assert.Equal(world.Apply(new PlayerAction(PlayerActionKind.Wait)), second.Apply(new PlayerAction(PlayerActionKind.Wait)));
-        Assert.Equal(world.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: -1)), second.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: -1)));
+        PlayerAction close = nativeButtons ? new(PlayerActionKind.WorldButtons, 0x4000) : new(PlayerActionKind.Move, Horizontal: -1);
+        Assert.Equal(world.Apply(close), second.Apply(close));
         Assert.Null(world.CurrentDialogue);
+        if (nativeButtons)
+        {
+            Assert.Equal(0, session.State.World!.NativeCarRuntime!.Speed);
+            Assert.Equal(0x4000, session.State.WorldProcess!.InputHistory!.CurrentButtons);
+        }
     }
 }
 
