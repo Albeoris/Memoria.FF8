@@ -7,6 +7,88 @@ namespace Memoria.FF8.Battle.Tests;
 public sealed class GuardianForceCastTests
 {
     [Fact]
+    public void Turn_based_ready_ally_holds_charge_until_pass_reaches_completion_and_the_script_publishes_it()
+    {
+        BattleSession session = CreateTurnBasedWithReadyAlly(350);
+        session.QueueAction("player", "enemy", BattleAbility.GuardianForce, 0);
+        BattleSession restored = BattleSession.Restore(session.Capture());
+        for (int callback = 0; callback < 20; callback++)
+        {
+            session.Tick();
+            restored.Tick();
+        }
+        Assert.Equal(0, session.Frame);
+        Assert.Equal((ushort)40, Assert.Single(session.GuardianForceCasts).RemainingTicks);
+        Assert.True(session.Combatants.Single(actor => actor.Id == "ally").IsReady);
+        Assert.Equal(0, session.Combatants.Single(actor => actor.Id == "enemy").Atb);
+        Assert.Equal(JsonSerializer.Serialize(session.Capture()), JsonSerializer.Serialize(restored.Capture()));
+
+        Assert.Equal(20, session.AdvanceTurn());
+        Assert.Equal((ushort)0, Assert.Single(session.GuardianForceCasts).RemainingTicks);
+        Assert.Empty(session.QueuedActions);
+        Assert.Null(session.ActiveAction);
+        Assert.Equal(20, session.Combatants.Single(actor => actor.Id == "enemy").Atb);
+        BattleSession completed = BattleSession.Restore(session.Capture());
+        session.Tick();
+        completed.Tick();
+
+        Assert.Equal(20, session.Frame);
+        Assert.Empty(session.GuardianForceCasts);
+        Assert.Equal((byte)255, session.Capture().NativeScriptState.Tasks.Tail);
+        Assert.Equal(BattleAbility.GuardianForce, Assert.Single(session.QueuedActions).Ability);
+        Assert.Single(session.Events, item => item.Kind == "GuardianForceReady");
+        Assert.True(session.Combatants.Single(actor => actor.Id == "ally").IsReady);
+        Assert.Equal(JsonSerializer.Serialize(session.Capture()), JsonSerializer.Serialize(completed.Capture()));
+    }
+
+    [Fact]
+    public void Turn_based_pass_stops_at_next_actor_and_its_attack_keeps_the_Gf_charge_frozen()
+    {
+        BattleSession session = CreateTurnBasedWithReadyAlly(3500, enemySpeed: 1000);
+        session.QueueAction("player", "enemy", BattleAbility.GuardianForce, 0);
+
+        Assert.Equal(10, session.AdvanceTurn());
+
+        Assert.Equal(10, session.Frame);
+        Assert.Equal((ushort)380, Assert.Single(session.GuardianForceCasts).RemainingTicks);
+        Assert.True(session.Combatants.Single(actor => actor.Id == "enemy").IsReady);
+        Assert.Null(session.ActiveAction);
+        session.Tick();
+        Assert.Equal("enemy", session.ActiveAction!.ActorId);
+        for (int callback = 0; callback < BattleSession.AttackWindupFrames + BattleSession.AttackRecoveryFrames; callback++)
+        {
+            session.Tick();
+        }
+
+        Assert.Null(session.ActiveAction);
+        Assert.Equal((ushort)380, Assert.Single(session.GuardianForceCasts).RemainingTicks);
+        Assert.True(session.Combatants.Single(actor => actor.Id == "ally").IsReady);
+        Assert.Equal(0, session.Combatants.Single(actor => actor.Id == "enemy").Atb);
+    }
+
+    [Fact]
+    public void Turn_based_cancelled_Gf_yields_to_its_script_before_advancing_to_another_actor()
+    {
+        BattleSession session = Create(compatibility: 350);
+        session.SetMode(BattleAtbMode.TurnBased);
+        session.QueueAction("player", "enemy", BattleAbility.GuardianForce, 0);
+        BattleSnapshot pending = session.Capture();
+        session = BattleSession.Restore(pending with { GuardianForces = [pending.GuardianForces[0] with { HitPoints = 0 }] });
+
+        session.Tick();
+
+        Assert.Equal(1, session.Frame);
+        Assert.Equal(1, session.Combatants.Single(actor => actor.Id == "enemy").Atb);
+        Assert.Empty(session.GuardianForceCasts);
+        Assert.Empty(session.QueuedActions);
+        Assert.Null(session.ActiveAction);
+        Assert.False(session.Combatants[0].IsBusy);
+        Assert.Equal((byte)255, session.Capture().NativeScriptState.Tasks.Tail);
+        Assert.Single(session.Events, item => item.Kind == "GuardianForceCancelled");
+        Assert.DoesNotContain(session.Events, item => item.Kind == "GuardianForceReady");
+    }
+
+    [Fact]
     public void Native_pause_flag_freezes_charge_across_restore_until_it_is_released()
     {
         BattleDefinition original = Create(compatibility: 350).Capture().Definition;
@@ -222,6 +304,16 @@ public sealed class GuardianForceCastTests
         Assert.Equal(expected, snapshot.Combatants[0].GuardianForceCompatibility![0]);
         Assert.Equal(initial, snapshot.Definition.Combatants[0].GuardianForceCompatibility![0]);
         Assert.Equal(expected, BattleSession.Restore(snapshot).Capture().Combatants[0].GuardianForceCompatibility![0]);
+    }
+
+    private static BattleSession CreateTurnBasedWithReadyAlly(ushort compatibility, int enemySpeed = 1)
+    {
+        BattleDefinition original = Create(compatibility).Capture().Definition;
+        BattleDefinition definition = original with
+        {
+            Combatants = [original.Combatants[0], new() { Id = "ally", Name = "Ally", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum }, original.Combatants[1] with { Speed = enemySpeed }]
+        };
+        return new(definition, BattleAtbMode.TurnBased);
     }
 
     private static BattleSession Create(ushort compatibility = 35, uint statuses = 0, ushort gfHp = 100, bool enemyReady = false)

@@ -3,11 +3,10 @@ namespace Memoria.FF8.Runtime;
 public sealed partial class BattleSession
 {
     private HashSet<string>? nativeUiBecameReady;
-    private bool nativeUiForceGaugeAdvance;
 
-    private bool WaitingForTurnBasedDecision => Mode == BattleAtbMode.TurnBased && !HasPendingTurn && combatants.Any(actor => actor.IsPlayer && actor.IsReady) && !combatants.Any(actor => !actor.IsPlayer && actor.IsReady);
+    private bool WaitingForTurnBasedDecision => Mode == BattleAtbMode.TurnBased && combatants.Any(actor => actor.IsPlayer && actor.IsReady);
 
-    private HashSet<string> PumpNativeHostFrame(bool forceGauge = false)
+    private HashSet<string> PumpNativeHostFrame(bool advanceFrame = true)
     {
         if (NativeGraphics is null || nativeUiBecameReady is not null)
         {
@@ -15,17 +14,9 @@ public sealed partial class BattleSession
         }
         HashSet<string> ready = [];
         nativeUiBecameReady = ready;
-        nativeUiForceGaugeAdvance = forceGauge;
         try
         {
-            if (Outcome == BattleOutcome.Active && NativeHostCallbacks is long callbacks)
-            {
-                NativeHostCallbacks = checked(callbacks + 1);
-                if (NativeExamTimer is { } timer)
-                {
-                    NativeExamTimer = timer.AdvanceCallbacks(NativeTimerCallbackKind.Battle, 1);
-                }
-            }
+            AdvanceNativeHostTime();
             if (NativeGraphics.UiServices is { } initial)
             {
                 bool requestPause = (initial.Flags942 & 2) != 0 && (NativeEffectMemory?.ActionPhaseDEA ?? throw new NotSupportedException("Native47CF60 pause admission requires its actual retained process BYTE DEA.")) != 0;
@@ -50,7 +41,7 @@ public sealed partial class BattleSession
             {
                 if (Outcome == BattleOutcome.Active)
                 {
-                    ready.UnionWith(DispatchFrame(advanceGraphics: false));
+                    ready.UnionWith(DispatchFrame(advanceGraphics: false, advanceFrame: advanceFrame));
                 }
                 if ((Outcome is BattleOutcome.Victory or BattleOutcome.Defeat) && DebugOutcome is null && NativeGraphics.NativeOutcome?.FadeDurationB0C == 0)
                 {
@@ -80,7 +71,6 @@ public sealed partial class BattleSession
         finally
         {
             nativeUiBecameReady = null;
-            nativeUiForceGaugeAdvance = false;
         }
     }
 

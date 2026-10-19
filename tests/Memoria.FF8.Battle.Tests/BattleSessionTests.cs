@@ -67,7 +67,7 @@ public sealed class BattleSessionTests
         Assert.Equal(35, session.Frame);
         Assert.Empty(session.QueuedActions);
         session.Tick();
-        Assert.Equal(44, session.Frame);
+        Assert.Equal(45, session.Frame);
         Assert.Equal("enemy", session.ActiveAction!.ActorId);
     }
 
@@ -131,6 +131,9 @@ public sealed class BattleSessionTests
         Assert.Equal(10, session.AdvanceTurn());
         Assert.True(session.Combatants[0].IsReady);
         Assert.Equal(BattleSession.AtbMaximum, session.Combatants[0].Atb);
+        Assert.True(session.Combatants[1].IsReady);
+        Assert.Null(session.ActiveAction);
+        session.Tick();
         Assert.True(session.Combatants[1].IsBusy);
         Assert.Equal("enemy", session.ActiveAction!.ActorId);
     }
@@ -150,7 +153,7 @@ public sealed class BattleSessionTests
     }
 
     [Fact]
-    public void AdvanceTurnMatchesRepeatedNormalDispatchIncludingEffectsAndActions()
+    public void AdvanceTurnMatchesNormalGaugeAndEffectTimeWithoutPresentingTheNextAction()
     {
         BattleCombatantDefinition player = Player(speed: 100) with
         {
@@ -163,7 +166,13 @@ public sealed class BattleSessionTests
         int frames = turn.AdvanceTurn();
         Dispatch(normal, frames);
         normal.SetMode(BattleAtbMode.TurnBased);
-        AssertEquivalent(turn, normal);
+        Assert.Equal(normal.Frame, turn.Frame);
+        Assert.Equal(normal.Combatants[0].Atb, turn.Combatants[0].Atb);
+        Assert.Equal(normal.Combatants[0].CurrentHp, turn.Combatants[0].CurrentHp);
+        Assert.Equal(normal.Combatants[0].StatusEffects, turn.Combatants[0].StatusEffects);
+        Assert.True(turn.Combatants[1].IsReady);
+        Assert.Null(turn.ActiveAction);
+        Assert.Empty(turn.QueuedActions);
         Assert.Equal(25, frames);
         Assert.Equal(100, turn.Combatants[0].CurrentHp);
     }
@@ -220,7 +229,7 @@ public sealed class BattleSessionTests
             StatusEffects = [new BattleStatusEffectDefinition { Kind = BattleStatusKind.Poison, Magnitude = 1, TickIntervalFrames = 1 }]
         };
         BattleCombatantDefinition ally = Player() with { Id = "ally", Name = "Ally" };
-        BattleSession session = new(Definition(doomed, ally, Enemy(speed: 1)), BattleAtbMode.TurnBased);
+        BattleSession session = new(Definition(doomed, ally, Enemy(speed: 1)), BattleAtbMode.Normal);
         session.QueueAttack("player", "enemy");
         session.Tick();
         Assert.False(session.Combatants[0].IsAlive);
@@ -413,14 +422,15 @@ public sealed class BattleSessionTests
     }
 
     [Fact]
-    public void BusyActorCannotBecomeReadyUntilQueueWindupAndRecoveryComplete()
+    public void ExplicitPassDoesNotCompleteTheBusyActorsQueuedAction()
     {
-        BattleSession session = new(Definition(Player(speed: BattleSession.AtbMaximum, initialAtb: BattleSession.AtbMaximum), Enemy(speed: 1)), BattleAtbMode.TurnBased);
+        BattleSession session = new(Definition(Player(speed: BattleSession.AtbMaximum, initialAtb: BattleSession.AtbMaximum), Enemy(speed: 1000)), BattleAtbMode.TurnBased);
         session.QueueAttack("player", "enemy");
-        Assert.Equal(26, session.AdvanceTurn());
-        Assert.True(session.Combatants[0].IsReady);
-        Assert.False(session.Combatants[0].IsBusy);
-        Assert.Equal(46, session.Combatants[1].CurrentHp);
+        Assert.Equal(10, session.AdvanceTurn());
+        Assert.False(session.Combatants[0].IsReady);
+        Assert.True(session.Combatants[1].IsReady);
+        Assert.Null(session.ActiveAction);
+        Assert.Single(session.QueuedActions);
     }
 
     [Fact]

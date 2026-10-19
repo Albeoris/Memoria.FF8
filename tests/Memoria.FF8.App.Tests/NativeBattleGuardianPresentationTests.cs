@@ -17,7 +17,7 @@ public sealed class NativeBattleGuardianPresentationTests
         BattleCombatantDefinition[] actors =
         [
             new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 },
-            new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = formation.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
+            new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = formation.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1, InitialAtb = BattleSession.AtbMaximum / 3 }
         ];
         //Declared fresh installed-resource component, not a reconstructed gameplay save. Its explicit playtime-derived UI seed is0.
         BattleDefinition definition = new()
@@ -36,6 +36,8 @@ public sealed class NativeBattleGuardianPresentationTests
             NativeEntry = new(0, 0),
             NativeGlobalRandom = new(0),
             NativeCrtRandom = new(1),
+            NativeClockRules = assets.ReadNativeClockRules(),
+            NativeBattleSpeed = game.ReadNewGameInputConfiguration().NativeBattleSpeedByte,
             NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation),
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeModuleResources = game.ReadNativeBattleModuleResources(),
@@ -43,6 +45,7 @@ public sealed class NativeBattleGuardianPresentationTests
             NativeEffectMeshes = game.ReadNativeEffectMeshes(),
             NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([116]),
             NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
+            NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap,
             NativeActionCameraRules = game.ReadNativeActionCameraRules(),
             NativeStageSource = stage.NativeSource,
             NativeStageCameraBank = stage.NativeCameraBank,
@@ -59,6 +62,8 @@ public sealed class NativeBattleGuardianPresentationTests
         }
         Assert.True(battle.NativeEntryReady);
         BattleSnapshot before = battle.Capture();
+        Assert.NotNull(before.NativeClock);
+        Assert.Contains(before.Combatants, actor => actor.NativeAtb is { Current: > 0 } gauge && gauge.Current < gauge.Maximum);
         NativeBattleLogicalResolvedCommand[] entryCommands = before.NativeGraphics!.PrimitiveFrame!.LastCommands.ToArray();
         NativeBattleLogicalResolvedCommand[] shadowModes = entryCommands.Where(command => command.Command.Opcode == 0xE1 && command.Command.Words[0] is 0xE1000620 or 0xE1000640).ToArray();
         foreach (NativeBattleLogicalResolvedCommand command in shadowModes)
@@ -97,6 +102,9 @@ public sealed class NativeBattleGuardianPresentationTests
         Assert.Equal(JsonSerializer.Serialize(pendingSource), JsonSerializer.Serialize(sourceFromFile));
         battle = BattleSession.Restore(sourceFromFile);
         Console.WriteLine($"Fresh GF pending104 source: {Path.GetFullPath(sourceOutput)}; frame{sourceFromFile.Frame}/callback{sourceFromFile.NativeGraphics!.Callback}.");
+        NativeBattleAtbState[] animationGauges = sourceFromFile.Combatants.Select(actor => actor.NativeAtb!).ToArray();
+        uint initialUiCounter = sourceFromFile.NativeGraphics!.UiServices!.Counter;
+        long initialGraphicsCallback = sourceFromFile.NativeGraphics.Callback;
         TimeSpan frame = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         bool selected = false;
         bool restoredBeforeEntry = false;
@@ -119,6 +127,7 @@ public sealed class NativeBattleGuardianPresentationTests
                 battle.AdvanceNativeGraphicsPresentation(frame);
                 restored.AdvanceNativeGraphicsPresentation(frame);
                 Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+                AssertFrozenGauges(battle.Capture());
                 restoredBeforeEntry = true;
             }
             BattleSnapshot beforeStep = battle.Capture();
@@ -142,6 +151,7 @@ public sealed class NativeBattleGuardianPresentationTests
                     Assert.Equal(firstBoundary.Message, secondBoundary.Message);
                 }
                 Assert.Equal(JsonSerializer.Serialize(firstProbe.Capture()), JsonSerializer.Serialize(secondProbe.Capture()));
+                AssertFrozenGauges(firstProbe.Capture());
                 Assert.Equal(streamCountBeforeClone, StreamSounds(firstProbe.Capture()).Length);
                 restoredStreamPhases.Add(318);
                 streamClone = null;
@@ -153,6 +163,7 @@ public sealed class NativeBattleGuardianPresentationTests
             }
             battle.AdvanceNativeGraphicsPresentation(frame);
             BattleSnapshot afterStep = battle.Capture();
+            AssertFrozenGauges(afterStep);
             if (streamClone is not null)
             {
                 streamClone.AdvanceNativeGraphicsPresentation(frame);
@@ -199,6 +210,8 @@ public sealed class NativeBattleGuardianPresentationTests
         Assert.True(sawEntry, diagnostic);
         Assert.True(sawGeometry);
         Assert.True(sawNativeFlash);
+        Assert.True(battle.NativeGraphics!.UiServices!.Counter > initialUiCounter);
+        Assert.True(battle.NativeGraphics.Callback > initialGraphicsCallback);
         Assert.Equal((ushort)116, battle.NativeGraphics!.OriginalEffect!.Binding.Effect);
         Assert.Equal(0x2521748u, battle.NativeGraphics.OriginalEffect.ReturnedDescriptor);
         Assert.Contains(battle.NativeGraphics.OriginalEffect.Pools, pool => pool.DescriptorAddress == 0x2521738 && pool.Stride == 0x8D0 && pool.Slots.Single().Callback == 0x6C3940);
@@ -234,6 +247,11 @@ public sealed class NativeBattleGuardianPresentationTests
         Assert.Equal(BattleAbility.GuardianForce, damage.Ability);
         Assert.Equal(actors[1].CurrentHp, damage.Amount);
         Assert.True(battle.Capture().NativeActionScratch!.GuardianFormulaE1E);
+
+        void AssertFrozenGauges(BattleSnapshot snapshot)
+        {
+            Assert.Equal(animationGauges, snapshot.Combatants.Select(actor => actor.NativeAtb!).ToArray());
+        }
 
         uint StreamNumber(short fileId) => unchecked((uint)(BinaryPrimitives.ReadInt32LittleEndian(streamResources.Files.Single(file => file.FileId == fileId).Data.AsSpan()) + 690000));
         Assert.NotNull(prefixSnapshot);

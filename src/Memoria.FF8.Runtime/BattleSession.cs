@@ -153,44 +153,50 @@ public sealed partial class BattleSession
             }
             return;
         }
-        if (WaitingForTurnBasedDecision)
-        {
-            //47CCB0 case4 runs482D50/482DC0 outside the ATB/UI admission
-            //guards. A ready player's command wait cannot stop script tasks.
-            DispatchNativeScriptTasks();
-            if (!nativeGraphicsPresentationDriven)
-            {
-                AdvanceNativeGraphicsFrame();
-            }
-            return;
-        }
         DispatchTurnBasedFrame();
     }
 
-    private bool HasPendingTurn => nativeScriptState.WaitCounters.Length != 0 || guardianForceCasts.Count != 0 || QueuedActions.Count != 0 || ActiveAction is not null || nativeTimedAction is not null || nativeActionScratch.ComponentCompletion is not null || NativeScriptAllocationPending || NativeGraphics is { Requests.IsEmpty: false } || NativeGraphics is { Descriptors.Queue.IsEmpty: false };
+    private bool HasPendingTurn => nativeScriptState.WaitCounters.Length != 0 || QueuedActions.Count != 0 || ActiveAction is not null || nativeTimedAction is not null || nativeActionScratch.ComponentCompletion is not null || NativeScriptAllocationPending || NativeGraphics is { Requests.IsEmpty: false } || NativeGraphics is { Descriptors.Queue.IsEmpty: false };
 
-    private bool CanAutomaticallyAdvanceTurn => Mode == BattleAtbMode.TurnBased && Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && NativeEntryReady && !HasPendingTurn && !combatants.Any(actor => actor.IsReady) && combatants.Any(actor => IsNativeBattleCapable(actor) && !actor.Suspended);
+    private bool HasGuardianForceTimeBoundary => guardianForceCasts.Values.Any(cast => cast.RemainingTicks == 0 || (byId[cast.ActorId].NativeStatus1 & 0x80000000) == 0);
 
-    private void DispatchTurnBasedFrame(Func<bool>? continueIdle = null)
+    private bool CanExplicitlyAdvanceTurn => Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && NativeEntryReady && !HasGuardianForceTimeBoundary && nativeScriptState.WaitCounters.Length == 0 && !NativeScriptAllocationPaused && NativeGraphics?.UiServices?.PauseDE9 != true && (nativeBattleClock is null || NativeGraphics is null || nativeBattleClock.Active != 0);
+
+    private bool CanAdvanceTurnBasedTime => Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && NativeEntryReady && !HasPendingTurn && !HasGuardianForceTimeBoundary && NativeGraphics?.UiServices?.PauseDE9 != true && (nativeBattleClock is null || NativeGraphics is null || NativeBattleClockRules.Admit(nativeBattleClock, true, false, NativeScriptAllocationPaused).AtbAdmitted != 0);
+
+    private bool CanAutomaticallyAdvanceTurn => Mode == BattleAtbMode.TurnBased && CanAdvanceTurnBasedTime && !combatants.Any(actor => actor.IsReady) && combatants.Any(actor => IsNativeBattleCapable(actor) && !actor.Suspended);
+
+    private void DispatchTurnBasedFrame()
     {
-        // Skip idle gauge time through the ordinary dispatcher. A ready actor or any newly produced action/wait ends the skip, preserving the action's presentation frames.
-        bool advanceToReadiness = CanAutomaticallyAdvanceTurn;
-        for (int count = 1; count <= MaximumAdvanceFrames; count++)
+        bool timeAdvanced = false;
+        if (CanAutomaticallyAdvanceTurn)
         {
-            if (NativeGraphics is null)
+            for (int count = 1; count <= MaximumAdvanceFrames; count++)
             {
-                DispatchFrame(!nativeGraphicsPresentationDriven);
-            }
-            else
-            {
-                PumpNativeHostFrame();
-            }
-            if (!advanceToReadiness || !CanAutomaticallyAdvanceTurn || continueIdle?.Invoke() == false)
-            {
-                return;
+                AdvanceTurnBasedTime();
+                timeAdvanced = true;
+                if (!CanAutomaticallyAdvanceTurn || HasGuardianForceTimeBoundary)
+                {
+                    break;
+                }
+                if (count == MaximumAdvanceFrames)
+                {
+                    throw new TimeoutException($"No combatant became ready within {MaximumAdvanceFrames} battle time steps.");
+                }
             }
         }
-        throw new TimeoutException($"No combatant became ready within {MaximumAdvanceFrames} dispatched battle frames.");
+        if (NativeGraphics is not null)
+        {
+            PumpNativeHostFrame(!timeAdvanced);
+        }
+        else if (WaitingForTurnBasedDecision && !HasPendingTurn && !combatants.Any(actor => !actor.IsPlayer && actor.IsReady))
+        {
+            DispatchNativeScriptTasks();
+        }
+        else
+        {
+            DispatchFrame(!nativeGraphicsPresentationDriven, !timeAdvanced);
+        }
     }
 
     public int AdvanceTurn(int maxFrames = MaximumAdvanceFrames)
@@ -203,17 +209,17 @@ public sealed partial class BattleSession
         {
             throw new ArgumentOutOfRangeException(nameof(maxFrames));
         }
-        HashSet<string> waiting = combatants.Where(actor => CanNativeBattleActorAct(actor) && !actor.IsReady).Select(actor => actor.Id).ToHashSet(StringComparer.Ordinal);
-        if (Outcome != BattleOutcome.Active || waiting.Count == 0)
+        HashSet<string> waiting = combatants.Where(actor => IsNativeBattleCapable(actor) && !actor.Suspended && !actor.IsBusy && !actor.IsReady).Select(actor => actor.Id).ToHashSet(StringComparer.Ordinal);
+        if (!CanExplicitlyAdvanceTurn || waiting.Count == 0)
         {
             return 0;
         }
-        // The same dispatcher runs on owned state so a bounded failure cannot leave partially advanced frames.
+        // Logical time runs on owned state so a bounded failure cannot publish partially advanced gauges or effects.
         BattleSession candidate = Restore(Capture(), handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler));
         for (int count = 1; count <= maxFrames; count++)
         {
-            HashSet<string> becameReady = candidate.NativeGraphics is null ? candidate.DispatchFrame() : candidate.PumpNativeHostFrame(forceGauge: true);
-            if (candidate.Outcome != BattleOutcome.Active || becameReady.Overlaps(waiting))
+            HashSet<string> becameReady = candidate.AdvanceTurnBasedTime(explicitAdvance: true);
+            if (!candidate.CanExplicitlyAdvanceTurn || becameReady.Overlaps(waiting) || candidate.combatants.Any(actor => waiting.Contains(actor.Id) && actor.IsReady) || candidate.HasGuardianForceTimeBoundary)
             {
                 PublishCandidate(candidate);
                 return count;
@@ -352,7 +358,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private HashSet<string> DispatchFrame(bool advanceGraphics = true)
+    private HashSet<string> DispatchFrame(bool advanceGraphics = true, bool advanceFrame = true)
     {
         HashSet<string> becameReady = [];
         if (advanceGraphics)
@@ -375,7 +381,7 @@ public sealed partial class BattleSession
             CompleteBattleIfNeeded();
             return becameReady;
         }
-        if (NativeGraphics is null || nativeUiForceGaugeAdvance || !WaitingForTurnBasedDecision)
+        if (advanceFrame && (NativeGraphics is null || !WaitingForTurnBasedDecision || HasPendingTurn))
         {
             Frame = checked(Frame + 1);
         }
@@ -390,66 +396,10 @@ public sealed partial class BattleSession
             return becameReady;
         }
         // TODO(TD-009): Components without the raw descriptor bank retain the existing gauge clock.
-        bool clockAdmitted = HasNativeUiServiceClock ? nativeBattleClock!.AtbAdmitted != 0 : nativeBattleClock is null || NativeGraphics is null || AdmitNativeBattleClock(true, false);
-        foreach (BattleCombatant actor in combatants.ToArray())
+        bool clockAdmitted = Mode != BattleAtbMode.TurnBased && (HasNativeUiServiceClock ? nativeBattleClock!.AtbAdmitted != 0 : nativeBattleClock is null || NativeGraphics is null || AdmitNativeBattleClock(true, false));
+        if (clockAdmitted)
         {
-            if (!HasNativeUiServiceClock && clockAdmitted)
-            {
-                AdvanceNativeAtbParticipant(actor, becameReady);
-            }
-            if (!clockAdmitted || !IsNativeBattleCapable(actor) || actor.Suspended)
-            {
-                continue;
-            }
-            int ratePercent = 100;
-            foreach (BattleStatusState effect in actor.Effects.ToArray())
-            {
-                IBattleStatusEffectHandler handler = handlers[effect.Definition.Kind];
-                effect.UntilTickFrames--;
-                bool periodicTick = effect.UntilTickFrames == 0;
-                handler.Dispatch(new BattleEffectContext(actor, effect.Definition, Frame, periodicTick, amount => ApplyDamage(null, actor, amount, effect.Definition.Kind.ToString()), amount => ApplyHealing(actor, amount, effect.Definition.Kind.ToString())));
-                ratePercent = checked(ratePercent * handler.AtbRatePercent / 100);
-                if (periodicTick)
-                {
-                    effect.UntilTickFrames = effect.Definition.TickIntervalFrames;
-                }
-                if (!effect.Definition.Permanent)
-                {
-                    effect.RemainingFrames--;
-                }
-                if (!effect.Definition.Permanent && effect.RemainingFrames == 0)
-                {
-                    actor.Effects.Remove(effect);
-                    Log("StatusExpired", actor.Id, actor.Id, 0, $"{actor.Name}: {effect.Definition.Kind} expired.");
-                }
-                if (!actor.IsAlive)
-                {
-                    break;
-                }
-            }
-            if (actor.NativeAtb is null && CanNativeBattleActorAct(actor) && !actor.IsBusy && !actor.IsReady)
-            {
-                if ((actor.NativeStatus1 & 2) != 0)
-                {
-                    ratePercent = ratePercent * 3 / 2;
-                }
-                if ((actor.NativeStatus1 & 4) != 0)
-                {
-                    ratePercent /= 2;
-                }
-                // Scaffold gauge growth: Speed units per dispatched frame, modified by active statuses.
-                int gain = CalculateAtbGain(actor.Speed, ratePercent);
-                actor.Atb = Math.Min(AtbMaximum, actor.Atb + gain);
-                if (actor.IsReady)
-                {
-                    becameReady.Add(actor.Id);
-                    Log("Ready", actor.Id, null, 0, $"{actor.Name} is ready.");
-                }
-            }
-        }
-        if (clockAdmitted && !HasNativeUiServiceClock)
-        {
-            DispatchGuardianForceCasts();
+            AdvanceBattleTime(becameReady, !HasNativeUiServiceClock);
         }
         CancelDeadActions();
         CompleteBattleIfNeeded();

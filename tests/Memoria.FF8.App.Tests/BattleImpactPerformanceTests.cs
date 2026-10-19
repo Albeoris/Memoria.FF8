@@ -75,7 +75,7 @@ public sealed class BattleImpactPerformanceTests
     }
 
     [Fact]
-    public void Interactive_idle_budget_yields_at_complete_callbacks_and_preserves_the_readiness_boundary()
+    public void Interactive_idle_budget_does_not_change_logical_readiness_or_presentation_cadence()
     {
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_IMPACT_SNAPSHOT");
         Assert.SkipUnless(source is not null && File.Exists(source), "An optional standalone field or battle snapshot is required.");
@@ -83,50 +83,49 @@ public sealed class BattleImpactPerformanceTests
         using GameWorld full = StartWorld(session);
         session.SetLiveBattle(full.Battle!);
         session.SetEventState(full.Events.Capture());
-        using GameWorld bounded = StartWorld(new GameSession(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!));
+        using GameWorld budgeted = StartWorld(new GameSession(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!));
         BattleSession immediate = full.Battle!;
-        BattleSession yielding = bounded.Battle!;
+        BattleSession zeroBudget = budgeted.Battle!;
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + BattleSession.FramesPerSecond - 1) / BattleSession.FramesPerSecond);
-        bool yielded = false;
+        bool skippedLogicalTime = false;
         for (int frame = 0; frame < 300 && !immediate.Combatants.Any(actor => actor.IsReady); frame++)
         {
-            long before = immediate.NativeHostCallbacks!.Value;
+            long beforeHostCallbacks = immediate.NativeHostCallbacks!.Value;
+            long beforeGraphics = immediate.NativeGraphics!.Callback;
+            long beforeBudgetedGraphics = zeroBudget.NativeGraphics!.Callback;
             immediate.AdvanceNativeGraphicsPresentation(callback);
             full.ApplyBattleInput(new(BattleInputKind.Tick));
-            long expected = immediate.NativeHostCallbacks!.Value;
-            while (yielding.NativeHostCallbacks < expected)
-            {
-                long last = yielding.NativeHostCallbacks!.Value;
-                yielding.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
-                bounded.ApplyBattleInput(new(BattleInputKind.Tick));
-                Assert.Equal(last + 1, yielding.NativeHostCallbacks);
-                if (yielding.NativeHostCallbacks < expected)
-                {
-                    yielded = true;
-                    Assert.DoesNotContain(yielding.Combatants, actor => actor.IsReady);
-                }
-            }
-            Assert.True(expected > before);
-            if (expected - before > 1 || immediate.Combatants.Any(actor => actor.IsReady))
-            {
-                BattleSnapshot snapshot = yielding.Capture();
-                snapshot = snapshot with { NativeGraphics = snapshot.NativeGraphics! with { PresentationSubticks = immediate.NativeGraphics!.PresentationSubticks } };
-                Assert.Equal(JsonSerializer.Serialize(immediate.Capture()), JsonSerializer.Serialize(snapshot));
-                Assert.True(JsonElement.DeepEquals(full.Events.Capture(), bounded.Events.Capture()));
-            }
+            zeroBudget.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
+            budgeted.ApplyBattleInput(new(BattleInputKind.Tick));
+            Assert.Equal(beforeGraphics + 1, immediate.NativeGraphics.Callback);
+            Assert.Equal(beforeBudgetedGraphics + 1, zeroBudget.NativeGraphics.Callback);
+            Assert.True(immediate.NativeHostCallbacks!.Value >= beforeHostCallbacks + 1);
+            skippedLogicalTime |= immediate.NativeHostCallbacks.Value > beforeHostCallbacks + 1;
+            Assert.Equal(immediate.Combatants.Any(actor => actor.IsReady), zeroBudget.Combatants.Any(actor => actor.IsReady));
+            Assert.Equal(JsonSerializer.Serialize(immediate.Capture()), JsonSerializer.Serialize(zeroBudget.Capture()));
+            Assert.True(JsonElement.DeepEquals(full.Events.Capture(), budgeted.Events.Capture()));
         }
-        Assert.True(yielded, "The fixture must reach an idle fast-forward containing multiple native callbacks.");
+        Assert.True(skippedLogicalTime, "The fixture must reach an idle skip containing multiple logical time steps.");
         Assert.Contains(immediate.Combatants, actor => actor.IsReady);
-        Assert.Equal(new BattleScenePresentation(full.BattleResources, immediate.Capture().Definition, true).Render(immediate, 320, 224), new BattleScenePresentation(bounded.BattleResources, yielding.Capture().Definition, true).Render(yielding, 320, 224));
-        long callbacks = yielding.NativeHostCallbacks!.Value;
-        yielding.AdvanceNativeGraphicsPresentation(callback * 3, TimeSpan.Zero);
-        bounded.ApplyBattleInput(new(BattleInputKind.Tick));
-        Assert.Equal(callbacks + 3, yielding.NativeHostCallbacks);
-        session.SetLiveBattle(yielding);
-        session.SetEventState(bounded.Events.Capture());
+        Assert.Equal(new BattleScenePresentation(full.BattleResources, immediate.Capture().Definition, true).Render(immediate, 320, 224), new BattleScenePresentation(budgeted.BattleResources, zeroBudget.Capture().Definition, true).Render(zeroBudget, 320, 224));
+        long callbacks = zeroBudget.NativeHostCallbacks!.Value;
+        long graphics = zeroBudget.NativeGraphics!.Callback;
+        for (int frame = 0; frame < 3; frame++)
+        {
+            immediate.AdvanceNativeGraphicsPresentation(callback);
+            zeroBudget.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
+            full.ApplyBattleInput(new(BattleInputKind.Tick));
+            budgeted.ApplyBattleInput(new(BattleInputKind.Tick));
+            Assert.Equal(JsonSerializer.Serialize(immediate.Capture()), JsonSerializer.Serialize(zeroBudget.Capture()));
+            Assert.True(JsonElement.DeepEquals(full.Events.Capture(), budgeted.Events.Capture()));
+        }
+        Assert.Equal(graphics + 3, zeroBudget.NativeGraphics.Callback);
+        Assert.True(zeroBudget.NativeHostCallbacks!.Value >= callbacks + 3);
+        session.SetLiveBattle(zeroBudget);
+        session.SetEventState(budgeted.Events.Capture());
         using GameWorld restored = StartWorld(new GameSession(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!));
-        Assert.Equal(JsonSerializer.Serialize(yielding.Capture()), JsonSerializer.Serialize(restored.Battle!.Capture()));
-        Assert.Throws<ArgumentOutOfRangeException>(() => yielding.AdvanceNativeGraphicsPresentation(callback, TimeSpan.FromTicks(-1)));
+        Assert.Equal(JsonSerializer.Serialize(zeroBudget.Capture()), JsonSerializer.Serialize(restored.Battle!.Capture()));
+        Assert.Throws<ArgumentOutOfRangeException>(() => zeroBudget.AdvanceNativeGraphicsPresentation(callback, TimeSpan.FromTicks(-1)));
     }
 
     [Fact]
@@ -142,11 +141,13 @@ public sealed class BattleImpactPerformanceTests
         using GameWorld independent = StartWorld(new GameSession(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!));
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + BattleSession.FramesPerSecond - 1) / BattleSession.FramesPerSecond);
         long before = world.Battle!.NativeHostCallbacks!.Value;
+        long beforeGraphics = world.Battle.NativeGraphics!.Callback;
         world.Battle.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
         independent.Battle!.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
         world.ApplyBattleInput(new(BattleInputKind.Tick));
         independent.ApplyBattleInput(new(BattleInputKind.Tick));
-        Assert.Equal(before + 1, world.Battle.NativeHostCallbacks);
+        Assert.Equal(beforeGraphics + 1, world.Battle.NativeGraphics!.Callback);
+        Assert.True(world.Battle.NativeHostCallbacks!.Value >= before + 1);
         Assert.Equal(JsonSerializer.Serialize(world.Battle.Capture()), JsonSerializer.Serialize(independent.Battle.Capture()));
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), independent.Events.Capture()));
         session.SetLiveBattle(world.Battle);

@@ -199,7 +199,7 @@ public sealed class NativeBattleGraphicsEntryTests
 
         Assert.True(battle.Combatants[0].IsReady);
         Assert.False(battle.Combatants[1].IsReady);
-        Assert.True(battle.NativeGraphics!.Callback > before + 1);
+        Assert.Equal(before + 1, battle.NativeGraphics!.Callback);
         long waitingFrame = battle.Frame;
         int waitingGauge = battle.Combatants[1].NativeAtb!.Current;
         if (presentationDriven)
@@ -333,7 +333,7 @@ public sealed class NativeBattleGraphicsEntryTests
         Assert.Equal(texts, battle.Events.Count(item => item.Kind == "NativeText"));
     }
 
-    private static BattleSession Create(GameAssets game, BattleAssets assets, int model, bool ready = true, NativeBattleAiDefinition? ai = null, BattleEncounter? formation = null)
+    internal static BattleSession Create(GameAssets game, BattleAssets assets, int model, bool ready = true, NativeBattleAiDefinition? ai = null, BattleEncounter? formation = null)
     {
         formation ??= assets.LoadEncounter(94);
         List<BattleCombatantDefinition> actors = [];
@@ -344,6 +344,6 @@ public sealed class NativeBattleGraphicsEntryTests
         actors.Add(new() { Id = "enemy", Name = "Enemy", Information246 = assets.ReadEnemyNativeInformation246(model), ModelId = model, Speed = 1, NativeAi = ai, NativeCombatantFlags = ai is null ? 0u : 0x10u, SceneSlot = formation.Enemies.First(enemy => enemy.ModelId == model).Slot });
         NativeBattleGraphicsDefinition graphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation);
         NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicFixture.Prepare(game, formation.Id);
-        return new(new() { Name = "Installed raw entry component", EncounterId = formation.Id, StageId = formation.StageId, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeMusicProcess = musicEntry.MusicProcess, NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5), NativeGlobalSoundProcess = musicEntry.SoundProcess, NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeGraphics = graphics, NativeActions = assets.NativeActions.Where(action => action.Command == 8 && action.ActionId == 89).ToArray(), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeStageSource = assets.LoadStage(formation.StageId).NativeSource, NativeStageCameraBank = assets.LoadStage(formation.StageId).NativeCameraBank, NativeStageCameraSelectors = [formation.PrimaryCamera, formation.AlternativeCamera], NativeStageCameraControl = assets.LoadStage(formation.StageId).NativeCameraControl, Combatants = actors.ToArray() }, BattleAtbMode.TurnBased);
+        return new(new() { Name = "Installed raw entry component", EncounterId = formation.Id, StageId = formation.StageId, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeMusicProcess = musicEntry.MusicProcess, NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5), NativeGlobalSoundProcess = musicEntry.SoundProcess, NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeGraphics = graphics, NativeActions = assets.NativeActions.Where(action => action.Command == 8 && action.ActionId == 89).ToArray(), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeSavedOptions = game.ReadNewGameInputConfiguration().Options, NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap, NativeStageSource = assets.LoadStage(formation.StageId).NativeSource, NativeStageCameraBank = assets.LoadStage(formation.StageId).NativeCameraBank, NativeStageCameraSelectors = [formation.PrimaryCamera, formation.AlternativeCamera], NativeStageCameraControl = assets.LoadStage(formation.StageId).NativeCameraControl, Combatants = actors.ToArray() }, BattleAtbMode.TurnBased);
     }
 }

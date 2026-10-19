@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Diagnostics;
 
 namespace Memoria.FF8.Runtime;
 
@@ -26,13 +25,9 @@ public sealed partial class BattleSession
         long subticks = checked(graphics.PresentationSubticks + elapsed.Ticks * FramesPerSecond);
         nativeGraphicsPresentationDriven = true;
         NativeGraphics = graphics with { PresentationSubticks = subticks % TimeSpan.TicksPerSecond };
-        long started = Stopwatch.GetTimestamp();
-        Func<bool>? continueIdle = idleWorkBudget is { } limit ? () => Stopwatch.GetElapsedTime(started) < limit : null;
         for (long count = subticks / TimeSpan.TicksPerSecond; count > 0; count--)
         {
-            // Scheduled callbacks always run. Only the extra turn-based idle fast-forward
-            // yields to the interactive host's next draw when its shared work budget expires.
-            DispatchTurnBasedFrame(continueIdle);
+            DispatchTurnBasedFrame();
         }
     }
 

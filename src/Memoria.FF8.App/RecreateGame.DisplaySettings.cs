@@ -10,7 +10,6 @@ internal sealed partial class RecreateGame
     private readonly BattlePresentationPacer battlePresentationPacer = new();
     private int? appliedFrameLimit;
     private bool appliedNativeBattlePacing;
-    private TimeSpan? battleIdleWorkBudget;
 
     private void ApplyDisplaySettings()
     {
@@ -58,7 +57,6 @@ internal sealed partial class RecreateGame
             {
                 break;
             }
-            battleIdleWorkBudget = appliedNativeBattlePacing ? TimeSpan.FromTicks(Math.Max(0, (workBudget - Stopwatch.GetElapsedTime(started)).Ticks)) : null;
             UpdateGameFrame(new GameTime(presentationTiming.SimulationTotal, step, gameTime.IsRunningSlowly));
             if (battleEntryTransition is not null)
             {
