@@ -9,6 +9,11 @@ public sealed partial class EventEngine
             return "MOVECANCEL requires its original native target operand";
         }
         ActorState target = actors[program.NativeObjects[fiber.Stack.Peek()]];
+        return UnsupportedNativeMovementCancellationTarget(target);
+    }
+
+    private string? UnsupportedNativeMovementCancellationTarget(ActorState target)
+    {
         if (target.NativeScriptMovement is not { Active: true, Suspended: false } movement)
         {
             return null;

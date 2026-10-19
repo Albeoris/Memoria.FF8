@@ -83,7 +83,7 @@ public sealed partial class EventEngine
     public event Action<DialogueOutcome>? DialogueCompleted;
 
     public PlayerTrigger NextTrigger => new(
-        NativeGameOver is not null ? PlayerTriggerKind.NativeGameOver : LastFault is not null ? PlayerTriggerKind.Faulted : program is null ? PlayerTriggerKind.Unloaded : transitionRequested ? Scene.WorldTransitionRequest is null ? PlayerTriggerKind.FieldTransition : PlayerTriggerKind.WorldMap : Scene.NativeTutorial is not null || Scene.NativeMenuTutorial is not null ? PlayerTriggerKind.Tutorial : PendingTripleTriad is not null ? PlayerTriggerKind.TripleTriad : HasPendingBattle ? PlayerTriggerKind.Battle : services.IsMoviePlaying ? PlayerTriggerKind.Movie : PartyMenu is not null ? PlayerTriggerKind.PartyMenu : dialogues.Values.Any(dialogue => dialogue.CanConfirm) ? PlayerTriggerKind.Dialogue : defaultsStarted && AreSelectedFieldScriptsStarted() && CanAcceptFieldMovement ? PlayerTriggerKind.Playable : PlayerTriggerKind.Waiting,
+        NativeGameOver is not null ? PlayerTriggerKind.NativeGameOver : LastFault is not null ? PlayerTriggerKind.Faulted : program is null ? PlayerTriggerKind.Unloaded : transitionRequested ? Scene.WorldTransitionRequest is null ? PlayerTriggerKind.FieldTransition : PlayerTriggerKind.WorldMap : Scene.NativeTutorial is not null || Scene.NativeMenuTutorial is not null ? PlayerTriggerKind.Tutorial : PendingTripleTriad is not null ? PlayerTriggerKind.TripleTriad : HasPendingBattle ? PlayerTriggerKind.Battle : services.IsMoviePlaying ? PlayerTriggerKind.Movie : PartyMenu is not null ? PlayerTriggerKind.PartyMenu : IsDialogueBlocking ? PlayerTriggerKind.Dialogue : defaultsStarted && AreSelectedFieldScriptsStarted() && CanAcceptFieldMovement ? PlayerTriggerKind.Playable : PlayerTriggerKind.Waiting,
         FieldId, Frame, PartyMenu is not null ? null : CurrentDialogue?.MessageId, LastFault?.Message ?? (PartyMenu is not null ? null : CurrentDialogue?.Text));
 
     /// <summary>Applies an ordinary player action; no variable or script-PC mutation API is exposed.</summary>
@@ -361,7 +361,7 @@ public sealed partial class EventEngine
                         PlayerTriggerKind waitingFor = action.WaitWhilePlayable && NextTrigger.Kind == PlayerTriggerKind.Playable ? PlayerTriggerKind.Playable : PlayerTriggerKind.Waiting;
                         void ObserveWaitInput(ScriptCommand command)
                         {
-                            if (waitingFor == PlayerTriggerKind.Playable && (command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON" or "KEYOFF"))
+                            if (waitingFor == PlayerTriggerKind.Playable && (command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON" or "KEYON2" or "KEYOFF"))
                             {
                                 nativeInputObserved = true;
                             }

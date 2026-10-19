@@ -91,6 +91,7 @@ public sealed class JsmProgram
         {
             throw new InvalidDataException("JSM script position table is incomplete.");
         }
+        ushort[] rawScriptPointers = Enumerable.Range(0, scriptCount).Select(index => BinaryPrimitives.ReadUInt16LittleEndian(content.AsSpan(scriptsOffset + index * 2))).ToArray();
         List<EventObject> objects = [];
         List<NativeScriptPointer> nativeScriptPointers = [];
         HashSet<int> labels = [];
@@ -108,7 +109,7 @@ public sealed class JsmProgram
                     throw new InvalidDataException($"Invalid or overlapping JSM script label/range {label + index}: {start}..{end}.");
                 }
                 ValidateScript(content, operationsOffset, label + index, start, end, operationCount);
-                EventScript script = CreateScript(label + index, start, end, operations);
+                EventScript script = CreateScript(label + index, start, end, operations, rawScriptPointers);
                 scripts.Add(script);
                 nativeScriptPointers.Add(new NativeScriptPointer(positionIndex, objects.Count, BinaryPrimitives.ReadUInt16LittleEndian(content.AsSpan(scriptsOffset + positionIndex * 2)), script));
                 positionIndex++;
@@ -130,7 +131,7 @@ public sealed class JsmProgram
 
     public static int JumpTarget(int operation, int parameter) => unchecked((ushort)(operation + unchecked((short)parameter)));
 
-    private static EventScript CreateScript(int label, int start, int end, IReadOnlyList<JsmOperation> operations)
+    private static EventScript CreateScript(int label, int start, int end, IReadOnlyList<JsmOperation> operations, IReadOnlyList<ushort> rawScriptPointers)
     {
         HashSet<int> reachable = [];
         HashSet<int> terminalSuccessors = [];
@@ -150,6 +151,14 @@ public sealed class JsmProgram
             {
                 terminalSuccessors.Add(index + 1);
                 continue;
+            }
+            if (operation.Opcode == Jsm.Opcode.GJMP)
+            {
+                if ((uint)operation.Parameter >= rawScriptPointers.Count || (rawScriptPointers[operation.Parameter] & 0x7FFF) >= operations.Count)
+                {
+                    throw new InvalidDataException($"JSM script {label} GJMP at {index} selects an invalid original global pointer.");
+                }
+                pending.Push(rawScriptPointers[operation.Parameter] & 0x7FFF);
             }
             if (operation.Opcode is Jsm.Opcode.JMP or Jsm.Opcode.JPF)
             {

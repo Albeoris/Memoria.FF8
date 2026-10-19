@@ -9,7 +9,7 @@ namespace Memoria.FF8.Events.Tests;
 
 internal static partial class Program
 {
-    private static void NativeKeyScan2Contract(string gameDirectory)
+    private static void NativeKeyScan2Contract(string gameDirectory, bool rawEdge = false)
     {
         using GameAssets assets = new(gameDirectory);
         NativeInputConfiguration configuration = assets.ReadNewGameInputConfiguration();
@@ -24,27 +24,57 @@ internal static partial class Program
                 session.SetInputConfiguration(configuration);
             }
             EventEngine engine = new(session);
-            engine.LoadField(600, SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 333), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHN_L, 777), (Jsm.Opcode.POPI_L, 7), (Jsm.Opcode.PSHN_L, mask), (query, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_L, 5000), (Jsm.Opcode.JMP, -4), (Jsm.Opcode.RET, 8)]]), [], nativeRuntimeProfile: assets.NativeRuntimeProfile);
+            (Jsm.Opcode, int)[] init = rawEdge ? [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.UCOFF, 0), (Jsm.Opcode.RET, 8)] : [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)];
+            engine.LoadField(600, SyntheticObjects([1], [init, [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 333), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHN_L, 777), (Jsm.Opcode.POPI_L, 7), (Jsm.Opcode.PSHN_L, mask), (query, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_L, 5000), (Jsm.Opcode.JMP, -4), (Jsm.Opcode.RET, 8)]]), [], nativeRuntimeProfile: assets.NativeRuntimeProfile);
             engine.Step();
             return engine;
         }
         foreach (int mask in new[] { 0, 4, 0x10, 0x20, 0x40, 0x80, 0xF000, 0x10000, int.MinValue, -1 })
         {
-            EventEngine live = Create(Jsm.Opcode.KEYSCAN2, mask, mapped: false);
+            EventEngine live = Create(rawEdge ? Jsm.Opcode.KEYON2 : Jsm.Opcode.KEYSCAN2, mask, mapped: false);
+            List<ScriptedInputQuery> observed = [];
+            if (rawEdge)
+            {
+                live.CommandExecuted += command =>
+                {
+                    if (command.Name == nameof(Jsm.Opcode.KEYON2))
+                    {
+                        observed.Add(new(command.ObjectId, command.ScriptId, command.Operation, command.Name, unchecked((ushort)command.Arguments.Single())));
+                    }
+                };
+            }
             foreach (int raw in new[] { 0, 4, 0x10, 0x20, 0x40, 0x80, 0x100, 0xF000, ushort.MaxValue })
             {
+                observed.Clear();
+                int previous = live.ButtonInput!.RawHeld;
                 Require(live.Apply(new PlayerAction(PlayerActionKind.FieldButtons, raw)).Accepted, "Raw WORD request was refused.");
                 live.Step();
                 JsonElement saved = live.Capture();
-                int expected = (unchecked((uint)mask) & (uint)raw) != 0 ? 1 : 0;
+                int expected = (unchecked((uint)mask) & (uint)(rawEdge ? raw & ~previous : raw)) != 0 ? 1 : 0;
                 JsonElement fiber = saved.GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ScriptId").GetInt32() == 1);
                 Require(CapturedVariables(saved).GetProperty("5000").GetInt32() == expected && live.ButtonInput!.RawHeld == raw && live.ButtonInput.Held is null && fiber.GetProperty("Results").GetProperty("3").GetInt32() == 333 && fiber.GetProperty("Results").GetProperty("7").GetInt32() == 777, "KEYSCAN2 failed its zero-extended raw word/fullDWORD mask or return2 register preservation.");
-                EventEngine restored = Create(Jsm.Opcode.KEYSCAN2, mask, mapped: false);
+                if (rawEdge)
+                {
+                    int[] physical = Enumerable.Range(0, 16).Select(bit => 1 << bit).Where(bit => (mask & bit) != 0).ToArray();
+                    ScriptedInputMetadata discovered = live.DiscoverScriptedInput() ?? throw new InvalidOperationException("KEYON2 was absent from scripted input discovery.");
+                    ScriptedInputMetadata sampled = live.DiscoverObservedScriptedInput(observed) ?? throw new InvalidOperationException("Executed KEYON2 was absent from sampled input discovery.");
+                    Require(live.IsScriptedInterface && live.ButtonInput.Held is null && discovered.Masks.SequenceEqual(physical) && sampled.Masks.SequenceEqual(physical) && sampled.ObservedQueriesProven && sampled.Queries.All(query => query.Opcode == nameof(Jsm.Opcode.KEYON2)), "KEYON2 discovery lost its raw physical masks or required unavailable mapped input configuration.");
+                }
+                EventEngine restored = Create(rawEdge ? Jsm.Opcode.KEYON2 : Jsm.Opcode.KEYSCAN2, mask, mapped: false);
                 restored.Restore(saved);
                 live.Step();
                 restored.Step();
                 Require(live.ButtonInput!.RawPressed == 0 && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Raw held input became an edge or diverged after independent restore.");
+                if (rawEdge)
+                {
+                    Require(CapturedVariables(live.Capture()).GetProperty("5000").GetInt32() == 0, "KEYON2 repeated an already consumed raw edge.");
+                }
             }
+        }
+        if (rawEdge)
+        {
+            Console.WriteLine("KEYON2 raw WORD rising edges/full-DWORD masks, unmapped input, R0/other-register ownership, held-edge expiry and independent restoration PASS.");
+            return;
         }
         EventEngine unknownMapped = Create(Jsm.Opcode.KEYSCAN, 4, mapped: false);
         unknownMapped.Apply(new PlayerAction(PlayerActionKind.FieldButtons, 4));

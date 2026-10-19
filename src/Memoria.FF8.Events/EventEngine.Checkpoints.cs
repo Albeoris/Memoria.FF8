@@ -59,11 +59,12 @@ public sealed partial class EventEngine
         {
             throw new InvalidOperationException("No field has been loaded.");
         }
+        CaptureNativeEyeProcessOwners();
         Checkpoint snapshot = new(
             1, FieldId, programHash, Frame, accumulatedSeconds, preparedMovie, sequence, defaultsStarted, transitionRequested, userControlEnabled,
             backgroundFps, nameEntity,
-            actors.ToArray(), fibers.Select(fiber => new FiberCheckpoint(fiber.ObjectId, fiber.Script.Id, fiber.Priority, fiber.Sequence, fiber.Initialization, fiber.Position, fiber.Complete, fiber.Started, fiber.NativeResultFrameEntered, fiber.Stack.Capture(), fiber.StackExpressions.ToArray(), new Dictionary<int, NativeScalarValue>(fiber.Results), fiber.WaitReason, fiber.WaitUntil, fiber.Request?.Sequence, fiber.DialogueChannel, fiber.BackgroundId, fiber.SoundResourceId, fiber.NativeDoorSlot, fiber.NativeActorSlot, fiber.NativeMoveOperation, fiber.NativeMoveTarget, fiber.NativeDoorRequestWait, fiber.NativeDoorDefaultFrame, fiber.NativeDoorSavedResults, fiber.NativeShadeOperation, fiber.NativePartyRequestPointer)).ToArray(),
-            dialogues.Values.ToArray(), CurrentDialogue?.Channel, new Dictionary<int, int>(backgroundStates), backgroundAnimations.Select(pair => new BackgroundCheckpoint(pair.Key, pair.Value.First, pair.Value.Last, pair.Value.Speed, pair.Value.Complete, pair.Value.NativeVersion, pair.Value.Counter, pair.Value.Position, pair.Value.Active, pair.Value.Loop)).ToArray(), EventMemory, Scene, axisStart, axisTarget, axisDuration, axisElapsed, InputAxisDirection, movieProgressExpected, CurrentMoviePlayback, pendingArrival, LastFault, partyJoin, partySplit, services.WorldControls, services.ExamTimer, services.CharacterVitals, services.CharacterAppearance, services.CardInventory, services.SeeD, services.MessageVariables, services.Economy, services.GlobalSoundProcess, services.SalaryPresentation, services.FieldShake, services.InputConfiguration, services.FieldButtonInput, services.ShotAvailability, partyMenu, services.EventRandom, services.NativeFieldLocation, services.VibrationProcess, services.FieldFade, services.ShopHistory, services.MenuRandom, services.WeaponRecipes, services.WorldEntryMemory, services.DiscProcess, services.MovieSource, userControlSequenceDisabled, services.FieldBars, services.FieldRequestPacket, services.NativeGameOver);
+            actors.ToArray(), fibers.Select(fiber => new FiberCheckpoint(fiber.ObjectId, fiber.Script.Id, fiber.Priority, fiber.Sequence, fiber.Initialization, fiber.Position, fiber.Complete, fiber.Started, fiber.NativeResultFrameEntered, fiber.Stack.Capture(), fiber.StackExpressions.ToArray(), new Dictionary<int, NativeScalarValue>(fiber.Results), fiber.WaitReason, fiber.WaitUntil, fiber.Request?.Sequence, fiber.DialogueChannel, fiber.BackgroundId, fiber.SoundResourceId, fiber.NativeDoorSlot, fiber.NativeActorSlot, fiber.NativeMoveOperation, fiber.NativeMoveTarget, fiber.NativeDoorRequestWait, fiber.NativeDoorDefaultFrame, fiber.NativeDoorSavedResults, fiber.NativeShadeOperation, fiber.NativePartyRequestPointer, fiber.NativeGlobalJumps.ToArray(), fiber.NativeDialogueConsumer)).ToArray(),
+            dialogues.Values.ToArray(), CurrentDialogue?.Channel, new Dictionary<int, int>(backgroundStates), backgroundAnimations.Select(pair => new BackgroundCheckpoint(pair.Key, pair.Value.First, pair.Value.Last, pair.Value.Speed, pair.Value.Complete, pair.Value.NativeVersion, pair.Value.Counter, pair.Value.Position, pair.Value.Active, pair.Value.Loop, pair.Value.NativeFlag404)).ToArray(), EventMemory, Scene, axisStart, axisTarget, axisDuration, axisElapsed, InputAxisDirection, movieProgressExpected, CurrentMoviePlayback, pendingArrival, LastFault, partyJoin, partySplit, services.WorldControls, services.ExamTimer, services.CharacterVitals, services.CharacterAppearance, services.CardInventory, services.SeeD, services.MessageVariables, services.Economy, services.GlobalSoundProcess, services.SalaryPresentation, services.FieldShake, services.InputConfiguration, services.FieldButtonInput, services.ShotAvailability, partyMenu, services.EventRandom, services.NativeFieldLocation, services.VibrationProcess, services.FieldFade, services.ShopHistory, services.MenuRandom, services.WeaponRecipes, services.WorldEntryMemory, services.DiscProcess, services.MovieSource, userControlSequenceDisabled, services.FieldBars, services.FieldRequestPacket, services.NativeGameOver, (services as GameSession)?.State.SavedBattleFlags);
         return JsonSerializer.SerializeToElement(snapshot, CheckpointOptions);
     }
 
@@ -71,6 +72,14 @@ public sealed partial class EventEngine
     private void RestoreCore(JsonElement snapshot, bool restoreSharedState = true)
     {
         Checkpoint saved = snapshot.Deserialize<Checkpoint>(CheckpointOptions) ?? throw new InvalidDataException("Empty event checkpoint.");
+        saved.SavedBattleFlags?.Validate();
+        if (saved.SavedBattleFlags is { } savedFlags)
+        {
+            if (restoreSharedState && services is not GameSession || saved.CharacterVitals is { } flagVitals && (savedFlags.InitOutSha256 != flagVitals.InitOutSha256 || ((savedFlags.Value & 1) != 0) != flagVitals.DreamEnabled))
+            {
+                throw new InvalidDataException("Saved battle flags require their canonical session and matching saved character bit0 alias.");
+            }
+        }
         if (saved.EventMemory is null)
         {
             throw new InvalidDataException("Saved VM requires explicit typed event memory; the snapshot is missing required native state");
@@ -185,7 +194,7 @@ public sealed partial class EventEngine
             }
         }
         ValidateNativeAnimationCheckpoint(saved);
-        ValidateNativeEyes(saved.Actors);
+        ValidateNativeEyes(saved.Actors, saved.Scene);
         if (snapshot.GetProperty("Dialogues").EnumerateArray().Any(dialogue => !dialogue.TryGetProperty("CanConfirm", out _)))
         {
             throw new InvalidDataException("Saved dialogue lacks native confirmability; the snapshot is missing required native state");
@@ -306,13 +315,17 @@ public sealed partial class EventEngine
             throw new InvalidDataException("Saved dialogue channels must be distinct original window IDs and contain the focused channel.");
         }
         ValidateNativeDialogueWindows(saved.Dialogues, NativeRuntimeProfile is { IsVerified: true });
+        ValidateNativeChoiceFocus(saved);
+        ValidateNativeBlockingDialogueConsumers(saved);
         ValidateDrawPointCheckpoint(saved);
         ValidateDrawPointInteractionCheckpoint(saved);
         ValidateSoundInitializationCheckpoint(saved);
         ValidateSoundStopCheckpoint(saved);
         ValidateSoundVolumeTransitionCheckpoint(saved);
         ValidateSoundVolumeCheckpoint(saved);
+        ValidateNativeEyeProcessCheckpoint(saved);
         ValidateSoundPositionCheckpoint(saved);
+        ValidateAllSoundPositionCheckpoint(saved);
         ValidateVibrationCheckpoint(saved);
         ValidateAllSoundVolumeTransitionCheckpoint(saved);
         ValidateAllSoundVolumeCheckpoint(saved);
@@ -326,6 +339,7 @@ public sealed partial class EventEngine
         ValidateFieldSoundCheckpoint(saved);
         ValidateParticleCheckpoint(saved);
         ValidateWorldEntryMemoryCheckpoint(saved);
+        ValidateNativeGlobalJumpCheckpoint(saved);
         if (NativeRuntimeProfile is { IsVerified: true } && (saved.Fibers.Any(fiber => fiber.Results.Keys.Any(index => (uint)index >= 8) || !fiber.NativeResultFrameEntered && !fiber.NativeDoorDefaultFrame && (fiber.Stack.Length != 0 || fiber.Results.Count != 0 && !IsSavedNativeResultCurrent(saved, fiber) || fiber.Position != ReadSavedFiberScript(fiber, saved.Scene).Start)) || saved.Fibers.Where(fiber => !fiber.Complete && (fiber.NativeResultFrameEntered || fiber.NativeDoorDefaultFrame)).GroupBy(fiber => fiber.ObjectId).Any(group => group.Sum(fiber => fiber.Stack.Length + (fiber.NativeResultFrameEntered ? 8 : 0)) > 80)))
         {
             throw new InvalidDataException("Saved native operand/result banks require represented in-bank writes; unchecked physical memory aliases are unsupported.");
@@ -498,6 +512,7 @@ public sealed partial class EventEngine
                 WaitReason = savedFiber.WaitReason,
                 WaitUntil = savedFiber.WaitUntil,
                 DialogueChannel = savedFiber.DialogueChannel,
+                NativeDialogueConsumer = savedFiber.NativeDialogueConsumer,
                 BackgroundId = savedFiber.BackgroundId,
                 SoundResourceId = savedFiber.SoundResourceId,
                 NativeDoorSlot = savedFiber.NativeDoorSlot,
@@ -508,7 +523,8 @@ public sealed partial class EventEngine
                 NativeShadeOperation = savedFiber.NativeShadeOperation,
                 NativeDoorRequestWait = savedFiber.NativeDoorRequestWait,
                 NativeDoorDefaultFrame = savedFiber.NativeDoorDefaultFrame,
-                NativeDoorSavedResults = savedFiber.NativeDoorSavedResults
+                NativeDoorSavedResults = savedFiber.NativeDoorSavedResults,
+                NativeGlobalJumps = (savedFiber.NativeGlobalJumps ?? []).ToList()
             };
             foreach (NativeScalarValue operand in savedFiber.Stack.Reverse())
             {
@@ -562,12 +578,12 @@ public sealed partial class EventEngine
             bool directionPoint = (uint)motion.Operation < program.Operations.Count && program.Operations[motion.Operation].Opcode == Jsm.Opcode.DIRP;
             bool partyTarget = IsNativePartyMove(motion.Operation);
             bool asyncPartyTarget = IsNativeAsyncPartyMove(motion.Operation);
-            string movementOpcode = asyncPartyTarget ? "RPMOVEA" : partyTarget ? "PMOVEA" : directionPoint ? "DIRP" : motion.Accelerated ? "MACCEL" : motion.HoldsFacing ? motion.Asynchronous ? "RCMOVE" : "CMOVE" : motion.TargetNativeObjectId is not null ? motion.Asynchronous ? "RMOVEA" : motion.AutomaticAnimation ? "MOVEA" : "FMOVEA" : motion.Asynchronous ? motion.AutomaticAnimation ? "RMOVE" : "RFMOVE" : motion.AutomaticAnimation ? "MOVE" : "FMOVE";
+            string movementOpcode = asyncPartyTarget ? "RPMOVEA" : partyTarget ? motion.AutomaticAnimation ? "PMOVEA" : "FMOVEP" : directionPoint ? "DIRP" : motion.Accelerated ? "MACCEL" : motion.HoldsFacing ? motion.Asynchronous ? "RCMOVE" : "CMOVE" : motion.TargetNativeObjectId is not null ? motion.Asynchronous ? "RMOVEA" : motion.AutomaticAnimation ? "MOVEA" : "FMOVEA" : motion.Asynchronous ? motion.AutomaticAnimation ? "RMOVE" : "RFMOVE" : motion.AutomaticAnimation ? "MOVE" : "FMOVE";
             if (asyncPartyTarget && (!motion.Asynchronous || !motion.AutomaticAnimation || motion.HoldsFacing || motion.Accelerated || motion.TargetNativeObjectId is null))
             {
                 throw new InvalidDataException("Saved RPMOVEA lost its one-time raw party target or asynchronous native mode1 policy.");
             }
-            if (partyTarget && (motion.Asynchronous || !motion.AutomaticAnimation || motion.HoldsFacing || motion.Accelerated || motion.Active && (!validOwner || owner!.Stack.Count == 0 || !owner.Stack.PeekValue().IsExact || (uint)owner.Stack.Peek() >= 3 || owner.NativeMoveTarget != (int)owner.Stack.Peek())))
+            if (partyTarget && (motion.Asynchronous || !motion.AutomaticAnimation && !IsNativeForcedActorMove(motion.Operation) || motion.HoldsFacing || motion.Accelerated || motion.Active && (!validOwner || owner!.Stack.Count == 0 || !owner.Stack.PeekValue().IsExact || (uint)owner.Stack.Peek() >= 3 || owner.NativeMoveTarget != (int)owner.Stack.Peek())))
             {
                 throw new InvalidDataException("Saved PMOVEA lost its full DWORD party-slot consumer or native mode1 policy.");
             }
@@ -788,6 +804,14 @@ public sealed partial class EventEngine
         {
             services.SetNativeGameOver(saved.NativeGameOver);
         }
+        if (restoreSharedState && saved.SavedBattleFlags is { } restoringFlags)
+        {
+            if (services is not GameSession flagSession)
+            {
+                throw new NotSupportedException("Restoring saved battle flags requires its canonical session owner.");
+            }
+            flagSession.RestoreNativeSavedBattleFlags(restoringFlags);
+        }
         pendingNativeGameOver = null;
         partyMenu = saved.PartyMenu;
         axisStart = saved.AxisStart;
@@ -840,9 +864,13 @@ public sealed partial class EventEngine
         backgroundAnimations.Clear();
         foreach (BackgroundCheckpoint animation in saved.BackgroundAnimations)
         {
-            backgroundAnimations.Add(animation.Id, new BackgroundAnimation { NativeVersion = animation.NativeVersion, First = animation.First, Last = animation.Last, Speed = animation.Speed, Counter = animation.Counter, Position = animation.Position, Active = animation.Active, Complete = animation.Complete, Loop = animation.Loop });
+            backgroundAnimations.Add(animation.Id, new BackgroundAnimation { NativeVersion = animation.NativeVersion, First = animation.First, Last = animation.Last, Speed = animation.Speed, Counter = animation.Counter, Position = animation.Position, Active = animation.Active, Complete = animation.Complete, Loop = animation.Loop, NativeFlag404 = animation.NativeFlag404 });
         }
         Scene = saved.Scene;
+        if (restoreSharedState && !IsDormantWorldReturnCheckpoint(snapshot) && Scene.NativeEyeProcess is { } eyeProcess)
+        {
+            PublishNativeFieldEyeProcess(eyeProcess);
+        }
         if (restoreSharedState)
         {
             PublishEventMemory(saved.EventMemory);
@@ -863,9 +891,9 @@ public sealed partial class EventEngine
         }
     }
 
-    private sealed record FiberCheckpoint(int ObjectId, int ScriptId, int Priority, long Sequence, bool Initialization, int Position, bool Complete, bool Started, [property: JsonRequired] bool NativeResultFrameEntered, NativeScalarValue[] Stack, string[] StackExpressions, Dictionary<int, NativeScalarValue> Results, WaitReason WaitReason, long WaitUntil, long? RequestSequence, int DialogueChannel, int BackgroundId, int SoundResourceId = 0, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] byte? NativeDoorSlot = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] byte? NativeActorSlot = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? NativeMoveOperation = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? NativeMoveTarget = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeDoorRequestWaitState? NativeDoorRequestWait = null, [property: JsonRequired] bool NativeDoorDefaultFrame = false, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeScalarValue[]? NativeDoorSavedResults = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? NativeShadeOperation = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativePartyRequestPointer? NativePartyRequestPointer = null);
-    private sealed record BackgroundCheckpoint(int Id, int First, int Last, int Speed, bool Complete, int NativeVersion = 0, int Counter = 0, int Position = -1, bool Active = false, bool Loop = false);
-    private sealed record Checkpoint(int Version, int FieldId, string ProgramHash, long Frame, double AccumulatedSeconds, int PreparedMovie, long Sequence, bool DefaultsStarted, bool TransitionRequested, bool UserControlEnabled, int BackgroundFps, int NameEntity, ActorState[] Actors, FiberCheckpoint[] Fibers, DialogueState[] Dialogues, int? CurrentDialogueChannel, Dictionary<int, int> BackgroundStates, BackgroundCheckpoint[] BackgroundAnimations, [property: JsonRequired] NativeEventMemory EventMemory, SceneEventState Scene, int AxisStart = 0, int AxisTarget = 0, int AxisDuration = 0, int AxisElapsed = 0, int InputAxisDirection = 0, bool MovieProgressExpected = false, MoviePlaybackState? CurrentMoviePlayback = null, FieldTransition? PendingArrival = null, EventFault? LastFault = null, PartyJoinState? PartyJoin = null, PartySplitState? PartySplit = null, NativeWorldControlState? WorldControls = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeExamTimerState? ExamTimer = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeCharacterVitals? CharacterVitals = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeCharacterAppearance? CharacterAppearance = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeCardInventory? CardInventory = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeSeeDState? SeeD = null, [property: JsonRequired] NativeMessageVariables? MessageVariables = null, [property: JsonRequired] NativeEconomy? Economy = null, [property: JsonRequired] NativeGlobalSoundProcess? GlobalSoundProcess = null, [property: JsonRequired] NativeSalaryPresentation? SalaryPresentation = null, [property: JsonRequired] NativeFieldShake? FieldShake = null, [property: JsonRequired] NativeInputConfiguration? InputConfiguration = null, [property: JsonRequired] NativeFieldButtonInput? FieldButtonInput = null, [property: JsonRequired] NativeShotAvailabilityState? ShotAvailability = null, [property: JsonRequired] NativePartyMenuState? PartyMenu = null, [property: JsonRequired] NativeEventRandomState? EventRandom = null, [property: JsonRequired] NativeFieldLocation? NativeFieldLocation = null, [property: JsonRequired] NativeVibrationProcessState? VibrationProcess = null, [property: JsonRequired] NativeFieldFadeState? FieldFade = null, [property: JsonRequired] NativeShopHistory? ShopHistory = null, [property: JsonRequired] NativeMenuRandomState? MenuRandom = null, [property: JsonRequired] NativeWeaponRecipes? WeaponRecipes = null, [property: JsonRequired] NativeWorldEntryMemory? WorldEntryMemory = null, [property: JsonRequired] NativeDiscProcessState? DiscProcess = null, [property: JsonRequired] NativeMovieSource? MovieSource = null, [property: JsonRequired] bool? UserControlSequenceDisabled = null, [property: JsonRequired] NativeFieldBarsState? FieldBars = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeFieldRequestPacket? FieldRequestPacket = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeGameOverReceipt? NativeGameOver = null)
+    private sealed record FiberCheckpoint(int ObjectId, int ScriptId, int Priority, long Sequence, bool Initialization, int Position, bool Complete, bool Started, [property: JsonRequired] bool NativeResultFrameEntered, NativeScalarValue[] Stack, string[] StackExpressions, Dictionary<int, NativeScalarValue> Results, WaitReason WaitReason, long WaitUntil, long? RequestSequence, int DialogueChannel, int BackgroundId, int SoundResourceId = 0, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] byte? NativeDoorSlot = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] byte? NativeActorSlot = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? NativeMoveOperation = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? NativeMoveTarget = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeDoorRequestWaitState? NativeDoorRequestWait = null, [property: JsonRequired] bool NativeDoorDefaultFrame = false, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeScalarValue[]? NativeDoorSavedResults = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? NativeShadeOperation = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativePartyRequestPointer? NativePartyRequestPointer = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeGlobalJumpFrame[]? NativeGlobalJumps = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeDialogueConsumer? NativeDialogueConsumer = null);
+    private sealed record BackgroundCheckpoint(int Id, int First, int Last, int Speed, bool Complete, int NativeVersion = 0, int Counter = 0, int Position = -1, bool Active = false, bool Loop = false, short? NativeFlag404 = null);
+    private sealed record Checkpoint(int Version, int FieldId, string ProgramHash, long Frame, double AccumulatedSeconds, int PreparedMovie, long Sequence, bool DefaultsStarted, bool TransitionRequested, bool UserControlEnabled, int BackgroundFps, int NameEntity, ActorState[] Actors, FiberCheckpoint[] Fibers, DialogueState[] Dialogues, int? CurrentDialogueChannel, Dictionary<int, int> BackgroundStates, BackgroundCheckpoint[] BackgroundAnimations, [property: JsonRequired] NativeEventMemory EventMemory, SceneEventState Scene, int AxisStart = 0, int AxisTarget = 0, int AxisDuration = 0, int AxisElapsed = 0, int InputAxisDirection = 0, bool MovieProgressExpected = false, MoviePlaybackState? CurrentMoviePlayback = null, FieldTransition? PendingArrival = null, EventFault? LastFault = null, PartyJoinState? PartyJoin = null, PartySplitState? PartySplit = null, NativeWorldControlState? WorldControls = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeExamTimerState? ExamTimer = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeCharacterVitals? CharacterVitals = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeCharacterAppearance? CharacterAppearance = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeCardInventory? CardInventory = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeSeeDState? SeeD = null, [property: JsonRequired] NativeMessageVariables? MessageVariables = null, [property: JsonRequired] NativeEconomy? Economy = null, [property: JsonRequired] NativeGlobalSoundProcess? GlobalSoundProcess = null, [property: JsonRequired] NativeSalaryPresentation? SalaryPresentation = null, [property: JsonRequired] NativeFieldShake? FieldShake = null, [property: JsonRequired] NativeInputConfiguration? InputConfiguration = null, [property: JsonRequired] NativeFieldButtonInput? FieldButtonInput = null, [property: JsonRequired] NativeShotAvailabilityState? ShotAvailability = null, [property: JsonRequired] NativePartyMenuState? PartyMenu = null, [property: JsonRequired] NativeEventRandomState? EventRandom = null, [property: JsonRequired] NativeFieldLocation? NativeFieldLocation = null, [property: JsonRequired] NativeVibrationProcessState? VibrationProcess = null, [property: JsonRequired] NativeFieldFadeState? FieldFade = null, [property: JsonRequired] NativeShopHistory? ShopHistory = null, [property: JsonRequired] NativeMenuRandomState? MenuRandom = null, [property: JsonRequired] NativeWeaponRecipes? WeaponRecipes = null, [property: JsonRequired] NativeWorldEntryMemory? WorldEntryMemory = null, [property: JsonRequired] NativeDiscProcessState? DiscProcess = null, [property: JsonRequired] NativeMovieSource? MovieSource = null, [property: JsonRequired] bool? UserControlSequenceDisabled = null, [property: JsonRequired] NativeFieldBarsState? FieldBars = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeFieldRequestPacket? FieldRequestPacket = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeGameOverReceipt? NativeGameOver = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeSavedBattleFlags? SavedBattleFlags = null)
     {
         [JsonIgnore]
         public IReadOnlyDictionary<int, int> Variables => EventMemory.KnownValues;

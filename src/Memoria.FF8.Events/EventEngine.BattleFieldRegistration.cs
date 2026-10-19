@@ -87,6 +87,10 @@ public sealed partial class EventEngine
             actors[objectId].NativeEyes = eyesToBind[objectId];
         }
         Scene.NativeFieldRegistration = step.State;
+        if (Scene.NativeEyeProcess is not null)
+        {
+            Scene.NativeEyeProcess = new(1, result.Memory, result.CrtRandomAfter);
+        }
         Scene.NativeBattleFieldReloadState = null;
         Scene.NativeBattleFieldReload = new(1, profile.ExecutableHash, FieldId, programHash, battleEntryFrame, nativeResult, nativeResult == 1 ? ReadNativeDefeatReturnBranch4706B0() : null);
         return result;
@@ -95,7 +99,7 @@ public sealed partial class EventEngine
     public void ValidateNativeBattleFieldRegistrationMemory(NativeBattleRetainedMemory memory)
     {
         NativeFieldRegistrationState registration = Scene.NativeFieldRegistration ?? throw new InvalidDataException("Native kind3 completion has no executed resource registration.");
-        if (registration.FieldId != FieldId || registration.ProgramHash != programHash || !registration.Instances.Select(instance => instance.ObjectId).SequenceEqual(Scene.NativeActorObjectIds) || registration.Instances.Any(instance => instance.ModelId != (actors[instance.ObjectId].ModelId is -1 or ushort.MaxValue ? -1 : actors[instance.ObjectId].ModelId)))
+        if (registration.FieldId != FieldId || registration.ProgramHash != programHash || !registration.Instances.Select(instance => instance.ObjectId).SequenceEqual(Scene.NativeActorObjectIds) || registration.Instances.Any(instance => instance.ModelId != actors[instance.ObjectId].NativeAnimationHeader?.BoundModelId))
         {
             throw new InvalidDataException("Native kind3 registration no longer matches its retained field/actor owners.");
         }

@@ -1,4 +1,4 @@
-using Albeoris.Games.FF8.Jsm;
+﻿using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
@@ -55,11 +55,43 @@ public sealed partial class EventEngine
         Jsm.Opcode.PUSHANIME or Jsm.Opcode.POPANIME or Jsm.Opcode.MOVEFLUSH or Jsm.Opcode.DISPBAR or Jsm.Opcode.BROKEN or Jsm.Opcode.SETBAR or Jsm.Opcode.KILLBAR => true,
         Jsm.Opcode.Unknown1 or Jsm.Opcode.Unknown13 or Jsm.Opcode.SETWITCH or Jsm.Opcode.Unknown4 or Jsm.Opcode.Unknown5 or Jsm.Opcode.WHOAMI => true,
             Jsm.Opcode.COPYINFO or Jsm.Opcode.RFACEDIRP or Jsm.Opcode.FACEDIRI or Jsm.Opcode.RFACEDIRI => true,
+        Jsm.Opcode.GJMP or Jsm.Opcode.STOPVIBRATE or Jsm.Opcode.KEYSIGHNCHANGE or Jsm.Opcode.ENDING or Jsm.Opcode.Unknown14 or Jsm.Opcode.ALLSEPOS or Jsm.Opcode.ALLSEPOSTRANS or Jsm.Opcode.GETHP or Jsm.Opcode.GETDRESS or Jsm.Opcode.ADDMAGIC or Jsm.Opcode.SETODIN or Jsm.Opcode.LASTOUT or Jsm.Opcode.SETPARTY2 or Jsm.Opcode.PCOPYINFO or Jsm.Opcode.LSCROLLA2 or Jsm.Opcode.DSCROLLP2 or Jsm.Opcode.LSCROLLP2 or Jsm.Opcode.CSCROLLP2 or Jsm.Opcode.CSCROLL3 or Jsm.Opcode.DSCROLL3 or Jsm.Opcode.AXISSYNC or Jsm.Opcode.KEYON2 => true,
+        Jsm.Opcode.DEBUG or Jsm.Opcode.MOVIECUT or Jsm.Opcode.BATTLECUT or Jsm.Opcode.FMOVEP or Jsm.Opcode.PMOVECANCEL or Jsm.Opcode.BGANIMEFLAG or Jsm.Opcode.SHADETIMER => true,
+        Jsm.Opcode.MESW or Jsm.Opcode.ASK or Jsm.Opcode.MESFORCUS => true,
+        Jsm.Opcode.BLINKEYES => true,
         _ => false
     };
 
     private string? UnsupportedRequestContext(Fiber fiber, JsmOperation operation)
     {
+        if (NativeMovieSuppressed && operation.Opcode is Jsm.Opcode.MOVIEREADY or Jsm.Opcode.MOVIE or Jsm.Opcode.MOVIESYNC)
+        {
+            return operation.Opcode == Jsm.Opcode.MOVIEREADY && fiber.Stack.Count < 2 ? "Suppressed MOVIEREADY still requires its two original DWORD operands" : null;
+        }
+        string? remaining = UnsupportedRemainingDialogueCode(fiber, operation) ?? UnsupportedRemainingControlCode(fiber, operation) ?? UnsupportedNativeGlobalJump(fiber, operation) ?? UnsupportedRemainingSoundCode(fiber, operation) ?? UnsupportedRemainingCharacterCode(fiber, operation.Opcode);
+        if (remaining is not null)
+        {
+            return remaining;
+        }
+        switch (operation.Opcode)
+        {
+            case Jsm.Opcode.PMOVECANCEL:
+                return UnsupportedNativePartyMovementCancellation(fiber);
+            case Jsm.Opcode.BGANIMEFLAG:
+                return UnsupportedBackgroundAnimationFlag(fiber);
+            case Jsm.Opcode.PCOPYINFO:
+                return UnsupportedNativeCopyInfo(fiber, true);
+            case Jsm.Opcode.LSCROLLA2:
+                return UnsupportedRemainingLayerActorScroll(fiber, 1, false);
+            case Jsm.Opcode.DSCROLLP2:
+                return UnsupportedRemainingLayerActorScroll(fiber, 0, true);
+            case Jsm.Opcode.LSCROLLP2:
+                return UnsupportedRemainingLayerActorScroll(fiber, 1, true);
+            case Jsm.Opcode.CSCROLLP2:
+                return UnsupportedRemainingLayerActorScroll(fiber, 2, true);
+            case Jsm.Opcode.CSCROLL3:
+                return UnsupportedExplicitCosineBackgroundScroll(fiber);
+        }
         if (operation.Opcode == Jsm.Opcode.SETMESSPEED)
         {
             try
@@ -487,7 +519,7 @@ public sealed partial class EventEngine
         {
             return UnsupportedWorldJump(fiber);
         }
-        if (operation.Opcode is Jsm.Opcode.RCMOVE or Jsm.Opcode.RMOVEA or Jsm.Opcode.RPMOVEA or Jsm.Opcode.MOVE or Jsm.Opcode.MACCEL or Jsm.Opcode.FMOVE or Jsm.Opcode.RFMOVE or Jsm.Opcode.RMOVE or Jsm.Opcode.MOVEA or Jsm.Opcode.FMOVEA or Jsm.Opcode.PMOVEA)
+        if (operation.Opcode is Jsm.Opcode.RCMOVE or Jsm.Opcode.RMOVEA or Jsm.Opcode.RPMOVEA or Jsm.Opcode.MOVE or Jsm.Opcode.MACCEL or Jsm.Opcode.FMOVE or Jsm.Opcode.RFMOVE or Jsm.Opcode.RMOVE or Jsm.Opcode.MOVEA or Jsm.Opcode.FMOVEA or Jsm.Opcode.FMOVEP or Jsm.Opcode.PMOVEA)
         {
             return UnsupportedNativeScriptMove(fiber);
         }

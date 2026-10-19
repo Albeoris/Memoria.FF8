@@ -838,7 +838,7 @@ internal sealed partial class AutoPlayController
         int field = session.State.FieldId;
         void ObserveQuery(ScriptCommand command)
         {
-            if (run.ObserveContactInput && run.ActiveEvent is not null && run.ActiveField == field && command.ObjectId == run.ActiveObjectId && command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON")
+            if (run.ObserveContactInput && run.ActiveEvent is not null && run.ActiveField == field && command.ObjectId == run.ActiveObjectId && command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON" or "KEYON2")
             {
                 // Continuous contact callbacks can query and return in one frame, leaving no active fiber at the next controller tick.
                 if (command.Arguments.Count == 1 && world.Events.DiscoverObservedScriptedInput([new(command.ObjectId, command.ScriptId, command.Operation, command.Name, unchecked((ushort)command.Arguments[0]))], command.ObjectId) is { Masks.Count: > 0 } input)
@@ -867,7 +867,7 @@ internal sealed partial class AutoPlayController
         int observedObject = -1;
         void ObserveQuery(ScriptCommand command)
         {
-            if (observedInput is null && command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON" && command.Arguments.Count == 1 && world.Events.DiscoverObservedScriptedInput([new(command.ObjectId, command.ScriptId, command.Operation, command.Name, unchecked((ushort)command.Arguments[0]))], command.ObjectId) is { Masks.Count: > 0 } input)
+            if (observedInput is null && command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON" or "KEYON2" && command.Arguments.Count == 1 && world.Events.DiscoverObservedScriptedInput([new(command.ObjectId, command.ScriptId, command.Operation, command.Name, unchecked((ushort)command.Arguments[0]))], command.ObjectId) is { Masks.Count: > 0 } input)
             {
                 observedInput = input;
                 observedObject = command.ObjectId;
@@ -932,7 +932,7 @@ internal sealed partial class AutoPlayController
         }
         void ObserveQuery(ScriptCommand command)
         {
-            if (command.FieldId == field && command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON" or "KEYOFF")
+            if (command.FieldId == field && command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON" or "KEYON2" or "KEYOFF")
             {
                 queried = true;
                 if (matchedQuery is null && (objectId is null || command.ObjectId == objectId) && input.Queries.Any(query => query.ObjectId == command.ObjectId && query.ScriptId == command.ScriptId && query.Operation == command.Operation && query.Opcode == command.Name))
@@ -1130,10 +1130,10 @@ internal sealed partial class AutoPlayController
         bool sampled = false;
         void Observe(ScriptCommand command)
         {
-            if (command.FieldId == field && command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON" && command.Arguments.Count == 1 && input.Queries.Any(query => query.ObjectId == command.ObjectId && query.ScriptId == command.ScriptId && query.Operation == command.Operation && query.Opcode == command.Name && (query.Mask is null || query.Mask == unchecked((ushort)command.Arguments[0]))))
+            if (command.FieldId == field && command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON" or "KEYON2" && command.Arguments.Count == 1 && input.Queries.Any(query => query.ObjectId == command.ObjectId && query.ScriptId == command.ScriptId && query.Operation == command.Operation && query.Opcode == command.Name && (query.Mask is null || query.Mask == unchecked((ushort)command.Arguments[0]))))
             {
                 NativeFieldButtonInput buttons = session.State.FieldButtonInput!;
-                int value = command.Name == "KEYSCAN2" ? buttons.RawHeld : command.Name == "KEYON" ? buttons.Pressed ?? 0 : buttons.Held ?? 0;
+                int value = command.Name == "KEYSCAN2" ? buttons.RawHeld : command.Name == "KEYON2" ? buttons.RawPressed : command.Name == "KEYON" ? buttons.Pressed ?? 0 : buttons.Held ?? 0;
                 if ((buttons.PhysicalHeld & mask) == mask && (command.Arguments[0] & value) != 0)
                 {
                     sampled = true;
@@ -1532,7 +1532,7 @@ internal sealed partial class AutoPlayController
         ScriptedInputMetadata? recovered = null;
         void ObserveQuery(ScriptCommand command)
         {
-            if (command.Name is not ("KEYSCAN" or "KEYSCAN2" or "KEYON") || source is not null && command.ObjectId != source)
+            if (command.Name is not ("KEYSCAN" or "KEYSCAN2" or "KEYON" or "KEYON2") || source is not null && command.ObjectId != source)
             {
                 return;
             }

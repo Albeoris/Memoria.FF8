@@ -48,6 +48,10 @@ public sealed partial class EventEngine
 
     private string? UnsupportedNativeActorReturn(Fiber fiber, JsmOperation operation)
     {
+        if (operation.Opcode == Jsm.Opcode.RET && (operation.Parameter == 9 || fiber.NativeGlobalJumps.Count != 0))
+        {
+            return UnsupportedNativeGlobalReturn(fiber, operation);
+        }
         if (operation.Opcode != Jsm.Opcode.RET || fiber.Initialization || !IsNativeActorRequest(fiber.ObjectId))
         {
             return null;

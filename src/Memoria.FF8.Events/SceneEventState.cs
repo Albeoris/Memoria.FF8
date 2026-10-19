@@ -50,6 +50,32 @@ public sealed class SceneEventState
 {
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeFieldEyeProcess? NativeEyeProcess { get; internal set; }
+
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeAllSoundPosition? AllSoundPosition { get; internal set; }
+
+    [JsonInclude]
+    public uint NativeFieldSoundStopMask { get; internal set; } = 0xFFFFFF;
+
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? NativeDialogueFocus { get; internal set; }
+
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? NativeAskPreviousFocus { get; internal set; }
+
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? NativeAaskPreviousFocus { get; internal set; }
+
+    [JsonInclude]
+    public bool NativeDebugRequested { get; internal set; }
+
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeTripleTriadRequest? TripleTriadRequest { get; internal set; }
 
     [JsonRequired]

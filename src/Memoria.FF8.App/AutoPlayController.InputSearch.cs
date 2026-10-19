@@ -282,7 +282,7 @@ internal sealed partial class AutoPlayController
         AutoPlayNeutralInputReceipt? receipt = null;
         void Observe(ScriptCommand command)
         {
-            if (command.FieldId != field || command.Arguments.Count != 1 || command.Name is not ("KEYSCAN" or "KEYSCAN2" or "KEYON"))
+            if (command.FieldId != field || command.Arguments.Count != 1 || command.Name is not ("KEYSCAN" or "KEYSCAN2" or "KEYON" or "KEYON2"))
             {
                 return;
             }

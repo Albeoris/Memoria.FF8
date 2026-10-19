@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using Albeoris.Games.FF8.Jsm;
 
@@ -53,7 +53,7 @@ public sealed partial class EventEngine
             foreach (int index in script.ReachableOperations.Order())
             {
                 JsmOperation operation = program.Operations[index];
-                if (operation.Opcode is not (Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2 or Jsm.Opcode.KEYON))
+                if (operation.Opcode is not (Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2 or Jsm.Opcode.KEYON or Jsm.Opcode.KEYON2))
                 {
                     continue;
                 }
@@ -81,7 +81,7 @@ public sealed partial class EventEngine
                         {
                             continue;
                         }
-                        int raw = operation.Opcode == Jsm.Opcode.KEYSCAN2 ? mapped : (services.InputConfiguration ?? throw new NotSupportedException("Scripted mapped input discovery requires the retained native configuration.")).RawForMappedPulse((ushort)mapped);
+                        int raw = operation.Opcode is Jsm.Opcode.KEYSCAN2 or Jsm.Opcode.KEYON2 ? mapped : (services.InputConfiguration ?? throw new NotSupportedException("Scripted mapped input discovery requires the retained native configuration.")).RawForMappedPulse((ushort)mapped);
                         masks.Add(raw);
                     }
                 }

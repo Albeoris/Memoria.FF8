@@ -51,12 +51,12 @@ public sealed partial class EventEngine
         private set => userControlEnabled = value;
     }
     public bool IsDialogueOpen => dialogues.Count != 0;
-    public bool IsDialogueBlocking => dialogues.Values.Any(dialogue => dialogue.CanConfirm);
+    public bool IsDialogueBlocking => Scene.NativeDialogueFocus is not null ? CurrentDialogue?.CanConfirm == true : dialogues.Values.Any(dialogue => dialogue.CanConfirm);
     // Native4767B0 forwards held directional input to4789A0 independently of
     // plain-text window masks. Choices/naming retain their host input ownership.
     public bool IsMovementBlockedByDialogue => dialogues.Values.Any(dialogue => dialogue.FirstChoice is not null || dialogue.IsNamePrompt);
     public IReadOnlyCollection<DialogueState> Dialogues => dialogues.Values.Select(ExpandMessageVariables).ToArray();
-    public bool CanConfirmDialogue => dialogues.Values.Any(dialogue => dialogue.CanConfirm && dialogue.FirstChoice is null && !dialogue.IsNamePrompt);
+    public bool CanConfirmDialogue => Scene.NativeDialogueFocus is not null ? CurrentDialogue is { CanConfirm: true, FirstChoice: null, IsNamePrompt: false } : dialogues.Values.Any(dialogue => dialogue.CanConfirm && dialogue.FirstChoice is null && !dialogue.IsNamePrompt);
     public int? PendingNameSubject => CurrentDialogue?.IsNamePrompt == true ? nameEntity : null;
     public string? PendingNameDefault => CurrentDialogue?.IsNamePrompt == true ? NativeCharacterName(nameEntity) : null;
     private DialogueState? currentDialogue;
@@ -69,8 +69,8 @@ public sealed partial class EventEngine
     // Button-polling interfaces own their real-time repeat delays even when characters remain visible.
     public bool IsScriptedInterface => !IsUserControlEnabled && program is not null &&
         (!actors.Any(actor => actor.Active && actor.Visible && actor.RenderModelId >= 0)
-            ? program.Operations.Any(operation => operation.Opcode is Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2 or Jsm.Opcode.KEYON)
-            : fibers.Any(fiber => !fiber.Complete && fiber.WaitReason != WaitReason.NativeHalt && fiber.Script.ReachableOperations.Any(index => program.Operations[index].Opcode is Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2 or Jsm.Opcode.KEYON)));
+            ? program.Operations.Any(operation => operation.Opcode is Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2 or Jsm.Opcode.KEYON or Jsm.Opcode.KEYON2)
+            : fibers.Any(fiber => !fiber.Complete && fiber.WaitReason != WaitReason.NativeHalt && fiber.Script.ReachableOperations.Any(index => program.Operations[index].Opcode is Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2 or Jsm.Opcode.KEYON or Jsm.Opcode.KEYON2)));
     public IReadOnlyDictionary<int, int> BackgroundStates => backgroundStates;
     public SceneEventState Scene { get; private set; } = new();
     public Func<int, int, int>? AnimationFrameCount { get; set; }
@@ -183,6 +183,12 @@ public sealed partial class EventEngine
         Scene.SoundVolumeTransition = previousScene.SoundVolumeTransition;
         Scene.SoundVolume = previousScene.SoundVolume;
         Scene.SoundPosition = previousScene.SoundPosition;
+        Scene.AllSoundPosition = previousScene.AllSoundPosition;
+        Scene.NativeFieldSoundStopMask = 0xFFFFFF;
+        Scene.NativeDialogueFocus = nativeRuntimeProfile is { IsVerified: true } ? byte.MaxValue : previousScene.NativeDialogueFocus;
+        Scene.NativeAskPreviousFocus = previousScene.NativeAskPreviousFocus;
+        Scene.NativeAaskPreviousFocus = previousScene.NativeAaskPreviousFocus;
+        Scene.NativeDebugRequested = previousScene.NativeDebugRequested;
         Scene.VibrationRequest = previousScene.VibrationRequest;
         Scene.AllSoundVolumeTransition = previousScene.AllSoundVolumeTransition;
         Scene.AllSoundVolume = previousScene.AllSoundVolume;
@@ -452,6 +458,7 @@ public sealed partial class EventEngine
             }
             StepNativeModelParts();
             StepNativeDrawPointParticles();
+            AdvanceNativeEyeProcess();
         }
         StepNativeMovieMask();
         bool movieUi = services.NativeMovieClockFlag ?? (services.IsMoviePlaying ? throw new NotSupportedException("Native UI requires its actual movie callback flag.") : false);
@@ -494,8 +501,8 @@ public sealed partial class EventEngine
         }
         if (dialogue.FirstChoice is null && !dialogue.IsNamePrompt)
         {
-            // Native 0x529FF0 visits every automatic channel for the same confirm edge.
-            foreach (DialogueState automatic in dialogues.Values.Where(item => item.CanConfirm && item.FirstChoice is null && !item.IsNamePrompt).ToArray())
+            //49FEB0 admits confirmation only for the marker selected by49FD50.
+            foreach (DialogueState automatic in dialogues.Values.Where(item => item.CanConfirm && item.FirstChoice is null && !item.IsNamePrompt && (Scene.NativeDialogueFocus is null || item.Channel == Scene.NativeDialogueFocus)).ToArray())
             {
                 RecordDialogueOutcome(automatic, null, null);
                 CloseDialogue(automatic.Channel);
@@ -675,7 +682,7 @@ public sealed partial class EventEngine
             {
                 return 0;
             }
-            bool nativeDialogueCompleted = fiber.WaitReason == WaitReason.Dialogue && fiber.Script.ContainsOperation(fiber.Position - 1) && program!.Operations[fiber.Position - 1].Opcode is Jsm.Opcode.AMESW or Jsm.Opcode.AASK;
+            bool nativeDialogueCompleted = fiber.WaitReason == WaitReason.Dialogue && fiber.Script.ContainsOperation(fiber.Position - 1) && program!.Operations[fiber.Position - 1].Opcode is Jsm.Opcode.AMESW or Jsm.Opcode.AASK or Jsm.Opcode.MESW or Jsm.Opcode.ASK;
             bool nativeRequestCompleted = NativeRuntimeProfile is { IsVerified: true } && !fiber.Initialization && fiber.WaitReason is WaitReason.RequestStart or WaitReason.RequestEnd && fiber.Script.ContainsOperation(fiber.Position - 1) && program!.Operations[fiber.Position - 1].Opcode is Jsm.Opcode.REQSW or Jsm.Opcode.REQEW or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW;
             bool nativeAnimationCompleted = fiber.WaitReason == WaitReason.NativeAnimationBlocking;
             if (fiber.WaitReason == WaitReason.MinimalMenu)
@@ -724,7 +731,7 @@ public sealed partial class EventEngine
             fiber.Position++;
             try
             {
-                NativeScalarValue[]? enteringResults = operation.Opcode == Jsm.Opcode.LBL && HasNativeOperandRecord(fiber.ObjectId) && !fiber.NativeResultFrameEntered ? ReadNativeDoorLiveResults(fiber) : null;
+                NativeScalarValue[]? enteringResults = operation.Opcode == Jsm.Opcode.LBL && fiber.NativeGlobalJumps.Count == 0 && HasNativeOperandRecord(fiber.ObjectId) && !fiber.NativeResultFrameEntered ? ReadNativeDoorLiveResults(fiber) : null;
                 Execute(fiber, operation);
                 if (enteringResults is not null && fiber.NativeResultFrameEntered)
                 {
@@ -817,6 +824,26 @@ public sealed partial class EventEngine
         {
             throw Fault(fiber, $"Message {dialogue.MessageId} is outside the field MSD table ({messages.Count} messages).");
         }
+        if (NativeRuntimeProfile is { IsVerified: true } || Scene.NativeDialogueFocus is not null)
+        {
+            if (dialogue.FirstChoice is not null)
+            {
+                //529520/5296C0 capture separate global prior markers at issue;
+                //the first incomplete VM poll, rather than opening, selects focus.
+                if (program!.Operations[dialogue.Operation].Opcode == Jsm.Opcode.ASK)
+                {
+                    Scene.NativeAskPreviousFocus = Scene.NativeDialogueFocus;
+                }
+                else
+                {
+                    Scene.NativeAaskPreviousFocus = Scene.NativeDialogueFocus;
+                }
+            }
+            else
+            {
+                Scene.NativeDialogueFocus = unchecked((byte)dialogue.Channel);
+            }
+        }
         dialogues[dialogue.Channel] = dialogue;
         RefreshCurrentDialogue();
         if (wait)
@@ -834,9 +861,8 @@ public sealed partial class EventEngine
 
     private void RefreshCurrentDialogue()
     {
-        // TODO(TD-012): persist the native UI focus marker; this is the host representative.
         IEnumerable<DialogueState> visible = dialogues.Values.Where(dialogue => dialogue.NativeWindow is not { Progress: 0, Delta: < 0 });
-        CurrentDialogue = visible.LastOrDefault(dialogue => dialogue.CanConfirm) ?? visible.LastOrDefault();
+        CurrentDialogue = Scene.NativeDialogueFocus is byte focus ? visible.FirstOrDefault(dialogue => dialogue.Channel == focus) : visible.LastOrDefault(dialogue => dialogue.CanConfirm) ?? visible.LastOrDefault();
         if (CurrentDialogue is not null)
         {
             services.ShowDialog(CurrentDialogue.Text);
@@ -858,6 +884,7 @@ public sealed partial class EventEngine
         public bool Complete;
         public bool Started;
         public bool NativeResultFrameEntered;
+        public List<NativeGlobalJumpFrame> NativeGlobalJumps = [];
         public NativeOperandStack Stack { get; } = new();
         public Stack<string> StackExpressions { get; } = new();
         public string[] LastExpressions = [];
@@ -869,6 +896,7 @@ public sealed partial class EventEngine
         public bool NativeDoorDefaultFrame;
         public NativeScalarValue[]? NativeDoorSavedResults;
         public int DialogueChannel = -1;
+        public NativeDialogueConsumer? NativeDialogueConsumer;
         public int BackgroundId;
         public int SoundResourceId;
         public byte? NativeDoorSlot;
@@ -910,7 +938,7 @@ public sealed partial class EventEngine
             WaitReason.MoveActor => actor.MovementActorId is null,
             WaitReason.Rotation => actor.RotationTarget is null,
             WaitReason.NativeTurnCompletion => actor.NativeTurnMode580 == 3,
-            WaitReason.Dialogue => !dialogues.ContainsKey(fiber.DialogueChannel),
+            WaitReason.Dialogue => NativeDialogueWaitReady(fiber),
             WaitReason.Movie => !services.IsMoviePlaying,
             WaitReason.Color => true,
             WaitReason.Fade => true,

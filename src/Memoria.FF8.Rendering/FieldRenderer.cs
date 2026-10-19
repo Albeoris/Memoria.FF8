@@ -9,7 +9,7 @@ namespace Memoria.FF8.Rendering;
 
 /// <param name="Direction">FF8 direction units, one turn is 256.</param>
 /// <param name="RootTranslationZ">Separate native SETROOTTRANS elevation word; never the SETGETA byte.</param>
-public readonly record struct ActorVisual(int ObjectId, int ModelId, float X, float Y, float Z, float Direction, int AnimationId, float AnimationFrame, bool Visible, Vector3? FirstControlRotation = null, float RootTranslationZ = 0, bool AdditionalControlDisabled = false, Vector3? PolygonColor = null, byte? GroundShadowRadius601To608 = null, byte? GroundShadowLevel609 = null, Vector3? GroundShadowCentre = null, IReadOnlyList<byte>? GroundShadowRadii601To608 = null, IReadOnlyDictionary<int, Vector3>? SkinTranslations = null, bool PrimitiveTransparencyEnabled = false);
+public readonly record struct ActorVisual(int ObjectId, int ModelId, float X, float Y, float Z, float Direction, int AnimationId, float AnimationFrame, bool Visible, Vector3? FirstControlRotation = null, float RootTranslationZ = 0, bool AdditionalControlDisabled = false, Vector3? PolygonColor = null, byte? GroundShadowRadius601To608 = null, byte? GroundShadowLevel609 = null, Vector3? GroundShadowCentre = null, IReadOnlyList<byte>? GroundShadowRadii601To608 = null, IReadOnlyDictionary<int, Vector3>? SkinTranslations = null, bool PrimitiveTransparencyEnabled = false, IReadOnlyList<PixelImage>? RegisteredTextures = null);
 
 public enum ModelTextureSampling
 {
@@ -461,8 +461,9 @@ public sealed partial class FieldRenderer
             {
                 continue;
             }
-            PixelImage texture = model.Textures[face.Texture];
-            Vector2 textureScale = ResourceTextureList.PhysicalScale(model.Textures, face.Texture);
+            IReadOnlyList<PixelImage> selectedTextures = actor.RegisteredTextures ?? model.Textures;
+            PixelImage texture = selectedTextures[face.Texture];
+            Vector2 textureScale = ResourceTextureList.PhysicalScale(selectedTextures, face.Texture);
             bool transparent = face.SemiTransparent || actor.PrimitiveTransparencyEnabled;
             DrawModelTriangle(projected[face.Vertices[0]], projected[face.Vertices[1]], projected[face.Vertices[2]], face.TextureCoordinates[0] * textureScale, face.TextureCoordinates[1] * textureScale, face.TextureCoordinates[2] * textureScale, texture, actor.PolygonColor!.Value, transparent, translucent, projected[face.Vertices[0]].Depth);
             if (face.Quad)

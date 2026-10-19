@@ -10,11 +10,11 @@ public sealed partial class EventEngine
     {
         if (NativeRuntimeProfile is { IsVerified: true })
         {
-            if (IsNativeDoorRequest(fiber.ObjectId) && operation.Opcode == Jsm.Opcode.RET && (operation.Parameter != 8 || fiber.NativeDoorDefaultFrame || !fiber.NativeResultFrameEntered || fiber.NativeDoorSavedResults is not { Length: 8 }))
+            if (IsNativeDoorRequest(fiber.ObjectId) && operation.Opcode == Jsm.Opcode.RET && operation.Parameter != 9 && (operation.Parameter != 8 || fiber.NativeDoorDefaultFrame || !fiber.NativeResultFrameEntered || fiber.NativeDoorSavedResults is not { Length: 8 }))
             {
                 return "Native door RET requires its represented requested LBL frame; default negative aliases and explicit slot cancellation are unsupported; PC and operands preserved";
             }
-            if (operation.Opcode == Jsm.Opcode.LBL && (fiber.NativeResultFrameEntered || fiber.NativeDoorDefaultFrame || fiber.Position != fiber.Script.Start))
+            if (operation.Opcode == Jsm.Opcode.LBL && fiber.NativeGlobalJumps.LastOrDefault() is not { Entered: false } && (fiber.NativeResultFrameEntered || fiber.NativeDoorDefaultFrame || fiber.Position != fiber.Script.Start))
             {
                 return "Native repeated LBL requires its additional saved-result frame; PC and operands preserved";
             }
@@ -26,7 +26,7 @@ public sealed partial class EventEngine
             {
                 return "Native result access outside DWORD320..348 requires its unrepresented physical memory alias; PC and operands preserved";
             }
-            int additionalWords = operation.Opcode == Jsm.Opcode.LBL ? 8 : operation.Opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.PSHSM_L or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHI_L ? 1 : 0;
+            int additionalWords = operation.Opcode == Jsm.Opcode.LBL ? 8 : operation.Opcode == Jsm.Opcode.GJMP ? 1 : operation.Opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.PSHSM_L or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHI_L ? 1 : 0;
             // Native LBL51C570 saves eight results; unchecked pushes51C990 and POPI51CC70 can alias the actor header.
             // Refuse the unrepresented write rather than imposing a purported native clamp (NG-002).
             if (additionalWords > 0)

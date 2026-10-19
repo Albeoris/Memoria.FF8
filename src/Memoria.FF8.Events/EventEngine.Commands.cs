@@ -15,6 +15,83 @@ public sealed partial class EventEngine
         NativeScalarValue[]? scalarArgs = null;
         switch (opcode)
         {
+            case Jsm.Opcode.GJMP:
+                ExecuteNativeGlobalJump(fiber, operation);
+                break;
+            case Jsm.Opcode.BLINKEYES:
+                args = ExecuteNativeBlinkEyes(fiber);
+                break;
+            case Jsm.Opcode.MESW:
+            case Jsm.Opcode.ASK:
+            case Jsm.Opcode.MESFORCUS:
+                args = ExecuteRemainingDialogueCode(fiber, opcode);
+                break;
+            case Jsm.Opcode.DEBUG:
+                Scene.NativeDebugRequested = true;
+                WaitFrames(fiber, 1);
+                break;
+            case Jsm.Opcode.MOVIECUT:
+            case Jsm.Opcode.BATTLECUT:
+                ExecuteRemainingControlCode(fiber, opcode);
+                break;
+            case Jsm.Opcode.FMOVEP:
+                args = ExecuteNativeScriptMove(fiber);
+                break;
+            case Jsm.Opcode.PMOVECANCEL:
+                args = ExecuteNativePartyMovementCancellation(fiber);
+                break;
+            case Jsm.Opcode.BGANIMEFLAG:
+                args = ExecuteBackgroundAnimationFlag(fiber);
+                break;
+            case Jsm.Opcode.STOPVIBRATE:
+                //51F670 is an empty PC handler returning2.
+                break;
+            case Jsm.Opcode.KEYSIGHNCHANGE:
+                //51FBA0 discards one DWORD;46C040 is the constant-status PC stub.
+                args = Pop(fiber, 1);
+                break;
+            case Jsm.Opcode.ENDING:
+                //523380 returns1 forever and retains the current instruction.
+                fiber.Position--;
+                WaitFrames(fiber, 1);
+                break;
+            case Jsm.Opcode.Unknown14:
+                Scene.NativeFieldSoundStopMask = ~unchecked((uint)fiber.Stack.Peek());
+                args = Pop(fiber, 1);
+                break;
+            case Jsm.Opcode.ALLSEPOS:
+            case Jsm.Opcode.ALLSEPOSTRANS:
+                args = ExecuteAllSoundPosition(fiber, opcode == Jsm.Opcode.ALLSEPOSTRANS);
+                break;
+            case Jsm.Opcode.GETHP:
+            case Jsm.Opcode.GETDRESS:
+            case Jsm.Opcode.ADDMAGIC:
+            case Jsm.Opcode.SETODIN:
+            case Jsm.Opcode.LASTOUT:
+            case Jsm.Opcode.SETPARTY2:
+                args = ExecuteRemainingCharacterCode(fiber, opcode);
+                break;
+            case Jsm.Opcode.PCOPYINFO:
+                args = ExecuteNativeCopyInfo(fiber, true);
+                break;
+            case Jsm.Opcode.LSCROLLA2:
+                args = ExecuteRemainingLayerActorScroll(fiber, 1, false);
+                break;
+            case Jsm.Opcode.DSCROLLP2:
+                args = ExecuteRemainingLayerActorScroll(fiber, 0, true);
+                break;
+            case Jsm.Opcode.LSCROLLP2:
+                args = ExecuteRemainingLayerActorScroll(fiber, 1, true);
+                break;
+            case Jsm.Opcode.CSCROLLP2:
+                args = ExecuteRemainingLayerActorScroll(fiber, 2, true);
+                break;
+            case Jsm.Opcode.CSCROLL3:
+                args = ExecuteExplicitCosineBackgroundScroll(fiber);
+                break;
+            case Jsm.Opcode.AXISSYNC:
+                ExecuteNativeAxisSync(fiber);
+                break;
             case Jsm.Opcode.GAMEOVER:
                 ExecuteNativeGameOver(fiber);
                 break;
@@ -22,6 +99,10 @@ public sealed partial class EventEngine
                 args = ExecuteNativeSavedBattleFlagBit4(fiber);
                 break;
             case Jsm.Opcode.LBL:
+                if (EnterNativeGlobalResultFrame(fiber))
+                {
+                    break;
+                }
                 if (NativeRuntimeProfile is { IsVerified: true })
                 {
                     if (IsNativeDoorRequest(fiber.ObjectId))
@@ -39,7 +120,7 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.OPENEYES:
             case Jsm.Opcode.CLOSEEYES:
-                actor.NativeEyes = PrepareNativeEyes(actor, opcode == Jsm.Opcode.CLOSEEYES);
+                PublishNativeExplicitEyes(actor, opcode == Jsm.Opcode.CLOSEEYES);
                 break;
             case Jsm.Opcode.DISPBAR:
             case Jsm.Opcode.BROKEN:
@@ -48,6 +129,10 @@ public sealed partial class EventEngine
                 args = ExecuteNativeBars(fiber, opcode);
                 break;
             case Jsm.Opcode.RET:
+                if (ExecuteNativeGlobalReturn(fiber, operation))
+                {
+                    break;
+                }
                 if (fiber.Stack.Count != 0 && (!HasNativeOperandRecord(fiber.ObjectId) || fiber.Initialization))
                 {
                     throw Fault(fiber, "Script returned with an unbalanced operand stack.");
@@ -177,6 +262,7 @@ public sealed partial class EventEngine
             case Jsm.Opcode.RND:
                 ExecuteNativeRandom(fiber);
                 break;
+            case Jsm.Opcode.SHADETIMER:
             case Jsm.Opcode.SETTIMER:
             case Jsm.Opcode.DISPTIMER:
             case Jsm.Opcode.GETTIMER:
@@ -233,6 +319,7 @@ public sealed partial class EventEngine
             case Jsm.Opcode.SCROLLRATIO2:
                 args = ExecuteBackgroundScrollRatio(fiber);
                 break;
+            case Jsm.Opcode.DSCROLL3:
             case Jsm.Opcode.DSCROLL2:
                 args = ExecuteDirectBackgroundScroll(fiber);
                 break;
@@ -752,6 +839,11 @@ public sealed partial class EventEngine
                 Scene.RunEnabled = opcode == Jsm.Opcode.RUNENABLE;
                 break;
             case Jsm.Opcode.MOVIEREADY:
+                if (NativeMovieSuppressed)
+                {
+                    args = Pop(fiber, 2);
+                    break;
+                }
                 PrepareNativeMovieMask(fiber, fiber.Stack.Skip(1).First());
                 args = Pop(fiber, 2);
                 preparedMovie = args[0];
@@ -762,6 +854,10 @@ public sealed partial class EventEngine
                 fiber.WaitUntil = Frame + 1;
                 break;
             case Jsm.Opcode.MOVIE:
+                if (NativeMovieSuppressed)
+                {
+                    break;
+                }
                 if (preparedMovie < 0)
                 {
                     throw Fault(fiber, "MOVIE has no preceding MOVIEREADY.");
@@ -770,6 +866,10 @@ public sealed partial class EventEngine
                 StartNativeMovieActors(fiber);
                 break;
             case Jsm.Opcode.MOVIESYNC:
+                if (NativeMovieSuppressed)
+                {
+                    break;
+                }
                 fiber.WaitReason = WaitReason.Movie;
                 break;
             case Jsm.Opcode.IDLOCK:
@@ -829,6 +929,11 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.AMESW:
             case Jsm.Opcode.AMES:
+                if (opcode == Jsm.Opcode.AMESW && NativeRuntimeProfile is { IsVerified: true })
+                {
+                    args = ExecuteNativeBlockingDialogue(fiber, opcode);
+                    break;
+                }
                 if (WaitForNativeDialogueChannel(fiber, 4, false))
                 {
                     break;
@@ -858,6 +963,11 @@ public sealed partial class EventEngine
                 WaitFrames(fiber, 1);
                 break;
             case Jsm.Opcode.AASK:
+                if (NativeRuntimeProfile is { IsVerified: true })
+                {
+                    args = ExecuteNativeBlockingDialogue(fiber, opcode);
+                    break;
+                }
                 if (WaitForNativeDialogueChannel(fiber, 8, true))
                 {
                     break;
@@ -998,8 +1108,9 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.KEYSCAN:
             case Jsm.Opcode.KEYSCAN2:
+            case Jsm.Opcode.KEYON2:
             case Jsm.Opcode.KEYON:
-                ushort buttonWord = opcode == Jsm.Opcode.KEYSCAN2 ? ButtonInput!.RawHeld : (opcode == Jsm.Opcode.KEYON ? ButtonInput!.Pressed : ButtonInput!.Held) ?? throw new NotSupportedException("Mapped input configuration is unknown.");
+                ushort buttonWord = opcode == Jsm.Opcode.KEYSCAN2 ? ButtonInput!.RawHeld : opcode == Jsm.Opcode.KEYON2 ? ButtonInput!.RawPressed : (opcode == Jsm.Opcode.KEYON ? ButtonInput!.Pressed : ButtonInput!.Held) ?? throw new NotSupportedException("Mapped input configuration is unknown.");
                 args = Pop(fiber, 1);
                 fiber.Results[0] = TryApplyAutoPlayTrainNavigation(fiber, opcode, args[0], out int automaticInput) ? automaticInput : (unchecked((uint)args[0]) & buttonWord) != 0 ? 1 : 0;
                 break;

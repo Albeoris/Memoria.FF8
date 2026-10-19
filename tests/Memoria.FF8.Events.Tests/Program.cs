@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
@@ -17,6 +17,20 @@ internal static partial class Program
                 string selectedGameDirectory = args.Length >= 3 ? args[2] : TestResources.GameDirectory;
                 Dictionary<string, Action> scenarios = new(StringComparer.OrdinalIgnoreCase)
                 {
+                    ["native-keyon2"] = () => NativeKeyScan2Contract(selectedGameDirectory, true),
+                    ["native-shared-choice-focus"] = NativeSharedChoiceFocusContract,
+                    ["native-blink-eyes"] = () => NativeBlinkEyesContract(selectedGameDirectory),
+                    ["native-global-jump"] = () => NativeGlobalJumpContract(selectedGameDirectory),
+                    ["remaining-scroll-codes"] = RemainingLayerScrollContracts,
+                    ["remaining-character-codes"] = () => RemainingCharacterCodeContract(selectedGameDirectory),
+                    ["native-pcopy-info"] = () => NativeCopyInfoContract(selectedGameDirectory, true),
+                    ["remaining-presentation-codes"] = RemainingPresentationContracts,
+                    ["explicit-scroll-axis-sync"] = ExplicitScrollAndAxisSyncContracts,
+                    ["native-party-move-cancel"] = () => NativeMovementCancellationContract(party: true),
+                    ["native-forced-party-move"] = () => NativePartyMoveContract(selectedGameDirectory, forced: true),
+                    ["remaining-sound-codes"] = RemainingSoundCodeContract,
+                    ["remaining-control-codes"] = RemainingControlCodeContract,
+                    ["remaining-dialogue-codes"] = RemainingDialogueCodeContract,
                     ["actor-mode"] = AdditionalActorControlAndGuard,
                     ["native-key"] = () => NativeKeyControlContract(selectedGameDirectory),
                     ["native-async-party-turn"] = () => NativeAsyncPartyTurnContract(selectedGameDirectory),
@@ -157,7 +171,7 @@ internal static partial class Program
                         NativeCompletedAsyncRequestContract(assets);
                     },
                     ["native-single-backup-overwrite"] = NativeSingleBackupOverwriteContract,
-                    ["native-move-cancel"] = NativeMovementCancellationContract,
+                    ["native-move-cancel"] = () => NativeMovementCancellationContract(),
                     ["native-push-radius"] = NativePushRadiusContract,
                     ["native-empty-model-move"] = NativeEmptyModelMovementContract,
                     ["native-dialogue-busy"] = NativeDialogueBusyContract,

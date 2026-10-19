@@ -9,7 +9,7 @@ public sealed partial class EventEngine
 
     private string? UnsupportedTimerAccess(Fiber fiber, JsmOperation operation)
     {
-        bool timerCommand = operation.Opcode is Jsm.Opcode.SETTIMER or Jsm.Opcode.DISPTIMER or Jsm.Opcode.GETTIMER or Jsm.Opcode.KILLTIMER;
+        bool timerCommand = operation.Opcode is Jsm.Opcode.SETTIMER or Jsm.Opcode.DISPTIMER or Jsm.Opcode.GETTIMER or Jsm.Opcode.KILLTIMER or Jsm.Opcode.SHADETIMER;
         if (operation.Opcode == Jsm.Opcode.MOVIE && services.ExamTimer is not null && services.NativeMovieClockFlag is null)
         {
             return "A tracked native process clock requires the accepted movie start/close lifecycle flag before movie departure";
@@ -24,10 +24,14 @@ public sealed partial class EventEngine
             {
                 return "Native exam timer commands require an ordinary field";
             }
-            int operands = operation.Opcode == Jsm.Opcode.SETTIMER ? 1 : operation.Opcode == Jsm.Opcode.DISPTIMER ? 2 : 0;
+            int operands = operation.Opcode is Jsm.Opcode.SETTIMER or Jsm.Opcode.SHADETIMER ? 1 : operation.Opcode == Jsm.Opcode.DISPTIMER ? 2 : 0;
             if (fiber.Stack.Count < operands)
             {
                 return "Native exam timer command requires its original operands";
+            }
+            if (operation.Opcode == Jsm.Opcode.SHADETIMER && !fiber.Stack.PeekValue().IsExact)
+            {
+                return "SHADETIMER requires its exact original intensity operand before low-WORD storage";
             }
             if (services.ExamTimer is null)
             {
@@ -70,10 +74,11 @@ public sealed partial class EventEngine
             fiber.Results[0] = NativeScalarValue.FromTimer(new NativeTimerReadOrigin(1, FieldId, programHash, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, current!));
             return [];
         }
-        int[] operands = opcode == Jsm.Opcode.DISPTIMER ? fiber.Stack.Take(2).Reverse().ToArray() : opcode == Jsm.Opcode.SETTIMER ? [fiber.Stack.Peek()] : [];
+        int[] operands = opcode == Jsm.Opcode.DISPTIMER ? fiber.Stack.Take(2).Reverse().ToArray() : opcode is Jsm.Opcode.SETTIMER or Jsm.Opcode.SHADETIMER ? [fiber.Stack.Peek()] : [];
         NativeExamTimerState next = opcode switch
         {
             Jsm.Opcode.SETTIMER => current!.SetRemaining(operands[0]),
+            Jsm.Opcode.SHADETIMER => current!.SetDisplayIntensity4A6CB0(unchecked((ushort)operands[0])),
             Jsm.Opcode.DISPTIMER => current!.Display(unchecked((byte)operands[0]), unchecked((byte)operands[1])),
             Jsm.Opcode.KILLTIMER => current!.KillDisplay(),
             _ => throw new ArgumentOutOfRangeException(nameof(opcode))

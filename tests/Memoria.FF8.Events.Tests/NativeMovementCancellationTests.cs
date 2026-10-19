@@ -3,13 +3,15 @@ using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Assets;
 
 namespace Memoria.FF8.Events.Tests;
 
 internal static partial class Program
 {
-    private static void NativeMovementCancellationContract()
+    private static void NativeMovementCancellationContract(bool party = false)
     {
+        using GameAssets assets = new(TestResources.GameDirectory);
         foreach ((bool asynchronous, bool scalar, bool requested) in new[] { (false, false, false), (false, true, false), (true, true, false), (false, false, true), (true, true, true) })
         {
             (Jsm.Opcode, int)[] Movement(int label)
@@ -27,15 +29,19 @@ internal static partial class Program
                 return operations.ToArray();
             }
             List<(Jsm.Opcode, int)> controller = [(Jsm.Opcode.LBL, 33), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0)];
+            if (party)
+            {
+                controller.Insert(1, (Jsm.Opcode.REFRESHPARTY, 0));
+            }
             if (requested)
             {
                 controller.AddRange([(Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.REQ, 1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0)]);
             }
-            controller.AddRange([(Jsm.Opcode.PSHAC, 1), (Jsm.Opcode.MOVECANCEL, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]);
-            byte[] content = SyntheticObjects([0, (16 << 7) | 4, (32 << 7) | 1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 10000), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.BASEANIME, 0), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.MSPEED, 0), (Jsm.Opcode.RET, 8)], Movement(17), [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 19), (Jsm.Opcode.RET, 8)], Movement(20), [(Jsm.Opcode.LBL, 32), (Jsm.Opcode.RET, 8)], controller.ToArray()]);
+            controller.AddRange([(party ? Jsm.Opcode.PSHN_L : Jsm.Opcode.PSHAC, party ? 0 : 1), (party ? Jsm.Opcode.PMOVECANCEL : Jsm.Opcode.MOVECANCEL, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]);
+            byte[] content = SyntheticObjects([0, (16 << 7) | 4, (32 << 7) | 1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 10000), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.SETMODEL, 1), .. (party ? new (Jsm.Opcode, int)[] { (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0) } : []), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.BASEANIME, 0), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.MSPEED, 0), (Jsm.Opcode.RET, 8)], Movement(17), [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 19), (Jsm.Opcode.RET, 8)], Movement(20), [(Jsm.Opcode.LBL, 32), (Jsm.Opcode.RET, 8)], controller.ToArray()]);
             EventEngine Create()
             {
-                var session = new GameSession(new GameState());
+                var session = party ? CreateDirectedLinearTurnSession(assets.ReadNewGameCharacterVitals(), assets.ReadNewGameEconomy()) : new GameSession(new GameState());
                 var engine = new EventEngine(session)
                 {
                     AnimationFrameCount = (_, _) => 4,

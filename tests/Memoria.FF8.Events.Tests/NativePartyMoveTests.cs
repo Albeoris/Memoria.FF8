@@ -8,7 +8,7 @@ namespace Memoria.FF8.Events.Tests;
 
 internal static partial class Program
 {
-    private static void NativePartyMoveContract(string gameDirectory, bool asynchronous = false)
+    private static void NativePartyMoveContract(string gameDirectory, bool asynchronous = false, bool forced = false)
     {
         using GameAssets assets = new(gameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
@@ -16,7 +16,7 @@ internal static partial class Program
         EventEngine Create(int slot = 0)
         {
             (Jsm.Opcode, int)[] caller = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.BASEANIME, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.RET, 8)];
-            (Jsm.Opcode, int)[] move = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 901), (Jsm.Opcode.POPI_L, 0), (Jsm.Opcode.PSHN_L, 123456), (Jsm.Opcode.PSHN_L, slot), (Jsm.Opcode.PSHN_L, 65536), (asynchronous ? Jsm.Opcode.RPMOVEA : Jsm.Opcode.PMOVEA, asynchronous ? 122 : 64), (Jsm.Opcode.POPM_L, 5000), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_L, 5004), (Jsm.Opcode.PSHN_L, 73), (Jsm.Opcode.POPM_B, 5008), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 8)];
+            (Jsm.Opcode, int)[] move = [(Jsm.Opcode.LBL, 1), .. (forced ? new (Jsm.Opcode, int)[] { (Jsm.Opcode.RANIMELOOP, 3) } : []), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 901), (Jsm.Opcode.POPI_L, 0), (Jsm.Opcode.PSHN_L, 123456), (Jsm.Opcode.PSHN_L, slot), (Jsm.Opcode.PSHN_L, 65536), (asynchronous ? Jsm.Opcode.RPMOVEA : forced ? Jsm.Opcode.FMOVEP : Jsm.Opcode.PMOVEA, asynchronous ? 122 : forced ? 0 : 64), (Jsm.Opcode.POPM_L, 5000), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_L, 5004), (Jsm.Opcode.PSHN_L, 73), (Jsm.Opcode.POPM_B, 5008), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 8)];
             (Jsm.Opcode, int)[] unused = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.UNUSE, 0), (Jsm.Opcode.RET, 8)];
             (Jsm.Opcode, int)[] target = [(Jsm.Opcode.LBL, 32), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.BASEANIME, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 12), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.RET, 8)];
             (Jsm.Opcode, int)[] targetMove = [(Jsm.Opcode.LBL, 33), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, -200), (Jsm.Opcode.PSHN_L, 300), (Jsm.Opcode.DOFFSET, 0), (Jsm.Opcode.PSHN_L, 16), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.RFMOVE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
@@ -44,6 +44,7 @@ internal static partial class Program
         }
         NativeScriptMovementState first = live.Actors[0].NativeScriptMovement ?? throw new InvalidOperationException("PMOVEA did not issue its shared native mode1 body.");
         Require(first.StopDistance == 0 && first.TargetNativeObjectId == 2 && live.Scene.NativeActorObjectIds.SequenceEqual([0, 2]) && live.Scene.PartyBindingMemory is { First: 1 } && live.Scene.FieldPartyNativeActorIds.SequenceEqual([255, 255, 255]) && (first.TargetX & 4095) != 0, "PMOVEA lost low-WORD stop distance, compact saved binding, fractional raw target or FOLLOWOFF independence.");
+        Require(first.AutomaticAnimation != forced && (!forced || live.Actors[0].AnimationId == 3), "Party target move changed forced/automatic animation ownership.");
         JsonElement issued = live.Capture();
         JsonElement held = issued.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
         if (asynchronous)
@@ -89,6 +90,7 @@ internal static partial class Program
             Require(JsonElement.DeepEquals(live.Capture(), independent.Capture()), "PMOVEA diverged after an independent held-slot/raw-target restore.");
             independent.Restore(live.Capture());
         }
+        Require(!forced || live.Actors[0].AnimationId == 3, "FMOVEP replaced its forced animation during completion despite absent inherited flag40000.");
         JsonElement variables = CapturedVariables(live.Capture());
         Require(retargeted && variables.GetProperty("5000").GetInt32() == 123456 && variables.GetProperty("5004").GetInt32() == 901 && variables.GetProperty("5008").GetInt32() == 73 && live.Actors[0].NativeScriptMovement is { Active: false, AnimationFlag40000: false } && live.Actors[0].NativeMotionAuthority?.FacingHold == 0, "PMOVEA failed its retargeted completion, held-slot consumption, unchanged R0/stack or native return2 successor.");
 
@@ -101,7 +103,7 @@ internal static partial class Program
             }
             throw new InvalidOperationException("PMOVEA truncated the full DWORD party slot256.");
         }
-        catch (EventScriptException) when (rejected.LastFault?.Opcode == "PMOVEA")
+        catch (EventScriptException) when (rejected.LastFault?.Opcode == (forced ? "FMOVEP" : "PMOVEA"))
         {
             JsonElement rejectedOwner = rejected.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
             Require(rejectedOwner.GetProperty("Position").GetInt32() == rejected.LastFault.Operation && rejectedOwner.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([65536, 256, 123456]) && rejected.Actors[0].NativeScriptMovement is null && rejected.Actors[0].X == 0, "PMOVEA refusal changed its PC, operands or physical mode1 body.");

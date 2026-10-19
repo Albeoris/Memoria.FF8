@@ -35,13 +35,20 @@ public sealed partial class EventEngine
 
     private string? UnsupportedNativeEyes(Fiber fiber, Albeoris.Games.FF8.Jsm.JsmOperation operation)
     {
-        if (operation.Opcode is not (Albeoris.Games.FF8.Jsm.Jsm.Opcode.OPENEYES or Albeoris.Games.FF8.Jsm.Jsm.Opcode.CLOSEEYES))
+        if (operation.Opcode is not (Albeoris.Games.FF8.Jsm.Jsm.Opcode.OPENEYES or Albeoris.Games.FF8.Jsm.Jsm.Opcode.CLOSEEYES or Albeoris.Games.FF8.Jsm.Jsm.Opcode.BLINKEYES))
         {
             return null;
         }
         try
         {
-            PrepareNativeEyes(actors[fiber.ObjectId], operation.Opcode == Albeoris.Games.FF8.Jsm.Jsm.Opcode.CLOSEEYES);
+            if (operation.Opcode == Albeoris.Games.FF8.Jsm.Jsm.Opcode.BLINKEYES)
+            {
+                _ = PrepareNativeBlinkEyes(fiber);
+            }
+            else
+            {
+                PrepareNativeEyes(actors[fiber.ObjectId], operation.Opcode == Albeoris.Games.FF8.Jsm.Jsm.Opcode.CLOSEEYES);
+            }
             return null;
         }
         catch (Exception exception) when (exception is InvalidDataException or NotSupportedException or ArgumentException or ArithmeticException)
@@ -50,7 +57,7 @@ public sealed partial class EventEngine
         }
     }
 
-    private void ValidateNativeEyes(IReadOnlyList<ActorState> savedActors)
+    private void ValidateNativeEyes(IReadOnlyList<ActorState> savedActors, SceneEventState scene)
     {
         foreach (ActorState actor in savedActors)
         {
@@ -66,12 +73,21 @@ public sealed partial class EventEngine
             {
                 continue;
             }
+            if (eyes.Mode == 0x80000 && eyes.BoundModelId == -1 && actor.NativeAnimationHeader?.BoundModelId == -1 && eyes.BackendHighNibble114 is null && eyes.Patch is null && actor.NativeEyeBlinkParameter611 is not null)
+            {
+                continue;
+            }
             if (eyes.BoundModelId != actor.NativeAnimationHeader?.BoundModelId || eyes.BoundModelId is not int model || ReadNativeEyes?.Invoke(model) is not { } definition || !program!.NativeObjects.Take(program.NativeActorCount).Contains(actor.ObjectId))
             {
                 throw new InvalidDataException("Saved native eye copy lost its original registered resource.");
             }
             NativeEyeCopy? expected = eyes.Mode == 0x80000 ? null : definition.Copy(eyes.Mode == 0x200000);
             byte? backend = definition.Bank.Length == 0 ? null : eyes.Mode == 0x80000 ? (byte)0x10 : eyes.Mode == 0x200000 ? (byte)0x20 : (byte)0x40;
+            if (eyes.Mode == 0x80000 && definition.Bank.Length > 0 && scene.NativeEyeProcess is { } process && scene.NativeFieldRegistration is { } registration)
+            {
+                NativeFieldRegisteredInstance instance = registration.Instances.Single(item => item.ObjectId == actor.ObjectId);
+                backend = (byte)(process.Memory.FileStaging!.Read(instance.Address + 114, 1)[0] & 0xF0);
+            }
             if (eyes.Mode == 0x80000 && actor.NativeEyeBlinkParameter611 is null || eyes.BackendHighNibble114 != backend || JsonSerializer.Serialize(expected) != JsonSerializer.Serialize(eyes.Patch))
             {
                 throw new InvalidDataException("Saved native eye copy disagrees with the authenticated resource rectangle.");

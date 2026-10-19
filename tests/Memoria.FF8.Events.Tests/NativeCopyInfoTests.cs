@@ -8,18 +8,26 @@ namespace Memoria.FF8.Events.Tests;
 
 internal static partial class Program
 {
-    private static void NativeCopyInfoContract(string gameDirectory)
+    private static void NativeCopyInfoContract(string gameDirectory, bool party = false)
     {
         using GameAssets assets = new(gameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
         NativeEconomy economy = assets.ReadNewGameEconomy();
-        EventEngine Create(int sourceId = 2)
+        EventEngine Create(int? rawSource = null)
         {
+            int sourceId = rawSource ?? (party ? 0 : 2);
+            Jsm.Opcode copyOpcode = party ? Jsm.Opcode.PCOPYINFO : Jsm.Opcode.COPYINFO;
             (Jsm.Opcode, int)[] caller = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 9000), (Jsm.Opcode.MSPEED, 0), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 7), (Jsm.Opcode.PSHN_L, 88), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.RET, 8)];
-            (Jsm.Opcode, int)[] copy = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 901), (Jsm.Opcode.POPI_L, 0), (Jsm.Opcode.PSHN_L, 123456), (Jsm.Opcode.PSHN_L, sourceId), (Jsm.Opcode.COPYINFO, 0), (Jsm.Opcode.POPM_L, 5004), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_L, 5000), (Jsm.Opcode.PSHN_L, 73), (Jsm.Opcode.POPM_B, 5008), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETINFO, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_L, 5010), (Jsm.Opcode.PSHI_L, 1), (Jsm.Opcode.POPM_L, 5014), (Jsm.Opcode.PSHI_L, 6), (Jsm.Opcode.POPM_L, 5018), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
+            (Jsm.Opcode, int)[] copy = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 901), (Jsm.Opcode.POPI_L, 0), (Jsm.Opcode.PSHN_L, 123456), (Jsm.Opcode.PSHN_L, sourceId), (copyOpcode, 0), (Jsm.Opcode.POPM_L, 5004), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_L, 5000), (Jsm.Opcode.PSHN_L, 73), (Jsm.Opcode.POPM_B, 5008), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETINFO, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_L, 5010), (Jsm.Opcode.PSHI_L, 1), (Jsm.Opcode.POPM_L, 5014), (Jsm.Opcode.PSHI_L, 6), (Jsm.Opcode.POPM_L, 5018), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
             (Jsm.Opcode, int)[] unused = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.UNUSE, 0), (Jsm.Opcode.RET, 8)];
             (Jsm.Opcode, int)[] source = [(Jsm.Opcode.LBL, 32), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, -19), (Jsm.Opcode.PSHN_L, 22), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 3), (Jsm.Opcode.PSHN_L, 2000), (Jsm.Opcode.MSPEED, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.RET, 8)];
             (Jsm.Opcode, int)[] moving = [(Jsm.Opcode.LBL, 33), (Jsm.Opcode.PSHN_L, -100), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.RFMOVE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
+            if (party)
+            {
+                List<(Jsm.Opcode, int)> partyCopy = copy.ToList();
+                partyCopy.InsertRange(3, [(Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.REFRESHPARTY, 0)]);
+                copy = partyCopy.ToArray();
+            }
             GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
             EventEngine engine = new(session, session.EventMemory)
             {
@@ -45,7 +53,7 @@ internal static partial class Program
         int retainedModel = -1;
         live.CommandExecuted += command =>
         {
-            if (command.Name == "COPYINFO")
+            if (command.Name == (party ? "PCOPYINFO" : "COPYINFO"))
             {
                 sampled = live.Actors[2].NativeScriptMovement;
             }
@@ -64,7 +72,7 @@ internal static partial class Program
         JsonElement issued = live.Capture();
         Require(destination.ModelId == retainedModel && destination.ModelId != live.Actors[2].ModelId && destination.NativeMovementBaseSpeed == 9000, $"COPYINFO changed caller model/base speed: {retainedModel}->{destination.ModelId}/{destination.NativeMovementBaseSpeed}.");
         Require(destination.NativeMotionAuthority == authority && destination.NativeMovementCompletion542 == completion && destination.NativeTurnAccumulator474 == counter && destination.NativeScriptMovement is null, $"COPYINFO changed caller physical words: authority{authority}->{destination.NativeMotionAuthority}, completion{completion}->{destination.NativeMovementCompletion542}, counter{counter}->{destination.NativeTurnAccumulator474}, movement{destination.NativeScriptMovement}.");
-        Require(issued.GetProperty("Variables").GetProperty("5004").GetInt32() == 123456 && issued.GetProperty("Variables").GetProperty("5000").GetInt32() == 901 && issued.GetProperty("Variables").GetProperty("5008").GetInt32() == 73, "COPYINFO changed unrelated operands/R0 or failed same-callback return2 continuation.");
+        Require(CapturedVariables(issued).GetProperty("5004").GetInt32() == 123456 && CapturedVariables(issued).GetProperty("5000").GetInt32() == 901 && CapturedVariables(issued).GetProperty("5008").GetInt32() == 73, "COPYINFO changed unrelated operands/R0 or failed same-callback return2 continuation.");
         EventEngine independent = Create();
         independent.Restore(issued);
         for (int callback = 0; callback < 4; callback++)
@@ -73,7 +81,7 @@ internal static partial class Program
             independent.Step();
             Require(JsonElement.DeepEquals(live.Capture(), independent.Capture()) && live.Actors[0].NativeCopiedPosition == copied, "Copied raw position diverged after restore or followed subsequent source movement.");
         }
-        JsonElement values = live.Capture().GetProperty("Variables");
+        JsonElement values = CapturedVariables(live.Capture());
         Require(values.GetProperty("5010").GetInt32() == copied.FixedX / 4096 && values.GetProperty("5014").GetInt32() == copied.FixedY / 4096 && values.GetProperty("5018").GetInt32() == 2000 && live.Actors[2].NativeScriptMovement!.FixedX != copied.FixedX, "GETINFO did not consume the copied raw owner with native signed division/current speed.");
         EventEngine refused = Create(258);
         try
@@ -84,7 +92,7 @@ internal static partial class Program
             }
             throw new InvalidOperationException("COPYINFO truncated an out-of-table full DWORD source index.");
         }
-        catch (EventScriptException) when (refused.LastFault?.Opcode == "COPYINFO")
+        catch (EventScriptException) when (refused.LastFault?.Opcode == (party ? "PCOPYINFO" : "COPYINFO"))
         {
             JsonElement owner = refused.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
             Require(owner.GetProperty("Position").GetInt32() == refused.LastFault.Operation && owner.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([258, 123456]) && refused.Actors[0] is { X: 10, Y: 20, MovementSpeed: 9000, NativeCopiedPosition: null }, "COPYINFO refusal changed PC, full operands or destination body.");

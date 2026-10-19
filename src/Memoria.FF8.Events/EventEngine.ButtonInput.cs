@@ -1,4 +1,4 @@
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Runtime;
 
@@ -47,7 +47,7 @@ public sealed partial class EventEngine
 
     private string? UnsupportedButtonQuery(Fiber fiber, JsmOperation operation)
     {
-        if (operation.Opcode is not (Jsm.Opcode.KEYON or Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2))
+        if (operation.Opcode is not (Jsm.Opcode.KEYON or Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2 or Jsm.Opcode.KEYON2))
         {
             return null;
         }
@@ -56,7 +56,7 @@ public sealed partial class EventEngine
             return $"{operation.Opcode} requires its original DWORD mask and an ordinary sampled native input word";
         }
         ButtonInput.ValidateSample(FieldId, Frame, services.InputConfiguration);
-        if (operation.Opcode != Jsm.Opcode.KEYSCAN2 && ButtonInput.Held is null)
+        if (operation.Opcode is not (Jsm.Opcode.KEYSCAN2 or Jsm.Opcode.KEYON2) && ButtonInput.Held is null)
         {
             return "Mapped button query requires the actual retained native input configuration; raw input cannot replace it";
         }

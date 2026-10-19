@@ -1,4 +1,4 @@
-using Albeoris.Games.FF8.Jsm;
+﻿using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
@@ -83,6 +83,7 @@ public sealed partial class EventEngine
             ApplyPendingArrival();
         }
         BindNativeAnimationResources();
+        InitializeNativeFieldEyeProcess();
         if (Scene.NativeFieldInitialization is NativeFieldInitializationProof proof)
         {
             Scene.NativeFieldInitialization = proof with { Stage = NativeFieldInitializationStage.Completed };

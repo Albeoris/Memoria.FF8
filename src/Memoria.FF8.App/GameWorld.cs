@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Rendering;
@@ -251,6 +251,7 @@ internal sealed partial class GameWorld : IDisposable
             throw new NotSupportedException("Restoring a dormant field cannot supply the unknown current world event/menu random, vibration, fade or shop owners from its earlier snapshot.");
         }
         FieldAssets next = assets.LoadField(fieldId);
+        Events.ReadNativeFieldRegistrationResources = () => next.NativeRegistration;
         Events.ResolveFieldSoundEffectTable = () =>
         {
             FieldSoundEffectTable table = assets.LoadFieldSoundEffects(next.Id);
@@ -281,11 +282,13 @@ internal sealed partial class GameWorld : IDisposable
         Events.CanSetBackgroundScrollPosition = (layer, x, y) => DirectBackgroundScrollCertificate.CanSet(next, Events.Scene, layer, x, y) || NativeNonselectedBackgroundScrollCertificate.CanSetDirect(next, Events.Scene, layer, x, y) || NativeWrappedBackgroundScrollCertificate.CanSetDirect(next, Events.Scene, layer, x, y);
         Events.ResolveNativeActorScrollCenter = nativeActor => ActorBackgroundScrollCertificate.Resolve(next, Events.Scene, Events.Actors, nativeActor);
         Events.ResolveNativeLayerActorScrollCenter = (layer, nativeActor) => ActorBackgroundScrollCertificate.Resolve(next, Events.Scene, Events.Actors, nativeActor, layer);
+        Events.CanSetNativeLayerActorLinearBackgroundScroll = (layer, actor, duration) => ActorBackgroundScrollCertificate.CanSetInterpolated(next, Events.Scene, Events.Actors, actor, duration, layer);
         Events.CanSetNativeLayerActorCosineBackgroundScroll = (layer, actor, duration) => ActorBackgroundScrollCertificate.CanSetInterpolated(next, Events.Scene, Events.Actors, actor, duration, layer);
         Events.CanRestoreNativeActorScroll = (scene, actors) => ActorBackgroundScrollCertificate.CanRestore(next, scene, actors);
         Events.CanSetNativeActorCosineBackgroundScroll = (actor, duration) => ActorBackgroundScrollCertificate.CanSetInterpolated(next, Events.Scene, Events.Actors, actor, duration);
         Events.CanSetNativeActorLinearBackgroundScroll = (actor, duration) => ActorBackgroundScrollCertificate.CanSetInterpolated(next, Events.Scene, Events.Actors, actor, duration);
         Events.CanSetPartyBackgroundScroll = (partySlot, nativeActorId, duration) => BackgroundScrollCertificate.CanSetPartyPosition(next, Events.Scene, Events.Actors, partySlot, nativeActorId, duration);
+        Events.CanSetExplicitCosineBackgroundScroll = (query, scene) => ExplicitCosineScrollCertificate.CanSet(next, query, scene);
         Events.CanSetCosineBackgroundScroll = (layer, x, y, duration) => BackgroundScrollCertificate.CanSetCosinePosition(next, Events.Scene, layer, x, y, duration);
         Events.ResolveNativeNormalBackgroundScrollCenter = () => DirectBackgroundScrollCertificate.ResolveNormalCenter(next, Events.Scene, Events.Actors);
         Events.ResolvePartyTraceTriangle = (x, y, z) => FieldPartyTraceGeometry.Resolve(next.Walkmesh, x, y, z);
@@ -348,7 +351,7 @@ internal sealed partial class GameWorld : IDisposable
         }
         if (snapshot is not null && session.State.Battle is null && Events.Scene.NativeFieldRegistration is { } registration)
         {
-            NativeBattleRetainedMemory memory = session.State.NativeBattleMemory ?? throw new InvalidDataException("Registered field restore lost its shared physical resource memory.");
+            NativeBattleRetainedMemory memory = restoreDeparting && Events.Scene.NativeEyeProcess is { } dormantEyes ? dormantEyes.Memory : session.State.NativeBattleMemory ?? throw new InvalidDataException("Registered field restore lost its shared physical resource memory.");
             Events.ValidateNativeBattleFieldRegistrationMemory(memory);
             next = assets.BindNativeRegisteredTextures(next, registration, memory.EffectMemory?.Textures ?? throw new InvalidDataException("Registered field restore lost its physical texture memory."));
         }

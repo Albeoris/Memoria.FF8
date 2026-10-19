@@ -1,4 +1,4 @@
-namespace Memoria.FF8.Events;
+﻿namespace Memoria.FF8.Events;
 
 public sealed record NativeFieldSoundDeparture(int FieldId, int[] Voices);
 
@@ -9,10 +9,9 @@ public sealed partial class EventEngine
 
     private void StopDepartingFieldSounds()
     {
-        // Native471F70 calls46B450(-2, FFFFFF) before the next field loader.
-        // Unknown14, which changes that mask, remains unsupported by the VM.
-        // The default path stops field effect IDs on voices1..28 without clearing their identities.
-        int[] voices = services.GlobalSoundProcess is { } process ? Enumerable.Range(1, 28).Where(voice => process.OriginalEffectIds[voice] is >= 10000).ToArray() : [];
-        AudioCommandExecuted?.Invoke(new NativeFieldSoundDeparture(FieldId, voices));
+        //46B450 treats low24 FFFFFF as the field-ID sentinel; other masks select physical voices.
+        uint mask = Scene.NativeFieldSoundStopMask & 0xFFFFFF;
+        int[] selected = mask == 0xFFFFFF ? services.GlobalSoundProcess is { } process ? Enumerable.Range(1, 28).Where(voice => process.OriginalEffectIds[voice] is >= 10000).ToArray() : [] : mask == 0 ? [] : Enumerable.Range(1, 28).Where(voice => (mask & (1u << (voice - 1))) != 0).ToArray();
+        AudioCommandExecuted?.Invoke(new NativeFieldSoundDeparture(FieldId, selected));
     }
 }

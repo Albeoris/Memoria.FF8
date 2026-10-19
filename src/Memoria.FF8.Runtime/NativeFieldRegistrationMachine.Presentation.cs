@@ -141,21 +141,7 @@ public static partial class NativeFieldRegistrationMachine
             throw new InvalidDataException("Native retained eye mode is outside its implemented physical mask.");
         }
         uint source = mode == 0x200000 ? eyes + 12 : checked(eyes + 8 + 4u * memory.Read8(eyes + 5));
-        short sourceX = unchecked((short)memory.Read16(source));
-        short sourceY = unchecked((short)memory.Read16(source + 2));
-        short destinationX = unchecked((short)memory.Read16(eyes + 6));
-        short destinationY = unchecked((short)memory.Read16(eyes + 8));
-        short width = memory.Read8(eyes + 3);
-        short height = memory.Read8(eyes + 4);
-        NativeBattleEffectTextureState textures = context.Effects.Textures ?? throw new InvalidDataException("Native retained eye copy lost its shared VRAM.");
-        NativeBattlePrimitiveProcess? process = context.Effects.PrimitiveProcess;
-        if (process?.TextureWindowCache is { } cache)
-        {
-            process = process with { TextureWindowCache = cache.Invalidate464850(destinationX, destinationY, destinationX + width - 1, destinationY + height - 1, textures) };
-        }
-        NativeBattleEffectTextureDrain copied = (textures with { Count = 0 }).EnqueueCopy505EB0(sourceX, sourceY, width, height, destinationX, destinationY).Drain505D20();
-        context.Effects = context.Effects with { Textures = textures with { VramRegions = copied.State.VramRegions }, PrimitiveProcess = process };
-        context.Uploads.AddRange(copied.Uploads);
+        CopyEyeRectangle(context, eyes, source);
         memory.Write8(instance + 114, (byte)(memory.Read8(instance + 114) & 15 | (mode == 0x200000 ? 0x20 : 0x40)));
     }
 }

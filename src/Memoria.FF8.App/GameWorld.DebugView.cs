@@ -108,14 +108,9 @@ internal sealed partial class GameWorld
         bool inheritedVisible = view?.Visible ?? actor.Active && (patched || actor.Visible);
         bool visible = (inspectionVisible ?? (inspectionObjects.TryGetValue(actor.ObjectId, out bool inspectedVisible) ? inspectedVisible : inheritedVisible)) && !Events.IsNativeModelDrawPending;
         bool validateNativeDrawing = resolveNativeDrawing && (visible || inspectionVisible is true);
-        if (validateNativeDrawing && actor.NativeEyes?.Patch is not null)
-        {
-            // TODO(TD-015): project the authenticated native VRAM eye copy.
-            throw new NotSupportedException("Drawing a native eye VRAM copy is not implemented; its authenticated headless state is retained.");
-        }
         IReadOnlyDictionary<int, Vector3>? translations = validateNativeDrawing && modelId >= 0 && !patched ? Events.GetNativeModelPartTranslations(actor.ObjectId) : null;
         int animationId = view?.AnimationId ?? (patched ? mod.Patch.AnimationId : actor.AnimationId);
         float frame = view?.Frame ?? (patched ? Events.Frame % presentationField!.GetAnimationFrameCount(modelId, animationId) : actor.AnimationFrame);
-        return new ActorVisual(actor.ObjectId, modelId, view?.X ?? actor.X + actor.DisplayOffset.X, view?.Y ?? actor.Y + actor.DisplayOffset.Y, view?.Z ?? actor.Z + actor.DisplayOffset.Z, patched ? mod.Patch.Direction ?? actor.Direction : actor.Direction, animationId, frame, visible, RootTranslationZ: actor.RootTranslationZ, FirstControlRotation: patched ? null : actor.FirstControlRotation, AdditionalControlDisabled: !patched && actor.AdditionalControlDisabled, PolygonColor: actor.PolygonColor, GroundShadowRadius601To608: actor.NativeShadowSet?.Radius601To608, GroundShadowLevel609: actor.NativeShadowLevel?.Level609 ?? actor.NativeShadowAllocation?.Level609, GroundShadowCentre: new Vector3(actor.X, actor.Y, actor.Z), GroundShadowRadii601To608: actor.NativeShadowForm?.Radii601To608, SkinTranslations: translations, PrimitiveTransparencyEnabled: actor.PrimitiveTransparencyEnabled);
+        return new ActorVisual(actor.ObjectId, modelId, view?.X ?? actor.X + actor.DisplayOffset.X, view?.Y ?? actor.Y + actor.DisplayOffset.Y, view?.Z ?? actor.Z + actor.DisplayOffset.Z, patched ? mod.Patch.Direction ?? actor.Direction : actor.Direction, animationId, frame, visible, RootTranslationZ: actor.RootTranslationZ, FirstControlRotation: patched ? null : actor.FirstControlRotation, AdditionalControlDisabled: !patched && actor.AdditionalControlDisabled, PolygonColor: actor.PolygonColor, GroundShadowRadius601To608: actor.NativeShadowSet?.Radius601To608, GroundShadowLevel609: actor.NativeShadowLevel?.Level609 ?? actor.NativeShadowAllocation?.Level609, GroundShadowCentre: new Vector3(actor.X, actor.Y, actor.Z), GroundShadowRadii601To608: actor.NativeShadowForm?.Radii601To608, SkinTranslations: translations, PrimitiveTransparencyEnabled: actor.PrimitiveTransparencyEnabled, RegisteredTextures: validateNativeDrawing && !patched ? RegisteredEyeTextures(actor, modelId) : null);
     }
 }

@@ -57,6 +57,19 @@ public sealed partial class EventEngine
         backgroundStates[moduleIndex] = BackgroundFrame(animation.Position);
     }
 
+    private string? UnsupportedBackgroundAnimationFlag(Fiber fiber)
+    {
+        return fiber.Stack.Count > 0 && fiber.Stack.PeekValue().IsExact && program!.Objects[fiber.ObjectId].BackgroundModuleIndex == fiber.BackgroundId ? null : "BGANIMEFLAG requires its exact original operand and calling background module";
+    }
+
+    private int[] ExecuteBackgroundAnimationFlag(Fiber fiber)
+    {
+        int[] args = Pop(fiber, 1);
+        //520880 stores only lowWORD404 and returns2;52AEF0 and475480
+        //consume independent animation/shade words without reading this field.
+        GetBackgroundAnimation(fiber.BackgroundId).NativeFlag404 = unchecked((short)args[0]);
+        return args;
+    }
     private sealed class BackgroundAnimation
     {
         public int First;
@@ -68,5 +81,6 @@ public sealed partial class EventEngine
         public bool Complete;
         public bool Loop;
         public int NativeVersion = 1;
+        public short? NativeFlag404;
     }
 }

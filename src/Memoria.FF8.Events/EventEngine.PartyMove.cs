@@ -4,7 +4,7 @@ namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
-    private bool IsNativePartyMove(int operation) => (uint)operation < program!.Operations.Count && program.Operations[operation].Opcode == Jsm.Opcode.PMOVEA;
+    private bool IsNativePartyMove(int operation) => (uint)operation < program!.Operations.Count && program.Operations[operation].Opcode is Jsm.Opcode.PMOVEA or Jsm.Opcode.FMOVEP;
 
     private bool IsNativeAsyncPartyMove(int operation) => (uint)operation < program!.Operations.Count && program.Operations[operation].Opcode == Jsm.Opcode.RPMOVEA;
 

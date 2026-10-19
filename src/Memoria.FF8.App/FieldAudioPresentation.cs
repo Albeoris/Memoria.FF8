@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
@@ -140,6 +140,12 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
                     break;
                 case NativeSoundVolumeTransition volume:
                     SetVoiceVolume(volume.Voice, volume.Volume, volume.DurationMilliseconds);
+                    break;
+                case NativeAllSoundPosition position:
+                    for (int voice = 1; voice < 30; voice++)
+                    {
+                        SetVoicePan(voice, position.Pan, position.DurationMilliseconds);
+                    }
                     break;
                 case NativeSoundPosition position:
                     SetVoicePan(position.Voice, position.Pan, position.DurationMilliseconds);

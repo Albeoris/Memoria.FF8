@@ -6,13 +6,13 @@ public sealed record NativeCopiedPosition(int Version, int FieldId, int ObjectId
 
 public sealed partial class EventEngine
 {
-    private (ActorState Source, FieldFixedPosition Position) PrepareNativeCopyInfo(Fiber fiber)
+    private (ActorState Source, FieldFixedPosition Position) PrepareNativeCopyInfo(Fiber fiber, bool party = false)
     {
-        if (NativeRuntimeProfile is not { IsVerified: true } || Scene.NativeActorLayoutVersion != 1 || !Scene.NativeActorObjectIds.Contains(fiber.ObjectId) || fiber.Stack.Count == 0 || !fiber.Stack.PeekValue().IsExact || (uint)fiber.Stack.Peek() >= program!.NativeObjects.Count)
+        if (NativeRuntimeProfile is not { IsVerified: true } || Scene.NativeActorLayoutVersion != 1 || !Scene.NativeActorObjectIds.Contains(fiber.ObjectId) || fiber.Stack.Count == 0 || !fiber.Stack.PeekValue().IsExact || !party && (uint)fiber.Stack.Peek() >= program!.NativeObjects.Count)
         {
             throw new NotSupportedException("COPYINFO requires its original full DWORD native-object index and authenticated retained bodies.");
         }
-        ActorState source = actors[program.NativeObjects[fiber.Stack.Peek()]];
+        ActorState source = party ? ResolveNativeIndexedPartyBody(fiber.Stack.Peek(), out _, out _) ?? throw new NotSupportedException("PCOPYINFO source lies outside the owned retained body table.") : actors[program!.NativeObjects[fiber.Stack.Peek()]];
         FieldFixedPosition raw = Scene.NativeActorObjectIds.Contains(source.ObjectId) ? ReadNativePlayerContactPosition(source) ?? throw new NotSupportedException("COPYINFO source has no preserved raw DWORD XYZ.") : throw new NotSupportedException("COPYINFO source is not an owned physical actor body.");
         if (source.NativeMovementBaseSpeed is null || source.MovementSpeed is < short.MinValue or > short.MaxValue || !float.IsFinite(source.Direction) || source.Direction != MathF.Truncate(source.Direction) || source.Direction is < byte.MinValue or > byte.MaxValue || source.WalkmeshTriangle is < short.MinValue or > ushort.MaxValue || new[] { raw.X, raw.Y, raw.Z }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue))
         {
@@ -26,11 +26,11 @@ public sealed partial class EventEngine
         return (source, raw);
     }
 
-    private string? UnsupportedNativeCopyInfo(Fiber fiber)
+    private string? UnsupportedNativeCopyInfo(Fiber fiber, bool party = false)
     {
         try
         {
-            _ = PrepareNativeCopyInfo(fiber);
+            _ = PrepareNativeCopyInfo(fiber, party);
             return null;
         }
         catch (NotSupportedException exception)
@@ -39,11 +39,11 @@ public sealed partial class EventEngine
         }
     }
 
-    private int[] ExecuteNativeCopyInfo(Fiber fiber)
+    private int[] ExecuteNativeCopyInfo(Fiber fiber, bool party = false)
     {
-        (ActorState source, FieldFixedPosition raw) = PrepareNativeCopyInfo(fiber);
+        (ActorState source, FieldFixedPosition raw) = PrepareNativeCopyInfo(fiber, party);
         ActorState destination = actors[fiber.ObjectId];
-        int sourceId = fiber.Stack.Peek();
+        int sourceId = program!.NativeObjects.ToList().IndexOf(source.ObjectId);
         ushort triangle = unchecked((ushort)source.WalkmeshTriangle);
         byte facing = checked((byte)source.Direction);
         short speed = checked((short)source.MovementSpeed);
@@ -74,7 +74,7 @@ public sealed partial class EventEngine
         {
             NativeCopiedPosition copied = actor.NativeCopiedPosition!;
             EventScript? script = program!.Objects[actor.ObjectId].Scripts.FirstOrDefault(script => script.Id == copied.ScriptId);
-            if (NativeRuntimeProfile is not { IsVerified: true } || copied.Version != 1 || copied.FieldId != saved.FieldId || copied.ObjectId != actor.ObjectId || copied.Frame is < 1 || copied.Frame > saved.Frame || copied.FiberSequence < 1 || script is null || !script.ContainsOperation(copied.Operation) || program.Operations[copied.Operation].Opcode != Jsm.Opcode.COPYINFO || (uint)copied.SourceNativeObjectId >= program.NativeObjects.Count || !saved.Scene.NativeActorObjectIds.Contains(program.NativeObjects[copied.SourceNativeObjectId]) || !saved.Scene.NativeActorObjectIds.Contains(actor.ObjectId) || saved.Scene.NativeActorLayoutVersion != 1 || actor.X != copied.FixedX / 4096f || actor.Y != copied.FixedY / 4096f || actor.Z != copied.FixedZ / 4096f || actor.WalkmeshTriangle != copied.Triangle || new[] { copied.FixedX, copied.FixedY, copied.FixedZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue))
+            if (NativeRuntimeProfile is not { IsVerified: true } || copied.Version != 1 || copied.FieldId != saved.FieldId || copied.ObjectId != actor.ObjectId || copied.Frame is < 1 || copied.Frame > saved.Frame || copied.FiberSequence < 1 || script is null || !script.ContainsOperation(copied.Operation) || program.Operations[copied.Operation].Opcode is not (Jsm.Opcode.COPYINFO or Jsm.Opcode.PCOPYINFO) || (uint)copied.SourceNativeObjectId >= program.NativeObjects.Count || !saved.Scene.NativeActorObjectIds.Contains(program.NativeObjects[copied.SourceNativeObjectId]) || !saved.Scene.NativeActorObjectIds.Contains(actor.ObjectId) || saved.Scene.NativeActorLayoutVersion != 1 || actor.X != copied.FixedX / 4096f || actor.Y != copied.FixedY / 4096f || actor.Z != copied.FixedZ / 4096f || actor.WalkmeshTriangle != copied.Triangle || new[] { copied.FixedX, copied.FixedY, copied.FixedZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue))
             {
                 throw new InvalidDataException("Saved COPYINFO placement lost its original instruction, retained raw source or exact copied coordinates.");
             }
