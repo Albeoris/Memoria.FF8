@@ -182,6 +182,35 @@ public sealed partial class GameAssets
             {
                 binding = binding with { Suicide180Resources = ReadNativeSuicide180Resources() };
             }
+            if (binding.Effect == 108)
+            {
+                binding = binding with { Berserk108Resources = ReadNativeBerserk108Resources() };
+            }
+            if (binding.Effect == 123)
+            {
+                binding = binding with { Slow123Resources = ReadNativeSlow123Resources() };
+            }
+            if (binding.Effect == 41)
+            {
+                binding = binding with { Dribble41Resources = ReadNativeDribble41Resources() };
+            }
+            if (binding.Effect == 42)
+            {
+                binding = binding with { Shoot42Resources = ReadNativeShoot42Resources() };
+            }
+            if (binding.Effect == 36)
+            {
+                binding = binding with { Confuse36Resources = ReadNativeConfuse36Resources() };
+            }
+            if (binding.Effect == 110)
+            {
+                binding = binding with { Control110Resources = ReadNativeControl110Resources() };
+            }
+            if (binding.Effect == 17)
+            {
+                binding = binding with { Landing17Resources = ReadNativeLanding17Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 179)
             {
                 binding = binding with { BombGlow179Resources = ReadNativeBombGlow179Resources() };

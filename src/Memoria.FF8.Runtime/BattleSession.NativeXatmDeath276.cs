@@ -88,7 +88,7 @@ public sealed partial class BattleSession
                     (graphics, current) = AppendNativeXatmDeath276Packets(graphics, current, packets.Batch);
                     return current;
                 case NativeBattleXatmDeath276White white:
-                    (graphics, current) = AppendNativeXatmDeath276Packets(graphics, current, NativeBattleXatmDeath276Body.White7040B0(255, 255, 255, white.Level));
+                    (graphics, current) = AppendNativeXatmDeath276Packets(graphics, current, NativeBattleXatmDeath276Body.White7040B0(255, 255, 255, white.Level), 1);
                     return current;
                 case NativeBattleXatmDeath276Sound sound:
                     PublishNativeModuleSound(new(sound.Sound, 0, null) { Pan = 128 });
@@ -132,10 +132,11 @@ public sealed partial class BattleSession
             ImmutableArray<short> profile = Enumerable.Range(0, 8).Select(index => BinaryPrimitives.ReadInt16LittleEndian(current.Memory.Arena!.Read(current.State.BufferOffset + 0x4304 + index * 2, 2))).ToImmutableArray();
             ImmutableArray<ushort> lengths = Enumerable.Range(0, 256).Select(index => BinaryPrimitives.ReadUInt16LittleEndian(resources.ArcLengths.AsSpan().Slice(index * 2))).ToImmutableArray();
             NativeBattleSharedEffectRandomState random = current.Memory.SharedEffectRandom ?? throw new NotSupportedException("Native X-ATM092 arcs require their actual shared random owner.");
-            NativeBattleXatmDeath276ArcStep stepped = NativeBattleXatmDeath276Arcs.Advance(pool.Slots[slot], new(lengths, resources.ArcDistances), profile, projection, random, Triangle);
+            uint? directionResidue = current.Memory.ExecutionStack is { } stack ? NativeBattleXatmDeath276Stack.ResolveDirectionResidue(stack, graphics.EntryLifecycle) : null;
+            NativeBattleXatmDeath276ArcStep stepped = NativeBattleXatmDeath276Arcs.Advance(pool.Slots[slot], new(lengths, resources.ArcDistances), profile, projection, random, Triangle, directionResidue);
             pool = pool with { Slots = pool.Slots.SetItem(slot, stepped.Task) };
             current = current with { Memory = current.Memory with { SharedEffectRandom = stepped.Random }, Effect = current.Effect with { Pools = current.Effect.Pools.SetItem(5, pool) } };
-            (graphics, current) = AppendNativeXatmDeath276FramePackets(graphics, current, NativeBattleCinematicMonsterPackets.Pack(stepped.FramePrimitives));
+            (graphics, current) = AppendNativeXatmDeath276FramePackets(graphics, current, NativeBattleCinematicMonsterPackets.Pack(stepped.FramePrimitives), 1);
             return new(current, stepped.Result);
 
             NativeBattleQuezacotlRibbonSample Triangle(uint pointer)
@@ -184,20 +185,20 @@ public sealed partial class BattleSession
         }
     }
 
-    private (NativeBattleGraphicsState Graphics, NativeBattleXatmDeath276Frame Frame) AppendNativeXatmDeath276Packets(NativeBattleGraphicsState graphics, NativeBattleXatmDeath276Frame frame, NativeBattleGfGeometryBatch batch)
+    private (NativeBattleGraphicsState Graphics, NativeBattleXatmDeath276Frame Frame) AppendNativeXatmDeath276Packets(NativeBattleGraphicsState graphics, NativeBattleXatmDeath276Frame frame, NativeBattleGfGeometryBatch batch, ushort flags20 = 0)
     {
         NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native X-ATM092 requires its physical ordering table.");
         int cursor = frame.State.DrawCursor ?? throw new NotSupportedException("Native X-ATM092 requires its selected module arena.");
-        NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(frame.Memory, cursor, primitive.Pending, batch);
+        NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(frame.Memory, cursor, primitive.Pending, batch, flags20);
         NativeEffectMemory = written.Memory;
         return (graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } }, frame with { Memory = written.Memory, State = frame.State with { DrawCursor = written.Cursor } });
     }
 
-    private (NativeBattleGraphicsState Graphics, NativeBattleXatmDeath276Frame Frame) AppendNativeXatmDeath276FramePackets(NativeBattleGraphicsState graphics, NativeBattleXatmDeath276Frame frame, NativeBattleGfGeometryBatch batch)
+    private (NativeBattleGraphicsState Graphics, NativeBattleXatmDeath276Frame Frame) AppendNativeXatmDeath276FramePackets(NativeBattleGraphicsState graphics, NativeBattleXatmDeath276Frame frame, NativeBattleGfGeometryBatch batch, ushort flags20 = 0)
     {
         NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native X-ATM092 requires its physical frame ordering table.");
         NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native X-ATM092 requires its actual FRAME packet arena.");
-        NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, batch);
+        NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, batch, flags20);
         NativeEffectMemory = frame.Memory with { PrimitiveProcess = written.Process };
         return (graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } }, frame with { Memory = NativeEffectMemory });
     }

@@ -69,6 +69,14 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
         NativeBattleAiAbility ability = installedAi.Abilities[16 * installedAi.LevelBand + slot];
         Assert.NotEqual((ushort)0, ability.Id);
         BattleNativeAction native = Assert.Single(assets.NativeActions, action => action.Command == ability.Command && action.ActionId == ability.Id);
+        string? control = Environment.GetEnvironmentVariable("MEMORIA_FF8_MONSTER_CONTROL");
+        if (control is not null)
+        {
+            ushort effect = ushort.Parse(control);
+            Assert.Contains(effect, new ushort[] { 17, 18, 110, 248 });
+            native = native with { Command = 252, ActionId = 1, MagicId = effect, AttackType = 0 };
+            ability = new(252, 1, 0);
+        }
         string? sourcePath = Environment.GetEnvironmentVariable("MEMORIA_FF8_MONSTER_SNAPSHOT");
         BattleSnapshot? source = sourcePath is null ? null : JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(sourcePath));
         BattleDefinition definition = source?.Definition ?? CreateDefinition(game, assets, model, level, slot, installedAi, native);
@@ -123,6 +131,7 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
                     {
                         peakChangedRgb = changed;
                         visible = true;
+                        Publish("visible", current);
                     }
                 }
                 if (produced && current.Events.Any(item => item.Kind == "ActionComplete" && item.ActorId == "monster") && battle.ActiveAction is null && graphics.OriginalEffect is not { ReturnedDescriptor: > 0 } && !graphics.Descriptors.Queue.Any(index => graphics.Descriptors.Packets[index].Command == 104))
@@ -138,14 +147,14 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
             Assert.True(completed, "The selected ordinary monster action did not release its command and effect task.");
             Assert.Single(battle.Events, item => item.Kind == "Windup" && item.ActorId == "monster");
             Assert.Single(battle.Events, item => item.Kind == "ActionComplete" && item.ActorId == "monster");
-            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", model, level, slot, ability.Command, ability.Id, ability.Sequence, native.MagicId, callbacks, peakChangedRgb, restoredLive, battle.Frame, NativeCallback = battle.NativeGraphics!.Callback }));
+            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", model, level, slot, Driver = control is null ? "bank" : "opcode30-control", ability.Command, ability.Id, ability.Sequence, native.MagicId, callbacks, peakChangedRgb, restoredLive, battle.Frame, NativeCallback = battle.NativeGraphics!.Callback }));
         }
         catch (Exception error)
         {
             File.WriteAllText(Path.Combine(output!, "before-boundary.battle.json"), JsonSerializer.Serialize(prior));
             BattleSnapshot failed = battle.Capture();
             File.WriteAllText(Path.Combine(output!, "failed-live.battle.json"), JsonSerializer.Serialize(failed));
-            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "blocked", model, level, slot, ability.Command, ability.Id, ability.Sequence, native.MagicId, callbacks, peakChangedRgb, restoredLive, selected, produced, error = error.ToString() }));
+            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "blocked", model, level, slot, Driver = control is null ? "bank" : "opcode30-control", ability.Command, ability.Id, ability.Sequence, native.MagicId, callbacks, peakChangedRgb, restoredLive, selected, produced, error = error.ToString() }));
             try
             {
                 Publish("before-boundary", prior);
@@ -189,6 +198,10 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
     internal static BattleDefinition CreateDefinition(GameAssets game, BattleAssets assets, int model, int level, int slot, NativeBattleAiDefinition installedAi, BattleNativeAction action)
     {
         BattleEncounter formation = Enumerable.Range(0, 1024).Select(assets.LoadEncounter).First(item => item.Slots.Any(enemy => enemy.ModelId == model));
+        if (action.Command == 252 && action.MagicId == 248)
+        {
+            formation = Enumerable.Range(0, 1024).Select(assets.LoadEncounter).First(item => item.Slots.Count == 3 && item.Slots.All(enemy => enemy.ModelId == 71));
+        }
         BattleEnemyPlacement placement = formation.Slots.First(enemy => enemy.ModelId == model);
         BattleStage stage = assets.LoadStage(formation.StageId);
         BattleEnemyNativeProjection stats = assets.ReadEnemyNativeStats(model).Project(level);
@@ -197,12 +210,51 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
         // Explicit one-action component. The selected original bank, sequence and kernel record are unchanged.
         // The short driver selects this bank slot once in INIT; it does not stand in for original story AI coverage.
         NativeBattleAiDefinition driver = installedAi with { Scripts = [[4, selector, 12, checked((byte)slot), 0], [0], [0], [0], [0]] };
+        if (action.Command == 252)
+        {
+            byte controlSelector = action.MagicId == 110 ? (byte)205 : (byte)200;
+            driver = installedAi with { Scripts = [[4, controlSelector, 30, checked((byte)action.MagicId), 0], [0], [0], [0], [0]] };
+        }
         BattleCombatantDefinition[] actors =
         [
             new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, MaximumHp = 30000, CurrentHp = 30000, NativeStatusResistances = assets.ReadPlayerNativeStatusData(game.ReadNewGameCharacterVitals(), 0).Resistances.ToArray(), NativeDeathCount = 0 },
             new() { Id = "monster", Name = assets.ReadEnemyName(model), ModelId = model, SceneSlot = placement.Slot, Level = level, MaximumHp = stats.MaximumHp, CurrentHp = Math.Max(1, stats.MaximumHp / 2), Attack = stats.Strength, Defense = stats.Vitality, Magic = stats.Magic, Spirit = stats.Spirit, Speed = 1, ElementDefenses = stats.ElementDefenses.Select(value => (int)value).ToArray(), NativeStatusResistances = assets.ReadEnemyNativeStatusData(model).Resistances.ToArray(), Information246 = assets.ReadEnemyNativeInformation246(model), NativeCombatantFlags = assets.ReadEnemyNativeCombatantFlags(model), NativeAi = driver }
         ];
+        if (action.Command == 252 && action.MagicId == 110)
+        {
+            BattleEnemyPlacement wedge = formation.Slots.Single(enemy => enemy.ModelId == 73);
+            BattleEnemyNativeProjection wedgeStats = assets.ReadEnemyNativeStats(73).Project(level);
+            NativeBattleAiDefinition wedgeAi = assets.ReadEnemyAi(73, level) with { Scripts = [[0], [0], [0], [0], [0]] };
+            // The original departure caller selects both active tower opponents with selector205.
+            BattleCombatantDefinition companion = new() { Id = "companion", Name = assets.ReadEnemyName(73), ModelId = 73, SceneSlot = wedge.Slot, Level = level, MaximumHp = wedgeStats.MaximumHp, CurrentHp = wedgeStats.MaximumHp, Attack = wedgeStats.Strength, Defense = wedgeStats.Vitality, Magic = wedgeStats.Magic, Spirit = wedgeStats.Spirit, Speed = 1, ElementDefenses = wedgeStats.ElementDefenses.Select(value => (int)value).ToArray(), NativeStatusResistances = assets.ReadEnemyNativeStatusData(73).Resistances.ToArray(), Information246 = assets.ReadEnemyNativeInformation246(73), NativeCombatantFlags = assets.ReadEnemyNativeCombatantFlags(73), NativeAi = wedgeAi };
+            actors = [actors[0], actors[1], companion];
+        }
+        if (action.Command == 252 && action.MagicId == 248)
+        {
+            foreach (BattleEnemyPlacement companionPlacement in formation.Slots.Where(enemy => enemy.Slot != placement.Slot))
+            {
+                NativeBattleAiDefinition companionAi = assets.ReadEnemyAi(model, level) with { Scripts = [[0], [0], [0], [0], [0]] };
+                BattleCombatantDefinition companion = actors[1] with { Id = $"companion-{companionPlacement.Slot}", SceneSlot = companionPlacement.Slot, NativeAi = companionAi };
+                actors = [.. actors, companion];
+            }
+        }
+        if (action.MagicId is 17 or 42)
+        {
+            NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
+            BattleCombatantDefinition zell = new() { Id = "party-1", Name = "Zell", IsPlayer = true, ModelId = 1, WeaponId = vitals.Records[1].Weapon, MaximumHp = 30000, CurrentHp = 30000, NativeCharacterFlag100 = assets.ReadCharacterNativeConditionFlag100(1), NativeStatusResistances = assets.ReadPlayerNativeStatusData(vitals, 1).Resistances.ToArray(), NativeDeathCount = 0 };
+            int thirdCharacter = action.MagicId == 17 ? 5 : 2;
+            BattleCombatantDefinition third = new() { Id = "party-2", Name = thirdCharacter == 5 ? "Selphie" : "Irvine", IsPlayer = true, ModelId = thirdCharacter, WeaponId = vitals.Records[thirdCharacter].Weapon, MaximumHp = 30000, CurrentHp = 30000, NativeCharacterFlag100 = assets.ReadCharacterNativeConditionFlag100(thirdCharacter), NativeStatusResistances = assets.ReadPlayerNativeStatusData(vitals, thirdCharacter).Resistances.ToArray(), NativeDeathCount = 0 };
+            actors = [actors[0], zell, third, actors[1]];
+        }
         BattleDefinition baseline = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, 0, 116);
+        string? stackProfile = Environment.GetEnvironmentVariable("MEMORIA_FF8_MONSTER_STACK_PROFILE");
+        if (stackProfile is not null)
+        {
+            NativeBattleExecutionStack selected = JsonSerializer.Deserialize<NativeBattleExecutionStack>(File.ReadAllBytes(stackProfile))!;
+            selected.Validate();
+            NativeBattleRetainedMemory retained = baseline.NativeRetainedMemory!;
+            baseline = baseline with { NativeRetainedMemory = retained with { EffectMemory = retained.EffectMemory! with { ExecutionStack = selected } } };
+        }
         return baseline with
         {
             Combatants = actors,

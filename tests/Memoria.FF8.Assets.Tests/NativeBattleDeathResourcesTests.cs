@@ -16,7 +16,7 @@ public sealed class NativeBattleDeathResourcesTests
         NativeBattleDeathResources resources = game.ReadNativeDeathResources();
         NativeBattleGraphicsRules rules = game.ReadNativeBattleGraphicsRules();
         Assert.Same(resources, game.ReadNativeDeathResources());
-        Assert.Equal(25, resources.Model.PoseSource.BoneCount);
+        Assert.Equal(28, resources.Model.PoseSource.BoneCount);
         NativeBattleRawMesh reaper = Assert.Single(resources.Model.Geometry);
         Assert.Equal(302, reaper.Vertices.Length);
         Assert.Equal(507, reaper.Polygons.Count(polygon => !polygon.Quad));

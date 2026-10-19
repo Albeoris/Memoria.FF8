@@ -28,3 +28,13 @@ public static class NativeBattleSuicide180
         return task.WriteWord(28, unchecked((ushort)(task.ReadWord(28) + scaleSpeed))).WriteWord(30, unchecked((ushort)(scaleSpeed - scaleSpeed / 7))).WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1)));
     }
 }
+
+public sealed record NativeBattleSuicide180ExplosionHeader(uint Flags, int Fade)
+{
+    public static NativeBattleSuicide180ExplosionHeader BeginTask() => new(0x33, 0);
+
+    public NativeBattleSuicide180ExplosionHeader SelectParticle(int frame)
+    {
+        return frame >= 2 ? new(Flags | 0xC0, unchecked((frame - 2) << 10)) : this;
+    }
+}

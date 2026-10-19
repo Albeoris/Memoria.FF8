@@ -13,6 +13,21 @@ public static class NativeBattleStorm11Geometry
             throw new InvalidDataException("Native Storm Breath stream requires its complete current308-vertex owner and stream phase.");
         }
         int fade = phase < 8 ? 4096 - NativeBattleCameraMath.Sine(phase << 7) : phase > 42 ? NativeBattleCameraMath.Sine(unchecked(((phase << 7) - 0x1481) & 0x1FFFFF80)) : 0;
+        return Emit(source, vertices, matrix, projection, phase, fade, colors);
+    }
+
+    public static NativeBattleGfGeometryBatch Emit6CF0C0(ImmutableArray<byte> source, ImmutableArray<byte> vertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int phase, NativeBattleSummonColors colors)
+    {
+        if (source.IsDefault || vertices.IsDefault || vertices.Length != 308 * 8 || phase is < 0 or >= 70)
+        {
+            throw new InvalidDataException("Native control stream requires its complete308-vertex owner and phase.");
+        }
+        int fade = phase < 8 ? 4096 - NativeBattleCameraMath.Sine(phase << 7) : phase > 62 ? NativeBattleCameraMath.Sine(unchecked(((phase << 7) - 0x1E81) & 0x1FFFFF80)) : 0;
+        return Emit(source, vertices, matrix, projection, phase, fade, colors);
+    }
+
+    private static NativeBattleGfGeometryBatch Emit(ImmutableArray<byte> source, ImmutableArray<byte> vertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int phase, int fade, NativeBattleSummonColors colors)
+    {
         ushort scroll = (ushort)((phase & 7) << 4);
         int cursor = checked(BinaryPrimitives.ReadInt32LittleEndian(source.AsSpan()) + 12);
         int allocated = 0;

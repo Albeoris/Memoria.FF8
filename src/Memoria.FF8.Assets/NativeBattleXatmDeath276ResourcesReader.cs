@@ -34,7 +34,7 @@ public static class NativeBattleXatmDeath276ResourcesReader
         }
         NativeVibrationBank vibration = new(memory.SourceHash, vibrationOffsets, vibrationData);
         vibration.Validate();
-        ImmutableArray<byte> effectCamera = Read(0x2508328, 32);
+        ImmutableArray<byte> effectCamera = memory.ReadLoader(0x2508328, 32).ToImmutableArray();
         ImmutableArray<short> rotation = Enumerable.Range(0, 9).Select(index => BinaryPrimitives.ReadInt16LittleEndian(effectCamera.AsSpan().Slice(index * 2))).ToImmutableArray();
         NativeBattleActionMatrix matrix = new(rotation, BinaryPrimitives.ReadInt32LittleEndian(effectCamera.AsSpan().Slice(20)), BinaryPrimitives.ReadInt32LittleEndian(effectCamera.AsSpan().Slice(24)), BinaryPrimitives.ReadInt32LittleEndian(effectCamera.AsSpan().Slice(28)), 4096);
         ImmutableArray<byte> triangleLengths = Read(0x1524458, 512);
@@ -48,4 +48,3 @@ public sealed partial class GameAssets
     private NativeBattleXatmDeath276Resources? nativeXatmDeath276Resources;
     public NativeBattleXatmDeath276Resources ReadNativeXatmDeath276Resources() => nativeXatmDeath276Resources ??= NativeBattleXatmDeath276ResourcesReader.Read(GameDataResources.ReadNativeExecutable(resources));
 }
-

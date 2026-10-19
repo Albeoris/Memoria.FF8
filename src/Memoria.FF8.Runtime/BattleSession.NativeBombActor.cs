@@ -32,7 +32,7 @@ public sealed partial class BattleSession
                 continue;
             }
             NativeBattleModelTextureBinding texture = resource.LinkedGeometryUsesBodySkeleton == true && mesh == 1 ? actor.LinkedTextureSlots! : actor.BodyTextureSlots!;
-            Draw(geometry[mesh], bones, texture);
+            Draw(geometry[mesh], bones, texture, true);
         }
         actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);
         graphics = graphics with { Models = graphics.Models.SetItem(index, actor) };
@@ -55,13 +55,13 @@ public sealed partial class BattleSession
             {
                 foreach (NativeBattleRawMesh mesh in linked)
                 {
-                    Draw(mesh, linkedBones, actor.LinkedTextureSlots!);
+                    Draw(mesh, linkedBones, actor.LinkedTextureSlots!, resource.GeometryRelocated507550);
                 }
             }
         }
         return graphics;
 
-        void Draw(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> matrices, NativeBattleModelTextureBinding texture)
+        void Draw(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> matrices, NativeBattleModelTextureBinding texture, bool alreadyRelocated)
         {
             if (mesh.Vertices.Length > maximum)
             {
@@ -82,7 +82,7 @@ public sealed partial class BattleSession
                 }
                 NativeFileStaging = (NativeFileStaging ?? throw new NotSupportedException("Native Bomb actor drawing requires its canonical shared vertex owner.")).Write(address + (uint)(vertex * 8), output.AsSpan(vertex * 8, stored));
             }
-            ImmutableArray<NativeBattleRawPolygon> polygons = resource.GeometryRelocated507550 ? mesh.Polygons : mesh.Polygons.Select(polygon => polygon with { Bytes = NativeBattleRawGeometryPackets.Relocate507550(polygon, texture) }).ToImmutableArray();
+            ImmutableArray<NativeBattleRawPolygon> polygons = alreadyRelocated ? mesh.Polygons : mesh.Polygons.Select(polygon => polygon with { Bytes = NativeBattleRawGeometryPackets.Relocate507550(polygon, texture) }).ToImmutableArray();
             Common(NativeBattleBombActorPackets.Emit(polygons, output.ToImmutableArray(), view, projection, actor.Color40!.Value, overlayColor, scroll, textured, zsf3, zsf4));
         }
         void Common(NativeBattleGfGeometryBatch batch)

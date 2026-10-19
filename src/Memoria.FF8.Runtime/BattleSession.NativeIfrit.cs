@@ -573,8 +573,10 @@ public sealed partial class BattleSession
                     }));
                 case 0x7A:
                     return NativeBattleCinematicMatrixCompose7A.Execute(current, program, ResolveCurrentNode);
+                case 0x9A:
+                    return NativeBattleCinematicActorOrder9A.Execute(current, program);
                 case 0x42:
-                    if (selectedHandler is not (0xB24BB0 or 0xAFEF60))
+                    if (selectedHandler is not (0xB24BB0 or 0xAFEF60 or 0xB57280 or 0x9C8CC0))
                     {
                         return current;
                     }

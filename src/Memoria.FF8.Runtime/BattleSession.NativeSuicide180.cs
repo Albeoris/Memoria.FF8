@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native Suicide requires its process memory.");
         NativeBattleSuicide180State state = memory.Suicide180 ?? throw new NotSupportedException("Native Suicide requires its retained particle bank.");
         int buffer = memory.Cursor;
-        if (state.Particles.Length != 2400 || buffer < 0 || buffer > NativeBattleEffectArena.Length - 0x18000)
+        if (state.Particles.Length != 2400 || buffer < 0 || buffer >= NativeBattleEffectArena.Length)
         {
             throw new InvalidDataException("Native Suicide particle storage or entry packet base is outside its original allocation.");
         }
@@ -218,8 +218,7 @@ public sealed partial class BattleSession
         int Particles(ref NativeBattleModulePoolTask task, int kind)
         {
             int alive = 0;
-            uint explosionFlags = 0x33;
-            int explosionFade = 0;
+            NativeBattleSuicide180ExplosionHeader explosionHeader = NativeBattleSuicide180ExplosionHeader.BeginTask();
             for (int particle = 0; particle < 100; particle++)
             {
                 int offset = particle * 24;
@@ -236,12 +235,8 @@ public sealed partial class BattleSession
                     short vz = Read(offset + 20);
                     NativeBattleActionMatrix matrix = new(NativeBattleModuleAlignment.DownToVelocity573C40(vx, vy, vz), Read(offset + 8), Read(offset + 10), Read(offset + 12), 4096);
                     matrix = NativeBattlePoseMatrices.Scale56BEF0(matrix, 4096, Read(offset + 6), 4096);
-                    if (frame >= 2)
-                    {
-                        explosionFlags |= 0xC0;
-                        explosionFade = unchecked((frame - 2) << 10);
-                    }
-                    DrawMesh(resources.Explosion, NativeBattleGfMatrices.Compose56C2F0(view, matrix), explosionFlags, explosionFade);
+                    explosionHeader = explosionHeader.SelectParticle(frame);
+                    DrawMesh(resources.Explosion, NativeBattleGfMatrices.Compose56C2F0(view, matrix), explosionHeader.Flags, explosionHeader.Fade);
                     ended = frame + 1 >= 6;
                 }
                 else

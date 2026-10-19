@@ -128,7 +128,7 @@ public static partial class NativeBattleSandStorm176Controller
                 W(saved + 12, transform.Position28.X);
                 W(saved + 14, transform.Position28.Y);
                 W(saved + 16, transform.Position28.Z);
-                W(saved + 18);
+                W(saved + 18, transform.Vertical34);
             }
             if (age < 32)
             {

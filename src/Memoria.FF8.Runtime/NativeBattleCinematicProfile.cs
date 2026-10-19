@@ -3,12 +3,14 @@ namespace Memoria.FF8.Runtime;
 /// <summary>The physical directories and entry points of the cinematic effect families.</summary>
 public sealed record NativeBattleCinematicProfile(int Effect, uint Entry, uint Initializer, uint InitializationAddress, uint OwnerDirectoryAddress, uint QueueAddress, uint BankAddress, uint Callback, uint LoadCallback, uint File0Publication, uint File1Publication, uint InstructionTable, int TextureCount, int SourceBase, int LastSource, string InitialFile, bool Lit)
 {
-    public static bool IsSupported(int effect) => effect is 6 or 201 or 202 or 203 or 204 or 205 or 206 or 234 or 235;
+    public static bool IsSupported(int effect) => effect is 6 or 18 or 248 or 201 or 202 or 203 or 204 or 205 or 206 or 234 or 235;
 
     public static NativeBattleCinematicProfile ForInitializationAddress(uint address)
     {
         return ForEffect(address switch
         {
+            0x1876870 => 18,
+            0x185EEFC => 248,
             0x1874894 => 201,
             0x187726C => 6,
             0x1873A60 => 202,
@@ -26,6 +28,8 @@ public sealed record NativeBattleCinematicProfile(int Effect, uint Entry, uint I
     {
         return effect switch
         {
+            18 => new(18, 0xB4A530, 0xB4A500, 0x1876870, 0x187697C, 0x2796EC0, 0x2796ED8, 0xB4ABA0, 0xB53850, 0x2796ED4, 0x2796ED0, 0x1876D34, 6, 0x16D, 0x17E, "mag017_b.00", true),
+            248 => new(248, 0x9C08D0, 0x9C08A0, 0x185EEFC, 0x185EFAC, 0x27966D8, 0x27966F0, 0x9C0F40, 0x9C5240, 0x27966E8, 0x27966EC, 0x185F364, 3, 0x233, 0x232, "mag247_b.00", false),
             201 => new(201, 0xB25780, 0xB25750, 0x1874894, 0x1874B58, 0x2796E18, 0x2796E28, 0xB25DF0, 0xB2BB40, 0x2796E4C, 0x2796E48, 0x1874F10, 23, 0x233, 0x23F, "mag200_b.00", true),
             6 => new(6, 0xB58080, 0xB58050, 0x187726C, 0x18774AC, 0x2796EF8, 0x2796F10, 0xB586F0, 0xB60530, 0x2796F0C, 0x2796F08, 0x1877864, 13, 0x16D, 0x17E, "mag005_b.00", true),
             202 => new(202, 0xB189A0, 0xB18970, 0x1873A60, 0x1873FA4, 0x2796DE0, 0x2796DF0, 0xB19010, 0xB21090, 0x2796E14, 0x2796E10, 0x187435C, 40, 0x23E, 0x265, "mag201_b.00", false),
@@ -39,12 +43,14 @@ public sealed record NativeBattleCinematicProfile(int Effect, uint Entry, uint I
         };
     }
 
-    public bool HasVibrationDirectory => Effect is not (234 or 235);
+    public bool HasVibrationDirectory => Effect is not (248 or 234 or 235);
 
     public int StaticLength => checked((int)(InstructionTable + 0x147 * 4 - InitializationAddress));
 
     public uint BoneTable => Effect switch
     {
+        18 => 0x18769A4,
+        248 => 0x185EFD4,
         201 => 0x1874B80,
         6 => 0x18774D4,
         202 => 0x1873FCC,

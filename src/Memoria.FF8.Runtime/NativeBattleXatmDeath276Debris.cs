@@ -33,7 +33,8 @@ public static class NativeBattleXatmDeath276Debris
                 {
                     BinaryPrimitives.WriteInt16LittleEndian(words.AsSpan(lane * 2), rotation.Rotation[lane]);
                 }
-                arena = arena.Write(checked(scratch + (bank * 64 + index) * 32), words);
+                int matrixOffset = checked(scratch + (bank * 64 + index) * 32);
+                arena = arena.Write(matrixOffset, words).MarkUnknown(matrixOffset + 18, 2);
             }
         }
         HashSet<int> selected = [];
@@ -202,5 +203,3 @@ public static class NativeBattleXatmDeath276Debris
     private static NativeBattleVector Point(NativeBattleModulePoolTask task, int offset) => new(Word(task, offset), Word(task, offset + 2), Word(task, offset + 4));
     private static NativeBattleModulePoolTask Position(NativeBattleModulePoolTask task, int offset, NativeBattleVector point) => W(W(W(task, offset, point.X), offset + 2, point.Y), offset + 4, point.Z);
 }
-
-

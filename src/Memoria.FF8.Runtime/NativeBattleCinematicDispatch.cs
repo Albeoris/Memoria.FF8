@@ -1315,6 +1315,14 @@ public static partial class NativeBattleCinematicDispatch
 
     public static uint RequireSlot(int effect, string table, int index, uint handler)
     {
+        if (ControlVariantSlots.TryGetValue((effect, table, index), out uint controlVariant))
+        {
+            if (handler != controlVariant)
+            {
+                throw new NotSupportedException("Native cinematic control slot requires its selected original variant.");
+            }
+            return handler;
+        }
         if (RegionalVariantSlots.TryGetValue((effect, table, index), out uint regionalVariant))
         {
             if (handler != regionalVariant)
@@ -1348,6 +1356,10 @@ public static partial class NativeBattleCinematicDispatch
         if (effect == 201 && (CanonicalHandlers.Contains(handler) || RegionalCanonicalHandlers.Contains(handler)))
         {
             return handler;
+        }
+        if (ControlAliases.TryGetValue((effect, handler), out uint controlCanonical))
+        {
+            return controlCanonical;
         }
         if (RegionalAliases.TryGetValue((effect, handler), out uint regionalCanonical))
         {
