@@ -194,7 +194,7 @@ public sealed partial class WorldAssets
             ValidateWorldAuxiliaryRelocations(retainedAuxiliary);
         }
         NativeWorldAuxiliaryRelocationReceipt? auxiliaryEntry = retainedAuxiliary ?? ReadWorldAuxiliaryRelocations(packet, memory, pose);
-        NativeWorldPathPosition cactuar = NativeGardenWorldAllocationReader.ReadCactuarLoadPosition(contactExecutable ??= GameDataResources.ReadNativeExecutable(resources));
+        NativeWorldPathPosition cactuar = NativeGardenWorldAllocationReader.ReadCactuarLoadPosition(NativeWorldMemory);
         return NativeRagnarokWorldAllocationReader.Read(wmset.AsSpan(sections[9], sections[10] - sections[9]), wmset.AsSpan(sections[10], sections[11] - sections[10]), packet, entry, memory, saved, vitals.GuardianForces[13].Flags, cactuar, pose, cameraYaw, saved.ReadMapDisplayModeForFreshFootLoader(), auxiliaryEntry: auxiliaryEntry);
     }
 }

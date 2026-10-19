@@ -16,7 +16,7 @@ public sealed class BattleResourceRoutingTests
         Assert.StartsWith("remastered:", textures.GetTexture(0).Provenance);
         Assert.Equal(384, textures[0].Width);
         Assert.Equal(384, textures[0].Height);
-        Assert.Throws<NotImplementedException>(() => assets.ReadNativePrimitiveTables());
+        assets.ReadNativePrimitiveTables().Validate();
     }
 
     [Fact]
@@ -29,7 +29,7 @@ public sealed class BattleResourceRoutingTests
         {
             Assert.NotEmpty(assets.LoadModel("d0c000.dat").Meshes);
             Assert.True(resources.ResidentTextureCount > 0);
-            Assert.Throws<NotImplementedException>(() => assets.ReadNativeBattleFile(0));
+            Assert.NotEmpty(assets.ReadNativeBattleFile(0).Bytes);
         }
         Assert.Equal(0, resources.ResidentTextureCount);
         Assert.NotEmpty(resources.Read(new ResourceKey("main/kernel.bin")));

@@ -244,7 +244,7 @@ public sealed class InstalledRemasteredTests
         Assert.Equal(assets.ReadResource(new ResourceKey("tables/field-random"))[0], assets.ReadNativeShakeTables().Random(0));
         assets.ReadNativeVibrationBank().Validate();
         Assert.Throws<NotImplementedException>(() => assets.ReadNativeExecutable());
-        Assert.Throws<NotImplementedException>(() => assets.ReadNativeEncounterTables());
+        Assert.Equal(256, assets.ReadNativeEncounterTables().FieldRandom.Length);
         Assert.NotNull(assets.ReadNewGameCharacterVitals());
     }
 
