@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleHoly175WindowedMeshContext(uint Flags, uint FarColor, int? Fade, uint ConstantColor, int UOffset, int VOffset, NativeBattleTextureWindow Window, int TableBaseBucket, byte DepthShift);
 
-public static class NativeBattleHoly175WindowedMeshPackets
+public static partial class NativeBattleHoly175WindowedMeshPackets
 {
     public static NativeBattleGfGeometryBatch Draw5D3B80(NativeBattleModulePoolTask task, NativeBattleStaticMeshResource mesh, uint constantColor, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
     {
@@ -26,9 +26,11 @@ public static class NativeBattleHoly175WindowedMeshPackets
         ValidateContext(context);
         return NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, 0, null, (group, face, project, offset) => group switch
         {
+            2 => EmitTriangle(face, project, false, context, colors, offset),
+            6 => EmitTriangle(face, project, true, context, colors, offset),
             3 => EmitQuad(face, project, false, context, colors, offset),
             7 => EmitQuad(face, project, true, context, colors, offset),
-            _ => throw new NotSupportedException("Native Holy650720 requires its reached FT4/GT4 groups and empty other groups.")
+            _ => throw new NotSupportedException("Native Holy650720 requires its reached textured triangle/quad groups and empty other groups.")
         });
     }
 

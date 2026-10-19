@@ -7,7 +7,8 @@ public static class NativeBattleDuel274Particles
     public static NativeBattleDuel274Frame Emit68AEE0(NativeBattleDuel274Frame frame, short bone, int count, int mode, short sprite, Func<short, NativeBattleVector> readBone502170)
     {
         NativeBattleVector position = readBone502170(bone);
-        NativeBattleEffectTaskPool pool = frame.Effect.Pools[2];
+        int poolIndex = NativeBattleDuel274Banks.Index(frame, 0x2508498);
+        NativeBattleEffectTaskPool pool = frame.Effect.Pools[poolIndex];
         if (pool.DescriptorAddress != 0x2508498 || pool.Stride != 36)
         {
             throw new InvalidDataException("Native Duel particles require their actual shared physical bank.");
@@ -63,7 +64,7 @@ public static class NativeBattleDuel274Particles
                 break;
             }
         }
-        return frame with { Random = random, Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(2, pool) } };
+        return frame with { Random = random, Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(poolIndex, pool) } };
 
         ushort Next()
         {
@@ -74,7 +75,8 @@ public static class NativeBattleDuel274Particles
 
     public static NativeBattleDuel274TaskStep Advance68B140(NativeBattleDuel274Frame frame, int slot, NativeBattleDuel274Resources resources, Func<NativeBattleDuel274Frame, NativeBattleModulePoolTask, int, short, short, short, NativeBattleDuel274Frame> draw571C80)
     {
-        NativeBattleEffectTaskPool pool = frame.Effect.Pools[2];
+        int poolIndex = NativeBattleDuel274Banks.Index(frame, 0x2508498);
+        NativeBattleEffectTaskPool pool = frame.Effect.Pools[poolIndex];
         NativeBattleModulePoolTask task = pool.Slots[slot];
         if (pool.DescriptorAddress != 0x2508498 || pool.Stride != 36 || task.Callback != 0x68B140)
         {
@@ -85,7 +87,7 @@ public static class NativeBattleDuel274Particles
         short size = BinaryPrimitives.ReadInt16LittleEndian(resources.Read(unchecked(directory + 6), 2).AsSpan());
         short duration = BinaryPrimitives.ReadInt16LittleEndian(resources.Read(unchecked(directory + 4), 2).AsSpan());
         frame = draw571C80(frame, task, sprite, Signed(task, 18), size, unchecked((short)-(size >> 2)));
-        pool = frame.Effect.Pools[2];
+        pool = frame.Effect.Pools[poolIndex];
         task = pool.Slots[slot];
         short counter = unchecked((short)(Signed(task, 18) + 1));
         task = task.WriteWord(18, unchecked((ushort)counter));
@@ -97,7 +99,7 @@ public static class NativeBattleDuel274Particles
             result = 0;
         }
         pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
-        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(2, pool) } };
+        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(poolIndex, pool) } };
         return new(frame, pool, result);
     }
 

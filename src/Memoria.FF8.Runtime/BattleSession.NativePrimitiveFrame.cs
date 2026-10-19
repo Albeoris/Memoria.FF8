@@ -291,6 +291,14 @@ public sealed partial class BattleSession
             }
             return (memory.Reflect106 ?? throw new NotSupportedException("Native Reflect packet alias requires its retained executable banks.")).Packets.Read(reference.ByteOffset, count);
         }
+        if (reference.Bank == NativeBattleGuardianWorkPacketArena.PacketBank)
+        {
+            if (reference.Buffer != 0)
+            {
+                throw new InvalidDataException("Native work packets have one physical buffer.");
+            }
+            return (memory.GuardianWorkBuffer ?? throw new NotSupportedException("Native work packet alias requires its retained physical buffer.")).Read(reference.ByteOffset, count);
+        }
         if (reference.Bank == NativeBattleFullscreenOverlay.PacketBank)
         {
             if (reference.Buffer != 0)

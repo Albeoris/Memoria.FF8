@@ -178,7 +178,7 @@ public static class NativeBattleGfMatrices
             }
             else
             {
-                rotation = rotation with { Rotation = rotation.Rotation.Select((word, index) => unchecked((short)(word * (index / 3 == 0 ? scale.X : index / 3 == 1 ? scale.Y : scale.Z) >> 12))).ToImmutableArray() };
+                rotation = NativeBattlePoseMatrices.Scale56BEF0(rotation, scale.X, scale.Y, scale.Z);
             }
         }
         if ((node.Header & 0x8200) == 0)
@@ -221,7 +221,7 @@ public static class NativeBattleGfMatrices
         {
             rotation = (node.Header & 0x100) != 0
                 ? Multiply56C090(rotation, new([scale.X, 0, 0, 0, scale.Y, 0, 0, 0, scale.Z], 0, 0, 0, 4096))
-                : rotation with { Rotation = rotation.Rotation.Select((word, index) => unchecked((short)(word * (index / 3 == 0 ? scale.X : index / 3 == 1 ? scale.Y : scale.Z) >> 12))).ToImmutableArray() };
+                : NativeBattlePoseMatrices.Scale56BEF0(rotation, scale.X, scale.Y, scale.Z);
         }
         (int x, int y, int z) = direct ? (node.Vector8.X, node.Vector8.Y, node.Vector8.Z) : Rotate56C3D0(basis, node.Vector8);
         return rotation with { X = unchecked(context.X + x), Y = unchecked(context.Y + y), Z = unchecked(context.Z + z) };

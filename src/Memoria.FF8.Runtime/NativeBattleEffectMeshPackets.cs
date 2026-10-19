@@ -283,7 +283,7 @@ internal static class NativeBattleEffectMeshPackets
     private static uint RequiredFar(NativeBattleEffectMeshPacketContext context) => context.FarColor ?? throw new NotSupportedException("Native mesh fade requires its actually written contextRGB8.");
     private static NativeBattleSummonColors RequiredConstants(NativeBattleSummonColors? colors) => colors ?? throw new NotSupportedException("Native mesh fade requires authenticated45F270/45F4C0 constants.");
 
-    private static ImmutableArray<int> Payload(NativeBattleModuleProjectedVertex[] vertices, uint color)
+    internal static ImmutableArray<int> Payload(NativeBattleModuleProjectedVertex[] vertices, uint color)
     {
         uint opcode = color >> 24 & 0xFC;
         if (opcode is < 0x20 or > 0x3C)

@@ -1,0 +1,96 @@
+using System.Buffers.Binary;
+using System.Collections.Immutable;
+
+namespace Memoria.FF8.Runtime;
+
+public readonly record struct NativeBattleDuelEchoProjectedVertex(uint Screen, ushort Depth, ushort Clip);
+public sealed record NativeBattleDuelEchoPacketsResult(NativeBattleModulePoolTask Context, NativeBattleGfGeometryBatch Batch);
+
+/// <summary>68AAE0's original flat-lit textured echo faces over a retained projected vertex stream.</summary>
+public static class NativeBattleDuelEchoPackets
+{
+    public static NativeBattleDuelEchoPacketsResult Emit68AAE0(NativeBattleModulePoolTask context, int offset, ImmutableArray<byte> faces, Func<int, NativeBattleDuelEchoProjectedVertex> readVertex, int tableBaseBucket, byte depthShift, short zsf3, short zsf4)
+    {
+        if (faces.IsDefault || depthShift > 31)
+        {
+            throw new InvalidDataException("Native Duel echo requires its actual face owner and depth shift.");
+        }
+        ushort triangles = context.ReadWord(offset + 8);
+        ushort quads = context.ReadWord(offset + 10);
+        if (faces.Length != checked(triangles * 16 + quads * 20))
+        {
+            throw new InvalidDataException("Native Duel echo faces differ from their original context counts.");
+        }
+        ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
+        int allocated = 0;
+        int source = 0;
+        for (int group = 0; group < 2; group++)
+        {
+            int countOffset = offset + 8 + group * 2;
+            ushort count = context.ReadWord(countOffset);
+            context = context.WriteWord(countOffset, unchecked((ushort)(count - 1)));
+            for (int faceIndex = 0; faceIndex < count; faceIndex++)
+            {
+                bool quad = group != 0;
+                ReadOnlySpan<byte> face = faces.AsSpan().Slice(source, quad ? 20 : 16);
+                NativeBattleDuelEchoProjectedVertex[] vertices = new NativeBattleDuelEchoProjectedVertex[quad ? 4 : 3];
+                bool clipped = false;
+                ushort clipAnd = ushort.MaxValue;
+                for (int corner = 0; corner < vertices.Length; corner++)
+                {
+                    int vertex = BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(corner * 2)) & 0xFFF;
+                    NativeBattleDuelEchoProjectedVertex selected = readVertex(vertex);
+                    vertices[corner] = selected;
+                    context = context.WriteDword(offset + 28 + corner * 8, selected.Screen).WriteDword(offset + 32 + corner * 8, selected.Depth | (uint)selected.Clip << 16);
+                    if (selected.Clip >= 16)
+                    {
+                        clipped = true;
+                        break;
+                    }
+                    clipAnd &= selected.Clip;
+                }
+                if (!clipped && (clipAnd & 0xFF) == 0)
+                {
+                    int area = NativeBattleModulePackets.Nclip(vertices[0].Screen, vertices[1].Screen, vertices[2].Screen);
+                    context = context.WriteDword(offset + 60, unchecked((uint)area));
+                    if (area >= 0)
+                    {
+                        uint depth = unchecked((uint)vertices.Sum(vertex => (int)vertex.Depth) * unchecked((uint)(quad ? zsf4 : zsf3))) >> 12;
+                        context = context.WriteDword(offset + 68, depth);
+                        int length = quad ? 40 : 32;
+                        SkinWrites packet = new(length, allocated);
+                        uint color = context.ReadDword(offset + 20) | (quad ? 0x2E000000u : 0x26000000u);
+                        packet.Word(0, (uint)(length / 4 - 1) << 24);
+                        packet.Word(4, color);
+                        for (int corner = 0; corner < vertices.Length; corner++)
+                        {
+                            packet.Word(8 + corner * 8, vertices[corner].Screen);
+                        }
+                        packet.Word(12, BinaryPrimitives.ReadUInt32LittleEndian(face.Slice(8)));
+                        uint material = BinaryPrimitives.ReadUInt32LittleEndian(face.Slice(12));
+                        packet.Word(20, material & ~0x02000000u);
+                        packet.Word16(28, BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(quad ? 16 : 6)));
+                        if (quad)
+                        {
+                            packet.Word16(36, BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(18)));
+                        }
+                        int bucket = checked(tableBaseBucket + (int)(depth >> depthShift));
+                        NativeBattleModuleProjectedVertex[] projected = vertices.Select(vertex => new NativeBattleModuleProjectedVertex(vertex.Screen, vertex.Depth, 0)).ToArray();
+                        attempts.Add(packet.Attempt(new(bucket, packet.Words(), NativeBattleEffectMeshPackets.Payload(projected, color))));
+                        allocated = checked(allocated + length);
+                    }
+                }
+                source += group == 0 ? 16 : 20;
+                if (faceIndex + 1 < count)
+                {
+                    context = context.WriteWord(countOffset, unchecked((ushort)(context.ReadWord(countOffset) - 1)));
+                }
+            }
+            if (count != 0)
+            {
+                context = context.WriteWord(countOffset, ushort.MaxValue);
+            }
+        }
+        return new(context, new(attempts.ToImmutable(), allocated));
+    }
+}

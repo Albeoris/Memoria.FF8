@@ -55,6 +55,31 @@ public sealed class NativeBattleEffectTaskPointerTests
         Assert.Equal(0u, overwritten.ReadResourcePointer(0x4010)!.StagingAddress);
     }
 
+    [Fact]
+    public void DescriptorReassignmentReturnsActivePhysicalBytesWithoutCompletingTasks()
+    {
+        NativeBattleEffectTaskPool pool = Pool();
+        NativeBattleModulePoolTask task = pool.Slots[0].WriteResourcePointer(16, new(new(0, 0x123), null, 20)).MarkPayloadUnknown(30, 2);
+        pool = pool with { Slots = pool.Slots.SetItem(0, task) };
+        NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, [pool]);
+        NativeBattleOriginalEffectState effect = new(274, 111, new(274, 0x6897E0, 0x6897F0), new(0, 0, 8, 0, 0, 0), 0x25084B8) { Pools = [pool] };
+        NativeBattleEffectTaskTransfer transfer = NativeBattleEffectTaskMemory.DetachArenaBank(memory, effect, pool.DescriptorAddress);
+        Assert.Empty(transfer.Effect.Pools);
+        Assert.Equal(effect.ReturnedDescriptor, transfer.Effect.ReturnedDescriptor);
+        Assert.Equal(task.Flags, BitConverter.ToUInt16(transfer.Memory.Arena!.Read(0x4000, 2)));
+        Assert.Equal(task.Callback, BitConverter.ToUInt32(transfer.Memory.Arena.Read(0x4008, 4)));
+        Assert.Equal(new NativeBattleModelCpuReference(0, 0x123), transfer.Memory.Arena.ReadResourcePointer(0x4010)!.Cpu);
+        Assert.Throws<NotSupportedException>(() => transfer.Memory.Arena.Read(0x401E, 1));
+        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(transfer.Memory))!;
+        Assert.Throws<NotSupportedException>(() => restored.Arena!.Read(0x401E, 1));
+        NativeBattleEffectTaskPool replacement = NativeBattleEffectTaskPool.Initialize(pool.DescriptorAddress, Bank + 24, 48, 2);
+        NativeBattleEffectMemory replaced = NativeBattleEffectTaskMemory.RevokeArenaOwnership(restored, [replacement]);
+        Assert.Equal(task.Flags, BitConverter.ToUInt16(replaced.Arena!.Read(0x4000, 2)));
+        Assert.Throws<NotSupportedException>(() => replaced.Arena.Read(0x4018, 1));
+        Assert.Throws<InvalidDataException>(() => NativeBattleEffectTaskMemory.DetachArenaBank(memory, effect, 0xBAD));
+        Assert.Throws<InvalidDataException>(() => NativeBattleEffectTaskMemory.DetachArenaBank(memory, effect with { Pools = [pool, pool] }, pool.DescriptorAddress));
+    }
+
     private static NativeBattleEffectTaskPool Pool()
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2521950, Bank, 48, 2);

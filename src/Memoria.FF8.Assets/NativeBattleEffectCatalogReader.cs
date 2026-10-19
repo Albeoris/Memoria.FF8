@@ -328,6 +328,11 @@ public sealed partial class GameAssets
                 binding = binding with { NoMercy200Resources = ReadNativeNoMercy200Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 165)
+            {
+                binding = binding with { LionHeart165Resources = ReadNativeLionHeart165Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 164)
             {
                 binding = binding with { BlastingZone164Resources = ReadNativeBlastingZone164Resources() };
@@ -346,6 +351,11 @@ public sealed partial class GameAssets
             if (binding.Effect == 86)
             {
                 binding = binding with { Rinoa86Resources = ReadNativeRinoa86Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 87)
+            {
+                binding = binding with { Rinoa87Resources = ReadNativeRinoa87Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
             if (binding.Effect == 198)

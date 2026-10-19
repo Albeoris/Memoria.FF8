@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
 using Xunit;
 
@@ -6,6 +7,21 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleLionHeart165ControllerTests
 {
+    [Fact]
+    public void OpeningRawPositionCopyPreservesUnknownInactiveRowsAndCompleteActiveWords()
+    {
+        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0x23C6744, Enumerable.Repeat((byte)0xA5, 16).ToArray());
+        staging = NativeBattleLionHeart165Controller.CopyRawPosition5E9650(staging, 0x23C6744, new(1, 0));
+        Assert.All(NativeBattleTemporaryMemory.ReadView(staging, 0x23C6744, 8).ReadSnapshot(0, 8).Known, known => Assert.False(known));
+        Assert.Equal(Enumerable.Repeat((byte)0xA5, 8).ToArray(), staging.Read(0x23C674C, 8));
+        NativeBattleGraphicsModel active = new(3, 3) { Transform = new(new(0, 0, 0), new(-32768, 123, 32767), -111, 0, 4096) };
+        staging = NativeBattleLionHeart165Controller.CopyRawPosition5E9650(staging, 0x23C6744, active);
+        Assert.Equal(-32768, Short(staging, 0x23C6744));
+        Assert.Equal(123, Short(staging, 0x23C6746));
+        Assert.Equal(32767, Short(staging, 0x23C6748));
+        Assert.Equal(-111, Short(staging, 0x23C674A));
+    }
+
     [Fact]
     public void FirstFloatTrailHistorySampleRetainsActualTemporaryPaddingAndBalancesAllocation()
     {
@@ -149,6 +165,71 @@ public sealed class NativeBattleLionHeart165ControllerTests
         Assert.Equal(2, step.Result);
         Assert.Equal(14, step.Pool.Slots[0].ReadWord(12));
         Assert.Equal(frame.Random, step.Frame.Random);
+    }
+
+    [Fact]
+    public void FanProducerKeepsTheAppendedTaskReachableAfterUpdatingItsOwnCounter()
+    {
+        (NativeBattleLionHeart165Frame frame, NativeBattleEffectTaskPool pool) = Frame(0x5ED4E0, 1);
+        NativeBattleLionHeart165ChildStep step = NativeBattleLionHeart165Controller.Advance5ED4E0(frame, pool, 0, Inputs(0, []));
+        step.Pool.Validate();
+        Assert.Equal(1, step.Pool.Slots[0].Next);
+        Assert.Equal(1, step.Pool.Tail);
+        Assert.Equal(0x5ED590u, step.Pool.Slots[1].Callback);
+        Assert.Equal(2, step.Pool.Slots[0].ReadWord(12));
+    }
+
+    [Fact]
+    public void ContactProducerAppliesOnePhysicalReceiptAndPreservesAllSixBornTasks()
+    {
+        (NativeBattleLionHeart165Frame frame, NativeBattleEffectTaskPool pool) = Frame(0x5EC140, 0);
+        byte[] timing = new byte[60];
+        for (int index = 0; index < 15; index++)
+        {
+            BinaryPrimitives.WriteInt32LittleEndian(timing.AsSpan(index * 4), index * 10);
+        }
+        frame = frame with { Staging = frame.Staging.Write(0xD88718, timing).Write(0xD88758, new byte[120]).Write(0xD887D0, new byte[60]) };
+        List<NativeBattleLionHeart165Operation> operations = [];
+        NativeBattleLionHeart165Inputs inputs = Inputs(0, operations) with { ReadModel = actor => new(actor, 3) { HasLinkedModelRing140 = false, GeometryWorldMatrix = Identity() } };
+        NativeBattleLionHeart165ChildStep step = NativeBattleLionHeart165Controller.Advance5EC140(frame, pool, 0, inputs);
+        step.Pool.Validate();
+        Assert.Equal(1, step.Pool.Slots[0].Next);
+        Assert.Equal(6, step.Pool.Tail);
+        Assert.Equal(new uint[] { 0x5EC550, 0x5EC7D0, 0x5ECB40, 0x5ECCD0, 0x5ECE60, 0x5ED1A0 }, step.Pool.Slots.Skip(1).Take(6).Select(task => task.Callback).ToArray());
+        Assert.Equal(0, Assert.Single(operations.OfType<NativeBattleLionHeart165Contact>()).RelativeIndex);
+        Assert.Equal(1, Int(step.Frame.Staging, 0x23C6920));
+    }
+
+    [Fact]
+    public void LateEchoKeepsShakeSprayAndRingReachableAfterUpdatingItsOwnCounter()
+    {
+        (NativeBattleLionHeart165Frame frame, NativeBattleEffectTaskPool pool) = Frame(0x5EECD0, 9);
+        NativeBattleLionHeart165ChildStep step = NativeBattleLionHeart165Controller.Advance5EECD0(frame, pool, 0, Inputs(0, []));
+        step.Pool.Validate();
+        Assert.Equal(1, step.Pool.Slots[0].Next);
+        Assert.Equal(3, step.Pool.Tail);
+        Assert.Equal(new uint[] { 0x5F0130, 0x5EFCE0, 0x5EFFF0 }, step.Pool.Slots.Skip(1).Take(3).Select(task => task.Callback).ToArray());
+        Assert.Equal(10, step.Pool.Slots[0].ReadWord(12));
+    }
+
+    [Fact]
+    public void LateParticleRetiresInTheExistingResourceArenaWithoutCreatingStagingBytes()
+    {
+        (NativeBattleLionHeart165Frame frame, NativeBattleEffectTaskPool pool) = Frame(0x5EE980, 25);
+        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(14, 7)) };
+        byte[] bank = new byte[500 * 24];
+        BinaryPrimitives.WriteInt32LittleEndian(bank, 7);
+        BinaryPrimitives.WriteInt16LittleEndian(bank.AsSpan(6), 4096);
+        byte[] pointer = BitConverter.GetBytes(0x20DFAB8u);
+        frame = frame with { Memory = frame.Memory with { Arena = new NativeBattleEffectArena([]).Write(0, bank) }, Staging = frame.Staging.Write(0x23C5680, pointer) };
+        byte[] sprite = new byte[18];
+        BinaryPrimitives.WriteUInt16LittleEndian(sprite.AsSpan(8), 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(sprite.AsSpan(10), 14);
+        BinaryPrimitives.WriteInt16LittleEndian(sprite.AsSpan(12), -1);
+        NativeBattleLionHeart165ChildStep step = NativeBattleLionHeart165Controller.AdvanceSpriteParticles(frame, pool, 0, Inputs(0, []), new(0xD7B340, sprite.ToImmutableArray()), Identity(), new(Identity(), 256, 160, 108), 0);
+        Assert.Equal(0, BinaryPrimitives.ReadInt32LittleEndian(step.Frame.Memory.Arena!.Read(0, 4)));
+        Assert.Throws<NotSupportedException>(() => step.Frame.Staging.Read(0x20DFAB8, 4));
+        Assert.Equal(2, step.Result);
     }
 
     private static NativeBattleLionHeart165Inputs Inputs(uint flags, List<NativeBattleLionHeart165Operation> operations) => new(flags, () => 0, actor => new(actor, 3) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096) }, _ => new(10, 20, 30, 0), (_, _, _) => new(10, 20, 30), _ => new(new(10, 20, 30), 0, 0, -4096, null, null), (frame, operation) =>

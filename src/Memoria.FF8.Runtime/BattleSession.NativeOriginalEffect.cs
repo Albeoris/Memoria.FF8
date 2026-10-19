@@ -213,6 +213,10 @@ public sealed partial class BattleSession
         {
             return EnterNativeNoMercy200(graphics, effect.Binding.NoMercy200Resources ?? throw new NotSupportedException("Native No Mercy requires its original resources."));
         }
+        if (effect.Binding.Entry == 0x5E9470)
+        {
+            return EnterNativeLionHeart165(graphics, effect.Binding.LionHeart165Resources ?? throw new NotSupportedException("Native Lion Heart requires its original resources."));
+        }
         if (effect.Binding.Entry == 0x5F0260)
         {
             return EnterNativeBlastingZone164(graphics, effect.Binding.BlastingZone164Resources ?? throw new NotSupportedException("Native Blasting Zone requires its original resources."));
@@ -228,6 +232,10 @@ public sealed partial class BattleSession
         if (effect.Binding.Entry == 0x77F250)
         {
             return EnterNativeRinoa86(graphics);
+        }
+        if (effect.Binding.Entry == 0x773870)
+        {
+            return EnterNativeRinoa87(graphics);
         }
         if (effect.Binding.Entry == 0x5AA3E0)
         {

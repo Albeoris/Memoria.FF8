@@ -28,12 +28,16 @@ public static partial class NativeBattleLionHeart165Controller
             int swarm = Copy(0x5EE980, flash);
             Marker(swarm);
             uint bank = unchecked((uint)ReadDword(frame.Staging, 0x23C5680));
-            NativeBattleFileStaging staging = frame.Staging;
-            for (uint index = 0; index < 500; index++)
+            if (bank != 0x20DFAB8)
             {
-                staging = WriteDword(staging, bank + index * 24, 0);
+                throw new NotSupportedException("Native Lion Heart late particle clear requires its actual571B50 bank.");
             }
-            frame = frame with { Staging = staging };
+            NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Lion Heart late particles require their retained resource arena.");
+            for (int index = 0; index < 500; index++)
+            {
+                arena = arena.Write(index * 24, new byte[4]);
+            }
+            frame = frame with { Memory = frame.Memory with { Arena = arena } };
             SaveFlag(actor);
             foreach (byte targetActor in TargetRing(frame, inputs))
             {

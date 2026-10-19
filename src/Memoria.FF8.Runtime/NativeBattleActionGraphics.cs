@@ -236,8 +236,10 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
     public NativeBattleShot198Resources? Shot198Resources { get; init; }
     public NativeBattleAngelWing84Resources? AngelWing84Resources { get; init; }
     public NativeBattleRinoa86Resources? Rinoa86Resources { get; init; }
+    public NativeBattleRinoa87Resources? Rinoa87Resources { get; init; }
     public NativeBattleRoughDivide163Resources? RoughDivide163Resources { get; init; }
     public NativeBattleBlastingZone164Resources? BlastingZone164Resources { get; init; }
+    public NativeBattleLionHeart165Resources? LionHeart165Resources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleNoMercy200Resources? NoMercy200Resources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

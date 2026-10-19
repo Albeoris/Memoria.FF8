@@ -24,9 +24,9 @@ public static partial class NativeBattleEffectPacketArena
         return new(memory with { Arena = owned?.Freeze() ?? view }, checked(cursor + batch.AllocationBytes), links.ToImmutable());
     }
 
-    internal static void AppendAttempts(NativeBattleEffectArenaWriter arena, NativeBattleLogicalOrdering.Builder links, int cursor, NativeBattleGfGeometryBatch batch, ushort flags20 = 0, int? moduleDraw = null, uint? privateOrderingAddress = null)
+    internal static void AppendAttempts(NativeBattleEffectArenaWriter arena, NativeBattleLogicalOrdering.Builder links, int cursor, NativeBattleGfGeometryBatch batch, ushort flags20 = 0, int? moduleDraw = null, uint? privateOrderingAddress = null, string bank = "20DFAB8", int capacity = NativeBattleEffectArena.Length)
     {
-        if (batch.Attempts.IsDefault || batch.AllocationBytes < 0 || (batch.AllocationBytes & 3) != 0 || cursor < 0 || (cursor & 3) != 0 || cursor > NativeBattleEffectArena.Length - batch.AllocationBytes)
+        if (batch.Attempts.IsDefault || batch.AllocationBytes < 0 || (batch.AllocationBytes & 3) != 0 || cursor < 0 || (cursor & 3) != 0 || cursor > capacity - batch.AllocationBytes)
         {
             throw new InvalidDataException("Native effect packet attempts require their original ordered stores/links and aligned allocation.");
         }
@@ -38,7 +38,7 @@ public static partial class NativeBattleEffectPacketArena
                 throw new InvalidDataException("Native effect packet attempt lacks its actual bounded stores or link address.");
             }
             int address = checked(cursor + attempt.ByteOffsetRelative);
-            if (address > NativeBattleEffectArena.Length - attempt.PacketLength)
+            if (address > capacity - attempt.PacketLength)
             {
                 throw new InvalidDataException("Native effect packet stores leave the original1MB arena.");
             }
@@ -52,7 +52,7 @@ public static partial class NativeBattleEffectPacketArena
                 }
                 if (state != NativeBattleGfPacketByteState.Untouched)
                 {
-                    links.InvalidatePacketRange(new("20DFAB8", 0, checked(address + offset)), end - offset);
+                    links.InvalidatePacketRange(new(bank, 0, checked(address + offset)), end - offset);
                 }
                 arena = state switch
                 {
@@ -82,12 +82,12 @@ public static partial class NativeBattleEffectPacketArena
                         uint root = unchecked(orderingBase + (uint)(4 * primitive.Bucket));
                         rootOffset = NativeBattleWaterExecutionFields.ArenaOffset(root, 4);
                         uint previous = BinaryPrimitives.ReadUInt32LittleEndian(arena.ReadCurrent(rootOffset.Value, 4));
-                        links.PrependAddressed(previous, new("20DFAB8", 0, address), primitive.Words, flags20, primitive.VertexPayload4, moduleDraw);
+                        links.PrependAddressed(previous, new(bank, 0, address), primitive.Words, flags20, primitive.VertexPayload4, moduleDraw);
                     }
                 }
                 else
                 {
-                    links.Prepend(primitive.Bucket, new("20DFAB8", 0, address), primitive.Words, flags20, primitive.VertexPayload4, moduleDraw);
+                    links.Prepend(primitive.Bucket, new(bank, 0, address), primitive.Words, flags20, primitive.VertexPayload4, moduleDraw);
                 }
                 if (linked)
                 {

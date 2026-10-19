@@ -150,6 +150,11 @@ public sealed class NativeBattleGuestLimitCastTests
                 {
                     NativeBattleRestorationPresentationTests.Publish(output!, "completed-before-host-mode", battle.Capture(), scene.Render(battle, 320, 224).ToArray());
                     battle.SetMode(BattleAtbMode.Normal);
+                    if (battle.Outcome == BattleOutcome.Active && battle.Combatants.Where(actor => !actor.IsPlayer).All(actor => !actor.IsAlive))
+                    {
+                        before = battle.Capture();
+                        battle.Tick();
+                    }
                     BattleSnapshot completed = battle.Capture();
                     NativeBattleRestorationPresentationTests.Publish(output!, "completed", completed, scene.Render(battle, 320, 224).ToArray());
                     BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(completed))!);

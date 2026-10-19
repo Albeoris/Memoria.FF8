@@ -15,6 +15,15 @@ public sealed record NativeBattleLionHeart165Flash(short Rise, short Hold, short
 
 public static partial class NativeBattleLionHeart165Controller
 {
+    internal static NativeBattleFileStaging CopyRawPosition5E9650(NativeBattleFileStaging staging, uint destination, NativeBattleGraphicsModel model)
+    {
+        if (model.Transform is not { } transform)
+        {
+            return Forget(staging, destination, 8);
+        }
+        return WriteWord(Point(staging, destination, transform.Position28), destination + 6, unchecked((ushort)transform.Vertical34));
+    }
+
     public static NativeBattleLionHeart165ChildStep Advance5E9650(NativeBattleLionHeart165Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleLionHeart165Inputs inputs, NativeBattleActionMatrix view)
     {
         NativeBattleModulePoolTask task = pool.Slots[slot];
@@ -184,8 +193,7 @@ public static partial class NativeBattleLionHeart165Controller
         NativeBattleModelTransform Transform(byte index) => inputs.ReadModel(index).Transform ?? throw new NotSupportedException("Native Lion Heart requires its actual raw model position WORDs.");
         void SavePosition(uint destination, byte index)
         {
-            NativeBattleModelTransform transform = Transform(index);
-            frame = frame with { Staging = WriteWord(Point(frame.Staging, destination, transform.Position28), destination + 6, unchecked((ushort)transform.Vertical34)) };
+            frame = frame with { Staging = CopyRawPosition5E9650(frame.Staging, destination, inputs.ReadModel(index)) };
         }
         void Anchor(uint destination, NativeBattleModuleAnchor anchor)
         {

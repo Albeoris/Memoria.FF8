@@ -197,6 +197,10 @@ public sealed partial class BattleSession
         {
             return AdvanceNativeNoMercy200(graphics);
         }
+        if (effect.Binding.Entry == 0x5E9470)
+        {
+            return AdvanceNativeLionHeart165(graphics);
+        }
         if (effect.Binding.Entry == 0x5F0260)
         {
             return AdvanceNativeBlastingZone164(graphics);
@@ -212,6 +216,10 @@ public sealed partial class BattleSession
         if (effect.Binding.Entry == 0x77F250)
         {
             return AdvanceNativeRinoa86(graphics);
+        }
+        if (effect.Binding.Entry == 0x773870)
+        {
+            return AdvanceNativeRinoa87(graphics);
         }
         if (effect.Binding.Entry == 0x5AA3E0)
         {
