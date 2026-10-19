@@ -289,18 +289,30 @@ public sealed class TripleTriadTradePresentationTests
         if (manual)
         {
             RecordingCanvas selection = Draw(view);
-            Assert.Contains(selection.Texts, line => line.Text == "Choose your winnings   0 / 1");
+            var prompt = Assert.Single(selection.Texts, line => line.Text == "Select 1 card(s) you want");
+            Assert.Equal(480, prompt.Bounds.X + prompt.Bounds.Width / 2);
+            Assert.Equal(24, prompt.Bounds.Y);
+            Assert.DoesNotContain(selection.Texts, line => line.Text == controller.Message);
+            foreach (var card in selection.Images.Where(image => image.Source.Kind == UiImageKind.CardFace))
+            {
+                var label = Assert.Single(selection.Texts, line => line.Text == controller.Name(card.Source.Id));
+                Assert.Equal(card.Bounds.X + card.Bounds.Width / 2, label.Bounds.X + label.Bounds.Width / 2);
+                Assert.Equal(selection.MeasureText(label.Text, 18, float.PositiveInfinity).Width, label.Bounds.Width);
+            }
             Assert.Single(selection.Pointers);
             controller.SelectTradeCard(0);
+            Assert.Contains(Draw(view).Texts, line => line.Text == "Select 1 card(s) you want");
         }
         Advance(controller, TripleTriadController.TradeFlipDuration);
         if (manual)
         {
             Assert.Equal(TripleTriadTradePhase.ConfirmingSelection, controller.TradePhase);
+            Assert.Contains(Draw(view).Texts, line => line.Text == "Select 1 card(s) you want");
             controller.Navigate(UiKey.Confirm);
         }
         Advance(controller, TripleTriadController.TradeMoveDuration / 2);
         RecordingCanvas moving = Draw(view);
+        Assert.DoesNotContain(moving.Texts, line => line.Text.StartsWith("Select ", StringComparison.Ordinal));
         int transferredId = manual ? 5 : 0;
         var movingCard = Assert.Single(moving.Images, image => image.Source.Kind == UiImageKind.CardFace && image.Source.Id == transferredId);
         Assert.Equal(winner, movingCard.Source.Palette);
@@ -510,7 +522,7 @@ public sealed class TripleTriadTradePresentationTests
     private sealed class RecordingCanvas : IUiCanvas
     {
         public List<(UiImageSource Source, UiRect Bounds)> Images { get; } = [];
-        public List<(string Text, UiColor Color)> Texts { get; } = [];
+        public List<(string Text, UiColor Color, UiRect Bounds)> Texts { get; } = [];
         public List<UiRect> Pointers { get; } = [];
 
         public void Fill(UiRect bounds, UiColor color)
@@ -519,8 +531,10 @@ public sealed class TripleTriadTradePresentationTests
 
         public void Text(string text, float fontSize, UiRect bounds, UiColor color)
         {
-            Texts.Add((text, color));
+            Texts.Add((text, color, bounds));
         }
+
+        public UiSize MeasureText(string text, float fontSize, float maximumWidth) => new(text.Length * fontSize / 2, fontSize);
 
         public void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment)
         {

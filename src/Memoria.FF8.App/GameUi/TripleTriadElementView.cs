@@ -41,7 +41,7 @@ internal sealed class TripleTriadElementView(TripleTriadController controller) :
         {
             DrawMatch(canvas, theme, controller.Match);
         }
-        if (controller.Match is not null || controller.TradingHand is not null)
+        if (controller.Match is not null && controller.TradingHand is null || controller.AwaitingTradeConfirmation)
         {
             canvas.OutlinedText(controller.IsAnimating && controller.TradingHand is null ? controller.CaptureAnnouncement ?? "" : controller.Message, 20, new UiRect(160, 635, 640, 30), theme.Foreground, new UiColor(0, 0, 0), 1);
         }
@@ -96,9 +96,12 @@ internal sealed class TripleTriadElementView(TripleTriadController controller) :
     private void DrawTrade(IUiCanvas canvas, UiTheme theme)
     {
         bool selecting = controller.TradePhase == TripleTriadTradePhase.Selecting;
-        if (selecting)
+        if (controller.IsChoosingTradeCards)
         {
-            canvas.OutlinedText($"Choose your winnings   {controller.TradeSelection.Count} / {controller.RequiredTradeCards}", 25, new UiRect(152, 30, 656, 42), theme.Foreground, new UiColor(0, 0, 0), 1);
+            string prompt = $"Select {controller.RequiredTradeCards} card(s) you want";
+            float textWidth = canvas.MeasureText(prompt, 25, float.PositiveInfinity).Width;
+            theme.Panel(canvas, new UiRect(480 - (textWidth + 40) / 2, 24, textWidth + 40, 84));
+            canvas.OutlinedText(prompt, 25, new UiRect(480 - textWidth / 2, 24, textWidth, 84), theme.Foreground, new UiColor(0, 0, 0), 1);
         }
         for (int index = 0; index < 10; index++)
         {
@@ -132,7 +135,9 @@ internal sealed class TripleTriadElementView(TripleTriadController controller) :
             if (controller.TradingCardIndex < 0 || index == controller.TradingCardIndex && controller.AwaitingTradeConfirmation)
             {
                 UiColor color = TradeNameColor(id, theme);
-                canvas.OutlinedText(controller.Name(id), 18, new UiRect(bounds.X - 8, bounds.Bottom + 5, bounds.Width + 16, 28), color, new UiColor(0, 0, 0), 1);
+                string name = controller.Name(id);
+                float textWidth = canvas.MeasureText(name, 18, float.PositiveInfinity).Width;
+                canvas.OutlinedText(name, 18, new UiRect(bounds.X + (bounds.Width - textWidth) / 2, bounds.Bottom + 5, textWidth, 28), color, new UiColor(0, 0, 0), 1);
             }
         }
     }

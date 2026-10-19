@@ -39,6 +39,7 @@ public sealed partial class TripleTriadController
     public int TradingCardIndex { get; private set; } = -1;
     public bool TradingToPlayer { get; private set; }
     public bool AwaitingTradeConfirmation => TradePhase == TripleTriadTradePhase.AwaitingConfirmation;
+    public bool IsChoosingTradeCards => TradePhase is TripleTriadTradePhase.Selecting or TripleTriadTradePhase.ConfirmingSelection || manualTrade && TradePhase == TripleTriadTradePhase.Flipping;
     public int TradeConfirmationSelection { get; private set; }
     public bool IsTradeAnimating => TradePhase is TripleTriadTradePhase.Entering or TripleTriadTradePhase.Flipping or TripleTriadTradePhase.Moving or TripleTriadTradePhase.Exiting;
     public double TradeProgress => Math.Clamp(tradeTime / (TradePhase switch
