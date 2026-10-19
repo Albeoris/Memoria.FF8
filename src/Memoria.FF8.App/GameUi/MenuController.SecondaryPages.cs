@@ -142,6 +142,7 @@ public sealed partial class MenuController
         {
             commands.Items = Entries.Select(entry => Data.Items.FirstOrDefault(item => item.Id == entry.Id)?.Name ?? entry.Label).ToList();
             commands.SecondaryItems = Entries.Select(entry => Data.Items.FirstOrDefault(item => item.Id == entry.Id) is { } item ? Number(ScreenId == "shop-sell" ? item.SalePrice ?? item.Price / 2 : item.Price) + " G" : "--").ToList();
+            commands.Images = Entries.Select(entry => Data.Items.FirstOrDefault(item => item.Id == entry.Id)?.Icon).ToList();
             commands.SecondaryWidth = 0.33f;
             Place(page, Panel("ITEM", commands), 1);
         }

@@ -87,7 +87,8 @@ internal sealed partial class RecreateGame
         }
         else if (IsNativeShopActive)
         {
-            data = NativeShopMenuProjection.Build(events!.PartyMenu!.Shop!);
+            EnsureLiveMenuCatalog();
+            data = NativeShopMenuProjection.Build(events!.PartyMenu!.Shop!, liveMenuCatalog!);
         }
         else
         {

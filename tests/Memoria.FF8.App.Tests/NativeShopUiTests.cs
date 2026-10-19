@@ -5,6 +5,7 @@ using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -15,8 +16,9 @@ public sealed class NativeShopUiTests
     {
         using GameAssets assets = InstalledAssets();
         NativeShopTransaction shop = OriginalShop(assets);
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
         string original = JsonSerializer.Serialize(shop);
-        MenuData data = NativeShopMenuProjection.Build(shop);
+        MenuData data = NativeShopMenuProjection.Build(shop, catalog);
         Assert.Equal(1000, data.Items.Single(item => item.Id == "item-191").Price);
         Assert.Equal(1000, data.Items.Single(item => item.Id == "item-192").Price);
         Assert.Equal(shop.Definitions.ResolvePrice(191).Name, data.Items.Single(item => item.Id == "item-191").Name);
@@ -33,11 +35,12 @@ public sealed class NativeShopUiTests
         NativeEconomy economy = assets.ReadNewGameEconomy();
         string savedInventory = JsonSerializer.Serialize(economy);
         NativeShopTransaction shop = OriginalShop(assets);
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
         uint gil = shop.Gil;
         byte count = shop.Counts[191];
         List<PlayerAction> inputs = [];
         // Declared UI/cache component.
-        MenuController controller = new(() => NativeShopMenuProjection.Build(shop), action =>
+        MenuController controller = new(() => NativeShopMenuProjection.Build(shop, catalog), action =>
         {
             PlayerAction input = NativeShopMenuProjection.PurchaseAction(action);
             inputs.Add(input);
@@ -78,11 +81,12 @@ public sealed class NativeShopUiTests
     {
         using GameAssets assets = InstalledAssets();
         NativeShopTransaction shop = OriginalShop(assets);
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
         int itemId = Enumerable.Range(1, 198).First(id => !shop.AvailableItems.Contains((byte)id) && shop.Definitions.Prices[id].Name is not null);
         shop = shop with { Counts = shop.Counts.SetItem(itemId, 2), AbilityMask = 2 };
         uint gil = shop.Gil;
         List<PlayerAction> inputs = [];
-        MenuController controller = new(() => NativeShopMenuProjection.Build(shop), action =>
+        MenuController controller = new(() => NativeShopMenuProjection.Build(shop, catalog), action =>
         {
             PlayerAction input = NativeShopMenuProjection.PurchaseAction(action);
             inputs.Add(input);
@@ -168,6 +172,50 @@ public sealed class NativeShopUiTests
         Assert.True(engine.Apply(new PlayerAction(PlayerActionKind.Cancel)).Accepted);
         Assert.Equal(gil + shop.Definitions.SellPrice(itemId, shop.AbilityMask), session.Economy!.Gil);
         Assert.Equal(count - 1, session.Economy.Items.Single(stock => stock.ItemId == itemId).Count);
+    }
+
+    [Theory]
+    [InlineData("shop-buy")]
+    [InlineData("shop-sell")]
+    public void ShopRowsShowOriginalIconsAndSelectionChangesTheHelpDescription(string screen)
+    {
+        using GameAssets assets = InstalledAssets();
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
+        NativeShopTransaction shop = OriginalShop(assets);
+        shop = shop with { Counts = shop.Counts.SetItem(1, 6).SetItem(191, 2) };
+        string original = JsonSerializer.Serialize(shop);
+        MenuController controller = new(() => NativeShopMenuProjection.Build(shop, catalog));
+        controller.Open(screen);
+        Assert.True(controller.Entries.Count > 1);
+        for (int selection = 0; selection < 2; selection++)
+        {
+            UiView view = controller.BuildView();
+            MenuItem selected = controller.Data.Items.Single(item => item.Id == controller.SelectedEntry!.Id);
+            int itemId = int.Parse(selected.Id.AsSpan(5), System.Globalization.CultureInfo.InvariantCulture);
+            Assert.Equal(catalog.ItemDescription(itemId), selected.Description);
+            Assert.NotNull(selected.Icon);
+            Assert.Equal(catalog.ItemIcon(itemId), selected.Icon);
+            Assert.Contains(Descendants(view.Root).OfType<UiLabel>(), label => label.Text == selected.Description);
+            UiList list = Assert.Single(Descendants(view.Root).OfType<UiList>(), element => element.Id == "commands");
+            Assert.Equal(controller.Entries.Count, list.Images.Count);
+            Assert.Equal(controller.Entries.Select(entry => controller.Data.Items.Single(item => item.Id == entry.Id).Icon), list.Images);
+            Assert.Equal(selected.Icon, list.Images[controller.SelectedIndex]);
+            Assert.Equal(controller.Entries.Count, list.SecondaryItems.Count);
+            controller.Navigate(MenuInput.Down);
+        }
+        Assert.Equal(original, JsonSerializer.Serialize(shop));
+    }
+
+    private static IEnumerable<UiElement> Descendants(UiElement root)
+    {
+        yield return root;
+        foreach (UiElement child in root.Children)
+        {
+            foreach (UiElement descendant in Descendants(child))
+            {
+                yield return descendant;
+            }
+        }
     }
 
     private static NativeShopTransaction OriginalShop(GameAssets assets)
