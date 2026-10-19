@@ -16,7 +16,7 @@ public sealed class CarGameplayInputTests
         Assert.Equal(0x880, keyboard.HeldControlButtons);
         PlayerAction action = ControllerGameplayInput.CreateWorldAction(input, CarState(), keyboard.HeldControlButtons);
         Assert.Equal(0x80, action.Value);
-        Assert.Equal((0f, -1f), ControllerGameplayInput.ReadCarAxes((uint)action.Value, action.Horizontal, action.Vertical));
+        Assert.Equal((0f, -1f), ControllerGameplayInput.ReadVehicleAxes((uint)action.Value, action.Horizontal, action.Vertical));
     }
 
     [Theory]
@@ -29,7 +29,7 @@ public sealed class CarGameplayInputTests
         KeyboardInput keyboard = new() { Profile = CarProfile() };
         InputFrame input = keyboard.Read(new KeyboardState(key), true);
         PlayerAction action = ControllerGameplayInput.CreateWorldAction(input, CarState(), keyboard.HeldControlButtons);
-        (float horizontal, float throttle) = ControllerGameplayInput.ReadCarAxes((uint)action.Value, action.Horizontal, action.Vertical);
+        (float horizontal, float throttle) = ControllerGameplayInput.ReadVehicleAxes((uint)action.Value, action.Horizontal, action.Vertical);
 
         Assert.Equal(PlayerActionKind.WorldButtons, action.Kind);
         Assert.Equal(buttons, action.Value);
@@ -53,7 +53,7 @@ public sealed class CarGameplayInputTests
     [InlineData(Keys.S, 0x4000)]
     [InlineData(Keys.Up, 0x1000)]
     [InlineData(Keys.Down, 0x4000)]
-    public void Vertical_direction_bindings_do_not_accelerate_the_car(Keys key, int buttons)
+    public void Vertical_direction_bindings_add_car_throttle_without_changing_the_sampled_buttons(Keys key, int buttons)
     {
         KeyboardInput keyboard = new() { Profile = CarProfile() };
         InputFrame input = keyboard.Read(new KeyboardState(key), true);
@@ -61,9 +61,10 @@ public sealed class CarGameplayInputTests
 
         Assert.NotEqual(0, input.Vertical);
         Assert.Equal(PlayerActionKind.WorldButtons, action.Kind);
-        Assert.Equal(buttons, action.Value);
+        int throttle = buttons == 0x1000 ? 0x80 : 0x10;
+        Assert.Equal(buttons | throttle, action.Value);
         Assert.Equal((ushort)buttons, keyboard.HeldControlButtons);
-        Assert.Equal((0f, 0f), ControllerGameplayInput.ReadCarAxes((uint)action.Value, action.Horizontal, action.Vertical));
+        Assert.Equal((0f, buttons == 0x1000 ? -1f : 1f), ControllerGameplayInput.ReadVehicleAxes((uint)action.Value, action.Horizontal, action.Vertical));
     }
 
     [Theory]
@@ -76,7 +77,7 @@ public sealed class CarGameplayInputTests
         PlayerAction action = ControllerGameplayInput.CreateWorldAction(input, CarState(), keyboard.HeldControlButtons);
 
         Assert.Equal(buttons, action.Value);
-        Assert.Equal((horizontal, vertical), ControllerGameplayInput.ReadCarAxes((uint)action.Value, action.Horizontal, action.Vertical));
+        Assert.Equal((horizontal, vertical), ControllerGameplayInput.ReadVehicleAxes((uint)action.Value, action.Horizontal, action.Vertical));
     }
 
     [Theory]
@@ -89,7 +90,7 @@ public sealed class CarGameplayInputTests
         GamePadState pad = new(new Vector2(leftX, leftY), new Vector2(rightX, rightY), 0, 0, Buttons.None);
         InputFrame input = keyboard.Read(default, pad, true);
         PlayerAction action = ControllerGameplayInput.CreateWorldAction(input, CarState(), keyboard.HeldControlButtons);
-        (float horizontal, float vertical) = ControllerGameplayInput.ReadCarAxes((uint)action.Value, action.Horizontal, action.Vertical);
+        (float horizontal, float vertical) = ControllerGameplayInput.ReadVehicleAxes((uint)action.Value, action.Horizontal, action.Vertical);
 
         Assert.Equal(0, action.Value);
         Assert.Equal(leftX, horizontal, 5);
@@ -108,7 +109,7 @@ public sealed class CarGameplayInputTests
     [InlineData(0xF000u, -1f, -0.6f)]
     public void Native_digital_axes_override_only_their_corresponding_analog_sources(uint buttons, float horizontal, float vertical)
     {
-        Assert.Equal((horizontal, vertical), ControllerGameplayInput.ReadCarAxes(buttons, 0.35f, -0.6f));
+        Assert.Equal((horizontal, vertical), ControllerGameplayInput.ReadVehicleAxes(buttons, 0.35f, -0.6f));
     }
 
     [Fact]
@@ -122,7 +123,7 @@ public sealed class CarGameplayInputTests
         Assert.Equal((ushort)0x10, keyboard.HeldFieldButtons);
         Assert.Equal((ushort)0, keyboard.HeldControlButtons);
         Assert.Equal(0, action.Value);
-        Assert.Equal((0.3f, 0f), ControllerGameplayInput.ReadCarAxes((uint)action.Value, action.Horizontal, action.Vertical));
+        Assert.Equal((0.3f, 0f), ControllerGameplayInput.ReadVehicleAxes((uint)action.Value, action.Horizontal, action.Vertical));
     }
 
     [Theory]

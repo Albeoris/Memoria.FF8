@@ -88,7 +88,7 @@ Choose identities from the active dialogue/menu/battle owner and current resourc
 | `SkipMovie` | Completes/skips the active clip through its supported movie callback contract. |
 | `Cancel` | Current dialogue/menu/card owner's cancellation; accepted only where allowed. |
 | `FieldButtons` | `Value`: field button mask, for the active field input owner. |
-| `WorldButtons` | `Value`: unsigned 16-bit digital mask for the supported active world vehicle owner. For cars, optional `Horizontal` supplies left-stick steering and `Vertical` supplies right-stick throttle; digital directions and throttle buttons override their corresponding analog axes. Unsupported vehicle/menu contracts fail explicitly. |
+| `WorldButtons` | `Value`: unsigned 16-bit digital mask for the supported active world vehicle owner. For cars and Garden, optional `Horizontal` supplies left-stick steering and `Vertical` supplies right-stick throttle; digital directions and throttle buttons override their corresponding analog axes. Up/down throttle alternatives are added by the graphical host; raw packets retain native button semantics. Unsupported vehicle/menu contracts fail explicitly. |
 | `SelectPartySlot` | `Value`: slot 0..2 in an active party selection menu. |
 | `SelectPartyMember` | `Value`: physical character row 0..7 or 255 for an allowed empty member. |
 | `BuyShopItem`, `SellShopItem` | `Value`: item byte; explicit `Quantity`: 1..255. Requires the matching shop owner. |

@@ -20,7 +20,7 @@ Controller names below use physical positions. The button-label setting can disp
 | Rotate left / previous character | H | Left shoulder |
 | Rotate right / next character | G | Right shoulder |
 
-The right stick supplies camera input in supported world contexts. In a car, Card / detail accelerates and Cancel / walk reverses; left/right or the left stick steers. The right stick's vertical axis also controls forward/reverse. Up/down does not accelerate the car. These actions follow your current bindings, including the buttons shown by the driving tutorial. Tilt the left stick gently to walk on foot; the default run threshold is 50%. Input availability still depends on the current scene and script: a binding does not guarantee that an action is valid everywhere.
+The right stick supplies camera input in supported world contexts. In a car or while driving Garden, Card / detail accelerates and Cancel / walk reverses; left/right or the left stick steers. Up/down, including remapped direction keys such as W/S, also drives forward/backward. The separate throttle buttons take priority over these directional alternatives. The right stick's vertical axis also controls forward/reverse. These actions follow your current bindings, including the buttons shown by the driving tutorial. Tilt the left stick gently to walk on foot; the default run threshold is 50%. Input availability still depends on the current scene and script: a binding does not guarantee that an action is valid everywhere.
 
 In supported battle contexts, Rotate right is also the gunblade / Shot trigger, and Card is the GF Boost input. Menu detail and character paging use these shared actions too.
 

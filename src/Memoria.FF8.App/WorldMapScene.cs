@@ -338,7 +338,8 @@ internal sealed partial class WorldMapScene : IDisposable
         bool gardenAction = (State.NativeGardenRuntime is not null || State.NativeRagnarokRuntime is not null) && action.Kind == PlayerActionKind.Confirm;
         bool ragnarokButtons = State.NativeRagnarokRuntime is not null && State.NativeFootRuntime is null && action.Kind == PlayerActionKind.WorldButtons;
         bool carButtons = State.NativeCarRuntime is not null && action.Kind == PlayerActionKind.WorldButtons;
-        bool vehicleButtons = ragnarokButtons || carButtons;
+        bool gardenButtons = State.NativeGardenRuntime is not null && State.NativeFootRuntime is null && action.Kind == PlayerActionKind.WorldButtons;
+        bool vehicleButtons = ragnarokButtons || carButtons || gardenButtons;
         if (action.WorldButtons != 0 && (action.Kind is not (PlayerActionKind.Move or PlayerActionKind.Wait) || (action.WorldButtons & ~0x02) != 0))
         {
             throw new ArgumentException("Ordinary world button levels support only the camera toggle mask on Move or Wait actions.", nameof(action));
@@ -383,7 +384,7 @@ internal sealed partial class WorldMapScene : IDisposable
                     buttons |= action.Horizontal == -1 ? 0x2000u : action.Horizontal == 1 ? 0x8000u : 0;
                 }
                 salary = salary.WithWorldInputSample(buttons);
-                (float horizontal, float vertical) = carButtons ? ControllerGameplayInput.ReadCarAxes(buttons, action.Horizontal, action.Vertical) : (action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0);
+                (float horizontal, float vertical) = carButtons || gardenButtons ? ControllerGameplayInput.ReadVehicleAxes(buttons, action.Horizontal, action.Vertical) : (action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0);
                 WorldState callbackStart = candidate;
                 previousCallback = candidate;
                 candidate = Step(candidate, horizontal, vertical, action.CameraHorizontal, priorGraphics, buttons, salary.WorldEntryMemory, ref salary, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out fieldEntry, out uint movementUnits, out int graphicsSpeed);
