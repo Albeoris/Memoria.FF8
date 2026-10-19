@@ -101,6 +101,7 @@ internal sealed partial class RecreateGame
         active.AdvanceComponentGuardianBoostPresentation(elapsed);
         battleScene!.AdvancePresentation(elapsed);
         battleHud!.AdvancePresentation(elapsed);
+        battleHud.SetNativeCommandButtons(keyboard.HeldFieldButtons);
         active.AdvanceNativeShotPresentation(elapsed);
         active.AdvanceNativeDuelPresentation(elapsed, keyboard.HeldFieldButtons);
         active.AdvanceNativeRenzokukenPresentation(elapsed);
@@ -126,6 +127,10 @@ internal sealed partial class RecreateGame
         }
         else
         {
+            if (keyboard.GameMenuRequested)
+            {
+                battleHud!.CycleCommandActor();
+            }
             NavigateBattleView(battleHud!.Navigate, input, gunbladeInput || shotInput || boostInput);
             if (ActiveBattle is null || battleHud is null)
             {

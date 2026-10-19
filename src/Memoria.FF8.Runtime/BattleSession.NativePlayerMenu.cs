@@ -7,7 +7,7 @@ public sealed partial class BattleSession
     public bool CanChoosePlayerCommand(string actorId)
     {
         BattleCombatant actor = GetActor(actorId);
-        if (!NativeEntryReady || !actor.IsPlayer)
+        if (Outcome != BattleOutcome.Active || !NativeEntryReady || !actor.IsPlayer)
         {
             return false;
         }
@@ -59,6 +59,10 @@ public sealed partial class BattleSession
         if (!CanChoosePlayerCommand(actorId))
         {
             throw new InvalidOperationException("Player command selection requires an actually registered ready actor.");
+        }
+        if (GetActor(actorId).NativeLimit is not null)
+        {
+            RefreshNativeLimit(actorId);
         }
         if (UsesNativeReadyMenu)
         {

@@ -9,6 +9,29 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleReadyMenuTests
 {
     [Fact]
+    public void Native_Limit_selection_waits_for_UI_registration_and_survives_HUD_recreation()
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession battle = Create(game, assets, limits: true);
+        string before = JsonSerializer.Serialize(battle.Capture());
+        Assert.False(battle.HasNativeLimitSelection("party-0"));
+        Assert.Throws<InvalidOperationException>(() => battle.SelectPlayerCommandActor("party-0"));
+        Assert.Throws<InvalidOperationException>(() => battle.QueueNativePlayerCommand("party-0", "enemy", 5, 0));
+        Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
+
+        battle.Tick();
+
+        Assert.True(battle.HasNativeLimitSelection("party-0"));
+        string selected = JsonSerializer.Serialize(battle.Capture());
+        Hud(battle).BuildView();
+        Assert.Equal(selected, JsonSerializer.Serialize(battle.Capture()));
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(selected)!);
+        Hud(restored).BuildView();
+        Assert.Equal(selected, JsonSerializer.Serialize(restored.Capture()));
+    }
+
+    [Fact]
     public void Raw_hud_waits_for_ready_registration_and_switches_in_the_registered_order()
     {
         using GameAssets game = new(TestResources.GameDirectory);
@@ -28,9 +51,9 @@ public sealed class NativeBattleReadyMenuTests
         Assert.Equal("party-3", hud.SelectedActor!.Id);
         hud.SelectParty("party-0");
         Assert.Equal((sbyte)0, battle.NativeGraphics!.UiServices!.Commands.SelectedActor);
-        hud.Navigate(MenuInput.Right);
+        hud.CycleCommandActor();
         Assert.Equal("party-3", hud.SelectedActor!.Id);
-        hud.Navigate(MenuInput.Left);
+        hud.Navigate(MenuInput.PageLeft);
         Assert.Equal("party-0", hud.SelectedActor!.Id);
         string saved = JsonSerializer.Serialize(battle.Capture());
         hud.BuildView();
@@ -93,12 +116,17 @@ public sealed class NativeBattleReadyMenuTests
 
     private static BattleHudController Hud(BattleSession battle) => new(battle, battle.QueueAttack, () => { }, () => battle.AdvanceTurn());
 
-    private static BattleSession Create(GameAssets game, BattleAssets assets)
+    private static BattleSession Create(GameAssets game, BattleAssets assets, bool limits = false)
     {
         BattleEncounter encounter = assets.LoadEncounter(94);
         BattleCombatantDefinition[] actors = new[] { 0, 3, 4 }.Select(character => new BattleCombatantDefinition { Id = $"party-{character}", Name = $"Character{character}", IsPlayer = true, ModelId = character, WeaponId = assets.WeaponDefinitions.First(weapon => weapon.CharacterId == character).Id, InitialAtb = BattleSession.AtbMaximum, Speed = 1, NativeDeathCount = 0 }).Append(new() { Id = "enemy", Name = "Ifrit", ModelId = 61, Speed = 1, SceneSlot = encounter.Enemies.Single(enemy => enemy.ModelId == 61).Slot }).ToArray();
+        if (limits)
+        {
+            actors[0] = actors[0] with { NativeLimit = assets.ReadNativeLimitDefinition(0) };
+        }
         NativeBattleGraphicsDefinition graphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter);
         BattleDefinition definition = new() { EncounterId = 94, StageId = encounter.StageId, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5), NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(), NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeGraphics = graphics, NativeClockRules = new(10), NativeBattleSpeed = 2, NativeSavedOptions = 1, NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeStageSource = assets.LoadStage(encounter.StageId).NativeSource, NativeStageCameraBank = assets.LoadStage(encounter.StageId).NativeCameraBank, NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera], NativeStageCameraControl = assets.LoadStage(encounter.StageId).NativeCameraControl, Combatants = actors };
+        definition = definition with { NativeLimitsDisabled = false, NativeCommandNames = assets.ReadNativeCommandNames(), NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap };
         definition = NativeBattleComponentInputs.PrepareMusic(definition, game.GameDirectory, 0, 5, -1);
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         for (int callback = 0; callback < 200 && !battle.NativeEntryReady; callback++)

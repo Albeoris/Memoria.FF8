@@ -106,6 +106,10 @@ public sealed partial class BattleSession
         }
         services = services with { Commands = commands, ReadyMask = readyMask, Menu957 = selectMenu ? (sbyte)4 : services.Menu957 };
         NativeGraphics = NativeGraphics with { UiServices = services };
+        if (selectMenu && SelectedPlayerCommandActorId is { } selectedActor)
+        {
+            SelectPlayerCommandActor(selectedActor);
+        }
         if ((services.Flags942 & 0x40) != 0)
         {
             NativeBattleUiWindows windows = services.Windows ?? throw new NotSupportedException("Native UI callbacks require their retained physical window bank; migrate the named snapshot explicitly.");

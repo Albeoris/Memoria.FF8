@@ -24,6 +24,8 @@ The right stick supplies camera input and car controls in the supported world co
 
 In supported battle contexts, Rotate right is also the gunblade / Shot trigger, and Card is the GF Boost input. Menu detail and character paging use these shared actions too.
 
+In battle, **Menu** (V / North button) cycles ready characters and recalculates Limit availability, including when only one character is ready. When the first command shows `>`, hold **Right** to reveal the character's Limit and confirm while holding it. Releasing Right before confirmation returns to the ordinary command. Confirming Renzokuken or Duel opens target selection directly; the other Limits open their spell, ammunition or action choices. Cancel returns from a target or choice without recalculating the crisis level.
+
 ## Host shortcuts
 
 These shortcuts are keyboard-only by default. They can also be assigned to controller buttons or combinations in Controls.

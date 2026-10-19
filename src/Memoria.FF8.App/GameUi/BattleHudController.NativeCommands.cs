@@ -6,7 +6,42 @@ namespace Memoria.FF8.GameUi;
 public sealed partial class BattleHudController
 {
     private string? nativeLimitSelectionActorId;
-    private bool nativeLimitSelectionInitialized;
+    private bool nativeLimitCommandSelected;
+    private ushort nativeCommandHeldButtons;
+
+    public bool NativeLimitAvailable => SelectedActor is { } actor && session.GetNativeLimitLevel(actor.Id) > 0;
+    private bool NativeLimitDirectTarget => SelectedCommand == BattleAbility.LimitBreak && SelectedActor?.NativeLimit?.Command is 5 or 11;
+
+    public void SetNativeCommandButtons(ushort buttons)
+    {
+        nativeCommandHeldButtons = buttons;
+        RefreshNativeLimitSelection();
+        if (!SelectingAction && !SelectingTarget)
+        {
+            SelectNativeLimit((buttons & 0x2000) != 0 && (buttons & 0x5000) == 0);
+        }
+    }
+
+    private void SelectNativeLimit(bool selected)
+    {
+        // TODO(TD-009): Project the native eight-unit command-row slide without its pixel animation.
+        bool next = selected && commandIndex == 0 && NativeLimitAvailable;
+        if (next != nativeLimitCommandSelected)
+        {
+            nativeLimitCommandSelected = next;
+            SoundRequested?.Invoke(MenuSound.Move);
+        }
+    }
+
+    private string CommandLabel(BattleAbility command)
+    {
+        if (command == BattleAbility.LimitBreak && SelectedActor is { } actor)
+        {
+            return session.GetNativeLimitCommandName(actor.Id);
+        }
+        string label = command == BattleAbility.GuardianForce ? "GF" : command.ToString();
+        return command == BattleAbility.Attack && NativeLimitAvailable ? label + "  >" : label;
+    }
 
     private BattleCombatant? NativeShotActor => session.Combatants.FirstOrDefault(actor => session.GetNativeShot(actor.Id) is not null);
     private BattleCombatant? NativeDuelActor => session.Combatants.FirstOrDefault(actor => session.GetNativeDuel(actor.Id) is not null);
@@ -66,12 +101,18 @@ public sealed partial class BattleHudController
         {
             return [];
         }
-        return session.GetNativeLimitLevel(actor.Id) > 0 ? [.. actor.Abilities, BattleAbility.LimitBreak] : actor.Abilities;
+        if (nativeLimitCommandSelected && NativeLimitAvailable && actor.Abilities.Count > 0)
+        {
+            BattleAbility[] commands = actor.Abilities.ToArray();
+            commands[0] = BattleAbility.LimitBreak;
+            return commands;
+        }
+        return actor.Abilities;
     }
 
     private void RefreshNativeLimitSelection()
     {
-        if (NativeTimedLimitActive || session.NativeGuardianBoost is not null)
+        if (session.Outcome != BattleOutcome.Active || NativeTimedLimitActive || session.NativeGuardianBoost is not null)
         {
             return;
         }
@@ -80,12 +121,24 @@ public sealed partial class BattleHudController
         {
             return;
         }
-        bool restoredSelection = !nativeLimitSelectionInitialized && actor is not null && session.HasNativeLimitSelection(actor.Id);
-        nativeLimitSelectionInitialized = true;
-        nativeLimitSelectionActorId = actor?.Id;
-        if (actor?.NativeLimit is not null && !restoredSelection)
+        bool ownedSelection = actor is not null && session.HasNativeLimitSelection(actor.Id);
+        if (nativeLimitSelectionActorId is not null)
         {
-            session.RefreshNativeLimit(actor.Id);
+            SelectingAction = false;
+            SelectingTarget = false;
+            SelectingDrawMode = false;
+            selectedDrawSourceId = null;
+            selectedTargetId = null;
+            selectedMagicTargets.Clear();
+            magicCastCount = 1;
+            session.CloseNativeActionMenu();
+        }
+        nativeLimitSelectionActorId = actor?.Id;
+        nativeLimitCommandSelected = false;
+        commandIndex = 0;
+        if (actor?.NativeLimit is not null && !ownedSelection)
+        {
+            session.SelectPlayerCommandActor(actor.Id);
         }
     }
 }

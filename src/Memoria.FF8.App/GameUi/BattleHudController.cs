@@ -45,6 +45,7 @@ public sealed partial class BattleHudController
         hasGuardianForceNames = guardianForceName is not null;
         view = new UiView(new BattleHudElement(this)) { Cancel = CancelTarget };
         view.Resize(960, 672);
+        RefreshNativeLimitSelection();
     }
 
     public BattleSession Session => session;
@@ -103,7 +104,7 @@ public sealed partial class BattleHudController
             return actions.ElementAtOrDefault(Math.Clamp(actionIndex, 0, Math.Max(0, actions.Count - 1)));
         }
     }
-    public IReadOnlyList<string> ChoiceLabels => SelectingDrawMode ? SelectedAction?.Id >= 64 ? ["Stock"] : ["Stock", "Cast"] : NativeDuelChoiceLabels ?? (SelectingAction ? ActionChoices.Select(ChoiceLabel).ToArray() : Commands.Select(command => command == BattleAbility.GuardianForce ? "GF" : command.ToString()).ToArray());
+    public IReadOnlyList<string> ChoiceLabels => SelectingDrawMode ? SelectedAction?.Id >= 64 ? ["Stock"] : ["Stock", "Cast"] : NativeDuelChoiceLabels ?? (SelectingAction ? ActionChoices.Select(ChoiceLabel).ToArray() : Commands.Select(CommandLabel).ToArray());
     public int ChoiceIndex => SelectingDrawMode ? DrawCast ? 1 : 0 : SelectingAction ? actionIndex : commandIndex;
     public int ChoiceStart => Math.Clamp(ChoiceIndex - 1, 0, Math.Max(0, ChoiceLabels.Count - 4));
     public IReadOnlyList<BattleCombatant> Targets
@@ -179,6 +180,7 @@ public sealed partial class BattleHudController
 
     public void Navigate(MenuInput input)
     {
+        RefreshNativeLimitSelection();
         if (input == MenuInput.Cancel && NativeShotActor is { } shotActor)
         {
             session.EndNativeShot(shotActor.Id);
@@ -258,6 +260,7 @@ public sealed partial class BattleHudController
                     else
                     {
                         commandIndex = (commandIndex + direction + count) % count;
+                        SelectNativeLimit(false);
                     }
                     SoundRequested?.Invoke(MenuSound.Move);
                 }
@@ -265,6 +268,10 @@ public sealed partial class BattleHudController
             else if (SelectingAction && SelectedCommand == BattleAbility.Draw)
             {
                 return;
+            }
+            else if (!SelectingAction && input is MenuInput.Left or MenuInput.Right)
+            {
+                SelectNativeLimit(input == MenuInput.Right && (nativeCommandHeldButtons & 0x5000) == 0);
             }
             else
             {
@@ -280,6 +287,7 @@ public sealed partial class BattleHudController
 
     public void Attack()
     {
+        RefreshNativeLimitSelection();
         if (NativeTimedLimitActive || session.NativeGuardianBoost is not null)
         {
             return;
@@ -309,6 +317,11 @@ public sealed partial class BattleHudController
             if (SelectedCommand == BattleAbility.LimitBreak && actor.NativeLimit?.Command == 16)
             {
                 Message = "Choose magic. Page Left/Right: Do over.";
+            }
+            if (NativeLimitDirectTarget)
+            {
+                SelectingTarget = true;
+                Message = "Select a target.";
             }
             SoundRequested?.Invoke(MenuSound.Confirm);
             return;
@@ -369,6 +382,8 @@ public sealed partial class BattleHudController
         Message = $"{actor.Name}: {name} → {target.Name}";
         selectedActorId = null;
         commandIndex = 0;
+        nativeLimitCommandSelected = false;
+        nativeLimitSelectionActorId = null;
     }
 
     public void Choose(int index)
@@ -407,19 +422,38 @@ public sealed partial class BattleHudController
     {
         if (!NativeTimedLimitActive && session.NativeGuardianBoost is null && Party.Any(actor => actor.Id == actorId && CanChooseCommand(actor)))
         {
+            selectedMagicTargets.Clear();
+            magicCastCount = 1;
+            SelectingAction = false;
+            SelectingDrawMode = false;
+            selectedDrawSourceId = null;
+            selectedTargetId = null;
+            session.CloseNativeActionMenu();
+            SelectingTarget = false;
             if (SelectedActor?.Id != actorId)
             {
-                selectedMagicTargets.Clear();
-                magicCastCount = 1;
-                SelectingAction = false;
-                SelectingDrawMode = false;
-                selectedDrawSourceId = null;
-                session.CloseNativeActionMenu();
-                SelectingTarget = false;
                 SoundRequested?.Invoke(MenuSound.Move);
             }
             session.SelectPlayerCommandActor(actorId);
             selectedActorId = actorId;
+            nativeLimitSelectionActorId = actorId;
+            nativeLimitCommandSelected = false;
+            commandIndex = 0;
+        }
+    }
+
+    public void CycleCommandActor()
+    {
+        RefreshNativeLimitSelection();
+        if (NativeTimedLimitActive || session.NativeGuardianBoost is not null || session.Outcome != BattleOutcome.Active)
+        {
+            return;
+        }
+        string? next = Cycle(session.ReadyPlayerCommandOrder, SelectedActor?.Id, 1);
+        if (next is not null)
+        {
+            SelectParty(next);
+            Message = "Choose a command.";
         }
     }
 
@@ -560,6 +594,16 @@ public sealed partial class BattleHudController
         }
         if (SelectingTarget)
         {
+            if (NativeLimitDirectTarget)
+            {
+                SelectingTarget = false;
+                SelectingAction = false;
+                session.CloseNativeActionMenu();
+                SelectNativeLimit((nativeCommandHeldButtons & 0x2000) != 0 && (nativeCommandHeldButtons & 0x5000) == 0);
+                Message = "Choose a command.";
+                SoundRequested?.Invoke(MenuSound.Cancel);
+                return;
+            }
             if (SelectingAction)
             {
                 SelectingTarget = false;

@@ -24,6 +24,12 @@ public sealed partial class BattleSession
         return nativeLimitLevels.GetValueOrDefault(actorId);
     }
 
+    public string GetNativeLimitCommandName(string actorId)
+    {
+        BattleNativeLimitDefinition limit = GetActor(actorId).NativeLimit ?? throw new InvalidOperationException("Character has no native Limit command.");
+        return definition.NativeCommandNames.ElementAtOrDefault(limit.Command) ?? limit.InvocationChoices.FirstOrDefault()?.Name ?? throw new NotSupportedException("Limit command text requires the original kernel command name.");
+    }
+
     public IReadOnlyList<BattleActionDefinition> GetNativePlayerActionChoices(string actorId, bool limits)
     {
         BattleCombatant actor = GetActor(actorId);
@@ -89,7 +95,7 @@ public sealed partial class BattleSession
     public byte RefreshNativeLimit(string actorId)
     {
         BattleCombatant actor = GetActor(actorId);
-        if (!actor.IsPlayer || !actor.IsReady || actor.NativeLimit is not { } limit)
+        if (Outcome != BattleOutcome.Active || !CanChoosePlayerCommand(actorId) || actor.NativeLimit is not { } limit)
         {
             throw new InvalidOperationException("Native Limit selection requires a ready player with its original character record.");
         }
@@ -109,7 +115,7 @@ public sealed partial class BattleSession
         RequireNativeEntryReady();
         BattleCombatant actor = GetActor(actorId);
         BattleCombatant target = GetActor(targetId);
-        if (Outcome != BattleOutcome.Active || !actor.IsPlayer || !actor.IsReady)
+        if (Outcome != BattleOutcome.Active || !CanChoosePlayerCommand(actorId))
         {
             throw new InvalidOperationException("Native player command requires an active battle and a ready player.");
         }

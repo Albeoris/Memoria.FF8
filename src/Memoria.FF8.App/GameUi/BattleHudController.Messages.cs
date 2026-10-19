@@ -69,6 +69,7 @@ public sealed partial class BattleHudController
         {
             throw new ArgumentOutOfRangeException(nameof(elapsed));
         }
+        RefreshNativeLimitSelection();
         CollectBattleMessages();
         battlePresentationSeconds += elapsed.TotalSeconds;
         battleMessageFrames += elapsed.TotalSeconds * BattleSession.FramesPerSecond;

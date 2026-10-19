@@ -18,7 +18,7 @@ public sealed class BattleHudNativeCommandTests
         session = BattleSession.Restore(session.Capture() with { NativeLimits = [new("zell", 1)] });
         BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { }, execute: input => session.QueueAction(input.ActorId!, input.TargetId!, input.Ability, input.ActionId)) { NativeButtonBindingHint = buttons => $"Key{buttons:X4}" };
         hud.BuildView();
-        hud.Choose(1);
+        hud.Navigate(MenuInput.Right);
         hud.Choose(0);
         hud.Attack();
         for (int frame = 0; frame < 100 && session.GetNativeDuel("zell")?.Phase != BattleNativeDuelPhase.Ready; frame++)
@@ -56,7 +56,8 @@ public sealed class BattleHudNativeCommandTests
         session = BattleSession.Restore(session.Capture() with { NativeLimits = [new("irvine", 4)] });
         BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { }, execute: input => session.QueueAction(input.ActorId!, input.TargetId!, input.Ability, input.ActionId));
         hud.BuildView();
-        hud.Choose(1);
+        hud.Navigate(MenuInput.Right);
+        hud.Choose(0);
         hud.Choose(0);
         hud.Attack();
 
@@ -91,8 +92,10 @@ public sealed class BattleHudNativeCommandTests
         hud.BuildView();
 
         Assert.Equal(before, JsonSerializer.Serialize(session.Capture()));
-        Assert.Contains(BattleAbility.LimitBreak, hud.Commands);
-        hud.Choose(1);
+        Assert.True(hud.NativeLimitAvailable);
+        Assert.DoesNotContain(BattleAbility.LimitBreak, hud.Commands);
+        hud.Navigate(MenuInput.Right);
+        hud.Choose(0);
         Assert.True(hud.SelectingAction);
         Assert.Single(hud.ActionChoices);
         hud.Choose(0);
