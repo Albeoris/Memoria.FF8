@@ -6,47 +6,49 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState EnterNativeIfritB25780(NativeBattleGraphicsState graphics)
+    private NativeBattleGraphicsState EnterNativeCinematic(NativeBattleGraphicsState graphics)
     {
-        NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new InvalidDataException("Native Ifrit entry requires its selected effect.");
-        NativeBattleScriptedInitializationDirectories directories = effect.Binding.ScriptedInitializationDirectories ?? throw new NotSupportedException("Native Ifrit requires its original initialization and owner directories.");
-        NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native Ifrit requires its actual action parameters.");
+        NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new InvalidDataException("Native cinematic entry requires its selected effect.");
+        NativeBattleCinematicProfile profile = NativeBattleCinematicProfile.ForEffect(effect.Binding.Effect);
+        NativeBattleScriptedInitializationDirectories directories = effect.Binding.ScriptedInitializationDirectories ?? throw new NotSupportedException("Native cinematic requires its original initialization and owner directories.");
+        NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native cinematic requires its actual action parameters.");
         ImmutableArray<NativeBattleEffectInitializerAsset> assets = NativeBattleEffectInitializerPolicy.Assets(effect.Binding);
         if (assets.Length != 2)
         {
-            throw new NotSupportedException("Native Ifrit requires both complete executed initializer resources.");
+            throw new NotSupportedException("Native cinematic requires both complete executed initializer resources.");
         }
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.HeaderIndex7C];
         ImmutableArray<byte> contacts = WaterContacts(header);
         if (contacts.IsEmpty)
         {
-            throw new NotSupportedException("Native Ifrit entry requires its first actual contact actor.");
+            throw new NotSupportedException("Native cinematic entry requires its first actual contact actor.");
         }
-        NativeBattleWaterInitializationInputs inputs = new(Resource(0, 0x2796E4C), Resource(1, 0x2796E48), NativeBattleWater222Controller.CreateTemporaryFrame(WaterTemporaryAddress), WaterParametersAddress, WaterHeadersAddress + checked((uint)(20 * parameters.HeaderIndex7C)), 0x1874894, parameters.Actor78, parameters.HeaderIndex7C, contacts[0], contacts, header.ReadByte(0x10), header.ReadByte(0x11), graphics.Models);
-        NativeBattleIfritEntryStep initialized = NativeBattleIfritEntry.InitializeB25780(RequireWaterMemory(), effect, directories, inputs);
+        NativeBattleWaterInitializationInputs inputs = new(Resource(0, profile.File0Publication), Resource(1, profile.File1Publication), NativeBattleWater222Controller.CreateTemporaryFrame(WaterTemporaryAddress), WaterParametersAddress, WaterHeadersAddress + checked((uint)(20 * parameters.HeaderIndex7C)), profile.InitializationAddress, parameters.Actor78, parameters.HeaderIndex7C, contacts[0], contacts, header.ReadByte(0x10), header.ReadByte(0x11), graphics.Models);
+        NativeBattleCinematicEntryStep initialized = NativeBattleCinematicEntry.Initialize(profile, RequireWaterMemory(), effect, directories, inputs);
         NativeEffectMemory = initialized.Memory;
         return graphics with { OriginalEffect = initialized.Effect };
 
         NativeBattleWaterInitializationResource Resource(int index, uint publication)
         {
-            NativeBattleEffectResourcePointer pointer = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == publication) ?? throw new NotSupportedException("Native Ifrit requires its actual initializer resource publication.");
+            NativeBattleEffectResourcePointer pointer = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == publication) ?? throw new NotSupportedException("Native cinematic requires its actual initializer resource publication.");
             return new(pointer.ArenaOffset, assets[index].Data.Length, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)pointer.ArenaOffset));
         }
     }
 
-    private NativeBattleGraphicsState AdvanceNativeIfritB25DF0(NativeBattleGraphicsState graphics)
+    private NativeBattleGraphicsState AdvanceNativeCinematic(NativeBattleGraphicsState graphics)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect!;
-        NativeBattleCinematicResources resources = effect.Binding.CinematicResources ?? throw new NotSupportedException("Native Ifrit requires its authenticated cinematic tables and resources.");
+        NativeBattleCinematicResources resources = effect.Binding.CinematicResources ?? throw new NotSupportedException("Native cinematic requires its authenticated cinematic tables and resources.");
+        NativeBattleCinematicProfile profile = NativeBattleCinematicProfile.ForEffect(effect.Binding.Effect);
         ImmutableArray<NativeBattleEffectInitializerAsset> assets = NativeBattleEffectInitializerPolicy.Assets(effect.Binding);
         if (assets.Length != 2)
         {
-            throw new NotSupportedException("Native Ifrit callback requires both current resource extents.");
+            throw new NotSupportedException("Native cinematic callback requires both current resource extents.");
         }
-        NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Ifrit requires its actual camera owner.");
-        NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native Ifrit requires its current projection.");
-        NativeBattlePrimitiveProcess process = RequireWaterMemory().PrimitiveProcess ?? throw new NotSupportedException("Native Ifrit requires its actual COMMON process.");
-        NativeBattleScriptedCallbackInput input = new(effect.Binding.ScriptedInitializationDirectories ?? throw new NotSupportedException("Native Ifrit requires its original directories."), assets[1].Data.Length, checked((ushort)graphics.Flags), MatrixBytes(projection.View ?? throw new NotSupportedException("Native Ifrit requires its current view matrix.")), 0, checked((uint)(process.ByteCursor ?? throw new NotSupportedException("Native Ifrit COMMON cursor is unknown."))), camera.FocalLength ?? throw new NotSupportedException("Native Ifrit requires its retained focal WORD."));
+        NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native cinematic requires its actual camera owner.");
+        NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native cinematic requires its current projection.");
+        NativeBattlePrimitiveProcess process = RequireWaterMemory().PrimitiveProcess ?? throw new NotSupportedException("Native cinematic requires its actual COMMON process.");
+        NativeBattleScriptedCallbackInput input = new(effect.Binding.ScriptedInitializationDirectories ?? throw new NotSupportedException("Native cinematic requires its original directories."), assets[1].Data.Length, checked((ushort)graphics.Flags), MatrixBytes(projection.View ?? throw new NotSupportedException("Native cinematic requires its current view matrix.")), 0, checked((uint)(process.ByteCursor ?? throw new NotSupportedException("Native cinematic COMMON cursor is unknown."))), camera.FocalLength ?? throw new NotSupportedException("Native cinematic requires its retained focal WORD."));
         NativeBattleWaterContextServices context = new((_, pointer) =>
         {
             int? linked = graphics.Models[PhysicalActor(pointer)].ReadLinkedModelIndex140();
@@ -60,16 +62,16 @@ public sealed partial class BattleSession
             return current with { Arena = RequireWaterMemory().Arena!, Core = RequireWaterMemory().ScriptedEffects! };
         }, current =>
         {
-            NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native Ifrit requires its camera owner.")).Apply50A730();
+            NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native cinematic requires its camera owner.")).Apply50A730();
             return current;
         }, (current, index, depth, color) =>
         {
-            NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native Ifrit requires its four stage groups.");
+            NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native cinematic requires its four stage groups.");
             NativeStage = stage with { Groups = stage.Groups.SetItem(index, stage.Groups[index] with { ColorDepth = depth, ColorFlags = color }) };
             return current;
         });
-        NativeBattleScriptedCallbackServices services = new(ReadInstruction, ExecuteInstruction, UpdateSlot, DrawSlots, ClearOrderingTable, PublishFocal) { ReadCurrentFocal = _ => NativeCamera?.FocalLength ?? throw new NotSupportedException("Native Ifrit requires its current scratch focal WORD after script execution.") };
-        NativeBattleIfrit201Frame advanced = NativeBattleIfrit201Controller.AdvanceB25DF0(new(RequireWaterMemory(), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Ifrit requires its retained CRT state.")), input, services, WaterTemporaryAddress, RequireWaterMemory);
+        NativeBattleScriptedCallbackServices services = new(ReadInstruction, ExecuteInstruction, UpdateSlot, DrawSlots, ClearOrderingTable, PublishFocal) { ReadCurrentFocal = _ => NativeCamera?.FocalLength ?? throw new NotSupportedException("Native cinematic requires its current scratch focal WORD after script execution.") };
+        NativeBattleCinematicFrame advanced = NativeBattleCinematicController.Advance(profile, new(RequireWaterMemory(), effect, nativeCrtRandom ?? throw new NotSupportedException("Native cinematic callback requires its retained CRT state.")), input, services, WaterTemporaryAddress, RequireWaterMemory);
         NativeEffectMemory = advanced.Memory;
         nativeCrtRandom = advanced.Random;
         return graphics with { OriginalEffect = advanced.Effect };
@@ -98,7 +100,7 @@ public sealed partial class BattleSession
                     return new(ArenaOffset(start, length), length, start);
                 }
             }
-            throw new NotSupportedException("Native Ifrit instruction leaves its current resource owners.");
+            throw new NotSupportedException("Native cinematic instruction leaves its current resource owners.");
         }
 
         ushort ReadInstruction(NativeBattleWaterExecutionFrame current, uint address)
@@ -107,13 +109,14 @@ public sealed partial class BattleSession
             int offset = checked((int)(address - program.Address));
             if (offset > program.Length - 2)
             {
-                throw new InvalidDataException("Native Ifrit instruction leaves its complete WORD operand owner.");
+                throw new InvalidDataException("Native cinematic instruction leaves its complete WORD operand owner.");
             }
             return BinaryPrimitives.ReadUInt16LittleEndian(current.Arena.Read(program.ArenaOffset + offset, 2));
         }
 
         NativeBattleWaterExecutionFrame ExecuteInstruction(NativeBattleWaterExecutionFrame current, ushort opcode)
         {
+            NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "vm_table", opcode, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.InstructionTable + 4u * opcode), 4)));
             uint pc = CoreDword(current, 0x2797450);
             NativeBattleWaterScriptProgram program = Program(current, pc);
             NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, assets[1].Data.Length);
@@ -153,6 +156,24 @@ public sealed partial class BattleSession
                 case 0x93:
                 case 0xAA:
                     return NativeBattleScriptedLightCommands.Execute(current, program, bank, index);
+                case 0x30:
+                    PublishNativeModuleSound((RequireWaterMemory().SummonStream ?? throw new NotSupportedException("Native cinematic volume requires its retained summon stream number.")).Play5018C0(128, (uint)(current.ReadTemporaryWord(0x14A) >> 9)));
+                    return NativeBattleScriptedCommandReads.Advance(current, 2);
+                case 0x3F:
+                    return NativeBattleCinematicModel.Register(current, program, ModelServices(0));
+                case 0x37:
+                    return NativeBattleScriptedMotionReset.Execute(current, bank, UpdateSlot);
+                case 0x47:
+                    byte[] viewTranslation = ReadSlot(current, 0x94, 6);
+                    NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native cinematic view translation requires its current camera owner.")) with { ViewTranslationScratch = new(BinaryPrimitives.ReadInt16LittleEndian(viewTranslation), BinaryPrimitives.ReadInt16LittleEndian(viewTranslation.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(viewTranslation.AsSpan(4))) };
+                    return NativeBattleScriptedCommandReads.Advance(current, 2);
+                case 0x4B:
+                    return NativeBattleCinematicPaletteCommands.Execute(current, program, resources, bank, index, (frame, rectangle, address) =>
+                    {
+                        NativeBattleEffectTextureState textures = RequireWaterMemory().Textures ?? throw new NotSupportedException("Native cinematic palette transfer requires its current texture queue.");
+                        NativeEffectMemory = RequireWaterMemory() with { Textures = textures.EnqueueScriptedRectangle505DF0(rectangle, address) };
+                        return frame;
+                    });
                 case 0x3C:
                 case 0x4A:
                 case 0x2F:
@@ -166,6 +187,7 @@ public sealed partial class BattleSession
                     return NativeBattleWaterInstructionDispatcher.ExecuteVector(current, program, assets[1].Data.Length);
                 case 7:
                 case 0xA0:
+                case 0xA1:
                     return NativeBattleScriptedSchedulingCommands.Execute(current, program);
                 case 0x26:
                 case 0x32:
@@ -203,29 +225,29 @@ public sealed partial class BattleSession
                     }));
                 case 0x31:
                 case 0x34:
-                    NativeBattleScriptedStreamStep streamed = NativeBattleScriptedStreamCommands.Execute(current, RequireWaterMemory().SummonStream ?? throw new NotSupportedException("Native Ifrit requires its retained summon-stream owner."), (_, address, length) => resources.ReadStatic(address, length).ToArray(), _ => throw new NotSupportedException("Native cinematic stream transfer requires its retained external clearing flag."));
+                    NativeBattleScriptedStreamStep streamed = NativeBattleScriptedStreamCommands.Execute(current, RequireWaterMemory().SummonStream ?? throw new NotSupportedException("Native cinematic requires its retained summon-stream owner."), (_, address, length) => resources.ReadStatic(address, length).ToArray(), _ => throw new NotSupportedException("Native cinematic stream transfer requires its retained external clearing flag."));
                     NativeEffectMemory = RequireWaterMemory() with { SummonStream = streamed.Stream };
                     return streamed.Frame;
                 case 0x27:
                 case 0x28:
                 case 0x29:
-                    NativeBattleCinematicTextureCommandStep transferred = NativeBattleCinematicTextureCommands.Execute(current, program, resources, RequireWaterMemory().Textures ?? throw new NotSupportedException("Native Ifrit requires its current texture queue."));
+                    NativeBattleCinematicTextureCommandStep transferred = NativeBattleCinematicTextureCommands.Execute(current, program, resources, RequireWaterMemory().Textures ?? throw new NotSupportedException("Native cinematic requires its current texture queue."));
                     NativeEffectMemory = RequireWaterMemory() with { Textures = transferred.Textures };
                     return transferred.Frame;
                 case 6:
                 case 8:
-                    NativeBattleCinematicIoStep io = NativeBattleCinematicIoCommands.Execute(current, program, resources);
+                    NativeBattleCinematicIoStep io = NativeBattleCinematicIoCommands.Execute(current, program, resources, NativeBattleCinematicProfile.ForEffect(effect.Binding.Effect).LoadCallback);
                     if (io.Request is not null)
                     {
                         NativeEffectMemory = RequireWaterMemory() with { Arena = io.Frame.Arena, ScriptedEffects = io.Frame.Core };
-                        NativeBattleWaterIoQueued queued = NativeBattleCinematicIoCommands.CopyAndQueue(RequireWaterMemory(), NativeFileIo ?? throw new NotSupportedException("Native Ifrit requires its retained file IO scheduler."), io.Request, resources);
+                        NativeBattleWaterIoQueued queued = NativeBattleCinematicIoCommands.CopyAndQueue(RequireWaterMemory(), NativeFileIo ?? throw new NotSupportedException("Native cinematic requires its retained file IO scheduler."), io.Request, resources);
                         NativeEffectMemory = queued.Memory;
                         NativeFileIo = queued.FileIo;
                         return io.Frame with { Arena = queued.Memory.Arena!, Core = queued.Memory.ScriptedEffects! };
                     }
                     return io.Frame;
                 case 0x39 when current.ReadTemporaryWord(0x14A) >> 12 is 2 or 3:
-                    NativeBattleScriptedVibrationStep vibration = NativeBattleScriptedVibrationCommands.Execute(current, program, NativeVibrationProcess ?? throw new NotSupportedException("Native Ifrit requires its retained vibration process."), (frame, address) =>
+                    NativeBattleScriptedVibrationStep vibration = NativeBattleScriptedVibrationCommands.Execute(current, program, NativeVibrationProcess ?? throw new NotSupportedException("Native cinematic requires its retained vibration process."), (frame, address) =>
                     {
                         uint file = CoreDword(frame, 0x2798A68);
                         uint relative = BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(file + 0x24, 4), 4));
@@ -243,17 +265,17 @@ public sealed partial class BattleSession
                         NativeBattleWaterScriptProgram file = Program(frame, address);
                         int relative = checked((int)(address - file.Address));
                         NativeBattleEffectHeapAllocation animation = new("cinematic-camera", frame.Arena.Read(file.ArenaOffset + relative, file.Length - relative).ToImmutableArray());
-                        NativeBattleEffectTextureState textures = (RequireWaterMemory().Textures ?? throw new NotSupportedException("Native Ifrit camera requires its current texture control owner.")).Register5099A0(animation);
+                        NativeBattleEffectTextureState textures = (RequireWaterMemory().Textures ?? throw new NotSupportedException("Native cinematic camera requires its current texture control owner.")).Register5099A0(animation);
                         NativeEffectMemory = RequireWaterMemory() with { Textures = textures };
-                        NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native Ifrit requires its current camera owner.")).RegisterControlResource(textures.Animation);
+                        NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native cinematic requires its current camera owner.")).RegisterControlResource(textures.Animation);
                         return frame;
                     }, frame =>
                     {
-                        NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native Ifrit requires its current camera owner.")).Apply50A730();
+                        NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native cinematic requires its current camera owner.")).Apply50A730();
                         return frame;
                     })
                     {
-                        ReadCamera = _ => NativeCamera ?? throw new NotSupportedException("Native Ifrit requires its current camera globals."),
+                        ReadCamera = _ => NativeCamera ?? throw new NotSupportedException("Native cinematic requires its current camera globals."),
                         PublishCamera = (frame, cameraState) =>
                         {
                             NativeCamera = cameraState;
@@ -293,12 +315,13 @@ public sealed partial class BattleSession
                 case 0xCF:
                     return current;
                 default:
-                    throw new NotSupportedException($"Native Ifrit instruction{current.ReadTemporaryWord(0x14A):X4} at{pc:X} requires its selected command contract.");
+                    throw new NotSupportedException($"Native cinematic instruction{current.ReadTemporaryWord(0x14A):X4} at{pc:X} requires its selected command contract.");
             }
         }
 
         NativeBattleWaterExecutionFrame UpdateSlot(NativeBattleWaterExecutionFrame current, byte kind)
         {
+            NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "bone_table", kind, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.BoneTable + 4u * kind), 4)));
             NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, assets[1].Data.Length);
             int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank);
             ImmutableArray<byte> active = kind == 3 ? current.Core.Read(0x2797454, 128).ToImmutableArray() : [];
@@ -307,8 +330,9 @@ public sealed partial class BattleSession
 
         NativeBattleWaterExecutionFrame DrawSlots(NativeBattleWaterExecutionFrame current, int budget)
         {
-            return NativeBattleIfritDraw.RunB2ABE0(current, PrepareLighting, (frame, kind) =>
+            return NativeBattleCinematicDraw.Run(profile, current, PrepareLighting, (frame, kind) =>
             {
+                NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "draw_table", kind, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.DrawTable + 4u * kind), 4)));
                 if (kind == 6)
                 {
                     var drawn = DrawNativeCinematicParticles(frame, Program(frame, CoreDword(frame, 0x2798A68)), assets[1].Data.Length, resources, graphics);
@@ -330,13 +354,41 @@ public sealed partial class BattleSession
                     graphics = drawn.Graphics;
                     return drawn.Frame;
                 }
-                return kind == 0x26 ? frame : throw new NotSupportedException($"Native Ifrit draw{kind:X2} requires its selected lit geometry contract.");
+                if (kind == 3)
+                {
+                    uint model = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xBC, 4));
+                    byte shapeIndex = frame.Arena.Read(ArenaOffset(unchecked(model + 8), 1), 1)[0];
+                    uint shape = NativeBattleWaterShapeSelection.ResolveCinematic(frame, resources, shapeIndex).Selected;
+                    var drawn = DrawNativeCinematicModel(frame, assets[1].Data.Length, ModelServices(shape), graphics);
+                    graphics = drawn.Graphics;
+                    return drawn.Frame;
+                }
+                return kind == 0x26 ? frame : throw new NotSupportedException($"Native cinematic draw{kind:X2} requires its selected lit geometry contract.");
             }, budget);
+        }
+
+        NativeBattleCinematicModelServices ModelServices(uint selectedShape)
+        {
+            return new((frame, shapeIndex) =>
+            {
+                selectedShape = NativeBattleWaterShapeSelection.ResolveCinematic(frame, resources, shapeIndex).Selected;
+                return selectedShape;
+            }, (frame, animationAddress) =>
+            {
+                uint extent = BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(selectedShape, 4), 4));
+                uint relative = unchecked(animationAddress - selectedShape);
+                NativeBattleWaterScriptProgram owner = Program(frame, selectedShape);
+                if (relative > extent || extent > int.MaxValue || unchecked(selectedShape - owner.Address) > owner.Length || extent > owner.Length - unchecked(selectedShape - owner.Address))
+                {
+                    throw new NotSupportedException("Native embedded model animation section leaves its current complete source owner.");
+                }
+                return frame.Arena.Read(ArenaOffset(animationAddress, checked((int)(extent - relative))), checked((int)(extent - relative)));
+            });
         }
 
         NativeBattleWaterExecutionFrame PrepareLighting(NativeBattleWaterExecutionFrame current, sbyte selector)
         {
-            NativeBattleScriptedLightingMemory lighting = RequireWaterMemory().ScriptedLighting ?? throw new NotSupportedException("Native Ifrit requires its retained light and color register owner.");
+            NativeBattleScriptedLightingMemory lighting = RequireWaterMemory().ScriptedLighting ?? throw new NotSupportedException("Native cinematic requires its retained light and color register owner.");
             NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, assets[1].Data.Length);
             NativeBattleScriptedLightingStep prepared = NativeBattleScriptedLighting.Prepare(current, lighting, (frame, parent) => NativeBattleWaterMatrixCommands.ResolveB65520(frame, bank, parent));
             NativeEffectMemory = RequireWaterMemory() with { ScriptedLighting = prepared.Lighting };
@@ -347,9 +399,9 @@ public sealed partial class BattleSession
         {
             if (address != 0x44 || count != 0x1000)
             {
-                throw new NotSupportedException("Native Ifrit clear requires its selected ordering-table range.");
+                throw new NotSupportedException("Native cinematic clear requires its selected ordering-table range.");
             }
-            NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Ifrit requires its current ordering table.");
+            NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native cinematic requires its current ordering table.");
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = primitive.Pending.ClearRange45D550(checked((int)(address / 4)), count) } };
             return current;
         }

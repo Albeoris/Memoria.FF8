@@ -8,7 +8,7 @@ public sealed record NativeBattleRawModelBodyDraw(ImmutableArray<byte> Projected
 /// <summary>One packed object's posed body projection and5099D0 packets, without shadow or bounds side effects.</summary>
 public static class NativeBattleRawModelBodyDrawing
 {
-    public static NativeBattleRawModelBodyDraw Draw5099D0(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleCameraProjection projection, uint color, uint objectMask, ImmutableArray<byte> projectedScratch, NativeBattleSummonColors colors, byte depthShift = 4)
+    public static NativeBattleRawModelBodyDraw Draw5099D0(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleCameraProjection projection, uint color, uint objectMask, ImmutableArray<byte> projectedScratch, NativeBattleSummonColors colors, byte depthShift = 4, NativeBattleGeometryViewport? viewport = null, int tableBaseBucket = 17, short? depthCue = 0)
     {
         if (bones.IsDefault || projectedScratch.IsDefault || depthShift > 31)
         {
@@ -20,7 +20,7 @@ public static class NativeBattleRawModelBodyDrawing
         if ((objectMask & 1) != 0)
         {
             mesh.Validate();
-            NativeBattleProjectedVertex[] vertices = mesh.Vertices.Select(vertex => NativeBattleGeometryProjection.Project50F900(vertex.Bone < bones.Length ? bones[vertex.Bone] : throw new InvalidDataException("Native raw body lacks its selected bone matrix."), vertex.Position, projection, new(0, 0, 320, 216))).ToArray();
+            NativeBattleProjectedVertex[] vertices = mesh.Vertices.Select(vertex => NativeBattleGeometryProjection.Project50F900(vertex.Bone < bones.Length ? bones[vertex.Bone] : throw new InvalidDataException("Native raw body lacks its selected bone matrix."), vertex.Position, projection, viewport ?? new(0, 0, 320, 216))).ToArray();
             bytesWritten = checked(vertices.Length * 8);
             if (bytesWritten > scratch.Length)
             {
@@ -31,7 +31,7 @@ public static class NativeBattleRawModelBodyDrawing
                 BinaryPrimitives.WriteUInt32LittleEndian(scratch.AsSpan(index * 8), vertices[index].Screen);
                 BinaryPrimitives.WriteUInt32LittleEndian(scratch.AsSpan(index * 8 + 4), vertices[index].DepthAndClip);
             }
-            body = NativeBattleRawGeometryPackets.EmitProjected5099D0(mesh.Polygons, vertices, color, 17, depthShift, 0, null, colors);
+            body = NativeBattleRawGeometryPackets.EmitProjected5099D0(mesh.Polygons, vertices, color, tableBaseBucket, depthShift, depthCue, null, colors);
         }
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;

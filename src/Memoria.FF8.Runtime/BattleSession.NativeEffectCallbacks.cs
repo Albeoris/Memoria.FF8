@@ -65,9 +65,9 @@ public sealed partial class BattleSession
         {
             return AdvanceNativeWaterA9B870(graphics);
         }
-        if (effect.Binding.Entry == 0xB25780)
+        if (effect.Binding.Effect is 6 or 201 or 202 or 203 or 204 or 205 or 206)
         {
-            return AdvanceNativeIfritB25DF0(graphics);
+            return AdvanceNativeCinematic(graphics);
         }
         if (effect.Binding.Entry == 0x70D390)
         {

@@ -128,57 +128,14 @@ public static class NativeBattleWaterMeshPreparation
 
     public static NativeBattleWaterExecutionFrame MorphSelected(NativeBattleWaterExecutionFrame frame, NativeBattleWaterSlotBank bank, int index, NativeBattleWater222Resources resources, NativeBattleEffectHeapAllocation shapeResourceMap, int currentVertexCount)
     {
-        uint tuple = frame.ReadTemporaryDword(0x4C);
-        if (tuple == 0)
-        {
-            return frame;
-        }
-        int operand = ArenaOffset(tuple, 6);
-        short selector = SignedWord(frame.Arena, operand);
-        short startId = SignedWord(frame.Arena, operand + 2);
-        short endId = SignedWord(frame.Arena, operand + 4);
-        if (startId is < 5 or > 8 || endId is < 5 or > 8)
-        {
-            throw new NotSupportedException("Native Water morph leaves its four selected position templates.");
-        }
-        ImmutableArray<byte> order = frame.Core.Read(0x2797454, 128).ToImmutableArray();
-        int reference = NativeBattleWaterSlots.LookupB65370(frame.Arena, bank, index, order, selector);
-        int factorSlot = bank.SlotOffset(frame.Arena, reference);
-        short[] factors = [SignedWord(frame.Arena, factorSlot + 0x94), SignedWord(frame.Arena, factorSlot + 0x96), SignedWord(frame.Arena, factorSlot + 0x98)];
-        for (int lane = 0; lane < 3; lane++)
-        {
-            frame = frame.WriteTemporaryDword(0xE0 + 4 * lane, unchecked((uint)(int)factors[lane]));
-        }
-        uint start = NativeBattleWaterShapeSelection.ResolveB657E0(frame, resources, shapeResourceMap, startId);
-        uint end = NativeBattleWaterShapeSelection.ResolveB657E0(frame, resources, shapeResourceMap, endId);
-        RequireResource(frame, resources, start, 0x580);
-        RequireResource(frame, resources, end, 0x580);
-        int startOffset = ArenaOffset(start, 0x580);
-        int endOffset = ArenaOffset(end, 0x580);
-        uint startCount = Dword(frame.Arena, startOffset + 0x18);
-        if (Dword(frame.Arena, startOffset) != 2 || Dword(frame.Arena, endOffset) != 2 || startCount != 170 || Dword(frame.Arena, endOffset + 0x18) != startCount || currentVertexCount != startCount || Dword(frame.Arena, startOffset + 0x14) != 0x30 || Dword(frame.Arena, endOffset + 0x14) != 0x30)
-        {
-            throw new NotSupportedException("Native Water morph requires its selected position-only template owners.");
-        }
-        uint source = unchecked(start + 0x30);
-        uint target = unchecked(end + 0x30);
-        uint work = frame.ReadTemporaryDword(0x7C);
-        frame = frame.WriteTemporaryDword(0x74, work).WriteTemporaryDword(0xF0, source).WriteTemporaryDword(0xF4, target).WriteTemporaryDword(0xF8, startCount);
-        int output = ArenaOffset(work, checked((int)startCount * 8));
-        for (int vertex = 0; vertex < startCount; vertex++)
-        {
-            for (int lane = 0; lane < 3; lane++)
+        return NativeBattleScriptedMeshMorph.Morph(frame, new(
+            (current, selector) =>
             {
-                int a = SignedWord(frame.Arena, startOffset + 0x30 + vertex * 8 + lane * 2);
-                int b = SignedWord(frame.Arena, endOffset + 0x30 + vertex * 8 + lane * 2);
-                int delta = unchecked((b - a) * factors[lane]);
-                short value = unchecked((short)(a + (delta >> 8)));
-                byte[] bytes = new byte[2];
-                BinaryPrimitives.WriteInt16LittleEndian(bytes, value);
-                frame = frame with { Arena = frame.Arena.Write(output + vertex * 8 + lane * 2, bytes) };
-            }
-        }
-        return frame;
+                ImmutableArray<byte> order = current.Core.Read(0x2797454, 128).ToImmutableArray();
+                int reference = NativeBattleWaterSlots.LookupB65370(current.Arena, bank, index, order, selector);
+                return unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(current.Arena, reference));
+            },
+            (current, shape) => NativeBattleWaterShapeSelection.ResolveB657E0(current, resources, shapeResourceMap, shape)));
     }
 
     public static NativeBattleWaterMeshSubmission Submit(NativeBattleWaterMeshProjected projected, int actualShapeExtent, Func<uint, int> resolveActualOtBucket, Func<uint, uint>? shadeMaterial = null)

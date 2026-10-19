@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-internal sealed record NativeBattleIoProfile(uint ScriptAddress, int ScriptLength, uint TaskCallback, uint TimCallback, uint DataCallback2, uint DataCallback3, uint DefaultDirectory, bool ExternalFiles, uint DataCallback4 = 0, uint DataCallback5 = 0)
+internal sealed record NativeBattleIoProfile(uint ScriptAddress, int ScriptLength, uint TaskCallback, uint TimCallback, uint DataCallback2, uint DataCallback3, uint DefaultDirectory, bool ExternalFiles, uint DataCallback4 = 0, uint DataCallback5 = 0, bool ExternalDirectoryPresets = true, uint StreamCallback = 0)
 {
     public static NativeBattleIoProfile Moogle96 { get; } = new(0x152BBA0, 0x60, 0x732390, 0x732590, 0, 0, 0x1D9B018, false);
     public static NativeBattleIoProfile Choco97 { get; } = new(0x152B930, 0x100, 0x729FF0, 0x72A1F0, 0x72A250, 0x72A260, 0x19DB018, true);
@@ -31,7 +31,7 @@ internal static class NativeBattleProfiledIoCore
         {
             Dword(control, offset, profile.DefaultDirectory);
         }
-        if (profile.ExternalFiles)
+        if (profile.ExternalFiles && profile.ExternalDirectoryPresets)
         {
             Dword(control, 0x108, 0x19DFEF8);
             Dword(control, 0x12C, 0x19E4958);
@@ -81,7 +81,7 @@ internal static class NativeBattleProfiledIoCore
                     state = WriteControlWord(state, 0x166, 0);
                     task = task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 1)).WriteByte(0x29, 1);
                 }
-                else if (opcode == 1 || IsData(profile, opcode))
+                else if (opcode == 1 || IsData(profile, opcode) || IsStream(profile, opcode))
                 {
                     if (ControlWord(state, 0x164) != 0)
                     {
@@ -89,7 +89,7 @@ internal static class NativeBattleProfiledIoCore
                     }
                     int cursor = Cursor(profile, state);
                     ushort index = BinaryPrimitives.ReadUInt16LittleEndian(state.Script.AsSpan().Slice(cursor + 4));
-                    uint destination = opcode == 1 ? ControlDword(state, 0x100) : ControlDword(state, checked((opcode == 2 ? 0x104 : opcode == 3 ? 0x124 : opcode == 5 ? 0x114 : 0x144) + 4 * index));
+                    uint destination = opcode == 1 || IsStream(profile, opcode) ? ControlDword(state, 0x100) : ControlDword(state, checked((opcode == 2 ? 0x104 : opcode == 3 ? 0x124 : opcode == 5 ? 0x114 : 0x144) + 4 * index));
                     byte[] script = state.Script.ToArray();
                     Dword(script, cursor + 12, destination);
                     state = WriteControlWord(state with { Script = script.ToImmutableArray() }, 0x164, 1);
@@ -113,9 +113,19 @@ internal static class NativeBattleProfiledIoCore
                 else if (ControlWord(state, 0x164) == 0)
                 {
                     ushort pollOpcode = Opcode(profile, state);
-                    if (pollOpcode != 1 && !IsData(profile, pollOpcode))
+                    if (pollOpcode != 1 && !IsData(profile, pollOpcode) && !IsStream(profile, pollOpcode))
                     {
-                        throw new NotSupportedException("Native file polling requires its actual supported non-stream record.");
+                        throw new NotSupportedException("Native file polling requires its actual supported current record.");
+                    }
+                    if (IsStream(profile, pollOpcode))
+                    {
+                        if (state.Control[0x16A] == 0)
+                        {
+                            break;
+                        }
+                        byte[] control = state.Control.ToArray();
+                        control[0x16A] = 0;
+                        state = state with { Control = control.ToImmutableArray() };
                     }
                     state = state with { CursorAddress = checked(state.CursorAddress + 16) };
                     Validate(profile, state);
@@ -139,7 +149,7 @@ internal static class NativeBattleProfiledIoCore
         {
             throw new InvalidDataException("Native file input must match its actual script ID and contain its supplied file bytes.");
         }
-        if (request.Opcode == 1)
+        if (request.Opcode == 1 || IsStream(profile, request.Opcode))
         {
             if (file.Data.Length > BufferLength)
             {
@@ -155,7 +165,7 @@ internal static class NativeBattleProfiledIoCore
         return (memory, fileIo.Queue482610(file.Data.Length, request.CompletionCallback, null));
     }
 
-    internal static (NativeBattleProfiledIoState State, NativeBattleEffectMemory Memory) Complete(NativeBattleIoProfile profile, NativeBattleProfiledIoState state, NativeBattleEffectMemory memory, uint callback)
+    internal static (NativeBattleProfiledIoState State, NativeBattleEffectMemory Memory) Complete(NativeBattleIoProfile profile, NativeBattleProfiledIoState state, NativeBattleEffectMemory memory, uint callback, Func<NativeBattleProfiledIoState, NativeBattleEffectMemory, uint, (NativeBattleProfiledIoState State, NativeBattleEffectMemory Memory)>? publishStream = null)
     {
         Validate(profile, state);
         NativeBattleProfiledIoRequest request = CurrentFile(profile, state);
@@ -170,6 +180,10 @@ internal static class NativeBattleProfiledIoCore
             (textures, _) = textures.EnqueueArenaTim505E30(arena, checked((int)(request.DestinationAddress - ArenaAddress)));
             memory = memory with { Textures = textures };
         }
+        else if (IsStream(profile, request.Opcode))
+        {
+            (state, memory) = (publishStream ?? throw new NotSupportedException("Native stream completion requires its explicit501860 publisher."))(state, memory, request.DestinationAddress);
+        }
         return (WriteControlWord(state, 0x164, 0), memory);
     }
 
@@ -181,14 +195,16 @@ internal static class NativeBattleProfiledIoCore
         ushort index = BinaryPrimitives.ReadUInt16LittleEndian(state.Script.AsSpan().Slice(cursor + 4));
         int length = BinaryPrimitives.ReadInt32LittleEndian(state.Script.AsSpan().Slice(cursor + 8));
         uint destination = BinaryPrimitives.ReadUInt32LittleEndian(state.Script.AsSpan().Slice(cursor + 12));
-        bool supported = opcode == 1 || IsData(profile, opcode);
+        bool supported = opcode == 1 || IsData(profile, opcode) || IsStream(profile, opcode);
         bool invalidMoogle = !profile.ExternalFiles && (BinaryPrimitives.ReadUInt32LittleEndian(state.Script.AsSpan().Slice(cursor + 4)) != 0 || id is < 438 or > 441);
-        if (!supported || invalidMoogle || ControlWord(state, 0x164) == 0 || length <= 0 || opcode == 1 && destination != ControlDword(state, 0x100))
+        if (!supported || invalidMoogle || ControlWord(state, 0x164) == 0 || length <= 0 && !IsStream(profile, opcode) || opcode == 1 && destination != ControlDword(state, 0x100))
         {
             throw new NotSupportedException("Native file operation requires its active owned record and supplied destination extent.");
         }
-        return new(opcode, id, index, destination, length, opcode == 1 ? profile.TimCallback : opcode == 2 ? profile.DataCallback2 : opcode == 3 ? profile.DataCallback3 : opcode == 5 ? profile.DataCallback5 : profile.DataCallback4);
+        return new(opcode, id, index, destination, length, opcode == 1 ? profile.TimCallback : IsStream(profile, opcode) ? profile.StreamCallback : opcode == 2 ? profile.DataCallback2 : opcode == 3 ? profile.DataCallback3 : opcode == 5 ? profile.DataCallback5 : profile.DataCallback4);
     }
+
+    private static bool IsStream(NativeBattleIoProfile profile, ushort opcode) => opcode == 6 && profile.StreamCallback != 0;
 
     private static bool IsData(NativeBattleIoProfile profile, ushort opcode) => profile.ExternalFiles && (opcode is 2 or 3 || opcode == 4 && profile.DataCallback4 != 0 || opcode == 5 && profile.DataCallback5 != 0);
 

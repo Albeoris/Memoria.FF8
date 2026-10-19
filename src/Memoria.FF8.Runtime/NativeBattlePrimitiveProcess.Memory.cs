@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -8,6 +9,7 @@ public sealed record NativeBattleCommonPacketMemory([property: JsonRequired] Nat
 /// <summary>Four unique half-slices of the two native common packet owners; observing a write never proves any other byte zero.</summary>
 public sealed partial record NativeBattlePrimitiveProcess
 {
+    private static readonly ConditionalWeakTable<NativeBattlePrimitiveReference, NativeBattlePrimitiveReference> NormalizedCommonReferences = new();
     [JsonIgnore]
     internal NativeBattleCommonPacketTransaction? CommonTransaction { get; init; }
 
@@ -43,7 +45,7 @@ public sealed partial record NativeBattlePrimitiveProcess
         {
             throw new InvalidDataException("Native common packet identity requires its actual selected buffer and offset.");
         }
-        return reference with { Buffer = 0, ByteOffset = checked(reference.ByteOffset + reference.Buffer * stride) };
+        return reference.Buffer == 0 ? reference : NormalizedCommonReferences.GetValue(reference, static original => original with { Buffer = 0, ByteOffset = checked(original.ByteOffset + (original.Bank == "off_B6D070" ? 114688 : 147456)) });
     }
 
     public NativeBattlePrimitiveProcess ApplyCommonWrite(int offset, ImmutableArray<byte> data, ImmutableArray<NativeBattleGfPacketByteState> mask)

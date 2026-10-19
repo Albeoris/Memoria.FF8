@@ -31,6 +31,17 @@ public static class NativeBattleScriptedSchedulingCommands
                 }
                 short displacement = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
                 return WriteCoreDword(frame, 0x2797450, unchecked(CoreDword(frame, 0x2797450) + (uint)displacement));
+            case 0xA1:
+                NativeBattleWaterVectorRandom sampled = NativeBattleWaterVectorCommands.RandomB65740(0x100, frame.Random);
+                frame = frame with { Random = sampled.Random };
+                int magnitude = sampled.Value < 0 ? unchecked(-sampled.Value) : sampled.Value;
+                short threshold = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
+                if (magnitude <= threshold)
+                {
+                    short target = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 4, 2));
+                    return WriteCoreDword(frame, 0x2797450, unchecked(CoreDword(frame, 0x2797450) + (uint)target));
+                }
+                return NativeBattleScriptedCommandReads.Advance(frame, 6);
             default:
                 throw new NotSupportedException("Native cinematic scheduling command requires its selected filter or conditional jump instruction.");
         }

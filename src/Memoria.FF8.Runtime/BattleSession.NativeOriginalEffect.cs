@@ -61,9 +61,9 @@ public sealed partial class BattleSession
         {
             return EnterNativeWaterA9B200(graphics);
         }
-        if (effect.Binding.Entry == 0xB25780)
+        if (effect.Binding.Effect is 6 or 201 or 202 or 203 or 204 or 205 or 206)
         {
-            return EnterNativeIfritB25780(graphics);
+            return EnterNativeCinematic(graphics);
         }
         if (effect.Binding.Entry == 0x5D1AD0)
         {

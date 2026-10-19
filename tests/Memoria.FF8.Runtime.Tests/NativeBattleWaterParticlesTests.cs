@@ -5,7 +5,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Runtime.Tests;
 
-public sealed class NativeBattleWaterParticlesTests
+public sealed partial class NativeBattleWaterParticlesTests
 {
     private const int Particle = 0x4010;
     private const uint Matrix = 0x27979E8;
@@ -394,9 +394,9 @@ public sealed class NativeBattleWaterParticlesTests
         Assert.Equal((ushort)0xFFFF, Word(Advance(frame), 0x34));
         Assert.Throws<NotSupportedException>(() => One(Fixture(0x0304)));
         NativeBattleWaterExecutionFrame unsupportedPlacement = Fixture(0x0101);
-        unsupportedPlacement = unsupportedPlacement with { Arena = unsupportedPlacement.Arena.Write(Particle + 0x37, new byte[] { 2 }) };
+        unsupportedPlacement = unsupportedPlacement with { Arena = unsupportedPlacement.Arena.Write(Particle + 0x37, new byte[] { 3 }) };
         NotSupportedException placement = Assert.Throws<NotSupportedException>(() => Advance(unsupportedPlacement));
-        Assert.Contains("placement mode 2", placement.Message);
+        Assert.Contains("placement mode 3", placement.Message);
         Assert.Contains("PC 0x00001002", placement.Message);
         Assert.Contains("raw instruction 0x0101", placement.Message);
         NotSupportedException instruction = Assert.Throws<NotSupportedException>(() => One(Fixture(0xAB03)));

@@ -10,7 +10,7 @@ public sealed record NativeBattleScriptedMeshSubmission(NativeBattleWaterExecuti
 /// <summary>The ordinary cinematic mesh path over actual current shape, work, depth and lighting owners.</summary>
 public static class NativeBattleScriptedMeshPreparation
 {
-    public static NativeBattleScriptedMeshProjected Project(NativeBattleWaterMeshPrepared prepared, int shapeExtent, NativeBattleCameraProjection projection, short dqa, int dqb, NativeBattleEffectArena depthOwner, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers)
+    public static NativeBattleScriptedMeshProjected Project(NativeBattleWaterMeshPrepared prepared, int shapeExtent, NativeBattleCameraProjection projection, short dqa, int dqb, NativeBattleEffectArena depthOwner, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, NativeBattleScriptedMeshMorphServices? morphServices = null)
     {
         NativeBattleWaterExecutionFrame frame = prepared.Frame;
         depthOwner.Validate();
@@ -26,10 +26,6 @@ public static class NativeBattleScriptedMeshPreparation
         if ((ReadSlot(frame, 0x4C, 1)[0] & 2) != 0 || (frame.ReadTemporaryDword(0x40) | frame.ReadTemporaryDword(0x44) | frame.ReadTemporaryDword(0x48)) != 0)
         {
             throw new NotSupportedException("Native cinematic alternate clipping and extra floating scale require their selected current mesh branch.");
-        }
-        if (frame.ReadTemporaryDword(0x4C) != 0)
-        {
-            throw new NotSupportedException("Native cinematic morph preparation requires its actual selected template owners.");
         }
         uint source = unchecked(shape + Dword(shape + 0x14));
         uint normalSource = unchecked(shape + Dword(shape + 0x1C));
@@ -55,6 +51,12 @@ public static class NativeBattleScriptedMeshPreparation
             .WriteTemporaryDword(0x7C, work)
             .WriteTemporaryDword(0x80, normalWork)
             .WriteTemporaryDword(0x88, cueWork);
+        if (frame.ReadTemporaryDword(0x4C) != 0)
+        {
+            frame = NativeBattleScriptedMeshMorph.Morph(frame, morphServices ?? throw new NotSupportedException("Native cinematic morph preparation requires its actual shape and reference resolvers."));
+            source = frame.ReadTemporaryDword(0x74);
+            normalSource = frame.ReadTemporaryDword(0x78);
+        }
         projection = projection with { FocalLength = unchecked((ushort)prepared.Focal) };
         for (int index = 0; index < vertices; index++)
         {
@@ -78,7 +80,10 @@ public static class NativeBattleScriptedMeshPreparation
             {
                 throw new NotSupportedException("Native cinematic normal shading reaches its unconditional first normal without a positive declared normal extent.");
             }
-            RequireShape(shape, shapeExtent, normalSource, checked(normals * 8));
+            if (normalSource != normalWork)
+            {
+                RequireShape(shape, shapeExtent, normalSource, checked(normals * 8));
+            }
             uint material = (frame.ReadTemporaryDword(0x84) & 0xFF808080) | 0x00808080;
             frame = frame.WriteTemporaryDword(0xF0, material);
             for (int index = 0; index < normals; index++)

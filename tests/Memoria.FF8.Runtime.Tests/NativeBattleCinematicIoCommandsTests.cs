@@ -12,6 +12,22 @@ public sealed class NativeBattleCinematicIoCommandsTests
     private const uint Pc = Arena + 0x3000;
 
     [Theory]
+    [InlineData(6)]
+    [InlineData(201)]
+    [InlineData(202)]
+    [InlineData(203)]
+    [InlineData(204)]
+    [InlineData(205)]
+    [InlineData(206)]
+    public void Read_request_retains_the_selected_cinematic_load_completion(int effect)
+    {
+        NativeBattleCinematicProfile profile = NativeBattleCinematicProfile.ForEffect(effect);
+        NativeBattleCinematicIoStep result = NativeBattleCinematicIoCommands.Execute(Fixture(0x8406, 0), Program(), null!, profile.LoadCallback);
+        Assert.Equal(profile.LoadCallback, result.Request!.CompletionCallback);
+        Assert.Equal(profile, NativeBattleCinematicProfile.ForInitializationAddress(profile.InitializationAddress));
+    }
+
+    [Theory]
     [InlineData(0x8406)]
     [InlineData(0x0006)]
     [InlineData(0x0008)]
@@ -36,7 +52,7 @@ public sealed class NativeBattleCinematicIoCommandsTests
         Assert.Equal(Pc + 2, Dword(result.Frame, 0x2797450));
         Assert.Equal((byte)0xFF, result.Frame.Core.Read(0x2798219, 1)[0]);
         Assert.Equal(Arena + 0x50000, Dword(result.Frame, Manager + 0xB4));
-        NativeBattleCinematicResources resources = Resources() with { Files = [new(0x235, "part", [4, 5, 6, 7])] };
+        NativeBattleCinematicResources resources = Resources(0x1874894) with { Files = [new(0x235, "part", [4, 5, 6, 7])] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = result.Frame.Arena, ScriptedEffects = result.Frame.Core, Cursor = 0 };
         NativeBattleWaterIoQueued queued = NativeBattleCinematicIoCommands.CopyAndQueue(memory, NativeBattleFileIoState.FromColdProcess(), result.Request, resources);
         Assert.Equal(new byte[] { 4, 5, 6, 7 }, queued.Memory.Arena!.Read(0x50000, 4));

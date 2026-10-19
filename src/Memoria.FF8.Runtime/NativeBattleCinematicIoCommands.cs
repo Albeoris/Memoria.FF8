@@ -7,7 +7,7 @@ public sealed record NativeBattleCinematicIoStep(NativeBattleWaterExecutionFrame
 
 public static class NativeBattleCinematicIoCommands
 {
-    public static NativeBattleCinematicIoStep Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, INativeBattleScriptedTextureProfile profile)
+    public static NativeBattleCinematicIoStep Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, INativeBattleScriptedTextureProfile profile, uint completionCallback = 0xB2BB40)
     {
         ushort instruction = frame.ReadTemporaryWord(0x14A);
         int opcode = instruction & 0x1FF;
@@ -73,7 +73,7 @@ public static class NativeBattleCinematicIoCommands
         }
         frame = WriteCoreDword(frame, manager + 0xB4, destination);
         frame = NativeBattleScriptedCommandReads.Advance(frame, unchecked((short)instruction) > 0 ? 4u : 2u);
-        return new(frame, new(file, destination, 0, 0xB2BB40));
+        return new(frame, new(file, destination, 0, completionCallback));
 
         uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(profile.ReadStatic(address, 4));
         NativeBattleCinematicIoStep Wait() => new(frame.WriteTemporaryWord(0x13E, SlotWord(frame, 0xC8)), null);
@@ -81,7 +81,7 @@ public static class NativeBattleCinematicIoCommands
 
     public static NativeBattleWaterIoQueued CopyAndQueue(NativeBattleEffectMemory memory, NativeBattleFileIoState fileIo, NativeBattleWaterFileReadRequest request, NativeBattleCinematicResources resources)
     {
-        if (request.CompletionCallback != 0xB2BB40 || request.Argument != 0)
+        if (request.CompletionCallback != NativeBattleCinematicProfile.ForInitializationAddress(resources.TextureProfile.InitializationAddress).LoadCallback || request.Argument != 0)
         {
             throw new InvalidDataException("Native cinematic delivery requires its selected file-read callback and argument.");
         }

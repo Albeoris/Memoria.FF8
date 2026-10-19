@@ -89,11 +89,19 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
             {
                 RequireRectangle(rectangle);
                 int length = checked(2 * rectangle.Width * rectangle.Height);
-                if (slot.StagingAddress is not null || slot.ProcessAddress is not null)
+                if (slot.StagingAddress is not null)
                 {
                     throw new InvalidDataException("Native rectangle upload cannot use a staging TIM pointer.");
                 }
-                if (slot.ArenaOffset is int rectangleOffset)
+                if (slot.ProcessAddress is uint rectangleAddress)
+                {
+                    RequireScriptedRange(rectangleAddress, length);
+                    if (slot.ArenaOffset is not null || slot.Source is not null || slot.Offset != 0)
+                    {
+                        throw new InvalidDataException("Native scripted rectangle upload requires one source pointer union arm.");
+                    }
+                }
+                else if (slot.ArenaOffset is int rectangleOffset)
                 {
                     RequireArenaRange(rectangleOffset, length);
                     if (slot.Source is not null || slot.Offset != 0)
@@ -226,7 +234,20 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
         return this with { Slots = Slots.SetItem(Count, slot), Count = Count + 1 };
     }
 
-    public NativeBattleEffectTextureDrain Drain505D20(NativeBattleEffectArena? arenaSource = null, NativeBattleFileStaging? stagingSource = null, Func<uint, NativeBattleEffectHeapAllocation>? resolveProcessTim = null)
+    public NativeBattleEffectTextureState EnqueueScriptedRectangle505DF0(NativeBattleEffectTextureRectangle rectangle, uint address)
+    {
+        Validate();
+        RequireRectangle(rectangle);
+        RequireScriptedRange(address, checked(2 * rectangle.Width * rectangle.Height));
+        if (Count == 31)
+        {
+            throw new NotSupportedException("Native505DF0 increments its count to32 without writing the final slot; the resulting stale-slot drain is unsupported.");
+        }
+        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(null, 0)) with { Kind = 0, Source = null, Offset = 0, Rectangle = rectangle, ArenaOffset = null, StagingAddress = null, ProcessAddress = address };
+        return this with { Slots = Slots.SetItem(Count, slot), Count = Count + 1 };
+    }
+
+    public NativeBattleEffectTextureDrain Drain505D20(NativeBattleEffectArena? arenaSource = null, NativeBattleFileStaging? stagingSource = null, Func<uint, NativeBattleEffectHeapAllocation>? resolveProcessTim = null, NativeBattleScriptedEffectMemory? scriptedSource = null)
     {
         Validate();
         if (Count == 0)
@@ -247,7 +268,12 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
             {
                 NativeBattleEffectTextureRectangle rectangle = pending.Rectangle!;
                 int length = checked(2 * rectangle.Width * rectangle.Height);
-                if (pending.ArenaOffset is int rectangleOffset)
+                if (pending.ProcessAddress is uint rectangleAddress)
+                {
+                    NativeBattleScriptedEffectMemory current = scriptedSource ?? throw new NotSupportedException("Native505D20 requires the latest scripted process memory for its retained mutable rectangle pointer.");
+                    Write(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height, current.Read(rectangleAddress, length));
+                }
+                else if (pending.ArenaOffset is int rectangleOffset)
                 {
                     NativeBattleEffectArena current = arenaSource ?? throw new NotSupportedException("Native505D20 requires the latest effect arena for its retained mutable rectangle pointer.");
                     Write(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height, current.Read(rectangleOffset, length));
@@ -387,6 +413,15 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
         if (offset < 0 || length < 0 || offset > NativeBattleEffectArena.Length - length)
         {
             throw new InvalidDataException("Native rectangle pointer leaves the original effect arena.");
+        }
+    }
+
+    private static void RequireScriptedRange(uint address, int length)
+    {
+        long offset = (long)address - NativeBattleScriptedEffectMemory.Address;
+        if (offset < 0 || length < 0 || offset > NativeBattleScriptedEffectMemory.Length - length)
+        {
+            throw new InvalidDataException("Native rectangle pointer leaves the current scripted process owner.");
         }
     }
 

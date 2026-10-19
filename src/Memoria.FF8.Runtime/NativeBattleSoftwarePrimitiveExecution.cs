@@ -11,6 +11,9 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
     private readonly List<NativeBattlePcTextureWindowPixels> textureSnapshots = [];
     private readonly Dictionary<NativeBattlePcTextureWindowPixels, int> textureSnapshotIndices = [];
     private readonly Dictionary<(int X, int Y, int Width, int Height), List<int>> textureSnapshotRegions = [];
+    private NativeSoftwareDrawingEnvironmentState? normalEnvironment;
+    private NativeSoftwareViewportInputs? normalViewportInputs;
+    private NativeSoftwareNormalViewportDerived? normalViewport;
 
     public NativeBattleSoftwarePrimitiveExecution(NativeBattleSoftwarePrimitiveState state, NativeBattleEffectTextureState textures, NativeSoftwarePrimitiveTable table, bool hardwareEnabled, NativeBattlePcTextureWindowCache cache)
     {
@@ -109,14 +112,22 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
 
     public NativeBattleLogicalResolvedCommand RetainTexturePixels(NativeBattleLogicalResolvedCommand command)
     {
+        NativeSoftwareNormalViewportDerived? normal = null;
+        NativeSoftwareViewportInputs? inputs = null;
         if (command.Pass != 0 && (command.Command.Opcode & 0xE0) is 0x20 or 0x40 && State.ViewportInputs is { } viewport)
         {
-            NativeSoftwareNormalViewportDerived normal = NativeSoftwareNormalViewport.Calculate45B6F0(State.Environment, viewport);
-            command = command with { DrawMode = command.DrawMode with { NormalViewport = normal, ViewportInputs = viewport } };
+            if (!ReferenceEquals(normalEnvironment, State.Environment) || !ReferenceEquals(normalViewportInputs, viewport))
+            {
+                normalViewport = NativeSoftwareNormalViewport.Calculate45B6F0(State.Environment, viewport);
+                normalEnvironment = State.Environment;
+                normalViewportInputs = viewport;
+            }
+            normal = normalViewport!;
+            inputs = viewport;
         }
         if (command.Pass == 0 || command.DrawMode.TextureSelection is not { } selection)
         {
-            return command;
+            return normal is null ? command : command with { DrawMode = command.DrawMode with { NormalViewport = normal, ViewportInputs = inputs } };
         }
         PublishImage();
         NativeBattlePcTextureWindowCache cache = Cache ?? throw new NotSupportedException("Native textured draw requires its current resource cache.");
@@ -139,7 +150,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
             }
             textureSnapshotIndices.Add(pixels, index);
         }
-        return command with { DrawMode = command.DrawMode with { TexturePixelSnapshot = index } };
+        return command with { DrawMode = normal is null ? command.DrawMode with { TexturePixelSnapshot = index } : command.DrawMode with { TexturePixelSnapshot = index, NormalViewport = normal, ViewportInputs = inputs } };
     }
 
     public void EndBatch()

@@ -6,8 +6,12 @@ public sealed record NativeBattleIfrit201State([property: JsonRequired] byte Fil
 
 public sealed partial record NativeBattleEffectMemory
 {
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleIfrit201State? Ifrit201 { get; init; }
+    [JsonIgnore]
+    public NativeBattleIfrit201State? Ifrit201
+    {
+        get => Cinematic is { Effect: 201 } state ? new(state.Filter145) : null;
+        init => Cinematic = value is null ? null : new(201, value.Filter145);
+    }
 }
 
 public sealed record NativeBattleIfrit201Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);

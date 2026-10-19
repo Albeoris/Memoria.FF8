@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
@@ -18,6 +19,7 @@ public sealed partial class BattleSession
             throw new NotSupportedException($"Native cinematic draw {kind:X2} is outside the ordinary mesh wrappers.");
         }
         uint handler = BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.DrawTable + 4u * kind), 4));
+        handler = NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "draw_table", kind, handler);
         if ((kind, handler) is not ((1, 0xB26FB0) or (2, 0xB27050)))
         {
             throw new NotSupportedException($"Native cinematic draw {kind:X2} selected unsupported mesh wrapper {handler:X8}.");
@@ -37,7 +39,12 @@ public sealed partial class BattleSession
         NativeBattleScriptedLightingMemory lighting = memory.ScriptedLighting ?? throw new NotSupportedException("Native cinematic mesh requires its retained shared lighting controls.");
         NativeBattleScriptedColorRegisters colors = memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native cinematic mesh requires its retained shared color registers.");
         uint start = CoreDword(frame, CoreDword(frame, 0x27973EC) + 0x7C);
-        NativeBattleScriptedMeshProjected projected = NativeBattleScriptedMeshPreparation.Project(prepared, extent, projection, registers.Dqa, registers.Dqb, registers.Depths, lighting, colors);
+        NativeBattleScriptedMeshMorphServices morph = new((current, selector) =>
+        {
+            int referenced = NativeBattleWaterSlots.LookupB65370(current.Arena, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank), current.Core.Read(0x2797454, 128).ToImmutableArray(), selector);
+            return unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(current.Arena, referenced));
+        }, (current, shapeIndex) => NativeBattleWaterShapeSelection.ResolveCinematic(current, resources, shapeIndex).Selected);
+        NativeBattleScriptedMeshProjected projected = NativeBattleScriptedMeshPreparation.Project(prepared, extent, projection, registers.Dqa, registers.Dqb, registers.Depths, lighting, colors, morph);
         NativeBattleScriptedMeshSubmission submitted = NativeBattleScriptedMeshPreparation.Submit(projected, extent, ReadHandler, ReadStride, OtBucket);
         frame = submitted.Frame;
         memory = RequireWaterMemory() with
@@ -87,7 +94,8 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException($"Native cinematic primitive dispatch index {dispatch:X} leaves its actual static table.");
             }
-            return BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.PrimitiveTable + 4u * (uint)dispatch), 4));
+            uint handler = BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.PrimitiveTable + 4u * (uint)dispatch), 4));
+            return NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "prim_table", dispatch, handler);
         }
     }
 

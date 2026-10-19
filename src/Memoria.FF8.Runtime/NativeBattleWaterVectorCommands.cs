@@ -21,11 +21,30 @@ public static class NativeBattleWaterVectorCommands
 
     public static NativeBattleWaterVectorResult ExecuteAA1810(ImmutableArray<byte> slot, ImmutableArray<byte> program, int instructionOffset, NativeCrtRandomState random)
     {
-        if (slot.IsDefault || slot.Length != 0x100 || program.IsDefault || instructionOffset < 0 || instructionOffset > program.Length - 2)
+        if (program.IsDefault || instructionOffset < 0 || instructionOffset > program.Length - 2)
         {
             throw new InvalidDataException("Native vector commands require the retained 256-byte slot and a bounded instruction stream.");
         }
-        ushort instruction = BinaryPrimitives.ReadUInt16LittleEndian(program.AsSpan().Slice(instructionOffset));
+        return ExecuteAA1810(slot, ReadWord, instructionOffset, random);
+
+        ushort ReadWord(int offset)
+        {
+            if (offset < 0 || offset > program.Length - 2)
+            {
+                throw new InvalidDataException("Native vector command operand leaves its supplied program bytes.");
+            }
+            return BinaryPrimitives.ReadUInt16LittleEndian(program.AsSpan().Slice(offset));
+        }
+    }
+
+    public static NativeBattleWaterVectorResult ExecuteAA1810(ImmutableArray<byte> slot, Func<int, ushort> readProgramWord, int instructionOffset, NativeCrtRandomState random)
+    {
+        ArgumentNullException.ThrowIfNull(readProgramWord);
+        if (slot.IsDefault || slot.Length != 0x100 || instructionOffset < 0)
+        {
+            throw new InvalidDataException("Native vector commands require the retained 256-byte slot and a bounded instruction stream.");
+        }
+        ushort instruction = readProgramWord(instructionOffset);
         int opcode = instruction & 0x1FF;
         if (opcode < 10 || opcode > 23)
         {
@@ -109,11 +128,7 @@ public static class NativeBattleWaterVectorCommands
 
         short Operand()
         {
-            if (cursor > program.Length - 2)
-            {
-                throw new InvalidDataException("Native vector command operand leaves its supplied program bytes.");
-            }
-            short value = BinaryPrimitives.ReadInt16LittleEndian(program.AsSpan().Slice(cursor));
+            short value = unchecked((short)readProgramWord(cursor));
             cursor += 2;
             return value;
         }

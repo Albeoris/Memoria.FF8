@@ -6,7 +6,9 @@ namespace Memoria.FF8.Runtime;
 /// <summary>The original packed model vertex groups and unchanged FT3/FT4 records.</summary>
 public static class NativeBattleRawGeometryReader
 {
-    public static ImmutableArray<NativeBattleRawMesh> Read(byte[] bytes, int boneCount)
+    public static ImmutableArray<NativeBattleRawMesh> Read(byte[] bytes, int boneCount) => Read((offset, length) => bytes.AsSpan(offset, length).ToArray(), boneCount);
+
+    public static ImmutableArray<NativeBattleRawMesh> Read(Func<int, int, byte[]> read, int boneCount, Action<int, ImmutableArray<ushort>, int, int>? observeObject = null)
     {
         int count = I32(0);
         if (count is < 0 or > 256)
@@ -38,22 +40,30 @@ public static class NativeBattleRawGeometryReader
                 }
             }
             cursor = checked((cursor + 3) & ~3);
-            int triangles = unchecked((short)U16(cursor));
-            int quads = unchecked((short)U16(cursor + 2));
+            ImmutableArray<ushort> counts = [U16(cursor), U16(cursor + 2), U16(cursor + 4), U16(cursor + 6)];
+            int triangles = unchecked((short)counts[0]);
+            int quads = unchecked((short)counts[1]);
             cursor += 12;
+            int facePayload = cursor;
             var polygons = ImmutableArray.CreateBuilder<NativeBattleRawPolygon>();
             for (int face = 0; face < triangles + quads; face++)
             {
                 bool quad = face >= triangles;
                 int size = quad ? 20 : 16;
-                polygons.Add(new(quad, bytes.AsSpan(cursor, size).ToArray().ToImmutableArray()));
+                polygons.Add(new(quad, Bytes(cursor, size).ToImmutableArray()));
                 cursor += size;
             }
+            observeObject?.Invoke(mesh, counts, facePayload, cursor);
             meshes.Add(new(vertices.ToImmutable(), polygons.ToImmutable()) { BoneGroups = bones.ToImmutable() });
         }
         return meshes.ToImmutable();
 
-        ushort U16(int offset) => BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset, 2));
-        int I32(int offset) => BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset, 4));
+        ushort U16(int offset) => BinaryPrimitives.ReadUInt16LittleEndian(Bytes(offset, 2));
+        int I32(int offset) => BinaryPrimitives.ReadInt32LittleEndian(Bytes(offset, 4));
+        byte[] Bytes(int offset, int length)
+        {
+            byte[] bytes = read(offset, length);
+            return bytes is not null && bytes.Length == length ? bytes : throw new InvalidDataException("Native geometry requires its exact addressed source bytes.");
+        }
     }
 }

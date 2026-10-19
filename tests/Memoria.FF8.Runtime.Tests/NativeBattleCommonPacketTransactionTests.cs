@@ -5,6 +5,21 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleCommonPacketTransactionTests
 {
+    [Fact]
+    public void Canonical_buffer_zero_references_retain_identity_and_buffer_one_keeps_its_physical_alias()
+    {
+        NativeBattlePrimitiveReference canonical = new("off_B6D070", 0, 37);
+        Assert.Same(canonical, NativeBattlePrimitiveProcess.NormalizeCommonReference(canonical));
+        NativeBattlePrimitiveReference alias = canonical with { Buffer = 1 };
+        NativeBattlePrimitiveReference normalized = NativeBattlePrimitiveProcess.NormalizeCommonReference(alias);
+        Assert.Equal(new NativeBattlePrimitiveReference("off_B6D070", 0, 114725), normalized);
+        Assert.Same(normalized, NativeBattlePrimitiveProcess.NormalizeCommonReference(alias));
+        Assert.Equal(alias, canonical with { Buffer = 1 });
+        Assert.Equal(new NativeBattlePrimitiveReference("off_B6D094", 0, 147493), NativeBattlePrimitiveProcess.NormalizeCommonReference(alias with { Bank = "off_B6D094" }));
+        Assert.Throws<InvalidDataException>(() => NativeBattlePrimitiveProcess.NormalizeCommonReference(canonical with { Buffer = 2 }));
+        Assert.Throws<OverflowException>(() => NativeBattlePrimitiveProcess.NormalizeCommonReference(alias with { ByteOffset = int.MaxValue }));
+    }
+
     [Theory]
     [InlineData("off_B6D070", 0, 114688)]
     [InlineData("off_B6D070", 1, 114688)]

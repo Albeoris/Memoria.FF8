@@ -4,7 +4,10 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleWaterParticleServices(Func<NativeBattleWaterExecutionFrame, uint, int, byte[]> ReadMetadata, Func<NativeBattleWaterExecutionFrame, ushort, uint> ResolveMatrixRow, Func<NativeBattleWaterExecutionFrame, int, NativeBattleWaterExecutionFrame> PrepareTexturePage, Func<NativeBattleWaterExecutionFrame, int, ushort> ReadClut, Func<NativeBattleWaterExecutionFrame, NativeBattleActionMatrix, NativeBattleWaterExecutionFrame> DrawRectangles);
+public sealed record NativeBattleWaterParticleServices(Func<NativeBattleWaterExecutionFrame, uint, int, byte[]> ReadMetadata, Func<NativeBattleWaterExecutionFrame, ushort, uint> ResolveMatrixRow, Func<NativeBattleWaterExecutionFrame, int, NativeBattleWaterExecutionFrame> PrepareTexturePage, Func<NativeBattleWaterExecutionFrame, int, ushort> ReadClut, Func<NativeBattleWaterExecutionFrame, NativeBattleActionMatrix, NativeBattleWaterExecutionFrame> DrawRectangles)
+{
+    public Action<string, int>? RequireHandler { get; init; }
+}
 
 /// <summary>The finite particle instruction family and its selected type-six caller over current arena records.</summary>
 public static class NativeBattleWaterParticles
@@ -12,6 +15,7 @@ public static class NativeBattleWaterParticles
     public static NativeBattleWaterExecutionFrame ExecuteOne(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, NativeBattleWaterParticleServices services)
     {
         ushort instruction = frame.ReadTemporaryWord(0x14A);
+        services.RequireHandler?.Invoke("pop_table", (byte)instruction);
         uint pc = CoreDword(frame, 0x2797450);
         int next = 2;
         switch ((byte)instruction)
@@ -101,6 +105,19 @@ public static class NativeBattleWaterParticles
                 frame = ParticleDword(frame, 0x4C, frame.ReadTemporaryDword(0xFC));
                 frame = ParticleDword(frame, 0x30, unchecked(directory + ReadArenaDword(frame, sequence)));
                 frame = ParticleWord(frame, 0x34, SlotWord(frame, 0xCA));
+                break;
+            case 9:
+                int placement = unchecked((sbyte)ReadParticle(frame, 0x37, 1)[0]);
+                frame = ParticleWord(frame, 0x42, 0);
+                frame = ParticleWord(frame, 0x44, 0);
+                frame = ParticleWord(frame, 0x46, 0);
+                frame = Place(frame, services, placement);
+                frame = ParticleWord(frame, 0x42, unchecked((ushort)(frame.ReadTemporaryWord(0xA0) + frame.ReadTemporaryWord(0x38))));
+                frame = ParticleWord(frame, 0x44, frame.ReadTemporaryWord(0xA2));
+                frame = ParticleWord(frame, 0x46, unchecked((ushort)(frame.ReadTemporaryWord(0xA4) + frame.ReadTemporaryWord(0x3C))));
+                return WriteCoreDword(frame, 0x2797450, unchecked(CoreDword(frame, 0x2797450) + 2));
+            case 0x0A:
+                frame = ParticleByte(frame, 0x37, 2);
                 break;
             case 0x0B:
             case 0x0C:
@@ -198,7 +215,7 @@ public static class NativeBattleWaterParticles
                         frame = ParticleWord(frame, 0x20 + 2 * lane, unchecked((ushort)velocity));
                         frame = ParticleDword(frame, 0x10 + 4 * lane, unchecked(ReadParticleDword(frame, 0x10 + 4 * lane) + (uint)(velocity << 4)));
                     }
-                    frame = PlaceMode1(frame);
+                    frame = Place(frame, services);
                     for (int lane = 0; lane < 3; lane++)
                     {
                         int color = ReadParticle(frame, 0x38 + lane, 1)[0] + unchecked((sbyte)ReadParticle(frame, 0x3C + lane, 1)[0]);
@@ -233,7 +250,7 @@ public static class NativeBattleWaterParticles
                 }
                 else if (ReadParticleDword(frame, 0x30) != 0)
                 {
-                    frame = PlaceMode1(frame);
+                    frame = Place(frame, services);
                 }
                 if (ReadParticleDword(frame, 0x30) != 0)
                 {
@@ -246,9 +263,20 @@ public static class NativeBattleWaterParticles
         return frame;
     }
 
-    private static NativeBattleWaterExecutionFrame PlaceMode1(NativeBattleWaterExecutionFrame frame)
+    private static NativeBattleWaterExecutionFrame Place(NativeBattleWaterExecutionFrame frame, NativeBattleWaterParticleServices services, int? selectedMode = null)
     {
-        byte mode = ReadParticle(frame, 0x37, 1)[0];
+        int mode = selectedMode ?? unchecked((sbyte)ReadParticle(frame, 0x37, 1)[0]);
+        services.RequireHandler?.Invoke("ptype_table", mode);
+        if (mode == 2)
+        {
+            int theta = ((int)ReadParticleDword(frame, 0x1C) >> 4) & 0xFFF;
+            int radius = (int)ReadParticleDword(frame, 0x14) >> 4;
+            int z = unchecked(NativeBattleCameraMath.Cosine(theta) * radius) >> 16;
+            int x = unchecked(NativeBattleCameraMath.Sine(theta) * radius) >> 16;
+            frame = frame.WriteTemporaryWord(0xA0, unchecked((ushort)(ReadParticleWord(frame, 0x42) - frame.ReadTemporaryWord(0x38) + x)));
+            frame = frame.WriteTemporaryWord(0xA2, unchecked((ushort)(((int)ReadParticleDword(frame, 0x18) >> 8) + ReadParticleWord(frame, 0x44))));
+            return frame.WriteTemporaryWord(0xA4, unchecked((ushort)(ReadParticleWord(frame, 0x46) - frame.ReadTemporaryWord(0x3C) + z)));
+        }
         if (mode != 1)
         {
             throw new NotSupportedException($"Native particle placement mode {mode} is unsupported for particle 0x{frame.ReadTemporaryDword(0x44):X8}, PC 0x{CoreDword(frame, 0x2797450):X8}, raw instruction 0x{frame.ReadTemporaryWord(0x14A):X4}, helper type {frame.ReadTemporaryDword(0x34)}.");

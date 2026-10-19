@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
@@ -8,7 +9,20 @@ public sealed partial class BattleSession
     {
         NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, secondFileLength);
         int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank);
-        NativeBattleWaterParticleServices services = new((_, address, length) => resources.ReadStatic(address, length).ToArray(), (current, selector) => NativeBattleWaterMatrixCommands.ResolveB65520(current, bank, index, selector), (current, texture) => NativeBattleWaterTextureMetadata.SelectTPageB665C0(current, resources, texture), (current, texture) => NativeBattleWaterTextureMetadata.ReadClutB66640(current, resources, texture), DrawRectangles);
+        NativeBattleCinematicProfile profile = NativeBattleCinematicProfile.ForEffect(graphics.OriginalEffect!.Binding.Effect);
+        NativeBattleWaterParticleServices services = new((_, address, length) => resources.ReadStatic(address, length).ToArray(), (current, selector) => NativeBattleWaterMatrixCommands.ResolveB65520(current, bank, index, selector), (current, texture) => NativeBattleWaterTextureMetadata.SelectTPageB665C0(current, resources, texture), (current, texture) => NativeBattleWaterTextureMetadata.ReadClutB66640(current, resources, texture), DrawRectangles)
+        {
+            RequireHandler = (table, slot) =>
+            {
+                uint address = table switch
+                {
+                    "pop_table" when (uint)slot < 24 => profile.ParticleInstructionTable,
+                    "ptype_table" when (uint)slot < 5 => profile.PlacementTable,
+                    _ => throw new NotSupportedException("Native cinematic particle dispatch leaves its selected static table.")
+                };
+                NativeBattleCinematicDispatch.RequireSlot(profile.Effect, table, slot, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(address + 4u * (uint)slot), 4)));
+            }
+        };
         frame = NativeBattleWaterParticles.AdvanceType6(frame, program, bank, services);
         return (frame, graphics);
 

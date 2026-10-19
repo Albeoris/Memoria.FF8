@@ -72,7 +72,7 @@ public sealed class NativeBattleIfritEntryTests
 
     private static NativeBattleIfritEntryStep Initialize((NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleScriptedInitializationDirectories Directories, NativeBattleWaterInitializationInputs Inputs) fixture) => NativeBattleIfritEntry.InitializeB25780(fixture.Memory, fixture.Effect, fixture.Directories, fixture.Inputs);
 
-    private static (NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleScriptedInitializationDirectories Directories, NativeBattleWaterInitializationInputs Inputs) Fixture()
+    internal static (NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleScriptedInitializationDirectories Directories, NativeBattleWaterInitializationInputs Inputs) Fixture()
     {
         var shared = NativeBattleWaterInitializationTests.Fixture();
         uint[] offsets = [0x20, 0xD8, 0x190, 0x1A8, 0x1C0, 0, 0x1DC];

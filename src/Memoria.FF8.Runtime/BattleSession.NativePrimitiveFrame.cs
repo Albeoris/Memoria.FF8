@@ -61,7 +61,6 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native500FD0 packet submission requires its prior camera/register owner.");
         int[] bases = [4126, 4122, 17, 4382];
         byte[] shifts = [8, 14, 4, 16];
-        ImmutableArray<NativeBattleGeometryPrimitive>.Builder primitives = ImmutableArray.CreateBuilder<NativeBattleGeometryPrimitive>();
         for (int index = 0; index < 4; index++)
         {
             NativeBattleStageGroup group = stage.Groups[index];
@@ -69,10 +68,15 @@ public sealed partial class BattleSession
             {
                 continue;
             }
+            if (!ResetAndEnterNativeModelRenderer5099D0(group.ColorFlags))
+            {
+                continue;
+            }
             ImmutableArray<NativeBattleRawMesh> meshes = geometry.Where(mesh => mesh.StageGroup == index).ToImmutableArray();
-            primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0(meshes, group.Matrices, projection, group.ColorFlags, uint.MaxValue, group.ColorDepth, bases[index], shifts[index], null, definition.NativeGraphics!.Rules.SummonColors));
+            ImmutableArray<NativeBattleGeometryPrimitive> primitives = NativeBattleRawGeometryPackets.Emit5099D0(meshes, group.Matrices, projection, group.ColorFlags, uint.MaxValue, group.ColorDepth, bases[index], shifts[index], null, definition.NativeGraphics!.Rules.SummonColors);
+            graphics = AppendNativeModelRendererPackets(graphics, primitives, !meshes.IsEmpty);
         }
-        return AppendNativePrimitivePackets(graphics, primitives.ToImmutable());
+        return graphics;
     }
 
     private NativeBattleGraphicsState SubmitNativeModelPackets502D40(NativeBattleGraphicsState graphics, NativeBattleGraphicsModel model, NativeBattleGraphicsResource resource)
@@ -99,7 +103,8 @@ public sealed partial class BattleSession
         ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Native502D40 requires its observed linked geometry presence.");
         ImmutableArray<NativeBattleGeometryPrimitive>.Builder primitives = ImmutableArray.CreateBuilder<NativeBattleGeometryPrimitive>();
         bool shared = !linked.IsEmpty && (resource.LinkedGeometryUsesBodySkeleton ?? throw new NotSupportedException("Native linked geometry requires its original507BF0/507E20 resource shape."));
-        if (shared)
+        bool bodyDraw = ResetAndEnterNativeModelRenderer5099D0(color);
+        if (bodyDraw && shared)
         {
             //507E20 patches body geometry directory DWORD2 to the single weapon object at copied resource+8.
             if (geometry.Length < 2 || linked.Length != 1)
@@ -117,16 +122,56 @@ public sealed partial class BattleSession
                 primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0([mesh], matrices, projection, color, 1, null, 17, 4, selectedBinding));
             }
         }
-        else
+        else if (bodyDraw)
         {
             primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0(geometry, matrices, projection, color, mask, null, 17, 4, resource.GeometryRelocated507550 ? null : binding));
+        }
+        if (bodyDraw)
+        {
+            bool selected = Enumerable.Range(0, geometry.Length).Any(index => (mask & (1u << (index & 31))) != 0);
+            graphics = AppendNativeModelRendererPackets(graphics, primitives.ToImmutable(), selected);
         }
         if (!shared && !linked.IsEmpty && (model.Flags0 & 0x200) == 0)
         {
             ImmutableArray<NativeBattleActionMatrix> linkedMatrices = NativeBattlePoseMatrices.LinkedGeometryMatrices502D40(model, resource.LinkedPoseSource ?? throw new NotSupportedException("Native linked geometry requires its original independent skeleton."), view);
-            primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0(linked, linkedMatrices, projection, color, uint.MaxValue, null, 17, 4, model.LinkedTextureSlots ?? throw new NotSupportedException("Native linked geometry requires its executed507400 material relocation.")));
+            if (ResetAndEnterNativeModelRenderer5099D0(color))
+            {
+                ImmutableArray<NativeBattleGeometryPrimitive> linkedPrimitives = NativeBattleRawGeometryPackets.Emit5099D0(linked, linkedMatrices, projection, color, uint.MaxValue, null, 17, 4, model.LinkedTextureSlots ?? throw new NotSupportedException("Native linked geometry requires its executed507400 material relocation."));
+                graphics = AppendNativeModelRendererPackets(graphics, linkedPrimitives, true);
+            }
         }
-        return AppendNativePrimitivePackets(graphics, primitives.ToImmutable());
+        return graphics;
+    }
+
+    private void PublishNativeModelRendererColor(uint color)
+    {
+        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native model color publication requires its process primitive owner.");
+        NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native model color publication requires its retained renderer controls.");
+        NativeEffectMemory = memory with { PrimitiveProcess = process.PublishModelColor(color) };
+    }
+
+    private bool ResetAndEnterNativeModelRenderer5099D0(uint color)
+    {
+        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native model rendering requires its process primitive owner.");
+        NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native model rendering requires its retained renderer gate.");
+        bool hardware = definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Native model renderer query requires its selected hardware capability.");
+        bool draw;
+        (process, draw) = process.Reset5099C0().Enter5099D0(hardware);
+        NativeEffectMemory = memory with { PrimitiveProcess = draw ? process.PublishModelColor(color) : process };
+        return draw;
+    }
+
+    private NativeBattleGraphicsState AppendNativeModelRendererPackets(NativeBattleGraphicsState graphics, ImmutableArray<NativeBattleGeometryPrimitive> primitives, bool renderedObject)
+    {
+        graphics = AppendNativePrimitivePackets(graphics, primitives);
+        if (renderedObject)
+        {
+            NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native model packet publication requires its process owner.");
+            NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native model packet publication requires its actual cursor owner.");
+            int cursor = process.ByteCursor ?? throw new NotSupportedException("Native model packet publication requires its current bank-relative cursor.");
+            NativeEffectMemory = memory with { PrimitiveProcess = process.Publish50FDF0(unchecked((uint)cursor), null) };
+        }
+        return graphics;
     }
 
     private NativeBattleGraphicsState FinishNativePrimitiveFrame500900(NativeBattleGraphicsState graphics)

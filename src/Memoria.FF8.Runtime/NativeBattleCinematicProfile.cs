@@ -3,6 +3,23 @@ namespace Memoria.FF8.Runtime;
 /// <summary>The physical directories and entry points of the seven cinematic summon families.</summary>
 public sealed record NativeBattleCinematicProfile(int Effect, uint Entry, uint Initializer, uint InitializationAddress, uint OwnerDirectoryAddress, uint QueueAddress, uint BankAddress, uint Callback, uint LoadCallback, uint File0Publication, uint File1Publication, uint InstructionTable, int TextureCount, int SourceBase, int LastSource, string InitialFile, bool Lit)
 {
+    public static bool IsSupported(int effect) => effect is 6 or 201 or 202 or 203 or 204 or 205 or 206;
+
+    public static NativeBattleCinematicProfile ForInitializationAddress(uint address)
+    {
+        return ForEffect(address switch
+        {
+            0x1874894 => 201,
+            0x187726C => 6,
+            0x1873A60 => 202,
+            0x1872EF8 => 203,
+            0x1872384 => 204,
+            0x1871878 => 205,
+            0x1870640 => 206,
+            _ => throw new NotSupportedException("The selected initialization directory has no cinematic profile.")
+        });
+    }
+
     public static NativeBattleCinematicProfile ForEffect(int effect)
     {
         return effect switch
@@ -35,5 +52,8 @@ public sealed record NativeBattleCinematicProfile(int Effect, uint Entry, uint I
     public int BoneCount => Effect == 206 ? 32 : 18;
     public uint PrimitiveTable => checked(BoneTable + (uint)(BoneCount * 4));
     public uint PrimitiveSizes => checked(PrimitiveTable + 60 * 4);
-    public uint DrawTable => checked(PrimitiveSizes + 20 + 11 * 4 + 5 * 4 + 24 * 4);
+    public uint SpriteTable => checked(PrimitiveSizes + 20);
+    public uint PlacementTable => checked(SpriteTable + 11 * 4);
+    public uint ParticleInstructionTable => checked(PlacementTable + 5 * 4);
+    public uint DrawTable => checked(ParticleInstructionTable + 24 * 4);
 }

@@ -97,32 +97,44 @@ public static class NativeBattleEffectTextureReader
         int paletteX = (clut & 63) * 16;
         int paletteY = (pcPalette ? clut & 0x7FFF : clut) >> 6;
         PixelImage image = new(width, height);
+        int paletteLength = depth == 0 ? 16 : depth == 1 ? 256 : 0;
+        Rgba32[] palette = paletteLength == 0 ? [] : new Rgba32[paletteLength];
+        bool[] decoded = paletteLength == 0 ? [] : new bool[paletteLength];
+        int shift = depth == 0 ? 2 : depth == 1 ? 1 : 0;
         for (int row = 0; row < height; row++)
         {
             for (int column = 0; column < width; column++)
             {
                 int x = (u + column) & 255;
                 int y = pageY + ((v + row) & 255);
-                int shift = depth == 0 ? 2 : depth == 1 ? 1 : 0;
                 ushort word = pixelWords is not null ? pixelWords.ReadWord(pageX + (x >> shift), y) : Word(pageX + (x >> shift), y);
-                ushort color = depth switch
+                if (depth < 2)
                 {
-                    0 => Word(paletteX + ((word >> (4 * (x & 3))) & 15), paletteY),
-                    1 => Word(paletteX + ((word >> (8 * (x & 1))) & 255), paletteY),
-                    _ => word
-                };
-                if (pcPalette)
-                {
-                    uint packed = depth == 2 ? NativeBattlePcDirectTexture.DecodeArgb(color, directTextureFormat!.Value) : alternatePaletteShift is byte paletteShift ? NativeBattlePcPalette.Decode467470(color, paletteShift) : NativeBattlePcPalette.Decode467370(color);
-                    image[column, row] = new((byte)(packed >> 16), (byte)(packed >> 8), (byte)packed, (byte)(packed >> 24));
+                    int index = depth == 0 ? (word >> (4 * (x & 3))) & 15 : (word >> (8 * (x & 1))) & 255;
+                    if (!decoded[index])
+                    {
+                        palette[index] = Decode(Word(paletteX + index, paletteY));
+                        decoded[index] = true;
+                    }
+                    image[column, row] = palette[index];
                 }
                 else
                 {
-                    image[column, row] = Rgba32.FromPsxBgr555(color);
+                    image[column, row] = Decode(word);
                 }
             }
         }
         return image;
+
+        Rgba32 Decode(ushort color)
+        {
+            if (!pcPalette)
+            {
+                return Rgba32.FromPsxBgr555(color);
+            }
+            uint packed = depth == 2 ? NativeBattlePcDirectTexture.DecodeArgb(color, directTextureFormat!.Value) : alternatePaletteShift is byte paletteShift ? NativeBattlePcPalette.Decode467470(color, paletteShift) : NativeBattlePcPalette.Decode467370(color);
+            return new((byte)(packed >> 16), (byte)(packed >> 8), (byte)packed, (byte)(packed >> 24));
+        }
 
         ushort Word(int x, int y)
         {

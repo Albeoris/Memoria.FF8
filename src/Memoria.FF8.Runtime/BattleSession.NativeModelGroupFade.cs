@@ -12,6 +12,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native50F190 requires its retained camera view matrix.");
         NativeBattleSummonColors rules = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native50F190 requires its authenticated GTE color interpolation constants.");
         uint color = (rules.Interpolate(sourceColor, (counter << 12) / 15, 0) & 0xFFFFFFu) | 0x02000000u;
+        PublishNativeModelRendererColor(0);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native50F190 requires its actual decoded body skeleton.");
         ImmutableArray<NativeBattleActionMatrix> matrices;
         if (deformed is { } deformation)
@@ -28,9 +29,10 @@ public sealed partial class BattleSession
         ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Native50F190 requires its observed linked geometry presence.");
         bool shared = !linked.IsEmpty && (resource.LinkedGeometryUsesBodySkeleton ?? throw new NotSupportedException("Native50F190 requires its original shared-skeleton resource shape."));
         uint mask = 1u << group;
+        bool draw = ResetAndEnterNativeModelRenderer5099D0(color);
         for (int meshIndex = 0; meshIndex < geometry.Length; meshIndex++)
         {
-            if ((mask & (1u << meshIndex)) == 0)
+            if (!draw || (mask & (1u << meshIndex)) == 0)
             {
                 continue;
             }
@@ -45,7 +47,7 @@ public sealed partial class BattleSession
                 mesh = linked[0];
                 binding = model.LinkedTextureSlots ?? throw new NotSupportedException("Native50F190 requires its executed weapon material relocation.");
             }
-            graphics = AppendNativePrimitivePackets(graphics, NativeBattleRawGeometryPackets.Emit5099D0([mesh], matrices, projection, color, 1, null, 17, 4, binding));
+            graphics = AppendNativeModelRendererPackets(graphics, NativeBattleRawGeometryPackets.Emit5099D0([mesh], matrices, projection, color, 1, null, 17, 4, binding), true);
         }
         if (deformed is null)
         {

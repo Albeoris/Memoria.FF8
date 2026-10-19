@@ -80,7 +80,7 @@ public sealed class NativeBattleCinematicTextureMetadataTests
         Assert.Equal(0x180, submitted[2].Offset);
     }
 
-    internal static NativeBattleCinematicResources Resources()
+    internal static NativeBattleCinematicResources Resources(uint staticAddress = Static)
     {
         byte[] data = new byte[0x300];
         uint[] directory = [0x20, 0xD8, 0x190, 0x1A8, 0x1C0, 0, 0x1DC, 0x1E4];
@@ -99,7 +99,7 @@ public sealed class NativeBattleCinematicTextureMetadataTests
         data[0x1A8 + 22] = 9;
         data[0x190 + 21] = 0xFF;
         data[0x1A8 + 21] = 0xFF;
-        return new(Static, new("static", data.ToImmutableArray()), new(23, Static, Static + 0x250, Static + 0x20, Static + 0xD8, Static + 0x190, Static + 0x1A8), new(new string('0', 64), [0], [0, 0, 0, 0]));
+        return new(staticAddress, new("static", data.ToImmutableArray()), new(23, staticAddress, staticAddress + 0x250, staticAddress + 0x20, staticAddress + 0xD8, staticAddress + 0x190, staticAddress + 0x1A8), new(new string('0', 64), [0], [0, 0, 0, 0]));
     }
 
     internal static NativeBattleWaterExecutionFrame Frame()

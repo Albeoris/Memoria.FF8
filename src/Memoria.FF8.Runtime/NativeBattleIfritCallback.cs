@@ -5,6 +5,6 @@ public static class NativeBattleIfritCallback
 {
     public static NativeBattleWaterCallbackResult RunB25DF0(NativeBattleWaterExecutionFrame frame, NativeBattleScriptedCallbackInput input, NativeBattleScriptedCallbackServices services, int instructionBudget = 4096, int traversalBudget = 256)
     {
-        return NativeBattleScriptedCallback.Run(frame, input, services, instructionBudget, traversalBudget);
+        return NativeBattleCinematicCallback.Run(frame, input, services, instructionBudget, traversalBudget);
     }
 }

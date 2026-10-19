@@ -128,7 +128,12 @@ public sealed class NativeBattleSoftwarePrimitiveExecutionTests
         NativeBattleLogicalResolvedCommand resolved = execution.RetainTexturePixels(new(triangle, new(0), 1));
         Assert.Equal(state.ViewportInputs, resolved.DrawMode.ViewportInputs);
         Assert.Equal(NativeSoftwareNormalViewport.Calculate45B6F0(environment, state.ViewportInputs!), resolved.DrawMode.NormalViewport);
+        NativeBattleLogicalResolvedCommand repeated = execution.RetainTexturePixels(new(triangle, new(0), 1));
+        Assert.Same(resolved.DrawMode.NormalViewport, repeated.DrawMode.NormalViewport);
         execution.ExecuteNormal(Command(0xE3, 0), new(0), 1);
+        NativeBattleLogicalResolvedCommand changed = execution.RetainTexturePixels(new(triangle, new(0), 1));
+        Assert.NotSame(resolved.DrawMode.NormalViewport, changed.DrawMode.NormalViewport);
+        Assert.Equal(NativeSoftwareNormalViewport.Calculate45B6F0(execution.State.Environment, state.ViewportInputs!), changed.DrawMode.NormalViewport);
         Assert.Equal(2f, resolved.DrawMode.NormalViewport!.ScaleX);
         Assert.Equal(2.5f, resolved.DrawMode.NormalViewport.NormalOffsetX);
         Assert.Equal(-7.5f, resolved.DrawMode.NormalViewport.NormalOffsetY);

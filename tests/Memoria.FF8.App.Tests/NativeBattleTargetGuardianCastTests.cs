@@ -19,6 +19,15 @@ public sealed class NativeBattleTargetGuardianCastTests
     [Fact]
     public void Installed_Ifrit_entry_reaches_the_shared_scripted_opening_and_independent_disk_state() => Run(2, 201, true);
 
+    [Theory]
+    [InlineData(7, 6)]
+    [InlineData(12, 202)]
+    [InlineData(9, 203)]
+    [InlineData(10, 204)]
+    [InlineData(4, 205)]
+    [InlineData(15, 206)]
+    public void Installed_cinematic_guardian_entry_preserves_its_selected_profile_and_independent_disk_state(int guardian, ushort effect) => Run(guardian, effect, true);
+
     [Fact]
     public void Continue_the_named_cinematic_guardian_checkpoint_to_completion()
     {
@@ -123,7 +132,8 @@ public sealed class NativeBattleTargetGuardianCastTests
             Assert.True(battle.NativeEntryReady);
             Assert.True(battle.Combatants.Single(actor => actor.Id == "party").IsReady);
             Publish("before", battle.Capture());
-            battle.QueueAction("party", "enemy", BattleAbility.GuardianForce, guardian);
+            string target = definition.ActionDefinitions.Single(action => action.Ability == BattleAbility.GuardianForce && action.Id == guardian).Allies ? "party" : "enemy";
+            battle.QueueAction("party", target, BattleAbility.GuardianForce, guardian);
             BattleSession? clone = SaveAndLoad("queued");
             bool produced = false;
             bool selected = false;
@@ -158,12 +168,12 @@ public sealed class NativeBattleTargetGuardianCastTests
                     selected = true;
                     if (openingOnly)
                     {
-                        Assert.Equal(201, effectId);
-                        Assert.NotNull(current.NativeEffectMemory!.Ifrit201);
+                        NativeBattleCinematicProfile profile = NativeBattleCinematicProfile.ForEffect(effectId);
+                        Assert.Equal(effectId, current.NativeEffectMemory!.Cinematic!.Effect);
                         Assert.NotNull(graphics.OriginalEffect!.Binding.ScriptedInitializationDirectories);
-                        Assert.Equal(0xB25DF0u, Assert.Single(Assert.Single(graphics.OriginalEffect.Pools).Slots).Callback);
+                        Assert.Equal(profile.Callback, Assert.Single(Assert.Single(graphics.OriginalEffect.Pools).Slots).Callback);
                         _ = SaveAndLoad("scripted-opening");
-                        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "opening-validated", guardian, effectId, current.Frame, NativeCallback = graphics.Callback, Boundary = "Initialized original Ifrit resources and retained shared cinematic task; full cast remains pending" }));
+                        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "opening-validated", guardian, effectId, current.Frame, NativeCallback = graphics.Callback, Boundary = "Initialized selected original resources and retained cinematic task; full cast remains pending" }));
                         return;
                     }
                     cameraChanged |= beforeCamera != JsonSerializer.Serialize(current.NativeCamera);

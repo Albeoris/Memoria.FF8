@@ -20,7 +20,7 @@ public static class NativeBattleWaterInitialization
         return InitializeScriptedEntry(core, arena, new(profile.InitializationDirectory, profile.OwnerDirectory), inputs, new(0x2796BA8, 0x2796BB8, 0x10, 1, 0xA9B870));
     }
 
-    public static NativeBattleWaterInitializationResult InitializeScriptedEntry(NativeBattleScriptedEffectMemory core, NativeBattleEffectArena arena, NativeBattleScriptedInitializationDirectories directories, NativeBattleWaterInitializationInputs inputs, NativeBattleWaterInitialPoolRequest poolRequest)
+    public static NativeBattleWaterInitializationResult InitializeScriptedEntry(NativeBattleScriptedEffectMemory core, NativeBattleEffectArena arena, NativeBattleScriptedInitializationDirectories directories, NativeBattleWaterInitializationInputs inputs, NativeBattleWaterInitialPoolRequest poolRequest, short sourceBase = 0x233)
     {
         core.Validate();
         arena.Validate();
@@ -97,7 +97,7 @@ public static class NativeBattleWaterInitialization
         Byte(manager + 0xD1, inputs.FirstHeaderCount);
         Byte(0x2798219, 0);
         Byte(0x2798218, 0xFF);
-        Word(manager + 0xA0, 0x0233);
+        Word(manager + 0xA0, unchecked((ushort)sourceBase));
         Word(command, 1);
         NativeBattleWaterResetResult reset = ResetAA4B60(core, arena, new(frame.Address, temporary.ToImmutableArray(), known.ToImmutableArray()), inputs.Resource1, (_, _, _) => inputs.HeaderBaseAddress, (_, _, _, _) => new(inputs.Caster, inputs.CurrentHeaderIndex, inputs.FirstHeaderFirstActor, inputs.Contacts, inputs.ContactCount, inputs.Graphics));
         return new(reset.Core, reset.Arena, reset.SlotBank, reset.TemporaryFrame, reset.CurrentHeaderIndex, poolRequest);

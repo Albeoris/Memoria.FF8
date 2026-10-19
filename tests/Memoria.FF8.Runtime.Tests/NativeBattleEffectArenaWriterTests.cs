@@ -1,9 +1,34 @@
+using System.Collections.Immutable;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffectArenaWriterTests
 {
+    [Theory]
+    [InlineData(12, 3)]
+    [InlineData(5, 10)]
+    [InlineData(15, 30)]
+    [InlineData(18, 35)]
+    [InlineData(10, 50)]
+    [InlineData(20, 10)]
+    public void Indexed_unknown_updates_preserve_split_clipped_spanning_and_adjacent_store_layouts(int offset, int length)
+    {
+        NativeBattleEffectArena source = new([new(0, new byte[80].ToImmutableArray())]) { UnknownRegions = [new(10, 10), new(30, 10), new(50, 10)] };
+        NativeBattleEffectArenaWriter writer = new(source);
+        byte[] bytes = Enumerable.Repeat((byte)7, length).ToArray();
+        NativeBattleEffectArena scalar = source.Write(offset, bytes);
+        writer.Write(offset, bytes);
+        Assert.Equal(JsonSerializer.Serialize(scalar), JsonSerializer.Serialize(writer.Freeze()));
+        scalar = scalar.MarkUnknown(offset, length);
+        writer.MarkUnknown(offset, length);
+        Assert.Equal(JsonSerializer.Serialize(scalar), JsonSerializer.Serialize(writer.Freeze()));
+        scalar = scalar.MarkUnknown(offset, length);
+        writer.MarkUnknown(offset, length);
+        Assert.Equal(JsonSerializer.Serialize(scalar), JsonSerializer.Serialize(writer.Freeze()));
+        Assert.Equal(3, source.UnknownRegions.Length);
+    }
+
     [Fact]
     public void Contained_stores_retain_fragmented_layout_and_stores_at_adjacent_boundaries_still_merge()
     {

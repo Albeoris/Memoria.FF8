@@ -160,7 +160,7 @@ public sealed class NativeBattleIfritCallbackTests
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleIfrit201State>("{}"));
     }
 
-    private static NativeBattleIfrit201Frame ControllerFrame()
+    internal static NativeBattleIfrit201Frame ControllerFrame()
     {
         NativeBattleWaterExecutionFrame execution = Create();
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { ScriptedEffects = execution.Core, Arena = execution.Arena, Ifrit201 = new(9), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() with { PacketBank = "off_B6D070" } };
@@ -170,7 +170,7 @@ public sealed class NativeBattleIfritCallbackTests
         return new(memory, effect, execution.Random);
     }
 
-    private static NativeBattleWaterExecutionFrame Create()
+    internal static NativeBattleWaterExecutionFrame Create()
     {
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create();
         frame = WaterSchedulerFixture.CoreWord(frame, 0x2797628 + 0xA, 0x8000);
@@ -179,7 +179,7 @@ public sealed class NativeBattleIfritCallbackTests
         return WaterSchedulerFixture.CoreDword(frame, Manager + 0xD4, 0x400000);
     }
 
-    private static NativeBattleScriptedCallbackInput Input(ushort flags)
+    internal static NativeBattleScriptedCallbackInput Input(ushort flags)
     {
         byte[] owners = new byte[20];
         uint[] addresses = [Manager, 0x803FF000, 0x2797068, 0x27975D8, 0x2797628];
@@ -191,5 +191,5 @@ public sealed class NativeBattleIfritCallbackTests
         return new(directories, 0x2000, flags, Enumerable.Range(0, 32).Select(value => (byte)value).ToImmutableArray(), 0x600000, 0, 216);
     }
 
-    private static NativeBattleScriptedCallbackServices Services() => new((_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (current, _) => current, (current, _) => current, (_, _, _) => throw new InvalidOperationException(), (current, _) => current);
+    internal static NativeBattleScriptedCallbackServices Services() => new((_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (current, _) => current, (current, _) => current, (_, _, _) => throw new InvalidOperationException(), (current, _) => current);
 }
