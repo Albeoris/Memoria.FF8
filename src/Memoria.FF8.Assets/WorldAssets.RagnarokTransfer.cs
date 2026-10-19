@@ -1,7 +1,5 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Reflection.PortableExecutable;
-using System.Security.Cryptography;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
@@ -24,20 +22,14 @@ public sealed partial class WorldAssets
         {
             return retained with { Pitch = takeoff ? unchecked((short)(-256 - targetHeight / 24)) : retained.Pitch, Yaw = bodyYaw };
         }
-        byte[] executable = contactExecutable ??= GameDataResources.ReadNativeExecutable(resources);
-        if (Convert.ToHexString(SHA256.HashData(executable)) != NativeFieldRuntimeProfile.FF8EnExecutableHash)
-        {
-            throw new InvalidDataException("Ragnarok transfer camera targets require the authenticated original executable.");
-        }
-        using PEReader reader = new(new MemoryStream(executable));
+        IGameNativeMemorySource memory = NativeWorldMemory;
         short[] ReadWords(uint address, int count)
         {
-            int rva = checked((int)(address - reader.PEHeaders.PEHeader!.ImageBase));
-            SectionHeader section = reader.PEHeaders.SectionHeaders.Single(section => rva >= section.VirtualAddress && rva + count * 2 <= section.VirtualAddress + section.SizeOfRawData);
+            byte[] bytes = memory.Read(address, count * 2);
             short[] result = new short[count];
             for (int index = 0; index < count; index++)
             {
-                result[index] = BinaryPrimitives.ReadInt16LittleEndian(executable.AsSpan(rva - section.VirtualAddress + section.PointerToRawData + index * 2));
+                result[index] = BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(index * 2));
             }
             return result;
         }

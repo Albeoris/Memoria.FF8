@@ -9,7 +9,13 @@ public static class NativeWorldScriptedPathReader
 {
     public static NativeWorldScriptedPathDefinition Read(ReadOnlySpan<byte> rail, ReadOnlySpan<byte> cameraSection, ReadOnlySpan<byte> executable, int trackIndex, int? selectedCameraList = null)
     {
-        if (trackIndex is < 0 or >= 14 || rail.Length != 14 * 2048 || Convert.ToHexString(SHA256.HashData(executable)) != NativeFieldRuntimeProfile.FF8EnExecutableHash)
+        return Read(rail, cameraSection, new NativeExecutableMemory(executable.ToArray()), trackIndex, selectedCameraList);
+    }
+
+    public static NativeWorldScriptedPathDefinition Read(ReadOnlySpan<byte> rail, ReadOnlySpan<byte> cameraSection, IGameNativeMemorySource memory, int trackIndex, int? selectedCameraList = null)
+    {
+        WorldNativeMemoryContracts.RequireSupported(memory);
+        if (trackIndex is < 0 or >= 14 || rail.Length != 14 * 2048)
         {
             throw new InvalidDataException("Scripted rail requires the original fourteen-chunk member and verified executable.");
         }
@@ -57,11 +63,11 @@ public static class NativeWorldScriptedPathReader
         {
             throw new InvalidDataException("Native scripted camera has no bounded terminal record.");
         }
-        int firstShape = executable[ExecutableOffset(executable, 0xC763B4 + 2 * trackIndex)];
-        int secondShape = executable[ExecutableOffset(executable, 0xC763B5 + 2 * trackIndex)];
-        short frontLength = BinaryPrimitives.ReadInt16LittleEndian(executable[ExecutableOffset(executable, 0xC76460 + firstShape * 8)..]);
-        short rearLength = BinaryPrimitives.ReadInt16LittleEndian(executable[ExecutableOffset(executable, 0xC76460 + secondShape * 8)..]);
-        var definition = new NativeWorldScriptedPathDefinition(1, NativeFieldRuntimeProfile.FF8EnExecutableHash, Convert.ToHexString(SHA256.HashData(rail)), Convert.ToHexString(SHA256.HashData(chunk)), Convert.ToHexString(SHA256.HashData(cameraSection.Slice(script, position - script))), trackIndex, checked((byte)firstShape), checked((byte)secondShape), frontLength, rearLength, points.MoveToImmutable(), records.ToImmutable()) { CameraListIndex = cameraList, ForwardStops = chunk.Slice(8, stopCount).ToArray().ToImmutableArray(), ReverseStops = chunk.Slice(4, stopCount).ToArray().ToImmutableArray() };
+        int firstShape = memory.Read(0xC763B4u + (uint)trackIndex * 2, 1)[0];
+        int secondShape = memory.Read(0xC763B5u + (uint)trackIndex * 2, 1)[0];
+        short frontLength = BinaryPrimitives.ReadInt16LittleEndian(memory.Read(0xC76460u + (uint)firstShape * 8, 2));
+        short rearLength = BinaryPrimitives.ReadInt16LittleEndian(memory.Read(0xC76460u + (uint)secondShape * 8, 2));
+        var definition = new NativeWorldScriptedPathDefinition(1, memory.SourceHash, Convert.ToHexString(SHA256.HashData(rail)), Convert.ToHexString(SHA256.HashData(chunk)), Convert.ToHexString(SHA256.HashData(cameraSection.Slice(script, position - script))), trackIndex, checked((byte)firstShape), checked((byte)secondShape), frontLength, rearLength, points.MoveToImmutable(), records.ToImmutable()) { CameraListIndex = cameraList, ForwardStops = chunk.Slice(8, stopCount).ToArray().ToImmutableArray(), ReverseStops = chunk.Slice(4, stopCount).ToArray().ToImmutableArray() };
         definition.Validate();
         return definition;
     }
@@ -83,34 +89,5 @@ public static class NativeWorldScriptedPathReader
             throw new InvalidDataException("Truncated native scripted camera pointer table.");
         }
         return BinaryPrimitives.ReadInt32LittleEndian(source[offset..]);
-    }
-
-    private static int ExecutableOffset(ReadOnlySpan<byte> source, int address)
-    {
-        int pe = ReadInt32(source, 0x3C);
-        if (pe < 0 || pe > source.Length - 24)
-        {
-            throw new InvalidDataException("Invalid original PE header.");
-        }
-        int sections = BinaryPrimitives.ReadUInt16LittleEndian(source[(pe + 6)..]);
-        int optional = BinaryPrimitives.ReadUInt16LittleEndian(source[(pe + 20)..]);
-        int rva = address - 0x400000;
-        for (int section = 0; section < sections; section++)
-        {
-            int header = checked(pe + 24 + optional + section * 40);
-            int start = ReadInt32(source, header + 12);
-            int size = ReadInt32(source, header + 16);
-            int raw = ReadInt32(source, header + 20);
-            if (rva >= start && (long)rva < (long)start + size)
-            {
-                int offset = checked(raw + rva - start);
-                if (offset < 0 || offset > source.Length - 2)
-                {
-                    break;
-                }
-                return offset;
-            }
-        }
-        throw new InvalidDataException("Native scripted path lookup is absent from the original executable.");
     }
 }

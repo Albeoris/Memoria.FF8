@@ -6,5 +6,5 @@ public sealed partial class BattleAssets
 {
     private NativeBattlePrimitiveTables? nativePrimitiveTables;
 
-    public NativeBattlePrimitiveTables ReadNativePrimitiveTables() => nativePrimitiveTables ??= NativeBattlePrimitiveTablesReader.Read(GameDataResources.ReadNativeExecutable(this.resources));
+    public NativeBattlePrimitiveTables ReadNativePrimitiveTables() => nativePrimitiveTables ??= NativeBattlePrimitiveTablesReader.Read(GameDataResources.ReadNativeMemory(this.resources));
 }

@@ -40,7 +40,7 @@ public sealed partial class WorldAssets
         }
         NativeSavedWorldPose parked = saved.RagnarokPose2 ?? throw new NotSupportedException("Parked Ragnarok reload has no independently saved shape1 pose2.");
         vitals.Validate();
-        NativeWorldPathPosition cactuar = NativeGardenWorldAllocationReader.ReadCactuarLoadPosition(contactExecutable ??= GameDataResources.ReadNativeExecutable(resources));
+        NativeWorldPathPosition cactuar = NativeGardenWorldAllocationReader.ReadCactuarLoadPosition(NativeWorldMemory);
         return NativeRagnarokWorldAllocationReader.Read(wmset.AsSpan(sections[9], sections[10] - sections[9]), wmset.AsSpan(sections[10], sections[11] - sections[10]), packet, entry, memory, saved, vitals.GuardianForces[13].Flags, cactuar, foot, cameraYaw, saved.ReadMapDisplayModeForFreshFootLoader(), parked, battleReload: battleReload);
     }
 }

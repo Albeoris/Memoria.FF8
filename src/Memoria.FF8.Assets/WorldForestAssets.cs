@@ -1,9 +1,8 @@
 using System.Buffers.Binary;
-using System.Reflection.PortableExecutable;
-using System.Security.Cryptography;
 using Albeoris.Games.FF8.Imaging;
 using Albeoris.Games.FF8.Imaging.Tim;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Assets;
 
@@ -12,33 +11,36 @@ public sealed class NativeWorldForestTables
 {
     private readonly byte[] random;
     public ReadOnlySpan<byte> Random => random;
+    public string SourceHash { get; }
     public IReadOnlyList<NativeWorldForestEffect> Effects { get; }
     public IReadOnlyList<ushort> PaletteY { get; }
 
-    public NativeWorldForestTables(string gameDirectory) : this(GameDataResources.ReadNativeExecutable(gameDirectory))
+    public NativeWorldForestTables(string gameDirectory)
+    {
+        using IResourceSource source = GameDataSourceFactory.Open(gameDirectory);
+        NativeWorldForestTables tables = new(source as IGameNativeMemorySource ?? throw new NotSupportedException("The resource source has no authenticated native world memory contract."));
+        SourceHash = tables.SourceHash;
+        random = tables.random;
+        Effects = tables.Effects;
+        PaletteY = tables.PaletteY;
+    }
+
+    public NativeWorldForestTables(byte[] image) : this(new NativeExecutableMemory(image))
     {
     }
 
-    public NativeWorldForestTables(byte[] image)
+    public NativeWorldForestTables(IGameNativeMemorySource memory)
     {
-        if (!Convert.ToHexString(SHA256.HashData(image)).Equals(NativeFieldRuntimeProfile.FF8EnExecutableHash, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new NotSupportedException("Forest tables require the authenticated original FF8_EN executable.");
-        }
-        using PEReader pe = new(new MemoryStream(image));
-        int Offset(uint address)
-        {
-            int rva = checked((int)(address - pe.PEHeaders.PEHeader!.ImageBase));
-            SectionHeader section = pe.PEHeaders.SectionHeaders.Single(section => rva >= section.VirtualAddress && rva < section.VirtualAddress + section.SizeOfRawData);
-            return rva - section.VirtualAddress + section.PointerToRawData;
-        }
-        random = image.AsSpan(Offset(0xC75D20), 256).ToArray();
+        WorldNativeMemoryContracts.RequireSupported(memory);
+        SourceHash = memory.SourceHash;
+        random = memory.Read(0xC75D20, 256);
+        byte[] records = memory.Read(0xC76878 + 40 * 4, 40 * 11);
         List<NativeWorldForestEffect> effects = [];
         List<ushort> palettes = [];
         for (byte type = 4; type <= 14; type++)
         {
-            ReadOnlySpan<byte> record = image.AsSpan(Offset(0xC76878) + 40 * type, 40);
-            ushort Word(int offset) => BinaryPrimitives.ReadUInt16LittleEndian(image.AsSpan(Offset(0xC76878) + 40 * type + offset, 2));
+            ReadOnlySpan<byte> record = records.AsSpan(40 * (type - 4), 40);
+            ushort Word(int offset) => BinaryPrimitives.ReadUInt16LittleEndian(records.AsSpan(40 * (type - 4) + offset, 2));
             if (type == 10)
             {
                 if (!record.SequenceEqual(Convert.FromHexString("68038000D003E100202001008080800180101002000380020800F8FF080000000000010000000000")))
@@ -81,7 +83,7 @@ public sealed partial class WorldAssets
     private TimImage? forestTim;
     private TimImage? gardenWakeTim;
     private TimImage? cactuarBurstTim;
-    public NativeWorldForestTables ForestTables => forestTables ??= new NativeWorldForestTables(GameDataResources.ReadNativeExecutable(resources));
+    public NativeWorldForestTables ForestTables => forestTables ??= new NativeWorldForestTables(NativeWorldMemory);
 
     public PixelImage GetForestTexture(byte type, int frame)
     {

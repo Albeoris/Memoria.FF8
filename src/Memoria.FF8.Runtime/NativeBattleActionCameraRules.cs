@@ -7,7 +7,7 @@ public sealed record NativeBattleActionCameraRules(string ExecutableSha256, Immu
 {
     public void Validate()
     {
-        if (ExecutableSha256 != NativeFieldRuntimeProfile.FF8EnExecutableHash || Increment.IsDefault || Increment.Length != 5 || RandomRange.IsDefault || RandomRange.Length != 5 || EnemyThreshold.IsDefault || EnemyThreshold.Length != 5)
+        if ((ExecutableSha256 != NativeFieldRuntimeProfile.FF8EnExecutableHash && ExecutableSha256 != NativeFieldRuntimeProfile.RemasteredEnImageHash) || Increment.IsDefault || Increment.Length != 5 || RandomRange.IsDefault || RandomRange.Length != 5 || EnemyThreshold.IsDefault || EnemyThreshold.Length != 5)
         {
             throw new InvalidDataException("Native action camera rules require the authenticated five original frequency rows.");
         }

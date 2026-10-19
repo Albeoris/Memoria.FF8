@@ -15,8 +15,7 @@ public sealed partial class WorldAssets
         if (!scriptedPaths.TryGetValue((trackIndex, cameraList), out NativeWorldScriptedPathDefinition? definition))
         {
             byte[] rail = Read("rail.obj");
-            byte[] executable = GameDataResources.ReadNativeExecutable(resources);
-            definition = NativeWorldScriptedPathReader.Read(rail, wmset.AsSpan(sections[17], sections[18] - sections[17]), executable, trackIndex, cameraList);
+            definition = NativeWorldScriptedPathReader.Read(rail, wmset.AsSpan(sections[17], sections[18] - sections[17]), NativeWorldMemory, trackIndex, cameraList);
             scriptedPaths.Add((trackIndex, cameraList), definition);
         }
         return definition;

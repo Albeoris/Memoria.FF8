@@ -12,7 +12,7 @@ public sealed record NativeGardenCameraDefaults([property: JsonRequired] string 
 {
     public void Validate()
     {
-        if (ExecutableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash || Pitch != -112 || OffsetX != 0 || OffsetY != -341 || OffsetZ != -7168)
+        if (ExecutableHash is not (NativeFieldRuntimeProfile.FF8EnExecutableHash or NativeFieldRuntimeProfile.RemasteredEnImageHash) || Pitch != -112 || OffsetX != 0 || OffsetY != -341 || OffsetZ != -7168)
         {
             throw new NotSupportedException("Garden camera words differ from the authenticated557250/558C20 ordinary projection contract.");
         }

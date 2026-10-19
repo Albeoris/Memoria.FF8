@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Security.Cryptography;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
@@ -9,11 +8,16 @@ public sealed record NativeEncounterTables(ImmutableArray<byte> FieldRandom, Imm
 {
     public static NativeEncounterTables ReadExecutable(byte[] executable)
     {
-        if (Convert.ToHexString(SHA256.HashData(executable)) != "064D466B5FE2BA901FD44ABF19F37C0FD6A2DB40AABD95C9E5959195B6589570")
+        return Read(new NativeExecutableMemory(executable));
+    }
+
+    public static NativeEncounterTables Read(IGameNativeMemorySource memory)
+    {
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(memory.SourceHash))
         {
-            throw new NotSupportedException("Native encounter tables require the authenticated original English executable.");
+            throw new NotSupportedException("Native encounter tables require authenticated native memory.");
         }
-        return new(executable.AsSpan(0x780A18, 256).ToArray().ToImmutableArray(), executable.AsSpan(0x875D20, 256).ToArray().ToImmutableArray(), executable.AsSpan(0x875F10, 8).ToArray().ToImmutableArray());
+        return new(memory.Read(0xB80A18, 256).ToImmutableArray(), memory.Read(0xC75D20, 256).ToImmutableArray(), memory.Read(0xC75F10, 8).ToImmutableArray());
     }
 
     public static NativeFieldEncounterDefinition ReadField(byte[] rate, byte[] formations)

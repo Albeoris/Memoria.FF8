@@ -30,14 +30,14 @@ public sealed partial class BattleAssets
         {
             throw new NotSupportedException("Native party file-table selection requires its original model0..10 and an existing linked callback.");
         }
-        byte[] executable = GameDataResources.ReadNativeExecutable(this.resources);
+        IGameNativeMemorySource memory = GameDataResources.ReadNativeMemory(this.resources);
         uint table = linked ? 0xB8B940u : 0xB8B914u;
-        uint selectors = BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleEffectStaticResourcesReader.Read(executable, table + modelId * 4u, 4).AsSpan());
+        uint selectors = BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleEffectStaticResourcesReader.Read(memory, table + modelId * 4u, 4).AsSpan());
         if (selectors == 0)
         {
             throw new NotSupportedException("Native party file selector points at an absent original table.");
         }
-        short fileId = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleEffectStaticResourcesReader.Read(executable, checked(selectors + observedSelector * 2u), 2).AsSpan());
+        short fileId = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleEffectStaticResourcesReader.Read(memory, checked(selectors + observedSelector * 2u), 2).AsSpan());
         if (fileId < 0)
         {
             throw new NotSupportedException("Native party file selector has no nonnegative original resource ID.");

@@ -10,7 +10,7 @@ public sealed record NativeShopDefinitions([property: JsonRequired] string Execu
 {
     public void Validate()
     {
-        if (ExecutableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash || new[] { ShopHash, PriceHash, KernelHash }.Any(hash => hash is not { Length: 64 } || hash.Any(value => !Uri.IsHexDigit(value))) || ArgumentMap.IsDefault || ArgumentMap.Length != 256 || Catalogs.IsDefault || Catalogs.Length != 20 || Catalogs.Any(row => row.IsDefault || row.Length != 16 || row.Any(entry => entry is null || entry.ItemId >= 199)) || Prices.IsDefault || Prices.Length != 199 || Prices.Any(price => price is null))
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(ExecutableHash) || new[] { ShopHash, PriceHash, KernelHash }.Any(hash => hash is not { Length: 64 } || hash.Any(value => !Uri.IsHexDigit(value))) || ArgumentMap.IsDefault || ArgumentMap.Length != 256 || Catalogs.IsDefault || Catalogs.Length != 20 || Catalogs.Any(row => row.IsDefault || row.Length != 16 || row.Any(entry => entry is null || entry.ItemId >= 199)) || Prices.IsDefault || Prices.Length != 199 || Prices.Any(price => price is null))
         {
             throw new InvalidDataException("Native shop definitions require original argument bytes, twenty catalogs and199 price/name rows.");
         }

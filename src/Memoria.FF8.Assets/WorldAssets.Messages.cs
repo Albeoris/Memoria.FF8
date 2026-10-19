@@ -1,6 +1,5 @@
 using System.Buffers.Binary;
 using Albeoris.Games.FF8.TextEncoding;
-using System.Reflection.PortableExecutable;
 using System.Security.Cryptography;
 using Memoria.FF8.Runtime;
 
@@ -21,15 +20,7 @@ public sealed partial class WorldAssets
             return cached;
         }
         _ = ReadWorldMessage(message);
-        byte[] executable = contactExecutable ??= GameDataResources.ReadNativeExecutable(resources);
-        if (Convert.ToHexString(SHA256.HashData(executable)) != NativeFieldRuntimeProfile.FF8EnExecutableHash)
-        {
-            throw new InvalidDataException("World message windows require their authenticated original executable table.");
-        }
-        using PEReader reader = new(new MemoryStream(executable));
-        int rva = checked((int)(0xC761A0 - reader.PEHeaders.PEHeader!.ImageBase) + 16 * window);
-        SectionHeader section = reader.PEHeaders.SectionHeaders.Single(section => rva >= section.VirtualAddress && rva + 8 <= section.VirtualAddress + section.SizeOfRawData);
-        ReadOnlySpan<byte> record = executable.AsSpan(rva - section.VirtualAddress + section.PointerToRawData, 8);
+        ReadOnlySpan<byte> record = NativeWorldMemory.Read(0xC761A0u + (uint)window * 16, 8);
         NativeWorldMessage result = new(window, (byte)message, record[2], record[1], record[3], BinaryPrimitives.ReadInt16LittleEndian(record[4..]), BinaryPrimitives.ReadInt16LittleEndian(record[6..]), Convert.ToHexString(SHA256.HashData(wmset)), false);
         result.Validate();
         worldMessageBindings.Add((window, message), result);
@@ -48,15 +39,7 @@ public sealed partial class WorldAssets
         {
             throw new NotSupportedException("World message speed requires the original settings index0..4.");
         }
-        byte[] executable = contactExecutable ??= GameDataResources.ReadNativeExecutable(resources);
-        if (Convert.ToHexString(SHA256.HashData(executable)) != NativeFieldRuntimeProfile.FF8EnExecutableHash)
-        {
-            throw new InvalidDataException("World text timing requires its authenticated original speed table.");
-        }
-        using PEReader reader = new(new MemoryStream(executable));
-        int rva = checked((int)(0xB8EE94 - reader.PEHeaders.PEHeader!.ImageBase) + 2 * speed);
-        SectionHeader section = reader.PEHeaders.SectionHeaders.Single(section => rva >= section.VirtualAddress && rva + 2 <= section.VirtualAddress + section.SizeOfRawData);
-        return BinaryPrimitives.ReadInt16LittleEndian(executable.AsSpan(rva - section.VirtualAddress + section.PointerToRawData, 2));
+        return BinaryPrimitives.ReadInt16LittleEndian(NativeWorldMemory.Read(0xB8EE94u + (uint)speed * 2, 2));
     }
 
     public byte[] ReadWorldMessageBytes(int message)

@@ -110,7 +110,12 @@ public sealed class NativeMusicCatalog
     /// <summary>Original5015A0/501640 select one of seven original sound identities for each battle actor.</summary>
     public static ImmutableArray<uint> ReadBattleActorSounds(byte[] executable)
     {
-        ImmutableArray<byte> bytes = NativeBattleEffectStaticResourcesReader.Read(executable, 0xB8A418, 160 * 7 * sizeof(uint));
+        return ReadBattleActorSounds(new NativeExecutableMemory(executable));
+    }
+
+    public static ImmutableArray<uint> ReadBattleActorSounds(IGameNativeMemorySource memory)
+    {
+        ImmutableArray<byte> bytes = NativeBattleEffectStaticResourcesReader.Read(memory, 0xB8A418, 160 * 7 * sizeof(uint));
         ImmutableArray<uint>.Builder sounds = ImmutableArray.CreateBuilder<uint>(160 * 7);
         for (int offset = 0; offset < bytes.Length; offset += sizeof(uint))
         {

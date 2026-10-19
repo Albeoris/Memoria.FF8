@@ -79,7 +79,7 @@ public sealed partial class GameAssets : IDisposable
         return resource;
     }
     public string? NativeExecutableHash => resources.GetSource<IGameRuntimeSource>()?.NativeExecutableHash;
-    public NativeEncounterTables ReadNativeEncounterTables() => nativeEncounterTables ??= NativeEncounterTables.ReadExecutable(ReadNativeExecutable());
+    public NativeEncounterTables ReadNativeEncounterTables() => nativeEncounterTables ??= NativeEncounterTables.Read(ReadNativeMemory());
     public NativeDrawPointCatalog ReadNativeDrawPointCatalog()
     {
         if (nativeDrawPointCatalog is not null)
@@ -87,7 +87,7 @@ public sealed partial class GameAssets : IDisposable
             return nativeDrawPointCatalog;
         }
         using IFlArchive main = OpenArchive("main");
-        nativeDrawPointCatalog = NativeDrawPointCatalogReader.Read(ReadNativeExecutable(), Read(main, "kernel.bin"));
+        nativeDrawPointCatalog = NativeDrawPointCatalogReader.Read(ReadNativeMemory(), Read(main, "kernel.bin"), ReadResource(new ResourceKey("text/draw-points")));
         return nativeDrawPointCatalog;
     }
     public NativeVibrationBank ReadNativeVibrationBank() => nativeVibrationBank ??= NativeVibrationBankReader.ReadTable(ReadResource(new ResourceKey("tables/vibration")), NativeExecutableHash);
@@ -142,7 +142,7 @@ public sealed partial class GameAssets : IDisposable
         }
         using IFlArchive main = OpenArchive("main");
         using IFlArchive menu = OpenArchive("menu");
-        return nativeShopDefinitions = NativeShopDefinitionReader.Read(ReadNativeExecutable(), Read(menu, "shop.bin"), Read(menu, "price.bin"), Read(main, "kernel.bin"));
+        return nativeShopDefinitions = NativeShopDefinitionReader.Read(ReadNativeMemory(), Read(menu, "shop.bin"), Read(menu, "price.bin"), Read(main, "kernel.bin"));
     }
 
     public NativeWeaponRecipes ReadNewGameWeaponRecipes()

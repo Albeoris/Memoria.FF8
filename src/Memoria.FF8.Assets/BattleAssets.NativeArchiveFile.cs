@@ -9,9 +9,9 @@ public sealed partial class BattleAssets
 {
     public NativeBattleArchiveFile ReadNativeBattleFile(ushort fileId)
     {
-        byte[] executable = GameDataResources.ReadNativeExecutable(this.resources);
-        uint nameAddress = BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleEffectStaticResourcesReader.Read(executable, checked(0xB84CCC + (uint)fileId * 4), 4).AsSpan());
-        byte[] nameBytes = NativeBattleEffectStaticResourcesReader.Read(executable, nameAddress, 128).ToArray();
+        IGameNativeMemorySource memory = GameDataResources.ReadNativeMemory(this.resources);
+        uint nameAddress = BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleEffectStaticResourcesReader.Read(memory, checked(0xB84CCC + (uint)fileId * 4), 4).AsSpan());
+        byte[] nameBytes = NativeBattleEffectStaticResourcesReader.Read(memory, nameAddress, 128).ToArray();
         int end = Array.IndexOf(nameBytes, (byte)0);
         if (end <= 0)
         {

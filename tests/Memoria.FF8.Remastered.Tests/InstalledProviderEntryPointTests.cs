@@ -14,12 +14,12 @@ public sealed class InstalledProviderEntryPointTests
     }
 
     [Fact]
-    public void UnsupportedClassicNativeConsumersRejectRemasteredThroughTheProvider()
+    public void SupportedNativeResourcesUseRemasteredWhileDiscMountRemainsExplicit()
     {
         string directory = InstalledDirectory();
         Assert.EndsWith(".sgt", new NativeMusicCatalog(directory).MusicFileResolved(0));
-        Assert.Throws<NotImplementedException>(() => new NativeWorldForestTables(directory));
-        Assert.Throws<NotImplementedException>(() => NativeTripleTriadArtwork.Load(directory));
+        Assert.NotEmpty(new NativeWorldForestTables(directory).Effects);
+        Assert.Equal(64, NativeTripleTriadArtwork.Load(directory).Back.Width);
         Assert.Throws<NotImplementedException>(() => NativeSteamDiscMountReader.Read(directory, 1));
     }
 

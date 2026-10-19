@@ -1,6 +1,5 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Reflection.PortableExecutable;
 using System.Security.Cryptography;
 using Memoria.FF8.Runtime;
 
@@ -144,35 +143,23 @@ public static class NativeGardenWorldAllocationReader
         throw new NotSupportedException("Original section9 has no admitted ordinary Garden allocation for the current story.");
     }
 
-    public static NativeGardenCameraDefaults ReadCameraDefaults(byte[] executable)
+    public static NativeGardenCameraDefaults ReadCameraDefaults(byte[] executable) => ReadCameraDefaults(new NativeExecutableMemory(executable));
+
+    public static NativeGardenCameraDefaults ReadCameraDefaults(IGameNativeMemorySource memory)
     {
-        string hash = Convert.ToHexString(SHA256.HashData(executable));
-        if (hash != NativeFieldRuntimeProfile.FF8EnExecutableHash)
-        {
-            throw new InvalidDataException("Garden camera constants require the authenticated original English executable.");
-        }
-        using PEReader reader = new(new MemoryStream(executable));
-        short ReadWord(uint address)
-        {
-            long rva = address - (long)reader.PEHeaders.PEHeader!.ImageBase;
-            SectionHeader section = reader.PEHeaders.SectionHeaders.Single(section => rva >= section.VirtualAddress && rva + 2 <= section.VirtualAddress + section.SizeOfRawData);
-            return BinaryPrimitives.ReadInt16LittleEndian(executable.AsSpan(checked((int)(rva - section.VirtualAddress + section.PointerToRawData)), 2));
-        }
-        var defaults = new NativeGardenCameraDefaults(hash, ReadWord(0xC76D28), ReadWord(0xC76D40), ReadWord(0xC76D42), ReadWord(0xC76D44));
+        WorldNativeMemoryContracts.RequireSupported(memory);
+        short ReadWord(uint address) => BinaryPrimitives.ReadInt16LittleEndian(memory.Read(address, 2));
+        var defaults = new NativeGardenCameraDefaults(memory.SourceHash, ReadWord(0xC76D28), ReadWord(0xC76D40), ReadWord(0xC76D42), ReadWord(0xC76D44));
         defaults.Validate();
         return defaults;
     }
 
-    public static NativeWorldPathPosition ReadCactuarLoadPosition(byte[] executable)
+    public static NativeWorldPathPosition ReadCactuarLoadPosition(byte[] executable) => ReadCactuarLoadPosition(new NativeExecutableMemory(executable));
+
+    public static NativeWorldPathPosition ReadCactuarLoadPosition(IGameNativeMemorySource memory)
     {
-        if (Convert.ToHexString(SHA256.HashData(executable)) != NativeFieldRuntimeProfile.FF8EnExecutableHash)
-        {
-            throw new InvalidDataException("Garden Cactuar pose requires the authenticated original English executable.");
-        }
-        using PEReader reader = new(new MemoryStream(executable));
-        long rva = 0xC76630 - (long)reader.PEHeaders.PEHeader!.ImageBase;
-        SectionHeader section = reader.PEHeaders.SectionHeaders.Single(section => rva >= section.VirtualAddress && rva + 12 <= section.VirtualAddress + section.SizeOfRawData);
-        ReadOnlySpan<byte> bytes = executable.AsSpan(checked((int)(rva - section.VirtualAddress + section.PointerToRawData)), 12);
+        WorldNativeMemoryContracts.RequireSupported(memory);
+        ReadOnlySpan<byte> bytes = memory.Read(0xC76630, 12);
         return new NativeWorldPathPosition(BinaryPrimitives.ReadInt32LittleEndian(bytes), BinaryPrimitives.ReadInt32LittleEndian(bytes[4..]), BinaryPrimitives.ReadInt32LittleEndian(bytes[8..]));
     }
 
@@ -210,12 +197,12 @@ public sealed partial class WorldAssets
         //auxiliary channels are proved inactive, indices inspect only shape bytes,
         //then548080/548300 writes foot and both Garden poses before first use.
         vitals.Validate();
-        NativeWorldPathPosition cactuar = NativeGardenWorldAllocationReader.ReadCactuarLoadPosition(contactExecutable ??= GameDataResources.ReadNativeExecutable(resources));
+        NativeWorldPathPosition cactuar = NativeGardenWorldAllocationReader.ReadCactuarLoadPosition(NativeWorldMemory);
         NativeWorldAuxiliaryRelocationReceipt? auxiliaryEntry = ReadGardenAuxiliaryRelocations(packet, memory, pose);
         return NativeGardenWorldAllocationReader.Read(wmset.AsSpan(sections[9], sections[10] - sections[9]), wmset.AsSpan(sections[10], sections[11] - sections[10]), packet, entry, memory, saved, vitals.GuardianForces[13].Flags, cactuar, pose, cameraYaw, variant, mapDisplay, auxiliaryEntry: auxiliaryEntry);
     }
 
-    public NativeGardenCameraDefaults ReadGardenCameraDefaults() => NativeGardenWorldAllocationReader.ReadCameraDefaults(contactExecutable ??= GameDataResources.ReadNativeExecutable(resources));
+    public NativeGardenCameraDefaults ReadGardenCameraDefaults() => NativeGardenWorldAllocationReader.ReadCameraDefaults(NativeWorldMemory);
 
     public NativeWorldAuxiliaryRelocationReceipt? ReadGardenAuxiliaryRelocations(WorldTransition packet, NativeEventMemory memory, NativeSavedWorldPose loadPose)
     {
@@ -320,7 +307,7 @@ public sealed partial class WorldAssets
         }
         NativeWorldAuxiliaryRelocationReceipt? auxiliaryEntry = ReadGardenAuxiliaryRelocations(packet, memory, foot);
         vitals.Validate();
-        NativeWorldPathPosition cactuar = NativeGardenWorldAllocationReader.ReadCactuarLoadPosition(contactExecutable ??= GameDataResources.ReadNativeExecutable(resources));
+        NativeWorldPathPosition cactuar = NativeGardenWorldAllocationReader.ReadCactuarLoadPosition(NativeWorldMemory);
         return NativeGardenWorldAllocationReader.Read(wmset.AsSpan(sections[9], sections[10] - sections[9]), wmset.AsSpan(sections[10], sections[11] - sections[10]), packet, entry, memory, saved, vitals.GuardianForces[13].Flags, cactuar, foot, camera, variant, saved.ReadMapDisplayModeForFreshFootLoader(), parked, auxiliaryEntry, battleReload);
     }
 }

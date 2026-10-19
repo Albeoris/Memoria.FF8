@@ -8,6 +8,6 @@ public sealed partial class WorldAssets
 
     public NativeWorldPathPosition ReadFootType2CactuarLoadPosition()
     {
-        return type2CactuarSeed ??= NativeGardenWorldAllocationReader.ReadCactuarLoadPosition(contactExecutable ??= GameDataResources.ReadNativeExecutable(resources));
+        return type2CactuarSeed ??= NativeGardenWorldAllocationReader.ReadCactuarLoadPosition(NativeWorldMemory);
     }
 }

@@ -13,7 +13,7 @@ public sealed record NativeDrawPointCatalog(string ExecutableHash, string Kernel
 
     public void Validate()
     {
-        if (ExecutableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash || !Hash(KernelHash) || PointBytes.IsDefault || PointBytes.Length != 256 || CommandIds.IsDefault || CommandIds.Length != 19 || string.IsNullOrEmpty(NoEligibleMessage) || !Hash(CommonMessageHash))
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(ExecutableHash) || !Hash(KernelHash) || PointBytes.IsDefault || PointBytes.Length != 256 || CommandIds.IsDefault || CommandIds.Length != 19 || string.IsNullOrEmpty(NoEligibleMessage) || !Hash(CommonMessageHash))
         {
             throw new InvalidDataException("Native draw-point catalog lacks its original point bytes, command mapping or common message7.");
         }
