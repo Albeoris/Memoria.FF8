@@ -193,7 +193,7 @@ public sealed partial class MenuController
             return;
         }
         UiView view = BuildView();
-        if (view.FocusedElement is UiList { Orientation: UiOrientation.Vertical, Paginated: true } list &&
+        if (view.FocusedElement is UiList { Orientation: UiOrientation.Vertical, Paginated: true } list && !(ScreenId == "shop-junk" && input is MenuInput.Up or MenuInput.Down) &&
             (input is MenuInput.PageUp or MenuInput.PageDown || input is MenuInput.Left or MenuInput.Right && !IsConfigSettingsScreen && !IsHostSettingsScreen || list.Id != "commands" && input is MenuInput.Up or MenuInput.Down))
         {
             view.Key(input switch
@@ -665,7 +665,7 @@ public sealed partial class MenuController
                 ScreenOpened?.Invoke(ScreenId);
                 _view = null;
             }
-            Message = action.Kind is "config" or "junction-magic" or "junction-gf" or "junction-off" or "junction-auto" ? "" : "Request sent to the live owner.";
+            Message = action.Kind is "config" or "junction-magic" or "junction-gf" or "junction-off" or "junction-auto" or "weapon-character" or "weapon-remodel" ? "" : "Request sent to the live owner.";
             return;
         }
         ApplyDemo(action);

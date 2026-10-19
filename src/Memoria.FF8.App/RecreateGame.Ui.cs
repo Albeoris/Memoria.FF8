@@ -83,7 +83,8 @@ internal sealed partial class RecreateGame
         MenuData data;
         if (IsNativeWeaponShopActive)
         {
-            data = NativeWeaponShopMenuProjection.Build(events!.PartyMenu!.WeaponShop!, session.State.CharacterVitals);
+            EnsureLiveMenuCatalog();
+            data = NativeWeaponShopMenuProjection.Build(events!.PartyMenu!.WeaponShop!, session.State.CharacterVitals, liveMenuCatalog!);
         }
         else if (IsNativeShopActive)
         {

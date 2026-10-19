@@ -133,6 +133,10 @@ public sealed partial class MenuController
 
     private UiElement BuildSecondaryShop()
     {
+        if (ScreenId == "shop-junk")
+        {
+            return BuildWeaponShop();
+        }
         MenuItem? selected = Data.Items.FirstOrDefault(item => item.Id == SelectedEntry?.Id);
         var page = Grid([1.8f, 5.8f, 0.65f], [3, 1.7f], 5);
         string help = ScreenId == "shop-buy" ? "Choose an item to purchase." : ScreenId == "shop-sell" ? "Choose an item to sell." : ScreenId == "shop-junk" ? "Select a weapon to remodel." : "Select a shop command.";
@@ -151,6 +155,53 @@ public sealed partial class MenuController
             Place(page, Panel(null, commands), 1);
         }
         Place(page, Panel(null, Lines([selected?.Name ?? "", "Owned", selected?.Quantity.ToString() ?? "--"], 25)), 1, 1);
+        Place(page, Panel(null, Label(Number(Data.Currency) + " G", 24)), 2, 1);
+        return page;
+    }
+
+    private UiElement BuildWeaponShop()
+    {
+        MenuItem? selected = Data.Items.FirstOrDefault(item => item.Id == SelectedEntry?.Id);
+        MenuCharacter? character = Data.Characters.FirstOrDefault(value => value.InParty);
+        var page = Grid([1.8f, 5.8f, 0.65f], [3, 2.4f], 5);
+        Place(page, SecondaryHeader("Junk Shop", character?.Name ?? "Select a character", selected?.Description ?? "Select a character or a weapon to remodel."), 0, 0, 1, 2);
+        var choices = Grid([2, 3], [1], 5);
+        int characterCount = Data.Characters.Count;
+        UiList characters = SecondaryCommands(36, 23);
+        characters.Id = "weapon-characters";
+        characters.Items = Data.Characters.Select(value => value.Name).ToList();
+        characters.EnabledItems = Entries.Take(characterCount).Select(entry => entry.Enabled).ToList();
+        characters.SelectedIndex = SelectedIndex < characterCount ? SelectedIndex : Math.Max(0, Data.Characters.FindIndex(value => value.InParty));
+        characters.ShowSelection = SelectedIndex < characterCount;
+        Place(choices, Panel("CHARACTER", characters), 0);
+        UiList weapons = SecondaryCommands();
+        weapons.Items = Data.Items.Select(item => item.Name).ToList();
+        weapons.EnabledItems = Entries.Skip(characterCount).Select(entry => entry.Enabled).ToList();
+        weapons.SecondaryItems = Data.Items.Select(item => Number(item.Price) + " G").ToList();
+        weapons.SecondaryWidth = 0.3f;
+        weapons.SelectedIndex = Math.Max(0, SelectedIndex - characterCount);
+        weapons.ShowSelection = SelectedIndex >= characterCount;
+        weapons.SelectionChanged = index => Select(index + characterCount, Entries.Count);
+        weapons.Confirmed = index => Activate(index + characterCount);
+        Place(choices, Panel("WEAPON", weapons), 1);
+        Place(page, choices, 1);
+        var materials = new UiList
+        {
+            Id = "weapon-materials",
+            Focusable = false,
+            Items = selected?.Materials.Select(material => material.Name).ToList() ?? [],
+            Images = selected?.Materials.Select(material => material.Icon).ToList() ?? [],
+            SecondaryItems = selected?.Materials.Select(material => $"{material.Owned} / {material.Required}").ToList() ?? [],
+            SecondaryWidth = 0.3f,
+            ShowSelection = false,
+            RowHeight = 42 * TextScale,
+            FontSize = 23 * TextScale
+        };
+        var details = Grid([0.7f, 0.5f, 4], [1], 5);
+        Place(details, Label(selected?.Name ?? character?.Name ?? "", 25), 0);
+        Place(details, Label(selected is null ? "Select a weapon to view materials." : "Owned / Required", 19), 1);
+        Place(details, materials, 2);
+        Place(page, Panel("MATERIALS", details), 1, 1);
         Place(page, Panel(null, Label(Number(Data.Currency) + " G", 24)), 2, 1);
         return page;
     }

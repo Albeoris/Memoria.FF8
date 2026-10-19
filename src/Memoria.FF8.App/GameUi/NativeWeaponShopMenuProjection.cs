@@ -6,7 +6,7 @@ namespace Memoria.FF8.GameUi;
 /// <summary>Projects the actual4EA770 recipe list and explicit selection/remodel requests.</summary>
 public static class NativeWeaponShopMenuProjection
 {
-    public static MenuData Build(NativeWeaponShopTransaction shop, NativeCharacterVitals? vitals = null)
+    public static MenuData Build(NativeWeaponShopTransaction shop, NativeCharacterVitals? vitals = null, LiveMenuCatalog? catalog = null)
     {
         ArgumentNullException.ThrowIfNull(shop);
         shop.Validate();
@@ -24,10 +24,14 @@ public static class NativeWeaponShopMenuProjection
         {
             int id = offer & 0x3F;
             NativeWeaponRecipe recipe = shop.Definitions.Recipes[id];
-            string materials = string.Join(", ", recipe.Materials.Where(material => material.ItemId != 0).Select(material => $"Item {material.ItemId}: {shop.Counts[material.ItemId]}/{material.Count}"));
-            string availability = (offer & 0x80) != 0 ? "Materials and gil available" : "Materials or gil missing";
+            string availability = vitals is not null && vitals.Records[shop.SelectedCharacter].Weapon == id ? "Currently equipped" : (offer & 0x80) != 0 ? "Materials and gil available" : "Materials or gil missing";
             string itemId = $"weapon-{id}";
-            data.Items.Add(new MenuItem { Id = itemId, Name = recipe.Name, Price = checked((int)shop.Price(id)), Description = $"{availability}. {materials}." });
+            MenuItem item = new() { Id = itemId, Name = recipe.Name, Price = checked((int)shop.Price(id)), Description = availability + "." };
+            foreach (NativeItemStock material in recipe.Materials.Where(material => material.ItemId != 0))
+            {
+                item.Materials.Add(new MenuMaterial(catalog?.ItemName(material.ItemId) ?? $"Item {material.ItemId}", catalog?.ItemIcon(material.ItemId), shop.Counts[material.ItemId], material.Count));
+            }
+            data.Items.Add(item);
             if ((offer & 0x80) != 0 && vitals is not null && vitals.Records[shop.SelectedCharacter].Weapon != id)
             {
                 data.SupportedActions.Add($"weapon-remodel:{itemId}");

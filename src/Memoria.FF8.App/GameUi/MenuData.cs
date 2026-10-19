@@ -119,7 +119,10 @@ public sealed class MenuItem
     public int DemoHealing { get; set; }
     public int? Price { get; set; }
     public int? SalePrice { get; set; }
+    public List<MenuMaterial> Materials { get; } = [];
 }
+
+public sealed record MenuMaterial(string Name, UiImageSource? Icon, int Owned, int Required);
 
 public sealed class MenuMagic
 {
