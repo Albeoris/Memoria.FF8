@@ -96,7 +96,7 @@ internal sealed class BattleHudElement : UiElement
             float gauge = cast is null ? actor.Atb / (float)BattleSession.AtbMaximum : cast.InitialTicks == 0 ? 1 : 1 - cast.RemainingTicks / (float)cast.InitialTicks;
             Text(canvas, theme, label, 520, y, 150, 30, 22, !shownAlive);
             Text(canvas, theme, $"{hp,4} / {maximumHp,4}", 674, y, 150, 30, 22, !shownAlive);
-            DrawGauge(canvas, Rect(830, y + 11, 104, 12), gauge, cast is null && actor.IsReady, shownAlive);
+            DrawGauge(canvas, Rect(830, y + 11, 104, 12), gauge, cast is null && actor.IsReady, shownAlive, cast is not null);
         }
         if (session.Outcome == BattleOutcome.Victory)
         {
@@ -138,11 +138,11 @@ internal sealed class BattleHudElement : UiElement
         }
     }
 
-    private static void DrawGauge(IUiCanvas canvas, UiRect bounds, float ratio, bool ready, bool alive)
+    private static void DrawGauge(IUiCanvas canvas, UiRect bounds, float ratio, bool ready, bool alive, bool summoning)
     {
         canvas.Fill(bounds, new UiColor(22, 22, 27));
         UiRect inner = bounds.Inset(2);
-        UiColor color = !alive ? new UiColor(75, 75, 80) : ready ? new UiColor(237, 211, 136) : new UiColor(169, 185, 204);
+        UiColor color = !alive ? new UiColor(75, 75, 80) : summoning ? new UiColor(64, 128, 255) : ready ? new UiColor(237, 211, 136) : new UiColor(169, 185, 204);
         canvas.Fill(new UiRect(inner.X, inner.Y, inner.Width * Math.Clamp(ratio, 0, 1), inner.Height), color);
     }
 
