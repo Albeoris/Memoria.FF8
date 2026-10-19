@@ -11,6 +11,10 @@ public sealed record NativeBattleTonberry90Resources(uint StaticAddress, NativeB
     public NativeBattleEffectOwnedModelResource? CreatureModel { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public uint? CreatureEntrySound { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleEffectHeapAllocation? CreatureParticleSchedules { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleGfAnimationSource? CreatureProgramSource { get; init; }
 
     public void Validate()
     {

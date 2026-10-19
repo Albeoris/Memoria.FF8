@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 
@@ -62,5 +63,37 @@ public sealed class NativeBattleCarbuncle278ResourcesTests
         Assert.Equal(0x10BBAD0u, body.Memory.PrimitiveProcess!.ModelRendererRegisters!.SourceCursor);
         Assert.Equal(JsonSerializer.Serialize(selected.Executable), JsonSerializer.Serialize(body.Memory.CarbuncleExecutableMemory));
         Assert.Throws<NotSupportedException>(() => bodyMemory.Arena!.Read(0x2E84, 8));
+        NativeBattleGfAnimationSource programme = Assert.IsType<NativeBattleGfAnimationSource>(resources.CreatureProgramme);
+        Assert.Equal(0x10C2608u, programme.Address);
+        Assert.Equal(0x3684, programme.Data.Length);
+        Assert.Equal(6, BinaryPrimitives.ReadInt32LittleEndian(programme.Data.AsSpan()));
+        NativeBattleModulePoolTask programmeTask = bodyTask.WriteWord(0xC, 110);
+        string originalMemory = JsonSerializer.Serialize(bodyMemory);
+        NativeBattleCarbuncle278ProgrammeDraw firstProgramme = NativeBattleCarbuncle278Programme.Advance681949(bodyMemory, programmeTask, programme, model, new(identity, 288, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270);
+        Assert.Equal(35, firstProgramme.Remaining);
+        Assert.Equal(0x10C2608u, firstProgramme.Task.ReadDword(0xCC));
+        Assert.Equal(1u, firstProgramme.Task.ReadDword(0xD0));
+        Assert.Equal(programmeTask.Payload.Take(0xCC - 12), firstProgramme.Task.Payload.Take(0xCC - 12));
+        Assert.Equal(originalMemory, JsonSerializer.Serialize(bodyMemory));
+        NativeBattleEffectMemory restoredMemory = JsonSerializer.Deserialize<NativeBattleEffectMemory>(originalMemory)!;
+        Assert.Equal(JsonSerializer.Serialize(firstProgramme), JsonSerializer.Serialize(NativeBattleCarbuncle278Programme.Advance681949(restoredMemory, programmeTask, programme, model, new(identity, 288, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270)));
+
+        NativeBattleGfAnimationSource secondProgramme = Assert.IsType<NativeBattleGfAnimationSource>(resources.SecondCreatureProgramme);
+        Assert.Equal(0x10C5C8Cu, secondProgramme.Address);
+        Assert.Equal(0x1840, secondProgramme.Data.Length);
+        Assert.Equal(3, BinaryPrimitives.ReadInt32LittleEndian(secondProgramme.Data.AsSpan()));
+        NativeBattleModulePoolTask filled = firstProgramme.Task with { Payload = firstProgramme.Task.Payload.Select((value, index) => index >= 0xCC - 12 + 0x3D8 ? (byte)0xA5 : value).ToImmutableArray() };
+        NativeBattleCarbuncle278ProgrammeDraw secondProgrammeDraw = NativeBattleCarbuncle278Programme.Advance681949(bodyMemory, filled.WriteWord(0xC, 145), secondProgramme, model, new(identity, 288, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270);
+        Assert.Equal(31, secondProgrammeDraw.Remaining);
+        Assert.Equal(0x10C5C8Cu, secondProgrammeDraw.Task.ReadDword(0xCC));
+        Assert.Equal(1u, secondProgrammeDraw.Task.ReadDword(0xD0));
+        Assert.All(secondProgrammeDraw.Task.Payload.Skip(0xCC - 12 + 0x3D8), value => Assert.Equal((byte)0xA5, value));
+        NativeBattleGfAnimationSource recipient = Assert.IsType<NativeBattleGfAnimationSource>(resources.RecipientProgramme);
+        Assert.Equal(0x10C1CD8u, recipient.Address);
+        Assert.Equal(0x930, recipient.Data.Length);
+        Assert.Equal(1, BinaryPrimitives.ReadInt32LittleEndian(recipient.Data.AsSpan()));
+        Assert.Equal(new short[] { 717, 718 }, resources.Files.Select(file => file.FileId).ToArray());
+        Assert.Equal(new[] { "MAG277_H.00", "MAG277_H.01" }, resources.Files.Select(file => file.Name.ToUpperInvariant()).ToArray());
+        Assert.All(resources.Files, file => Assert.Equal(0x10u, BinaryPrimitives.ReadUInt32LittleEndian(file.Data.AsSpan())));
     }
 }

@@ -7,6 +7,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Portable identity of one original primitive arena; heap addresses are deliberately not invented.</summary>
 public sealed record NativeBattlePrimitiveReference(string Bank, byte Buffer, int ByteOffset);
 public readonly record struct NativeBattlePrimitiveLink(bool Proxy, int Index);
+public readonly record struct NativeBattleAddressedOrderingRoot(uint NextAddress, int Bucket);
 public sealed record NativeBattleLogicalPacket(NativeBattlePrimitiveReference Reference, ImmutableArray<uint> Words, NativeBattlePrimitiveLink Next)
 {
     public byte? NextTableBuffer { get; init; }
@@ -96,6 +97,14 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
         Builder builder = new(this);
         builder.Prepend(bucket, reference, words, flags20, vertexPayload4, moduleDraw);
         return builder.ToImmutable();
+    }
+
+    public (NativeBattleLogicalOrdering Ordering, uint? ProxyAddress) PrependAddressed(uint previousAddress, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw = null)
+    {
+        Builder builder = new(this);
+        int index = builder.ProxyCount;
+        builder.PrependAddressed(previousAddress, reference, words, flags20, vertexPayload4, moduleDraw);
+        return (builder.ToImmutable(), index < NativeBattlePrimitiveOrdering.ProxyCapacity ? 0x1C48828u + (uint)(24 * index) : null);
     }
 
     private static void ValidateInsertion(int tableLength, int bucket, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ImmutableArray<int> vertexPayload4)
@@ -231,9 +240,36 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
             {
                 return;
             }
+            int index = proxyCursor;
+            AppendProxy(reference, words, flags20, vertexPayload4, moduleDraw, table[bucket], tableBuffer, LinkAddress(table[bucket], tableBuffer), false);
+            if (checkpointActive)
+            {
+                tableUndo.Add((bucket, table[bucket]));
+            }
+            table[bucket] = new(true, index);
+        }
+
+        public void PrependAddressed(uint previousAddress, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw = null)
+        {
+            if (transaction is not null)
+            {
+                transaction.RequireActive();
+                transaction.Writer.PrependAddressed(previousAddress, reference, words, flags20, vertexPayload4, moduleDraw);
+                return;
+            }
+            ValidateInsertion(1, 0, reference, words, vertexPayload4);
+            if (proxyCursor >= NativeBattlePrimitiveOrdering.ProxyCapacity)
+            {
+                return;
+            }
+            AppendProxy(reference, words, flags20, vertexPayload4, moduleDraw, new(false, -1), 0, previousAddress, true);
+        }
+
+        private void AppendProxy(NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw, NativeBattlePrimitiveLink next, byte nextBuffer, uint previousAddress, bool physicalRead)
+        {
             InvalidatePacketRange(reference, words.Length * 4);
-            lastHeaderLink = LinkAddress(table[bucket], tableBuffer);
-            NativeBattleLogicalPacket packet = new(reference, words, table[bucket]) { NextTableBuffer = tableBuffer };
+            lastHeaderLink = previousAddress;
+            NativeBattleLogicalPacket packet = new(reference, words, next) { NextTableBuffer = nextBuffer, RequiresPhysicalRead = physicalRead };
             NativeBattlePrimitiveReference identity = NativeBattlePrimitiveProcess.NormalizeCommonReference(reference);
             if (packetIndices.TryGetValue(identity, out int existing))
             {
@@ -251,11 +287,6 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
                 packets.Add(packet);
             }
             NativeBattleLogicalProxy proxy = new(reference, flags20, vertexPayload4, moduleDraw) { NextHigh22 = (byte)(LastHeaderLink >> 24) };
-            if (checkpointActive)
-            {
-                tableUndo.Add((bucket, table[bucket]));
-            }
-            table[bucket] = new(true, proxyCursor);
             if (proxyCursor < proxies.Count)
             {
                 if (checkpointActive)
@@ -343,7 +374,7 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
         }
     }
 
-    public ImmutableArray<NativeBattleLogicalCommand> Traverse(ImmutableArray<byte> wordLengths, Func<NativeBattlePrimitiveReference, int, byte[]>? readPhysical = null)
+    public ImmutableArray<NativeBattleLogicalCommand> Traverse(ImmutableArray<byte> wordLengths, Func<NativeBattlePrimitiveReference, int, byte[]>? readPhysical = null, uint? initialOrderingAddress = null, Func<uint, NativeBattleAddressedOrderingRoot>? readAddressedRoot = null)
     {
         if (Table.IsDefault || Table.Length != NativeBattlePrimitiveOrdering.BattleTableLength || Proxies.IsDefault || Packets.IsDefault || wordLengths.IsDefault || wordLengths.Length != 256)
         {
@@ -352,11 +383,24 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
         Dictionary<NativeBattlePrimitiveReference, NativeBattleLogicalPacket> memory = Packets.ToDictionary(packet => NativeBattlePrimitiveProcess.NormalizeCommonReference(packet.Reference));
         HashSet<(byte Bank, bool Proxy, int Index)> visited = [];
         ImmutableArray<NativeBattleLogicalCommand>.Builder commands = ImmutableArray.CreateBuilder<NativeBattleLogicalCommand>();
-        NativeBattlePrimitiveLink cursor = new(false, Table.Length - 1);
+        NativeBattlePrimitiveLink cursor = new(false, initialOrderingAddress is null ? Table.Length - 1 : -1);
+        uint? addressedRoot = initialOrderingAddress;
         int bucket = Table.Length - 1;
         byte rootBuffer = TableBuffer ?? throw new NotSupportedException("Native OT traversal requires its retained table bank identity.");
-        while (cursor.Index >= 0)
+        while (cursor.Index >= 0 || addressedRoot is not null)
         {
+            if (addressedRoot is uint rootAddress)
+            {
+                if (!visited.Add((2, false, unchecked((int)rootAddress))))
+                {
+                    throw new InvalidDataException("Native logical OT contains an addressed-root link cycle.");
+                }
+                NativeBattleAddressedOrderingRoot root = (readAddressedRoot ?? throw new NotSupportedException("Native private ordering requires its actual addressed DWORD roots."))(rootAddress);
+                bucket = root.Bucket;
+                addressedRoot = null;
+                Follow(root.NextAddress);
+                continue;
+            }
             if (!visited.Add((cursor.Proxy ? byte.MaxValue : rootBuffer, cursor.Proxy, cursor.Index)))
             {
                 throw new InvalidDataException("Native logical OT contains a shared-packet link cycle.");
@@ -412,6 +456,12 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
                 remaining -= count;
                 word += count;
             }
+            Follow(nextAddress);
+        }
+        return commands.ToImmutable();
+
+        void Follow(uint nextAddress)
+        {
             if ((nextAddress & 0xFFFFFFu) == 0xFFFFFFu)
             {
                 cursor = new(false, -1);
@@ -426,12 +476,16 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
                 rootBuffer = (byte)(relative / 17544);
                 cursor = new(false, (int)(relative % 17544 / 4));
             }
+            else if (readAddressedRoot is not null && nextAddress >= NativeBattleEffectNodeMemory.ArenaAddress && nextAddress - NativeBattleEffectNodeMemory.ArenaAddress <= NativeBattleEffectArena.Length - 4 && (nextAddress & 3) == 0)
+            {
+                addressedRoot = nextAddress;
+                cursor = new(false, -1);
+            }
             else
             {
                 throw new NotSupportedException("Native packet alias produced a link outside the observed proxy and OT banks.");
             }
         }
-        return commands.ToImmutable();
     }
 }
 
@@ -460,6 +514,12 @@ public interface INativeBattleLogicalExecutionContext
     void BeginPass(byte pass)
     {
     }
+    void BeginOrdering()
+    {
+    }
+    void FlushSoftwareImage()
+    {
+    }
     void EndBatch();
 }
 
@@ -484,6 +544,7 @@ public static class NativeBattleLogicalPasses
             context?.EndBatch();
             return (initial, [], context is null ? cache : context.Cache);
         }
+        context?.BeginOrdering();
         ImmutableArray<NativeBattleLogicalCommand> commands = ordering.Traverse(tables.WordLengths, readPhysical);
         NativeBattlePrimitiveDrawMode mode = context?.SynchronizeDrawMode(initial) ?? initial;
         ImmutableArray<NativeBattleLogicalResolvedCommand>.Builder executed = ImmutableArray.CreateBuilder<NativeBattleLogicalResolvedCommand>();

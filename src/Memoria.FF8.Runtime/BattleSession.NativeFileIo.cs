@@ -28,6 +28,9 @@ public sealed partial class BattleSession
                     NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native6C3580 requires its retained effect arena.");
                     NativeEffectMemory = NativeBattleEffectIo.Complete6C3580(memory, ResolveNativeQuezacotlSource).Memory;
                     break;
+                case 0x534150:
+                    NativeEffectMemory = NativeBattleEffectIo.Complete534150(NativeEffectMemory ?? throw new NotSupportedException("Native534150 requires its retained effect arena.")).Memory;
+                    break;
                 case 0x732590:
                     NativeBattleEffectMemory moogleMemory = NativeEffectMemory ?? throw new NotSupportedException("Native732590 requires its retained effect arena.");
                     NativeBattleMoogle96State moogle = moogleMemory.Moogle96 ?? throw new NotSupportedException("Native732590 requires its current Moogle IO owner.");

@@ -40,6 +40,20 @@ public sealed class NativeBattleCarbuncle278CameraTests
     }
 
     [Fact]
+    public void Programme_camera_retains_first_twelve_callbacks_then_preserves_eye_y_during_signed_orbit()
+    {
+        NativeBattleCameraState camera = NativeBattleCameraState.Initialize() with { CurrentPose = new(new(4000, -1000, 0), new(0, 0, 0), 288, 0), FocalLength = 216, Roll = 7 };
+        Assert.Same(camera, NativeBattleCarbuncle278Camera.AdvanceProgrammeWindow(camera, 121));
+        NativeBattleCameraState next = NativeBattleCarbuncle278Camera.AdvanceProgrammeWindow(camera, 122);
+        Assert.Equal((short)-1000, next.CurrentPose!.Eye.Y);
+        Assert.True(next.CurrentPose.Eye.Z > 0);
+        Assert.Equal(camera.CurrentPose!.Target, next.CurrentPose.Target);
+        Assert.Equal((short)216, next.CurrentPose.FocalLength);
+        Assert.Equal((short)7, next.CurrentPose.Roll);
+        Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattleCarbuncle278Camera.AdvanceProgrammeWindow(camera, 145));
+    }
+
+    [Fact]
     public void Orbit_uses_signed_differences_and_wraps_only_final_word_stores()
     {
         NativeBattleCameraPose source = new(new(30000, -30000, -30000), new(-30000, 30000, 30000), -12, 17);

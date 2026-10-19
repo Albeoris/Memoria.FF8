@@ -30,7 +30,7 @@ public sealed class NativeBattleTonberryCreatureMigrationTests
         using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         NativeBattleTonberry90Resources authenticated = game.ReadNativeEffectCatalogForEffects([90])[89].Tonberry90Resources!;
         Assert.NotNull(authenticated.CreatureModel);
-        Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(authenticated with { CreatureModel = null, CreatureEntrySound = null }));
+        Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(authenticated with { CreatureModel = null, CreatureEntrySound = null, CreatureParticleSchedules = null, CreatureProgramSource = null }));
         Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(original.Definition.NativeEffectCatalog[89].Tonberry90Resources));
         JsonNode originalNode = JsonNode.Parse(bytes)!;
         JsonNode migratedNode = originalNode.DeepClone();

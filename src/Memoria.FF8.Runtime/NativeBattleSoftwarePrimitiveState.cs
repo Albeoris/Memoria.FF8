@@ -8,6 +8,8 @@ public sealed record NativeBattleSoftwarePrimitiveState([property: JsonRequired]
 {
     public NativeSoftwareDrawingEnvironmentBuffers? EnvironmentBuffers { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public uint? DispatchFlags1CA8880 { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeSoftwareViewportInputs? ViewportInputs { get; init; }
 
     public NativeBattleSoftwarePrimitiveState Initialize500400() => this with { EnvironmentBuffers = NativeSoftwareDrawingEnvironmentBuffers.Initialize500400(EnvironmentBuffers?.CurrentGlobal) };
@@ -17,7 +19,7 @@ public sealed record NativeBattleSoftwarePrimitiveState([property: JsonRequired]
         NativeSoftwareEdgeBuffers left = new(new byte[40].ToImmutableArray(), new byte[20].ToImmutableArray());
         NativeSoftwareEdgeBuffers right = new(new byte[40].ToImmutableArray(), new byte[20].ToImmutableArray());
         // The portable PC backend explicitly selects its45B4C0 viewport at initialization.
-        return new(NativeSoftwareDrawingEnvironmentState.FromColdProcess(), NativeSoftwareTextureState.FromColdProcess(), new(new(left, right), null), NativeSoftwareReciprocalTable.Initialize463280()) { ViewportInputs = new(640, 480, 0, 0) };
+        return new(NativeSoftwareDrawingEnvironmentState.FromColdProcess(), NativeSoftwareTextureState.FromColdProcess(), new(new(left, right), null), NativeSoftwareReciprocalTable.Initialize463280()) { ViewportInputs = new(640, 480, 0, 0), DispatchFlags1CA8880 = 0 };
     }
 
     public NativeBattleSoftwarePrimitiveState DrawPolygon(byte[] image, NativeBattleLogicalCommand command, NativeSoftwarePrimitiveTable table)

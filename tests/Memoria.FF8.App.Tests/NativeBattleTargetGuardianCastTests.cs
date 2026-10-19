@@ -100,7 +100,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_TARGET_GUARDIAN_SNAPSHOT");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(path), "Select a concrete standalone target guardian checkpoint.");
         BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(path!))!;
-        Assert.True(snapshot.NativeGraphics!.OriginalEffect!.Binding.Effect is 185 or 201);
+        Assert.True(snapshot.NativeGraphics!.OriginalEffect!.Binding.Effect is 6 or 185 or 201 or 202 or 203 or 204 or 205 or 206);
         BattleSession first = BattleSession.Restore(snapshot);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(first.Capture()));

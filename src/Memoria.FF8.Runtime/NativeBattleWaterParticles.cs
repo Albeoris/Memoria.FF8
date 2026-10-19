@@ -154,6 +154,14 @@ public static class NativeBattleWaterParticles
                 }
                 next = 4;
                 break;
+            case 0x0F:
+                NativeBattleWaterVectorRandom branchSample = NativeBattleWaterVectorCommands.RandomB65740(0x100, frame.Random);
+                frame = frame with { Random = branchSample.Random };
+                int magnitude = branchSample.Value < 0 ? unchecked(-branchSample.Value) : branchSample.Value;
+                uint branchPc = CoreDword(frame, 0x2797450);
+                short threshold = unchecked((short)ProgramWord(frame, program, unchecked(branchPc + 2)));
+                uint branchAdvance = magnitude <= threshold ? unchecked((uint)(short)ProgramWord(frame, program, unchecked(branchPc + 4))) : 6;
+                return WriteCoreDword(frame, 0x2797450, unchecked(branchPc + branchAdvance));
             case 0x13:
                 int textureIndex = instruction >> 8;
                 frame = services.PrepareTexturePage(frame, textureIndex);

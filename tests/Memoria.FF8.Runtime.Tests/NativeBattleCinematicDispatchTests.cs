@@ -65,4 +65,24 @@ public sealed class NativeBattleCinematicDispatchTests
         Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(effect, "vm_table", opcode + 1, handler));
         Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(201, "vm_table", opcode, handler));
     }
+
+    [Theory]
+    [InlineData(204, 0xB053E0u)]
+    [InlineData(203, 0xB11340u)]
+    public void Clipped_triangle_requires_its_exact_profile_and_alternate_primitive_slot(int effect, uint handler)
+    {
+        Assert.Equal(handler, NativeBattleCinematicDispatch.RequireSlot(effect, "prim_table", 29, handler));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(effect, "prim_table", 9, handler));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(effect, "draw_table", 29, handler));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.Canonicalize(effect, handler));
+    }
+
+    [Fact]
+    public void Cue_positioned_quad_requires_its_actual_Bahamut_draw_slot()
+    {
+        Assert.Equal(0xB1F2A0u, NativeBattleCinematicDispatch.RequireSlot(202, "draw_table", 46, 0xB1F2A0));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(202, "draw_table", 45, 0xB1F2A0));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(201, "draw_table", 46, 0xB1F2A0));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.Canonicalize(202, 0xB1F2A0));
+    }
 }

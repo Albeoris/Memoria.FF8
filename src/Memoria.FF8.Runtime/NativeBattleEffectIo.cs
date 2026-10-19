@@ -70,6 +70,26 @@ public static class NativeBattleEffectIo
         return new(advance.Memory, true, advance.Request);
     }
 
+    public static NativeBattleEffectIoCompletion Complete534150(NativeBattleEffectMemory memory, Func<uint, int?, NativeBattleEffectHeapAllocation>? resolveSource = null)
+    {
+        NativeBattleEffectIoState io = memory.EffectIo ?? throw new NotSupportedException("Native534150 requires its retained callback/controller pointers.");
+        if (io.Callback != 0x534150)
+        {
+            throw new InvalidDataException("Native534150 was not selected by the actual effect initializer.");
+        }
+        return CompleteDescriptor(memory, resolveSource ?? ReadArena, false);
+
+        NativeBattleEffectHeapAllocation ReadArena(uint address, int? length)
+        {
+            if (address < NativeBattleEffectNodeMemory.ArenaAddress || address - NativeBattleEffectNodeMemory.ArenaAddress >= NativeBattleEffectArena.Length || length is not int count)
+            {
+                throw new NotSupportedException("Native534150 source requires its actual bounded current allocation.");
+            }
+            int offset = checked((int)(address - NativeBattleEffectNodeMemory.ArenaAddress));
+            return new($"20DFAB8+{offset:X}", (memory.Arena ?? throw new NotSupportedException("Native534150 requires its current effect arena.")).Read(offset, count).ToImmutableArray());
+        }
+    }
+
     public static NativeBattleEffectIoCompletion Complete6C3580(NativeBattleEffectMemory memory, Func<uint, int?, NativeBattleEffectHeapAllocation> resolveSource)
     {
         NativeBattleEffectIoState io = memory.EffectIo ?? throw new NotSupportedException("Native6C3580 requires its retained callback/controller pointers.");
@@ -77,9 +97,15 @@ public static class NativeBattleEffectIo
         {
             throw new InvalidDataException("Native6C3580 was not selected by the actual6C3560 initializer.");
         }
+        return CompleteDescriptor(memory, resolveSource, true);
+    }
+
+    private static NativeBattleEffectIoCompletion CompleteDescriptor(NativeBattleEffectMemory memory, Func<uint, int?, NativeBattleEffectHeapAllocation> resolveSource, bool quezacotl)
+    {
+        NativeBattleEffectIoState io = memory.EffectIo ?? throw new NotSupportedException("Native effect completion requires its retained descriptor callback owner.");
         int controller = io.ControllerOffset ?? throw new NotSupportedException("Native6C3580 requires its actual534110 current controller.");
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native6C3580 requires its original effect arena.");
-        NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native6C3580 requires the real505E30 upload queue.");
+        NativeBattleEffectTextureState? textures = memory.Textures;
         byte[] header = arena.Read(controller, 5);
         byte[] descriptor = arena.Read(controller + 8 + header[4] * 8, 8);
         short type = BinaryPrimitives.ReadInt16LittleEndian(descriptor);
@@ -88,6 +114,10 @@ public static class NativeBattleEffectIo
         byte delay;
         if (type <= 2)
         {
+            if (textures is null)
+            {
+                throw new NotSupportedException("Native effect completion requires the actual505E30 upload queue.");
+            }
             if (pointer is >= 0x20DFAB8 and < 0x21DFAB8)
             {
                 (textures, _) = textures.EnqueueArenaTim505E30(arena, checked((int)(pointer - 0x20DFAB8)));
@@ -112,8 +142,12 @@ public static class NativeBattleEffectIo
         }
         else
         {
-            if (type == 0x10)
+            if (quezacotl && type == 0x10)
             {
+                if (textures is null)
+                {
+                    throw new NotSupportedException("Native6C3580 requires its actual505E30 upload queue.");
+                }
                 foreach (int offset in new[] { 0x2C6A4, 0x348C4, 0x38AE4 })
                 {
                     (textures, _) = textures.EnqueueArenaTim505E30(arena, offset);

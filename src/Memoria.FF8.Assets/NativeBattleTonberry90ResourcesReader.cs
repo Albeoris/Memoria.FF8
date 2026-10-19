@@ -57,7 +57,7 @@ public static class NativeBattleTonberry90ResourcesReader
         pose.Validate();
         NativeBattleEffectOwnedModelResource model = new(0x1547514, modelBytes, pose, NativeBattleRawGeometryReader.Read(modelBytes.Slice(sections[1], sections[2] - sections[1]).ToArray(), pose.BoneCount));
         NativeBattleTonberry90Resources resources = new(0x1547170, new("FF8_EN:1547170", NativeBattleEffectStaticResourcesReader.Read(memory, 0x1547170, 0x7B00)), new(0x16D7CD0, vibration), files) { PhaseOneSource = new(0x16D7DEC, NativeBattleEffectStaticResourcesReader.Read(memory, 0x16D7DEC, 0x19154)), CreatureModel = model };
-        resources = resources with { CreatureEntrySound = BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0x154716C, 4)) };
+        resources = resources with { CreatureEntrySound = BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0x154716C, 4)), CreatureParticleSchedules = new("FF8_EN:154EC70", NativeBattleEffectStaticResourcesReader.Read(memory, 0x154EC70, 64)), CreatureProgramSource = new(0x16F0F40, NativeBattleEffectStaticResourcesReader.Read(memory, 0x16F0F40, 0x104C)) };
         resources.Validate();
         return resources;
     }

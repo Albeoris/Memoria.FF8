@@ -44,6 +44,38 @@ public static class NativeBattleCarbuncle278Camera
         return camera.WriteEffectGlobals(pose);
     }
 
+    public static NativeBattleCameraState AdvanceProgrammeWindow(NativeBattleCameraState camera, ushort counter)
+    {
+        if (counter is < 110 or >= 145)
+        {
+            throw new ArgumentOutOfRangeException(nameof(counter));
+        }
+        if (counter < 122)
+        {
+            return camera;
+        }
+        NativeBattleCameraPose pose = camera.CurrentPose ?? throw new NotSupportedException("Native Carbuncle camera requires its current eye and target WORDs.");
+        short y = pose.Eye.Y;
+        int fraction = 4096 + unchecked((121 - counter) * 4096) / 25;
+        pose = Orbit683D10(pose with { FocalLength = camera.FocalLength, Roll = camera.Roll }, fraction >> 5, 4096 + fraction / 8);
+        return camera.WriteEffectGlobals(pose with { Eye = pose.Eye with { Y = y } });
+    }
+
+    public static NativeBattleCameraState AdvanceSecondProgrammeWindow(NativeBattleCameraState camera, int centroid, ushort counter)
+    {
+        if (counter is < 145 or >= 215)
+        {
+            throw new ArgumentOutOfRangeException(nameof(counter));
+        }
+        if (counter != 145)
+        {
+            return camera;
+        }
+        NativeBattleCameraPose pose = camera.CurrentPose ?? throw new NotSupportedException("Native Carbuncle camera requires its current scalar owners.");
+        pose = pose with { Eye = new(-2729, -2437, unchecked((short)(centroid - 2924))), Target = new(382, -156, unchecked((short)(centroid - 551))), FocalLength = camera.FocalLength, Roll = camera.Roll };
+        return camera.WriteEffectGlobals(pose);
+    }
+
     public static NativeBattleCameraPose Orbit683D10(NativeBattleCameraPose pose, int angle, int fraction)
     {
         int y = unchecked((pose.Eye.Y - pose.Target.Y) * fraction) >> 12;

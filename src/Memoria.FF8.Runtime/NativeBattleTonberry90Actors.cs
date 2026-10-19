@@ -7,7 +7,7 @@ public sealed record NativeBattleTonberry90ActorDraw(NativeBattleTonberry90Frame
 public sealed record NativeBattleTonberry90CompanionStep(NativeBattleTonberry90Frame Frame, bool Complete, NativeBattleStageState Stage);
 public sealed record NativeBattleTonberry90ActorServices(Func<NativeBattleTonberry90Frame, uint, NativeBattleGfAnimationSource> ReadSource, Func<NativeBattleTonberry90Frame, uint, NativeBattleGfAnimationSource, uint, NativeBattleTonberry90Frame> Bounds8DE160And8DE1F0, Func<NativeBattleTonberry90Frame, uint, NativeBattleTonberry90ActorDraw> Draw764130);
 
-public static class NativeBattleTonberry90Actors
+public static partial class NativeBattleTonberry90Actors
 {
     public static NativeBattleTonberry90TaskStep Advance763EB0(NativeBattleTonberry90Frame frame, uint address, NativeBattleTonberry90ActorServices services)
     {
@@ -129,6 +129,40 @@ public static class NativeBattleTonberry90Actors
                 break;
             default:
                 throw new NotSupportedException($"Native Tonberry signed color companion state {unchecked((sbyte)task.ReadByte(0x29))} is unsupported.");
+        }
+        NativeBattleTonberry90TaskStep finished = Finish(frame, address);
+        return new(finished.Frame, finished.Complete, stage);
+    }
+
+    public static NativeBattleTonberry90CompanionStep Advance7682A0(NativeBattleTonberry90Frame frame, uint address, NativeBattleStageState stage)
+    {
+        NativeBattleModulePoolTask task = Read(frame, address);
+        if (task.Callback != 0x7682A0)
+        {
+            throw new InvalidDataException("Native Tonberry inverse color companion requires its selected current callback.");
+        }
+        switch (unchecked((sbyte)task.ReadByte(0x29)))
+        {
+            case 0:
+                if (unchecked((short)task.ReadWord(0x24)) >= 30)
+                {
+                    frame = Next(Write(frame, address, task.WriteWord(0x76, 1024)), address);
+                }
+                break;
+            case 1:
+                ushort value = unchecked((ushort)(task.ReadWord(0x76) - 256));
+                if (unchecked((short)value) <= 0)
+                {
+                    value = 0;
+                    frame = Complete(frame, address);
+                }
+                frame = Write(frame, address, Read(frame, address).WriteWord(0x76, value));
+                stage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = unchecked((short)value) }).ToImmutableArray() };
+                break;
+            case 2:
+                break;
+            default:
+                throw new NotSupportedException($"Native Tonberry inverse companion signed phase {unchecked((sbyte)task.ReadByte(0x29))} has no selected state.");
         }
         NativeBattleTonberry90TaskStep finished = Finish(frame, address);
         return new(finished.Frame, finished.Complete, stage);

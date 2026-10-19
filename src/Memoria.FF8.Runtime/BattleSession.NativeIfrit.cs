@@ -145,6 +145,8 @@ public sealed partial class BattleSession
             {
                 case 0x10D:
                     return NativeBattleCinematicControlCommands.Wait10D(current, program, ResolveCurrentNode);
+                case 0x120:
+                    return NativeBattleCinematicControlCommands.SetResourceCursor120(current, program);
                 case 0x51:
                     return NativeBattleCinematicControlCommands.Execute51(current, program);
                 case 0x41:
@@ -412,7 +414,31 @@ public sealed partial class BattleSession
         {
             return NativeBattleCinematicDraw.Run(profile, current, PrepareLighting, (frame, kind) =>
             {
-                NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "draw_table", kind, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.DrawTable + 4u * kind), 4)));
+                uint selectedDrawHandler = NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "draw_table", kind, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.DrawTable + 4u * kind), 4)));
+                if (selectedDrawHandler is 0xB1E3F0 or 0xAECD20)
+                {
+                    var points = DrawNativeCinematicPointCloud27(frame, assets[1].Data.Length, graphics);
+                    graphics = points.Graphics;
+                    return points.Frame;
+                }
+                if (selectedDrawHandler == 0xB11C30)
+                {
+                    var columns = DrawNativeCinematicColumns2D(frame, graphics);
+                    graphics = columns.Graphics;
+                    return columns.Frame;
+                }
+                if (selectedDrawHandler == 0xAEA420)
+                {
+                    var environment = DrawNativeCinematicEnvironment36(frame, graphics);
+                    graphics = environment.Graphics;
+                    return environment.Frame;
+                }
+                if (selectedDrawHandler == 0xB1F2A0)
+                {
+                    var sprite = DrawNativeCinematicSprite2E(frame, assets[1].Data.Length, graphics);
+                    graphics = sprite.Graphics;
+                    return sprite.Frame;
+                }
                 if (kind == 4)
                 {
                     var overlay = DrawNativeCinematicOverlay(frame, graphics);

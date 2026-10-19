@@ -1,3 +1,5 @@
+using System.Buffers.Binary;
+
 namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffectPacketArena
@@ -11,7 +13,18 @@ public static partial class NativeBattleEffectPacketArena
         return new(memory with { Arena = arena.Freeze() }, checked(cursor + batch.AllocationBytes), links.ToImmutable());
     }
 
-    internal static void AppendAttempts(NativeBattleEffectArenaWriter arena, NativeBattleLogicalOrdering.Builder links, int cursor, NativeBattleGfGeometryBatch batch, ushort flags20 = 0, int? moduleDraw = null)
+    public static NativeBattleEffectPacketWrite AppendPrivate(NativeBattleEffectMemory memory, int cursor, NativeBattleLogicalOrdering ordering, NativeBattleGfGeometryBatch batch, uint orderingAddress, ushort flags20 = 0, int? moduleDraw = null)
+    {
+        NativeBattleEffectArena source = memory.Arena ?? throw new NotSupportedException("Native private packets require their actual effect arena.");
+        using NativeBattleEffectArenaTransaction? owned = source.Transaction is null ? new(source) : null;
+        NativeBattleEffectArena view = owned?.View ?? source;
+        NativeBattleEffectArenaWriter arena = new(view);
+        NativeBattleLogicalOrdering.Builder links = new(ordering);
+        AppendAttempts(arena, links, cursor, batch, flags20, moduleDraw, orderingAddress);
+        return new(memory with { Arena = owned?.Freeze() ?? view }, checked(cursor + batch.AllocationBytes), links.ToImmutable());
+    }
+
+    internal static void AppendAttempts(NativeBattleEffectArenaWriter arena, NativeBattleLogicalOrdering.Builder links, int cursor, NativeBattleGfGeometryBatch batch, ushort flags20 = 0, int? moduleDraw = null, uint? privateOrderingAddress = null)
     {
         if (batch.Attempts.IsDefault || batch.AllocationBytes < 0 || (batch.AllocationBytes & 3) != 0 || cursor < 0 || (cursor & 3) != 0 || cursor > NativeBattleEffectArena.Length - batch.AllocationBytes)
         {
@@ -57,10 +70,29 @@ public static partial class NativeBattleEffectPacketArena
                 }
                 acceptedEnd = Math.Max(acceptedEnd, end);
                 bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
-                links.Prepend(primitive.Bucket, new("20DFAB8", 0, address), primitive.Words, flags20, primitive.VertexPayload4, moduleDraw);
+                int? rootOffset = null;
+                uint proxyAddress = 0x1C48828u + (uint)(24 * links.ProxyCount);
+                if (privateOrderingAddress is uint orderingBase)
+                {
+                    if (linked)
+                    {
+                        uint root = unchecked(orderingBase + (uint)(4 * primitive.Bucket));
+                        rootOffset = NativeBattleWaterExecutionFields.ArenaOffset(root, 4);
+                        uint previous = BinaryPrimitives.ReadUInt32LittleEndian(arena.ReadCurrent(rootOffset.Value, 4));
+                        links.PrependAddressed(previous, new("20DFAB8", 0, address), primitive.Words, flags20, primitive.VertexPayload4, moduleDraw);
+                    }
+                }
+                else
+                {
+                    links.Prepend(primitive.Bucket, new("20DFAB8", 0, address), primitive.Words, flags20, primitive.VertexPayload4, moduleDraw);
+                }
                 if (linked)
                 {
                     arena = arena.Write(address, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink));
+                    if (rootOffset is int root)
+                    {
+                        arena = arena.Write(root, BitConverter.GetBytes(proxyAddress));
+                    }
                 }
             }
         }

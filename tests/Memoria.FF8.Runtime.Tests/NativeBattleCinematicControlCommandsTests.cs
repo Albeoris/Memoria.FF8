@@ -9,6 +9,23 @@ public sealed class NativeBattleCinematicControlCommandsTests
     private const int Model = 0x18000;
 
     [Theory]
+    [InlineData(1, 0x0000F000u)]
+    [InlineData(-1, 0xFFFEF000u)]
+    [InlineData(32767, 0x7FFEF000u)]
+    [InlineData(-32768, 0x7FFFF000u)]
+    public void Resource_cursor120_uses_signed_page_and_native_DWORD_wrap_without_allocating_or_reading_old_cursor(short page, uint expected)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0xF120, unchecked((ushort)page));
+        frame = WaterSchedulerFixture.CoreDword(frame, 0x2797690 + 0x70, 0xFFFFF000);
+        frame = frame with { Core = frame.Core.MarkUnknown(0x2797690 + 0x74, 4), Arena = frame.Arena.MarkUnknown(0x1004, 2) };
+        NativeBattleWaterExecutionFrame result = NativeBattleCinematicControlCommands.SetResourceCursor120(frame, Program);
+        Assert.Equal(expected, WaterSchedulerFixture.ReadCoreDword(result, 0x2797690 + 0x74));
+        Assert.Equal(0x1004u, Pc(result));
+        Assert.Same(frame.Arena, result.Arena);
+        Assert.Same(frame.Random, result.Random);
+    }
+
+    [Theory]
     [InlineData(0x010D, 0x0001, 0xFFFF, true)]
     [InlineData(0x010D, 0xC000, 0xFFFF, false)]
     [InlineData(0x010D, 0x0002, 0x0001, false)]

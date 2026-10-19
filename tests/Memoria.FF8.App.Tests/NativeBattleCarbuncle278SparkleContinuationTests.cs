@@ -63,10 +63,8 @@ public sealed class NativeBattleCarbuncle278SparkleContinuationTests
             }
         }
         BattleSnapshot boundary = first.Capture();
-        Exception? error = Record.Exception(() => first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero));
-        Assert.NotNull(error);
-        Assert.Contains("7016B0", error.ToString());
-        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "sparkle-and-camera-before-programme", boundary.Frame, NativeCallback = boundary.NativeGraphics!.Callback, Counter = Counter(boundary), Error = error.ToString() }));
+        Assert.Equal((ushort)112, Counter(boundary));
+        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "sparkle-and-camera-window-complete", boundary.Frame, NativeCallback = boundary.NativeGraphics!.Callback, Counter = Counter(boundary) }));
 
         static ushort Counter(BattleSnapshot snapshot) => snapshot.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == NativeBattleCarbuncle278Entry.MainDescriptor).Slots[0].ReadWord(0xC);
     }

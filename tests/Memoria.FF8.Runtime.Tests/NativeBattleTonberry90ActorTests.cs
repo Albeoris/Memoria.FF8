@@ -6,6 +6,82 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleTonberry90ActorTests
 {
     [Fact]
+    public void Inverse_companion_waits_thirty_ticks_then_changes_only_canonical_stage_depth_for_four_ticks()
+    {
+        var fixture = Fixture(4, 0x7682A0, 0x7C);
+        NativeBattleTonberry90Frame frame = Write(fixture.Frame, fixture.Address, Read(fixture.Frame, fixture.Address).WriteWord(0x24, 29));
+        NativeBattleStageState stage = NativeBattleStageState.FromColdProcess();
+        stage = stage with { Groups = stage.Groups.Select((group, index) => group with { Flags = (byte)(index + 1), ColorDepth = 1024, ColorFlags = 0xAB123456 }).ToImmutableArray() };
+        NativeBattleTonberry90CompanionStep step = NativeBattleTonberry90Actors.Advance7682A0(frame, fixture.Address, stage);
+        Assert.Same(stage, step.Stage);
+        Assert.Equal((byte)0, Read(step.Frame, fixture.Address).ReadByte(0x29));
+        step = NativeBattleTonberry90Actors.Advance7682A0(step.Frame, fixture.Address, step.Stage);
+        Assert.Same(stage, step.Stage);
+        Assert.Equal((byte)1, Read(step.Frame, fixture.Address).ReadByte(0x29));
+        for (int tick = 1; tick <= 4; tick++)
+        {
+            step = NativeBattleTonberry90Actors.Advance7682A0(step.Frame, fixture.Address, step.Stage);
+            Assert.Equal(tick == 4, step.Complete);
+            Assert.Equal(stage.Groups.Select(group => group.Flags), step.Stage.Groups.Select(group => group.Flags));
+            Assert.All(step.Stage.Groups, group =>
+            {
+                Assert.Equal((short)(1024 - tick * 256), group.ColorDepth);
+                Assert.Equal(0xAB123456u, group.ColorFlags);
+            });
+        }
+        Assert.Equal((byte)2, Read(step.Frame, fixture.Address).ReadByte(0x29));
+    }
+
+    [Fact]
+    public void Creature_programme_initializes_only_selected_workspace_then_draws_current_raw_anchor_and_bias()
+    {
+        var fixture = Fixture(3, 0x767B40, 0x520);
+        NativeBattleModulePoolTask task = Read(fixture.Frame, fixture.Address).WriteDword(0x74, 0x1000).WriteDword(0x78, 20);
+        byte[] payload = task.Payload.ToArray();
+        payload.AsSpan(0x94 - 12).Fill(0xA5);
+        NativeBattleTonberry90Frame frame = Write(fixture.Frame, fixture.Address, task with { Payload = payload.ToImmutableArray() });
+        frame = frame with { Memory = frame.Memory with { Tonberry90 = frame.Memory.Tonberry90!.WriteDword(0x25A4C10, 0x0201FFFE).WriteDword(0x25A4C14, 0xA5A5FFFD).Write(0x25A2B78, BitConverter.GetBytes((ushort)0xFF00)) } };
+        byte[] source = new byte[32];
+        BinaryPrimitives.WriteInt32LittleEndian(source.AsSpan(4), 16);
+        int draws = 0;
+        NativeBattleTonberry90ActorServices services = new((_, address) => new(address, source.ToImmutableArray()), (_, _, _, _) => throw new InvalidOperationException("This programme never captures ground."), (current, address) =>
+        {
+            NativeBattleModulePoolTask actual = Read(current, address);
+            Assert.Equal(0x0201FFFEu, actual.ReadDword(0x1C));
+            Assert.Equal(0xA5A5FFFDu, actual.ReadDword(0x20));
+            Assert.Equal((ushort)0xFF00, actual.ReadWord(0x88));
+            Assert.Equal(0x1000u, actual.ReadDword(0x94));
+            Assert.Equal(0u, actual.ReadDword(0x98));
+            Assert.Equal(0xA5A5A5A5u, actual.ReadDword(0xA8));
+            draws++;
+            return new(Write(current, address, actual.WriteDword(0x98, 1)), 10);
+        });
+        NativeBattleTonberry90TaskStep step = NativeBattleTonberry90Actors.Advance767B40(frame, fixture.Address, services);
+        Assert.Equal(1, draws);
+        task = Read(step.Frame, fixture.Address);
+        Assert.Equal((byte)1, task.ReadByte(0x29));
+        Assert.Equal(1u, task.ReadDword(0x98));
+        Assert.Equal((ushort)1, task.ReadWord(0x24));
+        Assert.False(step.Complete);
+    }
+
+    [Fact]
+    public void Creature_programme_draws_after_anchor_completion_and_preserves_both_native_phase_increments()
+    {
+        var fixture = Fixture(3, 0x767B40, 0x520, 1);
+        NativeBattleTonberry90Frame frame = fixture.Frame with { Memory = fixture.Frame.Memory with { Tonberry90 = fixture.Frame.Memory.Tonberry90!.WriteDword(0x25A4C10, 0xABCD7FFF).WriteDword(0x25A4C14, 0xA55A1234) } };
+        NativeBattleTonberry90ActorServices services = new((_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (current, address) =>
+        {
+            Assert.Equal((byte)2, Read(current, address).ReadByte(0x29));
+            Assert.Equal((byte)1, (byte)(Read(current, address).ReadByte(0x26) & 1));
+            return new(current, 0);
+        });
+        NativeBattleTonberry90TaskStep step = NativeBattleTonberry90Actors.Advance767B40(frame, fixture.Address, services);
+        Assert.True(step.Complete);
+        Assert.Equal((byte)3, Read(step.Frame, fixture.Address).ReadByte(0x29));
+    }
+
+    [Fact]
     public void Companion_updates_canonical_stage_colors_and_preserves_flags_and_high_color_byte()
     {
         var fixture = Fixture(4, 0x7681B0, 0x7C);

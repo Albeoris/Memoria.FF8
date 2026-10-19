@@ -59,6 +59,24 @@ public static class NativeBattleCarbuncle278Controller
             NativeBattleEffectTaskStep step = pool.Advance((current, index) =>
             {
                 NativeBattleModulePoolTask task = current.Slots[index];
+                if (task.Callback == 0x6822F0)
+                {
+                    int age = unchecked((short)task.ReadWord(0xC));
+                    if (age is < 0 or >= 15)
+                    {
+                        throw new NotSupportedException("Native Carbuncle6822F0 reaches its683760/683330 recipient child families at age15.");
+                    }
+                    NativeBattleCarbuncle278ModelStep recipient = (inputs?.AdvanceRecipient ?? throw new NotSupportedException("Native Carbuncle requires its original recipient programme and actor services."))(frame, task);
+                    frame = recipient.Frame;
+                    task = recipient.Task;
+                    if (NativeBattleCarbuncle278Entry.RequireState(frame.Memory).Pause8114 == 0)
+                    {
+                        task = task.WriteWord(0xC, unchecked((ushort)(task.ReadWord(0xC) + 1)));
+                    }
+                    int recipientOffset = checked((int)(current.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * current.Stride + 12);
+                    frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(recipientOffset, task.Payload.AsSpan()).MarkUnknown(recipientOffset + 0x46 - 12, 2) } };
+                    return new(current with { Slots = current.Slots.SetItem(index, task) }, 0);
+                }
                 if (task.Callback == 0x683E80)
                 {
                     frame = (inputs?.DrawSparkle ?? throw new NotSupportedException("Native Carbuncle683E80 requires its original sprite services."))(frame, task);
@@ -72,29 +90,61 @@ public static class NativeBattleCarbuncle278Controller
                     throw new NotSupportedException($"Native Carbuncle task callback0x{task.Callback:X8} requires its actual current leaf contract.");
                 }
                 ushort counter = task.ReadWord(0xC);
-                if (counter >= 110)
+                if (counter >= 215)
                 {
-                    throw new NotSupportedException("Native Carbuncle681630 reaches original programme7016B0/701970 and callback681FD0 at creature110.");
+                    throw new NotSupportedException("Native Carbuncle681630 reaches its returning creature model, third sound and bone-follow camera at creature215.");
                 }
                 NativeBattleCarbuncle278State state = NativeBattleCarbuncle278Entry.RequireState(frame.Memory);
                 frame = frame with { Memory = frame.Memory with { Carbuncle278 = state with { Flash81D4 = counter < 8 ? unchecked((uint)(counter << 8)) : 0x800 } } };
-                if (counter >= 36)
+                if (counter is >= 36 and <= 145)
                 {
                     NativeBattleCarbuncle278ModelStep model = (inputs?.ModelCreature ?? throw new NotSupportedException("Native Carbuncle6FBDB0 and6A79B0 require its current creature model services."))(frame, task);
                     frame = model.Frame;
                     task = model.Task;
                 }
-                if (counter != 0)
+                if (counter is > 0 and < 145)
                 {
                     frame = (inputs?.DrawCreature ?? throw new NotSupportedException("Native Carbuncle6839B0 requires its original mirror mesh services."))(frame, counter);
+                }
+                if (counter is >= 110 and < 177)
+                {
+                    NativeBattleCarbuncle278ModelStep programme = (inputs?.AdvanceProgramme ?? throw new NotSupportedException("Native Carbuncle requires its current original creature programme services."))(frame, task);
+                    frame = programme.Frame;
+                    task = programme.Task;
+                }
+                if (counter == 150)
+                {
+                    NativeBattleEffectIoPoll poll = NativeBattleEffectIo.Poll534270(frame.Memory);
+                    frame = frame with { Memory = poll.Memory };
+                    if (poll.Request is not null)
+                    {
+                        frame = (inputs?.QueueFile ?? throw new NotSupportedException("Native Carbuncle requires its current archive IO delivery services."))(frame, poll.Request);
+                    }
+                    if (poll.Busy)
+                    {
+                        int heldOffset = checked((int)(current.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * current.Stride + 12);
+                        frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(heldOffset, task.Payload.AsSpan()) } };
+                        return new(current with { Slots = current.Slots.SetItem(index, task) }, 0);
+                    }
+                    uint destination = checked(NativeBattleCarbuncle278Entry.RequireState(frame.Memory).ModelBuffer81F8 + 0x23ECC);
+                    frame = frame with { Memory = NativeBattleEffectIo.Queue5341D0(NativeBattleEffectIo.Queue5341D0(frame.Memory, 717, destination, 1), 718, destination, 0) };
                 }
                 NativeBattleEffectIoAdvance io = NativeBattleEffectIo.Advance534210(frame.Memory);
                 if (io.Request is not null)
                 {
-                    throw new NotSupportedException("Native Carbuncle534210 requires its original pending descriptor completion binding.");
+                    frame = (inputs?.QueueFile ?? throw new NotSupportedException("Native Carbuncle534210 requires its original pending descriptor completion binding."))(frame with { Memory = io.Memory }, io.Request);
                 }
-                frame = frame with { Memory = io.Memory };
-                if (counter >= 86)
+                else
+                {
+                    frame = frame with { Memory = io.Memory };
+                }
+                if (counter >= 110)
+                {
+                    NativeBattleCarbuncle278ModelStep presentation = (inputs?.PresentProgramme ?? throw new NotSupportedException("Native Carbuncle requires its programme pose and camera services."))(frame, task);
+                    frame = presentation.Frame;
+                    task = presentation.Task;
+                }
+                else if (counter >= 86)
                 {
                     frame = (inputs?.PresentSparkleWindow ?? throw new NotSupportedException("Native Carbuncle requires its sparkle spawning and bone-follow camera services."))(frame, task);
                 }

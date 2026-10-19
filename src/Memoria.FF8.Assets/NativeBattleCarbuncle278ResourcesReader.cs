@@ -1,11 +1,31 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Text;
+using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
 
 public static class NativeBattleCarbuncle278ResourcesReader
 {
+    public static ImmutableArray<NativeBattleEffectFileAsset> ReadFileNames(byte[] executable)
+    {
+        NativeExecutableMemory memory = new(executable);
+        ImmutableArray<NativeBattleEffectFileAsset>.Builder files = ImmutableArray.CreateBuilder<NativeBattleEffectFileAsset>(2);
+        for (short id = 717; id <= 718; id++)
+        {
+            uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(checked(0xB84CCCu + 4u * (uint)id), 4));
+            byte[] name = memory.Read(pointer, 128);
+            int length = name.AsSpan().IndexOf((byte)0);
+            if (length < 1)
+            {
+                throw new InvalidDataException("Native Carbuncle file directory requires its original terminated name.");
+            }
+            files.Add(new(id, Encoding.ASCII.GetString(name.AsSpan(0, length)), []));
+        }
+        return files.MoveToImmutable();
+    }
+
     public static NativeBattleCarbuncle278Resources Read(byte[] executable) => Read(new NativeExecutableMemory(executable));
 
     public static NativeBattleCarbuncle278Resources Read(IGameNativeMemorySource memory)
@@ -23,7 +43,7 @@ public static class NativeBattleCarbuncle278ResourcesReader
         ImmutableArray<int> offsets = Enumerable.Range(0, 64).Select(index => BinaryPrimitives.ReadInt32LittleEndian(vibrationBytes.AsSpan().Slice(index * 4))).ToImmutableArray();
         NativeVibrationBank vibration = new(memory.SourceHash, offsets, vibrationBytes);
         vibration.Validate();
-        NativeBattleCarbuncle278Resources resources = new(NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0x10C0D08u)) { CreatureModel = model, SparkleSprite = new(0, 0x10BD044, 0, 0, NativeBattleEffectStaticResourcesReader.ReadProjectedSprite(memory, 0x10BD044)), Vibration = vibration, CreatureBoundsMesh = NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0x10BD488u), Sounds = Enumerable.Range(0, 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0x10C74CCu + (uint)index * 4, 4))).ToImmutableArray(), MirrorAlternateVertices = memory.Read(0x10C1940, 115 * 8).ToImmutableArray(), SecondaryMesh = NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0x10BFB08u) };
+        NativeBattleCarbuncle278Resources resources = new(NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0x10C0D08u)) { CreatureModel = model, RecipientProgramme = new(0x10C1CD8, memory.Read(0x10C1CD8, 0x930).ToImmutableArray()), SecondCreatureProgramme = new(0x10C5C8C, memory.Read(0x10C5C8C, 0x1840).ToImmutableArray()), CreatureProgramme = new(0x10C2608, memory.Read(0x10C2608, 0x3684).ToImmutableArray()), SparkleSprite = new(0, 0x10BD044, 0, 0, NativeBattleEffectStaticResourcesReader.ReadProjectedSprite(memory, 0x10BD044)), Vibration = vibration, CreatureBoundsMesh = NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0x10BD488u), Sounds = Enumerable.Range(0, 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0x10C74CCu + (uint)index * 4, 4))).ToImmutableArray(), MirrorAlternateVertices = memory.Read(0x10C1940, 115 * 8).ToImmutableArray(), SecondaryMesh = NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0x10BFB08u) };
         resources.Validate();
         return resources;
     }
@@ -35,6 +55,13 @@ public sealed partial class GameAssets
 
     public NativeBattleCarbuncle278Resources ReadNativeCarbuncle278Resources()
     {
-        return nativeCarbuncle278Resources ??= NativeBattleCarbuncle278ResourcesReader.Read(GameDataResources.ReadNativeExecutable(this.resources));
+        if (nativeCarbuncle278Resources is null)
+        {
+            byte[] executable = GameDataResources.ReadNativeExecutable(this.resources);
+            using IFlArchive battle = OpenArchive("battle");
+            ImmutableArray<NativeBattleEffectFileAsset> files = NativeBattleCarbuncle278ResourcesReader.ReadFileNames(executable).Select(file => file with { Data = Read(battle, file.Name).ToImmutableArray() }).ToImmutableArray();
+            nativeCarbuncle278Resources = NativeBattleCarbuncle278ResourcesReader.Read(executable) with { Files = files };
+        }
+        return nativeCarbuncle278Resources;
     }
 }

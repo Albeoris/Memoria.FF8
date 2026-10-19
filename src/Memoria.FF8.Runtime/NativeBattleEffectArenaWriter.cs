@@ -236,6 +236,8 @@ internal sealed class NativeBattleEffectArenaWriter
         return (storage ?? throw new InvalidOperationException("Arena transaction storage is not active.")).AsSpan(offset, count).ToArray();
     }
 
+    internal byte[] ReadCurrent(int offset, int count) => transaction is not null ? transaction.Read(offset, count) : ReadThrough(offset, count);
+
     private int FirstUnknownEndingAt(int offset, bool includeAdjacent)
     {
         int first = 0;

@@ -32,6 +32,11 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
     public ImmutableArray<NativeBattlePcTextureWindowPixels> TextureSnapshots => textureSnapshots.ToImmutableArray();
     public uint LiveMode => State.Environment.Derived?.Mode ?? throw new NotSupportedException("Native primitive dispatch requires its actual published drawing environment.");
     public uint LiveDebug => State.Environment.Debug ?? throw new NotSupportedException("Native primitive debug delivery requires its retained debug DWORD.");
+    public uint LiveDispatchFlags => State.DispatchFlags1CA8880 ?? throw new NotSupportedException("Native normal dispatch requires its retained texture-dispatch flags.");
+
+    public void BeginOrdering() => State = State with { DispatchFlags1CA8880 = 0 };
+
+    public void FlushSoftwareImage() => PublishImage();
 
     public void BeginPass(byte pass)
     {
@@ -100,6 +105,10 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
 
     public void ExecuteNormal(NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode, byte pass)
     {
+        if (pass != 0 && LiveDispatchFlags != 0)
+        {
+            throw new NotSupportedException("Native nonzero texture-dispatch flags require their selected normal-drawing branch.");
+        }
         if (command.Opcode == 0x80)
         {
             if (pass == 0)
