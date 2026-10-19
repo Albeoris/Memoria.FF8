@@ -7,7 +7,7 @@ using Vector4N = System.Numerics.Vector4;
 namespace Memoria.FF8;
 
 /// <summary>Ordered hardware triangle rasterizer; scene decoding remains in the shared rendering library.</summary>
-public sealed class GpuTriangleRenderer : ITriangleRenderer, ILineRenderer, IFramebufferCaptureRenderer, IDisposable
+public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRenderer, IFramebufferCaptureRenderer, IWorldTerrainRenderer, IDisposable
 {
     private readonly GraphicsDevice device;
     private readonly Effect effect;
@@ -65,6 +65,9 @@ public sealed class GpuTriangleRenderer : ITriangleRenderer, ILineRenderer, IFra
         vertexCount = 0;
         FrameDrawCalls = 0;
         FrameTextureUploads = 0;
+        FrameTerrainUploads = 0;
+        terrainFrame++;
+        terrainView = null;
         previousTargets = device.GetRenderTargets();
         previousViewport = device.Viewport;
         active = true;
@@ -147,7 +150,20 @@ public sealed class GpuTriangleRenderer : ITriangleRenderer, ILineRenderer, IFra
         {
             return;
         }
-        TriangleMaterial material = pendingMaterial;
+        effect.CurrentTechnique = effect.Techniques["TriangleTechnique"];
+        SamplerState sampler = ApplyMaterial(pendingMaterial);
+        foreach (EffectPass pass in effect.CurrentTechnique.Passes)
+        {
+            pass.Apply();
+            device.SamplerStates[0] = sampler;
+            device.DrawUserPrimitives(pendingPrimitiveType, vertices, 0, vertexCount / (pendingPrimitiveType == PrimitiveType.LineList ? 2 : 3));
+            FrameDrawCalls++;
+        }
+        vertexCount = 0;
+    }
+
+    private SamplerState ApplyMaterial(in TriangleMaterial material)
+    {
         device.BlendState = Blend(material.Blend, material.ColorWrite, material.PreserveTargetAlpha);
         device.DepthStencilState = Depth(material.DepthComparison, material.DepthWrite);
         SamplerState sampler = material.Sampler switch
@@ -173,14 +189,7 @@ public sealed class GpuTriangleRenderer : ITriangleRenderer, ILineRenderer, IFra
             effect.Parameters["SourceTexture"].SetValue(Texture(image, refresh));
             effect.Parameters["TextureSize"].SetValue(new Vector2(image.Width, image.Height));
         }
-        foreach (EffectPass pass in effect.CurrentTechnique.Passes)
-        {
-            pass.Apply();
-            device.SamplerStates[0] = sampler;
-            device.DrawUserPrimitives(pendingPrimitiveType, vertices, 0, vertexCount / (pendingPrimitiveType == PrimitiveType.LineList ? 2 : 3));
-            FrameDrawCalls++;
-        }
-        vertexCount = 0;
+        return sampler;
     }
 
     public void End()
@@ -199,6 +208,7 @@ public sealed class GpuTriangleRenderer : ITriangleRenderer, ILineRenderer, IFra
         }
         (target, workingTarget) = (workingTarget, target);
         PresentationVersion++;
+        TrimTerrainBuffers();
         foreach (PixelImage image in textures.Keys.Where(image => !usedTextures.Contains(image)).ToArray())
         {
             textures[image].Dispose();
@@ -317,6 +327,7 @@ public sealed class GpuTriangleRenderer : ITriangleRenderer, ILineRenderer, IFra
         target?.Dispose();
         workingTarget?.Dispose();
         effect.Dispose();
+        DisposeTerrainBuffers();
         foreach (Texture2D texture in textures.Values)
         {
             texture.Dispose();

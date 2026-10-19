@@ -1,13 +1,13 @@
 # Rendering and texture resources
 
-The application uses MonoGame WindowsDX for presentation. Field, world and battle scene geometry is currently rasterized into CPU RGBA framebuffers and uploaded to MonoGame textures. The procedural title backdrop is a separate GPU shader renderer. Changing a title shader does not change field/world/battle rasterization.
+The application uses MonoGame WindowsDX for presentation. Field, world and battle scenes submit geometry through the shared triangle renderer to the GPU; software framebuffers remain available for headless rendering. The world terrain uses retained vertex buffers: camera transformation, native horizon curvature, projection and clipping run on the GPU. The procedural title backdrop uses a separate shader.
 
 ## Customization points
 
 | Area | Main implementation | Contract |
 | --- | --- | --- |
 | Fields | [FieldRenderer](../../src/Memoria.FF8.Rendering/FieldRenderer.cs) | Selected field assets, actor visuals and background state produce a reusable RGBA framebuffer. |
-| World | [WorldTerrainRenderer](../../src/Memoria.FF8.Rendering/WorldTerrainRenderer.cs) | World geometry, textures, camera and actor state feed the CPU renderer. |
+| World | [WorldTerrainRenderer](../../src/Memoria.FF8.Rendering/WorldTerrainRenderer.cs) | Retained terrain geometry, textures, camera and actor state feed the selected backend. |
 | Battles | [BattleRenderer](../../src/Memoria.FF8.Rendering/BattleRenderer.cs) | Battle geometry and visual state produce the scene framebuffer; the host draws UI separately. |
 | Title backdrop | [TitleScene project](../../src/Memoria.FF8.TitleScene/README.md) | Procedural GPU background with host-supplied time and graphics-thread ownership. |
 | UI | [MonoGameUiCanvas](../../src/Memoria.FF8.App/GameUi/MonoGameUiCanvas.cs) | Connects the renderer-independent [retained UI API](../../src/Memoria.FF8.Ui/README.md) to MonoGame. |
@@ -35,7 +35,7 @@ The asset layer also exposes `IGameArchiveSource`, `IGameFileSource`, `IFieldMod
 logical resource -> source bytes -> format decoder
   -> source texture -> optional replacement resolver
   -> dependent atlas/transformation -> TextureValue/AssetHandle
-  -> CPU rasterizer -> MonoGame upload/presentation
+  -> GPU texture residency and geometry submission, or software framebuffer
 ```
 
 [TextureContracts](../../src/Memoria.FF8.Resources/TextureContracts.cs) defines `TextureKey` as owner, subresource and palette. `TextureBuildContext` carries logical dimensions, layout, source revision, an original-image callback and optional region/palette/encoded-source data. `ITextureReplacementResolver.Resolve` returns a replacement or no match; adapters must only interpret supported layouts.
@@ -50,6 +50,10 @@ The shared [PNG/DDS decoder](../../src/Memoria.FF8.Resources/TextureImageDecoder
 
 ## Shaders
 
-The title's readable effect is [TitleScene.fx](../../src/Memoria.FF8.TitleScene/Shaders/TitleScene.fx). Its compiled `.mgfxo` is embedded, so ordinary builds do not invoke a shader compiler. Follow the [TitleScene README](../../src/Memoria.FF8.TitleScene/README.md#rebuild-the-shader) for the pinned compiler command, graphics state/lifetime rules, quality caps and deterministic time contract. Commit source and compiled effect together. There is no general package shader-loading API.
+The scene effect is [Triangles.fx](../../src/Memoria.FF8.App/Shaders/Triangles.fx). Its world technique transforms retained terrain vertices and reproduces the native integer horizon calculation. Conservative segment bounds exclude invisible terrain before submission; contiguous texture runs preserve opaque draw order, while transparent terrain retains its sorted primitive stream. Mesh identity follows the resolved segment, including terrain replacements and periodic map offsets; texture handles are resolved independently each frame so mod reloads do not require rebuilding geometry. GPU buffers have bounded residency and are released with the renderer. `DrawnTriangles` counts submitted geometry, including triangles subsequently clipped by hardware.
+
+To regenerate the scene shader, run `dotnet tool restore` from the product root, followed by `dotnet tool run mgfxc src/Memoria.FF8.App/Shaders/Triangles.fx src/Memoria.FF8.App/Shaders/Triangles.mgfxo /Profile:DirectX_11`. Commit source and compiled effect together. Ordinary builds embed the compiled effect without invoking a shader compiler.
+
+The title's readable effect is [TitleScene.fx](../../src/Memoria.FF8.TitleScene/Shaders/TitleScene.fx). Follow the [TitleScene README](../../src/Memoria.FF8.TitleScene/README.md#rebuild-the-shader) for its pinned compiler command, graphics state/lifetime rules, quality caps and deterministic time contract. There is no general package shader-loading API.
 
 Use focused headless checks for the affected resource or rasterization contract; see the [documentation index](../README.md) for build/test instructions. Successful decoding alone does not verify alignment, source-region compatibility or full scene support.

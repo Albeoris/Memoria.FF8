@@ -6,6 +6,10 @@ float3 FogColor;
 float4 ClipRectangle;
 float2 TextureSize;
 float DepthScale;
+float4x4 WorldView;
+float3 WorldOffset;
+float WorldFocal;
+float WorldNativeCurvature;
 texture SourceTexture;
 sampler TextureSampler = sampler_state { Texture = <SourceTexture>; };
 struct VSInput { float3 Position : POSITION0; float4 Color : COLOR0; float3 Uv : TEXCOORD0; float4 TextureScreenRectangle : TEXCOORD2; float4 TextureTexelRectangle : TEXCOORD3; };
@@ -19,6 +23,38 @@ VSOutput VertexMain(VSInput input)
     output.Depth = input.Position.z;
     output.TextureScreenRectangle = input.TextureScreenRectangle;
     output.TextureTexelRectangle = input.TextureTexelRectangle;
+    return output;
+}
+struct WorldVSInput
+{
+    float3 Position : POSITION0;
+    float2 Uv : TEXCOORD0;
+};
+VSOutput WorldVertexMain(WorldVSInput input)
+{
+    float3 terrainPosition = input.Position + WorldOffset;
+    if (WorldNativeCurvature > 0)
+    {
+        int cameraDepth = (int)round(-mul(float4(terrainPosition, 1), WorldView).z * 16);
+        int distance = (clamp(cameraDepth, 0, 65535) >> 2) - 5216;
+        if (distance >= 0)
+        {
+            int nativeHeight = -(int)(input.Position.y * 16);
+            int curvedHeight = (distance >> 6) * (distance >> 6) + (((4096 - distance) * nativeHeight) >> 12);
+            int signedHeight = (curvedHeight << 16) >> 16;
+            terrainPosition.y = -signedHeight / 16.0;
+        }
+    }
+    float3 camera = mul(float4(terrainPosition, 1), WorldView).xyz;
+    float cameraZ = -camera.z;
+    VSOutput output;
+    // Homogeneous clipping preserves the camera-space near plane at Z = 1.
+    output.Position = float4(camera.x * WorldFocal * 2 / ViewportSize.x, camera.y * WorldFocal * 2 / ViewportSize.y, cameraZ - 1, cameraZ);
+    output.Color = float4(1, 1, 1, 1);
+    output.Uv = float3(input.Uv, 1);
+    output.Depth = cameraZ;
+    output.TextureScreenRectangle = 0;
+    output.TextureTexelRectangle = 0;
     return output;
 }
 struct PSOutput { float4 Color : SV_TARGET0; float Depth : SV_DEPTH; };
@@ -98,5 +134,22 @@ technique TriangleTechnique
     {
         VertexShader = compile vs_4_0 VertexMain();
         PixelShader = compile ps_4_0 PixelMain();
+    }
+}
+
+PSOutput WorldPixelMain(VSOutput input)
+{
+    // Perspective interpolation of camera Z produces the harmonic screen-space depth.
+    float reciprocalZ = 1 / input.Depth;
+    input.Uv = float3(input.Uv.xy * reciprocalZ, reciprocalZ);
+    input.Depth = reciprocalZ;
+    return PixelMain(input);
+}
+technique WorldTerrainTechnique
+{
+    pass P0
+    {
+        VertexShader = compile vs_4_0 WorldVertexMain();
+        PixelShader = compile ps_4_0 WorldPixelMain();
     }
 }

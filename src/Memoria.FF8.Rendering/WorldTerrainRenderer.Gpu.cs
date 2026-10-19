@@ -46,7 +46,13 @@ public sealed partial class WorldTerrainRenderer
         {
             return new TriangleVertex(new Vector2(vertex.X, vertex.Y), vertex.ReciprocalZ, vertex.ReciprocalZ, vertex.UvOverZ / vertex.ReciprocalZ, Vector4.One);
         }
-        TriangleMaterial material = new(texture, transparent ? TriangleBlend.Alpha : TriangleBlend.Replace, TriangleDepthComparison.Greater, !transparent, Sampler: TriangleSampler.PointClamp)
+        TriangleMaterial material = TerrainMaterial(texture, transparent);
+        TriangleRenderer!.Draw(Convert(a), Convert(b), Convert(c), material);
+    }
+
+    private TriangleMaterial TerrainMaterial(PixelImage texture, bool transparent)
+    {
+        return new TriangleMaterial(texture, transparent ? TriangleBlend.Alpha : TriangleBlend.Replace, TriangleDepthComparison.Greater, !transparent, Sampler: TriangleSampler.PointClamp)
         {
             AlphaMultiplier = transparent ? 0.5f : 1,
             DepthMapping = TriangleDepthMapping.Positive,
@@ -56,6 +62,5 @@ public sealed partial class WorldTerrainRenderer
             FogStart = far * 0.6f,
             FogEnd = far
         };
-        TriangleRenderer!.Draw(Convert(a), Convert(b), Convert(c), material);
     }
 }

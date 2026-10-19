@@ -89,7 +89,7 @@ public readonly record struct NativeWorldAnimatedModelDraw(FieldModel Model, Vec
     public WorldAnimationBlend? AnimationBlend { get; init; }
 }
 
-/// <summary>Perspective rasterizer for selected original WMX terrain and world Squall; no installed resources are altered.</summary>
+/// <summary>Perspective renderer for WMX terrain and world models, with optional retained GPU geometry.</summary>
 public sealed partial class WorldTerrainRenderer
 {
     private readonly WorldAssets assets;
@@ -120,6 +120,7 @@ public sealed partial class WorldTerrainRenderer
 
     public int Width { get; }
     public int Height { get; }
+    /// <summary>Submitted triangles; retained hardware terrain is clipped by the GPU after submission.</summary>
     public int DrawnTriangles { get; private set; }
     public ITriangleRenderer? TriangleRenderer { get; set; }
 
@@ -183,7 +184,13 @@ public sealed partial class WorldTerrainRenderer
                 int rawRow = segment / 32 + row;
                 int mapId = ((rawRow % 24 + 24) % 24) * 32 + (rawColumn % 32 + 32) % 32;
                 Vector3 offset = new(MathF.Floor(rawColumn / 32f) * 16384, 0, MathF.Floor(rawRow / 24f) * 12288);
-                foreach (WorldTriangle triangle in assets.GetSegment(mapId, replacements).Triangles)
+                WorldSegment terrain = assets.GetSegment(mapId, replacements);
+                if (TriangleRenderer is IWorldTerrainRenderer hardware)
+                {
+                    DrawRetainedTerrain(hardware, terrain, offset, transparent);
+                    continue;
+                }
+                foreach (WorldTriangle triangle in terrain.Triangles)
                 {
                     if (triangle.Transparent)
                     {

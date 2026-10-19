@@ -1,5 +1,7 @@
 # Environment variables
 
+Optional world rendering diagnostics use `MEMORIA_FF8_WORLD_PERFORMANCE_SNAPSHOT` for an external standalone save and `MEMORIA_FF8_WORLD_PERFORMANCE_OUTPUT` for a local output directory. With an installed game configured, run the App test class `WorldFramePerformanceTests` to compare a warmed full camera rotation using the primitive stream and retained GPU terrain. Reports distinguish CPU submission time from GPU execution and include paired images plus a separately saved final state. The input save is preserved.
+
 Set these in the shell before starting the launcher, engine or test process. An explicit command-line path takes precedence where the corresponding option exists. Use full paths for installed games and externally supplied resources; do not copy game assets into the source checkout.
 
 ## Engine startup
