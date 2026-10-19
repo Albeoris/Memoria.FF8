@@ -101,6 +101,10 @@ public sealed partial class EventEngine
         ValidateNativeMusicFieldLoad(nativeRuntimeProfile);
         JsmProgram next = JsmProgram.Read(jsm);
         string nextHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(jsm));
+        if (!restoringCheckpoint && program is not null)
+        {
+            StopDepartingFieldSounds();
+        }
         if (!restoringCheckpoint)
         {
             if (nativeRuntimeProfile is { IsVerified: true } && services.FieldFade is NativeFieldFadeState fieldFade)

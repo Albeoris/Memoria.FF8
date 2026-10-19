@@ -122,6 +122,12 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
                         StopVoice(voice);
                     }
                     break;
+                case NativeFieldSoundDeparture departure:
+                    foreach (int voice in departure.Voices)
+                    {
+                        StopVoice(voice);
+                    }
+                    break;
                 case NativeSoundInitialization initialization:
                     foreach (int voice in voices.Keys.ToArray())
                     {

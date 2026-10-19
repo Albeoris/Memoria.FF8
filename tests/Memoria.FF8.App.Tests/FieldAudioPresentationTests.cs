@@ -11,6 +11,37 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class FieldAudioPresentationTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FieldDepartureDisposesPrimaryAndPendingOrPlayingLoop(bool startLoop)
+    {
+        string directory = InstalledGame();
+        using FieldAudioPresentation presentation = new(GetDesktopWindow(), directory, "");
+        GlobalSoundResource resource = GameWorld.CreateMutedGlobalSoundResource(GlobalAudioFormat.Read(directory, 2253))!;
+        Assert.True(resource.LoopPolicy.LoopStartPcmByte > 0);
+        presentation.Execute(new GlobalSoundRequest(10103, 1, 1, 1, 128, 64, 0, 100, resource));
+        Assert.Null(presentation.Error);
+        Assert.Equal(1, presentation.SoundVoiceCount);
+        var voices = (System.Collections.IDictionary)typeof(FieldAudioPresentation).GetField("voices", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(presentation)!;
+        object voice = voices[1]!;
+        DirectSoundOutput.Buffer primary = (DirectSoundOutput.Buffer)voice.GetType().GetProperty("Primary")!.GetValue(voice)!;
+        DirectSoundOutput.Buffer loop = (DirectSoundOutput.Buffer)voice.GetType().GetProperty("Loop")!.GetValue(voice)!;
+        if (startLoop)
+        {
+            Thread.Sleep(resource.LoopPolicy.LoopTransitionDelayMilliseconds!.Value + 30);
+            presentation.Update();
+            Assert.True((bool)voice.GetType().GetProperty("LoopStarted")!.GetValue(voice)!);
+        }
+        presentation.Execute(new NativeFieldSoundDeparture(141, [1]));
+        presentation.Update();
+        Assert.Null(presentation.Error);
+        Assert.Equal(0, presentation.SoundVoiceCount);
+        var handle = typeof(DirectSoundOutput.Buffer).GetField("handle", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        Assert.Equal((nint)0, (nint)handle.GetValue(primary)!);
+        Assert.Equal((nint)0, (nint)handle.GetValue(loop)!);
+    }
+
     [Fact]
     public void ConcertSelectionRefusesOrdinaryTrackRenderingBeforeOpeningDevices()
     {
