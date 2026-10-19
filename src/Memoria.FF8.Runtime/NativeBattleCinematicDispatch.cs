@@ -1044,6 +1044,7 @@ public static partial class NativeBattleCinematicDispatch
 
     private static readonly FrozenDictionary<(string Table, int Index), uint> Slots = new Dictionary<(string Table, int Index), uint>
     {
+        [("vm_table", 100)] = 0xB2B0E0,
         [("bone_table", 0)] = 0xB262E0,
         [("bone_table", 1)] = 0xB262E0,
         [("bone_table", 3)] = 0xB263F0,
@@ -1184,7 +1185,6 @@ public static partial class NativeBattleCinematicDispatch
         [("vm_table", 97)] = 0xB2CCC0,
         [("vm_table", 98)] = 0xB2CCC0,
         [("vm_table", 99)] = 0xB2EF70,
-        [("vm_table", 100)] = 0xB2B0E0,
         [("vm_table", 102)] = 0xB2E830,
         [("vm_table", 103)] = 0xB2E950,
         [("vm_table", 104)] = 0xB2ECB0,
@@ -1331,7 +1331,7 @@ public static partial class NativeBattleCinematicDispatch
             }
             return handler;
         }
-        if (VariantSlots.TryGetValue((effect, table, index), out uint variant))
+        if (VariantSlots.TryGetValue((effect, table, index), out uint variant) || GuestNoOps.TryGetValue((effect, table, index), out variant) || GuestVariants.TryGetValue((effect, table, index), out variant))
         {
             if (handler != variant)
             {
@@ -1353,7 +1353,7 @@ public static partial class NativeBattleCinematicDispatch
         {
             throw new NotSupportedException("Native cinematic dispatch selected a noncallable table entry.");
         }
-        if (effect == 201 && (CanonicalHandlers.Contains(handler) || RegionalCanonicalHandlers.Contains(handler)))
+        if (effect == 201 && (CanonicalHandlers.Contains(handler) || RegionalCanonicalHandlers.Contains(handler) || GuestAliases.Values.Contains(handler)))
         {
             return handler;
         }
@@ -1365,6 +1365,6 @@ public static partial class NativeBattleCinematicDispatch
         {
             return regionalCanonical;
         }
-        return Aliases.TryGetValue((effect, handler), out uint canonical) ? canonical : throw new NotSupportedException($"Native cinematic effect {effect} handler {handler:X8} requires its selected implementation contract.");
+        return (Aliases.TryGetValue((effect, handler), out uint canonical) || GuestAliases.TryGetValue((effect, handler), out canonical)) ? canonical : throw new NotSupportedException($"Native cinematic effect {effect} handler {handler:X8} requires its selected implementation contract.");
     }
 }

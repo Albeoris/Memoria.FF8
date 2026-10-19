@@ -13,7 +13,7 @@ public static class NativeBattleCameraGraphics
         }
         if (reference == 0xF9)
         {
-            return context.CustomMatrix ?? throw new NotSupportedException("Native camera requires its command-produced custom matrix.");
+            throw new NotSupportedException("Native custom camera references require their process matrix owner rather than an action geometry capture.");
         }
         if (reference >= 0xB0)
         {

@@ -6,6 +6,37 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeLimitGraphicsCallbackTests
 {
     [Theory]
+    [InlineData("Shot")]
+    [InlineData("Duel")]
+    [InlineData("Renzokuken")]
+    public void Timed_input_between_effects_prevents_automatic_combat_time_fast_forward(string limit)
+    {
+        BattleSession session = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.TurnBased);
+        PropertyInfo automaticAdvance = typeof(BattleSession).GetProperty("CanAutomaticallyAdvanceTurn", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        Assert.True((bool)automaticAdvance.GetValue(session)!);
+
+        switch (limit)
+        {
+            case "Shot":
+                Field<Dictionary<string, BattleNativeShotState>>(session, "nativeShotProcesses").Add("party", new(0, 8, 800, 800, 2, BattleNativeShotPhase.Ready));
+                break;
+            case "Duel":
+                Field<Dictionary<string, BattleNativeDuelState>>(session, "nativeDuelProcesses").Add("party", new(0, 8, 800, 800, BattleNativeDuelPhase.Ready));
+                break;
+            case "Renzokuken":
+                Field<Dictionary<string, BattleNativeRenzokukenState>>(session, "nativeRenzokukenProcesses").Add("party", new(160, 8, null, new()));
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(limit));
+        }
+
+        Assert.Null(session.ActiveAction);
+        Assert.Empty(session.QueuedActions);
+        Assert.False((bool)automaticAdvance.GetValue(session)!);
+        Assert.Equal(0, session.Frame);
+    }
+
+    [Theory]
     [InlineData(0x48D1A0u, BattleNativeShotPhase.Opening)]
     [InlineData(0x4AD7C0u, BattleNativeShotPhase.AwaitingEffect)]
     public void Shot_descriptor_readiness_preserves_its_running_timer_and_ammunition(uint callback, BattleNativeShotPhase phase)

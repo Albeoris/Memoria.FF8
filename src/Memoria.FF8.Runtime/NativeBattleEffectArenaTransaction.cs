@@ -18,6 +18,9 @@ internal sealed class NativeBattleEffectArenaTransaction : IDisposable
     }
 
     public NativeBattleEffectArena View { get; }
+    internal System.Collections.Immutable.ImmutableDictionary<int, NativeBattleResourcePointer?>? ResourcePointers => writer.ResourcePointers;
+
+    internal void SetResourcePointer(int offset, NativeBattleResourcePointer? pointer) => writer.SetResourcePointer(offset, pointer);
 
     public byte[] Read(int offset, int count)
     {

@@ -11,7 +11,9 @@ public sealed partial class BattleSession
         NativeBattleGraphicsBinding binding = FindNativeGraphicsBinding(actorId) ?? throw new InvalidDataException("Native graphics pose lost its original model resource.");
         if (graphics.Models[index].ActiveStagedResourceRow100 is not null)
         {
-            return NativeBattleVictoryResources.Resolve(NativeFileStaging ?? throw new NotSupportedException("Native staged graphics requires its actual shared file bytes."), NativeModelCpuResources ?? throw new NotSupportedException("Native staged graphics requires its current CPU skeleton/geometry references."), graphics.Models[index], binding.Resource);
+            NativeBattleFileStaging staging = NativeFileStaging ?? throw new NotSupportedException("Native staged graphics requires its actual shared file bytes.");
+            NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native staged graphics requires its current CPU skeleton/geometry references.");
+            return NativeBattleVictoryResources.Resolve(graphics.Models[index], binding.Resource, address => IsNativeEffectArenaAddress(address) ? RequireWaterMemory().Arena!.ReadResourcePointer(NativeBattleWaterExecutionFields.ArenaOffset(address, 4)) : staging.ReadResourcePointer(address), (pointer, length) => pointer.Cpu is { } reference ? NativeBattleModelEnemyHeap.Read(cpu, staging, reference, length) : IsNativeEffectArenaAddress(pointer.StagingAddress ?? throw new NotSupportedException("Native bound resource has no actual byte owner.")) ? RequireWaterMemory().Arena!.Read(NativeBattleWaterExecutionFields.ArenaOffset(pointer.StagingAddress!.Value, length), length) : staging.Read(pointer.StagingAddress!.Value, length));
         }
         if (graphics.Models[index].ModelId4 >= 16)
         {
@@ -20,6 +22,8 @@ public sealed partial class BattleSession
         }
         return graphics.Models[index].ResourceMagicId is ushort magic ? definition.NativeRenzokukenResources.Single(resource => resource.MagicId == magic).BindGraphicsResource(binding.Resource.PoseSource ?? throw new NotSupportedException("Embedded native pose requires its original skeleton owner."), binding.Resource.LinkedPoseSource) with { Geometry = binding.Resource.Geometry, LinkedGeometry = binding.Resource.LinkedGeometry, LinkedGeometryUsesBodySkeleton = binding.Resource.LinkedGeometryUsesBodySkeleton, LinkedTexturePack = binding.Resource.LinkedTexturePack } : binding.Resource;
     }
+
+    private static bool IsNativeEffectArenaAddress(uint address) => address >= NativeBattleEffectNodeMemory.ArenaAddress && (long)address - NativeBattleEffectNodeMemory.ArenaAddress < NativeBattleEffectArena.Length;
 
     internal NativeBattleVector ReadNativeGraphicsBone(int index, byte selector, short fraction)
     {

@@ -61,8 +61,8 @@ internal static partial class BattleResourceReader
         IReadOnlyList<ModelTexture> textures = Textures(reader, bytes, offsets[textureSection]);
         IReadOnlyList<BattleMesh> meshes = Geometry(reader, offsets[1], bones.Length, textures);
         IReadOnlyList<BattleAnimation> animations = Animations(reader, offsets[2], bones.Length);
-        //5077B0 retains the ordinary body camera at DAT DWORD5 when a linked weapon replaces its sequence.
-        int cameraSection = offsets.Length == 11 ? 5 : offsets.Length is 7 or 8 ? 4 : offsets.Length is 9 or 10 ? 6 : -1;
+        //5077B0/5079B0 retain the body camera at DAT DWORD5 when selecting the model resource.
+        int cameraSection = offsets.Length == 11 ? 5 : offsets.Length is 7 or 8 or 9 or 10 ? 4 : -1;
         int bodyTextureSection = offsets.Length == 11 ? 10 : offsets.Length is 7 or 8 ? 5 : offsets.Length is 9 or 10 ? 8 : -1;
         int bodyTextureEnd = bodyTextureSection >= 0 && bodyTextureSection + 1 < offsets.Length ? offsets[bodyTextureSection + 1] : bytes.Length;
         return new BattleModel(name, bones, meshes, textures.Select(texture => texture.Image).ToArray(), animations, scale)

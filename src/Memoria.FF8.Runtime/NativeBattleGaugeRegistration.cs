@@ -21,11 +21,15 @@ public static class NativeBattleGaugeRegistrations
             return new(NativeBattleGaugeRegistrationKind.None, actorFlags);
         }
         bool forced = (savedStatuses & 0x20) != 0 || (battleStatuses & 0x2004000) != 0;
-        uint flags = actorFlags | (forced ? 4u : 8u);
+        if (forced)
+        {
+            return new(NativeBattleGaugeRegistrationKind.ForcedCommand, actorFlags | 4u);
+        }
+        uint flags = actorFlags | 8u;
         if ((actorFlags & 0x10) != 0)
         {
             return new(NativeBattleGaugeRegistrationKind.DeferredScript, flags | 0x200);
         }
-        return new(forced ? NativeBattleGaugeRegistrationKind.ForcedCommand : NativeBattleGaugeRegistrationKind.Menu, flags);
+        return new(NativeBattleGaugeRegistrationKind.Menu, flags);
     }
 }

@@ -58,8 +58,7 @@ public static partial class NativeBattlePoseMatrices
             throw new NotSupportedException("Native model8F bone selectors require its B8B6EC source table.");
         }
         NativeBattleSequenceState state = model.SequenceState ?? throw new NotSupportedException("Native502170 requires a decoded model pose.");
-        NativeBattleDecodedPose pose = ReadDecodedPose(state, source);
-        Matrix[] bones = BoneMatrices(source, pose);
+        ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(model, source);
         int bone = selector;
         if (selector >= 240)
         {
@@ -81,7 +80,8 @@ public static partial class NativeBattlePoseMatrices
         }
         NativeBattleActionMatrix cached = model.GeometryWorldMatrix ?? throw new NotSupportedException("Native502170 requires its retained502AB0 model matrix.");
         Matrix world = new(cached.Rotation.ToArray(), cached.X, cached.Y, cached.Z);
-        Matrix selected = Compose(world, bones[bone]);
+        NativeBattleActionMatrix retained = bones[bone];
+        Matrix selected = Compose(world, new(retained.Rotation.ToArray(), retained.X, retained.Y, retained.Z));
         short parent = ReadWord(source.Skeleton, 16 + bone * 48);
         int distance = parent < 0 ? 0 : fraction * ReadWord(source.Skeleton, 18 + bone * 48) >> 12;
         //56C820/GTE MVMVA publishes signed MAC DWORDs;502170 stores their low WORDs.

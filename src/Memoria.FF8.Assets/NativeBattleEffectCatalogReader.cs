@@ -275,6 +275,26 @@ public sealed partial class GameAssets
             {
                 binding = binding with { StatusMagicResources = ReadNativeStatusMagicResources(binding.Effect) };
             }
+            if (binding.Effect == 141)
+            {
+                binding = binding with { Renzokuken141Resources = ReadNativeRenzokuken141Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 160)
+            {
+                binding = binding with { Renzokuken160Resources = ReadNativeRenzokuken160Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 196)
+            {
+                binding = binding with { Shot196Resources = ReadNativeShot196Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 188)
+            {
+                binding = binding with { Shot188Resources = ReadNativeShot188Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 40)
             {
                 //84D410 returns a BYTE category; retain its actual indexed source row for every possible result.

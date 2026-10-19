@@ -53,7 +53,7 @@ public sealed record NativeBattleGraphicsRemoval(NativeBattleGraphicsModel Model
 
 public static class NativeBattleGraphicsModels
 {
-    public static NativeBattleGraphicsModel[] ClearBank(System.Collections.Immutable.ImmutableArray<uint?>? retainedColors40 = null, System.Collections.Immutable.ImmutableArray<System.Collections.Immutable.ImmutableArray<byte?>>? retainedStatusTimers = null)
+    public static NativeBattleGraphicsModel[] ClearBank(System.Collections.Immutable.ImmutableArray<uint?>? retainedColors40 = null, System.Collections.Immutable.ImmutableArray<System.Collections.Immutable.ImmutableArray<byte?>>? retainedStatusTimers = null, System.Collections.Immutable.ImmutableArray<NativeBattleActionMatrix?>? retainedWorldMatrices64 = null)
     {
         //502340 clears only Flags0 of each of seven records. Unknown retained fields must not be supplied as zeros.
         if (retainedColors40 is { } colors && (colors.IsDefault || colors.Length != 7))
@@ -64,7 +64,18 @@ public static class NativeBattleGraphicsModels
         {
             throw new InvalidDataException("Native502340 requires seven retained32-byte status timer rows.");
         }
-        return Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 0) { Color40 = retainedColors40?[index], StatusTimers = retainedStatusTimers?[index] ?? System.Collections.Immutable.ImmutableArray.CreateRange(new byte?[32]) }).ToArray();
+        if (retainedWorldMatrices64 is { } matrices)
+        {
+            if (matrices.IsDefault || matrices.Length != 7)
+            {
+                throw new InvalidDataException("Native502340 requires the retained seven model matrix fields.");
+            }
+            foreach (NativeBattleActionMatrix? matrix in matrices)
+            {
+                matrix?.Validate();
+            }
+        }
+        return Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, 0) { Color40 = retainedColors40?[index], StatusTimers = retainedStatusTimers?[index] ?? System.Collections.Immutable.ImmutableArray.CreateRange(new byte?[32]), GeometryWorldMatrix = retainedWorldMatrices64?[index] }).ToArray();
     }
 
     public static NativeBattleGraphicsModel CompleteLoad(NativeBattleGraphicsModel model, byte modelId, uint projectedStatusFlags, ref NativeGlobalRandomState random, byte? information246 = null)

@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState AdvanceNativeModuleEffects(NativeBattleGraphicsState graphics)
     {
-        NativeBattleModuleStep step = graphics.ModuleEffects.Advance(new(graphics.Flags) { Resources = definition.NativeModuleResources, CrtRandom = nativeCrtRandom, ReadModelAnchor = index => ReadNativeModelAnchor(graphics, index), ReadModelBone = (index, bone, fraction) => ReadNativeGraphicsBone(graphics, index, bone, fraction), ReadModelBoneCount = index => checked((byte)(NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native573560 requires its current model skeleton owner.")).BoneCount), ReadModelRotation14 = index => graphics.Models[index].Rotation14 ?? throw new NotSupportedException("Native module effect requires the loaded model rotationWORD14."), TransformModelPosition = (index, local) => NativeBattlePoseMatrices.TransformModulePosition570CC0(graphics.Models[index], local), ReadModelTransform = index => graphics.Models[index].Transform ?? throw new NotSupportedException("Native module effect requires its model WORD36/38 transform owner.") });
+        NativeBattleModuleStep step = graphics.ModuleEffects.Advance(new(graphics.Flags) { Resources = definition.NativeModuleResources, CrtRandom = nativeCrtRandom, ReadModelAnchor = index => ReadNativeModelAnchor(graphics, index), ReadModelBone = (index, bone, fraction) => ReadNativeGraphicsBone(graphics, index, bone, fraction), ReadModelBoneCount = index => checked((byte)(NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native573560 requires its current model skeleton owner.")).BoneCount), ReadModelRotation14 = index => graphics.Models[index].Rotation14 ?? throw new NotSupportedException("Native module effect requires the loaded model rotationWORD14."), TransformModelPosition = (index, local) => NativeBattlePoseMatrices.TransformModulePosition570CC0(graphics.Models[index], local), ReadModelTransform = index => graphics.Models[index].Transform ?? throw new NotSupportedException("Native module effect requires its model WORD36/38 transform owner.") }, Dispatch);
         nativeCrtRandom = step.CrtRandomAfter;
         foreach (NativeBattleModuleDraw draw in step.Draws)
         {
@@ -15,6 +15,19 @@ public sealed partial class BattleSession
             }
         }
         return graphics with { ModuleEffects = step.State, ModuleDraws = step.Draws };
+
+        NativeBattleModuleCallback Dispatch(NativeBattleModuleState modules, int slot, NativeBattleModuleInputs inputs)
+        {
+            uint callback = modules.Slots[slot].Callback ?? throw new InvalidDataException("Native shared callback lost its physical address.");
+            (NativeBattleGraphicsState advanced, NativeBattleModuleCallback result) = callback switch
+            {
+                0x5FF4E0 or 0x5FF770 => AdvanceNativeRenzokuken160Shared(graphics, modules, slot, inputs),
+                0x61E2F0 or 0x61E580 => AdvanceNativeRenzokuken141Shared(graphics, modules, slot, inputs),
+                _ => throw new NotSupportedException($"Native shared callback {callback:X8} requires its original executable implementation.")
+            };
+            graphics = advanced;
+            return result;
+        }
     }
 
     private static NativeBattleGraphicsState ScheduleNativeModelEffect(NativeBattleGraphicsState graphics, int index, byte operand)

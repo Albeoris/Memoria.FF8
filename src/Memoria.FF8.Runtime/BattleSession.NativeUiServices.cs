@@ -155,6 +155,7 @@ public sealed partial class BattleSession
         nativeGuardianBoost = null;
         ui = widget.Visible ? ui.SetFlags(0x1800) with { Menu957 = 6, Menu955 = -2 } : ui.SetFlags(0, 0x1800);
         NativeGraphics = graphics with { UiServices = ui, TriggerWidget = widget };
+        MirrorNativeRenzokukenWidget(widget);
     }
 
     private void AdvanceNativeTriggerWidget()
@@ -181,6 +182,7 @@ public sealed partial class BattleSession
             ui = ui.SetFlags(0, 0x1800) with { Menu957 = widget.PreviousMenu957, Menu955 = widget.PreviousMenu955 };
         }
         NativeGraphics = graphics with { UiServices = ui, TriggerWidget = step.Unregistered ? null : step.Widget, PendingTrigger = pending };
+        MirrorNativeRenzokukenWidget(step.Widget);
     }
 
     private void DispatchNativeTriggerReceipt()
@@ -190,7 +192,14 @@ public sealed partial class BattleSession
             return;
         }
         //47CCB0 case4 calls485160 after485460 and before periodic/script callbacks, even while ATB is held.
-        RecomputeNativeTriggerContact(receipt);
+        if (nativeTimedAction?.Command.NativeRenzokuken is not null && nativeRenzokukenProcesses.Count != 0)
+        {
+            CommitNativeRawRenzokukenTrigger(receipt);
+        }
+        else
+        {
+            RecomputeNativeTriggerContact(receipt);
+        }
         NativeGraphics = RequireNativeGraphics() with { PendingTrigger = null };
     }
 

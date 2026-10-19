@@ -177,6 +177,22 @@ public sealed partial class BattleSession
         {
             return EnterNativeStatusMagic(graphics);
         }
+        if (effect.Binding.Entry == 0x61DE70)
+        {
+            return EnterNativeRenzokuken141(graphics, effect.Binding.Renzokuken141Resources ?? throw new NotSupportedException("Native141 requires its original immutable resource bundle."));
+        }
+        if (effect.Binding.Entry == 0x5FF080)
+        {
+            return EnterNativeRenzokuken160(graphics);
+        }
+        if (effect.Binding.Entry == 0x5B1900)
+        {
+            return EnterNativeShot196(graphics);
+        }
+        if (effect.Binding.Entry == 0x5BE340)
+        {
+            return EnterNativeShot188(graphics);
+        }
         if (effect.Binding.Entry == 0x84D030)
         {
             return RunNativeScan40(graphics, true);

@@ -12,6 +12,7 @@ public sealed partial class BattleSession
         NativeBattleCinematicProfile profile = NativeBattleCinematicProfile.ForEffect(graphics.OriginalEffect!.Binding.Effect);
         NativeBattleWaterParticleServices services = new((_, address, length) => resources.ReadStatic(address, length).ToArray(), (current, selector) => NativeBattleWaterMatrixCommands.ResolveB65520(current, bank, index, selector), (current, texture) => NativeBattleWaterTextureMetadata.SelectTPageB665C0(current, resources, texture), (current, texture) => NativeBattleWaterTextureMetadata.ReadClutB66640(current, resources, texture), DrawRectangles)
         {
+            ExecuteSelected = (current, selectedProgram) => profile.Effect == 262 && (byte)current.ReadTemporaryWord(0x14A) == 22 ? NativeBattleGuestParticle22.Execute(current, selectedProgram) : null,
             RequireHandler = (table, slot) =>
             {
                 uint address = table switch

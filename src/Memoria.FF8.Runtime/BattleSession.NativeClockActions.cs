@@ -32,6 +32,7 @@ public sealed partial class BattleSession
         BattleActionPresentation? presentation = CaptureNativeEventPresentation();
         BattleAttackCommand[] queuedPresentations = CaptureNativeQueuedEventPresentations();
         NativeGraphics = graphics;
+        ReleaseNativeRawRenzokukenActionOwners(callback);
         bool completed = CompleteNativeActionEvent(callback);
         if (completed)
         {

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Buffers.Binary;
 using System.Security.Cryptography;
 
 namespace Memoria.FF8.Runtime;
@@ -16,6 +17,21 @@ public sealed record NativeBattleBodyBoneMatrices(string SkeletonSha256, Immutab
         {
             matrix.Validate();
         }
+    }
+
+    public static NativeBattleGraphicsModel PublishLoadedSkeleton(NativeBattleGraphicsModel model, NativeBattlePoseSource source)
+    {
+        source.Validate();
+        ImmutableArray<NativeBattleActionMatrix>.Builder matrices = ImmutableArray.CreateBuilder<NativeBattleActionMatrix>(source.BoneCount);
+        for (int bone = 0; bone < source.BoneCount; bone++)
+        {
+            int offset = 24 + bone * 48;
+            ImmutableArray<short> rotation = Enumerable.Range(0, 9).Select(lane => BinaryPrimitives.ReadInt16LittleEndian(source.Skeleton.AsSpan().Slice(offset + lane * 2, 2))).ToImmutableArray();
+            matrices.Add(new(rotation, BinaryPrimitives.ReadInt32LittleEndian(source.Skeleton.AsSpan().Slice(offset + 20, 4)), BinaryPrimitives.ReadInt32LittleEndian(source.Skeleton.AsSpan().Slice(offset + 24, 4)), BinaryPrimitives.ReadInt32LittleEndian(source.Skeleton.AsSpan().Slice(offset + 28, 4)), 4096));
+        }
+        NativeBattleBodyBoneMatrices publication = new(Identity(source), matrices.MoveToImmutable());
+        publication.Validate();
+        return model with { CurrentBodyBoneMatrices = publication };
     }
 
     public static NativeBattleGraphicsModel Publish508C90(NativeBattleGraphicsModel model, NativeBattlePoseSource source)

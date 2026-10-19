@@ -7,6 +7,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleWaterParticleServices(Func<NativeBattleWaterExecutionFrame, uint, int, byte[]> ReadMetadata, Func<NativeBattleWaterExecutionFrame, ushort, uint> ResolveMatrixRow, Func<NativeBattleWaterExecutionFrame, int, NativeBattleWaterExecutionFrame> PrepareTexturePage, Func<NativeBattleWaterExecutionFrame, int, ushort> ReadClut, Func<NativeBattleWaterExecutionFrame, NativeBattleActionMatrix, NativeBattleWaterExecutionFrame> DrawRectangles)
 {
     public Action<string, int>? RequireHandler { get; init; }
+    public Func<NativeBattleWaterExecutionFrame, NativeBattleWaterScriptProgram, NativeBattleWaterExecutionFrame?>? ExecuteSelected { get; init; }
 }
 
 /// <summary>The finite particle instruction family and its selected type-six caller over current arena records.</summary>
@@ -16,6 +17,10 @@ public static class NativeBattleWaterParticles
     {
         ushort instruction = frame.ReadTemporaryWord(0x14A);
         services.RequireHandler?.Invoke("pop_table", (byte)instruction);
+        if (services.ExecuteSelected?.Invoke(frame, program) is { } selected)
+        {
+            return selected;
+        }
         uint pc = CoreDword(frame, 0x2797450);
         int next = 2;
         switch ((byte)instruction)

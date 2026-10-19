@@ -47,6 +47,11 @@ public sealed partial class BattleSession
         {
             nativeProductionContext = previous;
         }
+        if (NativeGraphics is not null)
+        {
+            //485460 publishes the final event callback after both485610 subcommands and their104/finisher descriptors.
+            QueueNativeActionClockCompletion(0x47DE70);
+        }
     }
 
     private void ResolveNativeTimedContact(ushort targetMask, BattleNativeAction native, short timing, bool finalContact)
@@ -106,6 +111,10 @@ public sealed partial class BattleSession
 
     private void CompleteNativeTimedAction()
     {
+        if (NativeGraphics is not null)
+        {
+            throw new InvalidOperationException("Raw native Renzokuken completes only through its final event descriptor.");
+        }
         NativeBattleTimedAction timed = nativeTimedAction ?? throw new InvalidOperationException("Native timed completion requires its active command.");
         if (nativeActionCommitDepth != 1)
         {
@@ -116,6 +125,28 @@ public sealed partial class BattleSession
         nativeTimedAction = null;
         nativeActionCommitDepth = 0;
         QueueNativeActionClockCompletion(0x47DE70);
+        RefreshNativeKnownMagicStocks();
+        RefreshNativeEnemyDrawSlots();
+    }
+
+    private void ReleaseNativeRawRenzokukenActionOwners(uint callback)
+    {
+        if (callback != 0x47DE70 || NativeGraphics is null || nativeTimedAction is not { Command.NativeRenzokuken: not null } timed)
+        {
+            return;
+        }
+        BattleCombatant actor = GetActor(timed.Command.ActorId);
+        BattleNativeRenzokukenState process = nativeRenzokukenProcesses.GetValueOrDefault(actor.Id) ?? throw new InvalidDataException("Native Renzokuken final descriptor lacks its input process.");
+        if (nativeActionCommitDepth != 1 || timed.Contacts != RenzokukenResource(process.MagicId).Timeline.InputThresholds.Length || NativeGraphics.PendingTrigger is { } pending && pending.ActorIndex == actor.NativeIndex)
+        {
+            throw new InvalidDataException("Native Renzokuken final descriptor reached an unfinished contact transaction.");
+        }
+        CompleteNativeActionOwners(actor, timed.Command);
+        nativeTimedAction = null;
+        nativeActionCommitDepth = 0;
+        nativeRenzokukenProcesses.Remove(actor.Id);
+        nativeLimitLevels.Remove(actor.Id);
+        actor.IsBusy = actions.Any(command => command.ActorId == actor.Id);
         RefreshNativeKnownMagicStocks();
         RefreshNativeEnemyDrawSlots();
     }

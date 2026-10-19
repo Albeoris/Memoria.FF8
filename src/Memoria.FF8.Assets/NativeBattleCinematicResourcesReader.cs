@@ -20,10 +20,7 @@ public static class NativeBattleCinematicResourcesReader
             throw new InvalidDataException("Native cinematic vibration requires its complete original first resource header.");
         }
         NativeVibrationBank? vibration = ReadVibration(initialFile0);
-        uint[] descriptor = Enumerable.Range(0, 4).Select(index => checked(profile.InitializationAddress + BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(profile.InitializationAddress + (uint)(index * 4), 4)))).ToArray();
-        NativeBattleCinematicResources result = new(profile.InitializationAddress, new("cinematic-static", memory.Read(profile.InitializationAddress, profile.StaticLength).ToImmutableArray()), new(profile.TextureCount, profile.InitializationAddress, profile.OwnerDirectoryAddress, descriptor[0], descriptor[1], descriptor[2], descriptor[3]), vibration);
-        result.Validate();
-        return result;
+        return ReadStatic(memory, profile, vibration);
     }
 
     private static NativeVibrationBank? ReadVibration(ImmutableArray<byte> initialFile0)
@@ -81,4 +78,30 @@ public static class NativeBattleCinematicResourcesReader
         return vibration;
     }
 
+    private static NativeBattleCinematicResources ReadStatic(NativeExecutableMemory memory, NativeBattleCinematicProfile profile, NativeVibrationBank? vibration)
+    {
+        uint[] descriptor = Enumerable.Range(0, 4).Select(index => checked(profile.InitializationAddress + BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(profile.InitializationAddress + (uint)(index * 4), 4)))).ToArray();
+        NativeBattleCinematicResources result = new(profile.InitializationAddress, new("cinematic-static", memory.Read(profile.InitializationAddress, profile.StaticLength).ToImmutableArray()), new(profile.TextureCount, profile.InitializationAddress, profile.OwnerDirectoryAddress, descriptor[0], descriptor[1], descriptor[2], descriptor[3]), vibration);
+        uint actorDirectory = profile.Effect switch
+        {
+            261 => 0x187C20C,
+            262 => 0x187A2A4,
+            263 => 0x1877DAC,
+            _ => 0
+        };
+        if (actorDirectory != 0)
+        {
+            int count = BinaryPrimitives.ReadInt32LittleEndian(memory.Read(actorDirectory, 4));
+            if (count is < 2 or > 3)
+            {
+                throw new InvalidDataException("Native cinematic actor resource has an invalid original directory.");
+            }
+            int length = BinaryPrimitives.ReadInt32LittleEndian(memory.Read(checked(actorDirectory + 4u + 4u * (uint)count), 4));
+            ImmutableArray<byte> bytes = memory.Read(actorDirectory, length).ToImmutableArray();
+            _ = NativeBattleDatDirectory.Section(bytes.AsSpan(), 0);
+            result = result with { AdditionalStaticData = result.AdditionalStaticData.Add(actorDirectory, bytes) };
+        }
+        result.Validate();
+        return result;
+    }
 }

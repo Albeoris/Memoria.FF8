@@ -49,7 +49,13 @@ public sealed partial class BattleSession
 
     private NativeBattleCameraPoint TransformNativeCameraReference(byte reference, NativeBattleCameraPoint local, uint graphicsFlags)
     {
-        if (reference is 0xF2 or >= 0xF5 and <= 0xF9 || reference >= 0xB0)
+        if (reference == 0xF9)
+        {
+            NativeBattleActionMatrix matrix = (NativeEffectMemory?.SharedCustomMatrix ?? throw new NotSupportedException("Native camera requires its process custom matrix producer.")).ReadMatrix50D790();
+            NativeBattleVector result = NativeBattlePoseMatrices.TransformCameraPoint(matrix, new(local.X, local.Y, local.Z), (graphicsFlags & 0x20) != 0);
+            return new(result.X, result.Y, result.Z);
+        }
+        if (reference is 0xF2 or >= 0xF5 and <= 0xF8 || reference >= 0xB0)
         {
             NativeBattleActionGeometry context = RequireNativeGraphics().ActionContext ?? throw new NotSupportedException("Native50D790 matrix references require their captured50D300 action context.");
             NativeBattleActionMatrix matrix = NativeBattleCameraGraphics.ReadMatrix(context, reference);

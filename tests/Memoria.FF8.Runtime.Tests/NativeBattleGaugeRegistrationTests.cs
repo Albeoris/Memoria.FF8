@@ -8,9 +8,12 @@ public sealed class NativeBattleGaugeRegistrationTests
     [InlineData(1u, 0, 0u, NativeBattleGaugeRegistrationKind.Menu, 9u)]
     [InlineData(0x11u, 0, 0u, NativeBattleGaugeRegistrationKind.DeferredScript, 0x219u)]
     [InlineData(1u, 0x20, 0u, NativeBattleGaugeRegistrationKind.ForcedCommand, 5u)]
-    [InlineData(0x11u, 0x20, 0u, NativeBattleGaugeRegistrationKind.DeferredScript, 0x215u)]
-    [InlineData(0x11u, 0, 0x4000u, NativeBattleGaugeRegistrationKind.DeferredScript, 0x215u)]
-    [InlineData(0x11u, 0, 0x2000000u, NativeBattleGaugeRegistrationKind.DeferredScript, 0x215u)]
+    [InlineData(0x11u, 0x20, 0u, NativeBattleGaugeRegistrationKind.ForcedCommand, 0x15u)]
+    [InlineData(0x11u, 0, 0x4000u, NativeBattleGaugeRegistrationKind.ForcedCommand, 0x15u)]
+    [InlineData(0x11u, 0, 0x2000000u, NativeBattleGaugeRegistrationKind.ForcedCommand, 0x15u)]
+    [InlineData(0x11u, 0x20, 0x2004000u, NativeBattleGaugeRegistrationKind.ForcedCommand, 0x15u)]
+    [InlineData(0x11u, 0x10, 0x2000u, NativeBattleGaugeRegistrationKind.DeferredScript, 0x219u)]
+    [InlineData(0x11u, 0x40, 0x4000000u, NativeBattleGaugeRegistrationKind.DeferredScript, 0x219u)]
     [InlineData(1u, 0, 0x4000u, NativeBattleGaugeRegistrationKind.ForcedCommand, 5u)]
     public void Full_gauge_distinguishes_menu_script_and_exact_compelled_status_branches(uint flags, ushort saved, uint battle, NativeBattleGaugeRegistrationKind kind, uint expected)
     {

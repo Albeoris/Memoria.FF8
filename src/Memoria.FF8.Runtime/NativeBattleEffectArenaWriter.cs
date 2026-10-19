@@ -13,6 +13,8 @@ internal sealed class NativeBattleEffectArenaWriter
     }
 
     private readonly NativeBattleEffectArena source;
+    internal ImmutableDictionary<int, NativeBattleResourcePointer?>? ResourcePointers { get; private set; }
+    private ImmutableDictionary<int, NativeBattleResourcePointer?>? checkpointResourcePointers;
     private readonly List<Region> regions;
     private readonly List<NativeBattleEffectUnknownRegion> unknown;
     private readonly List<(int Offset, byte[] Data)> writes = [];
@@ -27,6 +29,7 @@ internal sealed class NativeBattleEffectArenaWriter
         transaction = source.Transaction;
         source.Validate();
         this.source = source;
+        ResourcePointers = source.ResourcePointers;
         if (transaction is not null)
         {
             regions = [];
@@ -61,6 +64,7 @@ internal sealed class NativeBattleEffectArenaWriter
             }
             bytes.CopyTo(storage.AsSpan(offset));
         }
+        InvalidateResourcePointers(offset, bytes.Length);
         int end = offset + bytes.Length;
         int first = 0;
         int upper = regions.Count;
@@ -138,6 +142,7 @@ internal sealed class NativeBattleEffectArenaWriter
             return this;
         }
         RequireRange(offset, length);
+        InvalidateResourcePointers(offset, length);
         if (length == 0)
         {
             return this;
@@ -208,7 +213,24 @@ internal sealed class NativeBattleEffectArenaWriter
             }
             result.Add(new(region.Offset, ImmutableCollectionsMarshal.AsImmutableArray(bytes)));
         }
-        return new(result.MoveToImmutable()) { UnknownRegions = unknown.ToImmutableArray() };
+        return new(result.MoveToImmutable()) { UnknownRegions = unknown.ToImmutableArray(), ResourcePointers = ResourcePointers };
+    }
+
+    internal void SetResourcePointer(int offset, NativeBattleResourcePointer? pointer)
+    {
+        ResourcePointers = (ResourcePointers ?? ImmutableDictionary<int, NativeBattleResourcePointer?>.Empty).SetItem(offset, pointer);
+    }
+
+    private void InvalidateResourcePointers(int offset, int count)
+    {
+        if (ResourcePointers is not null && count > 0)
+        {
+            ResourcePointers = ResourcePointers.RemoveRange(ResourcePointers.Keys.Where(pointer => pointer < (long)offset + count && pointer + 4L > offset));
+            if (ResourcePointers.Count == 0)
+            {
+                ResourcePointers = null;
+            }
+        }
     }
 
     internal void BeginReadThrough()
@@ -281,6 +303,7 @@ internal sealed class NativeBattleEffectArenaWriter
         {
             throw new InvalidOperationException("Arena callback checkpoints cannot be nested.");
         }
+        checkpointResourcePointers = ResourcePointers;
         checkpointRegions = regions.ToArray();
         checkpointUnknown = unknown.ToArray();
     }
@@ -298,6 +321,7 @@ internal sealed class NativeBattleEffectArenaWriter
         {
             throw new InvalidOperationException("Arena callback rollback requires its active checkpoint.");
         }
+        ResourcePointers = checkpointResourcePointers;
         for (int index = undo.Count - 1; index >= 0; index--)
         {
             var write = undo[index];

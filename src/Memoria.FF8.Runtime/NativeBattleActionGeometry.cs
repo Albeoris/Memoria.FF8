@@ -13,7 +13,6 @@ public sealed record NativeBattleActionGeometry(byte ActorIndex, ushort SourceTa
     public short? TargetYaw { get; init; }
     public ImmutableArray<NativeBattleActionMatrix>? Matrices { get; init; }
     public NativeBattleActionMatrix? TargetMatrix { get; init; }
-    public NativeBattleActionMatrix? CustomMatrix { get; init; }
 
     public void Validate()
     {
@@ -37,7 +36,6 @@ public sealed record NativeBattleActionGeometry(byte ActorIndex, ushort SourceTa
             }
         }
         TargetMatrix?.Validate();
-        CustomMatrix?.Validate();
     }
 }
 

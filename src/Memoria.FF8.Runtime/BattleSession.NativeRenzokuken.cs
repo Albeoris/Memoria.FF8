@@ -19,13 +19,17 @@ public sealed partial class BattleSession
         return nativeRenzokukenProcesses.GetValueOrDefault(actorId);
     }
 
-    public bool CanTriggerNativeRenzokuken => nativeRenzokukenProcesses.Count != 0 && (RequireNativeRenzokukenOptions() & 1) == 0 && nativeRenzokukenProcesses.Single().Value.Input.Phase != 8;
-    public bool NativeRenzokukenBarVisible => nativeRenzokukenProcesses.Count != 0 && (RequireNativeRenzokukenOptions() & 0x8001) == 0 && RenzokukenResource(nativeRenzokukenProcesses.Single().Value.MagicId).ShowBar != 0;
+    public bool CanTriggerNativeRenzokuken => NativeGraphics is not null ? nativeRenzokukenProcesses.Count != 0 && CanTriggerNativeWidget : nativeRenzokukenProcesses.Count != 0 && (RequireNativeRenzokukenOptions() & 1) == 0 && nativeRenzokukenProcesses.Single().Value.Input.Phase != 8;
+    public bool NativeRenzokukenBarVisible => NativeGraphics is { } graphics ? nativeRenzokukenProcesses.Count != 0 && graphics.TriggerWidget?.Visible == true : nativeRenzokukenProcesses.Count != 0 && (RequireNativeRenzokukenOptions() & 0x8001) == 0 && RenzokukenResource(nativeRenzokukenProcesses.Single().Value.MagicId).ShowBar != 0;
 
     public bool NativeRenzokukenTriggerWindowOpen
     {
         get
         {
+            if (NativeGraphics is not null)
+            {
+                return nativeRenzokukenProcesses.Count != 0 && NativeTriggerWindowOpen;
+            }
             if (!CanTriggerNativeRenzokuken)
             {
                 return false;
@@ -117,6 +121,16 @@ public sealed partial class BattleSession
 
     public bool TriggerNativeRenzokuken()
     {
+        if (NativeGraphics is { } graphics)
+        {
+            if (nativeRenzokukenProcesses.Count == 0 || !CanTriggerNativeWidget)
+            {
+                return false;
+            }
+            bool succeeded = NativeTriggerWindowOpen;
+            NativeGraphics = graphics with { TriggerWidget = graphics.TriggerWidget! with { PendingTrigger = true } };
+            return succeeded;
+        }
         if (!CanTriggerNativeRenzokuken)
         {
             return false;
@@ -128,7 +142,7 @@ public sealed partial class BattleSession
 
     public void AdvanceNativeRenzokukenUi(bool poseAdvanced, bool triggerPressed = false)
     {
-        if (nativeRenzokukenProcesses.Count == 0)
+        if (NativeGraphics is not null || nativeRenzokukenProcesses.Count == 0)
         {
             return;
         }
@@ -160,7 +174,7 @@ public sealed partial class BattleSession
         {
             throw new ArgumentOutOfRangeException(nameof(elapsed));
         }
-        if (nativeRenzokukenProcesses.Count == 0)
+        if (NativeGraphics is not null || nativeRenzokukenProcesses.Count == 0)
         {
             return;
         }
@@ -185,7 +199,7 @@ public sealed partial class BattleSession
     {
         BattleCombatant actor = GetActor(actorId);
         BattleNativeRenzokukenResource resource = RenzokukenResource(state.MagicId);
-        if (actor.NativeLimit?.Command != 5 || crisis == 0 || state.Input is null || state.Input.ContactIndex > resource.Timeline.InputThresholds.Length || state.Input.Phase is not (0 or 1 or 2 or 3 or 4 or 6 or 8) || state.Input.SubframeClock is < 0 or > 3 || state.Input.PoseClock < 0 || state.Input.PoseClock % 4 != 0 || state.Input.TriggerTiming != 0 && state.Input.TriggerTiming != 1 && state.Input.TriggerTiming < 20 || (state.Input.Phase == 8) != (state.Input.ContactIndex == resource.Timeline.InputThresholds.Length) || state.PoseFrames < 0 || state.PoseFrames > resource.Timeline.TotalPoseFrames || state.UiPhase > 3 || state.UiSubframeTicks is < 0 or >= TimeSpan.TicksPerSecond || actor.NativeAttack is null || actor.NativePlayerStatRules is null)
+        if (actor.NativeLimit?.Command != 5 || crisis == 0 || state.Input is null || state.Input.ContactIndex > resource.Timeline.InputThresholds.Length || state.Input.Phase is not (0 or 1 or 2 or 3 or 4 or 6 or 8) || state.Input.SubframeClock is < 0 or > 3 || state.Input.PoseClock < 0 || state.Input.PoseClock % 4 != 0 || state.Input.TriggerTiming != 0 && state.Input.TriggerTiming != 1 && state.Input.TriggerTiming < 20 || (state.Input.Phase == 8) != (state.Input.ContactIndex == resource.Timeline.InputThresholds.Length) || state.PoseFrames < 0 || NativeGraphics is null && state.PoseFrames > resource.Timeline.TotalPoseFrames || state.UiPhase > 3 || state.UiSubframeTicks is < 0 or >= TimeSpan.TicksPerSecond || actor.NativeAttack is null || actor.NativePlayerStatRules is null)
         {
             throw new InvalidDataException("Saved Renzokuken input contradicts its original actor or resource.");
         }
@@ -217,9 +231,46 @@ public sealed partial class BattleSession
         }
         (string actorId, BattleNativeRenzokukenState process) = nativeRenzokukenProcesses.Single();
         NativeBattleTimedAction timed = nativeTimedAction ?? throw new InvalidDataException("Saved Renzokuken process lacks its durable command transaction.");
-        if (timed.Command.ActorId != actorId || timed.Command.NativeRenzokuken?.CrisisLevel != nativeLimitLevels.GetValueOrDefault(actorId) || timed.Contacts != process.Input.ContactIndex || timed.Command.NativeTargetMask != process.TargetMask)
+        int pending = NativeGraphics?.PendingTrigger is { } receipt && receipt.ActorIndex == GetActor(actorId).NativeIndex && receipt.ContactIndex == process.Input.ContactIndex && receipt.ContactIndex == timed.Contacts + 1 ? 1 : 0;
+        if (timed.Command.ActorId != actorId || timed.Command.NativeRenzokuken?.CrisisLevel != nativeLimitLevels.GetValueOrDefault(actorId) || timed.Contacts + pending != process.Input.ContactIndex || timed.Command.NativeTargetMask != process.TargetMask)
         {
             throw new InvalidDataException("Saved Renzokuken contact count or target differs from its durable transaction.");
+        }
+    }
+
+    private void MirrorNativeRenzokukenWidget(NativeBattleTriggerWidget widget)
+    {
+        string actorId = FindNativeActor(widget.ActorIndex).Id;
+        if (!nativeRenzokukenProcesses.TryGetValue(actorId, out BattleNativeRenzokukenState? process))
+        {
+            return;
+        }
+        if (widget.SourceMagicId != process.MagicId)
+        {
+            throw new InvalidDataException("Native Renzokuken widget belongs to a different actual effect resource.");
+        }
+        nativeRenzokukenProcesses[actorId] = process with { Input = widget.Input, PoseFrames = widget.Input.PoseClock / 4, PendingTrigger = widget.PendingTrigger };
+    }
+
+    private void CommitNativeRawRenzokukenTrigger(NativeBattleTriggerReceipt receipt)
+    {
+        NativeBattleTimedAction timed = nativeTimedAction ?? throw new InvalidDataException("Native Renzokuken receipt lacks its durable event owner.");
+        BattleCombatant actor = GetActor(timed.Command.ActorId);
+        BattleNativeRenzokukenState process = nativeRenzokukenProcesses.GetValueOrDefault(actor.Id) ?? throw new InvalidDataException("Native Renzokuken receipt lacks its durable input owner.");
+        if (receipt.ActorIndex != actor.NativeIndex || receipt.ContactIndex != timed.Contacts + 1 || receipt.ContactIndex != process.Input.ContactIndex)
+        {
+            throw new InvalidDataException("Native Renzokuken receipt differs from its pending input/contact boundary.");
+        }
+        bool previous = suppressNativeImmediateCounter;
+        suppressNativeImmediateCounter = receipt.ContactIndex != receipt.TotalContacts || process.FinisherActionId is not null;
+        try
+        {
+            RecomputeNativeTriggerContact(receipt);
+            nativeTimedAction = timed with { Contacts = receipt.ContactIndex };
+        }
+        finally
+        {
+            suppressNativeImmediateCounter = previous;
         }
     }
 }

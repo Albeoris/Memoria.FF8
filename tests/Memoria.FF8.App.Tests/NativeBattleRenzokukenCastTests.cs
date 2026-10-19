@@ -1,0 +1,96 @@
+using System.Text.Json;
+using Memoria.FF8.Assets;
+using Memoria.FF8.Runtime;
+
+namespace Memoria.FF8.App.Tests;
+
+public sealed class NativeBattleRenzokukenCastTests
+{
+    [Theory]
+    [InlineData((ushort)160, 4)]
+    [InlineData((ushort)141, 5)]
+    public void Installed_selected_Renzokuken_completes_original_effect_and_standalones(ushort effectId, int contacts)
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select the installed original game resources.");
+        using GameAssets game = new(directory!);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 0, effectId);
+        BattleDefinition definition = source with { NativeRenzokukenResources = game.ReadNativeRenzokukenResources(), Combatants = [source.Combatants[0], source.Combatants[1] with { NativeRenzokukenMagicIds = assets.ReadNativeRenzokukenMagicIds(61) }] };
+        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleScenePresentation scene = new(assets, definition, true);
+        string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_EVIDENCE") ?? Path.GetTempPath(), "renzokuken-" + effectId + "-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(output);
+        Console.WriteLine("Renzokuken evidence: " + output);
+        BattleSnapshot before = battle.Capture();
+        try
+        {
+            for (int callback = 0; callback < 400 && !battle.CanChoosePlayerCommand("party"); callback++)
+            {
+                before = battle.Capture();
+                battle.Tick();
+            }
+            Assert.True(battle.CanChoosePlayerCommand("party"));
+            //A declared component seed selects the selected original contact resource and no optional finisher.
+            NativeBattleRandomState random = Enumerable.Range(0, 256).Select(seed => NativeBattleRandomState.Initialize((byte)seed)).First(candidate =>
+            {
+                candidate = candidate.Draw(out byte resource).Draw(out byte finisher);
+                return definition.Combatants[1].NativeRenzokukenMagicIds[2 + resource % 2] == effectId && !NativeBattleRenzokukenRules.HasFinisher(1, finisher);
+            });
+            battle = BattleSession.Restore(battle.Capture() with { NativeLimits = [new("party", 1)], Random = random });
+            Publish("before-command");
+            battle.QueueNativePlayerCommand("party", "enemy", 5, 0);
+            CompareNext("queued");
+            Assert.Equal(effectId, battle.GetNativeRenzokuken("party")!.MagicId);
+            bool selected = false;
+            bool capturedMidpoint = false;
+            for (int callback = 0; callback < 4096; callback++)
+            {
+                before = battle.Capture();
+                battle.Tick();
+                selected |= battle.NativeGraphics!.OriginalEffect?.Binding.Effect == effectId;
+                if (!capturedMidpoint && battle.NativeGraphics.TriggerWidget?.Input.ContactIndex > 0)
+                {
+                    CompareNext("midpoint");
+                    capturedMidpoint = true;
+                }
+                if (selected && battle.GetNativeRenzokuken("party") is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.NativeGraphics.OriginalEffect is { ReturnedDescriptor: 0 })
+                {
+                    Assert.True(capturedMidpoint);
+                    Assert.Equal(contacts, battle.Events.Count(entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy"));
+                    Assert.Null(battle.Capture().NativeTimedAction);
+                    Assert.Equal((byte)0, battle.Capture().NativeClock!.ActionPause);
+                    CompareNext("completed");
+                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", battle.Frame, NativeCallback = battle.NativeGraphics.Callback }));
+                    return;
+                }
+            }
+            Assert.Fail("Renzokuken did not release its original task and timed command owners within the diagnostic bound.");
+        }
+        catch (Exception error)
+        {
+            NativeBattleRestorationPresentationTests.Publish(output, "before-boundary", before, null);
+            NativeBattleRestorationPresentationTests.Publish(output, "failed-live", battle.Capture(), null);
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", before.Frame, NativeCallback = before.NativeGraphics?.Callback, Error = error.ToString() }));
+            throw;
+        }
+
+        void Publish(string name)
+        {
+            NativeBattleRestorationPresentationTests.Publish(output, name, battle.Capture(), scene.Render(battle, 320, 224).ToArray());
+        }
+
+        void CompareNext(string name)
+        {
+            Publish(name);
+            BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(Path.Combine(output, name + ".battle.json")))!);
+            Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
+            before = battle.Capture();
+            battle.Tick();
+            clone.Tick();
+            Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
+            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(clone, 320, 224).ToArray());
+            Publish(name + "-next");
+        }
+    }
+}

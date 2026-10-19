@@ -21,6 +21,8 @@ public sealed record NativeBattleCinematicTextureProfile([property: JsonRequired
 /// <summary>One immutable static owner supplies the cinematic directories and their selected texture tables.</summary>
 public sealed record NativeBattleCinematicResources([property: JsonRequired] uint StaticAddress, [property: JsonRequired] NativeBattleEffectHeapAllocation StaticData, [property: JsonRequired] NativeBattleCinematicTextureProfile TextureProfile, [property: JsonRequired] NativeVibrationBank? Vibration) : INativeBattleScriptedTextureProfile
 {
+    public ImmutableDictionary<uint, ImmutableArray<byte>> AdditionalStaticData { get; init; } = ImmutableDictionary<uint, ImmutableArray<byte>>.Empty;
+
     public ImmutableArray<NativeBattleArchiveFile> Files { get; init; } = [];
 
     int INativeBattleScriptedTextureProfile.TextureCount => TextureProfile.Count;
@@ -31,7 +33,7 @@ public sealed record NativeBattleCinematicResources([property: JsonRequired] uin
     {
         if (StaticData is null || StaticData.Data.IsDefaultOrEmpty || TextureProfile is null || TextureProfile.Count <= 0 || TextureProfile.Count > 256)
         {
-            throw new InvalidDataException("Native cinematic resources require their complete static owner, texture descriptor and vibration bank.");
+            throw new InvalidDataException("Native cinematic resources require their complete static owner and texture descriptor.");
         }
         ReadStatic(TextureProfile.InitializationAddress, 0x20);
         ReadStatic(TextureProfile.OwnerDirectoryAddress, 0x14);
@@ -51,11 +53,31 @@ public sealed record NativeBattleCinematicResources([property: JsonRequired] uin
         {
             throw new InvalidDataException("Native cinematic vibration availability differs from its selected original resource profile.");
         }
+        if (AdditionalStaticData is null)
+        {
+            throw new InvalidDataException("Native cinematic static ranges require their retained owners.");
+        }
+        foreach (var region in AdditionalStaticData)
+        {
+            if (region.Value.IsDefaultOrEmpty || (ulong)region.Key + (uint)region.Value.Length > (ulong)uint.MaxValue + 1 || region.Key < (ulong)StaticAddress + (uint)StaticData.Data.Length && (ulong)region.Key + (uint)region.Value.Length > StaticAddress)
+            {
+                throw new InvalidDataException("Native cinematic additional static range overlaps its primary owner or has an invalid extent.");
+            }
+            _ = NativeBattleDatDirectory.Section(region.Value.AsSpan(), 0);
+        }
         Vibration?.Validate();
     }
 
     public ReadOnlySpan<byte> ReadStatic(uint address, int length)
     {
+        foreach (var region in AdditionalStaticData)
+        {
+            long additionalOffset = (long)address - region.Key;
+            if (additionalOffset >= 0 && length >= 0 && additionalOffset <= region.Value.Length - (long)length)
+            {
+                return region.Value.AsSpan().Slice((int)additionalOffset, length);
+            }
+        }
         long offset = (long)address - StaticAddress;
         if (StaticData is null || StaticData.Data.IsDefault || length < 0 || offset < 0 || offset > StaticData.Data.Length - (long)length)
         {

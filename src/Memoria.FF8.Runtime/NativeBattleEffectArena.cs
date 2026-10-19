@@ -9,7 +9,7 @@ public sealed record NativeBattleEffectMemoryRegion([property: JsonRequired] int
 public sealed record NativeBattleEffectUnknownRegion([property: JsonRequired] int Offset, [property: JsonRequired] int Length);
 
 /// <summary>571870's exactly cleared1MB arena at20DFAB8; unwritten bytes are proved zero, not unknown.</summary>
-public sealed record NativeBattleEffectArena([property: JsonRequired] ImmutableArray<NativeBattleEffectMemoryRegion> Regions)
+public sealed partial record NativeBattleEffectArena([property: JsonRequired] ImmutableArray<NativeBattleEffectMemoryRegion> Regions)
 {
     private static readonly ConditionalWeakTable<NativeBattleEffectArena, object> Validated = new();
     public const int Length = 0x100000;
@@ -52,6 +52,7 @@ public sealed record NativeBattleEffectArena([property: JsonRequired] ImmutableA
             }
             end = region.Offset + region.Length;
         }
+        ValidateResourcePointerStorage();
     }
 
     public byte[] Read(int offset, int count)
@@ -109,6 +110,10 @@ public sealed record NativeBattleEffectArena([property: JsonRequired] ImmutableA
 
     public NativeBattleEffectArena Write(int offset, ReadOnlySpan<byte> bytes)
     {
+        if (Transaction is null && RemoveResourcePointers(offset, bytes.Length) is { } changed)
+        {
+            return changed.Write(offset, bytes);
+        }
         if (Transaction is { } transaction)
         {
             transaction.Write(offset, bytes);
@@ -179,6 +184,10 @@ public sealed record NativeBattleEffectArena([property: JsonRequired] ImmutableA
 
     public NativeBattleEffectArena MarkUnknown(int offset, int count)
     {
+        if (Transaction is null && RemoveResourcePointers(offset, count) is { } changed)
+        {
+            return changed.MarkUnknown(offset, count);
+        }
         if (Transaction is { } transaction)
         {
             transaction.MarkUnknown(offset, count);

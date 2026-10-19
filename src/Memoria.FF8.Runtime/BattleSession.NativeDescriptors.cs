@@ -372,7 +372,10 @@ public sealed partial class BattleSession
                 }
             }
         }
-        return graphics with { Models = graphics.Models.SetItem(index, model), ActorIds = graphics.ActorIds.SetItem(index, actor.Id) };
+        NativeBattleGraphicsState loaded = graphics with { Models = graphics.Models.SetItem(index, model), ActorIds = graphics.ActorIds.SetItem(index, actor.Id) };
+        NativeBattlePoseSource loadedSkeleton = NativeGraphicsPoseResource(loaded, index).PoseSource ?? throw new NotSupportedException("Native model completion requires its actual loaded body rig bytes.");
+        model = NativeBattleBodyBoneMatrices.PublishLoadedSkeleton(model, loadedSkeleton);
+        return loaded with { Models = loaded.Models.SetItem(index, model) };
     }
 
     private static int RequireDescriptorModel(int index)

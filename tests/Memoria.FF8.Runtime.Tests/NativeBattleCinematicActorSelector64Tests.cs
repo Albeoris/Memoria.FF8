@@ -35,4 +35,53 @@ public sealed class NativeBattleCinematicActorSelector64Tests
         Assert.Equal(Address(0x1000) + width, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
         Assert.Equal((instruction & 0x8000) != 0 ? 1 : 0, reads);
     }
+
+    private static readonly NativeBattleWaterScriptProgram Program = new(0x1000, 4, 0x1000);
+
+    [Theory]
+    [InlineData(0x8064)]
+    [InlineData(0x9064)]
+    public void ActionModeTakesPrecedenceAndReadsOnlyTheActualParticipantByte(ushort instruction)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(instruction);
+        frame = frame with { Arena = frame.Arena.MarkUnknown(0x1000, 4) };
+        uint manager = WaterSchedulerFixture.ReadCoreDword(frame, 0x27973EC);
+        frame = WaterSchedulerFixture.CoreDword(frame, manager + 0xC0, 0x30000000);
+        List<(uint Address, int Length)> reads = [];
+        NativeBattleWaterExecutionFrame result = NativeBattleCinematicActorSelector64.Execute(frame, Program, (_, address, length) =>
+        {
+            reads.Add((address, length));
+            return [0xFE];
+        });
+        Assert.Equal(new[] { (0x30000000u, 1) }, reads);
+        Assert.Equal((byte)0xFE, result.Arena.Read(0x201B, 1)[0]);
+        Assert.Equal(0x1002u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+    }
+
+    [Fact]
+    public void InlineModeConsumesOneByteButAdvancesFourAndDoesNotClampTheActor()
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0x1064);
+        frame = frame with { Arena = frame.Arena.Write(0x1002, [0xFF]).MarkUnknown(0x1003, 1) };
+        NativeBattleWaterExecutionFrame result = NativeBattleCinematicActorSelector64.Execute(frame, Program, (_, _, _) => throw new InvalidOperationException());
+        Assert.Equal((byte)0xFF, result.Arena.Read(0x201B, 1)[0]);
+        Assert.Equal(0x1004u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+    }
+
+    [Fact]
+    public void DefaultModeReadsTheCachedOwnerByteWithoutAnInlineOperand()
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0x64);
+        uint owner = WaterSchedulerFixture.ReadCoreDword(frame, 0x279744C);
+        frame = frame with { Core = frame.Core.Write(owner + 0x48, [9]), Arena = frame.Arena.MarkUnknown(0x1000, 4) };
+        NativeBattleWaterExecutionFrame result = NativeBattleCinematicActorSelector64.Execute(frame, Program, (_, _, _) => throw new InvalidOperationException());
+        Assert.Equal((byte)9, result.Arena.Read(0x201B, 1)[0]);
+        Assert.Equal(0x1002u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+    }
+
+    private static NativeBattleWaterExecutionFrame Fixture(ushort instruction)
+    {
+        NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create().WriteTemporaryWord(0x14A, instruction);
+        return WaterSchedulerFixture.CoreDword(frame, 0x2797450, 0x1000);
+    }
 }

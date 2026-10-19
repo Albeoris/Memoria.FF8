@@ -7,7 +7,7 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState PrepareNativeActionGeometry(NativeBattleGraphicsState graphics, BattleCombatant actor, BattleAttackCommand command)
     {
         int actorIndex = graphics.ActorIds.IndexOf(actor.Id);
-        NativeBattleActionGeometry context = new(checked((byte)actorIndex), command.NativeTargetMask) { CustomMatrix = graphics.ActionContext?.CustomMatrix };
+        NativeBattleActionGeometry context = new(checked((byte)actorIndex), command.NativeTargetMask);
         ushort? physical = null;
         if ((command.NativeTargetMask & 127) != 0)
         {
