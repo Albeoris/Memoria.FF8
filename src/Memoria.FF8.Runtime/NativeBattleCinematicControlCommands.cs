@@ -5,6 +5,15 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleCinematicControlCommands
 {
+    public static NativeBattleWaterExecutionFrame StoreTexturePair92(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program)
+    {
+        ushort page = BinaryPrimitives.ReadUInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
+        frame = WriteSlotWord(frame, 0x92, page);
+        ushort clut = BinaryPrimitives.ReadUInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 4, 2));
+        frame = WriteSlotWord(frame, 0x9A, clut);
+        return NativeBattleScriptedCommandReads.Advance(frame, 6);
+    }
+
     public static NativeBattleWaterExecutionFrame DebugParametersB7(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program)
     {
         if (frame.ReadTemporaryWord(0x14A) >> 12 != 1)

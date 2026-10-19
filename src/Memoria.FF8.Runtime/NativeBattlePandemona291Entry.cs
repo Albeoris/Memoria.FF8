@@ -8,6 +8,7 @@ public sealed record NativeBattlePandemona291Resources(NativeBattleEffectHeapAll
     public uint? OpeningSound { get; init; }
     public uint? BodySound { get; init; }
     public NativeBattleGfAnimationSource? SurfaceProgram { get; init; }
+    public NativeBattleGfAnimationSource? RisingProgram { get; init; }
     public System.Collections.Immutable.ImmutableArray<NativeBattleStaticMeshResource> TrailModels { get; init; } = [];
     public System.Collections.Immutable.ImmutableArray<byte> TrailTrigonometry { get; init; } = [];
     public System.Collections.Immutable.ImmutableArray<byte> SurfaceTextureKinds { get; init; } = [];

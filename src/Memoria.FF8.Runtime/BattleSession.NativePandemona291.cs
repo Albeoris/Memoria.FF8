@@ -66,6 +66,19 @@ public sealed partial class BattleSession
                     graphics = drawn.Graphics;
                     return drawn.Frame;
                 },
+                DrawRising = (current, address, age) =>
+                {
+                    var drawn = DrawNativePandemona291Rising(current, address, age, graphics);
+                    graphics = drawn.Graphics;
+                    return drawn.Frame;
+                },
+                DrawBody = (current, address) =>
+                {
+                    var drawn = DrawNativePandemona291Body(current, address, graphics);
+                    graphics = drawn.Graphics;
+                    return drawn.Frame;
+                },
+                PlayStream = current => PublishNativeModuleSound((current.Memory.SummonStream ?? throw new NotSupportedException("Native Pandemona requires its retained summon-stream number.")).Play5018C0(128, 127)),
                 InitializeBody = (current, address, task) =>
                 {
                     uint caster = current.Memory.Pandemona291?.Caster2556260 ?? throw new NotSupportedException("Native Pandemona model initialization requires its actual caster pointer.");
@@ -95,6 +108,12 @@ public sealed partial class BattleSession
                 if (task.Callback == 0x6ED900)
                 {
                     return NativeBattlePandemona291Timeline.Advance6ED900(current, address, task, timeline);
+                }
+                if (task.Callback == 0x6F1060)
+                {
+                    var ribbon = AdvanceNativePandemona291RisingChild(current, address, task, graphics);
+                    graphics = ribbon.Graphics;
+                    return ribbon.Step;
                 }
                 if (task.Callback == 0x6F0ED0)
                 {

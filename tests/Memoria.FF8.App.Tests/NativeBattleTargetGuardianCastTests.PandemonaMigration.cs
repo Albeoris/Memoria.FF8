@@ -44,6 +44,12 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         RunPandemonaResourceMigration("B6C2412F7E3DA17BD6E6767A95C06EEEC2CDB248FA8EA3E56698C3CAE6CDFCBD", 160, 1, 100, ["BodySound"]);
     }
 
+    [Fact]
+    public void Continue_the_preserved_Pandemona_body_boundary_to_its_next_children()
+    {
+        RunPandemonaResourceMigration("7FB33D3940D52328889B72F1EDC18DB1636A069BC0FAAD5CC0D8D7DDCFF3C1BD", 161, 54, 154, ["RisingProgram"]);
+    }
+
     private static void RunPandemonaResourceMigration(string sourceHash, int sourceFrame, int callbacks, ushort nextAge, string[] fields, bool migrateCamera = false)
     {
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_PANDEMONA_MIGRATION_SOURCE");
@@ -129,10 +135,11 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         }
         Assert.True(JsonNode.DeepEquals(original, reverted));
         Directory.CreateDirectory(output!);
-        File.WriteAllText(Path.Combine(output!, "migrated.battle.json"), document.ToJsonString());
+        string startingName = fields.Length == 0 && !migrateCamera ? "source.battle.json" : "migrated.battle.json";
+        File.WriteAllText(Path.Combine(output!, startingName), document.ToJsonString());
         BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(document)!;
         BattleSession live = BattleSession.Restore(snapshot);
-        BattleSession independent = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(Path.Combine(output!, "migrated.battle.json")))!);
+        BattleSession independent = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(Path.Combine(output!, startingName)))!);
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(live.Capture()));
         Assert.Equal(JsonSerializer.Serialize(live.Capture()), JsonSerializer.Serialize(independent.Capture()));
         BattleScenePresentation scene = new(assets, snapshot.Definition, true);
@@ -160,9 +167,9 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         }
         BattleSnapshot boundary = live.Capture();
         Assert.Equal(nextAge, boundary.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25562A8).Slots[0].ReadWord(0xC));
-        string boundaryName = nextAge == 100 ? "before-model-renderer" : nextAge == 99 ? "before-next-model-scene" : nextAge == 84 ? "before-late-vortex-overlay" : nextAge == 18 ? "before-surface-animation" : nextAge == 25 ? "before-animated-layers" : "before-next-scene";
+        string boundaryName = nextAge == 114 ? "before-rising-children" : nextAge == 100 ? "before-model-renderer" : nextAge == 99 ? "before-next-model-scene" : nextAge == 84 ? "before-late-vortex-overlay" : nextAge == 18 ? "before-surface-animation" : nextAge == 25 ? "before-animated-layers" : "before-next-scene";
         NativeBattleRestorationPresentationTests.Publish(output!, boundaryName, boundary, scene.Render(live, 320, 224).ToArray());
         Assert.Equal(sourceHash, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(source!))));
-        File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = migrateCamera ? "camera-and-resources-migration-and-callbacks-validated" : "resources-only-migration-and-callbacks-validated", SourceHash = sourceHash, Changes = owners.SelectMany(owner => fields.Select(field => owner + "." + field)).Concat(migrateCamera ? new[] { "NativeCamera.CurrentPose", "NativeCamera.FocalLength", "NativeCamera.Projection", "NativeGraphics.OriginalEffect.Pools[descriptor25562B8].Slots[0].Payload[4..8]", "NativeEffectMemory.Arena[231D4..231D9]", "NativeEffectMemory.Arena[31220..43D68]" } : Array.Empty<string>()).ToArray(), RevertEqualsOriginal = true, Callbacks = callbacks, boundary.Frame, NativeCallback = boundary.NativeGraphics!.Callback, Boundary = boundaryName }));
+        File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = migrateCamera ? "camera-and-resources-migration-and-callbacks-validated" : fields.Length == 0 ? "standalone-continuation-validated" : "resources-only-migration-and-callbacks-validated", SourceHash = sourceHash, Changes = owners.SelectMany(owner => fields.Select(field => owner + "." + field)).Concat(migrateCamera ? new[] { "NativeCamera.CurrentPose", "NativeCamera.FocalLength", "NativeCamera.Projection", "NativeGraphics.OriginalEffect.Pools[descriptor25562B8].Slots[0].Payload[4..8]", "NativeEffectMemory.Arena[231D4..231D9]", "NativeEffectMemory.Arena[31220..43D68]" } : Array.Empty<string>()).ToArray(), RevertEqualsOriginal = true, Callbacks = callbacks, boundary.Frame, NativeCallback = boundary.NativeGraphics!.Callback, Boundary = boundaryName }));
     }
 }

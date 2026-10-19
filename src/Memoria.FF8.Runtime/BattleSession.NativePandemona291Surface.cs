@@ -8,8 +8,8 @@ public sealed partial class BattleSession
     private (NativeBattlePandemona291Frame Frame, NativeBattleGraphicsState Graphics) DrawNativePandemona291Surface(NativeBattlePandemona291Frame frame, uint taskAddress, int age, NativeBattleGraphicsState graphics)
     {
         NativeBattlePandemona291Resources resources = frame.Effect.Binding.Pandemona291Resources ?? throw new NotSupportedException("Native Pandemona requires its current surface resources.");
-        NativeBattleGfAnimationSource source = resources.SurfaceProgram ?? throw new NotSupportedException("Native Pandemona requires its original surface programme.");
-        if (resources.SurfaceTextureKinds.IsDefaultOrEmpty)
+        NativeBattleGfAnimationSource source = (age >= 144 ? resources.RisingProgram : resources.SurfaceProgram) ?? throw new NotSupportedException("Native Pandemona requires its selected original surface programme.");
+        if (age < 144 && resources.SurfaceTextureKinds.IsDefaultOrEmpty)
         {
             throw new NotSupportedException("Native Pandemona requires its original surface texture selector table.");
         }
@@ -25,15 +25,16 @@ public sealed partial class BattleSession
         NativeBattleScriptedGraphicsMemory controls = frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Native Pandemona requires its current projection controls.");
         short zsf4 = controls.Zsf4 ?? throw new NotSupportedException("Native Pandemona requires its current ZSF4.");
         int workspaceOffset = checked((int)(taskAddress - NativeBattleEffectNodeMemory.ArenaAddress) + 0x1F0);
-        NativeBattleGfAnimationWorkspace workspace = new(frame.Memory.Arena!.Read(workspaceOffset, 0x12C).ToImmutableArray());
+        int workspaceLength = age >= 144 ? 0xE0 : 0x12C;
+        NativeBattleGfAnimationWorkspace workspace = new(frame.Memory.Arena!.Read(workspaceOffset, workspaceLength).ToImmutableArray());
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, unchecked((int)pause), (current, node) =>
         {
             if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
             {
                 return current;
             }
-            byte kind = resources.SurfaceTextureKinds[unchecked((short)node.GeometryIndex)];
-            NativeBattlePandemona291PreparedSurface prepared = NativeBattlePandemona291Surface.Prepare6F06F0(source, node, parent, kind, unchecked((byte)((age - 10) * 8)), 0);
+            byte kind = age >= 144 ? (byte)4 : resources.SurfaceTextureKinds[unchecked((short)node.GeometryIndex)];
+            NativeBattlePandemona291PreparedSurface prepared = NativeBattlePandemona291Surface.Prepare6F06F0(source, node, parent, kind, age >= 144 ? (byte)0 : unchecked((byte)((age - 10) * 8)), age >= 144 ? (short)-128 : (short)0);
             int scratch = checked((int)(buffer - NativeBattleEffectNodeMemory.ArenaAddress) + 0x31D4);
             NativeBattleEffectArena arena = frame.Memory.Arena!;
             for (int index = 0; index < prepared.Morph.Length; index++)

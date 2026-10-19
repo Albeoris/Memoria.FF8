@@ -24,6 +24,8 @@ public sealed partial record NativeBattleGraphicsModel(int Index, ushort Flags0)
     public short? Rotation12 { get; init; }
     public short? Rotation14 { get; init; }
     public short? Rotation16 { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ushort? RotationPadding18 { get; init; }
     public ushort? ResourceMagicId { get; init; }
     public NativeBattleModelTransform? Transform { get; init; }
     public System.Collections.Immutable.ImmutableArray<byte?> StatusTimers { get; init; } = System.Collections.Immutable.ImmutableArray.CreateRange(new byte?[32]);

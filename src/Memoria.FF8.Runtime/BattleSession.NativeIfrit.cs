@@ -151,6 +151,8 @@ public sealed partial class BattleSession
             int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank);
             switch (opcode)
             {
+                case 0x4E:
+                    return NativeBattleCinematicInlineData4E.Execute(current, program);
                 case 0xF2:
                     return NativeBattleCinematicControlCommands.BakeCachedPositionF2(current);
                 case 0x9B:
@@ -159,6 +161,8 @@ public sealed partial class BattleSession
                     return NativeBattleCinematicControlCommands.WaitWhileCachedAtLeastFB(current, program);
                 case 0xAC:
                     return NativeBattleCinematicAccelerationAC.Execute(current, program, NativeBattleWaterInstructionDispatcher.CurrentBank(current, assets[1].Data.Length), ResolveCurrentNode);
+                case 0x92:
+                    return NativeBattleCinematicControlCommands.StoreTexturePair92(current, program);
                 case 0xB7 when profile.Effect == 206:
                     return NativeBattleCinematicControlCommands.DebugParametersB7(current, program);
                 case 0xB6 when profile.Effect == 206:
@@ -582,6 +586,50 @@ public sealed partial class BattleSession
                     var wire = DrawNativeCinematicWireGrid38(frame, assets[1].Data.Length, resources, graphics);
                     graphics = wire.Graphics;
                     return wire.Frame;
+                }
+                if (selectedDrawHandler == 0xAE59E0)
+                {
+                    var grid = DrawNativeCinematicGrid59(frame, assets[1].Data.Length, resources, graphics);
+                    graphics = grid.Graphics;
+                    return grid.Frame;
+                }
+                if (selectedDrawHandler == 0xAE6CA0)
+                {
+                    var actor = DrawNativeCinematicGridActor3C(frame, assets[1].Data.Length, graphics);
+                    graphics = actor.Graphics;
+                    return actor.Frame;
+                }
+                if (selectedDrawHandler is 0xAE71D0 or 0xAE8020)
+                {
+                    var radial = DrawNativeCinematicRadialMesh(frame, selectedDrawHandler == 0xAE8020, assets[1].Data.Length, resources, graphics);
+                    graphics = radial.Graphics;
+                    return radial.Frame;
+                }
+                if (selectedDrawHandler is 0xAE8C10 or 0xAE43A0)
+                {
+                    var placement = DrawNativeCinematicActorPlacement(frame, selectedDrawHandler == 0xAE8C10, graphics);
+                    graphics = placement.Graphics;
+                    return placement.Frame;
+                }
+                if (selectedDrawHandler == 0xAED040)
+                {
+                    var sparks = DrawNativeCinematicSpark53(frame, assets[1].Data.Length, graphics);
+                    graphics = sparks.Graphics;
+                    return sparks.Frame;
+                }
+                if (selectedDrawHandler == 0xAE86F0)
+                {
+                    var wireMorph = DrawNativeCinematicWireMorph3F(frame, assets[1].Data.Length, resources, graphics);
+                    graphics = wireMorph.Graphics;
+                    return wireMorph.Frame;
+                }
+                if (selectedDrawHandler == 0xB5AB80)
+                {
+                    uint model = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xBC, 4));
+                    uint shape = model == 0 ? 0 : NativeBattleWaterShapeSelection.ResolveCinematic(frame, resources, frame.Arena.Read(ArenaOffset(model + 8, 1), 1)[0]).Selected;
+                    var leviathan = DrawNativeCinematicLeviathan24(frame, assets[1].Data.Length, resources, ModelServices(shape), graphics);
+                    graphics = leviathan.Graphics;
+                    return leviathan.Frame;
                 }
                 if (selectedDrawHandler == 0xAF59D0)
                 {

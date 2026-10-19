@@ -2,7 +2,10 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDoomtrain191MeshDraw(uint ResourceAddress, NativeBattleActionMatrix Matrix, uint Flags, byte DepthShift, int? Fade = null);
+public sealed record NativeBattleDoomtrain191MeshDraw(uint ResourceAddress, NativeBattleActionMatrix Matrix, uint Flags, byte DepthShift, int? Fade = null)
+{
+    public int? SelectedVerticesOffset { get; init; }
+}
 public sealed record NativeBattleDoomtrain191MeshServices(Func<uint> ReadFlags, Func<NativeBattleDoomtrain191Frame, NativeBattleDoomtrain191MeshDraw, NativeBattleDoomtrain191Frame> Draw);
 
 public static class NativeBattleDoomtrain191Flare

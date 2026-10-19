@@ -48,6 +48,29 @@ public sealed partial class BattleSession
         return true;
     }
 
+    private bool TryWriteNativeDoomtrain191Completion(NativeBattleGraphicsState graphics, uint address, byte value, out NativeBattleGraphicsState updated)
+    {
+        updated = graphics;
+        uint relative = unchecked(address - NativeBattleDoomtrain191Controller.ChildBank);
+        if (relative >= 100 * 0x24 || relative % 0x24 != 14)
+        {
+            return false;
+        }
+        if (graphics.OriginalEffect is { Binding.Effect: 191 } effect)
+        {
+            updated = graphics with { OriginalEffect = NativeBattleDoomtrain191Finish.WriteCompletionByte(effect, address, value) };
+        }
+        else if (NativeEffectMemory?.DetachedReturnedTask is { Binding.Effect: 191 } detached)
+        {
+            NativeEffectMemory = NativeEffectMemory with { DetachedReturnedTask = NativeBattleDoomtrain191Finish.WriteCompletionByte(detached, address, value) };
+        }
+        else
+        {
+            throw new NotSupportedException("Native Doomtrain completion requires its retained physical task bank.");
+        }
+        return true;
+    }
+
     private void WriteNativeAuxiliaryCompletionByte(uint address, byte value)
     {
         if (address != 0x25217A8)

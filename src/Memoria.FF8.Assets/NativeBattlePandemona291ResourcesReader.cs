@@ -47,6 +47,7 @@ public static class NativeBattlePandemona291ResourcesReader
         resources = resources with { VortexFloorGeometry = new(0, 0x139FFE8, memory.Read(0x139FFE8, 0x7A8).ToImmutableArray()), VortexFloorTarget = memory.Read(0x13A0790, 0x1E8).ToImmutableArray() };
         resources = resources with { VortexOverlayGeometry = new(0, 0x13A0978, memory.Read(0x13A0978, 0x4E0).ToImmutableArray()) };
         resources = resources with { BodySound = BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0x13B7A4C, 4)) };
+        resources = resources with { RisingProgram = new(0x13B0C9C, memory.Read(0x13B0C9C, 0xB10).ToImmutableArray()) };
         resources.Validate();
         return resources;
     }

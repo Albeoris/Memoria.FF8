@@ -45,16 +45,31 @@ public static class NativeBattleBlizzagaRibbon
 
     public static NativeBattleBlizzagaRibbonResult Emit6D9A40(int count, ImmutableArray<byte> nodes, sbyte velocityDelta, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection)
     {
+        return Emit(count, nodes, velocityDelta, matrix, new(0x3E14, 0xB8, 0, 31, 0x4000, 0x7F00, false, false), false, 17, 4, point => NativeBattleModuleProjection.Project45FE10(matrix, point, projection), null);
+    }
+
+    public static NativeBattleBlizzagaRibbonResult Emit6F1290(int count, ImmutableArray<byte> nodes, sbyte velocityDelta, NativeBattleActionMatrix matrix, bool paused, int tableBaseBucket, byte depthShift, Func<NativeBattleVector, NativeBattleModuleProjectedVertex> project, Action<int>? observeInput = null)
+    {
+        return Emit(count, nodes, velocityDelta, matrix, new(0x3C94, 0xB6, 128, 31, 0, 127, true, true), paused, tableBaseBucket, unchecked(depthShift + 2), project, observeInput);
+    }
+
+    private sealed record RibbonProfile(ushort Clut, ushort TexturePage, uint AxisOrigin, uint AxisSpan, uint OtherFirst, uint OtherSecond, bool Vertical, bool SharedDepthMetadata);
+
+    private static NativeBattleBlizzagaRibbonResult Emit(int count, ImmutableArray<byte> nodes, sbyte velocityDelta, NativeBattleActionMatrix matrix, RibbonProfile profile, bool paused, int tableBaseBucket, int depthShift, Func<NativeBattleVector, NativeBattleModuleProjectedVertex> project, Action<int>? observeInput)
+    {
         Validate(count, nodes);
         matrix.Validate();
         byte[] next = nodes.ToArray();
-        for (int index = 0; index < count; index++)
+        if (!paused)
         {
-            int offset = index * 36;
-            sbyte velocity = unchecked((sbyte)(next[offset + 0x21] + velocityDelta));
-            next[offset + 0x21] = unchecked((byte)velocity);
-            int brightness = next[offset + 0x20] + (velocity >> 3);
-            next[offset + 0x20] = brightness < 0 ? (byte)0 : unchecked((byte)brightness);
+            for (int index = 0; index < count; index++)
+            {
+                int offset = index * 36;
+                sbyte velocity = unchecked((sbyte)(next[offset + 0x21] + velocityDelta));
+                next[offset + 0x21] = unchecked((byte)velocity);
+                int brightness = next[offset + 0x20] + (velocity >> 3);
+                next[offset + 0x20] = brightness < 0 ? (byte)0 : unchecked((byte)brightness);
+            }
         }
         if (count >= 2 && next[(count - 1) * 36 + 0x20] == 0 && next[(count - 2) * 36 + 0x20] == 0)
         {
@@ -69,6 +84,7 @@ public static class NativeBattleBlizzagaRibbon
                 Project(index * 36, 0, 0x10);
                 Project(index * 36, 8, 0x18);
             }
+            ImmutableArray<int> sharedDepth = [I16((count - 2) * 36 + 0x14) & 0xFFFF, I16((count - 2) * 36 + 0x1C) & 0xFFFF, I16((count - 1) * 36 + 0x14) & 0xFFFF, I16((count - 1) * 36 + 0x1C) & 0xFFFF];
             for (int index = 0; index < count - 1; index++)
             {
                 int a = index * 36;
@@ -87,9 +103,15 @@ public static class NativeBattleBlizzagaRibbon
                 uint colorA = (uint)next[a + 0x20] * 0x10101;
                 uint colorB = (uint)next[b + 0x20] * 0x10101;
                 uint u = next[a + 0x22];
-                uint endU = u + 31;
-                ImmutableArray<uint> words = [0x0C000000, 0x3E000000 | colorA, screens[0], 0x3E144000 | u, colorA, screens[1], 0x00B87F00 | u, colorB, screens[2], (swap ? 0x7F00u : 0x4000u) | endU, colorB, screens[3], (swap ? 0x4000u : 0x7F00u) | endU];
-                NativeBattleGeometryPrimitive primitive = new(17 + (depths.Sum() >> 4), words, depths.Select(depth => 17 * 4 + depth * 4).ToImmutableArray());
+                uint firstAxis = unchecked(u + profile.AxisOrigin);
+                uint lastAxis = unchecked(firstAxis + profile.AxisSpan);
+                if (profile.Vertical)
+                {
+                    firstAxis <<= 8;
+                    lastAxis <<= 8;
+                }
+                ImmutableArray<uint> words = [0x0C000000, 0x3E000000 | colorA, screens[0], ((uint)profile.Clut << 16) | profile.OtherFirst | firstAxis, colorA, screens[1], ((uint)profile.TexturePage << 16) | profile.OtherSecond | firstAxis, colorB, screens[2], (swap ? profile.OtherSecond : profile.OtherFirst) | lastAxis, colorB, screens[3], (swap ? profile.OtherFirst : profile.OtherSecond) | lastAxis];
+                NativeBattleGeometryPrimitive primitive = new(tableBaseBucket + (depths.Sum() >> (depthShift & 31)), words, profile.SharedDepthMetadata ? sharedDepth : depths.Select(depth => tableBaseBucket * 4 + depth * 4).ToImmutableArray());
                 byte[] data = new byte[52];
                 for (int word = 0; word < words.Length; word++)
                 {
@@ -105,7 +127,8 @@ public static class NativeBattleBlizzagaRibbon
         uint U32(int offset) => BinaryPrimitives.ReadUInt32LittleEndian(next.AsSpan(offset));
         void Project(int node, int source, int destination)
         {
-            NativeBattleModuleProjectedVertex vertex = NativeBattleModuleProjection.Project45FE10(matrix, new(I16(node + source), I16(node + source + 2), I16(node + source + 4)), projection);
+            observeInput?.Invoke(node + source);
+            NativeBattleModuleProjectedVertex vertex = project(new(I16(node + source), I16(node + source + 2), I16(node + source + 4)));
             BinaryPrimitives.WriteUInt32LittleEndian(next.AsSpan(node + destination), vertex.Screen);
             BinaryPrimitives.WriteUInt32LittleEndian(next.AsSpan(node + destination + 4), vertex.Depth);
         }

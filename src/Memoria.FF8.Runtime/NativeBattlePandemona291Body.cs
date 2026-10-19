@@ -5,6 +5,57 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattlePandemona291Body
 {
+    public static NativeBattlePandemona291ChildStep Advance6FBDB0(NativeBattlePandemona291Frame frame, uint address, NativeBattleModulePoolTask task)
+    {
+        NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Pandemona pose advancement requires its actual skeleton.");
+        int start = NativeBattleWaterExecutionFields.ArenaOffset(address, 0x430);
+        byte flags = ReadByte(0x1C1);
+        if ((flags & 3) != 0)
+        {
+            throw new NotSupportedException("Native Pandemona pose advancement requires its selected speed cursor contract.");
+        }
+        uint skeletonAddress = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(start + 0x41C, 4));
+        int skeleton = NativeBattleWaterExecutionFields.ArenaOffset(skeletonAddress, 1);
+        int count = arena.Read(skeleton, 1)[0];
+        uint animationAddress = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(start + 0x424, 4));
+        uint animationEnd = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(start + 0x428, 4));
+        ImmutableArray<byte> animations = arena.Read(NativeBattleWaterExecutionFields.ArenaOffset(animationAddress, checked((int)(animationEnd - animationAddress))), checked((int)(animationEnd - animationAddress))).ToImmutableArray();
+        byte selector = ReadByte(0x1C0);
+        NativeBattlePoseFirstFrame next;
+        if (ReadByte(0x1C6) >= ReadByte(0x1C7))
+        {
+            next = NativeBattlePoseDecoder.DecodeFirst509440(animations.AsSpan(), count, selector);
+            Byte(0x1C1, (byte)((flags & 0xF3) | 4));
+            Byte(0x1C6, 1);
+            Byte(0x1C7, NativeBattlePoseDecoder.ReadFrameCounts(animations.AsSpan())[selector]);
+        }
+        else
+        {
+            NativeBattleDecodedPose pose = NativeBattleArenaPose.ReadCurrentPose(arena, skeleton, count);
+            next = NativeBattlePoseDecoder.AdvanceRegular508F90(animations.AsSpan(), count, selector, pose, ReadWord(0x1C2), ReadWord(0x1C4));
+            Byte(0x1C6, unchecked((byte)(ReadByte(0x1C6) + 1)));
+            Byte(0x1C1, (byte)((flags & 0xF3) | ((((flags >> 2) + 1) & 1) << 2)));
+        }
+        Word(0x1C2, next.ByteOffset);
+        Word(0x1C4, next.BitOffset);
+        arena = NativeBattleArenaPose.WritePose(arena, skeleton, next.Pose);
+        arena = NativeBattleArenaPose.RestoreBoneMatrices(arena, skeleton, next.Pose);
+        return new(frame with { Memory = frame.Memory with { Arena = arena } }, task, 0);
+
+        byte ReadByte(int offset) => arena.Read(start + offset, 1)[0];
+        ushort ReadWord(int offset) => BinaryPrimitives.ReadUInt16LittleEndian(arena.Read(start + offset, 2));
+        void Byte(int offset, byte value)
+        {
+            task = task.WriteByte(offset, value);
+            arena = arena.Write(start + offset, [value]);
+        }
+        void Word(int offset, ushort value)
+        {
+            task = task.WriteWord(offset, value);
+            arena = arena.Write(start + offset, BitConverter.GetBytes(value));
+        }
+    }
+
     public static NativeBattlePandemona291ChildStep Initialize99(NativeBattlePandemona291Frame frame, uint address, NativeBattleModulePoolTask task, Action clearCasterAlpha)
     {
         NativeBattlePandemona291State state = frame.Memory.Pandemona291 ?? throw new NotSupportedException("Native Pandemona model requires its current module owner.");

@@ -13,16 +13,24 @@ public sealed record NativeBattleDoomtrain191State([property: JsonRequired] Nati
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleDoomtrain191ModelMemory? Model { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleDoomtrain191TrailMemory? Trails { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleDoomtrain191KnockbackMemory? Knockback { get; init; }
+
     public static NativeBattleDoomtrain191State FromColdProcess()
     {
         NativeBattlePackedMatrix32 zero = new(new byte[32].ToImmutableArray(), Enumerable.Repeat(true, 32).ToImmutableArray());
         NativeBattleDoomtrain191ActorSnapshot snapshot = new(new byte[8].ToImmutableArray(), new byte[8].ToImmutableArray());
-        return new(zero, zero, zero, 0, Enumerable.Repeat(uint.MaxValue, 7).ToImmutableArray(), 0, 0, [], Enumerable.Repeat<NativeBattleDoomtrain191ActorSnapshot?>(snapshot, 7).ToImmutableArray(), 0, 0, 0) { Rigs = new([zero, zero], [zero, zero]), Model = NativeBattleDoomtrain191ModelMemory.FromColdProcess() };
+        return new(zero, zero, zero, 0, Enumerable.Repeat(uint.MaxValue, 7).ToImmutableArray(), 0, 0, [], Enumerable.Repeat<NativeBattleDoomtrain191ActorSnapshot?>(snapshot, 7).ToImmutableArray(), 0, 0, 0) { Rigs = new([zero, zero], [zero, zero]), Model = NativeBattleDoomtrain191ModelMemory.FromColdProcess(), Trails = NativeBattleDoomtrain191TrailMemory.FromColdProcess(), Knockback = NativeBattleDoomtrain191KnockbackMemory.FromColdProcess() };
     }
 
     public void Validate()
     {
         Model?.Validate();
+        Trails?.Validate();
+        Knockback?.Validate();
         BaseMatrix.Validate();
         CameraBackup.Validate();
         BaseView.Validate();

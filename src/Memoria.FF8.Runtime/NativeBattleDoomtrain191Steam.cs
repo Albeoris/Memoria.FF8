@@ -18,6 +18,8 @@ public sealed record NativeBattleDoomtrain191ParticleResources(ImmutableArray<Na
 public sealed record NativeBattleDoomtrain191SteamDraw(NativeBattleActionMatrix Matrix, ushort Phase)
 {
     public uint ResourceAddress { get; init; } = 0xE33E40;
+    public ushort Flags { get; init; } = 8;
+    public uint Color { get; init; } = 0x808080;
 }
 public sealed record NativeBattleDoomtrain191SteamServices(Func<uint> ReadFlags, Func<NativeBattleDoomtrain191Frame, NativeBattleDoomtrain191SteamDraw, NativeBattleDoomtrain191Frame> Draw);
 

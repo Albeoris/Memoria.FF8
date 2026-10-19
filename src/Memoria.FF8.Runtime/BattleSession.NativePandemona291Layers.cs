@@ -54,7 +54,7 @@ public sealed partial class BattleSession
         return (frame, graphics, ir0);
     }
 
-    private (NativeBattlePandemona291Frame Frame, NativeBattleGraphicsState Graphics, short? Ir0) DrawNativePandemona291PreparedMesh(NativeBattlePandemona291Frame frame, NativeBattleStaticMeshResource geometry, NativeBattleActionMatrix matrix, NativeBattleEsunaMeshContext context, int? selectedOffset, NativeBattleGraphicsState graphics, short? ir0)
+    private (NativeBattlePandemona291Frame Frame, NativeBattleGraphicsState Graphics, short? Ir0) DrawNativePandemona291PreparedMesh(NativeBattlePandemona291Frame frame, NativeBattleStaticMeshResource geometry, NativeBattleActionMatrix matrix, NativeBattleEsunaMeshContext context, int? selectedOffset, NativeBattleGraphicsState graphics, short? ir0, ImmutableArray<byte>? selectedSource = null)
     {
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Pandemona requires its current mesh arena.");
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Pandemona requires its current projection.");
@@ -68,7 +68,7 @@ public sealed partial class BattleSession
         NativeBattleScriptedColorRegisters registers = frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native Pandemona requires its canonical GTE input owner.");
         NativeBattleGfGeometryBatch batch = NativeBattlePandemona291Surface.EmitGeometry701DD0(geometry.Bytes, matrix, context, projection, colors, zsf4, offset =>
         {
-            byte[] xyz = selectedOffset is int selected ? arena.Read(checked(selected + offset), 6) : geometry.Bytes.AsSpan().Slice(checked(8 + offset), 6).ToArray();
+            byte[] xyz = selectedOffset is int selected ? arena.Read(checked(selected + offset), 6) : (selectedSource ?? geometry.Bytes).AsSpan().Slice(checked(8 + offset), 6).ToArray();
             return new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4)));
         }, offset =>
         {
@@ -79,7 +79,7 @@ public sealed partial class BattleSession
             }
             else
             {
-                registers = registers with { NormalInput = geometry.Bytes.AsSpan().Slice(checked(8 + offset), 8).ToArray().ToImmutableArray(), NormalInputKnown = null };
+                registers = registers with { NormalInput = (selectedSource ?? geometry.Bytes).AsSpan().Slice(checked(8 + offset), 8).ToArray().ToImmutableArray(), NormalInputKnown = null };
             }
         }, flags => registers = registers with { Flags = flags }, point =>
         {
