@@ -3,16 +3,25 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
+public sealed record NativeBattleScriptedProcessColorRow(ushort? Factor, byte? Red, byte? Green, byte? Blue);
+
 /// <summary>The four physical process flag bytes, independent of the seven battle graphics rows.</summary>
 public sealed record NativeBattleScriptedProcessFlagsState([property: JsonRequired] ImmutableArray<byte> Flags, [property: JsonRequired] ImmutableArray<bool> Known)
 {
-    public static NativeBattleScriptedProcessFlagsState FromColdProcess() => new([0, 0, 0, 0], [true, true, true, true]);
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<NativeBattleScriptedProcessColorRow>? ColorRows { get; init; }
+
+    public static NativeBattleScriptedProcessFlagsState FromColdProcess() => new([0, 0, 0, 0], [true, true, true, true]) { ColorRows = [new(0, 0, 0, 0), new(0, 0, 0, 0), new(0, 0, 0, 0), new(0, 0, 0, 0)] };
 
     public void Validate()
     {
         if (Flags.IsDefault || Known.IsDefault || Flags.Length != 4 || Known.Length != 4)
         {
             throw new InvalidDataException("Native cinematic process flags require their four physical bytes and known mask.");
+        }
+        if (ColorRows is { } rows && (rows.IsDefault || rows.Length != 4 || rows.Any(row => row is null)))
+        {
+            throw new InvalidDataException("Native cinematic process colors require their four physical rows.");
         }
     }
 }

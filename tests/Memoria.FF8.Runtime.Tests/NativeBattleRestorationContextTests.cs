@@ -11,7 +11,7 @@ public sealed class NativeBattleRestorationContextTests
     [InlineData((ushort)27)]
     [InlineData((ushort)57)]
     [InlineData((ushort)67)]
-    public void Initial_context_uses_actual_model_WORD36_bounds_WORD60_and_Q16_anchors_without_consuming_random_state(ushort effect)
+    public void Initial_context_uses_actual_model_WORD36_signed_MaximumY_WORD60_and_Q16_anchors_without_consuming_random_state(ushort effect)
     {
         var fixture = Fixture(effect);
         NativeBattleRestorationFrame initialized = NativeBattleRestorationContext.Initialize(fixture.Frame, fixture.Address, Resources(effect), fixture.Inputs);
@@ -23,10 +23,11 @@ public sealed class NativeBattleRestorationContextTests
         Assert.Equal(4u, task.ReadDword(0x34 + 8));
         AssertVector(task, 0x1C4, 0, -3, 0);
         AssertVector(task, 0x1E4, 0, 100, 0);
-        AssertVector(task, 0x204, 0, 800, 0);
+        AssertVector(task, 0x204, 0, -720, 0);
         AssertVector(task, 0x54, -10, 10, 30);
         AssertVector(task, 0xD4, -10, -200, 30);
-        AssertVector(task, 0x154, -10, 900, 30);
+        AssertVector(task, 0x154, -10, -730, 30);
+        AssertVector(task, 0x164, 20, -740, -50);
         AssertVector(task, 0x194, 5, 0, -10);
         Assert.Equal(301u, task.ReadDword(0x34));
         Assert.Equal(NativeBattleRestorationProfile.ForEffect(effect).ExecutableAddress + 4, task.ReadDword(0x34 + 0x224));
@@ -127,7 +128,7 @@ public sealed class NativeBattleRestorationContextTests
         {
             NativeBattleVector position = index == 2 ? new(0, 100, 0) : index == 3 ? new(-10, -200, 30) : new(20, -400, -50);
             short angle36 = index == 2 ? (short)-3 : index == 3 ? (short)10 : (short)-20;
-            return new(index, 0) { Transform = new(new(0, 0, 0), position, 0, angle36, 4096), GeometryBounds52 = new(new(-100, -200, -300), new((short)(600 + index * 100), 200, 300)) };
+            return new(index, 0) { Transform = new(new(0, 0, 0), position, 0, angle36, 4096), GeometryBounds52 = new(new(-100, -200, -300), new((short)(600 + index * 100), (short)(-700 - index * 10), (short)(900 + index * 5))) };
         }
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 30000, 4096);
         return (frame, child.Address, new(packets, camera, Model, _ => source));

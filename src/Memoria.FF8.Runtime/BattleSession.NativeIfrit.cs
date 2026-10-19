@@ -116,8 +116,27 @@ public sealed partial class BattleSession
 
         NativeBattleWaterExecutionFrame ExecuteInstruction(NativeBattleWaterExecutionFrame current, ushort opcode)
         {
-            NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "vm_table", opcode, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.InstructionTable + 4u * opcode), 4)));
+            try
+            {
+                return ExecuteInstructionCore(current, opcode);
+            }
+            catch (NotSupportedException error)
+            {
+                throw new NotSupportedException($"Native cinematic effect {profile.Effect} instruction {current.ReadTemporaryWord(0x14A):X4} at PC {CoreDword(current, 0x2797450):X8} requires its complete command contract.", error);
+            }
+        }
+
+        NativeBattleWaterExecutionFrame ExecuteInstructionCore(NativeBattleWaterExecutionFrame current, ushort opcode)
+        {
             uint pc = CoreDword(current, 0x2797450);
+            try
+            {
+                NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "vm_table", opcode, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.InstructionTable + 4u * opcode), 4)));
+            }
+            catch (NotSupportedException error)
+            {
+                throw new NotSupportedException($"Native cinematic effect {profile.Effect} instruction {current.ReadTemporaryWord(0x14A):X4} at PC {pc:X8} requires its selected command contract.", error);
+            }
             NativeBattleWaterScriptProgram program = Program(current, pc);
             NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, assets[1].Data.Length);
             int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank);
@@ -125,6 +144,8 @@ public sealed partial class BattleSession
             {
                 case 0:
                     return NativeBattleWaterStopCommand.StopRemoveAA5120(current);
+                case 0x1D:
+                    return NativeBattleWaterStopCommand.WaitStop1D(current, program, ResolveCurrentNode);
                 case 2:
                 case 3:
                 case 4:
@@ -167,6 +188,9 @@ public sealed partial class BattleSession
                     byte[] viewTranslation = ReadSlot(current, 0x94, 6);
                     NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native cinematic view translation requires its current camera owner.")) with { ViewTranslationScratch = new(BinaryPrimitives.ReadInt16LittleEndian(viewTranslation), BinaryPrimitives.ReadInt16LittleEndian(viewTranslation.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(viewTranslation.AsSpan(4))) };
                     return NativeBattleScriptedCommandReads.Advance(current, 2);
+                case 0x61:
+                case 0x62:
+                    return NativeBattleWaterScalarReferenceCommands.CopyMotion(current, program, ResolveCurrentNode, frame => frame with { Arena = NativeBattleWaterSlots.CachePositionAA17D0(frame.Arena, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank)) }, frame => UpdateSlot(frame, ReadSlot(frame, 0x18, 1)[0]));
                 case 0x4B:
                     return NativeBattleCinematicPaletteCommands.Execute(current, program, resources, bank, index, (frame, rectangle, address) =>
                     {
@@ -348,7 +372,7 @@ public sealed partial class BattleSession
                         return scrollFrame;
                     });
                 }
-                if (kind is 1 or 2)
+                if (kind is 1 or 2 or 0x1B)
                 {
                     var drawn = DrawNativeCinematicMesh(frame, kind, assets[1].Data.Length, resources, graphics);
                     graphics = drawn.Graphics;
@@ -365,6 +389,13 @@ public sealed partial class BattleSession
                 }
                 return kind == 0x26 ? frame : throw new NotSupportedException($"Native cinematic draw{kind:X2} requires its selected lit geometry contract.");
             }, budget);
+        }
+
+        uint ResolveCurrentNode(NativeBattleWaterExecutionFrame frame, short selector)
+        {
+            NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, assets[1].Data.Length);
+            int found = NativeBattleWaterSlots.LookupB65370(frame.Arena, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank), frame.Core.Read(0x2797454, 128).ToImmutableArray(), selector);
+            return unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(frame.Arena, found));
         }
 
         NativeBattleCinematicModelServices ModelServices(uint selectedShape)

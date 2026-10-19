@@ -65,6 +65,14 @@ public sealed partial class BattleSession
         {
             return EnterNativeCinematic(graphics);
         }
+        if (effect.Binding.Effect == 90)
+        {
+            return RunNativeTonberry90(graphics, true);
+        }
+        if (effect.Binding.Effect == 278)
+        {
+            return RunNativeCarbuncle278(graphics, true);
+        }
         if (effect.Binding.Entry == 0x5D1AD0)
         {
             return RunNativeHoly175(graphics, true);

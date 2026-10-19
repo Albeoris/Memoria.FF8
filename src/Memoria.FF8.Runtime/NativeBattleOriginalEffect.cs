@@ -90,6 +90,10 @@ public static class NativeBattleOriginalEffects
 {
     public static (NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect) Initialize(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState selected)
     {
+        if (selected.Binding is { Effect: 90, Entry: 0x762360, Initializer: 0x762320 })
+        {
+            return InitializeTonberry762320(memory, selected);
+        }
         if (selected.Binding.Initializer == 0x5A8730 || selected.Binding.Cactuar199Resources is not null)
         {
             return InitializeCactuar5A8730(memory, selected);
@@ -132,6 +136,33 @@ public static class NativeBattleOriginalEffects
             selected = selected with { ResourcePointers = pointers.MoveToImmutable() };
         }
         return (memory, selected);
+    }
+
+    private static (NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect) InitializeTonberry762320(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState selected)
+    {
+        NativeBattleEffectBinding binding = selected.Binding;
+        if (binding.InitializerIsRet == true || binding.InitializerResource is not null || binding.InitializerResources is not null || binding.InitializerAsset is not null || binding.InitializerAssets is not null)
+        {
+            throw new InvalidDataException("Native Tonberry initializer requires its three ordered TIM inputs rather than a generic loader descriptor.");
+        }
+        NativeBattleTonberry90Resources resources = binding.Tonberry90Resources ?? throw new NotSupportedException("Native Tonberry initializer requires its original TIM assets.");
+        ImmutableArray<NativeBattleEffectInitializerAsset> tims = resources.InitializerTims;
+        string[] names = ["mag089_0.tim", "mag089_1.tim", "mag089_2.tim"];
+        uint[] publications = [0x25A4C20, 0x259EEAC, 0x259EEB0];
+        if (tims.IsDefault || tims.Length != names.Length || tims.Where((tim, index) => tim is null || tim.Name != names[index] || tim.Data.IsDefaultOrEmpty).Any())
+        {
+            throw new InvalidDataException("Native Tonberry initializer requires all three original TIM files in load order.");
+        }
+        memory = memory.BeginLoad(selected.SelectedIndex);
+        ImmutableArray<NativeBattleEffectResourcePointer>.Builder pointers = ImmutableArray.CreateBuilder<NativeBattleEffectResourcePointer>(tims.Length);
+        for (int index = 0; index < tims.Length; index++)
+        {
+            int offset = memory.Cursor;
+            memory = memory.LoadIntoArena(tims[index].Data.AsSpan());
+            pointers.Add(new(publications[index], offset));
+        }
+        selected = selected with { ResourcePointers = pointers.MoveToImmutable() };
+        return NativeBattleTonberry90Controller.Initialize762320(memory, selected);
     }
 
     private static (NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect) InitializeCactuar5A8730(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState selected)

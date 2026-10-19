@@ -39,7 +39,7 @@ public static class NativeBattleEffectNodeContext
         SetVector(0x1D4, actorFirst with { Y = 0 });
         SetVector(0x1E4, Bone(actor, 241));
         SetVector(0x1F4, Bone(actor, 240));
-        short actorBound60 = (actorModel.GeometryBounds52 ?? throw new NotSupportedException("Native87E4C0 requires the actual geometry bounds WORD60.")).Maximum.X;
+        short actorBound60 = (actorModel.GeometryBounds52 ?? throw new NotSupportedException("Native87E4C0 requires the actual geometry bounds WORD60.")).Maximum.Y;
         SetVector(0x204, actorFirst with { Y = actorBound60 });
         if (mode == 4)
         {
@@ -60,7 +60,7 @@ public static class NativeBattleEffectNodeContext
             SetVector(0x94 + offset, first with { Y = 0 });
             SetVector(0xD4 + offset, Bone(target, 241, true));
             SetVector(0x114 + offset, Bone(target, 240, true));
-            short bound60 = (model.GeometryBounds52 ?? throw new NotSupportedException("Native87E810 requires target geometry bounds WORD60.")).Maximum.X;
+            short bound60 = (model.GeometryBounds52 ?? throw new NotSupportedException("Native87E810 requires target geometry bounds WORD60.")).Maximum.Y;
             SetVector(0x154 + offset, first with { Y = bound60 });
         }
         int minimumX = 0;

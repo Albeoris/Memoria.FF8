@@ -15,6 +15,10 @@ public static class NativeBattleWaterMeshPreparation
 
     public static NativeBattleWaterMeshPrepared PrepareWrapper(NativeBattleWaterExecutionFrame frame, NativeBattleWaterSlotBank bank, int index, byte wrapper, short globalFocal)
     {
+        if (wrapper == 0x1B)
+        {
+            return PrepareRotatedUniform(frame, bank, index, globalFocal);
+        }
         if (wrapper is not (1 or 2))
         {
             throw new NotSupportedException("Native Water mesh wrapper is outside the selected ordinary preparation.");
@@ -51,6 +55,31 @@ public static class NativeBattleWaterMeshPreparation
             }
         }
         return new(frame, matrix, focal);
+    }
+
+    private static NativeBattleWaterMeshPrepared PrepareRotatedUniform(NativeBattleWaterExecutionFrame frame, NativeBattleWaterSlotBank bank, int index, short globalFocal)
+    {
+        int slot = bank.SlotOffset(frame.Arena, index);
+        NativeBattleVector angles = new(SignedWord(frame.Arena, slot + 0x8C), SignedWord(frame.Arena, slot + 0x8E), 0);
+        frame = frame.WriteTemporaryWord(0x90, unchecked((ushort)angles.X)).WriteTemporaryWord(0x92, unchecked((ushort)angles.Y)).WriteTemporaryWord(0x94, 0);
+        NativeBattleActionMatrix euler;
+        (frame, euler) = NativeBattleWaterMatrixCommands.BuildRotationB65590(frame, angles, 0);
+        uint address = NativeBattleWaterMatrixCommands.ResolveB65520(frame, bank, index, Word(frame.Arena, slot + 0x9C));
+        byte[] raw = frame.Core.Read(address, 18);
+        NativeBattleActionMatrix basis = new(Enumerable.Range(0, 9).Select(lane => BinaryPrimitives.ReadInt16LittleEndian(raw.AsSpan(lane * 2))).ToImmutableArray(), unchecked((int)CoreDword(frame, address + 20)), unchecked((int)CoreDword(frame, address + 24)), unchecked((int)CoreDword(frame, address + 28)), 4096);
+        NativeBattleVector point = new(SignedWord(frame.Arena, slot + 0x94), SignedWord(frame.Arena, slot + 0x96), SignedWord(frame.Arena, slot + 0x98));
+        NativeBattleFullMacVertex position = NativeBattleGfMatrices.TransformMac460840(basis, point);
+        frame = frame.WriteTemporaryDword(0xF4, unchecked((uint)position.X)).WriteTemporaryDword(0xF8, unchecked((uint)position.Y)).WriteTemporaryDword(0xFC, unchecked((uint)position.Z)).WriteTemporaryDword(0xC0, position.Flags);
+        NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Multiply56C090(basis, euler) with { X = position.X, Y = position.Y, Z = position.Z };
+        int scale = SignedWord(frame.Arena, slot + 0x90) << 4;
+        frame = frame.WriteTemporaryDword(0xC8, unchecked((uint)scale)).WriteTemporaryDword(0xC4, unchecked((uint)scale)).WriteTemporaryDword(0xC0, unchecked((uint)scale));
+        matrix = NativeBattlePoseMatrices.Scale56BEF0(matrix, scale, scale, scale);
+        for (int lane = 0; lane < 9; lane++)
+        {
+            frame = frame.WriteTemporaryWord(0xE0 + lane * 2, unchecked((ushort)matrix.Rotation[lane]));
+        }
+        frame = frame.WriteTemporaryDword(0x48, 0).WriteTemporaryDword(0x44, 0).WriteTemporaryDword(0x40, 0).WriteTemporaryDword(0x4C, Dword(frame.Arena, slot + 0xBC));
+        return new(frame, matrix, globalFocal);
     }
 
     public static NativeBattleWaterMeshProjected MorphProject(NativeBattleWaterMeshPrepared prepared, NativeBattleWaterSlotBank bank, int index, NativeBattleWater222Resources resources, NativeBattleEffectHeapAllocation shapeResourceMap, int actualShapeExtent, NativeBattleCameraProjection projection, short dqa, int dqb, NativeBattleEffectArena depthOwner)

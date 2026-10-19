@@ -178,6 +178,10 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleMoogle96Resources? Moogle96Resources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleTonberry90Resources? Tonberry90Resources { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleCarbuncle278Resources? Carbuncle278Resources { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleChoco97Resources? Choco97Resources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleChoco98Resources? Choco98Resources { get; init; }

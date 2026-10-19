@@ -187,6 +187,31 @@ public sealed class NativeBattleWaterMatrixCommandTests
         Assert.Throws<NotSupportedException>(() => frame.Core.Read(0x279797A, 2));
     }
 
+    [Theory]
+    [InlineData(0x00D4, 0x12, 0x34, 0x56, 0xA5563412u, 8)]
+    [InlineData(0x7ED4, 0x1234, -2, 0x5678, 0xFFFFFE34u, 8)]
+    [InlineData(0x80D4, 0x12, 0, 0, 0xA5121212u, 4)]
+    [InlineData(0xFED4, -2, 0, 0, 0xFFFFFFFEu, 4)]
+    public void ColorD4UsesOnlyUniformBitAndSignedUnmaskedChannels(ushort instruction, short red, short green, short blue, uint expected, int width)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(instruction);
+        byte[] operands = new byte[6];
+        BinaryPrimitives.WriteInt16LittleEndian(operands, red);
+        BinaryPrimitives.WriteInt16LittleEndian(operands.AsSpan(2), green);
+        BinaryPrimitives.WriteInt16LittleEndian(operands.AsSpan(4), blue);
+        frame = frame with { Arena = frame.Arena.Write(0x1002, operands) };
+        frame = WaterSchedulerFixture.SlotDword(frame, 0, 0xCC, 0xA5C0B0A0);
+        if (width == 4)
+        {
+            frame = frame with { Arena = frame.Arena.MarkUnknown(0x1004, 4) };
+        }
+        NativeBattleWaterExecutionFrame result = Run(frame, width);
+        Assert.Equal(Pc + (uint)width, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+        Assert.Equal(expected, BinaryPrimitives.ReadUInt32LittleEndian(result.Arena.Read(Bank.SlotOffset(result.Arena, 0) + 0xCC, 4)));
+        string json = JsonSerializer.Serialize(result);
+        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(json)!));
+    }
+
     private static NativeBattleWaterExecutionFrame Nested()
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0x63);

@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
-public sealed class NativeBattleWaterScalarReferenceCommandTests
+public sealed partial class NativeBattleWaterScalarReferenceCommandTests
 {
     private const uint ArenaBase = 0x20DFAB8;
     private const uint Manager = 0x2797690;

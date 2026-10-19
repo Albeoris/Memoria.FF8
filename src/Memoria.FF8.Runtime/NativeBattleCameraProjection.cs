@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -32,6 +33,8 @@ public sealed record NativeBattleCameraProjection(NativeBattleActionMatrix? View
 
 public sealed partial record NativeBattleCameraState
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ushort? CanonicalViewPadding { get; init; }
     public NativeBattleCameraProjection? Projection { get; init; }
     public bool ProjectionOffsetsCleared { get; init; }
 
@@ -43,7 +46,7 @@ public sealed partial record NativeBattleCameraState
         {
             throw new NotSupportedException("Native5033E0 requires the fresh base camera pose before consuming a nonzero view-translation impulse; an old published view cannot be accumulated.");
         }
-        NativeBattleActionMatrix? view = CurrentPose is { } pose ? NativeBattlePoseMatrices.CameraView(pose) : Projection?.View;
+        NativeBattleActionMatrix? view = CurrentPose is { } pose ? NativeBattlePoseMatrices.CameraView(pose with { Roll = Roll }) : Projection?.View;
         if (view is not null)
         {
             view = NativeBattleCameraViewTranslationScratch.Apply5033E0(view, x, y, z);
@@ -52,7 +55,32 @@ public sealed partial record NativeBattleCameraState
         NativeBattleCameraProjection? projection = view is null && Projection is null && !published ? null : new(view, published ? FocalLength is short focal ? unchecked((ushort)focal) : null : Projection?.FocalLength, published ? ProjectionOffsetsCleared ? (short)160 : null : Projection?.OffsetX, published ? ProjectionOffsetsCleared ? (short)108 : null : Projection?.OffsetY);
         //500900 writes the screen offsets, then unconditionally clears their
         //two scratch WORDs. Unknown retained first-frame offsets stay unknown.
-        return this with { Projection = projection, ProjectionOffsetsCleared = ProjectionOffsetsCleared || published, ViewTranslationScratch = new(0, 0, 0) };
+        return this with { Projection = projection, CanonicalViewPadding = CurrentPose is not null && Roll != 0 ? null : CanonicalViewPadding, ProjectionOffsetsCleared = ProjectionOffsetsCleared || published, ViewTranslationScratch = new(0, 0, 0) };
+    }
+
+    public NativeBattlePackedMatrix32 CapturePackedView1D97778()
+    {
+        NativeBattleActionMatrix matrix = Projection?.View ?? throw new NotSupportedException("Native packed camera copy requires its current published view matrix.");
+        matrix.Validate();
+        byte[] bytes = new byte[32];
+        bool[] known = Enumerable.Repeat(true, 32).ToArray();
+        for (int index = 0; index < 9; index++)
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(2 * index), matrix.Rotation[index]);
+        }
+        if (CanonicalViewPadding is ushort padding)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(0x12), padding);
+        }
+        else
+        {
+            known[0x12] = false;
+            known[0x13] = false;
+        }
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(0x14), matrix.X);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(0x18), matrix.Y);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(0x1C), matrix.Z);
+        return new(bytes.ToImmutableArray(), known.ToImmutableArray());
     }
 }
 

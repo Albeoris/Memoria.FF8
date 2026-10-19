@@ -7,6 +7,30 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleSoftwarePrimitiveExecutionTests
 {
     [Fact]
+    public void Debug_uses_the_existing_environment_owner_until_successful_batch_cleanup()
+    {
+        NativeBattleSoftwarePrimitiveExecution source = Capture();
+        NativeSoftwareDrawingEnvironmentState environment = NativeSoftwareDrawingEnvironment.SetOrigin45B5E0(source.State.Environment, 0, 0);
+        NativeBattleSoftwarePrimitiveExecution execution = new(source.State with { Environment = environment }, source.Textures, Table(), true, source.Cache!);
+        Assert.Equal(1u, execution.LiveDebug);
+        execution.ExecuteNormal(Command(0xE1, 0xB4), new(0xB4), 0);
+        execution.ExecuteSoftware(Triangle());
+        execution.ExecuteSoftware(Triangle());
+        Assert.Equal(1u, execution.LiveDebug);
+        execution.EndBatch();
+        Assert.Equal(0u, execution.LiveDebug);
+        Assert.Equal((ushort)31, BinaryPrimitives.ReadUInt16LittleEndian(execution.Textures.ReadVram().AsSpan(2 * (259 * 1024 + 707))));
+    }
+
+    [Fact]
+    public void Unknown_consumed_debug_state_is_not_replaced_with_an_ordinary_default()
+    {
+        NativeBattleSoftwarePrimitiveExecution source = Capture();
+        NativeBattleSoftwarePrimitiveExecution execution = new(source.State with { Environment = source.State.Environment with { Debug = null } }, source.Textures, Table(), true, source.Cache!);
+        Assert.Throws<NotSupportedException>(() => execution.LiveDebug);
+    }
+
+    [Fact]
     public void CaptureWritesTheExistingTextureImageAndRetainsUnrelatedUploadedWords()
     {
         NativeBattleSoftwarePrimitiveExecution execution = Capture();

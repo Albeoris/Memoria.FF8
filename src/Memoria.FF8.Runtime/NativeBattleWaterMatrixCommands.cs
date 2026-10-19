@@ -85,13 +85,12 @@ public static class NativeBattleWaterMatrixCommands
                 advance = 6;
                 break;
             case 0xD4:
-                if (instruction != 0x80D4)
-                {
-                    throw new NotSupportedException("Native selected uniform color requires its single-operand variant.");
-                }
-                int channel = unchecked((short)Operand(2));
-                uint color = unchecked((uint)(channel | (channel << 8) | (channel << 16)));
-                frame = WriteCoreDword(frame, 0x2797450, unchecked(pc + 4));
+                int red = unchecked((short)Operand(2));
+                bool uniform = (instruction & 0x8000) != 0;
+                int green = uniform ? red : unchecked((short)Operand(4));
+                int blue = uniform ? red : unchecked((short)Operand(6));
+                uint color = unchecked((uint)(red | (green << 8) | (blue << 16)));
+                frame = WriteCoreDword(frame, 0x2797450, unchecked(pc + (uniform ? 4u : 8u)));
                 uint previousColor = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xCC, 4));
                 return WriteSlotDword(frame, 0xCC, (previousColor & 0xFF000000u) | color);
             case 0x67:

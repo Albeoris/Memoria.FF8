@@ -14,13 +14,13 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native cinematic mesh resources disagree with their selected static directory owner.");
         }
-        if (kind is not (1 or 2))
+        if (kind is not (1 or 2 or 0x1B))
         {
             throw new NotSupportedException($"Native cinematic draw {kind:X2} is outside the ordinary mesh wrappers.");
         }
         uint handler = BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.DrawTable + 4u * kind), 4));
         handler = NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "draw_table", kind, handler);
-        if ((kind, handler) is not ((1, 0xB26FB0) or (2, 0xB27050)))
+        if ((kind, handler) is not ((1, 0xB26FB0) or (2, 0xB27050) or (0x1B, 0xB272D0)))
         {
             throw new NotSupportedException($"Native cinematic draw {kind:X2} selected unsupported mesh wrapper {handler:X8}.");
         }

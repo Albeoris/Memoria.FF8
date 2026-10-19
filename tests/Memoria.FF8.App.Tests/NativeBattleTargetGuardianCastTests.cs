@@ -5,7 +5,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
-public sealed class NativeBattleTargetGuardianCastTests
+public sealed partial class NativeBattleTargetGuardianCastTests
 {
     [Fact]
     public void Installed_Quezacotl_ordinary_command_completes_graphics_contact_and_disk_continuations() => Run(0, 116);
@@ -317,7 +317,7 @@ public sealed class NativeBattleTargetGuardianCastTests
         return changes;
     }
 
-    private static BattleDefinition CreateDefinition(GameAssets game, BattleAssets assets, int guardian, ushort effectId)
+    internal static BattleDefinition CreateDefinition(GameAssets game, BattleAssets assets, int guardian, ushort effectId)
     {
         BattleEncounter formation = assets.LoadEncounter(94);
         BattleStage stage = assets.LoadStage(formation.StageId);
@@ -325,9 +325,10 @@ public sealed class NativeBattleTargetGuardianCastTests
         Assert.Equal(effectId, action.NativeAction!.MagicId);
         Assert.Equal((byte)254, action.NativeAction.Command);
         Assert.Equal((ushort)(64 + guardian), action.NativeAction.ActionId);
+        NativeBattleStatusAllocation partyStatus = assets.ReadPlayerNativeStatusData(game.ReadNewGameCharacterVitals(), 0);
         BattleCombatantDefinition[] actors =
         [
-            new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, MaximumHp = 1000, CurrentHp = 1000, InitialAtb = BattleSession.AtbMaximum, GuardianForceCompatibility = new ushort[16], EquipmentIds = [guardian], Abilities = [BattleAbility.Attack, BattleAbility.GuardianForce] },
+            new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, MaximumHp = 1000, CurrentHp = 1000, InitialAtb = BattleSession.AtbMaximum, NativeStatusResistances = partyStatus.Resistances.ToArray(), GuardianForceCompatibility = new ushort[16], EquipmentIds = [guardian], Abilities = [BattleAbility.Attack, BattleAbility.GuardianForce] },
             new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = formation.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1, MaximumHp = 9999, CurrentHp = 9999 }
         ];
         // Explicit independent installed-resource component: the ordinary command owns charge, headers, formula and contact production.

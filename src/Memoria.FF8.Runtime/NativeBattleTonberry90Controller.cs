@@ -20,14 +20,21 @@ public static partial class NativeBattleTonberry90Controller
 
     public static NativeBattleTonberry90Frame Initialize762320(NativeBattleTonberry90Frame frame)
     {
-        RequireBinding(frame.Effect);
-        NativeBattleTonberry90State state = RequireState(frame);
+        var initialized = Initialize762320(frame.Memory, frame.Effect);
+        return frame with { Memory = initialized.Memory };
+    }
+
+    public static (NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect) Initialize762320(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect)
+    {
+        RequireBinding(effect);
+        NativeBattleTonberry90State state = memory.Tonberry90 ?? throw new NotSupportedException("Native Tonberry initializer requires its retained module owner.");
+        state.Validate();
         foreach (uint address in new uint[] { 0x25A4C20, 0x259EEAC, 0x259EEB0 })
         {
-            NativeBattleEffectResourcePointer pointer = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == address) ?? throw new NotSupportedException("Native Tonberry initializer requires its actual published TIM resource pointers.");
+            NativeBattleEffectResourcePointer pointer = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == address) ?? throw new NotSupportedException("Native Tonberry initializer requires its actual published TIM resource pointers.");
             state = state.WriteDword(address, unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)pointer.ArenaOffset));
         }
-        return frame with { Memory = frame.Memory with { Tonberry90 = state } };
+        return (memory with { Tonberry90 = state }, effect);
     }
 
     public static NativeBattleTonberry90Frame Initialize762360(NativeBattleTonberry90Frame frame, NativeBattleActionPacketsState packets)

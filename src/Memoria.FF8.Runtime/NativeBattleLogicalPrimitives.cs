@@ -449,6 +449,7 @@ public sealed record NativeBattlePrimitiveTables(ImmutableArray<byte> WordLength
 public interface INativeBattleLogicalExecutionContext
 {
     uint LiveMode { get; }
+    uint LiveDebug { get; }
     bool HardwareEnabled { get; }
     NativeSoftwarePrimitiveTable SoftwareTable { get; }
     NativeBattlePcTextureWindowCache? Cache { get; set; }
@@ -505,25 +506,35 @@ public static class NativeBattleLogicalPasses
                 bool category = tables.FlaggedCommands[command.Opcode] != 0;
                 uint liveMode = context?.LiveMode ?? drawFlags;
                 bool hardware = pass != 0 || context?.HardwareEnabled != false;
-                if (passes[pass][command.Opcode] == 0 || category && ((liveMode & 1) == 0 || !hardware))
+                if (passes[pass][command.Opcode] != 0 && (!category || (liveMode & 1) != 0 && hardware))
                 {
-                    continue;
+                    mode = mode.ExecuteWords(command.Opcode, command.Words);
+                    mode = ClearTextureSelection(mode);
+                    if (context is not null)
+                    {
+                        context.ExecuteNormal(command, mode, pass);
+                        mode = ClearTextureSelection(context.SynchronizeDrawMode(mode));
+                    }
+                    NativeBattleLogicalResolvedCommand resolved = new(command, mode, pass);
+                    if (GetCache() is { } currentCache)
+                    {
+                        var selected = SelectTextureCommand(resolved, currentCache);
+                        resolved = selected.Command;
+                        SetCache(selected.Cache);
+                    }
+                    executed.Add(context?.RetainTexturePixels(resolved) ?? resolved);
                 }
-                mode = mode.ExecuteWords(command.Opcode, command.Words);
-                mode = ClearTextureSelection(mode);
-                if (context is not null)
+                if (pass == 0 && category && (liveMode & 1) != 0 && context is not null)
                 {
-                    context.ExecuteNormal(command, mode, pass);
-                    mode = ClearTextureSelection(context.SynchronizeDrawMode(mode));
+                    for (int delivery = 0; delivery < 2; delivery++)
+                    {
+                        if (context.LiveDebug != 0 && context.SoftwareTable.Handler(command.Opcode) != 0)
+                        {
+                            context.ExecuteSoftware(command);
+                            mode = context.SynchronizeDrawMode(mode);
+                        }
+                    }
                 }
-                NativeBattleLogicalResolvedCommand resolved = new(command, mode, pass);
-                if (GetCache() is { } currentCache)
-                {
-                    var selected = SelectTextureCommand(resolved, currentCache);
-                    resolved = selected.Command;
-                    SetCache(selected.Cache);
-                }
-                executed.Add(context?.RetainTexturePixels(resolved) ?? resolved);
             }
             SetCache(EndTexturePass(GetCache(), pass));
         }

@@ -57,6 +57,41 @@ public sealed class NativeBattleWaterMeshPreparationTests
         Assert.Equal(8192u, result.Frame.ReadTemporaryDword(0xDC));
     }
 
+    [Theory]
+    [InlineData(256)]
+    [InlineData(-128)]
+    public void Type1B_rotates_then_uniformly_scales_with_unscaled_full_MAC_translation_and_current_focal(short scale)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture();
+        short[] rotation = [4096, 1024, 512, 2048, 4096, 0, -1024, 256, 4096];
+        frame = Matrix(frame, 2, rotation, 50000, -60000, 100000, 0x1234);
+        frame = frame with { Core = frame.Core.MarkUnknown(0x27979E8 + 64 + 18, 2) };
+        frame = SlotWord(frame, 0, 0x8C, 384);
+        frame = SlotWord(frame, 0, 0x8E, unchecked((ushort)-257));
+        frame = SlotWord(frame, 0, 0x90, unchecked((ushort)scale));
+        frame = SlotWord(frame, 0, 0x94, 30000);
+        frame = SlotWord(frame, 0, 0x96, unchecked((ushort)-20000));
+        frame = SlotWord(frame, 0, 0x98, 10000);
+        NativeBattleWaterMeshPrepared result = NativeBattleWaterMeshPreparation.PrepareWrapper(frame, Bank, 0, 0x1B, 216);
+        NativeBattleActionMatrix basis = new(rotation.ToImmutableArray(), 50000, -60000, 100000, 4096);
+        NativeBattleActionMatrix expected = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleGfMatrices.Multiply56C090(basis, NativeBattleGfMatrices.Euler56CD50(new(384, -257, 0))), scale << 4, scale << 4, scale << 4);
+        Assert.Equal(expected.Rotation, result.Matrix.Rotation);
+        Assert.Equal((76250, -65000, 101250), (result.Matrix.X, result.Matrix.Y, result.Matrix.Z));
+        Assert.Equal((short)216, result.Focal);
+        Assert.Equal(76250u, result.Frame.ReadTemporaryDword(0xF4));
+        Assert.Equal(unchecked((uint)-65000), result.Frame.ReadTemporaryDword(0xF8));
+        Assert.Equal(101250u, result.Frame.ReadTemporaryDword(0xFC));
+        Assert.False(result.Frame.TemporaryFrame.Known[0xF2]);
+        Assert.False(result.Frame.TemporaryFrame.Known[0xF3]);
+        foreach (int offset in new[] { 0xC0, 0xC4, 0xC8 })
+        {
+            Assert.Equal(unchecked((uint)(scale << 4)), result.Frame.ReadTemporaryDword(offset));
+        }
+        Assert.Equal(new byte[12], result.Frame.ReadTemporary(0x40, 12));
+        string json = JsonSerializer.Serialize(result);
+        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleWaterMeshPrepared>(json)!));
+    }
+
     [Fact]
     public void Missing_ID_falls_back_to_matrix_row0_and_zero_override_uses_global_focal()
     {

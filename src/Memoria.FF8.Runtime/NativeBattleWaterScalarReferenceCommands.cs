@@ -27,23 +27,8 @@ public static class NativeBattleWaterScalarReferenceCommands
                 };
                 return WriteCoreDword(frame, 0x2797450, branch ? unchecked(pc + (uint)(int)(short)Operand(2)) : unchecked(pc + 4));
             case 0x61:
-                if (instruction != 0x61)
-                {
-                    throw new NotSupportedException("Native selected reference copy requires its direct motion variant.");
-                }
-                uint copySource = services.ResolveSlot(frame, unchecked((short)Operand(4)));
-                int mask = unchecked((short)Operand(2));
-                for (int lane = 0; lane < 6; lane++)
-                {
-                    if ((mask & (1 << lane)) != 0)
-                    {
-                        uint value = Dword(copySource, 0x50 + lane * 4);
-                        frame = WriteSlotDword(frame, 0x50 + lane * 4, value);
-                    }
-                }
-                frame = services.CachePosition(frame);
-                frame = services.UpdateSelected(frame);
-                return Advance(6);
+            case 0x62:
+                return CopyMotion(frame, program, services.ResolveSlot, services.CachePosition, services.UpdateSelected);
             case 0x75:
                 int actorIndex = ReadSlot(frame, 0x1B, 1)[0];
                 if ((uint)actorIndex >= 7)
@@ -118,13 +103,12 @@ public static class NativeBattleWaterScalarReferenceCommands
                 frame = WriteSlotDword(frame, 0xCC, (oldColor & 0xFF000000) | (uint)(red | (green << 8) | (blue << 16)));
                 return Advance(4);
             default:
-                throw new NotSupportedException("Native scalar reference commands admit only selected operations 55, 61, 75, 76, 87 and D3.");
+                throw new NotSupportedException("Native scalar reference commands admit only selected operations 55, 61, 62, 75, 76, 87 and D3.");
         }
 
         bool Selected(int lane) => (instruction & (0x8000 >> lane)) != 0;
         NativeBattleWaterExecutionFrame Advance(uint length) => WriteCoreDword(frame, 0x2797450, unchecked(CoreDword(frame, 0x2797450) + length));
         short Word(uint address, int offset) => BinaryPrimitives.ReadInt16LittleEndian(frame.Arena.Read(ArenaOffset(unchecked(address + (uint)offset), 2), 2));
-        uint Dword(uint address, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(unchecked(address + (uint)offset), 4), 4));
 
         ushort Operand(int delta)
         {
@@ -135,5 +119,30 @@ public static class NativeBattleWaterScalarReferenceCommands
             }
             return BinaryPrimitives.ReadUInt16LittleEndian(frame.Arena.Read(checked(program.ArenaOffset + (int)relative), 2));
         }
+    }
+
+    public static NativeBattleWaterExecutionFrame CopyMotion(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, Func<NativeBattleWaterExecutionFrame, short, uint> resolveSlot, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> cachePosition, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> updateSelected)
+    {
+        ushort instruction = frame.ReadTemporaryWord(0x14A);
+        if ((instruction & 0x1FF) is not (0x61 or 0x62))
+        {
+            throw new InvalidDataException("Native motion copy requires its selected instruction.");
+        }
+        short selector = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 4, 2));
+        uint source = resolveSlot(frame, selector);
+        int offset = instruction == 0x61 ? 0x50 : 0x68;
+        short mask = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
+        for (int lane = 0; lane < 6; lane++)
+        {
+            if ((mask & (1 << lane)) == 0)
+            {
+                continue;
+            }
+            uint value = BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(unchecked(source + (uint)(offset + 4 * lane)), 4), 4));
+            frame = WriteSlotDword(frame, offset + lane * 4, value);
+        }
+        frame = cachePosition(frame);
+        frame = updateSelected(frame);
+        return NativeBattleScriptedCommandReads.Advance(frame, 6);
     }
 }

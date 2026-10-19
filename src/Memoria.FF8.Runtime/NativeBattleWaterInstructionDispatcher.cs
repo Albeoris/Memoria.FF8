@@ -137,6 +137,7 @@ public static class NativeBattleWaterInstructionDispatcher
                 return NativeBattleWaterTextureMetadata.Execute52AA3A60(frame, resources.Profile);
             case 0x55:
             case 0x61:
+            case 0x62:
             case 0x75:
             case 0x76:
             case 0x87:

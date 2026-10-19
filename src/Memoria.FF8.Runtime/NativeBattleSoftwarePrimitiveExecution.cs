@@ -31,6 +31,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
     public NativeBattlePcTextureWindowCache? Cache { get; set; }
     public ImmutableArray<NativeBattlePcTextureWindowPixels> TextureSnapshots => textureSnapshots.ToImmutableArray();
     public uint LiveMode => State.Environment.Derived?.Mode ?? throw new NotSupportedException("Native primitive dispatch requires its actual published drawing environment.");
+    public uint LiveDebug => State.Environment.Debug ?? throw new NotSupportedException("Native primitive debug delivery requires its retained debug DWORD.");
 
     public void BeginPass(byte pass)
     {
@@ -55,7 +56,6 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
 
     public void ExecuteSoftware(NativeBattleLogicalCommand command)
     {
-        RequireOrdinaryDebug();
         if (command.Opcode is >= 0xE1 and <= 0xE6)
         {
             uint expected = 0x467100u + 0x10u * (uint)(command.Opcode - 0xE1);
@@ -76,7 +76,6 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
 
     public void ExecuteNormal(NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode, byte pass)
     {
-        RequireOrdinaryDebug();
         if (command.Opcode is >= 0xE1 and <= 0xE6)
         {
             ExecuteState(command);
@@ -236,13 +235,5 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         }
         Textures = Textures with { VramRegions = bank.Regions };
         imageChanged = false;
-    }
-
-    private void RequireOrdinaryDebug()
-    {
-        if (State.Environment.Debug is not 0)
-        {
-            throw new NotSupportedException("Native primitive debug duplicate deliveries require their explicit retained execution contract.");
-        }
     }
 }

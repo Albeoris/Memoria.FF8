@@ -252,6 +252,25 @@ public sealed partial class GameAssets
                 binding = binding with { Choco100Resources = ReadNativeChoco100Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 278)
+            {
+                if (binding.Entry != 0x680C50 || binding.Initializer != 0x680C60)
+                {
+                    throw new InvalidDataException("Native Carbuncle differs from its original module identity.");
+                }
+                binding = binding with { Carbuncle278Resources = ReadNativeCarbuncle278Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 90)
+            {
+                if (binding.Entry != 0x762360 || binding.Initializer != 0x762320)
+                {
+                    throw new InvalidDataException("Native Tonberry differs from its original module identity.");
+                }
+                binding = binding with { Tonberry90Resources = ReadNativeTonberry90Resources() };
+                catalog = catalog.SetItem(index, binding);
+                continue;
+            }
             if (binding.Effect is 6 or 201 or 202 or 203 or 204 or 205 or 206)
             {
                 binding = binding with { ScriptedInitializationDirectories = ReadNativeCinematicInitializationDirectories(binding.Effect), CinematicResources = ReadNativeCinematicResources(binding.Effect) };

@@ -118,6 +118,91 @@ public sealed class NativeBattleLogicalDynamicPassTests
         Assert.Equal(0, context.Ends);
     }
 
+    [Theory]
+    [InlineData(1, 2)]
+    [InlineData(3, 3)]
+    public void Debug_delivers_two_extra_software_calls_after_preprocessing_only(uint liveMode, int deliveries)
+    {
+        Context context = new() { LiveMode = liveMode, LiveDebug = 1 };
+        int writes = 0;
+        context.Software = _ => writes++;
+        var result = NativeBattleLogicalPasses.Execute(Ordering(0x20), Tables(), new(null), context);
+        string[] expected = liveMode == 1 ? ["N0:20", "S:20", "S:20", "N1:20", "N2:20", "END"] : ["S:20", "N0:20", "S:20", "S:20", "N1:20", "N2:20", "END"];
+        Assert.Equal(expected, context.Log.ToArray());
+        Assert.Equal(deliveries, writes);
+        Assert.Equal(3, result.Commands.Length);
+        Assert.Equal(1, context.Ends);
+    }
+
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    public void Debug_calls_do_not_depend_on_hardware_or_a_normal_preprocessing_handler(bool hardware, bool normalHandler)
+    {
+        Context context = new() { LiveMode = 1, LiveDebug = 1, HardwareEnabled = hardware };
+        NativeBattlePrimitiveTables tables = Tables();
+        if (!normalHandler)
+        {
+            tables = tables with { PreprocessingHandlers = tables.PreprocessingHandlers.SetItem(0x20, 0) };
+        }
+        var result = NativeBattleLogicalPasses.Execute(Ordering(0x20), tables, new(null), context);
+        Assert.Equal(new[] { "S:20", "S:20" }, context.Log.Take(2).ToArray());
+        Assert.DoesNotContain("N0:20", context.Log);
+        Assert.Equal(hardware ? 2 : 0, result.Commands.Length);
+        Assert.Equal(hardware ? new[] { "S:20", "S:20", "N1:20", "N2:20", "END" } : new[] { "S:20", "S:20", "END" }, context.Log.ToArray());
+    }
+
+    [Fact]
+    public void Debug_is_read_again_after_the_first_extra_software_call()
+    {
+        Context context = new() { LiveMode = 1, LiveDebug = 1 };
+        context.Software = _ => context.LiveDebug = 0;
+        NativeBattleLogicalPasses.Execute(Ordering(0x20), Tables(), new(null), context);
+        Assert.Equal(new[] { "N0:20", "S:20", "N1:20", "N2:20", "END" }, context.Log.ToArray());
+    }
+
+    [Fact]
+    public void Debug_is_read_after_normal_preprocessing_without_retesting_its_prior_mode_gate()
+    {
+        Context context = new() { LiveMode = 1, LiveDebug = 0 };
+        context.Normal = (_, pass) =>
+        {
+            if (pass == 0)
+            {
+                context.LiveDebug = 1;
+                context.LiveMode = 2;
+            }
+        };
+        NativeBattleLogicalPasses.Execute(Ordering(0x20), Tables(), new(null), context);
+        Assert.Equal(new[] { "N0:20", "S:20", "S:20", "END" }, context.Log.ToArray());
+    }
+
+    [Fact]
+    public void Initial_software_delivery_can_disable_the_mode_gate_before_debug_delivery()
+    {
+        Context context = new() { LiveMode = 3, LiveDebug = 1 };
+        context.Software = _ => context.LiveMode = 2;
+        NativeBattleLogicalPasses.Execute(Ordering(0x20), Tables(), new(null), context);
+        Assert.Equal(new[] { "S:20", "END" }, context.Log.ToArray());
+    }
+
+    [Fact]
+    public void Debug_does_not_add_deliveries_for_state_commands()
+    {
+        Context context = new() { LiveMode = 1, LiveDebug = 1 };
+        NativeBattleLogicalPasses.Execute(Ordering(0xE3), Tables(), new(null), context);
+        Assert.Equal(new[] { "N0:E3", "N1:E3", "N2:E3", "END" }, context.Log.ToArray());
+    }
+
+    [Fact]
+    public void Debug_preserves_a_null_software_handler()
+    {
+        Context context = new() { LiveMode = 1, LiveDebug = 1, SoftwareTable = new(new uint[256].ToImmutableArray()) };
+        NativeBattleLogicalPasses.Execute(Ordering(0x20), Tables(), new(null), context);
+        Assert.Equal(new[] { "N0:20", "N1:20", "N2:20", "END" }, context.Log.ToArray());
+    }
+
     private static void SetMode(NativeBattleLogicalCommand command, Context context)
     {
         if (command.Opcode is 0xE3 or 0xE4 or 0xE5)
@@ -163,8 +248,9 @@ public sealed class NativeBattleLogicalDynamicPassTests
     private sealed class Context : INativeBattleLogicalExecutionContext
     {
         public uint LiveMode { get; set; }
+        public uint LiveDebug { get; set; }
         public bool HardwareEnabled { get; set; } = true;
-        public NativeSoftwarePrimitiveTable SoftwareTable { get; } = new(Tables().PreprocessingHandlers);
+        public NativeSoftwarePrimitiveTable SoftwareTable { get; init; } = new(Tables().PreprocessingHandlers);
         public NativeBattlePcTextureWindowCache? Cache { get; set; }
         public List<string> Log { get; } = [];
         public Action<NativeBattleLogicalCommand>? Software { get; set; }

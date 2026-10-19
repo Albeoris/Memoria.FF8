@@ -68,6 +68,14 @@ public sealed partial class BattleSession
                     NativeBattleChoco99IoCompletion choco99Uploaded = NativeBattleChoco99Io.Complete(choco99.Io ?? throw new NotSupportedException("Native Choco99 file completion requires its current IO script."), choco99Memory, completion.Callback);
                     NativeEffectMemory = choco99Uploaded.Memory with { Choco99 = choco99 with { Io = choco99Uploaded.State } };
                     break;
+                case 0x762A50:
+                case 0x762A80:
+                case 0x762AB0:
+                case 0x762AC0:
+                case 0x762AD0:
+                case 0x762AE0:
+                    CompleteNativeTonberry90File(completion.Callback);
+                    break;
                 case 0xAA0ED0:
                 case 0xB2BB40:
                 case 0xB60530:

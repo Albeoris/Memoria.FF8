@@ -29,6 +29,14 @@ public sealed partial record NativeBattleTonberry90State([property: JsonRequired
         {
             throw new InvalidDataException("Native Tonberry module globals leave their physical span.");
         }
+        if (Io is { } io)
+        {
+            if (io.Script.IsDefault || io.Script.Length != 0x40)
+            {
+                throw new InvalidDataException("Native Tonberry IO requires its complete retained script.");
+            }
+            io.Banks?.Validate();
+        }
     }
 
     public NativeBattleTonberry90IoState? Io { get; init; }

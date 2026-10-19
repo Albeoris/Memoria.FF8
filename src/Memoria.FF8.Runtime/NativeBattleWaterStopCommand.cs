@@ -5,6 +5,15 @@ namespace Memoria.FF8.Runtime;
 /// <summary>The selected stop/remove operation over the actual current slot and shared order owners.</summary>
 public static class NativeBattleWaterStopCommand
 {
+    public static NativeBattleWaterExecutionFrame WaitStop1D(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, Func<NativeBattleWaterExecutionFrame, short, uint> resolveSlot)
+    {
+        short selector = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
+        uint selected = resolveSlot(frame, selector);
+        uint manager = NativeBattleWaterExecutionFields.CoreDword(frame, 0x27973EC);
+        uint first = NativeBattleWaterExecutionFields.CoreDword(frame, unchecked(manager + 0x90));
+        return selected == first ? StopRemoveAA5120(frame) : frame.WriteTemporaryWord(0x13E, 0x80);
+    }
+
     public static NativeBattleWaterExecutionFrame StopRemoveAA5120(NativeBattleWaterExecutionFrame frame)
     {
         if (frame.ReadTemporaryByte(0x143) != 0)
