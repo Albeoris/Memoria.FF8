@@ -243,6 +243,14 @@ public sealed partial class BattleSession
             }
             return (memory.FullscreenOverlay ?? throw new NotSupportedException("Native fullscreen packet alias requires its retained static bytes.")).Read(reference.ByteOffset, count);
         }
+        if (reference.Bank == NativeBattleGroundCaptureMemory.PacketBank)
+        {
+            if (reference.Buffer != 0)
+            {
+                throw new InvalidDataException("Native ground capture statics have one physical packet bank.");
+            }
+            return (memory.GroundCapture ?? throw new NotSupportedException("Native ground capture packet alias requires its retained static bytes.")).Read(reference.ByteOffset, count);
+        }
         if (reference.Bank == NativeBattleThundaga105CaptureMemory.PacketBank)
         {
             if (reference.Buffer != 0)

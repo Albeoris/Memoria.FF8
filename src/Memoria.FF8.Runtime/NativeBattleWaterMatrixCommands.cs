@@ -93,6 +93,22 @@ public static class NativeBattleWaterMatrixCommands
                 frame = WriteCoreDword(frame, 0x2797450, unchecked(pc + (uniform ? 4u : 8u)));
                 uint previousColor = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xCC, 4));
                 return WriteSlotDword(frame, 0xCC, (previousColor & 0xFF000000u) | color);
+            case 0x6A:
+            case 0xC4:
+                uint publishedDestination;
+                (frame, publishedDestination) = AllocateB65480(frame);
+                NativeBattleActionMatrix publishedEuler;
+                (frame, publishedEuler) = BuildRotationB65590(frame, Angles(frame), instruction >> 12);
+                NativeBattleActionMatrix publishedRotation = (instruction & 0x1FF) == 0xC4 ? publishedEuler : NativeBattleGfMatrices.Multiply56C090(ReadRotation(frame, 0x27979E8), publishedEuler);
+                frame = WriteRotation(frame, publishedDestination, publishedRotation);
+                uint currentManager = CoreDword(frame, 0x27973EC);
+                for (int lane = 0; lane < 3; lane++)
+                {
+                    frame = WriteCoreDword(frame, publishedDestination + 20u + (uint)(lane * 4), unchecked((uint)(int)(short)SlotWord(frame, 0x94 + lane * 2)));
+                }
+                frame = WriteCoreWord(frame, publishedDestination + 18, CoreWord(frame, currentManager + 2));
+                advance = 4;
+                break;
             case 0x67:
                 uint destination;
                 (frame, destination) = AllocateB65480(frame);

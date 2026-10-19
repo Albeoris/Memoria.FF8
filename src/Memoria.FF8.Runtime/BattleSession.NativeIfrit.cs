@@ -129,9 +129,10 @@ public sealed partial class BattleSession
         NativeBattleWaterExecutionFrame ExecuteInstructionCore(NativeBattleWaterExecutionFrame current, ushort opcode)
         {
             uint pc = CoreDword(current, 0x2797450);
+            uint selectedHandler;
             try
             {
-                NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "vm_table", opcode, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.InstructionTable + 4u * opcode), 4)));
+                selectedHandler = NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "vm_table", opcode, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.InstructionTable + 4u * opcode), 4)));
             }
             catch (NotSupportedException error)
             {
@@ -144,6 +145,24 @@ public sealed partial class BattleSession
             {
                 case 0:
                     return NativeBattleWaterStopCommand.StopRemoveAA5120(current);
+                case 1:
+                    NativeBattleWaterHeaderNextResult next = NativeBattleWaterHeaderNextCommand.Execute(current, frame => Program(frame, CoreDword(frame, 0x2797450)), frame =>
+                    {
+                        uint address = CoreDword(frame, 0x2798A6C);
+                        return new(ArenaOffset(address, assets[1].Data.Length), assets[1].Data.Length, address);
+                    }, (_, _, address) =>
+                    {
+                        NativeBattleEffectParameters parameters = effect.Parameters ?? throw new NotSupportedException("Native cinematic reset requires its current action parameters.");
+                        return address == WaterParametersAddress ? WaterHeadersAddress + (uint)(20 * parameters.HeaderIndex7C) : throw new NotSupportedException("Native cinematic reset requires its selected parameter base.");
+                    }, (_, _, address, _) =>
+                    {
+                        NativeBattleEffectParameters parameters = effect.Parameters ?? throw new NotSupportedException("Native cinematic reset requires its current action parameters.");
+                        int headerIndex = HeaderIndex(address);
+                        NativeBattleActionHeaderSlot selected = nativeActionPackets.Headers[headerIndex];
+                        NativeBattleActionHeaderSlot first = nativeActionPackets.Headers[parameters.HeaderIndex7C];
+                        return new(parameters.Actor78, headerIndex, WaterContacts(first)[0], WaterContacts(selected), selected.ReadByte(0x10), graphics.Models);
+                    });
+                    return next.Frame;
                 case 0x1D:
                     return NativeBattleWaterStopCommand.WaitStop1D(current, program, ResolveCurrentNode);
                 case 2:
@@ -188,6 +207,10 @@ public sealed partial class BattleSession
                     byte[] viewTranslation = ReadSlot(current, 0x94, 6);
                     NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native cinematic view translation requires its current camera owner.")) with { ViewTranslationScratch = new(BinaryPrimitives.ReadInt16LittleEndian(viewTranslation), BinaryPrimitives.ReadInt16LittleEndian(viewTranslation.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(viewTranslation.AsSpan(4))) };
                     return NativeBattleScriptedCommandReads.Advance(current, 2);
+                case 0x4C:
+                    return NativeBattleWaterScalarReferenceCommands.ChangeUpdate(current, program, frame => UpdateSlot(frame, ReadSlot(frame, 0x18, 1)[0]));
+                case 0xD2:
+                    return NativeBattleWaterScalarReferenceCommands.NegateMotion(current, program, frame => UpdateSlot(frame, ReadSlot(frame, 0x18, 1)[0]), frame => frame with { Arena = NativeBattleWaterSlots.CachePositionAA17D0(frame.Arena, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank)) });
                 case 0x61:
                 case 0x62:
                     return NativeBattleWaterScalarReferenceCommands.CopyMotion(current, program, ResolveCurrentNode, frame => frame with { Arena = NativeBattleWaterSlots.CachePositionAA17D0(frame.Arena, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank)) }, frame => UpdateSlot(frame, ReadSlot(frame, 0x18, 1)[0]));
@@ -199,6 +222,7 @@ public sealed partial class BattleSession
                         return frame;
                     });
                 case 0x3C:
+                case 0x56:
                 case 0x4A:
                 case 0x2F:
                 case 0x25:
@@ -218,10 +242,11 @@ public sealed partial class BattleSession
                 case 0x8B:
                     return NativeBattleWaterChildCommands.Execute(current, program, bank, opcode == 0x32 ? checked(current.TemporaryFrame.Address + 0x100) : 0);
                 case 0x6D:
-                    NativeBattleScriptedProcessFlagsStep flags = NativeBattleScriptedProcessFlags.Execute(current, RequireWaterMemory().ScriptedProcessFlags ?? throw new NotSupportedException("Native cinematic flags require their retained four-row process owner."));
-                    NativeEffectMemory = RequireWaterMemory() with { ScriptedProcessFlags = flags.State };
+                    NativeBattleScriptedProcessFlagsStep flags = NativeBattleScriptedProcessFlags.Execute(current, NativeStage ?? throw new NotSupportedException("Native cinematic flags require their current four stage groups."));
+                    NativeStage = flags.State;
                     return flags.Frame;
                 case 0x2B:
+                case 0x4D:
                 case 0x43:
                 case 0x44:
                 case 0x45:
@@ -318,6 +343,9 @@ public sealed partial class BattleSession
                             return frame;
                         }
                     }, program);
+                case 0x1B:
+                case 0xA2:
+                case 0xCD:
                 case 0x23:
                 case 0x24:
                 case 0x2A:
@@ -331,13 +359,17 @@ public sealed partial class BattleSession
                 case 0x59:
                     return NativeBattleWaterParticleCommands.Execute(current, program);
                 case 0x63:
+                case 0x6A:
+                case 0xC4:
                 case 0x67:
                 case 0xD4:
                 case 0x104:
                 case 0x105:
                     return NativeBattleWaterMatrixCommands.Execute(current, program, bank);
+                case 0xC3:
+                    return NativeBattleScriptedSoundCommands.ExecuteC3(current, (NativeGlobalSoundProcess ?? throw new NotSupportedException("Native cinematic sound control requires its current backend owner.")).Backend);
                 case 0xCF:
-                    return current;
+                    return selectedHandler is 0xAFCBE0 or 0xAF1830 ? NativeBattleWaterContextCommands.ExecuteRing(current, context) : current;
                 default:
                     throw new NotSupportedException($"Native cinematic instruction{current.ReadTemporaryWord(0x14A):X4} at{pc:X} requires its selected command contract.");
             }
@@ -357,6 +389,12 @@ public sealed partial class BattleSession
             return NativeBattleCinematicDraw.Run(profile, current, PrepareLighting, (frame, kind) =>
             {
                 NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "draw_table", kind, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.DrawTable + 4u * kind), 4)));
+                if (kind == 4)
+                {
+                    var overlay = DrawNativeCinematicOverlay(frame, graphics);
+                    graphics = overlay.Graphics;
+                    return overlay.Frame;
+                }
                 if (kind == 6)
                 {
                     var drawn = DrawNativeCinematicParticles(frame, Program(frame, CoreDword(frame, 0x2798A68)), assets[1].Data.Length, resources, graphics);
@@ -372,7 +410,7 @@ public sealed partial class BattleSession
                         return scrollFrame;
                     });
                 }
-                if (kind is 1 or 2 or 0x1B)
+                if (kind is 1 or 2 or 9 or 0x1B)
                 {
                     var drawn = DrawNativeCinematicMesh(frame, kind, assets[1].Data.Length, resources, graphics);
                     graphics = drawn.Graphics;

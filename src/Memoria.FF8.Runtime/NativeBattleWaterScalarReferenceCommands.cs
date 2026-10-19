@@ -93,6 +93,10 @@ public static class NativeBattleWaterScalarReferenceCommands
                     }
                 }
                 return Advance(6);
+            case 0x4C:
+                return ChangeUpdate(frame, program, services.UpdateSelected);
+            case 0xD2:
+                return NegateMotion(frame, program, services.UpdateSelected, services.CachePosition);
             case 0xD3:
                 uint colorSource = services.ResolveSlot(frame, unchecked((short)Operand(2)));
                 int colorFactor = Word(colorSource, 0x8C);
@@ -119,6 +123,25 @@ public static class NativeBattleWaterScalarReferenceCommands
             }
             return BinaryPrimitives.ReadUInt16LittleEndian(frame.Arena.Read(checked(program.ArenaOffset + (int)relative), 2));
         }
+    }
+
+    public static NativeBattleWaterExecutionFrame ChangeUpdate(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> update)
+    {
+        byte kind = NativeBattleScriptedCommandReads.Program(frame, program, 2, 1)[0];
+        frame = frame with { Arena = frame.Arena.Write(SlotOffset(frame, 0x18, 1), [kind]) };
+        frame = update(frame);
+        return NativeBattleScriptedCommandReads.Advance(frame, 4);
+    }
+
+    public static NativeBattleWaterExecutionFrame NegateMotion(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> update, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> cachePosition)
+    {
+        short index = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
+        uint address = unchecked(CoreDword(frame, 0x27973E8) + 0x50u + (uint)(4 * index));
+        uint value = BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(address, 4), 4));
+        frame = frame with { Arena = frame.Arena.Write(ArenaOffset(address, 4), BitConverter.GetBytes(unchecked(0u - value))) };
+        frame = update(frame);
+        frame = cachePosition(frame);
+        return NativeBattleScriptedCommandReads.Advance(frame, 4);
     }
 
     public static NativeBattleWaterExecutionFrame CopyMotion(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, Func<NativeBattleWaterExecutionFrame, short, uint> resolveSlot, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> cachePosition, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> updateSelected)

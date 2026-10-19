@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleTonberry90ActorDraw(NativeBattleTonberry90Frame Frame, int Remaining);
+public sealed record NativeBattleTonberry90CompanionStep(NativeBattleTonberry90Frame Frame, bool Complete, NativeBattleStageState Stage);
 public sealed record NativeBattleTonberry90ActorServices(Func<NativeBattleTonberry90Frame, uint, NativeBattleGfAnimationSource> ReadSource, Func<NativeBattleTonberry90Frame, uint, NativeBattleGfAnimationSource, uint, NativeBattleTonberry90Frame> Bounds8DE160And8DE1F0, Func<NativeBattleTonberry90Frame, uint, NativeBattleTonberry90ActorDraw> Draw764130);
 
 public static class NativeBattleTonberry90Actors
@@ -100,7 +101,7 @@ public static class NativeBattleTonberry90Actors
         return Finish(frame, address);
     }
 
-    public static NativeBattleTonberry90TaskStep Advance7681B0(NativeBattleTonberry90Frame frame, uint address)
+    public static NativeBattleTonberry90CompanionStep Advance7681B0(NativeBattleTonberry90Frame frame, uint address, NativeBattleStageState stage)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         if (task.Callback != 0x7681B0)
@@ -111,7 +112,7 @@ public static class NativeBattleTonberry90Actors
         {
             case 0:
                 frame = Write(frame, address, task.WriteWord(0x76, 0));
-                frame = PublishRows(frame, _ => new(0, 0, 0, 0));
+                stage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = 0, ColorFlags = group.ColorFlags & 0xFF000000 }).ToImmutableArray() };
                 frame = Next(frame, address);
                 break;
             case 1:
@@ -122,22 +123,15 @@ public static class NativeBattleTonberry90Actors
                     frame = Complete(frame, address);
                 }
                 frame = Write(frame, address, Read(frame, address).WriteWord(0x76, factor));
-                frame = PublishRows(frame, row => row with { Factor = factor });
+                stage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = unchecked((short)factor) }).ToImmutableArray() };
                 break;
             case 2:
                 break;
             default:
                 throw new NotSupportedException($"Native Tonberry signed color companion state {unchecked((sbyte)task.ReadByte(0x29))} is unsupported.");
         }
-        return Finish(frame, address);
-    }
-
-    private static NativeBattleTonberry90Frame PublishRows(NativeBattleTonberry90Frame frame, Func<NativeBattleScriptedProcessColorRow, NativeBattleScriptedProcessColorRow> update)
-    {
-        NativeBattleScriptedProcessFlagsState owner = frame.Memory.ScriptedProcessFlags ?? throw new NotSupportedException("Native Tonberry color publication requires its four-row process owner.");
-        owner.Validate();
-        ImmutableArray<NativeBattleScriptedProcessColorRow> rows = owner.ColorRows ?? [new(null, null, null, null), new(null, null, null, null), new(null, null, null, null), new(null, null, null, null)];
-        return frame with { Memory = frame.Memory with { ScriptedProcessFlags = owner with { ColorRows = rows.Select(update).ToImmutableArray() } } };
+        NativeBattleTonberry90TaskStep finished = Finish(frame, address);
+        return new(finished.Frame, finished.Complete, stage);
     }
 
     private static NativeBattleTonberry90TaskStep Finish(NativeBattleTonberry90Frame frame, uint address)

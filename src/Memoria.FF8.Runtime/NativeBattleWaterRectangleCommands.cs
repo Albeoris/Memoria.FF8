@@ -31,16 +31,23 @@ public static class NativeBattleWaterRectangleCommands
                 return Advance(2);
             case 0x4A:
             case 0x3C:
+            case 0x56:
                 uint color = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xCC, 4));
                 frame = WriteSlotDword(frame, 0xCC, color & 0x02FFFFFF);
                 frame = WriteSlotDword(frame, 0xBC, 0);
                 uint shape = resolveShape(frame, Operand());
                 frame = WriteSlotDword(frame, 0xD8, shape);
-                frame = NativeBattleWaterParticleCommands.RegisterDrawB65320(frame, (instruction & 0x1FF) == 0x3C ? (byte)1 : (byte)(instruction >> 9));
+                frame = NativeBattleWaterParticleCommands.RegisterDrawB65320(frame, (instruction & 0x1FF) is 0x3C or 0x56 ? (byte)1 : (byte)(instruction >> 9));
                 frame = Advance(4);
                 if ((instruction & 0x1FF) == 0x3C)
                 {
                     frame = SlotByte(frame, 0x1C, 2);
+                }
+                if ((instruction & 0x1FF) == 0x56)
+                {
+                    frame = SlotByte(frame, 0x1C, 9);
+                    frame = WriteSlotWord(frame, 0xC2, unchecked((ushort)ReadWord(CoreDword(frame, 0x2797450))));
+                    frame = Advance(2);
                 }
                 return frame;
             case 0x25:
@@ -63,14 +70,16 @@ public static class NativeBattleWaterRectangleCommands
                 frame = Advance(4);
                 return SlotByte(frame, 0x1E, 9);
             default:
-                throw new NotSupportedException("Native rectangle commands admit only selected operations 25, 2F, 3C and 4A.");
+                throw new NotSupportedException("Native rectangle commands admit only selected operations 25, 2F, 3C, 4A and 56.");
         }
 
         NativeBattleWaterExecutionFrame Advance(uint amount) => WriteCoreDword(frame, 0x2797450, unchecked(CoreDword(frame, 0x2797450) + amount));
 
-        short Operand()
+        short Operand() => ReadWord(unchecked(pc + 2));
+
+        short ReadWord(uint address)
         {
-            uint relative = unchecked(pc + 2 - program.Address);
+            uint relative = unchecked(address - program.Address);
             if (program.ArenaOffset < 0 || program.Length < 2 || program.ArenaOffset > NativeBattleEffectArena.Length - program.Length || relative > (uint)(program.Length - 2))
             {
                 throw new InvalidDataException("Native rectangle selection operand leaves its current program owner.");

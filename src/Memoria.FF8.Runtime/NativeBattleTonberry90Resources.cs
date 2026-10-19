@@ -5,6 +5,10 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleTonberry90Resources(uint StaticAddress, NativeBattleEffectHeapAllocation StaticData, NativeBattleMoogle96VibrationResource Vibration, ImmutableArray<NativeBattleEffectFileAsset> Files)
 {
     public ImmutableArray<NativeBattleEffectInitializerAsset> InitializerTims { get; init; } = [];
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleGfAnimationSource? PhaseOneSource { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleEffectOwnedModelResource? CreatureModel { get; init; }
 
     public void Validate()
     {

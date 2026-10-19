@@ -47,6 +47,26 @@ public sealed class NativeBattleWaterRectangleCommandsTests
         Assert.Equal(0x1004u, Pc(result));
     }
 
+    [Theory]
+    [InlineData(0x0056)]
+    [InlineData(0xFE56)]
+    public void Shape56_reads_third_word_and_registers_kind9_without_overwriting_the_depth_low_word(ushort instruction)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(instruction, 1);
+        frame = frame with { Arena = WriteWord(frame.Arena, 0x1004, 0xFEDC) };
+        frame = WaterSchedulerFixture.SlotDword(frame, 0, 0xCC, 0xFFFFFFFF);
+        frame = WaterSchedulerFixture.SlotDword(frame, 0, 0xC0, 0x76543210);
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterRectangleCommands.Execute(frame, new(0x1000, 6, 0x1000), Bank, 0, Resources, Map);
+        Assert.Equal(0x02FFFFFFu, SlotDword(result, 0xCC));
+        Assert.Equal(0u, SlotDword(result, 0xBC));
+        Assert.Equal(Address(0x50A0), SlotDword(result, 0xD8));
+        Assert.Equal((ushort)0xFEDC, SlotWord(result, 0xC2));
+        Assert.Equal((ushort)0x3210, SlotWord(result, 0xC0));
+        Assert.Equal((byte)9, result.Arena.Read(0x201C, 1)[0]);
+        Assert.Equal(0x1006u, Pc(result));
+        Assert.Equal(new byte[] { 0, 0xFF }, result.Core.Read(0x2797554, 2));
+    }
+
     [Fact]
     public void VelocityClearTouchesOnlyNineDwordsAndRebuildsAccelerationFlagsWithoutCache()
     {

@@ -93,6 +93,34 @@ public sealed class NativeBattleWaterMeshPreparationTests
     }
 
     [Fact]
+    public void Type9_uses_global_translation_and_retains_original_packed_basis_translation_and_unknown_padding()
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture();
+        frame = Matrix(frame, 2, [4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 100, 200, 300, 0x1234);
+        frame = frame with { Core = frame.Core.MarkUnknown(0x27979E8 + 64 + 18, 2) };
+        frame = CoreWord(frame, 0x27971E4, 11);
+        frame = CoreWord(frame, 0x27971E6, 22);
+        frame = CoreWord(frame, 0x27971E8, 33);
+        frame = SlotWord(frame, 0, 0x8C, 256);
+        frame = SlotWord(frame, 0, 0x8E, 128);
+        frame = SlotWord(frame, 0, 0x90, unchecked((ushort)-256));
+        frame = SlotWord(frame, 0, 0x94, 700);
+        frame = SlotWord(frame, 0, 0x96, 800);
+        frame = SlotWord(frame, 0, 0x98, 900);
+        frame = SlotWord(frame, 0, 0xC2, 8);
+        NativeBattleWaterMeshPrepared prepared = NativeBattleWaterMeshPreparation.PrepareWrapper(frame, Bank, 0, 9, 216);
+        Assert.Equal((111, 222, 333), (prepared.Matrix.X, prepared.Matrix.Y, prepared.Matrix.Z));
+        Assert.Equal(new short[] { 4096, 0, 0, 0, 2048, 0, 0, 0, -4096 }, prepared.Matrix.Rotation);
+        Assert.Equal((short)216, prepared.Focal);
+        Assert.Equal(100u, prepared.Frame.ReadTemporaryDword(0xF4));
+        Assert.Equal(200u, prepared.Frame.ReadTemporaryDword(0xF8));
+        Assert.Equal(300u, prepared.Frame.ReadTemporaryDword(0xFC));
+        Assert.False(prepared.Frame.TemporaryFrame.Known[0xF2]);
+        Assert.Equal(new NativeBattleMeshLocalClip(new(700, 800, 900), 8), prepared.LocalClip);
+        Assert.Equal((ushort)800, prepared.Frame.ReadTemporaryWord(0x22));
+    }
+
+    [Fact]
     public void Missing_ID_falls_back_to_matrix_row0_and_zero_override_uses_global_focal()
     {
         NativeBattleWaterExecutionFrame frame = Fixture();

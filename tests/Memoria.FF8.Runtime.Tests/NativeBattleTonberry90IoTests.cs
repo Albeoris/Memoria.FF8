@@ -10,6 +10,18 @@ public sealed class NativeBattleTonberry90IoTests
     private const uint Control = 0x25A4C28;
 
     [Fact]
+    public void File_copy_uses_actual_payload_length_and_preserves_the_reserved_buffer_tail()
+    {
+        NativeBattleTonberry90IoAdvance begun = NativeBattleTonberry90Io.Advance762850(Initialize(streamFirst: true), Task());
+        NativeBattleTonberry90Frame frame = begun.Frame with { Memory = begun.Frame.Memory with { Arena = begun.Frame.Memory.Arena!.Write(0x20000, Enumerable.Repeat((byte)0xA5, 128).ToArray()) } };
+        NativeBattleTonberry90IoQueued queued = NativeBattleTonberry90Io.CopyAndQueueFile(frame, NativeBattleFileIoState.FromColdProcess(), new(417, "stream", BitConverter.GetBytes(7).ToImmutableArray()));
+        Assert.Equal(7, BinaryPrimitives.ReadInt32LittleEndian(queued.Frame.Memory.Arena!.Read(0x20000, 4)));
+        Assert.Equal(Enumerable.Repeat((byte)0xA5, 124), queued.Frame.Memory.Arena.Read(0x20004, 124));
+        Assert.Equal(4, queued.FileIo.Rows[0].FileResult);
+        Assert.Equal(0x1C30, begun.Request!.DeclaredLength);
+    }
+
+    [Fact]
     public void Initialization_preserves_current_script_and_uses_plain_external_directory_without_Choco_presets()
     {
         NativeBattleTonberry90Frame frame = Initialize();

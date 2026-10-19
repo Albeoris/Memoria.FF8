@@ -56,6 +56,15 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
 
     public void ExecuteSoftware(NativeBattleLogicalCommand command)
     {
+        if (command.Opcode == 0x80)
+        {
+            if (SoftwareTable.Handler(command.Opcode) != 0x4670D0)
+            {
+                throw new NotSupportedException("Native software image transfer requires its actual shared transfer handler.");
+            }
+            ExecuteImageTransfer(command);
+            return;
+        }
         if (command.Opcode is >= 0xE1 and <= 0xE6)
         {
             uint expected = 0x467100u + 0x10u * (uint)(command.Opcode - 0xE1);
@@ -69,6 +78,21 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
             }
             return;
         }
+        if (command.Opcode == 0x02)
+        {
+            if (SoftwareTable.Handler(command.Opcode) != 0x466EF0 || command.Words.Length != 3)
+            {
+                throw new NotSupportedException("Native software fill requires its actual dispatch handler and three payload DWORDs.");
+            }
+            byte[] packet = new byte[16];
+            for (int index = 0; index < command.Words.Length; index++)
+            {
+                BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(4 + index * 4), command.Words[index]);
+            }
+            image ??= Textures.ReadVram();
+            imageChanged |= NativeSoftwareRectangleFill.Fill466EF0(image, packet);
+            return;
+        }
         image ??= Textures.ReadVram();
         State = State.DrawPolygon(image, command, SoftwareTable);
         imageChanged = true;
@@ -76,6 +100,38 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
 
     public void ExecuteNormal(NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode, byte pass)
     {
+        if (command.Opcode == 0x80)
+        {
+            if (pass == 0)
+            {
+                return;
+            }
+            if (pass != 1)
+            {
+                throw new NotSupportedException("Native image transfer requires its first-pass normal handler.");
+            }
+            ExecuteImageTransfer(command);
+            return;
+        }
+        if (command.Opcode == 0x02)
+        {
+            if (pass == 0)
+            {
+                return;
+            }
+            if (pass != 1 || command.Words.Length != 3)
+            {
+                throw new NotSupportedException("Native normal fill requires its first-pass handler and three payload DWORDs.");
+            }
+            byte[] packet = new byte[16];
+            for (int index = 0; index < command.Words.Length; index++)
+            {
+                BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(4 + index * 4), command.Words[index]);
+            }
+            image ??= Textures.ReadVram();
+            imageChanged |= NativeSoftwareRectangleFill.Fill4623A0(image, packet);
+            return;
+        }
         if (command.Opcode is >= 0xE1 and <= 0xE6)
         {
             ExecuteState(command);
@@ -209,6 +265,28 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         State = State with { EnvironmentBuffers = buffers with { CurrentGlobal = bytes.ToImmutableArray() } };
 
         void Word(int offset, ushort value) => BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(offset), value);
+    }
+
+    private void ExecuteImageTransfer(NativeBattleLogicalCommand command)
+    {
+        if (command.Words.Length != 4)
+        {
+            throw new InvalidDataException("Native image transfer requires its four payload DWORDs.");
+        }
+        PublishImage();
+        NativeBattleEffectTextureState priorTextures = Textures;
+        byte[] packet = new byte[20];
+        for (int index = 0; index < command.Words.Length; index++)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(4 + index * 4), command.Words[index]);
+        }
+        image ??= Textures.ReadVram();
+        imageChanged = true;
+        NativeSoftwareImageTransfer.Transfer45BB00(image, packet, (left, top, right, bottom) =>
+        {
+            PublishImage();
+            Cache = (Cache ?? throw new NotSupportedException("Native image transfer requires its retained texture cache.")).Invalidate464850(left, top, right, bottom, priorTextures);
+        });
     }
 
     private void PublishImage()

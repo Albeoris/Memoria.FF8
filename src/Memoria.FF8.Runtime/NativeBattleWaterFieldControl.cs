@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-/// <summary>Nine selected slot and command-state operations, with no general field-offset dispatch.</summary>
+/// <summary>Selected slot and command-state operations, with no general field-offset dispatch.</summary>
 public static class NativeBattleWaterFieldControl
 {
     public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, int currentIndex)
@@ -13,6 +13,14 @@ public static class NativeBattleWaterFieldControl
         int advance;
         switch (instruction & 0x1FF)
         {
+            case 0x1B:
+            case 0xA2:
+                advance = 4;
+                break;
+            case 0xCD:
+                frame = NativeBattleWaterExecutionFields.WriteSlotWord(frame, 0x48, OperandWord());
+                advance = 4;
+                break;
             case 0x23:
                 int kind = instruction >> 9;
                 uint color = BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleWaterExecutionFields.ReadSlot(frame, 0xCC, 4));
@@ -109,7 +117,7 @@ public static class NativeBattleWaterFieldControl
                 advance = 4;
                 break;
             default:
-                throw new NotSupportedException("Native field control admits only its nine selected operations.");
+                throw new NotSupportedException("Native field control admits only its selected operations.");
         }
         return NativeBattleWaterExecutionFields.WriteCoreDword(frame, 0x2797450, unchecked(pc + (uint)advance));
 

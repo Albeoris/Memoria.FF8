@@ -212,6 +212,35 @@ public sealed class NativeBattleWaterMatrixCommandTests
         Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(json)!));
     }
 
+    [Theory]
+    [InlineData(0x006A)]
+    [InlineData(0x306A)]
+    [InlineData(0x00C4)]
+    [InlineData(0x30C4)]
+    public void Matrix6A_and_C4_use_direct_cached_translation_and_current_manager_word_without_reading_an_operand(ushort instruction)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(instruction);
+        frame = WaterSchedulerFixture.SlotWord(frame, 0, 0x12, 7);
+        frame = WaterSchedulerFixture.CoreWord(frame, 0x2797206, 7);
+        frame = WaterSchedulerFixture.CoreDword(frame, 0x27973EC, 0x2797690);
+        frame = WaterSchedulerFixture.CoreWord(frame, 0x2797692, 0xFEDC);
+        frame = WriteMatrix(frame, MatrixBase, new(new short[] { 0, -4096, 0, 4096, 0, 0, 0, 0, 4096 }.ToImmutableArray(), 50000, -50000, 60000, 4096));
+        frame = Vector(frame, 0, 0x8C, new(0, 0, 0));
+        frame = Vector(frame, 0, 0x94, new(-123, 456, -789));
+        frame = frame with { Arena = frame.Arena.MarkUnknown(0x1002, 2), Core = frame.Core.MarkUnknown(MatrixBase + 18, 14) };
+        if ((instruction & 0x1FF) == 0xC4)
+        {
+            frame = frame with { Core = frame.Core.MarkUnknown(MatrixBase, 32) };
+        }
+        NativeBattleWaterExecutionFrame result = Run(frame, 2);
+        Assert.Equal((ushort)((instruction & 0x1FF) == 0xC4 ? 4096 : 0), ReadWord(result, MatrixBase + 32));
+        Assert.Equal((ushort)0xFEDC, ReadWord(result, MatrixBase + 32 + 18));
+        Assert.Equal(unchecked((uint)-123), WaterSchedulerFixture.ReadCoreDword(result, MatrixBase + 32 + 20));
+        Assert.Equal(456u, WaterSchedulerFixture.ReadCoreDword(result, MatrixBase + 32 + 24));
+        Assert.Equal(unchecked((uint)-789), WaterSchedulerFixture.ReadCoreDword(result, MatrixBase + 32 + 28));
+        Assert.Equal(Pc + 4, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+    }
+
     private static NativeBattleWaterExecutionFrame Nested()
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0x63);

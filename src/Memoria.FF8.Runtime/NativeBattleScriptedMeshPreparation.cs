@@ -57,6 +57,11 @@ public static class NativeBattleScriptedMeshPreparation
             source = frame.ReadTemporaryDword(0x74);
             normalSource = frame.ReadTemporaryDword(0x78);
         }
+        if (prepared.LocalClip is { } clip)
+        {
+            frame = ApplyLocalClip(frame, clip, vertices);
+            source = frame.ReadTemporaryDword(0x74);
+        }
         projection = projection with { FocalLength = unchecked((ushort)prepared.Focal) };
         for (int index = 0; index < vertices; index++)
         {
@@ -98,6 +103,31 @@ public static class NativeBattleScriptedMeshPreparation
         return new(frame, depthOwner, lighting, registers);
 
         uint Dword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(address, 4), 4));
+    }
+
+    internal static NativeBattleWaterExecutionFrame ApplyLocalClip(NativeBattleWaterExecutionFrame frame, NativeBattleMeshLocalClip clip, int vertices)
+    {
+        if ((clip.Flags & 0xC) == 0)
+        {
+            return frame;
+        }
+        uint source = frame.ReadTemporaryDword(0x74);
+        uint destination = frame.ReadTemporaryDword(0x7C);
+        frame = frame.WriteTemporaryDword(0x74, destination);
+        short limit = unchecked((short)(clip.Position.Y << 3));
+        for (int index = 0; index < vertices; index++)
+        {
+            uint input = unchecked(source + (uint)(index * 8));
+            uint output = unchecked(destination + (uint)(index * 8));
+            short y = BinaryPrimitives.ReadInt16LittleEndian(frame.Arena.Read(ArenaOffset(input + 2, 2), 2));
+            y = (clip.Flags & 8) != 0 ? Math.Min(y, limit) : Math.Max(y, limit);
+            frame = frame with { Arena = frame.Arena.Write(ArenaOffset(output + 2, 2), BitConverter.GetBytes(y)) };
+            byte[] x = frame.Arena.Read(ArenaOffset(input, 2), 2);
+            frame = frame with { Arena = frame.Arena.Write(ArenaOffset(output, 2), x) };
+            byte[] z = frame.Arena.Read(ArenaOffset(input + 4, 2), 2);
+            frame = frame with { Arena = frame.Arena.Write(ArenaOffset(output + 4, 2), z) };
+        }
+        return frame;
     }
 
     public static NativeBattleScriptedMeshSubmission Submit(NativeBattleScriptedMeshProjected projected, int shapeExtent, Func<int, uint> resolveActualHandler, Func<int, byte> resolveActualStride, Func<uint, int> resolveActualOtBucket)

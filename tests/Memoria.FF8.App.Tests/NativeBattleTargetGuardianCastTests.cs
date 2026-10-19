@@ -28,6 +28,18 @@ public sealed partial class NativeBattleTargetGuardianCastTests
     [InlineData(15, 206)]
     public void Installed_cinematic_guardian_entry_preserves_its_selected_profile_and_independent_disk_state(int guardian, ushort effect) => Run(guardian, effect, true);
 
+    [Theory]
+    [InlineData(7, 6)]
+    [InlineData(12, 202)]
+    [InlineData(9, 203)]
+    [InlineData(10, 204)]
+    [InlineData(4, 205)]
+    [InlineData(15, 206)]
+    public void Installed_cinematic_guardian_ordinary_command_completes_graphics_contact_and_disk_continuations(int guardian, ushort effect) => Run(guardian, effect);
+
+    [Fact]
+    public void Installed_Cactuar_ordinary_command_completes_graphics_contact_and_disk_continuations() => Run(13, 199);
+
     [Fact]
     public void Continue_the_named_cinematic_guardian_checkpoint_to_completion()
     {
@@ -76,6 +88,8 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             NativeBattleRestorationPresentationTests.Publish(output!, "before-boundary", before, null);
             NativeBattleRestorationPresentationTests.Publish(output!, "failed-live", battle.Capture(), null);
             File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "blocked", error = error.ToString(), before.Frame, NativeCallback = before.NativeGraphics?.Callback }));
+            BattleSession checkpoint = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(before))!);
+            Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(checkpoint.Capture()));
             throw;
         }
     }
@@ -179,10 +193,11 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                     cameraChanged |= beforeCamera != JsonSerializer.Serialize(current.NativeCamera);
                     castingHidden |= (graphics.Models[0].Flags0 & 8) != 0;
                     NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame!;
-                    if (!visible && primitive.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
+                    ImmutableHashSet<NativeBattlePrimitiveReference> effectPackets = visible ? [] : GuardianPacketReferences(prior, current, effectId, game);
+                    if (!visible && effectPackets.Count > 0)
                     {
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
-                        NativeBattlePrimitiveFrame withoutPrivate = primitive with { LastCommands = primitive.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
+                        NativeBattlePrimitiveFrame withoutPrivate = primitive with { LastCommands = primitive.LastCommands.Where(command => !effectPackets.Contains(command.Command.Packet)).ToImmutableArray() };
                         BattleSession background = BattleSession.Restore(current with { NativeGraphics = graphics with { PrimitiveFrame = withoutPrivate } });
                         byte[] backgroundPixels = new BattleScenePresentation(assets, definition, true).Render(background, 320, 224).ToArray();
                         visibleRgbChanges = CountRgbChanges(pixels, backgroundPixels);

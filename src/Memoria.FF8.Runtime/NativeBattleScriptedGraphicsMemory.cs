@@ -14,7 +14,8 @@ public sealed record NativeBattleScriptedGraphicsMemory([property: JsonRequired]
     public NativeBattleScriptedGraphicsMemory InitializeGeom56BAA0() => this with { Zsf3 = 0x155, Zsf4 = 0x100, Dqa = 0, Dqb = 0 };
 
     public const uint DepthAddress = 0x2798C18;
-    public const int DepthLength = 0x2A8;
+    // The remaining mapped process window bounds retained depth writes; it is not an array allocation size.
+    public const int DepthLength = 0x63E8;
     public const uint ViewBackupAddress = 0x2796F90;
 
     public static NativeBattleScriptedGraphicsMemory FromColdProcess() => new(NativeBattleEffectArena.Clear(), new byte[32].ToImmutableArray(), 0, 0) { Zsf3 = 0, Zsf4 = 0 };

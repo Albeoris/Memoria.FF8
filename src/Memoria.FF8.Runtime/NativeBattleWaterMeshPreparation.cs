@@ -4,7 +4,11 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleWaterMeshPrepared(NativeBattleWaterExecutionFrame Frame, NativeBattleActionMatrix Matrix, short Focal);
+public sealed record NativeBattleMeshLocalClip(NativeBattleVector Position, ushort Flags);
+public sealed record NativeBattleWaterMeshPrepared(NativeBattleWaterExecutionFrame Frame, NativeBattleActionMatrix Matrix, short Focal)
+{
+    public NativeBattleMeshLocalClip? LocalClip { get; init; }
+}
 public sealed record NativeBattleWaterMeshProjected(NativeBattleWaterExecutionFrame Frame, NativeBattleEffectArena DepthOwner, double ProxyScale);
 public sealed record NativeBattleWaterMeshSubmission(NativeBattleWaterExecutionFrame Frame, NativeBattleGfGeometryBatch Packets);
 
@@ -15,6 +19,10 @@ public static class NativeBattleWaterMeshPreparation
 
     public static NativeBattleWaterMeshPrepared PrepareWrapper(NativeBattleWaterExecutionFrame frame, NativeBattleWaterSlotBank bank, int index, byte wrapper, short globalFocal)
     {
+        if (wrapper == 9)
+        {
+            return PrepareClipped(frame, bank, index, globalFocal);
+        }
         if (wrapper == 0x1B)
         {
             return PrepareRotatedUniform(frame, bank, index, globalFocal);
@@ -55,6 +63,38 @@ public static class NativeBattleWaterMeshPreparation
             }
         }
         return new(frame, matrix, focal);
+    }
+
+    private static NativeBattleWaterMeshPrepared PrepareClipped(NativeBattleWaterExecutionFrame frame, NativeBattleWaterSlotBank bank, int index, short globalFocal)
+    {
+        int slot = bank.SlotOffset(frame.Arena, index);
+        frame = frame.WriteTemporaryDword(0x4C, Dword(frame.Arena, slot + 0xBC)).WriteTemporaryDword(0x48, 0).WriteTemporaryDword(0x44, 0).WriteTemporaryDword(0x40, 0);
+        uint address = NativeBattleWaterMatrixCommands.ResolveB65520(frame, bank, index, Word(frame.Arena, slot + 0x9C));
+        (byte[] bytes, bool[] known) = frame.Core.ReadSnapshot(address, 32);
+        byte[] rotation = frame.Core.Read(address, 18);
+        NativeBattleActionMatrix basis = new(Enumerable.Range(0, 9).Select(lane => BinaryPrimitives.ReadInt16LittleEndian(rotation.AsSpan(lane * 2))).ToImmutableArray(), unchecked((int)CoreDword(frame, address + 20)), unchecked((int)CoreDword(frame, address + 24)), unchecked((int)CoreDword(frame, address + 28)), 4096);
+        NativeBattleVector global = new(unchecked((short)CoreWord(frame, 0x27971E4)), unchecked((short)CoreWord(frame, 0x27971E6)), unchecked((short)CoreWord(frame, 0x27971E8)));
+        NativeBattleFullMacVertex translated = NativeBattleGfMatrices.TransformMac460840(basis, global);
+        frame = frame.WriteTemporary(0xE0, bytes);
+        ImmutableArray<bool>.Builder retainedKnown = frame.TemporaryFrame.Known.ToBuilder();
+        for (int offset = 0; offset < known.Length; offset++)
+        {
+            retainedKnown[0xE0 + offset] = known[offset];
+        }
+        frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = retainedKnown.ToImmutable() } };
+        int sx = SignedWord(frame.Arena, slot + 0x8C) << 4;
+        int sy = SignedWord(frame.Arena, slot + 0x8E) << 4;
+        int sz = SignedWord(frame.Arena, slot + 0x90) << 4;
+        frame = frame.WriteTemporaryDword(0xD4, unchecked((uint)sx)).WriteTemporaryDword(0xD8, unchecked((uint)sy)).WriteTemporaryDword(0xDC, unchecked((uint)sz));
+        NativeBattleActionMatrix scaled = NativeBattlePoseMatrices.Scale56BEF0(basis, sx, sy, sz);
+        for (int lane = 0; lane < 9; lane++)
+        {
+            frame = frame.WriteTemporaryWord(0xE0 + lane * 2, unchecked((ushort)scaled.Rotation[lane]));
+        }
+        NativeBattleVector clip = new(SignedWord(frame.Arena, slot + 0x94), SignedWord(frame.Arena, slot + 0x96), SignedWord(frame.Arena, slot + 0x98));
+        ushort flags = Word(frame.Arena, slot + 0xC2);
+        frame = frame.WriteTemporary(0x20, frame.Arena.Read(slot + 0x94, 6)).WriteTemporaryWord(0x26, flags);
+        return new(frame, scaled with { X = translated.X, Y = translated.Y, Z = translated.Z }, globalFocal) { LocalClip = new(clip, flags) };
     }
 
     private static NativeBattleWaterMeshPrepared PrepareRotatedUniform(NativeBattleWaterExecutionFrame frame, NativeBattleWaterSlotBank bank, int index, short globalFocal)

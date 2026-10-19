@@ -47,7 +47,16 @@ public static class NativeBattleTonberry90ResourcesReader
             throw new InvalidDataException("Native Tonberry vibration requires its original null and program1 directory entries.");
         }
         NativeVibrationBank vibration = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, [0, 0x100], vibrationBytes);
-        NativeBattleTonberry90Resources resources = new(0x1547170, new("FF8_EN:1547170", NativeBattleEffectStaticResourcesReader.Read(memory, 0x1547170, 0x7B00)), new(0x16D7CD0, vibration), files);
+        ImmutableArray<byte> modelBytes = NativeBattleEffectStaticResourcesReader.Read(memory, 0x1547514, 0x73FC);
+        int[] sections = Enumerable.Range(0, 5).Select(index => NativeBattleDatDirectory.Section(modelBytes.AsSpan(), index)).ToArray();
+        if (BinaryPrimitives.ReadUInt32LittleEndian(modelBytes.AsSpan()) != 4 || !sections.SequenceEqual(new[] { 0x18, 0x508, 0x524C, 0x73EC, 0x73FC }))
+        {
+            throw new InvalidDataException("Native Tonberry requires its complete original four-section creature model.");
+        }
+        NativeBattlePoseSource pose = new(modelBytes.Slice(sections[0], sections[1] - sections[0]), modelBytes.Slice(sections[2], sections[3] - sections[2]));
+        pose.Validate();
+        NativeBattleEffectOwnedModelResource model = new(0x1547514, modelBytes, pose, NativeBattleRawGeometryReader.Read(modelBytes.Slice(sections[1], sections[2] - sections[1]).ToArray(), pose.BoneCount));
+        NativeBattleTonberry90Resources resources = new(0x1547170, new("FF8_EN:1547170", NativeBattleEffectStaticResourcesReader.Read(memory, 0x1547170, 0x7B00)), new(0x16D7CD0, vibration), files) { PhaseOneSource = new(0x16D7DEC, NativeBattleEffectStaticResourcesReader.Read(memory, 0x16D7DEC, 0x19154)), CreatureModel = model };
         resources.Validate();
         return resources;
     }

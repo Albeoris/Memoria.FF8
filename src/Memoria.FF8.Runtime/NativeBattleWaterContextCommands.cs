@@ -11,32 +11,12 @@ public static class NativeBattleWaterContextCommands
     public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterContextServices services)
     {
         ushort instruction = frame.ReadTemporaryWord(0x14A);
+        if ((instruction & 0x1FF) == 0xCF)
+        {
+            return ExecuteRing(frame, services);
+        }
         switch (instruction)
         {
-            case 0x00CF:
-                int actor = ReadSlot(frame, 0x1B, 1)[0];
-                if (actor >= 7)
-                {
-                    throw new NotSupportedException("Native ring context leaves its seven physical graphics rows.");
-                }
-                uint header = CoreDword(frame, 0x279744C);
-                uint model = CoreDword(frame, unchecked(header + 0x60u + (uint)(4 * actor)));
-                _ = PhysicalIndex(model);
-                if (services.ReadLinkedModelPointer(frame, model) == 0)
-                {
-                    frame = CoreByte(frame, unchecked(header + 0x17A), 0);
-                }
-                else
-                {
-                    frame = CoreByte(frame, unchecked(header + 0x174), (byte)actor);
-                    frame = CoreByte(frame, unchecked(header + 0x17A), 1);
-                    uint minimum = services.ResolveRing501FF0(frame, model);
-                    byte index = PhysicalIndex(minimum);
-                    frame = frame with { Arena = frame.Arena.Write(SlotOffset(frame, 0x1B, 1), new byte[] { index }) };
-                    frame = CoreByte(frame, unchecked(header + 0x48), index);
-                    frame = CoreByte(frame, unchecked(header + 0x41), 1);
-                }
-                return Advance(2);
             case 0x1022:
                 uint manager = CoreDword(frame, 0x27973EC);
                 uint action = CoreDword(frame, unchecked(manager + 0xCC));
@@ -107,6 +87,50 @@ public static class NativeBattleWaterContextCommands
             byte[] bytes = services.ReadActionBytes(frame, address, length);
             return bytes is not null && bytes.Length == length ? bytes : throw new InvalidDataException("Native context read lost its exact addressed action-packet extent.");
         }
+    }
+
+    public static NativeBattleWaterExecutionFrame ExecuteRing(NativeBattleWaterExecutionFrame frame, NativeBattleWaterContextServices services)
+    {
+        int mode = frame.ReadTemporaryWord(0x14A) >> 12;
+        if (mode > 1)
+        {
+            return frame;
+        }
+        int actor = ReadSlot(frame, 0x1B, 1)[0];
+        if (actor >= 7)
+        {
+            throw new NotSupportedException("Native ring context leaves its seven physical graphics rows.");
+        }
+        uint header = CoreDword(frame, 0x279744C);
+        uint model = CoreDword(frame, unchecked(header + 0x60u + (uint)(4 * actor)));
+        _ = PhysicalIndex(model);
+        if (services.ReadLinkedModelPointer(frame, model) == 0)
+        {
+            frame = CoreByte(frame, unchecked(header + 0x17A), 0);
+        }
+        else
+        {
+            if (mode == 0)
+            {
+                frame = CoreByte(frame, unchecked(header + 0x174), (byte)actor);
+                frame = CoreByte(frame, unchecked(header + 0x17A), 1);
+            }
+            else
+            {
+                frame = CoreByte(frame, unchecked(header + 0x17A), frame.Core.Read(unchecked(header + 0x41), 1)[0]);
+                int count = unchecked((sbyte)frame.Core.Read(unchecked(header + 0x17A), 1)[0]);
+                for (int index = count; index > 0; index--)
+                {
+                    byte saved = frame.Core.Read(unchecked(header + 0x47u + (uint)index), 1)[0];
+                    frame = CoreByte(frame, unchecked(header + 0x173u + (uint)index), saved);
+                }
+            }
+            byte minimum = PhysicalIndex(services.ResolveRing501FF0(frame, model));
+            frame = frame with { Arena = frame.Arena.Write(SlotOffset(frame, 0x1B, 1), [minimum]) };
+            frame = CoreByte(frame, unchecked(header + 0x48), minimum);
+            frame = CoreByte(frame, unchecked(header + 0x41), 1);
+        }
+        return NativeBattleScriptedCommandReads.Advance(frame, 2);
     }
 
     private static byte PhysicalIndex(uint pointer)

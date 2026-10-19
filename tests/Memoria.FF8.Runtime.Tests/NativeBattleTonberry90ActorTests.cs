@@ -6,22 +6,24 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleTonberry90ActorTests
 {
     [Fact]
-    public void Companion_defines_only_reached_color_fields_and_preserves_shared_flag_knownness()
+    public void Companion_updates_canonical_stage_colors_and_preserves_flags_and_high_color_byte()
     {
         var fixture = Fixture(4, 0x7681B0, 0x7C);
-        NativeBattleTonberry90Frame frame = fixture.Frame;
-        NativeBattleScriptedProcessFlagsState owner = new([1, 2, 3, 4], [true, true, false, true]);
-        frame = frame with { Memory = frame.Memory with { ScriptedProcessFlags = owner } };
-        NativeBattleTonberry90TaskStep step = NativeBattleTonberry90Actors.Advance7681B0(frame, fixture.Address);
+        NativeBattleStageState stage = NativeBattleStageState.FromColdProcess();
+        stage = stage with { Groups = stage.Groups.Select((group, index) => group with { Flags = (byte)(index + 1), ColorDepth = 123, ColorFlags = 0xAB123456 }).ToImmutableArray() };
+        NativeBattleTonberry90CompanionStep step = NativeBattleTonberry90Actors.Advance7681B0(fixture.Frame, fixture.Address, stage);
         Assert.False(step.Complete);
-        Assert.Equal(owner.Flags, step.Frame.Memory.ScriptedProcessFlags!.Flags);
-        Assert.Equal(owner.Known, step.Frame.Memory.ScriptedProcessFlags.Known);
-        Assert.All(step.Frame.Memory.ScriptedProcessFlags.ColorRows!.Value, row => Assert.Equal(new NativeBattleScriptedProcessColorRow(0, 0, 0, 0), row));
+        Assert.Equal(stage.Groups.Select(group => group.Flags), step.Stage.Groups.Select(group => group.Flags));
+        Assert.All(step.Stage.Groups, group =>
+        {
+            Assert.Equal((short)0, group.ColorDepth);
+            Assert.Equal(0xAB000000u, group.ColorFlags);
+        });
         for (int tick = 1; tick <= 4; tick++)
         {
-            step = NativeBattleTonberry90Actors.Advance7681B0(step.Frame, fixture.Address);
+            step = NativeBattleTonberry90Actors.Advance7681B0(step.Frame, fixture.Address, step.Stage);
             Assert.Equal(tick == 4, step.Complete);
-            Assert.All(step.Frame.Memory.ScriptedProcessFlags!.ColorRows!.Value, row => Assert.Equal((ushort?)(tick * 0x100), row.Factor));
+            Assert.All(step.Stage.Groups, group => Assert.Equal((short)(tick * 0x100), group.ColorDepth));
         }
         Assert.Equal((byte)2, Read(step.Frame, fixture.Address).ReadByte(0x29));
         Assert.Equal((ushort)5, Read(step.Frame, fixture.Address).ReadWord(0x24));
@@ -30,23 +32,21 @@ public sealed class NativeBattleTonberry90ActorTests
     [Theory]
     [InlineData(0xFF00, 0)]
     [InlineData(0x7F00, 0x8000)]
-    public void Companion_wraps_before_signed_clamp_without_fabricating_prior_RGB(int before, int after)
+    public void Companion_wraps_before_signed_clamp_preserves_RGB_and_literal_RET_does_not_touch_stage(int before, int after)
     {
         var fixture = Fixture(4, 0x7681B0, 0x7C, 1);
         NativeBattleTonberry90Frame frame = Write(fixture.Frame, fixture.Address, Read(fixture.Frame, fixture.Address).WriteWord(0x76, (ushort)before));
-        frame = frame with { Memory = frame.Memory with { ScriptedProcessFlags = frame.Memory.ScriptedProcessFlags! with { ColorRows = null } } };
-        var step = NativeBattleTonberry90Actors.Advance7681B0(frame, fixture.Address);
+        NativeBattleStageState stage = NativeBattleStageState.FromColdProcess();
+        stage = stage with { Groups = stage.Groups.Select(group => group with { ColorFlags = 0xABCDEF12 }).ToImmutableArray() };
+        var step = NativeBattleTonberry90Actors.Advance7681B0(frame, fixture.Address, stage);
         Assert.False(step.Complete);
-        Assert.All(step.Frame.Memory.ScriptedProcessFlags!.ColorRows!.Value, row =>
+        Assert.All(step.Stage.Groups, group =>
         {
-            Assert.Equal((ushort?)after, row.Factor);
-            Assert.Null(row.Red);
-            Assert.Null(row.Green);
-            Assert.Null(row.Blue);
+            Assert.Equal(unchecked((short)after), group.ColorDepth);
+            Assert.Equal(0xABCDEF12u, group.ColorFlags);
         });
         frame = Write(frame, fixture.Address, Read(frame, fixture.Address).WriteByte(0x29, 2));
-        frame = frame with { Memory = frame.Memory with { ScriptedProcessFlags = null } };
-        Assert.Null(NativeBattleTonberry90Actors.Advance7681B0(frame, fixture.Address).Frame.Memory.ScriptedProcessFlags);
+        Assert.Same(stage, NativeBattleTonberry90Actors.Advance7681B0(frame, fixture.Address, stage).Stage);
     }
 
     [Fact]

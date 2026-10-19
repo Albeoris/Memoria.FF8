@@ -12,17 +12,22 @@ public sealed class NativeBattleScriptedCommandsTests
     [Fact]
     public void Process_flags_mutate_all_four_rows_preserving_bits_and_restore_independently()
     {
-        NativeBattleScriptedProcessFlagsState cold = NativeBattleScriptedProcessFlagsState.FromColdProcess();
-        Assert.Equal(new byte[4], cold.Flags);
-        NativeBattleScriptedProcessFlagsState initial = cold with { Flags = [0x80, 1, 0xFF, 4] };
+        NativeBattleStageState cold = NativeBattleStageState.FromColdProcess();
+        byte[] flags = [0x80, 1, 0xFF, 4];
+        NativeBattleStageState initial = cold with { Groups = cold.Groups.Select((group, index) => group with { Flags = flags[index], ColorDepth = 123, ColorFlags = 0xAABBCCDD }).ToImmutableArray() };
         NativeBattleScriptedProcessFlagsStep set = NativeBattleScriptedProcessFlags.Execute(Fixture(0x6D), initial);
-        Assert.Equal(new byte[] { 0x82, 3, 0xFF, 6 }, set.State.Flags);
-        NativeBattleScriptedProcessFlagsState restored = JsonSerializer.Deserialize<NativeBattleScriptedProcessFlagsState>(JsonSerializer.Serialize(set.State))!;
+        Assert.Equal(new byte[] { 0x82, 3, 0xFF, 6 }, set.State.Groups.Select(group => group.Flags));
+        NativeBattleStageState restored = JsonSerializer.Deserialize<NativeBattleStageState>(JsonSerializer.Serialize(set.State))!;
         NativeBattleScriptedProcessFlagsStep clear = NativeBattleScriptedProcessFlags.Execute(set.Frame.WriteTemporaryWord(0x14A, 0x806D), restored);
-        Assert.Equal(new byte[] { 0x80, 1, 0xFD, 4 }, clear.State.Flags);
+        Assert.Equal(new byte[] { 0x80, 1, 0xFD, 4 }, clear.State.Groups.Select(group => group.Flags));
+        Assert.All(clear.State.Groups, group =>
+        {
+            Assert.Equal((short)123, group.ColorDepth);
+            Assert.Equal(0xAABBCCDDu, group.ColorFlags);
+        });
         Assert.Equal(0x1004u, Pc(clear.Frame));
         Assert.Equal((ushort)0x1234, clear.Frame.ReadTemporaryWord(0x13E));
-        Assert.Throws<NotSupportedException>(() => NativeBattleScriptedProcessFlags.Execute(Fixture(0x6D), cold with { Known = [true, false, true, true] }));
+        Assert.Throws<InvalidDataException>(() => NativeBattleScriptedProcessFlags.Execute(Fixture(0x6D), cold with { Groups = [] }));
     }
 
     [Theory]

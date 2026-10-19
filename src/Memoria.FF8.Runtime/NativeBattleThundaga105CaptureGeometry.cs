@@ -11,24 +11,33 @@ public static class NativeBattleThundaga105CaptureGeometry
 {
     public static NativeBattleThundaga105CaptureTransform Transform6D5620(ImmutableArray<byte> anchor, NativeBattleThundaga105Bounds bounds, NativeBattleCameraProjection projection)
     {
+        ushort focal = projection.FocalLength ?? throw new NotSupportedException("Native Thundaga capture requires its retained projection H WORD.");
+        return TransformCapture(anchor, bounds, projection, 128, 128, unchecked((short)focal));
+    }
+
+    public static NativeBattleThundaga105CaptureTransform TransformCapture(ImmutableArray<byte> anchor, NativeBattleThundaga105Bounds bounds, NativeBattleCameraProjection projection, short captureWidth, short captureHeight, short globalFocal)
+    {
+        if (captureWidth <= 0 || captureHeight <= 0)
+        {
+            throw new InvalidDataException("Native ground capture requires positive capture dimensions.");
+        }
         if (anchor.IsDefault || anchor.Length != 8)
         {
             throw new InvalidDataException("Native Thundaga capture requires its actual eight-byte actor anchor.");
         }
-        ushort focal = projection.FocalLength ?? throw new NotSupportedException("Native Thundaga capture requires its retained projection H WORD.");
         short offsetX = projection.OffsetX ?? throw new NotSupportedException("Native Thundaga capture requires its prior screen offset X.");
         short offsetY = projection.OffsetY ?? throw new NotSupportedException("Native Thundaga capture requires its prior screen offset Y.");
         int anchorX = BinaryPrimitives.ReadInt16LittleEndian(anchor.AsSpan());
         int anchorZ = BinaryPrimitives.ReadInt16LittleEndian(anchor.AsSpan().Slice(4));
         int width = unchecked(bounds.Maximum.X - bounds.Minimum.X);
         int depth = unchecked(bounds.Maximum.Z - bounds.Minimum.Z);
-        int quotientX = width / 128;
-        int quotientZ = depth / 128;
-        if (quotientX % 128 != 0)
+        int quotientX = width / captureWidth;
+        int quotientZ = depth / captureHeight;
+        if (quotientX % captureWidth != 0)
         {
             quotientX = unchecked(quotientX + 1);
         }
-        if (quotientZ % 128 != 0)
+        if (quotientZ % captureHeight != 0)
         {
             quotientZ = unchecked(quotientZ + 1);
         }
@@ -36,11 +45,11 @@ public static class NativeBattleThundaga105CaptureGeometry
         int y = unchecked(anchorZ / quotientZ - unchecked(-bounds.Minimum.Z - bounds.Maximum.Z) / 2 / quotientZ);
         short cosine = unchecked((short)NativeBattleCameraMath.Cosine(1024));
         short sine = unchecked((short)NativeBattleCameraMath.Sine(1024));
-        NativeBattleActionMatrix matrix = new([4096, 0, 0, 0, cosine, unchecked((short)-sine), 0, sine, cosine], x, y, unchecked((short)focal), 4096);
-        int scaleX = 0x1000000 / (unchecked(width << 12) / 128);
-        int scaleZ = 0x1000000 / (unchecked(depth << 12) / 128);
+        NativeBattleActionMatrix matrix = new([4096, 0, 0, 0, cosine, unchecked((short)-sine), 0, sine, cosine], x, y, globalFocal, 4096);
+        int scaleX = 0x1000000 / (unchecked(width << 12) / captureWidth);
+        int scaleZ = 0x1000000 / (unchecked(depth << 12) / captureHeight);
         matrix = NativeBattlePoseMatrices.Scale56BEF0(matrix, scaleX, 0, scaleZ);
-        NativeBattleCameraProjection capture = projection with { View = matrix, OffsetX = 64, OffsetY = 64 };
+        NativeBattleCameraProjection capture = projection with { View = matrix, OffsetX = unchecked((short)(captureWidth / 2)), OffsetY = unchecked((short)(captureHeight / 2)) };
         return new(matrix, capture, offsetX, offsetY);
     }
 

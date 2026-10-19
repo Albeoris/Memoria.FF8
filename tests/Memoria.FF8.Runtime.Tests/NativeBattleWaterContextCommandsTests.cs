@@ -187,13 +187,59 @@ public sealed class NativeBattleWaterContextCommandsTests
     }
 
     [Theory]
-    [InlineData(0x10CF)]
     [InlineData(0x0022)]
     [InlineData(0x0039)]
     [InlineData(0x1020)]
     public void UnselectedModesRemainUnsupported(ushort instruction)
     {
         Assert.Throws<NotSupportedException>(() => Execute(Fixture(instruction)));
+    }
+
+    [Theory]
+    [InlineData(0x10CF)]
+    [InlineData(0x1ECF)]
+    public void Ring_mode1_copies_actual_actor_list_before_minimum_selection_and_preserves_original_order(ushort instruction)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(instruction);
+        frame = frame with { Core = frame.Core.Write(Header + 0x41, [3]).Write(Header + 0x48, [4, 2, 6]), Arena = frame.Arena.MarkUnknown(0x1002, 2) };
+        NativeBattleWaterContextServices services = Services() with
+        {
+            ReadLinkedModelPointer = (_, _) => Model(2),
+            ResolveRing501FF0 = (current, _) =>
+            {
+                Assert.Equal(new byte[] { 4, 2, 6 }, current.Core.Read(Header + 0x174, 3));
+                Assert.Equal((byte)3, current.Core.Read(Header + 0x17A, 1)[0]);
+                Assert.Equal((byte)4, current.Core.Read(Header + 0x48, 1)[0]);
+                return Model(1);
+            }
+        };
+        NativeBattleWaterExecutionFrame result = Execute(frame, services);
+        Assert.Equal(new byte[] { 4, 2, 6 }, result.Core.Read(Header + 0x174, 3));
+        Assert.Equal((byte)1, result.Core.Read(Header + 0x48, 1)[0]);
+        Assert.Equal((byte)1, result.Core.Read(Header + 0x41, 1)[0]);
+        Assert.Equal(0x1002u, Pc(result));
+        string json = JsonSerializer.Serialize(result);
+        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(json)!));
+    }
+
+    [Theory]
+    [InlineData((byte)0)]
+    [InlineData((byte)255)]
+    public void Ring_mode1_signed_nonpositive_count_does_not_read_actor_list(byte count)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0x10CF);
+        frame = frame with { Core = frame.Core.Write(Header + 0x41, [count]).MarkUnknown(Header + 0x48, 3) };
+        NativeBattleWaterExecutionFrame result = Execute(frame, Services() with { ReadLinkedModelPointer = (_, _) => Model(2), ResolveRing501FF0 = (_, _) => Model(1) });
+        Assert.Equal(count, result.Core.Read(Header + 0x17A, 1)[0]);
+        Assert.Equal(0x1002u, Pc(result));
+    }
+
+    [Fact]
+    public void Other_ring_modes_are_literal_returns_without_actor_or_PC_reads()
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0x20CF);
+        frame = frame with { Core = frame.Core.MarkUnknown(Header, 0x17C).MarkUnknown(0x2797450, 4), Arena = frame.Arena.MarkUnknown(0x201B, 1) };
+        Assert.Same(frame, Execute(frame));
     }
 
     private const uint Header = NativeBattleScriptedEffectMemory.Address;

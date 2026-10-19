@@ -6,6 +6,24 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattlePackedMatrix32([property: JsonRequired] ImmutableArray<byte> Bytes, [property: JsonRequired] ImmutableArray<bool> Known)
 {
+    public NativeBattleActionMatrix ReadMatrix()
+    {
+        Validate();
+        for (int index = 0; index < 32; index++)
+        {
+            if (index is not (18 or 19) && !Known[index])
+            {
+                throw new NotSupportedException("Native matrix consumer requires its actual rotation and translation bytes.");
+            }
+        }
+        short[] rotation = new short[9];
+        for (int index = 0; index < rotation.Length; index++)
+        {
+            rotation[index] = BinaryPrimitives.ReadInt16LittleEndian(Bytes.AsSpan().Slice(index * 2));
+        }
+        return new(rotation.ToImmutableArray(), BinaryPrimitives.ReadInt32LittleEndian(Bytes.AsSpan().Slice(20)), BinaryPrimitives.ReadInt32LittleEndian(Bytes.AsSpan().Slice(24)), BinaryPrimitives.ReadInt32LittleEndian(Bytes.AsSpan().Slice(28)), 4096);
+    }
+
     public void Validate()
     {
         if (Bytes.IsDefault || Bytes.Length != 32 || Known.IsDefault || Known.Length != 32)

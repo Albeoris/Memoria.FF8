@@ -102,6 +102,9 @@ public static class NativeBattleWaterInstructionDispatcher
             case 0x21:
             case 0x7D:
                 return NativeBattleWaterWorkCommands.Execute(frame, Program(), services.MagicTextureBufferAddress);
+            case 0x1B:
+            case 0xA2:
+            case 0xCD:
             case 0x23:
             case 0x24:
             case 0x2A:
@@ -115,6 +118,7 @@ public static class NativeBattleWaterInstructionDispatcher
             case 0x25:
             case 0x2F:
             case 0x3C:
+            case 0x56:
                 NativeBattleWaterSlotBank rectangleBank = CurrentBank(frame, resources);
                 NativeBattleEffectHeapAllocation map = new("shape-resource-map", resources.Profile.Tables.Data.AsSpan().Slice(0x60, 0x10).ToArray().ToImmutableArray());
                 return NativeBattleWaterRectangleCommands.Execute(frame, Program(), rectangleBank, CurrentIndex(frame, rectangleBank), resources, map);
@@ -127,6 +131,7 @@ public static class NativeBattleWaterInstructionDispatcher
             case 0x2B:
             case 0x43:
             case 0x44:
+            case 0x4D:
             case 0x45:
             case 0x5A:
             case 0x5E:
@@ -141,6 +146,8 @@ public static class NativeBattleWaterInstructionDispatcher
             case 0x75:
             case 0x76:
             case 0x87:
+            case 0x4C:
+            case 0xD2:
             case 0xD3:
                 NativeBattleWaterScalarReferenceServices scalarServices = new((current, selector) => ResolveCurrentSlot(current, resources, selector), services.ReadParameterByte, services.ReadActor, services.ReadActorAnchor, current => UpdateCurrent(current, resources), current => CacheCurrent(current, resources));
                 return NativeBattleWaterScalarReferenceCommands.Execute(frame, Program(), scalarServices);
@@ -150,6 +157,8 @@ public static class NativeBattleWaterInstructionDispatcher
             case 0x60:
                 return NativeBattleWaterActorAnchor.Execute60AA2190(frame, Program(), CurrentBank(frame, resources), services.ReadActorAnchor);
             case 0x63:
+            case 0x6A:
+            case 0xC4:
             case 0x67:
             case 0xD4:
             case 0x104:

@@ -7,7 +7,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed partial class NativeBattleTargetGuardianCastTests
 {
     [Fact]
-    public void Installed_Carbuncle_ordinary_entry_and_first_master_callbacks_restore_before_model_construction()
+    public void Installed_Carbuncle_ordinary_entry_and_mirror_morph_window_restore_before_creature_rendering()
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select installed original resources with MEMORIA_FF8_GAME_DIR.");
@@ -60,7 +60,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(source))!);
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(first.Capture()));
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
-        while (Counter(first.Capture()) < 2)
+        while (Counter(first.Capture()) < 38)
         {
             first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
             second.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
@@ -68,14 +68,14 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(second.Capture()));
             byte[] pixels = new BattleScenePresentation(assets, definition, true).Render(first, 320, 224).ToArray();
             Assert.Equal(pixels, new BattleScenePresentation(assets, definition, true).Render(second, 320, 224).ToArray());
-            NativeBattleRestorationPresentationTests.Publish(output, Counter(current) == 2 ? "before-model-boundary" : "master-" + Counter(current), current, pixels);
+            NativeBattleRestorationPresentationTests.Publish(output, Counter(current) == 38 ? "before-creature-rendering-boundary" : Counter(current) == 2 ? "before-model-construction" : "master-" + Counter(current), current, pixels);
         }
         BattleSnapshot boundary = first.Capture();
         Exception? error = Record.Exception(() => first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero));
         Assert.NotNull(error);
-        Assert.Contains("6D6070", error.ToString());
+        Assert.Contains("6FBDB0", error.ToString());
         NativeBattleRestorationPresentationTests.Publish(output, "failed-live", first.Capture(), null);
-        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "model-boundary", Effect = 278, InitialCounter = initialCounter, boundary.Frame, NativeCallback = boundary.NativeGraphics!.Callback, Counter = Counter(boundary), Error = error.ToString() }));
+        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "creature-rendering-boundary", Effect = 278, InitialCounter = initialCounter, boundary.Frame, NativeCallback = boundary.NativeGraphics!.Callback, Counter = Counter(boundary), Error = error.ToString() }));
 
         static ushort Counter(BattleSnapshot snapshot) => snapshot.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == NativeBattleCarbuncle278Entry.MainDescriptor).Slots[0].ReadWord(0xC);
     }

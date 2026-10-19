@@ -151,6 +151,32 @@ public sealed class NativeBattleWaterFieldControlTests
         Assert.Throws<NotSupportedException>(() => Run(Fixture(0x25), 0));
     }
 
+    [Theory]
+    [InlineData(0x001B)]
+    [InlineData(0xFE1B)]
+    [InlineData(0x00A2)]
+    [InlineData(0xFEA2)]
+    public void Advance4_leaves_unused_operand_unknown_and_changes_only_current_PC(ushort instruction)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(instruction);
+        frame = frame with { Arena = frame.Arena.MarkUnknown(0x1000, 4) };
+        NativeBattleWaterExecutionFrame result = Run(frame, 0);
+        Assert.Same(frame.Arena, result.Arena);
+        Assert.Equal(2u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+    }
+
+    [Theory]
+    [InlineData(0x00CD)]
+    [InlineData(0xFECD)]
+    public void Stored_word_CD_preserves_high_bits_and_does_not_read_previous_field(ushort instruction)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(instruction, 0xFEDC);
+        frame = frame with { Arena = frame.Arena.MarkUnknown(0x2048, 2) };
+        NativeBattleWaterExecutionFrame result = Run(frame);
+        Assert.Equal((ushort)0xFEDC, WaterSchedulerFixture.ReadSlotWord(result, 0, 0x48));
+        Assert.Equal(2u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+    }
+
     private static NativeBattleWaterExecutionFrame Fixture(ushort instruction, ushort operand = 0)
     {
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create().WriteTemporaryWord(0x14A, instruction);

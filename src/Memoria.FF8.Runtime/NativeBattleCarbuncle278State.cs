@@ -4,6 +4,11 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleCarbuncle278State([property: JsonRequired] uint Pause8114, [property: JsonRequired] uint Random811C, [property: JsonRequired] uint Action8120, [property: JsonRequired] uint Caster8124, [property: JsonRequired] uint PacketCursor81BC, [property: JsonRequired] uint AlternateCursor81C0, [property: JsonRequired] int Centroid81C4, [property: JsonRequired] int Base81CC, [property: JsonRequired] int Lift81D0, [property: JsonRequired] uint Flash81D4, [property: JsonRequired] byte Done81D8, [property: JsonRequired] uint ModelBuffer81F8)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleVector? MirrorPlane81F0 { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleEffectLocalBounds? Bounds81E0 { get; init; }
+
     public static NativeBattleCarbuncle278State FromColdProcess() => new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
     public void Validate()

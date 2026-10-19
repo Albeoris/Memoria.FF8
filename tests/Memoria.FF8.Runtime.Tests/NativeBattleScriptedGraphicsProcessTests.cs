@@ -54,8 +54,8 @@ public sealed class NativeBattleScriptedGraphicsProcessTests
     public void Explicit_graphics_owner_requires_all_controls_and_rejects_out_of_window_storage()
     {
         NativeBattleScriptedGraphicsMemory graphics = NativeBattleScriptedGraphicsMemory.FromColdProcess();
-        Assert.Throws<InvalidDataException>(() => (graphics with { Depths = graphics.Depths.Write(0x2A8, [1]) }).Validate());
-        Assert.Throws<InvalidDataException>(() => (graphics with { Depths = graphics.Depths.MarkUnknown(0x2A8, 1) }).Validate());
+        Assert.Throws<InvalidDataException>(() => (graphics with { Depths = graphics.Depths.Write(NativeBattleScriptedGraphicsMemory.DepthLength, [1]) }).Validate());
+        Assert.Throws<InvalidDataException>(() => (graphics with { Depths = graphics.Depths.MarkUnknown(NativeBattleScriptedGraphicsMemory.DepthLength, 1) }).Validate());
         Assert.Throws<InvalidDataException>(() => (graphics with { ModuleViewBackup = [] }).Validate());
         foreach (string property in new[] { "Dqa", "Dqb", "Depths", "ModuleViewBackup" })
         {

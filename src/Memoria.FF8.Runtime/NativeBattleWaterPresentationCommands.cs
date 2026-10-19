@@ -29,6 +29,11 @@ public static class NativeBattleWaterPresentationCommands
                     frame = WriteSlotDword(frame, 0xC4, 0);
                 }
                 return WriteCoreDword(frame, 0x2797450, unchecked(pc + 6u + (uint)(2 * count)));
+            case 0x4D:
+                frame = SlotByte(frame, 0x18, 0);
+                frame = WriteSlotWord(frame, 0x48, 0);
+                frame = NativeBattleWaterParticleCommands.RegisterDrawB65320(frame, 4);
+                return Advance(2);
             case 0xD0:
                 frame = NativeBattleWaterStopCommand.RemoveDrawB65270(frame, frame.ReadTemporaryByte(0x142));
                 return Advance(2);

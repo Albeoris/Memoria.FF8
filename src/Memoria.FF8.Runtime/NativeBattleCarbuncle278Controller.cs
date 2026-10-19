@@ -1,13 +1,16 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
-/// <summary>Carbuncle's physical root callback up to its model and mirror construction boundary.</summary>
+/// <summary>Carbuncle's physical root callback and initial creature mirror window.</summary>
 public static class NativeBattleCarbuncle278Controller
 {
-    public static NativeBattleCarbuncle278Frame Advance680DF0(NativeBattleCarbuncle278Frame frame, Action<uint, int> stage5713E0)
+    public static NativeBattleCarbuncle278Frame Advance680DF0(NativeBattleCarbuncle278Frame frame, Action<uint, int> stage5713E0, NativeBattleCarbuncle278Inputs? inputs = null)
     {
         NativeBattleCarbuncle278Entry.RequireBinding(frame.Effect);
         ArgumentNullException.ThrowIfNull(stage5713E0);
-        if (frame.Effect.Pools.Length != 1 || frame.Effect.Pools[0] is not { DescriptorAddress: NativeBattleCarbuncle278Entry.MainDescriptor, BankAddress: NativeBattleCarbuncle278Entry.MainBank, Stride: 0x14 } pool || pool.Slots.Length != 1)
+        NativeBattleEffectTaskPool? pool = frame.Effect.Pools.SingleOrDefault(pool => pool.DescriptorAddress == NativeBattleCarbuncle278Entry.MainDescriptor);
+        if (pool is not { BankAddress: NativeBattleCarbuncle278Entry.MainBank, Stride: 0x14 } || pool.Slots.Length != 1)
         {
             throw new InvalidDataException("Native Carbuncle requires its actual single root task bank.");
         }
@@ -22,14 +25,21 @@ public static class NativeBattleCarbuncle278Controller
             uint primary = task.ReadDword(0x10) != 0 ? 0x3ECCu : 0x13ECCu;
             state = state with { PacketCursor81BC = unchecked(state.ModelBuffer81F8 + primary), AlternateCursor81C0 = unchecked(state.ModelBuffer81F8 + primary + 0x10000), Flash81D4 = 0 };
             task = task.WriteDword(0x10, task.ReadDword(0x10) != 0 ? 0u : 1u);
+            frame = frame with { Memory = frame.Memory with { Carbuncle278 = state } };
             if (task.ReadWord(0xC) == 2 && state.Pause8114 == 0 && task.ReadByte(0xF) == 0)
             {
-                throw new NotSupportedException("Native Carbuncle680DF0 reaches model bounds6D6070 and mirror6812E0 construction before its creature callback681630.");
+                if (inputs is null)
+                {
+                    throw new NotSupportedException("Native Carbuncle6D6070 and6812E0 construction requires its actual model and renderer inputs.");
+                }
+                task = task.WriteByte(0xF, 1);
+                frame = NativeBattleCarbuncle278Construction.Initialize680E36(frame, inputs);
             }
             if (task.ReadByte(0xF) != 0)
             {
-                throw new NotSupportedException("Native Carbuncle680DF0 requires its current creature, particle and beam task executors.");
+                frame = AdvanceSpawned(frame, inputs);
             }
+            state = NativeBattleCarbuncle278Entry.RequireState(frame.Memory);
             stage5713E0(state.Flash81D4, 0);
             if (state.Pause8114 == 0)
             {
@@ -38,6 +48,50 @@ public static class NativeBattleCarbuncle278Controller
             frame = frame with { Memory = frame.Memory with { Carbuncle278 = state } };
             return new(current with { Slots = current.Slots.SetItem(index, task) }, 0);
         });
-        return frame with { Effect = frame.Effect with { Pools = [step.Pool], ReturnedDescriptor = step.Survivors == 0 ? 0u : NativeBattleCarbuncle278Entry.MainDescriptor } };
+        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(pool => pool.DescriptorAddress == step.Pool.DescriptorAddress ? step.Pool : pool).ToImmutableArray(), ReturnedDescriptor = step.Survivors == 0 ? 0u : NativeBattleCarbuncle278Entry.MainDescriptor } };
+    }
+
+    private static NativeBattleCarbuncle278Frame AdvanceSpawned(NativeBattleCarbuncle278Frame frame, NativeBattleCarbuncle278Inputs? inputs)
+    {
+        foreach (uint descriptor in new uint[] { 0x2508188, 0x2508178, 0x2508168, 0x2508158, 0x2508138, 0x2508148, 0x2508128 })
+        {
+            NativeBattleEffectTaskPool pool = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == descriptor);
+            NativeBattleEffectTaskStep step = pool.Advance((current, index) =>
+            {
+                NativeBattleModulePoolTask task = current.Slots[index];
+                if (task.Callback != 0x681630)
+                {
+                    throw new NotSupportedException($"Native Carbuncle task callback0x{task.Callback:X8} requires its actual current leaf contract.");
+                }
+                ushort counter = task.ReadWord(0xC);
+                if (counter >= 36)
+                {
+                    throw new NotSupportedException("Native Carbuncle681630 reaches creature pose6FBDB0 and model rendering6A79B0 after its mirror morph window.");
+                }
+                NativeBattleCarbuncle278State state = NativeBattleCarbuncle278Entry.RequireState(frame.Memory);
+                frame = frame with { Memory = frame.Memory with { Carbuncle278 = state with { Flash81D4 = counter < 8 ? unchecked((uint)(counter << 8)) : 0x800 } } };
+                if (counter != 0)
+                {
+                    frame = (inputs?.DrawCreature ?? throw new NotSupportedException("Native Carbuncle6839B0 requires its original mirror mesh services."))(frame, counter);
+                }
+                NativeBattleEffectIoAdvance io = NativeBattleEffectIo.Advance534210(frame.Memory);
+                if (io.Request is not null)
+                {
+                    throw new NotSupportedException("Native Carbuncle534210 requires its original pending descriptor completion binding.");
+                }
+                frame = frame with { Memory = io.Memory };
+                if (counter != 0)
+                {
+                    frame = (inputs?.PresentCreature ?? throw new NotSupportedException("Native Carbuncle requires its current camera and sound services."))(frame, counter);
+                }
+                task = task.WriteWord(0xC, unchecked((ushort)(counter + 1)));
+                int offset = checked((int)(current.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * current.Stride + 12);
+                frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(offset, task.Payload.AsSpan()) } };
+                return new(current with { Slots = current.Slots.SetItem(index, task) }, 0);
+            });
+            //6811E0's balanced borrowed context is consumed only by active beam callbacks in681270.
+            frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(pool => pool.DescriptorAddress == step.Pool.DescriptorAddress ? step.Pool : pool).ToImmutableArray() } };
+        }
+        return frame;
     }
 }

@@ -40,6 +40,13 @@ public sealed partial class BattleSession
                         return NativeBattleTonberry90Director.Advance762C60(current, address, directorServices);
                     case 0x762DA0:
                         return NativeBattleTonberry90Programme.Advance762DA0(current, address, programmeServices);
+                    case 0x7681B0:
+                        NativeBattleTonberry90CompanionStep companion = NativeBattleTonberry90Actors.Advance7681B0(current, address, NativeStage ?? throw new NotSupportedException("Native Tonberry companion requires its canonical stage groups."));
+                        NativeStage = companion.Stage;
+                        return new(companion.Frame, companion.Complete);
+                    case 0x763EB0:
+                        NativeBattleTonberry90ActorServices actorServices = new((_, source) => resources.PhaseOneSource is { } actual && actual.Address == source ? actual : throw new NotSupportedException("Native Tonberry phase actor requires its complete current programme source."), CaptureGround, DrawActor);
+                        return NativeBattleTonberry90Actors.Advance763EB0(current, address, actorServices);
                     case 0x762850:
                         NativeBattleTonberry90IoAdvance advanced = NativeBattleTonberry90Io.Advance762850(current, task);
                         current = advanced.Frame with { Effect = advanced.Frame.Effect with { Pools = new NativeBattleEffectHierarchy(advanced.Frame.Effect.Pools).Write(address, advanced.Task).Pools } };
@@ -53,6 +60,84 @@ public sealed partial class BattleSession
                         return new(current, advanced.ReadyToComplete);
                     default:
                         throw new NotSupportedException($"Native Tonberry callback 0x{task.Callback:X8} at task 0x{address:X8}, signed phase {unchecked((sbyte)task.ReadByte(0x29))} requires its complete actor contract.");
+                }
+            }
+
+            NativeBattleTonberry90ActorDraw DrawActor(NativeBattleTonberry90Frame current, uint address)
+            {
+                NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(current.Effect.Pools).Read(address);
+                NativeBattleGfAnimationSource source = resources.PhaseOneSource is { } actual && actual.Address == task.ReadDword(0x74) ? actual : throw new NotSupportedException("Native Tonberry actor draw requires its actual animation programme source.");
+                NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Tonberry actor draw requires its current GTE projection.");
+                NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Tonberry actor draw requires its authenticated color constants.");
+                NativeBattleTonberry90ProgramDrawServices services = new((state, pointer) => BinaryPrimitives.ReadInt16LittleEndian(ReadAddress(state, pointer, 2)), SubmitActor);
+                return NativeBattleTonberry90ProgramDrawing.Advance764130(current, address, source, projection, colors, services);
+            }
+
+            NativeBattleTonberry90Frame SubmitActor(NativeBattleTonberry90Frame current, NativeBattleGfGeometryBatch batch, uint? farColor)
+            {
+                NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Tonberry actor draw requires its retained far-color controls.");
+                NativeBattleModelRendererRegisters registers = process.ModelRendererRegisters ?? new(null, null, null, null, null);
+                registers = farColor is uint color ? registers.PublishModelColor(color) : registers with { FarRed = null, FarGreen = null, FarBlue = null };
+                current = current with { Memory = current.Memory with { PrimitiveProcess = process with { ModelRendererRegisters = registers } } };
+                NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Tonberry actor draw requires its current ordering table.");
+                int cursor = current.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Tonberry actor draw requires its actual private packet cursor.");
+                NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, cursor, primitive.Pending, batch);
+                graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
+                return current with { Memory = written.Memory, Effect = current.Effect with { DrawArenaOffset = written.Cursor } };
+            }
+
+            NativeBattleTonberry90Frame CaptureGround(NativeBattleTonberry90Frame current, uint address, NativeBattleGfAnimationSource source, uint geometryAddress)
+            {
+                int geometryOffset = checked((int)(geometryAddress - source.Address));
+                NativeBattleThundaga105Bounds bounds = NativeBattleGroundCapturePackets.Bounds8DE160(source.Data.AsSpan().Slice(geometryOffset));
+                NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(current.Effect.Pools).Read(address);
+                ImmutableArray<byte> anchor = task.Payload.AsSpan().Slice(0x1C - 12, 8).ToArray().ToImmutableArray();
+                NativeBattleCameraState currentCamera = NativeCamera ?? throw new NotSupportedException("Native ground capture requires its current camera globals.");
+                NativeBattleThundaga105CaptureTransform capture = NativeBattleThundaga105CaptureGeometry.TransformCapture(anchor, bounds, currentCamera.Projection ?? throw new NotSupportedException("Native ground capture requires its current GTE projection."), 128, 256, currentCamera.FocalLength ?? throw new NotSupportedException("Native ground capture requires its current global focal WORD."));
+                NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native ground capture requires its current ordering table.");
+                byte stageIndex = graphics.StageResourceIndex98990 ?? throw new NotSupportedException("Native ground capture requires its current stage resource selector.");
+                NativeBattleEffectPacketWrite written = NativeBattleGroundCapturePackets.Append8DE1F0(current.Memory, primitive.Pending, current.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native ground capture requires its actual private packet cursor."), stageIndex, DrawGround);
+                graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
+                return current with { Memory = written.Memory, Effect = current.Effect with { DrawArenaOffset = written.Cursor } };
+
+                NativeBattleEffectPacketWrite DrawGround(NativeBattleEffectPacketWrite input)
+                {
+                    NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native ground capture requires its canonical stage groups.");
+                    NativeBattleStageGroup group = stage.Groups[1];
+                    if ((group.Flags & 1) == 0)
+                    {
+                        return input;
+                    }
+                    NativeBattlePoseSource poseSource = group.Source ?? throw new NotSupportedException("Native ground capture requires the current stage ground pose.");
+                    NativeBattleDecodedPose pose = poseSource.Sample(group.Animation, group.Counter, group.PoseFlags);
+                    group = group with { Matrices = NativeBattlePoseMatrices.ComposeStageCamera(NativeBattlePoseMatrices.StageBoneMatrices(poseSource, pose), capture.Matrix, 0) };
+                    NativeStage = stage with { Groups = stage.Groups.SetItem(1, group) };
+                    NativeBattlePrimitiveProcess process = input.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native ground capture requires its actual renderer gate.");
+                    bool hardware = definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Native ground capture requires the selected renderer capability.");
+                    bool draw;
+                    (process, draw) = process.Enter5099D0(hardware);
+                    input = input with { Memory = input.Memory with { PrimitiveProcess = process } };
+                    if (!draw)
+                    {
+                        return input;
+                    }
+                    ImmutableArray<NativeBattleRawMesh> meshes = (definition.NativeStageSource?.Geometry ?? throw new NotSupportedException("Native ground capture requires its current stage geometry.")).Where(mesh => mesh.StageGroup == 1).ToImmutableArray();
+                    NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native ground capture requires its authenticated color constants.");
+                    ImmutableArray<NativeBattleGeometryPrimitive> packets = NativeBattleRawGeometryPackets.Emit5099D0(meshes, group.Matrices, capture.Projection, group.ColorFlags, uint.MaxValue, group.ColorDepth, 17, 16, null, colors);
+                    ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
+                    int allocated = 0;
+                    foreach (NativeBattleGeometryPrimitive packet in packets)
+                    {
+                        byte[] bytes = new byte[packet.Words.Length * 4];
+                        for (int index = 0; index < packet.Words.Length; index++)
+                        {
+                            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(index * 4), packet.Words[index]);
+                        }
+                        attempts.Add(new(allocated, bytes.ToImmutableArray(), packet.PhysicalWriteMask ?? throw new NotSupportedException("Native ground packets require their actual write masks."), packet));
+                        allocated = checked(allocated + bytes.Length);
+                    }
+                    NativeBattleEffectPacketWrite result = NativeBattleEffectPacketArena.Append(input.Memory, input.Cursor, input.Ordering, new NativeBattleGfGeometryBatch(attempts.ToImmutable(), allocated));
+                    return result with { Memory = result.Memory with { PrimitiveProcess = process.PublishModelColor(group.ColorFlags).Publish50FDF0(unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)result.Cursor), null) } };
                 }
             }
 
