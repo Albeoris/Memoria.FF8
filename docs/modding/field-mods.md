@@ -26,7 +26,7 @@ Use `fields/<field-name>.json`. Each file declares its target field ID and name,
     {
       "objectId": 8,
       "model": { "fieldId": 175, "modelId": 9 },
-      "animationId": 1,
+      "animationId": 0,
       "when": { "moduleId": 5, "state": 0 }
     }
   ]
@@ -34,6 +34,8 @@ Use `fields/<field-name>.json`. Each file declares its target field ID and name,
 ```
 
 Background selectors identify an exact layer (0–3), module (0–255) and state (0–255). Actor entries bind an existing script object to a model and animation loaded from the installed game's field resources. An optional `direction` supplies the actor's presentation direction from 0 up to, but excluding, 256. An optional `when` restricts the presentation to an animated background module (0–254) and state (0–255). Background addresses and actor object IDs must each be unique within the file. These changes affect presentation without replacing event scripts or writing installed archives.
+
+Choose an animation that matches the object's role. Cid's model uses animation `0` for its stationary idle pose; animation `1` is a walking cycle. A presentation animation does not move the script object's position.
 
 Reload prepares a complete new generation before publication. Malformed changes retain the last committed generation and report package/file ownership in the Mods menu. Use Refresh after correcting a file.
 
