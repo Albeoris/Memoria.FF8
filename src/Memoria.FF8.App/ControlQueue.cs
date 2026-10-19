@@ -5,7 +5,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
-internal sealed record ControlRequest(string Id, string Command, PlayerAction? Action = null, int Frames = 900, string? Path = null, string? Name = null, int? Selection = null, DebugSceneCommand? Debug = null, bool Compact = false, UiControlCommand? Ui = null, BattleControlCommand? Battle = null);
+internal sealed record ControlRequest(string Id, string Command, PlayerAction? Action = null, int Frames = 900, string? Path = null, string? Name = null, int? Selection = null, DebugSceneCommand? Debug = null, bool Compact = false, UiControlCommand? Ui = null, BattleControlCommand? Battle = null, DateTimeOffset? ExpiresAt = null);
 
 /// <summary>A local opt-in queue. Producers atomically rename each unique request from .tmp to .json.</summary>
 internal sealed class ControlQueue
@@ -41,6 +41,11 @@ internal sealed class ControlQueue
             {
                 payload = File.ReadAllText(path);
             }
+            catch (FileNotFoundException)
+            {
+                // A producer may withdraw a timed-out request after enumeration.
+                return;
+            }
             catch (IOException exception) when ((exception.HResult & 0xFFFF) is 32 or 33)
             {
                 // The published request remains pending; nothing has been dispatched.
@@ -52,6 +57,10 @@ internal sealed class ControlQueue
             {
                 ControlRequest request = JsonSerializer.Deserialize<ControlRequest>(payload, Options) ?? throw new InvalidDataException("Empty command request.");
                 id = request.Id;
+                if (request.ExpiresAt is { } expiresAt && expiresAt <= DateTimeOffset.UtcNow)
+                {
+                    throw new TimeoutException("The control request expired before it could be dispatched.");
+                }
                 response = new { Id = id, Ok = true, Result = dispatch(request) };
             }
             catch (Exception exception)
@@ -68,6 +77,13 @@ internal sealed class ControlQueue
         {
             archive += ".duplicate-" + Guid.NewGuid().ToString("N");
         }
-        File.Move(path, archive);
+        try
+        {
+            File.Move(path, archive);
+        }
+        catch (FileNotFoundException)
+        {
+            // A producer may withdraw a timed-out request while its response is being published.
+        }
     }
 }

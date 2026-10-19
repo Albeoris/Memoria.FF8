@@ -37,8 +37,17 @@ internal static class Program
                     UpdateInstaller.StartHelperAsync(Path.TrimEndingDirectorySeparator(root), recovery: true).GetAwaiter().GetResult();
                     return;
                 }
+                UpdateResume? resume = null;
+                if (arguments.Length > 0)
+                {
+                    if (arguments.Length != 1 || arguments[0] != "--resume-update")
+                    {
+                        throw new ArgumentException("Invalid launcher arguments.");
+                    }
+                    resume = UpdateResume.Read(root);
+                }
                 Application application = new();
-                application.Run(new LauncherWindow());
+                application.Run(new LauncherWindow(resume));
             }
             finally
             {

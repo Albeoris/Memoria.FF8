@@ -58,8 +58,7 @@ internal sealed partial class LauncherWindow
         finally
         {
             checkingUpdates = false;
-            releaseUpdate.IsEnabled = !busy;
-            nightlyUpdate.IsEnabled = !busy;
+            SetBusy(busy);
         }
     }
 
@@ -85,6 +84,11 @@ internal sealed partial class LauncherWindow
 
     private async Task InstallUpdateAsync(UpdateChannel channel)
     {
+        if (updating)
+        {
+            return;
+        }
+        updating = true;
         SetBusy(true);
         try
         {
@@ -108,24 +112,23 @@ internal sealed partial class LauncherWindow
                 updateStatus.Text = "This build is already installed.";
                 return;
             }
-            string prompt = $"Install {release.Name} ({release.Size / 1048576d:F1} MiB)?\n\nCurrent build: {installed.Version}\nThe launcher will close and restart. Switching channels may install an older build. Mods, saves and settings are preserved.";
+            string prompt = $"Download {release.Name} ({release.Size / 1048576d:F1} MiB)?\n\nCurrent build: {installed.Version}\nYou can keep playing during the download. You will be asked before restarting to install. Switching channels may install an older build. Mods, saves and settings are preserved.";
             if (MessageBox.Show(this, prompt, "Memoria — install update", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
             {
                 return;
             }
-            string work = await Task.Run(() => UpdateInstaller.Prepare(root));
-            string archive = Path.Combine(work, "package.zip");
             updateProgress.Visibility = Visibility.Visible;
             updateProgress.Value = 0;
             updateStatus.Text = "Downloading and verifying the update…";
             using CancellationTokenSource downloadTimeout = new(TimeSpan.FromMinutes(20));
-            await client.DownloadAsync(release, archive, new Progress<double>(value =>
+            string archive = await UpdatePackageCache.GetArchiveAsync(root, client, release, new Progress<double>(value =>
             {
                 updateProgress.Value = value * 100;
                 updateStatus.Text = $"Downloading the update — {value:P0}";
             }), downloadTimeout.Token);
             updateProgress.IsIndeterminate = true;
             updateStatus.Text = "Validating the distribution and preparing installation…";
+            string work = await Task.Run(() => UpdateInstaller.Prepare(root));
             await Task.Run(() =>
             {
                 string staged = Path.Combine(work, "new");
@@ -137,9 +140,54 @@ internal sealed partial class LauncherWindow
                 }
                 UpdateInstaller.CreateJournal(root, incoming);
             });
+            updateProgress.Visibility = Visibility.Collapsed;
+            bool gameRunning = runningGame is { HasExited: false };
+            string restartPrompt = gameRunning
+                ? "The update is ready. Restart the game to update now?\n\nMemoria will create a separate automatic update save, install the update, then start the game and restore that save. Choose No to keep playing; the downloaded package will be kept."
+                : "The update is ready. Restart Memoria to install it now?\n\nChoose No to keep the downloaded package for later.";
+            if (MessageBox.Show(this, restartPrompt, "Memoria — restart for update", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+            {
+                updateStatus.Text = "Update downloaded and kept. Select this channel again to install without downloading it again.";
+                return;
+            }
+            if (runningGame is { HasExited: false } activeProcess)
+            {
+                using System.Diagnostics.Process process = System.Diagnostics.Process.GetProcessById(activeProcess.Id);
+                GameUpdateSession control = gameUpdateSession ?? throw new InvalidOperationException("The running game has no update connection.");
+                string gameDirectory = runningGameDirectory ?? throw new InvalidOperationException("The running game directory is unknown.");
+                try
+                {
+                    updateStatus.Text = "Asking the game to save before updating…";
+                    await control.SaveAsync(() => process.HasExited);
+                    new UpdateResume(gameDirectory, control.SavePath).Write(root);
+                    updateStatus.Text = "Save confirmed. Closing the game…";
+                    await control.RequestAsync("quit", () => process.HasExited);
+                    using CancellationTokenSource exitTimeout = new(TimeSpan.FromSeconds(30));
+                    await process.WaitForExitAsync(exitTimeout.Token);
+                }
+                catch (Exception exception)
+                {
+                    if (!process.HasExited)
+                    {
+                        try
+                        {
+                            await control.RequestAsync("cancel-update", () => process.HasExited, TimeSpan.FromSeconds(3));
+                        }
+                        catch (Exception cancelException)
+                        {
+                            status.Text = "Could not resume the game after the failed update request: " + cancelException.Message;
+                        }
+                    }
+                    if (UpdateResume.TryDelete(root) is string warning)
+                    {
+                        status.Text = warning;
+                    }
+                    throw new InvalidOperationException("Automatic update stopped: " + exception.Message + "\nPlease finish the game yourself, close it, and install the update. The downloaded package has been kept.", exception);
+                }
+            }
             updateStatus.Text = "Starting the installer. Memoria will restart automatically…";
             await UpdateInstaller.StartHelperAsync(root);
-            SetBusy(false);
+            closingForUpdate = true;
             Close();
         }
         catch (Exception exception)
@@ -151,6 +199,7 @@ internal sealed partial class LauncherWindow
         {
             updateProgress.Visibility = Visibility.Collapsed;
             updateProgress.IsIndeterminate = false;
+            updating = false;
             SetBusy(false);
         }
     }

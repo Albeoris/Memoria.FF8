@@ -5,6 +5,63 @@ namespace Memoria.FF8.App.Tests;
 public sealed class ControlQueueTests
 {
     [Fact]
+    public void Producer_withdrawal_during_dispatch_does_not_crash_response_publication()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "memoria-queue-withdrawal-" + Guid.NewGuid().ToString("N"));
+        string published = Path.Combine(root, "requests", "withdrawn.json");
+        ControlQueue queue = new(root, _ =>
+        {
+            File.Delete(published);
+            return new { Saved = true };
+        });
+        try
+        {
+            File.WriteAllText(published, JsonSerializer.Serialize(new ControlRequest("withdrawn", "save-for-update")));
+            queue.Poll();
+            using JsonDocument response = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "responses", "withdrawn.json")));
+            Assert.True(response.RootElement.GetProperty("Ok").GetBoolean());
+            Assert.True(response.RootElement.GetProperty("Result").GetProperty("Saved").GetBoolean());
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Theory]
+    [InlineData(-60, false)]
+    [InlineData(60, true)]
+    public void Expired_requests_are_rejected_before_dispatch_and_keep_their_response(int seconds, bool expectedDispatch)
+    {
+        string root = Path.Combine(Path.GetTempPath(), "memoria-queue-expiry-" + Guid.NewGuid().ToString("N"));
+        int calls = 0;
+        ControlQueue queue = new(root, _ => ++calls);
+        string published = Path.Combine(root, "requests", "deadline.json");
+        try
+        {
+            string payload = JsonSerializer.Serialize(new ControlRequest("deadline", "save-for-update", ExpiresAt: DateTimeOffset.UtcNow.AddSeconds(seconds)));
+            File.WriteAllText(published, payload);
+            queue.Poll();
+            string response = File.ReadAllText(Path.Combine(root, "responses", "deadline.json"));
+            using JsonDocument document = JsonDocument.Parse(response);
+            Assert.Equal(expectedDispatch, document.RootElement.GetProperty("Ok").GetBoolean());
+            Assert.Equal(expectedDispatch ? 1 : 0, calls);
+            if (!expectedDispatch)
+            {
+                Assert.Equal("TimeoutException", document.RootElement.GetProperty("Type").GetString());
+            }
+            File.WriteAllText(published, payload);
+            queue.Poll();
+            Assert.Equal(expectedDispatch ? 1 : 0, calls);
+            Assert.Equal(response, File.ReadAllText(Path.Combine(root, "responses", "deadline.json")));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
     public void Locked_published_request_stays_pending_and_dispatches_once_after_release()
     {
         string root = Path.Combine(Path.GetTempPath(), "memoria-queue-lock-" + Guid.NewGuid().ToString("N"));

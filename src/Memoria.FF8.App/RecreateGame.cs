@@ -59,16 +59,19 @@ internal sealed partial class RecreateGame : Game
     private bool worldPresentationDeferred;
     private double fieldSeconds;
     private ControlQueue? controls;
+    private ControlQueue? updateControls;
     private string? pendingCapture;
     private readonly GameLoopMetrics metrics = new();
     private string? saveNotice;
     private double saveNoticeSeconds;
     private bool userPaused;
+    private readonly UpdateSaveHandoff updateSave;
 
     public RecreateGame(LaunchOptions options, GameSession session)
     {
         this.options = options;
         this.session = session;
+        updateSave = new UpdateSaveHandoff(CaptureUpdateState, ValidatePlayerState, EnsureUpdateSaveIsSafe);
         startup = new StartupSequence(StartupSequence.ShouldPlay(options));
         movieClock = new MovieClock(session, options.GameDirectory, options.MediaToolsDirectory);
         playerSaves = new PlayerSaveStore(options.SavePath, locationName: state =>
@@ -114,6 +117,10 @@ internal sealed partial class RecreateGame : Game
         {
             controls = new ControlQueue(options.ControlDirectory, DispatchControl);
         }
+        if (options.UpdateControlDirectory is not null)
+        {
+            updateControls = new ControlQueue(options.UpdateControlDirectory, DispatchUpdateControl);
+        }
         if (!options.SoftwareRenderer)
         {
             fieldGpu = new GpuTriangleRenderer(GraphicsDevice);
@@ -124,6 +131,13 @@ internal sealed partial class RecreateGame : Game
 
     protected override void Update(GameTime gameTime)
     {
+        // Keep launcher handoff and recovery commands responsive while gameplay is paused or inactive.
+        updateControls?.Poll();
+        if (updateSave.Paused)
+        {
+            controllerFeedback?.Update(session.State.VibrationProcess, false, keyboard.Profile.Controller.VibrationEnabled);
+            return;
+        }
         autoPlayAdvancedThisFrame = false;
         if (battleEntryTransition is not null)
         {
@@ -812,6 +826,27 @@ internal sealed partial class RecreateGame : Game
 
     private object DispatchControl(ControlRequest request)
     {
+        if (request.Command.Equals("cancel-update", StringComparison.OrdinalIgnoreCase))
+        {
+            updateSave.Cancel();
+            SynchronizeUiMoviePause();
+            return new { Resumed = true };
+        }
+        if (request.Command.Equals("quit", StringComparison.OrdinalIgnoreCase))
+        {
+            Exit();
+            return new { Exiting = true };
+        }
+        if (updateSave.Paused && !request.Command.Equals("status", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("The game is paused for an update. Cancel the update before changing the game.");
+        }
+        if (request.Command.Equals("save-for-update", StringComparison.OrdinalIgnoreCase))
+        {
+            UpdateSaveResult saved = updateSave.Save(request.Path, request.ExpiresAt);
+            SynchronizeUiMoviePause();
+            return saved;
+        }
         if (request.Command.StartsWith("battle-", StringComparison.OrdinalIgnoreCase))
         {
             return DispatchBattleControl(request);
@@ -819,11 +854,6 @@ internal sealed partial class RecreateGame : Game
         if (request.Command.Equals("debug-room", StringComparison.OrdinalIgnoreCase) || request.Command.StartsWith("ui-", StringComparison.OrdinalIgnoreCase))
         {
             return DispatchUiControl(request);
-        }
-        if (request.Command.Equals("quit", StringComparison.OrdinalIgnoreCase))
-        {
-            Exit();
-            return new { Exiting = true };
         }
         if (request.Command.Equals("new-game", StringComparison.OrdinalIgnoreCase))
         {
@@ -932,7 +962,7 @@ internal sealed partial class RecreateGame : Game
         }
         else if (!request.Command.Equals("status", StringComparison.OrdinalIgnoreCase))
         {
-            throw new ArgumentException("Commands: status, new-game, action, advance, draft, save, capture, debug-scene.");
+            throw new ArgumentException("Commands: status, new-game, action, advance, draft, save, save-for-update, cancel-update, quit, capture, debug-scene.");
         }
         return ControlStatus(request.Compact);
     }
@@ -955,6 +985,7 @@ internal sealed partial class RecreateGame : Game
             World = session.State.World,
             FieldFaulted = fieldFaulted,
             FieldRenderFaulted = fieldRenderFaulted,
+            UpdatePaused = updateSave.Paused,
             LastFault = events?.LastFault,
             Performance = metrics.Latest,
             EventSpeedMultiplier = gameplayClock.SpeedMultiplier,
@@ -1033,7 +1064,7 @@ internal sealed partial class RecreateGame : Game
         }
         UpdateLocationWindowTitle();
         // Catch-up updates advance the VM only. Rasterize once for the frame actually presented.
-        if (ActiveBattle is null && world?.ActiveTripleTriad is null && gameMenus?.IsOpen != true && !fieldFaulted && !fieldRenderFaulted && world is not null && (session.State.Scene == SceneKind.WorldMap || world.CanPresentCurrentField))
+        if (!updateSave.Paused && ActiveBattle is null && world?.ActiveTripleTriad is null && gameMenus?.IsOpen != true && !fieldFaulted && !fieldRenderFaulted && world is not null && (session.State.Scene == SceneKind.WorldMap || world.CanPresentCurrentField))
         {
             try
             {

@@ -22,9 +22,16 @@ internal sealed partial class LauncherWindow : Window
     private readonly TextBox status = new() { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, BorderThickness = new Thickness(0), Background = Brushes.Transparent };
     private readonly string mediaDirectory = MediaToolsInstallation.ResolveDirectory();
     private bool busy;
+    private Process? runningGame;
+    private GameUpdateSession? gameUpdateSession;
+    private string? runningGameDirectory;
+    private readonly UpdateResume? updateResume;
+    private bool updating;
+    private bool closingForUpdate;
 
-    public LauncherWindow()
+    public LauncherWindow(UpdateResume? updateResume = null)
     {
+        this.updateResume = updateResume;
         Title = "Memoria — FINAL FANTASY VIII";
         Width = 740;
         Height = 600;
@@ -99,6 +106,11 @@ internal sealed partial class LauncherWindow : Window
         finally
         {
             SetBusy(false);
+        }
+        if (updateResume is not null)
+        {
+            await PlayAsync(updateResume);
+            return;
         }
         await CheckUpdatesAsync();
     }
@@ -190,9 +202,10 @@ internal sealed partial class LauncherWindow : Window
         mediaStatus.Text = ready ? "FFmpeg is ready for video and audio playback." : "FFmpeg is not installed.";
     }
 
-    private async Task PlayAsync()
+    private async Task PlayAsync(UpdateResume? resume = null)
     {
-        if (installations.SelectedItem is not GameInstallation selected)
+        GameInstallation? selected = resume is null ? installations.SelectedItem as GameInstallation : new GameInstallation(resume.GameDirectory, "Update resume");
+        if (selected is null)
         {
             status.Text = "Select an installation, or use Browse to choose your game folder.";
             return;
@@ -215,8 +228,20 @@ internal sealed partial class LauncherWindow : Window
                 return;
             }
             status.Text = "Starting the game…";
+            GameUpdateSession control = new();
+            start.ArgumentList.Add("--update-control-dir");
+            start.ArgumentList.Add(control.ControlDirectory);
+            if (resume is not null)
+            {
+                start.ArgumentList.Add("--state");
+                start.ArgumentList.Add(resume.SavePath);
+            }
             using GameProcessDiagnostics diagnostics = new();
             using Process process = Process.Start(start) ?? throw new InvalidOperationException("The game process could not be started.");
+            runningGame = process;
+            runningGameDirectory = selected.Directory;
+            gameUpdateSession = control;
+            SetBusy(true);
             Task capture = diagnostics.CaptureAsync(process);
             bool remembered = false;
             while (!process.HasExited)
@@ -227,14 +252,24 @@ internal sealed partial class LauncherWindow : Window
                     Remember(selected.Directory);
                     remembered = true;
                     WindowState = WindowState.Minimized;
+                    if (resume is not null)
+                    {
+                        if (UpdateResume.TryDelete(AppContext.BaseDirectory) is string warning)
+                        {
+                            status.Text = warning;
+                        }
+                    }
                 }
                 await Task.Delay(200);
             }
             await process.WaitForExitAsync();
             await capture;
             string completion = diagnostics.Complete(process.ExitCode);
-            WindowState = WindowState.Normal;
-            Activate();
+            if (!updating)
+            {
+                WindowState = WindowState.Normal;
+                Activate();
+            }
             if (process.ExitCode == 0)
             {
                 if (!remembered)
@@ -245,7 +280,7 @@ internal sealed partial class LauncherWindow : Window
             }
             else
             {
-                status.Text = completion;
+                status.Text = completion + (resume is null ? string.Empty : Environment.NewLine + "Automatic update save retained at: " + resume.SavePath);
                 MessageBox.Show(this, status.Text, "Memoria", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -256,6 +291,9 @@ internal sealed partial class LauncherWindow : Window
         }
         finally
         {
+            runningGame = null;
+            runningGameDirectory = null;
+            gameUpdateSession = null;
             SetBusy(false);
         }
     }
@@ -282,18 +320,18 @@ internal sealed partial class LauncherWindow : Window
 
     private void SetBusy(bool value)
     {
-        busy = value;
-        installations.IsEnabled = !value;
-        browse.IsEnabled = !value;
-        mediaSetup.IsEnabled = !value;
-        play.IsEnabled = !value;
-        releaseUpdate.IsEnabled = !value && !checkingUpdates;
-        nightlyUpdate.IsEnabled = !value && !checkingUpdates;
+        busy = value || updating || runningGame is not null;
+        installations.IsEnabled = !busy;
+        browse.IsEnabled = !busy;
+        mediaSetup.IsEnabled = !busy;
+        play.IsEnabled = !busy;
+        releaseUpdate.IsEnabled = (!busy || runningGame is not null) && !updating && !checkingUpdates;
+        nightlyUpdate.IsEnabled = (!busy || runningGame is not null) && !updating && !checkingUpdates;
     }
 
     private void OnClosing(object? sender, CancelEventArgs args)
     {
-        if (busy)
+        if (busy && !closingForUpdate)
         {
             args.Cancel = true;
             status.Text = "Wait for the current operation to finish, or close the game before closing the launcher.";

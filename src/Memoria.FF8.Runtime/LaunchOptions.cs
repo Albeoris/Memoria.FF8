@@ -18,6 +18,7 @@ public sealed record LaunchOptions
     public int Height { get; init; } = 768;
     public bool ResolutionSpecified { get; init; }
     public string? ControlDirectory { get; init; }
+    public string? UpdateControlDirectory { get; init; }
     public bool ControlStep { get; init; }
     public bool MuteAudio { get; init; }
     public bool AudioEnabled => !MuteAudio && ControlDirectory is null && !System.Diagnostics.Debugger.IsAttached;
@@ -58,6 +59,7 @@ public sealed record LaunchOptions
                 "--frames" => options with { ExitAfterFrames = int.Parse(Value()) },
                 "--resolution" => SetResolution(options, Value()),
                 "--control-dir" => options with { ControlDirectory = Path.GetFullPath(Value()) },
+                "--update-control-dir" => options with { UpdateControlDirectory = Path.GetFullPath(Value()) },
                 "--control-step" => options with { ControlStep = true },
                 "--mute-audio" => options with { MuteAudio = true },
                 "--world-render-limit" => options with { WorldRenderLimit = int.Parse(Value()) },

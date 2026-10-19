@@ -281,7 +281,7 @@ internal static class UpdateInstaller
         string helper = Path.Combine(work, recovery ? "recovery.exe" : "updater.exe");
         File.Delete(Path.Combine(work, "ready"));
         File.Delete(Path.Combine(work, "accepted"));
-        File.Copy(executable, helper, recovery);
+        File.Copy(executable, helper, true);
         using Process parent = Process.GetCurrentProcess();
         ProcessStartInfo start = new(helper) { UseShellExecute = false, WorkingDirectory = work };
         foreach (string argument in new[] { recovery ? "--recover-update" : "--apply-update", root, parent.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), parent.StartTime.ToUniversalTime().Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture) })
@@ -359,7 +359,17 @@ internal static class UpdateInstaller
         {
             mutex.ReleaseMutex();
         }
-        Process.Start(new ProcessStartInfo(Path.Combine(root, PackageManifest.LauncherPath)) { UseShellExecute = false, WorkingDirectory = root })?.Dispose();
+        Process.Start(CreateRestartInfo(root, recovery))?.Dispose();
+    }
+
+    internal static ProcessStartInfo CreateRestartInfo(string root, bool recovery)
+    {
+        ProcessStartInfo restart = new(Path.Combine(root, PackageManifest.LauncherPath)) { UseShellExecute = false, WorkingDirectory = root };
+        if (!recovery && File.Exists(UpdateResume.IntentPath(root)))
+        {
+            restart.ArgumentList.Add("--resume-update");
+        }
+        return restart;
     }
 
     private static Process? FindParent(int id, long started)

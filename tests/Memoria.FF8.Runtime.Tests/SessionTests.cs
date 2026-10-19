@@ -5,6 +5,19 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class SessionTests
 {
     [Fact]
+    public void Update_control_directory_preserves_normal_gameplay_and_audio_options()
+    {
+        string directory = Path.Combine("Launcher session", "Control queue");
+        LaunchOptions normal = LaunchOptions.Parse([]);
+        LaunchOptions update = LaunchOptions.Parse(["--update-control-dir", directory]);
+        Assert.Equal(Path.GetFullPath(directory), update.UpdateControlDirectory);
+        Assert.Null(update.ControlDirectory);
+        Assert.False(update.ControlStep);
+        Assert.Equal(normal.AudioEnabled, update.AudioEnabled);
+        Assert.Throws<ArgumentException>(() => LaunchOptions.Parse(["--update-control-dir"]));
+    }
+
+    [Fact]
     public void Mods_directory_argument_accepts_paths_with_spaces_and_requires_a_value()
     {
         string directory = Path.Combine("Custom package", "Texture packs");

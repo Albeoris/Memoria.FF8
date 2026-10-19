@@ -20,6 +20,28 @@ public sealed class UpdateInstallerTests : IDisposable
     }
 
     [Fact]
+    public void SuccessfulInstallationCarriesStandaloneSaveIntoAutomaticRestart()
+    {
+        string save = Path.Combine(root, "auto-update-unique.json");
+        File.WriteAllText(save, "standalone state");
+        UpdateResume resume = new(Path.Combine(root, "Game files"), save);
+        resume.Write(root);
+
+        UpdateInstaller.Apply(root);
+
+        Assert.Equal(resume, UpdateResume.Read(root));
+        Assert.Equal("standalone state", File.ReadAllText(save));
+        System.Diagnostics.ProcessStartInfo restart = UpdateInstaller.CreateRestartInfo(root, recovery: false);
+        Assert.Equal(Path.Combine(root, PackageManifest.LauncherPath), restart.FileName);
+        Assert.Equal(root, restart.WorkingDirectory);
+        Assert.False(restart.UseShellExecute);
+        Assert.Equal(new[] { "--resume-update" }, restart.ArgumentList);
+        Assert.Empty(UpdateInstaller.CreateRestartInfo(root, recovery: true).ArgumentList);
+        File.Delete(UpdateResume.IntentPath(root));
+        Assert.Empty(UpdateInstaller.CreateRestartInfo(root, recovery: false).ArgumentList);
+    }
+
+    [Fact]
     public void ApplyReplacesAddsAndRemovesOnlyInventoryFiles()
     {
         UpdateInstaller.Apply(root);

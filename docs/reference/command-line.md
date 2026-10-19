@@ -41,6 +41,7 @@ Without a mode selector, the engine opens the game window. With no `--state` and
 | `--frames COUNT` | Exit when the host update-frame count reaches the supplied value. This is not an event-VM frame budget. |
 | `--exit-after SECONDS` | Exit after the host game clock reaches the supplied duration. |
 | `--control-dir DIRECTORY` | Enable the local file control queue. |
+| `--update-control-dir DIRECTORY` | Launcher update handoff queue. Supports status, save-for-update, cancel-update and quit without enabling diagnostic stepping or disabling audio. |
 | `--control-step` | Disable automatic field/world time accumulation, so queue commands drive progression. Requires `--control-dir`. |
 | `--debug-room` | Open the debug-room UI on startup. |
 | `--ui-screen SCREEN_ID` | Open a registered UI screen on startup; diagnostic use. |
