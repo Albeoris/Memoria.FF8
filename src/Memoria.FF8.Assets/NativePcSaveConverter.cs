@@ -200,6 +200,11 @@ public static partial class NativePcSaveConverter
         ushort lastField = ReadWord(block, Event + 84);
         ushort story = ReadWord(block, Event + 256);
         ushort camera = ReadWord(block, World + 96);
+        if (camera >= 4096)
+        {
+            // An original save may retain a raw camera WORD outside the supported normalized angle. Conversion defaults this unsupported auxiliary.
+            camera = 0;
+        }
         byte map = block[World + 110] == 3 ? (byte)0 : block[World + 110];
         // A field save's preview names its current field, not the earlier saved world location.
         short location = active ? unchecked((short)ReadWord(block, 388)) : (short)0;

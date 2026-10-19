@@ -151,6 +151,22 @@ public sealed class NativePcSaveConverterTests
     }
 
     [Fact]
+    public void Imported_field_defaults_an_unrepresentable_saved_camera_without_changing_its_valid_world_pose()
+    {
+        NativePcSaveData data = NativePcSaveCodec.Decode(NativePcSaveConverter.Export(Defaults()));
+        int world = NativePcSaveData.MainOffset + 4624;
+        BinaryPrimitives.WriteUInt32LittleEndian(data.Block.AsSpan(world), 2855);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.Block.AsSpan(world + 4), unchecked((uint)-23150));
+        BinaryPrimitives.WriteUInt16LittleEndian(data.Block.AsSpan(world + 8), 683);
+        BinaryPrimitives.WriteUInt16LittleEndian(data.Block.AsSpan(world + 10), 3113);
+        BinaryPrimitives.WriteUInt16LittleEndian(data.Block.AsSpan(world + 96), 0xF9C5);
+        GameState imported = NativePcSaveConverter.Import(NativePcSaveCodec.Encode(data), Defaults(), _ => "fixture");
+        Assert.Equal(new NativeSavedWorldPose(2855, -23150, 683, 3113), imported.SavedWorld!.FootReturn!.Pose0);
+        Assert.Equal((ushort)0, imported.SavedWorld.FootReturn.CameraYaw96);
+        Assert.Equal((ushort)0xF9C5, BinaryPrimitives.ReadUInt16LittleEndian(imported.OriginalSave!.Block.AsSpan(world + 96)));
+    }
+
+    [Fact]
     public void Installed_original_fixture_imports_and_exports_current_initialized_owners()
     {
         string? fixture = Environment.GetEnvironmentVariable("MEMORIA_FF8_PC_SAVE_FIXTURE");
