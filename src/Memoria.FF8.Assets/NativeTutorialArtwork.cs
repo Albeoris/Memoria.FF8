@@ -17,9 +17,11 @@ public sealed class NativeTutorialArtwork
     private readonly TimImage background;
     private readonly PixelImage backgroundPixels;
     private readonly Dictionary<int, PixelImage> pages = [];
+    private readonly IReadOnlyDictionary<int, PixelImage> screenshots;
 
-    private NativeTutorialArtwork(NativeTutorialBrowserCatalog catalog, byte[] sprites, byte[] backgroundBytes)
+    private NativeTutorialArtwork(NativeTutorialBrowserCatalog catalog, byte[] sprites, byte[] backgroundBytes, IReadOnlyDictionary<int, PixelImage> screenshots)
     {
+        this.screenshots = screenshots;
         this.catalog = catalog;
         this.sprites = sprites;
         background = WorldAssetReader.ReadTim(backgroundBytes, 0).Image;
@@ -46,31 +48,32 @@ public sealed class NativeTutorialArtwork
         {
             throw new InvalidDataException("Native tutorial page rectangle leaves its original384x256 screen.");
         }
-        PixelImage result = new(Width, Height);
-        for (int y = 0; y < height; y++)
+        TimImage screenshot = WorldAssetReader.ReadTim(page.ContentBytes.ToArray(), 0).Image;
+        PixelImage screenshotPixels = screenshots[page.ContentResource];
+        int scale = NativeArtworkTexture.Scale(screenshotPixels, 256, 256);
+        PixelImage result = new(Width * scale, Height * scale);
+        for (int y = 0; y < height * scale; y++)
         {
-            for (int x = 0; x < width; x++)
+            for (int x = 0; x < width * scale; x++)
             {
-                int sourceX = (row[19] * 4 + x) & 31;
-                int sourceY = (row[20] + y - background.Y) & 31;
-                result[left + x, top + y] = backgroundPixels[sourceX, sourceY];
+                int sourceX = (row[19] * 4 + x / scale) & 31;
+                int sourceY = (row[20] + y / scale - background.Y) & 31;
+                result[left * scale + x, top * scale + y] = backgroundPixels[sourceX, sourceY];
             }
         }
-        TimImage screenshot = WorldAssetReader.ReadTim(page.ContentBytes.ToArray(), 0).Image;
-        PixelImage screenshotPixels = screenshot.Decode();
         for (int slot = 0; slot < 4; slot++)
         {
             ReadOnlySpan<byte> placement = row.Slice(36 + slot * 4, 4);
             if (placement[3] != 255)
             {
-                DrawSprite(result, screenshot, screenshotPixels, placement[3], left + BinaryPrimitives.ReadUInt16LittleEndian(placement), top + placement[2]);
+                DrawSprite(result, screenshot, screenshotPixels, placement[3], left + BinaryPrimitives.ReadUInt16LittleEndian(placement), top + placement[2], scale);
             }
         }
         pages.Add(pageId, result);
         return result;
     }
 
-    private void DrawSprite(PixelImage destination, TimImage tim, PixelImage atlas, int id, int x, int y)
+    private void DrawSprite(PixelImage destination, TimImage tim, PixelImage atlas, int id, int x, int y, int scale)
     {
         int spriteCount = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(sprites));
         if (id >= spriteCount || 4 + spriteCount * 4 > sprites.Length)
@@ -96,19 +99,19 @@ public sealed class NativeTutorialArtwork
             int height = BinaryPrimitives.ReadUInt16LittleEndian(part[6..]);
             int sourceX = ((texture & 15) * 64 - tim.X) * 2 + part[0];
             int sourceY = ((texture & 16) != 0 ? 256 : 0) + part[1] - tim.Y;
-            if (tim.PixelMode != TimPixelMode.Indexed8 || ((texture >> 7) & 3) != 1 || (clut & 63) * 16 != tim.Clut?.X || clut >> 6 != tim.Clut?.Y || sourceX < 0 || sourceY < 0 || sourceX + width > atlas.Width || sourceY + height > atlas.Height)
+            if (tim.PixelMode != TimPixelMode.Indexed8 || ((texture >> 7) & 3) != 1 || (clut & 63) * 16 != tim.Clut?.X || clut >> 6 != tim.Clut?.Y || sourceX < 0 || sourceY < 0 || sourceX + width > atlas.Width / scale || sourceY + height > atlas.Height / scale)
             {
                 throw new NotSupportedException("Native tutorial screenshot sprite requires its original8bit TIM coordinates and palette.");
             }
             int destinationX = x + unchecked((sbyte)part[8]);
             int destinationY = y + unchecked((sbyte)part[9]);
-            for (int row = 0; row < height; row++)
+            for (int row = 0; row < height * scale; row++)
             {
-                for (int column = 0; column < width; column++)
+                for (int column = 0; column < width * scale; column++)
                 {
-                    int targetX = destinationX + column;
-                    int targetY = destinationY + row;
-                    Rgba32 pixel = atlas[sourceX + column, sourceY + row];
+                    int targetX = destinationX * scale + column;
+                    int targetY = destinationY * scale + row;
+                    Rgba32 pixel = atlas[sourceX * scale + column, sourceY * scale + row];
                     if ((uint)targetX < destination.Width && (uint)targetY < destination.Height && pixel.A != 0)
                     {
                         destination[targetX, targetY] = pixel;
@@ -138,6 +141,29 @@ public sealed class NativeTutorialArtwork
             int size = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(id * 8 + 4)));
             return content.AsSpan(offset, size).ToArray();
         }
-        return new NativeTutorialArtwork(assets.ReadNativeTutorialBrowserCatalog(), Resource(7), Resource(12));
+        NativeTutorialBrowserCatalog catalog = assets.ReadNativeTutorialBrowserCatalog();
+        Dictionary<int, PixelImage> screenshots = [];
+        foreach (NativeTutorialBrowserPage page in catalog.Categories.SelectMany(category => category.Pages).DistinctBy(page => page.ContentResource))
+        {
+            int atlas = page.ContentGroup switch
+            {
+                0 => page.ContentIndex,
+                1 => 0,
+                2 => 7 + page.ContentIndex,
+                3 => 8 + page.ContentIndex,
+                5 => 10 + page.ContentIndex,
+                6 => 15 + page.ContentIndex,
+                _ => throw new NotSupportedException("Tutorial screenshot resource group is unsupported.")
+            };
+            PixelImage original = WorldAssetReader.ReadTim(page.ContentBytes.ToArray(), 0).Image.Decode();
+            if (original.Width != 256 || original.Height > 256)
+            {
+                throw new NotSupportedException("Tutorial screenshot requires its native256 pixel canvas.");
+            }
+            PixelImage canvas = new(256, 256);
+            original.Pixels.CopyTo(canvas.Pixels, 0);
+            screenshots.Add(page.ContentResource, NativeArtworkTexture.Resolve(provider, new ResourceKey($"menu/mag{atlas:00}.tex"), canvas));
+        }
+        return new NativeTutorialArtwork(catalog, Resource(7), Resource(12), screenshots);
     }
 }

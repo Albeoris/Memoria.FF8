@@ -7,6 +7,44 @@ namespace Memoria.FF8.Remastered.Tests;
 public sealed class RemasteredMusicTests
 {
     [Theory]
+    [InlineData("music/eyes_on_me.wav")]
+    [InlineData("Music/Eyes_On_Me.WAV")]
+    public void SpuCueResolvesToMountedOggAndRetainsItsDecoderExtension(string logical)
+    {
+        using SyntheticResources files = new();
+        string directory = Path.GetDirectoryName(files.Write([]))!;
+        byte[] ogg = "OggS"u8.ToArray();
+        File.WriteAllBytes(Path.Combine(directory, "main.zzz"), SyntheticResources.Zzz());
+        File.WriteAllBytes(Path.Combine(directory, "other.zzz"), SyntheticResources.Zzz(("data/music/dmusic/ogg/eyes_on_me.ogg", ogg), ("data/music/eyes_on_me.wav", new byte[] { 99 })));
+        string resolved;
+        using (RemasteredGameDataSource source = new(directory))
+        {
+            resolved = source.ResolveFile(logical);
+            Assert.Equal(".ogg", Path.GetExtension(resolved));
+            Assert.Equal(ogg, File.ReadAllBytes(resolved));
+            Assert.Equal(resolved, source.ResolveFile(logical));
+        }
+        Assert.False(File.Exists(resolved));
+    }
+
+    [Fact]
+    public void InstalledSpuCueResolvesToTheMountedOggPayload()
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_REMASTERED_DIR");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory), "Set MEMORIA_FF8_REMASTERED_DIR to run optional installed Remastered checks.");
+        MusicCueResource cue = new ClassicMusicCueResolver().Resolve(MusicCue.EyesOnMe);
+        Assert.StartsWith("Data/", cue.RelativePath);
+        using RemasteredGameDataSource source = new(directory!);
+        string resolved = source.ResolveFile(cue.RelativePath[5..]);
+        Assert.Equal(".ogg", Path.GetExtension(resolved));
+        using ZzzArchive archive = new(Path.Combine(directory!, "other.zzz"));
+        using Stream expected = archive.Open("data/music/dmusic/ogg/eyes_on_me.ogg");
+        using FileStream actual = File.OpenRead(resolved);
+        Assert.Equal(expected.Length, actual.Length);
+        Assert.Equal(System.Security.Cryptography.SHA256.HashData(expected), System.Security.Cryptography.SHA256.HashData(actual));
+    }
+
+    [Theory]
     [InlineData("026s-garden")]
     [InlineData("096s-keisho")]
     [InlineData("099-joriku2")]

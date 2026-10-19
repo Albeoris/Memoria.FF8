@@ -49,7 +49,11 @@ public sealed class NativeTripleTriadArtwork
     public static NativeTripleTriadArtwork Load(string gameDirectory)
     {
         using IResourceSource source = GameDataSourceFactory.Open(gameDirectory);
-        return Read(GameDataResources.ReadNativeMemory(new ResourceService(source)));
+        NativeTripleTriadArtwork original = Read(GameDataResources.ReadNativeMemory(new ResourceService(source)));
+        PixelImage[] fronts = Enumerable.Range(0, CardArtwork.CardCount).Select(id => NativeArtworkTexture.Resolve(source, new ResourceKey("cards/cards"), original.fronts[id], subresource: $"front/{id}")).ToArray();
+        PixelImage back = NativeArtworkTexture.Resolve(source, new ResourceKey("cards/cards"), original.Back, subresource: "back");
+        PixelImage[] elements = Enumerable.Range(0, original.elements.Length).Select(id => NativeArtworkTexture.Resolve(source, new ResourceKey("cards/cards"), original.elements[id], subresource: $"element/{id}")).ToArray();
+        return new NativeTripleTriadArtwork(elements, fronts, back, original.Background, original.BoardBackground);
     }
 
     public static NativeTripleTriadArtwork ReadExecutable(byte[] executable)

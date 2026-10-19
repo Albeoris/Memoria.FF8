@@ -81,8 +81,8 @@ public sealed class NativeMenuArtwork
         using IResourceSource provider = GameDataSourceFactory.Open(gameDirectory);
         using IFlArchive menu = (provider as IGameArchiveSource ?? throw new NotSupportedException("The resource source does not support archive enumeration.")).OpenArchive("menu");
         byte[] faces = ReadEntry(menu, "face.sp2");
-        PixelImage[] characterAtlases = [ReadPortraitAtlas(menu, "Face_b00.TEX"), ReadPortraitAtlas(menu, "Face_b01.TEX")];
-        PixelImage[] guardianForceAtlases = [ReadPortraitAtlas(menu, "Gf_big00.TEX"), ReadPortraitAtlas(menu, "Gf_big01.TEX")];
+        PixelImage[] characterAtlases = [ReadPortraitAtlas(provider, menu, "Face_b00.TEX"), ReadPortraitAtlas(provider, menu, "Face_b01.TEX")];
+        PixelImage[] guardianForceAtlases = [ReadPortraitAtlas(provider, menu, "Gf_big00.TEX"), ReadPortraitAtlas(provider, menu, "Gf_big01.TEX")];
         PixelImage[] characters = Enumerable.Range(0, CharacterCount).Select(id => DecodePortrait(characterAtlases, faces, id)).ToArray();
         PixelImage[] guardianForces = Enumerable.Range(0, GuardianForceCount).Select(id => DecodePortrait(guardianForceAtlases, faces, 32 + id)).ToArray();
         TexFile texture = TexFile.Read(ReadEntry(menu, "icon.TEX"));
@@ -90,7 +90,7 @@ public sealed class NativeMenuArtwork
         {
             throw new InvalidDataException("Original menu icon texture requires a 256x256 atlas and sixteen palettes.");
         }
-        PixelImage[] palettes = Enumerable.Range(0, texture.Palettes.Count).Select(texture.Decode).ToArray();
+        PixelImage[] palettes = Enumerable.Range(0, texture.Palettes.Count).Select(palette => NativeArtworkTexture.Resolve(provider, new ResourceKey("menu/icon.tex"), texture.Decode(palette), palette)).ToArray();
         return new NativeMenuArtwork(characters, guardianForces, DecodePortrait(characterAtlases, faces, 15), palettes, ReadEntry(menu, "icon.sp1"));
     }
 
@@ -128,7 +128,9 @@ public sealed class NativeMenuArtwork
             throw new InvalidDataException("Original portrait does not follow the face.sp2 32x48 cell contract.");
         }
         // Original loader 0x4B3D00 cases 9/10 splits each logical 256x128 sheet into two PC 256x256 textures, at twice the sprite resolution.
-        return Crop(atlases[x / 128], x % 128 * 2, y * 2, width * 2, height * 2);
+        PixelImage atlas = atlases[x / 128];
+        int scale = NativeArtworkTexture.Scale(atlas, 256, 256);
+        return Crop(atlas, x % 128 * 2 * scale, y * 2 * scale, width * 2 * scale, height * 2 * scale);
     }
 
     private static PixelImage DecodeIcon(PixelImage[] palettes, ReadOnlySpan<byte> index, int id, int paletteOffset)
@@ -149,7 +151,8 @@ public sealed class NativeMenuArtwork
             right = Math.Max(right, x + part[4]);
             bottom = Math.Max(bottom, y + part[6]);
         }
-        PixelImage result = new(right - left, bottom - top);
+        int scale = NativeArtworkTexture.Scale(palettes[0], 256, 256);
+        PixelImage result = new((right - left) * scale, (bottom - top) * scale);
         for (int i = 0; i < count; i++)
         {
             ReadOnlySpan<byte> part = parts.Slice(i * 8, 8);
@@ -159,11 +162,11 @@ public sealed class NativeMenuArtwork
                 throw new ArgumentOutOfRangeException(nameof(paletteOffset), "Menu icon CLUT offset leaves the original texture palettes.");
             }
             PixelImage atlas = palettes[palette];
-            int x = unchecked((sbyte)part[5]) - left;
-            int y = unchecked((sbyte)part[7]) - top;
-            int width = part[4];
-            int height = part[6];
-            if (width == 0 || height == 0 || part[0] + width > atlas.Width || part[1] + height > atlas.Height)
+            int x = (unchecked((sbyte)part[5]) - left) * scale;
+            int y = (unchecked((sbyte)part[7]) - top) * scale;
+            int width = part[4] * scale;
+            int height = part[6] * scale;
+            if (width == 0 || height == 0 || part[0] * scale + width > atlas.Width || part[1] * scale + height > atlas.Height)
             {
                 throw new InvalidDataException("Original menu icon part leaves its atlas.");
             }
@@ -171,7 +174,7 @@ public sealed class NativeMenuArtwork
             {
                 for (int column = 0; column < width; column++)
                 {
-                    Rgba32 pixel = atlas[part[0] + column, part[1] + row];
+                    Rgba32 pixel = atlas[part[0] * scale + column, part[1] * scale + row];
                     if (pixel.A != 0)
                     {
                         result[x + column, y + row] = pixel;
@@ -207,7 +210,7 @@ public sealed class NativeMenuArtwork
         return (int)count;
     }
 
-    private static PixelImage ReadPortraitAtlas(IFlArchive menu, string name)
+    private static PixelImage ReadPortraitAtlas(IResourceSource provider, IFlArchive menu, string name)
     {
         TexFile texture = TexFile.Read(ReadEntry(menu, name));
         if (texture.Palettes.Count != 0 || texture.Header.BytesPerPixel != 2 || texture.Header.RedMask != 0x1F || texture.Header.GreenMask != 0x3E0 || texture.Header.BlueMask != 0x7C00 || texture.Header.AlphaMask != 0x8000)
@@ -224,7 +227,7 @@ public sealed class NativeMenuArtwork
         {
             throw new InvalidDataException($"Original PC portrait atlas {name} must be 256x256.");
         }
-        return image;
+        return NativeArtworkTexture.Resolve(provider, new ResourceKey("menu/" + name), image);
     }
 
     private static PixelImage Crop(PixelImage source, int x, int y, int width, int height)

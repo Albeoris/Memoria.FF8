@@ -6,4 +6,6 @@ namespace Memoria.FF8.Assets;
 public interface IBattleModelSource
 {
     BattleModel ReadModel(ResourceKey owner, byte[] content);
+
+    BattleModel ReadWeapon(ResourceKey owner, byte[] content, BattleModel character) => BattleResourceReader.ReadWeapon(Path.GetFileName(owner.Path), content, character);
 }

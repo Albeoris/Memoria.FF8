@@ -19,7 +19,7 @@ public sealed class InstalledProviderEntryPointTests
         string directory = InstalledDirectory();
         Assert.EndsWith(".sgt", new NativeMusicCatalog(directory).MusicFileResolved(0));
         Assert.NotEmpty(new NativeWorldForestTables(directory).Effects);
-        Assert.Equal(64, NativeTripleTriadArtwork.Load(directory).Back.Width);
+        Assert.Equal(192, NativeTripleTriadArtwork.Load(directory).Back.Width);
         Assert.Throws<NotImplementedException>(() => NativeSteamDiscMountReader.Read(directory, 1));
     }
 

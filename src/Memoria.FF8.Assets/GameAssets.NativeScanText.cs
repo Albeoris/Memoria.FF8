@@ -1,4 +1,5 @@
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Resources;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
 
 namespace Memoria.FF8.Assets;
@@ -25,6 +26,7 @@ public sealed partial class GameAssets
             return nativeScanTextResources;
         }
         using IFlArchive main = OpenArchive("main");
-        return nativeScanTextResources = NativeBattleScanTextResourcesReader.Read(ReadNativeMemory(), Read(main, "kernel.bin"));
+        byte[]? descriptions = resources.Source.Edition == GameDataEdition.Remastered ? resources.Read(new ResourceKey("text/enemy-scan")) : null;
+        return nativeScanTextResources = NativeBattleScanTextResourcesReader.Read(ReadNativeMemory(), Read(main, "kernel.bin"), descriptions);
     }
 }

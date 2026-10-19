@@ -90,6 +90,7 @@ internal static partial class BattleResourceReader
         IReadOnlyList<ModelTexture> textures = Textures(reader, bytes, offsets[4]);
         return new BattleModel(name, character.Bones, Geometry(reader, offsets[0], character.Bones.Count, textures), textures.Select(texture => texture.Image).ToArray(), character.Animations, character.Scale)
         {
+            TextureRegions = textures.Select(texture => new TextureSourceRegion(texture.Tim.X, texture.Tim.Y, 0, texture.Image.Width, texture.Image.Height)).ToArray(),
             NativePoseSource = character.NativePoseSource,
             NativeWeaponTexturePack = new(name + ":weapon-textures", bytes.AsSpan(offsets[4], bytes.Length - offsets[4]).ToArray().ToImmutableArray()),
             NativeWeaponUsesBodySkeleton = true,

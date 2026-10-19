@@ -328,7 +328,8 @@ public sealed partial class BattleAssets : IDisposable
         string key = $"{name}|{character.Name}";
         if (!models.TryGetValue(key, out BattleModel? model))
         {
-            model = BattleResourceReader.ReadWeapon(name, Read(name), character);
+            byte[] content = Read(name);
+            model = resources.GetSource<IBattleModelSource>()?.ReadWeapon(new ResourceKey("battle/" + name), content, character) ?? BattleResourceReader.ReadWeapon(name, content, character);
             model = model with { Textures = textureScope.RegisterList(new ResourceKey("battle/" + name), model.Textures, "classic-battle") };
             models.Add(key, model);
         }

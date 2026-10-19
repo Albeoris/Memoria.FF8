@@ -18,10 +18,18 @@ public sealed record NativeMenuPointer(PixelImage Image, int SourceX, int Source
     {
         using IResourceSource provider = GameDataSourceFactory.Open(gameDirectory);
         using IFlArchive menu = (provider as IGameArchiveSource ?? throw new NotSupportedException("The resource source does not support archive enumeration.")).OpenArchive("menu");
-        return Decode(ReadEntry(menu, "icon.tex"), ReadEntry(menu, "icon.sp1"));
+        byte[] texture = ReadEntry(menu, "icon.tex");
+        PixelImage original = TexFile.Read(texture).Decode(Palette);
+        PixelImage atlas = NativeArtworkTexture.Resolve(provider, new ResourceKey("menu/icon.tex"), original, Palette);
+        return DecodeAtlas(atlas, ReadEntry(menu, "icon.sp1"));
     }
 
     public static NativeMenuPointer Decode(ReadOnlySpan<byte> texture, ReadOnlySpan<byte> index)
+    {
+        return DecodeAtlas(TexFile.Read(texture).Decode(Palette), index);
+    }
+
+    private static NativeMenuPointer DecodeAtlas(PixelImage atlas, ReadOnlySpan<byte> index)
     {
         if (index.Length < 8)
         {
@@ -41,16 +49,17 @@ public sealed record NativeMenuPointer(PixelImage Image, int SourceX, int Source
         int y = entry[1];
         int width = entry[4];
         int height = entry[6];
-        PixelImage atlas = TexFile.Read(texture).Decode(Palette);
-        if (width == 0 || height == 0 || x + width > atlas.Width || y + height > atlas.Height)
+        int scale = NativeArtworkTexture.Scale(atlas, 256, 256);
+        if (width == 0 || height == 0 || x + width > 256 || y + height > 256)
         {
             throw new InvalidDataException("Original right-pointing menu finger leaves its icon texture.");
         }
 
-        PixelImage image = new(width, height);
-        for (int row = 0; row < height; row++)
+        int scaledWidth = width * scale;
+        PixelImage image = new(scaledWidth, height * scale);
+        for (int row = 0; row < image.Height; row++)
         {
-            atlas.Pixels.AsSpan((y + row) * atlas.Width + x, width).CopyTo(image.Pixels.AsSpan(row * width, width));
+            atlas.Pixels.AsSpan((y * scale + row) * atlas.Width + x * scale, scaledWidth).CopyTo(image.Pixels.AsSpan(row * scaledWidth, scaledWidth));
         }
 
         return new NativeMenuPointer(image, x, y, unchecked((sbyte)entry[5]), unchecked((sbyte)entry[7]));

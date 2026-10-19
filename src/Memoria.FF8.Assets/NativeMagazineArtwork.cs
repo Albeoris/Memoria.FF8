@@ -49,6 +49,10 @@ public sealed class NativeMagazineArtwork
         {
             throw new InvalidDataException("Original magazine atlases must be 256x256 pixels.");
         }
+        for (int atlas = 0; atlas < atlases.Length; atlas++)
+        {
+            atlases[atlas] = NativeArtworkTexture.Resolve(provider, new ResourceKey($"menu/mag{atlas:00}.tex"), atlases[atlas]);
+        }
         return new NativeMagazineArtwork(atlases, content.AsSpan(offset, length).ToArray(), NativeMenuArtwork.Load(gameDirectory));
     }
 
@@ -79,18 +83,19 @@ public sealed class NativeMagazineArtwork
         if (!images.TryGetValue(imageId, out PixelImage? image))
         {
             (int width, int height) = GetDimensions(index, imageId);
-            image = new PixelImage(width, height);
             PixelImage atlas = atlases[imageId < 28 ? imageId / 4 : imageId < 34 ? 7 : imageId < 37 ? 8 : 9];
+            int scale = NativeArtworkTexture.Scale(atlas, 256, 256);
+            image = new PixelImage(width * scale, height * scale);
             foreach (Part part in ReadParts(index, imageId))
             {
-                for (int y = 0; y < part.Height; y++)
+                for (int y = 0; y < part.Height * scale; y++)
                 {
-                    for (int x = 0; x < part.Width; x++)
+                    for (int x = 0; x < part.Width * scale; x++)
                     {
-                        Rgba32 pixel = atlas[part.SourceX + x, part.SourceY + y];
+                        Rgba32 pixel = atlas[part.SourceX * scale + x, part.SourceY * scale + y];
                         if (pixel.A != 0)
                         {
-                            image[part.X + x, part.Y + y] = pixel;
+                            image[part.X * scale + x, part.Y * scale + y] = pixel;
                         }
                     }
                 }

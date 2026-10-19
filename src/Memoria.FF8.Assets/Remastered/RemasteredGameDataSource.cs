@@ -201,6 +201,10 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
         {
             mountedRelative = "music/dmusic/ogg/" + Path.GetFileNameWithoutExtension(relative) + ".ogg";
         }
+        else if (relative.Equals("music/eyes_on_me.wav", StringComparison.OrdinalIgnoreCase))
+        {
+            mountedRelative = "music/dmusic/ogg/eyes_on_me.ogg";
+        }
         string localized = $"data/lang-{language}/{mountedRelative}";
         string path = Contains(localized) ? localized : "data/" + mountedRelative;
         if (!Contains(path))
@@ -231,6 +235,7 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
         }
         archives.Clear();
         catalog.Clear();
+        artworkImages.Clear();
         main.Dispose();
         other.Dispose();
         if (Directory.Exists(cacheDirectory))

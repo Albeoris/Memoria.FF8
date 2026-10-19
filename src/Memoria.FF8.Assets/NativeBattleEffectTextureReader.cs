@@ -6,7 +6,7 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8.Assets;
 
 /// <summary>Material sampling of the shared native VRAM owner, preserving texture-page depth and CLUT selection.</summary>
-public static class NativeBattleEffectTextureReader
+public static partial class NativeBattleEffectTextureReader
 {
     private static readonly ConditionalWeakTable<NativeBattleEffectTextureState, byte[]> Banks = new();
 

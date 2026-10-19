@@ -55,6 +55,7 @@ public sealed class CardArtwork
             {
                 throw new NotSupportedException($"Original Triple Triad atlas {name} must be {AtlasSize}x{AtlasSize}, but is {atlas.Width}x{atlas.Height}.");
             }
+            atlas = NativeArtworkTexture.Resolve(provider, new ResourceKey("menu/" + name), atlas);
             for (int cell = 0; cell < CardsPerAtlas; cell++)
             {
                 fronts[atlasIndex * CardsPerAtlas + cell] = CropCell(atlas, cell);
@@ -69,12 +70,13 @@ public sealed class CardArtwork
 
     private static PixelImage CropCell(PixelImage atlas, int cell)
     {
-        int left = cell % AtlasColumns * ArtworkSize;
-        int top = cell / AtlasColumns * ArtworkSize;
-        PixelImage result = new(ArtworkSize, ArtworkSize);
-        for (int row = 0; row < ArtworkSize; row++)
+        int size = ArtworkSize * NativeArtworkTexture.Scale(atlas, AtlasSize, AtlasSize);
+        int left = cell % AtlasColumns * size;
+        int top = cell / AtlasColumns * size;
+        PixelImage result = new(size, size);
+        for (int row = 0; row < size; row++)
         {
-            atlas.Pixels.AsSpan((top + row) * atlas.Width + left, ArtworkSize).CopyTo(result.Pixels.AsSpan(row * ArtworkSize, ArtworkSize));
+            atlas.Pixels.AsSpan((top + row) * atlas.Width + left, size).CopyTo(result.Pixels.AsSpan(row * size, size));
         }
         return result;
     }

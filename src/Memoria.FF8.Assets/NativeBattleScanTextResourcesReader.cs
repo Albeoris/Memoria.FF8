@@ -13,7 +13,7 @@ public static class NativeBattleScanTextResourcesReader
         return new(category, address, memory.Read(address, 16).ToImmutableArray());
     }
 
-    public static NativeBattleScanTextResources Read(IGameNativeMemorySource memory, byte[] kernel)
+    public static NativeBattleScanTextResources Read(IGameNativeMemorySource memory, byte[] kernel, byte[]? descriptionData = null)
     {
         ArgumentNullException.ThrowIfNull(memory);
         ArgumentNullException.ThrowIfNull(kernel);
@@ -29,8 +29,12 @@ public static class NativeBattleScanTextResourcesReader
             throw new InvalidDataException("Native Scan miscellaneous text directory or raw text bank leaves its kernel sections.");
         }
         ImmutableArray<ushort> miscOffsets = Enumerable.Range(0, (miscDirectoryEnd - miscDirectory) / 2).Select(index => BinaryPrimitives.ReadUInt16LittleEndian(kernel.AsSpan(miscDirectory + index * 2, 2))).ToImmutableArray();
-        byte[] directory = memory.Read(0x1887474, 320);
-        byte[] descriptions = memory.Read(0x18875B4, 0x3A5F);
+        if (descriptionData is not null && descriptionData.Length <= 320)
+        {
+            throw new InvalidDataException("Scan descriptions require a complete 160-entry directory and encoded text bank.");
+        }
+        byte[] directory = descriptionData is null ? memory.Read(0x1887474, 320) : descriptionData.AsSpan(0, 320).ToArray();
+        byte[] descriptions = descriptionData is null ? memory.Read(0x18875B4, 0x3A5F) : descriptionData.AsSpan(320).ToArray();
         ImmutableArray<ushort> offsets = Enumerable.Range(0, 160).Select(index => BinaryPrimitives.ReadUInt16LittleEndian(directory.AsSpan(index * 2, 2))).ToImmutableArray();
         foreach (ushort offset in offsets)
         {

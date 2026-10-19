@@ -122,6 +122,8 @@ public sealed partial class RemasteredGameDataSource
         ObjectDisposedException.ThrowIf(disposed, this);
         string name = Path.GetFileNameWithoutExtension(owner.Path);
         BattleModel model = BattleResourceReader.ReadModel(Path.GetFileName(owner.Path), content);
+        ClearBattleImageBindings(owner);
+        BindBattleMonsterImages(owner, name, model);
         if (name.Length == 6 && name[0] == 'd' && name[2] == 'c')
         {
             string preferred = $"textures/battle.fs/hd_new/{name}";
@@ -142,6 +144,10 @@ public sealed partial class RemasteredGameDataSource
     public TextureReplacement? Resolve(TextureBuildContext context)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
+        if (ResolveArtwork(context) is { } artwork)
+        {
+            return artwork;
+        }
         if (!imageBindings.TryGetValue(context.Key, out ImageBinding? binding))
         {
             return null;
@@ -154,7 +160,7 @@ public sealed partial class RemasteredGameDataSource
         const int nativeRowWidth = 384;
         int width = checked(context.LogicalWidth * nativeScale);
         int height = checked(context.LogicalHeight * nativeScale);
-        if (width != nativeRowWidth || image.Width is not (nativeRowWidth or nativeRowWidth * 2) || image.Height > height)
+        if (width != nativeRowWidth || image.Width is not (nativeRowWidth or nativeRowWidth * 2) || image.Height > nativeRowWidth)
         {
             throw new NotSupportedException($"The selected model image {binding.Path} ({image.Width}x{image.Height}) does not fit the native texture row {context.LogicalWidth}x{context.LogicalHeight} at scale {nativeScale}.");
         }
@@ -175,7 +181,7 @@ public sealed partial class RemasteredGameDataSource
         // Native uploads each image into a fixed atlas row. Unuploaded GL storage is unspecified;
         // the managed backing allocation uses transparent pixels for that uncovered area.
         Rgba32[] pixels = new Rgba32[checked(width * height)];
-        for (int row = 0; row < source.Height; row++)
+        for (int row = 0; row < Math.Min(source.Height, height); row++)
         {
             source.Pixels.AsSpan(row * source.Width + x, width).CopyTo(pixels.AsSpan(row * width));
         }
