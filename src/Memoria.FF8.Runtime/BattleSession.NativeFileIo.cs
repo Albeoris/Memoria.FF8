@@ -95,6 +95,8 @@ public sealed partial class BattleSession
                 case 0xB07C20:
                 case 0xAFAD70:
                 case 0xAEFAE0:
+                case 0xA4D9C0:
+                case 0xA44370:
                     NativeBattleEffectMemory scriptedMemory = NativeEffectMemory ?? throw new NotSupportedException("Native scripted-effect completion requires its current effect memory.");
                     NativeBattleScriptedEffectMemory scripted = scriptedMemory.ScriptedEffects ?? throw new NotSupportedException("Native scripted-effect completion requires its retained process owner.");
                     NativeEffectMemory = scriptedMemory with { ScriptedEffects = NativeBattleWaterIoCommands.CompleteAA0ED0(scripted) };

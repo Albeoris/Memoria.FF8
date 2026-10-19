@@ -112,7 +112,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
     internal static ImmutableHashSet<NativeBattlePrimitiveReference> GuardianPacketReferences(BattleSnapshot prior, BattleSnapshot current, ushort effect, GameAssets game)
     {
         NativeBattlePrimitiveFrame primitive = current.NativeGraphics!.PrimitiveFrame!;
-        ImmutableHashSet<NativeBattlePrimitiveReference>.Builder references = primitive.LastCommands.Where(command => command.Command.Packet.Bank is "20DFAB8" or "2523C98" or "2466638" or "243BE6C").Select(command => command.Command.Packet).ToImmutableHashSet().ToBuilder();
+        ImmutableHashSet<NativeBattlePrimitiveReference>.Builder references = primitive.LastCommands.Where(command => command.Command.Packet.Bank is "20DFAB8" or "2523C98" or "2466638" or "243BE6C" or "24224D4" or "24059F8" or "DBAEE0" or "230AD0C" or "2368580").Select(command => command.Command.Packet).ToImmutableHashSet().ToBuilder();
         bool priorMesh = prior.NativeGraphics!.Auxiliary.Slots.Any(task => (task.Flags & 1) != 0 && task.Kind is NativeBattleAuxiliaryKind.ModelGroupFade50F0E0 or NativeBattleAuxiliaryKind.ModelDeformation50F2E0);
         if (priorMesh)
         {

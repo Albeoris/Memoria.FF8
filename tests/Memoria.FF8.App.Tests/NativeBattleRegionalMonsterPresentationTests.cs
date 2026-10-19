@@ -10,6 +10,21 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
     [Fact]
     public void Resume_the_selected_monster_standalone_for_one_callback()
     {
+        ResumeSelectedStandalone(1);
+    }
+
+    [Fact]
+    public void Resume_the_selected_monster_standalone_for_a_bounded_callback_range()
+    {
+        string? value = Environment.GetEnvironmentVariable("MEMORIA_FF8_MONSTER_CALLBACKS");
+        Assert.SkipUnless(value is not null, "Select a bounded diagnostic callback count.");
+        int callbacks = int.Parse(value!);
+        Assert.InRange(callbacks, 1, 4096);
+        ResumeSelectedStandalone(callbacks);
+    }
+
+    private static void ResumeSelectedStandalone(int callbacks)
+    {
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_MONSTER_SNAPSHOT");
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_MONSTER_EVIDENCE");
         Assert.SkipUnless(source is not null && output is not null, "Select a standalone monster checkpoint and a distinct evidence directory.");
@@ -19,9 +34,12 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
         BattleSession first = BattleSession.Restore(snapshot);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(first.Capture()));
-        first.Tick();
-        second.Tick();
-        Assert.Equal(snapshot.NativeGraphics!.Callback + 1, first.NativeGraphics!.Callback);
+        for (int callback = 0; callback < callbacks; callback++)
+        {
+            first.Tick();
+            second.Tick();
+        }
+        Assert.Equal(snapshot.NativeGraphics!.Callback + callbacks, first.NativeGraphics!.Callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition, true).Render(first, 320, 224).ToArray();
@@ -87,7 +105,7 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
                         restoredLive = true;
                     }
                 }
-                if (produced && !visible && graphics.PrimitiveFrame is { } primitive && !primitive.LastCommands.IsEmpty)
+                if (produced && graphics.OriginalEffect is { ReturnedDescriptor: > 0 } selectedEffect && selectedEffect.RequestedEffect == native.MagicId && !visible && graphics.PrimitiveFrame is { } primitive && !primitive.LastCommands.IsEmpty)
                 {
                     ImmutableHashSet<NativeBattlePrimitiveReference> references = NativeBattleTargetGuardianCastTests.GuardianPacketReferences(prior, current, native.MagicId, game);
                     byte[] rendered = scene.Render(battle, 320, 224).ToArray();
@@ -124,9 +142,19 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
         }
         catch (Exception error)
         {
-            Publish("before-boundary", prior);
-            Publish("failed-live", battle.Capture());
-            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "blocked", model, level, slot, ability.Command, ability.Id, ability.Sequence, native.MagicId, callbacks, error = error.ToString() }));
+            File.WriteAllText(Path.Combine(output!, "before-boundary.battle.json"), JsonSerializer.Serialize(prior));
+            BattleSnapshot failed = battle.Capture();
+            File.WriteAllText(Path.Combine(output!, "failed-live.battle.json"), JsonSerializer.Serialize(failed));
+            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "blocked", model, level, slot, ability.Command, ability.Id, ability.Sequence, native.MagicId, callbacks, peakChangedRgb, restoredLive, selected, produced, error = error.ToString() }));
+            try
+            {
+                Publish("before-boundary", prior);
+                Publish("failed-live", failed);
+            }
+            catch (Exception presentationError)
+            {
+                File.WriteAllText(Path.Combine(output!, "presentation-error.txt"), presentationError.ToString());
+            }
             throw;
         }
 
@@ -158,7 +186,7 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
         }
     }
 
-    private static BattleDefinition CreateDefinition(GameAssets game, BattleAssets assets, int model, int level, int slot, NativeBattleAiDefinition installedAi, BattleNativeAction action)
+    internal static BattleDefinition CreateDefinition(GameAssets game, BattleAssets assets, int model, int level, int slot, NativeBattleAiDefinition installedAi, BattleNativeAction action)
     {
         BattleEncounter formation = Enumerable.Range(0, 1024).Select(assets.LoadEncounter).First(item => item.Slots.Any(enemy => enemy.ModelId == model));
         BattleEnemyPlacement placement = formation.Slots.First(enemy => enemy.ModelId == model);

@@ -13,4 +13,6 @@ public sealed partial record NativeBattleModuleDraw
     /// <summary>5710D0's camera-space translation DWORDs, added after571BC0 normalizes and applies depth displacement.</summary>
     public int SpriteCameraXOffset { get; init; }
     public int SpriteCameraYOffset { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? SpriteYScale { get; init; }
 }

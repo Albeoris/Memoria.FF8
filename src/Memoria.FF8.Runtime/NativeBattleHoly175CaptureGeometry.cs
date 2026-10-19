@@ -7,7 +7,7 @@ public sealed record NativeBattleHoly175CaptureStage(NativeBattleStageState Stag
 
 public static class NativeBattleHoly175CaptureGeometry
 {
-    public static NativeBattleHoly175CaptureStage Draw5D29E0(NativeBattleStageState stage, ImmutableArray<NativeBattleRawMesh> geometry, ImmutableArray<NativeBattleHoly175CaptureDirectoryEntry> directory, NativeBattleActionMatrix currentView, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleHoly175CaptureStage Draw5D29E0(NativeBattleStageState stage, ImmutableArray<NativeBattleRawMesh> geometry, ImmutableArray<NativeBattleHoly175CaptureDirectoryEntry> directory, NativeBattleActionMatrix currentView, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, short captureOffsetY = 116, Action<IReadOnlyList<NativeBattleProjectedVertex>>? publishProjectedScratch = null)
     {
         stage.Validate();
         currentView.Validate();
@@ -19,7 +19,7 @@ public static class NativeBattleHoly175CaptureGeometry
         {
             throw new NotSupportedException("Native Holy capture requires its actual stage geometry group owners.");
         }
-        NativeBattleCameraProjection capture = projection with { View = currentView, OffsetX = 160, OffsetY = 116 };
+        NativeBattleCameraProjection capture = projection with { View = currentView, OffsetX = 160, OffsetY = captureOffsetY };
         ImmutableArray<NativeBattleStageGroup>.Builder groups = stage.Groups.ToBuilder();
         ImmutableArray<NativeBattleGeometryPrimitive>.Builder packets = ImmutableArray.CreateBuilder<NativeBattleGeometryPrimitive>();
         for (int index = 0; index < 4; index++)
@@ -36,7 +36,7 @@ public static class NativeBattleHoly175CaptureGeometry
             }
             NativeBattleHoly175CaptureDirectoryEntry draw = directory[index];
             ImmutableArray<NativeBattleRawMesh> selected = geometry.Where(mesh => mesh.StageGroup == index).ToImmutableArray();
-            packets.AddRange(NativeBattleRawGeometryPackets.Emit5099D0(selected, group.Matrices, capture, group.ColorFlags, uint.MaxValue, group.ColorDepth, draw.TableBaseBucket, draw.DepthShift, null, colors));
+            packets.AddRange(NativeBattleRawGeometryPackets.Emit5099D0(selected, group.Matrices, capture, group.ColorFlags, uint.MaxValue, group.ColorDepth, draw.TableBaseBucket, draw.DepthShift, null, colors, publishProjectedScratch));
         }
         return new(stage with { Groups = groups.ToImmutable() }, packets.ToImmutable());
     }

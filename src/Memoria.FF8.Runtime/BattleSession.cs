@@ -1117,7 +1117,10 @@ public sealed partial class BattleSession
         ActiveAction = snapshot.ActiveAction;
         RestoreDebugOutcome(snapshot);
         Outcome = snapshot.Outcome;
-        if (snapshot.Outcome != DetermineOutcome() || (snapshot.Outcome != BattleOutcome.Active && busy.Count != 0))
+        BattleOutcome expectedOutcome = DetermineOutcome();
+        // Native graphics can release the last action after this host frame's outcome admission pass.
+        bool awaitingNativeOutcomeAdmission = DebugOutcome is null && snapshot.Outcome == BattleOutcome.Active && NativeGraphics is { NativeOutcome: null } && expectedOutcome is BattleOutcome.Victory or BattleOutcome.Defeat;
+        if ((!awaitingNativeOutcomeAdmission && snapshot.Outcome != expectedOutcome) || (snapshot.Outcome != BattleOutcome.Active && busy.Count != 0))
         {
             throw new InvalidDataException("Battle outcome contradicts living actors or outstanding actions.");
         }

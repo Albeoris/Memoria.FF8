@@ -13,6 +13,14 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native A3 resource does not identify its original a8def.tim bytes.");
         }
+        if (destination == 0x24224D4)
+        {
+            NativeBattleEffectMemory retained = NativeEffectMemory ?? throw new NotSupportedException("Native Ultra Waves texture restore requires its process memory.");
+            NativeEffectIoResult = -1;
+            NativeEffectMemory = NativeBattleUltraWaves154TextureRestore.Copy(retained, resource.Data);
+            QueueNativeFileIo482610(resource.Data.Length, 0x508470);
+            return;
+        }
         int offset = CommonTextureOffset(destination);
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native5084B0 requires its current destination memory.");
         NativeEffectIoResult = -1;
@@ -24,6 +32,12 @@ public sealed partial class BattleSession
     {
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native508660 requires its current mutable TIM memory.");
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native508660 requires its retained texture queue.");
+        if (source == 0x24224D4)
+        {
+            (textures, _) = textures.EnqueueArenaTim505E30((memory.UltraWaves154 ?? throw new NotSupportedException("Native Ultra Waves texture restore lost its private TIM bytes.")).Packets, 0);
+            NativeEffectMemory = memory with { Textures = textures };
+            return;
+        }
         (textures, _) = textures.EnqueueArenaTim505E30(memory.Arena ?? throw new NotSupportedException("Native508660 requires its actual A3 destination."), CommonTextureOffset(source));
         NativeEffectMemory = memory with { Textures = textures };
     }

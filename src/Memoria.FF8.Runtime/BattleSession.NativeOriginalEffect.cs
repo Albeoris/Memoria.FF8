@@ -61,6 +61,46 @@ public sealed partial class BattleSession
         {
             return EnterNativeClash26(graphics);
         }
+        if (effect.Binding.Entry == 0x6185D0)
+        {
+            return EnterNativeSleep145(graphics);
+        }
+        if (effect.Binding.Entry == 0x8B68C0)
+        {
+            return EnterNativeDeath(graphics);
+        }
+        if (effect.Binding.Entry == 0x60AFB0)
+        {
+            return EnterNativeUltrasonic152(graphics);
+        }
+        if (effect.Binding.Entry == 0x5CC840)
+        {
+            return EnterNativeSuicide180(graphics);
+        }
+        if (effect.Binding.Entry == 0x5CDF40)
+        {
+            return EnterNativeBombGlow179(graphics);
+        }
+        if (effect.Binding.Entry == 0x684EE0)
+        {
+            return RunNativeXatmDeath276(graphics, true);
+        }
+        if (effect.Binding.Entry == 0x627E60)
+        {
+            return RunNativeRayBomb10(graphics, true);
+        }
+        if (effect.Binding.Entry == 0x683F10)
+        {
+            return EnterNativeFunguarLaser277(graphics);
+        }
+        if (effect.Binding.Entry == 0x5D00F0)
+        {
+            return EnterNativeSandStorm176(graphics);
+        }
+        if (effect.Binding.Entry == 0x607C10)
+        {
+            return EnterNativeUltraWaves154(graphics);
+        }
         if (effect.Binding.Entry == 0x609640)
         {
             return EnterNativeStickyWeb153(graphics);

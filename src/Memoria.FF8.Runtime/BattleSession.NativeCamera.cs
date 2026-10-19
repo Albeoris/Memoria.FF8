@@ -110,6 +110,22 @@ public sealed partial class BattleSession
                 {
                     graphics = graphics with { Descriptors = graphics.Descriptors.WriteCompletion501A70(address, value) };
                 }
+                else if (TryWriteNativeDeathCompletion(graphics, address, value, out NativeBattleGraphicsState completedDeath))
+                {
+                    graphics = completedDeath;
+                }
+                else if (TryWriteNativeUltrasonic152Completion(graphics, address, value, out NativeBattleGraphicsState completedUltrasonic152))
+                {
+                    graphics = completedUltrasonic152;
+                }
+                else if (TryWriteNativeRayBomb10Completion(graphics, address, value, out NativeBattleGraphicsState rayBombCompleted))
+                {
+                    graphics = rayBombCompleted;
+                }
+                else if (TryWriteNativeUltraWaves154Completion(graphics, address, value, out NativeBattleGraphicsState wavesCompleted))
+                {
+                    graphics = wavesCompleted;
+                }
                 else if (TryWriteNativeEffect311Completion(graphics, address, value, out NativeBattleGraphicsState completed))
                 {
                     graphics = completed;

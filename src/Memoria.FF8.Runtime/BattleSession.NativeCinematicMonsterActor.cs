@@ -115,7 +115,11 @@ public sealed partial class BattleSession
             int count = unchecked((short)Word(state));
             uint colors = CoreDword(frame, manager + 0x74);
             uint rampAddress = Dword(state + 12);
-            ImmutableArray<uint> ramp = Enumerable.Range(0, 256).Select(index => Dword(rampAddress + 4u * (uint)index)).ToImmutableArray();
+            ImmutableArray<uint> ramp = Enumerable.Range(0, 256).Select(index =>
+            {
+                byte[] rgb = frame.Arena.Read(ArenaOffset(rampAddress + 4u * (uint)index, 3), 3);
+                return (uint)(rgb[0] | rgb[1] << 8 | rgb[2] << 16);
+            }).ToImmutableArray();
             uint actorColor = graphics.Models[actorIndex].Color40 ?? throw new NotSupportedException("Native cinematic glow requires its current actor color.");
             for (int index = 0; index < count; index++)
             {
@@ -235,7 +239,8 @@ public sealed partial class BattleSession
             ImmutableArray<uint> ramp = NativeBattleCinematicMonsterVertices.Palette(palette);
             for (int index = 0; index < ramp.Length; index++)
             {
-                StoreDword(cursor + 4u * (uint)index, ramp[index]);
+                uint rgb = ramp[index];
+                frame = frame with { Arena = frame.Arena.Write(ArenaOffset(cursor + 4u * (uint)index, 3), [(byte)rgb, (byte)(rgb >> 8), (byte)(rgb >> 16)]) };
             }
             (frame, _) = NativeBattleWaterParticleCommands.AllocateB656E0(frame, unchecked(cursor + 1024 - state));
         }

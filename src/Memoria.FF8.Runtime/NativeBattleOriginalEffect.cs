@@ -13,7 +13,7 @@ public sealed record NativeBattleEffectResourcePointer([property: JsonRequired] 
 public sealed record NativeBattleEffectHeapResourcePointer([property: JsonRequired] uint GlobalAddress, [property: JsonRequired] int AllocationIndex);
 
 /// <summary>50AF20's selected module and the descriptor returned by its original entry.</summary>
-public sealed record NativeBattleOriginalEffectState([property: JsonRequired] ushort RequestedEffect, [property: JsonRequired] int SelectedIndex, [property: JsonRequired] NativeBattleEffectBinding Binding, [property: JsonRequired] NativeBattleEffectParameters? Parameters, [property: JsonRequired] uint? ReturnedDescriptor)
+public sealed partial record NativeBattleOriginalEffectState([property: JsonRequired] ushort RequestedEffect, [property: JsonRequired] int SelectedIndex, [property: JsonRequired] NativeBattleEffectBinding Binding, [property: JsonRequired] NativeBattleEffectParameters? Parameters, [property: JsonRequired] uint? ReturnedDescriptor)
 {
     [JsonRequired]
     public ImmutableArray<NativeBattleEffectTaskPool> Pools { get; init; } = [];

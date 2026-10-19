@@ -241,6 +241,32 @@ public sealed partial class BattleSession
         {
             return (memory.Arena ?? throw new NotSupportedException("Native retained effect packet alias requires its original arena.")).Read(reference.ByteOffset, count);
         }
+        if (reference.Bank is "24224D4" or "24059F8" or "DBAEE0")
+        {
+            if (reference.Buffer != 0)
+            {
+                throw new InvalidDataException("Native Ultra Waves packet banks share their physical contiguous owners.");
+            }
+            NativeBattleUltraWaves154State state = memory.UltraWaves154 ?? throw new NotSupportedException("Native Ultra Waves requires its retained executable packet banks.");
+            NativeBattleEffectArena packets = reference.Bank switch { "24224D4" => state.Packets, "24059F8" => state.Quads, _ => state.CapturePackets };
+            return packets.Read(reference.ByteOffset, count);
+        }
+        if (reference.Bank == "2368580")
+        {
+            if (reference.Buffer != 0)
+            {
+                throw new InvalidDataException("Native Sand Storm uses its original executable packet owner.");
+            }
+            return (memory.SandStorm176 ?? throw new NotSupportedException("Native Sand Storm requires its retained executable packet bank.")).Module.Read(reference.ByteOffset, count);
+        }
+        if (reference.Bank == "230AD0C")
+        {
+            if (reference.Buffer != 0)
+            {
+                throw new InvalidDataException("Native Bomb glow packet banks share one physical contiguous owner.");
+            }
+            return (memory.BombGlow179 ?? throw new NotSupportedException("Native Bomb glow requires its retained executable packet banks.")).Packets.Read(reference.ByteOffset, count);
+        }
         if (reference.Bank == "243BE6C")
         {
             if (reference.Buffer != 0)

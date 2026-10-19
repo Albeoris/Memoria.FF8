@@ -166,6 +166,46 @@ public sealed partial class GameAssets
             {
                 binding = binding with { Clash26Resources = ReadNativeClash26Resources() };
             }
+            if (binding.Effect == 145)
+            {
+                binding = binding with { Sleep145Resources = ReadNativeSleep145Resources() };
+            }
+            if (binding.Effect == 14)
+            {
+                binding = binding with { DeathResources = ReadNativeDeathResources() };
+            }
+            if (binding.Effect == 152)
+            {
+                binding = binding with { Ultrasonic152Resources = ReadNativeUltrasonic152Resources() };
+            }
+            if (binding.Effect == 180)
+            {
+                binding = binding with { Suicide180Resources = ReadNativeSuicide180Resources() };
+            }
+            if (binding.Effect == 179)
+            {
+                binding = binding with { BombGlow179Resources = ReadNativeBombGlow179Resources() };
+            }
+            if (binding.Effect == 276)
+            {
+                binding = binding with { XatmDeath276Resources = ReadNativeXatmDeath276Resources() };
+            }
+            if (binding.Effect == 10)
+            {
+                binding = binding with { RayBomb10Resources = ReadNativeRayBomb10Resources() };
+            }
+            if (binding.Effect == 277)
+            {
+                binding = binding with { FunguarLaser277Resources = ReadNativeFunguarLaser277Resources() };
+            }
+            if (binding.Effect == 176)
+            {
+                binding = binding with { SandStorm176Resources = ReadNativeSandStorm176Resources() };
+            }
+            if (binding.Effect == 154)
+            {
+                binding = binding with { UltraWaves154Resources = ReadNativeUltraWaves154Resources() };
+            }
             if (binding.Effect == 153)
             {
                 binding = binding with { StickyWeb153Resources = ReadNativeStickyWeb153Resources() };

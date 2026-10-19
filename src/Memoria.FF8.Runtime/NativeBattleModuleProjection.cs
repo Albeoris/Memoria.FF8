@@ -136,6 +136,7 @@ public static partial class NativeBattlePoseMatrices
             for (int column = 0; column < 3; column++)
             {
                 words[column] = unchecked((short)(words[column] * draw.Direction >> 12));
+                words[3 + column] = unchecked((short)(words[3 + column] * (draw.SpriteYScale ?? 4096) >> 12));
             }
             main = main with { Rotation = words };
         }

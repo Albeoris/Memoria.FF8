@@ -105,7 +105,7 @@ public sealed partial class BattleSession
                         {
                             continue;
                         }
-                        NativeBattleVector anchor = ReadNativeGraphicsBone(graphics, actor, 0xF0, 4096);
+                        NativeBattleVector anchor = ReadNativeDefaultPosition571400(graphics, actor);
                         total = new(unchecked((short)(total.X + anchor.X)), unchecked((short)(total.Y + anchor.Y)), unchecked((short)(total.Z + anchor.Z)));
                         count++;
                     }
@@ -165,7 +165,7 @@ public sealed partial class BattleSession
             }
             if (frame == 0)
             {
-                NativeBattleVector anchor = ReadNativeGraphicsBone(graphics, effect.Parameters.Actor78, 0xF0, 4096);
+                NativeBattleVector anchor = ReadNativeDefaultPosition571400(graphics, effect.Parameters.Actor78);
                 PublishNativeModuleSound(resources.Sound, 0x100, new(anchor.X, anchor.Y, anchor.Z, 0));
             }
             if (frame >= 59)
@@ -209,7 +209,7 @@ public sealed partial class BattleSession
             int actor = BadWord(task, 14);
             if (frame <= 10 && NewParticle(out int slot, out NativeBattleModulePoolTask particle))
             {
-                NativeBattleVector anchor = ReadNativeGraphicsBone(graphics, actor, 0xF0, 4096);
+                NativeBattleVector anchor = ReadNativeDefaultPosition571400(graphics, actor);
                 short x = (short)((Roll() & 64) - 32);
                 short z = (short)((Roll() & 64) - 32);
                 short y = (short)(-32 - (Roll() & 31));

@@ -211,7 +211,7 @@ public sealed partial class BattleSession
         short Height(int actor) => AnchorY(graphics.Models[actor].MinimumY146 ?? throw new NotSupportedException("Native White Wind requires actual model WORD146."), graphics.Models[actor].Transform!.Angle36);
         NativeBattleVector Anchor(int actor)
         {
-            NativeBattleVector point = ReadNativeGraphicsBone(graphics, actor, 0xF0, 4096);
+            NativeBattleVector point = ReadNativeDefaultPosition571400(graphics, actor);
             return point with { Y = Height(actor) };
         }
         void Put(int bank, int slot, NativeBattleModulePoolTask task) => pools[bank] = pools[bank] with { Slots = pools[bank].Slots.SetItem(slot, task) };

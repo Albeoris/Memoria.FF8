@@ -407,7 +407,7 @@ public sealed partial class BattleSession
                 ImmutableArray<NativeBattleActionMatrix> bones = NativeBattlePoseMatrices.LinkedGeometryMatrices502D40(actor, resource.LinkedPoseSource!, view);
                 ImmutableArray<NativeBattleRawMesh> geometry = linked.Select(mesh => resource.GeometryRelocated507550 ? mesh : mesh with { Polygons = mesh.Polygons.Select(polygon => polygon with { Bytes = NativeBattleRawGeometryPackets.Relocate507550(polygon, actor.LinkedTextureSlots!) }).ToImmutableArray() }).ToImmutableArray();
                 ImmutableArray<NativeBattleGeometryPrimitive> primitives = NativeBattleRawGeometryPackets.Emit5099D0(geometry, bones, projection, actor.Color40!.Value, uint.MaxValue, null, 17, 4, null, colors, PublishNativeBodyProjectionScratch);
-                Common(JuiceBatch(primitives));
+                Common(NativeActorPrimitiveBatch(primitives));
             }
         }
 
@@ -457,7 +457,7 @@ public sealed partial class BattleSession
         void Put(int slot, NativeBattleModulePoolTask task) => children = children with { Slots = children.Slots.SetItem(slot, task) };
     }
 
-    private static NativeBattleGfGeometryBatch JuiceBatch(ImmutableArray<NativeBattleGeometryPrimitive> primitives)
+    private static NativeBattleGfGeometryBatch NativeActorPrimitiveBatch(ImmutableArray<NativeBattleGeometryPrimitive> primitives)
     {
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;

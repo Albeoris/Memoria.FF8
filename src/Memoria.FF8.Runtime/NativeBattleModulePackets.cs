@@ -12,7 +12,7 @@ public sealed record NativeBattleModulePacketBatch(ImmutableArray<NativeBattleAl
 /// <summary>572950/572DE0/571DC0 packets with original GTE depth, physical allocation spacing and insertion order.</summary>
 public static partial class NativeBattleModulePackets
 {
-    public static NativeBattleModulePacketBatch EmitSprite571DC0(NativeBattleModuleDraw draw, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift)
+    public static NativeBattleModulePacketBatch EmitSprite571DC0(NativeBattleModuleDraw draw, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift, NativeBattleActionMatrix? currentMatrix = null)
     {
         if (depthShift > 31)
         {
@@ -24,7 +24,8 @@ public static partial class NativeBattleModulePackets
         {
             throw new InvalidDataException("Native571DC0 quad cursor leaves its original frame.");
         }
-        NativeBattleActionMatrix main = NativeBattlePoseMatrices.ModuleSpriteCamera(draw, projection.View ?? throw new NotSupportedException("Native571DC0 requires its previous published camera matrix."), cameraRoll);
+        NativeBattleActionMatrix main = currentMatrix ?? NativeBattlePoseMatrices.ModuleSpriteCamera(draw, projection.View ?? throw new NotSupportedException("Native571DC0 requires its previous published camera matrix."), cameraRoll);
+        main.Validate();
         ImmutableArray<NativeBattleAllocatedPrimitive>.Builder result = ImmutableArray.CreateBuilder<NativeBattleAllocatedPrimitive>();
         int allocated = 0;
         int? retainedBucket = null;

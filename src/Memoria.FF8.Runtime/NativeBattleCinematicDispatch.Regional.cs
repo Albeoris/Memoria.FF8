@@ -393,6 +393,8 @@ public static partial class NativeBattleCinematicDispatch
         [(235, 0xA48620)] = 0xB30020,
         [(235, 0xA48630)] = 0xB30030,
         [(235, 0xA48660)] = 0xB30060,
+        [(234, 0xA4B890)] = 0xB298D0,
+        [(235, 0xA42240)] = 0xB298D0,
         [(234, 0xA4E600)] = 0xB2C780,
         [(235, 0xA44FB0)] = 0xB2C780,
         [(234, 0xA4CF60)] = 0xB2B0E0,
