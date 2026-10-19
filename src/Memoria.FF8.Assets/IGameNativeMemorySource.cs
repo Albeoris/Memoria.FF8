@@ -68,5 +68,5 @@ public sealed partial class ClassicGameDataSource : IGameNativeMemorySource
 
 public sealed partial class GameAssets
 {
-    internal IGameNativeMemorySource ReadNativeMemory() => resources.GetSource<IGameNativeMemorySource>() ?? throw new NotSupportedException("The resource source has no authenticated native memory contract.");
+    internal IGameNativeMemorySource ReadNativeMemory() => GameDataResources.ReadNativeMemory(resources);
 }

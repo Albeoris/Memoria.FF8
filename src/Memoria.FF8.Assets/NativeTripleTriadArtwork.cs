@@ -3,10 +3,11 @@ using System.Security.Cryptography;
 using Albeoris.Games.FF8.Imaging;
 using Albeoris.Games.FF8.Imaging.Tim;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Assets;
 
-/// <summary>Native Triple Triad sprites embedded in the authenticated original executable.</summary>
+/// <summary>Native Triple Triad sprites read from authenticated edition data.</summary>
 public sealed class NativeTripleTriadArtwork
 {
     private readonly PixelImage[] elements;
@@ -47,18 +48,24 @@ public sealed class NativeTripleTriadArtwork
 
     public static NativeTripleTriadArtwork Load(string gameDirectory)
     {
-        return ReadExecutable(GameDataResources.ReadNativeExecutable(gameDirectory));
+        using IResourceSource source = GameDataSourceFactory.Open(gameDirectory);
+        return Read(GameDataResources.ReadNativeMemory(new ResourceService(source)));
     }
 
     public static NativeTripleTriadArtwork ReadExecutable(byte[] executable)
     {
-        if (Convert.ToHexString(SHA256.HashData(executable)) != NativeFieldRuntimeProfile.FF8EnExecutableHash)
+        return Read(new NativeExecutableMemory(executable));
+    }
+
+    public static NativeTripleTriadArtwork Read(IGameNativeMemorySource memory)
+    {
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(memory.SourceHash))
         {
-            throw new NotSupportedException("Triple Triad artwork requires the authenticated original English executable.");
+            throw new NotSupportedException("Triple Triad artwork requires authenticated English native data.");
         }
         // Native 5343xx loads B96A90 via 539450. 53A100 draws each element with tpage 0xC,
         // UV (index%4*64,(index/4+1)*16), CLUT (x0,y225+index); the CLUT is 48 words wide.
-        TimImage sprites = ReadTim(executable, 0x796A90);
+        TimImage sprites = ReadTim(memory, 0xB96A90, 76832);
         if (sprites.PixelWidth != 768 || sprites.Height != 192 || sprites.Clut is not { Width: 48, Height: 32 })
         {
             throw new InvalidDataException("Native Triple Triad sprite texture has unexpected dimensions.");
@@ -70,7 +77,7 @@ public sealed class NativeTripleTriadArtwork
         }
         // Native 53A428..53A4BA uses a separate 128-color half-row CLUT for each card.
         // Its keyed background differs from the opaque inventory-menu mcXX.TEX artwork.
-        TimImage cards = ReadTim(executable, 0x7A9B10);
+        TimImage cards = ReadTim(memory, 0xBA9B10, 487456);
         if (cards.PixelWidth != 1792 || cards.Height != 256 || cards.Clut is not { Width: 256, Height: 56 })
         {
             throw new InvalidDataException("Native Triple Triad card texture has unexpected dimensions.");
@@ -84,31 +91,38 @@ public sealed class NativeTripleTriadArtwork
         PixelImage back = CropIndexed(cards, 1664, 192, 64, 64, 55 * 256);
         // Native 536C80 queues C4AB58 through 539410 as a raw framebuffer image.
         // The display environment initialized by 537DD0 supplies its 384 by 224 extent.
-        PixelImage background = ReadFramebuffer(executable, 0x84AB58);
+        PixelImage background = ReadFramebuffer(memory.Read(0xC4AB58, 384 * 224 * 2));
         // Native 5370E0 queues C20B44 through the same framebuffer drawing contract.
-        PixelImage boardBackground = ReadFramebuffer(executable, 0x820B44);
+        PixelImage boardBackground = ReadFramebuffer(memory.Read(0xC20B44, 384 * 224 * 2));
         return new NativeTripleTriadArtwork(elements, fronts, back, background, boardBackground);
     }
 
-    private static PixelImage ReadFramebuffer(byte[] executable, int offset)
+    private static PixelImage ReadFramebuffer(byte[] bytes)
     {
         PixelImage background = new(384, 224);
         for (int index = 0; index < background.Pixels.Length; index++)
         {
-            ushort pixel = BinaryPrimitives.ReadUInt16LittleEndian(executable.AsSpan(offset + index * 2));
+            ushort pixel = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(index * 2));
             Rgba32 color = Rgba32.FromPsxBgr555Display(pixel);
             background.Pixels[index] = new Rgba32(color.R, color.G, color.B);
         }
         return background;
     }
 
-    private static TimImage ReadTim(byte[] executable, int offset)
+    private static TimImage ReadTim(IGameNativeMemorySource memory, uint address, int expectedLength)
     {
-        int position = offset + 8;
-        int clutBytes = BinaryPrimitives.ReadInt32LittleEndian(executable.AsSpan(position));
-        position += clutBytes;
-        int imageBytes = BinaryPrimitives.ReadInt32LittleEndian(executable.AsSpan(position));
-        return TimFile.Read(executable.AsSpan(offset, position + imageBytes - offset)).Images.Single();
+        byte[] bytes = memory.Read(address, expectedLength);
+        int clutBytes = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(8));
+        if (clutBytes < 12 || clutBytes > bytes.Length - 20)
+        {
+            throw new InvalidDataException("Native Triple Triad palette block exceeds its bounded texture.");
+        }
+        int imageBytes = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(8 + clutBytes));
+        if (imageBytes < 12 || imageBytes != bytes.Length - 8 - clutBytes)
+        {
+            throw new InvalidDataException("Native Triple Triad pixel block exceeds its bounded texture.");
+        }
+        return TimFile.Read(bytes).Images.Single();
     }
 
     private static PixelImage CropIndexed(TimImage image, int left, int top, int width, int height, int paletteOffset)

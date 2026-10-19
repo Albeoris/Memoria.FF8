@@ -6,6 +6,11 @@ namespace Memoria.FF8.Assets;
 /// <summary>Logical resource access shared by engine asset consumers.</summary>
 public static class GameDataResources
 {
+    public static IGameNativeMemorySource ReadNativeMemory(ResourceService resources)
+    {
+        return resources.GetSource<IGameNativeMemorySource>() ?? throw new NotSupportedException("The resource source has no authenticated native memory contract.");
+    }
+
     private static readonly ConditionalWeakTable<ResourceService, NativeExecutableImage> ExecutableImages = new();
 
     private sealed class NativeExecutableImage
