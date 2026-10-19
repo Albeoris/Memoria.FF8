@@ -130,12 +130,16 @@ public sealed class PresentationTimingTests
         Assert.Equal(15, steps);
     }
 
-    [Fact]
-    public void Menu_limit_overrides_battle_and_field_limits()
+    [Theory]
+    [InlineData(false, false, false, 90)]
+    [InlineData(false, false, true, 30)]
+    [InlineData(false, true, false, 120)]
+    [InlineData(false, true, true, 120)]
+    [InlineData(true, false, true, 0)]
+    [InlineData(true, true, true, 0)]
+    public void Scene_limits_keep_world_independent_with_menu_and_battle_precedence(bool menu, bool battle, bool worldMap, int expected)
     {
-        UiPreferences preferences = new() { FieldFps = 30, BattleFps = 60, MenuFps = 0 };
-        Assert.Equal(30, PresentationTiming.FrameLimit(preferences, menu: false, battle: false));
-        Assert.Equal(60, PresentationTiming.FrameLimit(preferences, menu: false, battle: true));
-        Assert.Equal(0, PresentationTiming.FrameLimit(preferences, menu: true, battle: true));
+        UiPreferences preferences = new() { FieldFps = 90, WorldFps = 30, BattleFps = 120, MenuFps = 0 };
+        Assert.Equal(expected, PresentationTiming.FrameLimit(preferences, menu, battle, worldMap));
     }
 }

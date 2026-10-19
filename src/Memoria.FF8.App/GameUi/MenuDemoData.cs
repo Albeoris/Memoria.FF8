@@ -161,7 +161,8 @@ public static class MenuSettings
     public static IReadOnlyList<MenuSetting> Definitions { get; } =
     [
         new("V-Sync", "Synchronize presentation with the display refresh rate. Applies to this installation.", ["On", "Off"]),
-        new("Field FPS", "Presentation limit for fields, world travel and movies. Simulation remains at its original rate; higher limits repeat frames. V-Sync may limit output further.", ["15", "30", "60", "90", "120", "144", "240", "Unlimited"]),
+        new("Field FPS", "Presentation limit for fields and movies. Simulation remains at its original rate; higher limits repeat frames. V-Sync may limit output further.", ["15", "30", "60", "90", "120", "144", "240", "Unlimited"]),
+        new("World FPS", "World travel presentation limit. Simulation remains at its original rate; 60 FPS interpolates movement and camera between updates. V-Sync may limit output further.", ["30", "60"]),
         new("Battle FPS", "Battle presentation limit. Higher limits can show more animation frames when game speed is increased. Applies to this installation.", ["15", "30", "60", "90", "120", "144", "240", "Unlimited"]),
         new("Menu FPS", "Title and menu presentation limit. Applies to this installation. V-Sync may limit output further.", ["15", "30", "60", "90", "120", "144", "240", "Unlimited"]),
         new("Sound", "Original stereo / mono output setting.", ["Stereo", "Mono"]),

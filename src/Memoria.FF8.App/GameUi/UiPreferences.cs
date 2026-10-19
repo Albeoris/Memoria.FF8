@@ -10,6 +10,7 @@ internal sealed record UiPreferences
     public int WindowHeight { get; init; } = 768;
     public bool VSync { get; init; } = true;
     public int FieldFps { get; init; } = 60;
+    public int WorldFps { get; init; } = 60;
     public int BattleFps { get; init; } = 60;
     public int MenuFps { get; init; } = 60;
     public int MusicVolume { get; init; } = 100;
@@ -76,6 +77,14 @@ internal sealed record UiPreferences
                 "Battle FPS" => this with { BattleFps = fps },
                 _ => this with { MenuFps = fps }
             };
+        }
+        if (key == "World FPS")
+        {
+            if (!int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int fps) || fps is not (30 or 60))
+            {
+                throw new ArgumentException("World presentation frame limit must be 30 or 60.");
+            }
+            return this with { WorldFps = fps };
         }
         if (key == "Quick saves")
         {
@@ -200,7 +209,7 @@ internal sealed record UiPreferences
         {
             throw new InvalidDataException("Window dimensions must be positive.");
         }
-        if (QuickSaveCount < 1 || !ValidFps(FieldFps) || !ValidFps(BattleFps) || !ValidFps(MenuFps) || MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100 || TextScale is not (100 or 125 or 150) || FieldMessageSpeed is < 1 or > 5 || UiFontSize is < 6 or > 48 || DialogueFontSize is < 6 or > 48 || string.IsNullOrWhiteSpace(UiFontFamily) || string.IsNullOrWhiteSpace(DialogueFontFamily) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode) || BattlePolicy is not ("ResearchInstantVictory" or "NewGameFullCombat"))
+        if (QuickSaveCount < 1 || !ValidFps(FieldFps) || WorldFps is not (30 or 60) || !ValidFps(BattleFps) || !ValidFps(MenuFps) || MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100 || TextScale is not (100 or 125 or 150) || FieldMessageSpeed is < 1 or > 5 || UiFontSize is < 6 or > 48 || DialogueFontSize is < 6 or > 48 || string.IsNullOrWhiteSpace(UiFontFamily) || string.IsNullOrWhiteSpace(DialogueFontFamily) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode) || BattlePolicy is not ("ResearchInstantVictory" or "NewGameFullCombat"))
         {
             throw new InvalidDataException("UI presentation preferences are outside their supported ranges.");
         }

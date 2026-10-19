@@ -51,6 +51,8 @@ internal sealed partial class RecreateGame : Game
     private int selectedChoice;
     private string enteredName = "Squall";
     private int updateFrames;
+    private readonly WorldSimulationClock worldSimulationClock = new();
+    private WorldMapScene? worldSimulationOwner;
     private bool frameCaptured;
     private bool fieldFaulted;
     private bool fieldRenderFaulted;
@@ -564,9 +566,14 @@ internal sealed partial class RecreateGame : Game
             {
                 presentedDialogue = null;
                 dialoguePages.Clear();
-                fieldSeconds = 0;
+                worldSimulationClock.Reset();
                 error = null;
                 Console.WriteLine($"loaded=world entry={session.State.WorldArrival}");
+            }
+            if (!ReferenceEquals(worldSimulationOwner, world.WorldScene))
+            {
+                worldSimulationOwner = world.WorldScene;
+                worldSimulationClock.Reset();
             }
             UpdateDialoguePages(elapsed);
             DialogueState? dialogue = world.CurrentDialogue;
@@ -593,16 +600,15 @@ internal sealed partial class RecreateGame : Game
                 }
                 return;
             }
-            fieldSeconds += options.ControlStep ? 0 : elapsed.TotalSeconds;
-            while (fieldSeconds + 1e-9 >= 1d / WorldMapScene.SimulationFps)
+            worldSimulationClock.Accumulate(options.ControlStep ? TimeSpan.Zero : elapsed);
+            while (worldSimulationClock.TryStep())
             {
-                fieldSeconds -= 1d / WorldMapScene.SimulationFps;
                 ushort worldButtons = (ushort)(keyboard.HeldFieldButtons & 0x02);
                 PlayerAction action = input.Horizontal != 0 || input.Vertical != 0 ? new PlayerAction(PlayerActionKind.Move, Horizontal: input.Horizontal, Vertical: input.Vertical, CameraHorizontal: input.CameraHorizontal, WorldButtons: worldButtons) : new PlayerAction(PlayerActionKind.Wait, CameraHorizontal: input.CameraHorizontal, WorldButtons: worldButtons);
                 metrics.Simulate(world.Apply(action).FramesAdvanced);
                 if (session.State.Scene != SceneKind.WorldMap)
                 {
-                    fieldSeconds = 0;
+                    worldSimulationClock.Reset();
                     return;
                 }
             }
@@ -981,7 +987,7 @@ internal sealed partial class RecreateGame : Game
         };
     }
 
-    private void UploadField(TimeSpan elapsed)
+    private void UploadField(TimeSpan elapsed, float worldInterpolation = 1)
     {
         if (events?.PartyMenu is not null)
         {
@@ -1005,7 +1011,7 @@ internal sealed partial class RecreateGame : Game
             fieldTexture = next;
         }
         long started = Stopwatch.GetTimestamp();
-        byte[] pixels = world.Render(elapsed, uiPreferences.RareCardMarkers, fieldGpu);
+        byte[] pixels = world.Render(elapsed, uiPreferences.RareCardMarkers, fieldGpu, worldInterpolation);
         double renderMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         started = Stopwatch.GetTimestamp();
         if (fieldGpu is null)
@@ -1045,7 +1051,7 @@ internal sealed partial class RecreateGame : Game
                         fieldGpuPresented = fieldGpu is not null;
                         break;
                     case FieldPresentationRenderer.Field:
-                        UploadField(gameplayClock.Total);
+                        UploadField(gameplayClock.Total, options.ControlStep ? 1 : worldSimulationClock.Fraction);
                         break;
                 }
                 if (worldPresentationDeferred)

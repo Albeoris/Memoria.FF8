@@ -18,6 +18,7 @@ internal sealed partial class WorldMapScene : IDisposable
     private readonly IReadOnlyDictionary<int, int> replacements;
     private readonly byte storyByte;
     private WorldTerrainRenderer? renderer;
+    private readonly WorldPresentation presentation = new();
     private bool disposed;
     private bool rebound;
     public Func<WorldFieldSelection, WorldState, short, NativeWorldSalaryState, Action>? PrepareFieldEntry { get; set; }
@@ -355,6 +356,7 @@ internal sealed partial class WorldMapScene : IDisposable
         bool accepted = action.Kind is PlayerActionKind.Move or PlayerActionKind.Wait || stationChoice || gardenAction || ragnarokButtons || worldMessageConfirm;
         int advanced = 0;
         WorldState candidate = State;
+        WorldState previousCallback = candidate;
         NativeWorldSalaryState salary = NativeWorldSalaryState.Begin(session.State);
         List<GlobalSoundRequest> salaryRequests = [];
         WorldFieldSelection? fieldEntry = null;
@@ -380,6 +382,7 @@ internal sealed partial class WorldMapScene : IDisposable
                 }
                 salary = salary.WithWorldInputSample(buttons);
                 WorldState callbackStart = candidate;
+                previousCallback = candidate;
                 candidate = Step(candidate, action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0, action.CameraHorizontal, priorGraphics, buttons, salary.WorldEntryMemory, ref salary, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out fieldEntry, out uint movementUnits, out int graphicsSpeed);
                 if (consumeGardenRequest)
                 {
@@ -511,6 +514,10 @@ internal sealed partial class WorldMapScene : IDisposable
         if (accepted)
         {
             session.CommitWorldAction(candidate, salary);
+            if (advanced > 0)
+            {
+                presentation.Commit(previousCallback, State, PrepareRenderFrame);
+            }
             PublishSalaryEffects?.Invoke(new NativeSalaryEffects(salary.Presentation, salary.SoundProcess, salaryRequests));
         }
         else
@@ -523,7 +530,7 @@ internal sealed partial class WorldMapScene : IDisposable
 
     }
 
-    public byte[] Render(int width, int height, ITriangleRenderer? triangleRenderer = null)
+    public byte[] Render(int width, int height, ITriangleRenderer? triangleRenderer = null, float interpolation = 1)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         if (renderer is null || renderer.Width != width || renderer.Height != height)
@@ -531,26 +538,30 @@ internal sealed partial class WorldMapScene : IDisposable
             renderer = new WorldTerrainRenderer(assets, width, height);
         }
         renderer.TriangleRenderer = triangleRenderer;
-        WorldState state = State;
+        return renderer.Render(presentation.Sample(State, interpolation, PrepareRenderFrame), replacements);
+    }
+
+    private WorldRenderFrame PrepareRenderFrame(WorldState state)
+    {
         if (state.NativeFootRuntime is { StationTrains: { } source, StationTrainProcess.ProjectionCamera: null })
         {
-            return RenderTrainRide(source.ToWorldState(state));
+            return PrepareTrainFrame(source.ToWorldState(state));
         }
         if (state.NativeTrainRuntime is not null)
         {
-            return RenderTrainRide(state);
+            return PrepareTrainFrame(state);
         }
         if (state.NativeScriptedRuntime is not null)
         {
-            return RenderScripted(state);
+            return PrepareScriptedFrame(state);
         }
         if (state.NativeRagnarokRuntime is not null)
         {
-            return RenderRagnarok(state);
+            return PrepareRagnarokFrame(state);
         }
         if (state.NativeGardenRuntime is not null)
         {
-            return RenderGarden(state);
+            return PrepareGardenFrame(state);
         }
         EnsureContactCertificate(state);
         WorldCamera camera = FootCamera(state);
@@ -564,7 +575,7 @@ internal sealed partial class WorldMapScene : IDisposable
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
         Vector3 position = new(state.X, -state.NativeHeight, state.Z);
         IReadOnlyList<NativeWorldStaticModelDraw>? models = state.NativeCarRuntime is NativeCarWorldRuntimeState car ? ReadCarModels(state, position, car) : state.NativeFootRuntime?.StationTrains is not null ? ReadStationTrainModels(state.NativeFootRuntime) : state.NativeFootRuntime?.NormalObjects is not null ? ReadNormalFootObjectModels(state) : null;
-        return renderer.Render(position, state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, replacements, sky, state.NativeCarRuntime is null && state.GroundType is null or > 5, avatarModel: state.NativeCarRuntime is null ? assets.GetFootModel(state.NativeFootRuntime!.EntityType) : null, staticModels: models, forest: state.NativeFootRuntime?.Forest);
+        return new WorldRenderFrame(position, state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, sky, state.NativeCarRuntime is null && state.GroundType is null or > 5, AvatarModel: state.NativeCarRuntime is null ? assets.GetFootModel(state.NativeFootRuntime!.EntityType) : null, StaticModels: models, Forest: state.NativeFootRuntime?.Forest);
     }
 
     private static int? PreviousFootHorizontalInput(NativeWorldProcess process, bool worldLoad = false)

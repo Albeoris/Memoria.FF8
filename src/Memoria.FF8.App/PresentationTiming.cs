@@ -10,9 +10,9 @@ internal sealed class PresentationTiming
 
     public TimeSpan SimulationTotal { get; private set; }
 
-    public static int FrameLimit(UiPreferences preferences, bool menu, bool battle)
+    public static int FrameLimit(UiPreferences preferences, bool menu, bool battle, bool worldMap = false)
     {
-        return menu ? preferences.MenuFps : battle ? preferences.BattleFps : preferences.FieldFps;
+        return menu ? preferences.MenuFps : battle ? preferences.BattleFps : worldMap ? preferences.WorldFps : preferences.FieldFps;
     }
 
     public static TimeSpan UpdateStep(int frameLimit, int nativeCallbackRate)

@@ -90,7 +90,7 @@ internal sealed partial class WorldMapScene
         return false;
     }
 
-    private byte[] RenderRagnarok(WorldState state)
+    private WorldRenderFrame PrepareRagnarokFrame(WorldState state)
     {
         NativeFootWorldRuntimeState? foot = state.NativeFootRuntime;
         NativeRagnarokWorldRuntimeState runtime = state.NativeRagnarokRuntime!;
@@ -98,8 +98,9 @@ internal sealed partial class WorldMapScene
         NativeWorldPathProjectionCertificate projection = RagnarokProjection(state);
         var models = new List<NativeWorldStaticModelDraw>();
         List<NativeWorldAnimatedModelDraw> animated = [];
-        foreach (NativeRagnarokWorldObject item in runtime.Objects)
+        for (int index = 0; index < runtime.Objects.Length; index++)
         {
+            NativeRagnarokWorldObject item = runtime.Objects[index];
             if (item.ShapeId is 0 or 3 || item.ShapeId == 1 && foot is null || !projection.IsNear(item.Position))
             {
                 continue;
@@ -109,7 +110,7 @@ internal sealed partial class WorldMapScene
                 NativeWorldPathNodeProjection ship = projection.ProjectNode(item.Position) ?? throw new NotSupportedException(projection.UnsupportedReason);
                 if (ship.Visible)
                 {
-                    animated.Add(new(assets.GetRagnarokModel(), projection.CanonicalModelAnchor(ship), item.Yaw * MathF.Tau / 4096, 0, 0));
+                    animated.Add(new(assets.GetRagnarokModel(), projection.CanonicalModelAnchor(ship), item.Yaw * MathF.Tau / 4096, 0, 0) { ObjectId = new(WorldRenderObjectKind.Allocation, index) });
                 }
                 continue;
             }
@@ -121,13 +122,13 @@ internal sealed partial class WorldMapScene
             if (node.Visible)
             {
                 NativeWorldPathAngles angles = WorldStaticModelTransform.AllocationAngles(item.ShapeId, item.Pitch, item.Yaw, item.Roll);
-                models.Add(new(assets.ReadScriptedStaticModel(item.ShapeId), new(projection.CanonicalModelAnchor(node), angles)));
+                models.Add(new(assets.ReadScriptedStaticModel(item.ShapeId), new(projection.CanonicalModelAnchor(node), angles)) { ObjectId = new(WorldRenderObjectKind.Allocation, index) });
             }
         }
         NativeWorldFootCameraState words = runtime.ProjectionCamera!;
         WorldCamera camera = foot is not null ? FootCamera(state) : WorldCamera.Foot(state.CameraYaw, 2048) with { TargetPosition = new(state.CameraTargetX, -state.CameraTargetNativeHeight, state.CameraTargetZ), NativePitch = runtime.Motor.CameraPitch, NativeOffsetY = words.OffsetY, NativeOffsetZ = words.OffsetZ };
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
         bool avatarVisible = foot is null || state.GroundType is null or > 5;
-        return renderer!.Render(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, foot is null ? 0 : state.AnimationId, foot is null ? 0 : state.AnimationCounter >> 4, camera, replacements, sky, avatarVisible, avatarModel: foot is null ? assets.GetRagnarokModel() : assets.GetFootModel(foot.EntityType), staticModels: models, forest: foot?.Forest, animatedModels: animated);
+        return new WorldRenderFrame(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, foot is null ? 0 : state.AnimationId, foot is null ? 0 : state.AnimationCounter >> 4, camera, sky, avatarVisible, AvatarModel: foot is null ? assets.GetRagnarokModel() : assets.GetFootModel(foot.EntityType), StaticModels: models, Forest: foot?.Forest, AnimatedModels: animated);
     }
 }

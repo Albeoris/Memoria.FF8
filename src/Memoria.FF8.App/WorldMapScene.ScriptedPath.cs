@@ -69,7 +69,7 @@ internal sealed partial class WorldMapScene
         }
     }
 
-    private byte[] RenderScripted(WorldState state)
+    private WorldRenderFrame PrepareScriptedFrame(WorldState state)
     {
         ValidateScriptedState(state);
         NativeWorldScriptedPathState path = state.NativeScriptedRuntime!.Path;
@@ -91,12 +91,12 @@ internal sealed partial class WorldMapScene
             {
                 NativeWorldPathAngles angles = presentation.Angles ?? throw new NativeWorldPresentationDeferredException("Visible native scripted model has unproved linked-node angle words.");
                 NativeWorldPathProjectionCertificate context = NativeWorldPathProjectionCertificate.Create(path.Camera, projection.Origin, path.EntityType);
-                models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(path.NodeShape(definition, index)), new NativeWorldStaticModelPose(context.CanonicalModelAnchor(projection), angles)));
+                models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(path.NodeShape(definition, index)), new NativeWorldStaticModelPose(context.CanonicalModelAnchor(projection), angles)) { ObjectId = new(WorldRenderObjectKind.Rail, index) });
             }
         }
         WorldCamera camera = WorldCamera.ScriptedPath(path.Camera, 2048);
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
-        return renderer!.Render(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, replacements, sky, avatarVisible: false, staticModels: models);
+        return new WorldRenderFrame(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, sky, AvatarVisible: false, StaticModels: models);
     }
 
     private WorldState StepScripted(WorldState before, uint buttons, out WorldFieldSelection? fieldEntry, Func<NativeWorldPathPosition, NativeWorldPathCamera, NativeWorldPathPosition, NativeWorldPathNodeProjection?> projectNode)

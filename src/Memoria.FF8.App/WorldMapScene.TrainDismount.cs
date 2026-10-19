@@ -102,11 +102,12 @@ internal sealed partial class WorldMapScene
                     continue;
                 }
                 NativeWorldPathAngles angles = pose.Angles ?? throw new NativeWorldPresentationDeferredException("Visible station train node has unknown physical orientation words.");
-                models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(bank.Shape(definition, index)), new NativeWorldStaticModelPose(context.CanonicalModelAnchor(projection), angles)));
+                models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(bank.Shape(definition, index)), new NativeWorldStaticModelPose(context.CanonicalModelAnchor(projection), angles)) { ObjectId = new(WorldRenderObjectKind.Rail, index, ReferenceEquals(bank, process.Alternate) ? 1 : 0) });
             }
         }
-        foreach (NativeTrainWorldObject item in source.Load.Allocation.Objects)
+        for (int index = 0; index < source.Load.Allocation.Objects.Length; index++)
         {
+            NativeTrainWorldObject item = source.Load.Allocation.Objects[index];
             if (item.EntityType is 0 or 1)
             {
                 continue;
@@ -117,7 +118,7 @@ internal sealed partial class WorldMapScene
                 continue;
             }
             NativeWorldPathAngles angles = WorldStaticModelTransform.AllocationAngles(item);
-            models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(item.ShapeId), new NativeWorldStaticModelPose(context.CanonicalModelAnchor(projection), angles)));
+            models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(item.ShapeId), new NativeWorldStaticModelPose(context.CanonicalModelAnchor(projection), angles)) { ObjectId = new(WorldRenderObjectKind.Allocation, index) });
         }
         return models;
     }

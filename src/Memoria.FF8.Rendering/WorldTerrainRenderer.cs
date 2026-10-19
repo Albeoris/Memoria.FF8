@@ -73,11 +73,21 @@ public readonly record struct WorldCamera(float Heading, float Distance, float H
 public readonly record struct WorldCameraFrame(Vector3 Eye, Vector3 Forward, Vector3 Up);
 
 /// <summary>Canonical raw native anchor and proved rail orientation; the renderer divides the anchor by16.</summary>
-public readonly record struct NativeWorldStaticModelPose(Vector3 Anchor, NativeWorldPathAngles Angles);
+public readonly record struct NativeWorldStaticModelPose(Vector3 Anchor, NativeWorldPathAngles Angles)
+{
+    public Matrix4x4? Rotation { get; init; }
+}
 
-public readonly record struct NativeWorldStaticModelDraw(WorldStaticModel Model, NativeWorldStaticModelPose Pose);
+public readonly record struct NativeWorldStaticModelDraw(WorldStaticModel Model, NativeWorldStaticModelPose Pose)
+{
+    public WorldRenderObjectId? ObjectId { get; init; }
+}
 
-public readonly record struct NativeWorldAnimatedModelDraw(FieldModel Model, Vector3 Position, float Heading, int AnimationId, float AnimationFrame);
+public readonly record struct NativeWorldAnimatedModelDraw(FieldModel Model, Vector3 Position, float Heading, int AnimationId, float AnimationFrame)
+{
+    public WorldRenderObjectId? ObjectId { get; init; }
+    public WorldAnimationBlend? AnimationBlend { get; init; }
+}
 
 /// <summary>Perspective rasterizer for selected original WMX terrain and world Squall; no installed resources are altered.</summary>
 public sealed partial class WorldTerrainRenderer
@@ -114,6 +124,17 @@ public sealed partial class WorldTerrainRenderer
     public ITriangleRenderer? TriangleRenderer { get; set; }
 
     public byte[] Render(Vector3 position, float heading, int animationId, float animationFrame, WorldCamera camera, IReadOnlyDictionary<int, int>? replacements = null, WorldSky? skyOverride = null, bool avatarVisible = true, FieldModel? avatarModel = null, IReadOnlyList<NativeWorldStaticModelDraw>? staticModels = null, NativeWorldForestState? forest = null, IReadOnlyList<NativeWorldAnimatedModelDraw>? animatedModels = null)
+    {
+        return RenderCore(position, heading, animationId, animationFrame, camera, replacements, skyOverride, avatarVisible, avatarModel, staticModels, forest, animatedModels, null, null);
+    }
+
+    public byte[] Render(WorldRenderFrame frame, IReadOnlyDictionary<int, int>? replacements = null)
+    {
+        ArgumentNullException.ThrowIfNull(frame);
+        return RenderCore(frame.Position, frame.Heading, frame.AnimationId, frame.AnimationFrame, frame.Camera, replacements, frame.Sky, frame.AvatarVisible, frame.AvatarModel, frame.StaticModels, frame.Forest, frame.AnimatedModels, frame.AvatarAnimationBlend, frame.ForestParticles);
+    }
+
+    private byte[] RenderCore(Vector3 position, float heading, int animationId, float animationFrame, WorldCamera camera, IReadOnlyDictionary<int, int>? replacements, WorldSky? skyOverride, bool avatarVisible, FieldModel? avatarModel, IReadOnlyList<NativeWorldStaticModelDraw>? staticModels, NativeWorldForestState? forest, IReadOnlyList<NativeWorldAnimatedModelDraw>? animatedModels, WorldAnimationBlend? avatarAnimationBlend, IReadOnlyList<WorldForestParticleFrame>? forestParticles)
     {
         if (camera.Distance <= 0 || camera.Height <= 0 || camera.FieldOfView <= 0 || camera.FieldOfView >= MathF.PI || camera.FarDistance <= camera.Distance)
         {
@@ -177,13 +198,13 @@ public sealed partial class WorldTerrainRenderer
         }
         if (avatarVisible)
         {
-            DrawAvatar(avatarModel ?? assets.Squall, position, heading, animationId, animationFrame);
+            DrawAvatar(avatarModel ?? assets.Squall, position, heading, animationId, animationFrame, avatarAnimationBlend);
         }
         if (animatedModels is not null)
         {
             foreach (NativeWorldAnimatedModelDraw draw in animatedModels)
             {
-                DrawAvatar(draw.Model, draw.Position, draw.Heading, draw.AnimationId, draw.AnimationFrame);
+                DrawAvatar(draw.Model, draw.Position, draw.Heading, draw.AnimationId, draw.AnimationFrame, draw.AnimationBlend);
             }
         }
         if (staticModels is not null)
@@ -199,7 +220,7 @@ public sealed partial class WorldTerrainRenderer
         }
         if (forest is not null)
         {
-            DrawForest(forest, position);
+            DrawForest(forest, position, forestParticles);
         }
         if (TriangleRenderer is not null)
         {
@@ -220,21 +241,28 @@ public sealed partial class WorldTerrainRenderer
         return pixels;
     }
 
-    private void DrawForest(NativeWorldForestState forest, Vector3 position)
+    private void DrawForest(NativeWorldForestState forest, Vector3 position, IReadOnlyList<WorldForestParticleFrame>? presentation)
     {
         forest.Validate();
-        foreach (NativeWorldForestParticle particle in forest.Particles.Where(particle => particle.Visible))
+        IEnumerable<WorldForestParticleFrame> particles = presentation ?? forest.Particles.Where(particle => particle.Visible).Select(particle => new WorldForestParticleFrame(particle, new Vector3(particle.X, particle.NativeY, -particle.GraphicsZ), Matrix4x4.CreateRotationZ(particle.Roll * 0.0015339808305725455f) * Matrix4x4.CreateRotationY(particle.Yaw * 0.0015339808305725455f) * Matrix4x4.CreateRotationX(particle.RotationX * 0.0015339808305725455f), particle.Scale, false)).ToArray();
+        foreach (WorldForestParticleFrame visual in particles)
         {
+            NativeWorldForestParticle particle = visual.Particle;
             NativeWorldForestEffect effect = assets.ForestTables.Effects[particle.Type - 4];
             int frame = Math.Clamp(particle.Age / effect.FrameDuration, 0, effect.Frames - 1);
             PixelImage texture = assets.GetForestTexture(particle.Type, frame);
-            int halfSize = particle.Scale * effect.HalfSize >> 13;
-            Matrix4x4 rotation = Matrix4x4.CreateRotationZ(particle.Roll * 0.0015339808305725455f) * Matrix4x4.CreateRotationY(particle.Yaw * 0.0015339808305725455f) * Matrix4x4.CreateRotationX(particle.RotationX * 0.0015339808305725455f);
+            float halfSize = particle.Scale * effect.HalfSize >> 13;
+            if (visual.Interpolated)
+            {
+                float previousHalfSize = visual.PreviousScale * effect.HalfSize >> 13;
+                halfSize = previousHalfSize + (halfSize - previousHalfSize) * visual.Blend;
+            }
+            Matrix4x4 rotation = visual.Rotation;
             //555B80 ->5470E0 selects the nearest periodic image around the current world entity.
-            float nearX = position.X + WorldAssets.Wrap(particle.X - position.X, 262144);
-            float nearZ = position.Z + WorldAssets.Wrap(-particle.GraphicsZ - position.Z, 196608);
-            Vector3 anchor = new(nearX, particle.NativeY, -nearZ);
-            Vector3 Point(int x, int z)
+            float nearX = position.X + WorldAssets.Wrap(visual.Position.X - position.X, 262144);
+            float nearZ = position.Z + WorldAssets.Wrap(visual.Position.Z - position.Z, 196608);
+            Vector3 anchor = new(nearX, visual.Position.Y, -nearZ);
+            Vector3 Point(float x, float z)
             {
                 Vector3 native = Vector3.Transform(new Vector3(x, 0, z), rotation) + anchor;
                 return new Vector3(native.X, -native.Y, -native.Z) / 16;
@@ -299,9 +327,9 @@ public sealed partial class WorldTerrainRenderer
         Draw(new Vertex(TerrainPoint(triangle.A), triangle.UvA * uvScale), new Vertex(TerrainPoint(triangle.B), triangle.UvB * uvScale), new Vertex(TerrainPoint(triangle.C), triangle.UvC * uvScale), assets.GetTexture(triangle), transparent);
     }
 
-    private void DrawAvatar(FieldModel model, Vector3 position, float heading, int animationId, float frame)
+    private void DrawAvatar(FieldModel model, Vector3 position, float heading, int animationId, float frame, WorldAnimationBlend? animationBlend)
     {
-        Vector3[] pose = WorldModelPose.Pose(model, animationId, (int)frame, heading);
+        Vector3[] pose = animationBlend is WorldAnimationBlend blend ? WorldModelPose.PoseInterpolated(model, animationId, blend.PreviousFrameIndex, blend.CurrentFrameIndex, blend.Blend, heading) : WorldModelPose.Pose(model, animationId, (int)frame, heading);
         Vector3[] vertices = pose.Select(point => point / 16 + position / 16).ToArray();
         foreach (ModelFace face in model.Faces)
         {
@@ -321,7 +349,7 @@ public sealed partial class WorldTerrainRenderer
 
     private void DrawStaticModel(WorldStaticModel model, NativeWorldStaticModelPose pose)
     {
-        Matrix4x4 rotation = WorldStaticModelTransform.CreateRotation(model.ShapeId, pose.Angles);
+        Matrix4x4 rotation = pose.Rotation ?? WorldStaticModelTransform.CreateRotation(model.ShapeId, pose.Angles);
         Vector3 position = pose.Anchor;
         Vector3[] vertices = model.NativeVertices.Select(vertex => Vector3.Transform(vertex, rotation)).Select(vertex => new Vector3(vertex.X, -vertex.Y, -vertex.Z) / 16 + position / 16).ToArray();
         foreach (WorldStaticFace face in model.Faces)

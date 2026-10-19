@@ -71,7 +71,7 @@ internal sealed partial class WorldMapScene
 
     private IReadOnlyList<NativeWorldStaticModelDraw> ReadCarModels(WorldState world, Vector3 position, NativeCarWorldRuntimeState car)
     {
-        List<NativeWorldStaticModelDraw> models = [new NativeWorldStaticModelDraw(assets.GetCarModel(car.EntityType), new NativeWorldStaticModelPose(position, new NativeWorldPathAngles(checked((short)car.ModelTilt), unchecked((short)(world.BodyYaw - 1024)), 0)))];
+        List<NativeWorldStaticModelDraw> models = [new NativeWorldStaticModelDraw(assets.GetCarModel(car.EntityType), new NativeWorldStaticModelPose(position, new NativeWorldPathAngles(checked((short)car.ModelTilt), unchecked((short)(world.BodyYaw - 1024)), 0))) { ObjectId = new(WorldRenderObjectKind.Controlled, 0) }];
         if (car.Allocation is not { } allocation)
         {
             return models;
@@ -88,7 +88,7 @@ internal sealed partial class WorldMapScene
             NativeWorldPathNodeProjection projection = context.ProjectNode(item.Position) ?? throw new NotSupportedException(context.UnsupportedReason);
             if (projection.Visible)
             {
-                models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(item.ShapeId), new NativeWorldStaticModelPose(context.CanonicalModelAnchor(projection), WorldStaticModelTransform.AllocationAngles(item))));
+                models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(item.ShapeId), new NativeWorldStaticModelPose(context.CanonicalModelAnchor(projection), WorldStaticModelTransform.AllocationAngles(item))) { ObjectId = new(WorldRenderObjectKind.Allocation, index) });
             }
         }
         return models;

@@ -195,11 +195,12 @@ internal sealed partial class WorldMapScene
                     continue;
                 }
                 NativeWorldPathAngles angles = pose.Angles ?? throw new NativeWorldPresentationDeferredException("Visible normal train node lacks its original linked orientation words.");
-                models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(bank.Shape(definition, index)), new NativeWorldStaticModelPose(context.CanonicalModelAnchor(pose.Projection), angles)));
+                models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(bank.Shape(definition, index)), new NativeWorldStaticModelPose(context.CanonicalModelAnchor(pose.Projection), angles)) { ObjectId = new(WorldRenderObjectKind.Rail, index, ReferenceEquals(bank, process.Alternate) ? 1 : 0) });
             }
         }
-        foreach (NativeTrainWorldObject item in process.Allocation.Objects)
+        for (int index = 0; index < process.Allocation.Objects.Length; index++)
         {
+            NativeTrainWorldObject item = process.Allocation.Objects[index];
             if (item.EntityType is 0 or 1 or 2 || !context.IsNear(item.Position))
             {
                 continue;
@@ -210,7 +211,7 @@ internal sealed partial class WorldMapScene
                 continue;
             }
             NativeWorldPathAngles angles = WorldStaticModelTransform.AllocationAngles(item);
-            models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(item.ShapeId), new NativeWorldStaticModelPose(context.CanonicalModelAnchor(projection), angles)));
+            models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(item.ShapeId), new NativeWorldStaticModelPose(context.CanonicalModelAnchor(projection), angles)) { ObjectId = new(WorldRenderObjectKind.Allocation, index) });
         }
         return models;
     }

@@ -155,7 +155,7 @@ public sealed class ConfigSettingsTests
     [Fact]
     public void Display_preferences_round_trip_and_reject_invalid_limits()
     {
-        UiPreferences preferences = new UiPreferences().WithSetting("V-Sync", "Off").WithSetting("Battle FPS", "120").WithSetting("Field FPS", "30").WithSetting("Menu FPS", "Unlimited");
+        UiPreferences preferences = new UiPreferences().WithSetting("V-Sync", "Off").WithSetting("Battle FPS", "120").WithSetting("Field FPS", "90").WithSetting("World FPS", "30").WithSetting("Menu FPS", "Unlimited");
         string path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
         try
         {
@@ -163,12 +163,76 @@ public sealed class ConfigSettingsTests
             Assert.Equal(preferences, UiPreferences.Load(path));
             Assert.False(preferences.VSync);
             Assert.Equal(0, preferences.MenuFps);
+            Assert.Equal(30, preferences.WorldFps);
+            Assert.Equal(90, preferences.FieldFps);
+            Assert.Equal(60, preferences.WithSetting("World FPS", "60").WorldFps);
             Assert.Throws<ArgumentException>(() => preferences.WithSetting("Battle FPS", "55"));
         }
         finally
         {
             File.Delete(path);
         }
+    }
+
+    [Fact]
+    public void Existing_preferences_without_world_limit_default_to_60_independently_of_fields()
+    {
+        Assert.Equal(60, new UiPreferences().WorldFps);
+        string path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+        try
+        {
+            File.WriteAllText(path, "{\"FieldFps\":30}");
+            UiPreferences preferences = UiPreferences.Load(path);
+            Assert.Equal(30, preferences.FieldFps);
+            Assert.Equal(60, preferences.WorldFps);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(15)]
+    [InlineData(55)]
+    [InlineData(90)]
+    [InlineData(120)]
+    [InlineData(144)]
+    [InlineData(240)]
+    public void World_preferences_reject_limits_outside_30_and_60(int frameLimit)
+    {
+        UiPreferences preferences = new();
+        Assert.Throws<ArgumentException>(() => preferences.WithSetting("World FPS", frameLimit.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        string path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+        try
+        {
+            Assert.Throws<InvalidDataException>(() => (preferences with { WorldFps = frameLimit }).Save(path));
+            File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(preferences with { WorldFps = frameLimit }));
+            Assert.Throws<InvalidDataException>(() => UiPreferences.Load(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Display_menu_exposes_world_limit_with_only_30_and_60_choices()
+    {
+        MenuSetting setting = Assert.Single(MenuSettings.Definitions, setting => setting.Id == "World FPS");
+        Assert.Equal(["30", "60"], setting.Values);
+        Assert.Throws<ArgumentException>(() => new UiPreferences().WithSetting("World FPS", "Unlimited"));
+        MenuData data = new();
+        data.Settings["World FPS"] = "60";
+        data.SupportedActions.Add("config:World FPS");
+        List<MenuAction> applied = [];
+        MenuController controller = new(() => data, applied.Add);
+        controller.Open("config-display");
+        Assert.Equal("World FPS", Assert.Single(controller.Entries).Id);
+        controller.Navigate(MenuInput.Left);
+        Assert.Equal("World FPS", Assert.Single(applied).SubjectId);
+        Assert.Equal("30", applied[0].Value);
     }
 
     [Fact]

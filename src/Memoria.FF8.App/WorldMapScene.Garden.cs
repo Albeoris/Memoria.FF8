@@ -75,7 +75,7 @@ internal sealed partial class WorldMapScene
         return NativeWorldPathProjectionCertificate.CreateFoot(camera);
     }
 
-    private byte[] RenderGarden(WorldState state)
+    private WorldRenderFrame PrepareGardenFrame(WorldState state)
     {
         NativeGardenWorldRuntimeState garden = state.NativeGardenRuntime!;
         garden.Validate();
@@ -110,7 +110,7 @@ internal sealed partial class WorldMapScene
                 throw new NotSupportedException("A nearby Garden allocation actor requires its actual animated world-model presentation.");
             }
             NativeWorldPathAngles angles = WorldStaticModelTransform.AllocationAngles(item.ShapeId, item.RotationX, item.RotationY, item.RotationZ);
-            models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(item.ShapeId), new NativeWorldStaticModelPose(projection.CanonicalModelAnchor(draw), angles)));
+            models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(item.ShapeId), new NativeWorldStaticModelPose(projection.CanonicalModelAnchor(draw), angles)) { ObjectId = new(WorldRenderObjectKind.Allocation, index) });
         }
         WorldCamera camera = WorldCamera.Foot(state.CameraYaw, 2048) with
         {
@@ -122,6 +122,6 @@ internal sealed partial class WorldMapScene
         Vector3 position = new(state.X, -state.NativeHeight, state.Z);
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
         bool footVisible = state.NativeFootRuntime is not null && state.GroundType is null or > 5;
-        return renderer!.Render(position, state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, replacements, sky, footVisible, state.NativeFootRuntime is null ? null : assets.GetFootModel(state.NativeFootRuntime.EntityType), models, garden.Forest);
+        return new WorldRenderFrame(position, state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, sky, footVisible, state.NativeFootRuntime is null ? null : assets.GetFootModel(state.NativeFootRuntime.EntityType), models, garden.Forest);
     }
 }

@@ -129,7 +129,7 @@ internal sealed partial class WorldMapScene
         return next.ToWorldState(before) with { GroundType = ground.Center?.Ground.Triangle.GroundType ?? before.GroundType };
     }
 
-    private byte[] RenderTrainRide(WorldState state)
+    private WorldRenderFrame PrepareTrainFrame(WorldState state)
     {
         NativeTrainWorldRuntimeState train = state.NativeTrainRuntime!;
         train.Validate();
@@ -148,12 +148,13 @@ internal sealed partial class WorldMapScene
                 if (NativeTrainRailBank.Link(index) != 0 && pose.Projection is { Visible: true } projection)
                 {
                     NativeWorldPathAngles angles = pose.Angles ?? throw new NativeWorldPresentationDeferredException("Visible riding-train node has unknown orientation words.");
-                    models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(bank.Shape(definition, index)), new NativeWorldStaticModelPose(context.CanonicalModelAnchor(projection), angles)));
+                    models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(bank.Shape(definition, index)), new NativeWorldStaticModelPose(context.CanonicalModelAnchor(projection), angles)) { ObjectId = new(WorldRenderObjectKind.Rail, index, ReferenceEquals(bank, train.Alternate) ? 1 : 0) });
                 }
             }
         }
-        foreach (NativeTrainWorldObject item in train.Load.Allocation.Objects)
+        for (int index = 0; index < train.Load.Allocation.Objects.Length; index++)
         {
+            NativeTrainWorldObject item = train.Load.Allocation.Objects[index];
             if (item.EntityType is 0 or 1)
             {
                 continue;
@@ -162,10 +163,10 @@ internal sealed partial class WorldMapScene
             if (projection.Visible)
             {
                 NativeWorldPathAngles angles = WorldStaticModelTransform.AllocationAngles(item);
-                models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(item.ShapeId), new NativeWorldStaticModelPose(context.CanonicalModelAnchor(projection), angles)));
+                models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(item.ShapeId), new NativeWorldStaticModelPose(context.CanonicalModelAnchor(projection), angles)) { ObjectId = new(WorldRenderObjectKind.Allocation, index) });
             }
         }
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
-        return renderer!.Render(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, WorldCamera.ScriptedPath(train.Camera, 2048), replacements, sky, avatarVisible: false, staticModels: models);
+        return new WorldRenderFrame(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, WorldCamera.ScriptedPath(train.Camera, 2048), sky, AvatarVisible: false, StaticModels: models);
     }
 }

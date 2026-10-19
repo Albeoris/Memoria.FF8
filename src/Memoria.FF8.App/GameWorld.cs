@@ -367,7 +367,7 @@ internal sealed partial class GameWorld : IDisposable
         return true;
     }
 
-    public byte[] Render(TimeSpan elapsed, bool rareCardMarkers = true, ITriangleRenderer? triangleRenderer = null)
+    public byte[] Render(TimeSpan elapsed, bool rareCardMarkers = true, ITriangleRenderer? triangleRenderer = null, float worldInterpolation = 1)
     {
         if (Events.PendingTripleTriad is not null)
         {
@@ -377,7 +377,7 @@ internal sealed partial class GameWorld : IDisposable
         if (session.State.Scene == SceneKind.WorldMap)
         {
             EnsureField();
-            return worldScene!.Render(renderWidth, renderHeight, triangleRenderer);
+            return worldScene!.Render(renderWidth, renderHeight, triangleRenderer, worldInterpolation);
         }
         IEnumerable<ActorVisual> visuals = Events.Actors.Select(CreateVisual);
         BackgroundScrollFrame scroll = ActorBackgroundScrollCertificate.Prepare(Field!, Events.Scene) ?? DirectBackgroundScrollCertificate.Prepare(Field!, Events.Scene) ?? NativeWrappedBackgroundScrollCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? NormalCameraCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? throw new NotSupportedException("Field rendering requires a supported current native camera contract.");
