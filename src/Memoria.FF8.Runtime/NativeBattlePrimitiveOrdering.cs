@@ -53,7 +53,8 @@ public sealed record NativeBattlePrimitiveDrawMode([property: JsonRequired] usho
             {
                 throw new InvalidDataException("Native45BC60 requires the original single E2 command DWORD.");
             }
-            return this with { TextureWindowBits = words[0] & 0xFFFFFF };
+            uint window = words[0] & 0xFFFFFF;
+            return TextureWindowBits == window ? this : this with { TextureWindowBits = window };
         }
         int pageWord = opcode == 0xE1 ? 0 : (opcode & 0xFC) switch
         {
@@ -71,7 +72,7 @@ public sealed record NativeBattlePrimitiveDrawMode([property: JsonRequired] usho
         }
         //E1 handlers462EB0/463210 and textured-polygon helper461A30 call45B960.
         ushort page = opcode == 0xE1 ? unchecked((ushort)words[pageWord]) : unchecked((ushort)(words[pageWord] >> 16));
-        return this with { TexturePage = page };
+        return TexturePage == page ? this : this with { TexturePage = page };
     }
 }
 

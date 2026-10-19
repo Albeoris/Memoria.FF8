@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
@@ -24,13 +25,32 @@ public sealed record NativeBattleLogicalResolvedCommand(NativeBattleLogicalComma
 /// <summary>45CC80/45C8E0/45C870 links using logical bank references with the same physical alias and capacity behavior.</summary>
 public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrimitiveLink> Table, ImmutableArray<NativeBattleLogicalProxy> Proxies, ImmutableArray<NativeBattleLogicalPacket> Packets)
 {
+    [JsonIgnore]
+    internal NativeBattleLogicalOrderingTransaction? Transaction { get; init; }
     public int? ProxyCursor { get; init; }
     public byte? TableBuffer { get; init; }
     public ImmutableArray<NativeBattlePrimitiveLink>? OtherTable { get; init; }
     private static ImmutableArray<NativeBattlePrimitiveLink> EmptyRoots() => Enumerable.Range(0, NativeBattlePrimitiveOrdering.BattleTableLength).Select(index => new NativeBattlePrimitiveLink(false, index - 1)).ToImmutableArray();
     public static NativeBattleLogicalOrdering Clear(byte buffer = 0) => new(EmptyRoots(), [], []) { ProxyCursor = 0, TableBuffer = buffer, OtherTable = EmptyRoots() };
 
-    public NativeBattleLogicalOrdering ResetAfterDraw45D080() => this with { ProxyCursor = 0, Packets = Packets.Select(packet => packet with { RequiresPhysicalRead = true }).ToImmutableArray() };
+    public NativeBattleLogicalOrdering ResetAfterDraw45D080()
+    {
+        ImmutableArray<NativeBattleLogicalPacket>.Builder? packets = null;
+        for (int index = 0; index < Packets.Length; index++)
+        {
+            NativeBattleLogicalPacket packet = Packets[index];
+            if (!packet.RequiresPhysicalRead)
+            {
+                packets ??= Packets.ToBuilder();
+                packets[index] = packet with { RequiresPhysicalRead = true };
+            }
+        }
+        if (packets is null && ProxyCursor == 0)
+        {
+            return this;
+        }
+        return this with { ProxyCursor = 0, Packets = packets?.MoveToImmutable() ?? Packets };
+    }
     public NativeBattleLogicalOrdering ClearRoots45D550()
     {
         bool otherEmpty = OtherTable is { } other && other.Length == NativeBattlePrimitiveOrdering.BattleTableLength && other.Select((link, index) => !link.Proxy && link.Index == index - 1).All(empty => empty);
@@ -98,9 +118,35 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
         private readonly byte tableBuffer;
         private readonly ImmutableArray<NativeBattlePrimitiveLink>? otherTable;
         private int proxyCursor;
+        private readonly NativeBattleLogicalOrderingTransaction? transaction;
+        private uint lastHeaderLink;
+        private bool checkpointActive;
+        private int checkpointProxyCursor;
+        private int checkpointProxyCount;
+        private int checkpointPacketCount;
+        private int checkpointMaximumPacketBytes;
+        private uint checkpointLastHeaderLink;
+        private readonly List<(int Index, NativeBattlePrimitiveLink Value)> tableUndo = [];
+        private readonly List<(int Index, NativeBattleLogicalProxy Value)> proxyUndo = [];
+        private readonly List<(int Index, NativeBattleLogicalPacket Value)> packetUndo = [];
+        private readonly List<(SortedSet<(int Offset, int Index)> Ranges, (int Offset, int Index) Value)> rangeUndo = [];
 
         public Builder(NativeBattleLogicalOrdering source)
         {
+            transaction = source.Transaction;
+            if (transaction is not null)
+            {
+                transaction.RequireActive();
+                Builder shared = transaction.Writer;
+                table = shared.table;
+                proxies = shared.proxies;
+                packets = shared.packets;
+                packetIndices = shared.packetIndices;
+                packetRanges = shared.packetRanges;
+                tableBuffer = shared.tableBuffer;
+                otherTable = shared.otherTable;
+                return;
+            }
             proxyCursor = source.ProxyCursor ?? throw new NotSupportedException("Native proxy allocation requires its actual retained physical cursor; migrate the named snapshot explicitly.");
             tableBuffer = source.TableBuffer ?? throw new NotSupportedException("Native proxy allocation requires its physical OT table identity.");
             otherTable = source.OtherTable;
@@ -119,11 +165,17 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
             }
         }
 
-        public int ProxyCount => proxyCursor;
-        public uint LastHeaderLink { get; private set; }
+        public int ProxyCount => transaction?.Writer.ProxyCount ?? proxyCursor;
+        public uint LastHeaderLink => transaction?.Writer.LastHeaderLink ?? lastHeaderLink;
 
         public void InvalidatePacketRange(NativeBattlePrimitiveReference reference, int length)
         {
+            if (transaction is not null)
+            {
+                transaction.RequireActive();
+                transaction.Writer.InvalidatePacketRange(reference, length);
+                return;
+            }
             reference = NativeBattlePrimitiveProcess.NormalizeCommonReference(reference);
             if (length == 0 || !packetRanges.TryGetValue((reference.Bank, reference.Buffer), out SortedSet<(int Offset, int Index)>? ranges))
             {
@@ -137,6 +189,10 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
                 NativeBattlePrimitiveReference physical = NativeBattlePrimitiveProcess.NormalizeCommonReference(packet.Reference);
                 if (!packet.RequiresPhysicalRead && physical.Bank == reference.Bank && physical.Buffer == reference.Buffer && physical.ByteOffset < reference.ByteOffset + length && reference.ByteOffset < physical.ByteOffset + packet.Words.Length * 4)
                 {
+                    if (checkpointActive)
+                    {
+                        packetUndo.Add((index, packet));
+                    }
                     packets[index] = packet with { RequiresPhysicalRead = true };
                 }
             }
@@ -155,23 +211,36 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
                 ranges = [];
                 packetRanges.Add(key, ranges);
             }
-            ranges.Add((reference.ByteOffset, index));
+            if (ranges.Add((reference.ByteOffset, index)) && checkpointActive)
+            {
+                rangeUndo.Add((ranges, (reference.ByteOffset, index)));
+            }
             maximumPacketBytes = Math.Max(maximumPacketBytes, checked(packet.Words.Length * 4));
         }
 
         public void Prepend(int bucket, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw = null)
         {
+            if (transaction is not null)
+            {
+                transaction.RequireActive();
+                transaction.Writer.Prepend(bucket, reference, words, flags20, vertexPayload4, moduleDraw);
+                return;
+            }
             ValidateInsertion(table.Count, bucket, reference, words, vertexPayload4);
             if (proxyCursor >= NativeBattlePrimitiveOrdering.ProxyCapacity)
             {
                 return;
             }
             InvalidatePacketRange(reference, words.Length * 4);
-            LastHeaderLink = LinkAddress(table[bucket], tableBuffer);
+            lastHeaderLink = LinkAddress(table[bucket], tableBuffer);
             NativeBattleLogicalPacket packet = new(reference, words, table[bucket]) { NextTableBuffer = tableBuffer };
             NativeBattlePrimitiveReference identity = NativeBattlePrimitiveProcess.NormalizeCommonReference(reference);
             if (packetIndices.TryGetValue(identity, out int existing))
             {
+                if (checkpointActive)
+                {
+                    packetUndo.Add((existing, packets[existing]));
+                }
                 packets[existing] = packet;
                 RegisterPacketRange(packet, existing);
             }
@@ -182,9 +251,17 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
                 packets.Add(packet);
             }
             NativeBattleLogicalProxy proxy = new(reference, flags20, vertexPayload4, moduleDraw) { NextHigh22 = (byte)(LastHeaderLink >> 24) };
+            if (checkpointActive)
+            {
+                tableUndo.Add((bucket, table[bucket]));
+            }
             table[bucket] = new(true, proxyCursor);
             if (proxyCursor < proxies.Count)
             {
+                if (checkpointActive)
+                {
+                    proxyUndo.Add((proxyCursor, proxies[proxyCursor]));
+                }
                 proxies[proxyCursor] = proxy;
             }
             else
@@ -194,7 +271,76 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
             proxyCursor++;
         }
 
-        public NativeBattleLogicalOrdering ToImmutable() => new(table.ToImmutable(), proxies.ToImmutable(), packets.ToImmutable()) { ProxyCursor = proxyCursor, TableBuffer = tableBuffer, OtherTable = otherTable };
+        public NativeBattleLogicalOrdering ToImmutable()
+        {
+            if (transaction is not null)
+            {
+                transaction.RequireActive();
+                return transaction.View;
+            }
+            return new(table.ToImmutable(), proxies.ToImmutable(), packets.ToImmutable()) { ProxyCursor = proxyCursor, TableBuffer = tableBuffer, OtherTable = otherTable };
+        }
+
+        internal void BeginCheckpoint()
+        {
+            if (checkpointActive || transaction is not null)
+            {
+                throw new InvalidOperationException("Native ordering callback checkpoints cannot be nested.");
+            }
+            checkpointActive = true;
+            checkpointProxyCursor = proxyCursor;
+            checkpointProxyCount = proxies.Count;
+            checkpointPacketCount = packets.Count;
+            checkpointMaximumPacketBytes = maximumPacketBytes;
+            checkpointLastHeaderLink = lastHeaderLink;
+        }
+
+        internal void CommitCheckpoint()
+        {
+            checkpointActive = false;
+            tableUndo.Clear();
+            proxyUndo.Clear();
+            packetUndo.Clear();
+            rangeUndo.Clear();
+        }
+
+        internal void RollbackCheckpoint()
+        {
+            if (!checkpointActive)
+            {
+                throw new InvalidOperationException("Native ordering rollback requires its current callback checkpoint.");
+            }
+            for (int index = checkpointPacketCount; index < packets.Count; index++)
+            {
+                packetIndices.Remove(NativeBattlePrimitiveProcess.NormalizeCommonReference(packets[index].Reference));
+            }
+            for (int index = rangeUndo.Count - 1; index >= 0; index--)
+            {
+                var entry = rangeUndo[index];
+                entry.Ranges.Remove(entry.Value);
+            }
+            for (int index = packetUndo.Count - 1; index >= 0; index--)
+            {
+                var entry = packetUndo[index];
+                packets[entry.Index] = entry.Value;
+            }
+            for (int index = proxyUndo.Count - 1; index >= 0; index--)
+            {
+                var entry = proxyUndo[index];
+                proxies[entry.Index] = entry.Value;
+            }
+            for (int index = tableUndo.Count - 1; index >= 0; index--)
+            {
+                var entry = tableUndo[index];
+                table[entry.Index] = entry.Value;
+            }
+            packets.Count = checkpointPacketCount;
+            proxies.Count = checkpointProxyCount;
+            proxyCursor = checkpointProxyCursor;
+            maximumPacketBytes = checkpointMaximumPacketBytes;
+            lastHeaderLink = checkpointLastHeaderLink;
+            CommitCheckpoint();
+        }
     }
 
     public ImmutableArray<NativeBattleLogicalCommand> Traverse(ImmutableArray<byte> wordLengths, Func<NativeBattlePrimitiveReference, int, byte[]>? readPhysical = null)
@@ -364,11 +510,11 @@ public static class NativeBattleLogicalPasses
                     continue;
                 }
                 mode = mode.ExecuteWords(command.Opcode, command.Words);
-                mode = mode with { TextureSelection = null, TexturePixelSnapshot = null };
+                mode = ClearTextureSelection(mode);
                 if (context is not null)
                 {
                     context.ExecuteNormal(command, mode, pass);
-                    mode = context.SynchronizeDrawMode(mode) with { TextureSelection = null, TexturePixelSnapshot = null };
+                    mode = ClearTextureSelection(context.SynchronizeDrawMode(mode));
                 }
                 NativeBattleLogicalResolvedCommand resolved = new(command, mode, pass);
                 if (GetCache() is { } currentCache)
@@ -425,7 +571,7 @@ public static class NativeBattleLogicalPasses
 
     private static (NativeBattleLogicalResolvedCommand Command, NativeBattlePcTextureWindowCache Cache) SelectTextureCommand(NativeBattleLogicalResolvedCommand command, NativeBattlePcTextureWindowCache cache)
     {
-        NativeBattlePrimitiveDrawMode mode = command.DrawMode with { TextureSelection = null, TexturePixelSnapshot = null };
+        NativeBattlePrimitiveDrawMode mode = ClearTextureSelection(command.DrawMode);
         if ((command.Command.Opcode & 0xE4) == 0x24)
         {
             ushort page = mode.TexturePage ?? throw new NotSupportedException("Native textured pass requires its executed texture page.");
@@ -442,6 +588,11 @@ public static class NativeBattleLogicalPasses
                 mode = mode with { TextureSelection = resolved.Selection };
             }
         }
-        return (command with { DrawMode = mode }, cache);
+        return (ReferenceEquals(command.DrawMode, mode) ? command : command with { DrawMode = mode }, cache);
+    }
+
+    private static NativeBattlePrimitiveDrawMode ClearTextureSelection(NativeBattlePrimitiveDrawMode mode)
+    {
+        return mode.TextureSelection is null && mode.TexturePixelSnapshot is null ? mode : mode with { TextureSelection = null, TexturePixelSnapshot = null };
     }
 }

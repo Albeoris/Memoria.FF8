@@ -47,11 +47,45 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native Ifrit requires its current projection.");
         NativeBattlePrimitiveProcess process = RequireWaterMemory().PrimitiveProcess ?? throw new NotSupportedException("Native Ifrit requires its actual COMMON process.");
         NativeBattleScriptedCallbackInput input = new(effect.Binding.ScriptedInitializationDirectories ?? throw new NotSupportedException("Native Ifrit requires its original directories."), assets[1].Data.Length, checked((ushort)graphics.Flags), MatrixBytes(projection.View ?? throw new NotSupportedException("Native Ifrit requires its current view matrix.")), 0, checked((uint)(process.ByteCursor ?? throw new NotSupportedException("Native Ifrit COMMON cursor is unknown."))), camera.FocalLength ?? throw new NotSupportedException("Native Ifrit requires its retained focal WORD."));
+        NativeBattleWaterContextServices context = new((_, pointer) =>
+        {
+            int? linked = graphics.Models[PhysicalActor(pointer)].ReadLinkedModelIndex140();
+            return linked is int row ? ActorPointer(row) : 0;
+        }, (_, pointer) => ActorPointer(NativeBattleModelRings.Walk(graphics.Models, PhysicalActor(pointer)).Min()), (_, address, length) => ReadAction(address, length), (current, address) =>
+        {
+            NativeEffectMemory = RequireWaterMemory() with { Arena = current.Arena, ScriptedEffects = current.Core };
+            ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
+            graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(ContactIndex(address))] });
+            graphics = graphics with { PendingContacts = pending };
+            return current with { Arena = RequireWaterMemory().Arena!, Core = RequireWaterMemory().ScriptedEffects! };
+        }, current =>
+        {
+            NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native Ifrit requires its camera owner.")).Apply50A730();
+            return current;
+        }, (current, index, depth, color) =>
+        {
+            NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native Ifrit requires its four stage groups.");
+            NativeStage = stage with { Groups = stage.Groups.SetItem(index, stage.Groups[index] with { ColorDepth = depth, ColorFlags = color }) };
+            return current;
+        });
         NativeBattleScriptedCallbackServices services = new(ReadInstruction, ExecuteInstruction, UpdateSlot, DrawSlots, ClearOrderingTable, PublishFocal) { ReadCurrentFocal = _ => NativeCamera?.FocalLength ?? throw new NotSupportedException("Native Ifrit requires its current scratch focal WORD after script execution.") };
         NativeBattleIfrit201Frame advanced = NativeBattleIfrit201Controller.AdvanceB25DF0(new(RequireWaterMemory(), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Ifrit requires its retained CRT state.")), input, services, WaterTemporaryAddress, RequireWaterMemory);
         NativeEffectMemory = advanced.Memory;
         nativeCrtRandom = advanced.Random;
         return graphics with { OriginalEffect = advanced.Effect };
+
+        byte[] ReadAction(uint address, int length)
+        {
+            if (address >= WaterHeadersAddress && address < WaterContactsAddress)
+            {
+                uint relative = address - WaterHeadersAddress;
+                NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[checked((int)(relative / 20))];
+                return Enumerable.Range((int)(relative % 20), length).Select(header.ReadByte).ToArray();
+            }
+            uint contact = address - WaterContactsAddress;
+            byte[] bytes = nativeActionPackets.ReadContact(checked((int)(contact / 24))).Encode();
+            return bytes.AsSpan((int)(contact % 24), length).ToArray();
+        }
 
         NativeBattleWaterScriptProgram Program(NativeBattleWaterExecutionFrame current, uint address)
         {
@@ -112,6 +146,22 @@ public sealed partial class BattleSession
                 case 0x21:
                 case 0x7D:
                     return NativeBattleWaterWorkCommands.Execute(current, program, RequireWaterMemory().MagicTextureBufferAddress1D99A88);
+                case 0x20:
+                    return NativeBattleWaterContextCommands.Execute(current, program, context);
+                case 0x22:
+                    return NativeBattleIfritContactCommand.Execute(current, context);
+                case 0x93:
+                case 0xAA:
+                    return NativeBattleScriptedLightCommands.Execute(current, program, bank, index);
+                case 0x3C:
+                case 0x4A:
+                case 0x2F:
+                case 0x25:
+                    return NativeBattleWaterRectangleCommands.Execute(current, program, bank, index, (frame, shapeIndex) => NativeBattleWaterShapeSelection.ResolveCinematic(frame, resources, shapeIndex).Selected, (frame, shapeIndex) =>
+                    {
+                        var selected = NativeBattleWaterShapeSelection.ResolveCinematic(frame, resources, shapeIndex);
+                        return (frame.WriteTemporaryDword(0xFC, selected.Directory), selected.Selected);
+                    });
                 case >= 0xA and <= 0x17:
                     return NativeBattleWaterInstructionDispatcher.ExecuteVector(current, program, assets[1].Data.Length);
                 case 7:
@@ -257,7 +307,31 @@ public sealed partial class BattleSession
 
         NativeBattleWaterExecutionFrame DrawSlots(NativeBattleWaterExecutionFrame current, int budget)
         {
-            return NativeBattleIfritDraw.RunB2ABE0(current, PrepareLighting, (frame, kind) => kind == 0x26 ? frame : throw new NotSupportedException($"Native Ifrit draw{kind:X2} requires its selected lit geometry contract."), budget);
+            return NativeBattleIfritDraw.RunB2ABE0(current, PrepareLighting, (frame, kind) =>
+            {
+                if (kind == 6)
+                {
+                    var drawn = DrawNativeCinematicParticles(frame, Program(frame, CoreDword(frame, 0x2798A68)), assets[1].Data.Length, resources, graphics);
+                    graphics = drawn.Graphics;
+                    return drawn.Frame;
+                }
+                if (kind == 0x15)
+                {
+                    return NativeBattleCinematicScroll.Draw(frame, resources, (scrollFrame, rectangle, source) =>
+                    {
+                        NativeBattleEffectTextureState textures = RequireWaterMemory().Textures ?? throw new NotSupportedException("Native cinematic scroll requires its current texture queue.");
+                        NativeEffectMemory = RequireWaterMemory() with { Textures = textures.EnqueueArenaRectangle505DF0(rectangle, scrollFrame.Arena, ArenaOffset(source, 0)) };
+                        return scrollFrame;
+                    });
+                }
+                if (kind is 1 or 2)
+                {
+                    var drawn = DrawNativeCinematicMesh(frame, kind, assets[1].Data.Length, resources, graphics);
+                    graphics = drawn.Graphics;
+                    return drawn.Frame;
+                }
+                return kind == 0x26 ? frame : throw new NotSupportedException($"Native Ifrit draw{kind:X2} requires its selected lit geometry contract.");
+            }, budget);
         }
 
         NativeBattleWaterExecutionFrame PrepareLighting(NativeBattleWaterExecutionFrame current, sbyte selector)

@@ -1,0 +1,140 @@
+using System.Buffers.Binary;
+using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
+
+namespace Memoria.FF8.Runtime;
+
+public sealed partial class BattleSession
+{
+    private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicMesh(NativeBattleWaterExecutionFrame frame, byte kind, int secondFileLength, NativeBattleCinematicResources resources, NativeBattleGraphicsState graphics)
+    {
+        NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Native cinematic mesh requires its selected original effect.");
+        NativeBattleCinematicProfile profile = NativeBattleCinematicProfile.ForEffect(effect.Binding.Effect);
+        if (resources.TextureProfile.InitializationAddress != profile.InitializationAddress || resources.TextureProfile.OwnerDirectoryAddress != profile.OwnerDirectoryAddress)
+        {
+            throw new InvalidDataException("Native cinematic mesh resources disagree with their selected static directory owner.");
+        }
+        if (kind is not (1 or 2))
+        {
+            throw new NotSupportedException($"Native cinematic draw {kind:X2} is outside the ordinary mesh wrappers.");
+        }
+        uint handler = BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.DrawTable + 4u * kind), 4));
+        if ((kind, handler) is not ((1, 0xB26FB0) or (2, 0xB27050)))
+        {
+            throw new NotSupportedException($"Native cinematic draw {kind:X2} selected unsupported mesh wrapper {handler:X8}.");
+        }
+        NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, secondFileLength);
+        int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank);
+        NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native cinematic mesh requires its canonical camera owner.");
+        NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native cinematic mesh requires its current projection registers.");
+        ushort focal = projection.FocalLength ?? throw new NotSupportedException("Native cinematic mesh requires its actual current GTE focal register.");
+        NativeBattleWaterMeshPrepared prepared = NativeBattleWaterMeshPreparation.PrepareWrapper(frame, bank, index, kind, unchecked((short)focal));
+        NativeCamera = camera with { Projection = projection with { FocalLength = unchecked((ushort)prepared.Focal) } };
+        frame = prepared.Frame;
+        uint shape = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xD8, 4));
+        int extent = MeasureNativeCinematicMeshExtent(frame, shape, ReadStride);
+        NativeBattleEffectMemory memory = RequireWaterMemory();
+        NativeBattleScriptedGraphicsMemory registers = memory.ScriptedGraphics ?? throw new NotSupportedException("Native cinematic mesh requires its actual depth and depth-cue registers.");
+        NativeBattleScriptedLightingMemory lighting = memory.ScriptedLighting ?? throw new NotSupportedException("Native cinematic mesh requires its retained shared lighting controls.");
+        NativeBattleScriptedColorRegisters colors = memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native cinematic mesh requires its retained shared color registers.");
+        uint start = CoreDword(frame, CoreDword(frame, 0x27973EC) + 0x7C);
+        NativeBattleScriptedMeshProjected projected = NativeBattleScriptedMeshPreparation.Project(prepared, extent, projection, registers.Dqa, registers.Dqb, registers.Depths, lighting, colors);
+        NativeBattleScriptedMeshSubmission submitted = NativeBattleScriptedMeshPreparation.Submit(projected, extent, ReadHandler, ReadStride, OtBucket);
+        frame = submitted.Frame;
+        memory = RequireWaterMemory() with
+        {
+            Arena = frame.Arena,
+            ScriptedEffects = frame.Core,
+            ScriptedGraphics = registers with { Depths = projected.DepthOwner },
+            ScriptedLighting = submitted.Lighting,
+            ScriptedColorRegisters = submitted.Registers
+        };
+        if (!submitted.Packets.Attempts.IsEmpty)
+        {
+            NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native cinematic mesh requires its actual current ordering table.");
+            if ((ReadSlot(frame, 0x4C, 1)[0] & 1) != 0)
+            {
+                NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(memory, ArenaOffset(start, 0), primitive.Pending, submitted.Packets);
+                memory = written.Memory;
+                graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
+            }
+            else
+            {
+                NativeBattlePrimitiveProcess common = memory.PrimitiveProcess ?? throw new NotSupportedException("Native cinematic mesh requires its actual COMMON packet owner.");
+                if (start != common.ByteCursor)
+                {
+                    throw new InvalidDataException("Native cinematic mesh COMMON cursor disagrees with its current physical packet owner.");
+                }
+                NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(common, primitive.Pending, submitted.Packets);
+                memory = memory with { PrimitiveProcess = written.Process };
+                graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
+            }
+        }
+        NativeEffectMemory = memory;
+        return (frame with { Arena = memory.Arena!, Core = memory.ScriptedEffects! }, graphics);
+
+        byte ReadStride(int type)
+        {
+            if ((uint)type >= 20)
+            {
+                throw new NotSupportedException($"Native cinematic primitive size index {type:X} leaves its actual static directory.");
+            }
+            return resources.ReadStatic(checked(profile.PrimitiveSizes + (uint)type), 1)[0];
+        }
+
+        uint ReadHandler(int dispatch)
+        {
+            if ((uint)dispatch >= 60)
+            {
+                throw new NotSupportedException($"Native cinematic primitive dispatch index {dispatch:X} leaves its actual static table.");
+            }
+            return BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.PrimitiveTable + 4u * (uint)dispatch), 4));
+        }
+    }
+
+    internal static int MeasureNativeCinematicMeshExtent(NativeBattleWaterExecutionFrame frame, uint shape, Func<int, byte> readStride)
+    {
+        _ = ArenaOffset(shape, 0x24);
+        int extent = 0x24;
+        int vertices = unchecked((int)ReadDword(shape + 0x18));
+        int normals = unchecked((int)ReadDword(shape + 0x20));
+        if (vertices <= 0 || normals < 0)
+        {
+            throw new NotSupportedException("Native cinematic shape requires its current positive vertex count and nonnegative normal count.");
+        }
+        Include(ReadDword(shape + 0x14), checked(vertices * 8));
+        if (normals > 0)
+        {
+            Include(ReadDword(shape + 0x1C), checked(normals * 8));
+        }
+        uint cursor = ReadDword(shape + 8);
+        while (true)
+        {
+            Include(cursor, 4);
+            byte[] header = frame.Arena.Read(ArenaOffset(unchecked(shape + cursor), 4), 4);
+            short type = BinaryPrimitives.ReadInt16LittleEndian(header);
+            short count = BinaryPrimitives.ReadInt16LittleEndian(header.AsSpan(2));
+            if (count == -1)
+            {
+                return extent;
+            }
+            if (type < 0 || count <= 0)
+            {
+                throw new NotSupportedException("Native cinematic shape requires its actual selected primitive type and positive record count.");
+            }
+            byte stride = readStride(type);
+            cursor = checked(cursor + 4);
+            int length = checked(count * stride);
+            Include(cursor, length);
+            cursor = checked(cursor + (uint)length);
+        }
+
+        uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(address, 4), 4));
+
+        void Include(uint relative, int length)
+        {
+            int end = checked((int)relative + length);
+            _ = ArenaOffset(checked(shape + relative), length);
+            extent = Math.Max(extent, end);
+        }
+    }
+}

@@ -30,6 +30,11 @@ public sealed partial record NativeBattlePrimitiveProcess
         {
             return this;
         }
+        if (CommonTransaction is { } transaction)
+        {
+            transaction.Append(writes);
+            return this;
+        }
         ImmutableArray<NativeBattleCommonPacketStore>.Builder first = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
         ImmutableArray<NativeBattleCommonPacketStore>.Builder second = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
         foreach (NativeBattleCommonPacketStore write in writes)

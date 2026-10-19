@@ -25,12 +25,15 @@ public static class NativeBattleWaterParticles
             case 1:
                 frame = frame.WriteTemporaryWord(0x13E, (ushort)((instruction >> 8) << 7));
                 break;
+            case 2:
+                short displacement = unchecked((short)ProgramWord(frame, program, unchecked(pc + 2)));
+                return WriteCoreDword(frame, 0x2797450, unchecked(pc + (uint)displacement));
             case 4:
             case 5:
                 int group = instruction & 0x300;
                 if (group == 0x300)
                 {
-                    throw new NotSupportedException("Native particle arithmetic requires its selected destination groups.");
+                    throw new NotSupportedException($"Native particle arithmetic has unsupported destination group 0x{group:X3}, raw instruction 0x{instruction:X4}, PC 0x{pc:X8}.");
                 }
                 int destination = group == 0 ? 0x10 : group == 0x100 ? 0x20 : 0x28;
                 int stride = group == 0 ? 4 : 2;
@@ -85,18 +88,10 @@ public static class NativeBattleWaterParticles
                 break;
             case 7:
                 int sequenceIndex = instruction >> 8;
-                if (sequenceIndex > 1)
-                {
-                    throw new NotSupportedException("Native particle sequence selection requires its two proved indices.");
-                }
                 frame = ParticleByte(frame, 0x4A, 0);
                 uint manager = CoreDword(frame, 0x27973EC);
                 uint map = CoreDword(frame, checked(manager + 0xAC));
                 byte resourceIndex = ReadAddress(frame, unchecked(map + (uint)sequenceIndex), 1, services)[0];
-                if (resourceIndex >= 100)
-                {
-                    throw new NotSupportedException("Native particle resource mapping leaves its physical pointer array.");
-                }
                 uint resource = CoreDword(frame, 0x2798A68 + (uint)(4 * resourceIndex));
                 uint directory = unchecked(resource + ReadArenaDword(frame, unchecked(resource + 0xC)));
                 frame = frame.WriteTemporaryDword(0xFC, directory);
@@ -144,16 +139,12 @@ public static class NativeBattleWaterParticles
                 break;
             case 0x13:
                 int textureIndex = instruction >> 8;
-                if (textureIndex != 1)
-                {
-                    throw new NotSupportedException("Native particle texture selection requires its proved index.");
-                }
                 frame = services.PrepareTexturePage(frame, textureIndex);
                 frame = ParticleWord(frame, 0x40, unchecked((ushort)frame.ReadTemporaryDword(0xFC)));
                 frame = ParticleWord(frame, 0x48, services.ReadClut(frame, textureIndex));
                 break;
             default:
-                throw new NotSupportedException("Native particle interpreter admits only its ten selected instruction kinds.");
+                throw new NotSupportedException($"Native particle instruction 0x{instruction:X4} (kind 0x{(byte)instruction:X2}, index {instruction >> 8}) at PC 0x{pc:X8} is unsupported.");
         }
         return WriteCoreDword(frame, 0x2797450, unchecked(pc + (uint)next));
     }
@@ -257,9 +248,10 @@ public static class NativeBattleWaterParticles
 
     private static NativeBattleWaterExecutionFrame PlaceMode1(NativeBattleWaterExecutionFrame frame)
     {
-        if (ReadParticle(frame, 0x37, 1)[0] != 1)
+        byte mode = ReadParticle(frame, 0x37, 1)[0];
+        if (mode != 1)
         {
-            throw new NotSupportedException("Native selected particle placement requires mode one.");
+            throw new NotSupportedException($"Native particle placement mode {mode} is unsupported for particle 0x{frame.ReadTemporaryDword(0x44):X8}, PC 0x{CoreDword(frame, 0x2797450):X8}, raw instruction 0x{frame.ReadTemporaryWord(0x14A):X4}, helper type {frame.ReadTemporaryDword(0x34)}.");
         }
         frame = frame.WriteTemporaryWord(0xA0, unchecked((ushort)(((int)ReadParticleDword(frame, 0x14) >> 8) - frame.ReadTemporaryWord(0x38))));
         frame = frame.WriteTemporaryWord(0xA2, unchecked((ushort)((int)ReadParticleDword(frame, 0x18) >> 8)));
@@ -279,7 +271,7 @@ public static class NativeBattleWaterParticles
         NativeBattleActionMatrix planar = new(Enumerable.Range(0, 9).Select(i => BinaryPrimitives.ReadInt16LittleEndian(rotation.AsSpan(2 * i))).ToImmutableArray(), translation.X, translation.Y, translation.Z, 4096);
         if (frame.ReadTemporaryDword(0x40) != 0)
         {
-            throw new NotSupportedException("Native selected particle draw has no proved optional postrotation producer.");
+            throw new NotSupportedException($"Native particle optional postrotation 0x{frame.ReadTemporaryDword(0x40):X8} is unsupported for particle 0x{frame.ReadTemporaryDword(0x44):X8}, PC 0x{CoreDword(frame, 0x2797450):X8}.");
         }
         frame = frame.WriteTemporaryDword(0x90, ReadParticleDword(frame, 0x30)).WriteTemporaryDword(0x94, ReadParticleWord(frame, 0x40)).WriteTemporaryDword(0x98, ReadParticleDword(frame, 0x38)).WriteTemporaryDword(0x9C, unchecked((uint)(short)ReadParticleWord(frame, 0x48)));
         return services.DrawRectangles(frame, planar);

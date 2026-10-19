@@ -9,6 +9,11 @@ public static class NativeBattleWaterRectangleCommands
 {
     public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, int currentIndex, NativeBattleWater222Resources resources, NativeBattleEffectHeapAllocation map)
     {
+        return Execute(frame, program, bank, currentIndex, (current, index) => NativeBattleWaterShapeSelection.ResolveB657E0(current, resources, map, index), (current, index) => NativeBattleWaterShapeSelection.SelectB66230(current, resources, map, index));
+    }
+
+    public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, int currentIndex, Func<NativeBattleWaterExecutionFrame, short, uint> resolveShape, Func<NativeBattleWaterExecutionFrame, short, (NativeBattleWaterExecutionFrame Frame, uint Address)> selectSequence)
+    {
         ushort instruction = frame.ReadTemporaryWord(0x14A);
         uint pc = CoreDword(frame, 0x2797450);
         switch (instruction & 0x1FF)
@@ -29,7 +34,7 @@ public static class NativeBattleWaterRectangleCommands
                 uint color = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xCC, 4));
                 frame = WriteSlotDword(frame, 0xCC, color & 0x02FFFFFF);
                 frame = WriteSlotDword(frame, 0xBC, 0);
-                uint shape = NativeBattleWaterShapeSelection.ResolveB657E0(frame, resources, map, Operand());
+                uint shape = resolveShape(frame, Operand());
                 frame = WriteSlotDword(frame, 0xD8, shape);
                 frame = NativeBattleWaterParticleCommands.RegisterDrawB65320(frame, (instruction & 0x1FF) == 0x3C ? (byte)1 : (byte)(instruction >> 9));
                 frame = Advance(4);
@@ -46,7 +51,7 @@ public static class NativeBattleWaterRectangleCommands
                 }
                 frame = WriteSlotDword(frame, 0xCC, (BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xCC, 4)) & 0x02FFFFFF) | 0x2C000000);
                 uint sequence;
-                (frame, sequence) = NativeBattleWaterShapeSelection.SelectB66230(frame, resources, map, index);
+                (frame, sequence) = selectSequence(frame, index);
                 frame = WriteSlotDword(frame, 0xE4, frame.ReadTemporaryDword(0xFC));
                 frame = WriteSlotDword(frame, 0xD0, sequence);
                 frame = WriteSlotDword(frame, 0xD4, sequence);

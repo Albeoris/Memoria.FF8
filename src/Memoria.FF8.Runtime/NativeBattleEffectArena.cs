@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -10,6 +11,7 @@ public sealed record NativeBattleEffectUnknownRegion([property: JsonRequired] in
 /// <summary>571870's exactly cleared1MB arena at20DFAB8; unwritten bytes are proved zero, not unknown.</summary>
 public sealed record NativeBattleEffectArena([property: JsonRequired] ImmutableArray<NativeBattleEffectMemoryRegion> Regions)
 {
+    private static readonly ConditionalWeakTable<NativeBattleEffectArena, object> Validated = new();
     public const int Length = 0x100000;
     [JsonIgnore]
     internal NativeBattleEffectArenaTransaction? Transaction { get; init; }
@@ -19,6 +21,15 @@ public sealed record NativeBattleEffectArena([property: JsonRequired] ImmutableA
     public void Validate()
     {
         Transaction?.RequireActive();
+        _ = Validated.GetValue(this, static arena =>
+        {
+            arena.ValidateStorage();
+            return new object();
+        });
+    }
+
+    private void ValidateStorage()
+    {
         if (Regions.IsDefault || UnknownRegions.IsDefault)
         {
             throw new InvalidDataException("Native effect arena requires its explicit cleared memory owner.");
@@ -51,7 +62,7 @@ public sealed record NativeBattleEffectArena([property: JsonRequired] ImmutableA
         }
         Validate();
         RequireRange(offset, count);
-        if (count > 0 && UnknownRegions.Any(region => region.Offset < offset + count && region.Offset + region.Length > offset))
+        if (count > 0 && IntersectsUnknown(offset, count))
         {
             throw new NotSupportedException($"Native effect arena read intersects unresolved physical bytes at arena offset 0x{offset:X} for {count} bytes; unknown padding or pointer data cannot be substituted.");
         }
@@ -95,7 +106,7 @@ public sealed record NativeBattleEffectArena([property: JsonRequired] ImmutableA
         {
             afterRegion++;
         }
-        bool changesUnknown = UnknownRegions.Any(region => region.Offset < writeEnd && region.Offset + region.Length > offset);
+        bool changesUnknown = IntersectsUnknown(offset, bytes.Length);
         if (afterRegion == firstRegion + 1)
         {
             NativeBattleEffectMemoryRegion existing = Regions[firstRegion];
@@ -193,6 +204,26 @@ public sealed record NativeBattleEffectArena([property: JsonRequired] ImmutableA
         {
             throw new InvalidDataException("Native effect memory access exceeds20DFAB8..21DFAB8.");
         }
+    }
+
+    private bool IntersectsUnknown(int offset, int count)
+    {
+        int first = 0;
+        int after = UnknownRegions.Length;
+        while (first < after)
+        {
+            int middle = first + (after - first) / 2;
+            NativeBattleEffectUnknownRegion region = UnknownRegions[middle];
+            if (region.Offset + region.Length <= offset)
+            {
+                first = middle + 1;
+            }
+            else
+            {
+                after = middle;
+            }
+        }
+        return first < UnknownRegions.Length && UnknownRegions[first].Offset < offset + count;
     }
 
     private int FirstRegionEndingAt(int offset, bool includeAdjacent)

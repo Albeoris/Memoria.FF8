@@ -252,9 +252,9 @@ public sealed partial class GameAssets
                 binding = binding with { Choco100Resources = ReadNativeChoco100Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
-            if (binding.Effect == 201)
+            if (binding.Effect is 6 or 201 or 202 or 203 or 204 or 205 or 206)
             {
-                binding = binding with { ScriptedInitializationDirectories = ReadNativeIfritInitializationDirectories(), CinematicResources = ReadNativeIfritCinematicResources() };
+                binding = binding with { ScriptedInitializationDirectories = ReadNativeCinematicInitializationDirectories(binding.Effect), CinematicResources = ReadNativeCinematicResources(binding.Effect) };
                 catalog = catalog.SetItem(index, binding);
             }
             if (binding.Effect == 222)

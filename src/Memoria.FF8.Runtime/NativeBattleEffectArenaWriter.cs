@@ -27,6 +27,12 @@ internal sealed class NativeBattleEffectArenaWriter
         transaction = source.Transaction;
         source.Validate();
         this.source = source;
+        if (transaction is not null)
+        {
+            regions = [];
+            unknown = [];
+            return;
+        }
         regions = source.Regions.Select((region, index) => new Region(region.Offset, region.Data.Length, index)).ToList();
         unknown = source.UnknownRegions.ToList();
     }
@@ -56,22 +62,38 @@ internal sealed class NativeBattleEffectArenaWriter
             bytes.CopyTo(storage.AsSpan(offset));
         }
         int end = offset + bytes.Length;
-        int first = regions.FindIndex(region => region.End >= offset);
-        if (first < 0)
+        int first = 0;
+        int upper = regions.Count;
+        while (first < upper)
         {
-            first = regions.Count;
+            int middle = first + (upper - first) / 2;
+            if (regions[middle].End < offset)
+            {
+                first = middle + 1;
+            }
+            else
+            {
+                upper = middle;
+            }
         }
-        int after = first;
-        int mergedFirst = offset;
-        int mergedEnd = end;
-        while (after < regions.Count && regions[after].Offset <= end)
+        if (first < regions.Count && regions[first].Offset <= offset && regions[first].End >= end && (first + 1 == regions.Count || regions[first + 1].Offset > end))
         {
-            mergedFirst = Math.Min(mergedFirst, regions[after].Offset);
-            mergedEnd = Math.Max(mergedEnd, regions[after].End);
-            after++;
+            regions[first] = regions[first] with { SourceIndex = null };
         }
-        regions.RemoveRange(first, after - first);
-        regions.Insert(first, new(mergedFirst, mergedEnd - mergedFirst, null));
+        else
+        {
+            int after = first;
+            int mergedFirst = offset;
+            int mergedEnd = end;
+            while (after < regions.Count && regions[after].Offset <= end)
+            {
+                mergedFirst = Math.Min(mergedFirst, regions[after].Offset);
+                mergedEnd = Math.Max(mergedEnd, regions[after].End);
+                after++;
+            }
+            regions.RemoveRange(first, after - first);
+            regions.Insert(first, new(mergedFirst, mergedEnd - mergedFirst, null));
+        }
         for (int index = 0; index < unknown.Count;)
         {
             NativeBattleEffectUnknownRegion region = unknown[index];
@@ -187,7 +209,22 @@ internal sealed class NativeBattleEffectArenaWriter
     internal byte[] ReadThrough(int offset, int count)
     {
         RequireRange(offset, count);
-        if (count > 0 && unknown.Any(region => region.Offset < offset + count && region.Offset + region.Length > offset))
+        int first = 0;
+        int upper = unknown.Count;
+        while (first < upper)
+        {
+            int middle = first + (upper - first) / 2;
+            NativeBattleEffectUnknownRegion region = unknown[middle];
+            if (region.Offset + region.Length <= offset)
+            {
+                first = middle + 1;
+            }
+            else
+            {
+                upper = middle;
+            }
+        }
+        if (count > 0 && first < unknown.Count && unknown[first].Offset < offset + count)
         {
             throw new NotSupportedException($"Native effect arena read intersects unresolved physical bytes at arena offset 0x{offset:X} for {count} bytes; unknown padding or pointer data cannot be substituted.");
         }

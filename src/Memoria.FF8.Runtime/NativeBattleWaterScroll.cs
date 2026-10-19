@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -13,30 +12,16 @@ public static class NativeBattleWaterScroll
     public static NativeBattleWaterScrollStep DrawA9C140(INativeBattleScriptedTextureProfile profile, ImmutableArray<NativeBattleEffectHeapAllocation> currentFiles, NativeBattleWaterScrollPayload payload, short scroll96, byte counter43, Action<NativeBattleWaterRectangleWrite> submit)
     {
         NativeBattleWater222UploadPlan source = NativeBattleWater222TexturePair.Resolve(profile, currentFiles, payload.TextureId, false);
-        short width = source.Rectangle.Width;
-        short height = source.Rectangle.Height;
-        if (width <= 0 || height <= 0)
-        {
-            throw new NotSupportedException("Native Water scroll requires its actual positive source extent.");
-        }
-        int row = (int)scroll96 & (height - 1);
+        int row = NativeBattleCinematicScroll.ComputeRow(source.Rectangle, scroll96);
         ImmutableArray<NativeBattleWaterRectangleWrite>.Builder writes = ImmutableArray.CreateBuilder<NativeBattleWaterRectangleWrite>();
-        Emit(new(payload.DestinationX, payload.DestinationY, width, unchecked((short)(height - row))), checked(source.Offset + unchecked(width * row * 2)));
-        if (row != 0)
-        {
-            Emit(new(payload.DestinationX, unchecked((short)(payload.DestinationY + height - row)), width, unchecked((short)row)), source.Offset);
-        }
+        NativeBattleCinematicScroll.EmitGeometry(source.Rectangle, payload, checked((uint)source.Offset), row, (rectangle, address) => Emit(rectangle, checked((int)address)));
         return new(counter43, writes.ToImmutable());
 
         void Emit(NativeBattleEffectTextureRectangle rectangle, int offset)
         {
             int index = counter43 & 15;
             counter43 = unchecked((byte)(counter43 + 1));
-            byte[] bytes = new byte[8];
-            BinaryPrimitives.WriteInt16LittleEndian(bytes, rectangle.X);
-            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(2), rectangle.Y);
-            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(4), rectangle.Width);
-            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(6), rectangle.Height);
+            byte[] bytes = NativeBattleCinematicScroll.EncodeRectangle(rectangle);
             NativeBattleWaterRectangleWrite write = new(index, counter43, bytes.ToImmutableArray(), new(source.SourceIndex, offset, rectangle));
             submit(write);
             writes.Add(write);

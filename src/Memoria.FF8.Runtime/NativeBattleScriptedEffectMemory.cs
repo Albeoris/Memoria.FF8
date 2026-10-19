@@ -27,6 +27,12 @@ public sealed record NativeBattleScriptedEffectMemory([property: JsonRequired] N
         return Core.Read(Offset(address, length), length);
     }
 
+    public (byte[] Bytes, bool[] Known) ReadSnapshot(uint address, int length)
+    {
+        Validate();
+        return Snapshot(Offset(address, length), length);
+    }
+
     public NativeBattleScriptedEffectMemory Write(uint address, ReadOnlySpan<byte> bytes)
     {
         Validate();

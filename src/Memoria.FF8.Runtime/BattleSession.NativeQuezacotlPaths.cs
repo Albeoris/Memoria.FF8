@@ -15,7 +15,9 @@ public sealed partial class BattleSession
             return graphics;
         }
         using NativeBattleEffectArenaTransaction transaction = new(memory.Arena ?? throw new NotSupportedException("Native secondary pool requires its retained arena."));
+        using NativeBattleLogicalOrderingTransaction ordering = new((graphics.PrimitiveFrame ?? throw new NotSupportedException("Native secondary pool requires its retained ordering frame.")).Pending);
         memory = memory with { Arena = transaction.View };
+        graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.View } };
         NativeBattleEffectMemory committedMemory = memory;
         NativeBattleGraphicsState committedGraphics = graphics;
         bool checkpointActive = false;
@@ -26,6 +28,7 @@ public sealed partial class BattleSession
             NativeBattleEffectTaskStep stepped = before.Advance((current, index) =>
             {
                 transaction.BeginCheckpoint();
+                ordering.BeginCheckpoint();
                 checkpointActive = true;
                 if (current.Slots[index].Callback != 0x6C7800)
                 {
@@ -39,12 +42,14 @@ public sealed partial class BattleSession
                 outlineDirection = path.FinalOutlineDirectionDword;
                 graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = path.Ordering } };
                 transaction.CommitCheckpoint();
+                ordering.CommitCheckpoint();
                 checkpointActive = false;
                 committedMemory = memory;
                 committedGraphics = graphics;
                 return new(path.Pool, path.Returned);
             });
             transaction.BeginCheckpoint();
+            ordering.BeginCheckpoint();
             checkpointActive = true;
             NativeBattleEffectTaskPool pool = stepped.Pool;
             for (int index = 0; index < pool.Slots.Length; index++)
@@ -65,14 +70,15 @@ public sealed partial class BattleSession
             effect = effect with { Pools = effect.Pools.Select(existing => existing.DescriptorAddress == pool.DescriptorAddress ? pool : existing).ToImmutableArray() };
             graphics = graphics with { OriginalEffect = effect };
             transaction.CommitCheckpoint();
+            ordering.CommitCheckpoint();
             checkpointActive = false;
-            return graphics;
         }
         catch
         {
             if (checkpointActive)
             {
                 transaction.RollbackCheckpoint();
+                ordering.RollbackCheckpoint();
             }
             memory = committedMemory;
             graphics = committedGraphics;
@@ -81,7 +87,9 @@ public sealed partial class BattleSession
         finally
         {
             NativeEffectMemory = memory with { Arena = transaction.Freeze() };
+            graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.Freeze() } };
             NativeGraphics = graphics;
         }
+        return graphics;
     }
 }

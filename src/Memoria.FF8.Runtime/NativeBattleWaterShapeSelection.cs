@@ -5,6 +5,22 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleWaterShapeSelection
 {
+    public static (uint Directory, uint Selected) ResolveCinematic(NativeBattleWaterExecutionFrame frame, INativeBattleScriptedTextureProfile profile, short index)
+    {
+        uint manager = CoreDword(frame, 0x27973EC);
+        uint map = unchecked(profile.InitializationAddress + profile.InitializationOffset(0x10));
+        if (CoreDword(frame, manager + 0xAC) != map)
+        {
+            throw new NotSupportedException("Native cinematic shape selection leaves its authenticated current mapping owner.");
+        }
+        byte source = profile.ReadStatic(unchecked(map + (uint)index), 1)[0];
+        uint basis = CoreDword(frame, unchecked(0x2798A68u + (uint)(4 * source)));
+        uint directory = unchecked(basis + Dword(unchecked(basis + 12)));
+        return (directory, unchecked(directory + Dword(unchecked(directory + 4u + (uint)(4 * index)))));
+
+        uint Dword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(address, 4), 4));
+    }
+
     public static uint ResolveB657E0(NativeBattleWaterExecutionFrame frame, NativeBattleWater222Resources resources, NativeBattleEffectHeapAllocation map, short index) => Resolve(frame, resources, map, index).Selected;
 
     public static (NativeBattleWaterExecutionFrame Frame, uint Address) SelectB66230(NativeBattleWaterExecutionFrame frame, NativeBattleWater222Resources resources, NativeBattleEffectHeapAllocation map, short index)

@@ -9,10 +9,15 @@ public static class NativeBattleCinematicFilesReader
 {
     public static ImmutableArray<NativeBattleArchiveFile> ReadIfrit(byte[] executable, Func<string, ImmutableArray<byte>> readBattleFile)
     {
+        return Read(executable, NativeBattleCinematicProfile.ForEffect(201), readBattleFile);
+    }
+
+    public static ImmutableArray<NativeBattleArchiveFile> Read(byte[] executable, NativeBattleCinematicProfile profile, Func<string, ImmutableArray<byte>> readBattleFile)
+    {
         ArgumentNullException.ThrowIfNull(readBattleFile);
         NativeExecutableMemory memory = new(executable);
         ImmutableArray<NativeBattleArchiveFile>.Builder files = ImmutableArray.CreateBuilder<NativeBattleArchiveFile>();
-        foreach (ushort id in Enumerable.Range(0x233, 13).Concat(Enumerable.Range(0x16B, 3)).Select(id => checked((ushort)id)))
+        foreach (ushort id in Enumerable.Range(profile.SourceBase, profile.LastSource - profile.SourceBase + 1).Concat(Enumerable.Range(0x16B, 3)).Distinct().Select(id => checked((ushort)id)))
         {
             uint address = BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(checked(0xB84CCCu + 4u * id), 4));
             byte[] nameBytes = memory.Read(address, 128);

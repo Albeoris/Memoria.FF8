@@ -8,6 +8,9 @@ public sealed record NativeBattleCommonPacketMemory([property: JsonRequired] Nat
 /// <summary>Four unique half-slices of the two native common packet owners; observing a write never proves any other byte zero.</summary>
 public sealed partial record NativeBattlePrimitiveProcess
 {
+    [JsonIgnore]
+    internal NativeBattleCommonPacketTransaction? CommonTransaction { get; init; }
+
     public NativeBattleCommonPacketMemory? CommonPacketMemory { get; init; }
 
     [JsonIgnore]
@@ -50,6 +53,11 @@ public sealed partial record NativeBattlePrimitiveProcess
 
     public NativeBattlePrimitiveProcess MarkCommonUnknown(int offset, int length)
     {
+        if (CommonTransaction is { } transaction)
+        {
+            transaction.MarkUnknown(offset, length);
+            return this;
+        }
         ValidateCommonPacketMemory();
         ImmutableArray<CommonSlice> slices = CommonSlices(offset, length);
         NativeBattlePrimitiveProcess result = this;
@@ -64,6 +72,10 @@ public sealed partial record NativeBattlePrimitiveProcess
 
     public byte[] ReadCommonPacket(int offset, int count)
     {
+        if (CommonTransaction is { } transaction)
+        {
+            return transaction.Read(offset, count);
+        }
         ValidateCommonPacketMemory();
         ImmutableArray<CommonSlice> slices = CommonSlices(offset, count);
         byte[] result = new byte[count];

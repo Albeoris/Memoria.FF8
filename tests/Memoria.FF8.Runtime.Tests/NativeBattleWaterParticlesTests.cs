@@ -75,31 +75,129 @@ public sealed class NativeBattleWaterParticlesTests
         Assert.Equal((ushort)0x7F80, Word(One(Fixture(0x11)), 0x34));
     }
 
-    [Fact]
-    public void ResourceSelectionReadsCurrentMapDirectorySequenceAndSlotTick()
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(1, 0)]
+    [InlineData(2, 99)]
+    [InlineData(7, 100)]
+    [InlineData(255, 107)]
+    public void ResourceSelectionReadsCurrentMapDirectorySequenceAndSlotTick(int index, byte resourceIndex)
     {
-        NativeBattleWaterExecutionFrame frame = Fixture(0x0107);
+        NativeBattleWaterExecutionFrame frame = Fixture((ushort)((index << 8) | 7));
         frame = WaterSchedulerFixture.CoreDword(frame, 0x279773C, 0x30000000);
-        frame = WaterSchedulerFixture.CoreDword(frame, 0x2798A68, Address(0x6000));
+        frame = WaterSchedulerFixture.CoreDword(frame, 0x2798A68 + 4u * resourceIndex, Address(0x6000));
         frame = ArenaDword(frame, 0x600C, 0x20);
-        frame = ArenaDword(frame, 0x6028, 0x18);
-        frame = ArenaDword(frame, 0x6038, 0x80);
+        frame = ArenaDword(frame, 0x6024 + 4 * index, 0x800);
+        frame = ArenaDword(frame, 0x6820, 0x80);
         int reads = 0;
         NativeBattleWaterParticleServices services = Services() with { ReadMetadata = (_, address, length) =>
         {
             reads++;
-            Assert.Equal(0x30000001u, address);
+            Assert.Equal(0x30000000u + (uint)index, address);
             Assert.Equal(1, length);
-            return new byte[] { 0 };
+            return new byte[] { resourceIndex };
         } };
         NativeBattleWaterExecutionFrame result = One(frame, services);
         Assert.Equal(1, reads);
-        Assert.Equal(Address(0x6038), Dword(result, 8));
-        Assert.Equal(Address(0x6038), Dword(result, 0xC));
+        Assert.Equal(Address(0x6820), Dword(result, 8));
+        Assert.Equal(Address(0x6820), Dword(result, 0xC));
         Assert.Equal(Address(0x6020), Dword(result, 0x4C));
         Assert.Equal(Address(0x60A0), Dword(result, 0x30));
         Assert.Equal((ushort)5, Word(result, 0x34));
         Assert.Equal(Address(0x6020), result.ReadTemporaryDword(0xFC));
+        Assert.Equal((byte)0, result.Arena.Read(Particle + 0x4A, 1)[0]);
+        Assert.Equal(0x1002u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(One(restored, services)));
+    }
+
+    [Theory]
+    [InlineData(0xFF02, -32768)]
+    [InlineData(0x0002, -2)]
+    [InlineData(0x7F02, 0)]
+    [InlineData(0x8002, 32767)]
+    public void JumpUsesSignedDisplacementFromOpcodeAddressWithoutYieldOrParticleReads(ushort instruction, short displacement)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(instruction, unchecked((ushort)displacement));
+        frame = frame with { Arena = frame.Arena.MarkUnknown(Particle, 0x50) };
+        frame = frame.WriteTemporaryWord(0x13E, 0x5A5A);
+        NativeBattleWaterExecutionFrame result = One(frame);
+        Assert.Equal(unchecked(0x1000u + (uint)displacement), WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+        Assert.Equal((ushort)0x5A5A, result.ReadTemporaryWord(0x13E));
+        Assert.Equal(JsonSerializer.Serialize(frame.Arena), JsonSerializer.Serialize(result.Arena));
+        Assert.Equal(frame.Random, result.Random);
+    }
+
+    [Fact]
+    public void JumpExecutesTargetUntilRealYieldAndBackwardJumpResumesAfterRestore()
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(2, 6, 0xFFFF, 0x0101, 2, unchecked((ushort)-8));
+        NativeBattleWaterExecutionFrame yielded = Advance(frame);
+        Assert.Equal(0x1008u, Dword(yielded, 4));
+        Assert.Equal((ushort)125, Word(yielded, 2));
+        yielded = PutWord(yielded, 2, 0);
+        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(yielded))!;
+        NativeBattleWaterExecutionFrame next = Advance(restored);
+        Assert.Equal(0x1008u, Dword(next, 4));
+        Assert.Equal((ushort)125, Word(next, 2));
+        Assert.Equal(JsonSerializer.Serialize(Advance(yielded)), JsonSerializer.Serialize(next));
+        Assert.Throws<NotSupportedException>(() => NativeBattleWaterParticles.AdvanceType6(Fixture(2, 0), new(0x1000, 4, 0x1000), Bank, Services(), 3));
+    }
+
+    [Fact]
+    public void ResourceSelectionDefersToCurrentCorePhysicalOwnerBounds()
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0xFF07);
+        frame = WaterSchedulerFixture.CoreDword(frame, 0x279773C, 0x30000000);
+        NativeBattleWaterParticleServices services = Services() with { ReadMetadata = (_, _, _) => new byte[] { 255 } };
+        Assert.Throws<InvalidDataException>(() => One(frame, services));
+    }
+
+    [Fact]
+    public void HighSequenceAndTextureIndicesYieldThenResumeFromRetainedState()
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0xFF07, 0xFF13, 0x0101);
+        frame = WaterSchedulerFixture.CoreDword(frame, 0x279773C, 0x30000000);
+        frame = WaterSchedulerFixture.CoreDword(frame, 0x2798A68, Address(0x6000));
+        frame = ArenaDword(frame, 0x600C, 0x20);
+        frame = ArenaDword(frame, 0x6420, 0x800);
+        frame = ArenaDword(frame, 0x6820, 0x80);
+        frame = frame with { Arena = frame.Arena.Write(0x6824, new byte[] { 0x80, 0, 2 }) };
+        int draws = 0;
+        NativeBattleWaterParticleServices services = Services() with
+        {
+            ReadMetadata = (_, address, length) =>
+            {
+                Assert.Equal(0x300000FFu, address);
+                Assert.Equal(1, length);
+                return new byte[] { 0 };
+            },
+            PrepareTexturePage = (current, index) =>
+            {
+                Assert.Equal(255, index);
+                return current.WriteTemporaryDword(0xFC, 0x12345678);
+            },
+            ReadClut = (_, index) =>
+            {
+                Assert.Equal(255, index);
+                return 0xABCD;
+            },
+            DrawRectangles = (current, _) =>
+            {
+                draws++;
+                Assert.Equal(Address(0x60A0), current.ReadTemporaryDword(0x90));
+                return current;
+            }
+        };
+        NativeBattleWaterExecutionFrame yielded = Advance(frame, services);
+        Assert.Equal(1, draws);
+        Assert.Equal(0x1006u, Dword(yielded, 4));
+        Assert.Equal((ushort)125, Word(yielded, 2));
+        Assert.Equal((ushort)0x5678, Word(yielded, 0x40));
+        Assert.Equal((ushort)0xABCD, Word(yielded, 0x48));
+        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(yielded))!;
+        Assert.Equal(JsonSerializer.Serialize(Advance(yielded, services)), JsonSerializer.Serialize(Advance(restored, services)));
+        Assert.Equal(3, draws);
     }
 
     [Fact]
@@ -162,26 +260,31 @@ public sealed class NativeBattleWaterParticlesTests
         Assert.Equal(WaterSchedulerFixture.ReadCoreDword(frame, 0x27973E8), WaterSchedulerFixture.ReadCoreDword(result, 0x27973E8));
     }
 
-    [Fact]
-    public void TextureInstructionPreservesGetterAndStoreOrder()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(7)]
+    [InlineData(255)]
+    public void TextureInstructionPreservesGetterAndStoreOrder(int selectedIndex)
     {
         List<string> order = [];
         NativeBattleWaterParticleServices services = Services() with
         {
             PrepareTexturePage = (frame, index) =>
             {
-                Assert.Equal(1, index);
+                Assert.Equal(selectedIndex, index);
                 order.Add("page");
                 return frame.WriteTemporaryDword(0xFC, 0x5678).WriteTemporaryDword(0xF8, 0);
             },
             ReadClut = (frame, index) =>
             {
+                Assert.Equal(selectedIndex, index);
                 Assert.Equal((ushort)0x5678, Word(frame, 0x40));
                 order.Add("clut");
                 return 0xABCD;
             }
         };
-        NativeBattleWaterExecutionFrame result = One(Fixture(0x0113), services);
+        NativeBattleWaterExecutionFrame result = One(Fixture((ushort)((selectedIndex << 8) | 0x13)), services);
         Assert.Equal(new[] { "page", "clut" }, order);
         Assert.Equal((ushort)0xABCD, Word(result, 0x48));
     }
@@ -289,12 +392,17 @@ public sealed class NativeBattleWaterParticlesTests
         frame = PutWord(frame, 0x34, 0x7FFF);
         frame = frame with { Arena = frame.Arena.MarkUnknown(0x6000, 8) };
         Assert.Equal((ushort)0xFFFF, Word(Advance(frame), 0x34));
-        Assert.Throws<NotSupportedException>(() => One(Fixture(2)));
         Assert.Throws<NotSupportedException>(() => One(Fixture(0x0304)));
-        Assert.Throws<NotSupportedException>(() => One(Fixture(0x0207)));
         NativeBattleWaterExecutionFrame unsupportedPlacement = Fixture(0x0101);
         unsupportedPlacement = unsupportedPlacement with { Arena = unsupportedPlacement.Arena.Write(Particle + 0x37, new byte[] { 2 }) };
-        Assert.Throws<NotSupportedException>(() => Advance(unsupportedPlacement));
+        NotSupportedException placement = Assert.Throws<NotSupportedException>(() => Advance(unsupportedPlacement));
+        Assert.Contains("placement mode 2", placement.Message);
+        Assert.Contains("PC 0x00001002", placement.Message);
+        Assert.Contains("raw instruction 0x0101", placement.Message);
+        NotSupportedException instruction = Assert.Throws<NotSupportedException>(() => One(Fixture(0xAB03)));
+        Assert.Contains("0xAB03", instruction.Message);
+        Assert.Contains("index 171", instruction.Message);
+        Assert.Contains("PC 0x00001000", instruction.Message);
         Assert.Throws<NotSupportedException>(() => NativeBattleWaterParticles.AdvanceType6(Fixture(1, 1, 0x0101), new(0x1000, 6, 0x1000), Bank, Services(), 2));
     }
 

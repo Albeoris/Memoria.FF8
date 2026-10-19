@@ -104,7 +104,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         {
             throw new NotSupportedException("Native primitive page is outside the admitted packet WORD domain.");
         }
-        return mode with { TexturePage = (ushort)page };
+        return mode.TexturePage == (ushort)page ? mode : mode with { TexturePage = (ushort)page };
     }
 
     public NativeBattleLogicalResolvedCommand RetainTexturePixels(NativeBattleLogicalResolvedCommand command)

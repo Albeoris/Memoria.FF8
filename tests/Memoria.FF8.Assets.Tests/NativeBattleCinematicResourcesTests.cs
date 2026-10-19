@@ -5,6 +5,42 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeBattleCinematicResourcesTests
 {
+    [Theory]
+    [InlineData(6)]
+    [InlineData(201)]
+    [InlineData(202)]
+    [InlineData(203)]
+    [InlineData(204)]
+    [InlineData(205)]
+    [InlineData(206)]
+    public void Each_cinematic_profile_reads_its_original_directories_and_complete_dispatch_tables(int effect)
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        byte[] executable = File.ReadAllBytes(Path.Combine(TestResources.GameDirectory, "FF8_EN.exe"));
+        NativeExecutableMemory original = new(executable);
+        NativeBattleCinematicProfile profile = NativeBattleCinematicProfile.ForEffect(effect);
+        NativeBattleEffectBinding binding = assets.ReadNativeEffectCatalogForEffects([checked((ushort)effect)])[effect - 1];
+        Assert.Equal(profile.Entry, binding.Entry);
+        Assert.Equal(profile.Initializer, binding.Initializer);
+        NativeBattleEffectInitializerAsset file = binding.InitializerAssets!.Value[0];
+        Assert.Equal(profile.InitialFile, file.Name);
+        NativeBattleCinematicResources resources = NativeBattleCinematicResourcesReader.Read(executable, file.Data, profile);
+        resources.Validate();
+        Assert.Equal(original.Read(profile.BoneTable, profile.BoneCount * 4), resources.ReadStatic(profile.BoneTable, profile.BoneCount * 4).ToArray());
+        Assert.Equal(original.Read(profile.PrimitiveTable, 60 * 4), resources.ReadStatic(profile.PrimitiveTable, 60 * 4).ToArray());
+        Assert.Equal(original.Read(profile.PrimitiveSizes, 20), resources.ReadStatic(profile.PrimitiveSizes, 20).ToArray());
+        Assert.Equal(original.Read(profile.DrawTable, 73 * 4), resources.ReadStatic(profile.DrawTable, 73 * 4).ToArray());
+        Assert.Equal(original.Read(profile.InstructionTable, 0x147 * 4), resources.ReadStatic(profile.InstructionTable, 0x147 * 4).ToArray());
+        Assert.Equal(original.Read(profile.InitializationAddress, 0x20), resources.ReadStatic(profile.InitializationAddress, 0x20).ToArray());
+        NativeBattleScriptedInitializationDirectories directories = assets.ReadNativeCinematicInitializationDirectories(effect);
+        Assert.Equal(original.Read(profile.InitializationAddress, 0x1C), directories.InitializationDirectory.Data.ToArray());
+        Assert.Equal(original.Read(profile.OwnerDirectoryAddress, 0x14), directories.OwnerDirectory.Data.ToArray());
+        NativeBattleCinematicResources complete = assets.ReadNativeCinematicResources(effect);
+        Assert.Same(complete, assets.ReadNativeCinematicResources(effect));
+        Assert.Equal(resources.StaticData.Data, complete.StaticData.Data);
+        Assert.All(Enumerable.Range(profile.SourceBase, profile.LastSource - profile.SourceBase + 1), id => Assert.Single(complete.Files, file => file.FileId == id));
+    }
+
     [Fact]
     public void Original_Ifrit_static_owner_supplies_all_twenty_three_texture_rows_and_the_full_IO_descriptor()
     {

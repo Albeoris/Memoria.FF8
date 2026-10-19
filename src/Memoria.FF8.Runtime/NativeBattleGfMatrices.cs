@@ -60,6 +60,22 @@ public static class NativeBattleGfMatrices
         return matrix with { Rotation = Multiply56C090(axis, matrix).Rotation };
     }
 
+    public static NativeBattleActionMatrix RotateX56CFB0(NativeBattleActionMatrix matrix, int angle)
+    {
+        short sine = unchecked((short)NativeBattleCameraMath.Sine(angle));
+        short cosine = unchecked((short)NativeBattleCameraMath.Cosine(angle));
+        NativeBattleActionMatrix axis = new([4096, 0, 0, 0, cosine, unchecked((short)-sine), 0, sine, cosine], 0, 0, 0, 4096);
+        return matrix with { Rotation = Multiply56C090(axis, matrix).Rotation };
+    }
+
+    public static NativeBattleActionMatrix RotateZ56D090(NativeBattleActionMatrix matrix, int angle)
+    {
+        short sine = unchecked((short)NativeBattleCameraMath.Sine(angle));
+        short cosine = unchecked((short)NativeBattleCameraMath.Cosine(angle));
+        NativeBattleActionMatrix axis = new([cosine, unchecked((short)-sine), 0, sine, cosine, 0, 0, 0, 4096], 0, 0, 0, 4096);
+        return matrix with { Rotation = Multiply56C090(axis, matrix).Rotation };
+    }
+
     private static (NativeBattleActionMatrix X, NativeBattleActionMatrix Y, NativeBattleActionMatrix Z) AxisMatrices(NativeBattleVector angles, bool native56CD50 = false)
     {
         short sx = unchecked((short)NativeBattleCameraMath.Sine(angles.X));

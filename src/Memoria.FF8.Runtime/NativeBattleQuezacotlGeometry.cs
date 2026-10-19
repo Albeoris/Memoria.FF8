@@ -72,6 +72,7 @@ public static class NativeBattleQuezacotlGeometry
         {
             NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native6C6060 morph requires its actual effect arena scratch.");
             ImmutableArray<NativeBattleVector> positions = NativeBattleGfMorphGeometry.MorphVertices701390(source, geometry, first, second, ratio);
+            NativeBattleEffectArenaWriter morph = new(arena);
             for (int index = 0; index < positions.Length; index++)
             {
                 NativeBattleVector position = positions[index];
@@ -79,8 +80,9 @@ public static class NativeBattleQuezacotlGeometry
                 BinaryPrimitives.WriteInt16LittleEndian(raw, position.X);
                 BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(2), position.Y);
                 BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(4), position.Z);
-                arena = arena.Write(checked(0x8D0 + index * 8), raw);
+                morph.Write(checked(0x8D0 + index * 8), raw);
             }
+            arena = morph.Freeze();
             vertices = default;
             NativeBattleEffectArena actualScratch = arena;
             readMorphedVertex = offset =>

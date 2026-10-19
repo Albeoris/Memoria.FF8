@@ -5,6 +5,22 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffectArenaWriterTests
 {
     [Fact]
+    public void Contained_stores_retain_fragmented_layout_and_stores_at_adjacent_boundaries_still_merge()
+    {
+        NativeBattleEffectArena source = new([new(0, [1, 2]), new(2, [3, 4]), new(100, [5, 6, 7, 8]), new(200, [9])]) { UnknownRegions = [new(101, 2)] };
+        NativeBattleEffectArena scalar = source;
+        NativeBattleEffectArenaWriter writer = new(source);
+        foreach (int offset in new[] { 101, 102, 100, 1, 2, 200 })
+        {
+            scalar = scalar.Write(offset, [17]);
+            writer.Write(offset, [17]);
+            Assert.Equal(JsonSerializer.Serialize(scalar), JsonSerializer.Serialize(writer.Freeze()));
+        }
+        Assert.Equal(4, source.Regions.Length);
+        Assert.Equal(new byte[] { 5, 6, 7, 8 }, source.Regions[2].Data.ToArray());
+    }
+
+    [Fact]
     public void Ordered_packet_stores_match_scalar_arena_bytes_region_layout_and_unknown_spans()
     {
         Random random = new(5731);

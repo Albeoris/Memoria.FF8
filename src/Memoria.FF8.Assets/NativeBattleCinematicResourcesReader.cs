@@ -9,6 +9,11 @@ public static class NativeBattleCinematicResourcesReader
 {
     public static NativeBattleCinematicResources ReadIfrit(byte[] executable, ImmutableArray<byte> initialFile0)
     {
+        return Read(executable, initialFile0, NativeBattleCinematicProfile.ForEffect(201));
+    }
+
+    public static NativeBattleCinematicResources Read(byte[] executable, ImmutableArray<byte> initialFile0, NativeBattleCinematicProfile profile)
+    {
         NativeExecutableMemory memory = new(executable);
         if (initialFile0.IsDefault || initialFile0.Length < 0x28)
         {
@@ -60,7 +65,8 @@ public static class NativeBattleCinematicResourcesReader
         }
         NativeVibrationBank vibration = new(Convert.ToHexString(SHA256.HashData(initialFile0.AsSpan())), offsets.MoveToImmutable(), vibrationBytes.ToArray().ToImmutableArray());
         vibration.Validate();
-        NativeBattleCinematicResources result = new(0x1874894, new("cinematic-static", memory.Read(0x1874894, 0xB98).ToImmutableArray()), new(23, 0x1874894, 0x1874B58, 0x18748B4, 0x187496C, 0x1874A24, 0x1874A3C), vibration);
+        uint[] descriptor = Enumerable.Range(0, 4).Select(index => checked(profile.InitializationAddress + BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(profile.InitializationAddress + (uint)(index * 4), 4)))).ToArray();
+        NativeBattleCinematicResources result = new(profile.InitializationAddress, new("cinematic-static", memory.Read(profile.InitializationAddress, profile.StaticLength).ToImmutableArray()), new(profile.TextureCount, profile.InitializationAddress, profile.OwnerDirectoryAddress, descriptor[0], descriptor[1], descriptor[2], descriptor[3]), vibration);
         result.Validate();
         return result;
     }

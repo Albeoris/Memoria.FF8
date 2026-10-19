@@ -132,18 +132,59 @@ public sealed class NativeBattleWaterMatrixCommandTests
     }
 
     [Fact]
-    public void UnsupportedOrderFailsBeforeReadingUnknownEulerAndNextCommandSurvivesJson()
+    public void NonzeroOrderConsumesItsBasisEulerAndNextCommandSurvivesJson()
     {
         NativeBattleWaterExecutionFrame frame = Nested();
         frame = frame with { Arena = frame.Arena.Write(0x1004, new byte[] { 1, 0 }).MarkUnknown(0x228C, 6) };
-        NotSupportedException error = Assert.Throws<NotSupportedException>(() => Run(frame));
-        Assert.Contains("rotation order zero", error.Message);
-        Assert.Throws<NotSupportedException>(() => Run(Fixture(0x1067), 2));
+        Assert.Throws<NotSupportedException>(() => Run(frame));
         frame = Nested();
         frame = frame with { Arena = frame.Arena.Write(0x1006, new byte[] { 0x63, 0, 0xFF, 0xFF, 0, 0 }) };
         frame = Run(frame, 12);
         NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
         Assert.Equal(JsonSerializer.Serialize(Run(frame, 12)), JsonSerializer.Serialize(Run(restored, 12)));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(15)]
+    [InlineData(-1)]
+    public void NonzeroRotationModesPreserveSeedTailAndNativeAxisScratch(int mode)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(unchecked((ushort)((mode << 12) | 0x67)));
+        NativeBattleActionMatrix seed = NativeBattleGfMatrices.Euler56CD50(new(0, 0, 0));
+        frame = WriteMatrix(frame, 0x2797968, seed with { X = 0x12345678 });
+        frame = frame with { Core = frame.Core.MarkUnknown(0x279797A, 2) };
+        NativeBattleVector angles = new(256, -513, 777);
+        NativeBattleActionMatrix x = NativeBattleGfMatrices.RotateX56CFB0(seed, angles.X);
+        NativeBattleActionMatrix y = NativeBattleGfMatrices.RotateY56D020(seed, angles.Y);
+        NativeBattleActionMatrix z = NativeBattleGfMatrices.RotateZ56D090(seed, angles.Z);
+        NativeBattleActionMatrix expected = mode switch
+        {
+            1 => NativeBattleGfMatrices.Multiply56C090(NativeBattleGfMatrices.Multiply56C090(z, x), y),
+            2 => NativeBattleGfMatrices.Multiply56C090(NativeBattleGfMatrices.Multiply56C090(x, z), y),
+            3 => NativeBattleGfMatrices.Euler56CE30(angles),
+            _ => z
+        };
+        var result = NativeBattleWaterMatrixCommands.BuildRotationB65590(frame, angles, mode);
+        Assert.Equal(expected.Rotation, result.Matrix.Rotation);
+        foreach (int offset in new[] { 0xA0, 0xC0, 0xE0 })
+        {
+            Assert.False(result.Frame.TemporaryFrame.Known[offset + 18]);
+            Assert.False(result.Frame.TemporaryFrame.Known[offset + 19]);
+            Assert.Equal(0x12345678u, result.Frame.ReadTemporaryDword(offset + 20));
+            Assert.Equal(frame.TemporaryFrame.Bytes.Skip(offset + 24).Take(8), result.Frame.TemporaryFrame.Bytes.Skip(offset + 24).Take(8));
+        }
+        NativeBattleActionMatrix expectedX = mode == 1 ? NativeBattleGfMatrices.Multiply56C090(z, x) : x;
+        for (int lane = 0; lane < 9; lane++)
+        {
+            Assert.Equal(unchecked((ushort)expectedX.Rotation[lane]), result.Frame.ReadTemporaryWord(0xA0 + lane * 2));
+            Assert.Equal(unchecked((ushort)y.Rotation[lane]), result.Frame.ReadTemporaryWord(0xC0 + lane * 2));
+            Assert.Equal(unchecked((ushort)expected.Rotation[lane]), result.Frame.ReadTemporaryWord(0xE0 + lane * 2));
+        }
+        Assert.Throws<NotSupportedException>(() => frame.Core.Read(0x279797A, 2));
     }
 
     private static NativeBattleWaterExecutionFrame Nested()

@@ -6,6 +6,25 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffectArenaTests
 {
     [Fact]
+    public void Successful_validation_keeps_record_equality_and_rejects_invalid_clones_independently()
+    {
+        NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(10, [1, 2, 3]);
+        NativeBattleEffectArena equal = source with { };
+        int hash = source.GetHashCode();
+        string serialized = JsonSerializer.Serialize(source);
+        source.Validate();
+        source.Validate();
+        Assert.Equal(equal, source);
+        Assert.Equal(hash, source.GetHashCode());
+        Assert.Equal(serialized, JsonSerializer.Serialize(source));
+        NativeBattleEffectArena invalid = source with { Regions = [new(-1, [1])] };
+        Assert.Throws<InvalidDataException>(() => invalid.Validate());
+        Assert.Throws<InvalidDataException>(() => invalid.Validate());
+        NativeBattleEffectArena unknown = source with { UnknownRegions = [new(10, 1), new(11, 1)] };
+        Assert.Throws<InvalidDataException>(() => unknown.Read(0, 1));
+    }
+
+    [Fact]
     public void OriginalClearProvesAllUnwrittenBytesZeroAndOverlappingWritesKeepOneOwner()
     {
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear();
