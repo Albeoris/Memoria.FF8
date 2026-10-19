@@ -16,7 +16,7 @@ The script publishes a self-contained x64 launcher and engine, plus the x86 Dire
 | --- | --- |
 | `artifacts/package/Memoria.Launcher.exe` | Start the local packaged application. |
 | `artifacts/package/Data/` | Engine, runtimes, audio host and distribution notices. |
-| `artifacts/package/Mods/` | Empty `Tonberry/`, `Demaster/` and `Junction/` directories for user-installed mods. |
+| `artifacts/package/Mods/` | Empty `Tonberry/`, `Demaster/` and `Junction/` directories, plus the bundled native `Memoria/Fix_CidUnpixelated` package. |
 | `artifacts/Memoria-FF8-win-x64.zip` | The distributable archive; its root contains the launcher, `Data/` and `Mods/`. |
 
 `Build.ps1` replaces its generated package directory on a successful build. Keep personal saves, mod packages and independently installed tools outside disposable build outputs, or preserve them before rebuilding.
@@ -32,6 +32,8 @@ dotnet build Memoria.FF8.slnx -c Release
 ```
 
 The required Albeoris.Frameworks source closure is included in [vendor/Albeoris.Frameworks](../../vendor/Albeoris.Frameworks/README.md), with its license, upstream revision and retained changes. No sibling checkout or submodule is needed. NuGet versions are centralized in [Directory.Packages.props](../../Directory.Packages.props).
+
+Ordinary builds copy missing bundled native mod files beside the app and launcher without overwriting existing files. Edit source packages under `Mods/Memoria` to change future distributions; preserve or remove an output copy explicitly when testing changed defaults.
 
 Ordinary builds use the checked-in compiled title shader. Shader regeneration and artwork preparation are component authoring tasks; see [Rendering](rendering.md) and the linked component READMEs.
 

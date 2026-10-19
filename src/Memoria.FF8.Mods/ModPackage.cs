@@ -4,7 +4,8 @@ public enum ModFormat
 {
     Tonberry,
     Demaster,
-    Junction
+    Junction,
+    Memoria
 }
 
 public enum ModEffectiveStatus

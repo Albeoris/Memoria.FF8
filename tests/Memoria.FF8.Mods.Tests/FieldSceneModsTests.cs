@@ -1,0 +1,92 @@
+using System.Text;
+
+namespace Memoria.FF8.Mods.Tests;
+
+public sealed class FieldSceneModsTests
+{
+    private const string Valid = """
+        {"schemaVersion":1,"fieldId":175,"fieldName":"bghall_6","backgrounds":[{"layer":0,"moduleId":5,"state":0,"visible":false}],"actors":[{"objectId":8,"model":{"fieldId":175,"modelId":9},"animationId":1,"when":{"moduleId":5,"state":0}}]}
+        """;
+
+    [Fact]
+    public void ReadsIndependentBackgroundAndExistingObjectBindingsInCatalogOrder()
+    {
+        ModCatalogSnapshot catalog = Catalog(File("Memoria/first", Valid), File("Memoria/second", Valid));
+        Assert.True(FieldSceneMods.TryPrepare(catalog, out FieldSceneMods result, out var diagnostics));
+        Assert.Empty(diagnostics);
+        Assert.Equal(new[] { "Memoria/first", "Memoria/second" }, result.Patches.Select(patch => patch.PackageId));
+        FieldScenePatch patch = result.Patches[0].Patch;
+        Assert.False(Assert.Single(patch.Backgrounds).Visible);
+        FieldActorPatch actor = Assert.Single(patch.Actors);
+        Assert.Equal(8, actor.ObjectId);
+        Assert.Equal(9, actor.Model.ModelId);
+        Assert.Equal(1, actor.AnimationId);
+        Assert.Equal(5, actor.When!.ModuleId);
+    }
+
+    [Theory]
+    [InlineData("\"schemaVersion\":1", "\"schemaVersion\":2")]
+    [InlineData("\"schemaVersion\":1,", "")]
+    [InlineData("\"fieldId\":175", "\"fieldId\":-1")]
+    [InlineData("\"fieldName\":\"bghall_6\"", "\"fieldName\":\"../bghall_6\"")]
+    [InlineData("\"fieldName\":\"bghall_6\"", "\"fieldName\":null")]
+    [InlineData("\"layer\":0", "\"layer\":4")]
+    [InlineData("\"moduleId\":5", "\"moduleId\":256")]
+    [InlineData("\"state\":0", "\"state\":-1")]
+    [InlineData("\"visible\":false", "\"visibility\":false")]
+    [InlineData("\"objectId\":8", "\"objectId\":-1")]
+    [InlineData("\"modelId\":9", "\"modelId\":-1")]
+    [InlineData("\"animationId\":1", "\"animationId\":-1")]
+    [InlineData("\"animationId\":1", "\"animationId\":1,\"direction\":256")]
+    public void InvalidVersionAddressesAndUnknownMembersRejectEntirePublication(string before, string after)
+    {
+        ModCatalogSnapshot catalog = Catalog(File("Memoria/good", Valid), File("Memoria/bad", Valid.Replace(before, after, StringComparison.Ordinal)));
+        Assert.False(FieldSceneMods.TryPrepare(catalog, out FieldSceneMods result, out var diagnostics));
+        Assert.Empty(result.Patches);
+        ModDiagnostic error = Assert.Single(diagnostics);
+        Assert.Equal("Memoria/bad", error.PackageId);
+        Assert.Equal("fields/bghall_6.json", error.RelativePath);
+    }
+
+    [Theory]
+    [InlineData("{\"schemaVersion\":1,\"fieldId\":175,\"fieldName\":\"bghall_6\"}")]
+    [InlineData("{\"schemaVersion\":1,\"fieldId\":175,\"fieldName\":\"bghall_6\",\"backgrounds\":[null]}")]
+    [InlineData("{\"schemaVersion\":1,\"fieldId\":175,\"fieldName\":\"bghall_6\",\"actors\":[null]}")]
+    [InlineData("{\"schemaVersion\":1,\"fieldId\":175,\"fieldName\":\"bghall_6\",\"actors\":null}")]
+    [InlineData("null")]
+    public void EmptyOrNullPatchesAreDiagnosed(string json)
+    {
+        Assert.False(FieldSceneMods.TryPrepare(Catalog(File("Memoria/example", json)), out _, out var diagnostics));
+        Assert.Equal("Memoria.InvalidFieldPatch", Assert.Single(diagnostics).Code);
+    }
+
+    [Fact]
+    public void DuplicateActorAndLayerAddressesAreRejected()
+    {
+        string actor = "{\"objectId\":8,\"model\":{\"fieldId\":175,\"modelId\":9}}";
+        string background = "{\"layer\":0,\"moduleId\":5,\"state\":0,\"visible\":false}";
+        foreach (string json in new[]
+        {
+            $"{{\"schemaVersion\":1,\"fieldId\":175,\"fieldName\":\"bghall_6\",\"actors\":[{actor},{actor}]}}",
+            $"{{\"schemaVersion\":1,\"fieldId\":175,\"fieldName\":\"bghall_6\",\"backgrounds\":[{background},{background}]}}"
+        })
+        {
+            Assert.False(FieldSceneMods.TryPrepare(Catalog(File("Memoria/example", json)), out _, out _));
+        }
+    }
+
+    [Fact]
+    public void PathMustMatchFieldAndOtherFormatsOrDocumentationAreNotPatches()
+    {
+        ModFile wrongPath = new("Memoria/example", ModFormat.Memoria, "fields/other.json", 1, () => Encoding.UTF8.GetBytes(Valid));
+        Assert.False(FieldSceneMods.TryPrepare(Catalog(wrongPath), out _, out _));
+        ModFile readme = new("Memoria/example", ModFormat.Memoria, "README.md", 1, () => []);
+        ModFile texture = new("Demaster/example", ModFormat.Demaster, "fields/bghall_6.json", 1, () => []);
+        Assert.True(FieldSceneMods.TryPrepare(Catalog(readme, texture), out FieldSceneMods result, out _));
+        Assert.Empty(result.Patches);
+    }
+
+    private static ModFile File(string package, string json) => new(package, ModFormat.Memoria, "fields/bghall_6.json", 1, () => Encoding.UTF8.GetBytes(json));
+
+    private static ModCatalogSnapshot Catalog(params ModFile[] files) => new(1, [], files);
+}

@@ -15,6 +15,7 @@ internal sealed partial class GameWorld
     public void ApplyDebug(DebugSceneCommand command)
     {
         EnsureField();
+        RefreshSceneMods();
         DebugSceneView current = session.State.DebugView ?? new DebugSceneView(Field!.Id);
         DebugSceneView? next = current;
         switch (command.Target)
@@ -55,8 +56,8 @@ internal sealed partial class GameWorld
                 DebugActorView replacement = previous with { Visible = command.Visible ?? previous.Visible, X = command.X ?? previous.X, Y = command.Y ?? previous.Y, Z = command.Z ?? previous.Z, AnimationId = command.AnimationId ?? previous.AnimationId, Frame = command.Frame ?? previous.Frame, Playing = command.Playing ?? previous.Playing, FramesPerSecond = command.FramesPerSecond ?? previous.FramesPerSecond };
                 if (replacement.AnimationId is not null || replacement.Frame is not null || replacement.Playing)
                 {
-                    int count = Field!.GetAnimationFrameCount(actor.RenderModelId, replacement.AnimationId ?? actor.AnimationId);
-                    replacement = replacement with { Frame = replacement.Frame ?? actor.AnimationFrame };
+                    int count = presentationField!.GetAnimationFrameCount(PresentationModelId(actor), replacement.AnimationId ?? PresentationAnimationId(actor));
+                    replacement = replacement with { Frame = replacement.Frame ?? (IsPatchedPresentation(actor) ? Events.Frame % count : actor.AnimationFrame) };
                     if (replacement.Frame < 0 || replacement.Frame >= count)
                     {
                         throw new ArgumentOutOfRangeException(nameof(command), "Frame is outside the selected model animation.");
@@ -74,6 +75,7 @@ internal sealed partial class GameWorld
 
     public void AdvanceDebug(TimeSpan elapsed)
     {
+        RefreshSceneMods();
         if (session.State.DebugView is not DebugSceneView view || elapsed <= TimeSpan.Zero)
         {
             return;
@@ -86,7 +88,7 @@ internal sealed partial class GameWorld
                 continue;
             }
             ActorState actor = Events.Actors.Single(actor => actor.ObjectId == id);
-            int count = Field!.GetAnimationFrameCount(actor.RenderModelId, actorView.AnimationId ?? actor.AnimationId);
+            int count = presentationField!.GetAnimationFrameCount(PresentationModelId(actor), actorView.AnimationId ?? PresentationAnimationId(actor));
             float frame = (float)(((actorView.Frame ?? actor.AnimationFrame) + elapsed.TotalSeconds * actorView.FramesPerSecond) % count);
             actors[id] = actorView with { Frame = frame };
         }
@@ -96,13 +98,18 @@ internal sealed partial class GameWorld
     internal ActorVisual CreateVisual(ActorState actor)
     {
         DebugActorView? view = session.State.DebugView?.Actors.GetValueOrDefault(actor.ObjectId);
-        bool visible = (view?.Visible ?? actor.Active && actor.Visible) && !Events.IsNativeModelDrawPending;
+        bool patched = modActors.TryGetValue(actor.ObjectId, out var mod) && IsActorPatchActive(mod.Patch);
+        int modelId = patched ? mod.ModelId : actor.RenderModelId;
+        bool inheritedVisible = view?.Visible ?? actor.Active && (patched || actor.Visible);
+        bool visible = (inspectionObjects.TryGetValue(actor.ObjectId, out bool inspectedVisible) ? inspectedVisible : inheritedVisible) && !Events.IsNativeModelDrawPending;
         if (visible && actor.NativeEyes?.Patch is not null)
         {
             // TODO(TD-015): project the authenticated native VRAM eye copy.
             throw new NotSupportedException("Drawing a native eye VRAM copy is not implemented; its authenticated headless state is retained.");
         }
-        IReadOnlyDictionary<int, Vector3>? translations = visible && actor.RenderModelId >= 0 ? Events.GetNativeModelPartTranslations(actor.ObjectId) : null;
-        return new ActorVisual(actor.ObjectId, actor.RenderModelId, view?.X ?? actor.X + actor.DisplayOffset.X, view?.Y ?? actor.Y + actor.DisplayOffset.Y, view?.Z ?? actor.Z + actor.DisplayOffset.Z, actor.Direction, view?.AnimationId ?? actor.AnimationId, view?.Frame ?? actor.AnimationFrame, visible, RootTranslationZ: actor.RootTranslationZ, FirstControlRotation: actor.FirstControlRotation, AdditionalControlDisabled: actor.AdditionalControlDisabled, PolygonColor: actor.PolygonColor, GroundShadowRadius601To608: actor.NativeShadowSet?.Radius601To608, GroundShadowLevel609: actor.NativeShadowLevel?.Level609 ?? actor.NativeShadowAllocation?.Level609, GroundShadowCentre: new Vector3(actor.X, actor.Y, actor.Z), GroundShadowRadii601To608: actor.NativeShadowForm?.Radii601To608, SkinTranslations: translations, PrimitiveTransparencyEnabled: actor.PrimitiveTransparencyEnabled);
+        IReadOnlyDictionary<int, Vector3>? translations = visible && modelId >= 0 && !patched ? Events.GetNativeModelPartTranslations(actor.ObjectId) : null;
+        int animationId = view?.AnimationId ?? (patched ? mod.Patch.AnimationId : actor.AnimationId);
+        float frame = view?.Frame ?? (patched ? Events.Frame % presentationField!.GetAnimationFrameCount(modelId, animationId) : actor.AnimationFrame);
+        return new ActorVisual(actor.ObjectId, modelId, view?.X ?? actor.X + actor.DisplayOffset.X, view?.Y ?? actor.Y + actor.DisplayOffset.Y, view?.Z ?? actor.Z + actor.DisplayOffset.Z, patched ? mod.Patch.Direction ?? actor.Direction : actor.Direction, animationId, frame, visible, RootTranslationZ: actor.RootTranslationZ, FirstControlRotation: patched ? null : actor.FirstControlRotation, AdditionalControlDisabled: !patched && actor.AdditionalControlDisabled, PolygonColor: actor.PolygonColor, GroundShadowRadius601To608: actor.NativeShadowSet?.Radius601To608, GroundShadowLevel609: actor.NativeShadowLevel?.Level609 ?? actor.NativeShadowAllocation?.Level609, GroundShadowCentre: new Vector3(actor.X, actor.Y, actor.Z), GroundShadowRadii601To608: actor.NativeShadowForm?.Radii601To608, SkinTranslations: translations, PrimitiveTransparencyEnabled: actor.PrimitiveTransparencyEnabled);
     }
 }

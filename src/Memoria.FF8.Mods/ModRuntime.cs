@@ -37,7 +37,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
 
     public ModRuntime(string? applicationBaseDirectory = null, Func<ModFormat, bool>? isCompatible = null, Func<ModCatalogSnapshot, ModPreparationResult>? prepare = null, bool watch = true, TimeSpan? debounce = null, IEnumerable<string>? additionalBaseDirectories = null, string? modsDirectory = null)
     {
-        modsRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(modsDirectory ?? Path.Combine(applicationBaseDirectory ?? AppContext.BaseDirectory, "Mods")));
+        modsRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(modsDirectory ?? DefaultModsDirectory(applicationBaseDirectory ?? AppContext.BaseDirectory)));
         ModsDirectories = Array.AsReadOnly((additionalBaseDirectories ?? []).Select(directory => Path.Combine(directory, "Mods")).Append(modsRoot).Select(directory => Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory))).Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
         this.isCompatible = isCompatible ?? (_ => true);
         this.prepare = prepare ?? (_ => ModPreparationResult.Accepted);
@@ -59,6 +59,17 @@ public sealed partial class ModRuntime : IModService, IDisposable
             }
             ConfigureWatcher();
         }
+    }
+
+    private static string DefaultModsDirectory(string applicationBaseDirectory)
+    {
+        string applicationDirectory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.Combine(applicationBaseDirectory, ".")));
+        string? packageDirectory = Path.GetDirectoryName(applicationDirectory);
+        if (Path.GetFileName(applicationDirectory).Equals("Data", StringComparison.OrdinalIgnoreCase) && packageDirectory is not null && File.Exists(Path.Combine(packageDirectory, "Memoria.Launcher.exe")) && Directory.Exists(Path.Combine(packageDirectory, "Mods")))
+        {
+            return Path.Combine(packageDirectory, "Mods");
+        }
+        return Path.Combine(applicationDirectory, "Mods");
     }
 
     public IReadOnlyList<string> ModsDirectories { get; }
@@ -270,7 +281,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(result.Diagnostics ?? []).ToArray());
                 if (!result.Success)
                 {
-                    diagnostics = Array.AsReadOnly(diagnostics.Append(new ModDiagnostic("reload-failed", "Texture preparation failed; the last committed generation remains active.")).ToArray());
+                    diagnostics = Array.AsReadOnly(diagnostics.Append(new ModDiagnostic("reload-failed", "Mod preparation failed; the last committed generation remains active.")).ToArray());
                     ScheduleRetry();
                     return false;
                 }

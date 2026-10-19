@@ -250,7 +250,7 @@ internal sealed record PackageManifest(int SchemaVersion, string BuildId, string
     private static void ValidateFilePath(string path, bool allowManifest)
     {
         ValidateSegments(path);
-        if ((!PathComparer.Equals(path, LauncherPath) && !path.StartsWith("Data/", StringComparison.OrdinalIgnoreCase)) || (!allowManifest && PathComparer.Equals(path, ManifestPath)) || path.StartsWith(ManifestPath + "/", StringComparison.OrdinalIgnoreCase))
+        if ((!PathComparer.Equals(path, LauncherPath) && !path.StartsWith("Data/", StringComparison.OrdinalIgnoreCase) && !IsBundledModPath(path)) || (!allowManifest && PathComparer.Equals(path, ManifestPath)) || path.StartsWith(ManifestPath + "/", StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException($"The path is not owned by the distribution: {path}");
         }
@@ -278,9 +278,14 @@ internal sealed record PackageManifest(int SchemaVersion, string BuildId, string
         }
     }
 
+    internal static bool IsBundledModPath(string path)
+    {
+        return path.StartsWith("Mods/Memoria/", StringComparison.OrdinalIgnoreCase) && path.Count(character => character == '/') >= 3;
+    }
+
     private static bool IsAllowedDirectory(string path)
     {
-        return PathComparer.Equals(path, "Data") || path.StartsWith("Data/", StringComparison.OrdinalIgnoreCase) || PathComparer.Equals(path, "Mods") || PathComparer.Equals(path, "Mods/Tonberry") || PathComparer.Equals(path, "Mods/Junction") || PathComparer.Equals(path, "Mods/Demaster");
+        return PathComparer.Equals(path, "Data") || path.StartsWith("Data/", StringComparison.OrdinalIgnoreCase) || PathComparer.Equals(path, "Mods") || PathComparer.Equals(path, "Mods/Tonberry") || PathComparer.Equals(path, "Mods/Junction") || PathComparer.Equals(path, "Mods/Demaster") || PathComparer.Equals(path, "Mods/Memoria") || path.StartsWith("Mods/Memoria/", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void EnsureNoReparsePoints(string path)

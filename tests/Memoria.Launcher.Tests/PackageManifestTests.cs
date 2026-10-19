@@ -41,6 +41,19 @@ public sealed class PackageManifestTests : IDisposable
         Assert.Equal("local-build", PackageManifest.LoadOptional(directory)!.BuildId);
     }
 
+    [Fact]
+    public void ArchiveIncludesOnlyInventoriedNativeModFiles()
+    {
+        const string path = "Mods/Memoria/Fix_CidUnpixelated/fields/bghall_6.json";
+        PackageManifest manifest = Manifest();
+        manifest = manifest with { Files = [.. manifest.Files, FileRecord(path, "payload")] };
+        string destination = Path.Combine(directory, "native-mod");
+        PackageManifest.Extract(CreateArchive(extraPath: path, manifest: manifest), destination);
+        Assert.Equal("payload", File.ReadAllText(Path.Combine(destination, path)));
+        PackageManifest.Verify(destination, PackageManifest.Read(destination));
+        Assert.Throws<InvalidDataException>(() => PackageManifest.Extract(CreateArchive(extraPath: path), Path.Combine(directory, "unlisted-native-mod")));
+    }
+
     [Theory]
     [InlineData("../escape.exe")]
     [InlineData("/Data/escape.exe")]
@@ -55,6 +68,8 @@ public sealed class PackageManifestTests : IDisposable
     [InlineData("Data/ends./file")]
     [InlineData("Data//file")]
     [InlineData("Mods/Tonberry/payload.exe")]
+    [InlineData("Mods/Memoria/mods.ini")]
+    [InlineData("Mods/mods.ini")]
     [InlineData("settings.json")]
     [InlineData("Data/distribution.json")]
     [InlineData("Data/distribution.json/child")]
@@ -87,6 +102,8 @@ public sealed class PackageManifestTests : IDisposable
     [InlineData("Data/AUX.txt")]
     [InlineData("Data/payload:stream")]
     [InlineData("Mods/Tonberry/payload.exe")]
+    [InlineData("Mods/Memoria/mods.ini")]
+    [InlineData("Mods/mods.ini")]
     [InlineData("unexpected.exe")]
     [InlineData("Mods/unknown/")]
     [InlineData("Mods/Tonberry/nested/")]

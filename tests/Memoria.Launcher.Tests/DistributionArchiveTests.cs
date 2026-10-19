@@ -14,7 +14,19 @@ public sealed class DistributionArchiveTests
             PackageManifest manifest = PackageManifest.Read(destination);
             Assert.NotEmpty(manifest.Files);
             Assert.True(File.Exists(Path.Combine(destination, "Data", "audio-host", "coreclr.dll")));
-            Assert.True(Directory.Exists(Path.Combine(destination, "Mods", "Tonberry")));
+            foreach (string format in new[] { "Tonberry", "Demaster", "Junction" })
+            {
+                string directory = Path.Combine(destination, "Mods", format);
+                Assert.True(Directory.Exists(directory));
+                Assert.Empty(Directory.EnumerateFileSystemEntries(directory));
+            }
+            foreach (string relative in new[] { "README.md", "fields/bghall_6.json" })
+            {
+                string path = "Mods/Memoria/Fix_CidUnpixelated/" + relative;
+                Assert.True(File.Exists(Path.Combine(destination, path)));
+                Assert.Contains(manifest.Files, file => file.Path == path);
+            }
+            Assert.False(File.Exists(Path.Combine(destination, "Mods/Memoria/Fix_CidUnpixelated/mod.ini")));
         }
         finally
         {

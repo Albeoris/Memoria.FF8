@@ -512,6 +512,10 @@ public sealed partial class MenuController
         {
             return;
         }
+        if (ExecuteSceneInspectorAction(action))
+        {
+            return;
+        }
         switch (action.Kind)
         {
             case "open-battle-debug":

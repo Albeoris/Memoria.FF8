@@ -71,6 +71,7 @@ internal sealed partial class RecreateGame
             keyboard.Profile = profile;
         }, () => keyboard.ControllerPresentation, () => controller!.Generation, () => keyboard.LastInputDevice);
         gameMenus.BattleDebugRequested += OpenBattleDebug;
+        gameMenus.ConnectSceneInspector(() => SceneInspectorAvailable, OpenSceneInspector);
         if (options.DebugUiScreen is string screen)
         {
             gameMenus.Open(screen, true);
@@ -575,7 +576,7 @@ internal sealed partial class RecreateGame
 
     private void SynchronizeUiMoviePause()
     {
-        bool pause = userPaused || gameMenus?.IsOpen == true || drainUiButtons || battleDebug is not null || debugBattle is not null;
+        bool pause = userPaused || gameMenus?.IsOpen == true || drainUiButtons || battleDebug is not null || debugBattle is not null || sceneInspector is not null;
         if (pause && !uiMovieSuspended)
         {
             movie?.Suspend();
@@ -612,6 +613,11 @@ internal sealed partial class RecreateGame
         }
         SynchronizeNativeNamePrompt();
         UiControlCommand command = request.Ui ?? new UiControlCommand();
+        if (TryDispatchSceneInspectorControl(request, command))
+        {
+            SynchronizeUiMoviePause();
+            return GameUiStatus()!;
+        }
         NativeTutorialPlayer? tutorial = world?.Tutorial;
         if (tutorial is not null)
         {
@@ -672,6 +678,6 @@ internal sealed partial class RecreateGame
 
     private object? GameUiStatus()
     {
-        return gameMenus is null ? null : new { gameMenus.IsOpen, gameMenus.IsDemo, gameMenus.ScreenId, gameMenus.Message, gameMenus.ScreenIds, Entries = gameMenus.Entries.Select(entry => new { entry.Id, entry.Label, entry.Enabled }).ToArray(), gameMenus.SelectedIndex, AutomaticPlay = ReadAutoPlayMenuState(), Tutorial = world?.Tutorial?.Status };
+        return gameMenus is null ? null : new { gameMenus.IsOpen, gameMenus.IsDemo, gameMenus.ScreenId, gameMenus.Message, gameMenus.ScreenIds, Entries = gameMenus.Entries.Select(entry => new { entry.Id, entry.Label, entry.Enabled }).ToArray(), gameMenus.SelectedIndex, AutomaticPlay = ReadAutoPlayMenuState(), Tutorial = world?.Tutorial?.Status, SceneInspector = SceneInspectorUiStatus() };
     }
 }

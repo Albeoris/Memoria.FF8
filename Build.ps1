@@ -33,6 +33,17 @@ foreach ($directory in $modDirectories) {
     New-Item -ItemType Directory -Path (Join-Path $staging "Mods/$directory") | Out-Null
 }
 
+$bundledMods = Join-Path $root 'Mods/Memoria'
+$bundledModFiles = @(Get-ChildItem -LiteralPath $bundledMods -File -Recurse)
+$expectedModFiles = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+foreach ($file in $bundledModFiles) {
+    $relative = 'Mods/Memoria/' + [IO.Path]::GetRelativePath($bundledMods, $file.FullName).Replace('\', '/')
+    $destination = Join-Path $staging $relative
+    New-Item -ItemType Directory -Force -Path ([IO.Path]::GetDirectoryName($destination)) | Out-Null
+    Copy-Item -LiteralPath $file.FullName -Destination $destination
+    [void]$expectedModFiles.Add($relative)
+}
+
 Push-Location $root
 try {
     $publishArguments = @('-c', $Configuration, '-r', 'win-x64', '--self-contained', 'true', '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishTrimmed=false')
@@ -121,9 +132,14 @@ try {
                 throw "Incomplete distribution archive: Mods/$directory/ is missing."
             }
         }
+        foreach ($relative in $expectedModFiles) {
+            if ($null -eq $zip.GetEntry($relative)) {
+                throw "Incomplete distribution archive: $relative is missing."
+            }
+        }
         foreach ($entry in $zip.Entries) {
-            if ($entry.FullName.StartsWith('Mods/', [StringComparison]::Ordinal) -and !$entry.FullName.EndsWith('/', [StringComparison]::Ordinal)) {
-                throw "The distribution archive contains a file in Mods: $($entry.FullName)."
+            if ($entry.FullName.StartsWith('Mods/', [StringComparison]::Ordinal) -and !$entry.FullName.EndsWith('/', [StringComparison]::Ordinal) -and !$expectedModFiles.Contains($entry.FullName)) {
+                throw "The distribution archive contains an unexpected mod file: $($entry.FullName)."
             }
         }
     }

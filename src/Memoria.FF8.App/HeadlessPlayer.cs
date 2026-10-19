@@ -115,7 +115,7 @@ internal static class HeadlessPlayer
         Directory.CreateDirectory(outputDirectory);
         var session = new GameSession(options.InitialState);
         using var resourceHost = new GameResourceHost(options.GameDirectory, modsDirectory: options.ModsDirectory);
-        using var world = new GameWorld(session, options.GameDirectory, resources: resourceHost.Resources, resolveGameFile: resourceHost.ResolveGameFile);
+        using var world = new GameWorld(session, options.GameDirectory, resources: resourceHost.Resources, resolveGameFile: resourceHost.ResolveGameFile, readSceneMods: () => resourceHost.SceneMods);
         world.EnsureField();
         world.SetRenderSize(options.Width, options.Height);
         List<PlayerActionResult> results = [];

@@ -49,6 +49,84 @@ public sealed class UpdateInstallerTests : IDisposable
     }
 
     [Fact]
+    public void BundledNativeModsUpdateUntouchedDefaultsAndInstallMissingFiles()
+    {
+        const string existing = "Mods/Memoria/Example/fields/existing.json";
+        const string added = "Mods/Memoria/Example/fields/added.json";
+        AddPackageFile(root, existing, "old default");
+        AddPackageFile(Staged, existing, "new default");
+        AddPackageFile(Staged, added, "added default");
+        UpdateInstaller.Apply(root);
+        Assert.Equal("new default", Read(existing));
+        Assert.Equal("added default", Read(added));
+        PackageManifest.Verify(root, PackageManifest.Read(root));
+    }
+
+    [Fact]
+    public void BundledNativeModsPreserveEditsAndPreexistingFilesAcrossUpdates()
+    {
+        const string edited = "Mods/Memoria/Example/fields/edited.json";
+        const string unowned = "Mods/Memoria/Example/mod.ini";
+        AddPackageFile(root, edited, "old default");
+        Write(root, edited, "user edit");
+        Write(root, unowned, "enabled = 0");
+        AddPackageFile(Staged, edited, "new default");
+        AddPackageFile(Staged, unowned, "enabled = 1");
+        UpdateInstaller.Apply(root);
+        Assert.Equal("user edit", Read(edited));
+        Assert.Equal("enabled = 0", Read(unowned));
+        UpdateInstaller.Prepare(root);
+        WritePackage(Staged, "next", "Data/added.dll");
+        AddPackageFile(Staged, edited, "next default");
+        AddPackageFile(Staged, unowned, "enabled = 1");
+        UpdateInstaller.Apply(root);
+        Assert.Equal("user edit", Read(edited));
+        Assert.Equal("enabled = 0", Read(unowned));
+        Assert.Equal("next", PackageManifest.Read(root).BuildId);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RemovingBundledNativeModFilesPreservesOnlyUserEdits(bool edited)
+    {
+        const string relative = "Mods/Memoria/Example/fields/obsolete.json";
+        AddPackageFile(root, relative, "old default");
+        if (edited)
+        {
+            Write(root, relative, "user edit");
+        }
+        UpdateInstaller.Apply(root);
+        Assert.Equal(edited, File.Exists(Path.Combine(root, relative)));
+        if (edited)
+        {
+            Assert.Equal("user edit", Read(relative));
+        }
+    }
+
+    [Fact]
+    public void FailedUpdateRestoresUntouchedBundledDefaultsAndPreservesEdits()
+    {
+        const string untouched = "Mods/Memoria/Example/fields/untouched.json";
+        const string edited = "Mods/Memoria/Example/fields/edited.json";
+        AddPackageFile(root, untouched, "old default");
+        AddPackageFile(root, edited, "old default");
+        Write(root, edited, "user edit");
+        AddPackageFile(Staged, untouched, "new default");
+        AddPackageFile(Staged, edited, "new default");
+        Assert.Throws<IOException>(() => UpdateInstaller.Apply(root, path =>
+        {
+            if (path == PackageManifest.ManifestPath)
+            {
+                throw new IOException("Injected after mod installation");
+            }
+        }));
+        Assert.Equal("old default", Read(untouched));
+        Assert.Equal("user edit", Read(edited));
+        Assert.Equal("old", PackageManifest.Read(root).BuildId);
+    }
+
+    [Fact]
     public void DirectoryConflictRejectsUpdateBeforeChanges()
     {
         Directory.CreateDirectory(Path.Combine(root, "Data/added.dll"));
@@ -270,6 +348,16 @@ public sealed class UpdateInstallerTests : IDisposable
         string path = Path.Combine(directory, relative);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, contents);
+    }
+
+    private static void AddPackageFile(string directory, string relative, string content)
+    {
+        Write(directory, relative, content);
+        PackageManifest manifest = PackageManifest.Read(directory);
+        byte[] bytes = Encoding.UTF8.GetBytes(content);
+        PackageFile file = new(relative, bytes.Length, Convert.ToHexString(SHA256.HashData(bytes)));
+        manifest = manifest with { Files = [.. manifest.Files.Where(existing => !existing.Path.Equals(relative, StringComparison.OrdinalIgnoreCase)), file] };
+        Write(directory, PackageManifest.ManifestPath, JsonSerializer.Serialize(manifest));
     }
 
     public void Dispose()

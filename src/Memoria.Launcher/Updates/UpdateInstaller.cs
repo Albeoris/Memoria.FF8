@@ -93,12 +93,13 @@ internal static class UpdateInstaller
         }
         previous.ValidatePaths();
         incoming.ValidatePaths();
-        HashSet<string> oldPaths = new(previous.Files.Select(file => file.Path), StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, PackageFile> previousFiles = previous.Files.ToDictionary(file => file.Path, StringComparer.OrdinalIgnoreCase);
+        HashSet<string> oldPaths = new(previousFiles.Keys, StringComparer.OrdinalIgnoreCase);
         oldPaths.Add(PackageManifest.ManifestPath);
         HashSet<string> paths = new(oldPaths, StringComparer.OrdinalIgnoreCase);
         HashSet<string> newPaths = new(incoming.Files.Select(file => file.Path), StringComparer.OrdinalIgnoreCase);
         paths.UnionWith(newPaths);
-        UpdateOperation[] operations = paths.Where(path => path != PackageManifest.ManifestPath).OrderBy(path => newPaths.Contains(path) ? 1 : 0).ThenBy(path => path, StringComparer.OrdinalIgnoreCase).Append(PackageManifest.ManifestPath).Select(path =>
+        UpdateOperation[] operations = paths.Where(path => path != PackageManifest.ManifestPath && !PreserveEditedMod(root, path, previousFiles)).OrderBy(path => newPaths.Contains(path) ? 1 : 0).ThenBy(path => path, StringComparer.OrdinalIgnoreCase).Append(PackageManifest.ManifestPath).Select(path =>
         {
             string target = PackageManifest.ResolvePath(root, path);
             RejectLinks(target);
@@ -113,6 +114,26 @@ internal static class UpdateInstaller
             return new UpdateOperation(path, File.Exists(target));
         }).ToArray();
         return new UpdateJournal(operations);
+    }
+
+    private static bool PreserveEditedMod(string root, string relative, IReadOnlyDictionary<string, PackageFile> previousFiles)
+    {
+        if (!PackageManifest.IsBundledModPath(relative))
+        {
+            return false;
+        }
+        string target = PackageManifest.ResolvePath(root, relative);
+        RejectLinks(target);
+        if (!File.Exists(target))
+        {
+            return false;
+        }
+        if (!previousFiles.TryGetValue(relative, out PackageFile? previous))
+        {
+            return true;
+        }
+        using FileStream stream = File.OpenRead(target);
+        return stream.Length != previous.Size || !Convert.ToHexString(SHA256.HashData(stream)).Equals(previous.Sha256, StringComparison.OrdinalIgnoreCase);
     }
 
     internal static void Apply(string root, Action<string>? beforeInstall = null)

@@ -40,7 +40,7 @@ Download the Windows archive from [Releases](https://github.com/Albeoris/Memoria
 
 The launcher checks GitHub for the latest versioned release and nightly build at startup. Use **Latest release** or **Nightly** to download and install the selected build. Installation shows its version and download size before confirmation; switching channels can install an older build. Internet access is only required for checking and downloading updates, and a failed check does not prevent Play.
 
-Updates verify the archive's GitHub SHA-256 digest and its complete file inventory before installation. A separate copy of the launcher waits for the current process to close, backs up existing distribution files, installs new files, removes obsolete distribution files, and restarts Memoria. Mods, saves, settings and files outside the distribution inventory are preserved; conflicting unowned files stop installation. Run the launcher from a writable extracted folder and close other game processes before updating. No administrator rights are requested.
+Updates verify the archive's GitHub SHA-256 digest and its complete file inventory before installation. A separate copy of the launcher waits for the current process to close, backs up existing distribution files, installs new files, removes obsolete distribution files, and restarts Memoria. Mods, saves, settings and files outside the distribution inventory are preserved; conflicting unowned application files stop installation. Bundled native mod files update only while unchanged from their previous defaults; edited or pre-existing native mod files are preserved. Run the launcher from a writable extracted folder and close other game processes before updating. No administrator rights are requested.
 
 The distribution inventory is `Data/distribution.json`. Older archives without this inventory must first be extracted into a new folder. Do not unpack an archive over an existing installation: obsolete files would remain. Failed installation restores the previous files; after interruption, startup attempts recovery from `.memoria-update`. Keep that folder if recovery reports an error, close processes using the installation, and start the launcher again. The next update removes the previous completed transaction's temporary files and backups.
 
@@ -63,9 +63,11 @@ Mods/
   Tonberry/
   Demaster/
   Junction/
+  Memoria/
+    Fix_CidUnpixelated/
 ```
 
-The three mod directories are empty in the release archive and ready for user-installed mods.
+Tonberry, Demaster and Junction directories are empty and ready for user-installed mods. `Memoria/Fix_CidUnpixelated` is a bundled native [field mod](docs/modding/field-mods.md); it contains scene configuration and loads all game resources from your installation.
 
 The required Albeoris.Frameworks source is [vendored](vendor/Albeoris.Frameworks/README.md). No sibling repository or submodule is needed. See [Build and test](docs/developers/building-and-testing.md) for development builds, test projects and optional local inputs.
 
@@ -76,7 +78,7 @@ The [documentation index](docs/README.md) is the starting point for players, mod
 | Topic | Guides |
 | --- | --- |
 | Playing | [Controls](docs/players/controls.md), [saves](docs/players/saves.md), [Debug Room](docs/players/debug-room.md). |
-| Mods | [Textures](docs/modding/texture-mods.md), [file replacements](docs/modding/file-replacements.md). |
+| Mods | [Textures](docs/modding/texture-mods.md), [file replacements](docs/modding/file-replacements.md), [native field mods](docs/modding/field-mods.md). |
 | Engine development | [Architecture](docs/developers/architecture.md), [UI](docs/developers/ui-framework.md), [rendering](docs/developers/rendering.md). |
 | Tools and automation | [Command line](docs/reference/command-line.md), [environment variables](docs/reference/environment-variables.md), [control API](docs/reference/control-api.md), [automatic exploration](docs/players/automatic-exploration.md). |
 | Other resource formats | [Experimental Remastered provider](docs/developers/remastered-resources.md); bounded opening-route support and remaining limitations. |

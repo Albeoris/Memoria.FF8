@@ -80,6 +80,15 @@ internal sealed partial class RecreateGame
             UpdateBattleDebugUi(input);
             return true;
         }
+        if (sceneInspector is not null)
+        {
+            if (autoPlay!.Running && !autoPlay.Paused)
+            {
+                autoPlay.Pause();
+            }
+            UpdateSceneInspectorUi(input);
+            return true;
+        }
         if (keyboard.DebugRoomRequested || gameMenus?.IsOpen == true)
         {
             autoPlay?.ResetIdleDeadline();

@@ -5,15 +5,18 @@ using Memoria.FF8.Resources;
 namespace Memoria.FF8;
 
 /// <summary>Application composition root. Resource consumers do not reference the mod adapters.</summary>
-internal sealed class GameResourceHost : IDisposable
+internal sealed partial class GameResourceHost : IDisposable
 {
     private readonly IResourceSource source;
     private readonly string materializationDirectory = Path.Combine(Path.GetTempPath(), "Memoria.FF8.Junction", Guid.NewGuid().ToString("N"));
     private readonly Dictionary<ModFile, string> materializedFiles = [];
     private TonberryRecognitionCache? recognition;
+    private readonly string gameDirectory;
+    private GameAssets? sceneValidationAssets;
 
     public GameResourceHost(string gameDirectory, string? applicationBaseDirectory = null, bool watch = true, string? modsDirectory = null)
     {
+        this.gameDirectory = gameDirectory;
         source = GameDataSourceFactory.Open(gameDirectory);
         Resources = new ResourceService(source);
         Mods = new ModRuntime(applicationBaseDirectory, format => ModCompatibility.IsCompatible(source.Descriptor.Edition, format), Prepare, watch, additionalBaseDirectories: [gameDirectory], modsDirectory: modsDirectory);
@@ -23,6 +26,7 @@ internal sealed class GameResourceHost : IDisposable
 
     public ResourceService Resources { get; }
     public ModRuntime Mods { get; }
+    public FieldSceneMods SceneMods { get; private set; } = FieldSceneMods.Empty;
 
     public string ResolveGameFile(string dataRelativePath)
     {
@@ -70,8 +74,18 @@ internal sealed class GameResourceHost : IDisposable
 
     private ModPreparationResult Prepare(ModCatalogSnapshot catalog)
     {
+        if (!FieldSceneMods.TryPrepare(catalog, out FieldSceneMods sceneMods, out IReadOnlyList<ModDiagnostic> sceneDiagnostics))
+        {
+            return new ModPreparationResult(false, Diagnostics: sceneDiagnostics);
+        }
+        IReadOnlyList<ModDiagnostic> sceneResourceDiagnostics = ValidateSceneModResources(sceneMods);
+        if (sceneResourceDiagnostics.Count != 0)
+        {
+            return new ModPreparationResult(false, Diagnostics: sceneResourceDiagnostics);
+        }
         List<ITextureReplacementResolver> resolvers = [];
         List<string> usable = [];
+        usable.AddRange(sceneMods.Patches.Select(patch => patch.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(catalog.Files.Where(file => file.Format == ModFormat.Junction).Select(file => file.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         DemasterInspection demaster = DemasterTextureResolver.Inspect(source.Descriptor, catalog);
         if (catalog.Files.Any(file => file.Format == ModFormat.Demaster))
@@ -102,13 +116,18 @@ internal sealed class GameResourceHost : IDisposable
             _ => new OrderedTextureResolver(resolvers.ToArray())
         };
         ResourceService.PreparedResources prepared = Resources.Prepare(resolver);
-        return new ModPreparationResult(true, usable, diagnostics, () => prepared.Commit(notify: false), prepared.Notify);
+        return new ModPreparationResult(true, usable, diagnostics, () =>
+        {
+            prepared.Commit(notify: false);
+            SceneMods = sceneMods;
+        }, prepared.Notify);
     }
 
     public void Dispose()
     {
         Mods.Dispose();
         recognition?.Clear();
+        sceneValidationAssets?.Dispose();
         source.Dispose();
         if (Directory.Exists(materializationDirectory))
         {

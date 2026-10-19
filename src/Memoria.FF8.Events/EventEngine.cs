@@ -534,6 +534,10 @@ public sealed partial class EventEngine
         {
             return false;
         }
+        if (IsInspectionScriptEnabled?.Invoke(objectId, obj.Scripts[2].Id) == false)
+        {
+            return false;
+        }
         if (IsNativeActorRequest(objectId) && Scene.NativeActorObjectIds.Contains(objectId))
         {
             if (RequestPriorityOccupied(objectId, 7))
@@ -652,6 +656,10 @@ public sealed partial class EventEngine
 
     private int Run(Fiber fiber, int instructionBudget)
     {
+        if (IsInspectionScriptEnabled?.Invoke(fiber.ObjectId, fiber.Script.Id) == false)
+        {
+            return 0;
+        }
         BindNativeOperandMemory(fiber);
         if (instructionBudget == 0)
         {

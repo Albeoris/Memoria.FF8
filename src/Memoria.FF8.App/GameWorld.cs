@@ -4,6 +4,7 @@ using Memoria.FF8.Events;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Resources;
+using Memoria.FF8.Mods;
 
 namespace Memoria.FF8;
 
@@ -29,9 +30,10 @@ internal sealed partial class GameWorld : IDisposable
         return GameSession.CreateColdProcess(assets.ReadColdProcessNativeBattleMemory());
     }
 
-    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, nint audioWindow = default, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null)
+    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, nint audioWindow = default, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null, Func<FieldSceneMods>? readSceneMods = null)
     {
         this.session = session;
+        this.readSceneMods = readSceneMods;
         this.resources = resources;
         this.validateWorldPresentation = validateWorldPresentation;
         ownsAssets = sharedAssets is null;
@@ -102,6 +104,7 @@ internal sealed partial class GameWorld : IDisposable
             clock.ResolveGameFile = resolveGameFile;
         }
         Events = new EventEngine(session);
+        Events.IsInspectionScriptEnabled = (objectId, scriptId) => !inspectionDisabledScripts.Contains((objectId, scriptId));
         Events.PrepareSpuAudio = () => (spuAudio ??= new SpuWaveAudioOutput(assets.GameDirectory, clock.ToolsDirectory, assets.ResolveMusicCue(MusicCue.EyesOnMe), audioWindow, audioEnabled)).Prepare();
         Events.StopSpuAudio = () => spuAudio?.Stop();
         Events.HasLiveSpuAudio = () => spuAudio?.HasLiveAudio == true;
@@ -241,6 +244,7 @@ internal sealed partial class GameWorld : IDisposable
 
     private void LoadField(int fieldId, FieldTransition? arrival, System.Text.Json.JsonElement? snapshot, bool restoreDeparting = false)
     {
+        ClearSceneInspection();
         ValidateDiscJumpArrival(arrival, snapshot is null);
         if (restoreDeparting && (session.EventRandom is null || session.VibrationProcess is null || session.FieldFade is null || session.ShopHistory is null || session.MenuRandom is null || session.WeaponRecipes is null))
         {
@@ -354,7 +358,7 @@ internal sealed partial class GameWorld : IDisposable
             session.SetRandomEncounters(encounter with { Native = encounter.Native with { WorldInitialized = false } });
         }
         ValidateBattleHostState();
-        renderer = new FieldRenderer(next, renderWidth, renderHeight);
+        RefreshSceneMods();
     }
 
     public int RenderWidth => renderWidth;
@@ -368,7 +372,7 @@ internal sealed partial class GameWorld : IDisposable
         }
         if (session.State.Scene != SceneKind.WorldMap)
         {
-            renderer = new FieldRenderer(Field ?? throw new InvalidOperationException("A field must be loaded before selecting its render target."), width, height);
+            renderer = new FieldRenderer(presentationField ?? Field ?? throw new InvalidOperationException("A field must be loaded before selecting its render target."), width, height);
         }
         renderWidth = width;
         renderHeight = height;
@@ -387,6 +391,7 @@ internal sealed partial class GameWorld : IDisposable
             EnsureField();
             return worldScene!.Render(renderWidth, renderHeight, triangleRenderer, worldInterpolation);
         }
+        RefreshSceneMods();
         IEnumerable<ActorVisual> visuals = Events.Actors.Select(CreateVisual);
         BackgroundScrollFrame scroll = ActorBackgroundScrollCertificate.Prepare(Field!, Events.Scene) ?? DirectBackgroundScrollCertificate.Prepare(Field!, Events.Scene) ?? NativeWrappedBackgroundScrollCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? NormalCameraCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? throw new NotSupportedException("Field rendering requires a supported current native camera contract.");
         DebugSceneView? view = session.State.DebugView;
@@ -395,7 +400,7 @@ internal sealed partial class GameWorld : IDisposable
         NativeFieldFadeState fade = Events.FieldFade ?? throw new NotSupportedException("Native field rendering requires its actual fade process owner.");
         fade.Validate();
         renderer!.TriangleRenderer = triangleRenderer;
-        byte[] pixels = renderer.Render(Events.BackgroundStates, visuals, elapsed, cameraIndex: Events.Scene.CameraIndex, backgroundModuleShades: Events.GetBackgroundModuleShades(), backgroundVisible: view?.BackgroundVisible ?? true, hiddenBackgroundModules: view?.HiddenBackgroundModules, backgroundScrollOffsets: scroll.LayerOffsets, actorScrollOffset: scroll.ActorOffset, nativeWrapFrame: scroll.NativeWrap, drawingJitterX: shake.X.Output, drawingJitterY: shake.Y.Output, cardMarkers: rareCardMarkers ? CreateCardMarkers(elapsed) : null, drawPointParticles: Events.DrawPointParticleFrame, drawPointParticleTables: Events.DrawPointParticleTables, drawPointDisplayMask: Events.Scene.NativeDrawPointDisplayMask, fade: fade.Draw);
+        byte[] pixels = renderer.Render(Events.BackgroundStates, visuals, elapsed, cameraIndex: Events.Scene.CameraIndex, backgroundModuleShades: Events.GetBackgroundModuleShades(), backgroundVisible: view?.BackgroundVisible ?? true, hiddenBackgroundModules: view?.HiddenBackgroundModules, backgroundScrollOffsets: scroll.LayerOffsets, actorScrollOffset: scroll.ActorOffset, nativeWrapFrame: scroll.NativeWrap, drawingJitterX: shake.X.Output, drawingJitterY: shake.Y.Output, cardMarkers: rareCardMarkers ? CreateCardMarkers(elapsed) : null, drawPointParticles: Events.DrawPointParticleFrame, drawPointParticleTables: Events.DrawPointParticleTables, drawPointDisplayMask: Events.Scene.NativeDrawPointDisplayMask, fade: fade.Draw, backgroundVisibility: SceneBackgroundVisibility());
         if (triangleRenderer is null)
         {
             FieldColorComposite.Apply(pixels, fade.Draw);

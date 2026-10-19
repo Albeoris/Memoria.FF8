@@ -1,3 +1,10 @@
 <Project>
   <!-- Stops MSBuild from importing the workspace's Directory.Build.targets (the drop-in's build). -->
+  <Target Name="CopyBundledMemoriaMods" AfterTargets="Build" Condition="'$(MSBuildProjectName)' == 'Memoria.FF8.App' Or '$(MSBuildProjectName)' == 'Memoria.Launcher'">
+    <ItemGroup>
+      <BundledMemoriaModFile Include="$(MSBuildThisFileDirectory)Mods/Memoria/**/*" />
+    </ItemGroup>
+    <MakeDir Directories="$(TargetDir)Mods/Tonberry;$(TargetDir)Mods/Demaster;$(TargetDir)Mods/Junction" />
+    <Copy SourceFiles="%(BundledMemoriaModFile.Identity)" DestinationFiles="$(TargetDir)Mods/Memoria/%(BundledMemoriaModFile.RecursiveDir)%(BundledMemoriaModFile.Filename)%(BundledMemoriaModFile.Extension)" Condition="!Exists('$(TargetDir)Mods/Memoria/%(BundledMemoriaModFile.RecursiveDir)%(BundledMemoriaModFile.Filename)%(BundledMemoriaModFile.Extension)')" />
+  </Target>
 </Project>

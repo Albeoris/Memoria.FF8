@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "fieldId": 175,
+  "fieldName": "bghall_6",
+  "backgrounds": [
+    { "layer": 0, "moduleId": 5, "state": 0, "visible": false }
+  ],
+  "actors": [
+    {
+      "objectId": 8,
+      "model": { "fieldId": 175, "modelId": 9 },
+      "animationId": 1,
+      "when": { "moduleId": 5, "state": 0 }
+    }
+  ]
+}

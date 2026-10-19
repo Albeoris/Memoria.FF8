@@ -192,7 +192,7 @@ internal sealed partial class RecreateGame : Game
             metrics.Update(updateStarted);
             return;
         }
-        if (keyboard.PauseRequested && !saveMenu.IsOpen && gameMenus?.IsOpen != true)
+        if (keyboard.PauseRequested && !saveMenu.IsOpen && gameMenus?.IsOpen != true && sceneInspector is null)
         {
             if (autoPlay?.Running == true)
             {
@@ -253,7 +253,7 @@ internal sealed partial class RecreateGame : Game
         {
             fieldAudio?.PlayTitleMusic();
         }
-        if (gameMenus?.IsNamePrompt != true && UpdateBattleDebugUi(input))
+        if (gameMenus?.IsNamePrompt != true && (UpdateSceneInspectorUi(input) || UpdateBattleDebugUi(input)))
         {
             movieSkipGesture.Reset();
             fieldAudio?.Update();
@@ -353,7 +353,7 @@ internal sealed partial class RecreateGame : Game
 
     private GameWorld CreateWorld()
     {
-        var next = new GameWorld(session, options.GameDirectory, movieClock, resourceHost?.Resources, Window.Handle, options.AudioEnabled);
+        var next = new GameWorld(session, options.GameDirectory, movieClock, resourceHost?.Resources, Window.Handle, options.AudioEnabled, readSceneMods: () => resourceHost?.SceneMods ?? Memoria.FF8.Mods.FieldSceneMods.Empty);
         fieldAudio?.Attach(next.Events);
         resumeFieldMusic = session.State.EventState is not null || session.State.DepartingFieldState is not null;
         return next;
@@ -739,7 +739,7 @@ internal sealed partial class RecreateGame : Game
         if (state.Scene != SceneKind.Movie || state.EventState is not null)
         {
             using var candidateClock = new MovieClock(candidateSession, options.GameDirectory, options.MediaToolsDirectory, resourceHost is null ? null : resourceHost.ResolveGameFile);
-            using var candidate = new GameWorld(candidateSession, options.GameDirectory, candidateClock, resourceHost?.Resources, sharedAssets: world?.ValidationAssets);
+            using var candidate = new GameWorld(candidateSession, options.GameDirectory, candidateClock, resourceHost?.Resources, sharedAssets: world?.ValidationAssets, readSceneMods: () => resourceHost?.SceneMods ?? Memoria.FF8.Mods.FieldSceneMods.Empty);
             candidate.EnsureField();
         }
     }
@@ -748,6 +748,7 @@ internal sealed partial class RecreateGame : Game
     {
         EndStartup();
         ClearBattlePresentation();
+        sceneInspector = null;
         gameMenus?.Close();
         nativeNamePrompt = null;
         queuedEntityName = null;
@@ -779,6 +780,7 @@ internal sealed partial class RecreateGame : Game
     {
         EndStartup();
         ClearBattlePresentation();
+        sceneInspector = null;
         gameMenus?.Close();
         nativeNamePrompt = null;
         queuedEntityName = null;
@@ -1133,10 +1135,11 @@ internal sealed partial class RecreateGame : Game
         }
         else if (session.State.Scene == SceneKind.WorldMap || session.State.Scene == SceneKind.Field && world?.Field is not null)
         {
-            PixelBounds fit = ViewportLayout.Fit(PresentedFieldTexture.Width, PresentedFieldTexture.Height, bounds.Width, bounds.Height);
-            batch.Draw(PresentedFieldTexture, new Rectangle(fit.X, fit.Y, fit.Width, fit.Height), Color.White);
+            Rectangle fieldBounds = sceneInspector is null ? bounds : SceneInspectorPreviewBounds(bounds);
+            PixelBounds fit = ViewportLayout.Fit(PresentedFieldTexture.Width, PresentedFieldTexture.Height, fieldBounds.Width, fieldBounds.Height);
+            batch.Draw(PresentedFieldTexture, new Rectangle(fieldBounds.X + fit.X, fieldBounds.Y + fit.Y, fit.Width, fit.Height), Color.White);
         }
-        if (events is not null && (session.State.Scene == SceneKind.WorldMap || field?.Id == session.State.FieldId && session.State.Scene is SceneKind.Field or SceneKind.Movie) && session.State.DebugView?.DialogueVisible != false)
+        if (sceneInspector is null && events is not null && (session.State.Scene == SceneKind.WorldMap || field?.Id == session.State.FieldId && session.State.Scene is SceneKind.Field or SceneKind.Movie) && session.State.DebugView?.DialogueVisible != false)
         {
             PixelBounds viewport = ViewportLayout.Fit(320, 240, bounds.Width, bounds.Height);
             foreach (DialogueState dialogue in DialoguePresentation.DrawOrder(VisibleDialogues))
@@ -1144,19 +1147,19 @@ internal sealed partial class RecreateGame : Game
                 DrawDialogueUi(bounds, viewport, dialogue, gameTime.TotalGameTime.TotalSeconds);
             }
         }
-        if (ActiveBattle is null && session.State.Scene is SceneKind.Field or SceneKind.Movie && session.State.FieldBars is { } bars)
+        if (sceneInspector is null && ActiveBattle is null && session.State.Scene is SceneKind.Field or SceneKind.Movie && session.State.FieldBars is { } bars)
         {
             DrawFieldBars(bounds, bars);
         }
-        if (ActiveBattle is null && session.State.Scene == SceneKind.Field && session.State.ExamTimer is { DisplayEnabled: true } timer)
+        if (sceneInspector is null && ActiveBattle is null && session.State.Scene == SceneKind.Field && session.State.ExamTimer is { DisplayEnabled: true } timer)
         {
             DrawTimerUi(bounds, timer);
         }
-        if (ActiveBattle is null && session.State.Scene != SceneKind.Title && session.State.SalaryPresentation is { Scale9A: > 0 } salary)
+        if (sceneInspector is null && ActiveBattle is null && session.State.Scene != SceneKind.Title && session.State.SalaryPresentation is { Scale9A: > 0 } salary)
         {
             DrawSalaryUi(bounds, salary);
         }
-        if (events?.PartyMenu is not null)
+        if (sceneInspector is null && events?.PartyMenu is not null)
         {
             DrawPartyMenu(bounds);
         }
@@ -1175,11 +1178,12 @@ internal sealed partial class RecreateGame : Game
         }
         DrawGameUi(bounds);
         DrawAutoPlayStatus(bounds);
-        if (userPaused)
+        if (userPaused && sceneInspector is null)
         {
             DrawNoticeUi(bounds, "Paused", true);
         }
         DrawBattleDebugUi(bounds);
+        DrawSceneInspectorUi(bounds);
         DrawFps(bounds);
         batch.End();
         CapturePresentedFrame(gameTime);

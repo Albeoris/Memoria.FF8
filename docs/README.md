@@ -19,6 +19,7 @@ Start with [installation and first launch](players/getting-started.md), then use
 | --- | --- |
 | [Texture mods](modding/texture-mods.md) | Package discovery, manifests, adapters and supported replacements. |
 | [File replacements](modding/file-replacements.md) | Junction packages and the movie AVI/CAM replacement boundary. |
+| [Native field mods](modding/field-mods.md) | Scene configuration, the bundled Cid fix and Scene inspector. |
 
 ## Develop
 

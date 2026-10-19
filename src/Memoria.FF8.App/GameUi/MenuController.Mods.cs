@@ -60,7 +60,7 @@ public sealed partial class MenuController
     private IReadOnlyList<string> ModDetails()
     {
         IModService service = modService!;
-        return [service.IsReloadPending ? "Reload pending" : $"{service.Catalog.Packages.Count} packages", "Textures: Demaster, Tonberry, original", "Files: Junction, original", .. service.Diagnostics.Take(4).Select(diagnostic => diagnostic.Message)];
+        return [service.IsReloadPending ? "Reload pending" : $"{service.Catalog.Packages.Count} packages", "Fields: Memoria scene patches", "Textures: Demaster, Tonberry, original", "Files: Junction, original", .. service.Diagnostics.Take(4).Select(diagnostic => diagnostic.Message)];
     }
 
     private UiElement BuildModContent()

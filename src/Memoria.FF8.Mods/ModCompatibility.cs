@@ -9,6 +9,7 @@ public static class ModCompatibility
         ModFormat.Demaster => true,
         ModFormat.Tonberry => edition == GameDataEdition.Classic,
         ModFormat.Junction => edition == GameDataEdition.Classic,
+        ModFormat.Memoria => edition == GameDataEdition.Classic,
         _ => false
     };
 }
