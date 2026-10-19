@@ -1,10 +1,44 @@
 using Memoria.FF8.GameUi;
+using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class MenuViewTests
 {
+    [Theory]
+    [InlineData(0u, "00:00")]
+    [InlineData(59u, "00:00")]
+    [InlineData(60u, "00:01")]
+    [InlineData(3599u, "00:59")]
+    [InlineData(3600u, "01:00")]
+    [InlineData(45296u, "12:34")]
+    [InlineData(90000u, "25:00")]
+    public void MainMenuDisplaysSavedNativePlaytime(uint seconds, string expected)
+    {
+        GameState state = new() { Playtime = new NativePlaytimeState(seconds, 1234, 0) };
+        MenuController menus = new(() => LiveMenuData.Build(state));
+        menus.Open();
+
+        Assert.Equal(TimeSpan.FromSeconds(seconds), menus.Data.PlayTime);
+        Assert.Contains(Descendants(menus.BuildView().Root).OfType<UiLabel>(), label => label.Text == $"PLAY  {expected}");
+        Assert.Equal(new NativePlaytimeState(seconds, 1234, 0), state.Playtime);
+    }
+
+    [Fact]
+    public void MainMenuRefreshesPlaytimeFromAdvancedNativeClock()
+    {
+        GameState state = new() { Playtime = new NativePlaytimeState(3599, 0, 0) };
+        MenuController menus = new(() => LiveMenuData.Build(state));
+        menus.Open();
+        Assert.Contains(Descendants(menus.BuildView().Root).OfType<UiLabel>(), label => label.Text == "PLAY  00:59");
+
+        state = state with { Playtime = state.Playtime.AdvanceTo(60) };
+        menus.InvalidateLiveData();
+
+        Assert.Contains(Descendants(menus.BuildView().Root).OfType<UiLabel>(), label => label.Text == "PLAY  01:00");
+    }
+
     [Theory]
     [InlineData(640, 448)]
     [InlineData(1280, 896)]

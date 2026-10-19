@@ -18,6 +18,7 @@ public static class LiveMenuData
         ArgumentNullException.ThrowIfNull(state);
         MenuData result = new()
         {
+            PlayTime = state.Playtime is { } playtime ? TimeSpan.FromSeconds(playtime.Seconds) : null,
             Location = catalog?.LocationName(state, placeId) ?? "Unavailable",
             SourceDescription = "Live session: native inventory, party and junction records",
             UnavailableReason = "The current engine does not support this native menu action."
