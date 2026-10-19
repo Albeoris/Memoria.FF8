@@ -236,6 +236,7 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
         archives.Clear();
         catalog.Clear();
         artworkImages.Clear();
+        iconAtlases.Clear();
         main.Dispose();
         other.Dispose();
         if (Directory.Exists(cacheDirectory))

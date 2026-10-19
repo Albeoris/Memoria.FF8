@@ -24,6 +24,11 @@ public sealed partial class RemasteredGameDataSource
             }
             else if (name == "icon.tex")
             {
+                if (ReadSplitIconAtlas(context.Key.Palette) is { } icons)
+                {
+                    _ = NativeArtworkTexture.Scale(icons, context.LogicalWidth, context.LogicalHeight);
+                    return new TextureReplacement(icons, $"{Descriptor.Id}:{context.Key}", context.LogicalWidth, context.LogicalHeight);
+                }
                 path = $"textures/icon.tex/{language}/{context.Key.Palette}.png";
             }
             else if (name.Length == 8 && name.StartsWith("mc", StringComparison.Ordinal) && int.TryParse(name.AsSpan(2, 2), out int cardAtlas) && cardAtlas is >= 0 and <= 9)
