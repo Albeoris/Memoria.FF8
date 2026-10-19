@@ -20,6 +20,7 @@ public static class NativeBattleDuel274Target
         int target = NativeBattleDuel274Controller.Index(task.ReadDword(20));
         if (frame.Staging.Read(0x25084D8, 1)[0] != 0)
         {
+            frame = NativeBattleDuel274Banks.DetachUnscheduledPrivateBanks(frame);
             int next = 2356;
             frame = frame with { Staging = Dword(frame.Staging, 0x2508434, Pointer(next)) };
             if (task.ReadByte(16) != 0)

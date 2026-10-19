@@ -89,10 +89,18 @@ public static partial class NativeBattleDuel212Controller
         short sine = unchecked((short)((scale * NativeBattleCameraMath.Sine(angle)) >> 12));
         short cosine = unchecked((short)((scale * NativeBattleCameraMath.Cosine(angle)) >> 12));
         NativeBattleActionMatrix tilt = new([cosine, 0, unchecked((short)-sine), 0, unchecked((short)scale), 0, sine, 0, cosine], 0, 0, 0, 4096);
-        NativeBattleActionMatrix rotation = NativeBattleGfMatrices.Multiply56C090(NativeBattleGfMatrices.Euler56CE30(new(unchecked((short)(16 * SignedByte(task, 28))), 0, 0)), tilt);
+        NativeBattleActionMatrix rotation = NativeBattleGfMatrices.Multiply56C090(NativeBattleGfMatrices.Euler701310(new(unchecked((short)(16 * SignedByte(task, 28))), 0, 0)), tilt);
         NativeBattleActionMatrix world = rotation with { X = Word(task, 12), Y = Word(task, 14), Z = Word(task, 16) };
         uint resourceAddress = task.Callback switch { 0x6A3280 => 0x1184174u, 0x6A33C0 => 0x11843DCu, 0x6A33E0 => 0x1184694u, _ => 0x1183FA4u };
-        frame = inputs.Execute(frame, new NativeBattleDuel212Mesh(resourceAddress, NativeBattlePoseMatrices.Compose56C2F0(inputs.View, world), new(0, null, null, null, null, null, 17, 2), allocation.Address));
+        NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.Compose56C2F0(inputs.View, world);
+        NativeBattleFileStaging staging = frame.Staging.Write(allocation.Address + 88, new byte[20]).Write(allocation.Address + 120, new byte[20]);
+        for (int index = 0; index < 9; index++)
+        {
+            staging = staging.Write(allocation.Address + 88 + (uint)index * 2, BitConverter.GetBytes(matrix.Rotation[index])).Write(allocation.Address + 120 + (uint)index * 2, BitConverter.GetBytes(tilt.Rotation[index]));
+        }
+        staging = staging.Write(allocation.Address + 108, BitConverter.GetBytes(matrix.X)).Write(allocation.Address + 112, BitConverter.GetBytes(matrix.Y)).Write(allocation.Address + 116, BitConverter.GetBytes(matrix.Z));
+        staging = staging.Write(allocation.Address, BitConverter.GetBytes(resourceAddress)).Write(allocation.Address + 28, new byte[4]);
+        frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleDuel212Mesh(resourceAddress, matrix, new(0, null, null, null, null, null, 17, 2), allocation.Address));
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(frame.Staging, 152) };
         task = task.WriteByte(27, unchecked((byte)(task.ReadByte(27) - 1)));
         bool complete = task.ReadByte(27) == 0;

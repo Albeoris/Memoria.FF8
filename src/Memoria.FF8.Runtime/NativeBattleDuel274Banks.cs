@@ -2,6 +2,19 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleDuel274Banks
 {
+    public static NativeBattleDuel274Frame DetachUnscheduledPrivateBanks(NativeBattleDuel274Frame frame)
+    {
+        foreach (uint descriptor in new uint[] { 0x2508498, 0x2508488, 0x2508478 })
+        {
+            if (frame.Effect.Pools.Any(pool => pool.DescriptorAddress == descriptor))
+            {
+                NativeBattleEffectTaskTransfer detached = NativeBattleEffectTaskMemory.DetachArenaBank(frame.Memory, frame.Effect, descriptor);
+                frame = frame with { Memory = detached.Memory, Effect = detached.Effect };
+            }
+        }
+        return frame;
+    }
+
     public static int Index(NativeBattleDuel274Frame frame, uint descriptor)
     {
         int selected = -1;

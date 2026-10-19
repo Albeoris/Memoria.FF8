@@ -104,6 +104,7 @@ public static class NativeBattleDuel274Controller
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(0, step.Pool), ReturnedDescriptor = step.Survivors == 0 ? 0u : 0x25084B8u } };
         if (step.Survivors == 0)
         {
+            frame = NativeBattleDuel274Banks.DetachUnscheduledPrivateBanks(frame);
             NativeBattleEffectTaskTransfer transferred = NativeBattleEffectTaskMemory.TransferInactiveArenaBanks(frame.Memory, frame.Effect);
             frame = frame with { Memory = transferred.Memory, Effect = transferred.Effect };
         }

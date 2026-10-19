@@ -337,6 +337,24 @@ public sealed partial class GameAssets
                 binding = binding with { Duel274Resources = ReadNativeDuel274Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 212)
+            {
+                if (binding.Entry != 0x6A0D20 || binding.Initializer != 0x6A0D30 || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag211.tim", 0x25101F8))
+                {
+                    throw new InvalidDataException("Native Burning Rave differs from its original entry, initializer and texture publication.");
+                }
+                binding = binding with { Duel212Resources = ReadNativeDuel212Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 215)
+            {
+                if (binding.Entry != 0x69AB60 || binding.Initializer != 0x69AB70 || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag214.tim", 0x2508938))
+                {
+                    throw new InvalidDataException("Native Duel215 differs from its original entry, initializer and texture publication.");
+                }
+                binding = binding with { Duel215Resources = ReadNativeDuel215Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 200)
             {
                 if (binding.Entry != 0x6391D0 || binding.Initializer != 0x575530 || binding.InitializerIsRet != true)
@@ -374,6 +392,11 @@ public sealed partial class GameAssets
             if (binding.Effect == 87)
             {
                 binding = binding with { Rinoa87Resources = ReadNativeRinoa87Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 88)
+            {
+                binding = binding with { Rinoa88Resources = ReadNativeRinoa88Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
             if (binding.Effect == 198)

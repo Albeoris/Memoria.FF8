@@ -89,7 +89,7 @@ public sealed class NativeBattleDuel274BasicMovesTests
             targets = targets with { Slots = targets.Slots.SetItem(0, task) };
             NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, [targets]);
             NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(0, 0, 8, 0, 0, 0), root.DescriptorAddress) { Pools = [root, targets] };
-            NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0x2508430, BitConverter.GetBytes(NativeBattleEffectNodeMemory.ArenaAddress)).Write(0x2508434, BitConverter.GetBytes(NativeBattleEffectNodeMemory.ArenaAddress + 0x1000));
+            NativeBattleFileStaging staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(0x2508430, BitConverter.GetBytes(NativeBattleEffectNodeMemory.ArenaAddress)).Write(0x2508434, BitConverter.GetBytes(NativeBattleEffectNodeMemory.ArenaAddress + 0x1000));
             Frame = new(memory, effect, staging, new(1));
             byte[] data = new byte[checked((int)(NativeBattleDuel274Resources.EndAddress - NativeBattleDuel274Resources.Address))];
             foreach (uint address in new uint[] { 0x10EA030, 0x10EC7D4, 0x10ED700, 0x10F3808, 0x10F6BE0 })

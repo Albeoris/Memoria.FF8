@@ -13,6 +13,7 @@ public sealed class NativeBattleDuel212CaptureTests
         Assert.Equal(-4, capture.Matrix.Y);
         Assert.Equal(-222, capture.Matrix.Z);
         Assert.Equal((short)-102, capture.Matrix.Rotation[0]);
+        Assert.Equal((short)102, capture.Matrix.Rotation[5]);
         Assert.Equal((short)0, capture.Matrix.Rotation[1]);
         Assert.Equal((short)0, capture.Matrix.Rotation[4]);
         Assert.Equal((short)0, capture.Matrix.Rotation[7]);

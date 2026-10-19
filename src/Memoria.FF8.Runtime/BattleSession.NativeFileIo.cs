@@ -31,9 +31,18 @@ public sealed partial class BattleSession
                 case 0x534150:
                     NativeEffectMemory = NativeBattleEffectIo.Complete534150(NativeEffectMemory ?? throw new NotSupportedException("Native534150 requires its retained effect arena.")).Memory;
                     break;
+                case 0x689810:
+                    NativeEffectMemory = NativeBattleEffectIo.Complete689810(NativeEffectMemory ?? throw new NotSupportedException("Native Duel file completion requires its retained effect arena."), ResolveNativeQuezacotlSource).Memory;
+                    break;
                 case 0x774030:
                 case 0x7740A0:
                     CompleteNativeRinoa87Io(completion.Callback);
+                    break;
+                case 0x768CC0:
+                case 0x768D20:
+                case 0x768D30:
+                case 0x768D40:
+                    CompleteNativeRinoa88Io(completion.Callback);
                     break;
                 case 0x77F980:
                     CompleteNativeRinoa86Io(completion.Callback);

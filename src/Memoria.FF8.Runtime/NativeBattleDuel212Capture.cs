@@ -33,7 +33,7 @@ public static class NativeBattleDuel212Capture
             throw new NotSupportedException("Native6A12B0 requires its original nonzero capture geometry divisors.");
         }
         NativeBattleActionMatrix yaw = NativeBattleGfMatrices.Euler56CE30(new(0, 2048, 0));
-        NativeBattleActionMatrix pitch = NativeBattleGfMatrices.Euler56CE30(new(-1024, 0, 0));
+        NativeBattleActionMatrix pitch = NativeBattleGfMatrices.Euler701310(new(-1024, 0, 0));
         (int x, _, int z) = NativeBattleGfMatrices.RotateLong56C600(yaw, -point.X / stepX, 0, point.Z / stepZ);
         NativeBattleActionMatrix basis = NativeBattleGfMatrices.Multiply56C090(pitch, yaw);
         NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.Scale56BEF0(basis, 0x1000000 / divisorX, 0, 0x1000000 / divisorZ) with { X = x + (negativeX - maximumX) / 2 / stepX, Y = z - (negativeZ - maximumZ) / 2 / stepZ, Z = focal };

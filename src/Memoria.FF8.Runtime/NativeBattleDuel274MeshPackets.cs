@@ -5,24 +5,42 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleDuel274MeshPackets
 {
-    public static NativeBattleGfGeometryBatch EmitBatch68BD50(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int depthBias, uint renderFlags, Func<int, NativeBattleVector> readSelectedVertex)
+    public static NativeBattleGfGeometryBatch EmitBatch68BD50(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int depthBias, uint renderFlags, Func<int, NativeBattleVector> readSelectedVertex, Action<int, uint>? observeContext = null)
     {
-        return NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, 0x2000, readSelectedVertex, (group, face, corner, offset) => group is 4 or 5 ? EmitGouraud68BDB0(face, corner, group == 5, depthBias, (renderFlags & 0x20) != 0, offset) : new([], 0));
+        return NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, 0x2000, readSelectedVertex, (group, face, corner, offset) => group is 4 or 5 ? EmitGouraud68BDB0(face, corner, group == 5, depthBias, (renderFlags & 0x20) != 0, offset, observeContext) : new([], 0));
     }
 
-    public static NativeBattleGfGeometryBatch EmitBatch68C320(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, ushort verticalOffset, Func<int, NativeBattleVector> readSelectedVertex)
+    public static NativeBattleGfGeometryBatch EmitBatch68C320(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, ushort verticalOffset, Func<int, NativeBattleVector> readSelectedVertex, Action<int, uint>? observeContext = null)
     {
-        return NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, 0x2000, readSelectedVertex, (group, face, corner, offset) => group == 2 ? EmitFt3_68C350(face, corner, verticalOffset, offset) : new([], 0));
+        return NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, 0x2000, readSelectedVertex, (group, face, corner, offset) => group == 2 ? EmitFt3_68C350(face, corner, verticalOffset, offset, observeContext) : new([], 0));
     }
 
-    public static NativeBattleGfGeometryBatch EmitFt3_68C350(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, ushort verticalOffset, int byteOffset = 0)
+    public static NativeBattleGfGeometryBatch EmitFt3_68C350(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, ushort verticalOffset, int byteOffset = 0, Action<int, uint>? observeContext = null)
     {
         NativeBattleEffectMeshWindow window = new(0, verticalOffset, new(0, 0, 256, 256), new(0, 0, 256, 128), true, 128);
         NativeBattleEffectMeshPacketContext context = new(0, null, null, null, null, 0, false, null, 17, 2, window);
-        return NativeBattleEffectMeshPackets.EmitTextured(face, readCorner, false, false, context, null, byteOffset);
+        NativeBattleModuleProjectedVertex[] vertices = new NativeBattleModuleProjectedVertex[3];
+        NativeBattleGfGeometryBatch batch = NativeBattleEffectMeshPackets.EmitTextured(face, Project, false, false, context, null, byteOffset);
+        uint flags = vertices.Aggregate(0u, (value, vertex) => value | vertex.Flags);
+        observeContext?.Invoke(52, flags);
+        if ((flags & 0x60000) == 0)
+        {
+            observeContext?.Invoke(40, unchecked((uint)NativeBattleModulePackets.Nclip(vertices[0].Screen, vertices[1].Screen, vertices[2].Screen)));
+        }
+        if (batch.Attempts.Any(attempt => attempt.Primitive is not null))
+        {
+            observeContext?.Invoke(48, unchecked((uint)vertices.Sum(vertex => (int)vertex.Depth) * 0x155u) >> 12);
+        }
+        return batch;
+
+        NativeBattleModuleProjectedVertex Project(int corner)
+        {
+            vertices[corner] = readCorner(corner);
+            return vertices[corner];
+        }
     }
 
-    public static NativeBattleGfGeometryBatch EmitGouraud68BDB0(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, bool quad, int depthBias, bool allowBackface, int byteOffset = 0)
+    public static NativeBattleGfGeometryBatch EmitGouraud68BDB0(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, bool quad, int depthBias, bool allowBackface, int byteOffset = 0, Action<int, uint>? observeContext = null)
     {
         if (face.Length != (quad ? 24 : 20))
         {
@@ -38,11 +56,15 @@ public static class NativeBattleDuel274MeshPackets
         packet.Word(0, (uint)(length / 4 - 1) << 24);
         uint command = BinaryPrimitives.ReadUInt32LittleEndian(face);
         packet.Word(4, command);
-        if (((vertices[0].Flags | vertices[1].Flags | vertices[2].Flags) & 0x60000) != 0)
+        uint firstFlags = vertices[0].Flags | vertices[1].Flags | vertices[2].Flags;
+        observeContext?.Invoke(48, firstFlags);
+        if ((firstFlags & 0x60000) != 0)
         {
             return Rejected();
         }
-        if (NativeBattleModulePackets.Nclip(vertices[0].Screen, vertices[1].Screen, vertices[2].Screen) < 0 && !allowBackface)
+        int area = NativeBattleModulePackets.Nclip(vertices[0].Screen, vertices[1].Screen, vertices[2].Screen);
+        observeContext?.Invoke(36, unchecked((uint)area));
+        if (area < 0 && !allowBackface)
         {
             return Rejected();
         }
@@ -65,6 +87,7 @@ public static class NativeBattleDuel274MeshPackets
         }
         int average = (int)(unchecked((uint)vertices.Sum(vertex => (int)vertex.Depth) * (quad ? 0x100u : 0x155u)) >> 12);
         int biased = unchecked(average + depthBias);
+        observeContext?.Invoke(44, unchecked((uint)biased));
         if (biased < 0)
         {
             return Rejected();

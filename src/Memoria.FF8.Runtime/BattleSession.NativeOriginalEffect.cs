@@ -209,6 +209,18 @@ public sealed partial class BattleSession
         {
             return EnterNativeDuel112(graphics, effect.Binding.Duel112Resources ?? throw new NotSupportedException("Native Duel112 requires its original resources."));
         }
+        if (effect.Binding.Entry == 0x6897E0)
+        {
+            return EnterNativeDuel274(graphics, effect.Binding.Duel274Resources ?? throw new NotSupportedException("Native Duel opening requires its original resources."));
+        }
+        if (effect.Binding.Entry == 0x6A0D20)
+        {
+            return EnterNativeDuel212(graphics, effect.Binding.Duel212Resources ?? throw new NotSupportedException("Native Burning Rave requires its original resources."));
+        }
+        if (effect.Binding.Entry == 0x69AB60)
+        {
+            return EnterNativeDuel215(graphics, effect.Binding.Duel215Resources ?? throw new NotSupportedException("Native Duel215 requires its original resources."));
+        }
         if (effect.Binding.Entry == 0x6391D0)
         {
             return EnterNativeNoMercy200(graphics, effect.Binding.NoMercy200Resources ?? throw new NotSupportedException("Native No Mercy requires its original resources."));
@@ -236,6 +248,10 @@ public sealed partial class BattleSession
         if (effect.Binding.Entry == 0x773870)
         {
             return EnterNativeRinoa87(graphics);
+        }
+        if (effect.Binding.Entry == 0x7684F0)
+        {
+            return EnterNativeRinoa88(graphics);
         }
         if (effect.Binding.Entry == 0x5AA3E0)
         {

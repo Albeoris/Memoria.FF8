@@ -106,7 +106,7 @@ public sealed class NativeBattleDuel274DolphinTests
             NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), parameters, root.DescriptorAddress) { Pools = [root, targets] };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() };
             memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(memory, [targets]);
-            NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0x2508430, BitConverter.GetBytes(NativeBattleEffectNodeMemory.ArenaAddress)).Write(0x2508434, BitConverter.GetBytes(NativeBattleEffectNodeMemory.ArenaAddress + 0x1000)).Write(0x2508452, [0xAA, 0xBB]);
+            NativeBattleFileStaging staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(0x2508430, BitConverter.GetBytes(NativeBattleEffectNodeMemory.ArenaAddress)).Write(0x2508434, BitConverter.GetBytes(NativeBattleEffectNodeMemory.ArenaAddress + 0x1000)).Write(0x2508452, [0xAA, 0xBB]);
             Frame = new(memory, effect, staging, new(1));
             byte[] raw = new byte[checked((int)(NativeBattleDuel274Resources.EndAddress - NativeBattleDuel274Resources.Address))];
             foreach (uint source in new uint[] { 0x10FE310, 0x110198C })

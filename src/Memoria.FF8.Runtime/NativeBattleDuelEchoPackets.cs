@@ -12,7 +12,7 @@ public sealed record NativeBattleDuelEchoPacketsResult(NativeBattleModulePoolTas
 /// <summary>68AAE0's original flat-lit textured echo faces over a retained projected vertex stream.</summary>
 public static class NativeBattleDuelEchoPackets
 {
-    public static NativeBattleDuelEchoPacketsResult Emit68AAE0(NativeBattleModulePoolTask context, int offset, ImmutableArray<byte> faces, Func<int, NativeBattleDuelEchoProjectedVertex> readVertex, int tableBaseBucket, byte depthShift, short zsf3, short zsf4)
+    public static NativeBattleDuelEchoPacketsResult Emit68AAE0(NativeBattleModulePoolTask context, int offset, ImmutableArray<byte> faces, Func<int, NativeBattleDuelEchoProjectedVertex> readVertex, int tableBaseBucket, byte depthShift, short zsf3, short zsf4, Action<NativeBattleModulePoolTask, int, int>? observeContext = null)
     {
         if (faces.IsDefault || depthShift > 31)
         {
@@ -32,6 +32,7 @@ public static class NativeBattleDuelEchoPackets
             int countOffset = offset + 8 + group * 2;
             ushort count = context.ReadWord(countOffset);
             context = context.WriteWord(countOffset, unchecked((ushort)(count - 1)));
+            observeContext?.Invoke(context, countOffset, 2);
             for (int faceIndex = 0; faceIndex < count; faceIndex++)
             {
                 bool quad = group != 0;
@@ -53,6 +54,7 @@ public static class NativeBattleDuelEchoPackets
                             context = context.MarkPayloadUnknown(target + current, 1);
                         }
                     }
+                    observeContext?.Invoke(context, target, 8);
                     if ((selected.KnownBytesMask & 0xC0) != 0xC0)
                     {
                         throw new NotSupportedException("Native Duel echo clip comparison requires its actual projected clip WORD.");
@@ -72,10 +74,12 @@ public static class NativeBattleDuelEchoPackets
                     }
                     int area = NativeBattleModulePackets.Nclip(vertices[0].Screen, vertices[1].Screen, vertices[2].Screen);
                     context = context.WriteDword(offset + 60, unchecked((uint)area));
+                    observeContext?.Invoke(context, offset + 60, 4);
                     if (area >= 0)
                     {
                         uint depth = unchecked((uint)vertices.Sum(vertex => (int)vertex.Depth) * unchecked((uint)(quad ? zsf4 : zsf3))) >> 12;
                         context = context.WriteDword(offset + 68, depth);
+                        observeContext?.Invoke(context, offset + 68, 4);
                         int length = quad ? 40 : 32;
                         SkinWrites packet = new(length, allocated);
                         uint color = context.ReadDword(offset + 20) | (quad ? 0x2E000000u : 0x26000000u);
@@ -103,11 +107,13 @@ public static class NativeBattleDuelEchoPackets
                 if (faceIndex + 1 < count)
                 {
                     context = context.WriteWord(countOffset, unchecked((ushort)(context.ReadWord(countOffset) - 1)));
+                    observeContext?.Invoke(context, countOffset, 2);
                 }
             }
             if (count != 0)
             {
                 context = context.WriteWord(countOffset, ushort.MaxValue);
+                observeContext?.Invoke(context, countOffset, 2);
             }
         }
         return new(context, new(attempts.ToImmutable(), allocated));

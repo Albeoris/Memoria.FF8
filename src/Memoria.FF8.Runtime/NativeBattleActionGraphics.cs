@@ -237,6 +237,7 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
     public NativeBattleAngelWing84Resources? AngelWing84Resources { get; init; }
     public NativeBattleRinoa86Resources? Rinoa86Resources { get; init; }
     public NativeBattleRinoa87Resources? Rinoa87Resources { get; init; }
+    public NativeBattleRinoa88Resources? Rinoa88Resources { get; init; }
     public NativeBattleRoughDivide163Resources? RoughDivide163Resources { get; init; }
     public NativeBattleBlastingZone164Resources? BlastingZone164Resources { get; init; }
     public NativeBattleLionHeart165Resources? LionHeart165Resources { get; init; }
@@ -245,6 +246,10 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleDuel112Resources? Duel112Resources { get; init; }
     public NativeBattleDuel274Resources? Duel274Resources { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleDuel212Resources? Duel212Resources { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleDuel215Resources? Duel215Resources { get; init; }
     public NativeBattleFatedCircle162Resources? FatedCircle162Resources { get; init; }
     public NativeBattleShot194Resources? Shot194Resources { get; init; }
     public NativeBattleShot192Resources? Shot192Resources { get; init; }

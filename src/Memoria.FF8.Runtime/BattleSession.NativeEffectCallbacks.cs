@@ -193,6 +193,18 @@ public sealed partial class BattleSession
         {
             return AdvanceNativeDuel112(graphics);
         }
+        if (effect.Binding.Entry == 0x6897E0)
+        {
+            return AdvanceNativeDuel274(graphics);
+        }
+        if (effect.Binding.Entry == 0x6A0D20)
+        {
+            return AdvanceNativeDuel212(graphics);
+        }
+        if (effect.Binding.Entry == 0x69AB60)
+        {
+            return AdvanceNativeDuel215(graphics);
+        }
         if (effect.Binding.Entry == 0x6391D0)
         {
             return AdvanceNativeNoMercy200(graphics);
@@ -220,6 +232,10 @@ public sealed partial class BattleSession
         if (effect.Binding.Entry == 0x773870)
         {
             return AdvanceNativeRinoa87(graphics);
+        }
+        if (effect.Binding.Entry == 0x7684F0)
+        {
+            return AdvanceNativeRinoa88(graphics);
         }
         if (effect.Binding.Entry == 0x5AA3E0)
         {

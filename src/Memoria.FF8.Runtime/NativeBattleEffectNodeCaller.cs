@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-internal sealed record NativeBattleEffectNodeCallerPolicy(uint SourceAddress, int SourceLength, uint Callback, int EmitterCapacity, int GeometryCapacity, bool FullLife, int WorkOffset = 0x10000, bool CommonSprites = false, bool AllowMode3 = false)
+internal sealed record NativeBattleEffectNodeCallerPolicy(uint SourceAddress, int SourceLength, uint Callback, int EmitterCapacity, int GeometryCapacity, bool FullLife, int WorkOffset = 0x10000, bool CommonSprites = false, bool AllowMode3 = false, bool PrivateMeshes = false)
 {
     internal int EmitterBytes => checked(EmitterCapacity * 0x6C);
     internal int GeometryBytes => checked(GeometryCapacity * 0x2A0);
@@ -119,7 +119,7 @@ internal static class NativeBattleEffectNodeCaller
             frame = frame with { Memory = written.Memory, Effect = written.Effect, Random = random, State = frame.State with { Data = bank.Data, EmitterScanCursor = emitterCursor, GeometryScanCursor = geometryCursor } };
             foreach ((bool mesh, NativeBattleGfGeometryBatch batch) in deliveries)
             {
-                if (mesh || profile.CommonSprites)
+                if (mesh && !profile.PrivateMeshes || !mesh && profile.CommonSprites)
                 {
                     commonMeshes.Add(batch);
                     NativeBattleCommonPacketWrite packets = NativeBattleCommonPacketArena.Append(frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native nodes require their actual common packet owner."), ordering, batch);

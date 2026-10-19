@@ -46,7 +46,7 @@ public static class NativeBattleGfGeometryPackets
         return EmitBatch(source, geometryOffset, selectedVertices, matrix, projection, Normalize(context), colors, readSelectedVertex, observeDepth);
     }
 
-    internal static NativeBattleGfGeometryBatch EmitBatch(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleMeshPacketContext context, NativeBattleSummonColors? colors, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null, Action<int>? observeSourceCursor = null)
+    internal static NativeBattleGfGeometryBatch EmitBatch(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleMeshPacketContext context, NativeBattleSummonColors? colors, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null, Action<int>? observeSourceCursor = null, NativeBattleMeshPacketVariant? variant = null)
     {
         if (source.IsDefault || context.DepthShift > 31)
         {
@@ -84,7 +84,7 @@ public static class NativeBattleGfGeometryPackets
                     offsets[corner] = BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(4 + corner * 2));
                 }
                 ProjectedCorners corners = new(offsets, Project);
-                NativeBattleGfGeometryAttempt attempt = EmitAttempt(face, corners, group, context, colors, allocated, observeDepth);
+                NativeBattleGfGeometryAttempt attempt = EmitAttempt(face, corners, group, context, colors, allocated, observeDepth, variant);
                 attempts.Add(attempt);
                 if (attempt.Primitive is not null)
                 {

@@ -24,7 +24,7 @@ public static class NativeBattleDuelEchoProjection
         return new(rotation.ToImmutableArray(), translation.X, translation.Y, translation.Z, 4096);
     }
 
-    public static NativeBattleDuelEchoProjectionResult Project6A2A90(NativeBattleModulePoolTask context, int offset, ImmutableArray<byte> vertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int vertexOffset, Action<int, ImmutableArray<byte>> writeCpu)
+    public static NativeBattleDuelEchoProjectionResult Project6A2A90(NativeBattleModulePoolTask context, int offset, ImmutableArray<byte> vertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int vertexOffset, Action<int, ImmutableArray<byte>> writeCpu, Action<NativeBattleModulePoolTask, int, int>? observeContext = null)
     {
         if (vertices.IsDefault || vertices.Length < 2 || vertexOffset < 0)
         {
@@ -42,6 +42,7 @@ public static class NativeBattleDuelEchoProjection
             NativeBattleModuleProjectedVertex projected = NativeBattleModuleProjection.Project45FE10(matrix, point, projection);
             ushort depth = (ushort)(projected.Depth >> 2);
             context = context.WriteDword(offset + 28, projected.Screen).WriteDword(offset + 32, depth);
+            observeContext?.Invoke(context, offset + 28, 8);
             int destination = checked(vertexOffset + index * 8);
             if (depth == 0)
             {
@@ -53,6 +54,7 @@ public static class NativeBattleDuelEchoProjection
             ushort clip = x < 8 * Signed(context, offset + 12) ? (ushort)1 : x >= 8 * Signed(context, offset + 16) ? (ushort)2 : (ushort)0;
             clip |= y < 8 * Signed(context, offset + 14) ? (ushort)4 : y >= 8 * Signed(context, offset + 18) ? (ushort)8 : (ushort)0;
             context = context.WriteWord(offset + 34, clip);
+            observeContext?.Invoke(context, offset + 34, 2);
             byte[] bytes = new byte[8];
             BinaryPrimitives.WriteUInt32LittleEndian(bytes, projected.Screen);
             BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(4), depth);

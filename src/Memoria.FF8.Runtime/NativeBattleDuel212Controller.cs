@@ -10,7 +10,7 @@ public sealed record NativeBattleDuel212CloseScene : NativeBattleDuel212Operatio
 
 public static partial class NativeBattleDuel212Controller
 {
-    public static NativeBattleDuel212Frame Enter6A0D20(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleFileStaging staging, NativeBattleDuel212Resources resources, NativeCrtRandomState random)
+    public static NativeBattleDuel212Frame Enter6A0D20(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleFileStaging staging, NativeBattleDuel212Resources resources, NativeCrtRandomState random, Func<NativeBattleDuel212Frame, NativeBattleDuel212Frame> enqueueInitialTexture)
     {
         if (effect.Binding is not { Effect: 212, Entry: 0x6A0D20, Initializer: 0x6A0D30 } || effect.Parameters is not { } parameters)
         {
@@ -25,16 +25,14 @@ public static partial class NativeBattleDuel212Controller
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(Root, 0x2510248, 16, 1);
         (root, int slot) = root.Append(0x6A0DC0);
         root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteDword(12, 0)) };
-        NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native Burning Rave requires its original texture owner.");
-        (textures, _) = textures.EnqueueTim505E30(resources.InitialTim);
         staging = Put(staging, 0x2510278, 0x20DFAB8);
         staging = Put(staging, 0x25101FC, 0x1D99A78);
         staging = Put(staging, 0x2510200, checked(0x1D972C0u + 156u * parameters.Actor78));
         state = new(true, parameters, resources);
-        return new(memory with { Duel212 = state, Textures = textures }, effect with { Pools = [root], ReturnedDescriptor = Root }, staging, random);
+        return enqueueInitialTexture(new(memory with { Duel212 = state }, effect with { Pools = [root], ReturnedDescriptor = Root }, staging, random));
     }
 
-    public static NativeBattleDuel212Frame AdvanceRoot(NativeBattleDuel212Frame frame, NativeBattleDuel212Inputs inputs, Func<NativeBattleDuel212Frame, NativeBattleEffectTaskPool, int, NativeBattleDuel212Step> advanceChild, Func<bool> isReloadComplete)
+    public static NativeBattleDuel212Frame AdvanceRoot(NativeBattleDuel212Frame frame, NativeBattleDuel212Inputs inputs, Func<NativeBattleDuel212Frame, NativeBattleEffectTaskPool, int, NativeBattleDuel212Step> advanceChild, Func<NativeBattleDuel212Frame, (NativeBattleDuel212Frame Frame, bool Complete)> isReloadComplete)
     {
         NativeBattleEffectTaskPool root = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == Root);
         NativeBattleEffectTaskPool? target = frame.Effect.Pools.SingleOrDefault(pool => pool.DescriptorAddress == Targets);
@@ -60,6 +58,7 @@ public static partial class NativeBattleDuel212Controller
                     target = NativeBattleEffectTaskPool.Initialize(Targets, 0x20DFAB8, 3280, 1);
                     fragments = NativeBattleEffectTaskPool.Initialize(Fragments, 0x20DFAB8 + 3280, 36, 64);
                     sprites = NativeBattleEffectTaskPool.Initialize(Sprites, 0x20DFAB8 + 5584, 24, 64);
+                    frame = frame with { Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [target, fragments, sprites]) };
                 }
                 if (target is null)
                 {
@@ -88,7 +87,13 @@ public static partial class NativeBattleDuel212Controller
                 Publish(current with { Slots = current.Slots.SetItem(slot, task) });
                 frame = inputs.Execute(frame, new NativeBattleDuel212UpdateScene());
                 Refresh();
-                if (spritesAlive == 0 && isReloadComplete())
+                bool complete = false;
+                if (spritesAlive == 0)
+                {
+                    (frame, complete) = isReloadComplete(frame);
+                    Refresh();
+                }
+                if (complete)
                 {
                     if (task.ReadByte(14) == 1)
                     {

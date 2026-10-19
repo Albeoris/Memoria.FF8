@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleDuelEchoWalker
 {
-    public static NativeBattleModulePoolTask Draw68A990(NativeBattleModulePoolTask context, int offset, uint sectionAddress, Func<int, int, byte[]> readSection, NativeBattleModulePoolTask echo, int echoOffset, int history, NativeBattleCameraProjection projection, Action<int, ImmutableArray<byte>> writeCpu, Func<int, (byte[] Data, bool[] Known)> readCpu, Action<NativeBattleGfGeometryBatch> submit, int tableBaseBucket, byte depthShift, short zsf3, short zsf4)
+    public static NativeBattleModulePoolTask Draw68A990(NativeBattleModulePoolTask context, int offset, uint sectionAddress, Func<int, int, byte[]> readSection, NativeBattleModulePoolTask echo, int echoOffset, int history, NativeBattleCameraProjection projection, Action<int, ImmutableArray<byte>> writeCpu, Func<int, (byte[] Data, bool[] Known)> readCpu, Action<NativeBattleGfGeometryBatch> submit, int tableBaseBucket, byte depthShift, short zsf3, short zsf4, Action<NativeBattleModulePoolTask, int, int>? observeContext = null)
     {
         int count = Int(0);
         if (count > 256)
@@ -48,7 +48,7 @@ public static class NativeBattleDuelEchoWalker
                 }
                 int matrixAddress = checked(NativeBattleDuelEcho.ReadHistoryOffset(echo, echoOffset, history) + 256 + selected * 32);
                 NativeBattleActionMatrix matrix = Matrix(echo, matrixAddress);
-                NativeBattleDuelEchoProjectionResult projected = NativeBattleDuelEchoProjection.Project6A2A90(context, offset, Bytes(cursor, checked(2 + vertices * 6)).ToImmutableArray(), matrix, projection, destination, writeCpu);
+                NativeBattleDuelEchoProjectionResult projected = NativeBattleDuelEchoProjection.Project6A2A90(context, offset, Bytes(cursor, checked(2 + vertices * 6)).ToImmutableArray(), matrix, projection, destination, writeCpu, observeContext);
                 context = projected.Context;
                 cursor = checked(cursor + projected.SourceBytes);
                 destination = checked(destination + projected.VertexBytes);
@@ -58,6 +58,8 @@ public static class NativeBattleDuelEchoWalker
             ushort quads = Word(checked(cursor + 2));
             cursor = checked(cursor + 12);
             context = context.WriteWord(offset + 8, triangles).WriteWord(offset + 10, quads).WriteDword(offset, checked(sectionAddress + (uint)cursor));
+            observeContext?.Invoke(context, offset + 8, 4);
+            observeContext?.Invoke(context, offset, 4);
             ImmutableArray<byte> faces = Bytes(cursor, checked(triangles * 16 + quads * 20)).ToImmutableArray();
             NativeBattleDuelEchoPacketsResult packets = NativeBattleDuelEchoPackets.Emit68AAE0(context, offset, faces, vertex =>
             {
@@ -75,7 +77,7 @@ public static class NativeBattleDuelEchoWalker
                     }
                 }
                 return new(BinaryPrimitives.ReadUInt32LittleEndian(raw), BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(4)), BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(6))) { KnownBytesMask = mask };
-            }, tableBaseBucket, depthShift, zsf3, zsf4);
+            }, tableBaseBucket, depthShift, zsf3, zsf4, observeContext);
             context = packets.Context;
             submit(packets.Batch);
         }

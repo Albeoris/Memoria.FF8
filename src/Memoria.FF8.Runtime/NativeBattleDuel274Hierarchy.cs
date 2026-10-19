@@ -54,23 +54,42 @@ public static class NativeBattleDuel274Hierarchy
             flags |= 0xC0;
         }
         ImmutableArray<byte> meshBytes = resources.Read(mesh, checked((int)(NativeBattleDuel274Resources.EndAddress - mesh)));
+        NativeBattleTemporaryAllocation temporary = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging, 88);
+        NativeBattleFileStaging staging = temporary.Staging.Write(temporary.Address, BitConverter.GetBytes(mesh)).Write(temporary.Address + 4, BitConverter.GetBytes(selected)).Write(temporary.Address + 28, BitConverter.GetBytes(flags)).Write(temporary.Address + 12, BitConverter.GetBytes((int)node.Scalar36));
+        if (fade)
+        {
+            staging = staging.Write(temporary.Address + 8, BitConverter.GetBytes(node.Color32));
+        }
         NativeBattleGfGeometryBatch batch;
         if (context.DrawMode == 1)
         {
-            batch = NativeBattleDuel274MeshPackets.EmitBatch68BD50(meshBytes, matrix, projection, node.Scalar36, flags, ReadSelected);
+            batch = NativeBattleDuel274MeshPackets.EmitBatch68BD50(meshBytes, matrix, projection, node.Scalar36, flags, ReadSelected, Observe);
+            int cursor = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(meshBytes.AsSpan()) + 16);
+            cursor = checked(cursor + 4 + BinaryPrimitives.ReadInt32LittleEndian(meshBytes.AsSpan().Slice(cursor)) * 20);
+            cursor = checked(cursor + 4 + BinaryPrimitives.ReadInt32LittleEndian(meshBytes.AsSpan().Slice(cursor)) * 24);
+            Observe(32, checked(mesh + (uint)cursor));
         }
         else if (context.DrawMode == 2 && geometryIndex == 0)
         {
             ushort vertical = context.VerticalOffset ?? throw new NotSupportedException("Native Duel textured hierarchy requires its actual context WORD38.");
-            batch = NativeBattleDuel274MeshPackets.EmitBatch68C320(meshBytes, matrix, projection, vertical, ReadSelected);
+            staging = staging.Write(temporary.Address + 18, BitConverter.GetBytes(vertical)).Write(temporary.Address + 20, new byte[4]).Write(temporary.Address + 24, BitConverter.GetBytes(0x01000100u)).Write(temporary.Address + 28, new byte[4]).Write(temporary.Address + 32, BitConverter.GetBytes(0x00800100u)).Write(temporary.Address + 12, new byte[4]);
+            batch = NativeBattleDuel274MeshPackets.EmitBatch68C320(meshBytes, matrix, projection, vertical, ReadSelected, Observe);
+            int cursor = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(meshBytes.AsSpan()) + 8);
+            cursor = checked(cursor + 4 + BinaryPrimitives.ReadInt32LittleEndian(meshBytes.AsSpan().Slice(cursor)) * 20);
+            Observe(36, checked(mesh + (uint)cursor));
         }
         else
         {
             int depthBias = context.DepthBias ?? throw new NotSupportedException("Native Duel geometry requires its actual context DWORD20.");
+            staging = staging.Write(temporary.Address + 24, BitConverter.GetBytes(depthBias));
             NativeBattleGfGeometryContext operands = new(flags, fade ? node.Color32 : 0, node.Scalar36, null, null, depthBias, 17, 2);
-            batch = NativeBattleGfGeometryPackets.EmitBatch7043B0(resources.StaticData, geometry, default, matrix, projection, operands, colors, ReadSelected);
+            NativeBattleModuleMeshTemporaryResult drawn = NativeBattleModulePackets.EmitRetainedBatch7043B0(staging, temporary.Address, mesh, meshBytes, matrix, projection, operands, colors, ReadSelected);
+            staging = drawn.Staging;
+            batch = drawn.Batch;
         }
-        return new(frame, batch);
+        return new(frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(staging, 88) }, batch);
+
+        void Observe(int offset, uint value) => staging = staging.Write(checked(temporary.Address + (uint)offset), BitConverter.GetBytes(value));
 
         NativeBattleVector ReadSelected(int offset)
         {

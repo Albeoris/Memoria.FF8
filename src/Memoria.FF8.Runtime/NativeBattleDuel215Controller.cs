@@ -22,7 +22,7 @@ public static partial class NativeBattleDuel215Controller
             throw new InvalidDataException("Native Duel215 requires its original entered binding and parameters.");
         }
         resources.Validate();
-        NativeBattleDuel215State state = memory.Duel215 ?? NativeBattleDuel215State.FromColdProcess();
+        NativeBattleDuel215State state = memory.Duel215 ?? throw new NotSupportedException("Native Duel215 requires its actual retained process owner.");
         state.Validate();
         if (!state.GlobalsInitialized)
         {

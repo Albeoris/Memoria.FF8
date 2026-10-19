@@ -216,6 +216,10 @@ public sealed partial class BattleSession
                 {
                     graphics = duel112Completed;
                 }
+                else if (TryWriteNativeDuel274Completion(graphics, address, value, out NativeBattleGraphicsState duel274Completed))
+                {
+                    graphics = duel274Completed;
+                }
                 else if (TryWriteNativeRoughDivide163Completion(graphics, address, value, out NativeBattleGraphicsState roughDivide163Completed))
                 {
                     graphics = roughDivide163Completed;
@@ -227,6 +231,10 @@ public sealed partial class BattleSession
                 else if (TryWriteNativeRinoa87Completion(graphics, address, value, out NativeBattleGraphicsState rinoa87Completed))
                 {
                     graphics = rinoa87Completed;
+                }
+                else if (TryWriteNativeRinoa88Completion(graphics, address, value, out NativeBattleGraphicsState rinoa88Completed))
+                {
+                    graphics = rinoa88Completed;
                 }
                 else if (TryWriteNativeRinoa86Completion(graphics, address, value, out NativeBattleGraphicsState rinoa86Completed))
                 {

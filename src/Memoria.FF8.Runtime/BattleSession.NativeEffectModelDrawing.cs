@@ -4,7 +4,42 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState DrawNativeEffectModel5099D0(NativeBattleGraphicsState graphics, int index, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int shadowTableBase, byte shadowDepthShift)
+    private NativeBattleGraphicsState DrawNativeEffectModelContext92(NativeBattleGraphicsState graphics, int index, NativeBattleActionMatrix matrix, NativeBattleVector pivot, NativeBattleCameraProjection projection, int shadowTableBase, byte shadowDepthShift, byte bodyDepthShift = 4)
+    {
+        NativeBattleFileStaging staging = NativeFileStaging ?? throw new NotSupportedException("Native effect model context requires its retained physical temporary memory.");
+        NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(staging, 92);
+        staging = allocation.Staging;
+        uint address = allocation.Address;
+        for (int lane = 0; lane < 9; lane++)
+        {
+            staging = staging.Write(address + (uint)lane * 2, BitConverter.GetBytes(matrix.Rotation[lane]));
+        }
+        (int x, int y, int z) = NativeBattleGfMatrices.Rotate56C3D0(matrix, pivot);
+        staging = staging.Write(address + 20, BitConverter.GetBytes(matrix.X)).Write(address + 24, BitConverter.GetBytes(matrix.Y)).Write(address + 28, BitConverter.GetBytes(matrix.Z));
+        staging = staging.Write(address + 32, BitConverter.GetBytes(x)).Write(address + 36, BitConverter.GetBytes(y)).Write(address + 40, BitConverter.GetBytes(z));
+        ushort maximum = NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Native effect model context requires its actual CPU workspace maximum.");
+        staging = staging.Write(address + 52, BitConverter.GetBytes(checked(0x196B018u - (uint)maximum * 8)));
+        staging = staging.Write(address + 68, BitConverter.GetBytes((short)0)).Write(address + 70, BitConverter.GetBytes((short)0)).Write(address + 72, BitConverter.GetBytes((short)320)).Write(address + 74, BitConverter.GetBytes((short)216));
+        NativeBattleGraphicsModel model = graphics.Models[index];
+        staging = staging.Write(address + 76, BitConverter.GetBytes(model.Color40 ?? throw new NotSupportedException("Native effect model context requires its actual model color40."))).Write(address + 80, BitConverter.GetBytes(model.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native effect model context requires its actual object mask124."))).Write(address + 88, new byte[4]);
+        (byte[] bytes, bool[] known) = staging.ReadSnapshot(0x1D969A8, 4);
+        for (int offset = 0; offset < 4; offset++)
+        {
+            staging = known[offset] ? staging.Write(address + 64 + (uint)offset, bytes.AsSpan(offset, 1)) : staging.MarkUnknown(address + 64 + (uint)offset, 1);
+        }
+        NativeFileStaging = staging;
+        graphics = DrawNativeEffectModel5099D0(graphics, index, matrix, projection, shadowTableBase, shadowDepthShift, bodyDepthShift);
+        staging = NativeFileStaging ?? throw new InvalidDataException("Native effect model context lost its physical owner during drawing.");
+        model = graphics.Models[index];
+        if (model.LinkedStagedResourceRow is not null || model.LinkedTextureResourceIndex is not null)
+        {
+            staging = staging.Write(address + 80, BitConverter.GetBytes(uint.MaxValue));
+        }
+        NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(staging, 92);
+        return graphics;
+    }
+
+    private NativeBattleGraphicsState DrawNativeEffectModel5099D0(NativeBattleGraphicsState graphics, int index, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int shadowTableBase, byte shadowDepthShift, byte bodyDepthShift = 4)
     {
         NativeBattleGraphicsModel model = graphics.Models[index];
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
@@ -15,11 +50,10 @@ public sealed partial class BattleSession
         graphics = SubmitNativeShadowPackets5088A0(graphics, model, projection, shadowTableBase, false, shadowDepthShift);
         model = NativeBattleBodyBoneMatrices.Compose5095B0(model, matrix);
         graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
-        DrawSource(GeometryPointer(model.ActiveResourceRow100, model.ActiveStagedResourceRow100), NativeBattleBodyBoneMatrices.Require(model, source), source.BoneCount, model.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native effect body drawing requires its current object mask."), resource.GeometryRelocated507550 ? null : model.BodyTextureSlots ?? throw new NotSupportedException("Native effect body drawing requires its actual body texture relocation."));
+        DrawSource(GeometryPointer(model.ActiveResourceRow100, model.ActiveStagedResourceRow100), NativeBattleBodyBoneMatrices.Require(model, source), source.BoneCount, model.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native effect body drawing requires its current object mask."));
         model = NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[index], source);
         graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
-        ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Native effect body drawing requires its actual linked geometry presence.");
-        if (!linked.IsEmpty && !(resource.LinkedGeometryUsesBodySkeleton ?? throw new NotSupportedException("Native effect body drawing requires its actual linked rig layout.")))
+        if (model.LinkedStagedResourceRow is not null || model.LinkedTextureResourceIndex is not null)
         {
             NativeBattlePoseSource linkedSource = resource.LinkedPoseSource ?? throw new NotSupportedException("Native effect body drawing requires its actual independent linked pose source.");
             NativeBattleBodyBoneMatrices linkedBones = model.CurrentLinkedBoneMatrices ?? throw new NotSupportedException("Native effect body drawing requires its actually published linked matrices.");
@@ -27,13 +61,13 @@ public sealed partial class BattleSession
             ImmutableArray<NativeBattleActionMatrix> prepared = NativeBattlePoseMatrices.ComposeStageCamera(linkedBones.Matrices, matrix, 0);
             model = model with { CurrentLinkedBoneMatrices = linkedBones with { Matrices = prepared } };
             graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
-            DrawSource(GeometryPointer(model.LinkedTextureResourceIndex, model.LinkedStagedResourceRow), prepared, linkedSource.BoneCount, uint.MaxValue, resource.GeometryRelocated507550 ? null : model.LinkedTextureSlots ?? throw new NotSupportedException("Native effect body drawing requires its actual linked texture relocation."));
+            DrawSource(GeometryPointer(model.LinkedTextureResourceIndex, model.LinkedStagedResourceRow), prepared, linkedSource.BoneCount, uint.MaxValue);
             NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native effect body drawing requires its actual linked pose owner.");
             graphics = graphics with { Models = graphics.Models.SetItem(index, model with { CurrentLinkedBoneMatrices = linkedBones with { Matrices = NativeBattlePoseMatrices.StageBoneMatrices(linkedSource, NativeBattlePoseMatrices.ReadLinkedDecodedPose(sequence, linkedSource)) } }) };
         }
         return graphics;
 
-        void DrawSource(NativeBattleResourcePointer pointer, ImmutableArray<NativeBattleActionMatrix> bones, int boneCount, uint mask, NativeBattleModelTextureBinding? textureBinding)
+        void DrawSource(NativeBattleResourcePointer pointer, ImmutableArray<NativeBattleActionMatrix> bones, int boneCount, uint mask)
         {
             NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native effect body drawing requires its retained packet memory.");
             NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native effect body drawing requires its current renderer process.");
@@ -47,16 +81,12 @@ public sealed partial class BattleSession
             var cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native effect body drawing requires its actual model CPU rows.");
             NativeBattleFileStaging staging = NativeFileStaging ?? throw new NotSupportedException("Native effect body drawing requires its canonical projected CPU memory.");
             ImmutableArray<NativeBattleRawMesh> geometry = NativeBattleRawGeometryReader.Read(Read, boneCount);
-            if (textureBinding is not null)
-            {
-                geometry = geometry.Select(mesh => mesh with { Polygons = mesh.Polygons.Select(polygon => polygon with { Bytes = NativeBattleRawGeometryPackets.Relocate507550(polygon, textureBinding) }).ToImmutableArray() }).ToImmutableArray();
-            }
             uint color = graphics.Models[index].Color40 ?? throw new NotSupportedException("Native effect body drawing requires its actual packed model color.");
             process = process.PublishModelColor(color);
             int capacity = checked((cpu.ScratchMaximum ?? throw new NotSupportedException("Native effect body drawing requires its actual loaded projected workspace maximum.")) * 8);
             uint scratch = checked(0x196B018u - (uint)capacity);
             (byte[] retained, _) = staging.ReadSnapshot(scratch, capacity);
-            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, bones, projection, color, mask, retained.ToImmutableArray(), colors, 4, new(0, 0, 320, 216), 17, null);
+            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, bones, projection, color, mask, retained.ToImmutableArray(), colors, bodyDepthShift, new(0, 0, 320, 216), 17, null);
             if (drawn.ProjectedBytesWritten != 0)
             {
                 NativeFileStaging = staging.Write(scratch, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten));
