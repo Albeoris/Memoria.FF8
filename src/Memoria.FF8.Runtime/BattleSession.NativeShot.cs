@@ -148,14 +148,14 @@ public sealed partial class BattleSession
             nativeLimitLevels.Remove(action.ActorId);
             return false;
         }
-        //TODO(TD-009): Native47E200 graphics command10 owns4AD7C0 readiness; use the current action completion projection until that VM is owned.
+        //TODO(TD-009): Graphicsless components project48D1A0/4AD7C0 at action completion; native descriptors own raw readiness. The remaining zero-ammo widget close still uses this completion boundary.
         if (action.NativeLimitCallback is NativeLimitCallback.ShotOpening or NativeLimitCallback.ShotEffect && state.Phase != BattleNativeShotPhase.Ending)
         {
             if (state.RemainingAmmo == 0)
             {
                 EndNativeShot(action.ActorId);
             }
-            else
+            else if (NativeGraphics is null)
             {
                 nativeShotProcesses[action.ActorId] = state with { Phase = BattleNativeShotPhase.Ready };
             }

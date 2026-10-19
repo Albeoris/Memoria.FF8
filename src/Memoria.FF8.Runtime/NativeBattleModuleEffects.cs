@@ -54,6 +54,11 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
 {
     [JsonRequired]
     public byte PublishedCount { get; init; }
+    public const uint DescriptorAddress = 0x209FAA8;
+    public const uint BankAddress = 0x209D078;
+    public const ushort TaskStride = 36;
+    public const ushort TaskCapacity = 300;
+
     public static NativeBattleModuleState Clear()
     {
         return new(Enumerable.Range(0, 300).Select(_ => new NativeBattleModuleTask(0, 0, null, NativeBattleModuleKind.None, ImmutableArray.CreateRange(new byte[24]))).ToImmutableArray(), null, null);
@@ -61,7 +66,7 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
 
     public void Validate()
     {
-        if (Slots.IsDefault || Slots.Length != 300 || Head is < 0 or >= 300 || Tail is < 0 or >= 300 || Slots.Any(task => task is null || task.Next is < 0 or >= 300 || !Enum.IsDefined(task.Kind) || task.Payload.IsDefault || task.Payload.Length != 24 || (task.Flags & 1) != 0 && task.Kind == NativeBattleModuleKind.None))
+        if (Slots.IsDefault || Slots.Length != 300 || Head is < 0 or >= 300 || Tail is < 0 or >= 300 || Slots.Any(task => task is null || task.Next is < 0 or >= 300 || !Enum.IsDefined(task.Kind) || task.Payload.IsDefault || task.Payload.Length != 24 || task.Callback == 0 || task.Callback is not null && task.Kind != NativeBattleModuleKind.None || (task.Flags & 1) != 0 && task.Kind == NativeBattleModuleKind.None && task.Callback is null))
         {
             throw new InvalidDataException("Native effect module requires300 physical36-byte task slots and retained payloads.");
         }
@@ -82,6 +87,21 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
         {
             throw new ArgumentOutOfRangeException(nameof(kind));
         }
+        return AppendCore(kind, null);
+    }
+
+    public (NativeBattleModuleState State, int Slot) AppendCallback(uint callback)
+    {
+        Validate();
+        if (callback == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(callback));
+        }
+        return AppendCore(NativeBattleModuleKind.None, callback);
+    }
+
+    private (NativeBattleModuleState State, int Slot) AppendCore(NativeBattleModuleKind kind, uint? callback)
+    {
         int slot = -1;
         for (int index = 0; index < Slots.Length; index++)
         {
@@ -95,7 +115,7 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
         {
             throw new InvalidOperationException("Native effect module exhausted its300 physical task slots.");
         }
-        NativeBattleModuleTask task = Slots[slot] with { Flags = (ushort)(Slots[slot].Flags | 1), State = 0, Next = null, Kind = kind };
+        NativeBattleModuleTask task = Slots[slot] with { Flags = (ushort)(Slots[slot].Flags | 1), State = 0, Next = null, Kind = kind, Callback = callback };
         ImmutableArray<NativeBattleModuleTask> slots = Slots.SetItem(slot, task);
         if (Tail is int tail)
         {
@@ -116,6 +136,11 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
 
     public NativeBattleModuleStep Advance(NativeBattleModuleInputs inputs)
     {
+        return Advance(inputs, null);
+    }
+
+    public NativeBattleModuleStep Advance(NativeBattleModuleInputs inputs, Func<NativeBattleModuleState, int, NativeBattleModuleInputs, NativeBattleModuleCallback>? dispatch)
+    {
         Validate();
         NativeBattleModuleState state = this;
         int? previous = null;
@@ -123,7 +148,9 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
         ImmutableArray<NativeBattleModuleDraw>.Builder draws = ImmutableArray.CreateBuilder<NativeBattleModuleDraw>();
         for (int? next = Head; next is int index;)
         {
-            NativeBattleModuleCallback callback = state.Slots[index].Kind switch
+            NativeBattleModuleCallback callback = state.Slots[index].Callback is uint address
+                ? (dispatch ?? throw new NotSupportedException($"Native shared hit-effect callback {address:X8} requires its original dispatcher."))(state, index, inputs)
+                : state.Slots[index].Kind switch
             {
                 NativeBattleModuleKind.CriticalFlash571300 => state.AdvanceFlash(index, inputs),
                 NativeBattleModuleKind.Placement570CC0 => state.AdvancePlacement(index, inputs),

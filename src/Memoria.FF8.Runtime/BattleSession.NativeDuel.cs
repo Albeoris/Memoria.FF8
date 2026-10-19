@@ -202,10 +202,10 @@ public sealed partial class BattleSession
             EndNativeDuel(action.ActorId);
             return false;
         }
-        if (action.NativeLimitCallback is NativeLimitCallback.DuelOpening or NativeLimitCallback.DuelEffect)
+        if (NativeGraphics is null && action.NativeLimitCallback is NativeLimitCallback.DuelOpening or NativeLimitCallback.DuelEffect)
         {
-            //TODO(TD-009): Native47E200 dispatches48E5A0/48E5E0 UI readiness through graphics command10.
-            nativeDuelProcesses[action.ActorId] = state with { Phase = BattleNativeDuelPhase.Ready, InputRing = Enumerable.Repeat((ushort)0, 8).ToImmutableArray(), InputCursor = 0, AutomaticCountdown = 120, PendingPulse = 0 };
+            //TODO(TD-009): Graphicsless components project48E5A0/48E5E0 readiness at their declared action completion.
+            nativeDuelProcesses[action.ActorId] = ResetNativeDuelInput(state);
         }
         return true;
     }

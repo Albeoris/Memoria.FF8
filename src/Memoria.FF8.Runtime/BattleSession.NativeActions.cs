@@ -106,6 +106,12 @@ public sealed partial class BattleSession
     {
         NativeBattleActionProductionContext context = nativeProductionContext ?? throw new NotSupportedException("Native48E830 requires its actual485610 event/repeat context.");
         NativeBattleActionHeaderPreparation header = BuildNativeActionHeaderPreparation(actor, command, action.NativeAction!);
+        if (NativeGraphics is { } entryGraphics && header.Command == 241 && command.NativeLimitCallback is NativeLimitCallback.DuelOpening or NativeLimitCallback.DuelEffect)
+        {
+            //48D200 publishes the input callback before the corresponding effect header.
+            uint callback = command.NativeLimitCallback == NativeLimitCallback.DuelOpening ? 0x48E5A0u : 0x48E5E0u;
+            NativeGraphics = QueueNativeDescriptor(entryGraphics, 10, callback);
+        }
         (nativeActionPackets, int headerIndex) = nativeActionPackets.Prepare(header);
         nativeActionScratch = nativeActionScratch with { ActorIndex = header.Actor, Command = header.Command, Action = header.Action, DeferredEffectsE00 = header.Command == 254, GuardianFormulaE1E = header.Command == 254 ? false : nativeActionScratch.GuardianFormulaE1E, GuardianBoostPercent = header.Command == 254 ? (byte)0 : nativeActionScratch.GuardianBoostPercent };
         NativeBattleActionProductionResult produced = ProduceNativeActionFacts(actor, target, command, action, header, context);
@@ -117,7 +123,16 @@ public sealed partial class BattleSession
         nativeActionScratch = nativeActionScratch with { LastPublishedTargetCountE05 = produced.PublishedTargetCount };
         if (NativeGraphics is { } graphics)
         {
-            NativeGraphics = QueueNativeDescriptor(graphics, 104, checked(0x1D280C4u + 20u * (uint)headerIndex));
+            graphics = QueueNativeDescriptor(graphics, 104, checked(0x1D280C4u + 20u * (uint)headerIndex));
+            if (header.Command == 14 && command.NativeLimitCallback == NativeLimitCallback.ShotOpening)
+            {
+                graphics = QueueNativeDescriptor(graphics, 10, 0x48D1A0);
+            }
+            else if (header.Command == 237 && command.NativeLimitCallback == NativeLimitCallback.ShotEffect)
+            {
+                graphics = QueueNativeDescriptor(graphics, 10, 0x4AD7C0);
+            }
+            NativeGraphics = graphics;
         }
         nativeProductionContext = context;
         if (nativeAiDepth == 0 && context.MultiCastMode != 0)
