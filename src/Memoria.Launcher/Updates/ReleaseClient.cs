@@ -22,6 +22,62 @@ internal sealed class ReleaseClient(HttpClient client)
     private const string RepositoryApi = "https://api.github.com/repos/Albeoris/Memoria.FF8";
     private const string AssetName = "Memoria-FF8-win-x64.zip";
 
+    public async Task<string> GetInstalledVersionAsync(PackageManifest installed, CancellationToken cancellationToken = default)
+    {
+        if (IsVersionTag(installed.Version))
+        {
+            return installed.Version;
+        }
+        if (!IsHex(installed.BuildId.AsSpan(), 40) && !IsHex(installed.BuildId.AsSpan(), 64))
+        {
+            return installed.Version;
+        }
+        // A tested archive can be published unchanged as both nightly and a versioned release.
+        // Resolve its published version from the asset identity, including historical releases.
+        const int pageSize = 100;
+        for (int page = 1; ; page++)
+        {
+            using HttpRequestMessage request = CreateRequest(new Uri($"{RepositoryApi}/releases?per_page={pageSize}&page={page}"), "application/vnd.github+json");
+            using HttpResponseMessage response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            EnsureSuccess(response);
+            await using Stream body = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            using JsonDocument document = await JsonDocument.ParseAsync(body, cancellationToken: cancellationToken).ConfigureAwait(false);
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                throw new InvalidDataException("The update server returned invalid release history.");
+            }
+            foreach (JsonElement release in document.RootElement.EnumerateArray())
+            {
+                if (release.ValueKind != JsonValueKind.Object || !release.TryGetProperty("draft", out JsonElement draft) || draft.ValueKind != JsonValueKind.False || !release.TryGetProperty("prerelease", out JsonElement prerelease) || prerelease.ValueKind != JsonValueKind.False || !release.TryGetProperty("tag_name", out JsonElement tag) || tag.ValueKind != JsonValueKind.String || !IsVersionTag(tag.GetString()!) || !release.TryGetProperty("assets", out JsonElement assets) || assets.ValueKind != JsonValueKind.Array)
+                {
+                    continue;
+                }
+                foreach (JsonElement asset in assets.EnumerateArray())
+                {
+                    if (asset.ValueKind != JsonValueKind.Object || !asset.TryGetProperty("name", out JsonElement name) || name.ValueKind != JsonValueKind.String || name.GetString() != AssetName || !asset.TryGetProperty("state", out JsonElement state) || state.ValueKind != JsonValueKind.String || state.GetString() != "uploaded" || !asset.TryGetProperty("label", out JsonElement label) || label.ValueKind != JsonValueKind.String)
+                    {
+                        continue;
+                    }
+                    string identity = label.GetString()!;
+                    if (identity.StartsWith("build:", StringComparison.Ordinal))
+                    {
+                        identity = identity[6..];
+                    }
+                    if (string.Equals(identity, installed.BuildId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return tag.GetString()!;
+                    }
+                }
+            }
+            if (document.RootElement.GetArrayLength() < pageSize)
+            {
+                return installed.Version;
+            }
+        }
+    }
+
+    private static bool IsVersionTag(string value) => value.Length > 1 && value[0] == 'v' && Version.TryParse(value.AsSpan(1), out _);
+
     public async Task<UpdateRelease?> GetAsync(UpdateChannel channel, CancellationToken cancellationToken = default)
     {
         string endpoint = channel switch
@@ -49,7 +105,7 @@ internal sealed class ReleaseClient(HttpClient client)
         {
             throw new InvalidDataException("The update server returned a draft or invalid release.");
         }
-        if (channel == UpdateChannel.Release && (tag.Length < 2 || tag[0] != 'v' || !Version.TryParse(tag.AsSpan(1), out _) || !release.TryGetProperty("prerelease", out JsonElement prerelease) || prerelease.ValueKind != JsonValueKind.False))
+        if (channel == UpdateChannel.Release && (!IsVersionTag(tag) || !release.TryGetProperty("prerelease", out JsonElement prerelease) || prerelease.ValueKind != JsonValueKind.False))
         {
             throw new InvalidDataException("The update server did not return a versioned stable release.");
         }

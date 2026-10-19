@@ -38,6 +38,111 @@ public sealed class ReleaseClientTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InstalledNightlyManifestResolvesHistoricalVersionedRelease(bool prefixedLabel)
+    {
+        string identity = new('a', 40);
+        string history = "[" + Metadata("v1.2.4", label: new string('b', 40)) + "," + Metadata("nightly", prerelease: true, label: identity) + "," + Metadata("v1.2.3", label: (prefixedLabel ? "build:" : "") + identity.ToUpperInvariant()) + "]";
+        using HttpClient http = new(new Handler(request =>
+        {
+            Assert.Equal("https://api.github.com/repos/Albeoris/Memoria.FF8/releases?per_page=100&page=1", request.RequestUri!.AbsoluteUri);
+            return JsonResponse(history);
+        }));
+        PackageManifest installed = new(1, identity, "nightly", DateTimeOffset.UtcNow, []);
+        Assert.Equal("v1.2.3", await new ReleaseClient(http).GetInstalledVersionAsync(installed, TestContext.Current.CancellationToken));
+        Assert.Equal("nightly", installed.Version);
+    }
+
+    [Fact]
+    public async Task InstalledVersionSearchContinuesOntoNextPage()
+    {
+        string identity = new('a', 40);
+        int requests = 0;
+        using HttpClient http = new(new Handler(request =>
+        {
+            requests++;
+            Assert.Equal($"?per_page=100&page={requests}", request.RequestUri!.Query);
+            return JsonResponse(requests == 1
+                ? "[" + string.Join(",", Enumerable.Repeat(Metadata("v1.2.4", label: new string('b', 40)), 100)) + "]"
+                : "[" + Metadata("v1.2.3", label: identity) + "]");
+        }));
+        PackageManifest installed = new(1, identity, "nightly", DateTimeOffset.UtcNow, []);
+        Assert.Equal("v1.2.3", await new ReleaseClient(http).GetInstalledVersionAsync(installed, TestContext.Current.CancellationToken));
+        Assert.Equal(2, requests);
+    }
+
+    [Theory]
+    [InlineData("nightly", false, "uploaded", "Memoria-FF8-win-x64.zip")]
+    [InlineData("v1.2.3", true, "uploaded", "Memoria-FF8-win-x64.zip")]
+    [InlineData("invalid", false, "uploaded", "Memoria-FF8-win-x64.zip")]
+    [InlineData("v1.2.3", false, "new", "Memoria-FF8-win-x64.zip")]
+    [InlineData("v1.2.3", false, "uploaded", "Other.zip")]
+    public async Task UnmatchedOrUnpublishedVersionDoesNotRelabelNightly(string tag, bool prerelease, string state, string assetName)
+    {
+        string identity = new('a', 40);
+        string metadata = Metadata(tag, prerelease: prerelease, state: state, label: identity).Replace("Memoria-FF8-win-x64.zip", assetName, StringComparison.Ordinal);
+        using HttpClient http = new(new Handler(_ => JsonResponse("[" + metadata + "]")));
+        PackageManifest installed = new(1, identity, "nightly", DateTimeOffset.UtcNow, []);
+        Assert.Equal("nightly", await new ReleaseClient(http).GetInstalledVersionAsync(installed, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task ExplicitInstalledReleaseVersionDoesNotNeedNetworkLookup()
+    {
+        using HttpClient http = new(new Handler(_ => throw new InvalidOperationException("Unexpected network request.")));
+        PackageManifest installed = new(1, new string('a', 40), "v1.2.3", DateTimeOffset.UtcNow, []);
+        Assert.Equal("v1.2.3", await new ReleaseClient(http).GetInstalledVersionAsync(installed, TestContext.Current.CancellationToken));
+    }
+
+    [Theory]
+    [InlineData("[]")]
+    [InlineData("[null,{},123]")]
+    public async Task EmptyOrUnrecognizedHistoryPreservesManifestVersion(string history)
+    {
+        using HttpClient http = new(new Handler(_ => JsonResponse(history)));
+        PackageManifest installed = new(1, new string('a', 40), "nightly", DateTimeOffset.UtcNow, []);
+        Assert.Equal("nightly", await new ReleaseClient(http).GetInstalledVersionAsync(installed, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task DraftVersionDoesNotRelabelInstalledBuild()
+    {
+        string identity = new('a', 40);
+        string metadata = Metadata("v1.2.3", label: identity).Replace("\"draft\":false", "\"draft\":true", StringComparison.Ordinal);
+        using HttpClient http = new(new Handler(_ => JsonResponse("[" + metadata + "]")));
+        PackageManifest installed = new(1, identity, "nightly", DateTimeOffset.UtcNow, []);
+        Assert.Equal("nightly", await new ReleaseClient(http).GetInstalledVersionAsync(installed, TestContext.Current.CancellationToken));
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    public async Task UnavailableHistoryIsReportedInsteadOfConfirmingNightly(HttpStatusCode status)
+    {
+        using HttpClient http = new(new Handler(_ => new HttpResponseMessage(status)));
+        PackageManifest installed = new(1, new string('a', 40), "nightly", DateTimeOffset.UtcNow, []);
+        await Assert.ThrowsAsync<HttpRequestException>(() => new ReleaseClient(http).GetInstalledVersionAsync(installed, TestContext.Current.CancellationToken));
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("invalid JSON")]
+    public async Task InvalidReleaseHistoryIsRejected(string json)
+    {
+        using HttpClient http = new(new Handler(_ => JsonResponse(json)));
+        PackageManifest installed = new(1, new string('a', 40), "nightly", DateTimeOffset.UtcNow, []);
+        if (json == "{}")
+        {
+            await Assert.ThrowsAsync<InvalidDataException>(() => new ReleaseClient(http).GetInstalledVersionAsync(installed, TestContext.Current.CancellationToken));
+        }
+        else
+        {
+            await Assert.ThrowsAnyAsync<JsonException>(() => new ReleaseClient(http).GetInstalledVersionAsync(installed, TestContext.Current.CancellationToken));
+        }
+    }
+
+    [Theory]
     [InlineData("not-a-version", false)]
     [InlineData("v1.2.3", true)]
     public async Task StableRejectsInvalidTagOrPrerelease(string tag, bool prerelease)

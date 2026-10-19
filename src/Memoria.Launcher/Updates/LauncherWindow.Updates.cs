@@ -45,7 +45,7 @@ internal sealed partial class LauncherWindow
             Task<string> nightly = DescribeChannelAsync(client, UpdateChannel.Nightly, timeout.Token);
             string[] descriptions = await Task.WhenAll(release, nightly);
             PackageManifest? installed = PackageManifest.LoadOptional(AppContext.BaseDirectory);
-            string current = installed is null ? "Development build" : $"Installed: {installed.Version} ({installed.BuildId[..Math.Min(8, installed.BuildId.Length)]})";
+            string current = installed is null ? "Development build" : $"Installed: {await DescribeInstalledVersionAsync(client, installed, timeout.Token)} ({installed.BuildId[..Math.Min(8, installed.BuildId.Length)]})";
             updateStatus.Text = current + Environment.NewLine + string.Join(Environment.NewLine, descriptions);
         }
         catch (Exception exception) when (!updateLifetime.IsCancellationRequested)
@@ -59,6 +59,18 @@ internal sealed partial class LauncherWindow
         {
             checkingUpdates = false;
             SetBusy(busy);
+        }
+    }
+
+    private static async Task<string> DescribeInstalledVersionAsync(ReleaseClient client, PackageManifest installed, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await client.GetInstalledVersionAsync(installed, cancellationToken);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or InvalidDataException or System.Text.Json.JsonException or OperationCanceledException)
+        {
+            return "build " + installed.BuildId[..Math.Min(8, installed.BuildId.Length)] + " (release version unavailable)";
         }
     }
 
@@ -112,7 +124,9 @@ internal sealed partial class LauncherWindow
                 updateStatus.Text = "This build is already installed.";
                 return;
             }
-            string prompt = $"Download {release.Name} ({release.Size / 1048576d:F1} MiB)?\n\nCurrent build: {installed.Version}\nYou can keep playing during the download. You will be asked before restarting to install. Switching channels may install an older build. Mods, saves and settings are preserved.";
+            using CancellationTokenSource identityTimeout = new(TimeSpan.FromSeconds(30));
+            string installedVersion = await DescribeInstalledVersionAsync(client, installed, identityTimeout.Token);
+            string prompt = $"Download {release.Name} ({release.Size / 1048576d:F1} MiB)?\n\nCurrent build: {installedVersion}\nYou can keep playing during the download. You will be asked before restarting to install. Switching channels may install an older build. Mods, saves and settings are preserved.";
             if (MessageBox.Show(this, prompt, "Memoria — install update", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
             {
                 return;
