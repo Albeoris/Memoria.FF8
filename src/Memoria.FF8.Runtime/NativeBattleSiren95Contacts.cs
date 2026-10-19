@@ -97,7 +97,10 @@ public static class NativeBattleSiren95Contacts
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         bool gravity = task.Callback == 0x744C30;
-        if (!gravity && task.Callback != 0x744AA0)
+        bool modelParticle = task.Callback is 0x746FD0 or 0x747220;
+        bool screenParticle = task.Callback == 0x7466A0;
+        bool targetParticle = task.Callback == 0x7433C0;
+        if (!gravity && !modelParticle && !screenParticle && !targetParticle && task.Callback != 0x744AA0)
         {
             throw new InvalidDataException("Native Siren contact particle requires its selected callback.");
         }
@@ -105,10 +108,20 @@ public static class NativeBattleSiren95Contacts
         switch (phase)
         {
             case 0:
-                task = task.WriteDword(0x4C, gravity ? 0x15335CCu : 0x1533024u).WriteWord(0x56, unchecked((ushort)-32)).WriteWord(0x52, gravity ? (ushort)8 : (ushort)15);
-                if (Spawned(frame) >= 3)
+                task = task.WriteWord(0x56, unchecked((ushort)(modelParticle || screenParticle || targetParticle ? -16 : -32))).WriteWord(0x52, modelParticle || screenParticle || targetParticle ? (ushort)10 : gravity ? (ushort)8 : (ushort)15);
+                if (task.Callback is not (0x746FD0 or 0x7466A0 or 0x7433C0))
+                {
+                    task = task.WriteDword(0x4C, modelParticle ? 0x15334A0u : gravity ? 0x15335CCu : 0x1533024u);
+                }
+                if (!modelParticle && !screenParticle && !targetParticle && Spawned(frame) >= 3)
                 {
                     task = task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 4));
+                }
+                if (targetParticle)
+                {
+                    frame = frame with { Random = frame.Random.Draw(out ushort sprite) };
+                    uint source = sprite % 3 == 0 ? 0x15331D0u : sprite % 3 == 1 ? 0x1533328u : 0x15334A0u;
+                    task = task.WriteDword(0x4C, source);
                 }
                 if (gravity)
                 {
@@ -119,7 +132,7 @@ public static class NativeBattleSiren95Contacts
                 break;
             case 1:
             case 2 when gravity:
-                if (Spawned(frame) >= 3)
+                if (!modelParticle && !screenParticle && !targetParticle && Spawned(frame) >= 3)
                 {
                     frame = Next(Write(frame, address, task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 5))), address);
                     break;
@@ -170,23 +183,34 @@ public static class NativeBattleSiren95Contacts
             {
                 task = task.WriteWord(0x8E + 8 * corner, unchecked((ushort)(task.ReadWord(0x8E + 8 * corner) + 192)));
             }
-            for (int axis = 0; axis < 3; axis++)
+            if (!screenParticle)
             {
-                int velocityOffset = 0x8C + 8 * corner + axis * 2;
-                short velocity = unchecked((short)task.ReadWord(velocityOffset));
-                if (!gravity || axis != 1)
+                for (int axis = 0; axis < 3; axis++)
                 {
-                    velocity = unchecked((short)(velocity - velocity / (gravity ? 16 : 4)));
-                    task = task.WriteWord(velocityOffset, unchecked((ushort)velocity));
+                    int velocityOffset = 0x8C + 8 * corner + axis * 2;
+                    short velocity = unchecked((short)task.ReadWord(velocityOffset));
+                    if (!gravity || axis != 1)
+                    {
+                        velocity = unchecked((short)(velocity - velocity / (gravity ? 16 : 4)));
+                        task = task.WriteWord(velocityOffset, unchecked((ushort)velocity));
+                    }
+                    int positionOffset = 0x6C + 8 * corner + axis * 2;
+                    task = task.WriteWord(positionOffset, unchecked((ushort)(task.ReadWord(positionOffset) + velocity / 16)));
                 }
-                int positionOffset = 0x6C + 8 * corner + axis * 2;
-                task = task.WriteWord(positionOffset, unchecked((ushort)(task.ReadWord(positionOffset) + velocity / 16)));
             }
             task = task.WriteDword(0x1C, task.ReadDword(0x6C + 8 * corner)).WriteDword(0x20, task.ReadDword(0x70 + 8 * corner));
+            if (task.Callback == 0x746FD0)
+            {
+                task = task.WriteDword(0x4C, corner == 0 ? 0x15336C4u : 0x15334A0u);
+            }
+            if (screenParticle)
+            {
+                task = task.WriteDword(0x4C, corner == 0 ? 0x15334A0u : corner == 1 ? 0x1533328u : 0x15331D0u);
+            }
             frame = Write(frame, address, task);
             if (!gravity || corner == 0)
             {
-                frame = draw(frame, address, gravity ? (short)0x3000 : (short)4096);
+                frame = draw(frame, address, screenParticle ? Spawned(frame) >= 5 ? (short)4096 : (short)1024 : modelParticle ? task.Callback == 0x746FD0 ? (short)0x400 : (short)0x800 : gravity ? (short)0x3000 : (short)4096);
             }
         }
         return Finish(frame, address);

@@ -17,12 +17,14 @@ public sealed class NativeBattleDiablos325ResourcesTests
         resources.Validate();
         Assert.Equal(new byte[] { 0x30, 0x30, 0x31, 0x30 }, resources.PrimitiveKinds);
         Assert.Equal(new byte[] { 0x30, 0x30, 0x30, 0x30 }, resources.TextureKinds);
-        Assert.Equal(Enumerable.Range(727, 5).Select(id => (short)id), resources.Files.Select(file => file.FileId));
-        Assert.Equal(new[] { "MAG324_H.00", "MAG324_H.01", "MAG324_H.02", "MAG324_H.03", "MAG324_H.04" }, resources.Files.Select(file => file.Name));
+        Assert.Equal(Enumerable.Range(727, 6).Select(id => (short)id), resources.Files.Select(file => file.FileId));
+        Assert.Equal(new[] { "MAG324_H.00", "MAG324_H.01", "MAG324_H.02", "MAG324_H.03", "MAG324_H.04", "MAG324_H.05" }, resources.Files.Select(file => file.Name));
         Assert.All(resources.Files, file => Assert.NotEmpty(file.Data));
         Assert.Equal(new uint[] { 240248, 240251, 240254, 240257, 240260, 240263 }, resources.Sounds);
         Assert.Equal(0xFD8584u, resources.OpeningProgramme.Address);
         Assert.Equal(0x3890, resources.OpeningProgramme.Data.Length);
+        Assert.Equal(6680, resources.WellGeometry.Length);
+        Assert.Equal(266, System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(resources.WellGeometry.AsSpan().Slice(4, 4)));
         Assert.Equal(116, resources.PuffSprite.Length);
         for (byte life = 1; life <= 27; life++)
         {

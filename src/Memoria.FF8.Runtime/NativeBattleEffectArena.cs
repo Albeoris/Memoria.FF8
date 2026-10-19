@@ -69,6 +69,27 @@ public sealed record NativeBattleEffectArena([property: JsonRequired] ImmutableA
         return ReadStorage(offset, count);
     }
 
+    public (byte[] Data, bool[] Known) ReadSnapshot(int offset, int count)
+    {
+        if (Transaction is { } transaction)
+        {
+            return transaction.ReadSnapshot(offset, count);
+        }
+        Validate();
+        RequireRange(offset, count);
+        bool[] known = Enumerable.Repeat(true, count).ToArray();
+        foreach (NativeBattleEffectUnknownRegion region in UnknownRegions)
+        {
+            int first = Math.Max(offset, region.Offset);
+            int end = Math.Min(offset + count, region.Offset + region.Length);
+            if (end > first)
+            {
+                Array.Clear(known, first - offset, end - first);
+            }
+        }
+        return (ReadStorage(offset, count), known);
+    }
+
     private byte[] ReadStorage(int offset, int count)
     {
         byte[] result = new byte[count];

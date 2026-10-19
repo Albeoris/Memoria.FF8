@@ -236,6 +236,22 @@ internal sealed class NativeBattleEffectArenaWriter
         return (storage ?? throw new InvalidOperationException("Arena transaction storage is not active.")).AsSpan(offset, count).ToArray();
     }
 
+    internal (byte[] Data, bool[] Known) ReadSnapshotThrough(int offset, int count)
+    {
+        RequireRange(offset, count);
+        bool[] known = Enumerable.Repeat(true, count).ToArray();
+        int first = FirstUnknownEndingAt(offset, false);
+        for (int index = first; index < unknown.Count && unknown[index].Offset < offset + count; index++)
+        {
+            NativeBattleEffectUnknownRegion region = unknown[index];
+            int start = Math.Max(offset, region.Offset);
+            int end = Math.Min(offset + count, region.Offset + region.Length);
+            Array.Clear(known, start - offset, end - start);
+        }
+        byte[] data = (storage ?? throw new InvalidOperationException("Arena transaction storage is not active.")).AsSpan(offset, count).ToArray();
+        return (data, known);
+    }
+
     internal byte[] ReadCurrent(int offset, int count) => transaction is not null ? transaction.Read(offset, count) : ReadThrough(offset, count);
 
     private int FirstUnknownEndingAt(int offset, bool includeAdjacent)

@@ -25,6 +25,12 @@ internal sealed class NativeBattleEffectArenaTransaction : IDisposable
         return writer.ReadThrough(offset, count);
     }
 
+    public (byte[] Data, bool[] Known) ReadSnapshot(int offset, int count)
+    {
+        RequireActive();
+        return writer.ReadSnapshotThrough(offset, count);
+    }
+
     public void Write(int offset, ReadOnlySpan<byte> bytes)
     {
         RequireActive();

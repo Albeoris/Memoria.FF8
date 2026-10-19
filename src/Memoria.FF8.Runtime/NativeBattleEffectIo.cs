@@ -56,6 +56,23 @@ public static class NativeBattleEffectIo
         return new(memory, null);
     }
 
+    public static NativeBattleEffectIoPoll Select5342C0(NativeBattleEffectMemory memory, int index)
+    {
+        NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native5342C0 requires its actual descriptor bytes.");
+        int controller = memory.EffectIo?.BaseOffset ?? throw new NotSupportedException("Native5342C0 requires its actual534110 base pointer.");
+        byte completed = arena.Read(controller + 4, 1)[0];
+        if (completed > index && arena.Read(controller + 2, 1)[0] != 0 && arena.Read(controller + 1, 1)[0] == 0)
+        {
+            return new(memory, false, null);
+        }
+        if (completed > unchecked(index + 1))
+        {
+            return new(memory, false, null);
+        }
+        NativeBattleEffectIoAdvance advance = Advance534210(memory);
+        return new(advance.Memory, true, advance.Request);
+    }
+
     public static NativeBattleEffectIoPoll Poll534270(NativeBattleEffectMemory memory)
     {
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native534270 requires its actual effect descriptor bytes.");

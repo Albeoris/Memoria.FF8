@@ -29,7 +29,7 @@ public sealed class NativeBattleSirenNodeMigrationTests
         Assert.NotNull(authenticated.StaticNodeSource);
         Assert.Equal(0xBE, authenticated.NodeSchedule.Data.Length);
         Assert.Equal(0x1294, authenticated.StaticNodeSource.Data.Length);
-        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(authenticated with { NodeSchedule = null, StaticNodeSource = null }));
+        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(authenticated with { NodeSchedule = null, StaticNodeSource = null, ParticleResources = null }));
         JsonNode migrated = original.DeepClone();
         JsonObject live = migrated["NativeGraphics"]!["OriginalEffect"]!["Binding"]!["Siren95Resources"]!.AsObject();
         JsonObject entry = migrated["NativeEffectMemory"]!["Entry21DFEC4"]!["Siren95Resources"]!.AsObject();

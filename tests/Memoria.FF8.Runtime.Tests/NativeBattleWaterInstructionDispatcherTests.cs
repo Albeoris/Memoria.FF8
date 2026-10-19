@@ -15,6 +15,33 @@ public sealed class NativeBattleWaterInstructionDispatcherTests
     private const int SlotBase = File1 + 0x58;
 
     [Fact]
+    public void Vector_writes_only_selected_native_lanes_and_preserves_unknown_matrix_padding()
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0x1C0A, 4, 5, 6);
+        frame = frame with { Arena = frame.Arena.MarkUnknown(SlotBase + 0xB0, 8) };
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterInstructionDispatcher.ExecuteVector(frame, new(0x1000, 8, Pc), Resources().Files[1].Data.Length);
+        Assert.Throws<NotSupportedException>(() => result.Arena.Read(SlotBase + 0xB0, 1));
+        Assert.Equal(4u << 16, Dword(result, SlotBase + 0x5C));
+        Assert.Equal(5u << 16, Dword(result, SlotBase + 0x60));
+        Assert.Equal(6u << 16, Dword(result, SlotBase + 0x64));
+        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleWaterInstructionDispatcher.ExecuteVector(restored, new(0x1000, 8, Pc), Resources().Files[1].Data.Length)));
+    }
+
+    [Fact]
+    public void Vector_reads_each_later_operand_after_preceding_aliased_slot_writes()
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0xC00A, 0, 0);
+        uint pc = ArenaBase + SlotBase + 0x4E;
+        frame = WaterSchedulerFixture.CoreDword(frame, 0x2797450, pc);
+        frame = frame with { Arena = frame.Arena.Write(SlotBase + 0x4E, [0x0A, 0xC0, 1, 0, 9, 0]) };
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterInstructionDispatcher.ExecuteVector(frame, new(SlotBase + 0x4E, 6, pc), Resources().Files[1].Data.Length);
+        Assert.Equal(1u << 16, Dword(result, SlotBase + 0x50));
+        Assert.Equal(1u << 16, Dword(result, SlotBase + 0x54));
+        Assert.Equal(pc + 6, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+    }
+
+    [Fact]
     public void Vector_post_action_dispatches_the_selected_profile_after_PC_publication_then_refreshes_cached_motion()
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0xFC0A, 1, 2, 3, 4, 5, 6);

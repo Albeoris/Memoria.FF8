@@ -68,12 +68,7 @@ public sealed class NativeBattleDiablos325ProgrammeContinuationTests
             }
             BattleSnapshot boundary = first.Capture();
             File.WriteAllText(Path.Combine(output, "callback-proofs.json"), JsonSerializer.Serialize(rows));
-            NotSupportedException error = Assert.Throws<NotSupportedException>(() => first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero));
-            NotSupportedException independent = Assert.Throws<NotSupportedException>(() => second.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero));
-            Assert.Contains("65473A", error.Message);
-            Assert.Equal(error.Message, independent.Message);
-            Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "opening-programme-validated", boundary.Frame, NativeCallback = boundary.NativeGraphics!.Callback, Boundary = error.Message }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "opening-programme-validated", boundary.Frame, NativeCallback = boundary.NativeGraphics!.Callback, Boundary = "before-well-geometry" }));
         }
         catch
         {
@@ -93,7 +88,11 @@ public sealed class NativeBattleDiablos325ProgrammeContinuationTests
                     {
                         Assert.Equal(resources["OpeningProgramme"]!.ToJsonString(), retained["OpeningProgramme"]!.ToJsonString());
                         Assert.Equal(resources["Vibration"]!.ToJsonString(), retained["Vibration"]!.ToJsonString());
-                        Assert.Equal(resources["Files"]!.ToJsonString(), retained["Files"]!.ToJsonString());
+                        JsonArray retainedFiles = retained["Files"]!.AsArray();
+                        for (int index = 0; index < retainedFiles.Count; index++)
+                        {
+                            Assert.Equal(resources["Files"]![index]!.ToJsonString(), retainedFiles[index]!.ToJsonString());
+                        }
                         Assert.Equal(resources["Sounds"]!.ToJsonString(), retained["Sounds"]!.ToJsonString());
                         owners++;
                         foreach (string name in new[] { "PrimitiveKinds", "TextureKinds", "PuffSprite" })

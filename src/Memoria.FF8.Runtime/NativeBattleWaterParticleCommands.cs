@@ -19,7 +19,11 @@ public static class NativeBattleWaterParticleCommands
     public static NativeBattleWaterExecutionFrame RegisterDrawB65320(NativeBattleWaterExecutionFrame frame, byte kind)
     {
         frame = frame with { Arena = frame.Arena.Write(SlotOffset(frame, 0x1C, 1), new byte[] { kind }) };
-        byte current = frame.ReadTemporaryByte(0x142);
+        return AppendDrawB652E0(frame, frame.ReadTemporaryByte(0x142));
+    }
+
+    public static NativeBattleWaterExecutionFrame AppendDrawB652E0(NativeBattleWaterExecutionFrame frame, byte current)
+    {
         for (int index = 0; index < 128; index++)
         {
             uint address = 0x2797554 + (uint)index;
@@ -36,7 +40,7 @@ public static class NativeBattleWaterParticleCommands
         throw new NotSupportedException("Native draw registration left its actual bounded draw-order owner.");
     }
 
-    public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program)
+    public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, Func<NativeBattleWaterExecutionFrame, short, uint>? resolveSlot = null)
     {
         ushort instruction = frame.ReadTemporaryWord(0x14A);
         uint pc = CoreDword(frame, 0x2797450);
@@ -66,11 +70,19 @@ public static class NativeBattleWaterParticleCommands
                 frame = RegisterDrawB65320(frame, 6);
                 break;
             case 0x59:
+                uint owner = CoreDword(frame, 0x27973E8);
                 if ((instruction & 0x1000) != 0)
                 {
-                    throw new NotSupportedException("Native selected particle ring spawn does not admit its alternate lookup modifier.");
+                    owner = (resolveSlot ?? throw new NotSupportedException("Native particle ring lookup requires its actual node resolver."))(frame, unchecked((short)Operand()));
+                    uint currentManager = CoreDword(frame, 0x27973EC);
+                    if (owner == CoreDword(frame, currentManager + 0x90))
+                    {
+                        return WriteCoreDword(frame, 0x2797450, unchecked(pc + 4));
+                    }
+                    pc = unchecked(pc + 2);
+                    frame = WriteCoreDword(frame, 0x2797450, pc);
                 }
-                uint ownerBank = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xB8, 4));
+                uint ownerBank = BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(owner + 0xB8, 4), 4));
                 ushort capacity = ReadWord(frame, ownerBank);
                 ushort cursor = ReadWord(frame, unchecked(ownerBank + 2));
                 frame = WriteWord(frame, unchecked(ownerBank + 2), unchecked((ushort)(cursor + 1)));
@@ -79,7 +91,7 @@ public static class NativeBattleWaterParticleCommands
                     throw new NotSupportedException("Native particle ring division requires its actual nonzero record count.");
                 }
                 uint target = unchecked(ownerBank + 0x10 + (uint)(0x50 * (cursor % capacity)));
-                frame = WriteWord(frame, unchecked(ownerBank + 8), ReadSlot(frame, 0x18, 1)[0]);
+                frame = WriteWord(frame, unchecked(ownerBank + 8), frame.Arena.Read(ArenaOffset(owner + 0x18, 1), 1)[0]);
                 frame = WriteWord(frame, target, 1);
                 frame = WriteWord(frame, unchecked(target + 2), 0);
                 frame = WriteDword(frame, unchecked(target + 4), unchecked(pc + (uint)(int)(short)Operand()));
@@ -93,9 +105,9 @@ public static class NativeBattleWaterParticleCommands
                     int position = unchecked((short)SlotWord(frame, 0x94 + lane * 2));
                     frame = WriteDword(frame, unchecked(target + 0x14 + (uint)(lane * 4)), unchecked((uint)(position << 8)));
                 }
-                frame = WriteWord(frame, unchecked(target + 0x40), SlotWord(frame, 0x92));
-                frame = WriteWord(frame, unchecked(target + 0x48), SlotWord(frame, 0x9A));
-                uint color = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xCC, 4)) & 0x02FFFFFF;
+                frame = WriteWord(frame, unchecked(target + 0x40), ReadWord(frame, owner + 0x92));
+                frame = WriteWord(frame, unchecked(target + 0x48), ReadWord(frame, owner + 0x9A));
+                uint color = BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(owner + 0xCC, 4), 4)) & 0x02FFFFFF;
                 frame = WriteDword(frame, unchecked(target + 0x3C), 0);
                 frame = WriteDword(frame, unchecked(target + 0x38), color);
                 frame = frame with { Arena = frame.Arena.Write(ArenaOffset(unchecked(target + 0x37), 1), new byte[] { 1 }) };

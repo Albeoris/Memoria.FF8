@@ -5,6 +5,29 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffectArenaTransactionTests
 {
     [Fact]
+    public void SnapshotPreservesBackingBytesAndLiveKnownnessAcrossOverlappingCopiesAndRollback()
+    {
+        NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(40, new byte[] { 1, 2, 3, 4, 5, 6 }).MarkUnknown(42, 2);
+        var immutable = source.ReadSnapshot(39, 8);
+        Assert.Equal(new byte[] { 0, 1, 2, 3, 4, 5, 6, 0 }, immutable.Data);
+        Assert.Equal(new bool[] { true, true, true, false, false, true, true, true }, immutable.Known);
+        using NativeBattleEffectArenaTransaction transaction = new(source);
+        transaction.BeginCheckpoint();
+        transaction.View.Write(41, new byte[] { 9, 8 });
+        transaction.View.MarkUnknown(44, 1);
+        var live = transaction.View.ReadSnapshot(40, 6);
+        Assert.Equal(new byte[] { 1, 9, 8, 4, 5, 6 }, live.Data);
+        Assert.Equal(new bool[] { true, true, true, false, false, true }, live.Known);
+        transaction.View.Write(42, live.Data);
+        Assert.Equal(live.Data, transaction.View.Read(42, 6));
+        Assert.Throws<NotSupportedException>(() => source.Read(40, 6));
+        transaction.RollbackCheckpoint();
+        Assert.Equal(immutable.Data, transaction.View.ReadSnapshot(39, 8).Data);
+        Assert.Equal(immutable.Known, transaction.View.ReadSnapshot(39, 8).Known);
+        Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(transaction.Freeze()));
+    }
+
+    [Fact]
     public void Equal_known_writes_skip_copies_only_when_the_original_store_would_not_merge_adjacent_regions()
     {
         NativeBattleEffectArena source = new([new(0, [1, 2]), new(2, [3, 4])]);

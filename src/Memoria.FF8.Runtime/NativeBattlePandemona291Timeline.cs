@@ -1,0 +1,72 @@
+using System.Buffers.Binary;
+
+namespace Memoria.FF8.Runtime;
+
+public sealed record NativeBattlePandemona291TimelineServices(Func<NativeBattlePandemona291Frame, NativeBattleEffectFileRequest, NativeBattlePandemona291Frame> QueueFile, Func<NativeBattlePandemona291Frame, uint, NativeBattlePandemona291Frame> PlayOpeningSound, Func<NativeBattlePandemona291Frame, int, int, NativeBattlePandemona291Frame> ApplyOpeningCamera);
+
+public static class NativeBattlePandemona291Timeline
+{
+    public static NativeBattlePandemona291ChildStep Advance6ED900(NativeBattlePandemona291Frame frame, uint address, NativeBattleModulePoolTask task, NativeBattlePandemona291TimelineServices services)
+    {
+        int age = unchecked((short)task.ReadWord(0xC));
+        if (age is < 0 or >= 10)
+        {
+            throw new NotSupportedException($"Native Pandemona6ED900 age{age} requires its next surface workspace7016B0 and renderer6F06F0.");
+        }
+        NativeBattlePandemona291State state = frame.Memory.Pandemona291 ?? throw new NotSupportedException("Native Pandemona timeline requires its current module owner.");
+        frame = frame with { Memory = frame.Memory with { Pandemona291 = state with { Flash25562F0 = unchecked((uint)(age < 8 ? age * 350 : 2800)) } } };
+        NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Pandemona timeline requires its current arena.");
+        int start = checked((int)(address - NativeBattleEffectNodeMemory.ArenaAddress));
+        for (int index = 0; index < 128; index++)
+        {
+            int record = checked(start + 0x42C + index * 24);
+            if (BinaryPrimitives.ReadUInt16LittleEndian(arena.Read(record + 6, 2)) != 0)
+            {
+                throw new NotSupportedException("Native Pandemona6F1650 requires its active trail transform and renderer6F17C0.");
+            }
+        }
+        uint buffer = state.ModelBuffer25562F4 ?? throw new NotSupportedException("Native Pandemona requires its model buffer publication.");
+        if (age == 0)
+        {
+            NativeBattleEffectMemory memory = NativeBattleEffectIo.Queue5341D0(frame.Memory, 719, unchecked(buffer + 0x2321C), 2);
+            memory = NativeBattleEffectIo.Queue5341D0(memory, 720, unchecked(buffer + 0x2321C), 1);
+            memory = NativeBattleEffectIo.Queue5341D0(memory, 721, unchecked(buffer + 0x2321C), 3);
+            memory = NativeBattleEffectIo.Queue5341D0(memory, 722, unchecked(buffer + 0x31220), 5);
+            frame = frame with { Memory = memory };
+        }
+        NativeBattleEffectIoAdvance advance = NativeBattleEffectIo.Advance534210(frame.Memory);
+        frame = frame with { Memory = advance.Memory };
+        if (advance.Request is { } request)
+        {
+            frame = services.QueueFile(frame, request);
+        }
+        uint load = frame.Memory.Pandemona291!.StaticLoadState13BBBE8 ?? throw new NotSupportedException("Native Pandemona requires its current static load-state DWORD.");
+        if (load is 0 or 1 or 2)
+        {
+            throw new NotSupportedException("Native Pandemona requires its reached direct48D0A0 ending TIM load.");
+        }
+        if (age == 0)
+        {
+            uint sound = frame.Effect.Binding.Pandemona291Resources?.OpeningSound ?? throw new NotSupportedException("Native Pandemona requires its original opening sound descriptor.");
+            frame = services.PlayOpeningSound(frame, sound);
+        }
+        int center = frame.Memory.Pandemona291!.Center25562E8 ?? throw new NotSupportedException("Native Pandemona requires its current camera center.");
+        frame = services.ApplyOpeningCamera(frame, center, age);
+        ushort next = unchecked((ushort)(task.ReadWord(0xC) + 1));
+        task = task.WriteWord(0xC, next);
+        frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(start + 0xC, BitConverter.GetBytes(next)) } };
+        return new(frame, task, 0);
+    }
+
+    public static NativeBattleCameraState AdvanceOpeningCamera(NativeBattleCameraState camera, int center, int age)
+    {
+        if (age is < 0 or >= 40)
+        {
+            throw new ArgumentOutOfRangeException(nameof(age));
+        }
+        NativeBattleCameraPose pose = age == 0 ? new(new(0, -1200, unchecked((short)(center - 200))), new(0, -900, unchecked((short)(center - 2000))), 240, 0) : (camera.CurrentPose ?? throw new NotSupportedException("Native Pandemona requires its current canonical eye and target WORDs.")) with { FocalLength = camera.FocalLength, Roll = camera.Roll };
+        pose = NativeBattleCarbuncle278Camera.Orbit683D10(pose, 0, unchecked((552 - age) << 3));
+        pose = pose with { Eye = pose.Eye with { Y = -1200 } };
+        return camera.WriteEffectGlobals(pose);
+    }
+}

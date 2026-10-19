@@ -26,7 +26,7 @@ public sealed partial class BattleSession
             {
                 return RestorePhysical(current, BinaryPrimitives.ReadUInt32LittleEndian(current.Arena.Read(ArenaOffset(model + 0x0C, 4), 4)));
             }
-            if (handler != 0xB26B80)
+            if (handler is not (0xB26B80 or 0xAF5810))
             {
                 throw new NotSupportedException("Native bone positioning requires its selected embedded or physical clone descriptor layout.");
             }

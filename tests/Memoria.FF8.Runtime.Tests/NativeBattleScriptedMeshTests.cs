@@ -10,6 +10,57 @@ public sealed class NativeBattleScriptedMeshTests
     private const uint Manager = 0x2797690;
     private static readonly NativeBattleActionMatrix Identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
 
+    [Theory]
+    [InlineData(0xB105B0u, 0)]
+    [InlineData(0xAEC030u, 0)]
+    [InlineData(0xB105B0u, 1)]
+    [InlineData(0xB105B0u, 2)]
+    [InlineData(0xAEC030u, 3)]
+    public void Flat_F4_uses_native_mode_prefix_material_single_color_scaled_depths_and_partial_rejection_writes(uint handler, int rejection)
+    {
+        NativeBattleWaterExecutionFrame frame = NativeBattleWaterMeshPacketTests.Frame().WriteTemporaryDword(0x90, rejection == 3 ? 0x10u : 0u);
+        byte[] face = new byte[12];
+        BinaryPrimitives.WriteUInt32LittleEndian(face, 0x00808080);
+        for (int corner = 0; corner < 4; corner++)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(face.AsSpan(4 + corner * 2), (ushort)(corner * 8));
+        }
+        byte[] records = Records().ToArray();
+        if (rejection == 1)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(records.AsSpan(4), 0x00460064);
+        }
+        if (rejection is 2 or 3)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(records.AsSpan(16), 0xFFF60014);
+        }
+        NativeBattleWaterMeshGroup group = new(16, 1, face.ToImmutableArray());
+        NativeBattleScriptedMeshSubmission Run(NativeBattleWaterExecutionFrame current) => NativeBattleScriptedMeshPackets.EmitSelected(current, group, handler, 0, records.ToImmutableArray(), [0xFFFF000A, 20, 30, 40], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), pointer => (int)(pointer / 4), 0.5f);
+        NativeBattleScriptedMeshSubmission result = Run(frame);
+        NativeBattleGfGeometryAttempt packet = Assert.Single(result.Packets.Attempts);
+        Assert.Equal(0u, result.Frame.ReadTemporaryDword(0xF0));
+        Assert.Equal(NativeBattleGfPacketByteState.Known, packet.WriteMask[31]);
+        bool accepted = rejection is 0 or 3;
+        Assert.Equal(accepted ? 32 : 0, result.Packets.AllocationBytes);
+        if (accepted)
+        {
+            Assert.NotNull(packet.Primitive);
+            Assert.Equal((byte)7, packet.Data[3]);
+            Assert.Equal(0xE1000003u, BinaryPrimitives.ReadUInt32LittleEndian(packet.Data.AsSpan().Slice(4)));
+            Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(packet.Data.AsSpan().Slice(8)));
+            Assert.Equal(0x28808080u, BinaryPrimitives.ReadUInt32LittleEndian(packet.Data.AsSpan().Slice(12)));
+            Assert.Equal(new[] { 5, 10, 15, 20 }, packet.Primitive.VertexPayload4);
+            Assert.Equal((int)((frame.ReadTemporaryDword(0x5C) + 248) / 4), packet.Primitive.Bucket);
+        }
+        else
+        {
+            Assert.Null(packet.Primitive);
+            Assert.Equal(NativeBattleGfPacketByteState.Untouched, packet.WriteMask[3]);
+            Assert.Equal(NativeBattleGfPacketByteState.Untouched, packet.WriteMask[12]);
+        }
+        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+    }
+
     [Fact]
     public void Plain_projection_supports_more_than_Water_selected_vertices_and_preserves_IR0_record_upper_DWORD()
     {

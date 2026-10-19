@@ -248,8 +248,8 @@ public static class NativeBattleWaterInstructionDispatcher
             throw new InvalidDataException("Native vector instruction leaves its actual program view.");
         }
         int slot = SlotOffset(frame, 0, 0x100);
-        NativeBattleWaterVectorResult vector = NativeBattleWaterVectorCommands.ExecuteAA1810(frame.Arena.Read(slot, 0x100).ToImmutableArray(), offset => BinaryPrimitives.ReadUInt16LittleEndian(ReadProgram(frame, program, unchecked(program.Address + (uint)offset), 2)), (int)relative, frame.Random);
-        frame = frame with { Arena = frame.Arena.Write(slot, vector.Slot.AsSpan()), Random = vector.Random };
+        NativeBattleWaterVectorStep vector = NativeBattleWaterVectorCommands.ExecuteAA1810((offset, count) => frame.Arena.Read(slot + offset, count), (offset, bytes) => frame = frame with { Arena = frame.Arena.Write(slot + offset, bytes) }, offset => BinaryPrimitives.ReadUInt16LittleEndian(ReadProgram(frame, program, unchecked(program.Address + (uint)offset), 2)), (int)relative, frame.Random);
+        frame = frame with { Random = vector.Random };
         frame = WriteCoreDword(frame, 0x2797450, unchecked(program.Address + (uint)vector.NextOffset));
         if (vector.PostAction == NativeBattleWaterVectorPostAction.RefreshPosition)
         {

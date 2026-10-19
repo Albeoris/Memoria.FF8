@@ -12,6 +12,7 @@ public enum NativeBattleWaterVectorPostAction
 }
 
 public sealed record NativeBattleWaterVectorResult(ImmutableArray<byte> Slot, int NextOffset, NativeCrtRandomState Random, NativeBattleWaterVectorPostAction PostAction);
+public sealed record NativeBattleWaterVectorStep(int NextOffset, NativeCrtRandomState Random, NativeBattleWaterVectorPostAction PostAction);
 public sealed record NativeBattleWaterVectorRandom(int Value, NativeCrtRandomState Random);
 
 /// <summary>The finite vector command leaf over an explicit current slot and operand stream.</summary>
@@ -44,6 +45,20 @@ public static class NativeBattleWaterVectorCommands
         {
             throw new InvalidDataException("Native vector commands require the retained 256-byte slot and a bounded instruction stream.");
         }
+        byte[] bytes = slot.ToArray();
+        NativeBattleWaterVectorStep result = ExecuteAA1810((offset, count) => bytes.AsSpan(offset, count).ToArray(), (offset, value) => value.CopyTo(bytes, offset), readProgramWord, instructionOffset, random);
+        return new(bytes.ToImmutableArray(), result.NextOffset, result.Random, result.PostAction);
+    }
+
+    public static NativeBattleWaterVectorStep ExecuteAA1810(Func<int, int, byte[]> readSlot, Action<int, byte[]> writeSlot, Func<int, ushort> readProgramWord, int instructionOffset, NativeCrtRandomState random)
+    {
+        ArgumentNullException.ThrowIfNull(readSlot);
+        ArgumentNullException.ThrowIfNull(writeSlot);
+        ArgumentNullException.ThrowIfNull(readProgramWord);
+        if (instructionOffset < 0)
+        {
+            throw new InvalidDataException("Native vector commands require a bounded instruction stream.");
+        }
         ushort instruction = readProgramWord(instructionOffset);
         int opcode = instruction & 0x1FF;
         if (opcode < 10 || opcode > 23)
@@ -61,7 +76,6 @@ public static class NativeBattleWaterVectorCommands
             _ => throw new InvalidDataException("Native vector command layout is unsupported.")
         };
         int cursor = instructionOffset + 2;
-        byte[] bytes = slot.ToArray();
         int shared = 0;
         if (operation is 1 or 4)
         {
@@ -114,17 +128,21 @@ public static class NativeBattleWaterVectorCommands
             if (stride == 4)
             {
                 uint shifted = unchecked((uint)(value << shift));
-                uint output = operation is 0 or 1 ? shifted : unchecked(BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(offset)) + shifted);
-                BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(offset), output);
+                uint output = operation is 0 or 1 ? shifted : unchecked(BinaryPrimitives.ReadUInt32LittleEndian(readSlot(offset, 4)) + shifted);
+                byte[] valueBytes = new byte[4];
+                BinaryPrimitives.WriteUInt32LittleEndian(valueBytes, output);
+                writeSlot(offset, valueBytes);
             }
             else
             {
                 int shifted = operation is 0 or 1 or 4 ? value >> shift : unchecked(value << shift);
-                ushort output = operation is 0 or 1 ? unchecked((ushort)shifted) : unchecked((ushort)(BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset)) + shifted));
-                BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(offset), output);
+                ushort output = operation is 0 or 1 ? unchecked((ushort)shifted) : unchecked((ushort)(BinaryPrimitives.ReadUInt16LittleEndian(readSlot(offset, 2)) + shifted));
+                byte[] valueBytes = new byte[2];
+                BinaryPrimitives.WriteUInt16LittleEndian(valueBytes, output);
+                writeSlot(offset, valueBytes);
             }
         }
-        return new(bytes.ToImmutableArray(), cursor, random, action);
+        return new(cursor, random, action);
 
         short Operand()
         {

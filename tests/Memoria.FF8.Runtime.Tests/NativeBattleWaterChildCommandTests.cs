@@ -292,6 +292,36 @@ public sealed class NativeBattleWaterChildCommandTests
         Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ChildInheritsUnknownMatrixPaddingWithoutConsumingIt(bool transactional)
+    {
+        NativeBattleWaterExecutionFrame frame = Parent(Fixture(0x32, 8));
+        frame = frame with { Arena = frame.Arena.MarkUnknown(0x20B2, 2).MarkUnknown(0x20B5, 1) };
+        using NativeBattleEffectArenaTransaction? transaction = transactional ? new(frame.Arena) : null;
+        if (transaction is not null)
+        {
+            frame = frame with { Arena = transaction.View };
+            frame.Arena.Write(0x20B0, new byte[] { 0x78, 0x56 });
+        }
+        NativeBattleWaterExecutionFrame result = Run(frame, 4);
+        if (transaction is not null)
+        {
+            result = result with { Arena = transaction.Freeze() };
+        }
+        var source = result.Arena.ReadSnapshot(0x20B0, 8);
+        var child = result.Arena.ReadSnapshot(0x21B0, 8);
+        Assert.Equal(source.Data, child.Data);
+        Assert.Equal(source.Known, child.Known);
+        Assert.Equal(new bool[] { true, true, false, false, true, false, true, true }, child.Known);
+        Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x21B0, 4));
+        Assert.Equal(Pc + 4, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(result))!;
+        Assert.Equal(child.Data, restored.Arena.ReadSnapshot(0x21B0, 8).Data);
+        Assert.Equal(child.Known, restored.Arena.ReadSnapshot(0x21B0, 8).Known);
+    }
+
     private static NativeBattleWaterExecutionFrame Fixture(ushort instruction, ushort first = 0, ushort second = 0)
     {
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create().WriteTemporaryWord(0x14A, instruction);

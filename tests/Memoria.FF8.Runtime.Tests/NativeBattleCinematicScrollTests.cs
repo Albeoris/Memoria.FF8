@@ -11,6 +11,46 @@ public sealed class NativeBattleCinematicScrollTests
     private const uint Manager = 0x2797690;
 
     [Theory]
+    [InlineData(false, 1, 0, 0, 0)]
+    [InlineData(true, 0, 256, 1024, 1024)]
+    [InlineData(true, 0, -256, 1024, 1024)]
+    public void Row_scroll_allocates_once_rotates_native_WORDs_and_publishes_final_scratch_and_ring(bool sineRows, short shift, short amplitude, short angle, short step)
+    {
+        var fixture = Fixture(0, 2, 255);
+        NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.CoreDword(fixture.Frame, Manager + 0x74, Base + 0x9000);
+        frame = WaterSchedulerFixture.SlotDword(frame, 0, 0xBC, 0);
+        frame = WaterSchedulerFixture.SlotWord(frame, 0, 0x94, unchecked((ushort)shift));
+        frame = WaterSchedulerFixture.SlotWord(frame, 0, 0x8C, unchecked((ushort)amplitude));
+        frame = WaterSchedulerFixture.SlotWord(frame, 0, 0x8E, unchecked((ushort)angle));
+        frame = WaterSchedulerFixture.SlotWord(frame, 0, 0x90, unchecked((ushort)step));
+        frame = frame with { Arena = frame.Arena.MarkUnknown(0x5061, 1) };
+        int uploads = 0;
+        NativeBattleWaterExecutionFrame Run(NativeBattleWaterExecutionFrame current) => NativeBattleCinematicRowScroll.Draw(current, fixture.Resources, sineRows, (advanced, rectangle, source) =>
+        {
+            uploads++;
+            Assert.Equal(new NativeBattleEffectTextureRectangle(-2, 32766, 2, 2), rectangle);
+            Assert.Equal(Base + 0x9000, source);
+            Assert.Equal(rectangle, Rectangle(advanced.Core.Read(0x279754C, 8)));
+            return advanced;
+        });
+        NativeBattleWaterExecutionFrame result = Run(frame);
+        var actual = result.Arena.ReadSnapshot(0x9000, 8);
+        Assert.Equal(sineRows ? new byte[] { 2, 3, 0, 1, 4, 5, 6, 7 } : new byte[] { 2, 3, 0, 1, 6, 7, 4, 5 }, actual.Data);
+        Assert.False(actual.Known[3]);
+        Assert.Equal(7, actual.Known.Count(known => known));
+        Assert.Equal(Base + 0x9008, WaterSchedulerFixture.ReadCoreDword(result, Manager + 0x74));
+        Assert.Equal(Base + 0x9008, result.ReadTemporaryDword(0x60));
+        Assert.Equal(Base + 0x5068, result.ReadTemporaryDword(0x64));
+        Assert.Equal(0u, result.ReadTemporaryDword(0x7C));
+        Assert.Equal(0, result.Core.Read(Header + 0x43, 1)[0]);
+        Assert.Same(frame.Random, result.Random);
+        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+        Assert.Equal(2, uploads);
+        NativeBattleWaterExecutionFrame warm = Run(result);
+        Assert.Equal(Base + 0x9008, WaterSchedulerFixture.ReadCoreDword(warm, Manager + 0x74));
+    }
+
+    [Theory]
     [InlineData(0, 8, 0, 1)]
     [InlineData(3, 8, 3, 2)]
     [InlineData(-1, 8, 7, 2)]

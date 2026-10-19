@@ -80,6 +80,7 @@ public sealed partial class BattleSession
         NativeBattleAuxiliaryStep step = graphics.Auxiliary.Advance(new()
         {
             ApplyScreenFade501D10 = (fade, complete) => graphics = PublishNativeScreenFade501D10(graphics, fade, complete),
+            ApplyScreenBlend501E80 = color => graphics = PublishNativeScreenBlend501E80(graphics, color),
             ReadBone = (model, bone, fraction) => ReadNativeGraphicsBone(graphics, model, bone, fraction),
             ReadPan = point => (NativeCamera?.Projection ?? throw new NotSupportedException("Native50F830 requires its actual prior5033E0/500900 projection owner.")).ReadPan(point),
             ReadModel = model => graphics.Models[model],
@@ -156,6 +157,10 @@ public sealed partial class BattleSession
                 else if (TryWriteNativeCarbuncle278Completion(graphics, address, value, out NativeBattleGraphicsState carbuncleCompleted))
                 {
                     graphics = carbuncleCompleted;
+                }
+                else if (TryWriteNativeSiren95Completion(graphics, address, value, out NativeBattleGraphicsState sirenCompleted))
+                {
+                    graphics = sirenCompleted;
                 }
                 else if (TryWriteNativeTonberry90Completion(graphics, address, value, out NativeBattleGraphicsState tonberryCompleted))
                 {

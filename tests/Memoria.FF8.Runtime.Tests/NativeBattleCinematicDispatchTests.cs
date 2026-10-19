@@ -47,9 +47,13 @@ public sealed class NativeBattleCinematicDispatchTests
     }
 
     [Fact]
-    public void The_distinct_model_with_shadow_wrapper_requires_its_own_contract()
+    public void The_distinct_model_with_shadow_wrapper_retains_its_authenticated_variant_identity()
     {
-        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(205, "draw_table", 3, 0xAF5810));
+        Assert.Equal(0xAF5810u, NativeBattleCinematicDispatch.RequireSlot(205, "draw_table", 3, 0xAF5810));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.Canonicalize(205, 0xAF5810));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(205, "draw_table", 2, 0xAF5810));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(201, "draw_table", 3, 0xAF5810));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(205, "draw_table", 3, 0xAF5670));
     }
 
     [Theory]

@@ -33,6 +33,27 @@ public sealed partial class BattleSession
                     return current with { Memory = current.Memory with { Arena = arena } };
                 },
                 PlaySound = (sound, flags, pan) => PublishNativeModuleSound(new(sound, checked((uint)flags), null) { Pan = checked((byte)pan) }),
+                PlayStream = (current, pan, volume) => PublishNativeModuleSound((current.Memory.SummonStream ?? throw new NotSupportedException("Native Diablos requires its retained summon stream number.")).Play5018C0(pan, volume)),
+                PresentWings = (current, task) =>
+                {
+                    NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Diablos paired wings require their current projection.");
+                    NativeBattleDiablos325WingsDraw drawn = NativeBattleDiablos325Wings.Advance654811(current, task, projection);
+                    NativeBattleDiablos325State state = NativeBattleDiablos325Entry.RequireState(drawn.Memory);
+                    NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Diablos paired wings require their current ordering table.");
+                    NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(drawn.Memory, checked((int)(state.PacketCursor51D0 - state.ModelBuffer5208)), primitive.Pending, drawn.Packets);
+                    graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
+                    return new(current with { Memory = written.Memory with { Diablos325 = state with { PacketCursor51D0 = checked(state.ModelBuffer5208 + (uint)written.Cursor) } } }, drawn.Task);
+                },
+                PresentWell = (current, counter) =>
+                {
+                    NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Diablos well requires its current projection.");
+                    NativeBattleDiablos325WellDraw drawn = NativeBattleDiablos325Well.Emit65473A(current, counter, projection);
+                    NativeBattleDiablos325State state = NativeBattleDiablos325Entry.RequireState(drawn.Memory);
+                    NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Diablos well requires its current ordering table.");
+                    NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(drawn.Memory, checked((int)(state.PacketCursor51D0 - state.ModelBuffer5208)), primitive.Pending, drawn.Packets);
+                    graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
+                    return current with { Memory = written.Memory with { Diablos325 = state with { PacketCursor51D0 = checked(state.ModelBuffer5208 + (uint)written.Cursor) } } };
+                },
                 DrawPuffs = current =>
                 {
                     NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Diablos puffs require their current projection.");

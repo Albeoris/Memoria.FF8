@@ -13,7 +13,7 @@ public static class NativeBattleDiablos325Programme
     public static NativeBattleDiablos325ProgrammeDraw Advance654654(NativeBattleDiablos325Frame frame, NativeBattleModulePoolTask task, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
     {
         int counter = unchecked((short)task.ReadWord(0xC));
-        if (counter is < 9 or > 30)
+        if (counter is < 9 or > 91)
         {
             throw new NotSupportedException("Native Diablos opening programme requires its current reached timeline window.");
         }

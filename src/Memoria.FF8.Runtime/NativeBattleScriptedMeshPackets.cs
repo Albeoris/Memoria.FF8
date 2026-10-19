@@ -31,12 +31,13 @@ public static class NativeBattleScriptedMeshPackets
             8 => (0xB28110u, 20, 32, 3, 10),
             9 => (0xB283B0u, 28, 40, 3, 18),
             12 => (0xB28690u, 28, 36, 4, 20),
+            16 => (0xB105B0u, 12, 32, 4, 4),
             17 => (0xB28B00u, 24, 44, 4, 16),
             18 => (0xB28DD0u, 24, 40, 4, 12),
             19 => (0xB290B0u, 36, 52, 4, 24),
             _ => throw new NotSupportedException("Native cinematic primitive writer requires its selected proved handler.")
         };
-        if (actualHandler != expected)
+        if (actualHandler != expected && !(group.Type == 16 && actualHandler == 0xAEC030))
         {
             throw new NotSupportedException($"Native cinematic primitive {group.Type:X} selected unsupported handler {actualHandler:X8}.");
         }
@@ -64,6 +65,10 @@ public static class NativeBattleScriptedMeshPackets
             NativeBattleWaterMeshResult reused = NativeBattleWaterMeshPackets.EmitSelected(frame, group, projectedRecords, depths, outputPointer, resolveActualOtBucket, Shade, depthScale);
             return new(reused.Frame, reused.Packets, lighting, registers);
         }
+        if (group.Type == 16)
+        {
+            frame = frame.WriteTemporaryDword(0xF0, 0);
+        }
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
         for (int faceIndex = 0; faceIndex < group.Count; faceIndex++)
@@ -84,7 +89,7 @@ public static class NativeBattleScriptedMeshPackets
                 screens[corner] = BinaryPrimitives.ReadUInt32LittleEndian(projectedRecords.AsSpan().Slice(offset));
                 depthAndClip[corner] = BinaryPrimitives.ReadUInt32LittleEndian(projectedRecords.AsSpan().Slice(offset + 4));
                 rawDepth[corner] = NativePrecision53.RoundInteger(unchecked((ushort)depths[offset / 8]) * (double)depthScale);
-                StoreDword(group.Type == 12 ? 8 + corner * 8 : group.Type == 19 ? 8 + corner * 12 : 8 + corner * 8, screens[corner]);
+                StoreDword(group.Type == 16 ? 16 + corner * 4 : group.Type == 19 ? 8 + corner * 12 : 8 + corner * 8, screens[corner]);
             }
             bool reject = (frame.ReadTemporaryDword(0x90) & 0x10) == 0 && NativeBattleModulePackets.Nclip(screens[0], screens[1], screens[2]) < 0;
             reject |= ((depthAndClip.Aggregate(0u, (value, next) => value | next) >> 16) & 0x46) != 0;
@@ -106,6 +111,13 @@ public static class NativeBattleScriptedMeshPackets
                         uint material = BinaryPrimitives.ReadUInt32LittleEndian(face.AsSpan(corner * 4)) | (group.Type == 2 ? 0x32000000u : 0x3A000000u);
                         StoreDword(4 + corner * 8, Shade(material));
                     }
+                }
+                else if (group.Type == 16)
+                {
+                    StoreDword(4, frame.ReadTemporaryDword(0x50));
+                    StoreDword(8, 0);
+                    uint material = BinaryPrimitives.ReadUInt32LittleEndian(face) | frame.ReadTemporaryDword(0x8C) | 0x28000000u;
+                    StoreDword(12, Shade(material));
                 }
                 else
                 {

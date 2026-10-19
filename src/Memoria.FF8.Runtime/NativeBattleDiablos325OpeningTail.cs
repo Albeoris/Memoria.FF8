@@ -30,6 +30,14 @@ public static class NativeBattleDiablos325OpeningTail
         {
             frame = NativeBattleDiablos325Puffs.Shrink658C80(NativeBattleDiablos325Puffs.Spawn658B90(frame, 4, -16384, true));
         }
+        else if (counter is >= 60 and < 90)
+        {
+            return NativeBattleDiablos325Orbit.Advance656309(frame, camera, counter);
+        }
+        else if (counter == 90)
+        {
+            return NativeBattleDiablos325Orbit.Reset6563D1(frame, camera);
+        }
         return new(frame, camera);
     }
 }

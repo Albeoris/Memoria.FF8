@@ -12,6 +12,21 @@ public sealed class NativeBattleWaterParticleCommandTests
     private const int Slot = 0x2000;
 
     [Theory]
+    [InlineData((byte)1, false)]
+    [InlineData((byte)0x81, true)]
+    public void Append_draw_preserves_paused_matching_entry_and_unknown_kind_and_compares_the_full_incoming_byte(byte current, bool appended)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture();
+        frame = frame with { Core = frame.Core.Write(0x2797554, [0x81, 3, 0xFF, 0x77]).MarkUnknown(0x2797558, 124), Arena = frame.Arena.MarkUnknown(Slot + 0x1C, 1) };
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterParticleCommands.AppendDrawB652E0(frame, current);
+        Assert.Equal(appended ? new byte[] { 0x81, 3, 0x81, 0x77 } : new byte[] { 0x81, 3, 0xFF, 0x77 }, result.Core.Read(0x2797554, 4));
+        Assert.Throws<NotSupportedException>(() => result.Arena.Read(Slot + 0x1C, 1));
+        Assert.Throws<NotSupportedException>(() => result.Core.Read(0x2797558, 1));
+        Assert.Same(frame.Arena, result.Arena);
+        Assert.Same(frame.Random, result.Random);
+    }
+
+    [Theory]
     [InlineData(16)]
     [InlineData(32)]
     public void Allocation_initializes_only_native_bank_and_record_fields_without_clearing_unknown_payload(short count)
@@ -132,9 +147,51 @@ public sealed class NativeBattleWaterParticleCommandTests
     [Theory]
     [InlineData(0x58, -1)]
     [InlineData(0x1059, 1)]
-    public void Unsupported_negative_allocation_and_lookup_branch_fail_explicitly(ushort instruction, short operand)
+    public void Negative_allocation_or_missing_lookup_resolver_fails_explicitly(ushort instruction, short operand)
     {
         Assert.Throws<NotSupportedException>(() => Execute(Fixture(instruction, operand)));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Alternate_ring_lookup_uses_selected_material_and_bank_but_current_position_and_distinct_missing_PC_advance(bool missing)
+    {
+        NativeBattleWaterExecutionFrame frame = SetInstruction(SpawnFixture(1, 0), 0x1059, 123);
+        frame = frame with { Arena = frame.Arena.Write(0x1004, BitConverter.GetBytes((short)-4)).MarkUnknown(Slot + 0xB8, 4).MarkUnknown(0x2194, 6) };
+        frame = WaterSchedulerFixture.SlotDword(frame, 1, 0xB8, ArenaBase + Bank);
+        frame = WaterSchedulerFixture.SlotDword(frame, 1, 0xCC, 0xFFABCDEF);
+        frame = WaterSchedulerFixture.SlotWord(frame, 1, 0x92, 0x2345);
+        frame = WaterSchedulerFixture.SlotWord(frame, 1, 0x9A, 0x3456);
+        frame = frame with { Arena = frame.Arena.Write(0x2118, [3]) };
+        if (missing)
+        {
+            frame = frame with { Arena = frame.Arena.MarkUnknown(0x1004, 2) };
+        }
+        NativeBattleWaterExecutionFrame Run(NativeBattleWaterExecutionFrame current) => NativeBattleWaterParticleCommands.Execute(current, new(0x1000, 6, Pc), (selected, selector) =>
+        {
+            Assert.Equal((short)123, selector);
+            Assert.Equal(ArenaBase + Slot, WaterSchedulerFixture.ReadCoreDword(selected, 0x27973E8));
+            return ArenaBase + (missing ? (uint)Slot : 0x2100u);
+        });
+        NativeBattleWaterExecutionFrame result = Run(frame);
+        Assert.Equal(missing ? 0u : 2u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+        Assert.Equal(ArenaBase + Slot, WaterSchedulerFixture.ReadCoreDword(result, 0x27973E8));
+        if (missing)
+        {
+            Assert.Same(frame.Arena, result.Arena);
+            Assert.Same(frame.TemporaryFrame, result.TemporaryFrame);
+        }
+        else
+        {
+            Assert.Equal((ushort)3, Word(result, Bank + 8));
+            Assert.Equal(0xFFFFFFFAu, Dword(result, Bank + 0x14));
+            Assert.Equal(unchecked((uint)(-3 << 8)), Dword(result, Bank + 0x24));
+            Assert.Equal((ushort)0x2345, Word(result, Bank + 0x50));
+            Assert.Equal((ushort)0x3456, Word(result, Bank + 0x58));
+            Assert.Equal(0x02ABCDEFu, Dword(result, Bank + 0x48));
+        }
+        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
     }
 
     [Fact]

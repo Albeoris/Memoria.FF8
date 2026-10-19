@@ -6,6 +6,7 @@ public sealed record NativeBattleDiablos325Resources(NativeBattleGfAnimationSour
 {
     public ImmutableArray<NativeBattleEffectFileAsset> Files { get; init; } = [];
     public ImmutableArray<uint> Sounds { get; init; } = [];
+    public ImmutableArray<byte> WellGeometry { get; init; } = [];
     public ImmutableArray<byte> PuffSprite { get; init; } = [];
     public ImmutableArray<byte> PrimitiveKinds { get; init; } = [];
     public ImmutableArray<byte> TextureKinds { get; init; } = [];

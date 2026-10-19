@@ -21,6 +21,7 @@ public sealed record NativeBattleAuxiliaryInputs
     public Action<NativeBattleAuxiliaryKind, int, uint>? ApplyModelRing { get; init; }
     public Action? InitializeTimerDisplay47D910 { get; init; }
     public Action<byte, bool>? ApplyScreenFade501D10 { get; init; }
+    public Action<uint>? ApplyScreenBlend501E80 { get; init; }
     public Func<int, byte, short, NativeBattleVector>? ReadBone { get; init; }
     public Func<NativeBattleVector, byte>? ReadPan { get; init; }
     public Func<int, NativeBattleGraphicsModel>? ReadModel { get; init; }

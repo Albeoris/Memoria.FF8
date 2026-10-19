@@ -26,7 +26,7 @@ public sealed class NativeBattleSirenOverlayMigrationTests
         NativeBattleSiren95Resources authenticated = game.ReadNativeEffectCatalogForEffects([95])[94].Siren95Resources!;
         Assert.NotNull(authenticated.OverlayProgram);
         Assert.Equal(24, authenticated.OverlayProgram.Commands.Length);
-        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(authenticated with { OverlayProgram = null, NodeSchedule = null, StaticNodeSource = null }));
+        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(authenticated with { OverlayProgram = null, NodeSchedule = null, StaticNodeSource = null, ParticleResources = null }));
         JsonNode migrated = original.DeepClone();
         JsonObject live = migrated["NativeGraphics"]!["OriginalEffect"]!["Binding"]!["Siren95Resources"]!.AsObject();
         JsonObject entry = migrated["NativeEffectMemory"]!["Entry21DFEC4"]!["Siren95Resources"]!.AsObject();

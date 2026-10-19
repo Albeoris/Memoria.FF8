@@ -35,6 +35,11 @@ public sealed partial class BattleSession
                 NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(current.Effect.Pools).Read(address);
                 switch (task.Callback)
                 {
+                    case 0x745250:
+                    case 0x7452F0:
+                        return NativeBattleSiren95Waves.Advance(current, address, new(nativeActionPackets, DrawWave));
+                    case 0x745AD0:
+                        return NativeBattleSiren95Screens.Advance745AD0(current, address, new(DrawScreen));
                     case 0x744F90:
                         return NativeBattleSiren95ScheduledNodes.Advance744F90(current, address, new(nativeActionPackets, (active, pointer, length) =>
                         {
@@ -77,10 +82,16 @@ public sealed partial class BattleSession
                     case 0x7441D0:
                     case 0x744570:
                         return NativeBattleSiren95Decorations.AdvanceChild(current, address, DrawDecoration);
+                    case 0x743250:
+                        return NativeBattleSiren95TargetParticles.Advance743250(current, address, nativeActionPackets, actor => graphics.Models[actor]);
                     case 0x7447C0:
                         return NativeBattleSiren95Contacts.Advance7447C0(current, address, new(nativeActionPackets, actor => graphics.Models[actor], SelectContactSequence));
                     case 0x744AA0:
                     case 0x744C30:
+                    case 0x746FD0:
+                    case 0x747220:
+                    case 0x7466A0:
+                    case 0x7433C0:
                         return NativeBattleSiren95Contacts.AdvanceParticle(current, address, DrawContactParticle);
                     case 0x73C1A0:
                         NativeBattleGfAnimationSource surface = resources.PhaseOneSource ?? throw new NotSupportedException("Native Siren surface requires its original programme source; migrate the named binding explicitly.");
@@ -120,6 +131,41 @@ public sealed partial class BattleSession
                 return current;
             }
 
+            NativeBattleSiren95Frame DrawScreen(NativeBattleSiren95Frame current, uint address, uint row)
+            {
+                NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Siren screen requires its actual camera owner.");
+                NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native Siren screen requires its current GTE projection.");
+                return NativeBattleSiren95ScreenDrawing.Draw745F50(current, address, row, new(nativeActionPackets, camera.CapturePackedView1D97778().ReadMatrix(), projection, current.Memory.ScriptedGraphics, SubmitScreen));
+            }
+
+            NativeBattleSiren95Frame SubmitScreen(NativeBattleSiren95Frame current, NativeBattleGfGeometryBatch batch)
+            {
+                NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Siren screen requires its actual COMMON packet owner.");
+                NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Siren screen requires its current ordering table.");
+                NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, batch);
+                graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
+                return current with { Memory = current.Memory with { PrimitiveProcess = written.Process } };
+            }
+
+            NativeBattleSiren95Frame DrawWave(NativeBattleSiren95Frame current, uint address)
+            {
+                NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(current.Effect.Pools).Read(address);
+                if ((task.ReadByte(0x26) & 4) != 0)
+                {
+                    return current;
+                }
+                NativeBattleGfAnimationSource source = NativeBattleSiren95Io.ReadProgrammeSource(current.Memory, task.ReadDword(0x4C));
+                NativeBattleTextureWindow full = new(0, 0, 256, 256);
+                NativeBattleEsunaMeshContext operands = new(0xF0, task.ReadDword(0x40), unchecked((short)task.ReadWord(0x50)), unchecked((short)task.ReadWord(0x52)), 0, 0, full, full, 17, 2);
+                NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Siren wave requires its current projection.");
+                NativeBattleGfGeometryBatch batch = NativeBattleRestorationMeshPackets.EmitBatch88E240(source.Data, NativeBattleSiren95Waves.Matrix745380(task), camera.Projection ?? throw new NotSupportedException("Native Siren wave requires its actual projection."), operands, definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Siren wave requires its color constants."));
+                NativeBattlePrimitiveProcess process = (current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Siren wave requires its actual COMMON packet owner.")).PublishModelColor(task.ReadDword(0x40));
+                NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Siren wave requires its actual ordering table.");
+                NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, batch);
+                graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
+                return current with { Memory = current.Memory with { PrimitiveProcess = written.Process, NodeScratch2793E30 = NativeBattleSiren95Scratch.Programme(current.Memory.NodeScratch2793E30, 0, full) } };
+            }
+
             NativeBattleSiren95Frame DrawContactParticle(NativeBattleSiren95Frame current, uint address, short scale) => DrawSprite(current, address, scale);
 
             NativeBattleSiren95Frame DrawDecoration(NativeBattleSiren95Frame current, uint address) => DrawSprite(current, address, 4096);
@@ -134,6 +180,10 @@ public sealed partial class BattleSession
                 NativeBattleEffectHeapAllocation sprites = task.ReadDword(0x4C) switch
                 {
                     0x1533024 => resources.PhaseOneSprites ?? throw new NotSupportedException("Native Siren decorations require their original sprite frames; migrate the named resource binding explicitly."),
+                    0x15331D0 => resources.ParticleResources?.ScreenCloudSprites ?? throw new NotSupportedException("Native Siren screen particles require their original cloud sprite frames; migrate the named binding explicitly."),
+                    0x1533328 => resources.ParticleResources?.ScreenSpraySprites ?? throw new NotSupportedException("Native Siren screen particles require their original spray sprite frames; migrate the named binding explicitly."),
+                    0x15334A0 => resources.ParticleResources?.ModelSprites ?? throw new NotSupportedException("Native Siren model particles require their original sprite frames; migrate the named binding explicitly."),
+                    0x15336C4 => resources.ParticleResources?.AlternateModelSprites ?? throw new NotSupportedException("Native Siren model particles require their alternate sprite frames; migrate the named binding explicitly."),
                     0x15335CC => resources.PhaseTwoSprites ?? throw new NotSupportedException("Native Siren contact particles require their original gravity sprite frames; migrate the named resource binding explicitly."),
                     _ => throw new NotSupportedException("Native Siren decoration source leaves its supplied sprite owners.")
                 };
@@ -280,7 +330,9 @@ public sealed partial class BattleSession
 
             NativeBattleSiren95Frame EmitModelParticles(NativeBattleSiren95Frame current, uint address, bool secondary)
             {
-                throw new NotSupportedException($"Native Siren model emitter {(secondary ? "747160" : "746F40")} at task 0x{address:X8} requires its original bone selector and particle sprite resources.");
+                NativeBattleSiren95ParticleResources particles = resources.ParticleResources ?? throw new NotSupportedException("Native Siren model particles require their original bone selectors and sprite frames; migrate the named binding explicitly.");
+                NativeBattleEffectOwnedModelState model = current.Memory.Siren95?.ModelState ?? throw new NotSupportedException("Native Siren particle emission requires its current model pose.");
+                return NativeBattleSiren95ModelParticles.Emit(current, address, secondary, NativeBattleSiren95Model.ReadCurrentResource(current.Memory, model.ResourceAddress), nativeActionPackets, particles.BoneSelectors);
             }
 
             NativeBattleSiren95Frame SpawnStage(NativeBattleSiren95Frame current, uint address)

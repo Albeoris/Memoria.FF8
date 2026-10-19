@@ -9,7 +9,10 @@ public sealed record NativeBattleDiablos325Inputs(NativeBattleActionPacketsState
 {
     public Func<NativeBattleDiablos325Frame, NativeBattleEffectFileRequest, NativeBattleDiablos325Frame>? QueueFile { get; init; }
     public Func<NativeBattleDiablos325Frame, ushort, NativeBattleDiablos325Frame>? PresentTail { get; init; }
+    public Func<NativeBattleDiablos325Frame, NativeBattleModulePoolTask, NativeBattleDiablos325ProgrammeStep>? PresentWings { get; init; }
+    public Func<NativeBattleDiablos325Frame, ushort, NativeBattleDiablos325Frame>? PresentWell { get; init; }
     public Func<NativeBattleDiablos325Frame, NativeBattleDiablos325Frame>? DrawPuffs { get; init; }
+    public Action<NativeBattleDiablos325Frame, uint, uint>? PlayStream { get; init; }
     public Action<uint, int, int>? PlaySound { get; init; }
     public Func<NativeBattleDiablos325Frame, NativeBattleModulePoolTask, NativeBattleDiablos325ProgrammeStep>? PresentProgramme { get; init; }
 }

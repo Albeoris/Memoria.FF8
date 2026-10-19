@@ -21,7 +21,8 @@ public enum NativeBattleAuxiliaryKind
     ModelGroupFade50F0E0,
     ModelDeformation50F2E0,
     ModelResourceFlags50B080,
-    DeferredCompletion5086E0
+    DeferredCompletion5086E0,
+    ScreenBlend501E80
 }
 
 public sealed record NativeBattleAuxiliaryTask([property: JsonRequired] ushort Flags, [property: JsonRequired] ushort State, [property: JsonRequired] int? Next, [property: JsonRequired] NativeBattleAuxiliaryKind Kind, [property: JsonRequired] ImmutableArray<byte> Payload)
@@ -50,6 +51,10 @@ public sealed partial record NativeBattleAuxiliaryState([property: JsonRequired]
         {
             throw new InvalidDataException("Native auxiliary tasks require sixteen physical44-byte slots and their retained payloads.");
         }
+        if (Slots.Count(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.ScreenBlend501E80) > 1)
+        {
+            throw new InvalidDataException("Native501EBC identifies only one live screen blend task.");
+        }
         HashSet<int> visited = [];
         for (int? next = Head; next is int index; next = Slots[index].Next)
         {
@@ -77,7 +82,7 @@ public sealed partial record NativeBattleAuxiliaryState([property: JsonRequired]
             {
                 throw new InvalidDataException("Native5086E0 lacks its written phase BYTE and caller completion pointer.");
             }
-            else if (Slots[index].Kind == NativeBattleAuxiliaryKind.OutcomeFade501D10 && (Slots[index].UnknownByteMask & 0x3F) != 0)
+            else if ((Slots[index].Kind is NativeBattleAuxiliaryKind.OutcomeFade501D10 or NativeBattleAuxiliaryKind.ScreenBlend501E80) && (Slots[index].UnknownByteMask & 0x3F) != 0)
             {
                 throw new InvalidDataException("Native501D10 lacks its written counter/duration/start/target fields.");
             }
@@ -160,6 +165,10 @@ public sealed partial record NativeBattleAuxiliaryState([property: JsonRequired]
             else if (task.Kind == NativeBattleAuxiliaryKind.StageFade501F90)
             {
                 (task, release) = AdvanceStageFade501F90(task, inputs);
+            }
+            else if (task.Kind == NativeBattleAuxiliaryKind.ScreenBlend501E80)
+            {
+                (task, release) = AdvanceScreenBlend501E80(task, inputs);
             }
             else if (task.Kind == NativeBattleAuxiliaryKind.DeferredCompletion5086E0)
             {

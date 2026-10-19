@@ -31,7 +31,7 @@ public sealed class NativeBattleSirenSurfaceMigrationTests
         Assert.Equal(0x5A00, authenticated.PhaseOneSource.Data.Length);
         Assert.NotNull(authenticated.PhaseOneSprites);
         Assert.Equal(0x1AC, authenticated.PhaseOneSprites.Data.Length);
-        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(authenticated with { PhaseOneSource = null, PhaseOneSprites = null, PhaseTwoSprites = null, OverlayProgram = null, NodeSchedule = null, StaticNodeSource = null }));
+        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(authenticated with { PhaseOneSource = null, PhaseOneSprites = null, PhaseTwoSprites = null, OverlayProgram = null, NodeSchedule = null, StaticNodeSource = null, ParticleResources = null }));
         JsonNode migrated = original.DeepClone();
         JsonObject live = migrated["NativeGraphics"]!["OriginalEffect"]!["Binding"]!["Siren95Resources"]!.AsObject();
         JsonObject entry = migrated["NativeEffectMemory"]!["Entry21DFEC4"]!["Siren95Resources"]!.AsObject();

@@ -158,8 +158,25 @@ public static class NativeBattleWaterChildCommands
 
         void CopyParent(int source, int destination, int length)
         {
-            byte[] bytes = NativeBattleWaterExecutionFields.ReadSlot(frame, source, length);
-            frame = frame with { Arena = frame.Arena.Write(childOffset + destination, bytes) };
+            int sourceOffset = NativeBattleWaterExecutionFields.SlotOffset(frame, source, length);
+            var snapshot = frame.Arena.ReadSnapshot(sourceOffset, length);
+            NativeBattleEffectArena arena = frame.Arena.Write(childOffset + destination, snapshot.Data);
+            int index = 0;
+            while (index < length)
+            {
+                if (snapshot.Known[index])
+                {
+                    index++;
+                    continue;
+                }
+                int first = index;
+                while (index < length && !snapshot.Known[index])
+                {
+                    index++;
+                }
+                arena = arena.MarkUnknown(childOffset + destination + first, index - first);
+            }
+            frame = frame with { Arena = arena };
         }
 
         void WriteChildWord(int offset, ushort value)

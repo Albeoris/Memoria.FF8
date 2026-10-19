@@ -1,0 +1,68 @@
+using System.Collections.Immutable;
+using System.Text.Json;
+
+namespace Memoria.FF8.Runtime.Tests;
+
+public sealed class NativeBattleDiablos325StreamGateTests
+{
+    [Fact]
+    public void Waiting_keeps_programme_and_draw_progress_but_skips_tail_counter_and_sound_until_selector_is_ready()
+    {
+        var fixture = NativeBattleDiablos325Tests.Fixture();
+        NativeBattleDiablos325Frame frame = NativeBattleDiablos325Entry.Initialize6541E0(fixture.Frame, fixture.Packets, fixture.Models);
+        NativeBattleDiablos325Resources resources = new(new(0xFD8584, new byte[0x3890].ToImmutableArray()), new(new string('0', 64), [0], [0, 0, 0, 0]));
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x25051A0, NativeBattleEffectNodeMemory.ArenaAddress, 0x994, 1);
+        (pool, int index) = pool.Append(0x6545F0);
+        NativeBattleModulePoolTask task = (pool.Slots[index] with { Payload = new byte[0x994 - 12].ToImmutableArray() }).WriteWord(0xC, 32);
+        pool = pool with { Slots = pool.Slots.SetItem(index, task) };
+        NativeBattleEffectMemory memory = NativeBattleEffectIo.Initialize534110(frame.Memory, 0x4C14);
+        memory = memory with { Diablos325 = memory.Diablos325! with { Mode51F0 = 3 }, Arena = memory.Arena!.Write(0x4C14, [1, 0, 1, 1, 0]) };
+        frame = frame with { Memory = memory, Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(pool), Binding = frame.Effect.Binding with { Diablos325Resources = resources } } };
+        string original = JsonSerializer.Serialize(frame);
+        List<string> calls = [];
+        NativeBattleDiablos325Inputs inputs = new(fixture.Packets, current => throw new InvalidOperationException())
+        {
+            PresentProgramme = (current, currentTask) =>
+            {
+                calls.Add("programme");
+                return new(current, currentTask.WriteDword(0x268, currentTask.ReadDword(0x268) + 1));
+            },
+            PresentWell = (current, counter) =>
+            {
+                Assert.Equal((ushort)32, counter);
+                calls.Add("well");
+                return current;
+            },
+            DrawPuffs = current =>
+            {
+                calls.Add("puffs");
+                return current;
+            },
+            PlayStream = (current, pan, volume) =>
+            {
+                calls.Add("stream");
+                Assert.Equal(128u, pan);
+                Assert.Equal(127u, volume);
+            },
+            PresentTail = (current, counter) =>
+            {
+                calls.Add("tail");
+                return current;
+            }
+        };
+        NativeBattleDiablos325Frame waiting = NativeBattleDiablos325Timeline.AdvanceOpening6545F0(frame, inputs);
+        Assert.Equal(new[] { "programme", "well", "puffs" }, calls);
+        NativeBattleModulePoolTask retained = waiting.Effect.Pools.Single(item => item.DescriptorAddress == 0x25051A0).Slots[0];
+        Assert.Equal((ushort)32, retained.ReadWord(0xC));
+        Assert.Equal(1u, retained.ReadDword(0x268));
+        Assert.Equal(retained.Payload, waiting.Memory.Arena!.Read(12, retained.Payload.Length).ToImmutableArray());
+        Assert.Equal(original, JsonSerializer.Serialize(frame));
+        calls.Clear();
+        waiting = waiting with { Memory = waiting.Memory with { Arena = waiting.Memory.Arena!.Write(0x4C14, [1, 0, 1, 1, 1]) } };
+        NativeBattleDiablos325Frame ready = NativeBattleDiablos325Timeline.AdvanceOpening6545F0(waiting, inputs);
+        Assert.Equal(new[] { "programme", "well", "puffs", "stream", "tail" }, calls);
+        NativeBattleModulePoolTask advanced = ready.Effect.Pools.Single(item => item.DescriptorAddress == 0x25051A0).Slots[0];
+        Assert.Equal((ushort)33, advanced.ReadWord(0xC));
+        Assert.Equal(2u, advanced.ReadDword(0x268));
+    }
+}

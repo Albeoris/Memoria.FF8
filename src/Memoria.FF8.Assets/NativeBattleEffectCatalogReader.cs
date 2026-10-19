@@ -270,6 +270,15 @@ public sealed partial class GameAssets
                 binding = binding with { Diablos325Resources = ReadNativeDiablos325Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 291)
+            {
+                if (binding.Entry != 0x6ED250)
+                {
+                    throw new InvalidDataException("Native Pandemona differs from its original module identity.");
+                }
+                binding = binding with { Pandemona291Resources = ReadNativePandemona291Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 95)
             {
                 if (binding.Entry != 0x739DA0 || binding.Initializer != 0x739D80)

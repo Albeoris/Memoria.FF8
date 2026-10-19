@@ -5,17 +5,24 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicModel(NativeBattleWaterExecutionFrame frame, int secondFileLength, NativeBattleCinematicModelServices services, NativeBattleGraphicsState graphics)
+    private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicModel(NativeBattleWaterExecutionFrame frame, int secondFileLength, NativeBattleCinematicModelServices services, NativeBattleGraphicsState graphics, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame>? prepare = null)
     {
         NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, secondFileLength);
         int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank);
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native cinematic model requires its current camera owner.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native cinematic model requires its current projection registers.");
-        ushort focal = projection.FocalLength ?? throw new NotSupportedException("Native cinematic model requires its current GTE focal register.");
-        NativeBattleWaterMeshPrepared prepared = NativeBattleWaterMeshPreparation.PrepareWrapper(frame, bank, index, 2, unchecked((short)focal));
-        projection = projection with { FocalLength = unchecked((ushort)prepared.Focal) };
-        NativeCamera = camera with { Projection = projection };
-        frame = NativeBattleCinematicModel.PrepareDraw(prepared.Frame, services);
+        if (prepare is null)
+        {
+            ushort focal = projection.FocalLength ?? throw new NotSupportedException("Native cinematic model requires its current GTE focal register.");
+            NativeBattleWaterMeshPrepared prepared = NativeBattleWaterMeshPreparation.PrepareWrapper(frame, bank, index, 2, unchecked((short)focal));
+            projection = projection with { FocalLength = unchecked((ushort)prepared.Focal) };
+            NativeCamera = camera with { Projection = projection };
+            frame = NativeBattleCinematicModel.PrepareDraw(prepared.Frame, services);
+        }
+        else
+        {
+            frame = prepare(frame);
+        }
         NativeBattleEffectMemory memory = RequireWaterMemory();
         NativeBattlePrimitiveProcess common = memory.PrimitiveProcess ?? throw new NotSupportedException("Native cinematic model requires its retained primitive process.");
         bool hardware = definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Native cinematic model requires its selected hardware capability.");

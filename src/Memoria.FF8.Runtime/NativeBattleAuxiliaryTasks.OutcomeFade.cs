@@ -9,7 +9,7 @@ public sealed partial record NativeBattleAuxiliaryState
 
     public NativeBattleAuxiliaryState AppendOpeningFade501CE0(short duration) => AppendScreenFade501D10(duration, 0, 128);
 
-    private NativeBattleAuxiliaryState AppendScreenFade501D10(short duration, byte start, byte target)
+    private NativeBattleAuxiliaryState AppendScreenFade501D10(short duration, byte start, byte target, NativeBattleAuxiliaryKind kind = NativeBattleAuxiliaryKind.OutcomeFade501D10, short elapsed = 0)
     {
         Validate();
         int slot = Enumerable.Range(0, Slots.Length).FirstOrDefault(index => (Slots[index].Flags & 1) == 0, -1);
@@ -18,11 +18,11 @@ public sealed partial record NativeBattleAuxiliaryState
             return this;
         }
         byte[] payload = Slots[slot].Payload.ToArray();
-        BinaryPrimitives.WriteInt16LittleEndian(payload, 0);
+        BinaryPrimitives.WriteInt16LittleEndian(payload, elapsed);
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(2), duration);
         payload[4] = start;
         payload[5] = target;
-        NativeBattleAuxiliaryTask task = Slots[slot] with { Flags = (ushort)(Slots[slot].Flags | 1), State = 0, Next = null, Kind = NativeBattleAuxiliaryKind.OutcomeFade501D10, Payload = payload.ToImmutableArray(), UnknownByteMask = Slots[slot].UnknownByteMask & ~0x3Fu };
+        NativeBattleAuxiliaryTask task = Slots[slot] with { Flags = (ushort)(Slots[slot].Flags | 1), State = 0, Next = null, Kind = kind, Payload = payload.ToImmutableArray(), UnknownByteMask = Slots[slot].UnknownByteMask & ~0x3Fu };
         ImmutableArray<NativeBattleAuxiliaryTask> slots = Slots.SetItem(slot, task);
         if (Tail is int tail)
         {
