@@ -20,7 +20,7 @@ internal sealed record UiPreferences
     public string UiFontFamily { get; init; } = SystemFontCatalog.DefaultFamily;
     public int UiFontSize { get; init; } = 24;
     public string DialogueFontFamily { get; init; } = SystemFontCatalog.DefaultFamily;
-    public int DialogueFontSize { get; init; } = 8;
+    public int DialogueFontSize { get; init; } = 10;
     public BattleAtbMode AtbMode { get; init; } = BattleAtbMode.TurnBased;
     public BattleGunbladeMode GunbladeMode { get; init; } = BattleGunbladeMode.Automatic;
     public string BattlePolicy { get; init; } = "ResearchInstantVictory";
