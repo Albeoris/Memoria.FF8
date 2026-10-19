@@ -63,6 +63,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          ./tools/Set-DistributionVersion.ps1 -ArchivePath artifacts/Memoria-FF8-win-x64.zip -Version "$env:GITHUB_REF_NAME" -BuildId "$env:GITHUB_SHA"
           gh release view "$env:GITHUB_REF_NAME" --repo "$env:GITHUB_REPOSITORY" *> $null
           if ($LASTEXITCODE -ne 0) {
             gh release create "$env:GITHUB_REF_NAME" --repo "$env:GITHUB_REPOSITORY" --verify-tag --generate-notes
