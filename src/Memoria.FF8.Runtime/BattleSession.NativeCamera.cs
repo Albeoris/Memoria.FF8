@@ -196,9 +196,17 @@ public sealed partial class BattleSession
                 {
                     graphics = chocoCompleted;
                 }
+                else if (TryWriteNativeFatedCircle162Completion(graphics, address, value, out NativeBattleGraphicsState fatedCircle162Completed))
+                {
+                    graphics = fatedCircle162Completed;
+                }
                 else if (TryWriteNativeShot193Completion(graphics, address, value, out NativeBattleGraphicsState shot193Completed))
                 {
                     graphics = shot193Completed;
+                }
+                else if (TryWriteNativeShot194Completion(graphics, address, value, out NativeBattleGraphicsState shot194Completed))
+                {
+                    graphics = shot194Completed;
                 }
                 else if (TryWriteNativeShot192Completion(graphics, address, value, out NativeBattleGraphicsState shot192Completed))
                 {

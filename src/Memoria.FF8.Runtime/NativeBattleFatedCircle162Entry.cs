@@ -23,6 +23,8 @@ public static partial class NativeBattleFatedCircle162Controller
         }
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native5F90F0 requires its physical first-contact pointer.");
+        NativeBattleEffectResourcePointer initializer = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x23D0CE0) ?? throw new NotSupportedException("Native5F90F0 requires its actual initializer publication.");
+        staging = WriteDword(staging, 0x23D0CE0, checked(0x20DFAB8u + (uint)initializer.ArenaOffset));
         staging = WriteDword(staging, 0x23CE608, packets.ReadContact(first).Primary.ActorIndex);
         staging = WriteDword(staging, 0x23D0798, parameters.Actor78);
         staging = WriteDword(staging, 0x23D0D74, 170);

@@ -66,7 +66,7 @@ public static partial class NativeBattleFatedCircle162Controller
                 NativeBattleModuleAnchor bone = inputs.ReadBone240(actor);
                 NativeBattleActionMatrix matrix = inputs.ReadModel(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Native5F91D0 requires its current actor matrix64.");
                 NativeBattleVector offset = NativeBattleGfMatrices.RotateShort56C4F0(matrix, new(0, 0, 2600));
-                Append(0x5FAF50, bone with { X = unchecked((short)(bone.X + offset.X)), Y = unchecked((short)(bone.Y + offset.Y)), Z = unchecked((short)(bone.Z + offset.Z)) });
+                Append(0x5FAF50, bone with { X = unchecked((short)(bone.X + offset.X)), Y = unchecked((short)(bone.Y + offset.Y)), Z = unchecked((short)(bone.Z + offset.Z)) }, false);
                 break;
             case 57:
                 int first = Append(0x5FB3F0, inputs.ReadAnchor571400(actor));
@@ -74,7 +74,7 @@ public static partial class NativeBattleFatedCircle162Controller
                 Set(first, 30, 213);
                 Set(first, 24, inputs.ReadModel(actor).Rotation14 ?? throw new NotSupportedException("Native5F91D0 requires its actual actor rotationWORD14."));
                 NativeBattleModuleAnchor center = inputs.ReadTarget5020A0(parameters.TargetMask7A);
-                int second = Append(0x5FB630, center with { Y = -1400, Z = unchecked((short)(center.Z + 3000)) });
+                int second = Append(0x5FB630, center with { Y = -1400, Z = unchecked((short)(center.Z + 3000)) }, false);
                 Set(second, 14, 22);
                 Set(second, 24, Rand() % 4096);
                 Set(second, 28, 1280);
@@ -83,7 +83,7 @@ public static partial class NativeBattleFatedCircle162Controller
             case 71:
                 NativeBattleModuleAnchor target = inputs.ReadTarget5020A0(parameters.TargetMask7A);
                 target = target with { Z = unchecked((short)(target.Z - 800)) };
-                task = Position(task, target);
+                task = PositionXyz(task, target);
                 frame = inputs.Capture5FC5E0(frame, target);
                 Execute(new NativeBattleFatedCircle162ReadTexture());
                 break;
@@ -171,13 +171,13 @@ public static partial class NativeBattleFatedCircle162Controller
         Execute(new NativeBattleFatedCircle162Stage(0));
         return new(frame, pool, 2);
 
-        int Append(uint callback, NativeBattleModuleAnchor? position = null)
+        int Append(uint callback, NativeBattleModuleAnchor? position = null, bool writePadding = true)
         {
             (pool, int created) = pool.Append(callback);
             NativeBattleModulePoolTask child = pool.Slots[created].WriteWord(12, 0);
             if (position is not null)
             {
-                child = Position(child, position);
+                child = writePadding ? Position(child, position) : PositionXyz(child, position);
             }
             pool = pool with { Slots = pool.Slots.SetItem(created, child) };
             return created;
@@ -217,5 +217,6 @@ public static partial class NativeBattleFatedCircle162Controller
 
     private static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     private static NativeBattleModuleAnchor Position(NativeBattleModulePoolTask task) => new(Word(task, 16), Word(task, 18), Word(task, 20), Word(task, 22));
+    private static NativeBattleModulePoolTask PositionXyz(NativeBattleModulePoolTask task, NativeBattleModuleAnchor point) => task.WriteWord(16, unchecked((ushort)point.X)).WriteWord(18, unchecked((ushort)point.Y)).WriteWord(20, unchecked((ushort)point.Z));
     private static NativeBattleModulePoolTask Position(NativeBattleModulePoolTask task, NativeBattleModuleAnchor point) => task.WriteWord(16, unchecked((ushort)point.X)).WriteWord(18, unchecked((ushort)point.Y)).WriteWord(20, unchecked((ushort)point.Z)).WriteWord(22, unchecked((ushort)point.W));
 }

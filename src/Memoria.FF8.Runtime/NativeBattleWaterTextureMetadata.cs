@@ -8,8 +8,7 @@ public static class NativeBattleWaterTextureMetadata
 {
     public static NativeBattleWaterExecutionFrame SelectTPageB665C0(NativeBattleWaterExecutionFrame frame, INativeBattleScriptedTextureProfile profile, int index)
     {
-        RequireIndex(profile, index);
-        byte[] rectangle = ReadMetadata(frame, profile, 0x98, 0, checked(index * 8), 4);
+        byte[] rectangle = ReadMetadata(frame, profile, 0x98, 0, unchecked(index * 8), 4);
         byte flags = ReadMetadata(frame, profile, 0xA4, 8, index, 1)[0];
         int x = BinaryPrimitives.ReadInt16LittleEndian(rectangle);
         int y = BinaryPrimitives.ReadUInt16LittleEndian(rectangle.AsSpan(2));
@@ -20,8 +19,7 @@ public static class NativeBattleWaterTextureMetadata
 
     public static ushort ReadClutB66640(NativeBattleWaterExecutionFrame frame, INativeBattleScriptedTextureProfile profile, int index)
     {
-        RequireIndex(profile, index);
-        byte[] rectangle = ReadMetadata(frame, profile, 0x9C, 4, checked(index * 8), 4);
+        byte[] rectangle = ReadMetadata(frame, profile, 0x9C, 4, unchecked(index * 8), 4);
         int x = BinaryPrimitives.ReadInt16LittleEndian(rectangle);
         int y = BinaryPrimitives.ReadUInt16LittleEndian(rectangle.AsSpan(2));
         return unchecked((ushort)(((y & 0x1FF) << 6) | ((x >> 4) & 0x3F)));
@@ -57,14 +55,7 @@ public static class NativeBattleWaterTextureMetadata
         {
             throw new NotSupportedException("Native scripted texture metadata requires its actual authenticated directory pointer.");
         }
-        return profile.ReadStatic(checked(pointer + (uint)offset), length).ToArray();
+        return profile.ReadStatic(unchecked(pointer + (uint)offset), length).ToArray();
     }
 
-    private static void RequireIndex(INativeBattleScriptedTextureProfile profile, int index)
-    {
-        if ((uint)index >= profile.TextureCount)
-        {
-            throw new NotSupportedException("Native scripted texture metadata index leaves its authenticated profile.");
-        }
-    }
 }

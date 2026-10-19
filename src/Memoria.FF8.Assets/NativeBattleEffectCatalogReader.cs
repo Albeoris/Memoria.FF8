@@ -300,9 +300,24 @@ public sealed partial class GameAssets
                 binding = binding with { Renzokuken160Resources = ReadNativeRenzokuken160Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 162)
+            {
+                binding = binding with { FatedCircle162Resources = ReadNativeFatedCircle162Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 193)
             {
                 binding = binding with { Shot193Resources = ReadNativeShot193Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 195)
+            {
+                binding = binding with { Shot195Resources = ReadNativeShot195Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 194)
+            {
+                binding = binding with { Shot194Resources = ReadNativeShot194Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
             if (binding.Effect == 192)

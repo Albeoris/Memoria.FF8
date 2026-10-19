@@ -315,6 +315,14 @@ public sealed partial class BattleSession
             }
             return (memory.Thundaga105Capture ?? throw new NotSupportedException("Native capture packet alias requires its retained static bytes.")).Read(reference.ByteOffset, count);
         }
+        if (reference.Bank == NativeBattleFatedCircle162Capture.PacketBank)
+        {
+            if (reference.Buffer != 0)
+            {
+                throw new InvalidDataException("Native Fated Circle capture packet alias requires its physical static buffer.");
+            }
+            return (NativeFileStaging ?? throw new NotSupportedException("Native Fated Circle capture requires its retained physical packet bytes.")).Read(checked((uint)reference.ByteOffset), count);
+        }
         if (reference.Bank == NativeBattleHoly175WarpDrawing.PacketBank)
         {
             if (reference.Buffer != 0)

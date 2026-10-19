@@ -54,6 +54,9 @@ public sealed class NativeBattleGuestCinematicTests
     }
 
     [Theory]
+    [InlineData(261, "vm_table", 0xB4, 0x963B80u)]
+    [InlineData(262, "vm_table", 0x12E, 0x954DA0u)]
+    [InlineData(263, "draw_table", 70, 0x9469E0u)]
     [InlineData(228, "vm_table", 0x39, 0xA8ADF0u)]
     [InlineData(228, "vm_table", 0xAD, 0xA8EA50u)]
     [InlineData(261, "vm_table", 0xAD, 0x963A90u)]
@@ -80,14 +83,19 @@ public sealed class NativeBattleGuestCinematicTests
         Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(effect, table, index, handler));
     }
     [Theory]
+    [InlineData(261, "prim_table", 16, 0x95D100u, 0xB105B0u)]
+    [InlineData(262, "draw_table", 5, 0x9531B0u, 0xB298D0u)]
     [InlineData(228, "draw_table", 5, 0xA890B0u, 0xB298D0u)]
+    [InlineData(261, "vm_table", 0x6E, 0x9616A0u, 0xB2CF70u)]
     [InlineData(263, "vm_table", 0x6E, 0x94C8A0u, 0xB2CF70u)]
+    [InlineData(228, "vm_table", 0x60, 0xA8C4F0u, 0xB2CE00u)]
     [InlineData(261, "vm_table", 0x60, 0x961530u, 0xB2CE00u)]
     [InlineData(262, "vm_table", 0x60, 0x956610u, 0xB2CE00u)]
     [InlineData(263, "vm_table", 0x60, 0x94C730u, 0xB2CE00u)]
     public void ReachedAnchorAndRectangleClonesUseTheirAuthenticatedSharedKernels(int effect, string table, int index, uint handler, uint canonical)
     {
         Assert.Equal(canonical, NativeBattleCinematicDispatch.RequireSlot(effect, table, index, handler));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(effect, table, index, handler + 1));
         Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(effect, table, index + 1, handler));
     }
 }

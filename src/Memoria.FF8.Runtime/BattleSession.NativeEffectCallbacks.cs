@@ -181,9 +181,21 @@ public sealed partial class BattleSession
         {
             return AdvanceNativeRenzokuken160(graphics);
         }
+        if (effect.Binding.Entry == 0x5F90F0)
+        {
+            return AdvanceNativeFatedCircle162(graphics);
+        }
         if (effect.Binding.Entry == 0x5B7190)
         {
             return AdvanceNativeShot193(graphics);
+        }
+        if (effect.Binding.Entry == 0x5B2A40)
+        {
+            return AdvanceNativeShot195(graphics);
+        }
+        if (effect.Binding.Entry == 0x5B4C60)
+        {
+            return AdvanceNativeShot194(graphics);
         }
         if (effect.Binding.Entry == 0x5B96F0)
         {

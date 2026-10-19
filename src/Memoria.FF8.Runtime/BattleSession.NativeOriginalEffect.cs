@@ -197,9 +197,21 @@ public sealed partial class BattleSession
         {
             return EnterNativeRenzokuken160(graphics);
         }
+        if (effect.Binding.Entry == 0x5F90F0)
+        {
+            return EnterNativeFatedCircle162(graphics, effect.Binding.FatedCircle162Resources ?? throw new NotSupportedException("Native Fated Circle requires its original resources."));
+        }
         if (effect.Binding.Entry == 0x5B7190)
         {
             return EnterNativeShot193(graphics);
+        }
+        if (effect.Binding.Entry == 0x5B2A40)
+        {
+            return EnterNativeShot195(graphics);
+        }
+        if (effect.Binding.Entry == 0x5B4C60)
+        {
+            return EnterNativeShot194(graphics);
         }
         if (effect.Binding.Entry == 0x5B96F0)
         {

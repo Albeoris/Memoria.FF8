@@ -6,11 +6,16 @@ public static partial class NativeBattleCinematicDispatch
 {
     private static readonly FrozenDictionary<(int Effect, uint Handler), uint> GuestAliases = new Dictionary<(int Effect, uint Handler), uint>
     {
+        [(261, 0x95D100)] = 0xB105B0,
+        [(262, 0x9531B0)] = 0xB298D0,
+        [(262, 0x953320)] = 0xB29A40,
+        [(228, 0xA8C4F0)] = 0xB2CE00,
         [(261, 0x961530)] = 0xB2CE00,
         [(262, 0x956610)] = 0xB2CE00,
         [(263, 0x94C730)] = 0xB2CE00,
         [(228, 0xA890B0)] = 0xB298D0,
         [(228, 0xA89220)] = 0xB29A40,
+        [(261, 0x9616A0)] = 0xB2CF70,
         [(263, 0x94C8A0)] = 0xB2CF70,
         [(228, 0xA8A780)] = 0xB2B0E0,
         [(261, 0x95F810)] = 0xB2B0E0,
@@ -735,6 +740,11 @@ public static partial class NativeBattleCinematicDispatch
         [(263, "vm_table", 147)] = 0x94EEC0,
     }.ToFrozenDictionary();
 
+    private static readonly FrozenDictionary<(int Effect, string Table, int Index), uint> GuestAliasSlots = new Dictionary<(int Effect, string Table, int Index), uint>
+    {
+        [(261, "prim_table", 16)] = 0x95D100,
+    }.ToFrozenDictionary();
+
     private static readonly FrozenDictionary<(int Effect, string Table, int Index), uint> GuestVariants = new Dictionary<(int Effect, string Table, int Index), uint>
     {
         [(228, "vm_table", 0x39)] = 0xA8ADF0,
@@ -743,6 +753,9 @@ public static partial class NativeBattleCinematicDispatch
         [(262, "vm_table", 0xAB)] = 0x9509B0,
         [(263, "vm_table", 0xAB)] = 0x9468E0,
         [(228, "vm_table", 0xAD)] = 0xA8EA50,
+        [(261, "vm_table", 0xB4)] = 0x963B80,
+        [(262, "vm_table", 0x12E)] = 0x954DA0,
+        [(263, "draw_table", 70)] = 0x9469E0,
         [(261, "vm_table", 0xAD)] = 0x963A90,
         [(261, "vm_table", 0x42)] = 0x963E30,
         [(261, "draw_table", 38)] = 0x95ACB0,

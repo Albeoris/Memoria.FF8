@@ -78,14 +78,40 @@ public sealed class NativeBattleWaterTextureMetadataTests
         Assert.Equal(ArenaBase + Instruction + 4, CoreDword(result, 0x2797450));
     }
 
-    [Theory]
-    [InlineData(-2)]
-    [InlineData(5)]
-    [InlineData(65537)]
-    public void Index_does_not_wrap_or_modulo_into_supplied_metadata(int index)
+    [Fact]
+    public void UnavailableAddressedMetadataDoesNotWrapIntoTheUploadRange()
     {
+        const int index = 65537;
+
         Assert.Throws<NotSupportedException>(() => NativeBattleWaterTextureMetadata.SelectTPageB665C0(Fixture(), Profile(0, 0, 0), index));
         Assert.Throws<NotSupportedException>(() => NativeBattleWaterTextureMetadata.ReadClutB66640(Fixture(), Profile(0, 0, 0), index));
+    }
+
+    [Fact]
+    public void NegativeNonSentinelSelectorUsesSignedPointerArithmeticWithinTheRetainedOwner()
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(-2);
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterTextureMetadata.Execute52AA3A60(frame, Profile(0, 0, 0));
+        Assert.Equal((ushort)0x20, SlotWord(result, 0x92));
+        Assert.Equal((ushort)0, SlotWord(result, 0x9A));
+        Assert.Equal(ArenaBase + Instruction + 4, CoreDword(result, 0x2797450));
+    }
+
+    [Fact]
+    public void MetadataPointerArithmeticCanReachAdjacentBytesBeyondTheUploadCount()
+    {
+        NativeBattleWater222Profile profile = Profile(0, 0, 0);
+        byte[] tables = profile.Tables.Data.ToArray();
+        BinaryPrimitives.WriteInt16LittleEndian(tables.AsSpan(40), 704);
+        BinaryPrimitives.WriteInt16LittleEndian(tables.AsSpan(42), 256);
+        tables[85] = 0x80;
+        BinaryPrimitives.WriteInt16LittleEndian(tables.AsSpan(80), 16);
+        BinaryPrimitives.WriteInt16LittleEndian(tables.AsSpan(82), 16);
+        profile = profile with { Tables = profile.Tables with { Data = tables.ToImmutableArray() } };
+        NativeBattleWaterExecutionFrame frame = Fixture();
+        frame = frame with { Arena = frame.Arena.Write(Slot + 0x92, [0x60]) };
+        Assert.Equal(0xFBu, NativeBattleWaterTextureMetadata.SelectTPageB665C0(frame, profile, 5).ReadTemporaryDword(0xFC));
+        Assert.Equal((ushort)0x401, NativeBattleWaterTextureMetadata.ReadClutB66640(frame, profile, 5));
     }
 
     [Theory]

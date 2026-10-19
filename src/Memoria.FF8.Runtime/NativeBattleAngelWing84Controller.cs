@@ -7,6 +7,10 @@ public sealed record NativeBattleAngelWing84State([property: JsonRequired] int S
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ImmutableArray<byte>? NodeData { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleEffectOwnedModelState? BodyModel { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ushort? BodyShaderAngle { get; init; }
     public int Counter25C9F34 { get; init; }
     public int Counter25C3934 { get; init; }
     public ushort? EmitterScanCursor { get; init; }

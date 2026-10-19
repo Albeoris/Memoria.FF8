@@ -1341,6 +1341,14 @@ public static partial class NativeBattleCinematicDispatch
             }
             return handler;
         }
+        if (GuestAliasSlots.TryGetValue((effect, table, index), out uint selectedAlias))
+        {
+            if (handler != selectedAlias)
+            {
+                throw new NotSupportedException($"Native cinematic effect {effect} table {table} slot {index:X} requires its selected alias handler contract.");
+            }
+            return Canonicalize(effect, handler);
+        }
         uint canonical = Canonicalize(effect, handler);
         if (!Slots.TryGetValue((table, index), out uint expected) || canonical != expected)
         {

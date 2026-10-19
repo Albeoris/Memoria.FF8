@@ -11,6 +11,10 @@ public sealed class NativeBattleScriptedMeshTests
     private static readonly NativeBattleActionMatrix Identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
 
     [Theory]
+    [InlineData(0x95D100u, 0)]
+    [InlineData(0x95D100u, 1)]
+    [InlineData(0x95D100u, 2)]
+    [InlineData(0x95D100u, 3)]
     [InlineData(0xB105B0u, 0)]
     [InlineData(0xAEC030u, 0)]
     [InlineData(0xB105B0u, 1)]
@@ -41,7 +45,7 @@ public sealed class NativeBattleScriptedMeshTests
         bool triangle = handler == 0xAEB5B0;
         int length = triangle ? 28 : 32;
         NativeBattleWaterMeshGroup group = new(triangle ? (short)6 : (short)16, 1, face.ToImmutableArray());
-        NativeBattleScriptedMeshSubmission Run(NativeBattleWaterExecutionFrame current) => NativeBattleScriptedMeshPackets.EmitSelected(current, group, handler, 0, records.AsSpan(0, triangle ? 24 : 32).ToArray().ToImmutableArray(), triangle ? [0xFFFF000A, 20, 30] : [0xFFFF000A, 20, 30, 40], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), pointer => (int)(pointer / 4), 0.5f);
+        NativeBattleScriptedMeshSubmission Run(NativeBattleWaterExecutionFrame current) => NativeBattleScriptedMeshPackets.EmitSelected(current, group, handler == 0x95D100 ? NativeBattleCinematicDispatch.Canonicalize(261, handler) : handler, 0, records.AsSpan(0, triangle ? 24 : 32).ToArray().ToImmutableArray(), triangle ? [0xFFFF000A, 20, 30] : [0xFFFF000A, 20, 30, 40], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), pointer => (int)(pointer / 4), 0.5f);
         NativeBattleScriptedMeshSubmission result = Run(frame);
         NativeBattleGfGeometryAttempt packet = Assert.Single(result.Packets.Attempts);
         Assert.Equal(0u, result.Frame.ReadTemporaryDword(0xF0));

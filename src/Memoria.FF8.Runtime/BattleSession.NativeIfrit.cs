@@ -211,6 +211,9 @@ public sealed partial class BattleSession
                         graphics = SelectNativeHeaderSequence(graphics, checked((byte)PhysicalActorIndex(actorPointer)), sequence);
                         return resourceFrame;
                     });
+                case 0x12E:
+                    return NativeBattleCinematicNextContact12E.Execute(current, context);
+                case 0xB4:
                 case 0xAD:
                 case 0x6E when profile.Effect is 228 or 261 or 262 or 263:
                 case 0x60 when profile.Effect is 228 or 261 or 262 or 263:
@@ -699,6 +702,14 @@ public sealed partial class BattleSession
                 if (NativeBattleCinematicDispatch.IsNoOp(profile.Effect, "draw_table", kind, selectedDrawHandler))
                 {
                     return frame;
+                }
+                if (selectedDrawHandler == 0x9469E0)
+                {
+                    return NativeBattleCinematicLinkedPosition70.Draw(frame, pointer => graphics.Models[PhysicalActorIndex(pointer)].LinkedTransform ?? throw new NotSupportedException("Native linked draw requires its actual linked model."), (pointer, linked) =>
+                    {
+                        int actor = PhysicalActorIndex(pointer);
+                        graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { LinkedTransform = linked }) };
+                    });
                 }
                 if (selectedDrawHandler == 0x950B50)
                 {

@@ -38,4 +38,41 @@ public sealed class NativeBattleAngelWing84NodeTests
         }
         Assert.Equal(expected, random);
     }
+
+    [Theory]
+    [InlineData(7, 8)]
+    [InlineData(65535, 0)]
+    public void Generic_delay_compares_signed_native_WORDs_before_initialization(ushort counter, ushort expectedNext)
+    {
+        var fixture = NativeBattleAngelWing84ControllerTests.Fixture();
+        NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
+        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(3, 0x7913C0, 676, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
+        hierarchy = appended.Hierarchy.Write(appended.Address, appended.Hierarchy.Read(appended.Address).WriteWord(36, counter).WriteWord(664, 8));
+        NativeBattleAngelWing84Frame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };
+        NativeBattleAngelWing84NodeCallbackStep step = NativeBattleAngelWing84Nodes.AdvanceGeneric(frame, appended.Address, new(default), fixture.Inputs, new(1), new(fixture.Inputs.Camera, 256, 160, 120), 0, NativeBattleLogicalOrdering.Clear(), NativeBattleGteColorInterpolation.CodeConstants45F270, (ref NativeCrtRandomState _) => throw new InvalidOperationException("Waiting context cannot sample body bones."));
+        NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(step.Frame.Effect.Pools).Read(appended.Address);
+        Assert.Equal(expectedNext, task.ReadWord(36));
+        Assert.Equal((byte)0, task.ReadByte(41));
+        Assert.Null(step.Frame.State.NodeData);
+        Assert.Equal(0, step.Result);
+    }
+
+    [Fact]
+    public void Generic_completed_context_marks_done_and_releases_the_original_parent_once()
+    {
+        var fixture = NativeBattleAngelWing84ControllerTests.Fixture();
+        NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
+        uint root = hierarchy.Address(0, 0);
+        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(3, 0x7913C0, 676, root, (_, _, _) => new(0, 3));
+        hierarchy = appended.Hierarchy.Write(appended.Address, appended.Hierarchy.Read(appended.Address).WriteByte(41, 1).WriteWord(84, 2));
+        NativeBattleAngelWing84Frame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools }, State = fixture.Frame.State with { PassEmitterCount = 0, PassGeometryCount = 0 } };
+        NativeBattleAngelWing84NodeCallbackStep step = NativeBattleAngelWing84Nodes.AdvanceGeneric(frame, appended.Address, new(default), fixture.Inputs, new(1), new(fixture.Inputs.Camera, 256, 160, 120), 0, NativeBattleLogicalOrdering.Clear(), NativeBattleGteColorInterpolation.CodeConstants45F270, (ref NativeCrtRandomState _) => throw new InvalidOperationException("Completed context cannot sample body bones."));
+        hierarchy = new(step.Frame.Effect.Pools);
+        Assert.Equal(2, step.Result);
+        Assert.Equal((byte)2, hierarchy.Read(appended.Address).ReadByte(41));
+        Assert.Equal(1, hierarchy.Read(appended.Address).ReadByte(38) & 1);
+        Assert.Equal((byte)0, hierarchy.Read(root).ReadByte(40));
+        Assert.Equal(1u, step.Random.Seed);
+    }
+
 }

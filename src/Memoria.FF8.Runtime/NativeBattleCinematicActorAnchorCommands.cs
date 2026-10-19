@@ -14,8 +14,30 @@ public static class NativeBattleCinematicActorAnchorCommands
     {
         ushort instruction = frame.ReadTemporaryWord(0x14A);
         int opcode = instruction & 0x1FF;
-        short selector = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
         uint owner = CoreDword(frame, 0x279744C);
+        if (opcode == 0xB4)
+        {
+            byte actor = ReadSlot(frame, 0x1B, 1)[0];
+            uint pointer = CoreDword(frame, unchecked(owner + 0x60 + 4u * actor));
+            NativeBattleCinematicBonePose pose = services.ReadPose(frame, pointer, true, false);
+            frame = pose.Frame;
+            int count = pose.Skeleton[0];
+            NativeCrtRandomState random = frame.Random.Draw(out ushort value);
+            frame = frame with { Random = random };
+            int selected = (int)((uint)unchecked(value * count) >> 15);
+            if (selected >= count)
+            {
+                selected = count - 1;
+            }
+            NativeBattleWaterActorAnchorResult result = NativeBattleWaterActorAnchor.EvaluateB66B80(frame, pose.Skeleton, pose.Bones, unchecked((short)selected), 4096, pose.PhysicalBasis ?? throw new NotSupportedException("Native random anchor requires the actor's actual world matrix."));
+            frame = services.PublishInput(result.Frame, result.Frame.TemporaryFrame.Address + 0xC0);
+            Store(0, result.Anchor.X);
+            Store(1, result.Anchor.Y);
+            Store(2, result.Anchor.Z);
+            frame = services.Update(frame, ReadSlot(frame, 0x18, 1)[0]);
+            return NativeBattleScriptedCommandReads.Advance(frame, 2);
+        }
+        short selector = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
         if (opcode == 0x60)
         {
             byte actor = ReadSlot(frame, 0x1B, 1)[0];

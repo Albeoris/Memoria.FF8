@@ -1,10 +1,37 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
+using System.Text.Json;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeBattleGuestCinematicResourcesTests
 {
+    [Fact]
+    public void KirosSelectorEightUsesOriginalAddressedBytesBeyondItsEightUploadEntries()
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        NativeBattleCinematicResources resources = assets.ReadNativeCinematicResources(262);
+        Assert.Equal(8, resources.TextureProfile.Count);
+        Assert.Equal(new byte[] { 0x40, 1, 0xFF, 0 }, resources.ReadStatic(resources.TextureProfile.PixelRectangleAddress + 64, 4).ToArray());
+        Assert.Equal(new byte[] { 0x81, 0x81, 0x81, 0x81 }, resources.ReadStatic(resources.TextureProfile.ClutRectangleAddress + 64, 4).ToArray());
+        NativeBattleWaterExecutionFrame frame = new(NativeBattleScriptedEffectMemory.FromColdProcess(), NativeBattleEffectArena.Clear(), new(0x700000, new byte[0x180].ToImmutableArray(), Enumerable.Repeat(true, 0x180).ToImmutableArray()), new(7));
+        frame = Dword(frame, 0x27973EC, 0x2797690);
+        frame = Dword(frame, 0x27973E8, 0x20DFAB8 + 0x2000);
+        frame = Dword(frame, 0x2797450, 0x20DFAB8 + 0x4000);
+        frame = Dword(frame, 0x2797690 + 0x98, resources.TextureProfile.PixelRectangleAddress);
+        frame = Dword(frame, 0x2797690 + 0x9C, resources.TextureProfile.ClutRectangleAddress);
+        frame = Dword(frame, 0x2797690 + 0xA4, resources.TextureProfile.PixelSourceMapAddress);
+        frame = frame with { Arena = frame.Arena.Write(0x4000, [0x52, 0, 8, 0]).Write(0x2092, [0x60, 0]) };
+        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterTextureMetadata.Execute52AA3A60(frame, resources);
+        Assert.Equal((ushort)0xE5, BinaryPrimitives.ReadUInt16LittleEndian(result.Arena.Read(0x2092, 2)));
+        Assert.Equal((ushort)0x6058, BinaryPrimitives.ReadUInt16LittleEndian(result.Arena.Read(0x209A, 2)));
+        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleWaterTextureMetadata.Execute52AA3A60(restored, resources)));
+
+        static NativeBattleWaterExecutionFrame Dword(NativeBattleWaterExecutionFrame current, uint address, uint value) => current with { Core = current.Core.Write(address, BitConverter.GetBytes(value)) };
+    }
+
     [Theory]
     [InlineData(228)]
     [InlineData(261)]
