@@ -21,6 +21,7 @@ internal sealed class PlayerSaveStore
     private readonly string directory;
     private readonly string researchCheckpoint;
     private readonly Func<GameState, string?>? locationName;
+    private readonly Dictionary<string, CachedSaveEntry> entries = new(StringComparer.OrdinalIgnoreCase);
     private int quickSaveCount = DefaultQuickSaveCount;
 
     public PlayerSaveStore(string researchCheckpoint, string? directory = null, Func<GameState, string?>? locationName = null)
@@ -42,6 +43,7 @@ internal sealed class PlayerSaveStore
         foreach (QuickSaveFile file in obsolete)
         {
             File.Delete(file.Path);
+            entries.Remove(file.Path);
         }
         quickSaveCount = count;
     }
@@ -90,7 +92,9 @@ internal sealed class PlayerSaveStore
         }
         if (slot != 0)
         {
-            session.Save(GetPath(slot), compact: true, validateContinuation);
+            string target = GetPath(slot);
+            session.Save(target, compact: true, validateContinuation);
+            entries.Remove(target);
             return;
         }
         List<QuickSaveFile> files = FindQuickSaves();
@@ -113,9 +117,11 @@ internal sealed class PlayerSaveStore
             validateContinuation?.Invoke(candidate);
             File.SetLastWriteTimeUtc(path + ".tmp", savedAt);
         });
+        entries.Remove(path);
         foreach (QuickSaveFile file in obsolete)
         {
             File.Delete(file.Path);
+            entries.Remove(file.Path);
         }
     }
 
@@ -156,18 +162,40 @@ internal sealed class PlayerSaveStore
         try
         {
             ValidatePath(path);
-            if (!File.Exists(path))
+            var file = new FileInfo(path);
+            if (!file.Exists)
             {
+                entries.Remove(path);
                 return new PlayerSaveEntry(slot, label, null, "Empty", false);
             }
-            savedAt ??= File.GetLastWriteTime(path);
-            GameState state = LoadPath(path);
-            string location = locationName?.Invoke(state) ?? "Unavailable";
-            return new PlayerSaveEntry(slot, label, savedAt, location, true)
+            savedAt ??= file.LastWriteTime;
+            if (entries.TryGetValue(path, out CachedSaveEntry? cached) && cached.Length == file.Length && cached.ModifiedUtc == file.LastWriteTimeUtc)
             {
-                PlayTime = state.Playtime is { } playtime ? TimeSpan.FromSeconds(playtime.Seconds) : null,
-                PartyPortraits = state.CharacterVitals is { } vitals ? vitals.CombatParty.Where(row => row != 255).Select(row => (int)vitals.Records[row].CharacterId).ToArray() : []
-            };
+                return cached.Entry with { Slot = slot, Label = label, SavedAt = savedAt };
+            }
+            PlayerSaveEntry entry;
+            try
+            {
+                SaveSummary? summary = GameSession.ReadSummary(path);
+                GameState state = summary?.ToLocationState() ?? LoadPath(path);
+                if (state.Scene == SceneKind.Title)
+                {
+                    throw new InvalidDataException("This save contains no active game.");
+                }
+                string location = locationName?.Invoke(state) ?? "Unavailable";
+                NativePlaytimeState? playtime = summary?.Playtime ?? state.Playtime;
+                entry = new PlayerSaveEntry(slot, label, savedAt, location, true)
+                {
+                    PlayTime = playtime is not null ? TimeSpan.FromSeconds(playtime.Seconds) : null,
+                    PartyPortraits = summary?.PartyPortraits ?? (state.CharacterVitals is { } vitals ? vitals.CombatParty.Where(row => row != 255).Select(row => (int)vitals.Records[row].CharacterId).ToArray() : [])
+                };
+            }
+            catch (Exception exception) when (IsUnavailable(exception))
+            {
+                entry = new PlayerSaveEntry(slot, label, savedAt, "Unavailable: " + exception.Message, false);
+            }
+            entries[path] = new CachedSaveEntry(file.Length, file.LastWriteTimeUtc, entry);
+            return entry;
         }
         catch (Exception exception) when (IsUnavailable(exception))
         {
@@ -235,4 +263,5 @@ internal sealed class PlayerSaveStore
     }
 
     private sealed record QuickSaveFile(int Slot, string Path, DateTime SavedAtUtc);
+    private sealed record CachedSaveEntry(long Length, DateTime ModifiedUtc, PlayerSaveEntry Entry);
 }

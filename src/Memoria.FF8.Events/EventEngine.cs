@@ -110,7 +110,7 @@ public sealed partial class EventEngine
             ResetNativeShakeForLoad(nativeRuntimeProfile);
             InitializeNewGameMusic(nativeRuntimeProfile, fieldId);
         }
-        if (!restoringCheckpoint && program is null && fieldId == 74)
+        if (!restoringCheckpoint && program is null && fieldId == 74 && services is not GameSession { State.OriginalSave: not null })
         {
             // Native New Game entry 0x470560 seeds field party bytes 00 FF FF before start0 init SETPC.
             Scene.Party.Clear();

@@ -12,6 +12,10 @@ internal static class Program
         Console.SetError(new ConsoleErrorWriter(Console.Error, !Console.IsErrorRedirected));
         try
         {
+            if (args.Length > 0 && args[0] is "--import-save" or "--export-save")
+            {
+                return SaveTransferCommand.Run(args[1..], import: args[0] == "--import-save");
+            }
             if (args.Length > 0 && args[0] == "--auto-play")
             {
                 return AutoPlayCommand.Run(args[1..]);

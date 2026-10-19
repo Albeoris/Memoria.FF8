@@ -1,6 +1,6 @@
 # Saves and standalone snapshots
 
-Memoria saves its current state as standalone JSON. Loading restores that state and its supported engine owners. It does not replay inputs, revisit earlier locations or reconstruct the session from New Game. Installed game resources are still required; a save is not a resource package.
+Memoria saves its current state as a standalone snapshot. Player saves use a compact compressed format and retain their `.json` filenames; the loader detects the format and also reads older plain JSON snapshots. Loading restores that state and its supported engine owners. It does not replay inputs, revisit earlier locations or reconstruct the session from New Game. Installed game resources are still required; a save is not a resource package.
 
 ## Player saves
 
@@ -21,7 +21,23 @@ Continue opens the Load menu. Up/Down selects a slot, Left/Right changes bank, a
 
 Menus show saved time and location. Empty or invalid entries cannot be loaded. Before replacing the running session, the application validates the selected state and its VM/resource continuation. A failed load reports its reason and retains the current session. Saving before starting or loading a game is refused.
 
-These files are Memoria snapshots. They are not original PC save files, and original-game import/export is not implied by the slot labels.
+These files are Memoria snapshots. Use the explicit transfer commands below to convert original PC save files.
+
+## Original PC save transfer
+
+Run these commands from an extracted release directory:
+
+```powershell
+./Data/Memoria.FF8.exe --import-save ./original/slot1_save01.ff8 --output ./saves/imported.json --game-dir "$env:MEMORIA_FF8_GAME_DIR"
+./Data/Memoria.FF8.exe --state ./saves/imported.json
+./Data/Memoria.FF8.exe --export-save ./saves/imported.json --output ./original/slot1_save01-exported.ff8
+```
+
+Import reads one original PC `.ff8` save, restores its progress and saved location using the installed resources, and validates the resulting engine continuation before writing a compact standalone snapshot. Properties absent from the original format and transient process state are initialized with defaults. For example, resident music buffers and pending playback are not transferred. `--game-dir` may be omitted when `MEMORIA_FF8_GAME_DIR` or `FF8_GAME_DIRECTORY` is set. Malformed save data or unsupported gameplay continuation fails with an error and no output file.
+
+Export writes one original PC save with the snapshot's persistent progress and a saved field or world location. For an imported game, original bytes without a supported Memoria owner are retained from its source file. A game started in Memoria uses defaults for original-only properties. Properties that cannot be transferred receive defaults; an active movie, battle or event is not resumed at its exact processing point. The original game loads the saved location through its normal initialization. Transfer does not provide original game save-slot or Steam cloud management.
+
+Both commands require `--output` with a new filename. They refuse an existing destination or the source path, preserve the source file, and return exit code 1 on failure. Keep a backup and copy an exported file into the original game's save directory only when ready to use it.
 
 ## Explicit snapshot files
 

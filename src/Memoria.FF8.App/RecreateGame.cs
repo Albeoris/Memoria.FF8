@@ -737,7 +737,7 @@ internal sealed partial class RecreateGame : Game
         if (state.Scene != SceneKind.Movie || state.EventState is not null)
         {
             using var candidateClock = new MovieClock(candidateSession, options.GameDirectory, options.MediaToolsDirectory, resourceHost is null ? null : resourceHost.ResolveGameFile);
-            using var candidate = new GameWorld(candidateSession, options.GameDirectory, candidateClock, resourceHost?.Resources);
+            using var candidate = new GameWorld(candidateSession, options.GameDirectory, candidateClock, resourceHost?.Resources, sharedAssets: world?.ValidationAssets);
             candidate.EnsureField();
         }
     }

@@ -1,0 +1,141 @@
+using System.Buffers.Binary;
+using System.Collections.Immutable;
+using System.Text.Json;
+using Memoria.FF8.Runtime;
+
+namespace Memoria.FF8.Assets.Tests;
+
+public sealed class NativePcSaveConverterTests
+{
+    [Fact]
+    public void Transfer_uses_saved_progress_and_native_pose_instead_of_new_game_progress()
+    {
+        GameState source = Defaults() with { FieldId = 165, FieldName = "fixture", PreviousFieldId = 177, FieldArrival = new FieldTransition(165, -723, -8555, 12, 96), EventMemory = NativeEventMemory.Empty.Write(401, 1, NativeScalarValue.Exact(91)) };
+        NativeCharacterVitals vitals = source.CharacterVitals!.DeepCopy();
+        vitals.Records[0] = vitals.Records[0] with { Experience = 5200, HitPoints = new NativeHpWord(432, 432), DeathCount = 8, GuardianForceCompatibility = Enumerable.Repeat((ushort)678, 16).ToArray(), Junction = new NativeCharacterJunction(3, 0x04030201, 0x08070605, Enumerable.Repeat((byte)1, 20).ToArray()) };
+        vitals.Records[0].MagicInventory[0] = new NativeMagicStock(1, 77);
+        vitals.GuardianForces[0] = vitals.GuardianForces[0] with { Experience = 12000, LearnedBank = new NativeGuardianForceLearnedBank(0x123456789, 0x76543210), KillCount = 19, DeathCount = 2, Learning = 4, ForgottenAbilities = 0x123456 };
+        NativeEconomy economy = source.Economy!.DeepCopy();
+        economy.Items[13] = new NativeItemStock(82, 67);
+        source = source with { CharacterVitals = vitals, Economy = economy with { Gil = 1234567, PastGil = 87654 }, Playtime = new NativePlaytimeState(54321, 0, 0), CardInventory = source.CardInventory! with { CollectionFlags = 1, TripleTriadStatistics = new TripleTriadStatistics(8, 4, 2) } };
+        GameState imported = NativePcSaveConverter.Import(NativePcSaveConverter.Export(source), Defaults(), id => $"field{id}");
+        Assert.Equal(165, imported.FieldId);
+        Assert.Equal("field165", imported.FieldName);
+        Assert.Equal(source.FieldArrival, imported.FieldArrival);
+        Assert.Equal((uint)1234567, imported.Economy!.Gil);
+        Assert.Equal(new NativeItemStock(82, 67), imported.Economy.Items[13]);
+        Assert.Equal((uint)5200, imported.CharacterVitals!.Records[0].Experience);
+        Assert.Equal((ushort)432, imported.CharacterVitals.Records[0].HitPoints.Minimum);
+        Assert.Equal(new NativeMagicStock(1, 77), imported.CharacterVitals.Records[0].MagicInventory[0]);
+        Assert.Equal(vitals.Records[0].Junction, imported.CharacterVitals.Records[0].Junction);
+        Assert.Equal((ushort)678, imported.CharacterVitals.Records[0].GuardianForceCompatibility![0]);
+        Assert.Equal(vitals.GuardianForces[0].LearnedBank, imported.CharacterVitals.GuardianForces[0].LearnedBank);
+        Assert.Equal((uint)0x123456, imported.CharacterVitals.GuardianForces[0].ForgottenAbilities);
+        Assert.Equal((uint)54321, imported.Playtime!.Seconds);
+        Assert.Equal(91, imported.EventMemory.Read(401, 1).Values[0]);
+        Assert.Equal(new TripleTriadStatistics(8, 4, 2), imported.CardInventory!.TripleTriadStatistics);
+        Assert.Null(imported.EventState);
+        Assert.Equal(NativeFieldLoadOrigin.OriginalSave, imported.FieldLoadContext!.Origin);
+        Assert.Equal(NativeSavedWorldOriginKind.OriginalSave, imported.SavedWorld!.Origin.Kind);
+        _ = new GameSession(imported);
+    }
+
+    [Fact]
+    public void Subsequent_export_updates_owners_and_preserves_unmodeled_native_bytes_and_names()
+    {
+        byte[] file = NativePcSaveConverter.Export(Defaults());
+        NativePcSaveData original = NativePcSaveCodec.Decode(file);
+        original.Block[NativePcSaveData.MainOffset + 16] = 197;
+        GameState imported = NativePcSaveConverter.Import(NativePcSaveCodec.Encode(original), Defaults(), _ => "fixture");
+        JsonElement snapshot = JsonSerializer.SerializeToElement(new { Scene = new { Names = new Dictionary<int, string> { [0] = "Leon", [16] = "Storm" } } });
+        imported = imported with { EventState = snapshot, Economy = imported.Economy! with { Gil = 7654321 } };
+        GameState transferred = NativePcSaveConverter.Import(NativePcSaveConverter.Export(imported), Defaults(), _ => "fixture");
+        Assert.Equal((byte)197, transferred.OriginalSave!.Block[NativePcSaveData.MainOffset + 16]);
+        Assert.Equal((uint)7654321, transferred.Economy!.Gil);
+        Assert.Equal("Leon", transferred.OriginalSave.Names[0]);
+        Assert.Equal("Storm", transferred.OriginalSave.Names[16]);
+    }
+
+    [Fact]
+    public void Allocated_or_inactive_actors_do_not_replace_the_safe_saved_field_pose()
+    {
+        GameState source = Defaults() with { FieldId = 165, FieldArrival = new FieldTransition(165, -723, -8555, 12, 96), EventState = JsonSerializer.SerializeToElement(new { Scene = new { Party = new[] { 0, 255, 255 }, NativeFieldInitialization = new { Stage = "Allocated" } }, Actors = new[] { new { CharacterId = 0, Active = true, X = 0, Y = 0, WalkmeshTriangle = 65535, Direction = 0 } } }) };
+        GameState imported = NativePcSaveConverter.Import(NativePcSaveConverter.Export(source), Defaults(), _ => "fixture");
+        Assert.Equal(source.FieldArrival, imported.FieldArrival);
+    }
+
+    [Fact]
+    public void Foot_world_pose_and_saved_vehicle_state_transfer_without_field_reconstruction()
+    {
+        NativeSavedWorldState saved = NativeSavedWorldState.CreateNewGame() with { Slot4 = new NativeSavedWorldVehicleSlot(73, new NativeSavedWorldPose(100, 200, 3, 400)), FuelDistance112 = 1234, WorldEventFlags116 = new NativeWorldEventFlags(0x123456789ABCDEF0, ulong.MaxValue) };
+        GameState source = Defaults() with { Scene = SceneKind.WorldMap, FieldId = 165, PreviousFieldId = 165, FieldLoadContext = null, SavedWorld = saved, WorldArrival = new WorldTransition(62, 0, -1), World = new WorldState { X = -1234, Z = 5678, NativeHeight = 99, BodyYaw = 512, CameraYaw = 1024 } };
+        GameState imported = NativePcSaveConverter.Import(NativePcSaveConverter.Export(source), Defaults(), _ => "fixture");
+        Assert.Equal(SceneKind.WorldMap, imported.Scene);
+        Assert.Equal(new WorldTransition(62, 0, -1), imported.WorldArrival);
+        Assert.Null(imported.EventState);
+        Assert.Equal(new NativeSavedWorldPose(-1234, 5678, 99, 512), imported.SavedWorld!.FootReturn!.Pose0);
+        Assert.Equal(saved.Slot4, imported.SavedWorld.Slot4);
+        Assert.Equal((uint)1234, imported.SavedWorld.FuelDistance112);
+        Assert.Equal(saved.WorldEventFlags116, imported.SavedWorld.WorldEventFlags116);
+    }
+
+    [Fact]
+    public void Unsupported_world_entity_normalizes_to_a_default_foot_loader_with_saved_progress()
+    {
+        GameState source = Defaults() with { Scene = SceneKind.WorldMap, FieldId = 165, PreviousFieldId = 165, FieldLoadContext = null, WorldArrival = new WorldTransition(62, 0, -1), World = new WorldState { X = 100, Z = 200, NativeHeight = 3, BodyYaw = 4, CameraYaw = 5 } };
+        NativePcSaveData data = NativePcSaveCodec.Decode(NativePcSaveConverter.Export(source));
+        data.Block[NativePcSaveData.MainOffset + 4624 + 105] = 33;
+        GameState imported = NativePcSaveConverter.Import(NativePcSaveCodec.Encode(data), Defaults(), _ => "fixture");
+        Assert.Equal(new WorldTransition(62, 0, -1), imported.WorldArrival);
+        Assert.Equal(new NativeSavedWorldPose(100, 200, 3, 4), imported.SavedWorld!.FootReturn!.Pose0);
+        Assert.Equal(source.Economy!.Gil, imported.Economy!.Gil);
+    }
+
+    [Fact]
+    public void Empty_title_state_cannot_export_an_all_dead_placeholder()
+    {
+        Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(new GameState()));
+    }
+
+    [Fact]
+    public void Installed_original_fixture_imports_and_exports_current_initialized_owners()
+    {
+        string? fixture = Environment.GetEnvironmentVariable("MEMORIA_FF8_PC_SAVE_FIXTURE");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(fixture), "Set MEMORIA_FF8_PC_SAVE_FIXTURE to an original PC save.");
+        using GameAssets assets = new(TestResources.GameDirectory);
+        GameState imported = NativePcSaveConverter.Import(File.ReadAllBytes(fixture!), assets);
+        GameState transferred = NativePcSaveConverter.Import(NativePcSaveConverter.Export(imported), assets);
+        Assert.Equal(imported.FieldId, transferred.FieldId);
+        Assert.Equal(imported.FieldArrival, transferred.FieldArrival);
+        Assert.Equal(imported.Economy!.Gil, transferred.Economy!.Gil);
+        Assert.Equal(imported.CharacterVitals!.Records.Select(row => row.Experience), transferred.CharacterVitals!.Records.Select(row => row.Experience));
+        Assert.Equal(imported.CardInventory!.Cards, transferred.CardInventory!.Cards);
+        Assert.Equal(imported.OriginalSave!.Names.OrderBy(pair => pair.Key), transferred.OriginalSave!.Names.OrderBy(pair => pair.Key));
+    }
+
+    private static GameState Defaults()
+    {
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
+        string hash = NativeInputConfiguration.OriginalInitHash;
+        NativeStatCurve curve = new(100, 0, 100, 255, 200);
+        NativeStatModifier modifier = new(0, 0, 0);
+        NativeCharacterVitals vitals = new()
+        {
+            Version = 1,
+            Rule = NativeCharacterVitals.InitializationRule,
+            InitOutSha256 = hash,
+            KernelSha256 = new string('0', 64),
+            Records = Enumerable.Range(0, 8).Select(id => new NativeCharacterVital((byte)id, new NativeHpWord(100, 100), 0, new NativeCharacterJunction(0, 0, 0, new byte[20]), 0, 0, 0, new byte[6], Enumerable.Repeat(new NativeMagicStock(0, 0), 32).ToArray(), 1, 0)).ToArray(),
+            CombatParty = [0, 255, 255],
+            DreamEnabled = false,
+            GuardianForces = Enumerable.Range(0, 16).Select(_ => new NativeGuardianForceVital(0, 1, 100, new NativeGuardianForceLearnedBank(0, 0), null, ImmutableArray.CreateRange(new byte[21]), 0, 0)).ToArray(),
+            Definitions = new NativeStatDefinitions(Enumerable.Repeat(curve, 11).ToImmutableArray(), ImmutableArray.CreateRange(new byte[57]), Enumerable.Repeat(modifier, 19).ToImmutableArray(), Enumerable.Repeat(curve, 16).ToImmutableArray(), Enumerable.Repeat(modifier, 9).ToImmutableArray()),
+            MenuDefinitions = new NativeGuardianForceMenuDefinitions(Enumerable.Range(0, 16).Select(_ => Enumerable.Repeat(new NativeGuardianForceLearningRule(0, 255, 0), 21).ToImmutableArray()).ToImmutableArray(), ImmutableArray.CreateRange(new byte[116]), ImmutableArray.CreateRange(new byte[19]), ImmutableArray.CreateRange(new byte[5])),
+            DreamWeapons = new byte[3],
+            JunctionPartyBackup = new byte[6]
+        };
+        NativeEconomy economy = new() { Version = 1, Rule = NativeEconomy.InitializationRule, InitOutSha256 = hash, Items = Enumerable.Repeat(new NativeItemStock(0, 0), NativeEconomy.ItemSlotCount).ToArray(), ItemOrder = Enumerable.Range(0, 32).Select(rank => (byte)rank).ToArray(), Gil = 5000, PastGil = 0, EventBankGil72 = 0, EventBankPastGil76 = 0 };
+        return session.State with { CharacterVitals = vitals, Economy = economy, FieldArrival = new FieldTransition(74, 10, 20, 0, 0) };
+    }
+}

@@ -15,6 +15,8 @@ public enum SceneKind
 public sealed record GameState
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativePcSaveData? OriginalSave { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleAbandonment[]? AbandonedNativeBattles { get; init; }
     public GameplayPreferences GameplayPreferences { get; init; } = new();
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 public sealed partial class GameSession : IEventServices
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, Converters = { new JsonStringEnumConverter() } };
-    private static readonly JsonSerializerOptions CompactJsonOptions = new(JsonOptions) { WriteIndented = false };
+    private static readonly JsonSerializerOptions CompactJsonOptions = new(JsonOptions) { WriteIndented = false, Converters = { new ImmutableBytesJsonConverter() } };
     private SceneKind movieReturnScene;
     private bool acceleratingMovie;
 
@@ -433,7 +433,14 @@ public sealed partial class GameSession : IEventServices
         {
             using (FileStream stream = new(temporary, FileMode.Create, FileAccess.Write, FileShare.None))
             {
-                JsonSerializer.Serialize(stream, State, compact ? CompactJsonOptions : JsonOptions);
+                if (compact)
+                {
+                    SnapshotStorage.Write(stream, State, CompactJsonOptions);
+                }
+                else
+                {
+                    JsonSerializer.Serialize(stream, State, JsonOptions);
+                }
                 stream.Flush(true);
             }
             GameState candidate = Load(temporary);
@@ -481,7 +488,7 @@ public sealed partial class GameSession : IEventServices
     public static GameState Load(string path)
     {
         using FileStream stream = File.OpenRead(path);
-        GameState state = JsonSerializer.Deserialize<GameState>(stream, JsonOptions) ?? throw new InvalidDataException("Empty checkpoint.");
+        GameState state = SnapshotStorage.Read(stream, CompactJsonOptions);
         Validate(state);
         JsonElement? currentVm = state.Scene == SceneKind.WorldMap ? state.DepartingFieldState ?? state.EventState : state.EventState;
         if (currentVm is null && state.Scene == SceneKind.Field && state.DepartingFieldState is JsonElement pendingField && pendingField.TryGetProperty("TransitionRequested", out JsonElement requested) && requested.ValueKind == JsonValueKind.True && pendingField.TryGetProperty("Scene", out JsonElement pendingScene) && pendingScene.TryGetProperty("WorldTransitionRequest", out JsonElement worldRequest) && worldRequest.ValueKind == JsonValueKind.Null)
@@ -585,6 +592,13 @@ public sealed partial class GameSession : IEventServices
         return state;
     }
 
+    /// <summary>Reads only the display header of a compact save; legacy JSON has no header.</summary>
+    public static SaveSummary? ReadSummary(string path)
+    {
+        using FileStream stream = File.OpenRead(path);
+        return SnapshotStorage.ReadSummary(stream, CompactJsonOptions);
+    }
+
     private void Change(GameState state, bool advancePlaytime = true)
     {
         if (advancePlaytime)
@@ -598,6 +612,7 @@ public sealed partial class GameSession : IEventServices
 
     private static void Validate(GameState state)
     {
+        state.OriginalSave?.Validate();
         state.FieldLoadContext?.Validate();
         state.FieldRequestPacket?.Validate();
         if (state.Scene == SceneKind.Field && state.FieldLoadContext is { } loadContext && loadContext.FieldId != state.FieldId)

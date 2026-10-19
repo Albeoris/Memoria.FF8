@@ -14,6 +14,7 @@ internal sealed partial class GameWorld : IDisposable
     private readonly MovieClock movieClock;
     private readonly bool ownsMovieClock;
     private readonly GameAssets assets;
+    private readonly bool ownsAssets;
     private readonly ResourceService? resources;
     private readonly bool validateWorldPresentation;
     private FieldRenderer? renderer;
@@ -28,12 +29,13 @@ internal sealed partial class GameWorld : IDisposable
         return GameSession.CreateColdProcess(assets.ReadColdProcessNativeBattleMemory());
     }
 
-    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, nint audioWindow = default, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null)
+    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, nint audioWindow = default, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null)
     {
         this.session = session;
         this.resources = resources;
         this.validateWorldPresentation = validateWorldPresentation;
-        assets = new GameAssets(gameDirectory, resources: resources);
+        ownsAssets = sharedAssets is null;
+        assets = sharedAssets ?? new GameAssets(gameDirectory, resources: resources);
         bool initializedNativeParty = false;
         if (session.State.KnownMagic is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
         {
@@ -123,6 +125,10 @@ internal sealed partial class GameWorld : IDisposable
             Events.Scene.Party.Clear();
             Events.Scene.Party.AddRange([0, 255, 255]);
         }
+        if (session.State.OriginalSave is not null && session.State.EventState is null && (session.State.Scene == SceneKind.WorldMap || session.State.FieldLoadContext?.Origin == NativeFieldLoadOrigin.OriginalSave))
+        {
+            Events.InitializeOriginalSave(assets.NativeRuntimeProfile ?? throw new NotSupportedException("Original PC save loading requires a supported installed native runtime profile."));
+        }
         Events.MoviePlayback = () => clock.State;
         clock.AdvanceFrame = AdvanceMovieFrame;
         Events.AdvanceMovieFrames = clock.AdvanceFrames;
@@ -142,6 +148,8 @@ internal sealed partial class GameWorld : IDisposable
     }
 
     public EventEngine Events { get; }
+
+    internal GameAssets ValidationAssets => assets;
 
     internal event Action<GameWorld>? BeforeFieldAllocation;
 
@@ -481,7 +489,10 @@ internal sealed partial class GameWorld : IDisposable
         {
             movieClock.Dispose();
         }
-        assets.Dispose();
+        if (ownsAssets)
+        {
+            assets.Dispose();
+        }
         battleAssets?.Dispose();
         preparedWorldEntry?.Dispose();
         worldScene?.Dispose();

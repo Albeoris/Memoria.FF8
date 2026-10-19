@@ -2,7 +2,7 @@
 
 Run the engine executable, `Data/Memoria.FF8.exe`, from an extracted distribution. The launcher executable opens its own settings window and does not forward command-line arguments. From a source checkout, use `dotnet run --project src/Memoria.FF8.App -c Release --` followed by the same arguments.
 
-Examples below run from the distribution root. Set `MEMORIA_FF8_GAME_DIR` to your installed original game directory first; see [environment variables](environment-variables.md). JSON snapshots are engine saves, not original FF8 save files. Support depends on the saved state and the engine contracts reached during continuation.
+Examples below run from the distribution root. Set `MEMORIA_FF8_GAME_DIR` to your installed original game directory first; see [environment variables](environment-variables.md). Snapshots are engine saves, with automatic detection of compact compressed and older plain JSON formats. Support depends on the saved state and the engine contracts reached during continuation.
 
 ```powershell
 # Check game directory and initial state without opening a window.
@@ -24,7 +24,7 @@ Without a mode selector, the engine opens the game window. With no `--state` and
 | Option | Meaning / default |
 | --- | --- |
 | `--game-dir DIRECTORY` | Installed game directory. Overrides `MEMORIA_FF8_GAME_DIR`, then `FF8_GAME_DIRECTORY`. |
-| `--state FILE` | Load a standalone JSON snapshot. Its state overrides scene initialization options. |
+| `--state FILE` | Load a standalone snapshot, compact compressed or plain JSON. Its state overrides scene initialization options. |
 | `--save-state FILE` | Quick-save snapshot destination; default `%LOCALAPPDATA%/Memoria.FF8/checkpoint.json`. |
 | `--media-tools DIRECTORY` | Directory containing `ffmpeg.exe` and `ffprobe.exe`; overrides `MEMORIA_FF8_MEDIA_TOOLS` for direct engine startup. Default `%LOCALAPPDATA%/Memoria.FF8/media-tools/`, beside `player-saves/` and shared across releases. The launcher honors the same environment variable and default. |
 | `--scene NAME` | Initial scene: `Title`, `Field`, `Movie` or `WorldMap`, case insensitive. Scene selection alone does not construct a valid gameplay state. |
@@ -46,6 +46,22 @@ Without a mode selector, the engine opens the game window. With no `--state` and
 | `--ui-screen SCREEN_ID` | Open a registered UI screen on startup; diagnostic use. |
 
 Decimal times use a dot. Explicit path arguments are resolved against the invoking working directory before graphical startup changes to the game directory. Supply a full installed-game path in environment variables to avoid working-directory ambiguity.
+
+## Original PC save transfer
+
+```powershell
+./Data/Memoria.FF8.exe --import-save ./original/slot1_save01.ff8 --output ./saves/imported.json --game-dir "$env:MEMORIA_FF8_GAME_DIR"
+./Data/Memoria.FF8.exe --export-save ./saves/imported.json --output ./original/slot1_save01-exported.ff8
+```
+
+The mode selector must be first and the source file must follow it immediately. Transfer runs without a game window. These modes accept only:
+
+| Option | Meaning |
+| --- | --- |
+| `--output FILE` | Required new destination file. Existing destinations and the source path are refused. |
+| `--game-dir DIRECTORY` | Import only: installed game resources used to initialize and validate the imported state. Defaults to `MEMORIA_FF8_GAME_DIR`, then `FF8_GAME_DIRECTORY`. |
+
+Import accepts one original PC save, validates its standalone engine continuation, and writes a compact snapshot. Export transfers persistent progress and the saved field or world location. Imported games preserve original bytes without a supported engine owner; games started in Memoria use defaults for original-only properties. Missing process state and properties that cannot transfer receive defaults. Exact movie, battle and event processing is not transferred; the original game initializes the saved location normally. Malformed data or unsupported gameplay continuation fails with exit code 1 and leaves the source and existing output untouched. See [save transfer](../players/saves.md#original-pc-save-transfer) for preservation and compatibility limits.
 
 ## Automatic exploration
 

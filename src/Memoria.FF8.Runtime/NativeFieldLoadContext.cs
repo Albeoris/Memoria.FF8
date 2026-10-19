@@ -7,7 +7,8 @@ public enum NativeFieldLoadOrigin
     NewGame,
     FieldRequest,
     WorldReturn,
-    BattleDefeat
+    BattleDefeat,
+    OriginalSave
 }
 
 /// <summary>The executed request whose native loader copies its module-entry reason into event BYTE87.</summary>
@@ -20,6 +21,7 @@ public sealed record NativeFieldLoadContext(int Version, int FieldId, NativeFiel
     public byte Reason => Origin switch
     {
         NativeFieldLoadOrigin.NewGame => 0,
+        NativeFieldLoadOrigin.OriginalSave => 0,
         NativeFieldLoadOrigin.BattleDefeat => 0,
         NativeFieldLoadOrigin.FieldRequest => 1,
         NativeFieldLoadOrigin.WorldReturn => 2,
@@ -27,6 +29,7 @@ public sealed record NativeFieldLoadContext(int Version, int FieldId, NativeFiel
     };
 
     public static NativeFieldLoadContext NewGame() => new(1, 74, NativeFieldLoadOrigin.NewGame);
+    public static NativeFieldLoadContext FromOriginalSave(int fieldId) => new(1, fieldId, NativeFieldLoadOrigin.OriginalSave);
     public static NativeFieldLoadContext FromFieldRequest(int fieldId) => new(1, fieldId, NativeFieldLoadOrigin.FieldRequest);
     public static NativeFieldLoadContext FromWorldReturn(int fieldId) => new(1, fieldId, NativeFieldLoadOrigin.WorldReturn);
 

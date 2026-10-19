@@ -4,7 +4,8 @@ namespace Memoria.FF8.Runtime;
 
 public enum NativeSavedWorldOriginKind
 {
-    NativeNewGame
+    NativeNewGame,
+    OriginalSave
 }
 
 /// <summary>The original twelve-byte saved pose, with raw Z and unmodified native integer widths.</summary>
@@ -287,7 +288,7 @@ public sealed partial record NativeSavedWorldState
         {
             throw new InvalidDataException("Native car return disagrees with its retired vehicle slot.");
         }
-        if (InitialMapDisplayMode110 != 0 || FuelDistance112 is null)
+        if ((Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame ? InitialMapDisplayMode110 != 0 : InitialMapDisplayMode110 is null or > 2) || FuelDistance112 is null)
         {
             throw new InvalidDataException("Native initial saved-world map-display authority differs from the New Game zeroing proof.");
         }
