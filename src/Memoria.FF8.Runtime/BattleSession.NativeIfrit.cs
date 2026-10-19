@@ -127,6 +127,15 @@ public sealed partial class BattleSession
             }
         }
 
+        int PhysicalActorIndex(uint address)
+        {
+            if (address < 0x1D972C0 || (address - 0x1D972C0) % 156 != 0 || (address - 0x1D972C0) / 156 >= graphics.Models.Length)
+            {
+                throw new NotSupportedException("Native actor store requires its actual physical model pointer.");
+            }
+            return checked((int)((address - 0x1D972C0) / 156));
+        }
+
         NativeBattleWaterExecutionFrame ExecuteInstructionCore(NativeBattleWaterExecutionFrame current, ushort opcode)
         {
             NativeBattleWaterExecutionFrame QueueTextureCopy(NativeBattleWaterExecutionFrame copyFrame, NativeBattleEffectVramCopy copy)
@@ -151,6 +160,21 @@ public sealed partial class BattleSession
             int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank);
             switch (opcode)
             {
+                case 0x46:
+                    return NativeBattleCinematicContactBranch46.Execute(current, program, context.ReadActionBytes, (_, actor) => NativeBattleStatusBits(combatants.Single(combatant => combatant.NativeIndex == actor)));
+                case 0x49:
+                    return NativeBattleCinematicActorStore48.BranchScale49(current, program, address => graphics.Models[PhysicalActorIndex(address)]);
+                case 0x66:
+                    NativeBattleEffectMemory cameraMemory = RequireWaterMemory();
+                    NativeBattleScriptedColorRegisters cameraRegisters = cameraMemory.ScriptedColorRegisters ?? throw new NotSupportedException("Native camera-relative matrix requires retained packed input registers.");
+                    NativeEffectMemory = cameraMemory with { ScriptedColorRegisters = NativeBattleCinematicRibbonInput.Capture(current, CoreDword(current, 0x27973E8) + 0x94, cameraRegisters) };
+                    return NativeBattleWaterMatrixCommands.Execute(current, program, bank);
+                case 0x38:
+                    return NativeBattleCinematicActorStore48.StoreColor38(current, definition.NativeGraphics?.Rules.SummonColors?.Transition ?? throw new NotSupportedException("Native actor color store requires the original background color."), address => graphics.Models[PhysicalActorIndex(address)], (address, actor) => graphics = graphics with { Models = graphics.Models.SetItem(PhysicalActorIndex(address), actor) });
+                case 0x48:
+                    return NativeBattleCinematicActorStore48.Execute(current, address => graphics.Models[PhysicalActorIndex(address)], (address, actor) => graphics = graphics with { Models = graphics.Models.SetItem(PhysicalActorIndex(address), actor) });
+                case 0xCB:
+                    return NativeBattleCinematicMatrixAimCB.Execute(current, program, ResolveCurrentNode);
                 case 0x4E:
                     return NativeBattleCinematicInlineData4E.Execute(current, program);
                 case 0xF2:
@@ -611,6 +635,18 @@ public sealed partial class BattleSession
                     graphics = placement.Graphics;
                     return placement.Frame;
                 }
+                if (selectedDrawHandler == 0xAEA0C0)
+                {
+                    var copy = DrawNativeCinematicFrameCopy26(frame, graphics);
+                    graphics = copy.Graphics;
+                    return copy.Frame;
+                }
+                if (selectedDrawHandler == 0xAE44E0)
+                {
+                    var actor = DrawNativeCinematicBrothersActor38(frame, graphics, true);
+                    graphics = actor.Graphics;
+                    return actor.Frame;
+                }
                 if (selectedDrawHandler == 0xAED040)
                 {
                     var sparks = DrawNativeCinematicSpark53(frame, assets[1].Data.Length, graphics);
@@ -622,6 +658,20 @@ public sealed partial class BattleSession
                     var wireMorph = DrawNativeCinematicWireMorph3F(frame, assets[1].Data.Length, resources, graphics);
                     graphics = wireMorph.Graphics;
                     return wireMorph.Frame;
+                }
+                if (selectedDrawHandler == 0xB5BB00)
+                {
+                    var mesh = DrawNativeCinematicMesh(frame, 7, assets[1].Data.Length, resources, graphics);
+                    graphics = mesh.Graphics;
+                    return mesh.Frame;
+                }
+                if (selectedDrawHandler == 0xB5A5B0)
+                {
+                    uint model = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xBC, 4));
+                    uint shape = model == 0 ? 0 : NativeBattleWaterShapeSelection.ResolveCinematic(frame, resources, frame.Arena.Read(ArenaOffset(model + 8, 1), 1)[0]).Selected;
+                    var posed = DrawNativeCinematicLeviathanModel20(frame, assets[1].Data.Length, resources, ModelServices(shape), graphics);
+                    graphics = posed.Graphics;
+                    return posed.Frame;
                 }
                 if (selectedDrawHandler == 0xB5AB80)
                 {

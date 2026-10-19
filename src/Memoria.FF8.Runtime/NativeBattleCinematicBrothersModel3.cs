@@ -80,7 +80,7 @@ public static class NativeBattleCinematicBrothersModel3
         }
     }
 
-    public static NativeBattleWaterExecutionFrame DrawPreparedRing(NativeBattleWaterExecutionFrame frame, int count, int rootX, int rootZ, Func<NativeBattleWaterExecutionFrame, int, NativeBattleActionMatrix> readBone, Func<NativeBattleWaterExecutionFrame, int, short> readLength, NativeBattleVector centerOffset, int depth, short height, int intensity, int diagonalFactor, Func<NativeBattleWaterExecutionFrame, uint>? readColor, NativeBattleCinematicBrothersModelServices services)
+    public static NativeBattleWaterExecutionFrame DrawPreparedRing(NativeBattleWaterExecutionFrame frame, int count, int rootX, int rootZ, Func<NativeBattleWaterExecutionFrame, int, NativeBattleActionMatrix> readBone, Func<NativeBattleWaterExecutionFrame, int, short> readLength, NativeBattleVector centerOffset, int depth, short height, int intensity, int diagonalFactor, Func<NativeBattleWaterExecutionFrame, uint>? readColor, NativeBattleCinematicBrothersModelServices services, bool storeCue = true)
     {
         int maxX = rootX;
         int maxZ = rootZ;
@@ -142,7 +142,11 @@ public static class NativeBattleCinematicBrothersModel3
             uint address = unchecked(frame.TemporaryFrame.Address + 0xB0u + (uint)index * 8);
             frame = services.PublishInput(frame, address);
             NativeBattleCinematicBrothersProjection projected = services.Project(frame, camera, address);
-            frame = projected.Frame.WriteTemporaryDword(0xB0 + index * 8, projected.Screen).WriteTemporaryDword(0xB4 + index * 8, projected.Cue).WriteTemporaryDword(0xFC, projected.Flags);
+            frame = projected.Frame.WriteTemporaryDword(0xB0 + index * 8, projected.Screen).WriteTemporaryDword(0xFC, projected.Flags);
+            if (storeCue)
+            {
+                frame = frame.WriteTemporaryDword(0xB4 + index * 8, projected.Cue);
+            }
         }
         uint Screen(int index) => frame.ReadTemporaryDword(0xB0 + index * 8);
         if (NativeBattleModulePackets.Nclip(Screen(0), Screen(2), Screen(4)) > 0)

@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDiablos325Trail([property: JsonRequired] uint Cursor51F8, [property: JsonRequired] uint BlockCursor51FC, [property: JsonRequired] ushort Shift5200, [property: JsonRequired] ushort Step5202, [property: JsonRequired] ushort Parameter5204, [property: JsonRequired] ushort Parameter5206)
+public sealed partial record NativeBattleDiablos325Trail([property: JsonRequired] uint Cursor51F8, [property: JsonRequired] uint BlockCursor51FC, [property: JsonRequired] ushort Shift5200, [property: JsonRequired] ushort Step5202, [property: JsonRequired] ushort Parameter5204, [property: JsonRequired] ushort Parameter5206)
 {
     public void Validate()
     {

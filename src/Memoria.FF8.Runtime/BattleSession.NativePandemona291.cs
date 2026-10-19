@@ -44,10 +44,49 @@ public sealed partial class BattleSession
                 return current;
             }, (current, center, age) =>
             {
-                NativeCamera = NativeBattlePandemona291Timeline.AdvanceOpeningCamera(NativeCamera ?? throw new NotSupportedException("Native Pandemona requires its current camera globals."), center, age);
+                NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Pandemona requires its current camera globals.");
+                if (age is 183 or 334)
+                {
+                    PublishNativeModuleSound((current.Memory.SummonStream ?? throw new NotSupportedException("Native Pandemona requires its current stream number.")).Play5018C0(128, 127));
+                }
+                if (age is 223 or 376 or 448)
+                {
+                    uint sound = current.Effect.Binding.Pandemona291Resources!.EndingSounds[age == 223 ? 0 : age == 376 ? 1 : 2];
+                    PublishNativeModuleSound(new(sound, 1, null) { Pan = 128 });
+                }
+                if (age < 154)
+                {
+                    NativeCamera = NativeBattlePandemona291Timeline.AdvanceOpeningCamera(camera, center, age);
+                }
+                else
+                {
+                    NativeBattleVector? position = null;
+                    short? scale = null;
+                    byte? state = null;
+                    if (age == 376 || age is >= 377 and < 417 || age is >= 440 and < 480)
+                    {
+                        var target = ReadNativePandemona291FirstTarget(current, graphics);
+                        NativeBattleModelTransform transform = target.Actor.Transform ?? throw new NotSupportedException("Native Pandemona camera requires its current first target transform.");
+                        position = transform.Position28;
+                        scale = transform.Scale38;
+                        state = target.State;
+                    }
+                    NativeCamera = NativeBattlePandemona291LateCamera.Advance(camera, center, current.Memory.Pandemona291!.Ground25562E0 ?? throw new NotSupportedException("Native Pandemona late camera requires its current ground coordinate."), age, position, scale, state);
+                }
+                if (age is >= 183 and < 224 || age is >= 334 and < 377)
+                {
+                    NativeBattleScriptedColorRegisters registers = current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native Pandemona camera interpolation requires its GTE owner.");
+                    current = current with { Memory = current.Memory with { ScriptedColorRegisters = registers with { Mac = [null, null, null], Ir = [null, null, null], Flags = null } } };
+                }
                 return current;
             })
             {
+                LoadEndingTim = LoadNativePandemona291EndingTim,
+                StopVibration = (current, handle) =>
+                {
+                    NativeVibrationProcess = (NativeVibrationProcess ?? throw new NotSupportedException("Native Pandemona requires its actual vibration process.")).Stop4A2940(unchecked((int)handle));
+                    return current;
+                },
                 DrawTrails = (current, address) =>
                 {
                     var drawn = DrawNativePandemona291Trails(current, address, graphics);
@@ -63,6 +102,18 @@ public sealed partial class BattleSession
                 DrawLayers = (current, age) =>
                 {
                     var drawn = DrawNativePandemona291Layers(current, age, graphics);
+                    graphics = drawn.Graphics;
+                    return drawn.Frame;
+                },
+                DrawTargets = (current, address, age) =>
+                {
+                    var drawn = AdvanceNativePandemona291Targets(current, address, age, null, graphics, true);
+                    graphics = drawn.Graphics;
+                    return drawn.Frame;
+                },
+                DrawLate = (current, address, age) =>
+                {
+                    var drawn = DrawNativePandemona291Late(current, address, age, graphics);
                     graphics = drawn.Graphics;
                     return drawn.Frame;
                 },
@@ -103,6 +154,7 @@ public sealed partial class BattleSession
                     return drawn.Frame;
                 }
             };
+            timeline = timeline with { Completion = new(current => NativePandemona291TargetsAwaitResource40(current, graphics), (current, address) => RestoreNativePandemona291Targets(current, address, ref graphics), timeline.QueueFile) };
             NativeBattlePandemona291MasterInputs inputs = new(construction, (current, address, task) =>
             {
                 if (task.Callback == 0x6ED900)
@@ -114,6 +166,19 @@ public sealed partial class BattleSession
                     var ribbon = AdvanceNativePandemona291RisingChild(current, address, task, graphics);
                     graphics = ribbon.Graphics;
                     return ribbon.Step;
+                }
+                if (task.Callback is 0x6F0D90 or 0x6F0E30)
+                {
+                    var child = AdvanceNativePandemona291AttachedChild(current, address, task, graphics);
+                    graphics = child.Graphics;
+                    return child.Step;
+                }
+                if (task.Callback == 0x6F0FB0)
+                {
+                    NativeBattlePandemona291SpriteResource sprite = current.Effect.Binding.Pandemona291Resources!.LateSprite ?? throw new NotSupportedException("Native Pandemona late particle requires its original sprite.");
+                    var particle = AdvanceNativePandemona291LayerParticle(current, address, task, graphics, NativeBattlePandemona291LateParticles.Draw6F0FB0(task, sprite), NativeBattlePandemona291LateParticles.Finish6F0FB0);
+                    graphics = particle.Graphics;
+                    return particle.Step;
                 }
                 if (task.Callback == 0x6F0ED0)
                 {

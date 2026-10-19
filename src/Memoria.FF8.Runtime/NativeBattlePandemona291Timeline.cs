@@ -12,6 +12,11 @@ public sealed record NativeBattlePandemona291TimelineServices(Func<NativeBattleP
     public Func<NativeBattlePandemona291Frame, uint, NativeBattleModulePoolTask, NativeBattlePandemona291ChildStep>? InitializeBody { get; init; }
     public Func<NativeBattlePandemona291Frame, uint, int, NativeBattlePandemona291Frame>? DrawRising { get; init; }
     public Func<NativeBattlePandemona291Frame, uint, NativeBattlePandemona291Frame>? DrawBody { get; init; }
+    public Func<NativeBattlePandemona291Frame, uint, int, NativeBattlePandemona291Frame>? DrawLate { get; init; }
+    public Func<NativeBattlePandemona291Frame, uint, int, NativeBattlePandemona291Frame>? DrawTargets { get; init; }
+    public Func<NativeBattlePandemona291Frame, short, NativeBattlePandemona291Frame>? LoadEndingTim { get; init; }
+    public Func<NativeBattlePandemona291Frame, uint, NativeBattlePandemona291Frame>? StopVibration { get; init; }
+    public NativeBattlePandemona291CompletionServices? Completion { get; init; }
     public Action<NativeBattlePandemona291Frame>? PlayStream { get; init; }
 }
 
@@ -20,7 +25,7 @@ public static class NativeBattlePandemona291Timeline
     public static NativeBattlePandemona291ChildStep Advance6ED900(NativeBattlePandemona291Frame frame, uint address, NativeBattleModulePoolTask task, NativeBattlePandemona291TimelineServices services)
     {
         int age = unchecked((short)task.ReadWord(0xC));
-        if (age is < 0 or >= 154)
+        if (age < 0)
         {
             throw new NotSupportedException($"Native Pandemona6ED900 age{age} requires its next scene contract.");
         }
@@ -68,12 +73,17 @@ public static class NativeBattlePandemona291Timeline
             frame = (services.DrawVortex ?? throw new NotSupportedException("Native Pandemona requires its complete vortex scene."))(frame, address, age);
             arena = frame.Memory.Arena!;
         }
-        if (age >= 100)
+        if (age is >= 100 and < 154)
         {
             frame = (services.DrawRising ?? throw new NotSupportedException("Native Pandemona requires its complete rising scene."))(frame, address, age);
             arena = frame.Memory.Arena!;
         }
-        if (age >= 144)
+        if (age >= 154)
+        {
+            frame = (services.DrawLate ?? throw new NotSupportedException("Native Pandemona requires its full late scene."))(frame, address, age);
+            arena = frame.Memory.Arena!;
+        }
+        if (age is >= 144 and < 174)
         {
             if (age == 144)
             {
@@ -100,7 +110,11 @@ public static class NativeBattlePandemona291Timeline
         {
             frame = (services.DrawTrails ?? throw new NotSupportedException("Native Pandemona requires its complete active trail transform and renderer."))(frame, address);
         }
-        if (age >= 100)
+        if (age >= 224)
+        {
+            frame = (services.DrawTargets ?? throw new NotSupportedException("Native Pandemona requires its current scaled targets."))(frame, address, age);
+        }
+        if (age is >= 100 and < 377 && age is not (>= 224 and < 254))
         {
             frame = (services.DrawBody ?? throw new NotSupportedException("Native Pandemona requires its complete body renderer6F0AE0."))(frame, address);
         }
@@ -113,7 +127,7 @@ public static class NativeBattlePandemona291Timeline
             memory = NativeBattleEffectIo.Queue5341D0(memory, 722, unchecked(buffer + 0x31220), 5);
             frame = frame with { Memory = memory };
         }
-        if (age == 99)
+        if (age is 99 or 183 or 253)
         {
             NativeBattleEffectIoPoll poll = NativeBattleEffectIo.Poll534270(frame.Memory);
             frame = frame with { Memory = poll.Memory };
@@ -125,8 +139,28 @@ public static class NativeBattlePandemona291Timeline
                 }
                 return new(frame, task, 0);
             }
-            frame = frame with { Memory = NativeBattleEffectIo.Queue5341D0(frame.Memory, 723, unchecked(buffer + 0x2321C), 3) };
-            frame = frame with { Memory = NativeBattleEffectIo.Queue5341D0(frame.Memory, 724, unchecked(buffer + 0x23220), 5) };
+            if (age == 99)
+            {
+                frame = frame with { Memory = NativeBattleEffectIo.Queue5341D0(frame.Memory, 723, unchecked(buffer + 0x2321C), 3) };
+                frame = frame with { Memory = NativeBattleEffectIo.Queue5341D0(frame.Memory, 724, unchecked(buffer + 0x23220), 5) };
+            }
+        }
+        if (age == 224)
+        {
+            frame = frame with { Memory = NativeBattleEffectIo.Queue5341D0(frame.Memory, 725, unchecked(buffer + 0x2321C), 3) };
+            frame = frame with { Memory = NativeBattleEffectIo.Queue5341D0(frame.Memory, 726, unchecked(buffer + 0x23220), 5) };
+        }
+        if (age == 480)
+        {
+            if (frame.Effect.Pools.Single(pool => pool.DescriptorAddress == 0x2556268).Head is not null)
+            {
+                return new(frame, task, 0);
+            }
+            foreach (short fileId in new short[] { 360, 361, 362 })
+            {
+                frame = frame with { Memory = NativeBattleEffectIo.Queue5341D0(frame.Memory, fileId, unchecked(buffer + 0x31220), 1) };
+            }
+            frame = frame with { Memory = frame.Memory with { Pandemona291 = frame.Memory.Pandemona291! with { StaticLoadState13BBBE8 = 0 } } };
         }
         NativeBattleEffectIoAdvance advance = NativeBattleEffectIo.Advance534210(frame.Memory);
         frame = frame with { Memory = advance.Memory };
@@ -137,9 +171,10 @@ public static class NativeBattlePandemona291Timeline
         uint load = frame.Memory.Pandemona291!.StaticLoadState13BBBE8 ?? throw new NotSupportedException("Native Pandemona requires its current static load-state DWORD.");
         if (load is 0 or 1 or 2)
         {
-            throw new NotSupportedException("Native Pandemona requires its reached direct48D0A0 ending TIM load.");
+            frame = (services.LoadEndingTim ?? throw new NotSupportedException("Native Pandemona requires its direct48D0A0 ending TIM load."))(frame, unchecked((short)(360 + load)));
+            frame = frame with { Memory = frame.Memory with { Pandemona291 = frame.Memory.Pandemona291! with { StaticLoadState13BBBE8 = load + 1 } } };
         }
-        if (age >= 130)
+        if (age is >= 130 and < 377 && age is not (>= 224 and < 254))
         {
             NativeBattlePandemona291ChildStep posed = NativeBattlePandemona291Body.Advance6FBDB0(frame, address, task);
             frame = posed.Frame;
@@ -162,10 +197,19 @@ public static class NativeBattlePandemona291Timeline
         {
             (services.PlayStream ?? throw new NotSupportedException("Native Pandemona requires its current summon-stream playback."))(frame);
         }
+        if (age == 476)
+        {
+            uint handle = BinaryPrimitives.ReadUInt32LittleEndian(frame.Memory.Arena!.Read(start + 0x10, 4));
+            frame = (services.StopVibration ?? throw new NotSupportedException("Native Pandemona requires its current vibration handle."))(frame, handle);
+        }
         ushort next = unchecked((ushort)(task.ReadWord(0xC) + 1));
         task = task.WriteWord(0xC, next);
         frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(start + 0xC, BitConverter.GetBytes(next)) } };
-        return new(frame, task, 0);
+        if (unchecked((short)next) <= 480)
+        {
+            return new(frame, task, 0);
+        }
+        return NativeBattlePandemona291Completion.AfterCounter6F0626(frame, address, task, services.Completion ?? throw new NotSupportedException("Native Pandemona requires its complete ending IO and target restoration."));
     }
 
     public static NativeBattleCameraState AdvanceOpeningCamera(NativeBattleCameraState camera, int center, int age)

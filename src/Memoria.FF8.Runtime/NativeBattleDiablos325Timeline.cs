@@ -15,11 +15,7 @@ public static class NativeBattleDiablos325Timeline
                 throw new NotSupportedException("Native Diablos timeline callback was replaced.");
             }
             ushort counter = task.ReadWord(0xC);
-            if (counter >= 246)
-            {
-                throw new NotSupportedException("Native Diablos6559D3 attached trail birth requires its reached current bone and physical trail services.");
-            }
-            if (counter >= 9 && inputs.PresentProgramme is null)
+            if (counter is >= 9 and <= 521 && inputs.PresentProgramme is null)
             {
                 throw new NotSupportedException("Native Diablos656B70 opening programme requires its original current transform and primitive resource services.");
             }
@@ -40,10 +36,10 @@ public static class NativeBattleDiablos325Timeline
             }
             else
             {
-                state = state with { Flash51E8 = counter <= 8 ? checked(256u + (uint)(counter - 1) * 512) : 4096u };
+                state = state with { Flash51E8 = counter <= 8 ? checked(256u + (uint)(counter - 1) * 512) : counter < 522 ? 4096u : counter < 530 ? checked(256u + (uint)(529 - counter) * 512) : 0u };
                 memory = memory with { Diablos325 = state };
             }
-            if (counter >= 9)
+            if (counter is >= 9 and <= 521)
             {
                 NativeBattleDiablos325ProgrammeStep presented = inputs.PresentProgramme!(frame with { Memory = memory }, task);
                 frame = presented.Frame;
@@ -74,11 +70,11 @@ public static class NativeBattleDiablos325Timeline
                 task = shape.Task;
                 memory = frame.Memory;
             }
-            if (counter is >= 238 and <= 245)
+            if (counter is >= 238 and <= 297)
             {
-                if (counter == 238 && NativeBattleDiablos325Entry.RequireState(memory).Pause5180 == 0)
+                if ((counter is 238 or 246) && NativeBattleDiablos325Entry.RequireState(memory).Pause5180 == 0)
                 {
-                    NativeBattleDiablos325BodyStep selected = NativeBattleDiablos325Body.Select6574D0(memory, task, 3);
+                    NativeBattleDiablos325BodyStep selected = NativeBattleDiablos325Body.Select6574D0(memory, task, counter == 238 ? (byte)3 : (byte)4);
                     memory = selected.Memory;
                     task = selected.Task;
                 }
@@ -87,7 +83,62 @@ public static class NativeBattleDiablos325Timeline
                 task = shape.Task;
                 memory = frame.Memory;
             }
-            if (counter >= 92)
+            if (counter is >= 268 and <= 297 && NativeBattleDiablos325Entry.RequireState(memory).Pause5180 == 0)
+            {
+                task = task.WriteDword(0x164, unchecked(task.ReadDword(0x164) - 10));
+            }
+            if (counter is >= 268 and <= 327)
+            {
+                NativeBattleDiablos325ProgrammeStep programme = (inputs.PresentLateProgramme ?? throw new NotSupportedException("Native Diablos requires its current late programme service."))(frame with { Memory = memory }, task, false);
+                frame = programme.Frame;
+                task = programme.Task;
+                memory = frame.Memory;
+            }
+            if (counter is >= 298 and <= 327)
+            {
+                NativeBattleDiablos325ProgrammeStep programme = (inputs.PresentLateProgramme ?? throw new NotSupportedException("Native Diablos requires its current simultaneous programme service."))(frame with { Memory = memory }, task, true);
+                frame = programme.Frame;
+                task = programme.Task;
+                memory = frame.Memory;
+            }
+            if (counter == 328)
+            {
+                NativeBattleDiablos325BodyStep first = NativeBattleDiablos325Body.Select6574D0(memory, task, 5);
+                NativeBattleDiablos325BodyStep second = NativeBattleDiablos325Body.Select6574D0(first.Memory, first.Task, 1, 0x1A8, 0x254);
+                memory = second.Memory;
+                task = second.Task;
+            }
+            if (counter is >= 360 and <= 367)
+            {
+                frame = (inputs.PresentLateStatic ?? throw new NotSupportedException("Native Diablos requires its current late static model service."))(frame with { Memory = memory }, counter);
+                memory = frame.Memory;
+            }
+            if (counter is >= 368 and <= 405)
+            {
+                NativeBattleDiablos325ProgrammeStep sink = (inputs.PresentRecipients ?? throw new NotSupportedException("Native Diablos requires its current recipient sink service."))(frame with { Memory = memory }, task);
+                frame = sink.Frame;
+                task = sink.Task;
+                memory = frame.Memory;
+            }
+            if (counter is >= 402 and <= 413)
+            {
+                frame = (inputs.PresentFlash ?? throw new NotSupportedException("Native Diablos requires its current fullscreen packet service."))(frame with { Memory = memory }, counter);
+                memory = frame.Memory;
+            }
+            if (counter is >= 406 and <= 455)
+            {
+                NativeBattleDiablos325ProgrammeStep programme = (inputs.PresentLateProgramme ?? throw new NotSupportedException("Native Diablos requires its current final programme service."))(frame with { Memory = memory }, task, false);
+                frame = programme.Frame;
+                task = programme.Task;
+                memory = frame.Memory;
+            }
+            if (counter == 456)
+            {
+                NativeBattleDiablos325BodyStep selected = NativeBattleDiablos325Body.Select6574D0(memory, task, 6);
+                memory = selected.Memory;
+                task = selected.Task;
+            }
+            if (counter is >= 92 and <= 621)
             {
                 if (counter == 92)
                 {
@@ -111,9 +162,42 @@ public static class NativeBattleDiablos325Timeline
                     memory = posed.Memory;
                     task = posed.Task;
                 }
-                NativeBattleDiablos325ProgrammeStep body = (inputs.PresentBody ?? throw new NotSupportedException("Native Diablos requires its current height-faded body drawing service."))(frame with { Memory = memory }, task);
+                if (counter <= 368 || counter is >= 456 and <= 469)
+                {
+                    NativeBattleDiablos325ProgrammeStep body = (inputs.PresentBody ?? throw new NotSupportedException("Native Diablos requires its current height-faded body drawing service."))(frame with { Memory = memory }, task);
+                    frame = body.Frame;
+                    task = body.Task;
+                    memory = frame.Memory;
+                }
+            }
+            if (counter is >= 298 and <= 367)
+            {
+                if (counter == 298)
+                {
+                    NativeBattleDiablos325BodyStep initialized = NativeBattleDiablos325Body.InitializeSecondary6552FC(memory, task, checked(current.BankAddress + (uint)(index * current.Stride)));
+                    memory = initialized.Memory;
+                    task = initialized.Task;
+                }
+                if (NativeBattleDiablos325Entry.RequireState(memory).Pause5180 == 0)
+                {
+                    NativeBattleDiablos325BodyStep posed = NativeBattleDiablos325Body.Advance6FBDB0(memory, task, 0x1A8, 0x254);
+                    memory = posed.Memory;
+                    task = posed.Task;
+                }
+                NativeBattleDiablos325ProgrammeStep body = (inputs.PresentSecondaryBody ?? throw new NotSupportedException("Native Diablos requires its current secondary body service."))(frame with { Memory = memory }, task);
                 frame = body.Frame;
                 task = body.Task;
+                memory = frame.Memory;
+            }
+            if (NativeBattleDiablos325Entry.RequireState(memory).Mode51F0 == 2)
+            {
+                frame = frame with { Memory = memory };
+                if (NativeBattleDiablos325Entry.RequireState(memory).Pause5180 == 0)
+                {
+                    NativeBattleDiablos325LateResources tables = resources.LateResources ?? throw new NotSupportedException("Native Diablos trails require their original width table.");
+                    frame = NativeBattleDiablos325Trail.Advance6583E0(frame, tables.Read(0xFDFF74, 4098));
+                }
+                frame = (inputs.DrawTrails ?? throw new NotSupportedException("Native Diablos requires its current physical trail drawing service."))(frame);
                 memory = frame.Memory;
             }
             if (NativeBattleDiablos325Entry.RequireState(memory).Mode51F0 == 3)
@@ -137,7 +221,7 @@ public static class NativeBattleDiablos325Timeline
                 (inputs.PlayStream ?? throw new NotSupportedException("Native Diablos requires its current summon stream playback service."))(frame, 128, 127);
                 memory = frame.Memory;
             }
-            if (counter is 87 or 169)
+            if (counter is 87 or 169 or 465)
             {
                 NativeBattleEffectIoPoll polled = NativeBattleEffectIo.Poll534270(memory);
                 frame = frame with { Memory = polled.Memory };
@@ -198,7 +282,7 @@ public static class NativeBattleDiablos325Timeline
                 task = initialized.Task;
                 memory = frame.Memory;
             }
-            if (counter == 218)
+            if (counter is 218 or 469)
             {
                 if (task.ReadByte(0xF) == 0)
                 {
@@ -221,6 +305,48 @@ public static class NativeBattleDiablos325Timeline
                     return new(current with { Slots = current.Slots.SetItem(index, task) }, 0);
                 }
                 memory = frame.Memory;
+            }
+            if (counter == 327)
+            {
+                memory = NativeBattleEffectIo.Queue5341D0(memory, 735, checked(state.ModelBuffer5208 + 0x3505C), 5);
+            }
+            if (counter == 359)
+            {
+                NativeBattleEffectIoPoll polled = NativeBattleEffectIo.Poll534270(memory);
+                frame = frame with { Memory = polled.Memory };
+                if (polled.Request is { } polledRequest)
+                {
+                    frame = (inputs.QueueFile ?? throw new NotSupportedException("Native Diablos requires its original file delivery service."))(frame, polledRequest);
+                }
+                if (polled.Busy)
+                {
+                    frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(12, task.Payload.AsSpan()) } };
+                    return new(current with { Slots = current.Slots.SetItem(index, task) }, 0);
+                }
+                frame = (inputs.UploadLateTexture ?? throw new NotSupportedException("Native Diablos requires its current original texture upload service."))(frame, checked(state.ModelBuffer5208 + 0x42E54));
+                memory = NativeBattleEffectIo.Queue5341D0(frame.Memory, 736, checked(state.ModelBuffer5208 + 0x1685C), 3);
+            }
+            if (counter == 436)
+            {
+                NativeBattleEffectIoPoll polled = NativeBattleEffectIo.Poll534270(memory);
+                frame = frame with { Memory = polled.Memory };
+                if (polled.Request is { } polledRequest)
+                {
+                    frame = (inputs.QueueFile ?? throw new NotSupportedException("Native Diablos requires its original file delivery service."))(frame, polledRequest);
+                }
+                if (polled.Busy)
+                {
+                    frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(12, task.Payload.AsSpan()) } };
+                    return new(current with { Slots = current.Slots.SetItem(index, task) }, 0);
+                }
+                (inputs.PlayStream ?? throw new NotSupportedException("Native Diablos requires its current final stream playback service."))(frame, 128, 127);
+                memory = NativeBattleEffectIo.Queue5341D0(frame.Memory, 727, checked(state.ModelBuffer5208 + 0x1685C), 5);
+            }
+            if (counter == 500)
+            {
+                memory = NativeBattleEffectIo.Queue5341D0(memory, 360, checked(state.ModelBuffer5208 + 0x1685C), 1);
+                memory = NativeBattleEffectIo.Queue5341D0(memory, 361, checked(state.ModelBuffer5208 + 0x1685C), 1);
+                memory = NativeBattleEffectIo.Queue5341D0(memory, 362, checked(state.ModelBuffer5208 + 0x1685C), 0);
             }
             NativeBattleEffectIoAdvance advanced = NativeBattleEffectIo.Advance534210(memory);
             frame = frame with { Memory = advanced.Memory };
@@ -249,6 +375,51 @@ public static class NativeBattleDiablos325Timeline
                 inputs.PlaySound(resources.Sounds[2], 1, 128);
                 frame = NativeBattleDiablos325Trail.Initialize657E70(frame, 5, 0, unchecked((ushort)-32));
             }
+            if (counter == 333)
+            {
+                (inputs.PlaySound ?? throw new NotSupportedException("Native Diablos requires its fourth original sound service."))(resources.Sounds[3], 1, 128);
+            }
+            if (counter is >= 246 and <= 297)
+            {
+                frame = NativeBattleDiablos325Trail.SpawnAttached6559D3(frame, task);
+            }
+            if (counter is >= 298 and <= 317)
+            {
+                frame = NativeBattleDiablos325Trail.SpawnPaired655B7F(frame, task);
+            }
+            if (counter is 402 or 456)
+            {
+                int sound = counter == 402 ? 4 : 5;
+                (inputs.PlaySound ?? throw new NotSupportedException("Native Diablos requires its final original sound services."))(resources.Sounds[sound], 1, 128);
+            }
+            if (counter is >= 376 and <= 405)
+            {
+                frame = NativeBattleDiablos325Trail.SpawnGround655D04(frame, counter);
+            }
+            if (counter is >= 406 and <= 421)
+            {
+                frame = NativeBattleDiablos325Trail.SpawnWide655F2B(frame, counter);
+            }
+            if (counter is >= 470 and <= 477)
+            {
+                NativeBattleDiablos325ProgrammeStep born = NativeBattleDiablos325Particles.Spawn6560B1(frame, task);
+                frame = born.Frame;
+                task = born.Task;
+            }
+            if (counter is >= 469 and <= 498)
+            {
+                if (counter == 469)
+                {
+                    frame = NativeBattleDiablos325Puffs.SpawnModel658D90(NativeBattleDiablos325Puffs.Reset6545B0(frame), task);
+                }
+                frame = NativeBattleDiablos325Puffs.Drift658CE0(frame);
+            }
+            if (counter == 499)
+            {
+                frame = (inputs.RestoreRecipients ?? throw new NotSupportedException("Native Diablos requires its current actor flag restoration service."))(frame, task);
+                frame = frame with { Memory = frame.Memory with { Diablos325 = NativeBattleDiablos325Entry.RequireState(frame.Memory) with { Mode51F0 = 0 } } };
+                frame = (inputs.ApplyContact ?? throw new NotSupportedException("Native Diablos requires its current contact application service."))(frame);
+            }
             if (counter is >= 92 and < 167 && NativeBattleDiablos325Entry.RequireState(frame.Memory).Pause5180 == 0)
             {
                 if (((counter - 92) & 7) == 7)
@@ -274,9 +445,33 @@ public static class NativeBattleDiablos325Timeline
             {
                 frame = (inputs.PresentTail ?? throw new NotSupportedException("Native Diablos requires its executed camera and puff tail services."))(frame, counter);
             }
-            task = task.WriteWord(0xC, checked((ushort)(counter + 1)));
+            if (counter == 526)
+            {
+                frame = (inputs.StopVibration ?? throw new NotSupportedException("Native Diablos requires its retained vibration stop service."))(frame, unchecked((int)task.ReadDword(0x10)));
+            }
+            int nextCounter = unchecked((short)(counter + 1));
+            int result = 0;
+            if (nextCounter >= 530)
+            {
+                if (nextCounter == 530)
+                {
+                    frame = (inputs.RestoreRecipients ?? throw new NotSupportedException("Native Diablos requires its final actor flag restoration service."))(frame, task);
+                }
+                NativeBattleEffectIoPoll ready = NativeBattleEffectIo.Select5342C0(frame.Memory, 2);
+                frame = frame with { Memory = ready.Memory };
+                if (ready.Request is { } finalRequest)
+                {
+                    frame = (inputs.QueueFile ?? throw new NotSupportedException("Native Diablos requires its original final file delivery service."))(frame, finalRequest);
+                }
+                result = ready.Busy ? 0 : 2;
+                if (ready.Busy)
+                {
+                    nextCounter = 546;
+                }
+            }
+            task = task.WriteWord(0xC, unchecked((ushort)nextCounter));
             frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(12, task.Payload.AsSpan()) } };
-            return new(current with { Slots = current.Slots.SetItem(index, task) }, 0);
+            return new(current with { Slots = current.Slots.SetItem(index, task) }, result);
         });
         return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(item => item.DescriptorAddress == step.Pool.DescriptorAddress ? step.Pool : item).ToImmutableArray() } };
     }

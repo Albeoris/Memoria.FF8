@@ -13,7 +13,7 @@ public static partial class NativeBattleDiablos325Programme
     public static NativeBattleDiablos325ProgrammeDraw Advance654654(NativeBattleDiablos325Frame frame, NativeBattleModulePoolTask task, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
     {
         int counter = unchecked((short)task.ReadWord(0xC));
-        if (counter is < 9 or > 245)
+        if (counter is < 9 or > 521)
         {
             throw new NotSupportedException("Native Diablos opening programme requires its current reached timeline window.");
         }
@@ -24,7 +24,7 @@ public static partial class NativeBattleDiablos325Programme
             throw new NotSupportedException("Native Diablos requires its two original geometry selector tables.");
         }
         _ = projection.View ?? throw new NotSupportedException("Native Diablos programme requires its current camera view.");
-        short fade = counter < 17 ? checked((short)(256 + (17 - counter) * 512)) : (short)0;
+        short fade = counter < 17 ? checked((short)(256 + (17 - counter) * 512)) : counter >= 514 ? checked((short)(256 + (counter - 514) * 512)) : (short)0;
         NativeBattleEffectMemory memory = frame.Memory;
         NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(0x264 - 12, 0xE0));
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();

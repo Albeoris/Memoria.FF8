@@ -155,7 +155,8 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             Assert.True(battle.NativeEntryReady);
             Assert.True(battle.Combatants.Single(actor => actor.Id == "party").IsReady);
             Publish("before", battle.Capture());
-            string target = definition.ActionDefinitions.Single(action => action.Ability == BattleAbility.GuardianForce && action.Id == guardian).Allies ? "party" : "enemy";
+            BattleActionDefinition guardianAction = definition.ActionDefinitions.Single(action => action.Ability == BattleAbility.GuardianForce && action.Id == guardian);
+            string target = guardianAction.Allies ? "party" : "enemy";
             battle.QueueAction("party", target, BattleAbility.GuardianForce, guardian);
             BattleSession? clone = SaveAndLoad("queued");
             bool produced = false;
@@ -278,11 +279,13 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             BattleEvent damage = Assert.Single(battle.Events, entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == target);
             Assert.Equal((target == "party" ? 1000 : 9999) - damage.Amount, completed.Combatants.Single(actor => actor.Id == target).CurrentHp);
             Assert.True(visibleRgbChanges > 0);
-            if (effectId == 278)
+            if (guardianAction.Allies)
             {
                 Assert.Equal(0, damage.Amount);
                 Assert.Equal(9999, completed.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
-                Assert.True((completed.Combatants.Single(actor => actor.Id == "party").NativeStatus!.Battle & 128) != 0);
+                uint statuses = guardianAction.NativeAction!.Statuses1;
+                Assert.NotEqual(0u, statuses);
+                Assert.Equal(statuses, completed.Combatants.Single(actor => actor.Id == "party").NativeStatus!.Battle & statuses);
             }
             else
             {

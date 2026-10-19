@@ -45,7 +45,7 @@ public static class NativeBattleDiablos325Controller
                     frame = (inputs.AdvanceParticles ?? throw new NotSupportedException("Native Diablos requires its original ordered particle callback services."))(frame);
                 }
             }
-            frame = frame with { Memory = frame.Memory with { Diablos325 = state } };
+            state = NativeBattleDiablos325Entry.RequireState(frame.Memory);
             if (state.Flash51E8 != state.PreviousFlash51EC)
             {
                 frame = (publishFlash ?? throw new NotSupportedException("Native Diablos flash transition requires its stage and four physical entity flag publications."))(frame, state.Flash51E8);
@@ -54,6 +54,11 @@ public static class NativeBattleDiablos325Controller
             }
             if (state.Pause5180 == 0)
             {
+                if (task.ReadByte(0xF) != 0 && frame.Effect.Pools.Single(item => item.DescriptorAddress == NativeBattleDiablos325Construction.TimelineDescriptor).Head is null)
+                {
+                    frame = (publishFlash ?? throw new NotSupportedException("Native Diablos completion requires its current stage color service."))(frame, 0);
+                    return new(current with { Slots = current.Slots.SetItem(index, task) }, 2);
+                }
                 task = task.WriteWord(0xC, unchecked((ushort)(task.ReadWord(0xC) + 1)));
             }
             return new(current with { Slots = current.Slots.SetItem(index, task) }, 0);

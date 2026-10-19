@@ -15,6 +15,16 @@ public sealed record NativeBattleDiablos325Inputs(NativeBattleActionPacketsState
     public Func<NativeBattleDiablos325Frame, NativeBattleModulePoolTask, NativeBattleDiablos325ProgrammeStep>? PresentWings { get; init; }
     public Func<NativeBattleDiablos325Frame, ushort, NativeBattleDiablos325Frame>? PresentWell { get; init; }
     public Func<NativeBattleDiablos325Frame, NativeBattleDiablos325Frame>? DrawPuffs { get; init; }
+    public Func<NativeBattleDiablos325Frame, NativeBattleModulePoolTask, bool, NativeBattleDiablos325ProgrammeStep>? PresentLateProgramme { get; init; }
+    public Func<NativeBattleDiablos325Frame, NativeBattleModulePoolTask, NativeBattleDiablos325ProgrammeStep>? PresentSecondaryBody { get; init; }
+    public Func<NativeBattleDiablos325Frame, ushort, NativeBattleDiablos325Frame>? PresentLateStatic { get; init; }
+    public Func<NativeBattleDiablos325Frame, uint, NativeBattleDiablos325Frame>? UploadLateTexture { get; init; }
+    public Func<NativeBattleDiablos325Frame, NativeBattleDiablos325Frame>? DrawTrails { get; init; }
+    public Func<NativeBattleDiablos325Frame, NativeBattleModulePoolTask, NativeBattleDiablos325ProgrammeStep>? PresentRecipients { get; init; }
+    public Func<NativeBattleDiablos325Frame, NativeBattleModulePoolTask, NativeBattleDiablos325Frame>? RestoreRecipients { get; init; }
+    public Func<NativeBattleDiablos325Frame, ushort, NativeBattleDiablos325Frame>? PresentFlash { get; init; }
+    public Func<NativeBattleDiablos325Frame, NativeBattleDiablos325Frame>? ApplyContact { get; init; }
+    public Func<NativeBattleDiablos325Frame, int, NativeBattleDiablos325Frame>? StopVibration { get; init; }
     public Action<NativeBattleDiablos325Frame, uint, uint>? PlayStream { get; init; }
     public Action<uint, int, int>? PlaySound { get; init; }
     public Func<NativeBattleDiablos325Frame, NativeBattleModulePoolTask, NativeBattleDiablos325ProgrammeStep>? PresentProgramme { get; init; }

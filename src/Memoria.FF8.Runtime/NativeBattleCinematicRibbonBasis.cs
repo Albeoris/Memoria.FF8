@@ -6,7 +6,7 @@ public sealed record NativeBattleCinematicRibbonBasisResult(NativeBattleWaterExe
 
 public static class NativeBattleCinematicRibbonBasis
 {
-    public static NativeBattleCinematicRibbonBasisResult Prepare(NativeBattleWaterExecutionFrame frame, NativeBattleVector from, NativeBattleVector to)
+    public static NativeBattleCinematicRibbonBasisResult Prepare(NativeBattleWaterExecutionFrame frame, NativeBattleVector from, NativeBattleVector to, bool publishRotation = true)
     {
         int x = to.X - from.X;
         int y = to.Y - from.Y;
@@ -41,9 +41,12 @@ public static class NativeBattleCinematicRibbonBasis
         var up = NativeBattleActionGeometryRules.NormalizeVector56BC50(upX, upY, upZ);
         frame = VectorDwords(frame, 0xE0, up.X, up.Y, up.Z);
         short[] rotation = [unchecked((short)right.X), unchecked((short)right.Y), unchecked((short)right.Z), unchecked((short)up.X), unchecked((short)up.Y), unchecked((short)up.Z), unchecked((short)forward.X), unchecked((short)forward.Y), unchecked((short)forward.Z)];
-        for (int index = 0; index < rotation.Length; index++)
+        if (publishRotation)
         {
-            frame = frame.WriteTemporaryWord(0xA0 + index * 2, unchecked((ushort)rotation[index]));
+            for (int index = 0; index < rotation.Length; index++)
+            {
+                frame = frame.WriteTemporaryWord(0xA0 + index * 2, unchecked((ushort)rotation[index]));
+            }
         }
         return new(frame, new(rotation.ToImmutableArray(), 0, 0, 0, 4096), flip);
     }

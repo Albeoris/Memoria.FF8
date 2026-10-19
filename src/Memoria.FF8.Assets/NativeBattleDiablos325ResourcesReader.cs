@@ -11,7 +11,7 @@ public static class NativeBattleDiablos325ResourcesReader
     public static ImmutableArray<NativeBattleEffectFileAsset> ReadFileNames(byte[] executable)
     {
         NativeExecutableMemory memory = new(executable);
-        return Enumerable.Range(727, 8).Select(id =>
+        return Enumerable.Range(727, 10).Concat(new[] { 360, 361, 362 }).Select(id =>
         {
             uint address = BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(checked(0xB84CCCu + (uint)id * 4), 4));
             byte[] bytes = memory.Read(address, 128);
@@ -31,7 +31,7 @@ public static class NativeBattleDiablos325ResourcesReader
         ImmutableArray<byte> vibrationBytes = memory.Read(0xFD6658, 0x148).ToImmutableArray();
         ImmutableArray<int> offsets = Enumerable.Range(0, 64).Select(index => BinaryPrimitives.ReadInt32LittleEndian(vibrationBytes.AsSpan().Slice(index * 4, 4))).ToImmutableArray();
         NativeVibrationBank vibration = new(memory.SourceHash, offsets, vibrationBytes);
-        NativeBattleDiablos325Resources resources = new(new(0xFD8584, memory.Read(0xFD8584, 0x3890).ToImmutableArray()), vibration) { WellGeometry = memory.Read(0xFD6B6C, 6680).ToImmutableArray(), PuffSprite = memory.Read(0xFD67A0, 116).ToImmutableArray(), RingPuffSprite0 = memory.Read(0xFD6814, 428).ToImmutableArray(), RingPuffSprite1 = memory.Read(0xFD69C0, 428).ToImmutableArray(), PrimitiveKinds = memory.Read(0xFE0FB8, 4).ToImmutableArray(), TextureKinds = memory.Read(0xFE0FC0, 4).ToImmutableArray(), ParticlePrimitiveKinds = memory.Read(0xFE0FC8, 1).ToImmutableArray(), ParticleTextureKinds = memory.Read(0xFE0FB4, 1).ToImmutableArray(), Sounds = Enumerable.Range(0, 6).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(checked(0xFD6640u + (uint)index * 4), 4))).ToImmutableArray() };
+        NativeBattleDiablos325Resources resources = new(new(0xFD8584, memory.Read(0xFD8584, 0x3890).ToImmutableArray()), vibration) { LateResources = new(memory.Read(NativeBattleDiablos325LateResources.Address, NativeBattleDiablos325LateResources.Length).ToImmutableArray()), WellGeometry = memory.Read(0xFD6B6C, 6680).ToImmutableArray(), PuffSprite = memory.Read(0xFD67A0, 116).ToImmutableArray(), RingPuffSprite0 = memory.Read(0xFD6814, 428).ToImmutableArray(), RingPuffSprite1 = memory.Read(0xFD69C0, 428).ToImmutableArray(), PrimitiveKinds = memory.Read(0xFE0FB8, 4).ToImmutableArray(), TextureKinds = memory.Read(0xFE0FC0, 4).ToImmutableArray(), ParticlePrimitiveKinds = memory.Read(0xFE0FC8, 1).ToImmutableArray(), ParticleTextureKinds = memory.Read(0xFE0FB4, 1).ToImmutableArray(), Sounds = Enumerable.Range(0, 6).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(checked(0xFD6640u + (uint)index * 4), 4))).ToImmutableArray() };
         resources.Validate();
         return resources;
     }

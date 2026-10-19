@@ -19,6 +19,10 @@ public static class NativeBattleWaterMeshPreparation
 
     public static NativeBattleWaterMeshPrepared PrepareWrapper(NativeBattleWaterExecutionFrame frame, NativeBattleWaterSlotBank bank, int index, byte wrapper, short globalFocal)
     {
+        if (wrapper == 7)
+        {
+            return NativeBattleCinematicMesh7.Prepare(frame, globalFocal);
+        }
         if (wrapper == 9)
         {
             return PrepareClipped(frame, bank, index, globalFocal);

@@ -60,6 +60,7 @@ public static class NativeBattleDiablos325Shapes
         NativeBattleGfGeometryBatch packets = NativeBattleGfGeometryPackets.EmitBatch(data, 0, default, matrix, projection, context, null);
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native Diablos shape drawing requires its current renderer controls.");
         NativeBattleModelRendererRegisters registers = process.ModelRendererRegisters ?? new(null, null, null, null, null);
+        process = process.PublishTemporary5082B0Matrix(matrix);
         process = process with { ModelRendererRegisters = registers with { FarRed = null, FarGreen = null, FarBlue = null } };
         return new(memory with { PrimitiveProcess = process }, task, packets);
     }

@@ -66,13 +66,13 @@ public static class NativeBattlePandemona291Surface
         return new(true, geometry, selected, morph, matrix, context);
     }
 
-    public static NativeBattleGfGeometryBatch Emit701DD0(NativeBattleGfAnimationSource source, NativeBattlePandemona291PreparedSurface prepared, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, short zsf4, Func<int, NativeBattleVector> readSelected, Action<int>? observeInput = null, Action<uint>? observeFlags = null, Func<NativeBattleVector, NativeBattleModuleProjectedVertex>? projectFourth = null)
+    public static NativeBattleGfGeometryBatch Emit701DD0(NativeBattleGfAnimationSource source, NativeBattlePandemona291PreparedSurface prepared, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, short zsf4, Func<int, NativeBattleVector> readSelected, Action<int>? observeInput = null, Action<uint>? observeFlags = null, Func<NativeBattleVector, NativeBattleModuleProjectedVertex>? projectFourth = null, short? zsf3 = null)
     {
         if (!prepared.Active)
         {
             return new([], 0);
         }
-        return EmitGeometry701DD0(source.Data.AsSpan().Slice(prepared.GeometryOffset).ToArray().ToImmutableArray(), prepared.Matrix, prepared.Context, projection, colors, zsf4, readSelected, observeInput, observeFlags, projectFourth);
+        return EmitGeometry701DD0(source.Data.AsSpan().Slice(prepared.GeometryOffset).ToArray().ToImmutableArray(), prepared.Matrix, prepared.Context, projection, colors, zsf4, readSelected, observeInput, observeFlags, projectFourth, zsf3);
     }
 
     public static NativeBattleGfGeometryBatch EmitGeometry701DD0(ImmutableArray<byte> geometry, NativeBattleActionMatrix matrix, NativeBattleEsunaMeshContext context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, short zsf4, Func<int, NativeBattleVector> readSelected, Action<int>? observeInput = null, Action<uint>? observeFlags = null, Func<NativeBattleVector, NativeBattleModuleProjectedVertex>? projectFourth = null, short? zsf3 = null)

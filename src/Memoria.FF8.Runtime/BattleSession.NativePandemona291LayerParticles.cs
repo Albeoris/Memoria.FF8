@@ -5,11 +5,10 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattlePandemona291ChildStep Step, NativeBattleGraphicsState Graphics) AdvanceNativePandemona291LayerParticle(NativeBattlePandemona291Frame frame, uint address, NativeBattleModulePoolTask task, NativeBattleGraphicsState graphics)
+    private (NativeBattlePandemona291ChildStep Step, NativeBattleGraphicsState Graphics) AdvanceNativePandemona291LayerParticle(NativeBattlePandemona291Frame frame, uint address, NativeBattleModulePoolTask task, NativeBattleGraphicsState graphics, NativeBattleModuleDraw? selectedDraw = null, Func<NativeBattlePandemona291Frame, uint, NativeBattleModulePoolTask, NativeBattlePandemona291ChildStep>? finish = null)
     {
         NativeBattlePandemona291Resources resources = frame.Effect.Binding.Pandemona291Resources ?? throw new NotSupportedException("Native Pandemona particles require their original resources.");
-        NativeBattlePandemona291SpriteResource resource = resources.LayerSprite ?? throw new NotSupportedException("Native Pandemona particles require their original sprite.");
-        NativeBattleModuleDraw sprite = NativeBattlePandemona291LayerParticles.Draw6F0ED0(task, resource, resources.TrailTrigonometry);
+        NativeBattleModuleDraw sprite = selectedDraw ?? NativeBattlePandemona291LayerParticles.Draw6F0ED0(task, resources.LayerSprite ?? throw new NotSupportedException("Native Pandemona particles require their original sprite."), resources.TrailTrigonometry);
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Pandemona particles require their current camera.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native Pandemona particles require their current GTE projection.");
         NativeBattleModulePacketBatch batch = NativeBattleModulePackets.EmitSprite571DC0(sprite, projection, camera.Roll, 17, 2);
@@ -35,6 +34,6 @@ public sealed partial class BattleSession
             registers = registers with { NormalInput = input.ToImmutableArray(), NormalInputKnown = [true, true, true, true, true, true, false, false], Flags = projected.Flags };
         }
         frame = frame with { Memory = written.Memory with { Pandemona291 = state with { PacketCursor25562DC = unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor) }, ScriptedColorRegisters = registers } };
-        return (NativeBattlePandemona291LayerParticles.Finish6F0ED0(frame, address, task), graphics);
+        return ((finish ?? NativeBattlePandemona291LayerParticles.Finish6F0ED0)(frame, address, task), graphics);
     }
 }

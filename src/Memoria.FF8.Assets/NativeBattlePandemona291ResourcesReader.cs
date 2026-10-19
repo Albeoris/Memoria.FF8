@@ -48,6 +48,7 @@ public static class NativeBattlePandemona291ResourcesReader
         resources = resources with { VortexOverlayGeometry = new(0, 0x13A0978, memory.Read(0x13A0978, 0x4E0).ToImmutableArray()) };
         resources = resources with { BodySound = BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0x13B7A4C, 4)) };
         resources = resources with { RisingProgram = new(0x13B0C9C, memory.Read(0x13B0C9C, 0xB10).ToImmutableArray()) };
+        resources = resources with { EndingRingGeometry = new(0, 0x13AE0F8, memory.Read(0x13AE0F8, 0xAC8).ToImmutableArray()), EndingRingParameters = memory.Read(0x13BBBB8, 48).ToImmutableArray(), LateSprite = new(0x13AFE04, NativeBattleEffectStaticResourcesReader.ReadProjectedSprite(memory, 0x13AFE04)), LateBackdrop = new(0, 0x13AEBC0, memory.Read(0x13AEBC0, 0x1100).ToImmutableArray()), LateLayerGeometry = new uint[] { 0x13A8508, 0x13AB5C0, 0x13AC1B8, 0x13ACDB0 }.Select((address, index) => new NativeBattleStaticMeshResource((byte)index, address, memory.Read(address, new int[] { 0x30B8, 0xBF8, 0xBF8, 0x1348 }[index]).ToImmutableArray())).ToImmutableArray(), BodyAnchorInput = memory.Read(0x13B7BB0, 8).ToImmutableArray(), LateTextureKinds = memory.Read(0x13EF42C, 21).ToImmutableArray(), FoldingProgram = new(0x13B17AC, memory.Read(0x13B17AC, 0x629C).ToImmutableArray()), EndingSounds = Enumerable.Range(0, 3).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(unchecked(0x13B7A50u + (uint)(index * 4)), 4))).ToImmutableArray() };
         resources.Validate();
         return resources;
     }

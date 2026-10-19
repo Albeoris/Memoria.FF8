@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public static class NativeBattleDiablos325Particles
+public static partial class NativeBattleDiablos325Particles
 {
     public const uint Descriptor = 0x2505190;
     public const uint Callback = 0x659960;
@@ -58,6 +58,10 @@ public static class NativeBattleDiablos325Particles
         NativeBattleEffectTaskStep advanced = pool.Advance((current, index) =>
         {
             NativeBattleModulePoolTask task = current.Slots[index];
+            if (task.Callback == 0x659860)
+            {
+                return Advance659860(frame, current, index, projection, billboard, colors, submit, next => frame = next);
+            }
             if (task.Callback != Callback)
             {
                 throw new NotSupportedException("Native Diablos particle callback was replaced.");

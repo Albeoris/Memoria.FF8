@@ -22,48 +22,66 @@ public static class NativeBattleDiablos325Body
         return Select6574D0(memory, task, 0);
     }
 
-    public static NativeBattleDiablos325BodyStep Select6574D0(NativeBattleEffectMemory memory, NativeBattleModulePoolTask task, byte selector)
+    public static NativeBattleDiablos325BodyStep InitializeSecondary6552FC(NativeBattleEffectMemory memory, NativeBattleModulePoolTask task, uint taskAddress)
+    {
+        NativeBattleDiablos325State state = NativeBattleDiablos325Entry.RequireState(memory);
+        NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native Diablos secondary body requires its current model arena.");
+        for (int offset = 0; offset < 32; offset += 4)
+        {
+            task = task.WriteDword(0x1E8 + offset, task.ReadDword(0x14C + offset));
+        }
+        uint resource = checked(state.ModelBuffer5208 + 0x31B5C);
+        task = task.WriteWord(0x1A8, 2).WriteDword(0x224, uint.MaxValue).WriteDword(0x234, 0).WriteDword(0x220, 0).WriteByte(0x209, 0).WriteByte(0x208, 0).WriteDword(0x210, checked(taskAddress + 0x254)).WriteDword(0x20C, checked(taskAddress + 0x254)).WriteByte(0x215, 0).WriteDword(0x1D0, 0x808080);
+        for (int index = 0; index < 4; index++)
+        {
+            uint relative = BinaryPrimitives.ReadUInt32LittleEndian(Read(arena, checked(resource + 4u + (uint)index * 4), 4));
+            task = task.WriteDword(0x254 + index * 4, unchecked(resource + relative));
+        }
+        return Select6574D0(memory, task, 0, 0x1A8, 0x254);
+    }
+
+    public static NativeBattleDiablos325BodyStep Select6574D0(NativeBattleEffectMemory memory, NativeBattleModulePoolTask task, byte selector, int modelBase = 0x10C, int directoryBase = 0x244)
     {
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native Diablos pose selection requires its current skeleton.");
-        byte flags = task.ReadByte(0x179);
+        byte flags = task.ReadByte(modelBase + 0x6D);
         RequireSpeed(flags);
-        uint skeleton = task.ReadDword(0x244);
+        uint skeleton = task.ReadDword(directoryBase);
         int count = Read(arena, skeleton, 1)[0];
-        ImmutableArray<byte> animations = Animations(arena, task);
+        ImmutableArray<byte> animations = Animations(arena, task, modelBase, directoryBase);
         NativeBattlePoseFirstFrame first = NativeBattlePoseDecoder.DecodeFirst509440(animations.AsSpan(), count, selector);
-        task = task.WriteByte(0x178, selector).WriteByte(0x179, (byte)((flags & 0xF3) | 4)).WriteWord(0x17A, first.ByteOffset).WriteWord(0x17C, first.BitOffset).WriteByte(0x17E, 1).WriteByte(0x17F, NativeBattlePoseDecoder.ReadFrameCounts(animations.AsSpan())[selector]);
-        return PublishPose(memory, task, first.Pose);
+        task = task.WriteByte(modelBase + 0x6C, selector).WriteByte(modelBase + 0x6D, (byte)((flags & 0xF3) | 4)).WriteWord(modelBase + 0x6E, first.ByteOffset).WriteWord(modelBase + 0x70, first.BitOffset).WriteByte(modelBase + 0x72, 1).WriteByte(modelBase + 0x73, NativeBattlePoseDecoder.ReadFrameCounts(animations.AsSpan())[selector]);
+        return PublishPose(memory, task, first.Pose, modelBase, directoryBase);
     }
 
-    public static NativeBattleDiablos325BodyStep Advance6FBDB0(NativeBattleEffectMemory memory, NativeBattleModulePoolTask task)
+    public static NativeBattleDiablos325BodyStep Advance6FBDB0(NativeBattleEffectMemory memory, NativeBattleModulePoolTask task, int modelBase = 0x10C, int directoryBase = 0x244)
     {
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native Diablos pose advancement requires its current skeleton.");
-        byte flags = task.ReadByte(0x179);
+        byte flags = task.ReadByte(modelBase + 0x6D);
         RequireSpeed(flags);
-        if (task.ReadByte(0x17E) >= task.ReadByte(0x17F))
+        if (task.ReadByte(modelBase + 0x72) >= task.ReadByte(modelBase + 0x73))
         {
-            return Select6574D0(memory, task, task.ReadByte(0x178));
+            return Select6574D0(memory, task, task.ReadByte(modelBase + 0x6C), modelBase, directoryBase);
         }
-        int skeleton = NativeBattleWaterExecutionFields.ArenaOffset(task.ReadDword(0x244), 1);
+        int skeleton = NativeBattleWaterExecutionFields.ArenaOffset(task.ReadDword(directoryBase), 1);
         int count = arena.Read(skeleton, 1)[0];
         NativeBattleDecodedPose pose = NativeBattleArenaPose.ReadCurrentPose(arena, skeleton, count);
-        NativeBattlePoseFirstFrame next = NativeBattlePoseDecoder.AdvanceRegular508F90(Animations(arena, task).AsSpan(), count, task.ReadByte(0x178), pose, task.ReadWord(0x17A), task.ReadWord(0x17C));
-        task = task.WriteWord(0x17A, next.ByteOffset).WriteWord(0x17C, next.BitOffset).WriteByte(0x17E, unchecked((byte)(task.ReadByte(0x17E) + 1))).WriteByte(0x179, (byte)((flags & 0xF3) | ((((flags >> 2) + 1) & 1) << 2)));
-        return PublishPose(memory, task, next.Pose);
+        NativeBattlePoseFirstFrame next = NativeBattlePoseDecoder.AdvanceRegular508F90(Animations(arena, task, modelBase, directoryBase).AsSpan(), count, task.ReadByte(modelBase + 0x6C), pose, task.ReadWord(modelBase + 0x6E), task.ReadWord(modelBase + 0x70));
+        task = task.WriteWord(modelBase + 0x6E, next.ByteOffset).WriteWord(modelBase + 0x70, next.BitOffset).WriteByte(modelBase + 0x72, unchecked((byte)(task.ReadByte(modelBase + 0x72) + 1))).WriteByte(modelBase + 0x6D, (byte)((flags & 0xF3) | ((((flags >> 2) + 1) & 1) << 2)));
+        return PublishPose(memory, task, next.Pose, modelBase, directoryBase);
     }
 
-    private static NativeBattleDiablos325BodyStep PublishPose(NativeBattleEffectMemory memory, NativeBattleModulePoolTask task, NativeBattleDecodedPose pose)
+    private static NativeBattleDiablos325BodyStep PublishPose(NativeBattleEffectMemory memory, NativeBattleModulePoolTask task, NativeBattleDecodedPose pose, int modelBase = 0x10C, int directoryBase = 0x244)
     {
-        int skeleton = NativeBattleWaterExecutionFields.ArenaOffset(task.ReadDword(0x244), 1);
+        int skeleton = NativeBattleWaterExecutionFields.ArenaOffset(task.ReadDword(directoryBase), 1);
         NativeBattleEffectArena arena = NativeBattleArenaPose.WritePose(memory.Arena!, skeleton, pose);
         arena = NativeBattleArenaPose.RestoreBoneMatrices(arena, skeleton, pose);
         return new(memory with { Arena = arena }, task);
     }
 
-    private static ImmutableArray<byte> Animations(NativeBattleEffectArena arena, NativeBattleModulePoolTask task)
+    private static ImmutableArray<byte> Animations(NativeBattleEffectArena arena, NativeBattleModulePoolTask task, int modelBase = 0x10C, int directoryBase = 0x244)
     {
-        uint start = task.ReadDword(0x24C);
-        int length = checked((int)(task.ReadDword(0x250) - start));
+        uint start = task.ReadDword(directoryBase + 8);
+        int length = checked((int)(task.ReadDword(directoryBase + 12) - start));
         return Read(arena, start, length).ToImmutableArray();
     }
 

@@ -8,7 +8,7 @@ public static class NativeBattleDiablos325AlternatePackets
 {
     public static NativeBattleGfGeometryBatch Emit657030(ReadOnlySpan<byte> face, IReadOnlyList<NativeBattleModuleProjectedVertex> vertices, int group, NativeBattleGfGeometryContext context, NativeBattleSummonColors? colors = null, Action<ushort>? observeDepth = null)
     {
-        if (group is not (1 or 5))
+        if (group is not (1 or 3 or 5 or 7))
         {
             throw new NotSupportedException("Native Diablos alternate packets require their reached flat or colored quad leaf.");
         }
@@ -18,6 +18,11 @@ public static class NativeBattleDiablos325AlternatePackets
             return new([attempt], 0);
         }
         int body = attempt.PacketLength;
+        if (group is 3 or 7)
+        {
+            NativeBattleGfGeometryAttempt mode = Mode(body, 8, 0xE1000220, primitive.Bucket);
+            return new([mode, attempt], checked(body + 8));
+        }
         int allocation = group == 1 ? 40 : 88;
         NativeBattleGfGeometryAttempt before = Mode(body, 8, 0xE1000220, primitive.Bucket);
         NativeBattleGfGeometryAttempt after = Mode(body + 8, allocation - body - 8, 0xE1000240, primitive.Bucket);

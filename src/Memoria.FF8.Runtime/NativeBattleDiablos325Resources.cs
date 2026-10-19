@@ -23,6 +23,9 @@ public sealed record NativeBattleDiablos325Resources(NativeBattleGfAnimationSour
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ImmutableArray<byte>? RingPuffSprite1 { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleDiablos325LateResources? LateResources { get; init; }
+
     public ImmutableArray<byte> ReadPuffSprite(uint address)
     {
         ImmutableArray<byte> data = address switch
@@ -45,6 +48,7 @@ public sealed record NativeBattleDiablos325Resources(NativeBattleGfAnimationSour
         {
             throw new InvalidDataException("Native Diablos requires its original opening programme and vibration bank.");
         }
+        LateResources?.Validate();
         Vibration.Validate();
         _ = new NativeBattleGfAnimationWorkspace(ImmutableArray.CreateRange(new byte[0xE0])).Initialize7016B0(OpeningProgramme, 0xE0);
     }

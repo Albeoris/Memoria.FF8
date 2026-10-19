@@ -9,6 +9,15 @@ public sealed record NativeBattlePandemona291Resources(NativeBattleEffectHeapAll
     public uint? BodySound { get; init; }
     public NativeBattleGfAnimationSource? SurfaceProgram { get; init; }
     public NativeBattleGfAnimationSource? RisingProgram { get; init; }
+    public System.Collections.Immutable.ImmutableArray<byte> BodyAnchorInput { get; init; } = [];
+    public System.Collections.Immutable.ImmutableArray<byte> LateTextureKinds { get; init; } = [];
+    public NativeBattleGfAnimationSource? FoldingProgram { get; init; }
+    public NativeBattleStaticMeshResource? EndingRingGeometry { get; init; }
+    public System.Collections.Immutable.ImmutableArray<byte> EndingRingParameters { get; init; } = [];
+    public NativeBattleStaticMeshResource? LateBackdrop { get; init; }
+    public NativeBattlePandemona291SpriteResource? LateSprite { get; init; }
+    public System.Collections.Immutable.ImmutableArray<NativeBattleStaticMeshResource> LateLayerGeometry { get; init; } = [];
+    public System.Collections.Immutable.ImmutableArray<uint> EndingSounds { get; init; } = [];
     public System.Collections.Immutable.ImmutableArray<NativeBattleStaticMeshResource> TrailModels { get; init; } = [];
     public System.Collections.Immutable.ImmutableArray<byte> TrailTrigonometry { get; init; } = [];
     public System.Collections.Immutable.ImmutableArray<byte> SurfaceTextureKinds { get; init; } = [];

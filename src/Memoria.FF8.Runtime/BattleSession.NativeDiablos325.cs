@@ -47,6 +47,80 @@ public sealed partial class BattleSession
                         return particle with { Memory = particle.Memory with { PrimitiveProcess = written.Process } };
                     });
                 },
+                PresentRecipients = (current, task) =>
+                {
+                    NativeBattleDiablos325RecipientServices services = new(actor => graphics.Models[actor], (actor, model) => graphics = graphics with { Models = graphics.Models.SetItem(actor, model) }, actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Diablos recipient requires its current original rig."), actor =>
+                    {
+                        NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
+                        ImmutableArray<NativeBattleRawMesh> body = resource.Geometry ?? throw new NotSupportedException("Native Diablos recipient requires its current original body geometry.");
+                        ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Native Diablos recipient requires its actual linked geometry presence.");
+                        if (!linked.IsEmpty && (resource.LinkedGeometryUsesBodySkeleton ?? throw new NotSupportedException("Native Diablos recipient requires its original linked skeleton layout.")))
+                        {
+                            if (body.Length < 2 || linked.Length != 1)
+                            {
+                                throw new InvalidDataException("Native Diablos recipient shared weapon requires its actual geometry slot.");
+                            }
+                            body = body.SetItem(1, linked[0]);
+                        }
+                        return body;
+                    }, (active, actor, scale) =>
+                    {
+                        var drawn = DrawNativeDiablosRecipient657CB0(active, actor, scale, graphics);
+                        graphics = drawn.Graphics;
+                        return drawn.Frame;
+                    });
+                    NativeBattleDiablos325ProgrammeStep advanced = NativeBattleDiablos325Recipients.Advance654E7E(current, task, nativeActionPackets, services);
+                    NativeBattleDiablos325BodyDraw ground = NativeBattleDiablos325Ground.Draw659730(advanced.Frame, task.ReadWord(0xC), NativeCamera?.Projection ?? throw new NotSupportedException("Native Diablos sink requires its current projection."), definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Native Diablos sink requires its original interpolation constants."));
+                    return new(SubmitCommon(advanced.Frame, ground), advanced.Task);
+                },
+                RestoreRecipients = (current, task) =>
+                {
+                    int headerIndex = current.Effect.Parameters?.HeaderIndex7C ?? throw new NotSupportedException("Native Diablos actor restoration requires its retained action header.");
+                    int count = nativeActionPackets.Headers[headerIndex].ReadByte(0x10);
+                    for (int index = 0; index < count; index++)
+                    {
+                        int actor = NativeBattleDiablos325Recipients.ActorIndex(task.ReadDword(0x94 + index * 12));
+                        graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Flags0 = (ushort)(graphics.Models[actor].Flags0 & 0xFFF3) }) };
+                    }
+                    return current;
+                },
+                PresentFlash = (current, counter) => SubmitPrivate(current, new(current.Memory, NativeBattleDiablos325Flash.Emit659A10(counter)), 1),
+                ApplyContact = current =>
+                {
+                    int headerIndex = current.Effect.Parameters?.HeaderIndex7C ?? throw new NotSupportedException("Native Diablos contact requires its retained action header.");
+                    NativeEffectMemory = current.Memory;
+                    var pending = graphics.PendingContacts;
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = nativeActionPackets.ReadHeaderContacts506BA0(headerIndex) });
+                    graphics = graphics with { PendingContacts = pending };
+                    return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Diablos contact lost its current process memory.") };
+                },
+                StopVibration = (current, handle) =>
+                {
+                    NativeVibrationProcess = (NativeVibrationProcess ?? throw new NotSupportedException("Native Diablos completion requires its retained vibration process.")).Stop4A2940(handle);
+                    return current;
+                },
+                PresentLateProgramme = (current, task, second) =>
+                {
+                    NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Diablos late programme requires its current projection.");
+                    NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Native Diablos late programme requires its original color interpolation constants.");
+                    NativeBattleDiablos325ProgrammeDraw draw = second ? NativeBattleDiablos325LateProgramme.Advance654CE5(current, task, projection, colors) : NativeBattleDiablos325LateProgramme.Advance654BF8(current, task, projection, colors);
+                    return new(SubmitCommon(current, new(draw.Memory, draw.Packets)), draw.Task);
+                },
+                PresentSecondaryBody = (current, task) =>
+                {
+                    NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Diablos secondary body requires its current projection.");
+                    bool hardware = definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Native Diablos secondary body requires its current hardware capability.");
+                    NativeBattleDiablos325BodyDraw draw = NativeBattleDiablos325RawBodyDrawing.Draw6A79B0(current.Memory, task, projection, hardware, 0x1A8, 0x254);
+                    return new(SubmitCommon(current, draw), task);
+                },
+                DrawTrails = current => SubmitPrivate(current, NativeBattleDiablos325Trail.Draw657F00(current, NativeCamera?.Projection ?? throw new NotSupportedException("Native Diablos trails require their current projection."))),
+                PresentLateStatic = (current, counter) => SubmitPrivate(current, NativeBattleDiablos325LateStatic.Draw654DDC(current, counter, NativeCamera?.Projection ?? throw new NotSupportedException("Native Diablos late model requires its current projection."), definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Native Diablos late model requires its original color interpolation constants."))),
+                UploadLateTexture = (current, source) =>
+                {
+                    NativeBattleEffectTextureState textures = current.Memory.Textures ?? throw new NotSupportedException("Native Diablos late texture requires its current upload queue.");
+                    textures = textures.EnqueueArenaTim505E30(current.Memory.Arena ?? throw new NotSupportedException("Native Diablos late texture requires its actual source arena."), NativeBattleWaterExecutionFields.ArenaOffset(source, 1)).State;
+                    return current with { Memory = current.Memory with { Textures = textures } };
+                },
                 PresentShapes = (current, task) =>
                 {
                     NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Diablos shapes require their current projection.");
@@ -61,7 +135,11 @@ public sealed partial class BattleSession
                 {
                     NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Diablos body requires its current projection.");
                     NativeBattleDiablos325BodyDraw drawn;
-                    if (task.ReadWord(0xC) >= 167)
+                    if (task.ReadWord(0xC) is >= 268 and <= 327)
+                    {
+                        drawn = NativeBattleDiablos325BodyDrawing.Draw6574F0(current.Memory, task, projection, -8892, 0, 128);
+                    }
+                    else if (task.ReadWord(0xC) >= 167)
                     {
                         bool hardware = definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Native Diablos ordinary body requires its current hardware capability.");
                         drawn = NativeBattleDiablos325RawBodyDrawing.Draw6A79B0(current.Memory, task, projection, hardware);
@@ -156,6 +234,24 @@ public sealed partial class BattleSession
                 return current;
             }, inputs);
         }
+        NativeBattleDiablos325Frame SubmitCommon(NativeBattleDiablos325Frame current, NativeBattleDiablos325BodyDraw draw)
+        {
+            NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Diablos drawing requires its current ordering table.");
+            NativeBattlePrimitiveProcess process = draw.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Diablos drawing requires its current COMMON packet owner.");
+            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, draw.Packets);
+            graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
+            return current with { Memory = draw.Memory with { PrimitiveProcess = written.Process } };
+        }
+
+        NativeBattleDiablos325Frame SubmitPrivate(NativeBattleDiablos325Frame current, NativeBattleDiablos325BodyDraw draw, ushort flags = 0)
+        {
+            NativeBattleDiablos325State state = NativeBattleDiablos325Entry.RequireState(draw.Memory);
+            NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Diablos drawing requires its current ordering table.");
+            NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(draw.Memory, checked((int)(state.PacketCursor51D0 - state.ModelBuffer5208)), primitive.Pending, draw.Packets, flags);
+            graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
+            return current with { Memory = written.Memory with { Diablos325 = state with { PacketCursor51D0 = checked(state.ModelBuffer5208 + (uint)written.Cursor) } } };
+        }
+
         NativeEffectMemory = frame.Memory;
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
