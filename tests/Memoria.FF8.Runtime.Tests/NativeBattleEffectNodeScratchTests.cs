@@ -7,6 +7,23 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffectNodeScratchTests
 {
     [Fact]
+    public void Prefix_quad_stores_preserve_unknown_padding_and_separate_tail_alias()
+    {
+        NativeBattleActionMatrix matrix = new([1, 2, 3, 4, 5, 6, 7, 8, 9], -123, 456, 789, 4096);
+        NativeBattleEffectNodeScratch scratch = NativeBattleEffectNodeScratch.Unknown().WriteQuadMatrix(matrix);
+        Assert.Equal((byte)0, scratch.KnownMask);
+        Assert.Equal((short)9, BinaryPrimitives.ReadInt16LittleEndian(scratch.ReadPrefix(16, 2)));
+        Assert.Throws<NotSupportedException>(() => scratch.ReadPrefix(18, 2));
+        Assert.Equal(-123, BinaryPrimitives.ReadInt32LittleEndian(scratch.ReadPrefix(20, 4)));
+        Assert.Throws<NotSupportedException>(() => scratch.ReadPrefix(32, 8));
+        scratch = scratch.WritePrefix(18, new byte[] { 0xAB, 0xCD }).WriteSpriteMatrix(matrix);
+        Assert.Equal(new byte[] { 0xAB, 0xCD }, scratch.ReadPrefix(18, 2));
+        NativeBattleEffectNodeScratch restored = JsonSerializer.Deserialize<NativeBattleEffectNodeScratch>(JsonSerializer.Serialize(scratch))!;
+        Assert.Equal(JsonSerializer.Serialize(scratch.WriteQuadMatrix(matrix)), JsonSerializer.Serialize(restored.WriteQuadMatrix(matrix)));
+        Assert.Equal(new byte[40], NativeBattleEffectNodeScratch.FromColdProcess().ReadPrefix(0, 40));
+    }
+
+    [Fact]
     public void Partial_writes_preserve_unknown_and_retained_words_through_JSON()
     {
         NativeBattleEffectNodeScratch unknown = NativeBattleEffectNodeScratch.Unknown();

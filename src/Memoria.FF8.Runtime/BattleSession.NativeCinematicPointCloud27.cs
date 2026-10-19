@@ -57,15 +57,18 @@ public sealed partial class BattleSession
         return (frame, graphics);
     }
 
-    private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) AppendNativeCinematicPackets(NativeBattleWaterExecutionFrame current, uint output, uint ordering, NativeBattleGfGeometryBatch batch, NativeBattleGraphicsState graphics)
+    private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) AppendNativeCinematicPackets(NativeBattleWaterExecutionFrame current, uint output, uint? ordering, NativeBattleGfGeometryBatch batch, NativeBattleGraphicsState graphics, ushort flags20 = 0)
     {
-        int bucket = OtBucket(ordering);
-        batch = batch with { Attempts = batch.Attempts.Select(attempt => attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { Bucket = bucket } } : attempt).ToImmutableArray() };
+        if (ordering is uint tableAddress)
+        {
+            int bucket = OtBucket(tableAddress);
+            batch = batch with { Attempts = batch.Attempts.Select(attempt => attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { Bucket = bucket } } : attempt).ToImmutableArray() };
+        }
         NativeBattleEffectMemory memory = RequireWaterMemory() with { Arena = current.Arena, ScriptedEffects = current.Core };
         NativeBattlePrimitiveFrame primitiveFrame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native cinematic packets require their current ordering table.");
         if (output >= NativeBattleEffectNodeMemory.ArenaAddress && output - NativeBattleEffectNodeMemory.ArenaAddress <= NativeBattleEffectArena.Length)
         {
-            NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(memory, checked((int)(output - NativeBattleEffectNodeMemory.ArenaAddress)), primitiveFrame.Pending, batch);
+            NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(memory, checked((int)(output - NativeBattleEffectNodeMemory.ArenaAddress)), primitiveFrame.Pending, batch, flags20);
             memory = written.Memory;
             graphics = graphics with { PrimitiveFrame = primitiveFrame with { Pending = written.Ordering } };
         }
@@ -76,7 +79,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Native cinematic output disagrees with its COMMON packet cursor.");
             }
-            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitiveFrame.Pending, batch);
+            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitiveFrame.Pending, batch, flags20);
             memory = memory with { PrimitiveProcess = written.Process };
             graphics = graphics with { PrimitiveFrame = primitiveFrame with { Pending = written.Ordering } };
         }

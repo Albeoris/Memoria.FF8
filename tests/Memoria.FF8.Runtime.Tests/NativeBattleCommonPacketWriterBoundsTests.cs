@@ -7,6 +7,57 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleCommonPacketWriterBoundsTests
 {
     [Theory]
+    [InlineData(52, 88)]
+    [InlineData(52, 104)]
+    [InlineData(8, 12)]
+    public void Native_allocation_may_reserve_untouched_bytes_after_its_complete_logical_command(int commandBytes, int allocatedBytes)
+    {
+        NativeBattlePrimitiveProcess process = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400();
+        int start = process.ByteCursor!.Value;
+        byte[] original = Enumerable.Repeat((byte)0xA7, allocatedBytes).ToArray();
+        process = process.ApplyCommonWrites([new(start, original.ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, allocatedBytes).ToImmutableArray())]);
+        byte[] data = new byte[allocatedBytes];
+        data[3] = checked((byte)(commandBytes / 4 - 1));
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4), commandBytes == 8 ? 0xE1000220u : 0x3C808080u);
+        ImmutableArray<uint> words = Enumerable.Range(0, commandBytes / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(index * 4))).ToImmutableArray();
+        NativeBattleGfPacketByteState[] mask = new NativeBattleGfPacketByteState[allocatedBytes];
+        Array.Fill(mask, NativeBattleGfPacketByteState.Known, 0, commandBytes);
+        NativeBattleGfGeometryBatch batch = new([new(0, data.ToImmutableArray(), mask.ToImmutableArray(), new(17, words, []))], allocatedBytes);
+        NativeBattleLogicalOrdering beforeOrdering = Ordering(process.PacketBank!, process.PacketBuffer);
+        NativeBattleCommonPacketWrite result = NativeBattleCommonPacketArena.Append(process, beforeOrdering, batch);
+        Assert.Equal(start + allocatedBytes, result.Process.ByteCursor);
+        Assert.Equal(original.AsSpan(commandBytes).ToArray(), result.Process.ReadCommonPacket(start + commandBytes, allocatedBytes - commandBytes));
+        Assert.Equal(words.Length, Assert.Single(result.Ordering.Packets, packet => packet.Reference.ByteOffset == start).Words.Length);
+        if (allocatedBytes - commandBytes >= 8)
+        {
+            Assert.False(Assert.Single(result.Ordering.Packets, packet => packet.Reference.ByteOffset == start + commandBytes).RequiresPhysicalRead);
+        }
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(start, original) };
+        NativeBattleEffectPacketWrite effect = NativeBattleEffectPacketArena.Append(memory, start, Ordering("20DFAB8", 0), batch);
+        Assert.Equal(start + allocatedBytes, effect.Cursor);
+        Assert.Equal(original.AsSpan(commandBytes).ToArray(), effect.Memory.Arena!.Read(start + commandBytes, allocatedBytes - commandBytes));
+        if (allocatedBytes - commandBytes >= 8)
+        {
+            Assert.False(Assert.Single(effect.Ordering.Packets, packet => packet.Reference.ByteOffset == start + commandBytes).RequiresPhysicalRead);
+        }
+        NativeBattlePrimitiveProcess restored = JsonSerializer.Deserialize<NativeBattlePrimitiveProcess>(JsonSerializer.Serialize(result.Process))!;
+        Assert.Equal(result.Process.ReadCommonPacket(start, allocatedBytes), restored.ReadCommonPacket(start, allocatedBytes));
+        Assert.Equal(original, process.ReadCommonPacket(start, allocatedBytes));
+        NativeBattleGfGeometryBatch truncated = batch with { Attempts = [batch.Attempts[0] with { Primitive = new(17, words.RemoveAt(words.Length - 1), []) }] };
+        Assert.Throws<InvalidDataException>(() => NativeBattleCommonPacketArena.Append(process, NativeBattleLogicalOrdering.Clear(), truncated));
+
+        NativeBattleLogicalOrdering Ordering(string bank, byte buffer)
+        {
+            NativeBattleLogicalOrdering.Builder ordering = new(NativeBattleLogicalOrdering.Clear());
+            if (allocatedBytes - commandBytes >= 8)
+            {
+                ordering.Prepend(17, new(bank, buffer, start + commandBytes), [0x01000000, 0xE1000240], 0, []);
+            }
+            return ordering.ToImmutable();
+        }
+    }
+
+    [Theory]
     [InlineData("off_B6D070", 0x1C000)]
     [InlineData("off_B6D094", 0x24000)]
     public void Accepted_common_packet_can_span_existing_slices_and_restore_the_same_physical_alias(string bank, int stride)

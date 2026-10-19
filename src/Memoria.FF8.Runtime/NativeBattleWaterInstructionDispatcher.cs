@@ -219,7 +219,7 @@ public static class NativeBattleWaterInstructionDispatcher
     public static NativeBattleWaterExecutionFrame UpdateCurrent(NativeBattleWaterExecutionFrame frame, int resource1Length)
     {
         NativeBattleWaterSlotBank bank = CurrentBank(frame, resource1Length);
-        ImmutableArray<byte> active = ReadSlot(frame, 0x18, 1)[0] == 3 ? ActiveOrder(frame) : [];
+        ImmutableArray<byte> active = ReadSlot(frame, 0x18, 1)[0] is 3 or 7 ? ActiveOrder(frame) : [];
         return frame with { Arena = NativeBattleWaterSlots.UpdateSelected(frame.Arena, bank, CurrentIndex(frame, bank), active) };
     }
 
@@ -239,7 +239,7 @@ public static class NativeBattleWaterInstructionDispatcher
         return ExecuteVector(frame, program, resources.Files[1].Data.Length);
     }
 
-    public static NativeBattleWaterExecutionFrame ExecuteVector(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, int resource1Length)
+    public static NativeBattleWaterExecutionFrame ExecuteVector(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, int resource1Length, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame>? updateCurrent = null)
     {
         uint pc = CoreDword(frame, 0x2797450);
         uint relative = unchecked(pc - program.Address);
@@ -253,7 +253,7 @@ public static class NativeBattleWaterInstructionDispatcher
         frame = WriteCoreDword(frame, 0x2797450, unchecked(program.Address + (uint)vector.NextOffset));
         if (vector.PostAction == NativeBattleWaterVectorPostAction.RefreshPosition)
         {
-            frame = CacheCurrent(UpdateCurrent(frame, resource1Length), resource1Length);
+            frame = CacheCurrent(updateCurrent is null ? UpdateCurrent(frame, resource1Length) : updateCurrent(frame), resource1Length);
         }
         else if (vector.PostAction == NativeBattleWaterVectorPostAction.RefreshAcceleration)
         {

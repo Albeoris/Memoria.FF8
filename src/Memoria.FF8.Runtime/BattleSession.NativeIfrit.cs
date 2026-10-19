@@ -143,6 +143,10 @@ public sealed partial class BattleSession
             int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank);
             switch (opcode)
             {
+                case 0xF2:
+                    return NativeBattleCinematicControlCommands.BakeCachedPositionF2(current);
+                case 0x1A:
+                    return NativeBattleCinematicControlCommands.RegisterUpdateBlock1A(current, program);
                 case 0x1C:
                     return NativeBattleCinematicControlCommands.StoreRelative1C(current, program);
                 case 0xB0:
@@ -295,7 +299,7 @@ public sealed partial class BattleSession
                         return (frame.WriteTemporaryDword(0xFC, selected.Directory), selected.Selected);
                     });
                 case >= 0xA and <= 0x17:
-                    return NativeBattleWaterInstructionDispatcher.ExecuteVector(current, program, assets[1].Data.Length);
+                    return NativeBattleWaterInstructionDispatcher.ExecuteVector(current, program, assets[1].Data.Length, frame => UpdateSlot(frame, ReadSlot(frame, 0x18, 1)[0]));
                 case 7:
                 case 0xA0:
                 case 0xA1:
@@ -422,6 +426,7 @@ public sealed partial class BattleSession
                 case 0x59:
                     return NativeBattleWaterParticleCommands.Execute(current, program);
                 case 0x63:
+                case 0x69:
                 case 0x6A:
                 case 0xC4:
                 case 0x67:
@@ -434,6 +439,10 @@ public sealed partial class BattleSession
                     return NativeBattleScriptedSoundCommands.ExecuteC3(current, (NativeGlobalSoundProcess ?? throw new NotSupportedException("Native cinematic sound control requires its current backend owner.")).Backend);
                 case 0xCF:
                     return selectedHandler is 0xAFCBE0 or 0xAF1830 ? NativeBattleWaterContextCommands.ExecuteRing(current, context) : current;
+                case 0x5B:
+                    var bone = ExecuteNativeCinematicBone5B(current, program, profile, resources, assets[1].Data.Length, graphics, UpdateSlot);
+                    graphics = bone.Graphics;
+                    return bone.Frame;
                 case 0x96:
                     if (selectedHandler is not (0xB16F60 or 0xAF2760))
                     {
@@ -456,10 +465,14 @@ public sealed partial class BattleSession
 
         NativeBattleWaterExecutionFrame UpdateSlot(NativeBattleWaterExecutionFrame current, byte kind)
         {
-            NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "bone_table", kind, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.BoneTable + 4u * kind), 4)));
+            uint handler = NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "bone_table", kind, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.BoneTable + 4u * kind), 4)));
+            if (handler == 0xB264A0)
+            {
+                return current;
+            }
             NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, assets[1].Data.Length);
             int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank);
-            ImmutableArray<byte> active = kind == 3 ? current.Core.Read(0x2797454, 128).ToImmutableArray() : [];
+            ImmutableArray<byte> active = kind is 3 or 7 ? current.Core.Read(0x2797454, 128).ToImmutableArray() : [];
             return current with { Arena = NativeBattleWaterSlots.UpdateSelected(current.Arena, bank, index, active) };
         }
 
@@ -468,6 +481,18 @@ public sealed partial class BattleSession
             return NativeBattleCinematicDraw.Run(profile, current, PrepareLighting, (frame, kind) =>
             {
                 uint selectedDrawHandler = NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "draw_table", kind, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.DrawTable + 4u * kind), 4)));
+                if (selectedDrawHandler == 0xAF6040)
+                {
+                    var clone = DrawNativeCinematicActorClone48(frame, assets[1].Data.Length, graphics);
+                    graphics = clone.Graphics;
+                    return clone.Frame;
+                }
+                if (selectedDrawHandler is 0xB01290 or 0xB1A130 or 0xB0D690 or 0xAE8E20)
+                {
+                    var ribbon = DrawNativeCinematicRibbon37(frame, assets[1].Data.Length, graphics);
+                    graphics = ribbon.Graphics;
+                    return ribbon.Frame;
+                }
                 if (selectedDrawHandler == 0xAE4C70)
                 {
                     var scanlines = DrawNativeCinematicScanlines37(frame, graphics);
@@ -479,6 +504,12 @@ public sealed partial class BattleSession
                     var points = DrawNativeCinematicPointCloud27(frame, assets[1].Data.Length, graphics);
                     graphics = points.Graphics;
                     return points.Frame;
+                }
+                if (selectedDrawHandler == 0xB594B0)
+                {
+                    var wave = DrawNativeCinematicWave(frame, assets[1].Data.Length, resources, graphics);
+                    graphics = wave.Graphics;
+                    return wave.Frame;
                 }
                 if (selectedDrawHandler == 0xB1E6C0)
                 {

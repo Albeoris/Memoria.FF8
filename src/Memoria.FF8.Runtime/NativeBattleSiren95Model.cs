@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Buffers.Binary;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -18,12 +19,22 @@ public static class NativeBattleSiren95Model
     public static NativeBattleEffectOwnedModelResource ReadCurrentResource(NativeBattleEffectMemory memory, uint address)
     {
         NativeBattleGfAnimationSource current = NativeBattleSiren95Io.ReadProgrammeSource(memory, address);
-        int[] sections = Enumerable.Range(0, 5).Select(index => NativeBattleDatDirectory.Section(current.Data.AsSpan(), index)).ToArray();
+        if (current.Data.Length < 24 || BinaryPrimitives.ReadInt32LittleEndian(current.Data.AsSpan()) != 4)
+        {
+            throw new InvalidDataException("Native Siren model requires its current four-section directory.");
+        }
+        int length = BinaryPrimitives.ReadInt32LittleEndian(current.Data.AsSpan().Slice(20));
+        if (length < 24 || length > current.Data.Length)
+        {
+            throw new InvalidDataException("Native Siren model declared extent leaves its current file bytes.");
+        }
+        ImmutableArray<byte> bounded = current.Data.Slice(0, length);
+        int[] sections = Enumerable.Range(0, 5).Select(index => NativeBattleDatDirectory.Section(bounded.AsSpan(), index)).ToArray();
         if (sections[4] < 24 || sections[4] > current.Data.Length || sections[0] < 24 || sections.Zip(sections.Skip(1), (left, right) => left <= right).Any(ordered => !ordered))
         {
             throw new InvalidDataException("Native Siren model sections leave their current supplied file bytes.");
         }
-        ImmutableArray<byte> bytes = current.Data.Slice(0, sections[4]);
+        ImmutableArray<byte> bytes = bounded;
         NativeBattlePoseSource pose = new(bytes.Slice(sections[0], sections[1] - sections[0]), bytes.Slice(sections[2], sections[3] - sections[2]));
         pose.Validate();
         return new(address, bytes, pose, NativeBattleRawGeometryReader.Read(bytes.Slice(sections[1], sections[2] - sections[1]).ToArray(), pose.BoneCount));

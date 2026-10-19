@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -7,11 +8,15 @@ public sealed partial record NativeBattleSiren95State([property: JsonRequired] N
     public const uint GlobalAddress = 0x257F8A0;
     public const int GlobalLength = 0x10454;
 
-    public static NativeBattleSiren95State FromColdProcess() => new(NativeBattleEffectArena.Clear(), 0x258EAA8) { CameraAddress15339D0 = 0x258E7B0 };
+    public static NativeBattleSiren95State FromColdProcess() => new(NativeBattleEffectArena.Clear(), 0x258EAA8) { CameraAddress15339D0 = 0x258E7B0, StaticNodeDataKnownCold = true };
 
     public void Validate()
     {
         Globals.Validate();
+        if (StaticNodeData is { } nodeData && (nodeData.IsDefault || nodeData.Length != 0x1294))
+        {
+            throw new InvalidDataException("Native Siren static node data requires its complete retained physical span.");
+        }
         if (Io is { } io)
         {
             if (io.Script.IsDefault || io.Script.Length != 0x180)
@@ -24,6 +29,11 @@ public sealed partial record NativeBattleSiren95State([property: JsonRequired] N
             throw new InvalidDataException("Native Siren module globals leave their physical span.");
         }
     }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<byte>? StaticNodeData { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool StaticNodeDataKnownCold { get; init; }
 
     public NativeBattleSiren95IoState? Io { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

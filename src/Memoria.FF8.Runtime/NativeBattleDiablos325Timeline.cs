@@ -15,7 +15,11 @@ public static class NativeBattleDiablos325Timeline
                 throw new NotSupportedException("Native Diablos timeline callback was replaced.");
             }
             ushort counter = task.ReadWord(0xC);
-            if (counter >= 9)
+            if (counter >= 31)
+            {
+                throw new NotSupportedException("Native Diablos65473A well model requires its original current primitive model services.");
+            }
+            if (counter >= 9 && inputs.PresentProgramme is null)
             {
                 throw new NotSupportedException("Native Diablos656B70 opening programme requires its original current transform and primitive resource services.");
             }
@@ -36,8 +40,20 @@ public static class NativeBattleDiablos325Timeline
             }
             else
             {
-                state = state with { Flash51E8 = checked(256u + (uint)(counter - 1) * 512) };
+                state = state with { Flash51E8 = counter <= 8 ? checked(256u + (uint)(counter - 1) * 512) : 4096u };
                 memory = memory with { Diablos325 = state };
+            }
+            if (counter >= 9)
+            {
+                NativeBattleDiablos325ProgrammeStep presented = inputs.PresentProgramme!(frame with { Memory = memory }, task);
+                frame = presented.Frame;
+                task = presented.Task;
+                memory = frame.Memory;
+            }
+            if (NativeBattleDiablos325Entry.RequireState(memory).Mode51F0 == 3)
+            {
+                frame = (inputs.DrawPuffs ?? throw new NotSupportedException("Native Diablos requires its original projected puff drawing service."))(frame with { Memory = memory });
+                memory = frame.Memory;
             }
             NativeBattleEffectIoAdvance advanced = NativeBattleEffectIo.Advance534210(memory);
             frame = frame with { Memory = advanced.Memory };
@@ -48,6 +64,10 @@ public static class NativeBattleDiablos325Timeline
             if (counter == 0)
             {
                 inputs.PlaySound!(resources.Sounds[0], 1, 128);
+            }
+            if (counter == 0 || counter >= 9)
+            {
+                frame = (inputs.PresentTail ?? throw new NotSupportedException("Native Diablos requires its executed camera and puff tail services."))(frame, counter);
             }
             task = task.WriteWord(0xC, checked((ushort)(counter + 1)));
             frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(12, task.Payload.AsSpan()) } };

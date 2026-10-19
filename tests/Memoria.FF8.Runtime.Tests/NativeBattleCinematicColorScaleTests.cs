@@ -5,6 +5,20 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleCinematicColorScaleTests
 {
     [Theory]
+    [InlineData(0, 0x3A000000u)]
+    [InlineData(1, 0x3A000000u)]
+    [InlineData(2048, 0x3A204080u)]
+    [InlineData(4096, 0x3A4080FFu)]
+    public void RawIr0UsesUnshiftedDepthFraction(short ir0, uint expected)
+    {
+        NativeBattleScriptedColorRegisters registers = NativeBattleScriptedColorRegisters.Unknown() with { Material = 0x3A000000, Rgb = [1, 2, 3] };
+        NativeBattleCinematicColorScaleResult result = NativeBattleCinematicColorScale.ScaleRawIr0(0x3A4080FF, ir0, registers);
+        Assert.Equal(expected, result.Color);
+        Assert.Equal(new uint?[] { 2, 3, expected }, result.Registers.Rgb);
+        Assert.Equal(0u, result.Registers.Flags);
+    }
+
+    [Theory]
     [InlineData(256, 0x2C80C0FFu, 0x3480C0FFu, 0u)]
     [InlineData(512, 0x2C0080FEu, 0x34FFFFFFu, 0x00380000u)]
     [InlineData(-256, 0x2C804001u, 0x34000000u, 0x00380000u)]

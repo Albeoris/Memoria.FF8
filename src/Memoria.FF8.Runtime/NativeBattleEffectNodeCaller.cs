@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-internal sealed record NativeBattleEffectNodeCallerPolicy(uint SourceAddress, int SourceLength, uint Callback, int EmitterCapacity, int GeometryCapacity, bool FullLife, int WorkOffset = 0x10000, bool CommonSprites = false)
+internal sealed record NativeBattleEffectNodeCallerPolicy(uint SourceAddress, int SourceLength, uint Callback, int EmitterCapacity, int GeometryCapacity, bool FullLife, int WorkOffset = 0x10000, bool CommonSprites = false, bool AllowMode3 = false)
 {
     internal int EmitterBytes => checked(EmitterCapacity * 0x6C);
     internal int GeometryBytes => checked(GeometryCapacity * 0x2A0);
@@ -43,7 +43,7 @@ internal static class NativeBattleEffectNodeCaller
         {
             throw new InvalidDataException("Native Recover context has a different callback or source owner.");
         }
-        if (task.ReadWord(0x29C) != 0 && (task.ReadWord(0x29C) != 2 || dogOrigins is null))
+        if (task.ReadWord(0x29C) != 0 && !(profile.AllowMode3 && task.ReadWord(0x29C) == 3) && (task.ReadWord(0x29C) != 2 || dogOrigins is null))
         {
             throw new NotSupportedException("Native Recover's first proved node context requires mode0; Dog mode2 is not supplied.");
         }
@@ -62,7 +62,37 @@ internal static class NativeBattleEffectNodeCaller
         return frame with { State = retained, Effect = frame.Effect with { Pools = hierarchy.Write(taskAddress, task).Pools } };
     }
 
-    public static NativeBattleRecover93NodeStep Advance74F6E0(NativeBattleEffectNodeCallerPolicy profile, NativeBattleRecover93NodeFrame frame, uint taskAddress, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors colors, Func<NativeBattleEffectNodeBank, uint, int, byte, ImmutableArray<byte>>? resourceUpdate = null)
+    public static NativeBattleRecover93NodeFrame InitializeCurrent(NativeBattleEffectNodeCallerPolicy profile, NativeBattleRecover93NodeFrame frame, uint taskAddress, NativeBattleActionPacketsState packets, Func<int, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource)
+    {
+        frame.State.Validate(profile.SourceLength, profile.EmitterBytes, profile.GeometryBytes);
+        NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
+        NativeBattleModulePoolTask task = hierarchy.Read(taskAddress);
+        if (task.Callback != profile.Callback || task.ReadDword(0x30) != profile.SourceAddress)
+        {
+            throw new InvalidDataException("Native node context has a different callback or current source owner.");
+        }
+        ushort mode = task.ReadWord(0x29C);
+        if (mode != 0 && !(profile.AllowMode3 && mode == 3))
+        {
+            throw new NotSupportedException("Native node current-source initialization requires a closed placement mode.");
+        }
+        ImmutableArray<byte> current = frame.State.Data ?? throw new NotSupportedException("Native node initialization requires its actual mutable source bytes.");
+        uint flag = BinaryPrimitives.ReadUInt32LittleEndian(current.AsSpan());
+        if (flag != frame.State.InitializationFlag)
+        {
+            throw new InvalidDataException("Native node relocation flag differs from its current source header.");
+        }
+        if (flag == 0)
+        {
+            byte[] relocated = NativeBattleEffectNodeBankFixups.Relocate(current, profile.SourceAddress);
+            BinaryPrimitives.WriteUInt32LittleEndian(relocated, 1);
+            frame = frame with { State = frame.State with { InitializationFlag = 1, Data = relocated.ToImmutableArray() } };
+        }
+        task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Native nodes require their actual action parameters."), packets, readModel, readPoseSource, profile.SourceAddress);
+        return frame with { Effect = frame.Effect with { Pools = hierarchy.Write(taskAddress, task).Pools } };
+    }
+
+    public static NativeBattleRecover93NodeStep Advance74F6E0(NativeBattleEffectNodeCallerPolicy profile, NativeBattleRecover93NodeFrame frame, uint taskAddress, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors colors, Func<NativeBattleEffectNodeBank, uint, int, byte, ImmutableArray<byte>>? resourceUpdate = null, Func<NativeBattleEffectNodeMemory, int, byte[], NativeBattleEffectNodeMeshInstance>? prepareMeshOverride = null)
     {
         frame.State.Validate(profile.SourceLength, profile.EmitterBytes, profile.GeometryBytes);
         if (new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(taskAddress).Callback != profile.Callback)
@@ -107,6 +137,10 @@ internal static class NativeBattleEffectNodeCaller
 
             NativeBattleEffectNodeMeshInstance PrepareMesh(int node, byte[] source)
             {
+                if (prepareMeshOverride is not null)
+                {
+                    return prepareMeshOverride(memory, node, source);
+                }
                 short sourceFlags = BinaryPrimitives.ReadInt16LittleEndian(source.AsSpan(0x3A));
                 short fade = unchecked((short)memory.Word(node + 0x1CE));
                 uint flags = sourceFlags == 0 ? 0x30u : 0;

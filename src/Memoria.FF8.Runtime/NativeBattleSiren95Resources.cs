@@ -24,6 +24,12 @@ public sealed record NativeBattleSiren95Resources(ImmutableArray<byte> IoScript,
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleFullscreenOverlayProgram? OverlayProgram { get; init; }
 
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleEffectHeapAllocation? NodeSchedule { get; init; }
+
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleEffectHeapAllocation? StaticNodeSource { get; init; }
+
     public void Validate()
     {
         Vibration?.Bank.Validate();

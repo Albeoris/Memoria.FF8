@@ -5,6 +5,25 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleCinematicControlCommands
 {
+    public static NativeBattleWaterExecutionFrame BakeCachedPositionF2(NativeBattleWaterExecutionFrame frame)
+    {
+        for (int lane = 0; lane < 3; lane++)
+        {
+            int value = unchecked((short)SlotWord(frame, 0x94 + lane * 2));
+            frame = WriteSlotDword(frame, 0x5C + lane * 4, unchecked((uint)(value << 16)));
+        }
+        frame = frame with { Arena = frame.Arena.Write(SlotOffset(frame, 0x18, 1), [0]) };
+        return NativeBattleScriptedCommandReads.Advance(frame, 2);
+    }
+
+    public static NativeBattleWaterExecutionFrame RegisterUpdateBlock1A(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program)
+    {
+        ushort operand = BinaryPrimitives.ReadUInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
+        frame = frame with { Arena = frame.Arena.Write(SlotOffset(frame, 0x18, 1), [(byte)(operand >> 8)]) };
+        frame = WriteSlotDword(frame, 0xA0, unchecked(CoreDword(frame, 0x2797450) + 4));
+        return NativeBattleScriptedCommandReads.Advance(frame, unchecked((uint)(4 + (operand & 15) * 2)));
+    }
+
     public static NativeBattleWaterExecutionFrame StoreRelative1C(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program)
     {
         short displacement = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));

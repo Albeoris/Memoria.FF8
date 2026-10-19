@@ -12,6 +12,27 @@ public sealed class NativeBattleWaterSlotCommandTests
     private static readonly NativeBattleWaterSlotBank Bank = new(FileOffset, 0x858, 8, SlotsOffset);
 
     [Fact]
+    public void Type_seven_reads_the_live_update_block_and_wraps_signed_motion_with_reference_cached_WORDs()
+    {
+        NativeBattleEffectArena arena = Create().Write(Address(0, 0x18), [7]).Write(0x2000, [5, 0]);
+        arena = Dword(arena, 0, 0xA0, unchecked((int)(NativeBattleEffectNodeMemory.ArenaAddress + 0x2000)));
+        arena = Word(arena, 1, 0x12, 5);
+        int[] motion = [-65536, int.MinValue, int.MaxValue];
+        ushort[] origin = [0, 32767, 1];
+        for (int lane = 0; lane < 3; lane++)
+        {
+            arena = Dword(arena, 0, 0x5C + lane * 4, motion[lane]);
+            arena = Word(arena, 1, 0x94 + lane * 2, origin[lane]);
+        }
+        NativeBattleEffectArena result = NativeBattleWaterSlots.UpdateSelected(arena, Bank, 0, Order(1));
+        Assert.Equal(new ushort[] { 65535, 65535, 32768 }, Enumerable.Range(0, 3).Select(lane => ReadWord(result, 0, 0x94 + lane * 2)));
+        NativeBattleEffectArena restored = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(arena))!;
+        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleWaterSlots.UpdateSelected(restored, Bank, 0, Order(1))));
+        NativeBattleEffectArena empty = Dword(Create().Write(Address(0, 0x18), [7]), 0, 0xA0, 0);
+        Assert.Equal(JsonSerializer.Serialize(empty), JsonSerializer.Serialize(NativeBattleWaterSlots.UpdateSelected(empty, Bank, 0, [])));
+    }
+
+    [Fact]
     public void InitializationClearsOnlySuffixAndUsesActualTicksAndHeader()
     {
         NativeBattleEffectArena arena = Create().Write(SlotsOffset, Enumerable.Repeat((byte)0xA5, 0x100).ToArray()).MarkUnknown(SlotsOffset, 4).MarkUnknown(SlotsOffset + 0x100, 0x100);

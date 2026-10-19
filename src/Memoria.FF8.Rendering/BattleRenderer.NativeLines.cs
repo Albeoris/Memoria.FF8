@@ -57,8 +57,11 @@ public sealed partial class BattleRenderer
 
     private Vector2 NativePrimitivePosition(uint coordinate, uint flags, NativeBattlePrimitiveDrawMode mode)
     {
-        short signedX = unchecked((short)coordinate);
-        short signedY = unchecked((short)(coordinate >> 16));
+        return NativePrimitivePosition(unchecked((short)coordinate), unchecked((short)(coordinate >> 16)), flags, mode);
+    }
+
+    private Vector2 NativePrimitivePosition(int signedX, int signedY, uint flags, NativeBattlePrimitiveDrawMode mode)
+    {
         if (mode.NormalViewport is not null || mode.ViewportInputs is not null)
         {
             NativeSoftwareNormalViewportDerived viewport = mode.NormalViewport ?? throw new NotSupportedException("Native primitive viewport requires its retained derived outputs.");

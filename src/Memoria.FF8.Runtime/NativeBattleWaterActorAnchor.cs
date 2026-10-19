@@ -12,7 +12,18 @@ public static class NativeBattleWaterActorAnchor
 {
     public static NativeBattleWaterActorAnchorResult EvaluateB66B80(NativeBattleWaterExecutionFrame frame, ImmutableArray<byte> skeleton, ImmutableArray<NativeBattleActionMatrix> localBones, short selector, int fraction, NativeBattleActionMatrix basis)
     {
-        if (skeleton.IsDefaultOrEmpty || skeleton[0] == 0 || skeleton.Length < 0x10 + 0x30 * skeleton[0] || localBones.IsDefault || localBones.Length != skeleton[0])
+        if (skeleton.IsDefaultOrEmpty)
+        {
+            throw new NotSupportedException("Native actor anchor requires its actual skeleton and current local posed bone matrices.");
+        }
+        return EvaluateB66B80(frame, skeleton.Length, (offset, length) => skeleton.AsSpan().Slice(offset, length).ToArray(), localBones, selector, fraction, basis);
+    }
+
+    public static NativeBattleWaterActorAnchorResult EvaluateB66B80(NativeBattleWaterExecutionFrame frame, int skeletonLength, Func<int, int, byte[]> readMetadata, ImmutableArray<NativeBattleActionMatrix> localBones, short selector, int fraction, NativeBattleActionMatrix basis)
+    {
+        ArgumentNullException.ThrowIfNull(readMetadata);
+        int count = readMetadata(0, 1)[0];
+        if (count == 0 || skeletonLength < 0x10 + 0x30 * count || localBones.IsDefault || localBones.Length != count)
         {
             throw new NotSupportedException("Native actor anchor requires its actual skeleton and current local posed bone matrices.");
         }
@@ -20,18 +31,18 @@ public static class NativeBattleWaterActorAnchor
         if (selector >= 0xF0)
         {
             int alias = selector - 0xEC;
-            if (alias >= skeleton.Length)
+            if (alias >= skeletonLength)
             {
                 throw new NotSupportedException("Native actor anchor alias leaves its supplied skeleton owner.");
             }
-            bone = skeleton[alias] & 0x7F;
+            bone = readMetadata(alias, 1)[0] & 0x7F;
         }
         if (bone < 0 || bone >= localBones.Length)
         {
             throw new NotSupportedException("Native actor anchor selector leaves its actual decoded skeleton.");
         }
         frame = frame.WriteTemporaryDword(0xC0, 0);
-        short parent = BinaryPrimitives.ReadInt16LittleEndian(skeleton.AsSpan().Slice(0x10 + bone * 0x30));
+        short parent = BinaryPrimitives.ReadInt16LittleEndian(readMetadata(0x10 + bone * 0x30, 2));
         short distance = 0;
         if (parent >= 0)
         {
@@ -39,7 +50,7 @@ public static class NativeBattleWaterActorAnchor
             {
                 throw new NotSupportedException("Native actor anchor parent leaves its actual skeleton records.");
             }
-            short length = BinaryPrimitives.ReadInt16LittleEndian(skeleton.AsSpan().Slice(0x10 + parent * 0x30 + 2));
+            short length = BinaryPrimitives.ReadInt16LittleEndian(readMetadata(0x10 + parent * 0x30 + 2, 2));
             distance = unchecked((short)(unchecked(length * fraction) >> 12));
         }
         frame = frame.WriteTemporaryWord(0xC4, unchecked((ushort)distance));

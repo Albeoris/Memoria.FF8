@@ -91,6 +91,20 @@ public static class NativeBattleWaterParticles
                     }
                 }
                 break;
+            case 0x15:
+                short positionSelector = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
+                int positionIndex = NativeBattleWaterSlots.LookupB65370(frame.Arena, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank), frame.Core.Read(0x2797454, 128).ToImmutableArray(), positionSelector);
+                int positionSlot = bank.SlotOffset(frame.Arena, positionIndex);
+                for (int lane = 0; lane < 3; lane++)
+                {
+                    if ((instruction & (0x4000 >> lane)) != 0)
+                    {
+                        byte[] coordinate = frame.Arena.Read(positionSlot + 0x94 + lane * 2, 2);
+                        frame = frame with { Arena = frame.Arena.Write(ParticleOffset(frame, 0x22 + lane * 2, 2), coordinate) };
+                    }
+                }
+                next = 4;
+                break;
             case 7:
                 int sequenceIndex = instruction >> 8;
                 frame = ParticleByte(frame, 0x4A, 0);

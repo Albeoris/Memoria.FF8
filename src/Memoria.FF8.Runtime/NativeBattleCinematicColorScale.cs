@@ -8,8 +8,12 @@ public static class NativeBattleCinematicColorScale
 {
     public static NativeBattleCinematicColorScaleResult ScaleB66A20(uint command, short factor, NativeBattleScriptedColorRegisters registers)
     {
+        return ScaleRawIr0(command, unchecked((short)(factor << 4)), registers);
+    }
+
+    public static NativeBattleCinematicColorScaleResult ScaleRawIr0(uint command, short ir0, NativeBattleScriptedColorRegisters registers)
+    {
         registers.Validate();
-        short ir0 = unchecked((short)(factor << 4));
         double coefficient = ir0 * (double)(1f / 4096f);
         int[] mac = new int[3];
         int[] ir = new int[3];

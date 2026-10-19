@@ -24,6 +24,7 @@ public static class NativeBattleDiablos325Controller
             bool alternate = task.ReadByte(0xE) == 0;
             state = state with { PacketCursor51D0 = unchecked(state.ModelBuffer5208 + (alternate ? 0xF85Cu : 0x885Cu)), Flash51E8 = 0 };
             task = task.WriteByte(0xE, alternate ? (byte)1 : (byte)0);
+            frame = frame with { Memory = frame.Memory with { Diablos325 = state } };
             if (task.ReadWord(0xC) == 2 && state.Pause5180 == 0 && task.ReadByte(0xF) == 0)
             {
                 if (inputs is null)

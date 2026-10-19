@@ -55,7 +55,7 @@ public sealed partial class BattleRenderer
                 DrawNativePrimitiveLine(frame, resolved);
                 continue;
             }
-            if ((command.Opcode & 0xFC) == 0x60)
+            if ((command.Opcode & 0xFC) is 0x60 or 0x68)
             {
                 DrawNativePrimitiveTile(frame, resolved);
                 continue;
@@ -198,19 +198,25 @@ public sealed partial class BattleRenderer
         {
             return;
         }
-        if (command.Words.Length != 3)
+        bool point = (command.Opcode & 0xFC) == 0x68;
+        if (command.Words.Length != (point ? 2 : 3))
         {
-            throw new InvalidDataException("Native variable TILE requires its original RGB, XY and WH words.");
+            throw new InvalidDataException("Native TILE requires its original RGB, XY and selected size fields.");
         }
         int blend = resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native TILE requires its executed ABR.");
         NativeBattlePrimitiveColor diffuse = (frame.LastColorState ?? throw new NotSupportedException("Native TILE requires its retained PC color owner.")).Untextured(command.Words[0], semi, blend);
-        ImmutableArray<NativeBattlePrimitiveDepthVertex> vertices = (frame.LastDepthState ?? throw new NotSupportedException("Native TILE requires its retained depth dispatch owner.")).Project461220(command.OrderingBucket ?? throw new InvalidDataException("Native TILE lacks its original bucket."), false, command.Flags20, []);
+        bool perspective = !command.VertexPayload4.IsEmpty && command.VertexPayload4[0] != 0 && (frame.LastDescriptorPerspective ?? throw new NotSupportedException("Native TILE requires its executed descriptor depth mode."));
+        ImmutableArray<int> depths = command.VertexPayload4.IsEmpty ? [] : Enumerable.Repeat(command.VertexPayload4[0], 4).ToImmutableArray();
+        ImmutableArray<NativeBattlePrimitiveDepthVertex> vertices = (frame.LastDepthState ?? throw new NotSupportedException("Native TILE requires its retained depth dispatch owner.")).Project461220(command.OrderingBucket ?? throw new InvalidDataException("Native TILE lacks its original bucket."), perspective, command.Flags20, depths);
         int x = unchecked((short)command.Words[1]);
         int y = unchecked((short)(command.Words[1] >> 16));
-        int width = (ushort)command.Words[2];
-        int height = (ushort)(command.Words[2] >> 16);
-        float unit = (command.Flags20 & 1) != 0 ? 1 : 0.125f;
-        PrimitiveVertex At(int px, int py) => new(px * unit * Width / 320, py * unit * Height / 216, vertices[0].Depth, 1, Vector2.Zero, diffuse.Rgb, diffuse.Alpha);
+        int width = point ? (command.Flags20 & 1) != 0 ? 1 : 8 : (ushort)command.Words[2];
+        int height = point ? width : (ushort)(command.Words[2] >> 16);
+        PrimitiveVertex At(int px, int py)
+        {
+            Vector2 position = NativePrimitivePosition(px, py, command.Flags20, resolved.DrawMode);
+            return new(position.X, position.Y, vertices[0].Depth, vertices[0].ReciprocalW, Vector2.Zero, diffuse.Rgb, diffuse.Alpha);
+        }
         PrimitiveVertex a = At(x, y);
         PrimitiveVertex b = At(x + width, y);
         PrimitiveVertex c = At(x, y + height);

@@ -12,6 +12,37 @@ public sealed class NativeBattleWaterMatrixCommandTests
     private static readonly NativeBattleWaterSlotBank Bank = new(0x2000, 0x400, 4, 0x2000);
 
     [Fact]
+    public void Matrix69_postmultiplies_both_selected_rotations_in_order_without_reading_the_unused_WORD_or_translations()
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0x69);
+        frame = WaterSchedulerFixture.SlotWord(frame, 0, 0x12, 7);
+        frame = WaterSchedulerFixture.SlotWord(frame, 1, 0x12, 8);
+        frame = WaterSchedulerFixture.CoreWord(frame, 0x2797206, 7);
+        frame = WaterSchedulerFixture.CoreWord(frame, 0x2797208, 8);
+        frame = frame with { Core = frame.Core.Write(0x2797454, new byte[] { 0, 1, 0xFF }), Arena = frame.Arena.Write(0x1004, BitConverter.GetBytes((ushort)8)).MarkUnknown(0x1002, 2) };
+        frame = WriteMatrix(frame, MatrixBase, new([2048, 0, 0, 0, 4096, 0, 0, 0, 8192], 123, 456, 789, 4096));
+        frame = WriteMatrix(frame, MatrixBase + 64, new([4096, 0, 0, 0, 0, 4096, 0, -4096, 0], -12, -34, -56, 4096));
+        frame = Vector(frame, 0, 0x8C, new(0, 0, 1024));
+        frame = Vector(frame, 0, 0x94, new(-32768, -1, 32767));
+        frame = frame with { Core = frame.Core.MarkUnknown(MatrixBase + 18, 14).MarkUnknown(MatrixBase + 64 + 18, 14).MarkUnknown(MatrixBase + 32, 32) };
+        NativeBattleWaterExecutionFrame result = Run(frame);
+        // A positive quarter-turn around Z maps +X to +Y before either postmultiply.
+        short[] expected = [0, 0, -4096, 2048, 0, 0, 0, -8192, 0];
+        for (int lane = 0; lane < expected.Length; lane++)
+        {
+            Assert.Equal(unchecked((ushort)expected[lane]), ReadWord(result, MatrixBase + 32 + (uint)(lane * 2)));
+        }
+        Assert.Equal(unchecked((uint)-32768), WaterSchedulerFixture.ReadCoreDword(result, MatrixBase + 32 + 20));
+        Assert.Equal(uint.MaxValue, WaterSchedulerFixture.ReadCoreDword(result, MatrixBase + 32 + 24));
+        Assert.Equal(32767u, WaterSchedulerFixture.ReadCoreDword(result, MatrixBase + 32 + 28));
+        Assert.Equal((ushort)0, ReadWord(result, MatrixBase + 32 + 18));
+        Assert.Equal(Pc + 6, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+        Assert.Same(frame.TemporaryFrame, result.TemporaryFrame);
+        Assert.Same(frame.Random, result.Random);
+        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+    }
+
+    [Fact]
     public void AllocationExcludesRowZeroAndFindsFirstExistingBeforeEarlierFreeRow()
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0x67);

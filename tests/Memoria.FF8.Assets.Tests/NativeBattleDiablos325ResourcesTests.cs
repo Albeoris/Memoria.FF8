@@ -15,12 +15,22 @@ public sealed class NativeBattleDiablos325ResourcesTests
         NativeBattleDiablos325Resources resources = game.ReadNativeDiablos325Resources();
         Assert.Same(resources, game.ReadNativeDiablos325Resources());
         resources.Validate();
+        Assert.Equal(new byte[] { 0x30, 0x30, 0x31, 0x30 }, resources.PrimitiveKinds);
+        Assert.Equal(new byte[] { 0x30, 0x30, 0x30, 0x30 }, resources.TextureKinds);
         Assert.Equal(Enumerable.Range(727, 5).Select(id => (short)id), resources.Files.Select(file => file.FileId));
         Assert.Equal(new[] { "MAG324_H.00", "MAG324_H.01", "MAG324_H.02", "MAG324_H.03", "MAG324_H.04" }, resources.Files.Select(file => file.Name));
         Assert.All(resources.Files, file => Assert.NotEmpty(file.Data));
         Assert.Equal(new uint[] { 240248, 240251, 240254, 240257, 240260, 240263 }, resources.Sounds);
         Assert.Equal(0xFD8584u, resources.OpeningProgramme.Address);
         Assert.Equal(0x3890, resources.OpeningProgramme.Data.Length);
+        Assert.Equal(116, resources.PuffSprite.Length);
+        for (byte life = 1; life <= 27; life++)
+        {
+            NativeBattleGfGeometryBatch puffs = NativeBattleDiablos325PuffPackets.Emit6FC9E0(resources.PuffSprite, life, new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 1000, 4096), new(null, 288, 0, 0), 19);
+            Assert.Equal(48, puffs.AllocationBytes);
+            Assert.Equal(3, puffs.Attempts.Length);
+            Assert.Equal(0x2E808080u, puffs.Attempts[2].Primitive!.Words[1]);
+        }
         Assert.Equal(64, resources.Vibration.Offsets.Length);
         Assert.Equal(0, resources.Vibration.Offsets[0]);
         Assert.Equal(0x100, resources.Vibration.Offsets[1]);

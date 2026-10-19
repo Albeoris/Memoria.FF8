@@ -59,7 +59,8 @@ public sealed class NativeBattleDiablos325ConstructionTests
                 requests.Add(request);
                 return current;
             },
-            PlaySound = (sound, flags, pan) => sounds.Add((sound, flags, pan))
+            PlaySound = (sound, flags, pan) => sounds.Add((sound, flags, pan)),
+            PresentTail = (current, counter) => NativeBattleDiablos325OpeningTail.Advance656203(current, NativeBattleCameraState.FromColdProcess(), counter).Frame
         };
         NativeBattleDiablos325Frame result = NativeBattleDiablos325Controller.Advance654350(frame, inputs: inputs);
         Assert.Equal(2, result.Effect.Pools.Length);

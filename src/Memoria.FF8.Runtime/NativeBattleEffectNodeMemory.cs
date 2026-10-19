@@ -92,11 +92,36 @@ internal class NativeBattleEffectNodeMemory
             scratch = (scratch ?? NativeBattleEffectNodeScratch.Unknown()).WriteFlags(flags);
         }
     }
+    internal void WriteQuadMatrix(NativeBattleActionMatrix matrix)
+    {
+        if (UseSharedScratch)
+        {
+            scratch = (scratch ?? NativeBattleEffectNodeScratch.Unknown()).WriteQuadMatrix(matrix);
+        }
+    }
+
+    internal void WriteScratchPrefix(int offset, ReadOnlySpan<byte> bytes)
+    {
+        if (!UseSharedScratch)
+        {
+            throw new InvalidOperationException("Native scratch publication requires its shared physical owner.");
+        }
+        scratch = (scratch ?? NativeBattleEffectNodeScratch.Unknown()).WritePrefix(offset, bytes);
+    }
+
+    internal byte[] ReadScratchPrefix(int offset, int count) => (scratch ?? NativeBattleEffectNodeScratch.Unknown()).ReadPrefix(offset, count);
+
     internal void WriteSpriteMatrix(NativeBattleActionMatrix matrix)
     {
         if (UseSharedScratch)
         {
             scratch = (scratch ?? NativeBattleEffectNodeScratch.Unknown()).WriteSpriteMatrix(matrix);
+            byte[] rotation = new byte[8];
+            for (int index = 0; index < 4; index++)
+            {
+                System.Buffers.Binary.BinaryPrimitives.WriteInt16LittleEndian(rotation.AsSpan(index * 2), matrix.Rotation[index]);
+            }
+            scratch = scratch.WritePrefix(32, rotation);
         }
     }
 

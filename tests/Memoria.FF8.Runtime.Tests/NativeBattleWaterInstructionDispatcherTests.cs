@@ -15,6 +15,24 @@ public sealed class NativeBattleWaterInstructionDispatcherTests
     private const int SlotBase = File1 + 0x58;
 
     [Fact]
+    public void Vector_post_action_dispatches_the_selected_profile_after_PC_publication_then_refreshes_cached_motion()
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0xFC0A, 1, 2, 3, 4, 5, 6);
+        frame = frame with { Arena = frame.Arena.Write(SlotBase + 0x18, [0xFF]) };
+        int calls = 0;
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterInstructionDispatcher.ExecuteVector(frame, new(0x1000, 16, Pc), Resources().Files[1].Data.Length, current =>
+        {
+            calls++;
+            Assert.Equal(10u, WaterSchedulerFixture.ReadCoreDword(current, 0x2797450));
+            Assert.Equal(4u << 16, Dword(current, SlotBase + 0x5C));
+            return PutDword(current, SlotBase + 0x50, 8u << 16);
+        });
+        Assert.Equal(1, calls);
+        Assert.Equal((ushort)8, Word(result, SlotBase + 0x8C));
+        Assert.Equal((byte)0xFF, result.Arena.Read(SlotBase + 0x18, 1)[0]);
+    }
+
+    [Fact]
     public void Fetch_reads_current_bounded_program_bytes_and_never_reuses_an_original_resource_copy()
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0x80D4, -2);

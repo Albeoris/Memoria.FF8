@@ -50,19 +50,32 @@ public static class NativeBattleCommonPacketArena
         ImmutableArray<NativeBattleCommonPacketStore>.Builder stores = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
         foreach (NativeBattleGfGeometryAttempt attempt in batch.Attempts)
         {
-            if (attempt is null || attempt.Data.IsDefaultOrEmpty || attempt.WriteMask.IsDefault || attempt.ByteOffsetRelative < 0 || (attempt.ByteOffsetRelative & 3) != 0 || (attempt.PacketLength & 3) != 0)
+            if (attempt is null || attempt.Data.IsDefaultOrEmpty || attempt.WriteMask.IsDefault || attempt.WriteMask.Length != attempt.Data.Length || attempt.ByteOffsetRelative < 0 || (attempt.ByteOffsetRelative & 3) != 0 || (attempt.PacketLength & 3) != 0)
             {
                 throw new InvalidDataException("Native common packet receipt lacks its original aligned stores and mask.");
             }
             int address = checked(start + attempt.ByteOffsetRelative);
-            links.InvalidatePacketRange(new(bank, process.PacketBuffer, address), attempt.PacketLength);
+            for (int offset = 0; offset < attempt.PacketLength;)
+            {
+                NativeBattleGfPacketByteState state = attempt.WriteMask[offset];
+                int runEnd = offset + 1;
+                while (runEnd < attempt.PacketLength && attempt.WriteMask[runEnd] == state)
+                {
+                    runEnd++;
+                }
+                if (state != NativeBattleGfPacketByteState.Untouched)
+                {
+                    links.InvalidatePacketRange(new(bank, process.PacketBuffer, checked(address + offset)), runEnd - offset);
+                }
+                offset = runEnd;
+            }
             stores.Add(new(address, attempt.Data, attempt.WriteMask));
             if (attempt.Primitive is not { } primitive)
             {
                 continue;
             }
             int end = checked(attempt.ByteOffsetRelative + attempt.PacketLength);
-            if (primitive.Words.Length * 4 != attempt.PacketLength || end > batch.AllocationBytes)
+            if (primitive.Words.IsDefaultOrEmpty || primitive.Words.Length < 1 + (primitive.Words[0] >> 24) || primitive.Words.Length * 4 > attempt.PacketLength || end > batch.AllocationBytes)
             {
                 throw new InvalidDataException("Native linked common packet leaves its accepted allocation.");
             }

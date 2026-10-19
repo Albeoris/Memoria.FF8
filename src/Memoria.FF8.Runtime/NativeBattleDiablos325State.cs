@@ -18,7 +18,11 @@ public sealed record NativeBattleDiablos325State([property: JsonRequired] uint P
     }
 }
 
-public sealed record NativeBattleDiablos325Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect);
+public sealed record NativeBattleDiablos325Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeCrtRandomState? Random { get; init; }
+}
 
 public sealed partial record NativeBattleEffectMemory
 {

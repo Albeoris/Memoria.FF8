@@ -121,6 +121,20 @@ public static class NativeBattleWaterMatrixCommands
                 frame = WriteCoreWord(frame, plainDestination + 18, 0);
                 advance = 4;
                 break;
+            case 0x69:
+                uint combinedDestination;
+                (frame, combinedDestination) = AllocateB65480(frame);
+                uint combinedReference = ResolveB65520(frame, bank, Operand(4));
+                frame = WriteRotation(frame, combinedDestination, NativeBattleGfMatrices.Euler56CD50(Angles(frame)));
+                frame = WriteRotation(frame, combinedDestination, NativeBattleGfMatrices.Multiply56C090(ReadRotation(frame, combinedDestination), ReadRotation(frame, 0x27979E8)));
+                frame = WriteRotation(frame, combinedDestination, NativeBattleGfMatrices.Multiply56C090(ReadRotation(frame, combinedDestination), ReadRotation(frame, combinedReference)));
+                for (int lane = 0; lane < 3; lane++)
+                {
+                    frame = WriteCoreDword(frame, combinedDestination + 20u + (uint)(lane * 4), unchecked((uint)(int)(short)SlotWord(frame, 0x94 + lane * 2)));
+                }
+                frame = WriteCoreWord(frame, combinedDestination + 18, 0);
+                advance = 6;
+                break;
             case 0x67:
                 uint destination;
                 (frame, destination) = AllocateB65480(frame);

@@ -10,6 +10,20 @@ public sealed class NativeBattleCuragaProjectedSpritesTests
     private static NativeBattleCameraProjection Projection => new(null, 1000, 0, 0);
 
     [Fact]
+    public void Quad_observer_runs_before_projection_rejection_with_each_actual_quad_matrix()
+    {
+        byte[] quad = Quad();
+        List<NativeBattleActionMatrix> observed = [];
+        ImmutableArray<byte> resource = Resource(false, quad);
+        NativeBattleActionMatrix input = Matrix with { Z = -1000 };
+        NativeBattleGfGeometryBatch batch = NativeBattleCuragaProjectedSprites.EmitBatch8DD260(resource, 0, input, Projection, 0, 17, 2, observeQuadMatrix: observed.Add);
+        NativeBattleActionMatrix actual = Assert.Single(observed);
+        NativeBattleActionMatrix expected = NativeBattlePoseMatrices.ModuleSpriteQuadCamera(input, quad);
+        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.All(batch.Attempts, attempt => Assert.Null(attempt.Primitive));
+    }
+
+    [Fact]
     public void Flags_zero_uses_copied_explicit_GTE_matrix_original_color_palette_and_clamped_UV_edges()
     {
         byte[] quad = Quad();

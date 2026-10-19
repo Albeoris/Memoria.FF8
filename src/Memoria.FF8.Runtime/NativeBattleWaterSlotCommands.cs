@@ -127,9 +127,24 @@ public static class NativeBattleWaterSlots
         switch (slot.Byte(0x18))
         {
             case 0:
+            case 1:
                 for (int lane = 0; lane < 3; lane++)
                 {
                     slot.Word(0x94 + 2 * lane, unchecked((ushort)(slot.Dword(0x5C + 4 * lane) >> 16)));
+                }
+                break;
+            case 7:
+                uint updateBlock = unchecked((uint)slot.Dword(0xA0));
+                if (updateBlock != 0)
+                {
+                    int blockOffset = NativeBattleWaterExecutionFields.ArenaOffset(updateBlock, 2);
+                    short selector = BinaryPrimitives.ReadInt16LittleEndian(arena.Read(blockOffset, 2));
+                    int selectedIndex = LookupB65370(arena, bank, index, activeOrder, selector);
+                    SlotAccess selected = new(arena, bank, selectedIndex);
+                    for (int lane = 0; lane < 3; lane++)
+                    {
+                        slot.Word(0x94 + lane * 2, unchecked((ushort)((slot.Dword(0x5C + lane * 4) >> 16) + selected.Word(0x94 + lane * 2))));
+                    }
                 }
                 break;
             case 3:

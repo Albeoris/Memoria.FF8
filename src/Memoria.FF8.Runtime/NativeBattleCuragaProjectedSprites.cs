@@ -12,7 +12,7 @@ public static class NativeBattleCuragaProjectedSprites
         return new(batch.Attempts.Where(attempt => attempt.Primitive is not null).Select(attempt => new NativeBattleAllocatedPrimitive(attempt.Primitive!, attempt.ByteOffsetRelative, 0)).ToImmutableArray(), batch.AllocationBytes);
     }
 
-    public static NativeBattleGfGeometryBatch EmitBatch8DD260(ImmutableArray<byte> resource, ushort phase, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift, short depthBias = 0, Action<NativeBattleActionMatrix>? observeRolledMatrix = null)
+    public static NativeBattleGfGeometryBatch EmitBatch8DD260(ImmutableArray<byte> resource, ushort phase, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift, short depthBias = 0, Action<NativeBattleActionMatrix>? observeRolledMatrix = null, Action<NativeBattleActionMatrix>? observeQuadMatrix = null)
     {
         if (resource.IsDefault || depthShift > 31)
         {
@@ -38,6 +38,7 @@ public static class NativeBattleCuragaProjectedSprites
         {
             ReadOnlySpan<byte> quad = Read(resource, checked(frame + 4 + index * 20), 20);
             NativeBattleActionMatrix current = NativeBattlePoseMatrices.ModuleSpriteQuadCamera(main, quad);
+            observeQuadMatrix?.Invoke(current);
             short width = (short)(8 * quad[0]);
             short height = (short)(8 * quad[2]);
             NativeBattleModuleProjectedVertex a = NativeBattleModuleProjection.Project45FE10(current, new(unchecked((short)-width), unchecked((short)-height), 0), projection);

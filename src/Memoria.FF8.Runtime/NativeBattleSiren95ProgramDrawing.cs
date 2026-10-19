@@ -5,6 +5,8 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleSiren95ProgramDrawServices(Func<NativeBattleSiren95Frame, NativeBattleGfGeometryBatch, uint?, NativeBattleSiren95Frame> Submit);
 
+public sealed record NativeBattleSiren95ProgramAdvance(NativeBattleSiren95Frame Frame, int Remaining);
+
 public static class NativeBattleSiren95ProgramDrawing
 {
     private static readonly (int Source, uint Destination)[] Copy73EB10 =
@@ -135,6 +137,11 @@ public static class NativeBattleSiren95ProgramDrawing
 
     public static NativeBattleSiren95Frame Advance73C280(NativeBattleSiren95Frame frame, uint address, NativeBattleGfAnimationSource source, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleSiren95ProgramDrawServices services)
     {
+        return AdvanceWithResult73C280(frame, address, source, view, projection, colors, services).Frame;
+    }
+
+    public static NativeBattleSiren95ProgramAdvance AdvanceWithResult73C280(NativeBattleSiren95Frame frame, uint address, NativeBattleGfAnimationSource source, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleSiren95ProgramDrawServices services)
+    {
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address);
         if (task.ReadDword(0x74) != source.Address || task.Payload.Length < 0x94 - 12)
@@ -208,6 +215,7 @@ public static class NativeBattleSiren95ProgramDrawing
                 u = task.ReadWord(mode == 1 || node.NodeIndex == 0 || mode == 2 ? 0x8C : 0x90);
                 after = new(0, 0, 128, 256);
             }
+            frame = frame with { Memory = frame.Memory with { NodeScratch2793E30 = NativeBattleSiren95Scratch.Programme(frame.Memory.NodeScratch2793E30, u, after) } };
             NativeBattleEsunaMeshContext operands = new(flags, far, fade, unchecked((short)task.ReadWord(0x88)), u, 0, full, after, 17, 2);
             int geometryEnd = node.GeometryIndex + 1 < ReadInt(source, 0) ? ReadInt(source, checked(12 + 4 * node.GeometryIndex)) : ReadInt(source, 4);
             ImmutableArray<byte> mesh = Source(geometry, checked(geometryEnd - geometry)).ToArray().ToImmutableArray();
@@ -274,7 +282,7 @@ public static class NativeBattleSiren95ProgramDrawing
         byte[] payload = task.Payload.ToArray();
         advanced.Workspace.Data.AsSpan().CopyTo(payload.AsSpan(0x94 - 12));
         task = task with { Payload = payload.ToImmutableArray() };
-        return frame with { Effect = frame.Effect with { Pools = new NativeBattleEffectHierarchy(frame.Effect.Pools).Write(address, task).Pools } };
+        return new(frame with { Effect = frame.Effect with { Pools = new NativeBattleEffectHierarchy(frame.Effect.Pools).Write(address, task).Pools } }, advanced.Remaining);
     }
 
     private static int ReadInt(NativeBattleGfAnimationSource source, int offset)

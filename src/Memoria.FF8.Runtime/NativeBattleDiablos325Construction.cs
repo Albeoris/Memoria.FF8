@@ -3,11 +3,15 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
+public sealed record NativeBattleDiablos325ProgrammeStep(NativeBattleDiablos325Frame Frame, NativeBattleModulePoolTask Task);
 public sealed record NativeBattleDiablos325Vibration(NativeBattleDiablos325Frame Frame, int Handle);
 public sealed record NativeBattleDiablos325Inputs(NativeBattleActionPacketsState Packets, Func<NativeBattleDiablos325Frame, NativeBattleDiablos325Vibration> StartVibration)
 {
     public Func<NativeBattleDiablos325Frame, NativeBattleEffectFileRequest, NativeBattleDiablos325Frame>? QueueFile { get; init; }
+    public Func<NativeBattleDiablos325Frame, ushort, NativeBattleDiablos325Frame>? PresentTail { get; init; }
+    public Func<NativeBattleDiablos325Frame, NativeBattleDiablos325Frame>? DrawPuffs { get; init; }
     public Action<uint, int, int>? PlaySound { get; init; }
+    public Func<NativeBattleDiablos325Frame, NativeBattleModulePoolTask, NativeBattleDiablos325ProgrammeStep>? PresentProgramme { get; init; }
 }
 
 public static class NativeBattleDiablos325Construction
