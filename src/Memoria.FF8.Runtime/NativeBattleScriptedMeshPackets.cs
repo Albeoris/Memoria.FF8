@@ -8,6 +8,10 @@ public static class NativeBattleScriptedMeshPackets
 {
     public static NativeBattleScriptedMeshSubmission EmitSelected(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, uint actualHandler, int shapeExtent, ImmutableArray<byte> projectedRecords, ImmutableArray<uint> depths, uint outputPointer, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveActualOtBucket, float depthScale = 1f)
     {
+        if (group.Type == 8 && actualHandler == 0xB11100)
+        {
+            return NativeBattleScriptedClippedMeshPackets.EmitFt3(frame, group, actualHandler, projectedRecords, depths, outputPointer, lighting, registers, resolveActualOtBucket, depthScale);
+        }
         if (group.Type == 9 && actualHandler is 0xB053E0 or 0xB11340)
         {
             return NativeBattleScriptedClippedMeshPackets.EmitGt3(frame, group, actualHandler, projectedRecords, depths, outputPointer, lighting, registers, resolveActualOtBucket, depthScale);

@@ -4,6 +4,10 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleCarbuncle278Resources(NativeBattleStaticMeshResource MirrorBoundsMesh)
 {
+    public NativeBattleStaticMeshResource? RecipientRingMesh { get; init; }
+    public NativeBattleStaticMeshResource? RecipientRayMesh { get; init; }
+    public NativeBattleModuleResource? RecipientShardSprite { get; init; }
+    public ImmutableArray<byte> RecipientPolarTable { get; init; } = [];
     public NativeBattleEffectOwnedModelResource? CreatureModel { get; init; }
     public ImmutableArray<NativeBattleEffectFileAsset> Files { get; init; } = [];
     public NativeBattleGfAnimationSource? RecipientProgramme { get; init; }

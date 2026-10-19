@@ -180,13 +180,13 @@ public sealed class NativeSoftwarePolygonPacketsTests
     }
 
     [Fact]
-    public void SemiVariantSelectsOnlyClosedWritersButAllOutsideStillUpdatesTextureMetadata()
+    public void SemiVariantSelectsTheNativeWriterAndAllOutsideStillUpdatesTextureMetadata()
     {
         byte[] packet = VisibleTriangle(0x26);
         BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(0x16), 0xE0);
         Assert.Equal((byte)6, Draw(Image(), Cache(), 0x26, packet).Polygon!.Flags);
         BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(0x16), 0xA0);
-        Assert.Throws<NotSupportedException>(() => Draw(Image(), Cache(), 0x26, packet));
+        Assert.Equal<byte?>(1, Draw(Image(), Cache(), 0x26, packet).Texture.Abr);
         byte[] outside = Packet(0x26);
         BinaryPrimitives.WriteUInt16LittleEndian(outside.AsSpan(0x16), 0xA0);
         NativeSoftwarePolygonPacketDraw rejected = Draw(Image(), Cache(), 0x26, outside);

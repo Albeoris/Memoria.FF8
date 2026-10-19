@@ -27,6 +27,10 @@ public sealed record NativeBattleEffectTextureDrain(NativeBattleEffectTextureSta
 /// <summary>505E30/505D20's32 physical16-byte slots and45BD30's retained1024x51216-bit VRAM.</summary>
 public sealed record NativeBattleEffectTextureState([property: JsonRequired] ImmutableArray<NativeBattleEffectTimUpload?> Slots, [property: JsonRequired] int Count, [property: JsonRequired] NativeBattleEffectAnimationRegisters? Animation, [property: JsonRequired] ImmutableArray<NativeBattleEffectMemoryRegion> VramRegions)
 {
+    public const int PcPageReadTailLength = 384;
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<byte>? VramReadTail { get; init; }
+
     public NativeBattleEffectTextureState Upload45BD30(short x, short y, short width, short height, ReadOnlySpan<byte> bytes)
     {
         Validate();
@@ -42,7 +46,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
         return this with { VramRegions = memory.Regions };
     }
 
-    public static NativeBattleEffectTextureState FromColdProcess() => new(ImmutableArray.CreateRange(new NativeBattleEffectTimUpload?[32]), 0, null, []);
+    public static NativeBattleEffectTextureState FromColdProcess() => new(ImmutableArray.CreateRange(new NativeBattleEffectTimUpload?[32]), 0, null, []) { VramReadTail = new byte[PcPageReadTailLength].ToImmutableArray() };
 
     public NativeBattleEffectTextureState Initialize500400()
     {
@@ -53,6 +57,10 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
 
     public void Validate()
     {
+        if (VramReadTail is { } tail && (tail.IsDefault || tail.Length != PcPageReadTailLength))
+        {
+            throw new InvalidDataException("Native PC texture captures require their complete retained trailing read window.");
+        }
         if (Slots.IsDefault || Slots.Length != 32 || Count is < 0 or > 31 || Slots.Take(Count).Any(slot => slot is null))
         {
             throw new InvalidDataException("Native texture upload state requires32 physical slots and its successful0..31 pending count.");

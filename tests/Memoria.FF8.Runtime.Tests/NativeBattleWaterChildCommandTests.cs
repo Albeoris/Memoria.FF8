@@ -155,6 +155,143 @@ public sealed class NativeBattleWaterChildCommandTests
         }
     }
 
+    [Fact]
+    public void Child9CUsesPreviousPhysicalSlotAncestryInsteadOfCurrentParent()
+    {
+        NativeBattleWaterExecutionFrame frame = Parent(Fixture(0x9C, 8));
+        frame = WaterSchedulerFixture.SlotDword(frame, 1, 0, 1);
+        frame = WaterSchedulerFixture.SlotWord(frame, 1, 0x12, 0xA1B2);
+        frame = WaterSchedulerFixture.SlotWord(frame, 1, 0x14, 0xC3D4);
+        frame = frame with { Core = frame.Core.Write(0x2797454, new byte[] { 0, 1, 0xFF, 0xFF }) };
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterChildCommands.Execute9C(frame, new(0x1000, 4, Pc), Bank, frame.TemporaryFrame.Address + 0x100);
+        Assert.Equal(NativeBattleEffectNodeMemory.ArenaAddress + 0x2200, result.ReadTemporaryDword(0xFC));
+        Assert.Equal((ushort)0xA1B2, WaterSchedulerFixture.ReadSlotWord(result, 2, 0x14));
+        Assert.Equal((ushort)0xC3D4, WaterSchedulerFixture.ReadSlotWord(result, 2, 0x16));
+        Assert.Equal((ushort)0x1234, WaterSchedulerFixture.ReadSlotWord(result, 0, 0x12));
+        Assert.Equal((ushort)100, WaterSchedulerFixture.ReadSlotWord(result, 2, 0x94));
+        Assert.Equal(Pc + 4, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+        Assert.Equal((ushort)0x9C, result.ReadTemporaryWord(0x14A));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Child9CFullCapacityStillCopiesThroughActualTemporaryCoreOrArenaPointer(int owner)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0x9C);
+        frame = frame with { Core = frame.Core.Write(0x2797457, new byte[] { 2 }).MarkUnknown(0x27973EC, 4), Arena = frame.Arena.MarkUnknown(0x1002, 2) };
+        uint pointer;
+        if (owner == 0)
+        {
+            pointer = frame.TemporaryFrame.Address + 0x100;
+            frame = frame.WriteTemporaryWord(0x12, 0x1234).WriteTemporaryWord(0x14, 0x5678);
+        }
+        else if (owner == 1)
+        {
+            pointer = NativeBattleScriptedEffectMemory.Address + 0x100;
+            frame = WaterSchedulerFixture.CoreWord(frame, pointer - 0xEE, 0x1234);
+            frame = WaterSchedulerFixture.CoreWord(frame, pointer - 0xEC, 0x5678);
+        }
+        else
+        {
+            pointer = NativeBattleEffectNodeMemory.ArenaAddress + 0x5000;
+            frame = frame with { Arena = frame.Arena.Write(0x4F12, new byte[] { 0x34, 0x12, 0x78, 0x56 }).MarkUnknown(0x4F16, 2) };
+        }
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterChildCommands.Execute9C(frame, new(0x1000, 2, Pc), Bank, pointer);
+        ushort first = owner == 0 ? result.ReadTemporaryWord(0x114) : owner == 1 ? BinaryPrimitives.ReadUInt16LittleEndian(result.Core.Read(pointer + 0x14, 2)) : BinaryPrimitives.ReadUInt16LittleEndian(result.Arena.Read(0x5014, 2));
+        ushort second = owner == 0 ? result.ReadTemporaryWord(0x116) : owner == 1 ? BinaryPrimitives.ReadUInt16LittleEndian(result.Core.Read(pointer + 0x16, 2)) : BinaryPrimitives.ReadUInt16LittleEndian(result.Arena.Read(0x5016, 2));
+        Assert.Equal((ushort)0x1234, first);
+        Assert.Equal((ushort)0x5678, second);
+        Assert.Equal(pointer, result.ReadTemporaryDword(0xFC));
+        Assert.Equal(Pc + 4, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+        Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x1002, 1));
+    }
+
+    [Fact]
+    public void Child9CFullCapacityDoesNotReplaceAnUnknownReturnedAddress()
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0x9C);
+        frame = frame with { Core = frame.Core.Write(0x2797457, new byte[] { 2 }) };
+        Assert.Throws<NotSupportedException>(() => NativeBattleWaterChildCommands.Execute9C(frame, new(0x1000, 2, Pc), Bank, 0x12345678));
+    }
+
+    [Fact]
+    public void ExtractedSpawnRetainsOrdinary32AndSnapshot9CSemantics()
+    {
+        NativeBattleWaterExecutionFrame ordinary = Parent(Fixture(0x32, 8));
+        Assert.Equal(JsonSerializer.Serialize(Run(ordinary)), JsonSerializer.Serialize(NativeBattleWaterChildCommands.Spawn(ordinary, new(0x1000, 6, Pc), Bank, ordinary.TemporaryFrame.Address + 0x100)));
+        NativeBattleWaterExecutionFrame frame = Parent(Fixture(0x9C, 8));
+        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame a = NativeBattleWaterChildCommands.Execute9C(frame, new(0x1000, 4, Pc), Bank, frame.TemporaryFrame.Address + 0x100);
+        NativeBattleWaterExecutionFrame b = NativeBattleWaterChildCommands.Execute9C(restored, new(0x1000, 4, Pc), Bank, restored.TemporaryFrame.Address + 0x100);
+        Assert.Equal(JsonSerializer.Serialize(a), JsonSerializer.Serialize(b));
+    }
+
+    [Fact]
+    public void Child5DRepeatsTheSameSpawnOperandAndWritesActorAfterItsUpdate()
+    {
+        NativeBattleWaterExecutionFrame frame = Parent(Fixture(0x5D, 8));
+        uint header = WaterSchedulerFixture.ReadCoreDword(frame, 0x279744C);
+        frame = WaterSchedulerFixture.CoreDword(frame, 0x2797624, frame.TemporaryFrame.Address);
+        frame = frame with { Core = frame.Core.Write(header + 0x41, new byte[] { 3 }).Write(header + 0x48, new byte[] { 5, 2, 7 }) };
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterChildCommands.Execute5D(frame, new(0x1000, 4, Pc), Bank, frame.TemporaryFrame.Address + 0x100);
+        for (int child = 1; child <= 3; child++)
+        {
+            Assert.Equal(Pc + 8, WaterSchedulerFixture.ReadSlotDword(result, child, 0));
+            Assert.Equal((ushort)100, WaterSchedulerFixture.ReadSlotWord(result, child, 0x94));
+        }
+        Assert.Equal(new byte[] { 0, 1, 2, 3 }, result.Core.Read(0x2797454, 4));
+        Assert.Equal((byte)5, result.Arena.Read(0x211B, 1)[0]);
+        Assert.Equal((byte)2, result.Arena.Read(0x221B, 1)[0]);
+        Assert.Equal((byte)7, result.Arena.Read(0x231B, 1)[0]);
+        Assert.Equal(Pc + 4, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+        Assert.Equal((ushort)0x5D, result.ReadTemporaryWord(0x14A));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(255)]
+    public void Child5DNonpositiveSignedCountDoesNotReadActorArrayOperandOrSpawnOwners(byte count)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0x5D);
+        uint header = WaterSchedulerFixture.ReadCoreDword(frame, 0x279744C);
+        frame = frame with { Core = frame.Core.Write(header + 0x41, new byte[] { count }).MarkUnknown(header + 0x48, 16).MarkUnknown(0x2797624, 4).MarkUnknown(0x27973EC, 4), Arena = frame.Arena.MarkUnknown(0x1002, 2) };
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterChildCommands.Execute5D(frame, new(0x1000, 2, Pc), Bank, 0);
+        Assert.Same(frame.Arena, result.Arena);
+        Assert.Equal(frame.TemporaryFrame, result.TemporaryFrame);
+        Assert.Equal(Pc + 4, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+    }
+
+    [Fact]
+    public void Child5DFullCapacityCarriesActualClobberedEcxBetweenIterations()
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0x5D);
+        uint header = WaterSchedulerFixture.ReadCoreDword(frame, 0x279744C);
+        frame = WaterSchedulerFixture.CoreDword(frame, 0x2797624, frame.TemporaryFrame.Address);
+        frame = frame with { Core = frame.Core.Write(header + 0x41, new byte[] { 3 }).Write(header + 0x48, new byte[] { 5, 7, 9 }).Write(0x2797457, new byte[] { 2 }).MarkUnknown(0x27973EC, 4), Arena = frame.Arena.MarkUnknown(0x1002, 2) };
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterChildCommands.Execute5D(frame, new(0x1000, 2, Pc), Bank, frame.TemporaryFrame.Address + 0x100);
+        Assert.Equal((byte)5, result.ReadTemporaryByte(0x11B));
+        Assert.Equal((byte)7, result.ReadTemporaryByte(0x20));
+        Assert.Equal((byte)9, result.ReadTemporaryByte(0x22));
+        Assert.Equal(frame.TemporaryFrame.Address + 7, result.ReadTemporaryDword(0xFC));
+        Assert.Equal(Pc + 4, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+        Assert.Same(frame.Arena, result.Arena);
+    }
+
+    [Fact]
+    public void Child5DStandaloneSnapshotKeepsTheSamePhysicalChildrenAndActorIds()
+    {
+        NativeBattleWaterExecutionFrame frame = Parent(Fixture(0x5D, 8));
+        uint header = WaterSchedulerFixture.ReadCoreDword(frame, 0x279744C);
+        frame = WaterSchedulerFixture.CoreDword(frame, 0x2797624, frame.TemporaryFrame.Address);
+        frame = frame with { Core = frame.Core.Write(header + 0x41, new byte[] { 2 }).Write(header + 0x48, new byte[] { 4, 6 }) };
+        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame first = NativeBattleWaterChildCommands.Execute5D(frame, new(0x1000, 4, Pc), Bank, frame.TemporaryFrame.Address + 0x100);
+        NativeBattleWaterExecutionFrame second = NativeBattleWaterChildCommands.Execute5D(restored, new(0x1000, 4, Pc), Bank, restored.TemporaryFrame.Address + 0x100);
+        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+    }
+
     private static NativeBattleWaterExecutionFrame Fixture(ushort instruction, ushort first = 0, ushort second = 0)
     {
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create().WriteTemporaryWord(0x14A, instruction);

@@ -60,7 +60,7 @@ public sealed class NativeSoftwarePolygonEdgesTests
     }
 
     [Fact]
-    public void TexturedPathComposesExistingUvEdgesAndOpaqueWriterAndRejectsOtherSelectedWriters()
+    public void TexturedPathComposesExistingUvEdgesAndNativeSpanDispatch()
     {
         NativeSoftwareRasterVertex[] vertices = [new(0, 0, 0, 0), new(4 << 16, 0, 4096, 0), new(0, 2, 0, 0)];
         byte[] image = Image();
@@ -69,8 +69,10 @@ public sealed class NativeSoftwarePolygonEdgesTests
         Assert.Equal((ushort)0x1111, Pixel(image, 0, 1));
         Assert.Equal((ushort)0x2222, Pixel(image, 1, 1));
         Assert.Equal(0, state.SegmentY);
-        Assert.Throws<NotSupportedException>(() => Draw(Image(), State(), Polygon(6, vertices, variant: 1)));
-        Assert.Throws<NotSupportedException>(() => NativeSoftwarePolygonEdges.Rasterize463DF0(Image(), State(), Polygon(2, vertices), NativeSoftwareReciprocalTable.Initialize463280(), 0, 8192, 12288));
+        byte[] additive = Image();
+        Draw(additive, State(), Polygon(6, vertices, variant: 1));
+        Assert.Equal((ushort)0x36B6, Pixel(additive, 0, 0));
+        Assert.Throws<NotSupportedException>(() => NativeSoftwarePolygonEdges.Rasterize463DF0(Image(), State(), Polygon(2, vertices), NativeSoftwareReciprocalTable.Initialize463280(), 3, 8192, 12288));
     }
 
     [Fact]

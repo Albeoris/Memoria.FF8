@@ -5,6 +5,24 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
+    private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicScanlines37(NativeBattleWaterExecutionFrame frame, NativeBattleGraphicsState graphics)
+    {
+        NativeBattleCinematicScanlines37Services services = new((current, command, factor) =>
+        {
+            NativeBattleEffectMemory memory = RequireWaterMemory();
+            NativeBattleScriptedColorRegisters registers = memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native cinematic scanlines require their retained color registers.");
+            NativeBattleCinematicColorScaleResult scaled = NativeBattleCinematicColorScale.ScaleB66A20(command, factor, registers);
+            NativeEffectMemory = memory with { ScriptedColorRegisters = scaled.Registers };
+            return new(current, scaled.Color);
+        }, (current, output, ordering, batch) =>
+        {
+            var written = AppendNativeCinematicPackets(current, output, ordering, batch, graphics);
+            graphics = written.Graphics;
+            return written.Frame;
+        });
+        return (NativeBattleCinematicScanlines37.Draw(frame, services), graphics);
+    }
+
     private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicPointCloud27(NativeBattleWaterExecutionFrame frame, int resourceLength, NativeBattleGraphicsState graphics)
     {
         NativeBattleActionMatrix? matrix = null;

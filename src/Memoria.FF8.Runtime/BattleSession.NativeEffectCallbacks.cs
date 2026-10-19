@@ -69,6 +69,10 @@ public sealed partial class BattleSession
         {
             return AdvanceNativeCinematic(graphics);
         }
+        if (effect.Binding.Effect == 95)
+        {
+            return RunNativeSiren95(graphics, false);
+        }
         if (effect.Binding.Effect == 90)
         {
             return RunNativeTonberry90(graphics, false);

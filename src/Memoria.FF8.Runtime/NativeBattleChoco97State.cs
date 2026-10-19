@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleChoco97State([property: JsonRequired] NativeBattleChoco97Context? Context, [property: JsonRequired] NativeBattleChoco97NodeState Nodes, [property: JsonRequired] NativeBattleChoco97IoState? Io, [property: JsonRequired] bool IoScriptKnownCold, [property: JsonRequired] NativeBattleChoco97IoBanks? PendingIoBanks, [property: JsonRequired] NativeBattleGfAnimationSource? ProgramSource, [property: JsonRequired] bool ProgramSourceKnownCold, [property: JsonRequired] NativeBattleEffectOwnedModelState? Model, [property: JsonRequired] NativeBattleMoogleCameraState? Camera, [property: JsonRequired] ImmutableArray<byte> MorphScratch, [property: JsonRequired] ImmutableArray<byte>? ProjectedScratch, [property: JsonRequired] uint? FreezePrimary, [property: JsonRequired] uint? FreezeSecondary, [property: JsonRequired] uint? NextAllocation, [property: JsonRequired] ImmutableArray<byte>? ViewCopy, [property: JsonRequired] int? PrivateBufferAliasOffset)
 {
-    public static NativeBattleChoco97State FromColdProcess() => new(null, NativeBattleChoco97NodeState.FromColdProcess(), null, true, new(0x19DB018, 0x13A68, NativeBattleEffectArena.Clear().MarkUnknown(0, 0x13A68)), null, true, null, null, new byte[0x3C0].ToImmutableArray(), null, null, null, null, null, null);
+    public static NativeBattleChoco97State FromColdProcess() => new(null, NativeBattleChoco97NodeState.FromColdProcess(), null, true, new(0x19D1018, 0x23600, NativeBattleEffectArena.Clear().MarkUnknown(0, 0x23600)), null, true, null, null, new byte[0x3C0].ToImmutableArray(), null, null, null, null, null, null);
 
     public void Validate()
     {
@@ -23,7 +23,7 @@ public sealed record NativeBattleChoco97State([property: JsonRequired] NativeBat
             throw new NotSupportedException("Native Choco97 initialized IO requires its retained script and target context.");
         }
         NativeBattleChoco97IoBanks banks = Io?.Banks ?? PendingIoBanks!;
-        if (banks.BaseAddress != 0x19DB018 || banks.Length != 0x13A68)
+        if (banks.BaseAddress > 0x19DB018 || (ulong)banks.BaseAddress + (uint)banks.Length < 0x19EEA80)
         {
             throw new InvalidDataException("Native Choco97 IO banks contradict their actual physical address span.");
         }

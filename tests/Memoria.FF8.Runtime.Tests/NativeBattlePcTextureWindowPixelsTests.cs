@@ -5,6 +5,31 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattlePcTextureWindowPixelsTests
 {
     [Fact]
+    public void Direct_page_reads_continue_linearly_into_the_retained_static_tail()
+    {
+        NativeBattleEffectTextureState owner = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(0, 511, 1, 1, [0xCD, 0xAB]).Upload45BD30(960, 511, 1, 1, [0x34, 0x12]);
+        owner = owner with { VramReadTail = owner.VramReadTail!.Value.SetItem(0, 0x78).SetItem(1, 0x56) };
+        NativeBattlePcTextureWindowPixels captured = NativeBattlePcTextureWindowPixels.Capture(95, new(0, 0, 256, 256), owner);
+        Assert.Equal((ushort)0xABCD, captured.ReadWord(1024, 510));
+        Assert.Equal((ushort)0x1234, captured.ReadWord(960, 511));
+        Assert.Equal((ushort)0x5678, captured.ReadWord(1024, 511));
+        Assert.Equal((ushort)0, captured.ReadWord(1215, 511));
+        captured.ValidateMapping(95, new(0, 0, 256, 256));
+        NativeBattleEffectTextureState restored = JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(owner))!;
+        Assert.Equal(captured.Data.ToArray(), NativeBattlePcTextureWindowPixels.Capture(95, new(0, 0, 256, 256), restored).Data.ToArray());
+        Assert.Equal(owner.VramReadTail, owner.Initialize500400().VramReadTail);
+    }
+
+    [Fact]
+    public void Missing_warm_tail_is_required_only_when_the_actual_read_reaches_it()
+    {
+        NativeBattleEffectTextureState unknown = NativeBattleEffectTextureState.FromColdProcess() with { VramReadTail = null };
+        NativeBattlePcTextureWindowPixels.Capture(31, new(0, 0, 256, 256), unknown);
+        Assert.Throws<NotSupportedException>(() => NativeBattlePcTextureWindowPixels.Capture(95, new(0, 0, 256, 256), unknown));
+        Assert.All(NativeBattleEffectTextureState.FromColdProcess().VramReadTail!.Value, value => Assert.Equal((byte)0, value));
+    }
+
+    [Fact]
     public void SameImmutableOwnerAndEqualRegionReturnTheSameCapturedPixelObject()
     {
         NativeBattleEffectTextureState owner = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(0, 0, 1, 1, [0x34, 0x12]);

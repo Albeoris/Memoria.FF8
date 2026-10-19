@@ -59,23 +59,64 @@ public static class NativeBattleCarbuncle278Controller
             NativeBattleEffectTaskStep step = pool.Advance((current, index) =>
             {
                 NativeBattleModulePoolTask task = current.Slots[index];
+                if (task.Callback is 0x683760 or 0x683330 or 0x6831D0)
+                {
+                    NativeBattleCarbuncle278ModelStep child = (inputs?.DrawRecipientChild ?? throw new NotSupportedException("Native Carbuncle recipient children require their original current geometry services."))(frame, task);
+                    frame = child.Frame;
+                    bool paused = NativeBattleCarbuncle278Entry.RequireState(frame.Memory).Pause8114 != 0;
+                    NativeBattleCarbuncle278ChildStep finished = task.Callback switch
+                    {
+                        0x683760 => NativeBattleCarbuncle278RecipientChildren.Finish683760(child.Task, paused),
+                        0x683330 => NativeBattleCarbuncle278RecipientChildren.Finish683330(child.Task, paused),
+                        _ => NativeBattleCarbuncle278RangeSetup.Finish6831D0(child.Task, paused)
+                    };
+                    int childOffset = checked((int)(current.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * current.Stride + 12);
+                    frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(childOffset, finished.Task.Payload.AsSpan()) } };
+                    return new(current with { Slots = current.Slots.SetItem(index, finished.Task) }, finished.Result);
+                }
                 if (task.Callback == 0x6822F0)
                 {
                     int age = unchecked((short)task.ReadWord(0xC));
-                    if (age is < 0 or >= 15)
+                    if (age < 0)
                     {
-                        throw new NotSupportedException("Native Carbuncle6822F0 reaches its683760/683330 recipient child families at age15.");
+                        throw new NotSupportedException("Native Carbuncle6822F0 requires its nonnegative current programme age.");
                     }
                     NativeBattleCarbuncle278ModelStep recipient = (inputs?.AdvanceRecipient ?? throw new NotSupportedException("Native Carbuncle requires its original recipient programme and actor services."))(frame, task);
                     frame = recipient.Frame;
                     task = recipient.Task;
-                    if (NativeBattleCarbuncle278Entry.RequireState(frame.Memory).Pause8114 == 0)
-                    {
-                        task = task.WriteWord(0xC, unchecked((ushort)(task.ReadWord(0xC) + 1)));
-                    }
                     int recipientOffset = checked((int)(current.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * current.Stride + 12);
                     frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(recipientOffset, task.Payload.AsSpan()).MarkUnknown(recipientOffset + 0x46 - 12, 2) } };
-                    return new(current with { Slots = current.Slots.SetItem(index, task) }, 0);
+                    if (age is >= 15 and < 35)
+                    {
+                        NativeBattleStaticMeshResource bounds = frame.Effect.Binding.Carbuncle278Resources?.CreatureBoundsMesh ?? throw new NotSupportedException("Native Carbuncle recipient children require their original bound vertices.");
+                        NativeBattleCarbuncle278ChildBirth birth = NativeBattleCarbuncle278RecipientChildren.Spawn6823F0(frame, task, checked(current.BankAddress + (uint)(index * current.Stride)), bounds);
+                        frame = birth.Frame;
+                        task = birth.Parent;
+                    }
+                    if (age is >= 20 and < 55)
+                    {
+                        NativeBattleCarbuncle278ModelStep range = (inputs?.DrawRecipientRange ?? throw new NotSupportedException("Native Carbuncle recipients require their current range and ring services."))(frame, task, checked(current.BankAddress + (uint)(index * current.Stride)));
+                        frame = range.Frame;
+                        task = range.Task;
+                    }
+                    int result = 0;
+                    if (NativeBattleCarbuncle278Entry.RequireState(frame.Memory).Pause8114 == 0)
+                    {
+                        if (age == 50)
+                        {
+                            frame = (inputs?.ApplyRecipientContact ?? throw new NotSupportedException("Native Carbuncle recipients require their original contact service."))(frame, task);
+                        }
+                        if (age >= 55)
+                        {
+                            result = 2;
+                        }
+                        else
+                        {
+                            task = task.WriteWord(0xC, unchecked((ushort)(task.ReadWord(0xC) + 1)));
+                        }
+                    }
+                    frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(recipientOffset, task.Payload.AsSpan()).MarkUnknown(recipientOffset + 0x46 - 12, 2) } };
+                    return new(current with { Slots = current.Slots.SetItem(index, task) }, result);
                 }
                 if (task.Callback == 0x683E80)
                 {

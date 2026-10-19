@@ -41,6 +41,12 @@ public sealed partial class NativeBattleTargetGuardianCastTests
     public void Installed_Cactuar_ordinary_command_completes_graphics_contact_and_disk_continuations() => Run(13, 199);
 
     [Fact]
+    public void Installed_Tonberry_ordinary_command_completes_graphics_contact_and_disk_continuations() => Run(14, 90);
+
+    [Fact]
+    public void Installed_Siren_ordinary_command_completes_graphics_contact_and_disk_continuations() => Run(3, 95);
+
+    [Fact]
     public void Continue_the_named_cinematic_guardian_checkpoint_to_completion()
     {
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_CINEMATIC_SNAPSHOT");

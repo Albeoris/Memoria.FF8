@@ -5,6 +5,35 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleScriptedClippedMeshPacketsTests
 {
+    [Fact]
+    public void Clipped_FT3_uses_direct_material_color_and_preserves_partial_packet_layout()
+    {
+        byte[] face = new byte[20];
+        BinaryPrimitives.WriteUInt32LittleEndian(face, 0x02010203);
+        ushort[] words = [0x12FF, 0x3344, 0x5566, 0, 8, 16, 0xFFF0, 0x20];
+        for (int index = 0; index < words.Length; index++)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(face.AsSpan(4 + 2 * index), words[index]);
+        }
+        NativeBattleWaterMeshGroup group = new(8, 1, face.ToImmutableArray());
+        NativeBattleScriptedMeshSubmission result = NativeBattleScriptedClippedMeshPackets.EmitFt3(Frame(), group, 0xB11100, Records([0, 10, 20], [8, 2, 0]), [65535, 11, 13], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), address => (int)(address / 4), 0.5f);
+        NativeBattleGfGeometryAttempt packet = Assert.Single(result.Packets.Attempts);
+        Assert.Equal(32, result.Packets.AllocationBytes);
+        Assert.Equal(0x5020u, result.Frame.ReadTemporaryDword(0x60));
+        Assert.Equal(2712, packet.Primitive!.Bucket);
+        Assert.Equal(new[] { 32768, 6, 6, 0 }, packet.Primitive.VertexPayload4);
+        Assert.Equal(0x26010203u, Word32(packet, 4));
+        Assert.Equal((ushort)0x12FF, Word16(packet, 12));
+        Assert.Equal((ushort)0x3344, Word16(packet, 20));
+        Assert.Equal((ushort)0x5566, Word16(packet, 28));
+        Assert.Equal((ushort)0xFFF3, Word16(packet, 14));
+        Assert.Equal((ushort)0x30, Word16(packet, 22));
+        Assert.Equal(NativeBattleGfPacketByteState.Untouched, packet.WriteMask[30]);
+        Assert.Equal(NativeBattleGfPacketByteState.Untouched, packet.WriteMask[31]);
+        NativeBattleScriptedMeshSubmission clipped = NativeBattleScriptedClippedMeshPackets.EmitFt3(Frame(), group, 0xB11100, Records([0, 10, 20], [8, 8, 8]), [1, 2, 3], 0x5000, result.Lighting, result.Registers, _ => throw new InvalidOperationException(), 1);
+        Assert.All(Assert.Single(clipped.Packets.Attempts).WriteMask, value => Assert.Equal(NativeBattleGfPacketByteState.Untouched, value));
+    }
+
     [Theory]
     [InlineData(0xB053E0u)]
     [InlineData(0xB11340u)]

@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -7,9 +6,6 @@ public sealed record NativeBattleTonberry90ProgrammeServices(Func<NativeBattleTo
 
 public static class NativeBattleTonberry90Programme
 {
-    private static readonly int[] ChannelOffsets = [0, 0x14, 0x28, 0x3C];
-    private static readonly int[] OutputOffsets = [0x5E, 0xDE, 0xD8, 0xDA];
-
     public static NativeBattleTonberry90TaskStep Advance762DA0(NativeBattleTonberry90Frame frame, uint address, NativeBattleTonberry90ProgrammeServices services)
     {
         NativeBattleModulePoolTask task = ReadTask(frame, address);
@@ -161,104 +157,32 @@ public static class NativeBattleTonberry90Programme
 
     public static NativeBattleTonberry90Frame InitializeChannels7636C0(NativeBattleTonberry90Frame frame, uint source, NativeBattleTonberry90ProgrammeServices services)
     {
-        frame = PutWord(frame, unchecked(Camera(frame) + 0xE6), 0);
-        for (int index = 0; index < 4; index++)
-        {
-            frame = PutDword(frame, unchecked(Camera(frame) + (uint)ChannelOffsets[index]), U32(frame, unchecked(source + (uint)(4 * index)), services));
-        }
-        for (int index = 0; index < 4; index++)
-        {
-            uint camera = Camera(frame);
-            frame = InitializeChannel763740(frame, unchecked(camera + (uint)ChannelOffsets[index]), unchecked(camera + (uint)OutputOffsets[index]), services);
-        }
-        return frame;
+        return NativeBattleCameraChannels.InitializeFour(frame, Camera(frame), source, Channels(services));
     }
 
     public static NativeBattleTonberry90Frame TickChannels7637B0(NativeBattleTonberry90Frame frame, NativeBattleTonberry90ProgrammeServices services)
     {
-        for (int index = 0; index < 4; index++)
-        {
-            uint camera = Camera(frame);
-            frame = TickChannel763820(frame, unchecked(camera + (uint)ChannelOffsets[index]), unchecked(camera + (uint)OutputOffsets[index]), services).Frame;
-        }
-        uint age = unchecked(Camera(frame) + 0xE6);
-        frame = PutWord(frame, age, unchecked((ushort)(State(frame).ReadWord(age) + 1)));
+        frame = NativeBattleCameraChannels.TickFour(frame, Camera(frame), Channels(services));
         NativeBattleMoogleCameraStep step = NativeBattleMoogleCamera.RecomputePublication(ReadCamera(frame));
         return services.PublishCamera(StoreCamera(frame, step.State), step);
     }
 
     public static NativeBattleTonberry90Frame InitializeChannel763740(NativeBattleTonberry90Frame frame, uint channel, uint output, NativeBattleTonberry90ProgrammeServices services)
     {
-        uint stream = U32(frame, State(frame).ReadDword(channel), services);
-        short tag = I16(frame, stream, services);
-        frame = PutWord(frame, unchecked(channel + 8), unchecked((ushort)tag));
-        uint cursor = unchecked(stream + 2);
-        if (tag == 2)
-        {
-            frame = PutWord(frame, unchecked(channel + 0x10), unchecked((ushort)I16(frame, cursor, services)));
-            cursor = unchecked(cursor + 2);
-        }
-        else if (tag == 1)
-        {
-            ushort start = unchecked((ushort)I16(frame, cursor, services));
-            if (start == 0x7FFE)
-            {
-                start = State(frame).ReadWord(output);
-            }
-            frame = PutWord(frame, unchecked(channel + 0xA), start);
-            frame = PutWord(frame, unchecked(channel + 0xC), unchecked((ushort)I16(frame, unchecked(cursor + 2), services)));
-            cursor = unchecked(cursor + 4);
-        }
-        return PutDword(frame, unchecked(channel + 4), cursor);
+        return NativeBattleCameraChannels.Initialize(frame, channel, output, Channels(services));
     }
 
     public static (NativeBattleTonberry90Frame Frame, bool Complete) TickChannel763820(NativeBattleTonberry90Frame frame, uint channel, uint output, NativeBattleTonberry90ProgrammeServices services)
     {
-        if (U32(frame, State(frame).ReadDword(channel), services) == 0)
-        {
-            return (frame, true);
-        }
-        var stepped = StepChannel763870(frame, channel, output, services);
-        frame = stepped.Frame;
-        if (!stepped.Complete)
-        {
-            return (frame, false);
-        }
-        uint outer = unchecked(State(frame).ReadDword(channel) + 4);
-        frame = PutDword(frame, channel, outer);
-        return U32(frame, outer, services) == 0 ? (frame, true) : (InitializeChannel763740(frame, channel, output, services), false);
+        return NativeBattleCameraChannels.Tick(frame, Camera(frame), channel, output, Channels(services));
     }
 
     public static (NativeBattleTonberry90Frame Frame, bool Complete) StepChannel763870(NativeBattleTonberry90Frame frame, uint channel, uint output, NativeBattleTonberry90ProgrammeServices services)
     {
-        NativeBattleTonberry90State state = State(frame);
-        short tag = unchecked((short)state.ReadWord(unchecked(channel + 8)));
-        if (tag == 2)
-        {
-            return (frame, unchecked((short)state.ReadWord(unchecked(Camera(frame) + 0xE6))) >= unchecked((short)state.ReadWord(unchecked(channel + 0x10))));
-        }
-        if (tag is not (0 or 1))
-        {
-            return (frame, false);
-        }
-        uint cursor = state.ReadDword(unchecked(channel + 4));
-        short sample = I16(frame, cursor, services);
-        if (sample == 0x7FFF)
-        {
-            return (frame, true);
-        }
-        frame = PutDword(frame, unchecked(channel + 4), unchecked(cursor + 2));
-        int value = sample;
-        if (tag == 1)
-        {
-            int start = unchecked((short)State(frame).ReadWord(unchecked(channel + 0xA)));
-            int end = unchecked((short)State(frame).ReadWord(unchecked(channel + 0xC)));
-            int product = unchecked((end - start) * sample);
-            value = unchecked(start + ((product < 0 ? unchecked(product + 4095) : product) >> 12));
-        }
-        frame = PutWord(frame, unchecked(channel + 0xE), unchecked((ushort)value));
-        return (PutWord(frame, output, unchecked((ushort)value)), false);
+        return NativeBattleCameraChannels.Step(frame, Camera(frame), channel, output, Channels(services));
     }
+
+    private static NativeBattleCameraChannelServices<NativeBattleTonberry90Frame> Channels(NativeBattleTonberry90ProgrammeServices services) => new((current, address, length) => address >= NativeBattleTonberry90State.GlobalAddress && (ulong)address + (uint)length <= (ulong)NativeBattleTonberry90State.GlobalAddress + NativeBattleTonberry90State.GlobalLength ? State(current).Read(address, length) : Read(current, address, length, services), (current, address, bytes) => Put(current, address, bytes.Span));
 
     private static NativeBattleMoogleCameraState ReadCamera(NativeBattleTonberry90Frame frame)
     {
@@ -294,9 +218,6 @@ public static class NativeBattleTonberry90Programme
     private static uint Director(NativeBattleTonberry90Frame frame) => State(frame).DirectorAddress1547168 ?? throw new NotSupportedException("Native Tonberry current director pointer is unknown.");
     private static NativeBattleTonberry90Frame Put(NativeBattleTonberry90Frame frame, uint address, ReadOnlySpan<byte> bytes) => frame with { Memory = frame.Memory with { Tonberry90 = State(frame).Write(address, bytes) } };
     private static NativeBattleTonberry90Frame PutWord(NativeBattleTonberry90Frame frame, uint address, ushort value) => Put(frame, address, BitConverter.GetBytes(value));
-    private static NativeBattleTonberry90Frame PutDword(NativeBattleTonberry90Frame frame, uint address, uint value) => Put(frame, address, BitConverter.GetBytes(value));
-    private static short I16(NativeBattleTonberry90Frame frame, uint address, NativeBattleTonberry90ProgrammeServices services) => BinaryPrimitives.ReadInt16LittleEndian(Read(frame, address, 2, services));
-    private static uint U32(NativeBattleTonberry90Frame frame, uint address, NativeBattleTonberry90ProgrammeServices services) => BinaryPrimitives.ReadUInt32LittleEndian(Read(frame, address, 4, services));
     private static byte[] Read(NativeBattleTonberry90Frame frame, uint address, int length, NativeBattleTonberry90ProgrammeServices services)
     {
         byte[] bytes = services.ReadAddress(frame, address, length);

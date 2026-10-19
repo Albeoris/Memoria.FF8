@@ -95,5 +95,34 @@ public sealed class NativeBattleCarbuncle278ResourcesTests
         Assert.Equal(new short[] { 717, 718 }, resources.Files.Select(file => file.FileId).ToArray());
         Assert.Equal(new[] { "MAG277_H.00", "MAG277_H.01" }, resources.Files.Select(file => file.Name.ToUpperInvariant()).ToArray());
         Assert.All(resources.Files, file => Assert.Equal(0x10u, BinaryPrimitives.ReadUInt32LittleEndian(file.Data.AsSpan())));
+        Assert.Equal(0x10BF3A8u, resources.RecipientRayMesh!.Address);
+        Assert.Equal(216, resources.RecipientRayMesh.Bytes.Length);
+        Assert.Equal(0x10BCE98u, resources.RecipientShardSprite!.Address);
+        Assert.Equal(428, resources.RecipientShardSprite.Bytes.Length);
+        Assert.Equal(16384, resources.RecipientPolarTable.Length);
+        Assert.Equal(new NativeBattleVector(4095, -6, 0), NativeBattleCarbuncle278RecipientChildren.Polar6836F0(new(4096, 0, 0), 1, resources.RecipientPolarTable));
+        NativeBattleModulePoolTask child = new(1, 0, null, 0x683760, new byte[16].ToImmutableArray());
+        child = child.WriteDword(0x18, 0x20DFAB8 + 0x1FA0);
+        NativeBattleModulePoolTask recipientTask = new(1, 0, null, 0x6822F0, new byte[256].ToImmutableArray());
+        byte[] cachedBytes = new byte[18];
+        BinaryPrimitives.WriteInt16LittleEndian(cachedBytes, 4096);
+        BinaryPrimitives.WriteInt16LittleEndian(cachedBytes.AsSpan(8), 4096);
+        BinaryPrimitives.WriteInt16LittleEndian(cachedBytes.AsSpan(16), 4096);
+        byte[] cachedTranslation = new byte[12];
+        BinaryPrimitives.WriteInt32LittleEndian(cachedTranslation.AsSpan(8), 6000);
+        NativeBattleEffectMemory childMemory = bodyMemory with { Arena = bodyMemory.Arena!.Write(0x1FA0 + 0x34, cachedBytes).Write(0x1FA0 + 0x48, cachedTranslation).MarkUnknown(0x1FA0 + 0x46, 2) };
+        NativeBattleCarbuncle278ChildDraw rays = NativeBattleCarbuncle278ChildDrawing.Draw683760(childMemory, child, recipientTask, resources, new(identity, 288, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270);
+        Assert.Equal(4, rays.Packets.Attempts.Length);
+        Assert.Equal<uint?>(0u, rays.Memory.PrimitiveProcess!.ModelRendererRegisters!.FarRed);
+        NativeBattleCarbuncle278ChildDraw shards = NativeBattleCarbuncle278ChildDrawing.Draw683330(childMemory, child with { Callback = 0x683330 }, recipientTask, resources, new(identity, 288, 160, 108));
+        Assert.Single(shards.Packets.Attempts);
+        Assert.Equal(0x10BF480u, resources.RecipientRingMesh!.Address);
+        Assert.Equal(1672, resources.RecipientRingMesh.Bytes.Length);
+        NativeBattleCarbuncle278ChildDraw ring = NativeBattleCarbuncle278ChildDrawing.Draw6831D0(childMemory, child.WriteWord(0x10, 2048), resources, new(identity, 288, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270);
+        Assert.Equal(48, ring.Packets.Attempts.Length);
+        NativeBattleCarbuncle278RangeDraw range = NativeBattleCarbuncle278RangeMesh.Emit682760(resources.CreatureBoundsMesh!, identity with { Z = 6000 }, new(identity, 288, 160, 108), short.MinValue, short.MaxValue, 2048, 0, NativeBattleGteColorInterpolation.CodeConstants45F270);
+        Assert.True(range.FarColorWritten);
+        Assert.Equal(768, range.Packets.Attempts.Length);
+        Assert.Equal(14016, range.Packets.AllocationBytes);
     }
 }

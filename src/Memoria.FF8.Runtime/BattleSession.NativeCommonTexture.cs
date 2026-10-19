@@ -28,6 +28,26 @@ public sealed partial class BattleSession
         NativeEffectMemory = memory with { Textures = textures };
     }
 
+    private bool TryWriteNativeTonberry90Completion(NativeBattleGraphicsState graphics, uint address, byte value, out NativeBattleGraphicsState updated)
+    {
+        updated = graphics;
+        uint delta = unchecked(address - NativeBattleTonberry90Controller.MainBank);
+        if (delta >= 0xC8 || delta % 0x64 != 0x62)
+        {
+            return false;
+        }
+        if (NativeEffectMemory?.DetachedReturnedTask is { Binding.Entry: 0x762360 } detached)
+        {
+            NativeEffectMemory = NativeEffectMemory with { DetachedReturnedTask = NativeBattleTonberry90Controller.WriteCompletionByte(detached, address, value) };
+        }
+        else
+        {
+            NativeBattleOriginalEffectState effect = graphics.OriginalEffect is { Binding.Entry: 0x762360 } current ? current : throw new NotSupportedException("Native Tonberry completion lost its physical root task.");
+            updated = graphics with { OriginalEffect = NativeBattleTonberry90Controller.WriteCompletionByte(effect, address, value) };
+        }
+        return true;
+    }
+
     private void WriteNativeAuxiliaryCompletionByte(uint address, byte value)
     {
         if (address != 0x25217A8)

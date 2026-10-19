@@ -11,7 +11,27 @@ public static class NativeBattleScriptedClippedMeshPackets
         {
             throw new NotSupportedException("Native clipped GT3 requires its selected cinematic handler.");
         }
-        if (group.Count <= 0 || group.Faces.IsDefault || group.Faces.Length != checked(group.Count * 28) || records.IsDefault || records.Length % 8 != 0 || depths.IsDefault)
+        return EmitTriangle(frame, group, records, depths, output, lighting, registers, resolveBucket, depthScale);
+    }
+
+    public static NativeBattleScriptedMeshSubmission EmitFt3(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, uint handler, ImmutableArray<byte> records, ImmutableArray<uint> depths, uint output, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveBucket, float depthScale)
+    {
+        if (group.Type != 8 || handler != 0xB11100)
+        {
+            throw new NotSupportedException("Native clipped FT3 requires its selected cinematic handler.");
+        }
+        return EmitTriangle(frame, group, records, depths, output, lighting, registers, resolveBucket, depthScale);
+    }
+
+    private static NativeBattleScriptedMeshSubmission EmitTriangle(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, ImmutableArray<byte> records, ImmutableArray<uint> depths, uint output, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveBucket, float depthScale)
+    {
+        bool gouraud = group.Type == 9;
+        int stride = gouraud ? 28 : 20;
+        int packetLength = gouraud ? 40 : 32;
+        int vertexStride = gouraud ? 12 : 8;
+        int indexOffset = gouraud ? 18 : 10;
+        int uvOffset = gouraud ? 12 : 4;
+        if (group.Count <= 0 || group.Faces.IsDefault || group.Faces.Length != checked(group.Count * stride) || records.IsDefault || records.Length % 8 != 0 || depths.IsDefault)
         {
             throw new InvalidDataException("Native clipped GT3 requires its complete face, projected and depth owners.");
         }
@@ -19,7 +39,7 @@ public static class NativeBattleScriptedClippedMeshPackets
         int allocated = 0;
         for (int index = 0; index < group.Count; index++)
         {
-            ReadOnlySpan<byte> face = group.Faces.AsSpan().Slice(index * 28, 28);
+            ReadOnlySpan<byte> face = group.Faces.AsSpan().Slice(index * stride, stride);
             uint[] screens = new uint[3];
             int[] projectedOffsets = new int[3];
             int[] rawDepth = new int[4];
@@ -27,7 +47,7 @@ public static class NativeBattleScriptedClippedMeshPackets
             ushort intersection = ushort.MaxValue;
             for (int corner = 0; corner < 3; corner++)
             {
-                int offset = BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(18 + corner * 2));
+                int offset = BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(indexOffset + corner * 2));
                 if ((offset & 7) != 0 || offset > records.Length - 8 || offset / 8 >= depths.Length)
                 {
                     throw new InvalidDataException("Native clipped GT3 leaves its current projected vertex or depth records.");
@@ -36,38 +56,41 @@ public static class NativeBattleScriptedClippedMeshPackets
                 projectedOffsets[corner] = offset;
                 intersection &= BinaryPrimitives.ReadUInt16LittleEndian(records.AsSpan().Slice(offset + 6, 2));
             }
-            byte[] data = new byte[40];
-            NativeBattleGfPacketByteState[] mask = new NativeBattleGfPacketByteState[40];
+            byte[] data = new byte[packetLength];
+            NativeBattleGfPacketByteState[] mask = new NativeBattleGfPacketByteState[packetLength];
             NativeBattleGeometryPrimitive? primitive = null;
             if (intersection == 0)
             {
                 for (int corner = 0; corner < 3; corner++)
                 {
                     screens[corner] = BinaryPrimitives.ReadUInt32LittleEndian(records.AsSpan().Slice(projectedOffsets[corner], 4));
-                    StoreDword(8 + corner * 12, screens[corner]);
+                    StoreDword(8 + corner * vertexStride, screens[corner]);
                 }
                 if (NativeBattleModulePackets.Nclip(screens[0], screens[1], screens[2]) >= 0)
                 {
-                    data[3] = 9;
+                    data[3] = unchecked((byte)(packetLength / 4 - 1));
                     mask[3] = NativeBattleGfPacketByteState.Known;
                     for (int corner = 0; corner < 3; corner++)
                     {
                         sum += BinaryPrimitives.ReadUInt16LittleEndian(records.AsSpan().Slice(projectedOffsets[corner] + 4, 2));
-                        uint color = BinaryPrimitives.ReadUInt32LittleEndian(face.Slice(corner * 4));
-                        StoreDword(4 + corner * 12, corner == 0 ? color | 0x34000000u : color);
-                        StoreWord(12 + corner * 12, BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(12 + corner * 2)));
+                        if (gouraud || corner == 0)
+                        {
+                            uint color = BinaryPrimitives.ReadUInt32LittleEndian(face.Slice(corner * 4));
+                            StoreDword(4 + corner * vertexStride, corner == 0 ? color | (gouraud ? 0x34000000u : 0x24000000u) : color);
+                        }
+                        StoreWord(12 + corner * vertexStride, BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(uvOffset + corner * 2)));
                     }
-                    StoreWord(14, unchecked((ushort)(BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(24)) + frame.ReadTemporaryDword(0x54))));
-                    StoreWord(26, unchecked((ushort)(BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(26)) | frame.ReadTemporaryDword(0x50))));
+                    StoreWord(14, unchecked((ushort)(BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(gouraud ? 24 : 16)) + frame.ReadTemporaryDword(0x54))));
+                    StoreWord(gouraud ? 26 : 22, unchecked((ushort)(BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(gouraud ? 26 : 18)) | frame.ReadTemporaryDword(0x50))));
                     int bucket = resolveBucket(unchecked(frame.ReadTemporaryDword(0x5C) + ((sum / 3) & 0x3FFCu)));
-                    ImmutableArray<uint> words = Enumerable.Range(0, 10).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(word * 4))).ToImmutableArray();
+                    ImmutableArray<uint> words = Enumerable.Range(0, packetLength / 4).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(word * 4))).ToImmutableArray();
                     primitive = new(bucket, words, rawDepth.ToImmutableArray());
                 }
             }
             attempts.Add(new(allocated, data.ToImmutableArray(), mask.ToImmutableArray(), primitive));
             if (primitive is not null)
             {
-                allocated += 40;
+                allocated += packetLength;
             }
 
             void StoreDword(int offset, uint value)

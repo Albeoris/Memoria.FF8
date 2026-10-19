@@ -6,14 +6,14 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeSoftwareScanlineEdges([property: JsonRequired] NativeSoftwareEdgeBuffers Left, [property: JsonRequired] NativeSoftwareEdgeBuffers Right);
 
-/// <summary>463BC0's textured row batch over two canonical edge owners and the explicit opaque8-bit span path.</summary>
+/// <summary>463BC0's textured row batch over two canonical edge owners and the original span dispatch tables.</summary>
 public static class NativeSoftwareTexturedScanlines
 {
     public static NativeSoftwareScanlineEdges Draw463BC0(byte[] image, NativeSoftwareScanlineEdges edges, NativeSoftwareReciprocalTable reciprocals, int startY, int rowCount, byte descriptorFlags, byte variant, int depth, int texturePageByteOffset, int paletteByteOffset)
     {
         ArgumentNullException.ThrowIfNull(image);
         ArgumentNullException.ThrowIfNull(edges);
-        RequireOpaque8Bit(descriptorFlags, variant, depth);
+        NativeSoftwareVramSpan.ValidateDispatch(descriptorFlags, variant, depth);
         if (rowCount <= 0)
         {
             return edges;
@@ -44,7 +44,7 @@ public static class NativeSoftwareTexturedScanlines
                 int v = Read(minimum, 0x10);
                 int du = NativePrecision53.RoundInteger(unchecked(Read(maximum, 0xC) - u) * (double)reciprocal);
                 int dv = NativePrecision53.RoundInteger(unchecked(Read(maximum, 0x10) - v) * (double)reciprocal);
-                NativeSoftwareVramSpan.WriteOpaque8Bit463650(image, destinationRow, leftX, rightX, u, du, v, dv, texturePageByteOffset, paletteByteOffset);
+                NativeSoftwareVramSpan.WriteTextured(image, destinationRow, leftX, rightX, u, du, v, dv, texturePageByteOffset, paletteByteOffset, descriptorFlags, variant, depth);
             }
             Advance(left, edges.Left.Step, 0xC);
             Advance(left, edges.Left.Step, 0x10);
@@ -57,17 +57,6 @@ public static class NativeSoftwareTexturedScanlines
         return new(edges.Left with { Current = left.ToImmutableArray() }, edges.Right with { Current = right.ToImmutableArray() });
     }
 
-    private static void RequireOpaque8Bit(byte flags, byte variant, int depth)
-    {
-        if ((uint)depth >= 3 || (flags & 4) != 0 && variant >= 4)
-        {
-            throw new NotSupportedException("Native textured span dispatch index leaves its supplied original table.");
-        }
-        if (depth != 1 || (flags & 4) != 0 && variant is not (0 or 3))
-        {
-            throw new NotSupportedException("Native textured scanline selected a span writer outside its proved opaque8-bit contract.");
-        }
-    }
     private static void RequireEdge(NativeSoftwareEdgeBuffers edge)
     {
         if (edge is null || edge.Current.IsDefault || edge.Step.IsDefault || edge.Current.Length < 20 || edge.Step.Length < 20)

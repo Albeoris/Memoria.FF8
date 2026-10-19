@@ -261,6 +261,15 @@ public sealed partial class GameAssets
                 binding = binding with { Carbuncle278Resources = ReadNativeCarbuncle278Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 95)
+            {
+                if (binding.Entry != 0x739DA0 || binding.Initializer != 0x739D80)
+                {
+                    throw new InvalidDataException("Native Siren differs from its original module identity.");
+                }
+                binding = binding with { Siren95Resources = ReadNativeSiren95Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 90)
             {
                 if (binding.Entry != 0x762360 || binding.Initializer != 0x762320)

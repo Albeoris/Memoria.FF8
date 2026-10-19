@@ -79,12 +79,8 @@ public sealed class NativeSoftwareTexturedScanlinesTests
     }
 
     [Theory]
-    [InlineData(0, 0, 0)]
-    [InlineData(0, 0, 2)]
     [InlineData(0, 0, 3)]
     [InlineData(0, 0, -1)]
-    [InlineData(4, 1, 1)]
-    [InlineData(4, 2, 1)]
     [InlineData(4, 4, 1)]
     public void UnsupportedOrOutOfTableDispatchFailsBeforeWriting(byte flags, byte variant, int depth)
     {

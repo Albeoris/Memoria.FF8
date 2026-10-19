@@ -13,7 +13,7 @@ public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] 
 
     public void Validate()
     {
-        if (X is < 0 or >= 1024 || Y is < 0 or >= 512 || Width is < 1 or > 256 || Height is < 1 or > 256 || X + Width > 1024 || Y + Height > 512 || Data.IsDefault || Data.Length != 2 * Width * Height)
+        if (X is < 0 or >= 1024 || Y is < 0 or >= 512 || Width is < 1 or > 256 || Height is < 1 or > 256 || Y + Height > 512 || 2 * ((Y + Height - 1) * 1024 + X + Width) > NativeBattleEffectArena.Length + NativeBattleEffectTextureState.PcPageReadTailLength || Data.IsDefault || Data.Length != 2 * Width * Height)
         {
             throw new InvalidDataException("Native cached texture words require their exact bounded physical VRAM rectangle and bytes.");
         }
@@ -60,7 +60,18 @@ public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] 
         NativeBattleEffectArena bank = new(textures.VramRegions);
         for (int line = 0; line < rectangle.Height; line++)
         {
-            bank.Read(2 * ((y + line) * 1024 + x), 2 * width).CopyTo(data, 2 * line * width);
+            int address = 2 * ((y + line) * 1024 + x);
+            int count = 2 * width;
+            int known = Math.Min(count, NativeBattleEffectArena.Length - address);
+            if (known > 0)
+            {
+                bank.Read(address, known).CopyTo(data, 2 * line * width);
+            }
+            if (known < count)
+            {
+                ImmutableArray<byte> tail = textures.VramReadTail ?? throw new NotSupportedException("Native full-page capture reaches its unobserved trailing read window; explicitly migrate the standalone state.");
+                tail.AsSpan().Slice(address + known - NativeBattleEffectArena.Length, count - known).CopyTo(data.AsSpan(2 * line * width + known));
+            }
         }
         NativeBattlePcTextureWindowPixels result = new(x, y, width, rectangle.Height, data.ToImmutableArray());
         result.Validate();

@@ -15,7 +15,7 @@ public sealed partial class BattleSession
         }
         else
         {
-            NativeBattleCarbuncle278Inputs inputs = new(nativeActionPackets, DrawMirror, StartVibration) { DrawCreature = DrawCreature, PresentCreature = PresentCreature, ModelCreature = ModelCreature, DrawSparkle = DrawSparkle, PresentSparkleWindow = PresentSparkleWindow, AdvanceProgramme = AdvanceProgramme, PresentProgramme = PresentProgramme, AdvanceRecipient = AdvanceRecipient, QueueFile = QueueFile };
+            NativeBattleCarbuncle278Inputs inputs = new(nativeActionPackets, DrawMirror, StartVibration) { DrawCreature = DrawCreature, PresentCreature = PresentCreature, ModelCreature = ModelCreature, DrawSparkle = DrawSparkle, PresentSparkleWindow = PresentSparkleWindow, AdvanceProgramme = AdvanceProgramme, PresentProgramme = PresentProgramme, AdvanceRecipient = AdvanceRecipient, QueueFile = QueueFile, DrawRecipientChild = DrawRecipientChild, DrawRecipientRange = DrawRecipientRange, ApplyRecipientContact = ApplyRecipientContact };
             frame = NativeBattleCarbuncle278Controller.Advance680DF0(frame, (depth, flags) =>
             {
                 NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native5713E0 requires its retained four stage groups.");
@@ -164,17 +164,68 @@ public sealed partial class BattleSession
 
             NativeBattleCarbuncle278ModelStep AdvanceRecipient(NativeBattleCarbuncle278Frame current, NativeBattleModulePoolTask task)
             {
-                NativeBattleGfAnimationSource source = current.Effect.Binding.Carbuncle278Resources?.RecipientProgramme ?? throw new NotSupportedException("Native Carbuncle requires its original recipient programme.");
-                NativeBattleCarbuncle278ProgrammeDraw drawn = NativeBattleCarbuncle278Programme.AdvanceRecipient6822F0(current.Memory, task, source, CurrentProjection(), CurrentColors());
-                current = AppendProgramme(current, drawn);
-                task = drawn.Task;
+                if (unchecked((short)task.ReadWord(0xC)) < 21)
+                {
+                    NativeBattleGfAnimationSource source = current.Effect.Binding.Carbuncle278Resources?.RecipientProgramme ?? throw new NotSupportedException("Native Carbuncle requires its original recipient programme.");
+                    NativeBattleCarbuncle278ProgrammeDraw drawn = NativeBattleCarbuncle278Programme.AdvanceRecipient6822F0(current.Memory, task, source, CurrentProjection(), CurrentColors());
+                    current = AppendProgramme(current, drawn);
+                    task = drawn.Task;
+                    current = NativeBattleCarbuncle278Recipients.SpawnSparkle6822F0(current, task.ReadDword(0x10), address => (NativeGraphicsPoseResource(graphics, ActorIndex(address)).PoseSource ?? throw new NotSupportedException("Native Carbuncle recipient sparkles require the current actor skeleton.")).BoneCount, (address, bone) => ReadNativeGraphicsBone(graphics, ActorIndex(address), checked((byte)bone), 0));
+                }
                 int actor = ActorIndex(task.ReadDword(0x10));
-                current = NativeBattleCarbuncle278Recipients.SpawnSparkle6822F0(current, task.ReadDword(0x10), address => (NativeGraphicsPoseResource(graphics, ActorIndex(address)).PoseSource ?? throw new NotSupportedException("Native Carbuncle recipient sparkles require the current actor skeleton.")).BoneCount, (address, bone) => ReadNativeGraphicsBone(graphics, ActorIndex(address), checked((byte)bone), 0));
                 NativeBattleGraphicsModel model = graphics.Models[actor];
                 NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Carbuncle recipient cache requires its current actor scale.");
                 short yaw = model.Rotation14 ?? throw new NotSupportedException("Native Carbuncle recipient cache requires its current actor yaw.");
                 task = NativeBattleCarbuncle278Recipients.Cache6DBCC0(task, yaw, transform.Scale38, CurrentProjection().View ?? throw new NotSupportedException("Native Carbuncle recipient cache requires its current view matrix."));
                 return new(current, task);
+            }
+
+            NativeBattleCarbuncle278ModelStep DrawRecipientChild(NativeBattleCarbuncle278Frame current, NativeBattleModulePoolTask task)
+            {
+                NativeBattleCarbuncle278Resources resources = current.Effect.Binding.Carbuncle278Resources ?? throw new NotSupportedException("Native Carbuncle children require their original current resources.");
+                NativeBattleModulePoolTask parent = new NativeBattleEffectHierarchy(current.Effect.Pools).Read(task.ReadDword(0x18));
+                NativeBattleCarbuncle278ChildDraw draw = task.Callback switch
+                {
+                    0x683760 => NativeBattleCarbuncle278ChildDrawing.Draw683760(current.Memory, task, parent, resources, CurrentProjection(), CurrentColors()),
+                    0x6831D0 => NativeBattleCarbuncle278ChildDrawing.Draw6831D0(current.Memory, task, resources, CurrentProjection(), CurrentColors()),
+                    _ => NativeBattleCarbuncle278ChildDrawing.Draw683330(current.Memory, task, parent, resources, CurrentProjection())
+                };
+                NativeBattleCarbuncle278ProgrammeDraw packets = new(draw.Memory, draw.Task, draw.Packets, 0);
+                return new(AppendProgramme(current, packets), draw.Task);
+            }
+
+            NativeBattleCarbuncle278ModelStep DrawRecipientRange(NativeBattleCarbuncle278Frame current, NativeBattleModulePoolTask task, uint address)
+            {
+                NativeBattleCarbuncle278RangePhase phase = NativeBattleCarbuncle278RangeSetup.Read6825A5(current.Memory, unchecked((short)task.ReadWord(0xC)));
+                NativeBattleStaticMeshResource mesh = current.Effect.Binding.Carbuncle278Resources?.CreatureBoundsMesh ?? throw new NotSupportedException("Native Carbuncle range requires its original source mesh.");
+                NativeBattleCarbuncle278RangeDraw draw = NativeBattleCarbuncle278RangeMesh.Emit682760(mesh, NativeBattleCarbuncle278ChildDrawing.ReadCached(current.Memory, address), CurrentProjection(), phase.Minimum, phase.Maximum, phase.Fade, phase.VOffset, CurrentColors());
+                if (draw.FarColorWritten)
+                {
+                    NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Carbuncle range requires its current far-color controls.");
+                    NativeBattleModelRendererRegisters registers = process.ModelRendererRegisters ?? new(null, null, null, null, null);
+                    current = current with { Memory = current.Memory with { PrimitiveProcess = process with { ModelRendererRegisters = registers.PublishModelColor(0) } } };
+                }
+                current = AppendProgramme(current, new(current.Memory, task, draw.Packets, 0));
+                int actor = ActorIndex(task.ReadDword(0x10));
+                short scale = graphics.Models[actor].Transform?.Scale38 ?? throw new NotSupportedException("Native Carbuncle rings require the current actor scale WORD.");
+                current = NativeBattleCarbuncle278RangeSetup.Spawn6826B7(current, address, phase, scale);
+                return new(current, task);
+            }
+
+            NativeBattleCarbuncle278Frame ApplyRecipientContact(NativeBattleCarbuncle278Frame current, NativeBattleModulePoolTask task)
+            {
+                int actor = ActorIndex(task.ReadDword(0x10));
+                int header = current.Effect.Parameters?.HeaderIndex7C ?? throw new NotSupportedException("Native Carbuncle contact requires its current header pointer.");
+                foreach (NativeBattleContactPacket packet in nativeActionPackets.ReadHeaderContacts506BA0(header))
+                {
+                    if (packet.Primary.ActorIndex == actor)
+                    {
+                        var pending = graphics.PendingContacts;
+                        graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [packet] });
+                        graphics = graphics with { PendingContacts = pending };
+                    }
+                }
+                return current;
             }
 
             NativeBattleCarbuncle278Frame QueueFile(NativeBattleCarbuncle278Frame current, NativeBattleEffectFileRequest request)

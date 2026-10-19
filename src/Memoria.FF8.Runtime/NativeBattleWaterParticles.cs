@@ -34,7 +34,8 @@ public static class NativeBattleWaterParticles
                 return WriteCoreDword(frame, 0x2797450, unchecked(pc + (uint)displacement));
             case 4:
             case 5:
-                int group = instruction & 0x300;
+            case 6:
+                int group = (byte)instruction == 6 ? 0 : instruction & 0x300;
                 if (group == 0x300)
                 {
                     throw new NotSupportedException($"Native particle arithmetic has unsupported destination group 0x{group:X3}, raw instruction 0x{instruction:X4}, PC 0x{pc:X8}.");
@@ -51,7 +52,7 @@ public static class NativeBattleWaterParticles
                     short value = unchecked((short)ProgramWord(frame, program, unchecked(pc + (uint)next)));
                     next += 2;
                     int scalar;
-                    if ((byte)instruction == 4)
+                    if ((byte)instruction is 4 or 6)
                     {
                         if (value == 0x7654)
                         {
@@ -73,7 +74,7 @@ public static class NativeBattleWaterParticles
                     if (stride == 4)
                     {
                         uint output = unchecked((uint)(scalar << shift));
-                        if ((byte)instruction == 5)
+                        if ((byte)instruction is 5 or 6)
                         {
                             output = unchecked(ReadParticleDword(frame, offset) + output);
                         }
@@ -162,6 +163,21 @@ public static class NativeBattleWaterParticles
                 short threshold = unchecked((short)ProgramWord(frame, program, unchecked(branchPc + 2)));
                 uint branchAdvance = magnitude <= threshold ? unchecked((uint)(short)ProgramWord(frame, program, unchecked(branchPc + 4))) : 6;
                 return WriteCoreDword(frame, 0x2797450, unchecked(branchPc + branchAdvance));
+            case 0x10:
+                int selectedSequence = instruction >> 8;
+                if ((selectedSequence & 0x80) != 0)
+                {
+                    NativeCrtRandomState sequenceRandom = frame.Random.Draw(out ushort randomSequence);
+                    frame = frame with { Random = sequenceRandom };
+                    selectedSequence = unchecked((int)((uint)(randomSequence * (selectedSequence & 0x7F)) >> 15));
+                }
+                uint sequenceBase = ReadParticleDword(frame, 0xC);
+                uint sequenceDirectory = ReadParticleDword(frame, 0x4C);
+                uint selectedRecord = unchecked(sequenceBase + (uint)(selectedSequence * 8));
+                frame = ParticleDword(frame, 8, selectedRecord);
+                frame = ParticleDword(frame, 0x30, unchecked(sequenceDirectory + ReadArenaDword(frame, selectedRecord)));
+                frame = ParticleWord(frame, 0x34, ReadArenaWord(frame, unchecked(selectedRecord + 4)));
+                break;
             case 0x13:
                 int textureIndex = instruction >> 8;
                 frame = services.PrepareTexturePage(frame, textureIndex);

@@ -143,6 +143,21 @@ public sealed partial class BattleSession
             int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank);
             switch (opcode)
             {
+                case 0x7C:
+                    return NativeBattleCinematicPolar7C.Execute(current, program);
+                case 0x9C:
+                    return NativeBattleWaterChildCommands.Execute9C(current, program, bank, checked(current.TemporaryFrame.Address + 0x100));
+                case 0x5D:
+                    return NativeBattleWaterChildCommands.Execute5D(current, program, bank, checked(current.TemporaryFrame.Address + 0x100));
+                case 0x4F:
+                case 0x90:
+                    if (selectedHandler is 0xB62F70 or 0xAFDA00)
+                    {
+                        var offscreenStep = ExecuteNativeCinematicOffscreen(current, program, assets[1].Data.Length, graphics);
+                        graphics = offscreenStep.Graphics;
+                        return offscreenStep.Frame;
+                    }
+                    return NativeBattleScriptedCommandReads.Advance(current, opcode == 0x4F ? 8u : 10u);
                 case 0x10D:
                     return NativeBattleCinematicControlCommands.Wait10D(current, program, ResolveCurrentNode);
                 case 0x120:
@@ -415,6 +430,12 @@ public sealed partial class BattleSession
             return NativeBattleCinematicDraw.Run(profile, current, PrepareLighting, (frame, kind) =>
             {
                 uint selectedDrawHandler = NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "draw_table", kind, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.DrawTable + 4u * kind), 4)));
+                if (selectedDrawHandler == 0xAE4C70)
+                {
+                    var scanlines = DrawNativeCinematicScanlines37(frame, graphics);
+                    graphics = scanlines.Graphics;
+                    return scanlines.Frame;
+                }
                 if (selectedDrawHandler is 0xB1E3F0 or 0xAECD20)
                 {
                     var points = DrawNativeCinematicPointCloud27(frame, assets[1].Data.Length, graphics);
