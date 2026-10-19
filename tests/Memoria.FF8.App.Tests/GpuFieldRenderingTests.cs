@@ -115,7 +115,7 @@ public sealed class GpuFieldRenderingTests
         foreach (NativeFadeDraw fade in new NativeFadeDraw[] { new(NativeFadeDrawMode.None, 0, 0, 0), new(NativeFadeDrawMode.Add, 3, 5, 7), new(NativeFadeDrawMode.Subtract, 7, 5, 3), new(NativeFadeDrawMode.Black, 0, 0, 0) })
         {
             byte[] expected = cpu.Render(new Dictionary<int, int>(), [], TimeSpan.Zero).ToArray();
-            FieldColorComposite.Apply(expected, fade);
+            FieldColorComposite.Apply(expected, fade, width, cpu.ContentBounds);
             live.Render(new Dictionary<int, int>(), [], TimeSpan.Zero, fade: fade);
             Color[] actual = GpuTestDevice.Read(gpu.Target);
             AssertPixel(expected, actual, width / 2, height / 2, width, 2);

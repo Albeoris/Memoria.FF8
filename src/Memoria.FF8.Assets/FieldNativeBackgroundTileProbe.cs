@@ -10,7 +10,7 @@ public readonly record struct FieldNativeBackgroundTileOrigin(short X, short Y);
 /// <summary>Native475480 signed tile-origin relocation and strict origin culling, before eighth-pixel packing.</summary>
 public static class FieldNativeBackgroundTileProbe
 {
-    public static FieldNativeBackgroundTileOrigin? Relocate(short tileX, short tileY, FieldNativeBackgroundWrapLayer layer, FieldNativeBackgroundWrapFrame frame)
+    public static FieldNativeBackgroundTileOrigin? Relocate(short tileX, short tileY, FieldNativeBackgroundWrapLayer layer, FieldNativeBackgroundWrapFrame frame, bool cullHorizontal = true)
     {
         ArgumentNullException.ThrowIfNull(frame);
         short x = unchecked((short)(tileX + layer.OffsetX));
@@ -33,7 +33,7 @@ public static class FieldNativeBackgroundTileProbe
         {
             y = unchecked((short)(y - layer.PeriodY));
         }
-        if (x <= frame.Left || x >= frame.Right || y <= frame.Top || y >= frame.Bottom)
+        if (cullHorizontal && (x <= frame.Left || x >= frame.Right) || y <= frame.Top || y >= frame.Bottom)
         {
             return null;
         }

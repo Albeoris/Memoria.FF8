@@ -32,9 +32,9 @@ public sealed partial class FieldRenderer
     private readonly float offsetX;
     private readonly float offsetY;
     private readonly Vector2 drawingOrigin;
-    private readonly int clipLeft;
+    private int clipLeft;
     private readonly int clipTop;
-    private readonly int clipRight;
+    private int clipRight;
     private readonly int clipBottom;
     private Vector3 backgroundColor = new(128);
     private IReadOnlyDictionary<int, Vector3>? moduleColors;
@@ -48,6 +48,7 @@ public sealed partial class FieldRenderer
     private FieldNativeBackgroundWrapFrame? backgroundWrapFrame;
     private int backgroundCameraIndex;
     private Vector2 backgroundJitter;
+    private Vector2 backgroundActorOffset;
     private bool backgroundHardwareLayout;
     private Vector2 actorScrollOffset;
     private ProjectedPoint[] projected = [];
@@ -82,6 +83,9 @@ public sealed partial class FieldRenderer
         clipTop = Math.Clamp((int)MathF.Ceiling(offsetY - 0.5f), 0, outputHeight);
         clipRight = Math.Clamp((int)MathF.Ceiling(offsetX + Width * scale - 0.5f), 0, outputWidth);
         clipBottom = Math.Clamp((int)MathF.Ceiling(offsetY + presentationHeight * scale - 0.5f), 0, outputHeight);
+        widescreen = !nativeMovieViewport;
+        originalClipLeft = clipLeft;
+        originalClipRight = clipRight;
         background = field.Background.Select(tile => CreateTileRaster(tile, Vector2.Zero, prepareSoftware: true)).ToArray();
         backgroundPublication = field.Background.Select(tile => tile.Texture).FirstOrDefault(texture => texture is not null);
         backgroundTextureGeneration = backgroundPublication?.Generation ?? 0;
@@ -121,7 +125,7 @@ public sealed partial class FieldRenderer
         backgroundColor = backgroundShade ?? new Vector3(128);
         moduleColors = backgroundModuleShades;
         this.actorScrollOffset = actorScrollOffset + jitter;
-        bool layoutChanged = backgroundHardwareLayout != (TriangleRenderer is not null);
+        bool layoutChanged = UpdateHorizontalViewport(cameraIndex, this.actorScrollOffset) || backgroundHardwareLayout != (TriangleRenderer is not null);
         if (backgroundPublication is not null && backgroundPublication.Generation != backgroundTextureGeneration)
         {
             for (int index = 0; index < background.Length; index++)
@@ -136,13 +140,14 @@ public sealed partial class FieldRenderer
             }
             backgroundTextureGeneration = backgroundPublication.Generation;
         }
-        if (layoutChanged || this.backgroundScrollOffsets.Count != nextOffsets.Count || nextOffsets.Any(pair => !this.backgroundScrollOffsets.TryGetValue(pair.Key, out Vector2 previous) || previous != pair.Value) || !SameWrapFrame(backgroundWrapFrame, nativeWrapFrame) || backgroundCameraIndex != cameraIndex || backgroundJitter != jitter)
+        if (layoutChanged || this.backgroundScrollOffsets.Count != nextOffsets.Count || nextOffsets.Any(pair => !this.backgroundScrollOffsets.TryGetValue(pair.Key, out Vector2 previous) || previous != pair.Value) || !SameWrapFrame(backgroundWrapFrame, nativeWrapFrame) || backgroundCameraIndex != cameraIndex || backgroundJitter != jitter || backgroundActorOffset != this.actorScrollOffset)
         {
-            TileRaster[] nextBackground = PrepareBackgroundRasters(nextOffsets, nativeWrapFrame, jitter);
+            TileRaster[] nextBackground = PrepareBackgroundRasters(nextOffsets, nativeWrapFrame, jitter, cameraIndex);
             this.backgroundScrollOffsets = nextOffsets.ToDictionary(pair => pair.Key, pair => pair.Value);
             backgroundWrapFrame = nativeWrapFrame;
             backgroundCameraIndex = cameraIndex;
             backgroundJitter = jitter;
+            backgroundActorOffset = this.actorScrollOffset;
             renderBackground = nextBackground;
             backgroundHardwareLayout = TriangleRenderer is not null;
         }
@@ -223,7 +228,7 @@ public sealed partial class FieldRenderer
         return first.NativeNormalVersion == second.NativeNormalVersion && first.FieldId == second.FieldId && first.ProgramHash == second.ProgramHash && first.Left == second.Left && first.Right == second.Right && first.Top == second.Top && first.Bottom == second.Bottom && first.Layers.SequenceEqual(second.Layers) && (first.LayerCurrents.IsDefault == second.LayerCurrents.IsDefault && (first.LayerCurrents.IsDefault || first.LayerCurrents.SequenceEqual(second.LayerCurrents)));
     }
 
-    private TileRaster[] PrepareBackgroundRasters(IReadOnlyDictionary<int, Vector2> offsets, FieldNativeBackgroundWrapFrame? frame, Vector2 jitter)
+    private TileRaster[] PrepareBackgroundRasters(IReadOnlyDictionary<int, Vector2> offsets, FieldNativeBackgroundWrapFrame? frame, Vector2 jitter, int cameraIndex = 0)
     {
         List<TileRaster> rasters = [];
         FieldBounds screen = field.Information is { ScreenBounds.Count: > 0 } information ? information.ScreenBounds[0] : new FieldBounds(0, NativeDrawingHeight, Width, 0);
@@ -282,25 +287,29 @@ public sealed partial class FieldRenderer
             TileRaster placedRaster = scrollOffset == Vector2.Zero ? raster : CreateTileRaster(tile, scrollOffset);
             rasters.Add(placedRaster with { Depth = tile.Z * 4f + paletteOrder / 4f });
         }
+        AddWidescreenBackgroundRasters(rasters, offsets, frame, jitter, cameraIndex);
         // 45C870 prepends to the OT slot;45D310 traverses that chain. Preserve
         // reverse file order within equal Z, independently of layer/CLUT.
         return rasters.AsEnumerable().Reverse().OrderByDescending(raster => raster.Tile.Z).ToArray();
     }
 
-    private TileRaster CreateTileRaster(BackgroundTile tile, Vector2 scrollOffset, bool prepareSoftware = false)
+    private TileRaster CreateTileRaster(BackgroundTile tile, Vector2 scrollOffset, bool prepareSoftware = false, int? left = null, int? right = null)
     {
+        int rasterLeft = left ?? originalClipLeft;
+        int rasterRight = right ?? originalClipRight;
+        Vector4 clip = new(rasterLeft, clipTop, rasterRight, clipBottom);
         PixelImage image = tile.ResolvedImage;
         Vector2 origin = new(offsetX + (tile.X + drawingOrigin.X + scrollOffset.X) * scale, offsetY + (tile.Y + drawingOrigin.Y + scrollOffset.Y) * verticalScale);
         Vector2 size = new(16 * scale, 16 * verticalScale);
         if (TriangleRenderer is not null && !prepareSoftware)
         {
-            return new TileRaster(tile, [], []) { Origin = origin, Size = size };
+            return new TileRaster(tile, [], []) { Origin = origin, Size = size, Clip = clip };
         }
         // Cover sample centers in [origin, origin + 16). Adjacent MAP tiles
         // share an edge, so fractional scaling must not blend that row twice.
-        int startX = Math.Clamp((int)MathF.Ceiling(offsetX + (tile.X + drawingOrigin.X + scrollOffset.X) * scale - 0.5f), clipLeft, clipRight);
+        int startX = Math.Clamp((int)MathF.Ceiling(offsetX + (tile.X + drawingOrigin.X + scrollOffset.X) * scale - 0.5f), rasterLeft, rasterRight);
         int startY = Math.Clamp((int)MathF.Ceiling(offsetY + (tile.Y + drawingOrigin.Y + scrollOffset.Y) * verticalScale - 0.5f), clipTop, clipBottom);
-        int endX = Math.Clamp((int)MathF.Ceiling(offsetX + (tile.X + drawingOrigin.X + 16 + scrollOffset.X) * scale - 0.5f), clipLeft, clipRight);
+        int endX = Math.Clamp((int)MathF.Ceiling(offsetX + (tile.X + drawingOrigin.X + 16 + scrollOffset.X) * scale - 0.5f), rasterLeft, rasterRight);
         int endY = Math.Clamp((int)MathF.Ceiling(offsetY + (tile.Y + drawingOrigin.Y + 16 + scrollOffset.Y) * verticalScale - 0.5f), clipTop, clipBottom);
         RasterRun[] columns = CreateRuns(startX, endX, destinationX =>
         {
@@ -315,7 +324,8 @@ public sealed partial class FieldRenderer
         return new TileRaster(tile, columns, rows)
         {
             Origin = origin,
-            Size = size
+            Size = size,
+            Clip = clip
         };
     }
 
@@ -413,6 +423,7 @@ public sealed partial class FieldRenderer
         public float Depth { get; init; }
         public Vector2 Origin { get; init; }
         public Vector2 Size { get; init; }
+        public Vector4 Clip { get; init; }
     }
 
     private void DrawActor(ActorVisual actor, List<(float Depth, Action Draw)> translucent)

@@ -61,6 +61,7 @@ public sealed partial class FieldRenderer
         BackgroundAtlasRegion region = GpuBackgroundRegion(tile.ResolvedImage);
         TriangleMaterial material = GpuMaterial(region.Image, blend, !translucentPass) with
         {
+            ClipRectangle = raster.Clip,
             MinimumAlpha = blended && !translucentPass ? 0.75f : 1f / 255,
             MaximumAlpha = translucentPass ? 0.75f : 1
         };
@@ -80,7 +81,7 @@ public sealed partial class FieldRenderer
             _ => TriangleBlend.Replace
         };
         Vector4 color = fade.Mode == NativeFadeDrawMode.Black ? new Vector4(0, 0, 0, 1) : new Vector4(fade.Red / 255f, fade.Green / 255f, fade.Blue / 255f, 1);
-        TriangleMaterial material = new(null, blend, TriangleDepthComparison.Always, false);
+        TriangleMaterial material = new(null, blend, TriangleDepthComparison.Always, false) { ClipRectangle = new Vector4(clipLeft, clipTop, clipRight, clipBottom) };
         GpuQuad(Vector2.Zero, new Vector2(OutputWidth, OutputHeight), 0, color, material, Vector2.One);
     }
 }

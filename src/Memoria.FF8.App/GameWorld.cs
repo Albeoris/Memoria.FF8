@@ -403,7 +403,7 @@ internal sealed partial class GameWorld : IDisposable
         byte[] pixels = renderer.Render(Events.BackgroundStates, visuals, elapsed, cameraIndex: Events.Scene.CameraIndex, backgroundModuleShades: Events.GetBackgroundModuleShades(), backgroundVisible: view?.BackgroundVisible ?? true, hiddenBackgroundModules: view?.HiddenBackgroundModules, backgroundScrollOffsets: scroll.LayerOffsets, actorScrollOffset: scroll.ActorOffset, nativeWrapFrame: scroll.NativeWrap, drawingJitterX: shake.X.Output, drawingJitterY: shake.Y.Output, cardMarkers: rareCardMarkers ? CreateCardMarkers(elapsed) : null, drawPointParticles: Events.DrawPointParticleFrame, drawPointParticleTables: Events.DrawPointParticleTables, drawPointDisplayMask: Events.Scene.NativeDrawPointDisplayMask, fade: fade.Draw, backgroundVisibility: SceneBackgroundVisibility());
         if (triangleRenderer is null)
         {
-            FieldColorComposite.Apply(pixels, fade.Draw);
+            FieldColorComposite.Apply(pixels, fade.Draw, renderWidth, renderer.ContentBounds);
         }
         return pixels;
     }
@@ -506,15 +506,23 @@ internal sealed partial class GameWorld : IDisposable
 
 internal static class FieldColorComposite
 {
-    public static void Apply(byte[] rgba, NativeFadeDraw draw)
+    public static void Apply(byte[] rgba, NativeFadeDraw draw, int width = 0, PixelBounds? bounds = null)
     {
+        int start = bounds is PixelBounds clip ? (clip.Y * width + clip.X) * 4 : 0;
+        int rowBytes = bounds is PixelBounds area ? area.Width * 4 : rgba.Length;
+        int rows = bounds?.Height ?? 1;
+        int stride = bounds.HasValue ? width * 4 : rgba.Length;
         if (draw.Mode == NativeFadeDrawMode.Black)
         {
-            for (int offset = 0; offset < rgba.Length; offset += 4)
+            for (int row = 0; row < rows; row++)
             {
-                rgba[offset] = 0;
-                rgba[offset + 1] = 0;
-                rgba[offset + 2] = 0;
+                int rowStart = start + row * stride;
+                for (int offset = rowStart; offset < rowStart + rowBytes; offset += 4)
+                {
+                    rgba[offset] = 0;
+                    rgba[offset + 1] = 0;
+                    rgba[offset + 2] = 0;
+                }
             }
             return;
         }
@@ -533,11 +541,15 @@ internal static class FieldColorComposite
             green[value] = (byte)Math.Clamp(MathF.Round(value + additive.Y - subtractive.Y), 0, 255);
             blue[value] = (byte)Math.Clamp(MathF.Round(value + additive.Z - subtractive.Z), 0, 255);
         }
-        for (int offset = 0; offset < rgba.Length; offset += 4)
+        for (int row = 0; row < rows; row++)
         {
-            rgba[offset] = red[rgba[offset]];
-            rgba[offset + 1] = green[rgba[offset + 1]];
-            rgba[offset + 2] = blue[rgba[offset + 2]];
+            int rowStart = start + row * stride;
+            for (int offset = rowStart; offset < rowStart + rowBytes; offset += 4)
+            {
+                rgba[offset] = red[rgba[offset]];
+                rgba[offset + 1] = green[rgba[offset + 1]];
+                rgba[offset + 2] = blue[rgba[offset + 2]];
+            }
         }
     }
 }

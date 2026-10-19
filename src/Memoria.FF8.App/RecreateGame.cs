@@ -1004,7 +1004,7 @@ internal sealed partial class RecreateGame : Game
             return;
         }
         Rectangle viewport = GraphicsDevice.Viewport.Bounds;
-        PixelBounds target = ViewportLayout.WorldRenderTarget(viewport.Width, viewport.Height, options.WorldRenderLimit, session.State.Scene == SceneKind.WorldMap);
+        PixelBounds target = session.State.Scene == SceneKind.Field ? ViewportLayout.FieldRenderTarget(viewport.Width, viewport.Height, options.WorldRenderLimit) : ViewportLayout.WorldRenderTarget(viewport.Width, viewport.Height, options.WorldRenderLimit, session.State.Scene == SceneKind.WorldMap);
         world!.SetRenderSize(target.Width, target.Height);
         if (fieldGpu is null && (fieldTexture.Width != target.Width || fieldTexture.Height != target.Height))
         {

@@ -21,6 +21,19 @@ public static class ViewportLayout
         return Math.Max(0.1f, Math.Min(viewportWidth / 960f, viewportHeight / 720f));
     }
 
+    public static PixelBounds FieldRenderTarget(int viewportWidth, int viewportHeight, int longestSideLimit = 2048)
+    {
+        if (longestSideLimit is < 64 or > 4096)
+        {
+            throw new ArgumentOutOfRangeException(nameof(longestSideLimit));
+        }
+        PixelBounds fit = Fit(320, 240, viewportWidth, viewportHeight);
+        int width = viewportWidth;
+        int height = fit.Height;
+        double scale = Math.Min(1, longestSideLimit / (double)Math.Max(width, height));
+        return new PixelBounds(0, 0, Math.Max(1, (int)Math.Round(width * scale)), Math.Max(1, (int)Math.Round(height * scale)));
+    }
+
     public static PixelBounds WorldRenderTarget(int viewportWidth, int viewportHeight, int longestSideLimit = 2048, bool worldMap = false)
     {
         if (longestSideLimit is < 64 or > 4096)
