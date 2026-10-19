@@ -17,7 +17,7 @@ public sealed partial class MenuController
 
     private static string ConfigCategory(string id) => id switch
     {
-        "V-Sync" or "Field FPS" or "World FPS" or "Battle FPS" or "Menu FPS" => "display",
+        "V-Sync" or "Field FPS" or "World FPS" or "Battle FPS" or "Menu FPS" or "Show FPS" => "display",
         "Music volume" or "Effect volume" or "Sound" => "audio",
         "Controller" or "Vibration" => "controls",
         "Quick saves" or "Cursor" or "Field message" or "Rare card markers" or "Text scale" or "UI font" or "UI font size" or "Dialogue font" or "Dialogue font size" => "interface",

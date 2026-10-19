@@ -131,6 +131,8 @@ internal sealed partial class RecreateGame
         data.Settings["World FPS"] = uiPreferences.WorldFps.ToString();
         data.Settings["Battle FPS"] = uiPreferences.BattleFps == 0 ? "Unlimited" : uiPreferences.BattleFps.ToString();
         data.Settings["Menu FPS"] = uiPreferences.MenuFps == 0 ? "Unlimited" : uiPreferences.MenuFps.ToString();
+        data.Settings["Show FPS"] = uiPreferences.ShowFps ? "On" : "Off";
+        data.SupportedActions.Add("config:Show FPS");
         data.SupportedActions.UnionWith(["config:V-Sync", "config:Field FPS", "config:World FPS", "config:Battle FPS", "config:Menu FPS"]);
         if (session.State.Scene == SceneKind.Title)
         {

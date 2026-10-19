@@ -1180,6 +1180,7 @@ internal sealed partial class RecreateGame : Game
             DrawNoticeUi(bounds, "Paused", true);
         }
         DrawBattleDebugUi(bounds);
+        DrawFps(bounds);
         batch.End();
         CapturePresentedFrame(gameTime);
         base.Draw(gameTime);

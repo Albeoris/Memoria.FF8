@@ -45,6 +45,7 @@ public sealed partial class MenuController
         UiPreferences preferences = _readPreferences?.Invoke() ?? new UiPreferences();
         return key switch
         {
+            "Show FPS" => preferences.ShowFps ? "On" : "Off",
             "Quick saves" => preferences.QuickSaveCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
             "Text scale" => preferences.TextScale + "%",
             "UI font" => preferences.UiFontFamily,

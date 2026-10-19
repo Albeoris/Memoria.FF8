@@ -170,6 +170,7 @@ public static class MenuSettings
 {
     public static IReadOnlyList<MenuSetting> Definitions { get; } =
     [
+        new("Show FPS", "Show measured frame presentations per real second, including rendering and V-Sync waits. Independent of simulation speed.", ["Off", "On"]),
         new("V-Sync", "Synchronize presentation with the display refresh rate. Applies to this installation.", ["On", "Off"]),
         new("Field FPS", "Presentation limit for fields and movies. Simulation remains at its original rate; higher limits repeat frames. V-Sync may limit output further.", ["15", "30", "60", "90", "120", "144", "240", "Unlimited"]),
         new("World FPS", "World travel presentation limit. Simulation remains at its original rate; 60 FPS interpolates movement and camera between updates. V-Sync may limit output further.", ["30", "60"]),

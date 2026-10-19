@@ -128,8 +128,10 @@ internal sealed partial class RecreateGame
         Rectangle bounds = GraphicsDevice.Viewport.Bounds;
         PixelBounds fit = ViewportLayout.Fit(640, 480, bounds.Width, bounds.Height);
         GraphicsDevice.Clear(Color.Black);
+        text.BeginFrame();
         batch.Begin(samplerState: SamplerState.LinearClamp);
         batch.Draw(battleEntryPrevious!, new Rectangle(fit.X, fit.Y, fit.Width, fit.Height), Color.White);
+        DrawFps(bounds);
         batch.End();
         CapturePresentedFrame(gameTime);
         base.Draw(gameTime);

@@ -9,6 +9,7 @@ internal sealed record UiPreferences
     public int WindowWidth { get; init; } = 1024;
     public int WindowHeight { get; init; } = 768;
     public bool VSync { get; init; } = true;
+    public bool ShowFps { get; init; }
     public int FieldFps { get; init; } = 60;
     public int WorldFps { get; init; } = 60;
     public int BattleFps { get; init; } = 60;
@@ -55,6 +56,15 @@ internal sealed record UiPreferences
 
     public UiPreferences WithSetting(string key, string value)
     {
+        if (key == "Show FPS")
+        {
+            return value switch
+            {
+                "On" => this with { ShowFps = true },
+                "Off" => this with { ShowFps = false },
+                _ => throw new ArgumentException("Show FPS requires On or Off.")
+            };
+        }
         if (key == "V-Sync")
         {
             return value switch
