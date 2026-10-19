@@ -14,6 +14,11 @@ public static class NativeBattlePandemona291LayerParticles
         int radius = unchecked((int)(unchecked((uint)elapsed << 12) / 14)) >> 2;
         NativeBattlePandemona291State state = frame.Memory.Pandemona291 ?? throw new NotSupportedException("Native Pandemona particle births require their current module state.");
         int center = state.Center25562E8 ?? throw new NotSupportedException("Native Pandemona particle births require their current center.");
+        return Spawn(frame, remaining, radius, unchecked(center + 2000), 4096, 2048, 128);
+    }
+
+    public static NativeBattlePandemona291Frame Spawn(NativeBattlePandemona291Frame frame, int remaining, int radius, int center, ushort scale, ushort displacement, ushort spin)
+    {
         NativeBattleEffectTaskPool pool = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == 0x2556298);
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Pandemona particle births require their actual arena.");
         while (remaining-- > 0)
@@ -25,7 +30,7 @@ public static class NativeBattlePandemona291LayerParticles
             (pool, int index) = pool.Append(0x6F0ED0);
             NativeCrtRandomState random = frame.Random.Draw(out ushort angle);
             frame = frame with { Random = random };
-            NativeBattleModulePoolTask task = pool.Slots[index].WriteWord(0xC, 0).WriteWord(0xE, unchecked((ushort)radius)).WriteWord(0x10, angle).WriteWord(0x12, 128).WriteWord(0x14, unchecked((ushort)(center + 2000))).WriteWord(0x16, 4096).WriteWord(0x18, 2048);
+            NativeBattleModulePoolTask task = pool.Slots[index].WriteWord(0xC, 0).WriteWord(0xE, unchecked((ushort)radius)).WriteWord(0x10, angle).WriteWord(0x12, spin).WriteWord(0x14, unchecked((ushort)center)).WriteWord(0x16, scale).WriteWord(0x18, displacement);
             pool = pool with { Slots = pool.Slots.SetItem(index, task) };
             int offset = checked((int)(pool.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * pool.Stride + 0xC);
             arena = arena.Write(offset, task.Payload.AsSpan().Slice(0, 14));

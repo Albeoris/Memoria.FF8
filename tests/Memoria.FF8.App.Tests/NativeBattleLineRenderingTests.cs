@@ -9,6 +9,49 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleLineRenderingTests
 {
     [Theory]
+    [InlineData(0x50, 1)]
+    [InlineData(0x52, 2)]
+    public void Gouraud_line_preserves_independent_endpoint_colors_depths_and_native_pass(int opcode, int pass)
+    {
+        Capture capture = new();
+        NativeBattleLogicalResolvedCommand line = GouraudLine((byte)opcode, (byte)pass);
+        new BattleRenderer(320, 216) { TriangleRenderer = capture }.RenderNativePrimitiveFrame(Frame(line) with { LastDescriptorPerspective = true }, null);
+        var drawn = Assert.Single(capture.Lines);
+        Assert.Equal(new Vector2(10, 18), drawn.A.Position);
+        Assert.Equal(new Vector2(30, 18), drawn.B.Position);
+        Assert.Equal(new Vector3(1, 0, 0), new Vector3(drawn.A.Color.X, drawn.A.Color.Y, drawn.A.Color.Z));
+        Assert.Equal(new Vector3(0, 0, 1), new Vector3(drawn.B.Color.X, drawn.B.Color.Y, drawn.B.Color.Z));
+        Assert.Equal(1f / 1000, drawn.A.ReciprocalW);
+        Assert.Equal(1f / 2000, drawn.B.ReciprocalW);
+        Assert.True(drawn.A.Depth < drawn.B.Depth);
+        Assert.Equal(pass == 1, drawn.Material.DepthWrite);
+        Assert.Equal(pass == 1 ? TriangleBlend.Replace : TriangleBlend.Add, drawn.Material.Blend);
+        capture.Lines.Clear();
+        new BattleRenderer(320, 216) { TriangleRenderer = capture }.RenderNativePrimitiveFrame(Frame(line with { Pass = (byte)(3 - pass) }), null);
+        Assert.Empty(capture.Lines);
+    }
+
+    [Fact]
+    public void Cpu_gouraud_line_interpolates_endpoint_colors_and_round_trips_without_filling_adjacent_rows()
+    {
+        NativeBattlePrimitiveFrame frame = Frame(GouraudLine(0x50, 1));
+        byte[] pixels = new BattleRenderer(320, 216).RenderNativePrimitiveFrame(frame, null).ToArray();
+        Assert.Equal(new byte[] { 255, 0, 0, 255 }, Pixel(pixels, 10, 18));
+        byte[] midpoint = Pixel(pixels, 20, 18);
+        Assert.InRange(midpoint[0], (byte)127, (byte)128);
+        Assert.InRange(midpoint[2], (byte)127, (byte)128);
+        Assert.Equal(new byte[] { 0, 0, 0, 255 }, Pixel(pixels, 20, 19));
+        NativeBattlePrimitiveFrame restored = JsonSerializer.Deserialize<NativeBattlePrimitiveFrame>(JsonSerializer.Serialize(frame))!;
+        Assert.Equal(pixels, new BattleRenderer(320, 216).RenderNativePrimitiveFrame(restored, null));
+    }
+
+    private static NativeBattleLogicalResolvedCommand GouraudLine(byte opcode, byte pass)
+    {
+        NativeBattleLogicalCommand command = new(new("line", 0, 0), 1, opcode, [(uint)opcode << 24 | 255, Point(10, 18), 0x00FF0000, Point(30, 18)], 1, [1000, 2000, 0, 0], null) { OrderingBucket = 50 };
+        return new(command, new(0x20), pass);
+    }
+
+    [Theory]
     [InlineData(0, 3.9375f, 0.375f)]
     [InlineData(1, 14.875f, 13.5f)]
     public void Line_endpoints_use_signed_words_and_actual_flag_selected_viewport_without_an_opcode_bias(ushort flags, float x, float y)

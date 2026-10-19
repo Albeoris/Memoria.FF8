@@ -39,7 +39,7 @@ public sealed class NativeBattleCinematicResourcesTests
         Assert.Same(complete, assets.ReadNativeCinematicResources(effect));
         Assert.Equal(resources.StaticData.Data, complete.StaticData.Data);
         Assert.All(Enumerable.Range(profile.SourceBase, profile.LastSource - profile.SourceBase + 1), id => Assert.Single(complete.Files, file => file.FileId == id));
-        foreach (int opcode in new[] { 0, 2, 3, 0x30, 0x37, 0x39, 0x3F, 0x47, 0x4B, 0x81, 0x82, 0x90, 0x9B, 0xA1, 0xA4, 0xB2, 0xFB })
+        foreach (int opcode in new[] { 0, 2, 3, 0x30, 0x37, 0x39, 0x3F, 0x47, 0x4B, 0x81, 0x82, 0x90, 0x9B, 0xA1, 0xA4, 0xAC, 0xB2, 0xFB })
         {
             uint selected = BinaryPrimitives.ReadUInt32LittleEndian(complete.ReadStatic(profile.InstructionTable + (uint)(4 * opcode), 4));
             uint expected = BinaryPrimitives.ReadUInt32LittleEndian(original.Read(0x1874F10u + (uint)(4 * opcode), 4));
@@ -67,6 +67,8 @@ public sealed class NativeBattleCinematicResourcesTests
                 Assert.Equal(expected, NativeBattleCinematicDispatch.RequireSlot(effect, "draw_table", draw, selected));
             }
         }
+        uint bone = BinaryPrimitives.ReadUInt32LittleEndian(complete.ReadStatic(profile.BoneTable + 20, 4));
+        Assert.Equal(0xB26320u, NativeBattleCinematicDispatch.RequireSlot(effect, "bone_table", 5, bone));
     }
 
     [Theory]
@@ -76,6 +78,7 @@ public sealed class NativeBattleCinematicResourcesTests
     [InlineData(205, 38, 0xAF59D0u)]
     [InlineData(206, 56, 0xAE52C0u)]
     [InlineData(206, 57, 0xAEAAE0u)]
+    [InlineData(206, 58, 0xAEA550u)]
     public void Selected_draw_variants_match_their_actual_original_table_index(int effect, int index, uint expected)
     {
         using GameAssets assets = new(TestResources.GameDirectory);
@@ -87,6 +90,20 @@ public sealed class NativeBattleCinematicResourcesTests
         if (effect == 202 && index == 43)
         {
             Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(effect, "draw_table", 42, actual));
+        }
+    }
+
+    [Fact]
+    public void Eden_diagnostic_and_frame_copy_commands_match_the_original_instruction_slots()
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        NativeBattleCinematicProfile profile = NativeBattleCinematicProfile.ForEffect(206);
+        NativeBattleCinematicResources resources = assets.ReadNativeCinematicResources(206);
+        foreach ((int index, uint expected) in new[] { (0xB6, 0xAF27C0u), (0xB7, 0xAE3350u), (0xB8, 0xAE4270u) })
+        {
+            uint actual = BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(profile.InstructionTable + (uint)(4 * index), 4));
+            Assert.Equal(expected, actual);
+            Assert.Equal(actual, NativeBattleCinematicDispatch.RequireSlot(206, "vm_table", index, actual));
         }
     }
 

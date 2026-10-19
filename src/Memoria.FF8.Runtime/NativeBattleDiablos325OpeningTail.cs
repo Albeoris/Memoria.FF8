@@ -46,6 +46,22 @@ public static class NativeBattleDiablos325OpeningTail
         {
             return NativeBattleDiablos325MidCamera.Reset6564BC(frame, camera);
         }
+        else if (counter is >= 175 and <= 189)
+        {
+            return NativeBattleDiablos325MidCamera.Advance656504(frame, camera, counter);
+        }
+        else if (counter == 202)
+        {
+            return NativeBattleDiablos325LateReset.Reset65659F(frame, camera);
+        }
+        else if (counter is >= 217 and <= 236)
+        {
+            return NativeBattleDiablos325LateReset.Advance6565FA(frame, camera, counter);
+        }
+        else if (counter == 237)
+        {
+            return NativeBattleDiablos325LateReset.Reset6566B7(frame, camera);
+        }
         return new(frame, camera);
     }
 }

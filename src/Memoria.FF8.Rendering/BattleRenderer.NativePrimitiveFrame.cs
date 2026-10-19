@@ -50,7 +50,7 @@ public sealed partial class BattleRenderer
                 continue;
             }
             NativeBattleLogicalCommand command = resolved.Command;
-            if (command.Opcode is 0x40 or 0x42)
+            if (command.Opcode is 0x40 or 0x42 or 0x50 or 0x52)
             {
                 DrawNativePrimitiveLine(frame, resolved);
                 continue;

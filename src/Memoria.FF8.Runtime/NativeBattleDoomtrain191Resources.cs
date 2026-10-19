@@ -9,6 +9,12 @@ public sealed record NativeBattleDoomtrain191Resources(NativeBattleEffectHeapAll
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleDoomtrain191SkyResources? Sky { get; init; }
 
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleDoomtrain191ParticleResources? Particles { get; init; }
+
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleDoomtrain191CreatureResources? Creature { get; init; }
+
     public void Validate()
     {
         Vibration.Bank.Validate();

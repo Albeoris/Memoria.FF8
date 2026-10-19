@@ -3,7 +3,7 @@ using System.Buffers.Binary;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>The original 160 physical sixteen-byte puff records and CRT consumption order.</summary>
-public static class NativeBattleDiablos325Puffs
+public static partial class NativeBattleDiablos325Puffs
 {
     public const int BaseOffset = 0x4C5C;
     public const int Capacity = 160;
@@ -32,25 +32,11 @@ public static class NativeBattleDiablos325Puffs
         NativeCrtRandomState? random = frame.Random;
         for (uint index = 0; index < count; index++)
         {
-            long difference = (long)state.ParticleCursor51F4 - state.ModelBuffer5208;
-            int offset = difference is >= 0 and <= int.MaxValue ? (int)difference : -1;
-            if (offset < BaseOffset || offset >= BaseOffset + Capacity * 16 || ((offset - BaseOffset) & 15) != 0)
+            int? selected = Allocate658B20(writer, ref state);
+            if (selected is not int offset)
             {
-                throw new NotSupportedException("Native Diablos puff allocation requires its actual retained record cursor.");
+                break;
             }
-            if (writer.ReadCurrent(offset + 15, 1)[0] != 0)
-            {
-                offset = BaseOffset;
-                while (offset < BaseOffset + Capacity * 16 && writer.ReadCurrent(offset + 15, 1)[0] != 0)
-                {
-                    offset += 16;
-                }
-                if (offset == BaseOffset + Capacity * 16)
-                {
-                    break;
-                }
-            }
-            state = state with { Mode51F0 = 3, ParticleCursor51F4 = checked(state.ModelBuffer5208 + (uint)(offset == BaseOffset + (Capacity - 1) * 16 ? BaseOffset : offset + 16)) };
             random = (random ?? throw new NotSupportedException("Native Diablos puff birth requires its actual CRT random owner.")).Draw(out ushort lifeRandom);
             random = random.Draw(out ushort shadeRandom);
             random = random.Draw(out ushort xRandom);
@@ -77,6 +63,30 @@ public static class NativeBattleDiablos325Puffs
 
     public static NativeBattleDiablos325Frame Rise658D30(NativeBattleDiablos325Frame frame) => Move(frame, true);
     public static NativeBattleDiablos325Frame Shrink658C80(NativeBattleDiablos325Frame frame) => Move(frame, false);
+
+    private static int? Allocate658B20(NativeBattleEffectArenaWriter writer, ref NativeBattleDiablos325State state)
+    {
+        long difference = (long)state.ParticleCursor51F4 - state.ModelBuffer5208;
+        int offset = difference is >= 0 and <= int.MaxValue ? (int)difference : -1;
+        if (offset < BaseOffset || offset >= BaseOffset + Capacity * 16 || ((offset - BaseOffset) & 15) != 0)
+        {
+            throw new NotSupportedException("Native Diablos puff allocation requires its actual retained record cursor.");
+        }
+        if (writer.ReadCurrent(offset + 15, 1)[0] != 0)
+        {
+            offset = BaseOffset;
+            while (offset < BaseOffset + Capacity * 16 && writer.ReadCurrent(offset + 15, 1)[0] != 0)
+            {
+                offset += 16;
+            }
+            if (offset == BaseOffset + Capacity * 16)
+            {
+                return null;
+            }
+        }
+        state = state with { Mode51F0 = 3, ParticleCursor51F4 = checked(state.ModelBuffer5208 + (uint)(offset == BaseOffset + (Capacity - 1) * 16 ? BaseOffset : offset + 16)) };
+        return offset;
+    }
 
     private static NativeBattleDiablos325Frame Move(NativeBattleDiablos325Frame frame, bool accelerate)
     {

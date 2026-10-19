@@ -31,6 +31,23 @@ public sealed partial class BattleSession
         NativeBattleDoomtrain191LeafStep AdvanceLeaf(NativeBattleDoomtrain191Frame current, int slot)
         {
             NativeBattleModulePoolTask task = current.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDoomtrain191Controller.ChildDescriptor).Slots[slot];
+            if (task.Callback == 0x641EA0)
+            {
+                return NativeBattleDoomtrain191Creature.Advance641EA0(current, slot, resources.Files.Single(file => file.FileId == 556).Data.Length, new(() => graphics.Flags, InvokeCreature, DrawCreature, ScaleCreatureCamera, FlashCreature));
+            }
+            if (task.Callback == 0x643D10)
+            {
+                return NativeBattleDoomtrain191Chimney.Advance643D10(current, slot, (resources.Particles ?? throw new NotSupportedException("Native Doomtrain chimney requires its original sprite resources.")).RequireSprite(0xE342A4), new(() => graphics.Flags, DrawSteam));
+            }
+            if (task.Callback == 0x643880)
+            {
+                return NativeBattleDoomtrain191Flare.Advance643880(current, slot, new(() => graphics.Flags, DrawCreatureMesh));
+            }
+            if (task.Callback is 0x641580 or 0x6418E0)
+            {
+                NativeBattleModuleResource sprite = (resources.Particles ?? throw new NotSupportedException("Native Doomtrain steam requires its original particle resources; migrate the selected binding explicitly.")).RequireSprite(0xE33E40);
+                return NativeBattleDoomtrain191Steam.Advance(current, slot, sprite, new(() => graphics.Flags, DrawSteam));
+            }
             if (task.Callback == 0x641AF0)
             {
                 NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Doomtrain rain requires its current camera.");
@@ -74,6 +91,83 @@ public sealed partial class BattleSession
                 graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Flags0 = hidden ? (ushort)(model.Flags0 | 4) : (ushort)(model.Flags0 & 0xFFFB) }) };
             }
             return current;
+        }
+
+        NativeBattleDoomtrain191Frame InvokeCreature(NativeBattleDoomtrain191Frame current, uint address)
+        {
+            if (address == 0x6437F0)
+            {
+                return NativeBattleDoomtrain191Flare.Spawn6437F0(current);
+            }
+            return Execute(current, new NativeBattleDoomtrain191Invoke(address));
+        }
+
+        NativeBattleDoomtrain191Frame FlashCreature(NativeBattleDoomtrain191Frame current)
+        {
+            graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash(0, 1, 4, 128) };
+            return current;
+        }
+
+        NativeBattleDoomtrain191Frame ScaleCreatureCamera(NativeBattleDoomtrain191Frame current)
+        {
+            NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Doomtrain creature requires its current camera matrix.");
+            NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native Doomtrain creature requires its current camera projection.");
+            NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Doomtrain creature requires its actual current camera rotation.");
+            NativeCamera = camera with { Projection = projection with { View = NativeBattlePoseMatrices.Scale56BEF0(view, 2048, 2048, 2048) } };
+            return current;
+        }
+
+        NativeBattleDoomtrain191Frame DrawCreature(NativeBattleDoomtrain191Frame current)
+        {
+            NativeBattleDoomtrain191CreatureResources creature = resources.Creature ?? throw new NotSupportedException("Native Doomtrain creature requires its original object masks; migrate the selected binding explicitly.");
+            NativeBattleDoomtrain191State state = current.Memory.Doomtrain191!;
+            var composed = NativeBattleDoomtrain191Model.Compose642D80(current, state.BaseView.ReadMatrix(), creature.ClampMasks);
+            current = composed.Frame;
+            NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Doomtrain creature requires its canonical renderer process.");
+            bool draw;
+            (process, draw) = process.Enter5099D0(definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Native Doomtrain creature requires its configured renderer capability."));
+            current = current with { Memory = current.Memory with { PrimitiveProcess = process } };
+            if (draw)
+            {
+                NativeBattleCameraProjection projection = (NativeCamera ?? throw new NotSupportedException("Native Doomtrain creature requires its actual projection.")).Projection ?? throw new NotSupportedException("Native Doomtrain creature requires its actual projection registers.");
+                NativeBattleDoomtrain191ModelDraw body = NativeBattleDoomtrain191Model.Render5099D0(current, projection, composed.Clipped, definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Native Doomtrain creature requires its interpolation constants."));
+                process = process.PublishModelColor(body.Color);
+                NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Doomtrain creature requires its current ordering table.");
+                NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, body.Packets);
+                process = written.Process.Publish50FDF0(unchecked((uint)(written.Process.ByteCursor ?? throw new NotSupportedException("Native Doomtrain creature requires its actual packet end cursor."))), body.SourceCursor);
+                graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
+                current = body.Frame with { Memory = body.Frame.Memory with { PrimitiveProcess = process } };
+            }
+            return NativeBattleDoomtrain191Model.Restore642830(current);
+        }
+
+        NativeBattleDoomtrain191Frame DrawCreatureMesh(NativeBattleDoomtrain191Frame current, NativeBattleDoomtrain191MeshDraw draw)
+        {
+            NativeBattleStaticMeshResource mesh = (resources.Creature ?? throw new NotSupportedException("Native Doomtrain creature requires its original mesh resources.")).RequireMesh(draw.ResourceAddress);
+            NativeBattleCameraProjection projection = (NativeCamera ?? throw new NotSupportedException("Native Doomtrain creature mesh requires its current camera.")).Projection ?? throw new NotSupportedException("Native Doomtrain creature mesh requires its actual projection.");
+            NativeBattleEffectNodeScratch scratch = (current.Memory.NodeScratch2793E30 ?? NativeBattleEffectNodeScratch.Unknown()).WritePrefix(0, BitConverter.GetBytes(0u)).WritePrefix(20, BitConverter.GetBytes(draw.Flags));
+            if (draw.Fade is int fade)
+            {
+                scratch = scratch.WritePrefix(4, BitConverter.GetBytes(fade));
+            }
+            NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(mesh.Bytes, 0, default, draw.Matrix, projection, new(draw.Flags, 0, draw.Fade, null, null, null, 17, draw.DepthShift), definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Doomtrain creature mesh requires its interpolation constants."), observeSourceCursor: cursor => scratch = scratch.WritePrefix(24, BitConverter.GetBytes(unchecked(mesh.Address + (uint)cursor))));
+            NativeBattlePrimitiveProcess process = (current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Doomtrain creature mesh requires its COMMON packet owner.")).PublishModelColor(0);
+            NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Doomtrain creature mesh requires its ordering table.");
+            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, batch);
+            graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
+            return current with { Memory = current.Memory with { PrimitiveProcess = written.Process, NodeScratch2793E30 = scratch } };
+        }
+
+        NativeBattleDoomtrain191Frame DrawSteam(NativeBattleDoomtrain191Frame current, NativeBattleDoomtrain191SteamDraw draw)
+        {
+            NativeBattleModuleResource resource = (resources.Particles ?? throw new NotSupportedException("Native Doomtrain steam requires its original particle resources.")).RequireSprite(draw.ResourceAddress);
+            NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Doomtrain steam requires its current camera.");
+            NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native Doomtrain steam requires its current GTE projection.");
+            NativeBattleModuleDraw sprite = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.ProjectedFrame571C80(draw.Phase), Phase = draw.Phase, Anchor = new(0, 0, 0, 0), Scale = 4096, SpriteFlags = 8, SpriteWorldRotation = [4096, 0, 0, 0, 4096, 0, 0, 0, 4096] };
+            NativeBattleModulePacketBatch packets = NativeBattleModulePackets.EmitSprite571DC0(sprite, projection with { View = draw.Matrix }, camera.Roll, 17, 2);
+            NativeEffectMemory = current.Memory;
+            graphics = AppendNativeModulePacketBatch(graphics, packets, null, null);
+            return current with { Memory = NativeEffectMemory! };
         }
 
         NativeBattleDoomtrain191Frame DrawRain(NativeBattleDoomtrain191Frame current, NativeBattleGfGeometryBatch batch)
@@ -203,6 +297,10 @@ public sealed partial class BattleSession
                         return current with { Memory = NativeEffectMemory! };
                     }
                     return current;
+                case NativeBattleDoomtrain191Invoke { Address: 0x641530 }:
+                    return NativeBattleDoomtrain191Steam.Spawn(current, false);
+                case NativeBattleDoomtrain191Invoke { Address: 0x6418A0 }:
+                    return NativeBattleDoomtrain191Steam.Spawn(current, true);
                 case NativeBattleDoomtrain191Invoke { Address: 0x640390 }:
                     return NativeBattleDoomtrain191Sky.Spawn640390(current);
                 case NativeBattleDoomtrain191Invoke call when call.Address is 0x63F7A0 or 0x63F850 or 0x63F780 or 0x63F830 or 0x63F8F0 or 0x63F930 or 0x5713E0:

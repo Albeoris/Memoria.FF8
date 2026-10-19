@@ -46,6 +46,9 @@ public static class NativeBattleDoomtrain191ResourcesReader
         result.Validate();
         ImmutableArray<byte> rainColors = NativeBattleEffectStaticResourcesReader.Read(memory, 0xE3C988, 256);
         result = result with { Sky = result.Sky! with { RainColors = Enumerable.Range(0, 64).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(rainColors.AsSpan().Slice(index * 4))).ToImmutableArray() } };
+        result = result with { Particles = new(new uint[] { 0xE33E40, 0xE342A4, 0xE34404, 0xE34548, 0xE3460C }.Select(address => new NativeBattleModuleResource(0, address, 0, 0, NativeBattleEffectStaticResourcesReader.ReadProjectedSprite(memory, address))).ToImmutableArray()) };
+        ImmutableArray<byte> maskBytes = NativeBattleEffectStaticResourcesReader.Read(memory, 0xE3CBF4, 56);
+        result = result with { Creature = new(Enumerable.Range(0, 14).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(maskBytes.AsSpan().Slice(4 * index))).ToImmutableArray(), new uint[] { 0xE3A744, 0xE3AD34, 0xE3BD64 }.Select(address => NativeBattleEffectStaticResourcesReader.ReadMesh(memory, address)).ToImmutableArray(), Allocation(0xE3C37C, 504), Allocation(0xE3C57C, 504)) };
         return result;
 
         NativeBattleEffectHeapAllocation Allocation(uint address, int length) => new($"FF8_EN:{address:X}", NativeBattleEffectStaticResourcesReader.Read(memory, address, length));

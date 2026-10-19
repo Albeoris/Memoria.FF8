@@ -150,7 +150,7 @@ public static class NativeBattleWaterChildCommands
         uint childAddress = NativeBattleEffectNodeMemory.ArenaAddress + (uint)childOffset;
         frame = NativeBattleWaterExecutionFields.WriteCoreDword(frame, 0x27973E8, childAddress);
         byte updateType = frame.Arena.Read(childOffset + 0x18, 1)[0];
-        frame = frame with { Arena = NativeBattleWaterSlots.UpdateSelected(frame.Arena, currentBank, child, updateType == 3 ? ActiveOrder(frame) : default) };
+        frame = frame with { Arena = NativeBattleWaterSlots.UpdateSelected(frame.Arena, currentBank, child, updateType is 3 or 5 or 7 ? ActiveOrder(frame) : default) };
         frame = frame with { Arena = NativeBattleWaterSlots.CachePositionAA17D0(frame.Arena, currentBank, child) };
         frame = NativeBattleWaterExecutionFields.WriteCoreDword(frame, 0x27973E8, parent);
         frame = frame.WriteTemporaryDword(0xFC, childAddress);
@@ -257,6 +257,6 @@ public static class NativeBattleWaterChildCommands
                 return order.ToImmutableArray();
             }
         }
-        throw new NotSupportedException("Native child update requires its actual terminated active-order owner.");
+        return order.ToImmutableArray();
     }
 }

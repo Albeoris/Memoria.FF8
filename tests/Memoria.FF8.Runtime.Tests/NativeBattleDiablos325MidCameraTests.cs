@@ -39,4 +39,20 @@ public sealed class NativeBattleDiablos325MidCameraTests
         Assert.Equal(original, JsonSerializer.Serialize(frame));
     }
 
+
+    [Theory]
+    [InlineData(175, -6828, 2695, -6891, 4217)]
+    [InlineData(176, -6862, 2477, -6950, 4216)]
+    [InlineData(189, -7142, 699, -7426, 4209)]
+    public void Sine_eased_interval_uses_biased_age_angle_then_original_separately_rounded_endpoint_products(int counter, short ey, short ez, short ty, short tz)
+    {
+        var fixture = NativeBattleDiablos325Tests.Fixture();
+        NativeBattleDiablos325Frame frame = NativeBattleDiablos325Entry.Initialize6541E0(fixture.Frame, fixture.Packets, fixture.Models);
+        frame = frame with { Memory = frame.Memory with { Diablos325 = frame.Memory.Diablos325! with { FarZ51DC = 4000, CenterZ51D4 = -1234 } } };
+        NativeBattleCameraState camera = NativeBattleCameraState.FromColdProcess() with { FocalLength = 123, Roll = 17, EyePaddingF6 = 7, TargetPaddingFE = 9 };
+        NativeBattleDiablos325TailStep step = NativeBattleDiablos325MidCamera.Advance656504(frame, camera, (ushort)counter);
+        Assert.Same(frame, step.Frame);
+        Assert.Equal(camera.WriteEffectGlobals(new(new(0, ey, ez), new(0, ty, tz), 123, 17)), step.Camera);
+    }
+
 }

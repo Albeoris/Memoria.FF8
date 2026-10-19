@@ -105,22 +105,16 @@ public static class NativeBattleWaterPresentationCommands
                 throw new InvalidDataException("Native selected update requires its actual current cached-bank slot.");
             }
             ImmutableArray<byte> active = [];
-            if (ReadSlot(current, 0x18, 1)[0] == 3)
+            if (ReadSlot(current, 0x18, 1)[0] is 3 or 5 or 7)
             {
                 byte[] order = Enumerable.Repeat((byte)0xFF, 128).ToArray();
-                bool terminated = false;
                 for (int i = 0; i < order.Length; i++)
                 {
                     order[i] = current.Core.Read(0x2797454 + (uint)i, 1)[0];
                     if (order[i] == 0xFF)
                     {
-                        terminated = true;
                         break;
                     }
-                }
-                if (!terminated)
-                {
-                    throw new NotSupportedException("Native selected update requires its bounded terminated active-order prefix.");
                 }
                 active = order.ToImmutableArray();
             }

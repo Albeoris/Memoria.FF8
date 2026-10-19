@@ -219,7 +219,7 @@ public static class NativeBattleWaterInstructionDispatcher
     public static NativeBattleWaterExecutionFrame UpdateCurrent(NativeBattleWaterExecutionFrame frame, int resource1Length)
     {
         NativeBattleWaterSlotBank bank = CurrentBank(frame, resource1Length);
-        ImmutableArray<byte> active = ReadSlot(frame, 0x18, 1)[0] is 3 or 7 ? ActiveOrder(frame) : [];
+        ImmutableArray<byte> active = ReadSlot(frame, 0x18, 1)[0] is 3 or 5 or 7 ? ActiveOrder(frame) : [];
         return frame with { Arena = NativeBattleWaterSlots.UpdateSelected(frame.Arena, bank, CurrentIndex(frame, bank), active) };
     }
 
@@ -318,7 +318,7 @@ public static class NativeBattleWaterInstructionDispatcher
                 return order.ToImmutableArray();
             }
         }
-        throw new NotSupportedException("Native instruction reference lookup requires its bounded terminated active order.");
+        return order.ToImmutableArray();
     }
 
     private static byte[] ReadProgram(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, uint address, int count)

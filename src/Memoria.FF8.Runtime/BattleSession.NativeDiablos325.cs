@@ -109,12 +109,10 @@ public sealed partial class BattleSession
                         {
                             continue;
                         }
-                        if (System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(offset, 4)) != 0xFD67A0)
-                        {
-                            throw new NotSupportedException("Native Diablos puff drawing requires its reached original sprite publication.");
-                        }
+                        uint address = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(offset, 4));
+                        ImmutableArray<byte> sprite = resources.ReadPuffSprite(address);
                         NativeBattleActionMatrix basis = NativeBattleDiablos325PuffPackets.Basis658970(current, index, view, out byte life);
-                        NativeBattleGfGeometryBatch batch = NativeBattleDiablos325PuffPackets.Emit6FC9E0(resources.PuffSprite, life, basis, projection, 19);
+                        NativeBattleGfGeometryBatch batch = NativeBattleDiablos325PuffPackets.Emit6FC9E0(sprite, life, basis, projection, 19);
                         NativeBattleDiablos325State state = NativeBattleDiablos325Entry.RequireState(current.Memory);
                         NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Diablos puffs require their current ordering table.");
                         NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, checked((int)(state.PacketCursor51D0 - state.ModelBuffer5208)), primitive.Pending, batch);

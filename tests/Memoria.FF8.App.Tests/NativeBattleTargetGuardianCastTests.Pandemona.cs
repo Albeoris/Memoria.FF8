@@ -78,13 +78,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         boundary = live.Capture();
         Assert.Equal((ushort)40, boundary.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25562A8).Slots[0].ReadWord(0xC));
         NativeBattleRestorationPresentationTests.Publish(output, "before-next-scene", boundary, scene.Render(live, 320, 224).ToArray());
-        NotSupportedException actual = Assert.Throws<NotSupportedException>(() => live.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero));
-        NotSupportedException resumed = Assert.Throws<NotSupportedException>(() => independent.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero));
-        Assert.Contains("next scene", actual.Message);
-        Assert.Equal(actual.Message, resumed.Message);
-        Assert.Equal(JsonSerializer.Serialize(live.Capture()), JsonSerializer.Serialize(independent.Capture()));
-        NativeBattleRestorationPresentationTests.Publish(output, "failed-timeline-live", live.Capture(), null);
-        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "entry-constructor-opening-surface-and-disk-restore-validated", boundary.Frame, NativeCallback = boundary.NativeGraphics!.Callback, Counter = Counter(boundary), Boundary = actual.Message }));
+        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "entry-constructor-opening-surface-and-disk-restore-validated", boundary.Frame, NativeCallback = boundary.NativeGraphics!.Callback, Counter = Counter(boundary), Boundary = "before-vortex" }));
 
         static ushort Counter(BattleSnapshot snapshot) => snapshot.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == NativeBattlePandemona291Entry.MainDescriptor).Slots[0].ReadWord(0xC);
     }

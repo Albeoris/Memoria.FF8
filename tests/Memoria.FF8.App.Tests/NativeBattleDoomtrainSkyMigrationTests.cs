@@ -27,7 +27,7 @@ public sealed class NativeBattleDoomtrainSkyMigrationTests
         Assert.NotNull(authenticated.Sky);
         Assert.Equal(0xE3496Cu, authenticated.Sky.Source.Address);
         Assert.Equal(0x590, authenticated.Sky.TargetVertices.Data.Length);
-        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(authenticated with { Sky = null }));
+        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(authenticated with { Sky = null, Particles = resources.Particles }));
         JsonNode migrated = original.DeepClone();
         JsonObject live = migrated["NativeGraphics"]!["OriginalEffect"]!["Binding"]!["Doomtrain191Resources"]!.AsObject();
         JsonObject entry = migrated["NativeEffectMemory"]!["Entry21DFEC4"]!["Doomtrain191Resources"]!.AsObject();

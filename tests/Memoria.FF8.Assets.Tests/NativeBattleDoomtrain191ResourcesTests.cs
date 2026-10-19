@@ -19,6 +19,9 @@ public sealed class NativeBattleDoomtrain191ResourcesTests
         NativeBattleDoomtrain191Resources resources = Assert.IsType<NativeBattleDoomtrain191Resources>(binding.Doomtrain191Resources);
         Assert.Same(resources, game.ReadNativeDoomtrain191Resources());
         resources.Validate();
+        Assert.NotNull(resources.Particles);
+        Assert.Equal(new[] { 748, 352, 324, 196, 164 }, resources.Particles.Sprites.Select(sprite => sprite.Bytes.Length));
+        Assert.Equal(new uint[] { 0xE33E40, 0xE342A4, 0xE34404, 0xE34548, 0xE3460C }, resources.Particles.Sprites.Select(sprite => sprite.Address));
         Assert.Equal(0x2D120, resources.ModelTim.Data.Length);
         Assert.Equal(0x162, resources.CameraProgram.Data.Length);
         Assert.Equal((ushort)0x8000, BinaryPrimitives.ReadUInt16LittleEndian(resources.CameraProgram.Data.AsSpan().Slice(0x160)));

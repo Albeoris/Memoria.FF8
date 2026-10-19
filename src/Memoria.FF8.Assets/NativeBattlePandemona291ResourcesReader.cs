@@ -44,6 +44,9 @@ public static class NativeBattlePandemona291ResourcesReader
         uint[] targetAddresses = [0x13A4280, 0x13A5EF0, 0x13A7BF0];
         int[] targetLengths = [0xD08, 0x618, 0x918];
         resources = resources with { LayerGeometry = layerAddresses.Select((address, index) => new NativeBattleStaticMeshResource((byte)index, address, memory.Read(address, layerLengths[index]).ToImmutableArray())).ToImmutableArray(), LayerTargets = targetAddresses.Select((address, index) => new NativeBattleStaticMeshResource((byte)index, address, memory.Read(address, targetLengths[index]).ToImmutableArray())).ToImmutableArray(), LayerSprite = new(0x13AFCC0, NativeBattleEffectStaticResourcesReader.ReadProjectedSprite(memory, 0x13AFCC0)) };
+        resources = resources with { VortexFloorGeometry = new(0, 0x139FFE8, memory.Read(0x139FFE8, 0x7A8).ToImmutableArray()), VortexFloorTarget = memory.Read(0x13A0790, 0x1E8).ToImmutableArray() };
+        resources = resources with { VortexOverlayGeometry = new(0, 0x13A0978, memory.Read(0x13A0978, 0x4E0).ToImmutableArray()) };
+        resources = resources with { BodySound = BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0x13B7A4C, 4)) };
         resources.Validate();
         return resources;
     }

@@ -39,17 +39,9 @@ public static class NativeBattleWaterSlots
     public static int LookupB65370(NativeBattleEffectArena arena, NativeBattleWaterSlotBank bank, int currentIndex, ImmutableArray<byte> activeOrder, int operand)
     {
         SlotAccess current = new(arena, bank, currentIndex);
-        if (activeOrder.IsDefault || activeOrder.Length != 128 || !activeOrder.Contains((byte)0xFF))
+        if (activeOrder.IsDefault || activeOrder.Length != 128)
         {
-            throw new NotSupportedException("Native slot lookup requires its complete terminated active order.");
-        }
-        foreach (byte entry in activeOrder)
-        {
-            if (entry == 0xFF)
-            {
-                break;
-            }
-            _ = new SlotAccess(arena, bank, entry & 0x7F);
+            throw new NotSupportedException("Native slot lookup requires its complete active-order owner.");
         }
         ushort selector = unchecked((ushort)operand);
         int id;
@@ -82,7 +74,8 @@ public static class NativeBattleWaterSlots
             {
                 if (entry == 0xFF)
                 {
-                    break;
+                    foundIndex = 0;
+                    return false;
                 }
                 int index = entry & 0x7F;
                 if (new SlotAccess(arena, bank, index).Word(0x12) == wanted)
@@ -91,8 +84,7 @@ public static class NativeBattleWaterSlots
                     return true;
                 }
             }
-            foundIndex = 0;
-            return false;
+            throw new NotSupportedException("Native slot lookup exhausted its bounded active order without a matching ID or terminator.");
         }
     }
 
@@ -131,6 +123,16 @@ public static class NativeBattleWaterSlots
                 for (int lane = 0; lane < 3; lane++)
                 {
                     slot.Word(0x94 + 2 * lane, unchecked((ushort)(slot.Dword(0x5C + 4 * lane) >> 16)));
+                }
+                break;
+            case 5:
+                uint copyBlock = unchecked((uint)slot.Dword(0xA0));
+                short copySelector = BinaryPrimitives.ReadInt16LittleEndian(arena.Read(NativeBattleWaterExecutionFields.ArenaOffset(copyBlock, 2), 2));
+                int copyIndex = LookupB65370(arena, bank, index, activeOrder, copySelector);
+                SlotAccess copySource = new(arena, bank, copyIndex);
+                for (int lane = 0; lane < 3; lane++)
+                {
+                    slot.Word(0x94 + lane * 2, copySource.Word(0x94 + lane * 2));
                 }
                 break;
             case 7:

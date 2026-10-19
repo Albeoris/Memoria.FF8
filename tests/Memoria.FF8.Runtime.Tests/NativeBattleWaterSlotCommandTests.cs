@@ -11,6 +11,30 @@ public sealed class NativeBattleWaterSlotCommandTests
     private const int SlotsOffset = FileOffset + 0x58;
     private static readonly NativeBattleWaterSlotBank Bank = new(FileOffset, 0x858, 8, SlotsOffset);
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Type_five_copies_only_cached_position_words_from_the_live_update_block_and_can_reference_itself(bool self)
+    {
+        int selected = self ? 0 : 1;
+        NativeBattleEffectArena arena = Create().Write(Address(0, 0x18), [5]).Write(0x2000, [5, 0]);
+        arena = arena.MarkUnknown(Address(0, 0x5C), 12).MarkUnknown(Address(0, 0x9A), 2);
+        arena = Dword(arena, 0, 0xA0, unchecked((int)(NativeBattleEffectNodeMemory.ArenaAddress + 0x2000)));
+        arena = Word(arena, selected, 0x12, 5);
+        ushort[] words = [0x8000, 0xFFFF, 0x7FFF];
+        for (int lane = 0; lane < 3; lane++)
+        {
+            arena = Word(arena, selected, 0x94 + lane * 2, words[lane]);
+        }
+        NativeBattleEffectArena result = NativeBattleWaterSlots.UpdateSelected(arena, Bank, 0, Order((byte)selected));
+        Assert.Equal(words, Enumerable.Range(0, 3).Select(lane => ReadWord(result, 0, 0x94 + lane * 2)));
+        Assert.Throws<NotSupportedException>(() => result.Read(Address(0, 0x5C), 12));
+        Assert.Throws<NotSupportedException>(() => result.Read(Address(0, 0x9A), 2));
+        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleWaterSlots.UpdateSelected(JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(arena))!, Bank, 0, Order((byte)selected))));
+        NativeBattleEffectArena missingBlock = Dword(arena, 0, 0xA0, 0);
+        Assert.Throws<NotSupportedException>(() => NativeBattleWaterSlots.UpdateSelected(missingBlock, Bank, 0, Order((byte)selected)));
+    }
+
     [Fact]
     public void Type_seven_reads_the_live_update_block_and_wraps_signed_motion_with_reference_cached_WORDs()
     {
@@ -85,7 +109,10 @@ public sealed class NativeBattleWaterSlotCommandTests
     {
         NativeBattleEffectArena arena = Word(Create(), 1, 0x12, 44).MarkUnknown(Address(1, 0x30), 0xD0);
         Assert.Equal(1, NativeBattleWaterSlots.LookupB65370(arena, Bank, 0, Order(1), 44));
-        Assert.Throws<NotSupportedException>(() => NativeBattleWaterSlots.LookupB65370(arena, Bank, 0, Enumerable.Repeat((byte)1, 128).ToImmutableArray(), 44));
+        Assert.Equal(1, NativeBattleWaterSlots.LookupB65370(arena, Bank, 0, Enumerable.Repeat((byte)1, 128).ToImmutableArray(), 44));
+        Assert.Throws<NotSupportedException>(() => NativeBattleWaterSlots.LookupB65370(arena, Bank, 0, Enumerable.Repeat((byte)1, 128).ToImmutableArray(), 45));
+        Assert.Equal(1, NativeBattleWaterSlots.LookupB65370(arena, Bank, 0, Order(1, 8), 44));
+        Assert.Throws<InvalidDataException>(() => NativeBattleWaterSlots.LookupB65370(arena, Bank, 0, Order(1, 8), 45));
         Assert.Throws<InvalidDataException>(() => NativeBattleWaterSlots.LookupB65370(arena, Bank, 0, Order(8), 44));
         Assert.Throws<InvalidDataException>(() => NativeBattleWaterSlots.LookupB65370(arena, Bank with { FileLength = 0x857 }, 0, Order(), 44));
         Assert.Throws<InvalidDataException>(() => NativeBattleWaterSlots.CachePositionAA17D0(arena, Bank, 8));

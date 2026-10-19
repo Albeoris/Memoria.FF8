@@ -5,6 +5,18 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleCinematicControlCommands
 {
+    public static NativeBattleWaterExecutionFrame DebugParametersB7(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program)
+    {
+        if (frame.ReadTemporaryWord(0x14A) >> 12 != 1)
+        {
+            return frame;
+        }
+        _ = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 4, 2));
+        _ = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
+        // Native46BD40 emits a diagnostic and returns zero without changing the effect owners.
+        return NativeBattleScriptedCommandReads.Advance(frame, 6);
+    }
+
     public static NativeBattleWaterExecutionFrame WaitWhileCachedAtLeastFB(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program)
     {
         short offset = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));

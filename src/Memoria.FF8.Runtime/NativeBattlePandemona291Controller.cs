@@ -36,6 +36,7 @@ public static class NativeBattlePandemona291Controller
                 frame = NativeBattlePandemona291Construction.Initialize6ED3B6(frame, services.Construction);
                 state = frame.Memory.Pandemona291!;
             }
+            frame = frame with { Memory = frame.Memory with { Pandemona291 = state }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(active => active.DescriptorAddress == current.DescriptorAddress ? current with { Slots = current.Slots.SetItem(index, task) } : active).ToImmutableArray() } };
             int creatures = 0;
             if (task.ReadByte(0xF) != 0)
             {

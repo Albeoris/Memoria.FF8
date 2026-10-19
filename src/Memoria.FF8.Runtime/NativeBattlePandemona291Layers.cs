@@ -32,10 +32,7 @@ public static class NativeBattlePandemona291Layers
         {
             throw new InvalidDataException("Native Pandemona layer vertices leave their actual source or target owner.");
         }
-        short horizontal = unchecked((short)request.HorizontalScale);
-        int sine = unchecked(Trig(request.Angle, false) * horizontal) >> 12;
-        int cosine = unchecked(Trig(request.Angle, true) * horizontal) >> 12;
-        NativeBattleActionMatrix rotation = new([unchecked((short)cosine), 0, unchecked((short)-sine), 0, unchecked((short)request.VerticalScale), 0, unchecked((short)sine), 0, unchecked((short)cosine)], 0, 0, 0, 4096);
+        NativeBattleActionMatrix rotation = Build6F29D0(trigonometry, request.Angle, request.HorizontalScale, request.VerticalScale);
         ImmutableArray<NativeBattlePandemona291LayerVertex>.Builder vertices = ImmutableArray.CreateBuilder<NativeBattlePandemona291LayerVertex>(count);
         for (int index = 0; index < count; index++)
         {
@@ -67,9 +64,7 @@ public static class NativeBattlePandemona291Layers
         {
             ushort a = BinaryPrimitives.ReadUInt16LittleEndian(source.Bytes.AsSpan().Slice(offset, 2));
             ushort b = BinaryPrimitives.ReadUInt16LittleEndian(target.AsSpan().Slice(offset, 2));
-            short difference = unchecked((short)(b - a));
-            int product = NativePrecision53.RoundInteger(difference * (unchecked((short)request.Morph) / 4096d));
-            return unchecked((short)(a + Math.Clamp(product, short.MinValue, short.MaxValue)));
+            return DifferenceGpf45E9D0(a, b, request.Morph);
         }
 
         short Trig(int angle, bool cosineValue)
@@ -77,4 +72,24 @@ public static class NativeBattlePandemona291Layers
             return BinaryPrimitives.ReadInt16LittleEndian(trigonometry.AsSpan().Slice((angle & 0xFFF) * 4 + (cosineValue ? 2 : 0), 2));
         }
     }
+    public static NativeBattleActionMatrix Build6F29D0(ImmutableArray<byte> trigonometry, int angle, int horizontalScale, int verticalScale)
+    {
+        if (trigonometry.IsDefault || trigonometry.Length != 0x4000)
+        {
+            throw new InvalidDataException("Native Pandemona requires its actual trigonometry table.");
+        }
+        int offset = checked((angle & 0xFFF) * 4);
+        short horizontal = unchecked((short)horizontalScale);
+        int sine = unchecked(BinaryPrimitives.ReadInt16LittleEndian(trigonometry.AsSpan().Slice(offset, 2)) * horizontal) >> 12;
+        int cosine = unchecked(BinaryPrimitives.ReadInt16LittleEndian(trigonometry.AsSpan().Slice(offset + 2, 2)) * horizontal) >> 12;
+        return new([unchecked((short)cosine), 0, unchecked((short)-sine), 0, unchecked((short)verticalScale), 0, unchecked((short)sine), 0, unchecked((short)cosine)], 0, 0, 0, 4096);
+    }
+
+    public static short DifferenceGpf45E9D0(ushort first, ushort second, int ir0)
+    {
+        short difference = unchecked((short)(second - first));
+        int product = NativePrecision53.RoundInteger(difference * (unchecked((short)ir0) / 4096d));
+        return unchecked((short)(first + Math.Clamp(product, short.MinValue, short.MaxValue)));
+    }
+
 }

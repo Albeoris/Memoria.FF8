@@ -17,6 +17,19 @@ public sealed partial class NativeBattlePandemona291EntryTests
         Assert.Equal((short)7, result.TargetPaddingFE);
     }
 
+    [Fact]
+    public void Vortex_camera_preserves_focal_padding_and_orbits_the_current_eye_without_opening_y_clamp()
+    {
+        NativeBattleCameraState camera = NativeBattleCameraState.FromColdProcess() with { CurrentPose = new(new(-4096, -1208, -7210), new(0, -2984, -212), 288, 0), FocalLength = 288, EyePaddingF6 = 9, TargetPaddingFE = 7 };
+        NativeBattleCameraPose expected = NativeBattleCarbuncle278Camera.Orbit683D10(camera.CurrentPose!, 16, 4096);
+        NativeBattleCameraState result = NativeBattlePandemona291Timeline.AdvanceOpeningCamera(camera, 1900, 40);
+        Assert.Equal(expected, result.CurrentPose);
+        Assert.NotEqual((short)-1200, result.CurrentPose!.Eye.Y);
+        Assert.Equal((short)288, result.FocalLength);
+        Assert.Equal((short)9, result.EyePaddingF6);
+        Assert.Equal((short)7, result.TargetPaddingFE);
+    }
+
     [Theory]
     [InlineData(0, true)]
     [InlineData(17, false)]

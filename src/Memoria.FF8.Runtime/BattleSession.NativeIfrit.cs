@@ -129,6 +129,13 @@ public sealed partial class BattleSession
 
         NativeBattleWaterExecutionFrame ExecuteInstructionCore(NativeBattleWaterExecutionFrame current, ushort opcode)
         {
+            NativeBattleWaterExecutionFrame QueueTextureCopy(NativeBattleWaterExecutionFrame copyFrame, NativeBattleEffectVramCopy copy)
+            {
+                NativeBattleEffectMemory memory = RequireWaterMemory();
+                NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native cinematic frame copy requires its current texture queue.");
+                NativeEffectMemory = memory with { Textures = textures.EnqueueCopy505EB0(copy.SourceX, copy.SourceY, copy.Width, copy.Height, copy.DestinationX, copy.DestinationY) };
+                return copyFrame;
+            }
             uint pc = CoreDword(current, 0x2797450);
             uint selectedHandler;
             try
@@ -150,6 +157,14 @@ public sealed partial class BattleSession
                     return NativeBattleCinematicControlCommands.ClearFlags9B(current);
                 case 0xFB:
                     return NativeBattleCinematicControlCommands.WaitWhileCachedAtLeastFB(current, program);
+                case 0xAC:
+                    return NativeBattleCinematicAccelerationAC.Execute(current, program, NativeBattleWaterInstructionDispatcher.CurrentBank(current, assets[1].Data.Length), ResolveCurrentNode);
+                case 0xB7 when profile.Effect == 206:
+                    return NativeBattleCinematicControlCommands.DebugParametersB7(current, program);
+                case 0xB6 when profile.Effect == 206:
+                    return NativeBattleCinematicBlitB8.ExecuteRelativeB6(current, program, QueueTextureCopy);
+                case 0xB8 when profile.Effect == 206:
+                    return NativeBattleCinematicBlitB8.Execute(current, program, resources, (copyFrame, selector) => NativeBattleWaterShapeSelection.ResolveCinematic(copyFrame, resources, selector).Selected, QueueTextureCopy);
                 case 0xB2:
                     return NativeBattleCinematicControlCommands.StoreRenderMaskB2(current, program);
                 case 0x1A:
@@ -546,7 +561,7 @@ public sealed partial class BattleSession
             }
             NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, assets[1].Data.Length);
             int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank);
-            ImmutableArray<byte> active = kind is 3 or 7 ? current.Core.Read(0x2797454, 128).ToImmutableArray() : [];
+            ImmutableArray<byte> active = kind is 3 or 5 or 7 ? current.Core.Read(0x2797454, 128).ToImmutableArray() : [];
             return current with { Arena = NativeBattleWaterSlots.UpdateSelected(current.Arena, bank, index, active) };
         }
 
@@ -555,6 +570,13 @@ public sealed partial class BattleSession
             return NativeBattleCinematicDraw.Run(profile, current, PrepareLighting, (frame, kind) =>
             {
                 uint selectedDrawHandler = NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "draw_table", kind, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.DrawTable + 4u * kind), 4)));
+                if (selectedDrawHandler == 0xAEA550)
+                {
+                    NativeBattleEffectMemory feedbackMemory = RequireWaterMemory();
+                    NativeBattlePcRenderRequest request = feedbackMemory.PcRenderRequest ?? throw new NotSupportedException("Native cinematic feedback requires its retained PC render request owner.");
+                    NativeEffectMemory = feedbackMemory with { PcRenderRequest = request.Request47CF50(1, 255, 255, 255, 127) };
+                    return frame;
+                }
                 if (selectedDrawHandler == 0xAE52C0)
                 {
                     var wire = DrawNativeCinematicWireGrid38(frame, assets[1].Data.Length, resources, graphics);

@@ -9,6 +9,26 @@ public sealed class NativeBattleCinematicControlCommandsTests
     private const int Model = 0x18000;
 
     [Theory]
+    [InlineData((ushort)0x10B7, true)]
+    [InlineData((ushort)0x00B7, false)]
+    [InlineData((ushort)0xF0B7, false)]
+    public void Debug_B7_consumes_two_signed_operands_only_for_mode_one_without_changing_effect_owners(ushort instruction, bool consumes)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(instruction, 0x8000);
+        frame = frame with { Arena = frame.Arena.Write(0x1004, BitConverter.GetBytes((short)-1)) };
+        if (!consumes)
+        {
+            frame = frame with { Arena = frame.Arena.MarkUnknown(0x1002, 4) };
+        }
+        NativeBattleWaterExecutionFrame result = NativeBattleCinematicControlCommands.DebugParametersB7(frame, Program);
+        Assert.Equal(consumes ? 0x1006u : 0x1000u, Pc(result));
+        Assert.Same(frame.Arena, result.Arena);
+        Assert.Same(frame.TemporaryFrame, result.TemporaryFrame);
+        Assert.Same(frame.Random, result.Random);
+        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicControlCommands.DebugParametersB7(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!, Program)));
+    }
+
+    [Theory]
     [InlineData(-2, -32768, -1, false)]
     [InlineData(8, -1, -1, true)]
     [InlineData(8, 32767, -32768, true)]

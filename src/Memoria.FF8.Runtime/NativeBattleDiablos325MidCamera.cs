@@ -22,4 +22,19 @@ public static class NativeBattleDiablos325MidCamera
         return new(frame, camera.WriteEffectGlobals(pose));
     }
 
+
+    public static NativeBattleDiablos325TailStep Advance656504(NativeBattleDiablos325Frame frame, NativeBattleCameraState camera, ushort counter)
+    {
+        if (counter is < 175 or > 189)
+        {
+            throw new ArgumentOutOfRangeException(nameof(counter));
+        }
+        int z = NativeBattleDiablos325Entry.RequireState(frame.Memory).FarZ51DC;
+        int angle = (136 + (counter - 175) * 4096 / 15) >> 2;
+        int ratio = NativeBattleCameraMath.Sine(angle);
+        NativeBattleCameraPose first = new(new(0, -6811, unchecked((short)(z - 1194))), new(0, -6862, unchecked((short)(z + 217))), camera.FocalLength, camera.Roll);
+        NativeBattleCameraPose second = new(new(0, -7142, unchecked((short)(z - 3304))), new(0, -7427, unchecked((short)(z + 209))), camera.FocalLength, camera.Roll);
+        return new(frame, camera.WriteEffectGlobals(NativeBattleDiablos325Orbit.Interpolate657DF0(first, second, ratio)));
+    }
+
 }

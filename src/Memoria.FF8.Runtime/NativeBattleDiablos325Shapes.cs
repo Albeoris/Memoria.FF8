@@ -9,7 +9,11 @@ public static class NativeBattleDiablos325Shapes
     public static NativeBattleDiablos325ShapeDraw Advance654899(NativeBattleDiablos325Frame frame, NativeBattleModulePoolTask task, NativeBattleCameraProjection projection)
     {
         ushort counter = task.ReadWord(0xC);
-        if (counter is < 103 or > 172)
+        if (counter is >= 238 and <= 297)
+        {
+            return Advance654AAC(frame, task, projection);
+        }
+        if (counter is < 103 or > 202)
         {
             throw new NotSupportedException("Native Diablos current shape cycle requires its reached timeline window.");
         }
@@ -22,8 +26,27 @@ public static class NativeBattleDiablos325Shapes
                 task = task.WriteDword(0x14 + index * 4, checked(state.ModelBuffer5208 + offsets[index]));
             }
         }
-        int selected = (counter - 103) % 9;
+        int selected = counter < 173 ? (counter - 103) % 9 : 0;
         return Draw659680(frame.Memory, task, task.ReadDword(0x14 + selected * 4), new(0, -8192, unchecked((short)state.FarZ51DC)), projection);
+    }
+
+    public static NativeBattleDiablos325ShapeDraw Advance654AAC(NativeBattleDiablos325Frame frame, NativeBattleModulePoolTask task, NativeBattleCameraProjection projection)
+    {
+        ushort counter = task.ReadWord(0xC);
+        if (counter is < 238 or > 297)
+        {
+            throw new ArgumentOutOfRangeException(nameof(task));
+        }
+        NativeBattleDiablos325State state = NativeBattleDiablos325Entry.RequireState(frame.Memory);
+        if (counter == 238 && state.Pause5180 == 0)
+        {
+            for (int index = 0; index < 13; index++)
+            {
+                task = task.WriteDword(0x14 + index * 4, checked(state.ModelBuffer5208 + 0x3505Cu + (uint)index * 0x1FF0));
+            }
+        }
+        int selected = (counter - 238) % 13;
+        return Draw659680(frame.Memory, task, task.ReadDword(0x14 + selected * 4), new(90, -8792, unchecked((short)(state.FarZ51DC - 160))), projection);
     }
 
     public static NativeBattleDiablos325ShapeDraw Draw659680(NativeBattleEffectMemory memory, NativeBattleModulePoolTask task, uint source, NativeBattleVector position, NativeBattleCameraProjection projection)

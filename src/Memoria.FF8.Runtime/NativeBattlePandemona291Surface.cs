@@ -75,12 +75,12 @@ public static class NativeBattlePandemona291Surface
         return EmitGeometry701DD0(source.Data.AsSpan().Slice(prepared.GeometryOffset).ToArray().ToImmutableArray(), prepared.Matrix, prepared.Context, projection, colors, zsf4, readSelected, observeInput, observeFlags, projectFourth);
     }
 
-    public static NativeBattleGfGeometryBatch EmitGeometry701DD0(ImmutableArray<byte> geometry, NativeBattleActionMatrix matrix, NativeBattleEsunaMeshContext context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, short zsf4, Func<int, NativeBattleVector> readSelected, Action<int>? observeInput = null, Action<uint>? observeFlags = null, Func<NativeBattleVector, NativeBattleModuleProjectedVertex>? projectFourth = null)
+    public static NativeBattleGfGeometryBatch EmitGeometry701DD0(ImmutableArray<byte> geometry, NativeBattleActionMatrix matrix, NativeBattleEsunaMeshContext context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, short zsf4, Func<int, NativeBattleVector> readSelected, Action<int>? observeInput = null, Action<uint>? observeFlags = null, Func<NativeBattleVector, NativeBattleModuleProjectedVertex>? projectFourth = null, short? zsf3 = null)
     {
         NativeBattleEffectMeshWindow window = new(context.UOffset, context.VOffset, context.WindowBefore, context.WindowAfter);
         NativeBattleEffectMeshPacketContext operands = new(context.Flags, context.FarColor, context.Fade, null, null, 0, false, context.DepthBias, context.TableBaseBucket, context.DepthShift, window);
         int corner = -1;
-        return NativeBattleEffectMeshPackets.EmitBatch(geometry, matrix, projection, context.Flags, offset =>
+        return NativeBattleEffectMeshPackets.EmitBatch(geometry, matrix, projection, context.Flags | 0x2000, offset =>
         {
             corner++;
             if (corner is 0 or 3)
@@ -95,7 +95,9 @@ public static class NativeBattlePandemona291Surface
             {
                 3 => NativeBattleEffectMeshPackets.EmitTextured(face, project, true, false, operands, colors, offset),
                 7 => NativeBattleEffectMeshPackets.EmitTextured(face, project, true, true, operands, colors, offset),
-                _ => throw new NotSupportedException($"Native Pandemona surface geometry requires its reached FT4/GT4 groups, found{group}.")
+                4 => NativeBattleEffectMeshPackets.EmitGouraud(face, project, false, operands, colors, offset),
+                5 => NativeBattleEffectMeshPackets.EmitGouraud(face, project, true, operands, colors, offset),
+                _ => throw new NotSupportedException($"Native Pandemona surface geometry requires its reached FT4/GT4/G3/G4 groups, found{group}.")
             };
             NativeBattleGeometryPrimitive? polygon = batch.Attempts.Select(attempt => attempt.Primitive).FirstOrDefault(primitive => primitive is not null && primitive.VertexPayload4.Length == 4 && primitive.Words.Length > 3);
             if (polygon is null)
@@ -103,7 +105,8 @@ public static class NativeBattlePandemona291Surface
                 return batch;
             }
             uint sum = unchecked((uint)polygon.VertexPayload4.Sum());
-            uint average = unchecked(sum * (uint)(int)zsf4) >> 12;
+            short scale = group == 4 ? zsf3 ?? throw new NotSupportedException("Native Pandemona G3 requires its current ZSF3 register.") : zsf4;
+            uint average = unchecked(sum * (uint)(int)scale) >> 12;
             int depth = Math.Max(unchecked((int)average + context.DepthBias), 0);
             int bucket = checked(context.TableBaseBucket + (depth >> context.DepthShift));
             return batch with { Attempts = batch.Attempts.Select(attempt => attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { Bucket = bucket } } : attempt).ToImmutableArray() };

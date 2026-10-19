@@ -6,6 +6,7 @@ public sealed record NativeBattlePandemona291Resources(NativeBattleEffectHeapAll
     public NativeVibrationBank? Vibration { get; init; }
     public System.Collections.Immutable.ImmutableArray<NativeBattleEffectFileAsset> Files { get; init; } = [];
     public uint? OpeningSound { get; init; }
+    public uint? BodySound { get; init; }
     public NativeBattleGfAnimationSource? SurfaceProgram { get; init; }
     public System.Collections.Immutable.ImmutableArray<NativeBattleStaticMeshResource> TrailModels { get; init; } = [];
     public System.Collections.Immutable.ImmutableArray<byte> TrailTrigonometry { get; init; } = [];
@@ -14,6 +15,9 @@ public sealed record NativeBattlePandemona291Resources(NativeBattleEffectHeapAll
     public System.Collections.Immutable.ImmutableArray<NativeBattleStaticMeshResource> LayerGeometry { get; init; } = [];
     public System.Collections.Immutable.ImmutableArray<NativeBattleStaticMeshResource> LayerTargets { get; init; } = [];
     public NativeBattlePandemona291SpriteResource? LayerSprite { get; init; }
+    public NativeBattleStaticMeshResource? VortexOverlayGeometry { get; init; }
+    public NativeBattleStaticMeshResource? VortexFloorGeometry { get; init; }
+    public System.Collections.Immutable.ImmutableArray<byte> VortexFloorTarget { get; init; } = [];
 
     public void Validate()
     {

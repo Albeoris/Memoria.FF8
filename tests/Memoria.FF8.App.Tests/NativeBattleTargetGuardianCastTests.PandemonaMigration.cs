@@ -26,7 +26,25 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         RunPandemonaResourceMigration("4E620CFE47B2300C464EBB282C4A3815F16591AAB40E27E5C751350B2C5677C9", 86, 15, 40, ["LayerGeometry", "LayerTargets", "LayerSprite"]);
     }
 
-    private static void RunPandemonaResourceMigration(string sourceHash, int sourceFrame, int callbacks, ushort nextAge, string[] fields)
+    [Fact]
+    public void Explicitly_migrate_Pandemona_camera_and_vortex_resources_and_continue_the_preserved_boundary()
+    {
+        RunPandemonaResourceMigration("BAA772E5170D7D588D8C213B3341DD66470CA056FB03F8382629B61D7A7483B4", 101, 44, 84, ["VortexFloorGeometry", "VortexFloorTarget"], true);
+    }
+
+    [Fact]
+    public void Explicitly_migrate_Pandemona_vortex_overlay_resource_and_continue_the_preserved_boundary()
+    {
+        RunPandemonaResourceMigration("C68079A585A8C33C4F61E5857A4F986742B462BBC53EADEEDAAC799FD45A7407", 145, 15, 99, ["VortexOverlayGeometry"]);
+    }
+
+    [Fact]
+    public void Explicitly_migrate_Pandemona_body_sound_resource_and_continue_the_preserved_boundary()
+    {
+        RunPandemonaResourceMigration("B6C2412F7E3DA17BD6E6767A95C06EEEC2CDB248FA8EA3E56698C3CAE6CDFCBD", 160, 1, 100, ["BodySound"]);
+    }
+
+    private static void RunPandemonaResourceMigration(string sourceHash, int sourceFrame, int callbacks, ushort nextAge, string[] fields, bool migrateCamera = false)
     {
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_PANDEMONA_MIGRATION_SOURCE");
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_PANDEMONA_MIGRATION_OUTPUT");
@@ -56,7 +74,51 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                 bundle[field] = installed[field]!.DeepClone();
             }
         }
+        JsonNode originalCamera = document["NativeCamera"]!.DeepClone();
+        JsonNode originalArena = document["NativeEffectMemory"]!["Arena"]!.DeepClone();
+        JsonNode originalPools = document["NativeGraphics"]!["OriginalEffect"]!["Pools"]!.DeepClone();
+        if (migrateCamera)
+        {
+            BattleSnapshot prior = JsonSerializer.Deserialize<BattleSnapshot>(original)!;
+            int center = prior.NativeEffectMemory!.Pandemona291!.Center25562E8!.Value;
+            NativeBattleCameraState camera = prior.NativeCamera!;
+            NativeBattleCameraState corrected = camera.WriteEffectGlobals(NativeBattlePandemona291Timeline.FinalOpeningCamera39(center, camera.Roll)).PublishProjection(prior.NativeGraphics!.Flags);
+            JsonObject correctedCamera = JsonSerializer.SerializeToNode(corrected)!.AsObject();
+            JsonObject currentCamera = document["NativeCamera"]!.AsObject();
+            foreach (string field in new[] { "CurrentPose", "FocalLength", "Projection" })
+            {
+                currentCamera[field] = correctedCamera[field]!.DeepClone();
+            }
+            Assert.True(JsonNode.DeepEquals(correctedCamera, currentCamera));
+            JsonObject master = document["NativeGraphics"]!["OriginalEffect"]!["Pools"]!.AsArray().Single(pool => pool!["DescriptorAddress"]!.GetValue<uint>() == 0x25562B8)!["Slots"]![0]!.AsObject();
+            Assert.Equal((ushort)42, prior.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25562B8).Slots[0].ReadWord(0xC));
+            Assert.Equal((ushort)40, prior.NativeGraphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == 0x25562A8).Slots[0].ReadWord(0xC));
+            Assert.Equal(0u, prior.NativeEffectMemory.Pandemona291.Pause2556258);
+            Assert.Equal(1u, prior.NativeGraphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == 0x25562B8).Slots[0].ReadDword(0x10));
+            for (int index = 4; index < 8; index++)
+            {
+                master["Payload"]![index] = 0;
+            }
+            NativeBattleEffectFileAsset file = resources.Files.Single(file => file.FileId == 722);
+            Assert.Equal(76616, file.Data.Length);
+            Assert.Equal("E403EB4C8DD3C491A75B7179CD662ACCEA3743C62C64117C6B4DA33130B31A21", Convert.ToHexString(SHA256.HashData(file.Data.AsSpan())));
+            NativeBattleEffectArena arena = prior.NativeEffectMemory.Arena!;
+            Assert.Equal(new byte[] { 62, 94, 0, 0, 0 }, arena.Read(0x231D4, 5));
+            NativeBattleEffectArena repaired = arena.Write(0x231D4, new byte[] { 0, 0, 1, 4, 4 }).Write(0x31220, file.Data.AsSpan());
+            var beforeBytes = arena.ReadSnapshot(0, NativeBattleEffectArena.Length);
+            var afterBytes = repaired.ReadSnapshot(0, NativeBattleEffectArena.Length);
+            new byte[] { 0, 0, 1, 4, 4 }.CopyTo(beforeBytes.Data, 0x231D4);
+            file.Data.AsSpan().CopyTo(beforeBytes.Data.AsSpan(0x31220));
+            Array.Fill(beforeBytes.Known, true, 0x231D4, 5);
+            Array.Fill(beforeBytes.Known, true, 0x31220, file.Data.Length);
+            Assert.Equal(beforeBytes.Data, afterBytes.Data);
+            Assert.Equal(beforeBytes.Known, afterBytes.Known);
+            document["NativeEffectMemory"]!["Arena"] = JsonSerializer.SerializeToNode(repaired);
+        }
         JsonObject reverted = document.DeepClone().AsObject();
+        reverted["NativeCamera"] = originalCamera.DeepClone();
+        reverted["NativeEffectMemory"]!["Arena"] = originalArena.DeepClone();
+        reverted["NativeGraphics"]!["OriginalEffect"]!["Pools"] = originalPools.DeepClone();
         JsonObject[] revertedBundles = [reverted["NativeGraphics"]!["OriginalEffect"]!["Binding"]!["Pandemona291Resources"]!.AsObject(), reverted["NativeEffectMemory"]!["Entry21DFEC4"]!["Pandemona291Resources"]!.AsObject(), reverted["Definition"]!["NativeEffectCatalog"]![catalogIndex]!["Pandemona291Resources"]!.AsObject()];
         foreach (JsonObject bundle in revertedBundles)
         {
@@ -98,9 +160,9 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         }
         BattleSnapshot boundary = live.Capture();
         Assert.Equal(nextAge, boundary.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25562A8).Slots[0].ReadWord(0xC));
-        string boundaryName = nextAge == 18 ? "before-surface-animation" : nextAge == 25 ? "before-animated-layers" : "before-next-scene";
+        string boundaryName = nextAge == 100 ? "before-model-renderer" : nextAge == 99 ? "before-next-model-scene" : nextAge == 84 ? "before-late-vortex-overlay" : nextAge == 18 ? "before-surface-animation" : nextAge == 25 ? "before-animated-layers" : "before-next-scene";
         NativeBattleRestorationPresentationTests.Publish(output!, boundaryName, boundary, scene.Render(live, 320, 224).ToArray());
         Assert.Equal(sourceHash, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(source!))));
-        File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "resources-only-migration-and-callbacks-validated", SourceHash = sourceHash, Changes = owners.SelectMany(owner => fields.Select(field => owner + "." + field)).ToArray(), RevertEqualsOriginal = true, Callbacks = callbacks, boundary.Frame, NativeCallback = boundary.NativeGraphics!.Callback, Boundary = boundaryName }));
+        File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = migrateCamera ? "camera-and-resources-migration-and-callbacks-validated" : "resources-only-migration-and-callbacks-validated", SourceHash = sourceHash, Changes = owners.SelectMany(owner => fields.Select(field => owner + "." + field)).Concat(migrateCamera ? new[] { "NativeCamera.CurrentPose", "NativeCamera.FocalLength", "NativeCamera.Projection", "NativeGraphics.OriginalEffect.Pools[descriptor25562B8].Slots[0].Payload[4..8]", "NativeEffectMemory.Arena[231D4..231D9]", "NativeEffectMemory.Arena[31220..43D68]" } : Array.Empty<string>()).ToArray(), RevertEqualsOriginal = true, Callbacks = callbacks, boundary.Frame, NativeCallback = boundary.NativeGraphics!.Callback, Boundary = boundaryName }));
     }
 }

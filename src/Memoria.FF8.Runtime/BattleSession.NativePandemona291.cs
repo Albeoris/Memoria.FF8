@@ -65,6 +65,29 @@ public sealed partial class BattleSession
                     var drawn = DrawNativePandemona291Layers(current, age, graphics);
                     graphics = drawn.Graphics;
                     return drawn.Frame;
+                },
+                InitializeBody = (current, address, task) =>
+                {
+                    uint caster = current.Memory.Pandemona291?.Caster2556260 ?? throw new NotSupportedException("Native Pandemona model initialization requires its actual caster pointer.");
+                    uint delta = unchecked(caster - 0x1D972C0);
+                    if (delta % 156 != 0 || delta / 156 >= graphics.Models.Length)
+                    {
+                        throw new InvalidDataException("Native Pandemona caster pointer leaves its current graphics-model rows.");
+                    }
+                    int index = checked((int)(delta / 156));
+                    NativeBattlePandemona291ChildStep initialized = NativeBattlePandemona291Body.Initialize99(current, address, task, () => graphics = graphics with { Models = graphics.Models.SetItem(index, graphics.Models[index] with { Alpha7 = 0 }) });
+                    NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Pandemona requires its current camera globals.");
+                    int center = initialized.Frame.Memory.Pandemona291!.Center25562E8!.Value;
+                    NativeCamera = camera.WriteEffectGlobals(NativeBattlePandemona291Timeline.FinalBodyCamera99(center, camera.FocalLength, camera.Roll));
+                    uint sound = current.Effect.Binding.Pandemona291Resources?.BodySound ?? throw new NotSupportedException("Native Pandemona requires its original model sound descriptor.");
+                    PublishNativeModuleSound(new(sound, 1, null) { Pan = 128 });
+                    return initialized;
+                },
+                DrawVortex = (current, address, age) =>
+                {
+                    var drawn = DrawNativePandemona291Vortex(current, address, age, graphics);
+                    graphics = drawn.Graphics;
+                    return drawn.Frame;
                 }
             };
             NativeBattlePandemona291MasterInputs inputs = new(construction, (current, address, task) =>

@@ -68,6 +68,34 @@ public sealed partial class NativeBattlePandemona291EntryTests
         Assert.Equal(before, JsonSerializer.Serialize(restored));
     }
 
+    [Fact]
+    public void Constructed_master_publishes_alternating_cursor_before_children_and_preserves_the_toggle_afterwards()
+    {
+        var fixture = Fixture();
+        NativeBattlePandemona291Frame frame = NativeBattlePandemona291Entry.Initialize6ED250(fixture.Frame, fixture.Resources, fixture.Packets, ReadModel);
+        NativeBattleEffectTaskPool master = frame.Effect.Pools[0];
+        NativeBattleModulePoolTask root = master.Slots[0].WriteByte(0xF, 1).WriteDword(0x10, 0);
+        master = master with { Slots = master.Slots.SetItem(0, root) };
+        ImmutableArray<NativeBattleEffectTaskPool> children = new uint[] { 0x25562A8, 0x2556298, 0x2556288, 0x2556278, 0x2556268 }.Select((descriptor, index) => NativeBattleEffectTaskPool.Initialize(descriptor, 0x20DFAB8u + (uint)(index * 0x100), 0x20, 1)).ToImmutableArray();
+        var spawned = children[0].Append(0x6ED900);
+        children = children.SetItem(0, spawned.Item1);
+        frame = frame with { Effect = frame.Effect with { Pools = children.Insert(0, master) } };
+        NativeBattlePandemona291ConstructionInputs construction = new(fixture.Packets, ReadModel, (_, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException());
+        List<uint> cursors = [];
+        NativeBattlePandemona291MasterInputs inputs = new(construction, (current, _, task) =>
+        {
+            uint cursor = current.Memory.Pandemona291!.PacketCursor25562DC!.Value;
+            cursors.Add(cursor);
+            return new(current with { Memory = current.Memory with { Pandemona291 = current.Memory.Pandemona291 with { PacketCursor25562DC = cursor + 52 } } }, task, 0);
+        });
+        for (int index = 0; index < 2; index++)
+        {
+            frame = NativeBattlePandemona291Controller.Advance6ED350(frame, (_, _) => { }, inputs);
+            Assert.Equal((uint)(index == 0 ? 1 : 0), frame.Effect.Pools.Single(pool => pool.DescriptorAddress == 0x25562B8).Slots[0].ReadDword(0x10));
+        }
+        Assert.Equal(new[] { 0x20DFAB8u + 0x151D4u, 0x20DFAB8u + 0x71D4u }, cursors);
+    }
+
     private static NativeBattleGraphicsModel ReadModel(int index) => new(index, 0) { Transform = new(new(0, 0, 0), new(0, 0, checked((short)(index == 0 ? -103 : 100))), 0, 0, 0) };
 
     private static (NativeBattlePandemona291Frame Frame, NativeBattlePandemona291Resources Resources, NativeBattleActionPacketsState Packets) Fixture()

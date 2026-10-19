@@ -9,20 +9,21 @@ public sealed partial class BattleRenderer
     private void DrawNativePrimitiveLine(NativeBattlePrimitiveFrame frame, NativeBattleLogicalResolvedCommand resolved)
     {
         NativeBattleLogicalCommand command = resolved.Command;
-        bool semi = command.Opcode == 0x42;
+        bool semi = (command.Opcode & 2) != 0;
+        bool gouraud = (command.Opcode & 16) != 0;
         if (resolved.Pass == 1 && semi || resolved.Pass == 2 && !semi)
         {
             return;
         }
-        if (command.Words.Length != 3)
+        if (command.Words.Length != (gouraud ? 4 : 3))
         {
-            throw new InvalidDataException("Native LINE2 requires its original RGB and two packed XY words.");
+            throw new InvalidDataException("Native LINE2 requires its original endpoint colors and packed XY words.");
         }
         bool perspective = !command.VertexPayload4.IsEmpty && command.VertexPayload4[0] != 0 && (frame.LastDescriptorPerspective ?? throw new NotSupportedException("Native LINE2 requires its executed descriptor depth mode."));
         NativeBattlePrimitiveDepthState depthState = frame.LastDepthState ?? throw new NotSupportedException("Native LINE2 requires its retained depth owner.");
         ImmutableArray<NativeBattlePrimitiveDepthVertex> projected = depthState.Project461220(command.OrderingBucket ?? throw new InvalidDataException("Native LINE2 lacks its original OT bucket."), perspective, command.Flags20, command.VertexPayload4);
         int blendMode = resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native LINE2 requires its executed ABR.");
-        NativeBattlePrimitiveColor diffuse = (frame.LastColorState ?? throw new NotSupportedException("Native LINE2 requires its retained diffuse color owner.")).Untextured(command.Words[0], semi, blendMode);
+        NativeBattlePrimitiveColorState colorState = frame.LastColorState ?? throw new NotSupportedException("Native LINE2 requires its retained diffuse color owner.");
         PrimitiveVertex a = Vertex(0);
         PrimitiveVertex b = Vertex(1);
         int blend = semi ? blendMode : -1;
@@ -48,7 +49,10 @@ public sealed partial class BattleRenderer
 
         PrimitiveVertex Vertex(int corner)
         {
-            Vector2 position = NativePrimitivePosition(command.Words[corner + 1], command.Flags20, resolved.DrawMode);
+            int colorIndex = gouraud ? corner * 2 : 0;
+            int coordinateIndex = gouraud ? corner * 2 + 1 : corner + 1;
+            NativeBattlePrimitiveColor diffuse = colorState.Untextured(command.Words[colorIndex], semi, blendMode);
+            Vector2 position = NativePrimitivePosition(command.Words[coordinateIndex], command.Flags20, resolved.DrawMode);
             return new(position.X, position.Y, projected[corner].Depth, projected[corner].ReciprocalW, Vector2.Zero, diffuse.Rgb, diffuse.Alpha);
         }
 
