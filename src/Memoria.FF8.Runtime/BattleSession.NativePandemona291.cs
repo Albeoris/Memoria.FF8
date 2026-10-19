@@ -46,7 +46,21 @@ public sealed partial class BattleSession
             {
                 NativeCamera = NativeBattlePandemona291Timeline.AdvanceOpeningCamera(NativeCamera ?? throw new NotSupportedException("Native Pandemona requires its current camera globals."), center, age);
                 return current;
-            });
+            })
+            {
+                DrawTrails = (current, address) =>
+                {
+                    var drawn = DrawNativePandemona291Trails(current, address, graphics);
+                    graphics = drawn.Graphics;
+                    return drawn.Frame;
+                },
+                DrawSurface = (current, address, age) =>
+                {
+                    var drawn = DrawNativePandemona291Surface(current, address, age, graphics);
+                    graphics = drawn.Graphics;
+                    return drawn.Frame;
+                }
+            };
             NativeBattlePandemona291MasterInputs inputs = new(construction, (current, address, task) => task.Callback == 0x6ED900 ? NativeBattlePandemona291Timeline.Advance6ED900(current, address, task, timeline) : throw new NotSupportedException($"Native Pandemona callback0x{task.Callback:X8} at0x{address:X8} requires its complete timeline contract."));
             frame = NativeBattlePandemona291Controller.Advance6ED350(frame, (depth, flags) =>
             {

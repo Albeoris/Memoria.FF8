@@ -279,6 +279,15 @@ public sealed partial class GameAssets
                 binding = binding with { Pandemona291Resources = ReadNativePandemona291Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 191)
+            {
+                if (binding.Entry != 0x63E730 || binding.Initializer != 0x575560 || binding.InitializerIsRet != true)
+                {
+                    throw new InvalidDataException("Native Doomtrain differs from its original module identity.");
+                }
+                binding = binding with { Doomtrain191Resources = ReadNativeDoomtrain191Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 95)
             {
                 if (binding.Entry != 0x739DA0 || binding.Initializer != 0x739D80)

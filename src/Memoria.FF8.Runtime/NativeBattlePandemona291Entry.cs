@@ -6,6 +6,10 @@ public sealed record NativeBattlePandemona291Resources(NativeBattleEffectHeapAll
     public NativeVibrationBank? Vibration { get; init; }
     public System.Collections.Immutable.ImmutableArray<NativeBattleEffectFileAsset> Files { get; init; } = [];
     public uint? OpeningSound { get; init; }
+    public NativeBattleGfAnimationSource? SurfaceProgram { get; init; }
+    public System.Collections.Immutable.ImmutableArray<NativeBattleStaticMeshResource> TrailModels { get; init; } = [];
+    public System.Collections.Immutable.ImmutableArray<byte> TrailTrigonometry { get; init; } = [];
+    public System.Collections.Immutable.ImmutableArray<byte> SurfaceTextureKinds { get; init; } = [];
 
     public void Validate()
     {

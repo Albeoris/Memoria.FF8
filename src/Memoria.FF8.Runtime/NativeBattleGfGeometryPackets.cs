@@ -37,7 +37,7 @@ public static class NativeBattleGfGeometryPackets
         return EmitBatch(source, geometryOffset, selectedVertices, matrix, projection, Normalize(context), colors, readSelectedVertex, observeDepth);
     }
 
-    internal static NativeBattleGfGeometryBatch EmitBatch(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleMeshPacketContext context, NativeBattleSummonColors? colors, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null)
+    internal static NativeBattleGfGeometryBatch EmitBatch(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleMeshPacketContext context, NativeBattleSummonColors? colors, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null, Action<int>? observeSourceCursor = null)
     {
         if (source.IsDefault || context.DepthShift > 31)
         {
@@ -84,6 +84,7 @@ public static class NativeBattleGfGeometryPackets
                 cursor = checked(cursor + GroupLengths[group]);
             }
         }
+        observeSourceCursor?.Invoke(cursor);
         return new(attempts.ToImmutable(), allocated);
 
         NativeBattleModuleProjectedVertex Project(ushort offset)

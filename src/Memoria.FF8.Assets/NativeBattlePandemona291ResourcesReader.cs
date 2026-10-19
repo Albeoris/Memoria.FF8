@@ -36,7 +36,9 @@ public static class NativeBattlePandemona291ResourcesReader
         ImmutableArray<int> offsets = Enumerable.Range(0, 64).Select(index => System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(vibrationBytes.AsSpan().Slice(index * 4, 4))).ToImmutableArray();
         NativeVibrationBank vibration = new(memory.SourceHash, offsets, vibrationBytes);
         vibration.Validate();
-        resources = resources with { AnimationSources = animations, Vibration = vibration, OpeningSound = BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0x13B7A48, 4)) };
+        uint[] trailAddresses = [0x139FAF8, 0x139FC30, 0x139FD68, 0x139FEA0];
+        ImmutableArray<NativeBattleStaticMeshResource> trails = trailAddresses.Select((address, index) => new NativeBattleStaticMeshResource((byte)index, address, memory.Read(address, 0x134).ToImmutableArray())).ToImmutableArray();
+        resources = resources with { AnimationSources = animations, Vibration = vibration, OpeningSound = BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0x13B7A48, 4)), SurfaceProgram = new(0x13AFF48, memory.Read(0x13AFF48, 0xD54).ToImmutableArray()), TrailModels = trails, TrailTrigonometry = memory.Read(0x13B7BB8, 0x4000).ToImmutableArray(), SurfaceTextureKinds = memory.Read(0x13EF440, 1).ToImmutableArray() };
         resources.Validate();
         return resources;
     }

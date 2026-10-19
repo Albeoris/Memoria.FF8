@@ -6,6 +6,50 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed partial class NativeBattlePandemona291EntryTests
 {
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(17, false)]
+    public void First_surface_initializes_current_workspace_then_spawns_moves_and_draws_before_camera(int pause, bool active)
+    {
+        var fixture = Fixture();
+        byte[] programme = new byte[16];
+        BinaryPrimitives.WriteInt32LittleEndian(programme.AsSpan(4), 8);
+        NativeBattlePandemona291Resources resources = fixture.Resources with { SurfaceProgram = new(0x13AFF48, programme.ToImmutableArray()) };
+        NativeBattlePandemona291Frame frame = NativeBattlePandemona291Entry.Initialize6ED250(fixture.Frame, resources, fixture.Packets, ReadModel);
+        frame = frame with { Effect = frame.Effect with { Binding = frame.Effect.Binding with { Pandemona291Resources = resources } }, Memory = NativeBattleEffectIo.Initialize534110(frame.Memory, 0x231D4) };
+        frame = frame with { Memory = frame.Memory with { Pandemona291 = frame.Memory.Pandemona291! with { Pause2556258 = (uint)pause }, Arena = frame.Memory.Arena!.Write(0x21A4 + 0x102C, BitConverter.GetBytes(0x20DFAB8u + 0x21A4 + 0x42C)).MarkUnknown(0x21D2, 2) } };
+        NativeBattleModulePoolTask task = new(1, 0, null, 0x6ED900, new byte[0x1024].ToImmutableArray());
+        task = task.WriteWord(0xC, 10);
+        List<string> calls = [];
+        NativeBattlePandemona291TimelineServices services = new((_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (current, _, age) =>
+        {
+            Assert.Equal(10, age);
+            calls.Add("camera");
+            return current;
+        })
+        {
+            DrawTrails = (current, _) =>
+            {
+                Assert.Equal((ushort)19, BinaryPrimitives.ReadUInt16LittleEndian(current.Memory.Arena!.Read(0x21A4 + 0x432, 2)));
+                calls.Add("draw");
+                return current;
+            }
+        };
+        NativeBattlePandemona291ChildStep result = NativeBattlePandemona291Timeline.Advance6ED900(frame, 0x20DFAB8u + 0x21A4, task, services);
+        Assert.Equal(active ? new[] { "draw", "camera" } : new[] { "camera" }, calls);
+        Assert.Equal((ushort)11, result.Task.ReadWord(0xC));
+        Assert.Equal(0x13AFF48u, BinaryPrimitives.ReadUInt32LittleEndian(result.Frame.Memory.Arena!.Read(0x21A4 + 0x1F0, 4)));
+        Assert.Throws<NotSupportedException>(() => result.Frame.Memory.Arena.Read(0x21D2, 2));
+        if (active)
+        {
+            Assert.NotEqual(frame.Random, result.Frame.Random);
+        }
+        else
+        {
+            Assert.Equal(frame.Random, result.Frame.Random);
+        }
+    }
+
     [Fact]
     public void OpeningTimelineQueuesFourDescriptorsOnceAndAdvancesWhileControllerIsBusy()
     {
@@ -53,7 +97,7 @@ public sealed partial class NativeBattlePandemona291EntryTests
         Assert.Throws<NotSupportedException>(() => arena.Read(0x21D2, 2));
         NativeBattlePandemona291Frame restored = JsonSerializer.Deserialize<NativeBattlePandemona291Frame>(JsonSerializer.Serialize(second.Frame))!;
         Assert.Equal(JsonSerializer.Serialize(second.Frame), JsonSerializer.Serialize(restored));
-        Assert.Throws<NotSupportedException>(() => NativeBattlePandemona291Timeline.Advance6ED900(second.Frame, 0x20DFAB8u + 0x21A4, second.Task.WriteWord(0xC, 10), services));
+        Assert.Throws<NotSupportedException>(() => NativeBattlePandemona291Timeline.Advance6ED900(second.Frame, 0x20DFAB8u + 0x21A4, second.Task.WriteWord(0xC, 18), services));
     }
 
     [Fact]
@@ -66,8 +110,8 @@ public sealed partial class NativeBattlePandemona291EntryTests
         Assert.Equal((short)240, first.FocalLength);
         Assert.Equal((short)0, first.Roll);
         Assert.Equal((ushort)3, first.Mask);
-        Assert.Equal((ushort)9, first.EyePaddingF6);
-        Assert.Equal((ushort)7, first.TargetPaddingFE);
+        Assert.Equal((short)9, first.EyePaddingF6);
+        Assert.Equal((short)7, first.TargetPaddingFE);
         NativeBattleCameraState second = NativeBattlePandemona291Timeline.AdvanceOpeningCamera(first, 4000, 1);
         Assert.Equal(new NativeBattleCameraPoint(0, -1200, 4087), second.CurrentPose!.Eye);
         NativeBattleCameraState independent = JsonSerializer.Deserialize<NativeBattleCameraState>(JsonSerializer.Serialize(first))!;

@@ -35,6 +35,9 @@ public sealed partial class BattleSession
                 NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(current.Effect.Pools).Read(address);
                 switch (task.Callback)
                 {
+                    case 0x7456A0:
+                    case 0x745840:
+                        return NativeBattleSiren95TargetMeshes.Advance(current, address, new(nativeActionPackets, actor => graphics.Models[actor], DrawTargetMesh));
                     case 0x745250:
                     case 0x7452F0:
                         return NativeBattleSiren95Waves.Advance(current, address, new(nativeActionPackets, DrawWave));
@@ -51,6 +54,7 @@ public sealed partial class BattleSession
                             }
                             return schedule.Data.AsSpan().Slice(offset, length).ToArray();
                         }));
+                    case 0x73F900:
                     case 0x745180:
                         NativeBattlePrimitiveFrame nodePrimitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Siren nodes require their current ordering table.");
                         NativeBattleCameraState nodeCamera = NativeCamera ?? throw new NotSupportedException("Native Siren nodes require their current camera.");
@@ -71,7 +75,8 @@ public sealed partial class BattleSession
                     case 0x73F250:
                     case 0x73F370:
                     case 0x73F500:
-                        return NativeBattleSiren95LayerProgrammes.Advance(current, address, NativeBattleSiren95Io.ReadProgrammeSource(current.Memory, task.ReadDword(0x74)), DrawLayer, () => (NativeCamera ?? throw new NotSupportedException("Native Siren facing layer requires its current camera.")).CapturePackedView1D97778().ReadMatrix());
+                    case 0x73F800:
+                        return NativeBattleSiren95LayerProgrammes.Advance(current, address, NativeBattleSiren95Io.ReadProgrammeSource(current.Memory, task.ReadDword(0x74)), DrawLayer, () => (NativeCamera ?? throw new NotSupportedException("Native Siren facing layer requires its current camera.")).CapturePackedView1D97778().ReadMatrix(), actor => ReadNativeGraphicsBone(graphics, actor, 0xF1, 0));
                     case 0x73A7B0:
                         return NativeBattleSiren95Director.Advance73A7B0(current, address, director);
                     case 0x743C70:
@@ -99,6 +104,7 @@ public sealed partial class BattleSession
                     case 0x73EE50:
                         NativeBattleGfAnimationSource loaded = NativeBattleSiren95Io.ReadProgrammeSource(current.Memory, task.ReadDword(0x74));
                         return NativeBattleSiren95Actors.Advance73EE50(current, address, loaded, DrawSurface);
+                    case 0x746A40:
                     case 0x746920:
                         NativeBattleSiren95StageStep companion = NativeBattleSiren95Actors.Advance746920(current, address, NativeStage ?? throw new NotSupportedException("Native Siren stage companion requires its canonical stage groups."));
                         NativeStage = companion.Stage;
@@ -129,6 +135,26 @@ public sealed partial class BattleSession
                     graphics = SelectNativeHeaderSequence(graphics, actor, sequence);
                 }
                 return current;
+            }
+
+            NativeBattleSiren95Frame DrawTargetMesh(NativeBattleSiren95Frame current, uint address)
+            {
+                NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(current.Effect.Pools).Read(address);
+                if ((task.ReadByte(0x26) & 4) != 0)
+                {
+                    return current;
+                }
+                uint sourceAddress = task.ReadDword(0x4C);
+                NativeBattleGfAnimationSource source = NativeBattleSiren95Io.ReadProgrammeSource(current.Memory, sourceAddress);
+                NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Siren target mesh requires its current camera.");
+                NativeBattleEffectNodeScratch scratch = current.Memory.NodeScratch2793E30 ?? NativeBattleEffectNodeScratch.Unknown();
+                scratch = scratch.WritePrefix(0, BitConverter.GetBytes(task.ReadDword(0x40))).WritePrefix(4, BitConverter.GetBytes((int)unchecked((short)task.ReadWord(0x50)))).WritePrefix(16, BitConverter.GetBytes(0u)).WritePrefix(20, BitConverter.GetBytes(0xF0u));
+                NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(source.Data, 0, default, NativeBattleChoco99Secondary.ComposeMatrix(task, camera.CapturePackedView1D97778().ReadMatrix()), camera.Projection ?? throw new NotSupportedException("Native Siren target mesh requires its actual projection."), new(0xF0, task.ReadDword(0x40), unchecked((short)task.ReadWord(0x50)), null, null, null, 17, 2), definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Siren target mesh requires its color constants."), observeSourceCursor: cursor => scratch = scratch.WritePrefix(24, BitConverter.GetBytes(unchecked(sourceAddress + (uint)cursor))));
+                NativeBattlePrimitiveProcess process = (current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Siren target mesh requires its actual COMMON packet owner.")).PublishModelColor(task.ReadDword(0x40));
+                NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Siren target mesh requires its actual ordering table.");
+                NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, batch);
+                graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
+                return current with { Memory = current.Memory with { PrimitiveProcess = written.Process, NodeScratch2793E30 = scratch } };
             }
 
             NativeBattleSiren95Frame DrawScreen(NativeBattleSiren95Frame current, uint address, uint row)

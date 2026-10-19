@@ -60,7 +60,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(source))!);
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(first.Capture()));
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
-        while (Counter(first.Capture()) < 94)
+        while (Counter(first.Capture()) < 105)
         {
             first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
             second.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
@@ -69,10 +69,10 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         }
         BattleSnapshot boundary = first.Capture();
         byte[] boundaryPixels = scene.Render(first, 320, 224).ToArray();
-        NativeBattleRestorationPresentationTests.Publish(output, "before-body-model", boundary, boundaryPixels);
+        NativeBattleRestorationPresentationTests.Publish(output, "before-particle-bank", boundary, boundaryPixels);
         NotSupportedException error = Assert.Throws<NotSupportedException>(() => first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero));
         NotSupportedException independentError = Assert.Throws<NotSupportedException>(() => second.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero));
-        Assert.Contains("655190", error.Message);
+        Assert.Contains("6548B9", error.Message);
         Assert.Equal(error.Message, independentError.Message);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "entry-and-opening-programme-validated", boundary.Frame, NativeCallback = boundary.NativeGraphics!.Callback, Counter = Counter(boundary), Boundary = error.Message }));

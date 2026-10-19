@@ -7,9 +7,9 @@ public sealed record NativeBattleModuleMeshContext(uint Flags, uint? FarColor, i
 
 public static partial class NativeBattleModulePackets
 {
-    public static NativeBattleGfGeometryBatch EmitBatch572200(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleModuleMeshContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null)
+    public static NativeBattleGfGeometryBatch EmitBatch572200(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleModuleMeshContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null, Action<int>? observeSourceCursor = null)
     {
-        return NativeBattleGfGeometryPackets.EmitBatch(source, geometryOffset, selectedVertices, matrix, projection, Normalize572200(context), colors, readSelectedVertex, observeDepth);
+        return NativeBattleGfGeometryPackets.EmitBatch(source, geometryOffset, selectedVertices, matrix, projection, Normalize572200(context), colors, readSelectedVertex, observeDepth, observeSourceCursor);
     }
 
     public static NativeBattleGfGeometryAttempt EmitFace572200(ReadOnlySpan<byte> face, IReadOnlyList<NativeBattleModuleProjectedVertex> vertices, int group, NativeBattleModuleMeshContext context, NativeBattleSummonColors? colors = null, int byteOffset = 0, Action<ushort>? observeDepth = null)

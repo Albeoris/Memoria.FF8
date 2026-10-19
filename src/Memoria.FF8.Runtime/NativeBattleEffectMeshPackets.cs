@@ -143,6 +143,13 @@ internal static class NativeBattleEffectMeshPackets
         }
     }
 
+    internal static NativeBattleGfGeometryBatch EmitFlat(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, bool quad, NativeBattleEffectMeshPacketContext context, NativeBattleSummonColors? colors, int byteOffset)
+    {
+        int bias = context.DepthBias ?? throw new NotSupportedException("Native flat stage mesh requires its actual signed depth bias.");
+        NativeBattleGfGeometryAttempt flat = NativeBattleGfGeometryPackets.EmitAttempt(face, new FlatCorners(quad ? 4 : 3, readCorner), quad ? 1 : 0, new(context.Flags, context.FarColor, context.Fade, null, null, 0, bias, context.TableBaseBucket, context.DepthShift), colors, byteOffset);
+        return new([flat], flat.Primitive is null ? 0 : flat.PacketLength);
+    }
+
     internal static NativeBattleGfGeometryBatch EmitFlatQuad(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, NativeBattleEffectMeshPacketContext context, NativeBattleSummonColors? colors, int byteOffset)
     {
         if (face.Length != 12 || context.DepthShift > 31)
@@ -364,5 +371,25 @@ internal static class NativeBattleEffectMeshPackets
             }
             return mesh.AsSpan().Slice(offset, length);
         }
+    }
+    private sealed class FlatCorners(int count, Func<int, NativeBattleModuleProjectedVertex> read) : IReadOnlyList<NativeBattleModuleProjectedVertex>
+    {
+        private readonly NativeBattleModuleProjectedVertex?[] values = new NativeBattleModuleProjectedVertex?[count];
+        public int Count => count;
+        public NativeBattleModuleProjectedVertex this[int index]
+        {
+            get
+            {
+                if (values[index] is { } value)
+                {
+                    return value;
+                }
+                value = read(index);
+                values[index] = value;
+                return value;
+            }
+        }
+        public IEnumerator<NativeBattleModuleProjectedVertex> GetEnumerator() => Enumerable.Range(0, count).Select(index => this[index]).GetEnumerator();
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }

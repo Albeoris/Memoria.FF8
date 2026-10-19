@@ -34,6 +34,16 @@ public sealed partial class BattleSession
                 },
                 PlaySound = (sound, flags, pan) => PublishNativeModuleSound(new(sound, checked((uint)flags), null) { Pan = checked((byte)pan) }),
                 PlayStream = (current, pan, volume) => PublishNativeModuleSound((current.Memory.SummonStream ?? throw new NotSupportedException("Native Diablos requires its retained summon stream number.")).Play5018C0(pan, volume)),
+                PresentBody = (current, task) =>
+                {
+                    NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Diablos body requires its current projection.");
+                    NativeBattleDiablos325BodyDraw drawn = NativeBattleDiablos325BodyDrawing.Draw6574F0(current.Memory, task, projection);
+                    NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Diablos body requires its current ordering table.");
+                    NativeBattlePrimitiveProcess process = drawn.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Diablos body requires its actual COMMON packet bank.");
+                    NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, drawn.Packets);
+                    graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
+                    return new(current with { Memory = drawn.Memory with { PrimitiveProcess = written.Process } }, task);
+                },
                 PresentWings = (current, task) =>
                 {
                     NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Diablos paired wings require their current projection.");

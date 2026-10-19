@@ -19,8 +19,7 @@ public static class NativeBattleTonberry90MeshPackets
         {
             case 0:
             case 1:
-                NativeBattleGfGeometryAttempt flat = NativeBattleGfGeometryPackets.EmitAttempt(face, new Corners(group == 1 ? 4 : 3, readCorner), group, new(context.Flags, context.FarColor, context.Fade, null, null, 0, context.DepthBias, context.TableBaseBucket, context.DepthShift), colors, byteOffset);
-                return new([flat], flat.Primitive is null ? 0 : flat.PacketLength);
+                return NativeBattleEffectMeshPackets.EmitFlat(face, readCorner, group == 1, normalized, colors, byteOffset);
             case 4:
             case 5:
                 return NativeBattleEffectMeshPackets.EmitGouraud(face, readCorner, group == 5, normalized, colors, byteOffset);
@@ -58,24 +57,4 @@ public static class NativeBattleTonberry90MeshPackets
         }
     }
 
-    private sealed class Corners(int count, Func<int, NativeBattleModuleProjectedVertex> read) : IReadOnlyList<NativeBattleModuleProjectedVertex>
-    {
-        private readonly NativeBattleModuleProjectedVertex?[] values = new NativeBattleModuleProjectedVertex?[count];
-        public int Count => count;
-        public NativeBattleModuleProjectedVertex this[int index]
-        {
-            get
-            {
-                if (values[index] is { } value)
-                {
-                    return value;
-                }
-                value = read(index);
-                values[index] = value;
-                return value;
-            }
-        }
-        public IEnumerator<NativeBattleModuleProjectedVertex> GetEnumerator() => Enumerable.Range(0, count).Select(index => this[index]).GetEnumerator();
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
-    }
 }

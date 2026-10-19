@@ -110,6 +110,33 @@ public sealed class NativeBattleWaterRectangleCommandsTests
         Assert.Equal(unchecked(Address(0x5020) + Address(0x20D0)), SlotDword(result, 0xD8));
     }
 
+    [Theory]
+    [InlineData(0x7081, 7)]
+    [InlineData(0xF081, 15)]
+    [InlineData(0x0025, 9)]
+    public void Fixed_sequence_selects_encoded_directory_and_frame_and_retains_native_mode(ushort instruction, byte mode)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(instruction, 0x8102);
+        frame = WaterSchedulerFixture.SlotWord(frame, 0, 0xCA, 0x1234);
+        frame = Dword(frame, 0x50B0, 0x321);
+        frame = frame with { Arena = frame.Arena.MarkUnknown(0x50A0, 4) };
+        NativeBattleWaterExecutionFrame Run(NativeBattleWaterExecutionFrame current) => NativeBattleWaterRectangleCommands.Execute(current, new(0x1000, 4, 0x1000), Bank, 0, (_, _) => throw new InvalidOperationException(), (active, index) =>
+        {
+            Assert.Equal(1, index);
+            return NativeBattleWaterShapeSelection.SelectB66230(active, Resources, Map, index);
+        });
+        NativeBattleWaterExecutionFrame result = Run(frame);
+        Assert.Equal(Address(0x5341), SlotDword(result, 0xD8));
+        Assert.Equal(Address(0x50A0), SlotDword(result, 0xD0));
+        Assert.Equal(Address(0x50A0), SlotDword(result, 0xD4));
+        Assert.Equal(0x9234, SlotWord(result, 0xCA));
+        Assert.Equal(0x9234, SlotWord(result, 0xDC));
+        Assert.Equal(mode, result.Arena.Read(0x201E, 1)[0]);
+        Assert.Equal(5, result.Arena.Read(0x201C, 1)[0]);
+        Assert.Equal(0x1004u, Pc(result));
+        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+    }
+
     [Fact]
     public void TerminalSequenceRemovesDrawAndReturnsBeforeInvalidRectangleOrMatrixReads()
     {
@@ -183,6 +210,60 @@ public sealed class NativeBattleWaterRectangleCommandsTests
         frame = frame with { Arena = frame.Arena.MarkUnknown(0x20D0, 8) };
         NativeBattleWaterExecutionFrame result = Draw(frame, (_, _) => { });
         Assert.Equal((ushort)0x7FFF, SlotWord(result, 0xDC));
+    }
+
+    [Fact]
+    public void Mode7_uses_selected_parent_rotation_and_quarter_turn_without_reading_billboard_selector()
+    {
+        NativeBattleWaterExecutionFrame frame = Selected().WriteTemporaryByte(0x145, 1);
+        frame = frame with { Arena = frame.Arena.Write(0x201E, new byte[] { 7 }).MarkUnknown(0x20DE, 1), Core = frame.Core.MarkUnknown(0x2797968, 0x80) };
+        int lookups = 0;
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterRectangleCommands.AdvanceDraw5(frame, (_, _) =>
+        {
+            lookups++;
+            return 0x27979E8;
+        }, (current, matrix) =>
+        {
+            Assert.Equal(new short[] { 4096, 0, 0, 0, 0, -4096, 0, 4096, 0 }, matrix.Rotation);
+            Assert.Equal((110, -180, 330), (matrix.X, matrix.Y, matrix.Z));
+            Assert.Equal(1024, current.ReadTemporaryWord(0xC0));
+            Assert.Equal(0, current.ReadTemporaryWord(0xC2));
+            return current;
+        });
+        Assert.Equal(2, lookups);
+        Assert.Equal(0x1004u, Pc(result));
+    }
+
+    [Theory]
+    [InlineData((short)0)]
+    [InlineData((short)1024)]
+    public void Mode8_uses_uniform_X_scale_and_view_seeded_Y_rotation_in_its_separate_temporary_fields(short angle)
+    {
+        NativeBattleWaterExecutionFrame frame = Selected().WriteTemporaryByte(0x145, 1);
+        frame = frame with { Arena = frame.Arena.Write(0x201E, new byte[] { 8 }).MarkUnknown(0x20DE, 1) };
+        frame = WaterSchedulerFixture.SlotWord(frame, 0, 0x8C, 512);
+        frame = WaterSchedulerFixture.SlotWord(frame, 0, 0x8E, unchecked((ushort)angle));
+        NativeBattleActionMatrix identity = NativeBattleGfMatrices.Euler56CD50(new(0, 0, 0));
+        NativeBattleActionMatrix expected = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleGfMatrices.RotateY56D020(identity, angle), 8192, 8192, 4096);
+        int lookups = 0;
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterRectangleCommands.AdvanceDraw5(frame, (_, _) =>
+        {
+            lookups++;
+            return 0x27979E8;
+        }, (current, matrix) =>
+        {
+            Assert.Equal(expected.Rotation, matrix.Rotation);
+            Assert.Equal((110, -180, 330), (matrix.X, matrix.Y, matrix.Z));
+            Assert.Equal(0, current.ReadTemporaryWord(0x20));
+            Assert.Equal(unchecked((ushort)angle), current.ReadTemporaryWord(0x22));
+            Assert.Equal(0, current.ReadTemporaryWord(0x24));
+            Assert.Equal(8192u, current.ReadTemporaryDword(0x30));
+            Assert.Equal(8192u, current.ReadTemporaryDword(0x34));
+            Assert.Equal(4096u, current.ReadTemporaryDword(0x38));
+            return current;
+        });
+        Assert.Equal(2, lookups);
+        Assert.Equal(0x1004u, Pc(result));
     }
 
     [Theory]

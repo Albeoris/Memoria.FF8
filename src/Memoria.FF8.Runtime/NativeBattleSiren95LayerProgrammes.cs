@@ -4,11 +4,11 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleSiren95LayerProgrammes
 {
-    public static NativeBattleSiren95TaskStep Advance(NativeBattleSiren95Frame frame, uint address, NativeBattleGfAnimationSource source, Func<NativeBattleSiren95Frame, uint, NativeBattleSiren95ProgramAdvance> draw, Func<NativeBattleActionMatrix>? readCameraView = null)
+    public static NativeBattleSiren95TaskStep Advance(NativeBattleSiren95Frame frame, uint address, NativeBattleGfAnimationSource source, Func<NativeBattleSiren95Frame, uint, NativeBattleSiren95ProgramAdvance> draw, Func<NativeBattleActionMatrix>? readCameraView = null, Func<byte, NativeBattleVector>? readTargetAnchor = null)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         uint callback = task.Callback;
-        if (callback is not (0x73EF60 or 0x73F110 or 0x73F6A0 or 0x73F250 or 0x73F370 or 0x73F500) || task.ReadDword(0x74) != source.Address)
+        if (callback is not (0x73EF60 or 0x73F110 or 0x73F6A0 or 0x73F250 or 0x73F370 or 0x73F500 or 0x73F800) || task.ReadDword(0x74) != source.Address)
         {
             throw new InvalidDataException("Native Siren layer requires its current callback and source pointer.");
         }
@@ -23,11 +23,33 @@ public static class NativeBattleSiren95LayerProgrammes
             {
                 task = task.WriteWord(0x88, unchecked((ushort)-128));
             }
-            if (callback == 0x73EF60)
+            if (callback == 0x73F800)
+            {
+                NativeBattleVector anchor = (readTargetAnchor ?? throw new NotSupportedException("Native Siren target layer requires its actual502170 bone anchor."))(task.ReadByte(0x2D));
+                task = task.WriteWord(0x1C, unchecked((ushort)anchor.X)).WriteWord(0x1E, unchecked((ushort)anchor.Y)).WriteWord(0x20, unchecked((ushort)anchor.Z));
+            }
+            if (callback is 0x73EF60 or 0x73F800)
             {
                 Draw();
             }
             Next();
+        }
+        else if (callback == 0x73F800)
+        {
+            switch (phase)
+            {
+                case 1:
+                    if (Draw() == 0)
+                    {
+                        Complete();
+                    }
+                    break;
+                case 2:
+                    break;
+                default:
+                    Unsupported();
+                    break;
+            }
         }
         else if (callback == 0x73EF60)
         {

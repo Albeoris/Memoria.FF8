@@ -159,17 +159,30 @@ public static class NativeBattleSiren95Actors
     public static NativeBattleSiren95StageStep Advance746920(NativeBattleSiren95Frame frame, uint address, NativeBattleStageState stage)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
-        if (task.Callback != 0x746920)
+        if (task.Callback is not (0x746920 or 0x746A40))
         {
             throw new InvalidDataException("Native Siren stage companion requires its actual callback task.");
         }
         switch (unchecked((sbyte)task.ReadByte(0x29)))
         {
             case 0:
-                frame = Next(Write(frame, address, task.WriteWord(0x1C, 0x600)), address);
-                stage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = 0x600, ColorFlags = group.ColorFlags & 0xFF000000 }).ToImmutableArray() };
+                short depth = task.Callback == 0x746A40 ? (short)2048 : (short)1536;
+                frame = Next(Write(frame, address, task.WriteWord(0x1C, unchecked((ushort)depth))), address);
+                stage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = depth, ColorFlags = group.ColorFlags & 0xFF000000, Flags = task.Callback == 0x746A40 ? (byte)((group.Flags & 0xFD) | ((group.Flags >> 1) & 2)) : group.Flags }).ToImmutableArray() };
                 break;
             case 1:
+                if (task.Callback == 0x746A40)
+                {
+                    short remaining = unchecked((short)(task.ReadWord(0x1C) - 512));
+                    task = task.WriteWord(0x1C, unchecked((ushort)Math.Max(remaining, (short)0)));
+                    if (remaining <= 0)
+                    {
+                        task = task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 1)).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1)));
+                    }
+                    frame = Write(frame, address, task);
+                    stage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = unchecked((short)task.ReadWord(0x1C)) }).ToImmutableArray() };
+                    break;
+                }
                 uint director = State(frame).DirectorAddress1533010 ?? throw new NotSupportedException("Native Siren stage companion requires its director pointer.");
                 if (unchecked((short)State(frame).ReadWord(director + 0x40)) >= 3)
                 {

@@ -51,24 +51,11 @@ public static class NativeBattleWaterRectangleCommands
                 }
                 return frame;
             case 0x25:
-                short index = Operand();
-                if (index < 0)
-                {
-                    throw new NotSupportedException("Native selected rectangle selection requires its nonnegative sequence variant.");
-                }
-                frame = WriteSlotDword(frame, 0xCC, (BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xCC, 4)) & 0x02FFFFFF) | 0x2C000000);
-                uint sequence;
-                (frame, sequence) = selectSequence(frame, index);
-                frame = WriteSlotDword(frame, 0xE4, frame.ReadTemporaryDword(0xFC));
-                frame = WriteSlotDword(frame, 0xD0, sequence);
-                frame = WriteSlotDword(frame, 0xD4, sequence);
-                frame = WriteSlotDword(frame, 0xD8, unchecked(frame.ReadTemporaryDword(0xFC) + ArenaDword(frame, sequence)));
-                frame = WriteSlotWord(frame, 0xCA, (ushort)(SlotWord(frame, 0xCA) & 0x7FFF));
-                frame = WriteSlotWord(frame, 0xDC, SlotWord(frame, 0xCA));
-                frame = NativeBattleWaterParticleCommands.RegisterDrawB65320(frame, 5);
+            case 0x81:
+                frame = InitializeSequenceB66270(frame, Operand(), selectSequence);
                 frame = SlotByte(frame, 0x1E, 1);
                 frame = Advance(4);
-                return SlotByte(frame, 0x1E, 9);
+                return SlotByte(frame, 0x1E, (instruction & 0x1FF) == 0x25 ? (byte)9 : (byte)(frame.ReadTemporaryWord(0x14A) >> 12));
             default:
                 throw new NotSupportedException("Native rectangle commands admit only selected operations 25, 2F, 3C, 4A and 56.");
         }
@@ -86,6 +73,24 @@ public static class NativeBattleWaterRectangleCommands
             }
             return BinaryPrimitives.ReadInt16LittleEndian(frame.Arena.Read(checked(program.ArenaOffset + (int)relative), 2));
         }
+    }
+
+    public static NativeBattleWaterExecutionFrame InitializeSequenceB66270(NativeBattleWaterExecutionFrame frame, short selection, Func<NativeBattleWaterExecutionFrame, short, (NativeBattleWaterExecutionFrame Frame, uint Address)> selectSequence)
+    {
+        frame = WriteSlotDword(frame, 0xCC, (BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xCC, 4)) & 0x02FFFFFF) | 0x2C000000);
+        bool fixedFrame = (selection & 0x8000) != 0;
+        short index = fixedFrame ? (short)((selection >> 8) & 0x7F) : selection;
+        uint sequence;
+        (frame, sequence) = selectSequence(frame, index);
+        frame = WriteSlotDword(frame, 0xE4, frame.ReadTemporaryDword(0xFC));
+        frame = WriteSlotDword(frame, 0xD0, sequence);
+        frame = WriteSlotDword(frame, 0xD4, sequence);
+        uint entry = fixedFrame ? unchecked(sequence + (uint)((selection & 0xFF) * 8)) : sequence;
+        frame = WriteSlotDword(frame, 0xD8, unchecked(frame.ReadTemporaryDword(0xFC) + ArenaDword(frame, entry)));
+        ushort speed = fixedFrame ? (ushort)(SlotWord(frame, 0xCA) | 0x8000) : (ushort)(SlotWord(frame, 0xCA) & 0x7FFF);
+        frame = WriteSlotWord(frame, 0xCA, speed);
+        frame = WriteSlotWord(frame, 0xDC, SlotWord(frame, 0xCA));
+        return NativeBattleWaterParticleCommands.RegisterDrawB65320(frame, 5);
     }
 
     public static NativeBattleWaterExecutionFrame AdvanceDraw5(NativeBattleWaterExecutionFrame frame, Func<NativeBattleWaterExecutionFrame, ushort, uint> resolveMatrixRow, Func<NativeBattleWaterExecutionFrame, NativeBattleActionMatrix, NativeBattleWaterExecutionFrame> drawRectangles)
@@ -117,18 +122,36 @@ public static class NativeBattleWaterRectangleCommands
         NativeBattleActionMatrix matrix = ReadMatrix(frame, matrixAddress, true);
         NativeBattleVector position = new(unchecked((short)SlotWord(frame, 0x94)), unchecked((short)SlotWord(frame, 0x96)), unchecked((short)SlotWord(frame, 0x98)));
         NativeBattleFullMacVertex translated = NativeBattleGfMatrices.TransformMac460840(matrix, position);
-        if (ReadSlot(frame, 0x1E, 1)[0] != 9)
+        byte mode = ReadSlot(frame, 0x1E, 1)[0];
+        if (mode is not (7 or 8 or 9))
         {
-            throw new NotSupportedException("Native selected animated rectangles require matrix mode nine.");
+            throw new NotSupportedException($"Native selected animated rectangle matrix mode {mode} requires its reached contract.");
         }
+        uint modeMatrix = mode is 7 or 8 ? resolveMatrixRow(frame, SlotWord(frame, 0x9C)) : 0;
         int scaleX = unchecked((short)SlotWord(frame, 0x8C)) << 4;
-        int scaleY = unchecked((short)SlotWord(frame, 0x8E)) << 4;
-        frame = frame.WriteTemporaryDword(0xD0, unchecked((uint)scaleX)).WriteTemporaryDword(0xD4, unchecked((uint)scaleY)).WriteTemporaryDword(0xD8, 4096);
-        frame = frame.WriteTemporaryWord(0xC0, 0).WriteTemporaryWord(0xC2, 0).WriteTemporaryWord(0xC4, SlotWord(frame, 0x90));
-        NativeBattleActionMatrix euler = NativeBattleGfMatrices.Euler56CD50(new(0, 0, unchecked((short)frame.ReadTemporaryWord(0xC4))));
-        frame = WriteEuler(frame, euler);
-        int basis = ReadSlot(frame, 0xDE, 1)[0] & 3;
-        NativeBattleActionMatrix rotation = NativeBattleGfMatrices.Multiply56C090(ReadMatrix(frame, 0x2797968 + (uint)(32 * basis), false), euler);
+        int scaleY = mode == 8 ? unchecked((short)SlotWord(frame, 0x8C)) << 4 : unchecked((short)SlotWord(frame, 0x8E)) << 4;
+        int scaleOffset = mode == 8 ? 0x30 : 0xD0;
+        int angleOffset = mode == 8 ? 0x20 : 0xC0;
+        frame = frame.WriteTemporaryDword(scaleOffset, unchecked((uint)scaleX)).WriteTemporaryDword(scaleOffset + 4, unchecked((uint)scaleY)).WriteTemporaryDword(scaleOffset + 8, 4096);
+        short xRotation = mode == 7 ? (short)1024 : (short)0;
+        short yRotation = mode == 8 ? unchecked((short)SlotWord(frame, 0x8E)) : (short)0;
+        frame = frame.WriteTemporaryWord(angleOffset, unchecked((ushort)xRotation)).WriteTemporaryWord(angleOffset + 2, unchecked((ushort)yRotation)).WriteTemporaryWord(angleOffset + 4, SlotWord(frame, 0x90));
+        NativeBattleVector angles = new(xRotation, yRotation, unchecked((short)frame.ReadTemporaryWord(angleOffset + 4)));
+        NativeBattleActionMatrix euler;
+        if (mode == 8)
+        {
+            (frame, euler) = NativeBattleWaterMatrixCommands.BuildRotationB65590(frame, angles, 1);
+        }
+        else
+        {
+            euler = NativeBattleGfMatrices.Euler56CD50(angles);
+            frame = WriteEuler(frame, euler);
+        }
+        if (mode == 9)
+        {
+            modeMatrix = 0x2797968 + (uint)(32 * (ReadSlot(frame, 0xDE, 1)[0] & 3));
+        }
+        NativeBattleActionMatrix rotation = NativeBattleGfMatrices.Multiply56C090(ReadMatrix(frame, modeMatrix, false), euler);
         frame = WriteEuler(frame, rotation);
         rotation = NativeBattlePoseMatrices.Scale56BEF0(rotation, scaleX, scaleY, 4096);
         frame = WriteEuler(frame, rotation);

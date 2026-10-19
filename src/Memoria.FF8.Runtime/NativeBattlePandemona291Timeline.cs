@@ -1,29 +1,65 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattlePandemona291TimelineServices(Func<NativeBattlePandemona291Frame, NativeBattleEffectFileRequest, NativeBattlePandemona291Frame> QueueFile, Func<NativeBattlePandemona291Frame, uint, NativeBattlePandemona291Frame> PlayOpeningSound, Func<NativeBattlePandemona291Frame, int, int, NativeBattlePandemona291Frame> ApplyOpeningCamera);
+public sealed record NativeBattlePandemona291TimelineServices(Func<NativeBattlePandemona291Frame, NativeBattleEffectFileRequest, NativeBattlePandemona291Frame> QueueFile, Func<NativeBattlePandemona291Frame, uint, NativeBattlePandemona291Frame> PlayOpeningSound, Func<NativeBattlePandemona291Frame, int, int, NativeBattlePandemona291Frame> ApplyOpeningCamera)
+{
+    public Func<NativeBattlePandemona291Frame, uint, NativeBattlePandemona291Frame>? DrawTrails { get; init; }
+    public Func<NativeBattlePandemona291Frame, uint, int, NativeBattlePandemona291Frame>? DrawSurface { get; init; }
+}
 
 public static class NativeBattlePandemona291Timeline
 {
     public static NativeBattlePandemona291ChildStep Advance6ED900(NativeBattlePandemona291Frame frame, uint address, NativeBattleModulePoolTask task, NativeBattlePandemona291TimelineServices services)
     {
         int age = unchecked((short)task.ReadWord(0xC));
-        if (age is < 0 or >= 10)
+        if (age is < 0 or >= 25)
         {
-            throw new NotSupportedException($"Native Pandemona6ED900 age{age} requires its next surface workspace7016B0 and renderer6F06F0.");
+            throw new NotSupportedException($"Native Pandemona6ED900 age{age} requires its animated layers6F2A30.");
         }
         NativeBattlePandemona291State state = frame.Memory.Pandemona291 ?? throw new NotSupportedException("Native Pandemona timeline requires its current module owner.");
         frame = frame with { Memory = frame.Memory with { Pandemona291 = state with { Flash25562F0 = unchecked((uint)(age < 8 ? age * 350 : 2800)) } } };
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Pandemona timeline requires its current arena.");
         int start = checked((int)(address - NativeBattleEffectNodeMemory.ArenaAddress));
+        if (age >= 10)
+        {
+            frame = frame with { Memory = frame.Memory with { Arena = arena } };
+            if (age == 10)
+            {
+                NativeBattleGfAnimationSource source = frame.Effect.Binding.Pandemona291Resources?.SurfaceProgram ?? throw new NotSupportedException("Native Pandemona requires its original surface programme.");
+                NativeBattleGfAnimationWorkspace workspace = new(arena.Read(start + 0x1F0, 0x12C).ToImmutableArray());
+                workspace = workspace.Initialize7016B0(source, 0x12C);
+                arena = arena.Write(start + 0x1F0, workspace.Data.AsSpan());
+            }
+            else if (age >= 18)
+            {
+                frame = (services.DrawSurface ?? throw new NotSupportedException("Native Pandemona requires its full surface callback6F06F0."))(frame, address, age);
+                arena = frame.Memory.Arena!;
+            }
+            uint pause = state.Pause2556258 ?? throw new NotSupportedException("Native Pandemona requires its current pause DWORD.");
+            if (pause == 0)
+            {
+                int trailCenter = state.Center25562E8 ?? throw new NotSupportedException("Native Pandemona requires its current trail center.");
+                NativeBattlePandemona291TrailAllocation spawned = NativeBattlePandemona291Trails.SpawnOpening(arena, frame.Random, address, trailCenter);
+                arena = NativeBattlePandemona291Trails.Advance6F19C0(spawned.Arena, address);
+                frame = frame with { Random = spawned.Random };
+            }
+            frame = frame with { Memory = frame.Memory with { Arena = arena } };
+        }
+        bool activeTrails = false;
         for (int index = 0; index < 128; index++)
         {
             int record = checked(start + 0x42C + index * 24);
             if (BinaryPrimitives.ReadUInt16LittleEndian(arena.Read(record + 6, 2)) != 0)
             {
-                throw new NotSupportedException("Native Pandemona6F1650 requires its active trail transform and renderer6F17C0.");
+                activeTrails = true;
+                break;
             }
+        }
+        if (activeTrails)
+        {
+            frame = (services.DrawTrails ?? throw new NotSupportedException("Native Pandemona requires its complete active trail transform and renderer."))(frame, address);
         }
         uint buffer = state.ModelBuffer25562F4 ?? throw new NotSupportedException("Native Pandemona requires its model buffer publication.");
         if (age == 0)

@@ -103,6 +103,43 @@ public sealed class NativeBattleSiren95LayerTests
         Assert.Equal((byte)3, Read(step.Frame, fixture.Address).ReadByte(0x29));
     }
 
+    [Fact]
+    public void Final_target_layer_reads_its_F1_anchor_once_and_draws_the_completion_tick()
+    {
+        var fixture = Fixture(0x73F800, 2);
+        var frame = Put(fixture.Frame, fixture.Address, Read(fixture.Frame, fixture.Address).WriteWord(0x22, 0xABCD));
+        int anchors = 0;
+        int draws = 0;
+        NativeBattleVector Anchor(byte actor)
+        {
+            Assert.Equal((byte)3, actor);
+            anchors++;
+            return new(-123, 456, -789);
+        }
+        NativeBattleSiren95ProgramAdvance Render(NativeBattleSiren95Frame current, uint address)
+        {
+            var task = Read(current, address);
+            Assert.Equal(unchecked((ushort)-123), task.ReadWord(0x1C));
+            Assert.Equal((ushort)456, task.ReadWord(0x1E));
+            Assert.Equal(unchecked((ushort)-789), task.ReadWord(0x20));
+            Assert.Equal((ushort)0xABCD, task.ReadWord(0x22));
+            Assert.Equal(4096u, task.ReadDword(0x50));
+            draws++;
+            return new(current, draws == 1 ? 1 : 0);
+        }
+        var step = NativeBattleSiren95LayerProgrammes.Advance(frame, fixture.Address, fixture.Source, Render, readTargetAnchor: Anchor);
+        Assert.False(step.Complete);
+        Assert.Equal(1, draws);
+        string saved = JsonSerializer.Serialize(step.Frame);
+        step = NativeBattleSiren95LayerProgrammes.Advance(step.Frame, fixture.Address, fixture.Source, Render, readTargetAnchor: Anchor);
+        Assert.True(step.Complete);
+        Assert.Equal(2, draws);
+        Assert.Equal(1, anchors);
+        draws = 1;
+        var restored = NativeBattleSiren95LayerProgrammes.Advance(JsonSerializer.Deserialize<NativeBattleSiren95Frame>(saved)!, fixture.Address, fixture.Source, Render, readTargetAnchor: Anchor);
+        Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(restored));
+    }
+
     private static NativeBattleSiren95ProgramAdvance Draw(NativeBattleSiren95Frame current, uint address)
     {
         var task = Read(current, address);

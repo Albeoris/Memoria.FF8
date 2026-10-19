@@ -154,6 +154,20 @@ public sealed partial class BattleSession
                     return NativeBattleCinematicControlCommands.WaitRandomB0(current, program);
                 case 0x57:
                     return NativeBattleScriptedCommandReads.Advance(current, 2);
+                case 0x9D:
+                    return NativeBattleCinematicCenterShape9D.Execute(current, program, (frame, selector) => NativeBattleWaterShapeSelection.ResolveCinematic(frame, resources, selector).Selected, frame => UpdateSlot(frame, ReadSlot(frame, 0x18, 1)[0]));
+                case 0x82:
+                    return NativeBattleCinematicVelocity82.Execute(current, program, (frame, selector) =>
+                    {
+                        int selected = NativeBattleWaterSlots.LookupB65370(frame.Arena, bank, index, frame.Core.Read(0x2797454, 128).ToImmutableArray(), selector);
+                        return unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(frame.Arena, selected));
+                    });
+                case 0xA4:
+                    return NativeBattleCinematicPositionModeA4.Execute(current, program, (frame, selector) =>
+                    {
+                        int selected = NativeBattleWaterSlots.LookupB65370(frame.Arena, bank, index, frame.Core.Read(0x2797454, 128).ToImmutableArray(), selector);
+                        return unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(frame.Arena, selected));
+                    }, frame => UpdateSlot(frame, ReadSlot(frame, 0x18, 1)[0]));
                 case 0x89:
                 {
                     uint modelAddress = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(current, 0xBC, 4));
@@ -294,6 +308,7 @@ public sealed partial class BattleSession
                 case 0x4A:
                 case 0x2F:
                 case 0x25:
+                case 0x81:
                     return NativeBattleWaterRectangleCommands.Execute(current, program, bank, index, (frame, shapeIndex) => NativeBattleWaterShapeSelection.ResolveCinematic(frame, resources, shapeIndex).Selected, (frame, shapeIndex) =>
                     {
                         var selected = NativeBattleWaterShapeSelection.ResolveCinematic(frame, resources, shapeIndex);
@@ -438,6 +453,8 @@ public sealed partial class BattleSession
                     return NativeBattleWaterMatrixCommands.Execute(current, program, bank);
                 case 0xC3:
                     return NativeBattleScriptedSoundCommands.ExecuteC3(current, (NativeGlobalSoundProcess ?? throw new NotSupportedException("Native cinematic sound control requires its current backend owner.")).Backend);
+                case 0xC5:
+                    return NativeBattleCinematicEncounterBranchC5.Execute(current, program, checked((ushort)(definition.EncounterId ?? throw new NotSupportedException("Native Brothers encounter branch requires its current encounter WORD."))));
                 case 0xCF:
                     return selectedHandler is 0xAFCBE0 or 0xAF1830 ? NativeBattleWaterContextCommands.ExecuteRing(current, context) : current;
                 case 0x5B:
@@ -567,6 +584,18 @@ public sealed partial class BattleSession
                     var grid = DrawNativeCinematicGrid28(frame, assets[1].Data.Length, resources, graphics);
                     graphics = grid.Graphics;
                     return grid.Frame;
+                }
+                if (selectedDrawHandler == 0xB1B5C0)
+                {
+                    var strip = DrawNativeCinematicStrip29(frame, assets[1].Data.Length, resources, graphics);
+                    graphics = strip.Graphics;
+                    return strip.Frame;
+                }
+                if (selectedDrawHandler == 0xB1B9E0)
+                {
+                    var trail = DrawNativeCinematicTrail2B(frame, assets[1].Data.Length, resources, graphics);
+                    graphics = trail.Graphics;
+                    return trail.Frame;
                 }
                 if (selectedDrawHandler == 0xB11C30)
                 {

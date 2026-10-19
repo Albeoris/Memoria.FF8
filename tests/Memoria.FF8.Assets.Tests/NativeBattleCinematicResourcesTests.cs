@@ -39,7 +39,7 @@ public sealed class NativeBattleCinematicResourcesTests
         Assert.Same(complete, assets.ReadNativeCinematicResources(effect));
         Assert.Equal(resources.StaticData.Data, complete.StaticData.Data);
         Assert.All(Enumerable.Range(profile.SourceBase, profile.LastSource - profile.SourceBase + 1), id => Assert.Single(complete.Files, file => file.FileId == id));
-        foreach (int opcode in new[] { 0, 2, 3, 0x30, 0x37, 0x39, 0x3F, 0x47, 0x4B, 0xA1 })
+        foreach (int opcode in new[] { 0, 2, 3, 0x30, 0x37, 0x39, 0x3F, 0x47, 0x4B, 0x81, 0xA1, 0xA4 })
         {
             uint selected = BinaryPrimitives.ReadUInt32LittleEndian(complete.ReadStatic(profile.InstructionTable + (uint)(4 * opcode), 4));
             uint expected = BinaryPrimitives.ReadUInt32LittleEndian(original.Read(0x1874F10u + (uint)(4 * opcode), 4));
@@ -51,12 +51,30 @@ public sealed class NativeBattleCinematicResourcesTests
             uint expected = BinaryPrimitives.ReadUInt32LittleEndian(original.Read(0x1874D6Cu + (uint)(4 * draw), 4));
             if (draw == 3 && effect == 205)
             {
-                Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(effect, "draw_table", draw, selected));
+                Assert.Equal(0xAF5810u, NativeBattleCinematicDispatch.RequireSlot(effect, "draw_table", draw, selected));
             }
             else
             {
                 Assert.Equal(expected, NativeBattleCinematicDispatch.RequireSlot(effect, "draw_table", draw, selected));
             }
+        }
+    }
+
+    [Theory]
+    [InlineData(202, 41, 0xB1B5C0u)]
+    [InlineData(202, 43, 0xB1B9E0u)]
+    [InlineData(205, 3, 0xAF5810u)]
+    public void Selected_draw_variants_match_their_actual_original_table_index(int effect, int index, uint expected)
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        NativeBattleCinematicProfile profile = NativeBattleCinematicProfile.ForEffect(effect);
+        NativeBattleCinematicResources resources = assets.ReadNativeCinematicResources(effect);
+        uint actual = BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(profile.DrawTable + (uint)(4 * index), 4));
+        Assert.Equal(expected, actual);
+        Assert.Equal(actual, NativeBattleCinematicDispatch.RequireSlot(effect, "draw_table", index, actual));
+        if (effect == 202 && index == 43)
+        {
+            Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(effect, "draw_table", 42, actual));
         }
     }
 

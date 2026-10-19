@@ -44,6 +44,26 @@ public static class NativeBattleRestorationMeshPackets
         return new(next, new(flags, fade != 0 ? farColor : null, fade != 0 ? fade : null, 0, 0, vertical, full, window, 17, 2));
     }
 
+    public static NativeBattleGfGeometryBatch EmitF3_88E370(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, NativeBattleEsunaMeshContext context, NativeBattleSummonColors? colors = null, int byteOffset = 0)
+    {
+        return NativeBattleEffectMeshPackets.EmitFlat(face, readCorner, false, Normalize(context), colors, byteOffset);
+    }
+
+    public static NativeBattleGfGeometryBatch EmitF4_88E590(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, NativeBattleEsunaMeshContext context, NativeBattleSummonColors? colors = null, int byteOffset = 0)
+    {
+        return NativeBattleEffectMeshPackets.EmitFlat(face, readCorner, true, Normalize(context), colors, byteOffset);
+    }
+
+    public static NativeBattleGfGeometryBatch EmitG3_88F220(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, NativeBattleEsunaMeshContext context, NativeBattleSummonColors? colors = null, int byteOffset = 0)
+    {
+        return NativeBattleEffectMeshPackets.EmitGouraud(face, readCorner, false, Normalize(context), colors, byteOffset);
+    }
+
+    public static NativeBattleGfGeometryBatch EmitGt3_88F750(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, NativeBattleEsunaMeshContext context, NativeBattleSummonColors? colors = null, int byteOffset = 0)
+    {
+        return NativeBattleEffectMeshPackets.EmitTextured(face, readCorner, false, true, Normalize(context), colors, byteOffset);
+    }
+
     public static NativeBattleGfGeometryBatch EmitFt3_88E820(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, NativeBattleEsunaMeshContext context, NativeBattleSummonColors? colors = null, int byteOffset = 0)
     {
         return NativeBattleEffectMeshPackets.EmitTextured(face, readCorner, false, false, Normalize(context), colors, byteOffset);
@@ -88,9 +108,13 @@ public static class NativeBattleRestorationMeshPackets
     {
         return NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, context.Flags, readSelectedVertex, (group, face, readCorner, offset) => group switch
         {
+            0 => EmitF3_88E370(face, readCorner, context, colors, offset),
+            1 => EmitF4_88E590(face, readCorner, context, colors, offset),
             2 => EmitFt3_88E820(face, readCorner, context, colors, offset),
             3 => EmitFt4_88ECA0(face, readCorner, context, colors, offset),
+            4 => EmitG3_88F220(face, readCorner, context, colors, offset),
             5 => EmitG4_88F470(face, readCorner, context, colors, offset),
+            6 => EmitGt3_88F750(face, readCorner, context, colors, offset),
             7 => EmitGt4_88FC50(face, readCorner, context, colors, offset),
             _ => throw new NotSupportedException($"Native88E240 group{group} requires its own original polygon leaf.")
         }, observeFirstThreeFlags);

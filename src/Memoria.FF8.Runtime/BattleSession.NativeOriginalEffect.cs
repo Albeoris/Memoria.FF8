@@ -69,6 +69,10 @@ public sealed partial class BattleSession
         {
             return RunNativePandemona291(graphics, true);
         }
+        if (effect.Binding.Effect == 191)
+        {
+            return RunNativeDoomtrain191(graphics, true);
+        }
         if (effect.Binding.Effect == 95)
         {
             return RunNativeSiren95(graphics, true);
