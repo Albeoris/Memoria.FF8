@@ -145,6 +145,92 @@ public sealed class MemoriaRuntimeTests : IDisposable
         Assert.Equal("game", System.Text.Encoding.UTF8.GetString(Assert.Single(runtime.Catalog.Files).ReadBytes()));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void EmptyOldPackageDirectoryRetainsCurrentBundledDefaultsAndInheritsGlobalPolicy(bool autoEnable)
+    {
+        string application = Path.Combine(root, "Data");
+        string retained = Path.Combine(root, "Mods", "Memoria", "Example");
+        Directory.CreateDirectory(retained);
+        Write(root, "mods.ini", "auto_enable_new_mods = " + (autoEnable ? "1" : "0"));
+        WriteBundled(application, "Example/fields/sample.json", "current bundled default");
+        using ModRuntime runtime = new(application, watch: false, modsDirectory: Path.Combine(root, "Mods"));
+        Publish(runtime);
+        ModPackage package = Assert.Single(runtime.Catalog.Packages);
+        Assert.Equal(retained, package.RootDirectory);
+        Assert.Equal(autoEnable ? ModEffectiveStatus.Active : ModEffectiveStatus.Disabled, package.Status);
+        Assert.Null(package.ExplicitEnabled);
+        Assert.Equal(autoEnable ? 1 : 0, runtime.Catalog.Files.Count);
+        if (!autoEnable)
+        {
+            Assert.True(runtime.SetAutoEnableNewMods(true).Success);
+            Publish(runtime);
+        }
+        Assert.Equal("current bundled default", System.Text.Encoding.UTF8.GetString(Assert.Single(runtime.Catalog.Files).ReadBytes()));
+        Assert.DoesNotContain(runtime.Diagnostics, diagnostic => diagnostic.Code == "duplicate-package");
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void RetainedPackageConfigurationControlsFallbackFilesAndRemainsEditable(bool enabled, bool autoEnable)
+    {
+        string application = Path.Combine(root, "Data");
+        Write(root, "mods.ini", "auto_enable_new_mods = " + (autoEnable ? "1" : "0"));
+        Write(root, "Memoria/eXaMpLe/mod.ini", "enabled = " + (enabled ? "1" : "0"));
+        WriteBundled(application, "Example/fields/sample.json", "current bundled default");
+        using ModRuntime runtime = new(application, watch: false, modsDirectory: Path.Combine(root, "Mods"));
+        Publish(runtime);
+        ModPackage package = Assert.Single(runtime.Catalog.Packages);
+        Assert.Equal(enabled, package.ExplicitEnabled);
+        Assert.Equal(enabled ? ModEffectiveStatus.Active : ModEffectiveStatus.Disabled, package.Status);
+        Assert.Equal(enabled ? 1 : 0, runtime.Catalog.Files.Count);
+        Assert.True(runtime.SetEnabled(package.Id, !enabled).Success);
+        Publish(runtime);
+        Assert.Equal(!enabled, Assert.Single(runtime.Catalog.Packages).ExplicitEnabled);
+        Assert.Equal(enabled ? 0 : 1, runtime.Catalog.Files.Count);
+        Assert.Contains("enabled = " + (enabled ? "0" : "1"), File.ReadAllText(Path.Combine(root, "Mods", "Memoria", "eXaMpLe", "mod.ini")));
+        Assert.False(File.Exists(Path.Combine(application, "BundledMods", "Memoria", "Example", "mod.ini")));
+    }
+
+    [Fact]
+    public void EditedNativeFilesOverrideBundlesByPathAndRemovingAnEditRevealsCurrentDefault()
+    {
+        string application = Path.Combine(root, "Data");
+        string game = Path.Combine(root, "game");
+        Write(game, "Memoria/example/FIELDS/SAMPLE.JSON", "edited field");
+        Write(root, "Memoria/EXAMPLE/fields/selected-only.json", "ignored lower user root");
+        WriteBundled(application, "Example/fields/sample.json", "current default");
+        WriteBundled(application, "Example/fields/added.json", "new bundled field");
+        using ModRuntime runtime = new(application, watch: false, additionalBaseDirectories: [game], modsDirectory: Path.Combine(root, "Mods"));
+        Publish(runtime);
+        Assert.Equal(2, runtime.Catalog.Files.Count);
+        Assert.Equal(["fields/added.json", "FIELDS/SAMPLE.JSON"], runtime.Catalog.Files.Select(file => file.RelativePath));
+        Assert.Equal("edited field", System.Text.Encoding.UTF8.GetString(Assert.Single(runtime.Catalog.FindAll(ModFormat.Memoria, "fields/sample.json")).ReadBytes()));
+        Assert.Equal("new bundled field", System.Text.Encoding.UTF8.GetString(Assert.Single(runtime.Catalog.FindAll(ModFormat.Memoria, "fields/added.json")).ReadBytes()));
+        Assert.Empty(runtime.Catalog.FindAll(ModFormat.Memoria, "fields/selected-only.json"));
+        Assert.Equal(Path.Combine(game, "Mods", "Memoria", "example"), Assert.Single(runtime.Catalog.Packages).RootDirectory);
+        Assert.Single(runtime.Diagnostics, diagnostic => diagnostic.Code == "duplicate-package");
+        Assert.DoesNotContain(runtime.Diagnostics, diagnostic => diagnostic.Code == "normalized-path-conflict");
+        File.Delete(Path.Combine(game, "Mods", "Memoria", "example", "FIELDS", "SAMPLE.JSON"));
+        runtime.RequestRefresh();
+        Publish(runtime);
+        Assert.Equal(2, runtime.Catalog.Files.Count);
+        Assert.Equal(["fields/added.json", "fields/sample.json"], runtime.Catalog.Files.Select(file => file.RelativePath));
+        Assert.Equal("current default", System.Text.Encoding.UTF8.GetString(Assert.Single(runtime.Catalog.FindAll(ModFormat.Memoria, "fields/sample.json")).ReadBytes()));
+        Assert.Equal(ModEffectiveStatus.Active, Assert.Single(runtime.Catalog.Packages).Status);
+    }
+
+    private static void WriteBundled(string application, string relative, string content)
+    {
+        string path = Path.Combine(application, "BundledMods", "Memoria", relative);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, content);
+    }
+
     private static void Write(string baseDirectory, string relative, string content)
     {
         string path = Path.Combine(baseDirectory, "Mods", relative);

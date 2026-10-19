@@ -12,6 +12,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
     private readonly object gate = new();
     private readonly int ownerThread = Environment.CurrentManagedThreadId;
     private readonly string modsRoot;
+    private readonly string bundledModsRoot;
     private readonly Func<ModFormat, bool> isCompatible;
     private readonly Func<ModCatalogSnapshot, ModPreparationResult> prepare;
     private readonly TimeSpan debounce;
@@ -39,10 +40,10 @@ public sealed partial class ModRuntime : IModService, IDisposable
     {
         modsRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(modsDirectory ?? DefaultModsDirectory(applicationBaseDirectory ?? AppContext.BaseDirectory)));
         IEnumerable<string> roots = (additionalBaseDirectories ?? []).Select(directory => Path.Combine(directory, "Mods")).Append(modsRoot);
-        string bundledMods = Path.Combine(applicationBaseDirectory ?? AppContext.BaseDirectory, "BundledMods");
-        if (Directory.Exists(bundledMods))
+        bundledModsRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.Combine(applicationBaseDirectory ?? AppContext.BaseDirectory, "BundledMods")));
+        if (Directory.Exists(bundledModsRoot))
         {
-            roots = roots.Append(bundledMods);
+            roots = roots.Append(bundledModsRoot);
         }
         ModsDirectories = Array.AsReadOnly(roots.Select(directory => Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory))).Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
         this.isCompatible = isCompatible ?? (_ => true);
@@ -422,11 +423,23 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 continue;
             }
             HashSet<string> packageIds = new(StringComparer.OrdinalIgnoreCase);
-            IEnumerable<string> roots = ModsDirectories.Select(directory => Path.Combine(directory, format.ToString())).Where(Directory.Exists).SelectMany(directory => Directory.GetDirectories(directory).OrderBy(path => Path.GetFileName(path), PathOrder)).OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase);
+            string[] roots = ModsDirectories.Select(directory => Path.Combine(directory, format.ToString())).Where(Directory.Exists).SelectMany(directory => Directory.GetDirectories(directory).OrderBy(path => Path.GetFileName(path), PathOrder)).OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase).ToArray();
+            Dictionary<string, string> bundledPackages = new(StringComparer.OrdinalIgnoreCase);
+            if (format == ModFormat.Memoria)
+            {
+                foreach (string root in roots)
+                {
+                    if (string.Equals(Path.GetDirectoryName(root), Path.Combine(bundledModsRoot, format.ToString()), StringComparison.OrdinalIgnoreCase) && (File.GetAttributes(root) & FileAttributes.ReparsePoint) == 0)
+                    {
+                        bundledPackages.TryAdd(Path.GetFileName(root), root);
+                    }
+                }
+            }
             foreach (string root in roots)
             {
                 string name = Path.GetFileName(root);
                 string id = $"{format}/{name}";
+                bundledPackages.TryGetValue(name, out string? bundledRoot);
                 if ((File.GetAttributes(root) & FileAttributes.ReparsePoint) != 0)
                 {
                     notices.Add(new("package-link-rejected", "Package roots must be unpacked directories, not links.", id));
@@ -434,6 +447,10 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 }
                 if (!packageIds.Add(id))
                 {
+                    if (string.Equals(root, bundledRoot, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
                     identities.Add($"duplicate\0{root}");
                     notices.Add(new("duplicate-package", $"A preceding mod directory owns {id}; ignoring duplicate at {root}.", id));
                     continue;
@@ -443,20 +460,34 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 bool compatible = isCompatible(format);
                 ModEffectiveStatus status = !compatible ? ModEffectiveStatus.IncompatibleEdition : !requested ? ModEffectiveStatus.Disabled : ModEffectiveStatus.Active;
                 identities.Add($"{id}\0{root}\0{explicitEnabled}\0{requested}\0{compatible}");
-                List<(string Physical, string Relative)> packageFiles = [];
-                EnumerateFiles(root, root, string.Empty, id, new HashSet<string>(StringComparer.OrdinalIgnoreCase), packageFiles, notices);
-                HashSet<string> normalizedPaths = new(StringComparer.OrdinalIgnoreCase);
-                foreach ((string physical, string relative) in packageFiles.OrderBy(item => item.Relative, PathOrder))
+                string[] packageRoots = bundledRoot is not null && !string.Equals(root, bundledRoot, StringComparison.OrdinalIgnoreCase) ? [root, bundledRoot] : [root];
+                List<(string Root, string Physical, string Relative)> packageFiles = [];
+                foreach (string packageRoot in packageRoots)
+                {
+                    List<(string Physical, string Relative)> sourceFiles = [];
+                    EnumerateFiles(packageRoot, packageRoot, string.Empty, id, new HashSet<string>(StringComparer.OrdinalIgnoreCase), sourceFiles, notices);
+                    packageFiles.AddRange(sourceFiles.OrderBy(item => item.Relative, PathOrder).Select(file => (packageRoot, file.Physical, file.Relative)));
+                }
+                Dictionary<string, string> normalizedPaths = new(StringComparer.OrdinalIgnoreCase);
+                List<(string Root, string Physical, string Relative)> selectedFiles = [];
+                foreach ((string packageRoot, string physical, string relative) in packageFiles)
                 {
                     if (relative.Equals("mod.ini", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(relative).StartsWith('.') && relative.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase))
                     {
                         continue;
                     }
-                    if (!normalizedPaths.Add(relative))
+                    if (!normalizedPaths.TryAdd(relative, packageRoot))
                     {
-                        notices.Add(new("normalized-path-conflict", "A preceding path with equivalent casing owns this package address.", id, relative));
+                        if (string.Equals(normalizedPaths[relative], packageRoot, StringComparison.OrdinalIgnoreCase))
+                        {
+                            notices.Add(new("normalized-path-conflict", "A preceding path with equivalent casing owns this package address.", id, relative));
+                        }
                         continue;
                     }
+                    selectedFiles.Add((packageRoot, physical, relative));
+                }
+                foreach ((string packageRoot, string physical, string relative) in selectedFiles.OrderBy(item => item.Relative, PathOrder))
+                {
                     FileInfo info = new(physical);
                     string key = id + "/" + relative + "\0" + physical;
                     visitedFiles.Add(key);
@@ -464,7 +495,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                     if (!fileEntries.TryGetValue(key, out FileEntry? previous) || previous.Stamp != stamp || forceRevalidate)
                     {
                         long revision = ++fileRevision;
-                        previous = new(stamp, new ModFile(id, format, relative, revision, () => ReadVersion(root, physical, stamp)));
+                        previous = new(stamp, new ModFile(id, format, relative, revision, () => ReadVersion(packageRoot, physical, stamp)));
                         fileEntries[key] = previous;
                     }
                     identities.Add($"{key}\0{previous.File.Revision}");

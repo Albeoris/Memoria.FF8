@@ -35,6 +35,51 @@ public sealed class UpdateInstallerTests : IDisposable
         Assert.Equal("new", PackageManifest.Read(root).BuildId);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void RelocatingBundledDefaultsRetainsUserOverridesAndRollsBack(bool edited, bool fail)
+    {
+        const string oldPath = "Mods/Memoria/Example/fields/example.json";
+        const string newPath = "Data/BundledMods/Memoria/Example/fields/example.json";
+        const string configuration = "Mods/Memoria/Example/mod.ini";
+        AddPackageFile(root, oldPath, "old default");
+        Write(root, configuration, "enabled = 0");
+        if (edited)
+        {
+            Write(root, oldPath, "user edit");
+        }
+        AddPackageFile(Staged, newPath, "new default");
+        if (fail)
+        {
+            Assert.Throws<IOException>(() => UpdateInstaller.Apply(root, path =>
+            {
+                if (path == PackageManifest.ManifestPath)
+                {
+                    throw new IOException("injected relocation failure");
+                }
+            }));
+            Assert.Equal(edited ? "user edit" : "old default", Read(oldPath));
+            Assert.False(File.Exists(Path.Combine(root, newPath)));
+            Assert.Equal("old", PackageManifest.Read(root).BuildId);
+        }
+        else
+        {
+            UpdateInstaller.Apply(root);
+            Assert.Equal(edited, File.Exists(Path.Combine(root, oldPath)));
+            if (edited)
+            {
+                Assert.Equal("user edit", Read(oldPath));
+            }
+            Assert.Equal("new default", Read(newPath));
+            Assert.Equal("new", PackageManifest.Read(root).BuildId);
+        }
+        Assert.Equal("enabled = 0", Read(configuration));
+        AssertUnknownFiles();
+    }
+
     [Fact]
     public void NewPackageFileCannotOverwriteUnownedFile()
     {
