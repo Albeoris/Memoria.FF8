@@ -109,7 +109,7 @@ public sealed class NativeBattleAngelWing84ControllerTests
         NativeBattleOriginalEffectState selected = new(84, 83, new(84, 0x78D7B0, 0x78D790), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(0x25C2350, 256)] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(83);
         memory = memory with { Arena = memory.Arena!.Write(256, Enumerable.Repeat((byte)0xA5, 98304 + 27312).ToArray()) };
-        NativeBattleAngelWing84Frame frame = NativeBattleAngelWing84Controller.Initialize(memory, selected, packets, new("skipped-animation", []));
+        NativeBattleAngelWing84Frame frame = NativeBattleAngelWing84Controller.Initialize(memory, selected, packets);
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 30000, 4096);
         NativeBattleAngelWing84Inputs inputs = new(packets, camera, index => new(index, 0), _ => throw new InvalidOperationException("Inactive model does not read a pose."), (_, _) => throw new NotSupportedException("The selected scene leaf has no test renderer."), (_, _) => throw new NotSupportedException("Texture release has no test completion producer."));
         return (frame, inputs);

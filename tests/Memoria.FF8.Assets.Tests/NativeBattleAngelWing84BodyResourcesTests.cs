@@ -1,10 +1,44 @@
 using System.Text.Json;
+using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeBattleAngelWing84BodyResourcesTests
 {
+    [Fact]
+    public void Original_body_draws_shader_then_ordinary_fade_with_independent_work_storage()
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        NativeBattleAngelWing84BodyResources resources = game.ReadNativeAngelWing84BodyResources();
+        NativeBattleEffectHierarchy hierarchy = new([NativeBattleEffectTaskPool.Initialize(0x25C9ED8, 0x25C9D80, 340, 1)]);
+        NativeBattleEffectHierarchyAppend append = hierarchy.Append8DC540(0, 0x7961E0, 340);
+        NativeBattleOriginalEffectState effect = new(84, 83, new(84, 0x78D7B0, 0x78D790), null, null) { Pools = append.Hierarchy.Pools };
+        NativeBattleAngelWing84Frame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, new(0, 0, 0, null, null, null, null) { Scene = NativeBattleAngelWing84SceneMemory.Initialize(new(0, 0, 0), new(0, 0, 0), null), BodyDrawStorage = NativeBattleAngelWing84BodyDrawStorage.FromColdProcess(), BodyShaderAngle = 1280 });
+        frame = NativeBattleAngelWing84Body.Initialize(frame, append.Address, resources);
+        NativeBattleEffectOwnedModelStep selected = NativeBattleEffectOwnedModel.Select8DD190(new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(append.Address), frame.State.BodyModel!, resources.Model, 0);
+        NativeBattleModulePoolTask task = selected.Task.WriteDword(276, 4096).WriteDword(280, 4096).WriteDword(284, 4096).WriteByte(38, 8);
+        frame = frame with { Effect = frame.Effect with { Pools = new NativeBattleEffectHierarchy(frame.Effect.Pools).Write(append.Address, task).Pools }, State = frame.State with { BodyModel = selected.State, BodyBones = NativeBattlePoseMatrices.StageBoneMatrices(resources.Model.PoseSource, selected.State.DecodedPose!) } };
+        frame = NativeBattleAngelWing84Body.InitializeShader(frame, append.Address);
+        NativeBattleActionMatrix view = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 4096, 4096);
+        NativeBattleCameraProjection projection = new(view, 216, 160, 108);
+        NativeBattleShadowSource shadow = new(view with { Z = 0 }, new(4096, 0, 4096), Enumerable.Repeat(new NativeBattleVector(0, 0, 0), 10).ToImmutableArray());
+        NativeBattleAngelWing84Frame restored = JsonSerializer.Deserialize<NativeBattleAngelWing84Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleAngelWing84BodyDrawStep shader = Draw(frame);
+        Assert.Equal(JsonSerializer.Serialize(shader), JsonSerializer.Serialize(Draw(restored)));
+        Assert.Contains(shader.Ordering.Packets, packet => packet.Words.Length == 10);
+        Assert.Throws<NotSupportedException>(() => shader.Frame.State.BodyDrawStorage!.Vertices.Read(6, 2));
+        Assert.Equal(append.Address, System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(shader.Frame.State.Scene!.Settings.Read(24, 4)));
+        frame = shader.Frame;
+        task = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(append.Address).WriteByte(38, 0).WriteByte(55, 31).WriteDword(88, 0x02404040);
+        frame = frame with { Effect = frame.Effect with { Pools = new NativeBattleEffectHierarchy(frame.Effect.Pools).Write(append.Address, task).Pools } };
+        NativeBattleAngelWing84BodyDrawStep ordinary = Draw(frame);
+        Assert.True(ordinary.Ordering.Packets.Length > 0);
+        Assert.Equal((byte)31, new NativeBattleEffectHierarchy(ordinary.Frame.Effect.Pools).Read(append.Address).ReadByte(55));
+
+        NativeBattleAngelWing84BodyDrawStep Draw(NativeBattleAngelWing84Frame current) => NativeBattleAngelWing84Body.Draw(current, append.Address, resources, view, projection, shadow, NativeBattlePrimitiveCapabilities.PrimaryRgba8(), NativeBattleGteColorInterpolation.CodeConstants45F270, NativeBattleLogicalOrdering.Clear());
+    }
+
     [Fact]
     public void Original_body_initializes_and_advances_its_owned_pose_without_actor_row_substitution()
     {

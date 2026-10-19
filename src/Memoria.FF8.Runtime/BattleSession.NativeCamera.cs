@@ -200,6 +200,18 @@ public sealed partial class BattleSession
                 {
                     graphics = fatedCircle162Completed;
                 }
+                else if (TryWriteNativeRoughDivide163Completion(graphics, address, value, out NativeBattleGraphicsState roughDivide163Completed))
+                {
+                    graphics = roughDivide163Completed;
+                }
+                else if (TryWriteNativeAngelWing84Completion(graphics, address, value, out NativeBattleGraphicsState angelWing84Completed))
+                {
+                    graphics = angelWing84Completed;
+                }
+                else if (TryWriteNativeShot197Completion(graphics, address, value, out NativeBattleGraphicsState shot197Completed))
+                {
+                    graphics = shot197Completed;
+                }
                 else if (TryWriteNativeShot193Completion(graphics, address, value, out NativeBattleGraphicsState shot193Completed))
                 {
                     graphics = shot193Completed;

@@ -17,10 +17,6 @@ public static class NativeBattleEffectOwnedModelDrawing
     {
         NativeBattleEffectOwnedModel.Validate(task, state, resource);
         NativeBattleDecodedPose pose = state.DecodedPose ?? throw new NotSupportedException("Native effect-owned model drawing requires its actual current decoded pose.");
-        if (task.ReadByte(0x37) != 0)
-        {
-            throw new NotSupportedException("Native effect-owned model drawing requires its proved zero-alpha owner.");
-        }
         if (resource.Geometry.IsDefault || projectedScratch.IsDefault)
         {
             throw new InvalidDataException("Native effect-owned model drawing requires its original objects and explicit projected scratch owner.");

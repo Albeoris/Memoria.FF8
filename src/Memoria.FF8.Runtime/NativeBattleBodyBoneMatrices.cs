@@ -21,6 +21,11 @@ public sealed record NativeBattleBodyBoneMatrices(string SkeletonSha256, Immutab
 
     public static NativeBattleGraphicsModel PublishLoadedSkeleton(NativeBattleGraphicsModel model, NativeBattlePoseSource source)
     {
+        return model with { CurrentBodyBoneMatrices = ReadLoadedSkeleton(source) };
+    }
+
+    public static NativeBattleBodyBoneMatrices ReadLoadedSkeleton(NativeBattlePoseSource source)
+    {
         source.Validate();
         ImmutableArray<NativeBattleActionMatrix>.Builder matrices = ImmutableArray.CreateBuilder<NativeBattleActionMatrix>(source.BoneCount);
         for (int bone = 0; bone < source.BoneCount; bone++)
@@ -31,7 +36,7 @@ public sealed record NativeBattleBodyBoneMatrices(string SkeletonSha256, Immutab
         }
         NativeBattleBodyBoneMatrices publication = new(Identity(source), matrices.MoveToImmutable());
         publication.Validate();
-        return model with { CurrentBodyBoneMatrices = publication };
+        return publication;
     }
 
     public static NativeBattleGraphicsModel Publish508C90(NativeBattleGraphicsModel model, NativeBattlePoseSource source)

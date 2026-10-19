@@ -13,6 +13,7 @@ public static partial class NativeBattleAngelWing84Body
         }
         NativeBattleEffectOwnedModelStep initialized = NativeBattleEffectOwnedModel.Initialize8DD0F0(task, address, resources.Model, 3, resources.DefaultColor44);
         hierarchy = hierarchy.Write(address, initialized.Task);
-        return frame with { Effect = frame.Effect with { Pools = hierarchy.Pools }, State = frame.State with { BodyModel = initialized.State } };
+        NativeBattleBodyBoneMatrices loaded = NativeBattleBodyBoneMatrices.ReadLoadedSkeleton(resources.Model.PoseSource);
+        return frame with { Effect = frame.Effect with { Pools = hierarchy.Pools }, State = frame.State with { BodyModel = initialized.State, BodyBones = frame.State.BodyBones ?? loaded.Matrices } };
     }
 }

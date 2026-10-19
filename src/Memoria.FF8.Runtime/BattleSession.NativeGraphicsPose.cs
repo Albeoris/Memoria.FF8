@@ -13,7 +13,31 @@ public sealed partial class BattleSession
         {
             NativeBattleFileStaging staging = NativeFileStaging ?? throw new NotSupportedException("Native staged graphics requires its actual shared file bytes.");
             NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native staged graphics requires its current CPU skeleton/geometry references.");
-            return NativeBattleVictoryResources.Resolve(graphics.Models[index], binding.Resource, address => IsNativeEffectArenaAddress(address) ? RequireWaterMemory().Arena!.ReadResourcePointer(NativeBattleWaterExecutionFields.ArenaOffset(address, 4)) : staging.ReadResourcePointer(address), (pointer, length) => pointer.Cpu is { } reference ? NativeBattleModelEnemyHeap.Read(cpu, staging, reference, length) : IsNativeEffectArenaAddress(pointer.StagingAddress ?? throw new NotSupportedException("Native bound resource has no actual byte owner.")) ? RequireWaterMemory().Arena!.Read(NativeBattleWaterExecutionFields.ArenaOffset(pointer.StagingAddress!.Value, length), length) : staging.Read(pointer.StagingAddress!.Value, length));
+            System.Collections.Immutable.ImmutableArray<NativeBattleEffectTaskPool> pools = graphics.OriginalEffect?.Pools ?? [];
+            return NativeBattleVictoryResources.Resolve(graphics.Models[index], binding.Resource, ReadPointer, ReadBytes);
+
+            NativeBattleResourcePointer? ReadPointer(uint address)
+            {
+                if (NativeBattleEffectTaskMemory.TryReadPointer(pools, address, out NativeBattleResourcePointer? pointer))
+                {
+                    return pointer;
+                }
+                return IsNativeEffectArenaAddress(address) ? RequireWaterMemory().Arena!.ReadResourcePointer(NativeBattleWaterExecutionFields.ArenaOffset(address, 4)) : staging.ReadResourcePointer(address);
+            }
+
+            byte[] ReadBytes(NativeBattleResourcePointer pointer, int length)
+            {
+                if (pointer.Cpu is { } reference)
+                {
+                    return NativeBattleModelEnemyHeap.Read(cpu, staging, reference, length);
+                }
+                uint address = pointer.StagingAddress ?? throw new NotSupportedException("Native bound resource has no actual byte owner.");
+                if (NativeBattleEffectTaskMemory.TryRead(pools, address, length, out byte[] bytes))
+                {
+                    return bytes;
+                }
+                return IsNativeEffectArenaAddress(address) ? RequireWaterMemory().Arena!.Read(NativeBattleWaterExecutionFields.ArenaOffset(address, length), length) : staging.Read(address, length);
+            }
         }
         if (graphics.Models[index].ModelId4 >= 16)
         {

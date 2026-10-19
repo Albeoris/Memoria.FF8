@@ -10,9 +10,16 @@ public sealed record NativeBattleRoughDivide163SetPosition(byte Actor, NativeBat
 public sealed record NativeBattleRoughDivide163Sound(uint Descriptor) : NativeBattleRoughDivide163Operation;
 public sealed record NativeBattleRoughDivide163Stage(int Intensity) : NativeBattleRoughDivide163Operation;
 public sealed record NativeBattleRoughDivide163Contacts : NativeBattleRoughDivide163Operation;
-public sealed record NativeBattleRoughDivide163Frame(NativeBattleEffectParameters Parameters, byte FirstRecipient, NativeBattleOriginalEffectState Effect, NativeBattleFileStaging Staging, NativeCrtRandomState Random);
+public sealed record NativeBattleRoughDivide163Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleFileStaging Staging, NativeCrtRandomState Random)
+{
+    public NativeBattleEffectParameters Parameters => Memory.RoughDivide163?.Parameters ?? throw new InvalidDataException("Native Rough Divide requires its actual entered parameter owner.");
+    public byte FirstRecipient => Memory.RoughDivide163?.FirstRecipient ?? throw new InvalidDataException("Native Rough Divide requires its actual first recipient.");
+}
 public sealed record NativeBattleRoughDivide163ChildStep(NativeBattleRoughDivide163Frame Frame, NativeBattleEffectTaskPool Pool, int Result);
-public sealed record NativeBattleRoughDivide163Inputs(uint GraphicsFlags, Func<byte, NativeBattleModuleAnchor> ReadActorPosition, Func<byte, NativeBattleModuleAnchor> ReadBone241, Func<NativeBattleRoughDivide163Frame, NativeBattleRoughDivide163Operation, NativeBattleRoughDivide163Frame> Execute);
+public sealed record NativeBattleRoughDivide163Inputs(uint GraphicsFlags, Func<byte, NativeBattleModuleAnchor> ReadActorPosition, Func<byte, byte, short, NativeBattleModuleAnchor> ReadBone, Func<NativeBattleRoughDivide163Frame, NativeBattleRoughDivide163Operation, NativeBattleRoughDivide163Frame> Execute)
+{
+    public NativeBattleModuleAnchor ReadBone241(byte actor) => ReadBone(actor, 241, 0);
+}
 
 public static partial class NativeBattleRoughDivide163Controller
 {
@@ -221,6 +228,13 @@ public static partial class NativeBattleRoughDivide163Controller
     private static NativeBattleModulePoolTask Position(NativeBattleModulePoolTask task, NativeBattleModuleAnchor point) => task.WriteWord(16, unchecked((ushort)point.X)).WriteWord(18, unchecked((ushort)point.Y)).WriteWord(20, unchecked((ushort)point.Z)).WriteWord(22, unchecked((ushort)point.W));
     private static uint ReadDword(NativeBattleFileStaging staging, uint address) => BinaryPrimitives.ReadUInt32LittleEndian(staging.Read(address, 4));
     private static short ReadWord(NativeBattleFileStaging staging, uint address) => BinaryPrimitives.ReadInt16LittleEndian(staging.Read(address, 2));
+    private static NativeBattleFileStaging WriteWord(NativeBattleFileStaging staging, uint address, ushort value)
+    {
+        byte[] bytes = new byte[2];
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes, value);
+        return staging.Write(address, bytes);
+    }
+
     private static NativeBattleFileStaging WriteDword(NativeBattleFileStaging staging, uint address, uint value)
     {
         byte[] bytes = new byte[4];

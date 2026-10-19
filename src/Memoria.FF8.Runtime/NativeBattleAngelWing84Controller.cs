@@ -10,6 +10,10 @@ public sealed record NativeBattleAngelWing84State([property: JsonRequired] int S
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleEffectOwnedModelState? BodyModel { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<NativeBattleActionMatrix>? BodyBones { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleAngelWing84BodyDrawStorage? BodyDrawStorage { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ushort? BodyShaderAngle { get; init; }
     public int Counter25C9F34 { get; init; }
     public int Counter25C3934 { get; init; }
@@ -38,7 +42,7 @@ public static class NativeBattleAngelWing84Controller
     public static ImmutableArray<ushort> Capacities { get; } = [2, 4, 3, 4, 3, 50, 8, 10, 1];
     private static ImmutableArray<int> ChildOrder { get; } = [1, 2, 8, 3, 5, 6, 4, 7];
 
-    public static NativeBattleAngelWing84Frame Initialize(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleActionPacketsState packets, NativeBattleEffectHeapAllocation animation)
+    public static NativeBattleAngelWing84Frame Initialize(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleActionPacketsState packets)
     {
         RequireBinding(effect);
         packets.Validate();
@@ -66,7 +70,6 @@ public static class NativeBattleAngelWing84Controller
         if ((parameters.Flags79 & 1) == 0)
         {
             NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native78D7B0 requires the retained texture owner.");
-            textures = textures.Register5099A0(animation);
             (textures, _) = textures.EnqueueArenaTim505E30(memory.Arena ?? throw new NotSupportedException("Native78D7B0 requires its loaded effect arena."), source);
             memory = memory with { Textures = textures };
         }

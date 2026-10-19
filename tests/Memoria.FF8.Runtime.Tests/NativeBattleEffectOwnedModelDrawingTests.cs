@@ -72,15 +72,30 @@ public sealed class NativeBattleEffectOwnedModelDrawingTests
     }
 
     [Fact]
-    public void Object_mask_skips_projection_and_body_but_keeps_shadow_and_fails_unproved_alpha()
+    public void Object_mask_skips_projection_and_body_but_keeps_shadow()
     {
         var fixture = Fixture();
         NativeBattleEffectOwnedModelDraw masked = Draw(fixture.Task.WriteDword(0xAC, 0), fixture.State, fixture.Resource);
         Assert.Equal(240, masked.Packets.AllocationBytes);
         Assert.Equal(0, masked.ProjectedBytesWritten);
         Assert.All(masked.ProjectedScratch, value => Assert.Equal(0xA5, value));
-        Assert.Throws<NotSupportedException>(() => Draw(fixture.Task.WriteByte(0x37, 1), fixture.State, fixture.Resource));
         Assert.Throws<InvalidDataException>(() => NativeBattleEffectOwnedModelDrawing.Draw7558A0(fixture.Task, fixture.State, fixture.Resource, View, Projection, Shadow, new(true), NativeBattleGteColorInterpolation.CodeConstants45F270, [0]));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(31)]
+    [InlineData(63)]
+    [InlineData(255)]
+    public void Native_alpha_context_preserves_final_packet_material_and_task_alpha(byte alpha)
+    {
+        var fixture = Fixture();
+        NativeBattleModulePoolTask task = fixture.Task.WriteDword(0x58, 0x02808080);
+        NativeBattleEffectOwnedModelDraw ordinary = Draw(task, fixture.State, fixture.Resource);
+        NativeBattleEffectOwnedModelDraw faded = Draw(task.WriteByte(0x37, alpha), fixture.State, fixture.Resource);
+        Assert.Equal(JsonSerializer.Serialize(ordinary.Packets), JsonSerializer.Serialize(faded.Packets));
+        Assert.Equal(ordinary.ProjectedScratch, faded.ProjectedScratch);
+        Assert.Equal(alpha, faded.Task.ReadByte(0x37));
     }
 
     [Fact]

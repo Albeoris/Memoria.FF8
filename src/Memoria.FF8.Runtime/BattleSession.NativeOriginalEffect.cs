@@ -205,6 +205,22 @@ public sealed partial class BattleSession
         {
             return EnterNativeShot193(graphics);
         }
+        if (effect.Binding.Entry == 0x5F5B80)
+        {
+            return EnterNativeRoughDivide163(graphics, effect.Binding.RoughDivide163Resources ?? throw new NotSupportedException("Native Rough Divide requires its original resources."));
+        }
+        if (effect.Binding.Entry == 0x78D7B0)
+        {
+            return EnterNativeAngelWing84(graphics);
+        }
+        if (effect.Binding.Entry == 0x5AA3E0)
+        {
+            return EnterNativeShot198(graphics);
+        }
+        if (effect.Binding.Entry == 0x5AED30)
+        {
+            return EnterNativeShot197(graphics);
+        }
         if (effect.Binding.Entry == 0x5B2A40)
         {
             return EnterNativeShot195(graphics);

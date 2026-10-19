@@ -310,6 +310,26 @@ public sealed partial class GameAssets
                 binding = binding with { Shot193Resources = ReadNativeShot193Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 163)
+            {
+                binding = binding with { RoughDivide163Resources = ReadNativeRoughDivide163Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 84)
+            {
+                binding = binding with { AngelWing84Resources = ReadNativeAngelWing84Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 198)
+            {
+                binding = binding with { Shot198Resources = ReadNativeShot198Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 197)
+            {
+                binding = binding with { Shot197Resources = ReadNativeShot197Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 195)
             {
                 binding = binding with { Shot195Resources = ReadNativeShot195Resources() };

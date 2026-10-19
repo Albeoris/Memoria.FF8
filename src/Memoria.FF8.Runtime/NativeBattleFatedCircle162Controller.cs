@@ -156,11 +156,11 @@ public static partial class NativeBattleFatedCircle162Controller
         }
         if (counter == 1)
         {
-            Execute(new NativeBattleFatedCircle162Sound(0xDA8C68));
+            Execute(new NativeBattleFatedCircle162Sound(unchecked((uint)ReadDword(frame.Staging, 0xDA8C68))));
         }
         if (counter == 57)
         {
-            Execute(new NativeBattleFatedCircle162Sound(0xDA8C6C));
+            Execute(new NativeBattleFatedCircle162Sound(unchecked((uint)ReadDword(frame.Staging, 0xDA8C6C))));
         }
         task = task.WriteWord(12, unchecked((ushort)(counter + 1))) with { Next = pool.Slots[slot].Next };
         pool = pool with { Slots = pool.Slots.SetItem(slot, task) };

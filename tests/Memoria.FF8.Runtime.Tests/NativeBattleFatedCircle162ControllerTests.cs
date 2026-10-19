@@ -74,6 +74,16 @@ public sealed class NativeBattleFatedCircle162ControllerTests
         Assert.Equal(source, staging.Read(0xDA2350, 8));
     }
 
+    [Fact]
+    public void Native501330DereferencesTheOriginalStaticSoundDescriptor()
+    {
+        (NativeBattleFatedCircle162Frame frame, NativeBattleEffectTaskPool pool) = Frame(1);
+        frame = frame with { Staging = frame.Staging.Write(0xDA8C68, new byte[] { 0x34, 0x12, 0x05, 0 }) };
+        List<NativeBattleFatedCircle162Operation> operations = [];
+        _ = NativeBattleFatedCircle162Controller.Advance5F91D0(frame, pool, 0, Inputs(0, 0, operations));
+        Assert.Equal(0x51234u, Assert.IsType<NativeBattleFatedCircle162Sound>(operations[^1]).Address);
+    }
+
     private static NativeBattleFatedCircle162Inputs Inputs(uint flags, int pending, List<NativeBattleFatedCircle162Operation>? operations = null) => new(flags, NativeBattleActionPacketsState.Fresh(), () => pending, _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (frame, operation) =>
     {
         operations?.Add(operation);

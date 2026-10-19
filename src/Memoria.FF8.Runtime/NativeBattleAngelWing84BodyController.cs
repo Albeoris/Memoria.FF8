@@ -125,6 +125,7 @@ public static partial class NativeBattleAngelWing84Body
             NativeBattleEffectOwnedModelStep step = mode == 0 ? NativeBattleEffectOwnedModel.Select8DD190(task, model, inputs.Resources.Model, animation) : NativeBattleEffectOwnedModel.AdvanceOnce8DD220(task, model, inputs.Resources.Model);
             task = step.Task;
             model = step.State;
+            frame = frame with { State = frame.State with { BodyBones = NativeBattlePoseMatrices.StageBoneMatrices(inputs.Resources.Model.PoseSource, model.DecodedPose ?? throw new InvalidDataException("Native Angel Wing pose publication lost its decoded source.")) } };
             return step.Completed;
         }
         void ApplyFade()

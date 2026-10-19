@@ -189,6 +189,22 @@ public sealed partial class BattleSession
         {
             return AdvanceNativeShot193(graphics);
         }
+        if (effect.Binding.Entry == 0x5F5B80)
+        {
+            return AdvanceNativeRoughDivide163(graphics);
+        }
+        if (effect.Binding.Entry == 0x78D7B0)
+        {
+            return AdvanceNativeAngelWing84(graphics);
+        }
+        if (effect.Binding.Entry == 0x5AA3E0)
+        {
+            return AdvanceNativeShot198(graphics);
+        }
+        if (effect.Binding.Entry == 0x5AED30)
+        {
+            return AdvanceNativeShot197(graphics);
+        }
         if (effect.Binding.Entry == 0x5B2A40)
         {
             return AdvanceNativeShot195(graphics);

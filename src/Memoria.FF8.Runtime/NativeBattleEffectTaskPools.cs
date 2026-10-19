@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>One original508300 task: WORD flags/state, physical link, callback and retained suffix.</summary>
-public sealed record NativeBattleModulePoolTask([property: JsonRequired] ushort Flags, [property: JsonRequired] ushort State, [property: JsonRequired] int? Next, [property: JsonRequired] uint Callback, [property: JsonRequired] ImmutableArray<byte> Payload)
+public sealed partial record NativeBattleModulePoolTask([property: JsonRequired] ushort Flags, [property: JsonRequired] ushort State, [property: JsonRequired] int? Next, [property: JsonRequired] uint Callback, [property: JsonRequired] ImmutableArray<byte> Payload)
 {
     public ushort ReadWord(int offset) => BinaryPrimitives.ReadUInt16LittleEndian(Payload.AsSpan().Slice(offset - 12));
 
@@ -13,7 +13,7 @@ public sealed record NativeBattleModulePoolTask([property: JsonRequired] ushort 
     {
         byte[] payload = Payload.ToArray();
         BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(offset - 12), value);
-        return this with { Payload = payload.ToImmutableArray() };
+        return (this with { Payload = payload.ToImmutableArray() }).WithoutResourcePointers(offset, 2);
     }
 }
 
@@ -38,6 +38,10 @@ public sealed record NativeBattleEffectTaskPool([property: JsonRequired] uint De
         if (Stride < 12 || Slots.IsDefault || Slots.Length is < 1 or > 65535 || (DescriptorAddress & 3) != 0 || (BankAddress & 3) != 0 || Head is int head && (uint)head >= Slots.Length || Tail is int tail && (uint)tail >= Slots.Length || Slots.Any(task => task is null || task.Payload.IsDefault || task.Payload.Length != Stride - 12 || task.Next is int next && (uint)next >= Slots.Length || (task.Flags & 1) != 0 && task.Callback == 0))
         {
             throw new InvalidDataException("Native effect task pool lost its physical descriptor, stride, slots or callback.");
+        }
+        foreach (NativeBattleModulePoolTask task in Slots)
+        {
+            task.ValidateResourcePointers();
         }
         HashSet<int> seen = [];
         int? last = null;
