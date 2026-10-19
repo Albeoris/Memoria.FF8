@@ -23,7 +23,7 @@ public static class NativeBattleCarbuncle278ResourcesReader
         ImmutableArray<int> offsets = Enumerable.Range(0, 64).Select(index => BinaryPrimitives.ReadInt32LittleEndian(vibrationBytes.AsSpan().Slice(index * 4))).ToImmutableArray();
         NativeVibrationBank vibration = new(memory.SourceHash, offsets, vibrationBytes);
         vibration.Validate();
-        NativeBattleCarbuncle278Resources resources = new(NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0x10C0D08u)) { CreatureModel = model, Vibration = vibration, CreatureBoundsMesh = NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0x10BD488u), Sounds = Enumerable.Range(0, 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0x10C74CCu + (uint)index * 4, 4))).ToImmutableArray(), MirrorAlternateVertices = memory.Read(0x10C1940, 115 * 8).ToImmutableArray(), SecondaryMesh = NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0x10BFB08u) };
+        NativeBattleCarbuncle278Resources resources = new(NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0x10C0D08u)) { CreatureModel = model, SparkleSprite = new(0, 0x10BD044, 0, 0, NativeBattleEffectStaticResourcesReader.ReadProjectedSprite(memory, 0x10BD044)), Vibration = vibration, CreatureBoundsMesh = NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0x10BD488u), Sounds = Enumerable.Range(0, 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0x10C74CCu + (uint)index * 4, 4))).ToImmutableArray(), MirrorAlternateVertices = memory.Read(0x10C1940, 115 * 8).ToImmutableArray(), SecondaryMesh = NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0x10BFB08u) };
         resources.Validate();
         return resources;
     }

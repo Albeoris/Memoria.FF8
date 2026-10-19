@@ -143,6 +143,14 @@ public sealed partial class BattleSession
             int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank);
             switch (opcode)
             {
+                case 0x10D:
+                    return NativeBattleCinematicControlCommands.Wait10D(current, program, ResolveCurrentNode);
+                case 0x51:
+                    return NativeBattleCinematicControlCommands.Execute51(current, program);
+                case 0x41:
+                    return NativeBattleCinematicModel.Control41(current, program);
+                case 0xD1:
+                    return selectedHandler == 0xAFB270 ? NativeBattleCinematicControlCommands.BranchD1(current, program, graphics.StageResourceIndex98990 ?? throw new NotSupportedException("Native Brothers stage branch requires its retained resource BYTE98990.")) : current;
                 case 0:
                     return NativeBattleWaterStopCommand.StopRemoveAA5120(current);
                 case 1:
@@ -365,11 +373,27 @@ public sealed partial class BattleSession
                 case 0xD4:
                 case 0x104:
                 case 0x105:
+                case 0x116:
                     return NativeBattleWaterMatrixCommands.Execute(current, program, bank);
                 case 0xC3:
                     return NativeBattleScriptedSoundCommands.ExecuteC3(current, (NativeGlobalSoundProcess ?? throw new NotSupportedException("Native cinematic sound control requires its current backend owner.")).Backend);
                 case 0xCF:
                     return selectedHandler is 0xAFCBE0 or 0xAF1830 ? NativeBattleWaterContextCommands.ExecuteRing(current, context) : current;
+                case 0x96:
+                    if (selectedHandler is not (0xB16F60 or 0xAF2760))
+                    {
+                        return current;
+                    }
+                    var capture = ExecuteNativeCinematicCapture96(current, program, graphics);
+                    graphics = capture.Graphics;
+                    return capture.Frame;
+                case 0xD5:
+                    if (selectedHandler != 0xAFB630)
+                    {
+                        return current;
+                    }
+                    ushort encounter = checked((ushort)(definition.EncounterId ?? throw new NotSupportedException("Native Brothers target correction requires its encounter WORD1CFF6E0.")));
+                    return NativeBattleBrothersTargetCommand.Execute(current, program, new(encounter, () => RequireWaterMemory().ScriptedTarget2796D40 ?? throw new NotSupportedException("Native Brothers target branch requires its retained2796D40 byte."), value => NativeEffectMemory = RequireWaterMemory() with { ScriptedTarget2796D40 = value }, _ => graphics.Models[3]));
                 default:
                     throw new NotSupportedException($"Native cinematic instruction{current.ReadTemporaryWord(0x14A):X4} at{pc:X} requires its selected command contract.");
             }

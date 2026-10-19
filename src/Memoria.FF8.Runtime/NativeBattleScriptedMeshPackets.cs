@@ -6,10 +6,11 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Authenticated ordinary cinematic material and normal-lit packet writers over current projected owners.</summary>
 public static class NativeBattleScriptedMeshPackets
 {
-    public static NativeBattleScriptedMeshSubmission EmitSelected(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, uint actualHandler, int shapeExtent, ImmutableArray<byte> projectedRecords, ImmutableArray<uint> depths, uint outputPointer, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveActualOtBucket)
+    public static NativeBattleScriptedMeshSubmission EmitSelected(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, uint actualHandler, int shapeExtent, ImmutableArray<byte> projectedRecords, ImmutableArray<uint> depths, uint outputPointer, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveActualOtBucket, float depthScale = 1f)
     {
         (uint expected, int stride, int length, int corners, int indices) = group.Type switch
         {
+            2 => (0xB5C720u, 20, 28, 3, 14),
             7 => (0xB27E90u, 20, 36, 3, 12),
             8 => (0xB28110u, 20, 32, 3, 10),
             9 => (0xB283B0u, 28, 40, 3, 18),
@@ -27,7 +28,7 @@ public static class NativeBattleScriptedMeshPackets
         {
             throw new InvalidDataException("Native cinematic writer requires its complete current face, projected and depth owners.");
         }
-        if (group.Type != 12)
+        if (group.Type is not (2 or 12))
         {
             NativeBattleScriptedMaterialStep setup = NativeBattleScriptedMaterial.Prepare(frame, registers);
             frame = setup.Frame;
@@ -36,11 +37,15 @@ public static class NativeBattleScriptedMeshPackets
         }
         else
         {
-            frame = frame.WriteTemporaryDword(0x84, 0x3A000000);
+            frame = frame.WriteTemporaryDword(0x84, group.Type == 2 ? 0x32000000u : 0x3A000000u);
+            if (group.Type == 2)
+            {
+                frame = frame.WriteTemporaryDword(0xF0, 0);
+            }
         }
         if (group.Type is 7 or 9 or 17)
         {
-            NativeBattleWaterMeshResult reused = NativeBattleWaterMeshPackets.EmitSelected(frame, group, projectedRecords, depths, outputPointer, resolveActualOtBucket, Shade);
+            NativeBattleWaterMeshResult reused = NativeBattleWaterMeshPackets.EmitSelected(frame, group, projectedRecords, depths, outputPointer, resolveActualOtBucket, Shade, depthScale);
             return new(reused.Frame, reused.Packets, lighting, registers);
         }
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
@@ -62,7 +67,7 @@ public static class NativeBattleScriptedMeshPackets
                 }
                 screens[corner] = BinaryPrimitives.ReadUInt32LittleEndian(projectedRecords.AsSpan().Slice(offset));
                 depthAndClip[corner] = BinaryPrimitives.ReadUInt32LittleEndian(projectedRecords.AsSpan().Slice(offset + 4));
-                rawDepth[corner] = unchecked((ushort)depths[offset / 8]);
+                rawDepth[corner] = NativePrecision53.RoundInteger(unchecked((ushort)depths[offset / 8]) * (double)depthScale);
                 StoreDword(group.Type == 12 ? 8 + corner * 8 : group.Type == 19 ? 8 + corner * 12 : 8 + corner * 8, screens[corner]);
             }
             bool reject = (frame.ReadTemporaryDword(0x90) & 0x10) == 0 && NativeBattleModulePackets.Nclip(screens[0], screens[1], screens[2]) < 0;
@@ -73,16 +78,16 @@ public static class NativeBattleScriptedMeshPackets
             {
                 data[3] = (byte)(length / 4 - 1);
                 mask[3] = NativeBattleGfPacketByteState.Known;
-                if (group.Type == 12)
+                if (group.Type is 2 or 12)
                 {
-                    uint normal = unchecked(frame.ReadTemporaryDword(0x78) + Word(face, 16));
+                    uint normal = unchecked(frame.ReadTemporaryDword(0x78) + Word(face, group.Type == 2 ? 12 : 16));
                     uint shape = frame.ReadTemporaryDword(0x68);
                     NativeBattleScriptedMeshPreparation.RequireShape(shape, shapeExtent, normal, 8);
                     byte[] raw = frame.Arena.Read(NativeBattleWaterExecutionFields.ArenaOffset(normal, 8), 8);
                     registers = registers with { NormalInput = raw.ToImmutableArray() };
-                    for (int corner = 0; corner < 4; corner++)
+                    for (int corner = 0; corner < corners; corner++)
                     {
-                        uint material = BinaryPrimitives.ReadUInt32LittleEndian(face.AsSpan(corner * 4)) | 0x3A000000;
+                        uint material = BinaryPrimitives.ReadUInt32LittleEndian(face.AsSpan(corner * 4)) | (group.Type == 2 ? 0x32000000u : 0x3A000000u);
                         StoreDword(4 + corner * 8, Shade(material));
                     }
                 }
@@ -120,7 +125,7 @@ public static class NativeBattleScriptedMeshPackets
             if (primitive is not null)
             {
                 allocated = checked(allocated + length);
-                if (group.Type == 12)
+                if (group.Type is 2 or 12)
                 {
                     byte[] mode = new byte[12];
                     BinaryPrimitives.WriteUInt32LittleEndian(mode, 0x02000000);

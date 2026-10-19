@@ -5,6 +5,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleCarbuncle278Resources(NativeBattleStaticMeshResource MirrorBoundsMesh)
 {
     public NativeBattleEffectOwnedModelResource? CreatureModel { get; init; }
+    public NativeBattleModuleResource? SparkleSprite { get; init; }
     public NativeVibrationBank? Vibration { get; init; }
     public NativeBattleStaticMeshResource? CreatureBoundsMesh { get; init; }
     public ImmutableArray<uint> Sounds { get; init; } = [];

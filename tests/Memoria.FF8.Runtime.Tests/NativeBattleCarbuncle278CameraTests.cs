@@ -22,6 +22,24 @@ public sealed class NativeBattleCarbuncle278CameraTests
     }
 
     [Fact]
+    public void Sparkle_window_follows_only_six_actual_vertices_then_retains_target_and_scalar_owners()
+    {
+        NativeBattleCameraState camera = NativeBattleCameraState.Initialize() with { CurrentPose = new(new(0, 0, 0), new(1, 2, 3), 288, 0), FocalLength = -123, Roll = 17, EyePaddingF6 = 7, TargetPaddingFE = 9 };
+        NativeBattleCameraState first = NativeBattleCarbuncle278Camera.AdvanceSparkleWindow(camera, 86, new(0, 0, 0));
+        Assert.Equal(new NativeBattleCameraPoint(0, -30, 0), first.CurrentPose!.Eye);
+        Assert.Equal(new NativeBattleCameraPoint(0, 0, 0), first.CurrentPose.Target);
+        Assert.Equal((short)-123, first.CurrentPose.FocalLength);
+        Assert.Equal((short)17, first.CurrentPose.Roll);
+        Assert.Equal((short)7, first.EyePaddingF6);
+        Assert.Equal((short)9, first.TargetPaddingFE);
+        Assert.Throws<NotSupportedException>(() => NativeBattleCarbuncle278Camera.AdvanceSparkleWindow(camera, 91, null));
+        NativeBattleCameraState later = NativeBattleCarbuncle278Camera.AdvanceSparkleWindow(first, 92, null);
+        Assert.Equal(first.CurrentPose.Target, later.CurrentPose!.Target);
+        Assert.Equal(new NativeBattleCameraPoint(0, -60, 0), later.CurrentPose.Eye);
+        Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattleCarbuncle278Camera.AdvanceSparkleWindow(camera, 110, null));
+    }
+
+    [Fact]
     public void Orbit_uses_signed_differences_and_wraps_only_final_word_stores()
     {
         NativeBattleCameraPose source = new(new(30000, -30000, -30000), new(-30000, 30000, 30000), -12, 17);

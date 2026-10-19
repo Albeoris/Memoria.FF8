@@ -27,6 +27,23 @@ public static class NativeBattleCarbuncle278Camera
         return camera.WriteEffectGlobals(pose);
     }
 
+    public static NativeBattleCameraState AdvanceSparkleWindow(NativeBattleCameraState camera, ushort counter, NativeBattleVector? followed)
+    {
+        if (counter is < 86 or >= 110)
+        {
+            throw new ArgumentOutOfRangeException(nameof(counter));
+        }
+        NativeBattleCameraPose pose = camera.CurrentPose ?? throw new NotSupportedException("Native Carbuncle camera requires its current eye and target WORDs.");
+        if (counter < 92)
+        {
+            NativeBattleVector target = followed ?? throw new NotSupportedException("Native Carbuncle camera requires its actual posed vertex176.");
+            pose = pose with { Target = new(target.X, target.Y, target.Z) };
+        }
+        pose = Orbit683D10(pose with { FocalLength = camera.FocalLength, Roll = camera.Roll }, -32, 4000);
+        pose = pose with { Eye = pose.Eye with { Y = unchecked((short)(pose.Eye.Y - 30)) } };
+        return camera.WriteEffectGlobals(pose);
+    }
+
     public static NativeBattleCameraPose Orbit683D10(NativeBattleCameraPose pose, int angle, int fraction)
     {
         int y = unchecked((pose.Eye.Y - pose.Target.Y) * fraction) >> 12;

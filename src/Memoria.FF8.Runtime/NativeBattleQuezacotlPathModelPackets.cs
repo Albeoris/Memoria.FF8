@@ -3,7 +3,10 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleQuezacotlPathModelBatch(ImmutableArray<NativeBattleGfGeometryAttempt> VertexScratchWrites, ImmutableArray<NativeBattleGeometryPrimitive> Primitives);
+public sealed record NativeBattleQuezacotlPathModelBatch(ImmutableArray<NativeBattleGfGeometryAttempt> VertexScratchWrites, ImmutableArray<NativeBattleGeometryPrimitive> Primitives)
+{
+    public int? SourceEnd { get; init; }
+}
 
 /// <summary>6A79B0's ordinary5099D0 bone groups and all four raw polygon groups, sharing50F900/50FDF0.</summary>
 public static class NativeBattleQuezacotlPathModelPackets
@@ -17,6 +20,7 @@ public static class NativeBattleQuezacotlPathModelPackets
         }
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder writes = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         ImmutableArray<NativeBattleGeometryPrimitive>.Builder primitives = ImmutableArray.CreateBuilder<NativeBattleGeometryPrimitive>();
+        int? sourceEnd = null;
         for (int mesh = 0; mesh < meshes; mesh++)
         {
             //5099D0 advances the directory for masked objects without reading their bodies.
@@ -64,10 +68,11 @@ public static class NativeBattleQuezacotlPathModelPackets
                     cursor = checked(cursor + length);
                 }
             }
+            sourceEnd = cursor;
             //6A79B0 explicitly writes cueWORD0. No507550 relocation applies to this resource.
             primitives.AddRange(NativeBattleRawGeometryPackets.EmitProjected5099D0(polygons.ToImmutable(), projected, modelRgb, 17, 4, 0));
         }
-        return new(writes.ToImmutable(), primitives.ToImmutable());
+        return new(writes.ToImmutable(), primitives.ToImmutable()) { SourceEnd = sourceEnd };
 
         short I16(int offset) => BinaryPrimitives.ReadInt16LittleEndian(Read(offset, 2));
         ushort U16(int offset) => BinaryPrimitives.ReadUInt16LittleEndian(Read(offset, 2));

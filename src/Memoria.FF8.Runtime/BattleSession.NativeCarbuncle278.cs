@@ -15,7 +15,7 @@ public sealed partial class BattleSession
         }
         else
         {
-            NativeBattleCarbuncle278Inputs inputs = new(nativeActionPackets, DrawMirror, StartVibration) { DrawCreature = DrawCreature, PresentCreature = PresentCreature };
+            NativeBattleCarbuncle278Inputs inputs = new(nativeActionPackets, DrawMirror, StartVibration) { DrawCreature = DrawCreature, PresentCreature = PresentCreature, ModelCreature = ModelCreature, DrawSparkle = DrawSparkle, PresentSparkleWindow = PresentSparkleWindow };
             frame = NativeBattleCarbuncle278Controller.Advance680DF0(frame, (depth, flags) =>
             {
                 NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native5713E0 requires its retained four stage groups.");
@@ -61,8 +61,8 @@ public sealed partial class BattleSession
                 NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Carbuncle mirror mesh requires its actual COMMON packet owner.");
                 byte intensity = unchecked((byte)((unchecked((int)(4096 - state.Flash81D4)) << 7) >> 12));
                 Func<int, NativeBattleVector>? readVertices = null;
-                int ratio = 0;
-                if (counter >= 16)
+                int ratio = 4096;
+                if (counter is >= 16 and < 36)
                 {
                     NativeBattleCarbuncle278Resources resources = current.Effect.Binding.Carbuncle278Resources!;
                     if (resources.MirrorAlternateVertices.IsDefaultOrEmpty)
@@ -77,6 +77,19 @@ public sealed partial class BattleSession
                         return new(BinaryPrimitives.ReadInt16LittleEndian(vertex), BinaryPrimitives.ReadInt16LittleEndian(vertex.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(vertex.AsSpan(4)));
                     };
                 }
+                if (counter >= 36)
+                {
+                    System.Collections.Immutable.ImmutableArray<byte> vertices = current.Effect.Binding.Carbuncle278Resources!.MirrorAlternateVertices;
+                    if (vertices.IsDefaultOrEmpty)
+                    {
+                        throw new NotSupportedException("Native Carbuncle mirror requires its original second vertex shape.");
+                    }
+                    readVertices = offset =>
+                    {
+                        ReadOnlySpan<byte> vertex = vertices.AsSpan().Slice(offset, 6);
+                        return new(BinaryPrimitives.ReadInt16LittleEndian(vertex), BinaryPrimitives.ReadInt16LittleEndian(vertex[2..]), BinaryPrimitives.ReadInt16LittleEndian(vertex[4..]));
+                    };
+                }
                 NativeBattleCommonPacketWrite written = NativeBattleCarbuncle278MirrorMesh.Append6839B0(process, primitive.Pending, mesh, matrix, projection, intensity, readVertices);
                 if (counter >= 16)
                 {
@@ -88,6 +101,61 @@ public sealed partial class BattleSession
                 }
                 graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
                 return current with { Memory = current.Memory with { PrimitiveProcess = written.Process } };
+            }
+
+            NativeBattleCarbuncle278ModelStep ModelCreature(NativeBattleCarbuncle278Frame current, NativeBattleModulePoolTask task)
+            {
+                NativeBattleEffectOwnedModelResource resource = current.Effect.Binding.Carbuncle278Resources?.CreatureModel ?? throw new NotSupportedException("Native Carbuncle requires its original creature model.");
+                NativeBattleCarbuncle278State state = NativeBattleCarbuncle278Entry.RequireState(current.Memory);
+                if (state.Pause8114 == 0)
+                {
+                    NativeBattleCarbuncle278CreaturePose advanced = NativeBattleCarbuncle278Model.Advance6FBDB0(task, current.Memory.CarbuncleExecutableMemory ?? throw new NotSupportedException("Native Carbuncle requires its current executable skeleton."), resource);
+                    task = advanced.Task;
+                    current = current with { Memory = current.Memory with { CarbuncleExecutableMemory = advanced.Executable } };
+                }
+                bool hardware = definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Native Carbuncle model drawing requires its current hardware capability.");
+                NativeBattleCarbuncle278ModelDraw draw = NativeBattleCarbuncle278Model.Draw6A79B0(current.Memory, task, resource, NativeCamera?.Projection ?? throw new NotSupportedException("Native Carbuncle model drawing requires its current projection."), hardware);
+                NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Carbuncle model drawing requires its current ordering table.");
+                NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(draw.Memory.PrimitiveProcess!, primitive.Pending, draw.Packets);
+                graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
+                return new(current with { Memory = draw.Memory with { PrimitiveProcess = written.Process } }, task);
+            }
+
+            NativeBattleCarbuncle278Frame DrawSparkle(NativeBattleCarbuncle278Frame current, NativeBattleModulePoolTask task)
+            {
+                NativeBattleModuleResource resource = current.Effect.Binding.Carbuncle278Resources?.SparkleSprite ?? throw new NotSupportedException("Native Carbuncle requires its original sparkle sprite resource.");
+                NativeBattleCarbuncle278State state = NativeBattleCarbuncle278Entry.RequireState(current.Memory);
+                NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Carbuncle sparkles require their current camera.");
+                NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native Carbuncle sparkles require their current projection.");
+                NativeBattleModulePacketBatch batch = NativeBattleModulePackets.EmitSprite571DC0(NativeBattleCarbuncle278Sparkles.Draw683E80(task, resource), projection, camera.Roll, 17, 2);
+                NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Carbuncle sparkles require their current ordering table.");
+                int cursor = checked((int)(state.PacketCursor81BC - state.ModelBuffer81F8));
+                NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, cursor, primitive.Pending, batch, NativeBattleEffectGouraudWrites.FullDword);
+                graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
+                return current with { Memory = written.Memory with { Carbuncle278 = state with { PacketCursor81BC = checked(state.ModelBuffer81F8 + (uint)written.Cursor) } } };
+            }
+
+            NativeBattleCarbuncle278Frame PresentSparkleWindow(NativeBattleCarbuncle278Frame current, NativeBattleModulePoolTask task)
+            {
+                ushort counter = task.ReadWord(0xC);
+                if (counter == 86)
+                {
+                    System.Collections.Immutable.ImmutableArray<uint> sounds = current.Effect.Binding.Carbuncle278Resources?.Sounds ?? [];
+                    if (sounds.Length < 2)
+                    {
+                        throw new NotSupportedException("Native Carbuncle requires its second original sound descriptor.");
+                    }
+                    PublishNativeModuleSound(new(sounds[1], 0, null) { Pan = 128 });
+                }
+                current = NativeBattleCarbuncle278Sparkles.Spawn681B3F(current, task);
+                NativeBattleVector? target = null;
+                if (counter < 92)
+                {
+                    NativeBattleEffectOwnedModelResource model = current.Effect.Binding.Carbuncle278Resources?.CreatureModel ?? throw new NotSupportedException("Native Carbuncle camera requires its original creature model.");
+                    target = NativeBattleCarbuncle278Anchors.ReadVertex682270(task, current.Memory.CarbuncleExecutableMemory ?? throw new NotSupportedException("Native Carbuncle camera requires its current creature skeleton."), model, 0, 176);
+                }
+                NativeCamera = NativeBattleCarbuncle278Camera.AdvanceSparkleWindow(NativeCamera ?? throw new NotSupportedException("Native Carbuncle camera requires its current pose."), counter, target);
+                return current;
             }
 
             NativeBattleCarbuncle278Frame PresentCreature(NativeBattleCarbuncle278Frame current, ushort counter)
@@ -106,7 +174,10 @@ public sealed partial class BattleSession
                 {
                     graphics = graphics with { Models = graphics.Models.Select(model => UpdateModel(model)).ToImmutableArray() };
                 }
-                NativeCamera = NativeBattleCarbuncle278Camera.AdvanceFirstWindow(NativeCamera ?? throw new NotSupportedException("Native Carbuncle requires its current camera globals."), state.Base81CC, counter);
+                if (counter <= 36)
+                {
+                    NativeCamera = NativeBattleCarbuncle278Camera.AdvanceFirstWindow(NativeCamera ?? throw new NotSupportedException("Native Carbuncle requires its current camera globals."), state.Base81CC, counter);
+                }
                 return current;
 
                 NativeBattleGraphicsModel UpdateModel(NativeBattleGraphicsModel model)

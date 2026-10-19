@@ -109,6 +109,18 @@ public static class NativeBattleWaterMatrixCommands
                 frame = WriteCoreWord(frame, publishedDestination + 18, CoreWord(frame, currentManager + 2));
                 advance = 4;
                 break;
+            case 0x116:
+                uint plainDestination;
+                (frame, plainDestination) = AllocateB65480(frame);
+                NativeBattleFullMacVertex plainTranslation = NativeBattleGfMatrices.TransformMac460840(ReadMatrix(frame, 0x27979E8), Position(frame));
+                frame = WriteCoreDword(frame, plainDestination + 20, unchecked((uint)plainTranslation.X));
+                frame = WriteCoreDword(frame, plainDestination + 24, unchecked((uint)plainTranslation.Y));
+                frame = WriteCoreDword(frame, plainDestination + 28, unchecked((uint)plainTranslation.Z));
+                frame = frame.WriteTemporaryDword(0xF0, plainTranslation.Flags);
+                frame = WriteRotation(frame, plainDestination, NativeBattleGfMatrices.Euler56CD50(Angles(frame)));
+                frame = WriteCoreWord(frame, plainDestination + 18, 0);
+                advance = 4;
+                break;
             case 0x67:
                 uint destination;
                 (frame, destination) = AllocateB65480(frame);

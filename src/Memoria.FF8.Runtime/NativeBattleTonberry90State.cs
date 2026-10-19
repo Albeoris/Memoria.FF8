@@ -47,6 +47,10 @@ public sealed partial record NativeBattleTonberry90State([property: JsonRequired
         {
             throw new InvalidDataException("Native Tonberry module globals leave their physical span.");
         }
+        if (CreatureModelState is { } model && (model.TaskAddress == 0 || model.ResourceAddress == 0 || model.DecodedPose is { Bones.IsDefault: true }))
+        {
+            throw new InvalidDataException("Native Tonberry creature requires its actual initialized model identity and decoded pose bytes.");
+        }
         if (Io is { } io)
         {
             if (io.Script.IsDefault || io.Script.Length != 0x40)

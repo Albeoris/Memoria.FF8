@@ -108,16 +108,25 @@ public sealed class NativeBattleScriptedMeshTests
         Assert.Equal((ushort)0xBEEF, BinaryPrimitives.ReadUInt16LittleEndian(result.Registers.NormalInput!.Value.AsSpan().Slice(6)));
     }
 
-    [Fact]
-    public void Rejected_lit_quad_writes_only_projected_positions_and_does_not_consume_undefined_normal()
+    [Theory]
+    [InlineData(12, 0xB28690u, 28, 16)]
+    [InlineData(2, 0xB5C720u, 20, 12)]
+    public void Rejected_lit_face_writes_only_projected_positions_and_does_not_consume_undefined_normal(short type, uint handler, int stride, int written)
     {
         NativeBattleWaterExecutionFrame frame = NativeBattleWaterMeshPacketTests.Frame().WriteTemporaryDword(0x68, Base + 0x10000).WriteTemporaryDword(0x78, Base + 0x10040);
         byte[] records = Records().ToArray();
         BinaryPrimitives.WriteUInt32LittleEndian(records.AsSpan(4), 0x00020000);
         NativeBattleScriptedColorRegisters registers = NativeBattleScriptedColorRegisters.Unknown();
-        NativeBattleScriptedMeshSubmission result = NativeBattleScriptedMeshPackets.EmitSelected(frame, new(12, 1, Face(12, 28).ToImmutableArray()), 0xB28690, 0x48, records.ToImmutableArray(), [10, 20, 30, 40], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), registers, _ => 0);
+        byte[] face = type == 12 ? Face(12, stride) : new byte[stride];
+        if (type == 2)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(face.AsSpan(16), 8);
+            BinaryPrimitives.WriteUInt16LittleEndian(face.AsSpan(18), 16);
+        }
+        frame = frame with { Arena = frame.Arena.MarkUnknown(0x10040, 8) };
+        NativeBattleScriptedMeshSubmission result = NativeBattleScriptedMeshPackets.EmitSelected(frame, new(type, 1, face.ToImmutableArray()), handler, 0x48, records.ToImmutableArray(), [10, 20, 30, 40], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), registers, _ => 0);
         Assert.Equal(0, result.Packets.AllocationBytes);
-        Assert.Equal(16, Assert.Single(result.Packets.Attempts).WriteMask.Count(value => value == NativeBattleGfPacketByteState.Known));
+        Assert.Equal(written, Assert.Single(result.Packets.Attempts).WriteMask.Count(value => value == NativeBattleGfPacketByteState.Known));
         Assert.Same(registers, result.Registers);
     }
 
@@ -131,6 +140,76 @@ public sealed class NativeBattleScriptedMeshTests
     }
 
     private static NativeBattleScriptedMeshProjected Project(NativeBattleWaterMeshPrepared prepared, int extent, short dqa = 0, int dqb = 0) => NativeBattleScriptedMeshPreparation.Project(prepared, extent, new(null, 216, 160, 108), dqa, dqb, NativeBattleEffectArena.Clear(), NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown());
+
+    [Fact]
+    public void Leviathan_normal_triangle_uses_three_materials_and_shared_normal_then_links_mode_in_same_bucket()
+    {
+        NativeBattleWaterExecutionFrame frame = NativeBattleWaterMeshPacketTests.Frame().WriteTemporaryDword(0x68, Base + 0x10000).WriteTemporaryDword(0x78, Base + 0x10040);
+        frame = frame with { Arena = frame.Arena.Write(0x10040, [0, 0x10, 0, 0, 0, 0, 0xEF, 0xBE]) };
+        byte[] face = new byte[20];
+        for (int corner = 0; corner < 3; corner++)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(face.AsSpan(corner * 4), 0x00808080u + (uint)(corner * 0x10));
+            BinaryPrimitives.WriteUInt16LittleEndian(face.AsSpan(14 + corner * 2), (ushort)(corner * 8));
+        }
+        NativeBattleScriptedMeshSubmission result = NativeBattleScriptedMeshPackets.EmitSelected(frame, new(2, 1, face.ToImmutableArray()), 0xB5C720, 0x48, Records(), [11, 13, 65535, 40], 0x5000, UnitLighting(), NativeBattleScriptedColorRegisters.Unknown(), pointer => (int)(pointer / 4), 0.5f);
+        Assert.Equal(40, result.Packets.AllocationBytes);
+        Assert.Equal(2, result.Packets.Attempts.Length);
+        Assert.Equal(28, result.Packets.Attempts[1].ByteOffsetRelative);
+        Assert.Equal((byte)6, result.Packets.Attempts[0].Data[3]);
+        for (int corner = 0; corner < 3; corner++)
+        {
+            Assert.Equal(0x32000080u + (uint)(corner * 0x10), BinaryPrimitives.ReadUInt32LittleEndian(result.Packets.Attempts[0].Data.AsSpan().Slice(4 + corner * 8)));
+            Assert.Equal((uint)(corner * 10), BinaryPrimitives.ReadUInt32LittleEndian(result.Packets.Attempts[0].Data.AsSpan().Slice(8 + corner * 8)));
+        }
+        Assert.Equal(0x02000000u, BinaryPrimitives.ReadUInt32LittleEndian(result.Packets.Attempts[1].Data.AsSpan()));
+        Assert.Equal(result.Packets.Attempts[0].Primitive!.Bucket, result.Packets.Attempts[1].Primitive!.Bucket);
+        Assert.Equal(new[] { 6, 6, 32768, 0 }, result.Packets.Attempts[0].Primitive!.VertexPayload4);
+        Assert.Equal(result.Packets.Attempts[0].Primitive!.VertexPayload4, result.Packets.Attempts[1].Primitive!.VertexPayload4);
+        Assert.Equal(0x32000000u, result.Frame.ReadTemporaryDword(0x84));
+        Assert.Equal(0u, result.Frame.ReadTemporaryDword(0xF0));
+        Assert.Equal((ushort)0xBEEF, BinaryPrimitives.ReadUInt16LittleEndian(result.Registers.NormalInput!.Value.AsSpan().Slice(6)));
+        Assert.Throws<NotSupportedException>(() => NativeBattleScriptedMeshPackets.EmitSelected(frame, new(2, 1, face.ToImmutableArray()), 0xB27E40, 0x48, Records(), [10, 20, 30, 40], 0x5000, UnitLighting(), NativeBattleScriptedColorRegisters.Unknown(), _ => 0));
+    }
+
+    [Theory]
+    [InlineData(-1, 0, 8)]
+    [InlineData(0, -1, 4)]
+    [InlineData(319, 223, 0)]
+    [InlineData(320, 0, 2)]
+    [InlineData(0, 224, 1)]
+    [InlineData(320, 224, 3)]
+    public void Alternate_projection_uses_actual_eighth_pixel_320_by224_boundaries_and_retains_depth_scale(short x, short y, ushort expectedClip)
+    {
+        NativeBattleWaterMeshPrepared prepared = Prepared(1, 0);
+        prepared = prepared with { Frame = prepared.Frame with { Arena = prepared.Frame.Arena.Write(0x204C, [2]) } };
+        NativeBattleScriptedMeshProjected result = NativeBattleScriptedMeshPreparation.Project(prepared, 0x48, new(null, 216, x, y), 0, 0, NativeBattleEffectArena.Clear(), NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), retainedDepthScaleBits: 0x40000000);
+        Assert.Equal(expectedClip, BinaryPrimitives.ReadUInt16LittleEndian(result.Frame.Arena.Read(0x20006, 2)));
+        Assert.Equal((ushort)250, BinaryPrimitives.ReadUInt16LittleEndian(result.Frame.Arena.Read(0x20004, 2)));
+        Assert.Equal(0x40000000u, result.DepthScaleBits1877DA8);
+        Assert.Throws<NotSupportedException>(() => Project(prepared, 0x48));
+    }
+
+    [Fact]
+    public void Scaled_projection_precedes_alternate_clip_and_reuses_previous_flags_as_next_X_scale()
+    {
+        NativeBattleWaterMeshPrepared prepared = Prepared(2, 0);
+        NativeBattleWaterExecutionFrame frame = prepared.Frame.WriteTemporaryDword(0x40, 4096).WriteTemporaryDword(0x44, 4096).WriteTemporaryDword(0x48, 4096).WriteTemporaryDword(0xC0, 8192);
+        byte[] point = new byte[8];
+        BinaryPrimitives.WriteInt16LittleEndian(point, 100);
+        BinaryPrimitives.WriteInt16LittleEndian(point.AsSpan(2), 50);
+        BinaryPrimitives.WriteInt16LittleEndian(point.AsSpan(4), 1000);
+        frame = frame with { Arena = frame.Arena.Write(0x10040, point).Write(0x10048, point).Write(0x204C, [2]) };
+        NativeBattleScriptedMeshProjected result = Project(prepared with { Frame = frame }, 0x50);
+        NativeBattleCameraProjection projection = new(null, 216, 160, 108);
+        NativeBattleModuleProjectedVertex first = NativeBattleModuleProjection.Project45FAA0(Identity, new(100, 50, 1000), projection, 0, 0);
+        NativeBattleModuleProjectedVertex second = NativeBattleModuleProjection.Project45FAA0(Identity, new(0, 50, 1000), projection, 0, 0);
+        Assert.Equal(first.Screen, BinaryPrimitives.ReadUInt32LittleEndian(result.Frame.Arena.Read(0x20000, 4)));
+        Assert.Equal(second.Screen, BinaryPrimitives.ReadUInt32LittleEndian(result.Frame.Arena.Read(0x20008, 4)));
+        Assert.Equal(4096u, result.Frame.ReadTemporaryDword(0x40));
+        Assert.Equal(0x3F000000u, result.DepthScaleBits1877DA8);
+        Assert.Equal(1000u, BinaryPrimitives.ReadUInt32LittleEndian(result.DepthOwner.Read(4, 4)));
+    }
 
     private static NativeBattleWaterMeshPrepared Prepared(int vertices, int normals)
     {

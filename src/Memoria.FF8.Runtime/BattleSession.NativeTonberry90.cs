@@ -18,7 +18,7 @@ public sealed partial class BattleSession
             NativeBattleTonberry90Resources resources = effect.Binding.Tonberry90Resources ?? throw new NotSupportedException("Native Tonberry requires its original programme, IO and vibration resources.");
             resources.Validate();
             NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Tonberry requires its current camera owner.");
-            NativeBattleTonberry90DirectorServices directorServices = new(nativeActionPackets, StartVibration, StopVibration, (_, _, _, _) => throw new NotSupportedException("Native Tonberry creature initialization requires its complete selected actor contract."));
+            NativeBattleTonberry90DirectorServices directorServices = new(nativeActionPackets, StartVibration, StopVibration, InitializeCreature);
             NativeBattleTonberry90ProgrammeServices programmeServices = new(ReadAddress, PublishCamera, PlaySound);
             NativeBattleTonberry90Inputs inputs = new(nativeActionPackets, camera.CapturePackedView1D97778(), actor => graphics.Models[actor], ReadPoseSource, InitializeTarget, AdvanceLeaf, ApplyContact, Execute);
             frame = NativeBattleTonberry90Controller.Advance7624D0(frame, inputs);
@@ -44,6 +44,11 @@ public sealed partial class BattleSession
                         NativeBattleTonberry90CompanionStep companion = NativeBattleTonberry90Actors.Advance7681B0(current, address, NativeStage ?? throw new NotSupportedException("Native Tonberry companion requires its canonical stage groups."));
                         NativeStage = companion.Stage;
                         return new(companion.Frame, companion.Complete);
+                    case 0x7674E0:
+                        NativeBattleTonberry90CreatureServices creatureServices = new(_ => NativeStage?.ModelColors?.Color40 ?? throw new NotSupportedException("Native Tonberry creature requires its canonical transition color."), PlayCreatureSound, DrawCreature);
+                        return NativeBattleTonberry90Creature.Advance7674E0(current, address, RequireCreatureModel(), creatureServices);
+                    case 0x7670E0:
+                        return NativeBattleTonberry90Creature.Advance7670E0(current, address);
                     case 0x763EB0:
                         NativeBattleTonberry90ActorServices actorServices = new((_, source) => resources.PhaseOneSource is { } actual && actual.Address == source ? actual : throw new NotSupportedException("Native Tonberry phase actor requires its complete current programme source."), CaptureGround, DrawActor);
                         return NativeBattleTonberry90Actors.Advance763EB0(current, address, actorServices);
@@ -60,6 +65,78 @@ public sealed partial class BattleSession
                         return new(current, advanced.ReadyToComplete);
                     default:
                         throw new NotSupportedException($"Native Tonberry callback 0x{task.Callback:X8} at task 0x{address:X8}, signed phase {unchecked((sbyte)task.ReadByte(0x29))} requires its complete actor contract.");
+                }
+            }
+
+            NativeBattleEffectOwnedModelResource RequireCreatureModel() => resources.CreatureModel ?? throw new NotSupportedException("Native Tonberry creature requires its authenticated embedded model; migrate the named active binding explicitly.");
+
+            NativeBattleTonberry90Frame InitializeCreature(NativeBattleTonberry90Frame current, uint address, uint source, int mode)
+            {
+                NativeBattleEffectOwnedModelResource model = RequireCreatureModel();
+                if (model.Address != source)
+                {
+                    throw new InvalidDataException("Native Tonberry creature constructor source differs from its current selected model.");
+                }
+                uint color = NativeStage?.ModelColors?.Color44 ?? throw new NotSupportedException("Native Tonberry creature requires its canonical default model color.");
+                return NativeBattleTonberry90Creature.Initialize8DD0F0(current, address, model, checked((ushort)mode), color);
+            }
+
+            NativeBattleTonberry90Frame PlayCreatureSound(NativeBattleTonberry90Frame current, uint descriptor, byte pan, uint volume)
+            {
+                uint sound = BinaryPrimitives.ReadUInt32LittleEndian(ReadAddress(current, descriptor, 4));
+                PublishNativeModuleSound(new(sound, 0, null) { Pan = pan, Volume = volume });
+                return current;
+            }
+
+            NativeBattleTonberry90CreatureDraw DrawCreature(NativeBattleTonberry90Frame current, uint address, NativeBattleModulePoolTask task, NativeBattleEffectOwnedModelState model)
+            {
+                NativeBattleEffectOwnedModelResource resource = RequireCreatureModel();
+                NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Tonberry creature requires its current camera owner.");
+                NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native Tonberry creature requires its current projection.");
+                NativeBattleActionMatrix view = camera.CapturePackedView1D97778().ReadMatrix();
+                NativeBattleGraphicsDefinition profile = definition.NativeGraphics ?? throw new NotSupportedException("Native Tonberry creature requires its current graphics profile.");
+                NativeBattleSummonColors colors = profile.Rules.SummonColors ?? throw new NotSupportedException("Native Tonberry creature requires its authenticated color constants.");
+                NativeBattlePrimitiveCapabilities capabilities = profile.PrimitiveCapabilities ?? throw new NotSupportedException("Native Tonberry creature requires its actual device capabilities.");
+                NativeBattleTonberry90State shared = current.Memory.Tonberry90 ?? throw new NotSupportedException("Native Tonberry creature requires its current module state.");
+                int cursor = current.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Tonberry creature requires its private packet cursor.");
+                if (shared.ReadDword(0x259EEA8) != unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)cursor))
+                {
+                    throw new InvalidDataException("Native Tonberry private packet pointer differs from its portable effect cursor.");
+                }
+                int size = checked(resource.Geometry.Select(mesh => mesh.Vertices.Length).DefaultIfEmpty(0).Max() * 8);
+                uint work = shared.ReadDword(0x259EFB4);
+                if (work < NativeBattleEffectNodeMemory.ArenaAddress || (ulong)work + (uint)size > (ulong)NativeBattleEffectNodeMemory.ArenaAddress + NativeBattleEffectArena.Length)
+                {
+                    throw new NotSupportedException("Native Tonberry projected work leaves its actual current arena.");
+                }
+                NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Tonberry creature requires its canonical renderer process.");
+                bool renderedBody = false;
+                NativeBattleEffectOwnedModelDraw draw = NativeBattleEffectOwnedModelDrawing.Draw7558A0(task, model, resource, view, projection, profile.Rules.ShadowSource ?? throw new NotSupportedException("Native Tonberry creature requires its original shadow source."), capabilities, colors, new byte[size].ToImmutableArray(), EnterRenderer);
+                NativeBattleEffectArena arena = current.Memory.Arena ?? throw new NotSupportedException("Native Tonberry creature requires its current arena bytes.");
+                if (draw.ProjectedBytesWritten > 0)
+                {
+                    arena = arena.Write(checked((int)(work - NativeBattleEffectNodeMemory.ArenaAddress)), draw.ProjectedScratch.AsSpan().Slice(0, draw.ProjectedBytesWritten));
+                }
+                if (renderedBody)
+                {
+                    process = process.Publish50FDF0(unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)cursor + (uint)draw.BodyAllocationBytes), null);
+                }
+                current = current with { Memory = current.Memory with { Arena = arena, PrimitiveProcess = process } };
+                NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Tonberry creature requires its current ordering table.");
+                NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, cursor, primitive.Pending, draw.Packets);
+                shared = written.Memory.Tonberry90 ?? throw new NotSupportedException("Native Tonberry creature lost its current private packet pointer owner.");
+                shared = shared.WriteDword(0x259EEA8, unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor));
+                graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
+                return new(current with { Memory = written.Memory with { Tonberry90 = shared }, Effect = current.Effect with { DrawArenaOffset = written.Cursor } }, draw.Task);
+
+                bool EnterRenderer()
+                {
+                    (process, renderedBody) = process.Enter5099D0(capabilities.HardwareEnabled ?? throw new NotSupportedException("Native Tonberry renderer query requires its selected hardware capability."));
+                    if (renderedBody)
+                    {
+                        process = process.PublishModelColor(task.ReadDword(0x58));
+                    }
+                    return renderedBody;
                 }
             }
 
@@ -80,10 +157,9 @@ public sealed partial class BattleSession
                 registers = farColor is uint color ? registers.PublishModelColor(color) : registers with { FarRed = null, FarGreen = null, FarBlue = null };
                 current = current with { Memory = current.Memory with { PrimitiveProcess = process with { ModelRendererRegisters = registers } } };
                 NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Tonberry actor draw requires its current ordering table.");
-                int cursor = current.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Tonberry actor draw requires its actual private packet cursor.");
-                NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, cursor, primitive.Pending, batch);
+                NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Tonberry actor draw requires its actual COMMON packet owner."), primitive.Pending, batch);
                 graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
-                return current with { Memory = written.Memory, Effect = current.Effect with { DrawArenaOffset = written.Cursor } };
+                return current with { Memory = current.Memory with { PrimitiveProcess = written.Process } };
             }
 
             NativeBattleTonberry90Frame CaptureGround(NativeBattleTonberry90Frame current, uint address, NativeBattleGfAnimationSource source, uint geometryAddress)
@@ -96,11 +172,11 @@ public sealed partial class BattleSession
                 NativeBattleThundaga105CaptureTransform capture = NativeBattleThundaga105CaptureGeometry.TransformCapture(anchor, bounds, currentCamera.Projection ?? throw new NotSupportedException("Native ground capture requires its current GTE projection."), 128, 256, currentCamera.FocalLength ?? throw new NotSupportedException("Native ground capture requires its current global focal WORD."));
                 NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native ground capture requires its current ordering table.");
                 byte stageIndex = graphics.StageResourceIndex98990 ?? throw new NotSupportedException("Native ground capture requires its current stage resource selector.");
-                NativeBattleEffectPacketWrite written = NativeBattleGroundCapturePackets.Append8DE1F0(current.Memory, primitive.Pending, current.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native ground capture requires its actual private packet cursor."), stageIndex, DrawGround);
+                NativeBattleGroundCaptureWrite written = NativeBattleGroundCapturePackets.Append8DE1F0(current.Memory, primitive.Pending, stageIndex, DrawGround);
                 graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
-                return current with { Memory = written.Memory, Effect = current.Effect with { DrawArenaOffset = written.Cursor } };
+                return current with { Memory = written.Memory };
 
-                NativeBattleEffectPacketWrite DrawGround(NativeBattleEffectPacketWrite input)
+                NativeBattleGroundCaptureWrite DrawGround(NativeBattleGroundCaptureWrite input)
                 {
                     NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native ground capture requires its canonical stage groups.");
                     NativeBattleStageGroup group = stage.Groups[1];
@@ -136,8 +212,9 @@ public sealed partial class BattleSession
                         attempts.Add(new(allocated, bytes.ToImmutableArray(), packet.PhysicalWriteMask ?? throw new NotSupportedException("Native ground packets require their actual write masks."), packet));
                         allocated = checked(allocated + bytes.Length);
                     }
-                    NativeBattleEffectPacketWrite result = NativeBattleEffectPacketArena.Append(input.Memory, input.Cursor, input.Ordering, new NativeBattleGfGeometryBatch(attempts.ToImmutable(), allocated));
-                    return result with { Memory = result.Memory with { PrimitiveProcess = process.PublishModelColor(group.ColorFlags).Publish50FDF0(unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)result.Cursor), null) } };
+                    NativeBattleCommonPacketWrite result = NativeBattleCommonPacketArena.Append(process, input.Ordering, new NativeBattleGfGeometryBatch(attempts.ToImmutable(), allocated));
+                    process = result.Process.PublishModelColor(group.ColorFlags).Publish50FDF0(unchecked((uint)(result.Process.ByteCursor ?? throw new NotSupportedException("Native ground drawing lost its COMMON cursor."))), null);
+                    return new(input.Memory with { PrimitiveProcess = process }, result.Ordering);
                 }
             }
 
@@ -168,6 +245,14 @@ public sealed partial class BattleSession
                 if (shared.Io is { } io && address >= NativeBattleTonberry90Io.ScriptAddress && (ulong)address + (uint)length <= (ulong)NativeBattleTonberry90Io.ScriptAddress + 0x40)
                 {
                     return io.Script.AsSpan().Slice(checked((int)(address - NativeBattleTonberry90Io.ScriptAddress)), length).ToArray();
+                }
+                if (address >= resources.Vibration.Address && (ulong)address + (uint)length <= (ulong)resources.Vibration.Address + (uint)resources.Vibration.Bank.Bytes.Length)
+                {
+                    return resources.Vibration.Bank.Bytes.AsSpan().Slice(checked((int)(address - resources.Vibration.Address)), length).ToArray();
+                }
+                if (address == 0x154716C && length == 4)
+                {
+                    return BitConverter.GetBytes(resources.CreatureEntrySound ?? throw new NotSupportedException("Native Tonberry creature requires its authenticated entry sound descriptor; migrate the named active binding explicitly."));
                 }
                 return resources.ReadStatic(address, length).ToArray();
             }

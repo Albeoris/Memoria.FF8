@@ -14,6 +14,7 @@ public sealed class NativeBattleQuezacotlPathModelPacketsTests
     {
         NativeBattleQuezacotlPathModelBatch batch = Emit(Geometry());
         Assert.Equal(4, batch.Primitives.Length);
+        Assert.Equal(132, batch.SourceEnd);
         Assert.Equal(new uint[] { 0x24123456, 0x2C123456, 0x26ABCDEF, 0x2E010203 }, batch.Primitives.Select(packet => packet.Words[1]));
         Assert.Equal(new[] { 8, 10, 8, 10 }, batch.Primitives.Select(packet => packet.Words.Length));
         Assert.All(batch.Primitives, packet => Assert.Equal(81, packet.Bucket));
@@ -58,6 +59,16 @@ public sealed class NativeBattleQuezacotlPathModelPacketsTests
         NativeBattleQuezacotlPathModelBatch batch = NativeBattleQuezacotlPathModelPackets.Emit6A79B0(bytes.ToImmutableArray(), _ => throw new InvalidOperationException("Masked bone read."), Projection, 0x808080, 0);
         Assert.Empty(batch.VertexScratchWrites);
         Assert.Empty(batch.Primitives);
+        Assert.Null(batch.SourceEnd);
+    }
+
+    [Fact]
+    public void Source_cursor_stops_after_all_four_groups_before_owned_trailing_bytes()
+    {
+        ImmutableArray<byte> source = Geometry().AddRange(new byte[16]);
+        NativeBattleQuezacotlPathModelBatch batch = Emit(source);
+        Assert.Equal(132, batch.SourceEnd);
+        Assert.Equal(4, batch.Primitives.Length);
     }
 
     [Fact]

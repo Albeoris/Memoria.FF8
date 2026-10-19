@@ -48,6 +48,8 @@ public sealed partial record NativeBattleEffectMemory
     public NativeBattleGroundCaptureMemory? GroundCapture { get; init; }
 }
 
+public sealed record NativeBattleGroundCaptureWrite(NativeBattleEffectMemory Memory, NativeBattleLogicalOrdering Ordering);
+
 /// <summary>8DE1F0 inserts the restore environment, current ground draw, and capture commands in native order.</summary>
 public static class NativeBattleGroundCapturePackets
 {
@@ -76,7 +78,7 @@ public static class NativeBattleGroundCapturePackets
         return new(new(minimum[0], minimum[1], minimum[2]), new(maximum[0], maximum[1], maximum[2]));
     }
 
-    public static NativeBattleEffectPacketWrite Append8DE1F0(NativeBattleEffectMemory memory, NativeBattleLogicalOrdering ordering, int cursor, byte stageResourceIndex, Func<NativeBattleEffectPacketWrite, NativeBattleEffectPacketWrite> drawGround)
+    public static NativeBattleGroundCaptureWrite Append8DE1F0(NativeBattleEffectMemory memory, NativeBattleLogicalOrdering ordering, byte stageResourceIndex, Func<NativeBattleGroundCaptureWrite, NativeBattleGroundCaptureWrite> drawGround)
     {
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native ground capture requires its actual primitive process.");
         byte buffer = process.Buffer80 ?? throw new NotSupportedException("Native ground capture requires the current physical environment selector.");
@@ -90,7 +92,7 @@ public static class NativeBattleGroundCapturePackets
         {
             throw new InvalidDataException("Native ground capture requires its complete alternate DRAWENV.");
         }
-        NativeBattleEffectPacketWrite current = new(memory, cursor, ordering);
+        NativeBattleGroundCaptureWrite current = new(memory, ordering);
         if (stageResourceIndex == 0x8E)
         {
             current = AppendArena(current, NativeBattleDrawEnvironmentPackets.Restore45C0F0(new byte[64].ToImmutableArray(), source), 64, source[0x18] == 0 ? 24 : 36);
@@ -127,7 +129,7 @@ public static class NativeBattleGroundCapturePackets
         return PublishStatic(current, retained, capturePacket, capture.ToImmutableArray());
     }
 
-    private static NativeBattleEffectPacketWrite PublishStatic(NativeBattleEffectPacketWrite current, NativeBattleGroundCaptureMemory retained, int offset, ImmutableArray<byte> environment)
+    private static NativeBattleGroundCaptureWrite PublishStatic(NativeBattleGroundCaptureWrite current, NativeBattleGroundCaptureMemory retained, int offset, ImmutableArray<byte> environment)
     {
         ImmutableArray<byte> generated = NativeBattleDrawEnvironmentPackets.Restore45C0F0(new byte[64].ToImmutableArray(), environment);
         int length = environment[0x18] == 0 ? 24 : 36;
@@ -141,19 +143,20 @@ public static class NativeBattleGroundCapturePackets
         {
             retained = retained.Write(offset, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink));
         }
-        return new(current.Memory with { GroundCapture = retained }, current.Cursor, links.ToImmutable());
+        return new(current.Memory with { GroundCapture = retained }, links.ToImmutable());
     }
 
-    private static NativeBattleEffectPacketWrite AppendArena(NativeBattleEffectPacketWrite current, ImmutableArray<byte> data, int allocation, int writtenLength, ushort flags = 0)
+    private static NativeBattleGroundCaptureWrite AppendArena(NativeBattleGroundCaptureWrite current, ImmutableArray<byte> data, int allocation, int writtenLength, ushort flags = 0)
     {
         NativeBattleGfPacketByteState[] mask = new NativeBattleGfPacketByteState[allocation];
         Array.Fill(mask, NativeBattleGfPacketByteState.Known, 3, writtenLength - 3);
         byte[] bytes = new byte[allocation];
         data.AsSpan().CopyTo(bytes);
-        int packetLength = 4 + 4 * bytes[3];
-        NativeBattleGeometryPrimitive primitive = new(17, ReadWords(bytes.AsSpan(0, packetLength)), [0, 0, 0, 0]);
+        NativeBattleGeometryPrimitive primitive = new(17, ReadWords(bytes), [0, 0, 0, 0]);
         NativeBattleGfGeometryAttempt attempt = new(0, bytes.ToImmutableArray(), mask.ToImmutableArray(), primitive);
-        return NativeBattleEffectPacketArena.Append(current.Memory, current.Cursor, current.Ordering, new NativeBattleGfGeometryBatch([attempt], allocation), flags);
+        NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native ground capture allocation requires its current COMMON packet owner.");
+        NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, current.Ordering, new NativeBattleGfGeometryBatch([attempt], allocation), flags);
+        return new(current.Memory with { PrimitiveProcess = written.Process }, written.Ordering);
     }
 
     private static ImmutableArray<byte> Black(bool semi) => Words(0x05000000, semi ? 0x2A000000u : 0x28000000u, 0, 127, 255u << 16, 255u << 16 | 127);

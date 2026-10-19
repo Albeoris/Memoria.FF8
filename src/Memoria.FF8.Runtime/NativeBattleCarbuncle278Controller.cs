@@ -59,17 +59,31 @@ public static class NativeBattleCarbuncle278Controller
             NativeBattleEffectTaskStep step = pool.Advance((current, index) =>
             {
                 NativeBattleModulePoolTask task = current.Slots[index];
+                if (task.Callback == 0x683E80)
+                {
+                    frame = (inputs?.DrawSparkle ?? throw new NotSupportedException("Native Carbuncle683E80 requires its original sprite services."))(frame, task);
+                    NativeBattleCarbuncle278SparkleStep sparkle = NativeBattleCarbuncle278Sparkles.Finish683E80(task, NativeBattleCarbuncle278Entry.RequireState(frame.Memory).Pause8114 != 0);
+                    int sparkleOffset = checked((int)(current.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * current.Stride + 12);
+                    frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(sparkleOffset, sparkle.Task.Payload.AsSpan()) } };
+                    return new(current with { Slots = current.Slots.SetItem(index, sparkle.Task) }, sparkle.Result);
+                }
                 if (task.Callback != 0x681630)
                 {
                     throw new NotSupportedException($"Native Carbuncle task callback0x{task.Callback:X8} requires its actual current leaf contract.");
                 }
                 ushort counter = task.ReadWord(0xC);
-                if (counter >= 36)
+                if (counter >= 110)
                 {
-                    throw new NotSupportedException("Native Carbuncle681630 reaches creature pose6FBDB0 and model rendering6A79B0 after its mirror morph window.");
+                    throw new NotSupportedException("Native Carbuncle681630 reaches original programme7016B0/701970 and callback681FD0 at creature110.");
                 }
                 NativeBattleCarbuncle278State state = NativeBattleCarbuncle278Entry.RequireState(frame.Memory);
                 frame = frame with { Memory = frame.Memory with { Carbuncle278 = state with { Flash81D4 = counter < 8 ? unchecked((uint)(counter << 8)) : 0x800 } } };
+                if (counter >= 36)
+                {
+                    NativeBattleCarbuncle278ModelStep model = (inputs?.ModelCreature ?? throw new NotSupportedException("Native Carbuncle6FBDB0 and6A79B0 require its current creature model services."))(frame, task);
+                    frame = model.Frame;
+                    task = model.Task;
+                }
                 if (counter != 0)
                 {
                     frame = (inputs?.DrawCreature ?? throw new NotSupportedException("Native Carbuncle6839B0 requires its original mirror mesh services."))(frame, counter);
@@ -80,7 +94,11 @@ public static class NativeBattleCarbuncle278Controller
                     throw new NotSupportedException("Native Carbuncle534210 requires its original pending descriptor completion binding.");
                 }
                 frame = frame with { Memory = io.Memory };
-                if (counter != 0)
+                if (counter >= 86)
+                {
+                    frame = (inputs?.PresentSparkleWindow ?? throw new NotSupportedException("Native Carbuncle requires its sparkle spawning and bone-follow camera services."))(frame, task);
+                }
+                else if (counter != 0)
                 {
                     frame = (inputs?.PresentCreature ?? throw new NotSupportedException("Native Carbuncle requires its current camera and sound services."))(frame, counter);
                 }

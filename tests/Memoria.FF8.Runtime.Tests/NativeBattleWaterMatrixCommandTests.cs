@@ -241,6 +241,38 @@ public sealed class NativeBattleWaterMatrixCommandTests
         Assert.Equal(Pc + 4, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
     }
 
+    [Theory]
+    [InlineData(0x0116)]
+    [InlineData(0xF116)]
+    public void Matrix116_transforms_full_translation_but_publishes_plain_Euler_without_reading_mode_seed_or_operand(ushort instruction)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(instruction);
+        frame = WaterSchedulerFixture.SlotWord(frame, 0, 0x12, 7);
+        frame = WaterSchedulerFixture.CoreWord(frame, 0x2797206, 7);
+        NativeBattleActionMatrix view = new(new short[] { 0, -4096, 0, 4096, 0, 0, 0, 0, 4096 }.ToImmutableArray(), 50000, -50000, 70000, 4096);
+        frame = WriteMatrix(frame, MatrixBase, view);
+        frame = Vector(frame, 0, 0x94, new(30000, 10000, -10000));
+        NativeBattleVector angles = new(-12, 256, -513);
+        frame = Vector(frame, 0, 0x8C, angles);
+        frame = frame with { Core = frame.Core.MarkUnknown(0x2797968, 24).MarkUnknown(MatrixBase + 18, 2), Arena = frame.Arena.MarkUnknown(0x1002, 4) };
+        NativeBattleWaterExecutionFrame result = Run(frame, 2);
+        uint destination = MatrixBase + 32;
+        Assert.Equal(40000u, WaterSchedulerFixture.ReadCoreDword(result, destination + 20));
+        Assert.Equal(unchecked((uint)-20000), WaterSchedulerFixture.ReadCoreDword(result, destination + 24));
+        Assert.Equal(60000u, WaterSchedulerFixture.ReadCoreDword(result, destination + 28));
+        NativeBattleActionMatrix euler = NativeBattleGfMatrices.Euler56CD50(angles);
+        for (int lane = 0; lane < 9; lane++)
+        {
+            Assert.Equal(unchecked((ushort)euler.Rotation[lane]), ReadWord(result, destination + (uint)(lane * 2)));
+        }
+        Assert.Equal((ushort)0, ReadWord(result, destination + 18));
+        Assert.Equal(NativeBattleGfMatrices.TransformMac460840(view, new(30000, 10000, -10000)).Flags, result.ReadTemporaryDword(0xF0));
+        Assert.Equal(frame.ReadTemporaryDword(0xF4), result.ReadTemporaryDword(0xF4));
+        Assert.Equal(frame.ReadTemporaryDword(0xF8), result.ReadTemporaryDword(0xF8));
+        Assert.Equal(frame.ReadTemporaryDword(0xFC), result.ReadTemporaryDword(0xFC));
+        Assert.Equal(Pc + 4, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+    }
+
     private static NativeBattleWaterExecutionFrame Nested()
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0x63);

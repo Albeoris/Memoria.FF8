@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Text.Json;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
@@ -31,6 +32,17 @@ public sealed class NativeBattleCarbuncle278ResourcesTests
         Assert.Equal((byte)1, selected.Task.ReadByte(0x92));
         Assert.True(selected.Task.ReadByte(0x93) > 0);
         Assert.Equal(30, selected.Executable.Read(NativeBattleCarbuncleExecutableMemory.Address, 1)[0]);
+        NativeBattleModuleResource sprite = Assert.IsType<NativeBattleModuleResource>(resources.SparkleSprite);
+        Assert.Equal(0x10BD044u, sprite.Address);
+        Assert.Equal(300, sprite.Bytes.Length);
+        Assert.Equal((byte)7, sprite.Kind);
+        for (int phase = 0; phase < 11; phase++)
+        {
+            Assert.Equal(20, sprite.ProjectedFrame571C80(phase).Quads.Length);
+        }
+        Assert.Throws<InvalidDataException>(() => sprite.ProjectedFrame571C80(11));
+        NativeBattleVector cameraAnchor = NativeBattleCarbuncle278Anchors.ReadVertex682270(selected.Task.WriteWord(0x60, 4096).WriteWord(0x68, 4096).WriteWord(0x70, 4096).WriteDword(0x7C, 5000), selected.Executable, model, 0, 176);
+        Assert.NotEqual(new NativeBattleVector(0, 0, 0), cameraAnchor);
         NativeVibrationBank vibration = Assert.IsType<NativeVibrationBank>(resources.Vibration);
         Assert.Equal(64, vibration.Offsets.Length);
         Assert.Equal(0x100, vibration.Offsets[1]);
@@ -41,5 +53,14 @@ public sealed class NativeBattleCarbuncle278ResourcesTests
         Assert.Equal(115 * 8, resources.MirrorAlternateVertices.Length);
         Assert.Equal(0x10BFB08u, resources.SecondaryMesh!.Address);
         Assert.Equal(0x1200, resources.SecondaryMesh.Bytes.Length);
+        NativeBattleModulePoolTask bodyTask = selected.Task.WriteWord(0x60, 4096).WriteWord(0x68, 4096).WriteWord(0x70, 4096).WriteDword(0x7C, 5000);
+        NativeBattleActionMatrix identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
+        NativeBattleEffectMemory bodyMemory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().MarkUnknown(0x2E84, 0x1000), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400(), CarbuncleExecutableMemory = selected.Executable, Carbuncle278 = NativeBattleCarbuncle278State.FromColdProcess() with { ModelBuffer81F8 = 0x20DFAB8, PacketCursor81BC = 0x20E3984 } };
+        NativeBattleCarbuncle278ModelDraw body = NativeBattleCarbuncle278Model.Draw6A79B0(bodyMemory, bodyTask, model, new(identity, 288, 160, 108), true);
+        Assert.Equal(492 * 8, body.Memory.Arena!.Read(0x2E84, 492 * 8).Length);
+        Assert.Throws<NotSupportedException>(() => body.Memory.Arena.Read(0x2E84 + 492 * 8, 0xA0));
+        Assert.Equal(0x10BBAD0u, body.Memory.PrimitiveProcess!.ModelRendererRegisters!.SourceCursor);
+        Assert.Equal(JsonSerializer.Serialize(selected.Executable), JsonSerializer.Serialize(body.Memory.CarbuncleExecutableMemory));
+        Assert.Throws<NotSupportedException>(() => bodyMemory.Arena!.Read(0x2E84, 8));
     }
 }

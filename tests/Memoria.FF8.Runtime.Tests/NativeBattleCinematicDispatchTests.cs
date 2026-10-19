@@ -51,4 +51,18 @@ public sealed class NativeBattleCinematicDispatchTests
     {
         Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(205, "draw_table", 3, 0xAF5810));
     }
+
+    [Theory]
+    [InlineData(205, 0xD5, 0xAFB630u)]
+    [InlineData(205, 0xD1, 0xAFB270u)]
+    [InlineData(203, 0x96, 0xB16F60u)]
+    [InlineData(206, 0x96, 0xAF2760u)]
+    public void Stateful_variants_require_their_exact_profile_table_and_index(int effect, int opcode, uint handler)
+    {
+        Assert.Equal(handler, NativeBattleCinematicDispatch.RequireSlot(effect, "vm_table", opcode, handler));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.Canonicalize(effect, handler));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(effect, "draw_table", opcode, handler));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(effect, "vm_table", opcode + 1, handler));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(201, "vm_table", opcode, handler));
+    }
 }

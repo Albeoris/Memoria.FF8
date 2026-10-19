@@ -9,6 +9,8 @@ public sealed record NativeBattleTonberry90Resources(uint StaticAddress, NativeB
     public NativeBattleGfAnimationSource? PhaseOneSource { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleEffectOwnedModelResource? CreatureModel { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public uint? CreatureEntrySound { get; init; }
 
     public void Validate()
     {

@@ -7,14 +7,22 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleCarbuncle278ContinuationTests
 {
     [Fact]
-    public void Named_pre_mesh_standalone_continues_mirror_window_in_actual_common_packet_memory()
+    public void Named_standalone_continues_mirror_and_creature_in_actual_common_packet_memory()
     {
         string? input = Environment.GetEnvironmentVariable("MEMORIA_FF8_CARBUNCLE278_SNAPSHOT");
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_CARBUNCLE278_EVIDENCE");
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(input is not null && File.Exists(input) && !string.IsNullOrWhiteSpace(evidence) && directory is not null && Directory.Exists(directory), "Select installed resources, a pre-mesh standalone and a distinct evidence directory.");
         BattleSnapshot source = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(input!)) ?? throw new InvalidDataException("The standalone battle is empty.");
-        Assert.Equal((ushort)3, Counter(source));
+        ushort initialCounter = Counter(source);
+        Assert.True(initialCounter is 3 or 38);
+        if (initialCounter == 38)
+        {
+            NativeBattleModulePoolTask sourceRoot = source.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == NativeBattleCarbuncle278Entry.MainDescriptor).Slots[0];
+            uint primary = sourceRoot.ReadDword(0x10) == 0 ? 0x3ECCu : 0x13ECCu;
+            NativeBattleCarbuncle278State state = source.NativeEffectMemory!.Carbuncle278!;
+            Assert.Equal(state.ModelBuffer81F8 + primary, state.PacketCursor81BC);
+        }
         Assert.Equal((byte)31, source.NativeGraphics!.StageResourceIndex98990);
         byte[] firstPrivate = source.NativeEffectMemory!.Arena!.Read(0x3ECC, 112);
         byte[] secondPrivate = source.NativeEffectMemory.Arena.Read(0x13ECC, 112);
@@ -27,7 +35,7 @@ public sealed class NativeBattleCarbuncle278ContinuationTests
         Console.WriteLine($"Carbuncle standalone continuation evidence: {output}");
         NativeBattleRestorationPresentationTests.Publish(output, "source", source, null);
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
-        while (Counter(first.Capture()) < 38)
+        while (Counter(first.Capture()) < 88)
         {
             first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
             second.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
@@ -43,16 +51,15 @@ public sealed class NativeBattleCarbuncle278ContinuationTests
             byte[] pixels = scene.Render(first, 320, 224).ToArray();
             Assert.Equal(pixels, scene.Render(second, 320, 224).ToArray());
             ushort counter = Counter(current);
-            if (counter is 4 or 5 or 10 or 18 or 28 or 38)
+            if (counter is 4 or 5 or 10 or 18 or 28 or 38 or 48 or 68 or 88)
             {
-                NativeBattleRestorationPresentationTests.Publish(output, counter == 38 ? "before-creature-rendering-boundary" : "master-" + counter, current, pixels);
+                NativeBattleRestorationPresentationTests.Publish(output, counter == 88 ? "before-sparkle-boundary" : "master-" + counter, current, pixels);
             }
         }
         BattleSnapshot boundary = first.Capture();
-        Exception? error = Record.Exception(() => first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero));
-        Assert.NotNull(error);
-        Assert.Contains("6FBDB0", error.ToString());
-        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "common-owner-verified-before-creature-rendering", boundary.Frame, NativeCallback = boundary.NativeGraphics!.Callback, Counter = Counter(boundary), Error = error.ToString() }));
+        Assert.Equal((ushort)88, Counter(boundary));
+        Assert.Equal((ushort)86, boundary.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2508188).Slots[0].ReadWord(0xC));
+        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "creature-window-complete", boundary.Frame, NativeCallback = boundary.NativeGraphics.Callback, Counter = Counter(boundary) }));
 
         static ushort Counter(BattleSnapshot snapshot) => snapshot.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == NativeBattleCarbuncle278Entry.MainDescriptor).Slots[0].ReadWord(0xC);
     }

@@ -176,7 +176,7 @@ public static class NativeBattleTonberry90Director
         return (WriteTask(appended.Frame, appended.Address, task), appended.Address);
     }
 
-    private static (NativeBattleTonberry90Frame Frame, uint Address) AppendTask(NativeBattleTonberry90Frame frame, uint descriptor, uint callback, int size, uint parent, NativeBattleActionPacketsState packets)
+    internal static (NativeBattleTonberry90Frame Frame, uint Address) AppendTask(NativeBattleTonberry90Frame frame, uint descriptor, uint callback, int size, uint parent, NativeBattleActionPacketsState packets)
     {
         int pool = Enumerable.Range(0, frame.Effect.Pools.Length).Single(index => frame.Effect.Pools[index].DescriptorAddress == descriptor);
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Tonberry append requires its current action parameters.");

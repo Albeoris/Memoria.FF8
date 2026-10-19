@@ -8,6 +8,32 @@ public sealed record NativeBattleRawModelBodyDraw(ImmutableArray<byte> Projected
 /// <summary>One packed object's posed body projection and5099D0 packets, without shadow or bounds side effects.</summary>
 public static class NativeBattleRawModelBodyDrawing
 {
+    public static NativeBattleRawModelBodyDraw Draw5099D0(ImmutableArray<NativeBattleRawMesh> meshes, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleCameraProjection projection, uint color, uint objectMask, ImmutableArray<byte> projectedScratch, NativeBattleSummonColors colors, byte depthShift = 4, NativeBattleGeometryViewport? viewport = null, int tableBaseBucket = 17, short? depthCue = 0)
+    {
+        if (meshes.IsDefault || projectedScratch.IsDefault)
+        {
+            throw new InvalidDataException("Native raw body drawing requires its selected objects and explicit projected scratch owner.");
+        }
+        ImmutableArray<byte> scratch = projectedScratch;
+        ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
+        int allocated = 0;
+        int bytesWritten = 0;
+        for (int index = 0; index < meshes.Length; index++)
+        {
+            if ((objectMask & (1u << (index & 31))) == 0)
+            {
+                continue;
+            }
+            // Each selected object restarts projection at the same context work pointer.
+            NativeBattleRawModelBodyDraw body = Draw5099D0(meshes[index], bones, projection, color, 1, scratch, colors, depthShift, viewport, tableBaseBucket, depthCue);
+            scratch = body.ProjectedScratch;
+            bytesWritten = Math.Max(bytesWritten, body.ProjectedBytesWritten);
+            attempts.AddRange(body.Packets.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(allocated + attempt.ByteOffsetRelative) }));
+            allocated = checked(allocated + body.Packets.AllocationBytes);
+        }
+        return new(scratch, bytesWritten, new(attempts.ToImmutable(), allocated));
+    }
+
     public static NativeBattleRawModelBodyDraw Draw5099D0(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleCameraProjection projection, uint color, uint objectMask, ImmutableArray<byte> projectedScratch, NativeBattleSummonColors colors, byte depthShift = 4, NativeBattleGeometryViewport? viewport = null, int tableBaseBucket = 17, short? depthCue = 0)
     {
         if (bones.IsDefault || projectedScratch.IsDefault || depthShift > 31)

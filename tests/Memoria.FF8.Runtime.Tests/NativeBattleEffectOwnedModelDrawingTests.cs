@@ -11,6 +11,27 @@ public sealed class NativeBattleEffectOwnedModelDrawingTests
     private static NativeBattleShadowSource Shadow => new(View with { Z = 0 }, new(4096, 0, 4096), Enumerable.Repeat(new NativeBattleVector(0, 0, 0), 10).ToImmutableArray());
 
     [Fact]
+    public void Multiple_objects_share_one_renderer_entry_and_append_body_packets_before_shadow()
+    {
+        var fixture = Fixture();
+        NativeBattleEffectOwnedModelResource resource = fixture.Resource with { Geometry = [fixture.Resource.Geometry[0], fixture.Resource.Geometry[0]] };
+        int entries = 0;
+        NativeBattleEffectOwnedModelDraw draw = NativeBattleEffectOwnedModelDrawing.Draw7558A0(fixture.Task, fixture.State, resource, View, Projection, Shadow, new(true), NativeBattleGteColorInterpolation.CodeConstants45F270, Enumerable.Repeat((byte)0xA5, 32).ToImmutableArray(), () =>
+        {
+            entries++;
+            return true;
+        });
+        Assert.Equal(1, entries);
+        Assert.Equal(64, draw.BodyAllocationBytes);
+        Assert.Equal(304, draw.Packets.AllocationBytes);
+        Assert.Equal(24, draw.ProjectedBytesWritten);
+        Assert.Equal(0, draw.Packets.Attempts[0].ByteOffsetRelative);
+        Assert.Equal(32, draw.Packets.Attempts[1].ByteOffsetRelative);
+        Assert.Equal(64, draw.Packets.Attempts[2].ByteOffsetRelative);
+        Assert.Equal(draw.Packets.Attempts[0].Primitive!.Words, draw.Packets.Attempts[1].Primitive!.Words);
+    }
+
+    [Fact]
     public void Body_and_shadow_use_one_private_batch_and_preserve_body_padding_and_scratch_suffix()
     {
         var fixture = Fixture();
@@ -60,6 +81,26 @@ public sealed class NativeBattleEffectOwnedModelDrawingTests
         Assert.All(masked.ProjectedScratch, value => Assert.Equal(0xA5, value));
         Assert.Throws<NotSupportedException>(() => Draw(fixture.Task.WriteByte(0x37, 1), fixture.State, fixture.Resource));
         Assert.Throws<InvalidDataException>(() => NativeBattleEffectOwnedModelDrawing.Draw7558A0(fixture.Task, fixture.State, fixture.Resource, View, Projection, Shadow, new(true), NativeBattleGteColorInterpolation.CodeConstants45F270, [0]));
+    }
+
+    [Fact]
+    public void SharedRendererEntryCanSkipOnlyBodyWhileKeepingWorldBoundsAndShadow()
+    {
+        var fixture = Fixture();
+        int entries = 0;
+        NativeBattleEffectOwnedModelDraw draw = NativeBattleEffectOwnedModelDrawing.Draw7558A0(fixture.Task, fixture.State, fixture.Resource, View, Projection, Shadow, new(true), NativeBattleGteColorInterpolation.CodeConstants45F270, Enumerable.Repeat((byte)0xA5, 32).ToImmutableArray(), () =>
+        {
+            entries++;
+            return false;
+        });
+        Assert.Equal(1, entries);
+        Assert.Equal(0, draw.BodyAllocationBytes);
+        Assert.Equal(0, draw.ProjectedBytesWritten);
+        Assert.Equal(240, draw.Packets.AllocationBytes);
+        Assert.All(draw.Packets.Attempts, attempt => Assert.Equal(4121, attempt.Primitive!.Bucket));
+        Assert.All(draw.ProjectedScratch, value => Assert.Equal((byte)0xA5, value));
+        Assert.Equal((ushort)4096, draw.Task.ReadWord(0x70));
+        Assert.DoesNotContain("BodyAllocationBytes", JsonSerializer.Serialize(draw));
     }
 
     [Fact]

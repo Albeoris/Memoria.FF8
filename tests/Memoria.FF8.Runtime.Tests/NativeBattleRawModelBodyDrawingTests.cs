@@ -9,6 +9,28 @@ public sealed class NativeBattleRawModelBodyDrawingTests
     private static readonly NativeBattleSummonColors Colors = new(0, 0, 1f / 4096, 6755401588539392d);
 
     [Fact]
+    public void Selected_objects_reuse_projection_prefix_preserve_previous_tail_and_shift_masks_per_object()
+    {
+        NativeBattleRawMesh first = new([new(new(10, 20, 1000), 0), new(new(30, 40, 1000), 0)], []);
+        NativeBattleRawMesh second = new([new(new(50, 60, 1000), 0)], []);
+        NativeBattleCameraProjection projection = new(null, 1000, 0, 0);
+        ImmutableArray<byte> initial = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray();
+        NativeBattleRawModelBodyDraw firstOnly = NativeBattleRawModelBodyDrawing.Draw5099D0(first, [Identity], projection, 0, 1, initial, Colors);
+        NativeBattleRawModelBodyDraw secondOnly = NativeBattleRawModelBodyDrawing.Draw5099D0(second, [Identity], projection, 0, 1, initial, Colors);
+        NativeBattleRawModelBodyDraw both = NativeBattleRawModelBodyDrawing.Draw5099D0([first, second], [Identity], projection, 0, 3, initial, Colors);
+        Assert.Equal(16, both.ProjectedBytesWritten);
+        Assert.Equal(secondOnly.ProjectedScratch.AsSpan().Slice(0, 8).ToArray(), both.ProjectedScratch.AsSpan().Slice(0, 8).ToArray());
+        Assert.Equal(firstOnly.ProjectedScratch.AsSpan().Slice(8, 8).ToArray(), both.ProjectedScratch.AsSpan().Slice(8, 8).ToArray());
+        Assert.All(both.ProjectedScratch.AsSpan().Slice(16).ToArray(), value => Assert.Equal(0xA5, value));
+        NativeBattleRawModelBodyDraw masked = NativeBattleRawModelBodyDrawing.Draw5099D0([first, second], [Identity], projection, 0, 2, initial, Colors);
+        Assert.Equal(8, masked.ProjectedBytesWritten);
+        Assert.Equal(secondOnly.ProjectedScratch, masked.ProjectedScratch);
+        NativeBattleRawModelBodyDraw none = NativeBattleRawModelBodyDrawing.Draw5099D0([first, second], [Identity], projection, 0, 0, initial, Colors);
+        Assert.Equal(0, none.ProjectedBytesWritten);
+        Assert.Equal(initial, none.ProjectedScratch);
+    }
+
+    [Fact]
     public void Explicit_embedded_viewport_clips_208_without_changing_existing_default_216()
     {
         NativeBattleRawMesh mesh = new([new(new(0, 210, 1000), 0)], []);

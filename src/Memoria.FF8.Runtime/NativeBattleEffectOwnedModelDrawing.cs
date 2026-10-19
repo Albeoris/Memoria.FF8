@@ -1,14 +1,19 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleEffectOwnedModelDraw(NativeBattleModulePoolTask Task, NativeBattleEffectLocalBounds Bounds, ImmutableArray<byte> ProjectedScratch, int ProjectedBytesWritten, NativeBattleGfGeometryBatch Packets);
+public sealed record NativeBattleEffectOwnedModelDraw(NativeBattleModulePoolTask Task, NativeBattleEffectLocalBounds Bounds, ImmutableArray<byte> ProjectedScratch, int ProjectedBytesWritten, NativeBattleGfGeometryBatch Packets)
+{
+    [JsonIgnore]
+    public int BodyAllocationBytes { get; init; }
+}
 
 /// <summary>7558A0's explicit posed body and shadow, sharing the caller's private packet allocation.</summary>
 public static class NativeBattleEffectOwnedModelDrawing
 {
-    public static NativeBattleEffectOwnedModelDraw Draw7558A0(NativeBattleModulePoolTask task, NativeBattleEffectOwnedModelState state, NativeBattleEffectOwnedModelResource resource, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleShadowSource shadowSource, NativeBattlePrimitiveCapabilities capabilities, NativeBattleSummonColors colors, ImmutableArray<byte> projectedScratch)
+    public static NativeBattleEffectOwnedModelDraw Draw7558A0(NativeBattleModulePoolTask task, NativeBattleEffectOwnedModelState state, NativeBattleEffectOwnedModelResource resource, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleShadowSource shadowSource, NativeBattlePrimitiveCapabilities capabilities, NativeBattleSummonColors colors, ImmutableArray<byte> projectedScratch, Func<bool>? enterRenderer = null)
     {
         NativeBattleEffectOwnedModel.Validate(task, state, resource);
         NativeBattleDecodedPose pose = state.DecodedPose ?? throw new NotSupportedException("Native effect-owned model drawing requires its actual current decoded pose.");
@@ -16,9 +21,9 @@ public static class NativeBattleEffectOwnedModelDrawing
         {
             throw new NotSupportedException("Native effect-owned model drawing requires its proved zero-alpha owner.");
         }
-        if (resource.Geometry.IsDefault || resource.Geometry.Length != 1 || projectedScratch.IsDefault)
+        if (resource.Geometry.IsDefault || projectedScratch.IsDefault)
         {
-            throw new InvalidDataException("Native effect-owned model drawing requires its one original object and explicit projected scratch owner.");
+            throw new InvalidDataException("Native effect-owned model drawing requires its original objects and explicit projected scratch owner.");
         }
         NativeBattleActionMatrix world = NativeBattleGfMatrices.Euler56CE30(new(Word(0x3C), Word(0x3E), Word(0x40)));
         world = NativeBattlePoseMatrices.Scale56BEF0(world, unchecked((int)task.ReadDword(0x114)), unchecked((int)task.ReadDword(0x118)), unchecked((int)task.ReadDword(0x11C))) with { X = Word(0x4C), Y = Word(0x4E), Z = Word(0x50) };
@@ -29,7 +34,7 @@ public static class NativeBattleEffectOwnedModelDrawing
         task = task.WriteWord(0x82, 0).WriteDword(0x84, unchecked((uint)world.X)).WriteDword(0x88, unchecked((uint)world.Y)).WriteDword(0x8C, unchecked((uint)world.Z));
         NativeBattleActionMatrix modelView = NativeBattlePoseMatrices.Compose56C2F0(view, world);
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattlePoseMatrices.ComposeCurrentPose(resource.PoseSource, pose, modelView);
-        NativeBattleRawModelBodyDraw body = NativeBattleRawModelBodyDrawing.Draw5099D0(resource.Geometry[0], bones, projection, task.ReadDword(0x58), task.ReadDword(0xAC), projectedScratch, colors);
+        NativeBattleRawModelBodyDraw body = enterRenderer?.Invoke() == false ? new(projectedScratch, 0, new([], 0)) : NativeBattleRawModelBodyDrawing.Draw5099D0(resource.Geometry, bones, projection, task.ReadDword(0x58), task.ReadDword(0xAC), projectedScratch, colors);
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         attempts.AddRange(body.Packets.Attempts);
         int allocated = body.Packets.AllocationBytes;
@@ -43,7 +48,7 @@ public static class NativeBattleEffectOwnedModelDrawing
             attempts.AddRange(shadow.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(attempt.ByteOffsetRelative + allocated) }));
             allocated += shadow.AllocationBytes;
         }
-        return new(task, bounds, body.ProjectedScratch, body.ProjectedBytesWritten, new(attempts.ToImmutable(), allocated));
+        return new(task, bounds, body.ProjectedScratch, body.ProjectedBytesWritten, new(attempts.ToImmutable(), allocated)) { BodyAllocationBytes = body.Packets.AllocationBytes };
 
         short Word(int offset) => unchecked((short)task.ReadWord(offset));
     }

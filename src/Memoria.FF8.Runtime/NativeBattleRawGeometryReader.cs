@@ -41,17 +41,18 @@ public static class NativeBattleRawGeometryReader
             }
             cursor = checked((cursor + 3) & ~3);
             ImmutableArray<ushort> counts = [U16(cursor), U16(cursor + 2), U16(cursor + 4), U16(cursor + 6)];
-            int triangles = unchecked((short)counts[0]);
-            int quads = unchecked((short)counts[1]);
             cursor += 12;
             int facePayload = cursor;
             var polygons = ImmutableArray.CreateBuilder<NativeBattleRawPolygon>();
-            for (int face = 0; face < triangles + quads; face++)
+            for (int group = 0; group < counts.Length; group++)
             {
-                bool quad = face >= triangles;
-                int size = quad ? 20 : 16;
-                polygons.Add(new(quad, Bytes(cursor, size).ToImmutableArray()));
-                cursor += size;
+                bool quad = (group & 1) != 0;
+                int size = (quad ? 20 : 16) + (group >= 2 ? 4 : 0);
+                for (int face = 0; face < counts[group]; face++)
+                {
+                    polygons.Add(new(quad, Bytes(cursor, size).ToImmutableArray()));
+                    cursor += size;
+                }
             }
             observeObject?.Invoke(mesh, counts, facePayload, cursor);
             meshes.Add(new(vertices.ToImmutable(), polygons.ToImmutable()) { BoneGroups = bones.ToImmutable() });

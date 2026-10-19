@@ -9,7 +9,7 @@ public sealed record NativeBattleWaterMeshResult(NativeBattleWaterExecutionFrame
 /// <summary>Selected mesh packet stores over already projected native records and their separate depth owner.</summary>
 public static class NativeBattleWaterMeshPackets
 {
-    public static NativeBattleWaterMeshResult EmitSelected(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, ImmutableArray<byte> projectedRecords, ImmutableArray<uint> separateDepths, uint outputPointer, Func<uint, int> resolveActualOtBucket, Func<uint, uint>? shadeMaterial = null)
+    public static NativeBattleWaterMeshResult EmitSelected(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, ImmutableArray<byte> projectedRecords, ImmutableArray<uint> separateDepths, uint outputPointer, Func<uint, int> resolveActualOtBucket, Func<uint, uint>? shadeMaterial = null, float depthScale = 1f)
     {
         (int stride, int length, int corners, int indexOffset, int sxyOffset) = group.Type switch
         {
@@ -44,7 +44,7 @@ public static class NativeBattleWaterMeshPackets
                 }
                 screens[corner] = BinaryPrimitives.ReadUInt32LittleEndian(projectedRecords.AsSpan().Slice(offset));
                 depthAndClip[corner] = BinaryPrimitives.ReadUInt32LittleEndian(projectedRecords.AsSpan().Slice(offset + 4));
-                rawDepth[corner] = unchecked((ushort)separateDepths[offset / 8]);
+                rawDepth[corner] = NativePrecision53.RoundInteger(unchecked((ushort)separateDepths[offset / 8]) * (double)depthScale);
                 Dword(group.Type == 9 ? sxyOffset + 12 * corner : sxyOffset + 8 * corner, screens[corner]);
             }
             uint clip = depthAndClip.Aggregate(0u, (current, value) => current | value);

@@ -4,13 +4,16 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleScriptedMeshProjected(NativeBattleWaterExecutionFrame Frame, NativeBattleEffectArena DepthOwner, NativeBattleScriptedLightingMemory Lighting, NativeBattleScriptedColorRegisters Registers);
+public sealed record NativeBattleScriptedMeshProjected(NativeBattleWaterExecutionFrame Frame, NativeBattleEffectArena DepthOwner, NativeBattleScriptedLightingMemory Lighting, NativeBattleScriptedColorRegisters Registers)
+{
+    public uint DepthScaleBits1877DA8 { get; init; }
+}
 public sealed record NativeBattleScriptedMeshSubmission(NativeBattleWaterExecutionFrame Frame, NativeBattleGfGeometryBatch Packets, NativeBattleScriptedLightingMemory Lighting, NativeBattleScriptedColorRegisters Registers);
 
 /// <summary>The ordinary cinematic mesh path over actual current shape, work, depth and lighting owners.</summary>
 public static class NativeBattleScriptedMeshPreparation
 {
-    public static NativeBattleScriptedMeshProjected Project(NativeBattleWaterMeshPrepared prepared, int shapeExtent, NativeBattleCameraProjection projection, short dqa, int dqb, NativeBattleEffectArena depthOwner, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, NativeBattleScriptedMeshMorphServices? morphServices = null)
+    public static NativeBattleScriptedMeshProjected Project(NativeBattleWaterMeshPrepared prepared, int shapeExtent, NativeBattleCameraProjection projection, short dqa, int dqb, NativeBattleEffectArena depthOwner, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, NativeBattleScriptedMeshMorphServices? morphServices = null, uint? retainedDepthScaleBits = null)
     {
         NativeBattleWaterExecutionFrame frame = prepared.Frame;
         depthOwner.Validate();
@@ -23,10 +26,12 @@ public static class NativeBattleScriptedMeshPreparation
         {
             throw new NotSupportedException("Native cinematic mesh requires its actual positive vertex count and nonnegative normal extent.");
         }
-        if ((ReadSlot(frame, 0x4C, 1)[0] & 2) != 0 || (frame.ReadTemporaryDword(0x40) | frame.ReadTemporaryDword(0x44) | frame.ReadTemporaryDword(0x48)) != 0)
-        {
-            throw new NotSupportedException("Native cinematic alternate clipping and extra floating scale require their selected current mesh branch.");
-        }
+        bool scaled = (frame.ReadTemporaryDword(0x40) | frame.ReadTemporaryDword(0x44) | frame.ReadTemporaryDword(0x48)) != 0;
+        bool alternate = !scaled && (ReadSlot(frame, 0x4C, 1)[0] & 2) != 0;
+        uint depthScaleBits = scaled ? BitConverter.SingleToUInt32Bits((float)(4096d / unchecked((int)frame.ReadTemporaryDword(0xC0)))) : alternate ? retainedDepthScaleBits ?? throw new NotSupportedException("Native alternate mesh projection requires its retained depth scale FLOAT1877DA8.") : 0x3F800000u;
+        int scaleX = scaled ? unchecked((int)frame.ReadTemporaryDword(0x40)) : 0;
+        int scaleY = scaled ? unchecked((int)frame.ReadTemporaryDword(0x44)) : 0;
+        int scaleZ = scaled ? unchecked((int)frame.ReadTemporaryDword(0x48)) : 0;
         uint source = unchecked(shape + Dword(shape + 0x14));
         uint normalSource = unchecked(shape + Dword(shape + 0x1C));
         RequireShape(shape, shapeExtent, source, checked(vertices * 8));
@@ -67,6 +72,10 @@ public static class NativeBattleScriptedMeshPreparation
         {
             byte[] raw = frame.Arena.Read(ArenaOffset(unchecked(source + (uint)(index * 8)), 6), 6);
             NativeBattleVector point = Vector(raw);
+            if (scaled)
+            {
+                point = new(unchecked((short)(unchecked(point.X * scaleX) >> 12)), unchecked((short)(unchecked(point.Y * scaleY) >> 12)), unchecked((short)(unchecked(point.Z * scaleZ) >> 12)));
+            }
             NativeBattleModuleDepthCueVertex result = NativeBattleModuleProjection.ProjectWithCue45FAA0(prepared.Matrix, point, projection, dqa, dqb);
             NativeBattleModuleProjectedVertex projected = result.Projected;
             uint mode = frame.ReadTemporaryDword(0x90) & 0x60;
@@ -74,7 +83,24 @@ public static class NativeBattleScriptedMeshPreparation
             int bucket = mode == 0 ? projected.Depth >> 2 : (mode & 0x20) != 0 ? bias : unchecked((projected.Depth >> 2) + bias);
             byte[] record = new byte[8];
             BinaryPrimitives.WriteUInt32LittleEndian(record, projected.Screen);
-            BinaryPrimitives.WriteUInt32LittleEndian(record.AsSpan(4), unchecked(projected.Flags << 4));
+            uint shiftedFlags = unchecked(projected.Flags << 4);
+            if (alternate)
+            {
+                int x = unchecked((short)projected.Screen);
+                int y = unchecked((short)(projected.Screen >> 16));
+                ushort clipBits = (ushort)((projected.Flags & 0x20000) != 0 ? 0x10 : 0);
+                clipBits |= (ushort)(x < 0 ? 8 : x >= 2560 ? 2 : 0);
+                clipBits |= (ushort)(y < 0 ? 4 : y >= 1792 ? 1 : 0);
+                BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(6), clipBits);
+            }
+            else
+            {
+                BinaryPrimitives.WriteUInt32LittleEndian(record.AsSpan(4), shiftedFlags);
+            }
+            if (scaled)
+            {
+                scaleX = unchecked((int)shiftedFlags);
+            }
             BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(4), unchecked((ushort)bucket));
             frame = frame with { Arena = frame.Arena.Write(ArenaOffset(unchecked(work + (uint)(index * 8)), 8), record).Write(ArenaOffset(unchecked(cueWork + (uint)(index * 8)), 4), BitConverter.GetBytes(result.Cue)) };
             depthOwner = depthOwner.Write(index * 4, BitConverter.GetBytes((uint)projected.Depth));
@@ -100,7 +126,7 @@ public static class NativeBattleScriptedMeshPreparation
                 frame = frame with { Arena = frame.Arena.Write(ArenaOffset(unchecked(normalWork + (uint)(index * 8)), 4), BitConverter.GetBytes(color)) };
             }
         }
-        return new(frame, depthOwner, lighting, registers);
+        return new(frame, depthOwner, lighting, registers) { DepthScaleBits1877DA8 = depthScaleBits };
 
         uint Dword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(address, 4), 4));
     }
@@ -159,7 +185,7 @@ public static class NativeBattleScriptedMeshPreparation
             }
             int expectedStride = type switch
             {
-                7 or 8 => 20,
+                2 or 7 or 8 => 20,
                 9 or 12 => 28,
                 17 or 18 => 24,
                 19 => 36,
@@ -186,7 +212,7 @@ public static class NativeBattleScriptedMeshPreparation
             RequireShape(shape, shapeExtent, cursor, checked(faces * stride));
             frame = frame.WriteTemporaryDword(0x70, unchecked((uint)(int)faces)).WriteTemporaryDword(0x6C, cursor).WriteTemporaryDword(0x58, next);
             NativeBattleWaterMeshGroup group = new(type, faces, frame.Arena.Read(ArenaOffset(cursor, faces * stride), faces * stride).ToImmutableArray());
-            NativeBattleScriptedMeshSubmission result = NativeBattleScriptedMeshPackets.EmitSelected(frame, group, handler, shapeExtent, records, depths, frame.ReadTemporaryDword(0x60), lighting, registers, resolveActualOtBucket);
+            NativeBattleScriptedMeshSubmission result = NativeBattleScriptedMeshPackets.EmitSelected(frame, group, handler, shapeExtent, records, depths, frame.ReadTemporaryDword(0x60), lighting, registers, resolveActualOtBucket, BitConverter.UInt32BitsToSingle(projected.DepthScaleBits1877DA8));
             foreach (NativeBattleGfGeometryAttempt attempt in result.Packets.Attempts)
             {
                 attempts.Add(attempt with { ByteOffsetRelative = checked(attempt.ByteOffsetRelative + allocated) });
