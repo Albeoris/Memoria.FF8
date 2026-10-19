@@ -13,6 +13,7 @@ public sealed class QuickSaveStoreTests : IDisposable
         Assert.Empty(store.ReadQuickEntries());
         Assert.Equal("quick.json", Path.GetFileName(store.GetPath(0)));
         Assert.Equal("Empty", store.ReadEntries(true)[0].Details);
+        Assert.Equal(Enumerable.Range(1, 100), store.ReadEntries(true).Select(entry => entry.Slot));
         for (int value = 1; value <= 11; value++)
         {
             Save(store, value);
@@ -24,7 +25,7 @@ public sealed class QuickSaveStoreTests : IDisposable
         Assert.Equal(11, store.Load(0).X);
         Assert.All(entries.Skip(1), entry => Assert.True(entry.Slot < 0));
         Assert.Equal(entries.Select(entry => entry.SavedAt).OrderByDescending(savedAt => savedAt), entries.Select(entry => entry.SavedAt));
-        Assert.Equal(101, store.ReadEntries(true).Count);
+        Assert.Equal(109, store.ReadEntries(true).Count);
         Assert.Equal(entries[0], store.ReadEntries(true)[0]);
         Assert.Equal(100, store.ReadEntries(false).Count);
         Assert.Equal(9, Directory.GetFiles(Path.Combine(directory, "saves"), "*.json").Length);

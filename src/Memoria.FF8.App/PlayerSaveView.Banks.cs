@@ -2,21 +2,21 @@ using Memoria.FF8.Ui;
 
 namespace Memoria.FF8;
 
-internal sealed partial class RecreateGame
+internal sealed partial class PlayerSaveView
 {
-    internal static UiGrid BuildPlayerSaveBanks(int selectedBank)
+    internal static UiGrid BuildBanks(int selectedBank, bool quick = false)
     {
-        UiGrid banks = new() { Columns = 3, Rows = 1, Gap = 6 };
-        for (int bank = 0; bank < PlayerSaveStore.BankCount; bank++)
+        UiGrid banks = new() { Columns = quick ? 1 : 3, Rows = 1, Gap = 6 };
+        for (int bank = 0; bank < (quick ? 1 : PlayerSaveStore.BankCount); bank++)
         {
             UiButton tab = new() { Id = "save-bank-" + bank, GridColumn = bank, DrawBackground = false, HighlightSelection = false, PointerSize = 0 };
-            tab.Children.Add(new SaveBankPlaque(bank, bank == selectedBank));
+            tab.Children.Add(new SaveBankPlaque(bank, bank == selectedBank, quick));
             banks.Children.Add(tab);
         }
         return banks;
     }
 
-    private sealed class SaveBankPlaque(int bank, bool active) : UiElement
+    private sealed class SaveBankPlaque(int bank, bool active, bool quick) : UiElement
     {
         public override UiElement? HitTest(float x, float y)
         {
@@ -43,7 +43,7 @@ internal sealed partial class RecreateGame
             UiRect label = new(textLeft, Bounds.Y + 7, Math.Max(0, Bounds.Right - textLeft - 10), 31);
             canvas.Text(bank == 0 ? "Memoria" : "Original", 24, label, foreground);
             UiRect capacity = new(textLeft, Bounds.Y + 37, label.Width, 23);
-            canvas.Text((active ? "ACTIVE  ·  " : "") + PlayerSaveStore.GetBankSlotCount(bank) + " slots", 15, capacity, foreground);
+            canvas.Text((active ? "ACTIVE  ·  " : "") + (quick ? "Quick saves" : PlayerSaveStore.GetBankSlotCount(bank) + " slots"), 15, capacity, foreground);
             if (active)
             {
                 canvas.Fill(new UiRect(Bounds.X + 4, Bounds.Bottom - 6, Bounds.Width - 8, 3), new UiColor(222, 228, 239));

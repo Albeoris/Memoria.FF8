@@ -153,10 +153,11 @@ public sealed class PlayerSaveTests : IDisposable
         File.WriteAllText(store.GetPath(1), "{ invalid json");
         File.WriteAllText(store.GetPath(2), "{\"Version\":999}");
         IReadOnlyList<PlayerSaveEntry> entries = store.ReadEntries(true);
-        Assert.Equal("Empty", entries[0].Details);
-        Assert.False(entries[1].CanLoad);
-        Assert.StartsWith("Unavailable:", entries[1].Details);
-        Assert.False(entries[2].CanLoad);
+        Assert.Equal(100, entries.Count);
+        Assert.DoesNotContain(entries, entry => entry.Slot <= 0);
+        Assert.StartsWith("Unavailable:", entries.Single(entry => entry.Slot == 1).Details);
+        Assert.False(entries.Single(entry => entry.Slot == 2).CanLoad);
+        Assert.Equal("Empty", entries.Single(entry => entry.Slot == 3).Details);
         Assert.Throws<FileNotFoundException>(() => store.Load(0));
         Assert.Throws<System.Text.Json.JsonException>(() => store.Load(1));
         var conflicting = new PlayerSaveStore(store.GetPath(1), Path.GetDirectoryName(store.GetPath(1)));
@@ -203,6 +204,7 @@ public sealed class PlayerSaveTests : IDisposable
         Assert.Equal("This slot is empty.", menu.Message);
         store.Save(0, new GameSession(new GameState { Scene = SceneKind.Field }));
         menu.Open(PlayerSaveMenuMode.Load);
+        menu.SelectSlot(0);
         menu.Update(Confirm(), _ => throw new InvalidOperationException(), _ => throw new InvalidDataException("Invalid VM continuation"));
         Assert.True(menu.IsOpen);
         Assert.Contains("Invalid VM continuation", menu.Message);
@@ -291,15 +293,15 @@ public sealed class PlayerSaveTests : IDisposable
         menu.Close();
 
         menu.Open(PlayerSaveMenuMode.Load);
-        Assert.Equal(0, menu.SelectedSlot);
-        Assert.Equal(0, menu.QuickEntry!.Slot);
+        Assert.Equal(1, menu.SelectedSlot);
+        Assert.Equal(new[] { 1, 2, 3, 4, 5 }, menu.VisibleEntries.Select(entry => entry.Slot));
         Navigate(menu, new InputFrame(0, 0, false, false, false, false, MenuHorizontal: 1));
         Navigate(menu, new InputFrame(0, 0, false, false, false, false, MenuPage: 1));
         Navigate(menu, new InputFrame(0, 0, false, false, false, false, MenuVertical: 1));
         Assert.Equal((1, 1, 107), (menu.Bank, menu.Page, menu.SelectedSlot));
         menu.Open(PlayerSaveMenuMode.Save);
         Assert.Equal((1, 5, 130), (menu.Bank, menu.Page, menu.SelectedSlot));
-        Assert.Null(menu.QuickEntry);
+        Assert.All(menu.Entries, entry => Assert.True(entry.Slot > 100));
         menu.Open(PlayerSaveMenuMode.Load);
         Assert.Equal((1, 1, 107), (menu.Bank, menu.Page, menu.SelectedSlot));
     }
@@ -336,7 +338,7 @@ public sealed class PlayerSaveTests : IDisposable
         menu.Update(new InputFrame(0, 0, false, false, false, true), slot => store.Save(slot, session), _ => throw new InvalidOperationException());
         Assert.True(menu.IsOpen);
         Assert.Equal("Quick saved.", menu.Message);
-        Assert.True(menu.QuickEntry!.CanLoad);
+        Assert.True(Assert.Single(menu.Entries, entry => entry.Slot == 0).CanLoad);
         Assert.Equal(42, store.Load(0).X);
         menu.Update(new InputFrame(0, 0, false, false, false, false, QuickLoad: true), _ => throw new InvalidOperationException(), _ => throw new InvalidDataException("Invalid VM continuation"));
         Assert.True(menu.IsOpen);

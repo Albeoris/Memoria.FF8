@@ -182,6 +182,7 @@ public sealed class UiLabel : UiElement
     public float FontSize { get; set; } = 16;
     public bool Muted { get; set; }
     public UiColor? Color { get; set; }
+    public UiAlignment VerticalTextAlignment { get; set; } = UiAlignment.Start;
 
     public override UiSize Measure(UiSize available)
     {
@@ -191,7 +192,15 @@ public sealed class UiLabel : UiElement
 
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
     {
-        canvas.Text(Text, FontSize, Bounds, Muted || !Enabled ? theme.Muted : Color ?? theme.Foreground);
+        UiColor color = Muted || !Enabled ? theme.Muted : Color ?? theme.Foreground;
+        if (VerticalTextAlignment == UiAlignment.Start)
+        {
+            canvas.Text(Text, FontSize, Bounds, color);
+        }
+        else
+        {
+            canvas.Text(Text, FontSize, Bounds, color, VerticalTextAlignment);
+        }
     }
 }
 

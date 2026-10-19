@@ -85,7 +85,7 @@ internal static class MenuPreview
         mods.CommitPending();
         if (screen.StartsWith("player-save", StringComparison.Ordinal))
         {
-            view = BuildPlayerSavePreview(screen);
+            view = BuildPlayerSavePreview(screen, statePath);
         }
         else if (screen == "native-tutorial")
         {
@@ -195,20 +195,42 @@ internal static class MenuPreview
         return 0;
     }
 
-    private static UiView BuildPlayerSavePreview(string screen)
+    private static UiView BuildPlayerSavePreview(string screen, string? statePath)
     {
         string directory = Path.Combine(Path.GetTempPath(), "Memoria.FF8-save-preview-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         try
         {
             PlayerSaveStore store = new(Path.Combine(directory, "checkpoint.json"), Path.Combine(directory, "memoria"), _ => "Balamb Garden", directory);
-            store.Save(1, new GameSession(new GameState { Scene = SceneKind.Field, FieldId = 165, Playtime = new NativePlaytimeState(3723, 0, 0), ExamTimer = NativeExamTimerState.FromColdProcess() }));
+            GameState state = statePath is null ? new GameState { Scene = SceneKind.Field, FieldId = 165, Playtime = new NativePlaytimeState(3723, 0, 0), ExamTimer = NativeExamTimerState.FromColdProcess() } : GameSession.Load(statePath);
+            store.Save(1, new GameSession(state));
+            if (screen is "player-save-quick-load" or "player-save-mixed")
+            {
+                for (int index = 0; index < 7; index++)
+                {
+                    store.Save(0, new GameSession(statePath is null ? state with { Playtime = new NativePlaytimeState((uint)(3723 + index * 60), 0, 0) } : state));
+                }
+            }
             PlayerSaveMenu menu = new(store);
             menu.Open(PlayerSaveMenuMode.Load);
             menu.SelectSlot(1);
             switch (screen)
             {
                 case "player-save":
+                    break;
+                case "player-save-manual":
+                    menu.Open(PlayerSaveMenuMode.Save);
+                    break;
+                case "player-save-quick-load":
+                    menu.Open(PlayerSaveMenuMode.QuickLoad);
+                    break;
+                case "player-save-quick-save":
+                    menu.Open(PlayerSaveMenuMode.QuickSave);
+                    break;
+                case "player-save-mixed":
+                    store.Save(2, new GameSession(statePath is null ? state with { Playtime = new NativePlaytimeState(4200, 0, 0) } : state));
+                    menu = new PlayerSaveMenu(store);
+                    menu.Open(PlayerSaveMenuMode.Load);
                     break;
                 case "player-save-original-i":
                     menu.SelectBank(1);
@@ -222,7 +244,7 @@ internal static class MenuPreview
                 default:
                     throw new ArgumentException($"Unknown player save preview '{screen}'.");
             }
-            return RecreateGame.BuildPlayerSaveView(menu, "Card / Details: Transfer", "Left / Right: Bank    Page Up / Down: Page");
+            return PlayerSaveView.Build(menu, "Card / Details: Transfer", "Left / Right: Bank    Page Up / Down: Page");
         }
         finally
         {

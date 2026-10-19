@@ -1,5 +1,6 @@
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -70,14 +71,16 @@ public sealed class PlayerSaveMenuTests : IDisposable
         Assert.Equal(new[] { MenuSound.Cancel }, sounds);
         store.Save(0, new GameSession(new GameState { Scene = SceneKind.Field }));
         menu.Open(PlayerSaveMenuMode.Load);
+        menu.SelectSlot(0);
+        sounds.Clear();
         menu.Update(Confirm(), _ => Assert.Fail("Unexpected save."), _ => throw new InvalidDataException("Unavailable test save."));
         Assert.True(menu.IsOpen);
-        Assert.Equal(new[] { MenuSound.Cancel, MenuSound.Cancel }, sounds);
+        Assert.Equal(new[] { MenuSound.Cancel }, sounds);
         int loaded = -1;
         menu.Update(Confirm(), _ => Assert.Fail("Unexpected save."), slot => loaded = slot);
         Assert.Equal(0, loaded);
         Assert.False(menu.IsOpen);
-        Assert.Equal(new[] { MenuSound.Cancel, MenuSound.Cancel, MenuSound.Confirm }, sounds);
+        Assert.Equal(new[] { MenuSound.Cancel, MenuSound.Confirm }, sounds);
     }
 
     [Fact]
@@ -114,10 +117,10 @@ public sealed class PlayerSaveMenuTests : IDisposable
         menu.SelectBank(1);
         Assert.Equal(107, menu.SelectedSlot);
         menu.Open(PlayerSaveMenuMode.Load);
-        Assert.Equal(0, menu.SelectedSlot);
-        Assert.NotNull(menu.QuickEntry);
+        Assert.Equal(1, menu.SelectedSlot);
+        Assert.Equal(100, menu.Entries.Count);
         menu.SelectBank(1);
-        Assert.Null(menu.QuickEntry);
+        Assert.All(menu.Entries, entry => Assert.True(entry.Slot > 100));
         Assert.Equal(101, menu.SelectedSlot);
         menu.Open(PlayerSaveMenuMode.Save);
         Assert.Equal((1, 107), (menu.Bank, menu.SelectedSlot));
@@ -166,7 +169,7 @@ public sealed class PlayerSaveMenuTests : IDisposable
     }
 
     [Fact]
-    public void PinnedQuickSnapshotCanCopyToSecondOriginalBankWithoutBeingReplacedByQuickSave()
+    public void SelectedQuickSnapshotCanCopyToSecondOriginalBankWithoutBeingReplacedByQuickSave()
     {
         PlayerSaveMenu menu = CreateMenu(out PlayerSaveStore store, originalDirectory: true);
         store.Save(0, new GameSession(new GameState { Scene = SceneKind.Field, X = 10 }));
@@ -183,7 +186,7 @@ public sealed class PlayerSaveMenuTests : IDisposable
         menu.Update(Confirm(), UnexpectedSave, UnexpectedLoad, (from, to) => copied = (from, to));
         Assert.Equal((0, 160), copied);
         Assert.Equal((0, 0), (menu.Bank, menu.SelectedSlot));
-        Assert.NotNull(menu.QuickEntry);
+        Assert.Contains(menu.Entries, entry => entry.Slot == 0 && entry.CanLoad);
         Assert.Equal(source, File.ReadAllBytes(store.GetPath(0)));
     }
 
@@ -197,6 +200,8 @@ public sealed class PlayerSaveMenuTests : IDisposable
         menu.SelectSlot(7);
         sounds.Clear();
         menu.Update(Card(), UnexpectedSave, UnexpectedLoad);
+        menu.SelectSlot(107);
+        sounds.Clear();
         menu.Update(Confirm(), UnexpectedSave, UnexpectedLoad, (_, _) => Assert.Fail("Overwrite requires acceptance."));
         Assert.True(menu.ConfirmOverwrite);
         menu.Update(Cancel(), UnexpectedSave, UnexpectedLoad);
@@ -205,11 +210,11 @@ public sealed class PlayerSaveMenuTests : IDisposable
         menu.Update(Cancel(), UnexpectedSave, UnexpectedLoad);
         Assert.True(menu.IsOpen);
         Assert.False(menu.IsTransferring);
-        Assert.Equal((0, 1, 7), (menu.Bank, menu.Page, menu.SelectedSlot));
+        Assert.Equal((0, 0, 7), (menu.Bank, menu.Page, menu.SelectedSlot));
         menu.Update(Cancel(), UnexpectedSave, UnexpectedLoad);
         Assert.False(menu.IsOpen);
         Assert.Equal("occupied destination", File.ReadAllText(store.GetPath(107)));
-        Assert.Equal(new[] { MenuSound.Confirm, MenuSound.Confirm, MenuSound.Cancel, MenuSound.Cancel, MenuSound.Cancel }, sounds);
+        Assert.Equal(new[] { MenuSound.Confirm, MenuSound.Cancel, MenuSound.Cancel, MenuSound.Cancel }, sounds);
     }
 
     [Fact]
@@ -276,7 +281,8 @@ public sealed class PlayerSaveMenuTests : IDisposable
         Assert.True(menu.IsTransferring);
         Assert.Equal(145, menu.TransferSource);
         Assert.Equal(0, menu.Bank);
-        Assert.Null(menu.QuickEntry);
+        Assert.Equal(100, menu.Entries.Count);
+        Assert.All(menu.Entries, entry => Assert.True(entry.Slot > 0));
         Assert.NotEqual(0, menu.SelectedSlot);
         Assert.False(menu.SelectBank(1));
         menu.Update(Cancel(), UnexpectedSave, UnexpectedLoad);
@@ -293,6 +299,105 @@ public sealed class PlayerSaveMenuTests : IDisposable
         Assert.False(menu.IsTransferring);
         Assert.False(menu.SelectBank(1));
         Assert.Equal(0, menu.SelectedSlot);
+    }
+
+    [Fact]
+    public void LoadPagesMixEveryQuickSnapshotWithManualSavesInDescendingTimeOrder()
+    {
+        PlayerSaveMenu menu = CreateMenu(out PlayerSaveStore store);
+        DateTime savedAt = new(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        for (int index = 0; index < 6; index++)
+        {
+            store.Save(0, new GameSession(new GameState { Scene = SceneKind.Field, X = index }));
+            File.SetLastWriteTimeUtc(store.GetPath(0), savedAt.AddMinutes(index * 2));
+        }
+        store.Save(10, new GameSession(new GameState { Scene = SceneKind.Field, X = 101 }));
+        File.SetLastWriteTimeUtc(store.GetPath(10), savedAt.AddMinutes(3));
+        store.Save(20, new GameSession(new GameState { Scene = SceneKind.Field, X = 102 }));
+        File.SetLastWriteTimeUtc(store.GetPath(20), savedAt.AddMinutes(9));
+        menu.Open(PlayerSaveMenuMode.Load);
+        Assert.Equal(106, menu.Entries.Count);
+        Assert.Equal(22, menu.PageCount);
+        Assert.Equal(new[] { 5f, 102f, 4f, 3f, 2f, 101f, 1f, 0f }, menu.Entries.Take(8).Select(entry => store.Load(entry.Slot).X));
+        Assert.All(menu.Entries.Skip(8), entry => Assert.Null(entry.SavedAt));
+        Navigate(menu, page: 1);
+        Navigate(menu, vertical: 1);
+        int selected = menu.SelectedSlot;
+        Assert.True(selected < 0);
+        Assert.Equal((1, 6), (menu.Page, menu.Selection));
+        Assert.Equal(1, store.Load(selected).X);
+        float? loadedX = null;
+        menu.Update(Confirm(), UnexpectedSave, slot => loadedX = store.Load(slot).X);
+        Assert.Equal(1f, loadedX);
+        Assert.False(menu.IsOpen);
+        menu.Open(PlayerSaveMenuMode.Load);
+        Assert.Equal((1, selected), (menu.Page, menu.SelectedSlot));
+        for (int page = 1; page < 21; page++)
+        {
+            menu.RequestPage(1);
+        }
+        Assert.Equal(21, menu.Page);
+        Assert.Single(menu.VisibleEntries);
+        Navigate(menu, vertical: 1);
+        Assert.Equal(105, menu.Selection);
+    }
+
+    [Fact]
+    public void TransferButtonsRestoreTheExactOlderQuickSnapshotAfterCancellation()
+    {
+        PlayerSaveMenu menu = CreateMenu(out PlayerSaveStore store, originalDirectory: true);
+        DateTime savedAt = new(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        for (int index = 0; index < 8; index++)
+        {
+            store.Save(0, new GameSession(new GameState { Scene = SceneKind.Field, X = index }));
+            File.SetLastWriteTimeUtc(store.GetPath(0), savedAt.AddMinutes(index));
+        }
+        menu.Open(PlayerSaveMenuMode.Load);
+        Click(menu, "save-next");
+        Click(menu, "save-slot-" + menu.Entries[6].Slot);
+        int selected = menu.SelectedSlot;
+        Assert.True(selected < 0);
+        Assert.Equal(1, store.Load(selected).X);
+        Click(menu, "save-transfer");
+        Assert.True(menu.IsTransferring);
+        Assert.Equal(selected, menu.TransferSource);
+        Assert.Equal(1, menu.Bank);
+        menu.SelectBank(2);
+        menu.SelectSlot(160);
+        Click(menu, "save-transfer");
+        Assert.False(menu.IsTransferring);
+        Assert.Equal((0, 1, 6, selected), (menu.Bank, menu.Page, menu.Selection, menu.SelectedSlot));
+        Click(menu, "save-transfer");
+        (int Source, int Destination)? copied = null;
+        menu.SelectBank(2);
+        menu.SelectSlot(160);
+        Click(menu, "save-confirm");
+        menu.Update(default, UnexpectedSave, UnexpectedLoad, (source, destination) => copied = (source, destination));
+        Assert.Equal((selected, 160), copied);
+        Assert.False(menu.IsTransferring);
+        Assert.Equal((0, 1, selected), (menu.Bank, menu.Page, menu.SelectedSlot));
+    }
+
+    [Fact]
+    public void ClickingTheActiveBankRetainsTheSelectedSavePointer()
+    {
+        PlayerSaveMenu menu = CreateMenu(out _);
+        menu.Open(PlayerSaveMenuMode.Save);
+        menu.SelectSlot(3);
+        UiView view = PlayerSaveView.Build(menu, "Transfer", "Navigate");
+        UiButton bank = Assert.Single(PlayerSaveView.FindButtons(view.Root), button => button.Id == "save-bank-0");
+        view.Pointer(bank.Bounds.X + bank.Bounds.Width / 2, bank.Bounds.Y + bank.Bounds.Height / 2, true);
+        Assert.Equal(3, menu.SelectedSlot);
+        Assert.Equal("save-slot-3", view.FocusedElement?.Id);
+    }
+
+    private static void Click(PlayerSaveMenu menu, string id)
+    {
+        UiView view = PlayerSaveView.Build(menu, "Transfer", "Navigate");
+        Assert.IsType<PlayerSaveView>(view.Root);
+        UiButton button = Assert.Single(PlayerSaveView.FindButtons(view.Root), button => button.Id == id);
+        Assert.True(button.Enabled);
+        view.Pointer(button.Bounds.X + button.Bounds.Width / 2, button.Bounds.Y + button.Bounds.Height / 2, true);
     }
 
     private static void UnexpectedSave(int slot)

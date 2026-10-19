@@ -6,8 +6,11 @@ namespace Memoria.FF8;
 
 internal sealed record PlayerSaveEntry(int Slot, string Label, DateTime? SavedAt, string Details, bool CanLoad)
 {
+    public DateTime? SavedAtUtc { get; init; }
+    public DateTimeOffset? SavedLocalAt { get; init; }
     public TimeSpan? PlayTime { get; init; }
     public IReadOnlyList<int> PartyPortraits { get; init; } = [];
+    public string SavedAtText => (SavedLocalAt?.DateTime ?? SavedAt)?.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ?? "";
     public string PlayTimeText => PlayTime is { } time ? FormattableString.Invariant($"{(long)time.TotalHours:00}:{time.Minutes:00}:{time.Seconds:00}") : "--:--:--";
 }
 
@@ -174,7 +177,7 @@ internal sealed partial class PlayerSaveStore
         int firstSlot = GetFirstSlot(bank);
         if (includeQuick && bank == 0)
         {
-            entries.Add(ReadQuickEntries().FirstOrDefault() ?? new PlayerSaveEntry(0, GetLabel(0), null, "Empty", false));
+            entries.AddRange(ReadQuickEntries());
         }
         for (int slot = firstSlot; slot < firstSlot + GetBankSlotCount(bank); slot++)
         {
@@ -187,12 +190,13 @@ internal sealed partial class PlayerSaveStore
                 entries.Add(ReadEntry(slot, bank == 0 ? Path.Combine(directory, $"slot-{slot:00}.json") : GetOriginalPath(slot), null));
             }
         }
-        return entries;
+        return includeQuick && bank == 0 ? entries.OrderByDescending(entry => entry.SavedAtUtc.HasValue).ThenByDescending(entry => entry.SavedAtUtc).ThenBy(entry => entry.Slot > 0 ? entry.Slot : 0).ToArray() : entries;
     }
 
     private PlayerSaveEntry ReadEntry(int slot, string path, DateTime? savedAt)
     {
         string label = GetLabel(slot);
+        DateTime? savedAtUtc = savedAt?.ToUniversalTime();
         try
         {
             ValidatePath(path);
@@ -203,14 +207,16 @@ internal sealed partial class PlayerSaveStore
                 return new PlayerSaveEntry(slot, label, null, "Empty", false);
             }
             savedAt ??= file.LastWriteTime;
+            savedAtUtc = file.LastWriteTimeUtc;
             if (entries.TryGetValue(path, out CachedSaveEntry? cached) && cached.Length == file.Length && cached.ModifiedUtc == file.LastWriteTimeUtc)
             {
-                return cached.Entry with { Slot = slot, Label = label, SavedAt = savedAt };
+                return cached.Entry with { Slot = slot, Label = label, SavedAt = savedAt, SavedAtUtc = savedAtUtc };
             }
             PlayerSaveEntry entry;
+            SaveSummary? summary = null;
             try
             {
-                SaveSummary? summary = slot > MemoriaSlotCount ? ReadOriginalSummary(path) : GameSession.ReadSummary(path);
+                summary = slot > MemoriaSlotCount ? ReadOriginalSummary(path) : GameSession.ReadSummary(path);
                 GameState state = summary?.ToLocationState() ?? LoadPath(path);
                 if (state.Scene == SceneKind.Title)
                 {
@@ -220,20 +226,22 @@ internal sealed partial class PlayerSaveStore
                 NativePlaytimeState? playtime = summary?.Playtime ?? state.Playtime;
                 entry = new PlayerSaveEntry(slot, label, savedAt, location, true)
                 {
+                    SavedAtUtc = savedAtUtc,
+                    SavedLocalAt = summary?.SavedLocalAt,
                     PlayTime = playtime is not null ? TimeSpan.FromSeconds(playtime.Seconds) : null,
                     PartyPortraits = summary?.PartyPortraits ?? (state.CharacterVitals is { } vitals ? vitals.CombatParty.Where(row => row != 255).Select(row => (int)vitals.Records[row].CharacterId).ToArray() : [])
                 };
             }
             catch (Exception exception) when (IsUnavailable(exception))
             {
-                entry = new PlayerSaveEntry(slot, label, savedAt, "Unavailable: " + exception.Message, false);
+                entry = new PlayerSaveEntry(slot, label, savedAt, "Unavailable: " + exception.Message, false) { SavedAtUtc = savedAtUtc, SavedLocalAt = summary?.SavedLocalAt };
             }
             entries[path] = new CachedSaveEntry(file.Length, file.LastWriteTimeUtc, entry);
             return entry;
         }
         catch (Exception exception) when (IsUnavailable(exception))
         {
-            return new PlayerSaveEntry(slot, label, savedAt, "Unavailable: " + exception.Message, false);
+            return new PlayerSaveEntry(slot, label, savedAt, "Unavailable: " + exception.Message, false) { SavedAtUtc = savedAtUtc };
         }
     }
 

@@ -7,7 +7,8 @@ internal enum PlayerSaveMenuMode
 {
     Save,
     Load,
-    QuickLoad
+    QuickLoad,
+    QuickSave
 }
 
 internal sealed class PlayerSaveMenu
@@ -16,6 +17,8 @@ internal sealed class PlayerSaveMenu
     private readonly Dictionary<(PlayerSaveMenuMode Mode, int Bank), int> rememberedSlots = [];
     private readonly Dictionary<PlayerSaveMenuMode, int> rememberedBanks = [];
     private MenuCursor? transferSource;
+    private bool confirmRequested;
+    private bool cancelRequested;
     public const int EntriesPerPage = 5;
 
     public PlayerSaveMenu(PlayerSaveStore store)
@@ -29,11 +32,12 @@ internal sealed class PlayerSaveMenu
     public int Bank { get; private set; }
     public int Page { get; private set; }
     public int BankSlotCount => PlayerSaveStore.GetBankSlotCount(Bank);
-    public int PageCount => (BankSlotCount + EntriesPerPage - 1) / EntriesPerPage;
+    public int PageCount => Math.Max(1, (Entries.Count + EntriesPerPage - 1) / EntriesPerPage);
     public int SelectedSlot => Entries.Count == 0 ? 0 : Entries[Selection].Slot;
-    public PlayerSaveEntry? QuickEntry => Mode == PlayerSaveMenuMode.Load && Bank == 0 && !IsTransferring ? Entries.FirstOrDefault(entry => entry.Slot == 0) : null;
-    public int QuickPageCount => Math.Max(1, (Entries.Count + EntriesPerPage - 1) / EntriesPerPage);
-    public IReadOnlyList<PlayerSaveEntry> VisibleEntries => (Mode == PlayerSaveMenuMode.QuickLoad ? Entries : Entries.Where(entry => entry.Slot > 0)).Skip(Page * EntriesPerPage).Take(EntriesPerPage).ToArray();
+    public bool IsQuick => Mode is PlayerSaveMenuMode.QuickSave or PlayerSaveMenuMode.QuickLoad;
+    public bool IsSaving => Mode is PlayerSaveMenuMode.Save or PlayerSaveMenuMode.QuickSave;
+    public bool CanTransfer => !IsQuick && !IsTransferring && Entries.Count > 0 && Entries[Selection].CanLoad;
+    public IReadOnlyList<PlayerSaveEntry> VisibleEntries => Entries.Skip(Page * EntriesPerPage).Take(EntriesPerPage).ToArray();
     public bool ConfirmOverwrite { get; private set; }
     public bool IsTransferring => transferSource is not null;
     public int? TransferSource => transferSource?.Slot;
@@ -63,18 +67,20 @@ internal sealed class PlayerSaveMenu
         transferSource = null;
         ConfirmOverwrite = false;
         Message = null;
-        Bank = mode == PlayerSaveMenuMode.QuickLoad ? 0 : rememberedBanks.GetValueOrDefault(mode);
+        confirmRequested = false;
+        cancelRequested = false;
+        Bank = IsQuick ? 0 : rememberedBanks.GetValueOrDefault(mode);
         Page = 0;
         RefreshEntries();
-        if (mode == PlayerSaveMenuMode.QuickLoad)
+        if (IsQuick)
         {
             Selection = 0;
             Page = 0;
-            Message = Entries.Count == 0 ? "No quick saves." : null;
+            Message = Mode == PlayerSaveMenuMode.QuickLoad && Entries.Count == 0 ? "No quick saves." : null;
         }
         else
         {
-            SetSelectedSlot(rememberedSlots.GetValueOrDefault((mode, Bank), mode == PlayerSaveMenuMode.Load && Bank == 0 ? 0 : PlayerSaveStore.GetFirstSlot(Bank)));
+            SetSelectedSlot(rememberedSlots.GetValueOrDefault((mode, Bank), Entries.FirstOrDefault()?.Slot ?? PlayerSaveStore.GetFirstSlot(Bank)));
         }
         IsOpen = true;
     }
@@ -86,13 +92,15 @@ internal sealed class PlayerSaveMenu
             RememberCursor();
         }
         IsOpen = false;
+        confirmRequested = false;
+        cancelRequested = false;
         transferSource = null;
         ConfirmOverwrite = false;
     }
 
     public bool SelectBank(int bank)
     {
-        if (!IsOpen || Mode == PlayerSaveMenuMode.QuickLoad || bank == Bank)
+        if (!IsOpen || IsQuick || bank == Bank)
         {
             return false;
         }
@@ -122,18 +130,46 @@ internal sealed class PlayerSaveMenu
         {
             return;
         }
-        if (Mode == PlayerSaveMenuMode.QuickLoad)
-        {
-            Selection = Entries.ToList().FindIndex(entry => entry.Slot == slot);
-            Page = Selection / EntriesPerPage;
-        }
-        else
-        {
-            SetSelectedSlot(slot);
-        }
+        SetSelectedSlot(slot);
         ConfirmOverwrite = false;
         Message = IsTransferring ? TransferPrompt() : null;
         SoundRequested?.Invoke(MenuSound.Move);
+    }
+
+    public void RequestConfirm()
+    {
+        confirmRequested = IsOpen;
+    }
+
+    public void RequestCancel()
+    {
+        cancelRequested = IsOpen;
+    }
+
+    public void RequestPage(int direction)
+    {
+        if (IsOpen)
+        {
+            Navigate(new InputFrame(0, 0, false, false, false, false, MenuPage: Math.Sign(direction)));
+        }
+    }
+
+    public void RequestTransfer()
+    {
+        if (IsOpen && CanTransfer)
+        {
+            BeginTransfer();
+        }
+    }
+
+    public void CancelTransfer()
+    {
+        if (IsOpen && IsTransferring)
+        {
+            RestoreTransferSource();
+            Message = "Copy cancelled.";
+            SoundRequested?.Invoke(MenuSound.Cancel);
+        }
     }
 
     public void Update(InputFrame input, Action<int> save, Action<int> load, Action<int, int>? transfer = null)
@@ -142,6 +178,10 @@ internal sealed class PlayerSaveMenu
         {
             return;
         }
+        bool confirm = input.Confirm || confirmRequested;
+        bool cancel = input.Cancel || cancelRequested;
+        confirmRequested = false;
+        cancelRequested = false;
         if (IsTransferring && input.Save && !input.QuickLoad)
         {
             Message = "Finish or cancel copying before quick saving.";
@@ -161,7 +201,9 @@ internal sealed class PlayerSaveMenu
                 {
                     save(0);
                     Message = "Quick saved.";
+                    int selected = SelectedSlot;
                     RefreshEntries();
+                    SetSelectedSlot(selected);
                 }
                 SoundRequested?.Invoke(MenuSound.Confirm);
             }
@@ -171,7 +213,7 @@ internal sealed class PlayerSaveMenu
             }
             return;
         }
-        if (input.Cancel)
+        if (cancel)
         {
             SoundRequested?.Invoke(MenuSound.Cancel);
             if (ConfirmOverwrite)
@@ -190,7 +232,7 @@ internal sealed class PlayerSaveMenu
             }
             return;
         }
-        if (input.CardChallenge && Mode != PlayerSaveMenuMode.QuickLoad && !IsTransferring)
+        if (input.CardChallenge && !IsQuick && !IsTransferring)
         {
             BeginTransfer();
             return;
@@ -199,7 +241,7 @@ internal sealed class PlayerSaveMenu
         {
             Navigate(input);
         }
-        if (!input.Confirm)
+        if (!confirm)
         {
             return;
         }
@@ -210,14 +252,14 @@ internal sealed class PlayerSaveMenu
             return;
         }
         PlayerSaveEntry entry = Entries[Selection];
-        if (!IsTransferring && Mode != PlayerSaveMenuMode.Save && !entry.CanLoad)
+        if (!IsTransferring && !IsSaving && !entry.CanLoad)
         {
             RejectSource(entry);
             return;
         }
         try
         {
-            if ((IsTransferring || Mode == PlayerSaveMenuMode.Save) && File.Exists(store.GetPath(entry.Slot)) && !ConfirmOverwrite)
+            if ((IsTransferring || IsSaving && !IsQuick) && File.Exists(store.GetPath(entry.Slot)) && !ConfirmOverwrite)
             {
                 ConfirmOverwrite = true;
                 Message = $"Overwrite {entry.Label}?";
@@ -240,7 +282,7 @@ internal sealed class PlayerSaveMenu
             }
             else
             {
-                if (Mode == PlayerSaveMenuMode.Save)
+                if (IsSaving)
                 {
                     save(entry.Slot);
                 }
@@ -261,7 +303,7 @@ internal sealed class PlayerSaveMenu
 
     private void Navigate(InputFrame input)
     {
-        if (Mode != PlayerSaveMenuMode.QuickLoad && input.MenuHorizontal != 0)
+        if (!IsQuick && input.MenuHorizontal != 0)
         {
             ConfirmOverwrite = false;
             Message = IsTransferring ? TransferPrompt() : null;
@@ -269,33 +311,16 @@ internal sealed class PlayerSaveMenu
             return;
         }
         (int Page, int Selection) previous = (Page, Selection);
-        if (Mode == PlayerSaveMenuMode.QuickLoad)
-        {
-            int delta = input.MenuVertical != 0 ? Math.Sign(input.MenuVertical) : Math.Sign(input.MenuPage) * EntriesPerPage;
-            Selection = Math.Clamp(Selection + delta, 0, Math.Max(0, Entries.Count - 1));
-            Page = Selection / EntriesPerPage;
-        }
-        else if (input.MenuPage != 0)
+        if (input.MenuPage != 0)
         {
             int nextPage = Math.Clamp(Page + Math.Sign(input.MenuPage), 0, PageCount - 1);
-            int first = PlayerSaveStore.GetFirstSlot(Bank);
-            int row = SelectedSlot == 0 ? 0 : (SelectedSlot - first) % EntriesPerPage;
-            SetSelectedSlot(Math.Min(first + nextPage * EntriesPerPage + row, first + BankSlotCount - 1));
+            Selection = Math.Min(nextPage * EntriesPerPage + Selection % EntriesPerPage, Math.Max(0, Entries.Count - 1));
         }
         else
         {
-            int first = PlayerSaveStore.GetFirstSlot(Bank);
-            int last = first + BankSlotCount - 1;
-            int target = SelectedSlot == 0 ? first : SelectedSlot + Math.Sign(input.MenuVertical);
-            if (QuickEntry is not null && input.MenuVertical < 0 && SelectedSlot == first)
-            {
-                SetSelectedSlot(0);
-            }
-            else if (SelectedSlot != 0 || input.MenuVertical > 0)
-            {
-                SetSelectedSlot(Math.Clamp(target, first, last));
-            }
+            Selection = Math.Clamp(Selection + Math.Sign(input.MenuVertical), 0, Math.Max(0, Entries.Count - 1));
         }
+        Page = Selection / EntriesPerPage;
         ConfirmOverwrite = false;
         Message = IsTransferring ? TransferPrompt() : null;
         if (previous != (Page, Selection))
@@ -306,6 +331,10 @@ internal sealed class PlayerSaveMenu
 
     private void BeginTransfer()
     {
+        if (Entries.Count == 0)
+        {
+            return;
+        }
         PlayerSaveEntry entry = Entries[Selection];
         if (!entry.CanLoad)
         {
@@ -334,7 +363,7 @@ internal sealed class PlayerSaveMenu
                 SoundRequested?.Invoke(MenuSound.Cancel);
                 return false;
             }
-            int row = SelectedSlot <= 0 ? 0 : (SelectedSlot - PlayerSaveStore.GetFirstSlot(Bank)) % EntriesPerPage;
+            int row = Selection % EntriesPerPage;
             int page = Math.Min(Page, (PlayerSaveStore.GetBankSlotCount(bank) - 1) / EntriesPerPage);
             int slot = rememberedSlots.GetValueOrDefault((Mode, bank), PlayerSaveStore.GetFirstSlot(bank) + page * EntriesPerPage + row);
             IReadOnlyList<PlayerSaveEntry> nextEntries = store.ReadEntries(bank, Mode == PlayerSaveMenuMode.Load && !IsTransferring);
@@ -383,20 +412,18 @@ internal sealed class PlayerSaveMenu
 
     private void RefreshEntries()
     {
-        Entries = Mode == PlayerSaveMenuMode.QuickLoad ? store.ReadQuickEntries() : store.ReadEntries(Bank, Mode == PlayerSaveMenuMode.Load && !IsTransferring);
-        Selection = Math.Clamp(Selection, 0, Math.Max(0, Entries.Count - 1));
-        if (Mode == PlayerSaveMenuMode.QuickLoad)
+        Entries = Mode switch
         {
-            Page = Selection / EntriesPerPage;
-        }
+            PlayerSaveMenuMode.QuickLoad => store.ReadQuickEntries(),
+            PlayerSaveMenuMode.QuickSave => [new PlayerSaveEntry(0, "New Quick Save", null, "Create a rotating quick save.", false)],
+            _ => store.ReadEntries(Bank, Mode == PlayerSaveMenuMode.Load && !IsTransferring)
+        };
+        Selection = Math.Clamp(Selection, 0, Math.Max(0, Entries.Count - 1));
+        Page = Selection / EntriesPerPage;
     }
 
     private void SetSelectedSlot(int slot)
     {
-        if (slot == 0 && QuickEntry is null)
-        {
-            slot = PlayerSaveStore.GetFirstSlot(Bank);
-        }
         Selection = 0;
         for (int index = 0; index < Entries.Count; index++)
         {
@@ -406,12 +433,12 @@ internal sealed class PlayerSaveMenu
                 break;
             }
         }
-        Page = slot == 0 ? 0 : (SelectedSlot - PlayerSaveStore.GetFirstSlot(Bank)) / EntriesPerPage;
+        Page = Selection / EntriesPerPage;
     }
 
     private void RememberCursor()
     {
-        if (Mode != PlayerSaveMenuMode.QuickLoad && !IsTransferring)
+        if (!IsQuick && !IsTransferring)
         {
             rememberedSlots[(Mode, Bank)] = SelectedSlot;
             rememberedBanks[Mode] = Bank;

@@ -9,6 +9,22 @@ public sealed class SnapshotStorageTests : IDisposable
     private readonly string directory = Path.Combine(Path.GetTempPath(), "Memoria.FF8-save-format-" + Guid.NewGuid().ToString("N"));
 
     [Fact]
+    public void Compact_save_records_the_local_wall_time_and_original_offset_in_display_metadata()
+    {
+        DateTimeOffset before = DateTimeOffset.Now;
+        string path = CreateSave();
+        DateTimeOffset after = DateTimeOffset.Now;
+
+        SaveSummary summary = Assert.IsType<SaveSummary>(GameSession.ReadSummary(path));
+        DateTimeOffset timestamp = Assert.IsType<DateTimeOffset>(summary.SavedLocalAt);
+
+        Assert.InRange(timestamp.UtcDateTime, before.UtcDateTime, after.UtcDateTime);
+        Assert.Equal(TimeZoneInfo.Local.GetUtcOffset(timestamp), timestamp.Offset);
+        Assert.Equal(timestamp, GameSession.ReadSummary(path)!.SavedLocalAt);
+        Assert.Equal(SceneKind.Field, GameSession.Load(path).Scene);
+    }
+
+    [Fact]
     public void Compressed_snapshot_roundtrips_physical_memory_and_exposes_small_display_header()
     {
         Directory.CreateDirectory(directory);

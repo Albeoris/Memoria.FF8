@@ -11,7 +11,7 @@ public sealed class PlayerSaveBankLayoutTests
     [InlineData(2)]
     public void BankPlaquesAreDistinctClickableAndDrawTheTitleCrestAndRomanNumerals(int selectedBank)
     {
-        UiGrid banks = RecreateGame.BuildPlayerSaveBanks(selectedBank);
+        UiGrid banks = PlayerSaveView.BuildBanks(selectedBank);
         UiView view = new(banks);
         view.Resize(922, 72);
         UiButton[] buttons = banks.Children.OfType<UiButton>().ToArray();

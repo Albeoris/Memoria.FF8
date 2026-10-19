@@ -8,6 +8,8 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Small display data; loading a selected save still validates its complete state.</summary>
 public sealed record SaveSummary(SceneKind Scene, int FieldId, string FieldName, NativePlaytimeState? Playtime, int[] PartyPortraits, int? PlaceId, int? WorldX, int? WorldZ)
 {
+    public DateTimeOffset? SavedLocalAt { get; init; }
+
     public GameState ToLocationState()
     {
         return new GameState
@@ -41,7 +43,7 @@ internal static class SnapshotStorage
 
     internal static void Write(FileStream stream, GameState state, JsonSerializerOptions options)
     {
-        byte[] summary = JsonSerializer.SerializeToUtf8Bytes(SaveSummary.Capture(state), options);
+        byte[] summary = JsonSerializer.SerializeToUtf8Bytes(SaveSummary.Capture(state) with { SavedLocalAt = DateTimeOffset.Now }, options);
         if (summary.Length > MaximumSummarySize)
         {
             throw new InvalidDataException("Save display data exceeds its supported size.");

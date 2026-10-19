@@ -96,13 +96,11 @@ public sealed class PlayerSaveSummaryTests : IDisposable
         store.Save(1, session);
         string path = store.GetPath(1);
         DateTime timestamp = File.GetLastWriteTimeUtc(path);
-        long length = new FileInfo(path).Length;
         Assert.True(store.ReadEntries(false)[0].CanLoad);
 
         store.Save(1, session);
         File.SetLastWriteTimeUtc(path, timestamp);
 
-        Assert.Equal(length, new FileInfo(path).Length);
         Assert.True(store.ReadEntries(false)[0].CanLoad);
         Assert.Equal(2, resolutions);
     }
