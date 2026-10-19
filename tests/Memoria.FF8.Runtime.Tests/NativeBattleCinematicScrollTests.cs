@@ -84,7 +84,7 @@ public sealed class NativeBattleCinematicScrollTests
         Assert.Equal((uint)row, result.ReadTemporaryDword(0x70));
         Assert.Equal(2u, result.ReadTemporaryDword(0x78));
         Assert.Equal((uint)height, result.ReadTemporaryDword(0x7C));
-        Assert.Equal(0x1000D0u, result.ReadTemporaryDword(0xF0));
+        Assert.Equal(fixture.Resources.TextureProfile.PixelRectangleAddress + 22u * 8u, result.ReadTemporaryDword(0xF0));
         Assert.Equal(0xFBu, result.ReadTemporaryDword(0xF4));
         Assert.Equal(0x80u, result.ReadTemporaryDword(0xF8));
         Assert.Equal(Base + 0x5060, result.ReadTemporaryDword(0xFC));

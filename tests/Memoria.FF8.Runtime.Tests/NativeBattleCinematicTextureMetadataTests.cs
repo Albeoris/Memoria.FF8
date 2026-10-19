@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleCinematicTextureMetadataTests
 {
-    private const uint Static = 0x100000;
+    private const uint Static = 0x1874894;
     private const uint Arena = 0x20DFAB8;
     private const uint Manager = 0x2797690;
 
@@ -15,6 +15,7 @@ public sealed class NativeBattleCinematicTextureMetadataTests
     {
         NativeBattleCinematicResources resources = Resources();
         resources.Validate();
+        Assert.Equal(201, NativeBattleCinematicProfile.ForInitializationAddress(resources.TextureProfile.InitializationAddress).Effect);
         Assert.Equal((byte)9, resources.Source(22, false));
         Assert.Equal((byte)9, resources.Source(22, true));
         Assert.Equal((byte)127, resources.Source(21, false));
