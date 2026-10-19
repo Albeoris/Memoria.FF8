@@ -241,6 +241,22 @@ public sealed partial class BattleSession
         {
             return (memory.Arena ?? throw new NotSupportedException("Native retained effect packet alias requires its original arena.")).Read(reference.ByteOffset, count);
         }
+        if (reference.Bank == "243BE6C")
+        {
+            if (reference.Buffer != 0)
+            {
+                throw new InvalidDataException("Native Sticky Web packet banks share one contiguous physical owner.");
+            }
+            return (memory.StickyWeb153 ?? throw new NotSupportedException("Native Sticky Web packet alias requires its retained executable banks.")).Packets.Read(reference.ByteOffset, count);
+        }
+        if (reference.Bank == "2466638")
+        {
+            if (reference.Buffer != 0)
+            {
+                throw new InvalidDataException("Native Meltdown packet banks share one contiguous physical owner.");
+            }
+            return (memory.Meltdown148 ?? throw new NotSupportedException("Native Meltdown packet alias requires its retained executable banks.")).Packets.Read(reference.ByteOffset, count);
+        }
         if (reference.Bank == "2523C98")
         {
             if (reference.Buffer != 0)

@@ -393,8 +393,16 @@ public static partial class NativeBattleCinematicDispatch
         [(235, 0xA48620)] = 0xB30020,
         [(235, 0xA48630)] = 0xB30030,
         [(235, 0xA48660)] = 0xB30060,
+        [(234, 0xA4E600)] = 0xB2C780,
+        [(235, 0xA44FB0)] = 0xB2C780,
         [(234, 0xA4CF60)] = 0xB2B0E0,
         [(235, 0xA43910)] = 0xB2B0E0,
+        [(234, 0xA4EC80)] = 0xB2CE00,
+        [(234, 0xA4EDF0)] = 0xB2CF70,
+        [(234, 0xA51CF0)] = 0xB300A0,
+        [(235, 0xA45630)] = 0xB2CE00,
+        [(235, 0xA457A0)] = 0xB2CF70,
+        [(235, 0xA486A0)] = 0xB300A0,
     }.ToFrozenDictionary();
 
     private static readonly FrozenSet<uint> RegionalCanonicalHandlers = RegionalAliases.Values.ToFrozenSet();

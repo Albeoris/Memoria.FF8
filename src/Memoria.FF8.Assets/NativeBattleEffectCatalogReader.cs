@@ -158,9 +158,41 @@ public sealed partial class GameAssets
             {
                 binding = binding with { ShellResources = ReadNativeShellResources() };
             }
+            if (binding.Effect == 226)
+            {
+                binding = binding with { WhiteWind226Resources = ReadNativeWhiteWind226Resources() };
+            }
+            if (binding.Effect == 26)
+            {
+                binding = binding with { Clash26Resources = ReadNativeClash26Resources() };
+            }
+            if (binding.Effect == 153)
+            {
+                binding = binding with { StickyWeb153Resources = ReadNativeStickyWeb153Resources() };
+            }
+            if (binding.Effect == 13)
+            {
+                binding = binding with { DarkMist13Resources = ReadNativeDarkMist13Resources() };
+            }
+            if (binding.Effect == 113)
+            {
+                binding = binding with { BadBreath113Resources = ReadNativeBadBreath113Resources() };
+            }
+            if (binding.Effect == 148)
+            {
+                binding = binding with { MeltdownResources = ReadNativeMeltdownResources() };
+            }
+            if (binding.Effect == 111)
+            {
+                binding = binding with { AuraResources = ReadNativeAuraResources() };
+            }
             if (binding.Effect == 168)
             {
                 binding = binding with { SleepingGas168Resources = ReadNativeSleepingGas168Resources() };
+            }
+            if (binding.Effect == 169)
+            {
+                binding = binding with { GastricJuice169Resources = ReadNativeGastricJuice169Resources() };
             }
             if (binding.Effect == 106)
             {

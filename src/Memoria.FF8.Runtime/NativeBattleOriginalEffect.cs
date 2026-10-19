@@ -28,6 +28,8 @@ public sealed record NativeBattleOriginalEffectState([property: JsonRequired] us
     public NativeBattleQuezacotlState? Quezacotl { get; init; }
     public NativeBattleCureState? Cure { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleClash26State? Clash26 { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleLifeState? Life { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleDoubleState? Double { get; init; }

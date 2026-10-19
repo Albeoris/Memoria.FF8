@@ -188,6 +188,16 @@ public static class NativeBattleWaterParticles
                 }
                 next = 4;
                 break;
+            case 0x0E:
+                short aimSelector = unchecked((short)ProgramWord(frame, program, unchecked(pc + 2)));
+                int aimIndex = NativeBattleWaterSlots.LookupB65370(frame.Arena, bank, CurrentIndex(frame, bank), ActiveOrder(frame), aimSelector);
+                int aimSlot = bank.SlotOffset(frame.Arena, aimIndex);
+                int targetX = BinaryPrimitives.ReadInt16LittleEndian(frame.Arena.Read(aimSlot + 0x94, 2)) << 8;
+                int targetZ = BinaryPrimitives.ReadInt16LittleEndian(frame.Arena.Read(aimSlot + 0x98, 2)) << 8;
+                (frame, int aimAngle) = NativeBattleCinematicRibbonBasis.Angle(frame, unchecked((int)ReadParticleDword(frame, 0x14)), unchecked((int)ReadParticleDword(frame, 0x1C)), targetX, targetZ);
+                frame = ParticleDword(frame, 0x1C, unchecked((uint)(aimAngle << 4)));
+                next = 4;
+                break;
             case 0x0F:
                 NativeBattleWaterVectorRandom branchSample = NativeBattleWaterVectorCommands.RandomB65740(0x100, frame.Random);
                 frame = frame with { Random = branchSample.Random };

@@ -5,7 +5,7 @@ public sealed record NativeBattleRegionalPacketWrite(NativeBattleEffectArena Are
 /// <summary>Ordered packet stores for module-owned executable banks, with the same proxy/link contract as the common arena.</summary>
 public static class NativeBattleRegionalPacketArena
 {
-    public static NativeBattleRegionalPacketWrite Append(NativeBattleEffectArena source, string bank, int cursor, int capacity, NativeBattleLogicalOrdering ordering, NativeBattleGfGeometryBatch batch)
+    public static NativeBattleRegionalPacketWrite Append(NativeBattleEffectArena source, string bank, int cursor, int capacity, NativeBattleLogicalOrdering ordering, NativeBattleGfGeometryBatch batch, int trailingBytes = 0)
     {
         if (batch.Attempts.IsDefault || batch.AllocationBytes < 0 || (batch.AllocationBytes & 3) != 0 || cursor < 0 || (cursor & 3) != 0 || capacity > NativeBattleEffectArena.Length || cursor > capacity - batch.AllocationBytes)
         {
@@ -62,7 +62,7 @@ public static class NativeBattleRegionalPacketArena
                 accepted = Math.Max(accepted, end);
             }
         }
-        if (accepted != batch.AllocationBytes)
+        if (trailingBytes < 0 || (trailingBytes & 3) != 0 || accepted != batch.AllocationBytes - trailingBytes)
         {
             throw new InvalidDataException("Native module accepted extent disagrees with its final packet cursor.");
         }

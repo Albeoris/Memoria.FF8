@@ -9,6 +9,7 @@ internal sealed record NativeBattleMeshPacketContext(uint Flags, uint? FarColor,
 
 internal sealed record NativeBattleMeshPacketVariant(uint? UniformFlatColor, uint? GouraudTint, bool DeferInitialGouraudColor, bool RejectZeroArea)
 {
+    public bool SkipOffscreenRejection { get; init; }
     public Action<uint>? ObserveFlags { get; init; }
     public Action<int>? ObserveArea { get; init; }
     public Action<uint>? ObserveFourthScreen { get; init; }
@@ -234,7 +235,7 @@ public static class NativeBattleGfGeometryPackets
             writes.Word(ScreenWord(3), vertices[3].Screen);
             variant?.ObserveFourthScreen?.Invoke(vertices[3].Screen);
         }
-        if (vertices.All(vertex => unchecked((ushort)vertex.Screen) > 0xA00) || vertices.All(vertex => (vertex.Screen >> 16) > 0x6C0))
+        if (variant?.SkipOffscreenRejection != true && (vertices.All(vertex => unchecked((ushort)vertex.Screen) > 0xA00) || vertices.All(vertex => (vertex.Screen >> 16) > 0x6C0)))
         {
             return writes.Finish(null);
         }

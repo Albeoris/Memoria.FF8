@@ -57,9 +57,41 @@ public sealed partial class BattleSession
         {
             return AdvanceNativeShell(graphics);
         }
+        if (effect.Binding.Entry == 0x694520)
+        {
+            return AdvanceNativeWhiteWind226(graphics);
+        }
+        if (effect.Binding.Entry == 0x8885D0)
+        {
+            return AdvanceNativeClash26(graphics);
+        }
+        if (effect.Binding.Entry == 0x609640)
+        {
+            return AdvanceNativeStickyWeb153(graphics);
+        }
+        if (effect.Binding.Entry == 0x8BE1F0)
+        {
+            return AdvanceNativeDarkMist13(graphics);
+        }
+        if (effect.Binding.Entry == 0x6CAC20)
+        {
+            return AdvanceNativeBadBreath113(graphics);
+        }
+        if (effect.Binding.Entry == 0x6120D0)
+        {
+            return AdvanceNativeMeltdown(graphics);
+        }
+        if (effect.Binding.Entry == 0x6CD920)
+        {
+            return AdvanceNativeAura(graphics);
+        }
         if (effect.Binding.Entry == 0x5E1750)
         {
             return AdvanceNativeSleepingGas168(graphics);
+        }
+        if (effect.Binding.Entry == 0x5DEE60)
+        {
+            return AdvanceNativeGastricJuice169(graphics);
         }
         if (effect.Binding.Entry == 0x84D030)
         {

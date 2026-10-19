@@ -186,6 +186,14 @@ public sealed partial class BattleSession
                     return NativeBattleCinematicContactBranch46.Execute(current, program, context.ReadActionBytes, (_, actor) => NativeBattleStatusBits(combatants.Single(combatant => combatant.NativeIndex == actor)));
                 case 0x49:
                     return NativeBattleCinematicActorStore48.BranchScale49(current, program, address => graphics.Models[PhysicalActorIndex(address)]);
+                case 0x5F:
+                    return NativeBattleCinematicEntityPosition.FromEntityOffset5F(current, program, actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Native cinematic entity offset requires its actual position WORDs."), UpdateSlot);
+                case 0x60:
+                    return NativeBattleCinematicEntityPosition.FromEntityJoint60(current, program, ReadEntityAnchor, actor => graphics.Models[actor].Transform?.Scale38 ?? throw new NotSupportedException("Native cinematic entity orbit requires its actual scale WORD."), UpdateSlot);
+                case 0x6E:
+                    return NativeBattleCinematicEntityPosition.FromTargetJointAverage6E(current, program, ReadEntityAnchor, UpdateSlot);
+                case 0x140:
+                    return NativeBattleCinematicEntityPosition.WaitScaledBySlot140(current, program);
                 case 0x64:
                     return NativeBattleCinematicActorSelector64.Execute(current, program, context.ReadActionBytes);
                 case 0x66:
@@ -602,6 +610,20 @@ public sealed partial class BattleSession
                 default:
                     throw new NotSupportedException($"Native cinematic instruction{current.ReadTemporaryWord(0x14A):X4} at{pc:X} requires its selected command contract.");
             }
+        }
+
+        NativeBattleCinematicEntityAnchor ReadEntityAnchor(NativeBattleWaterExecutionFrame current, int actorIndex, short selector)
+        {
+            uint pointer = CoreDword(current, unchecked(CoreDword(current, 0x279744C) + 0x60u + (uint)(4 * actorIndex)));
+            if (actorIndex < 0 || actorIndex >= graphics.Models.Length || pointer != ActorPointer(actorIndex))
+            {
+                throw new NotSupportedException("Native cinematic entity anchor requires its actual physical actor row.");
+            }
+            NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
+            NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actorIndex).PoseSource ?? throw new NotSupportedException("Native cinematic entity anchor requires its actual current rig.");
+            NativeBattleActionMatrix basis = actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native cinematic entity anchor requires its current entity matrix.");
+            NativeBattleWaterActorAnchorResult result = NativeBattleWaterActorAnchor.EvaluateB66B80(current, source.Skeleton, NativeBattleBodyBoneMatrices.Require(actor, source), selector, 4096, basis);
+            return new(result.Frame, result.Anchor);
         }
 
         NativeBattleWaterExecutionFrame UpdateSlot(NativeBattleWaterExecutionFrame current, byte kind)

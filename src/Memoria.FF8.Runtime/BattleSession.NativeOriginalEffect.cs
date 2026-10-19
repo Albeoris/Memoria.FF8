@@ -53,6 +53,38 @@ public sealed partial class BattleSession
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Native effect invocation requires its actual loaded module entry.");
         _ = effect.Parameters ?? throw new InvalidDataException("Native effect entry lacks its50AFC0 parameter block.");
+        if (effect.Binding.Entry == 0x694520)
+        {
+            return EnterNativeWhiteWind226(graphics);
+        }
+        if (effect.Binding.Entry == 0x8885D0)
+        {
+            return EnterNativeClash26(graphics);
+        }
+        if (effect.Binding.Entry == 0x609640)
+        {
+            return EnterNativeStickyWeb153(graphics);
+        }
+        if (effect.Binding.Entry == 0x8BE1F0)
+        {
+            return EnterNativeDarkMist13(graphics);
+        }
+        if (effect.Binding.Entry == 0x6CAC20)
+        {
+            return EnterNativeBadBreath113(graphics);
+        }
+        if (effect.Binding.Entry == 0x6120D0)
+        {
+            return EnterNativeMeltdown(graphics);
+        }
+        if (effect.Binding.Entry == 0x6CD920)
+        {
+            return EnterNativeAura(graphics);
+        }
+        if (effect.Binding.Entry == 0x5DEE60)
+        {
+            return EnterNativeGastricJuice169(graphics);
+        }
         if (effect.Binding.Entry == 0x866010)
         {
             return EnterNativeShell(graphics);

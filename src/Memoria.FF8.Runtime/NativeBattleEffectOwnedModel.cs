@@ -111,7 +111,8 @@ public static class NativeBattleEffectOwnedModel
     private static uint SectionPointer(NativeBattleEffectOwnedModelResource resource, int index)
     {
         int offset = BinaryPrimitives.ReadInt32LittleEndian(resource.Bytes.AsSpan().Slice(4 + index * 4, 4));
-        if (offset < 0 || offset >= resource.Bytes.Length)
+        bool emptyLast = index == 3 && offset == resource.Bytes.Length && BinaryPrimitives.ReadUInt32LittleEndian(resource.Bytes.AsSpan()) == 4 && BinaryPrimitives.ReadInt32LittleEndian(resource.Bytes.AsSpan().Slice(20)) == resource.Bytes.Length;
+        if (offset < 0 || offset >= resource.Bytes.Length && !emptyLast)
         {
             throw new InvalidDataException("Native effect model section leaves its authenticated resource.");
         }
