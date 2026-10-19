@@ -1,4 +1,5 @@
 using System.Globalization;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
@@ -11,24 +12,30 @@ internal sealed record PlayerSaveEntry(int Slot, string Label, DateTime? SavedAt
 }
 
 /// <summary>Player saves have their own namespace; configured checkpoints are never menu targets.</summary>
-internal sealed class PlayerSaveStore
+internal sealed partial class PlayerSaveStore
 {
-    public const int BankCount = 2;
-    public const int SlotsPerBank = 30;
-    public const int SlotCount = BankCount * SlotsPerBank;
+    public const int BankCount = 3;
+    public const int MemoriaSlotCount = 100;
+    public const int OriginalSlotsPerBank = 30;
+    public const int SlotCount = MemoriaSlotCount;
+    public const int TotalSlotCount = MemoriaSlotCount + 2 * OriginalSlotsPerBank;
     public const int DefaultQuickSaveCount = 9;
     public static string DefaultDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoria.FF8", "player-saves");
     private readonly string directory;
     private readonly string researchCheckpoint;
     private readonly Func<GameState, string?>? locationName;
+    private readonly Func<string, GameState>? loadOriginal;
     private readonly Dictionary<string, CachedSaveEntry> entries = new(StringComparer.OrdinalIgnoreCase);
     private int quickSaveCount = DefaultQuickSaveCount;
 
-    public PlayerSaveStore(string researchCheckpoint, string? directory = null, Func<GameState, string?>? locationName = null)
+    public PlayerSaveStore(string researchCheckpoint, string? directory = null, Func<GameState, string?>? locationName = null, string? originalDirectory = null, Func<string, GameState>? loadOriginal = null)
     {
         this.directory = Path.GetFullPath(directory ?? DefaultDirectory);
         this.researchCheckpoint = Path.GetFullPath(researchCheckpoint);
         this.locationName = locationName;
+        this.loadOriginal = loadOriginal;
+        OriginalDirectoryCandidates = OriginalSaveLocation.FindCandidates();
+        OriginalDirectory = originalDirectory is not null ? OriginalSaveLocation.ValidateDirectory(originalDirectory) : OriginalDirectoryCandidates.Count == 1 ? OriginalDirectoryCandidates[0] : null;
     }
 
     public void SetQuickSaveCount(int count)
@@ -50,7 +57,7 @@ internal sealed class PlayerSaveStore
 
     public string GetPath(int slot)
     {
-        if (slot > SlotCount)
+        if (slot > TotalSlotCount)
         {
             throw new ArgumentOutOfRangeException(nameof(slot));
         }
@@ -59,6 +66,7 @@ internal sealed class PlayerSaveStore
             0 => FindQuickSaves().FirstOrDefault()?.Path ?? Path.Combine(directory, "quick.json"),
             int.MinValue => Path.Combine(directory, "quick.json"),
             < 0 => GetQuickPath(-slot),
+            > MemoriaSlotCount => GetOriginalPath(slot),
             _ => Path.Combine(directory, $"slot-{slot:00}.json")
         };
         ValidatePath(path);
@@ -67,22 +75,27 @@ internal sealed class PlayerSaveStore
 
     public static string GetLabel(int slot)
     {
-        if (slot > SlotCount)
+        if (slot > TotalSlotCount)
         {
             throw new ArgumentOutOfRangeException(nameof(slot));
         }
-        return slot <= 0 ? "Quick Save" : $"Bank {(slot - 1) / SlotsPerBank + 1}, Slot {(slot - 1) % SlotsPerBank + 1:00}";
+        if (slot <= 0)
+        {
+            return "Quick Save";
+        }
+        int bank = GetBank(slot);
+        return bank == 0 ? $"Memoria, Slot {slot:00}" : $"ORIGINAL FF8 {(bank == 1 ? "I" : "II")}, Slot {slot - GetFirstSlot(bank) + 1:00}";
     }
 
     public bool ContainsPath(string path)
     {
         string fullPath = Path.GetFullPath(path);
-        return fullPath.Equals(directory, StringComparison.OrdinalIgnoreCase) || fullPath.StartsWith(directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+        return IsInDirectory(fullPath, directory) || OriginalDirectory is { } original && IsInDirectory(fullPath, original);
     }
 
     public void Save(int slot, GameSession session, Action<GameState>? validateContinuation = null)
     {
-        if (slot < 0 || slot > SlotCount)
+        if (slot < 0 || slot > TotalSlotCount)
         {
             throw new ArgumentOutOfRangeException(nameof(slot));
         }
@@ -93,7 +106,14 @@ internal sealed class PlayerSaveStore
         if (slot != 0)
         {
             string target = GetPath(slot);
-            session.Save(target, compact: true, validateContinuation);
+            if (slot > MemoriaSlotCount)
+            {
+                SaveOriginal(target, NativePcSaveConverter.Export(session.State), validateContinuation);
+            }
+            else
+            {
+                session.Save(target, compact: true, validateContinuation);
+            }
             entries.Remove(target);
             return;
         }
@@ -127,7 +147,8 @@ internal sealed class PlayerSaveStore
 
     public GameState Load(int slot)
     {
-        return LoadPath(GetPath(slot));
+        string path = GetPath(slot);
+        return slot > MemoriaSlotCount ? LoadOriginal(path) : LoadPath(path);
     }
 
     public IReadOnlyList<PlayerSaveEntry> ReadQuickEntries()
@@ -144,14 +165,27 @@ internal sealed class PlayerSaveStore
 
     public IReadOnlyList<PlayerSaveEntry> ReadEntries(bool includeQuick)
     {
+        return ReadEntries(0, includeQuick);
+    }
+
+    public IReadOnlyList<PlayerSaveEntry> ReadEntries(int bank, bool includeQuick)
+    {
         var entries = new List<PlayerSaveEntry>();
-        if (includeQuick)
+        int firstSlot = GetFirstSlot(bank);
+        if (includeQuick && bank == 0)
         {
             entries.Add(ReadQuickEntries().FirstOrDefault() ?? new PlayerSaveEntry(0, GetLabel(0), null, "Empty", false));
         }
-        for (int slot = 1; slot <= SlotCount; slot++)
+        for (int slot = firstSlot; slot < firstSlot + GetBankSlotCount(bank); slot++)
         {
-            entries.Add(ReadEntry(slot, Path.Combine(directory, $"slot-{slot:00}.json"), null));
+            if (bank != 0 && OriginalDirectory is null)
+            {
+                entries.Add(new PlayerSaveEntry(slot, GetLabel(slot), null, "Choose the original FF8 save folder.", false));
+            }
+            else
+            {
+                entries.Add(ReadEntry(slot, bank == 0 ? Path.Combine(directory, $"slot-{slot:00}.json") : GetOriginalPath(slot), null));
+            }
         }
         return entries;
     }
@@ -176,7 +210,7 @@ internal sealed class PlayerSaveStore
             PlayerSaveEntry entry;
             try
             {
-                SaveSummary? summary = GameSession.ReadSummary(path);
+                SaveSummary? summary = slot > MemoriaSlotCount ? ReadOriginalSummary(path) : GameSession.ReadSummary(path);
                 GameState state = summary?.ToLocationState() ?? LoadPath(path);
                 if (state.Scene == SceneKind.Title)
                 {

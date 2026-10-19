@@ -142,7 +142,7 @@ public sealed record FieldTransition(int FieldId, float X, float Y, int Triangle
     }
 }
 
-public readonly record struct InputFrame(float Horizontal, float Vertical, bool Confirm, bool Cancel, bool Skip, bool Save, int MenuVertical = 0, bool QuickLoad = false, bool SaveMenu = false, bool LoadMenu = false, int MenuHorizontal = 0, int MenuPage = 0, float CameraHorizontal = 0, float SecondaryHorizontal = 0, float SecondaryVertical = 0);
+public readonly record struct InputFrame(float Horizontal, float Vertical, bool Confirm, bool Cancel, bool Skip, bool Save, int MenuVertical = 0, bool QuickLoad = false, bool SaveMenu = false, bool LoadMenu = false, int MenuHorizontal = 0, int MenuPage = 0, float CameraHorizontal = 0, float SecondaryHorizontal = 0, float SecondaryVertical = 0, bool CardChallenge = false);
 
 public interface IEventServices
 {

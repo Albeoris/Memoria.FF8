@@ -38,13 +38,13 @@ These shortcuts are keyboard-only by default. They can also be assigned to contr
 | Battle editor | F4 | Open battle debug controls. |
 | Quick save | F5 | Write the configured quick-save snapshot. |
 | Save menu | F6 | Open the player save interface. |
-| Quick load | F9 | Restore the configured quick-save snapshot. |
+| Quick load | F9 | Open the quick-save picker. |
 | Load menu | F10 | Open the player load interface. |
 | Advance turn | Space | Advance the battle HUD in TurnBased mode. |
 | UI tab | Tab | Move between supported UI tabs. |
 | UI page | Page Up / Page Down | Page supported UI lists. |
 
-Quick save uses `%LOCALAPPDATA%/Memoria.FF8/checkpoint.json` by default. Override it with [`--save-state`](../reference/command-line.md). See [saves](saves.md) for the separate player-save interface, and [debug room](debug-room.md) for diagnostic features.
+Quick saves use `%LOCALAPPDATA%/Memoria.FF8/player-saves/`. In the Save or Load menu, Card / detail starts a transfer of the selected save between Memoria and either original-game bank. See [saves](saves.md) for bank capacities, destination selection and original save-folder discovery, and [debug room](debug-room.md) for diagnostic features.
 
 ## Movies and naming
 

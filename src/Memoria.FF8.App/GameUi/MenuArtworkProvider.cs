@@ -16,12 +16,14 @@ internal sealed class MenuArtworkProvider(string gameDirectory)
     private TripleTriadCatalog? cardDefinitions;
     private CardFaceComposer? cardComposer;
     private string? cardFontFamily;
+    private PixelImage? silverCrest;
     private readonly Dictionary<(int Id, int Owner, bool Grayscale), PixelImage> cardFaces = [];
 
     public PixelImage Read(UiImageSource source, string fontFamily = SystemFontCatalog.DefaultFamily)
     {
         return source.Kind switch
         {
+            UiImageKind.SilverCrest => silverCrest ??= ReadSilverCrest(),
             UiImageKind.CharacterPortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory)).GetCharacterPortrait(source.Id),
             UiImageKind.GuardianForcePortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory)).GetGuardianForcePortrait(source.Id),
             UiImageKind.AngeloPortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory)).AngeloPortrait,
@@ -38,6 +40,23 @@ internal sealed class MenuArtworkProvider(string gameDirectory)
             UiImageKind.MagazineButton => (magazines ??= NativeMagazineArtwork.Load(gameDirectory)).GetButtonImage(source.Id),
             _ => throw new NotSupportedException($"Unsupported menu artwork kind {source.Kind}.")
         };
+    }
+
+    private static PixelImage ReadSilverCrest()
+    {
+        var source = TitleScene.TitleArtworkRenderer.CreateSilverCrestImage();
+        byte[] pixels = new byte[checked(source.PixelWidth * source.PixelHeight * 4)];
+        source.CopyPixels(pixels, source.PixelWidth * 4, 0);
+        PixelImage image = new(source.PixelWidth, source.PixelHeight);
+        for (int y = 0; y < image.Height; y++)
+        {
+            for (int x = 0; x < image.Width; x++)
+            {
+                int index = (y * image.Width + x) * 4;
+                image[x, y] = new Rgba32(pixels[index + 2], pixels[index + 1], pixels[index], pixels[index + 3]);
+            }
+        }
+        return image;
     }
 
     private PixelImage ReadCardFace(int cardId, int owner, string fontFamily, bool grayscale = false)

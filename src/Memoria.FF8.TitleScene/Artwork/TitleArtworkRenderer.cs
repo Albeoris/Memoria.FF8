@@ -16,7 +16,7 @@ namespace Memoria.FF8.TitleScene;
 /// The supplied silver crest traced into contour paths, with system font outlines.
 /// Contours become GPU triangles once; no image asset is loaded at runtime.
 /// </summary>
-public sealed class TitleArtworkRenderer : IDisposable
+public sealed partial class TitleArtworkRenderer : IDisposable
 {
     private const float DesignWidth = 1600f;
     private const float DesignHeight = 900f;

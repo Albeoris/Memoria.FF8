@@ -96,7 +96,7 @@ public sealed class PlayerSaveTests : IDisposable
         Assert.False(store.ContainsPath(research));
         Assert.False(store.ContainsPath(Path.Combine(directory, "player-saves-other", "quick.json")));
         IReadOnlyList<PlayerSaveEntry> entries = store.ReadEntries(true);
-        Assert.Equal(61, entries.Count);
+        Assert.Equal(101, entries.Count);
         Assert.True(entries[0].CanLoad);
         Assert.Equal("Unavailable", entries[1].Details);
         Assert.NotNull(entries[1].SavedAt);
@@ -238,29 +238,34 @@ public sealed class PlayerSaveTests : IDisposable
     }
 
     [Fact]
-    public void Sixty_manual_slots_preserve_existing_paths_and_keep_banks_and_quick_save_separate()
+    public void One_hundred_Memoria_slots_preserve_existing_paths_and_keep_original_banks_separate()
     {
         PlayerSaveStore store = CreateStore();
-        Assert.Equal((2, 30, 60), (PlayerSaveStore.BankCount, PlayerSaveStore.SlotsPerBank, PlayerSaveStore.SlotCount));
+        Assert.Equal((3, 30, 100), (PlayerSaveStore.BankCount, PlayerSaveStore.OriginalSlotsPerBank, PlayerSaveStore.SlotCount));
         Assert.Equal("slot-01.json", Path.GetFileName(store.GetPath(1)));
         Assert.Equal("slot-02.json", Path.GetFileName(store.GetPath(2)));
         Assert.Equal("slot-03.json", Path.GetFileName(store.GetPath(3)));
         Assert.Equal("quick.json", Path.GetFileName(store.GetPath(0)));
-        Assert.Equal("Bank 1, Slot 30", PlayerSaveStore.GetLabel(30));
-        Assert.Equal("Bank 2, Slot 01", PlayerSaveStore.GetLabel(31));
-        Assert.Equal("Bank 2, Slot 30", PlayerSaveStore.GetLabel(60));
+        Assert.Equal("Memoria, Slot 30", PlayerSaveStore.GetLabel(30));
+        Assert.Equal("Memoria, Slot 31", PlayerSaveStore.GetLabel(31));
+        Assert.Equal("Memoria, Slot 60", PlayerSaveStore.GetLabel(60));
+        Assert.Equal("Memoria, Slot 100", PlayerSaveStore.GetLabel(100));
+        Assert.Equal("ORIGINAL FF8 I, Slot 01", PlayerSaveStore.GetLabel(101));
+        Assert.Equal("ORIGINAL FF8 II, Slot 30", PlayerSaveStore.GetLabel(160));
         store.Save(0, new GameSession(new GameState { Scene = SceneKind.Field, X = 5 }));
         store.Save(30, new GameSession(new GameState { Scene = SceneKind.Field, X = 30 }));
         store.Save(31, new GameSession(new GameState { Scene = SceneKind.Field, X = 31 }));
         store.Save(60, new GameSession(new GameState { Scene = SceneKind.Field, X = 60 }));
+        store.Save(100, new GameSession(new GameState { Scene = SceneKind.Field, X = 100 }));
         Assert.Equal(5, store.Load(0).X);
         Assert.Equal(30, store.Load(30).X);
         Assert.Equal(31, store.Load(31).X);
         Assert.Equal(60, store.Load(60).X);
-        Assert.Throws<ArgumentOutOfRangeException>(() => store.GetPath(61));
+        Assert.Equal(100, store.Load(100).X);
+        Assert.Throws<ArgumentOutOfRangeException>(() => store.GetPath(161));
         IReadOnlyList<PlayerSaveEntry> entries = store.ReadEntries(false);
-        Assert.Equal(60, entries.Count);
-        Assert.All(entries, entry => Assert.InRange(entry.Slot, 1, 60));
+        Assert.Equal(100, entries.Count);
+        Assert.All(entries, entry => Assert.InRange(entry.Slot, 1, 100));
     }
 
     [Fact]
@@ -269,7 +274,7 @@ public sealed class PlayerSaveTests : IDisposable
         var menu = new PlayerSaveMenu(CreateStore());
         menu.Open(PlayerSaveMenuMode.Save);
         Assert.Equal(new[] { 1, 2, 3, 4, 5 }, menu.VisibleEntries.Select(entry => entry.Slot));
-        for (int page = 0; page < 5; page++)
+        for (int page = 0; page < 19; page++)
         {
             Navigate(menu, new InputFrame(0, 0, false, false, false, false, MenuPage: 1));
         }
@@ -277,12 +282,12 @@ public sealed class PlayerSaveTests : IDisposable
         {
             Navigate(menu, new InputFrame(0, 0, false, false, false, false, MenuVertical: 1));
         }
-        Assert.Equal((0, 5, 30), (menu.Bank, menu.Page, menu.SelectedSlot));
+        Assert.Equal((0, 19, 100), (menu.Bank, menu.Page, menu.SelectedSlot));
         Navigate(menu, new InputFrame(0, 0, false, false, false, false, MenuHorizontal: 1));
-        Assert.Equal((1, 5, 60), (menu.Bank, menu.Page, menu.SelectedSlot));
-        Assert.Equal(new[] { 56, 57, 58, 59, 60 }, menu.VisibleEntries.Select(entry => entry.Slot));
+        Assert.Equal((1, 5, 130), (menu.Bank, menu.Page, menu.SelectedSlot));
+        Assert.Equal(new[] { 126, 127, 128, 129, 130 }, menu.VisibleEntries.Select(entry => entry.Slot));
         Navigate(menu, new InputFrame(0, 0, false, false, false, false, MenuPage: 1, MenuVertical: 1));
-        Assert.Equal((1, 5, 60), (menu.Bank, menu.Page, menu.SelectedSlot));
+        Assert.Equal((1, 5, 130), (menu.Bank, menu.Page, menu.SelectedSlot));
         menu.Close();
 
         menu.Open(PlayerSaveMenuMode.Load);
@@ -291,12 +296,12 @@ public sealed class PlayerSaveTests : IDisposable
         Navigate(menu, new InputFrame(0, 0, false, false, false, false, MenuHorizontal: 1));
         Navigate(menu, new InputFrame(0, 0, false, false, false, false, MenuPage: 1));
         Navigate(menu, new InputFrame(0, 0, false, false, false, false, MenuVertical: 1));
-        Assert.Equal((1, 1, 37), (menu.Bank, menu.Page, menu.SelectedSlot));
+        Assert.Equal((1, 1, 107), (menu.Bank, menu.Page, menu.SelectedSlot));
         menu.Open(PlayerSaveMenuMode.Save);
-        Assert.Equal((1, 5, 60), (menu.Bank, menu.Page, menu.SelectedSlot));
+        Assert.Equal((1, 5, 130), (menu.Bank, menu.Page, menu.SelectedSlot));
         Assert.Null(menu.QuickEntry);
         menu.Open(PlayerSaveMenuMode.Load);
-        Assert.Equal((1, 1, 37), (menu.Bank, menu.Page, menu.SelectedSlot));
+        Assert.Equal((1, 1, 107), (menu.Bank, menu.Page, menu.SelectedSlot));
     }
 
     [Fact]

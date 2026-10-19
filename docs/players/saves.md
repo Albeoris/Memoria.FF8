@@ -4,7 +4,7 @@ Memoria saves its current state as a standalone snapshot. Player saves use a com
 
 ## Player saves
 
-The default player directory is `%LOCALAPPDATA%\Memoria.FF8\player-saves`. It contains a rotating set of quick saves (including the compatible `quick.json`) and 60 manual slots, `slot-01.json` through `slot-60.json`, arranged as two banks of 30.
+The default player directory is `%LOCALAPPDATA%\Memoria.FF8\player-saves`. It contains a rotating set of quick saves (including the compatible `quick.json`) and one Memoria bank of 100 manual slots, `slot-01.json` through `slot-100.json`. Existing slots from both former Memoria banks appear in this bank with their filenames and contents preserved.
 
 Default keyboard bindings are:
 
@@ -17,15 +17,19 @@ Default keyboard bindings are:
 
 Quick Save keeps nine snapshots by default. Config → Interface → Quick saves sets the installation-wide count (at least one). When full, saving replaces the oldest quick save; reducing the count immediately deletes the oldest excess quick saves. Quick Load opens a picker containing only quick saves, newest first, with the newest selected each time. Up/Down selects a save, PageUp/PageDown changes page, Confirm loads and Cancel closes.
 
-Continue opens the Load menu. Up/Down selects a slot, Left/Right changes bank, and PageUp/PageDown changes page. Each page shows five manual slots; Quick Save is pinned separately in Load. Confirm selects or accepts an overwrite; Cancel backs out. Save/Load cursors are remembered while the application runs. Bindings can be changed in Controls.
+Continue opens the Load menu. The plaques at the top select Memoria (the title-screen lion), Original I and Original II. Memoria holds 100 slots; each original bank holds 30. Up/Down selects a slot, Left/Right changes bank, and PageUp/PageDown changes page. Plaques and slots also accept mouse selection. Each page shows five manual slots; Quick Save is pinned separately in the Memoria Load bank. Confirm selects or accepts an overwrite; Cancel backs out. Save/Load cursors are remembered for each bank while the application runs. Bindings can be changed in Controls.
 
 Menus show saved time and location. Empty or invalid entries cannot be loaded. Before replacing the running session, the application validates the selected state and its VM/resource continuation. A failed load reports its reason and retains the current session. Saving before starting or loading a game is refused.
 
-These files are Memoria snapshots. Use the explicit transfer commands below to convert original PC save files.
+The original banks read and write `slot1_save01.ff8` through `slot1_save30.ff8` and `slot2_save01.ff8` through `slot2_save30.ff8` in the original game's save folder. A unique Steam user folder under Documents is detected automatically. If none or several exist, selecting an original bank opens a folder picker; choose the folder containing the `.ff8` files. The selected folder is remembered for this user.
 
 ## Original PC save transfer
 
-Run these commands from an extracted release directory:
+In either the Load or Save menu, select an occupied slot and press **Card / detail** (default **S**, Xbox **X**, PlayStation **Square**). The menu switches to the other save format. Select the destination bank and slot, then Confirm. An occupied destination requires a second confirmation. Cancel backs out of overwrite confirmation, then cancels the transfer and returns to the source. The source is preserved. Saving a running game directly into an original bank and loading from either format also use these bank tabs.
+
+Original saves initialize unsupported or absent Memoria state with defaults. Export retains supported persistent progress and uses defaults for properties the original format cannot represent. Exact movie, battle or event processing cannot transfer. Original banks operate on local files; Steam cloud synchronization is managed by Steam and the original game.
+
+The command-line converters remain available. Run these commands from an extracted release directory:
 
 ```powershell
 ./Data/Memoria.FF8.exe --import-save ./original/slot1_save01.ff8 --output ./saves/imported.json --game-dir "$env:MEMORIA_FF8_GAME_DIR"
@@ -35,7 +39,7 @@ Run these commands from an extracted release directory:
 
 Import reads one original PC `.ff8` save, restores its progress and saved location using the installed resources, and validates the resulting engine continuation before writing a compact standalone snapshot. Properties absent from the original format and transient process state are initialized with defaults. For example, resident music buffers and pending playback are not transferred. `--game-dir` may be omitted when `MEMORIA_FF8_GAME_DIR` or `FF8_GAME_DIRECTORY` is set. Malformed save data or unsupported gameplay continuation fails with an error and no output file.
 
-Export writes one original PC save with the snapshot's persistent progress and a saved field or world location. For an imported game, original bytes without a supported Memoria owner are retained from its source file. A game started in Memoria uses defaults for original-only properties. Properties that cannot be transferred receive defaults; an active movie, battle or event is not resumed at its exact processing point. The original game loads the saved location through its normal initialization. Transfer does not provide original game save-slot or Steam cloud management.
+Export writes one original PC save with the snapshot's persistent progress and a saved field or world location. For an imported game, original bytes without a supported Memoria owner are retained from its source file. A game started in Memoria uses defaults for original-only properties. Properties that cannot be transferred receive defaults; an active movie, battle or event is not resumed at its exact processing point. The original game loads the saved location through its normal initialization.
 
 Both commands require `--output` with a new filename. They refuse an existing destination or the source path, preserve the source file, and return exit code 1 on failure. Keep a backup and copy an exported file into the original game's save directory only when ready to use it.
 

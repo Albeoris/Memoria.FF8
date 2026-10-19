@@ -83,7 +83,11 @@ internal static class MenuPreview
         using var mods = new Memoria.FF8.Mods.ModRuntime(watch: false, additionalBaseDirectories: [gameDirectory]);
         mods.PreparePending(true);
         mods.CommitPending();
-        if (screen == "native-tutorial")
+        if (screen.StartsWith("player-save", StringComparison.Ordinal))
+        {
+            view = BuildPlayerSavePreview(screen);
+        }
+        else if (screen == "native-tutorial")
         {
             if (tutorialWorld is null)
             {
@@ -189,5 +193,40 @@ internal static class MenuPreview
         bitmap.Save(output, ImageFormat.Png);
         Console.WriteLine($"Menu {(statePath is null ? "fixture" : "standalone-save")} preview {screen}, {width}x{height}: {output}");
         return 0;
+    }
+
+    private static UiView BuildPlayerSavePreview(string screen)
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "Memoria.FF8-save-preview-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            PlayerSaveStore store = new(Path.Combine(directory, "checkpoint.json"), Path.Combine(directory, "memoria"), _ => "Balamb Garden", directory);
+            store.Save(1, new GameSession(new GameState { Scene = SceneKind.Field, FieldId = 165, Playtime = new NativePlaytimeState(3723, 0, 0), ExamTimer = NativeExamTimerState.FromColdProcess() }));
+            PlayerSaveMenu menu = new(store);
+            menu.Open(PlayerSaveMenuMode.Load);
+            menu.SelectSlot(1);
+            switch (screen)
+            {
+                case "player-save":
+                    break;
+                case "player-save-original-i":
+                    menu.SelectBank(1);
+                    break;
+                case "player-save-original-ii":
+                    menu.SelectBank(2);
+                    break;
+                case "player-save-transfer":
+                    menu.Update(new InputFrame(0, 0, false, false, false, false, CardChallenge: true), _ => { }, _ => { });
+                    break;
+                default:
+                    throw new ArgumentException($"Unknown player save preview '{screen}'.");
+            }
+            return RecreateGame.BuildPlayerSaveView(menu, "Card / Details: Transfer", "Left / Right: Bank    Page Up / Down: Page");
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
     }
 }

@@ -24,9 +24,9 @@ public sealed class QuickSaveStoreTests : IDisposable
         Assert.Equal(11, store.Load(0).X);
         Assert.All(entries.Skip(1), entry => Assert.True(entry.Slot < 0));
         Assert.Equal(entries.Select(entry => entry.SavedAt).OrderByDescending(savedAt => savedAt), entries.Select(entry => entry.SavedAt));
-        Assert.Equal(61, store.ReadEntries(true).Count);
+        Assert.Equal(101, store.ReadEntries(true).Count);
         Assert.Equal(entries[0], store.ReadEntries(true)[0]);
-        Assert.Equal(60, store.ReadEntries(false).Count);
+        Assert.Equal(100, store.ReadEntries(false).Count);
         Assert.Equal(9, Directory.GetFiles(Path.Combine(directory, "saves"), "*.json").Length);
     }
 

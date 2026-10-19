@@ -218,7 +218,7 @@ internal sealed class KeyboardInput
         previousActive = active;
         hasSampledInput = true;
         profileChanged = false;
-        return input with { MenuVertical = Math.Sign(input.MenuVertical), MenuHorizontal = Math.Sign(input.MenuHorizontal) };
+        return input with { MenuVertical = Math.Sign(input.MenuVertical), MenuHorizontal = Math.Sign(input.MenuHorizontal), CardChallenge = UiDetailRequested };
     }
 
     private static bool IsArrowKey(Keys key) => key is Keys.Up or Keys.Down or Keys.Left or Keys.Right;

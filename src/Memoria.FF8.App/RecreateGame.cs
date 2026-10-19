@@ -75,8 +75,9 @@ internal sealed partial class RecreateGame : Game
         {
             EnsureLiveMenuCatalog();
             return liveMenuCatalog!.LocationName(state);
-        });
+        }, originalDirectory: ReadOriginalSaveDirectory(), loadOriginal: LoadOriginalPlayerState);
         saveMenu = new PlayerSaveMenu(playerSaves);
+        saveMenu.BeforeBankChange = EnsurePlayerSaveBank;
         saveMenu.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
         globalSettings.ImportLegacyFiles(options.SavePath);
         uiPreferences = GameUi.UiPreferences.Load(UiPreferencesPath);
@@ -666,7 +667,8 @@ internal sealed partial class RecreateGame : Game
         }
         if (saveMenu.IsOpen)
         {
-            saveMenu.Update(input, SavePlayerSlot, LoadPlayerSlot);
+            UpdatePlayerSavePointer();
+            saveMenu.Update(input, SavePlayerSlot, LoadPlayerSlot, TransferPlayerSave);
             return true;
         }
         if (input.Save || input.QuickLoad)

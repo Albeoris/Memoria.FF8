@@ -40,59 +40,112 @@ internal sealed partial class RecreateGame
     private void DrawPlayerSavesUi(Rectangle bounds)
     {
         batch.Draw(pixel, bounds, Color.Black);
-        List<PlayerSaveEntry> entries = new();
-        if (saveMenu.QuickEntry is PlayerSaveEntry quick)
-        {
-            entries.Add(quick);
-        }
-
-        entries.AddRange(saveMenu.VisibleEntries);
-        string key = string.Join("|", saveMenu.Mode, saveMenu.Bank, saveMenu.Page, saveMenu.SelectedSlot, saveMenu.ConfirmOverwrite, saveMenu.Message, string.Join(";", entries.Select(entry => $"{entry}:{string.Join(",", entry.PartyPortraits)}")), keyboard.Profile.GetHashCode(), keyboard.ControllerPresentation, keyboard.LastInputDevice);
+        IEnumerable<PlayerSaveEntry> displayedEntries = saveMenu.QuickEntry is { } quick ? saveMenu.VisibleEntries.Prepend(quick) : saveMenu.VisibleEntries;
+        string key = string.Join("|", saveMenu.Mode, saveMenu.Bank, saveMenu.Page, saveMenu.SelectedSlot, saveMenu.ConfirmOverwrite, saveMenu.TransferSource, saveMenu.Message, string.Join(";", displayedEntries.Select(entry => $"{entry}:{string.Join(",", entry.PartyPortraits)}")), keyboard.Profile.GetHashCode(), keyboard.ControllerPresentation, keyboard.LastInputDevice);
         if (savesWindowUi is null || savesWindowKey != key)
         {
-            UiAnchorPanel root = new();
-            UiGrid content = new() { Anchors = new UiAnchors(0.02f, 0.02f, 0.98f, 0.98f), Gap = 5 };
-            content.ColumnDefinitions.Add(UiGridLength.Star());
-            content.RowDefinitions.Add(UiGridLength.Pixel(50));
-            content.RowDefinitions.Add(UiGridLength.Pixel(72));
-            content.RowDefinitions.Add(UiGridLength.Star());
-
-            bool loading = saveMenu.Mode != PlayerSaveMenuMode.Save;
-            bool quickLoading = saveMenu.Mode == PlayerSaveMenuMode.QuickLoad;
-            UiGrid header = new() { Gap = 5 };
-            header.RowDefinitions.Add(UiGridLength.Star());
-            header.ColumnDefinitions.Add(UiGridLength.Star(3.7f));
-            header.ColumnDefinitions.Add(UiGridLength.Star(1.3f));
-            UiPanel info = new() { Caption = "INFO.", CaptionFontSize = 13, CaptionHeight = 15, Padding = new UiThickness(8, 2) };
-            info.Children.Add(new UiLabel { Text = quickLoading ? $"Page {saveMenu.Page + 1} / {saveMenu.QuickPageCount}" : $"Bank {saveMenu.Bank + 1} / {PlayerSaveStore.BankCount}    Page {saveMenu.Page + 1} / {PlayerSaveMenu.PageCount}", FontSize = 23 });
-            header.Children.Add(info);
-            UiPanel title = new() { GridColumn = 1, Padding = new UiThickness(8, 3) };
-            title.Children.Add(new UiLabel { Text = quickLoading ? "Quick Load" : loading ? "Load" : "Save", FontSize = 27 });
-            header.Children.Add(title);
-            content.Children.Add(header);
-
-            string instruction = loading ? "Choose block to load" : saveMenu.ConfirmOverwrite ? "Confirm overwrite" : "Choose block to save";
-            string detail = saveMenu.Message ?? (saveMenu.ConfirmOverwrite ? "Confirm again to overwrite the selected save." : "");
-            UiPanel help = new() { GridRow = 1, Caption = "HELP", CaptionFontSize = 13, CaptionHeight = 15, Padding = new UiThickness(8, 2) };
-            help.Children.Add(new UiLabel { Text = instruction + (detail.Length > 0 ? "\n" + detail : ""), FontSize = 20 });
-            content.Children.Add(help);
-
-            UiGrid blocks = BuildPlayerSaveBlocks(entries, loading);
-            blocks.GridRow = 2;
-            int selectedIndex = Math.Max(0, entries.FindIndex(entry => entry.Slot == saveMenu.SelectedSlot));
-            UiButton? selectedBlock = blocks.Children.OfType<UiButton>().ElementAtOrDefault(selectedIndex);
-            content.Children.Add(blocks);
-            root.Children.Add(content);
-            savesWindowUi = CreateWindowView(root);
-            savesWindowUi.Resize(960, 672);
-            if (selectedBlock is not null)
+            string transferHint = $"{keyboard.BindingHint(ControlAction.Card)}: Transfer";
+            string navigationHint = "Left / Right: Bank    Page Up / Down: Page";
+            savesWindowUi = BuildPlayerSaveView(saveMenu, transferHint, navigationHint);
+            foreach (UiButton bank in FindSaveButtons(savesWindowUi.Root).Where(button => button.Id?.StartsWith("save-bank-", StringComparison.Ordinal) == true))
             {
-                savesWindowUi.Focus(selectedBlock);
+                int bankIndex = int.Parse(bank.Id![10..], System.Globalization.CultureInfo.InvariantCulture);
+                bank.Click = () =>
+                {
+                    saveMenu.SelectBank(bankIndex);
+                    savesWindowKey = null;
+                };
+            }
+            foreach (UiButton slot in FindSaveButtons(savesWindowUi.Root).Where(button => button.Id?.StartsWith("save-slot-", StringComparison.Ordinal) == true))
+            {
+                int slotIndex = int.Parse(slot.Id![10..], System.Globalization.CultureInfo.InvariantCulture);
+                slot.Click = () => saveMenu.SelectSlot(slotIndex);
             }
             savesWindowKey = key;
         }
-
         DrawWindowView(savesWindowUi, bounds);
+    }
+
+    internal static IEnumerable<UiButton> FindSaveButtons(UiElement parent)
+    {
+        foreach (UiElement child in parent.Children)
+        {
+            if (child is UiButton button)
+            {
+                yield return button;
+            }
+            foreach (UiButton descendant in FindSaveButtons(child))
+            {
+                yield return descendant;
+            }
+        }
+    }
+
+    internal static UiView BuildPlayerSaveView(PlayerSaveMenu menu, string transferHint, string navigationHint)
+    {
+        List<PlayerSaveEntry> entries = new();
+        if (menu.QuickEntry is PlayerSaveEntry quick)
+        {
+            entries.Add(quick);
+        }
+        entries.AddRange(menu.VisibleEntries);
+        bool loading = menu.Mode != PlayerSaveMenuMode.Save;
+        bool quickLoading = menu.Mode == PlayerSaveMenuMode.QuickLoad;
+        UiAnchorPanel root = new();
+        UiGrid content = new() { Anchors = new UiAnchors(0.02f, 0.02f, 0.98f, 0.98f), Gap = 5 };
+        content.ColumnDefinitions.Add(UiGridLength.Star());
+        if (!quickLoading)
+        {
+            content.RowDefinitions.Add(UiGridLength.Pixel(72));
+            content.Children.Add(BuildPlayerSaveBanks(menu.Bank));
+        }
+        int headerRow = quickLoading ? 0 : 1;
+        content.RowDefinitions.Add(UiGridLength.Pixel(46));
+        content.RowDefinitions.Add(UiGridLength.Pixel(78));
+        content.RowDefinitions.Add(UiGridLength.Star());
+        UiGrid header = new() { GridRow = headerRow, Gap = 5 };
+        header.RowDefinitions.Add(UiGridLength.Star());
+        header.ColumnDefinitions.Add(UiGridLength.Star(3.7f));
+        header.ColumnDefinitions.Add(UiGridLength.Star(1.3f));
+        UiPanel info = new() { Caption = "INFO.", CaptionFontSize = 13, CaptionHeight = 13, Padding = new UiThickness(8, 2) };
+        info.Children.Add(new UiLabel { Text = quickLoading ? $"Page {menu.Page + 1} / {menu.QuickPageCount}" : $"Page {menu.Page + 1} / {menu.PageCount}    {navigationHint}", FontSize = 18 });
+        header.Children.Add(info);
+        UiPanel title = new() { GridColumn = 1, Padding = new UiThickness(8, 2) };
+        title.Children.Add(new UiLabel { Text = menu.IsTransferring ? "Transfer" : quickLoading ? "Quick Load" : loading ? "Load" : "Save", FontSize = 25 });
+        header.Children.Add(title);
+        content.Children.Add(header);
+        string instruction = menu.IsTransferring ? menu.ConfirmOverwrite ? "Confirm transfer overwrite" : "Choose destination block" : menu.ConfirmOverwrite ? "Confirm overwrite" : loading ? "Choose block to load" : "Choose block to save";
+        string detail = menu.TransferSource is int source ? $"{PlayerSaveStore.GetLabel(source)}  →  {PlayerSaveStore.GetLabel(menu.SelectedSlot)}" : menu.ConfirmOverwrite ? "Confirm again to overwrite the selected save." : quickLoading ? "Choose a quick save to load." : transferHint + "    Confirm: Select    Cancel: Back";
+        if (menu.Message is string message)
+        {
+            if (menu.IsTransferring)
+            {
+                if (!menu.ConfirmOverwrite && !message.StartsWith("Copy ", StringComparison.Ordinal))
+                {
+                    instruction = message;
+                }
+            }
+            else
+            {
+                detail = message;
+            }
+        }
+        UiPanel help = new() { GridRow = headerRow + 1, Caption = "HELP", CaptionFontSize = 13, CaptionHeight = 13, Padding = new UiThickness(8, 2) };
+        help.Children.Add(new UiLabel { Text = instruction + "\n" + detail, FontSize = 19 });
+        content.Children.Add(help);
+        UiGrid blocks = BuildPlayerSaveBlocks(entries, loading && !menu.IsTransferring);
+        blocks.GridRow = headerRow + 2;
+        content.Children.Add(blocks);
+        root.Children.Add(content);
+        UiView view = CreateWindowView(root);
+        view.Resize(960, 672);
+        int selectedIndex = Math.Max(0, entries.FindIndex(entry => entry.Slot == menu.SelectedSlot));
+        UiButton? selectedBlock = blocks.Children.OfType<UiButton>().ElementAtOrDefault(selectedIndex);
+        if (selectedBlock is not null)
+        {
+            view.Focus(selectedBlock);
+        }
+        return view;
     }
 
     internal static UiGrid BuildPlayerSaveBlocks(IReadOnlyList<PlayerSaveEntry> entries, bool loading)
