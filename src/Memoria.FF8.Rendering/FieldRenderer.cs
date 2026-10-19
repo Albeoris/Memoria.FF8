@@ -284,7 +284,7 @@ public sealed partial class FieldRenderer
             }
             // Original PC quad depth is proportional to 16*MAPZ+CLUT ordinal.
             // Model camera Z uses four units per MAP ordering-table slot.
-            TileRaster placedRaster = scrollOffset == Vector2.Zero ? raster : CreateTileRaster(tile, scrollOffset);
+            TileRaster placedRaster = CreateTileRaster(tile, scrollOffset);
             rasters.Add(placedRaster with { Depth = tile.Z * 4f + paletteOrder / 4f });
         }
         AddWidescreenBackgroundRasters(rasters, offsets, frame, jitter, cameraIndex);
@@ -299,7 +299,7 @@ public sealed partial class FieldRenderer
         int rasterRight = right ?? originalClipRight;
         Vector4 clip = new(rasterLeft, clipTop, rasterRight, clipBottom);
         PixelImage image = tile.ResolvedImage;
-        Vector2 origin = new(offsetX + (tile.X + drawingOrigin.X + scrollOffset.X) * scale, offsetY + (tile.Y + drawingOrigin.Y + scrollOffset.Y) * verticalScale);
+        Vector2 origin = new(HorizontalOrigin + (tile.X + drawingOrigin.X + scrollOffset.X) * scale, offsetY + (tile.Y + drawingOrigin.Y + scrollOffset.Y) * verticalScale);
         Vector2 size = new(16 * scale, 16 * verticalScale);
         if (TriangleRenderer is not null && !prepareSoftware)
         {
@@ -307,13 +307,13 @@ public sealed partial class FieldRenderer
         }
         // Cover sample centers in [origin, origin + 16). Adjacent MAP tiles
         // share an edge, so fractional scaling must not blend that row twice.
-        int startX = Math.Clamp((int)MathF.Ceiling(offsetX + (tile.X + drawingOrigin.X + scrollOffset.X) * scale - 0.5f), rasterLeft, rasterRight);
+        int startX = Math.Clamp((int)MathF.Ceiling(HorizontalOrigin + (tile.X + drawingOrigin.X + scrollOffset.X) * scale - 0.5f), rasterLeft, rasterRight);
         int startY = Math.Clamp((int)MathF.Ceiling(offsetY + (tile.Y + drawingOrigin.Y + scrollOffset.Y) * verticalScale - 0.5f), clipTop, clipBottom);
-        int endX = Math.Clamp((int)MathF.Ceiling(offsetX + (tile.X + drawingOrigin.X + 16 + scrollOffset.X) * scale - 0.5f), rasterLeft, rasterRight);
+        int endX = Math.Clamp((int)MathF.Ceiling(HorizontalOrigin + (tile.X + drawingOrigin.X + 16 + scrollOffset.X) * scale - 0.5f), rasterLeft, rasterRight);
         int endY = Math.Clamp((int)MathF.Ceiling(offsetY + (tile.Y + drawingOrigin.Y + 16 + scrollOffset.Y) * verticalScale - 0.5f), clipTop, clipBottom);
         RasterRun[] columns = CreateRuns(startX, endX, destinationX =>
         {
-            float logicalX = (destinationX + 0.5f - offsetX) / scale - tile.X - drawingOrigin.X - scrollOffset.X;
+            float logicalX = (destinationX + 0.5f - HorizontalOrigin) / scale - tile.X - drawingOrigin.X - scrollOffset.X;
             return Math.Clamp((int)(logicalX * image.Width / 16), 0, image.Width - 1);
         });
         RasterRun[] rows = CreateRuns(startY, endY, destinationY =>
@@ -490,7 +490,7 @@ public sealed partial class FieldRenderer
     {
         // FieldCamera.Project retains its 320x240 diagnostic canvas origin.
         // Remove that origin before applying the native shared DRAWENV origin.
-        return new ProjectedPoint(offsetX + (point.X - 160 + drawingOrigin.X + actorScrollOffset.X) * scale, offsetY + (point.Y - 120 + drawingOrigin.Y + actorScrollOffset.Y) * verticalScale, point.Depth);
+        return new ProjectedPoint(HorizontalOrigin + (point.X - 160 + drawingOrigin.X + actorScrollOffset.X) * scale, offsetY + (point.Y - 120 + drawingOrigin.Y + actorScrollOffset.Y) * verticalScale, point.Depth);
     }
 
     private void Triangle(ProjectedPoint a, ProjectedPoint b, ProjectedPoint c, Vector2 uvA, Vector2 uvB, Vector2 uvC, PixelImage texture, Vector3 polygonColor, bool primitiveTransparencyEnabled)

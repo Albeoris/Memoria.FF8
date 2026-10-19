@@ -43,8 +43,7 @@ public sealed class FieldWidescreenTests
         byte[] actual = renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero, backgroundScrollOffsets: offsets, actorScrollOffset: actorOffset);
         for (int x = 0; x < 640; x++)
         {
-            float imageX = x + 0.5f - 320 + center;
-            AssertPixel(actual, 640, x, 120, imageX >= -320 && imageX < 320 ? Ground : Black);
+            AssertPixel(actual, 640, x, 120, Ground);
         }
         AssertGpuMatches(field, 640, 240, actual, offsets, actorOffset);
     }
@@ -196,9 +195,10 @@ public sealed class FieldWidescreenTests
         byte[] first = renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero).ToArray();
         byte[] second = renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero, cameraIndex: 1).ToArray();
         AssertPixel(first, 800, 200, 120, Black);
-        AssertPixel(second, 800, 159, 120, Black);
-        AssertPixel(second, 800, 160, 120, Ground);
-        AssertPixel(second, 800, 799, 120, Ground);
+        AssertPixel(second, 800, 79, 120, Black);
+        AssertPixel(second, 800, 80, 120, Ground);
+        AssertPixel(second, 800, 719, 120, Ground);
+        AssertPixel(second, 800, 720, 120, Black);
         Assert.Equal(first, renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero));
         AssertGpuMatches(field, 800, 240, second, cameraIndex: 1);
     }
@@ -284,6 +284,156 @@ public sealed class FieldWidescreenTests
         Assert.True(FieldNativeNormalBackgroundWrap.Validate(field, 0, Vector2.Zero, offsets, frame));
         Assert.Equal(wide, renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero, backgroundScrollOffsets: offsets, nativeWrapFrame: frame));
         AssertGpuMatches(field, 640, 240, wide, offsets, nativeWrapFrame: frame);
+    }
+
+    [Theory]
+    [InlineData(640, -160, -160)]
+    [InlineData(640, 0, 0)]
+    [InlineData(640, 160, 160)]
+    [InlineData(640, 320, 192)]
+    [InlineData(640, -320, -192)]
+    [InlineData(1280, 320, 0)]
+    public void WideCameraStopsAtBothEdgesWithoutExposingBlackPixels(int width, int center, int expectedCenter)
+    {
+        List<BackgroundTile> tiles = [];
+        for (int x = -512; x < 512; x += 16)
+        {
+            tiles.AddRange(Tiles(x, x + 16, 0, Stripe((x + 512) / 16)));
+        }
+        FieldAssets field = Field(tiles, new FieldBounds(-112, 112, 512, -512));
+        Vector2 offset = new(-center, 0);
+        Dictionary<int, Vector2> offsets = new() { [0] = offset };
+        FieldRenderer renderer = new(field, width, 240);
+        byte[] pixels = renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero, backgroundScrollOffsets: offsets, actorScrollOffset: offset).ToArray();
+        for (int x = 0; x < width; x++)
+        {
+            float imageX = x + 0.5f - width / 2f + expectedCenter;
+            Rgba32 expected = imageX >= -512 && imageX < 512 ? Stripe((int)(imageX + 512) / 16) : Black;
+            AssertPixel(pixels, width, x, 120, expected);
+        }
+        AssertGpuMatches(field, width, 240, pixels, offsets, offset);
+        Assert.Equal(offset, offsets[0]);
+        Assert.Equal(pixels, renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero, backgroundScrollOffsets: offsets, actorScrollOffset: offset));
+    }
+
+    [Theory]
+    [InlineData(-160)]
+    [InlineData(0)]
+    [InlineData(160)]
+    public void NarrowImageStaysCenteredAsNativeCameraMoves(int center)
+    {
+        FieldAssets field = Field(Tiles(-240, 240, 0, Ground), new FieldBounds(-112, 112, 240, -240));
+        Vector2 offset = new(-center, 0);
+        Dictionary<int, Vector2> offsets = new() { [0] = offset };
+        byte[] pixels = new FieldRenderer(field, 640, 240).Render(new Dictionary<int, int>(), [], TimeSpan.Zero, backgroundScrollOffsets: offsets, actorScrollOffset: offset);
+        for (int x = 0; x < 640; x++)
+        {
+            AssertPixel(pixels, 640, x, 120, x >= 80 && x < 560 ? Ground : Black);
+        }
+        AssertGpuMatches(field, 640, 240, pixels, offsets, offset);
+    }
+
+    [Fact]
+    public void ClampedCameraMovesModelsWithTheBackgroundAndRefreshesReusedRasters()
+    {
+        FieldModel model = new("viewport-actor", [new(-1, 0)], [new(new Vector3(0, -10, -10), 0), new(new Vector3(0, 10, -10), 0), new(new Vector3(0, 0, 10), 0)], [new([0, 2, 1], [Vector2.Zero, Vector2.Zero, Vector2.Zero], 0, false)], [Solid(Parallax)], [new([new(Vector3.Zero, [Vector3.Zero])])]);
+        FieldAssets field = Field(Tiles(-320, 320, 0, Ground), new FieldBounds(-112, 112, 320, -320)) with { Models = [model] };
+        ActorVisual actor = new(0, 0, 0, 0, 0, 192, 0, 0, true, PolygonColor: new Vector3(128));
+        FieldRenderer renderer = new(field, 640, 240);
+        byte[] expected = renderer.Render(new Dictionary<int, int>(), [actor], TimeSpan.Zero).ToArray();
+        AssertPixel(expected, 640, 320, 120, Parallax);
+        foreach (int center in new[] { -160, 160, 0, -160 })
+        {
+            Vector2 offset = new(-center, 0);
+            Dictionary<int, Vector2> offsets = new() { [0] = offset };
+            Assert.Equal(expected, renderer.Render(new Dictionary<int, int>(), [actor], TimeSpan.Zero, backgroundScrollOffsets: offsets, actorScrollOffset: offset));
+        }
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer gpu = new(device.Device);
+        renderer.TriangleRenderer = gpu;
+        renderer.Render(new Dictionary<int, int>(), [actor], TimeSpan.Zero, backgroundScrollOffsets: new Dictionary<int, Vector2> { [0] = new(-160, 0) }, actorScrollOffset: new(-160, 0));
+        Assert.Equal(new Color(Parallax.R, Parallax.G, Parallax.B), GpuTestDevice.Read(gpu.Target)[120 * 640 + 320]);
+    }
+
+    [Theory]
+    [InlineData(-160)]
+    [InlineData(160)]
+    public void ClampedWrappedBackgroundRetainsItsPeriodAndNativeFrame(short center)
+    {
+        FieldAssets field = WrappedField(352);
+        FieldBounds[] bounds = field.Information!.CameraBounds.ToArray();
+        bounds[0] = new FieldBounds(-112, 112, 320, -320);
+        field = field with { Information = field.Information with { CameraBounds = bounds } };
+        Vector2 offset = new(-center, 0);
+        Dictionary<int, Vector2> offsets = new() { [1] = offset };
+        FieldNativeBackgroundWrapFrame frame = FieldNativeNormalBackgroundWrap.Prepare(field, 0, new FieldNativeCameraCenter(center, 0))!;
+        Assert.NotNull(frame);
+        string originalFrame = JsonSerializer.Serialize(frame);
+        byte[] pixels = new FieldRenderer(field, 640, 240).Render(new Dictionary<int, int>(), [], TimeSpan.Zero, backgroundScrollOffsets: offsets, actorScrollOffset: offset, nativeWrapFrame: frame);
+        for (int x = 0; x < 640; x++)
+        {
+            AssertPixel(pixels, 640, x, 120, Stripe(PositiveMod(x - 320 + 176, 352) / 16));
+        }
+        AssertGpuMatches(field, 640, 240, pixels, offsets, offset, nativeWrapFrame: frame);
+        Assert.Equal(originalFrame, JsonSerializer.Serialize(frame));
+        Assert.True(FieldNativeNormalBackgroundWrap.Validate(field, 0, offset, offsets, frame));
+    }
+
+    [Fact]
+    public void MoviePresentationClearsThePreviousFieldCameraClamp()
+    {
+        FieldAssets field = Field(Tiles(-320, 320, 0, Ground), new FieldBounds(-112, 112, 320, -320));
+        FieldRenderer renderer = new(field, 640, 240);
+        renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero, backgroundScrollOffsets: new Dictionary<int, Vector2> { [0] = new(-160, 0) }, actorScrollOffset: new(-160, 0));
+        byte[] movie = Enumerable.Repeat(new byte[] { 64, 128, 192, 255 }, 320 * 224).SelectMany(pixel => pixel).ToArray();
+        byte[] actual = renderer.RenderMovieFrame(movie, 320, 224, field.Camera, [], null);
+        byte[] expected = new FieldRenderer(field, 640, 240).RenderMovieFrame(movie, 320, 224, field.Camera, [], null);
+        Assert.Equal(expected, actual);
+        Assert.Equal(new PixelBounds(160, 0, 320, 240), renderer.ContentBounds);
+    }
+
+    [Fact]
+    public void InstalledBalambImageNeverExposesSideBarsAtItsNativeCameraLimits()
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        FieldAssets field = assets.LoadField(102);
+        Dictionary<int, int> states = field.Background.Where(tile => tile.AnimationId != 255).GroupBy(tile => tile.AnimationId).ToDictionary(group => group.Key, group => (int)group.First().AnimationState);
+        FieldBounds bounds = field.Information!.CameraBounds[0];
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer gpu = new(device.Device);
+        string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_WIDESCREEN_OUTPUT");
+        List<object> metadata = [];
+        foreach ((int width, int height) in new[] { (426, 240), (1912, 978), (1280, 240) })
+        {
+            foreach (int center in new[] { bounds.Left + 160, (bounds.Left + bounds.Right) / 2, bounds.Right - 160 })
+            {
+                Vector2 offset = new(-center, -(bounds.Top + bounds.Bottom) / 2);
+                Dictionary<int, Vector2> offsets = field.Background.Select(tile => tile.Layer).Distinct().ToDictionary(layer => layer, _ => offset);
+                FieldNativeBackgroundWrapFrame? frame = field.Information.BackgroundWrapMask == 0 ? null : FieldNativeNormalBackgroundWrap.Prepare(field, 0, new FieldNativeCameraCenter((short)center, (short)-offset.Y));
+                FieldRenderer renderer = new(field, width, height) { TriangleRenderer = gpu };
+                renderer.Render(states, [], TimeSpan.Zero, backgroundScrollOffsets: offsets, actorScrollOffset: offset, nativeWrapFrame: frame);
+                float scale = Math.Min(width / 320f, height / 240f);
+                int imageWidth = Math.Min(width, (int)MathF.Round((bounds.Right - bounds.Left) * scale));
+                Assert.InRange(renderer.ContentBounds.Width, imageWidth - 1, imageWidth + 1);
+                Assert.InRange(Math.Abs(renderer.ContentBounds.X - (width - renderer.ContentBounds.Width) / 2f), 0, 0.5f);
+                Color[] pixels = GpuTestDevice.Read(gpu.Target);
+                int y = height / 2;
+                Assert.NotEqual(Color.Black, pixels[y * width + renderer.ContentBounds.X]);
+                Assert.NotEqual(Color.Black, pixels[y * width + renderer.ContentBounds.X + renderer.ContentBounds.Width - 1]);
+
+                metadata.Add(new { width, height, center, bounds, renderer.ContentBounds });
+                if (output is not null)
+                {
+                    Directory.CreateDirectory(output);
+                    using FileStream stream = File.Create(Path.Combine(output, $"field102-{width}x{height}-center{center}.png"));
+                    gpu.Target.SaveAsPng(stream, width, height);
+                }
+            }
+        }
+        if (output is not null)
+        {
+            File.WriteAllText(Path.Combine(output, "field102-camera-bounds.json"), JsonSerializer.Serialize(metadata, new JsonSerializerOptions { WriteIndented = true }));
+        }
     }
 
     private static FieldAssets WrappedField(int period)

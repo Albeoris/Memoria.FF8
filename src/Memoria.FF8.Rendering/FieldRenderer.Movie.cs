@@ -26,6 +26,9 @@ public sealed partial class FieldRenderer
         //476450's active-movie branch subtracts CAM WORD32, adds WORD34, and does not apply the ordinary tracking/shake offsets.
         camera = movieCamera with { Pan = new Vector2(-movieCamera.Pan.X, movieCamera.Pan.Y) };
         actorScrollOffset = Vector2.Zero;
+        horizontalPresentationOffset = 0;
+        clipLeft = Math.Clamp((int)MathF.Ceiling(offsetX - 0.5f), 0, OutputWidth);
+        clipRight = Math.Clamp((int)MathF.Ceiling(offsetX + Width * scale - 0.5f), clipLeft, OutputWidth);
         if (TriangleRenderer is not null)
         {
             TriangleRenderer.Begin(OutputWidth, OutputHeight, new Vector4(0, 0, 0, 1));

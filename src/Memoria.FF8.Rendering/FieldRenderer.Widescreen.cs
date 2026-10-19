@@ -7,26 +7,47 @@ namespace Memoria.FF8.Rendering;
 public sealed partial class FieldRenderer
 {
     private readonly bool widescreen;
-    private readonly int originalClipLeft;
-    private readonly int originalClipRight;
+    private int originalClipLeft;
+    private int originalClipRight;
+    private float horizontalPresentationOffset;
+
+    private float HorizontalOrigin => offsetX + horizontalPresentationOffset;
 
     public PixelBounds ContentBounds => new(clipLeft, clipTop, clipRight - clipLeft, clipBottom - clipTop);
 
     private bool UpdateHorizontalViewport(int cameraIndex, Vector2 scroll)
     {
-        int left = originalClipLeft;
-        int right = originalClipRight;
+        int left = Math.Clamp((int)MathF.Ceiling(offsetX - 0.5f), 0, OutputWidth);
+        int right = Math.Clamp((int)MathF.Ceiling(offsetX + Width * scale - 0.5f), 0, OutputWidth);
+        float previousOffset = horizontalPresentationOffset;
+        horizontalPresentationOffset = 0;
         if (widescreen && field.Information is { ScreenBounds.Count: > 0 } information && (uint)cameraIndex < information.CameraBounds.Count)
         {
             FieldBounds bounds = information.CameraBounds[cameraIndex];
             // The selected INF camera clamp defines the reachable image. A
             // parallax layer's tiles or wrap period do not extend that image.
-            left = Math.Min(left, Math.Clamp((int)MathF.Ceiling(offsetX + (drawingOrigin.X + bounds.Left + scroll.X) * scale - 0.5f), 0, OutputWidth));
-            right = Math.Max(right, Math.Clamp((int)MathF.Ceiling(offsetX + (drawingOrigin.X + bounds.Right + scroll.X) * scale - 0.5f), 0, OutputWidth));
+            float imageLeft = offsetX + (drawingOrigin.X + bounds.Left + scroll.X) * scale;
+            float imageWidth = (bounds.Right - bounds.Left) * scale;
+            if (OutputWidth > Width * scale && imageWidth > 0)
+            {
+                // Keep the visible camera inside the image, centering images
+                // narrower than the target instead of following past either edge.
+                float clampedLeft = imageWidth >= OutputWidth ? Math.Clamp(imageLeft, OutputWidth - imageWidth, 0) : (OutputWidth - imageWidth) / 2;
+                horizontalPresentationOffset = clampedLeft - imageLeft;
+                left = Math.Clamp((int)MathF.Ceiling(imageLeft + horizontalPresentationOffset - 0.5f), 0, OutputWidth);
+                right = Math.Clamp((int)MathF.Ceiling(clampedLeft + imageWidth - 0.5f), left, OutputWidth);
+            }
+            else
+            {
+                left = Math.Min(left, Math.Clamp((int)MathF.Ceiling(imageLeft - 0.5f), 0, OutputWidth));
+                right = Math.Max(right, Math.Clamp((int)MathF.Ceiling(imageLeft + imageWidth - 0.5f), 0, OutputWidth));
+            }
         }
-        bool changed = clipLeft != left || clipRight != right;
+        bool changed = clipLeft != left || clipRight != right || previousOffset != horizontalPresentationOffset;
         clipLeft = left;
         clipRight = right;
+        originalClipLeft = Math.Clamp((int)MathF.Ceiling(HorizontalOrigin - 0.5f), clipLeft, clipRight);
+        originalClipRight = Math.Clamp((int)MathF.Ceiling(HorizontalOrigin + Width * scale - 0.5f), originalClipLeft, clipRight);
         return changed;
     }
 
@@ -62,7 +83,7 @@ public sealed partial class FieldRenderer
             {
                 return;
             }
-            float center = ((left + right) / 2f - offsetX) / scale - drawingOrigin.X;
+            float center = ((left + right) / 2f - HorizontalOrigin) / scale - drawingOrigin.X;
             center = Math.Clamp(center, imageLeft + halfWidth, imageRight - halfWidth);
             Dictionary<ushort, int> paletteOrders = [];
             int previousDepth = background.Length == 0 ? 0 : background[0].Tile.Z;
@@ -119,7 +140,7 @@ public sealed partial class FieldRenderer
                         }
                         paletteOrders.Add(tile.PackedPalette, order);
                     }
-                    float pixelLeft = offsetX + (placedX + drawingOrigin.X + scroll.X) * scale;
+                    float pixelLeft = HorizontalOrigin + (placedX + drawingOrigin.X + scroll.X) * scale;
                     if (pixelLeft + 16 * scale <= left || pixelLeft >= right)
                     {
                         continue;
