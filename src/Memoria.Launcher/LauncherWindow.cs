@@ -236,7 +236,8 @@ internal sealed partial class LauncherWindow : Window
                 start.ArgumentList.Add("--state");
                 start.ArgumentList.Add(resume.SavePath);
             }
-            using GameProcessDiagnostics diagnostics = new();
+            using TextWriter? console = GameConsole.Open();
+            using GameProcessDiagnostics diagnostics = new(console: console);
             using Process process = Process.Start(start) ?? throw new InvalidOperationException("The game process could not be started.");
             runningGame = process;
             runningGameDirectory = selected.Directory;

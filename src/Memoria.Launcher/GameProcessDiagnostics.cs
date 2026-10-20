@@ -11,11 +11,13 @@ internal sealed class GameProcessDiagnostics : IDisposable
     private readonly StringBuilder outputTail = new();
     private StreamWriter? log;
     private string? logWarning;
+    private TextWriter? console;
 
     public string? LogPath { get; private set; }
 
-    public GameProcessDiagnostics(string? directory = null, string? fallbackDirectory = null)
+    public GameProcessDiagnostics(string? directory = null, string? fallbackDirectory = null, TextWriter? console = null)
     {
+        this.console = console;
         directory ??= Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoria", "FF8", "logs");
         fallbackDirectory ??= Path.Combine(Path.GetTempPath(), "Memoria.FF8", "logs");
         foreach (string candidate in new[] { directory, fallbackDirectory }.Distinct(StringComparer.OrdinalIgnoreCase))
@@ -66,6 +68,7 @@ internal sealed class GameProcessDiagnostics : IDisposable
                         tail.Remove(0, tail.Length - TailCapacity);
                     }
                     WriteLog(source, text);
+                    WriteConsole(text);
                 }
             }
         }
@@ -121,6 +124,20 @@ internal sealed class GameProcessDiagnostics : IDisposable
         {
             logWarning = $"The game log is incomplete: {exception.Message}";
             CloseLog();
+        }
+    }
+
+    private void WriteConsole(string text)
+    {
+        try
+        {
+            console?.Write(text);
+            console?.Flush();
+        }
+        catch (Exception exception) when (exception is IOException or ObjectDisposedException)
+        {
+            // A closed console must not interrupt pipe draining or the complete file log.
+            console = null;
         }
     }
 

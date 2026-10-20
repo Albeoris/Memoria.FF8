@@ -25,7 +25,8 @@ public sealed class GameProcessDiagnosticsTests : IDisposable
             [Console]::Error.Write("System.InvalidOperationException: battle failed; inner exception: bad operand — ошибка боя")
             exit -1
             """, new UTF8Encoding(true), TestContext.Current.CancellationToken);
-        using GameProcessDiagnostics diagnostics = new(directory);
+        using StringWriter console = new();
+        using GameProcessDiagnostics diagnostics = new(directory, console: console);
         using Process process = Start(script);
         Task capture = diagnostics.CaptureAsync(process);
         try
@@ -42,6 +43,9 @@ public sealed class GameProcessDiagnosticsTests : IDisposable
             Assert.Contains("bad operand", saved);
             Assert.Contains("ошибка боя", saved);
             Assert.Contains("code -1", saved);
+            string visible = console.ToString();
+            Assert.Equal(2 * 128 * 4096 + "System.InvalidOperationException: battle failed; inner exception: bad operand — ошибка боя".Length, visible.Length);
+            Assert.Contains("System.InvalidOperationException: battle failed; inner exception: bad operand — ошибка боя", visible);
         }
         finally
         {
@@ -147,6 +151,63 @@ public sealed class GameProcessDiagnosticsTests : IDisposable
         start.ArgumentList.Add("-File");
         start.ArgumentList.Add(script);
         return Process.Start(start) ?? throw new InvalidOperationException("Could not start test child process.");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Unavailable_console_does_not_interrupt_full_log_capture(bool disposed)
+    {
+        string script = Path.Combine(directory, "console-failure.ps1");
+        await File.WriteAllTextAsync(script, "[Console]::Error.Write(('x' * 9000) + [Environment]::NewLine + 'System.Exception: failure' + [Environment]::NewLine + '   at Example.Run()'); exit 1", TestContext.Current.CancellationToken);
+        using FailingConsole console = new(disposed);
+        using GameProcessDiagnostics diagnostics = new(directory, console: console);
+        using Process process = Start(script);
+        Task capture = diagnostics.CaptureAsync(process);
+        await process.WaitForExitAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
+        await capture.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        string completion = diagnostics.Complete(process.ExitCode);
+        string saved = await File.ReadAllTextAsync(diagnostics.LogPath!, TestContext.Current.CancellationToken);
+        Assert.True(saved.Count(character => character == 'x') >= 9000);
+        Assert.Contains("at Example.Run()", saved);
+        Assert.Contains("at Example.Run()", completion);
+    }
+
+    private sealed class FailingConsole(bool disposed) : StringWriter
+    {
+        public override void Write(string? value)
+        {
+            if (disposed)
+            {
+                throw new ObjectDisposedException(nameof(FailingConsole));
+            }
+            throw new IOException("Console unavailable");
+        }
+    }
+
+    [Fact]
+    public void Console_disposal_tolerates_a_failed_final_flush_and_closes_the_stream()
+    {
+        using FailingConsoleStream stream = new();
+        GameConsole.ConsoleWriter console = new(stream);
+        console.Write("pending error output");
+
+        console.Dispose();
+
+        Assert.False(stream.CanWrite);
+    }
+
+    private sealed class FailingConsoleStream : MemoryStream
+    {
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            throw new IOException("Console unavailable");
+        }
+
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            throw new IOException("Console unavailable");
+        }
     }
 
     public void Dispose()
