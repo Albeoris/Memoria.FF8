@@ -241,6 +241,15 @@ public sealed partial class BattleSession
         {
             return (memory.Arena ?? throw new NotSupportedException("Native retained effect packet alias requires its original arena.")).Read(reference.ByteOffset, count);
         }
+        if (reference.Bank is "2491BC0" or "DD6780")
+        {
+            if (reference.Buffer != 0)
+            {
+                throw new InvalidDataException("Native Tornado packet banks require their contiguous executable owners.");
+            }
+            NativeBattleTornado146State state = memory.Tornado146 ?? throw new NotSupportedException("Native Tornado requires its retained physical packet banks.");
+            return reference.Bank == "2491BC0" ? state.Storage.Read(reference.ByteOffset, count) : (state.CapturePacket ?? throw new NotSupportedException("Native Tornado requires its executed capture template.")).AsSpan().Slice(reference.ByteOffset, count).ToArray();
+        }
         if (reference.Bank is "2296A30" or "D1B490" or "2293F50" or "2294DA0" or "2295BC0")
         {
             if (reference.Buffer != 0)

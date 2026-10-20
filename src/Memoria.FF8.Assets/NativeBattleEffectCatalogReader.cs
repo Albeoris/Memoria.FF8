@@ -247,6 +247,15 @@ public sealed partial class GameAssets
             {
                 binding = binding with { Wall189Resources = ReadNativeWall189Resources() };
             }
+            if (binding.Effect == 38)
+            {
+                binding = binding with { Quake38Resources = ReadNativeQuake38Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 146)
+            {
+                binding = binding with { Tornado146Resources = ReadNativeTornado146Resources() };
+            }
             if (binding.Effect == 39)
             {
                 binding = binding with { Drain39Resources = ReadNativeDrain39Resources() };

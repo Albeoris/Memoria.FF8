@@ -164,6 +164,10 @@ public sealed partial class BattleSession
                 {
                     graphics = wallCompleted;
                 }
+                else if (TryWriteNativeTornado146Completion(graphics, address, value, out NativeBattleGraphicsState tornadoCompleted))
+                {
+                    graphics = tornadoCompleted;
+                }
                 else if (TryWriteNativeUltima149Completion(graphics, address, value, out NativeBattleGraphicsState ultimaCompleted))
                 {
                     graphics = ultimaCompleted;

@@ -77,6 +77,7 @@ internal class NativeBattleEffectNodeMemory
     internal void Dword(int offset, uint value) => BinaryPrimitives.WriteUInt32LittleEndian(Write(offset, 4), value);
     internal void Clear(int offset, int count) => Write(offset, count).Clear();
     internal bool UseSharedScratch { get; }
+    internal NativeBattleTheEnd85SpawnScratchObserver? SpawnScratchObserver { get; init; }
     internal NativeBattleVector ReadPlacementEuler() => (scratch ?? NativeBattleEffectNodeScratch.Unknown()).ReadEuler();
     internal void WritePlacementEuler(NativeBattleVector angles)
     {

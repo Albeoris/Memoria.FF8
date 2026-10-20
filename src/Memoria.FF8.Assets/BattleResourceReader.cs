@@ -303,6 +303,14 @@ internal static partial class BattleResourceReader
                     throw new NotSupportedException($"Stage {stageId} object header 0x{objectHeader:X8} is unsupported.");
                 }
                 int verticesCount = Count(reader.ReadUInt16(), 8192, "stage vertices");
+                long vertexDataStart = reader.BaseStream.Position;
+                byte[] nativePackedVertices = reader.ReadBytes(checked(verticesCount * 6 + 6));
+                if (nativePackedVertices.Length != verticesCount * 6 + 6)
+                {
+                    throw new InvalidDataException("Native stage vertex group requires its complete addressed payload and adjacent bytes.");
+                }
+                reader.BaseStream.Position = vertexDataStart;
+                ushort nativeBone = (ushort)(objectHeader >> 16);
                 BattleVertex[] vertices = new BattleVertex[verticesCount];
                 for (int vertex = 0; vertex < verticesCount; vertex++)
                 {
@@ -364,7 +372,7 @@ internal static partial class BattleResourceReader
                     }
                     faces.Add(new BattleFace(indices, uv, texture, color) { NativeMaterial = new(texturePage, clut, nativeUv), NativePolygon = System.Collections.Immutable.ImmutableArray.CreateRange(nativePolygon) });
                 }
-                meshes.Add(new BattleMesh(vertices, faces) { NativeStageGroup = group });
+                meshes.Add(new BattleMesh(vertices, faces) { NativeStageGroup = group, NativeBoneGroups = [unchecked((short)nativeBone)], NativePackedVertexGroups = [new(nativeBone, checked((short)verticesCount), nativePackedVertices.ToImmutableArray())] });
             }
         }
         return new BattleStage(stageId, meshes, textures)

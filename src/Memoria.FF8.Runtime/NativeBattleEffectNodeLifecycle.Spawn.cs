@@ -11,6 +11,7 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
         int node = inputs.AllocateGeometry(emitter, sourceIndex) ?? throw new InvalidDataException("Native8818A0 dereferences the exhausted882080 geometry allocation.");
         memory.Byte(node + 0x1D8, unchecked((byte)instanceCount));
         int frame = unchecked((short)memory.Word(emitter + 0x60));
+        memory.SpawnScratchObserver?.Begin(frame);
         if (source[0x16] is 0 or 1 or 2)
         {
             uint resource = BinaryPrimitives.ReadUInt32LittleEndian(bank.Read(unchecked(memory.ContextDword(0x228) + (uint)(sourceIndex * 4)), 4));
@@ -75,6 +76,7 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
                     spread = NativeBattlePoseMatrices.Scale56BEF0(spread, actorScale.X, actorScale.Y, actorScale.Z);
                 }
                 NativeBattleVector unit = NativeBattleCuragaMatrices.RotateVector45DF80(spread, new(0, -4096, 0));
+                memory.SpawnScratchObserver?.Placement(placementEuler.Value, spread, radius, unit, source[0x34]);
                 Add(local, unchecked(radius[0] * unit.X << 4));
                 Add(local + 4, source[0x34] == 1 ? unchecked(radius[1] * unit.Y << 4) : radius[1] << 16);
                 Add(local + 8, unchecked(radius[2] * unit.Z << 4));
@@ -86,9 +88,11 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
                     NativeBattleEffectNodeRandomVector draw = NativeBattleEffectNodeRandom.Euler881FE0(random, Vector(0x3C), Vector(0x44));
                     random = draw.Random;
                     euler = draw.Value;
+                    memory.SpawnScratchObserver?.RandomEuler(euler);
                     break;
                 case 1:
                     euler = memory.UseSharedScratch ? memory.ReadPlacementEuler() : placementEuler ?? throw new NotSupportedException("Native node placement selector1 requires its caller's retained Euler scratch owner.");
+                    memory.SpawnScratchObserver?.CopyPlacementEuler();
                     break;
                 default:
                     throw new NotSupportedException("Native8818A0 requires the actual unwritten Euler scratch for its out-of-range selector.");

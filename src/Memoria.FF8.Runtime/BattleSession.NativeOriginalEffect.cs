@@ -133,6 +133,14 @@ public sealed partial class BattleSession
         {
             return EnterNativeWall189(graphics);
         }
+        if (effect.Binding.Entry == 0x8D8510)
+        {
+            return EnterNativeQuake38(graphics);
+        }
+        if (effect.Binding.Entry == 0x614D70)
+        {
+            return EnterNativeTornado146(graphics);
+        }
         if (effect.Binding.Entry == 0x8513D0)
         {
             return EnterNativeDrain39(graphics);
