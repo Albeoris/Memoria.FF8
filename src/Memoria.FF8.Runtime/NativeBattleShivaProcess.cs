@@ -14,7 +14,7 @@ public sealed record NativeBattleShivaProcess([property: JsonRequired] NativeBat
     [JsonRequired]
     public uint SpawnedChildD32508 { get; init; }
 
-    public static NativeBattleShivaProcess FromColdProcess() => new(null, null, null, 0, 0, new(new(0, 0, 0, 0), new(0, 0, 0, 0)), NativeBattleCactuarRawModelState.FromColdProcess());
+    public static NativeBattleShivaProcess FromColdProcess() => new(null, null, null, 0, 0, new(new(0, 0, 0, 0), new(0, 0, 0, 0)), NativeBattleCactuarRawModelState.FromColdProcess()) { SpawnedChildD32508 = uint.MaxValue };
 
     public void Validate()
     {

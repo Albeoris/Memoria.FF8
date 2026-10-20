@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 
@@ -43,14 +44,34 @@ public sealed class NativeBattleRetainedMemoryTests
         Assert.Equal(NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 0x163FFD0u).Bytes.ToArray(), doubleMorph.Bytes.ToArray());
         NativeBattleTripleMorph tripleMorph = Assert.IsType<NativeBattleTripleMorph>(actual.EffectMemory.TripleMorph);
         Assert.Equal(NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 0x1627970u).Bytes.ToArray(), tripleMorph.Bytes.ToArray());
+        Assert.Null(generic.EffectMemory.Bio22Geometry);
+        Assert.Null(generic.EffectMemory.Bio22SecondaryGeometry);
+        Assert.Null(generic.EffectMemory.Bio22ThirdGeometry);
+        Assert.Null(generic.EffectMemory.Bio22FourthGeometry);
+        Assert.Null(generic.EffectMemory.Bio22Palette);
+        Assert.Empty(generic.EffectMemory.Scan!.MutableMeshes);
         NativeExecutableMemory image = new(executable);
+        Assert.Equal(uint.MaxValue, System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(image.ReadLoader(0xD32508, 4)));
+        Assert.Equal(uint.MaxValue, generic.EffectMemory.Shiva!.SpawnedChildD32508);
+        NativeBattleEffectMemory authenticatedEffect = generic.EffectMemory with
+        {
+            Scan = generic.EffectMemory.Scan with
+            {
+                MutableMeshes = new[] { (Address: 0x15CDDECu, Length: 0x3E8), (Address: 0x15CE1D4u, Length: 0x768) }.ToImmutableDictionary(item => item.Address, item => new NativeBattleScanByteOwner(image.ReadLoader(item.Address, item.Length).ToImmutableArray(), Enumerable.Repeat(true, item.Length).ToImmutableArray()))
+            },
+            Bio22Geometry = NativeBattleBio22Geometry.FromColdProcess(NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 0x1615CE4)),
+            Bio22SecondaryGeometry = NativeBattleBio22Geometry.FromColdProcess(NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 0x1617E3C)),
+            Bio22ThirdGeometry = NativeBattleBio22Geometry.FromColdProcess(NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 0x1619888)),
+            Bio22FourthGeometry = NativeBattleBio22Geometry.FromColdProcess(NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 0x161F750)),
+            Bio22Palette = NativeBattleBio22Palette.FromColdProcess(new("FF8_EN:16146E8", NativeBattleEffectStaticResourcesReader.Read(executable, 0x16146E8, 0x220)))
+        };
         byte[] temporary = image.ReadLoader(NativeBattleTemporaryMemory.Address, NativeBattleTemporaryMemory.ReachedLength);
         byte[] cursor = image.ReadLoader(NativeBattleTemporaryMemory.Cursor, 4);
         Assert.Equal(temporary, actual.FileStaging!.Read(NativeBattleTemporaryMemory.Address, temporary.Length));
         Assert.Equal(cursor, actual.FileStaging.Read(NativeBattleTemporaryMemory.Cursor, cursor.Length));
         Assert.Throws<NotSupportedException>(() => generic.FileStaging!.Read(NativeBattleTemporaryMemory.Address, temporary.Length));
         Assert.Throws<NotSupportedException>(() => generic.FileStaging!.Read(NativeBattleTemporaryMemory.Cursor, cursor.Length));
-        NativeBattleRetainedMemory authenticated = generic with { FileStaging = generic.FileStaging!.Write(NativeBattleTemporaryMemory.Address, temporary).Write(NativeBattleTemporaryMemory.Cursor, cursor) };
+        NativeBattleRetainedMemory authenticated = generic with { EffectMemory = authenticatedEffect, FileStaging = generic.FileStaging!.Write(NativeBattleTemporaryMemory.Address, temporary).Write(NativeBattleTemporaryMemory.Cursor, cursor) };
         Assert.Equal(JsonSerializer.Serialize(authenticated), JsonSerializer.Serialize(actual with { EffectMemory = actual.EffectMemory with { QuezacotlExecutableMemory = null, DoubleMorph = null, TripleMorph = null, Effect57Executable = null, RemedyExecutable = null, RecoveryExecutables = null } }));
         Assert.Same(actual, assets.ReadColdProcessNativeBattleMemory());
         Assert.Equal(0, actual.ActionPackets.Headers[31].ReadByte(19));
