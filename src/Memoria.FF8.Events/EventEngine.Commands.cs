@@ -573,6 +573,7 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.SET3:
                 args = Pop(fiber, 3);
+                actor.PresentationPositionRevision++;
                 actor.NativeJoinedPosition = null;
                 actor.NativeSplitPosition = null;
                 actor.NativeCopiedPosition = null;

@@ -71,6 +71,7 @@ public sealed partial class EventEngine
     {
         NativeActorAnimationHeader header = RequireNativeAnimationHeader(actor);
         ushort? end = terminal ?? (header.BoundModelId == -1 ? header.EmptyModelTerminal : NativeAnimationTerminal(actor, animation));
+        actor.PresentationAnimationRevision++;
         actor.NativeAnimationHeader = header with { AnimationId = animation, Frame = first, First = first, Terminal = end, Flags = flags };
         PublishNativeAnimation(actor, true);
     }
@@ -252,6 +253,7 @@ public sealed partial class EventEngine
         }
         NativeActorAnimationBackup saved = actor.NativeAnimationBackup!;
         _ = NativeAnimationTerminal(actor, saved.AnimationId);
+        actor.PresentationAnimationRevision++;
         actor.NativeAnimationHeader = header with { AnimationId = saved.AnimationId, Frame = saved.Frame, Increment = saved.Increment, First = saved.First, Terminal = saved.Terminal, Flags = saved.Flags };
         PublishNativeAnimation(actor, true);
     }

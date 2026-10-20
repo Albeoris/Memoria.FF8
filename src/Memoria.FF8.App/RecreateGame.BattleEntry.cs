@@ -127,6 +127,7 @@ internal sealed partial class RecreateGame
         }
         Rectangle bounds = GraphicsDevice.Viewport.Bounds;
         PixelBounds fit = ViewportLayout.Fit(battleEntryPrevious!.Width, battleEntryPrevious.Height, bounds.Width, bounds.Height);
+        BeginMeasuredFrame();
         GraphicsDevice.Clear(Color.Black);
         text.BeginFrame();
         batch.Begin(samplerState: SamplerState.LinearClamp);

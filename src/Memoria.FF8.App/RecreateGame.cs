@@ -547,6 +547,7 @@ internal sealed partial class RecreateGame : Game
                     events.Step();
                     metrics.Simulate(1);
                 }
+                world.CommitFieldPresentation();
                 if (session.State.Scene != SceneKind.Field || session.State.FieldId != field!.Id || events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition || events.PendingInteractiveBattle is not null || events.PendingTripleTriad is not null || events.Scene.NativeTutorial is not null || events.CurrentDialogue?.IsNamePrompt == true)
                 {
                     SynchronizeNativeNamePrompt();
@@ -1048,7 +1049,9 @@ internal sealed partial class RecreateGame : Game
             fieldTexture = next;
         }
         long started = Stopwatch.GetTimestamp();
-        byte[] pixels = world.Render(elapsed, uiPreferences.RareCardMarkers, fieldGpu, worldInterpolation);
+        bool smoothField = session.State.Scene == SceneKind.Field && uiPreferences.FieldFps == 60 && !options.ControlStep;
+        float fieldInterpolation = smoothField ? (float)Math.Clamp(fieldSeconds * EventEngine.SimulationFps, 0, 1) : 1;
+        byte[] pixels = world.Render(elapsed, uiPreferences.RareCardMarkers, fieldGpu, worldInterpolation, fieldInterpolation, smoothField);
         double renderMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         started = Stopwatch.GetTimestamp();
         if (fieldGpu is null)
@@ -1121,6 +1124,7 @@ internal sealed partial class RecreateGame : Game
         {
             PrepareBattleTexture(GraphicsDevice.Viewport.Bounds);
         }
+        BeginMeasuredFrame();
         GraphicsDevice.Clear(Color.Black);
         Rectangle bounds = GraphicsDevice.Viewport.Bounds;
         if (!startup.Active && session.State.Scene == SceneKind.Title)
@@ -1269,6 +1273,7 @@ internal sealed partial class RecreateGame : Game
             battlePresentationPacer.Dispose();
             resourceHost?.Dispose();
             DisposeBattlePresentation();
+            DisposeFrameRate();
             fieldTexture?.Dispose();
             fieldGpu?.Dispose();
             battleGpu?.Dispose();

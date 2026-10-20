@@ -45,6 +45,7 @@ public sealed partial class EventEngine
         // 521530 writes current start8/10 and target16/18. Previous12/14
         // and counter6 remain until post-VM 475DF0 snapshots/resets them.
         Scene.BackgroundScrollPositions[args[0]] = previous with { X = (short)args[1], Y = (short)args[2], TargetX = (short)args[3], TargetY = (short)args[4], Duration = (short)args[5], Mode = 4, Status = 0, NativeLinearVersion = 1 };
+        Scene.PresentationCameraRevision++;
         if (args[0] > 0 && Scene.NativeBackgroundScrollCurrents is { } currents)
         {
             currents[args[0]] = new(1, (short)args[1], (short)args[2]);
@@ -106,6 +107,10 @@ public sealed partial class EventEngine
     private int[] ExecuteCosineBackgroundScroll(Fiber fiber)
     {
         int[] args = Pop(fiber, 4);
+        if ((short)args[3] == 0)
+        {
+            Scene.PresentationCameraRevision++;
+        }
         BackgroundScrollPosition previous = TakeBackgroundScrollPosition(args[0]);
         //521090 writes only this full-DWORD row's targetWORDs, durationWORD,
         //mode5/status0.475DF0 owns the later previous/counter publication.
@@ -174,6 +179,7 @@ public sealed partial class EventEngine
     private int[] ExecuteDirectBackgroundScroll(Fiber fiber, bool layerZero = false)
     {
         int[] args = Pop(fiber, layerZero ? 2 : 3);
+        Scene.PresentationCameraRevision++;
         int layer = layerZero ? 0 : args[0];
         int x = args[layerZero ? 0 : 1];
         int y = args[layerZero ? 1 : 2];
@@ -314,6 +320,7 @@ public sealed partial class EventEngine
     private int[] ExecuteBackgroundScrollRatio(Fiber fiber)
     {
         int[] args = Pop(fiber, 3);
+        Scene.PresentationCameraRevision++;
         BackgroundScrollSettings previous = Scene.BackgroundScrollLayers[args[0]];
         // 521460 writes only signedWORD24/26; offset20/22 and motion0..18 are untouched.
         Scene.BackgroundScrollLayers[args[0]] = previous with { ScaleX = unchecked((short)args[1]), ScaleY = unchecked((short)args[2]) };
@@ -323,6 +330,7 @@ public sealed partial class EventEngine
     private int[] ExecuteBackgroundScroll(Fiber fiber)
     {
         int[] args = Pop(fiber, 5);
+        Scene.PresentationCameraRevision++;
         Scene.BackgroundScrollLayers[args[0]] = new BackgroundScrollSettings((short)args[1], (short)args[2], (short)args[3], (short)args[4]);
         return args;
     }

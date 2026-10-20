@@ -131,7 +131,7 @@ internal sealed partial class RecreateGame
         data.SupportedActions.Add("config:Battle policy");
         data.SupportedActions.Add("config:Random encounters");
         data.Settings["V-Sync"] = uiPreferences.VSync ? "On" : "Off";
-        data.Settings["Field FPS"] = uiPreferences.FieldFps == 0 ? "Unlimited" : uiPreferences.FieldFps.ToString();
+        data.Settings["Field FPS"] = uiPreferences.FieldFps.ToString(System.Globalization.CultureInfo.InvariantCulture);
         data.Settings["World FPS"] = uiPreferences.WorldFps.ToString();
         data.Settings["Battle FPS"] = uiPreferences.BattleFps == 0 ? "Unlimited" : uiPreferences.BattleFps.ToString();
         data.Settings["Menu FPS"] = uiPreferences.MenuFps == 0 ? "Unlimited" : uiPreferences.MenuFps.ToString();

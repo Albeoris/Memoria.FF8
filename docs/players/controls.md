@@ -46,6 +46,12 @@ These shortcuts are keyboard-only by default. They can also be assigned to contr
 
 Quick saves use `%LOCALAPPDATA%/Memoria.FF8/player-saves/`. In the Save or Load menu, Card / detail starts a transfer of the selected save between Memoria and either original-game bank. See [saves](saves.md) for bank capacities, destination selection and original save-folder discovery, and [debug room](debug-room.md) for diagnostic features.
 
+## Display settings
+
+Open **Config → Display** to choose **Field FPS: 30 or 60** (default 60). At 60 FPS, field movement and animation interpolate between the original simulation frames. Scripts, movement rules and gameplay timing retain their original rate. Movies retain their own playback timing. **V-Sync** can limit presentation further when the display cannot reach the selected rate.
+
+**Show FPS**, also available under **Debug Room → UI**, measures visible frame changes per real second. Repeated identical frames and the FPS overlay itself do not count, so a still scene may show 0 FPS. This measures visible output rather than the configured limit or simulation speed.
+
 ## Movies and naming
 
 Hold the currently bound **Cancel** input for one second to request a movie skip. A progress hint appears while holding. A brief press does not complete the gesture. The gesture follows the Cancel binding; there is no separate movie-skip binding.

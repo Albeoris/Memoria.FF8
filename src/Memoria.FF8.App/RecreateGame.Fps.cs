@@ -1,24 +1,36 @@
 using System.Diagnostics;
 using Memoria.FF8.Runtime;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 
 namespace Memoria.FF8;
 
 internal sealed partial class RecreateGame
 {
-    private readonly PresentationFrameRate presentationFrameRate = new();
+    private VisualFrameRate? visualFrameRate;
     private readonly long presentationClockStarted = Stopwatch.GetTimestamp();
     private TimeSpan nextFpsLabelUpdate;
     private string fpsLabel = "FPS: --";
+
+    private void BeginMeasuredFrame()
+    {
+        if (!uiPreferences.ShowFps)
+        {
+            DisposeFrameRate();
+            return;
+        }
+        visualFrameRate ??= new VisualFrameRate(GraphicsDevice);
+        visualFrameRate.BeginFrame();
+    }
 
     protected override void EndDraw()
     {
         base.EndDraw();
         TimeSpan now = Stopwatch.GetElapsedTime(presentationClockStarted);
-        presentationFrameRate.Presented(now);
+        visualFrameRate?.Presented(now);
         if (now >= nextFpsLabelUpdate)
         {
-            double? fps = presentationFrameRate.FramesPerSecond;
+            double? fps = visualFrameRate?.FramesPerSecond;
             fpsLabel = fps is double value ? FormattableString.Invariant($"FPS: {value:F1}") : "FPS: --";
             nextFpsLabelUpdate = now + TimeSpan.FromSeconds(0.25);
         }
@@ -26,6 +38,12 @@ internal sealed partial class RecreateGame
 
     private void DrawFps(Rectangle bounds)
     {
+        if (visualFrameRate is not null)
+        {
+            batch.End();
+            visualFrameRate.CompleteFrame();
+            batch.Begin(samplerState: SamplerState.LinearClamp);
+        }
         if (!uiPreferences.ShowFps)
         {
             return;
@@ -38,5 +56,13 @@ internal sealed partial class RecreateGame
         Rectangle background = new((int)(position.X - margin), (int)position.Y, (int)MathF.Ceiling(size.X + margin * 2), (int)MathF.Ceiling(size.Y));
         batch.Draw(pixel, background, Color.Black * 0.75f);
         text.Draw(batch, fpsLabel, fontSize, position, Color.White);
+    }
+
+    private void DisposeFrameRate()
+    {
+        visualFrameRate?.Dispose();
+        visualFrameRate = null;
+        fpsLabel = "FPS: --";
+        nextFpsLabelUpdate = TimeSpan.Zero;
     }
 }

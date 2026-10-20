@@ -384,7 +384,7 @@ internal sealed partial class GameWorld : IDisposable
         return true;
     }
 
-    public byte[] Render(TimeSpan elapsed, bool rareCardMarkers = true, ITriangleRenderer? triangleRenderer = null, float worldInterpolation = 1)
+    public byte[] Render(TimeSpan elapsed, bool rareCardMarkers = true, ITriangleRenderer? triangleRenderer = null, float worldInterpolation = 1, float fieldInterpolation = 1, bool smoothFieldAnimation = false)
     {
         if (Events.PendingTripleTriad is not null)
         {
@@ -396,16 +396,16 @@ internal sealed partial class GameWorld : IDisposable
             EnsureField();
             return worldScene!.Render(renderWidth, renderHeight, triangleRenderer, worldInterpolation);
         }
-        RefreshSceneMods();
-        IEnumerable<ActorVisual> visuals = Events.Actors.Select(CreateVisual);
-        BackgroundScrollFrame scroll = ActorBackgroundScrollCertificate.Prepare(Field!, Events.Scene) ?? DirectBackgroundScrollCertificate.Prepare(Field!, Events.Scene) ?? NativeWrappedBackgroundScrollCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? NormalCameraCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? throw new NotSupportedException("Field rendering requires a supported current native camera contract.");
+        FieldPresentationFrame frame = CaptureFieldPresentation();
+        FieldPresentationSample sample = fieldPresentation.Sample(frame, fieldInterpolation, smoothFieldAnimation);
+        BackgroundScrollFrame scroll = frame.Scroll;
         DebugSceneView? view = session.State.DebugView;
         NativeFieldShake shake = Events.FieldShake ?? throw new NativeShakeRenderException("Native field rendering requires its authentic shake process owner; migrate this save explicitly.");
         shake.Validate();
         NativeFieldFadeState fade = Events.FieldFade ?? throw new NotSupportedException("Native field rendering requires its actual fade process owner.");
         fade.Validate();
         renderer!.TriangleRenderer = triangleRenderer;
-        byte[] pixels = renderer.Render(Events.BackgroundStates, visuals, elapsed, cameraIndex: Events.Scene.CameraIndex, backgroundModuleShades: Events.GetBackgroundModuleShades(), backgroundVisible: view?.BackgroundVisible ?? true, hiddenBackgroundModules: view?.HiddenBackgroundModules, backgroundScrollOffsets: scroll.LayerOffsets, actorScrollOffset: scroll.ActorOffset, nativeWrapFrame: scroll.NativeWrap, drawingJitterX: shake.X.Output, drawingJitterY: shake.Y.Output, cardMarkers: rareCardMarkers ? CreateCardMarkers(elapsed) : null, drawPointParticles: Events.DrawPointParticleFrame, drawPointParticleTables: Events.DrawPointParticleTables, drawPointDisplayMask: Events.Scene.NativeDrawPointDisplayMask, fade: fade.Draw, backgroundVisibility: SceneBackgroundVisibility());
+        byte[] pixels = renderer.Render(Events.BackgroundStates, sample.Actors, elapsed, cameraIndex: Events.Scene.CameraIndex, backgroundModuleShades: Events.GetBackgroundModuleShades(), backgroundVisible: view?.BackgroundVisible ?? true, hiddenBackgroundModules: view?.HiddenBackgroundModules, backgroundScrollOffsets: scroll.LayerOffsets, actorScrollOffset: scroll.ActorOffset, nativeWrapFrame: scroll.NativeWrap, drawingJitterX: shake.X.Output, drawingJitterY: shake.Y.Output, cardMarkers: rareCardMarkers ? CreateCardMarkers(elapsed) : null, drawPointParticles: Events.DrawPointParticleFrame, drawPointParticleTables: Events.DrawPointParticleTables, drawPointDisplayMask: Events.Scene.NativeDrawPointDisplayMask, fade: fade.Draw, backgroundVisibility: SceneBackgroundVisibility(), backgroundBlend: sample.Background);
         if (triangleRenderer is null)
         {
             FieldColorComposite.Apply(pixels, fade.Draw, renderWidth, renderer.ContentBounds);

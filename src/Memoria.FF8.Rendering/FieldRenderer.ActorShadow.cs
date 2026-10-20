@@ -29,7 +29,8 @@ public sealed partial class FieldRenderer
             throw new NotSupportedException("Native ground-shadow geometry requires authenticated tables, body XYZ and exact BYTE609 authority.");
         }
         Vector3 center = new(unchecked((short)(int)body.X), unchecked((short)(int)body.Y), unchecked((short)(int)body.Z));
-        ProjectedPoint middle = ProjectShadowPoint(center);
+        Vector3 presentationOffset = actor.AnimationBlend is not null ? body - new Vector3(MathF.Truncate(body.X), MathF.Truncate(body.Y), MathF.Truncate(body.Z)) : Vector3.Zero;
+        ProjectedPoint middle = ProjectShadowPoint(center + presentationOffset);
         Span<ProjectedPoint> edge = stackalloc ProjectedPoint[8];
         for (int index = 0; index < edge.Length; index++)
         {
@@ -38,7 +39,7 @@ public sealed partial class FieldRenderer
             // 472F20 uses full radii for that capability; its half-radius
             // fallback for other backends is a separate unsupported contract.
             Vector3 vertex = new(unchecked((short)((int)center.X + radius * ShadowSine[index] / 512)), unchecked((short)((int)center.Y + radius * ShadowCosine[index] / 512)), center.Z);
-            edge[index] = ProjectShadowPoint(vertex);
+            edge[index] = ProjectShadowPoint(vertex + presentationOffset);
         }
         // 56C910 returns45E250's final projected vertex depth>>2.
         float orderingDepth = MathF.Truncate(edge[7].Depth / 4) * 4;

@@ -83,6 +83,10 @@ public sealed partial class EventEngine
             throw new NotSupportedException("Concurrent explicit actor camera rows require independent retained selector/history owners.");
         }
         NativeActorBackgroundScroll? previous = Scene.ActorBackgroundScroll;
+        if (mode == 0 || duration == 0)
+        {
+            Scene.PresentationCameraRevision++;
+        }
         short? x = previous?.X;
         short? y = previous?.Y;
         short? previousX = previous?.PreviousX;

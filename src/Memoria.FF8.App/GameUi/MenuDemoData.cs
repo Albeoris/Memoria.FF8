@@ -170,9 +170,9 @@ public static class MenuSettings
 {
     public static IReadOnlyList<MenuSetting> Definitions { get; } =
     [
-        new("Show FPS", "Show measured frame presentations per real second, including rendering and V-Sync waits. Independent of simulation speed.", ["Off", "On"]),
+        new("Show FPS", "Show measured visual frame changes per real second. Identical frames and the FPS overlay do not count; a still scene may show 0 FPS.", ["Off", "On"]),
         new("V-Sync", "Synchronize presentation with the display refresh rate. Applies to this installation.", ["On", "Off"]),
-        new("Field FPS", "Presentation limit for fields and movies. Simulation remains at its original rate; higher limits repeat frames. V-Sync may limit output further.", ["15", "30", "60", "90", "120", "144", "240", "Unlimited"]),
+        new("Field FPS", "Field and movie presentation at 30 or 60 FPS. At 60, field movement and animation interpolate between original simulation frames. Gameplay timing is unchanged. V-Sync may limit output further.", ["30", "60"]),
         new("World FPS", "World travel presentation limit. Simulation remains at its original rate; 60 FPS interpolates movement and camera between updates. V-Sync may limit output further.", ["30", "60"]),
         new("Battle FPS", "Battle presentation limit. Higher limits can show more animation frames when game speed is increased. Applies to this installation.", ["15", "30", "60", "90", "120", "144", "240", "Unlimited"]),
         new("Menu FPS", "Title and menu presentation limit. Applies to this installation. V-Sync may limit output further.", ["15", "30", "60", "90", "120", "144", "240", "Unlimited"]),

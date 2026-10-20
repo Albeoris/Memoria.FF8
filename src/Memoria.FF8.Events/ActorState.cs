@@ -18,6 +18,10 @@ public sealed class ActorState
 
     public int ObjectId { get; }
     public int Label { get; }
+    [JsonIgnore]
+    public long PresentationPositionRevision { get; internal set; }
+    [JsonIgnore]
+    public long PresentationAnimationRevision { get; internal set; }
     [JsonInclude]
     public int ModelId { get; internal set; } = -1;
     [JsonIgnore]

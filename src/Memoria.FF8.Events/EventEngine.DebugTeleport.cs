@@ -149,6 +149,7 @@ public sealed partial class EventEngine
         }
         else
         {
+            player.PresentationPositionRevision++;
             player.X = x;
             player.Y = y;
             player.Z = z;

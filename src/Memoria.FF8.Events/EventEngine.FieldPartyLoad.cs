@@ -305,6 +305,7 @@ public sealed partial class EventEngine
         foreach (NativeFieldActorPlacement placement in load.Placements)
         {
             ActorState actor = actors[placement.ObjectId];
+            actor.PresentationPositionRevision++;
             actor.X = placement.X;
             actor.Y = placement.Y;
             actor.Z = placement.Z;

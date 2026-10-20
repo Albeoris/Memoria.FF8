@@ -50,6 +50,15 @@ internal sealed record UiPreferences
             return new UiPreferences();
         }
         UiPreferences preferences = JsonSerializer.Deserialize<UiPreferences>(File.ReadAllText(path)) ?? throw new InvalidDataException("Empty UI preferences.");
+        preferences = preferences with
+        {
+            FieldFps = preferences.FieldFps switch
+            {
+                15 => 30,
+                0 or 90 or 120 or 144 or 240 => 60,
+                _ => preferences.FieldFps
+            }
+        };
         preferences.Validate();
         return preferences;
     }
@@ -74,27 +83,22 @@ internal sealed record UiPreferences
                 _ => throw new ArgumentException("V-Sync requires On or Off.")
             };
         }
-        if (key is "Field FPS" or "Battle FPS" or "Menu FPS")
+        if (key is "Battle FPS" or "Menu FPS")
         {
             int fps = value == "Unlimited" ? 0 : int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
             if (fps is not (0 or 15 or 30 or 60 or 90 or 120 or 144 or 240))
             {
                 throw new ArgumentException("Unsupported presentation frame limit.");
             }
-            return key switch
-            {
-                "Field FPS" => this with { FieldFps = fps },
-                "Battle FPS" => this with { BattleFps = fps },
-                _ => this with { MenuFps = fps }
-            };
+            return key == "Battle FPS" ? this with { BattleFps = fps } : this with { MenuFps = fps };
         }
-        if (key == "World FPS")
+        if (key is "Field FPS" or "World FPS")
         {
             if (!int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int fps) || fps is not (30 or 60))
             {
-                throw new ArgumentException("World presentation frame limit must be 30 or 60.");
+                throw new ArgumentException($"{key} must be 30 or 60.");
             }
-            return this with { WorldFps = fps };
+            return key == "Field FPS" ? this with { FieldFps = fps } : this with { WorldFps = fps };
         }
         if (key == "Quick saves")
         {
@@ -219,7 +223,7 @@ internal sealed record UiPreferences
         {
             throw new InvalidDataException("Window dimensions must be positive.");
         }
-        if (QuickSaveCount < 1 || !ValidFps(FieldFps) || WorldFps is not (30 or 60) || !ValidFps(BattleFps) || !ValidFps(MenuFps) || MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100 || TextScale is not (100 or 125 or 150) || FieldMessageSpeed is < 1 or > 5 || UiFontSize is < 6 or > 48 || DialogueFontSize is < 6 or > 48 || string.IsNullOrWhiteSpace(UiFontFamily) || string.IsNullOrWhiteSpace(DialogueFontFamily) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode) || BattlePolicy is not ("ResearchInstantVictory" or "NewGameFullCombat"))
+        if (QuickSaveCount < 1 || FieldFps is not (30 or 60) || WorldFps is not (30 or 60) || !ValidFps(BattleFps) || !ValidFps(MenuFps) || MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100 || TextScale is not (100 or 125 or 150) || FieldMessageSpeed is < 1 or > 5 || UiFontSize is < 6 or > 48 || DialogueFontSize is < 6 or > 48 || string.IsNullOrWhiteSpace(UiFontFamily) || string.IsNullOrWhiteSpace(DialogueFontFamily) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode) || BattlePolicy is not ("ResearchInstantVictory" or "NewGameFullCombat"))
         {
             throw new InvalidDataException("UI presentation preferences are outside their supported ranges.");
         }

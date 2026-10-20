@@ -49,6 +49,7 @@ public sealed partial class EventEngine
         short speed = checked((short)source.MovementSpeed);
         NativeCopiedPosition copied = new(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, fiber.Sequence, Frame, sourceId, raw.X, raw.Y, raw.Z, triangle);
         int[] args = Pop(fiber, 1);
+        destination.PresentationPositionRevision++;
         //51F0C0 writes400/404/408,577,506,510 only; base512,575/576,
         //model, animation, physical targets, counters and results are retained.
         destination.X = raw.X / 4096f;

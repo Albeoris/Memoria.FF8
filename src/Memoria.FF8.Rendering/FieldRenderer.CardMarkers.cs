@@ -22,7 +22,7 @@ public sealed partial class FieldRenderer
             {
                 continue;
             }
-            Vector3[] pose = model.Pose(actor.AnimationId, actor.AnimationFrame, actor.FirstControlRotation, actor.RootTranslationZ, actor.SkinTranslations);
+            Vector3[] pose = ActorPose(model, actor);
             Matrix4x4 rotation = Matrix4x4.CreateRotationZ((actor.Direction + 64) * MathF.Tau / 256);
             ProjectedPoint root = ToViewport(camera.Project(new Vector3(actor.X, actor.Y, actor.Z)));
             ProjectedPoint head = new(root.X, float.PositiveInfinity, root.Depth);

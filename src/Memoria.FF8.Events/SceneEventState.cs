@@ -48,6 +48,9 @@ public sealed record DialogueChannelStyle(byte Flags, short Mode)
 [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
 public sealed class SceneEventState
 {
+    [JsonIgnore]
+    public long PresentationCameraRevision { get; internal set; }
+
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeFieldEyeProcess? NativeEyeProcess { get; internal set; }

@@ -9,7 +9,7 @@ namespace Memoria.FF8.Rendering;
 
 /// <param name="Direction">FF8 direction units, one turn is 256.</param>
 /// <param name="RootTranslationZ">Separate native SETROOTTRANS elevation word; never the SETGETA byte.</param>
-public readonly record struct ActorVisual(int ObjectId, int ModelId, float X, float Y, float Z, float Direction, int AnimationId, float AnimationFrame, bool Visible, Vector3? FirstControlRotation = null, float RootTranslationZ = 0, bool AdditionalControlDisabled = false, Vector3? PolygonColor = null, byte? GroundShadowRadius601To608 = null, byte? GroundShadowLevel609 = null, Vector3? GroundShadowCentre = null, IReadOnlyList<byte>? GroundShadowRadii601To608 = null, IReadOnlyDictionary<int, Vector3>? SkinTranslations = null, bool PrimitiveTransparencyEnabled = false, IReadOnlyList<PixelImage>? RegisteredTextures = null);
+public readonly record struct ActorVisual(int ObjectId, int ModelId, float X, float Y, float Z, float Direction, int AnimationId, float AnimationFrame, bool Visible, Vector3? FirstControlRotation = null, float RootTranslationZ = 0, bool AdditionalControlDisabled = false, Vector3? PolygonColor = null, byte? GroundShadowRadius601To608 = null, byte? GroundShadowLevel609 = null, Vector3? GroundShadowCentre = null, IReadOnlyList<byte>? GroundShadowRadii601To608 = null, IReadOnlyDictionary<int, Vector3>? SkinTranslations = null, bool PrimitiveTransparencyEnabled = false, IReadOnlyList<PixelImage>? RegisteredTextures = null, FieldAnimationBlend? AnimationBlend = null);
 
 public enum ModelTextureSampling
 {
@@ -98,7 +98,7 @@ public sealed partial class FieldRenderer
     public int OutputHeight { get; }
 
     /// <summary>The returned reusable framebuffer is valid until the next Render call.</summary>
-    public byte[] Render(IReadOnlyDictionary<int, int> backgroundStates, IEnumerable<ActorVisual> actors, TimeSpan elapsed, Vector3? backgroundShade = null, int cameraIndex = 0, IReadOnlyDictionary<int, Vector3>? backgroundModuleShades = null, bool backgroundVisible = true, IReadOnlySet<int>? hiddenBackgroundModules = null, IReadOnlyDictionary<int, Vector2>? backgroundScrollOffsets = null, Vector2 actorScrollOffset = default, FieldNativeBackgroundWrapFrame? nativeWrapFrame = null, sbyte drawingJitterX = 0, sbyte drawingJitterY = 0, IReadOnlyList<CardMarkerVisual>? cardMarkers = null, NativeDrawPointParticles? drawPointParticles = null, NativeDrawPointParticleTables? drawPointParticleTables = null, ushort? drawPointDisplayMask = null, NativeFadeDraw? fade = null, IReadOnlyDictionary<FieldBackgroundKey, bool>? backgroundVisibility = null)
+    public byte[] Render(IReadOnlyDictionary<int, int> backgroundStates, IEnumerable<ActorVisual> actors, TimeSpan elapsed, Vector3? backgroundShade = null, int cameraIndex = 0, IReadOnlyDictionary<int, Vector3>? backgroundModuleShades = null, bool backgroundVisible = true, IReadOnlySet<int>? hiddenBackgroundModules = null, IReadOnlyDictionary<int, Vector2>? backgroundScrollOffsets = null, Vector2 actorScrollOffset = default, FieldNativeBackgroundWrapFrame? nativeWrapFrame = null, sbyte drawingJitterX = 0, sbyte drawingJitterY = 0, IReadOnlyList<CardMarkerVisual>? cardMarkers = null, NativeDrawPointParticles? drawPointParticles = null, NativeDrawPointParticleTables? drawPointParticleTables = null, ushort? drawPointDisplayMask = null, NativeFadeDraw? fade = null, IReadOnlyDictionary<FieldBackgroundKey, bool>? backgroundVisibility = null, FieldBackgroundBlend? backgroundBlend = null)
     {
         ActorVisual[] preparedActors = actors.ToArray();
         foreach (ActorVisual actor in preparedActors.Where(actor => actor.Visible && (uint)actor.ModelId < field.Models.Count && field.Models[actor.ModelId].Bones.Count > 0 && field.Models[actor.ModelId].Faces.Count > 0))
@@ -110,6 +110,9 @@ public sealed partial class FieldRenderer
         }
         IReadOnlyDictionary<int, Vector2> nextOffsets = backgroundScrollOffsets ?? EmptyScrollOffsets;
         ValidateNativeWrapFrame(nativeWrapFrame, cameraIndex, actorScrollOffset, nextOffsets);
+        ValidateBackgroundBlend(backgroundBlend, cameraIndex);
+        FieldBackgroundBlend? nextPresentationBlend = backgroundBlend is { Fraction: > 0 and < 1, Current.NativeWrap: not null } && !SameWrapFrame(backgroundBlend.Previous.NativeWrap, backgroundBlend.Current.NativeWrap) ? backgroundBlend : null;
+        bool interpolationChanged = !SamePresentationBlend(presentationBackgroundBlend, nextPresentationBlend);
         Vector2 jitter = new(drawingJitterX, drawingJitterY);
         if (jitter != Vector2.Zero)
         {
@@ -121,6 +124,8 @@ public sealed partial class FieldRenderer
             // 476450 adds shake only to DRAWENV.475480 relocation/culling retains the unshaken camera window.
             nextOffsets = field.Background.Select(tile => tile.Layer).Distinct().ToDictionary(layer => layer, layer => nextOffsets.GetValueOrDefault(layer) + jitter);
         }
+        ApplyBackgroundBlend(backgroundBlend, ref nextOffsets, ref actorScrollOffset, ref nativeWrapFrame, jitter);
+        presentationBackgroundBlend = nextPresentationBlend;
         camera = field.GetCamera(cameraIndex);
         backgroundColor = backgroundShade ?? new Vector3(128);
         moduleColors = backgroundModuleShades;
@@ -140,7 +145,7 @@ public sealed partial class FieldRenderer
             }
             backgroundTextureGeneration = backgroundPublication.Generation;
         }
-        if (layoutChanged || this.backgroundScrollOffsets.Count != nextOffsets.Count || nextOffsets.Any(pair => !this.backgroundScrollOffsets.TryGetValue(pair.Key, out Vector2 previous) || previous != pair.Value) || !SameWrapFrame(backgroundWrapFrame, nativeWrapFrame) || backgroundCameraIndex != cameraIndex || backgroundJitter != jitter || backgroundActorOffset != this.actorScrollOffset)
+        if (interpolationChanged || layoutChanged || this.backgroundScrollOffsets.Count != nextOffsets.Count || nextOffsets.Any(pair => !this.backgroundScrollOffsets.TryGetValue(pair.Key, out Vector2 previous) || previous != pair.Value) || !SameWrapFrame(backgroundWrapFrame, nativeWrapFrame) || backgroundCameraIndex != cameraIndex || backgroundJitter != jitter || backgroundActorOffset != this.actorScrollOffset)
         {
             TileRaster[] nextBackground = PrepareBackgroundRasters(nextOffsets, nativeWrapFrame, jitter, cameraIndex);
             this.backgroundScrollOffsets = nextOffsets.ToDictionary(pair => pair.Key, pair => pair.Value);
@@ -246,8 +251,11 @@ public sealed partial class FieldRenderer
         {
             BackgroundTile tile = raster.Tile;
             Vector2 scrollOffset = offsets.GetValueOrDefault(tile.Layer);
-            FieldNativeBackgroundWrapLayer? wrapping = frame?.Layers.Where(layer => layer.Layer == tile.Layer).Select(layer => (FieldNativeBackgroundWrapLayer?)layer).FirstOrDefault();
-            if (frame is not null && wrapping is FieldNativeBackgroundWrapLayer layer)
+            if (TryPresentationPlacement(tile, out Vector2 presentationOrigin))
+            {
+                scrollOffset += presentationOrigin - new Vector2(tile.X, tile.Y);
+            }
+            else if (frame?.Layers.Where(layer => layer.Layer == tile.Layer).Select(layer => (FieldNativeBackgroundWrapLayer?)layer).FirstOrDefault() is FieldNativeBackgroundWrapLayer layer)
             {
                 if (tile.X is < short.MinValue or > short.MaxValue || tile.Y is < short.MinValue or > short.MaxValue)
                 {
@@ -433,7 +441,7 @@ public sealed partial class FieldRenderer
         {
             return;
         }
-        Vector3[] pose = model.Pose(actor.AnimationId, actor.AnimationFrame, actor.FirstControlRotation, actor.RootTranslationZ, actor.SkinTranslations);
+        Vector3[] pose = ActorPose(model, actor);
         // Native field-to-model bridge adds a quarter turn before converting DIR to the 4096-angle scale.
         float direction = (actor.Direction + 64) * MathF.Tau / 256;
         Matrix4x4 rotation = Matrix4x4.CreateRotationZ(direction);

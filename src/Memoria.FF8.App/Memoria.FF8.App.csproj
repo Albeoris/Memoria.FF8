@@ -10,6 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="Shaders/Triangles.mgfxo" LogicalName="Memoria.FF8.Shaders.Triangles.mgfxo" />
+    <EmbeddedResource Include="Shaders/FrameDifference.mgfxo" LogicalName="Memoria.FF8.Shaders.FrameDifference.mgfxo" />
     <ProjectReference Include="../Memoria.FF8.Mods/Memoria.FF8.Mods.csproj" />
     <Using Include="System.IO" />
     <PackageReference Include="MonoGame.Framework.WindowsDX" />

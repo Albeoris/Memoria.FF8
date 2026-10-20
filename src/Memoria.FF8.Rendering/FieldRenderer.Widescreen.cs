@@ -99,7 +99,13 @@ public sealed partial class FieldRenderer
                 float y = tile.Y;
                 int period = 0;
                 FieldNativeBackgroundWrapLayer? wrapping = frame?.Layers.Where(layer => layer.Layer == tile.Layer).Select(layer => (FieldNativeBackgroundWrapLayer?)layer).FirstOrDefault();
-                if (frame is not null && wrapping is FieldNativeBackgroundWrapLayer layer)
+                if (TryPresentationPlacement(tile, out Vector2 presentationOrigin))
+                {
+                    x = presentationOrigin.X;
+                    y = presentationOrigin.Y;
+                    period = wrapping?.PeriodX ?? 0;
+                }
+                else if (frame is not null && wrapping is FieldNativeBackgroundWrapLayer layer)
                 {
                     FieldNativeBackgroundTileOrigin? origin = FieldNativeBackgroundTileProbe.Relocate(checked((short)tile.X), checked((short)tile.Y), layer, frame, cullHorizontal: false);
                     if (origin is not FieldNativeBackgroundTileOrigin placed)
