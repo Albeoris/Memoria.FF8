@@ -158,7 +158,9 @@ internal sealed partial class GameWorld : IDisposable
 
     internal bool HasCurrentFieldAllocation => session.State.Scene != SceneKind.WorldMap && worldScene is null && Events.FieldId == session.State.FieldId && Events.NextTrigger.Kind is not (PlayerTriggerKind.FieldTransition or PlayerTriggerKind.WorldMap);
 
-    internal bool AdvanceMovieFrame(MoviePlaybackState playback, double seconds)
+    internal bool AdvanceMovieFrame(MoviePlaybackState playback, double seconds) => AdvanceMovieFrame(playback, seconds, 0, 0);
+
+    internal bool AdvanceMovieFrame(MoviePlaybackState playback, double seconds, float horizontal, float vertical)
     {
         int field = session.State.FieldId;
         int movie = session.State.MovieIndex;
@@ -171,7 +173,7 @@ internal sealed partial class GameWorld : IDisposable
         bool alreadyExecuted = Events.Scene.NativeMovieMask?.Playback?.AppliedRecord == playback.FrameIndex;
         if (playback.FrameIndex >= 2 && !alreadyExecuted)
         {
-            Events.Step();
+            Events.StepMovieFrame(horizontal, vertical);
         }
         return session.IsMoviePlaying && session.State.MovieIndex == movie && session.State.FieldId == field && session.State.MovieSource == source;
     }

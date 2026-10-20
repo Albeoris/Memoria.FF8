@@ -83,11 +83,11 @@ Choose identities from the active dialogue/menu/battle owner and current resourc
 | `EnterName` | `Text`: name for the active naming prompt. |
 | `Interact` | `Value`: current nearby actor object ID; uses normal interaction eligibility. |
 | `CardChallenge` | `Value`: selected eligible actor ID, or negative to accept the currently selected interaction target. |
-| `Move` | `Horizontal`, `Vertical`, `Frames`; optional world `CameraHorizontal`. Uses ordinary movement/collision/control gates. |
+| `Move` | `Horizontal`, `Vertical`, `Frames`; optional world `CameraHorizontal`. Uses ordinary movement/collision/control gates. Movement remains available during movies when the field script enables player control; each frame advances through the movie clock. |
 | `Wait` | `Frames`; optional `WaitWhilePlayable`, and world `CameraHorizontal`. |
 | `SkipMovie` | Completes/skips the active clip through its supported movie callback contract. |
 | `Cancel` | Current dialogue/menu/card owner's cancellation; accepted only where allowed. |
-| `FieldButtons` | `Value`: field button mask, for the active field input owner. |
+| `FieldButtons` | `Value`: field button mask, for the active field input owner, including movie playback. |
 | `WorldButtons` | `Value`: unsigned 16-bit digital mask for the supported active world vehicle owner. For cars and Garden, optional `Horizontal` supplies left-stick steering and `Vertical` supplies right-stick throttle; digital directions and throttle buttons override their corresponding analog axes. Up/down throttle alternatives are added by the graphical host; raw packets retain native button semantics. Unsupported vehicle/menu contracts fail explicitly. |
 | `SelectPartySlot` | `Value`: slot 0..2 in an active party selection menu. |
 | `SelectPartyMember` | `Value`: physical character row 0..7 or 255 for an allowed empty member. |

@@ -479,11 +479,14 @@ public sealed partial class EventEngine
         }
     }
 
+    // 4789A0 compensates for the movie callback cadence before narrowing actor WORD510.
+    private int NativePlayerMovementSpeed => unchecked((short)((NativePlayerWalking ? 69020 : 203000) * (services.IsMoviePlaying ? 2 : 1) * 20 >> 9));
+
     private (WalkmeshPosition Position, FieldFixedPosition FixedPosition, int Direction, int[] PushContacts, bool NativeMovement, FieldFixedPosition? TriggerPosition, bool MovementSucceeded) ResolveNativePartyPlayerStep(ActorState player, Vector2 axes)
     {
         FieldFixedPosition current = ReadNativePartyPlayerPosition(player);
         int direction = axes == Vector2.Zero ? (byte)player.Direction : (byte)(NativePartyDirection(0, 0, (int)(axes.X * 4096), (int)(axes.Y * 4096)) + InputAxisDirection);
-        int speed = (NativePlayerWalking ? 69020 : 203000) * 20 >> 9;
+        int speed = NativePlayerMovementSpeed;
         if (ResolveNativePlayerMovement is null || CanUseNativePlayerMovement?.Invoke(player) != true)
         {
             throw new NotSupportedException("Native party player movement requires the certified native adapter; flat fallback is unsupported.");
@@ -567,7 +570,7 @@ public sealed partial class EventEngine
         Scene.NativePlayerPosition = position;
         if (moved && diagnosticTrace is null)
         {
-            player.MovementSpeed = (NativePlayerWalking ? 69020 : 203000) * 20 >> 9;
+            player.MovementSpeed = NativePlayerMovementSpeed;
         }
         if (player.NativeScriptMovement is { } playerMovement)
         {

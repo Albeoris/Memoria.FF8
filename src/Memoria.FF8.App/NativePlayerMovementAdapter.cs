@@ -12,7 +12,7 @@ public static class NativePlayerMovementAdapter
 
     public static NativePlayerMovementResult? Resolve(FieldAssets field, SceneEventState scene, NativePlayerMovementQuery query)
     {
-        if (field.Id < 72 || !SupportsBinding(scene, query.ObjectId) || query.Direction is < 0 or > byte.MaxValue || query.EarlyRetryState is null or > 1 || query.EarlyRetryState != scene.NativePlayerEarlyRetryState || query.Radius is < 0 or > ushort.MaxValue || query.Speed is not (2696 or 7929))
+        if (field.Id < 72 || !SupportsBinding(scene, query.ObjectId) || query.Direction is < 0 or > byte.MaxValue || query.EarlyRetryState is null or > 1 || query.EarlyRetryState != scene.NativePlayerEarlyRetryState || query.Radius is < 0 or > ushort.MaxValue || (scene.MovieActors?.Active == true ? query.Speed is not (5392 or 15859) : query.Speed is not (2696 or 7929)))
         {
             return null;
         }

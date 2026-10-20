@@ -338,7 +338,7 @@ internal sealed partial class RecreateGame : Game
         }
         else if (session.State.Scene == SceneKind.Movie)
         {
-            UpdateMovie(gameTime);
+            UpdateMovie(gameTime, input);
         }
         else if (session.State.Scene == SceneKind.WorldMap)
         {
@@ -373,7 +373,7 @@ internal sealed partial class RecreateGame : Game
         return next;
     }
 
-    private void UpdateMovie(GameTime gameTime)
+    private void UpdateMovie(GameTime gameTime, InputFrame input)
     {
         try
         {
@@ -404,6 +404,10 @@ internal sealed partial class RecreateGame : Game
                 movieDiscIndex = movieClock.SourceDiscIndex;
                 error = null;
             }
+            if (world is not null && !options.ControlStep && (world.Events.ButtonInput?.PhysicalHeld ?? 0) != keyboard.HeldFieldButtons)
+            {
+                world.Apply(new PlayerAction(PlayerActionKind.FieldButtons, keyboard.HeldFieldButtons));
+            }
             int playbackField = session.State.FieldId;
             int playbackMovie = session.State.MovieIndex;
             NativeMovieSource playbackSource = MovieClock.RequireSource(session.State);
@@ -412,7 +416,7 @@ internal sealed partial class RecreateGame : Game
                 if (world is not null && !fieldFaulted)
                 {
                     long before = world.Events.Frame;
-                    bool active = world.AdvanceMovieFrame(playback, seconds);
+                    bool active = world.AdvanceMovieFrame(playback, seconds, options.ControlStep ? 0 : -input.Horizontal, options.ControlStep ? 0 : input.Vertical);
                     if (world.Events.Frame != before)
                     {
                         metrics.Simulate(1);

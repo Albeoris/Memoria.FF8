@@ -611,7 +611,7 @@ public sealed partial class EventEngine
 
     private IReadOnlyList<NativeLineContactChange> MovePlayerCore(float x, float y, float z, int walkmeshTriangle, FieldFixedPosition? nativePosition = null, int? nativeDirection = null, bool nativeMovement = false, FieldFixedPosition? nativeTriggerPosition = null, PartyTraceState? diagnosticTrace = null)
     {
-        if (program is null || transitionRequested || !IsUserControlEnabled || IsMovementBlockedByDialogue || services.IsMoviePlaying)
+        if (program is null || transitionRequested || !IsUserControlEnabled || IsMovementBlockedByDialogue)
         {
             return [];
         }

@@ -305,7 +305,7 @@ public sealed partial class EventEngine
                             throw new ArgumentOutOfRangeException(nameof(action), "Movement axes must be finite and between -1 and 1.");
                         }
                         ActorState? player = PlayerActor;
-                        accepted = CanAcceptFieldMovement;
+                        accepted = CanAcceptPlayerMovement;
                         if (accepted && ResolveWalkmesh is null)
                         {
                             throw new InvalidOperationException("Player movement requires the field walkmesh resolver.");
@@ -317,35 +317,24 @@ public sealed partial class EventEngine
                             {
                                 axes = Vector2.Normalize(axes);
                             }
+                            bool movieMovement = services.IsMoviePlaying;
+                            NativeMovieSource? movementSource = services.MovieSource;
                             for (int index = 0; index < action.Frames; index++)
                             {
-                                ValidateNativePlayerInput(player!);
-                                int[] pushContacts = [];
-                                IReadOnlyList<NativeLineContactChange> lineChanges = [];
-                                pendingNativePlayerInput = () =>
+                                long before = Frame;
+                                StepPlayerMovement(player!, axes, () =>
                                 {
-                                    var native = ResolveNativePartyPlayerStep(player!, axes);
-                                    pushContacts = native.PushContacts;
-                                    lineChanges = MovePlayerCore(native.Position.Position.X, native.Position.Position.Y, native.Position.Position.Z, native.Position.Triangle, native.FixedPosition, native.Direction, native.NativeMovement, native.TriggerPosition);
-                                    PublishNativePlayerMovementResult(native.MovementSucceeded);
-                                    if (native.NativeMovement)
+                                    if (services.IsMoviePlaying)
                                     {
-                                        Scene.NativePlayerMovementVersion = 1;
-                                        // 47A2F6 clears 1CDBFED after the native field-line query.
-                                        Scene.NativePlayerEarlyRetryState = 0;
+                                        AdvanceMovieWait(1);
                                     }
-                                };
-                                Step();
-                                // Native4767B0 runs scripts before player movement.
-                                // New byte584 writes belong to the next update,
-                                // including a gateway update with no destination tick.
-                                foreach (int objectId in pushContacts)
-                                {
-                                    actors[objectId].NativePushContactPending = true;
-                                }
-                                CommitNativeLineMovement(lineChanges);
-                                advanced++;
-                                if (NativeGameOver is not null || !IsUserControlEnabled || IsMovementBlockedByDialogue || services.IsMoviePlaying || transitionRequested || HasPendingBattle || Scene.NativeTutorial is not null || Scene.NativeMenuTutorial is not null)
+                                    else
+                                    {
+                                        Step();
+                                    }
+                                });
+                                advanced += checked((int)(Frame - before));
+                                if (services.IsMoviePlaying != movieMovement || movieMovement && services.MovieSource != movementSource || Frame == before || NativeGameOver is not null || !IsUserControlEnabled || IsMovementBlockedByDialogue || transitionRequested || HasPendingBattle || Scene.NativeTutorial is not null || Scene.NativeMenuTutorial is not null)
                                 {
                                     break;
                                 }
