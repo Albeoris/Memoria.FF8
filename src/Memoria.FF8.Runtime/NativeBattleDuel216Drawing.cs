@@ -7,6 +7,23 @@ public sealed record NativeBattleDuel216DrawingStep(NativeBattleDuel216Frame Fra
 
 public static class NativeBattleDuel216Drawing
 {
+    public static NativeBattleGfGeometryBatch Flash699EE0(int phase)
+    {
+        if ((uint)phase > 1)
+        {
+            throw new InvalidDataException("Native Different Beat flash requires its actual two reached passes.");
+        }
+        uint color = phase == 0 ? 0x2A808080u : 0x2A000000u;
+        ImmutableArray<uint> words = [0x05000000, color, 0, 320, 216u << 16, (216u << 16) | 320];
+        byte[] bytes = new byte[24];
+        for (int index = 0; index < words.Length; index++)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(index * 4), words[index]);
+        }
+        ImmutableArray<NativeBattleGfPacketByteState> mask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 24).ToImmutableArray();
+        return new([new(0, bytes.ToImmutableArray(), mask, new(8, words, [0, 0, 0, 0]))], 24);
+    }
+
     public static NativeBattleDuel216Frame Morph69A670(NativeBattleDuel216Frame frame, uint sourceAddress, int scale, int angle)
     {
         NativeBattleDuel216Resources resources = frame.Memory.Duel216?.Resources ?? throw new NotSupportedException("Native Different Beat deformation requires its original resource.");

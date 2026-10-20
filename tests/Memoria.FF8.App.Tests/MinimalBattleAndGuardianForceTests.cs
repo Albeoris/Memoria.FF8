@@ -272,7 +272,8 @@ public sealed class MinimalBattleAndGuardianForceTests
         session.InitializeNewGameCharacterVitals(InitialVitals.Value.DeepCopy());
         using GameAssets assets = new(TestResources.GameDirectory);
         session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
-        session.Restore(session.State with { FieldId = 999, FieldName = "synthetic-bare-battle-menu-component", WorldControls = controls });
+        // This component loads synthetic bytecode directly, without consuming the pending start0 allocation.
+        session.Restore(session.State with { FieldId = 999, FieldLoadContext = null, FieldName = "synthetic-bare-battle-menu-component", WorldControls = controls });
         var engine = new EventEngine(session);
         engine.LoadField(999, source, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         engine.Step();

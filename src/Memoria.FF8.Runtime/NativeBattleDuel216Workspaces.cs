@@ -70,7 +70,7 @@ public static class NativeBattleDuel216Workspaces
             throw new InvalidDataException("Native Different Beat secondary draw requires its original callback.");
         }
         NativeBattleActionMatrix local = NativeBattleDuel215Controller.ParticleBasis6ED1E0(unchecked((short)task.ReadWord(20)), unchecked((short)task.ReadWord(18))) with { X = unchecked((short)task.ReadWord(12)), Y = unchecked((short)task.ReadWord(14)), Z = unchecked((short)task.ReadWord(16)) };
-        NativeBattleDuel216Program context = new(NativeBattleGfMatrices.Compose56C2F0(view, local), null, 0x1154F44, -128, 0, 0, NativeBattleDuel216Controller.Arena + 11480);
+        NativeBattleDuel216Program context = new(NativeBattleGfMatrices.Compose56C2F0(view, local), NativeBattleGfMatrices.Normalize67AAE0(view), 0x1154F44, -128, 0, 0, NativeBattleDuel216Controller.Arena + 11480);
         NativeBattleDuel216WorkspaceStep advanced = Advance701970(frame, pool.DescriptorAddress, slot, 24, 236, context, projection, colors, ordering);
         pool = Pool(advanced.Frame, pool.DescriptorAddress);
         return new(new(advanced.Frame, pool, advanced.Remaining == 0 ? 2 : 0), advanced.Ordering);

@@ -8,7 +8,7 @@ public sealed record NativeBattleDuel216Resources(ImmutableArray<byte> StaticDat
 {
     public ImmutableArray<byte> SingleWindow { get; init; } = [];
 
-    public const uint Address = 0x113C1AC;
+    public const uint Address = 0x113C1A8;
     public const uint EndAddress = 0x1154F48;
     public const uint ActorDirectory = 0x1153B30;
     public const int ActorDirectoryLength = 5112;

@@ -98,7 +98,7 @@ public sealed class NativeBattleSearchControllerTests
         NativeBattleCameraProjection projection = new(view, 216, 160, 108);
         NativeBattlePoseSource actorSource = resources.ModelProfile.Model.PoseSource;
         NativeBattleDecodedPose actorPose = NativeBattlePoseDecoder.DecodeFirst509440(actorSource.Animations.AsSpan(), actorSource.BoneCount, 0).Pose;
-        return new(0, packets, view, actor => new(actor, 3) { ModelId4 = 0, Flags2 = 0, Transform = new(new(0, 0, 0), new(100, 0, 300), 77, 0, 4096), GeometryWorldMatrix = identity, SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = actorPose } }, _ => actorSource, _ => World(), (frame, rawModel, selector) =>
+        return new(0, packets, view, actor => NativeBattleBodyBoneMatrices.Publish508C90(new(actor, 3) { ModelId4 = 0, Flags2 = 0, Transform = new(new(0, 0, 0), new(100, 0, 300), 77, 0, 4096), GeometryWorldMatrix = identity, SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = actorPose } }, actorSource), _ => actorSource, _ => World(), (frame, rawModel, selector) =>
         {
             uint address = rawModel - 0x30;
             NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);

@@ -11,7 +11,8 @@ public static partial class NativeBattleDuel216Camera
         if (tick == 0)
         {
             camera = camera.Apply50A730();
-            camera = camera.WriteEffectGlobals(Pose(Word(0x25088F8) - 136, -542, Word(0x25088FC) - 208, Word(0x25088F8) - 624, -688, Word(0x25088FC) - 1872) with { FocalLength = 288, Roll = 0 });
+            camera = camera.WriteEffectGlobals(Pose(Word(0x25088F8) - 136, -542, Word(0x25088FC) - 208, Word(0x25088F8) - 624, -688, Word(0x25088FC) - 1872) with { Roll = 0 });
+            camera = camera with { Projection = camera.Projection is { } projection ? projection with { FocalLength = 288 } : new(null, 288, null, null) };
             frame = frame with { Staging = frame.Staging.Write(0x1D8E038, BitConverter.GetBytes((short)288)).Write(0x1D977A2, BitConverter.GetBytes((short)0)) };
         }
         if (tick == 8)
@@ -48,6 +49,6 @@ public static partial class NativeBattleDuel216Camera
 
         short Word(uint address) => BinaryPrimitives.ReadInt16LittleEndian(frame.Staging.Read(address, 2));
         int Dword(uint address) => BinaryPrimitives.ReadInt32LittleEndian(frame.Staging.Read(address, 4));
-        NativeBattleCameraPose Pose(int ex, int ey, int ez, int tx, int ty, int tz) => new(new(unchecked((short)ex), unchecked((short)ey), unchecked((short)ez)), new(unchecked((short)tx), unchecked((short)ty), unchecked((short)tz)), camera.FocalLength, camera.Roll);
+        NativeBattleCameraPose Pose(int targetX, int targetY, int targetZ, int eyeX, int eyeY, int eyeZ) => new(new(unchecked((short)eyeX), unchecked((short)eyeY), unchecked((short)eyeZ)), new(unchecked((short)targetX), unchecked((short)targetY), unchecked((short)targetZ)), camera.FocalLength, camera.Roll);
     }
 }

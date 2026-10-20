@@ -43,7 +43,15 @@ public sealed class NativeBattleRetainedMemoryTests
         Assert.Equal(NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 0x163FFD0u).Bytes.ToArray(), doubleMorph.Bytes.ToArray());
         NativeBattleTripleMorph tripleMorph = Assert.IsType<NativeBattleTripleMorph>(actual.EffectMemory.TripleMorph);
         Assert.Equal(NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 0x1627970u).Bytes.ToArray(), tripleMorph.Bytes.ToArray());
-        Assert.Equal(JsonSerializer.Serialize(generic), JsonSerializer.Serialize(actual with { EffectMemory = actual.EffectMemory with { QuezacotlExecutableMemory = null, DoubleMorph = null, TripleMorph = null, Effect57Executable = null, RemedyExecutable = null, RecoveryExecutables = null } }));
+        NativeExecutableMemory image = new(executable);
+        byte[] temporary = image.ReadLoader(NativeBattleTemporaryMemory.Address, NativeBattleTemporaryMemory.ReachedLength);
+        byte[] cursor = image.ReadLoader(NativeBattleTemporaryMemory.Cursor, 4);
+        Assert.Equal(temporary, actual.FileStaging!.Read(NativeBattleTemporaryMemory.Address, temporary.Length));
+        Assert.Equal(cursor, actual.FileStaging.Read(NativeBattleTemporaryMemory.Cursor, cursor.Length));
+        Assert.Throws<NotSupportedException>(() => generic.FileStaging!.Read(NativeBattleTemporaryMemory.Address, temporary.Length));
+        Assert.Throws<NotSupportedException>(() => generic.FileStaging!.Read(NativeBattleTemporaryMemory.Cursor, cursor.Length));
+        NativeBattleRetainedMemory authenticated = generic with { FileStaging = generic.FileStaging!.Write(NativeBattleTemporaryMemory.Address, temporary).Write(NativeBattleTemporaryMemory.Cursor, cursor) };
+        Assert.Equal(JsonSerializer.Serialize(authenticated), JsonSerializer.Serialize(actual with { EffectMemory = actual.EffectMemory with { QuezacotlExecutableMemory = null, DoubleMorph = null, TripleMorph = null, Effect57Executable = null, RemedyExecutable = null, RecoveryExecutables = null } }));
         Assert.Same(actual, assets.ReadColdProcessNativeBattleMemory());
         Assert.Equal(0, actual.ActionPackets.Headers[31].ReadByte(19));
         Assert.Equal(0, actual.ActionPackets.ReadContact(48).Secondary.Amount6);

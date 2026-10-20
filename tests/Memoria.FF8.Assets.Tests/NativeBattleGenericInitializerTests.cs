@@ -14,14 +14,30 @@ public sealed class NativeBattleGenericInitializerTests
         byte[] executable = File.ReadAllBytes(Path.Combine(assets.GameDirectory, "FF8_EN.exe"));
         using PEReader reader = new(new MemoryStream(executable));
         var catalog = assets.ReadNativeEffectCatalog();
-        Assert.Equal(262, catalog.Count(binding => binding.InitializerResource is not null));
+        Assert.Equal(263, catalog.Count(binding => binding.InitializerResource is not null));
         Assert.Equal(57, catalog.Count(binding => binding.Initializer == 0));
         Assert.Equal(17, catalog.Count(binding => binding.InitializerIsRet == true));
-        Assert.Equal(64, catalog.Count(binding => binding.Initializer != 0 && binding.InitializerIsRet != true && binding.InitializerResource is null));
+        Assert.Equal(63, catalog.Count(binding => binding.Initializer != 0 && binding.InitializerIsRet != true && binding.InitializerResource is null));
         Assert.Equal((ushort)2, Assert.Single(catalog.Where(binding => binding.InitializerAsset is not null)).Effect);
         foreach (NativeBattleEffectBinding binding in catalog.Where(binding => binding.InitializerResource is not null))
         {
             NativeBattleEffectInitializerResource descriptor = binding.InitializerResource!;
+            if (binding.Initializer == 0x6897F0)
+            {
+                Assert.Equal((ushort)274, binding.Effect);
+                Assert.Equal(new NativeBattleEffectInitializerResource("mag273.tim", 0x2508410), descriptor);
+                byte[] original = new NativeExecutableMemory(executable).Read(binding.Initializer, 29);
+                Assert.Equal((byte)0x68, original[0]);
+                Assert.Equal(new byte[] { 0xC7, 5 }, original.AsSpan(5, 2).ToArray());
+                Assert.Equal(0x1DCD6E8u, BinaryPrimitives.ReadUInt32LittleEndian(original.AsSpan(7)));
+                Assert.Equal(0x689810u, BinaryPrimitives.ReadUInt32LittleEndian(original.AsSpan(11)));
+                Assert.Equal((byte)0xE8, original[15]);
+                Assert.Equal(0x571B80L, binding.Initializer + 20L + BinaryPrimitives.ReadInt32LittleEndian(original.AsSpan(16)));
+                Assert.Equal(new byte[] { 0x83, 0xC4, 4, 0xA3 }, original.AsSpan(20, 4).ToArray());
+                Assert.Equal(descriptor.GlobalAddress, BinaryPrimitives.ReadUInt32LittleEndian(original.AsSpan(24)));
+                Assert.Equal((byte)0xC3, original[28]);
+                continue;
+            }
             long rva = binding.Initializer - (long)reader.PEHeaders.PEHeader!.ImageBase;
             SectionHeader section = reader.PEHeaders.SectionHeaders.Single(section => rva >= section.VirtualAddress && rva + 19 <= section.VirtualAddress + section.SizeOfRawData);
             byte[] code = executable.AsSpan(checked((int)(rva - section.VirtualAddress + section.PointerToRawData)), 19).ToArray();

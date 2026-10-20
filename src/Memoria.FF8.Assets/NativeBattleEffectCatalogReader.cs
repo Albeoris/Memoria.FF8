@@ -346,6 +346,15 @@ public sealed partial class GameAssets
                 binding = binding with { Duel212Resources = ReadNativeDuel212Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 216)
+            {
+                if (binding.Entry != 0x6959E0 || binding.Initializer != 0x6959F0 || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag215.tim", 0x2508870))
+                {
+                    throw new InvalidDataException("Native Different Beat differs from its original entry, initializer and texture publication.");
+                }
+                binding = binding with { Duel216Resources = ReadNativeDuel216Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 215)
             {
                 if (binding.Entry != 0x69AB60 || binding.Initializer != 0x69AB70 || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag214.tim", 0x2508938))

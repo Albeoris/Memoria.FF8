@@ -217,6 +217,10 @@ public sealed partial class BattleSession
         {
             return EnterNativeDuel212(graphics, effect.Binding.Duel212Resources ?? throw new NotSupportedException("Native Burning Rave requires its original resources."));
         }
+        if (effect.Binding.Entry == 0x6959E0)
+        {
+            return EnterNativeDuel216(graphics, effect.Binding.Duel216Resources ?? throw new NotSupportedException("Native Different Beat requires its original resources."));
+        }
         if (effect.Binding.Entry == 0x69AB60)
         {
             return EnterNativeDuel215(graphics, effect.Binding.Duel215Resources ?? throw new NotSupportedException("Native Duel215 requires its original resources."));

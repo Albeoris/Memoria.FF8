@@ -19,6 +19,16 @@ public sealed class NativeBattleSharedEffectLoadingTests
                 continue;
             }
             object? value = property.GetValue(memory);
+            if (property.Name == nameof(NativeBattleEffectMemory.MagicTextureBufferAddress1D99A88))
+            {
+                Assert.Null(value);
+                NativeBattleEffectBinding binding = assets.ReadNativeEffectCatalog()[273];
+                NativeBattleEffectMemory entered = memory.PublishEntry50AF20(binding, false);
+                Assert.Equal((uint?)0x20DFAB8u, entered.MagicTextureBufferAddress1D99A88);
+                Assert.Equal(binding, entered.Entry21DFEC4);
+                Assert.Null(memory.MagicTextureBufferAddress1D99A88);
+                continue;
+            }
             Assert.True(value is not null, $"{property.Name} has no authenticated cold scalar value or explicit entry ownership.");
             Assert.Equal(0L, Convert.ToInt64(value, System.Globalization.CultureInfo.InvariantCulture));
         }

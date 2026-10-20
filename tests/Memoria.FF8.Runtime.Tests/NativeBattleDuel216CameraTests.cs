@@ -7,9 +7,16 @@ public sealed class NativeBattleDuel216CameraTests
     [Fact]
     public void OpeningUsesActualActorWordsAndPublishesFocalRollWithoutSoundReplay()
     {
-        NativeBattleDuel216CameraStep step = NativeBattleDuel216Camera.AdvanceMain6960E0(Frame(), 0, NativeBattleCameraState.FromColdProcess());
-        Assert.Equal(new NativeBattleCameraPose(new(-36, -542, -8), new(-524, -688, -1672), 288, 0), step.Camera.CurrentPose);
+        NativeBattleCameraState camera = NativeBattleCameraState.FromColdProcess();
+        camera = camera with { FocalLength = 700, CurrentPose = camera.CurrentPose! with { FocalLength = 700 }, Projection = camera.Projection! with { FocalLength = 901 } };
+        NativeBattleDuel216CameraStep step = NativeBattleDuel216Camera.AdvanceMain6960E0(Frame(), 0, camera);
+        Assert.Equal(new NativeBattleCameraPose(new(-524, -688, -1672), new(-36, -542, -8), 700, 0), step.Camera.CurrentPose);
         Assert.True(step.Camera.ForceCamera);
+        Assert.Equal((short?)700, step.Camera.FocalLength);
+        Assert.Equal((ushort?)288, step.Camera.Projection!.FocalLength);
+        NativeBattleDuel216CameraStep later = NativeBattleDuel216Camera.AdvanceMain6960E0(step.Frame, 112, step.Camera);
+        Assert.Equal((short?)700, later.Camera.FocalLength);
+        Assert.Equal((ushort?)288, later.Camera.Projection!.FocalLength);
         Assert.Equal((short)288, BinaryPrimitives.ReadInt16LittleEndian(step.Frame.Staging.Read(0x1D8E038, 2)));
         Assert.Equal((short)0, BinaryPrimitives.ReadInt16LittleEndian(step.Frame.Staging.Read(0x1D977A2, 2)));
     }
@@ -22,11 +29,11 @@ public sealed class NativeBattleDuel216CameraTests
     [InlineData(102, 366, -13372, 4959, 5694, -13159, 5180)]
     [InlineData(111, 318, -1493, 361, 1197, -4578, 4852)]
     [InlineData(112, 829, -1312, -314, 2609, -2004, -2228)]
-    public void CameraSegmentsKeepNativeEndpointsAndHeightDword(ushort tick, short ex, short ey, short ez, short tx, short ty, short tz)
+    public void CameraSegmentsKeepNativeEndpointsAndHeightDword(ushort tick, short targetX, short targetY, short targetZ, short eyeX, short eyeY, short eyeZ)
     {
         NativeBattleCameraState camera = NativeBattleCameraState.FromColdProcess();
         NativeBattleDuel216CameraStep step = NativeBattleDuel216Camera.AdvanceMain6960E0(Frame(), tick, camera);
-        Assert.Equal(new NativeBattleCameraPose(new(ex, ey, ez), new(tx, ty, tz), camera.FocalLength, camera.Roll), step.Camera.CurrentPose);
+        Assert.Equal(new NativeBattleCameraPose(new(eyeX, eyeY, eyeZ), new(targetX, targetY, targetZ), camera.FocalLength, camera.Roll), step.Camera.CurrentPose);
     }
 
     private static NativeBattleDuel216Frame Frame()

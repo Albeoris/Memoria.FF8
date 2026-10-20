@@ -78,6 +78,10 @@ public sealed partial class NativeBattleRinoa89CastTests
                     Assert.Equal((ushort)89, battle.NativeGraphics!.OriginalEffect!.Binding.Effect);
                     Publish("completed-before-host-mode", battle);
                     battle.SetMode(BattleAtbMode.Normal);
+                    //The final raw descriptor releases before the next host poll admits the observed victory.
+                    before = battle.Capture();
+                    battle.Tick();
+                    Assert.Equal((byte?)4, battle.NativeGraphics!.NativeOutcome?.ResultByte6E7);
                     CompareNext("completed", battle);
                     File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", characterId, effectId, battle.Frame, NativeCallback = battle.NativeGraphics!.Callback, selected, drawn, midpoint, HostModeAfterRelease = "Normal", OriginalActionId = originalAction.ActionId }));
                     return;

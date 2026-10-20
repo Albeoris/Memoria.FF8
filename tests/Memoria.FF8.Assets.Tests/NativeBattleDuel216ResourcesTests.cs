@@ -11,6 +11,12 @@ public sealed class NativeBattleDuel216ResourcesTests
         using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleDuel216Resources resources = game.ReadNativeDuel216Resources();
         resources.Validate();
+        NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([216])[215];
+        Assert.Equal(0x6959E0u, binding.Entry);
+        Assert.Equal(0x6959F0u, binding.Initializer);
+        Assert.Equal(new NativeBattleEffectInitializerResource("mag215.tim", 0x2508870), binding.InitializerResource);
+        Assert.Same(resources, binding.Duel216Resources);
+        Assert.Equal(0x557C9u, resources.Dword(0x113C1A8));
         Assert.Equal(5112, resources.ReadActorDat().Length);
         Assert.Equal(2u, resources.Dword(NativeBattleDuel216Resources.ActorDirectory));
         Assert.Equal("mag215.tim", resources.InitialTim.Identity);

@@ -69,7 +69,7 @@ public sealed class NativeBattleFactualPresentationAdmissionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void HistoricalHeaderNeverReentersPauseWhetherDescriptorsArePending(bool pending)
+    public void CountResetPreservesExplicitPreparedHeaderAdmissionWhetherDescriptorsArePending(bool pending)
     {
         var fixture = Fixture(3);
         SetField(fixture.Session, "nativeActionPackets", fixture.Session.NativeActionPackets.ResetCounts());
@@ -77,11 +77,19 @@ public sealed class NativeBattleFactualPresentationAdmissionTests
         {
             Property(nameof(BattleSession.NativeGraphics)).SetValue(fixture.Session, new NativeBattleGraphicsState([], [], 0, 0));
         }
-        Queue(fixture.Session).Enqueue(Command("enemy", 0));
-        TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => Invoke(fixture.Session, "DispatchAction"));
-        Assert.IsType<InvalidDataException>(error.InnerException);
-        Assert.Null(fixture.Session.ActiveAction);
-        Assert.Equal(0u, fixture.Session.Capture().NativeClock!.ActionPause);
+        BattleAttackCommand command = Command("enemy", 0);
+        Queue(fixture.Session).Enqueue(command);
+        string packets = JsonSerializer.Serialize(fixture.Session.NativeActionPackets);
+        string descriptors = JsonSerializer.Serialize(fixture.Session.NativeGraphics!.Descriptors);
+        Invoke(fixture.Session, "DispatchAction");
+        BattleActionPresentation active = Assert.IsType<BattleActionPresentation>(fixture.Session.ActiveAction);
+        Assert.Equal((int?)0, active.NativeHeaderIndex);
+        Assert.Same(command.NativeAction, active.NativeAction);
+        Assert.Empty(Queue(fixture.Session));
+        Assert.Equal(packets, JsonSerializer.Serialize(fixture.Session.NativeActionPackets));
+        Assert.Equal(descriptors, JsonSerializer.Serialize(fixture.Session.NativeGraphics!.Descriptors));
+        Assert.Equal(1u, fixture.Session.Capture().NativeClock!.ActionPause);
+        Assert.DoesNotContain(fixture.Session.Events, item => item.Kind == "ActionComplete");
     }
 
     [Fact]

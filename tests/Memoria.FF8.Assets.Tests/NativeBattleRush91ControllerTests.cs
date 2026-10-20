@@ -120,7 +120,7 @@ public sealed class NativeBattleRush91ControllerTests
         NativeBattleCameraProjection projection = new(view, 216, 160, 108);
         NativeBattlePoseSource actorSource = resources.Model.PoseSource;
         NativeBattleDecodedPose actorPose = NativeBattlePoseDecoder.DecodeFirst509440(actorSource.Animations.AsSpan(), actorSource.BoneCount, 0).Pose;
-        NativeBattleGraphicsModel Model(int actor) => new(actor, 3) { ModelId4 = 0, Flags2 = 0, Transform = new(new(0, 0, 0), new(100, 0, 300), 77, 0, 4096), GeometryWorldMatrix = identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = actorPose } };
+        NativeBattleGraphicsModel Model(int actor) => NativeBattleBodyBoneMatrices.Publish508C90(new(actor, 3) { ModelId4 = 0, Flags2 = 0, Transform = new(new(0, 0, 0), new(100, 0, 300), 77, 0, 4096), GeometryWorldMatrix = identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = actorPose } }, actorSource);
         return new(0, packets, view, Model, _ => actorSource, (frame, pointer, selector) =>
         {
             uint address = pointer - 0x30;

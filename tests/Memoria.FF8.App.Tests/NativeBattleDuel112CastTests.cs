@@ -67,6 +67,8 @@ public sealed partial class NativeBattleDuel112CastTests
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSnapshot source = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(input!))!;
+        ushort selectedEffectId = source.NativeGraphics?.OriginalEffect?.Binding.Effect ?? 112;
+        Assert.Contains(selectedEffectId, new ushort[] { 112, 212, 215, 216 });
         BattleSession battle = BattleSession.Restore(source);
         battle.AttachNativeEffectResourceResolver(effectId => game.ReadNativeEffectCatalogForEffects([effectId])[effectId - 1]);
         BattleScenePresentation scene = new(assets, source.Definition, true);
@@ -76,7 +78,7 @@ public sealed partial class NativeBattleDuel112CastTests
         {
             for (int callback = 0; callback < 512; callback++)
             {
-                if (battle.NativeGraphics?.OriginalEffect is { Binding.Effect: 112, ReturnedDescriptor: > 0, Pools.Length: 5 } effect && effect.Pools[1].Slots[0].ReadWord(12) >= phase)
+                if (battle.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == selectedEffectId && effect.Pools[1].Slots[0].ReadWord(12) >= phase)
                 {
                     BattleSnapshot selected = battle.Capture();
                     NativeBattleRestorationPresentationTests.Publish(output!, "selected", selected, scene.Render(battle, 320, 224).ToArray());
@@ -134,7 +136,7 @@ public sealed partial class NativeBattleDuel112CastTests
         {
             actor = actor with { NativeCommands = actor.NativeCommands.Add(new(239, action.Name ?? "Duel", action.TargetFlags!.Value, checked((byte)action.ActionId))) };
         }
-        BattleDefinition definition = namedSource?.Definition ?? source with { Combatants = [actor, source.Combatants[1]] };
+        BattleDefinition definition = namedSource?.Definition ?? source with { NativeVictoryFile = assets.ReadNativeBattleFile(766), Combatants = [actor, source.Combatants[1]] };
         BattleSession battle = namedSource is null ? new(definition, BattleAtbMode.TurnBased) : BattleSession.Restore(namedSource);
         battle.AttachNativeEffectResourceResolver(requestedEffect => game.ReadNativeEffectCatalogForEffects([requestedEffect])[requestedEffect - 1]);
         BattleScenePresentation scene = new(assets, definition, true);

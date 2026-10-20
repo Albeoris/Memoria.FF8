@@ -178,7 +178,17 @@ public static class NativeBattleGfMatrices
             }
             else
             {
-                rotation = NativeBattlePoseMatrices.Scale56BEF0(rotation, scale.X, scale.Y, scale.Z);
+                short[] scaled = rotation.Rotation.ToArray();
+                for (int row = 0; row < 3; row++)
+                {
+                    int factor = row switch { 0 => scale.X, 1 => scale.Y, _ => scale.Z };
+                    for (int column = 0; column < 3; column++)
+                    {
+                        int index = row * 3 + column;
+                        scaled[index] = unchecked((short)(unchecked(scaled[index] * factor) >> 12));
+                    }
+                }
+                rotation = rotation with { Rotation = scaled.ToImmutableArray() };
             }
         }
         if ((node.Header & 0x8200) == 0)

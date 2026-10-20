@@ -164,7 +164,7 @@ public sealed class NativeBattleRecover93ControllerTests
         NativeBattleCameraProjection projection = new(view, 216, 160, 108);
         NativeBattlePoseSource actorSource = resources.Model.PoseSource;
         NativeBattleDecodedPose actorPose = NativeBattlePoseDecoder.DecodeFirst509440(actorSource.Animations.AsSpan(), actorSource.BoneCount, 0).Pose;
-        return new(packets, view, actor => new(actor, 3) { ModelId4 = 0, Flags2 = 0, Transform = new(new(0, 0, 0), new(100, 0, 300), 77, 0, 4096), GeometryWorldMatrix = identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = actorPose } }, _ => actorSource, _ => World(), (frame, rawModel, selector) =>
+        return new(packets, view, actor => NativeBattleBodyBoneMatrices.Publish508C90(new(actor, 3) { ModelId4 = 0, Flags2 = 0, Transform = new(new(0, 0, 0), new(100, 0, 300), 77, 0, 4096), GeometryWorldMatrix = identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = actorPose } }, actorSource), _ => actorSource, _ => World(), (frame, rawModel, selector) =>
         {
             uint address = rawModel - 0x30;
             NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
@@ -184,7 +184,7 @@ public sealed class NativeBattleRecover93ControllerTests
         }, (frame, address) =>
         {
             NativeBattleRecover93NodeState retained = profile.Read(frame.Memory)!.Nodes with { PrivateDrawCursor = frame.Effect.DrawArenaOffset };
-            NativeBattleRecover93NodeStep step = NativeBattleRecover93Nodes.Advance74F6E0(new(frame.Memory, frame.Effect, retained, frame.Random), address, actor => new(actor, 3) { ModelId4 = 0, Transform = new(new(0, 0, 0), new(100, 0, 300), 77, 0, 4096), GeometryWorldMatrix = identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = actorPose } }, projection, 0, NativeBattleLogicalOrdering.Clear(), rules.SummonColors!);
+            NativeBattleRecover93NodeStep step = NativeBattleRecover93Nodes.Advance74F6E0(new(frame.Memory, frame.Effect, retained, frame.Random), address, actor => NativeBattleBodyBoneMatrices.Publish508C90(new(actor, 3) { ModelId4 = 0, Transform = new(new(0, 0, 0), new(100, 0, 300), 77, 0, 4096), GeometryWorldMatrix = identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = actorPose } }, actorSource), projection, 0, NativeBattleLogicalOrdering.Clear(), rules.SummonColors!);
             return new(new(profile.Write(step.Frame.Memory, profile.Read(step.Frame.Memory)! with { Nodes = step.Frame.State }), step.Frame.Effect with { DrawArenaOffset = step.Frame.State.PrivateDrawCursor }, step.Frame.Random), step.Complete);
         }, (frame, operation) =>
         {

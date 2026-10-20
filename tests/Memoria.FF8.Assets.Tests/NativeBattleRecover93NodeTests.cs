@@ -78,7 +78,7 @@ public sealed class NativeBattleRecover93NodeTests
         NativeBattleRecover93NodeResource resource = profile.Effect == 93 ? game.ReadNativeRecover93NodeResource() : game.ReadNativeReverse94Resources().Nodes;
         NativeBattlePoseSource poseSource = game.ReadNativeSearchModelResources().Model.PoseSource;
         NativeBattleDecodedPose pose = NativeBattlePoseDecoder.DecodeFirst509440(poseSource.Animations.AsSpan(), poseSource.BoneCount, 0).Pose;
-        NativeBattleGraphicsModel Model(int index) => new(index, 3) { ModelId4 = 0, Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), GeometryWorldMatrix = Identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = pose } };
+        NativeBattleGraphicsModel Model(int index) => NativeBattleBodyBoneMatrices.Publish508C90(new(index, 3) { ModelId4 = 0, Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), GeometryWorldMatrix = Identity, GeometryBounds52 = new(new(-100, -100, -100), new(100, 100, 100)), SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = pose } }, poseSource);
         NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
         (packets, _) = packets.Prepare(new(0, 240, 0, 0, 12, 93, null));
         (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));

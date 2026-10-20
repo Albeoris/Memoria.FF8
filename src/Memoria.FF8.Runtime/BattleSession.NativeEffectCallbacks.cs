@@ -201,6 +201,10 @@ public sealed partial class BattleSession
         {
             return AdvanceNativeDuel212(graphics);
         }
+        if (effect.Binding.Entry == 0x6959E0)
+        {
+            return AdvanceNativeDuel216(graphics);
+        }
         if (effect.Binding.Entry == 0x69AB60)
         {
             return AdvanceNativeDuel215(graphics);

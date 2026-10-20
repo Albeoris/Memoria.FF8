@@ -35,12 +35,17 @@ public sealed class NativeBattleDescriptorActionCompletionTests
     }
 
     [Fact]
-    public void AlreadyResetHistoricalHeaderDoesNotInventACompletionReceipt()
+    public void ExplicitPreparedPresentationAcknowledgesAfterCountsResetWithoutAnActivatedCursor()
     {
         var fixture = Fixture();
         Field("nativeActionPackets").SetValue(fixture.Session, fixture.Session.NativeActionPackets.ResetCounts());
+        Assert.Null(fixture.Session.NativeActionPackets.ActiveHeaderIndex);
         Complete(fixture.Session, fixture.Graphics, 0x47DDA0);
-        Assert.Same(fixture.Action, fixture.Session.ActiveAction);
+        Assert.Null(fixture.Session.ActiveAction);
+        Assert.False(fixture.Session.Combatants[0].IsBusy);
+        Assert.Single(fixture.Session.Events, item => item.Kind == "ActionComplete");
+        Complete(fixture.Session, fixture.Graphics, 0x47DDA0);
+        Assert.Single(fixture.Session.Events, item => item.Kind == "ActionComplete");
     }
 
     [Fact]
