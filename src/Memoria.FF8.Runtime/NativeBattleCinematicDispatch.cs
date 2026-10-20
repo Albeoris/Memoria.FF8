@@ -1206,6 +1206,7 @@ public static partial class NativeBattleCinematicDispatch
         [("vm_table", 138)] = 0xB2BEF0,
         [("vm_table", 139)] = 0xB2D520,
         [("vm_table", 146)] = 0xB2E670,
+        [("vm_table", 145)] = 0xB2CD50,
         [("vm_table", 147)] = 0xB2F590,
         [("vm_table", 150)] = 0xB2E6B0,
         [("vm_table", 155)] = 0xB2DAB0,
@@ -1333,7 +1334,7 @@ public static partial class NativeBattleCinematicDispatch
             }
             return handler;
         }
-        if (VariantSlots.TryGetValue((effect, table, index), out uint variant) || GuestNoOps.TryGetValue((effect, table, index), out variant) || GuestVariants.TryGetValue((effect, table, index), out variant) || MeteorNoOps.TryGetValue((effect, table, index), out variant) || MeteorVariants.TryGetValue((effect, table, index), out variant))
+        if (VariantSlots.TryGetValue((effect, table, index), out uint variant) || GuestNoOps.TryGetValue((effect, table, index), out variant) || GuestVariants.TryGetValue((effect, table, index), out variant) || MeteorNoOps.TryGetValue((effect, table, index), out variant) || MeteorVariants.TryGetValue((effect, table, index), out variant) || ApocalypseNoOps.TryGetValue((effect, table, index), out variant) || ApocalypseVariants.TryGetValue((effect, table, index), out variant))
         {
             if (handler != variant)
             {
@@ -1341,7 +1342,7 @@ public static partial class NativeBattleCinematicDispatch
             }
             return handler;
         }
-        if (GuestAliasSlots.TryGetValue((effect, table, index), out uint selectedAlias) || MeteorAliasSlots.TryGetValue((effect, table, index), out selectedAlias))
+        if (GuestAliasSlots.TryGetValue((effect, table, index), out uint selectedAlias) || MeteorAliasSlots.TryGetValue((effect, table, index), out selectedAlias) || ApocalypseAliasSlots.TryGetValue((effect, table, index), out selectedAlias))
         {
             if (handler != selectedAlias)
             {
@@ -1363,7 +1364,7 @@ public static partial class NativeBattleCinematicDispatch
         {
             throw new NotSupportedException("Native cinematic dispatch selected a noncallable table entry.");
         }
-        if (effect == 201 && (CanonicalHandlers.Contains(handler) || RegionalCanonicalHandlers.Contains(handler) || GuestAliases.Values.Contains(handler) || MeteorAliases.Values.Contains(handler)))
+        if (effect == 201 && (CanonicalHandlers.Contains(handler) || RegionalCanonicalHandlers.Contains(handler) || GuestAliases.Values.Contains(handler) || MeteorAliases.Values.Contains(handler) || ApocalypseAliases.Values.Contains(handler)))
         {
             return handler;
         }
@@ -1375,6 +1376,6 @@ public static partial class NativeBattleCinematicDispatch
         {
             return regionalCanonical;
         }
-        return (Aliases.TryGetValue((effect, handler), out uint canonical) || GuestAliases.TryGetValue((effect, handler), out canonical) || MeteorAliases.TryGetValue((effect, handler), out canonical)) ? canonical : throw new NotSupportedException($"Native cinematic effect {effect} handler {handler:X8} requires its selected implementation contract.");
+        return (Aliases.TryGetValue((effect, handler), out uint canonical) || GuestAliases.TryGetValue((effect, handler), out canonical) || MeteorAliases.TryGetValue((effect, handler), out canonical) || ApocalypseAliases.TryGetValue((effect, handler), out canonical)) ? canonical : throw new NotSupportedException($"Native cinematic effect {effect} handler {handler:X8} requires its selected implementation contract.");
     }
 }

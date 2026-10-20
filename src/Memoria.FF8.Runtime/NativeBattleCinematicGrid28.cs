@@ -12,6 +12,12 @@ public sealed record NativeBattleCinematicGrid28Services(Func<NativeBattleWaterE
 public static class NativeBattleCinematicGrid28
 {
     public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicGrid28Services services)
+        => DrawCore(frame, services, 256, 16, 255, []);
+
+    internal static NativeBattleWaterExecutionFrame DrawApocalypse(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicGrid28Services services, ImmutableArray<byte> rowV)
+        => DrawCore(frame, services, 512, 32, 511, rowV);
+
+    private static NativeBattleWaterExecutionFrame DrawCore(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicGrid28Services services, int coordinateStep, int textureStep, int positionMask, ImmutableArray<byte> rowV)
     {
         ArgumentNullException.ThrowIfNull(services);
         uint payload = SlotDword(0xB8);
@@ -24,9 +30,9 @@ public static class NativeBattleCinematicGrid28
         frame = clut.Frame.WriteTemporaryDword(0x6C, clut.Value);
         int columns = unchecked((int)frame.ReadTemporaryDword(0x60));
         int rows = unchecked((int)frame.ReadTemporaryDword(0x64));
-        int firstU = unchecked(-(columns / 2 << 4) - ((SlotWord(frame, 0x98) >> 4) & 0xF0));
+        int firstU = unchecked(-(columns / 2 * textureStep) - ((SlotWord(frame, 0x98) >> 4) & (textureStep * 15)));
         frame = frame.WriteTemporaryDword(0x70, unchecked((uint)firstU));
-        int firstV = unchecked(-(rows / 2 << 4) - ((SlotWord(frame, 0x94) >> 4) & 0xF0));
+        int firstV = unchecked(-(rows / 2 * textureStep) - ((SlotWord(frame, 0x94) >> 4) & (textureStep * 15)));
         frame = frame.WriteTemporaryDword(0x74, unchecked((uint)firstV));
         frame = frame.WriteTemporaryDword(0x78, unchecked((uint)((columns + 1) * 12)));
         uint reference = services.ResolveSlot(frame, SignedWord(payload));
@@ -42,8 +48,10 @@ public static class NativeBattleCinematicGrid28
         frame = services.SetFarColor(frame, ReferenceColor(unchecked(reference + 0xCC)));
         uint work = ManagerDword(0x74);
         rows = unchecked((int)frame.ReadTemporaryDword(0x64));
-        frame = frame.WriteTemporaryWord(0xC0, unchecked((ushort)(ReadSlot(frame, 0x94, 1)[0] - (rows / 2 << 8))));
-        int initialZ = unchecked(ReadSlot(frame, 0x98, 1)[0] - (unchecked((int)frame.ReadTemporaryDword(0x60)) / 2 << 8));
+        int positionX = positionMask == 255 ? ReadSlot(frame, 0x94, 1)[0] : SlotWord(frame, 0x94) & positionMask;
+        frame = frame.WriteTemporaryWord(0xC0, unchecked((ushort)(positionX - rows / 2 * coordinateStep)));
+        int positionZ = positionMask == 255 ? ReadSlot(frame, 0x98, 1)[0] : SlotWord(frame, 0x98) & positionMask;
+        int initialZ = unchecked(positionZ - unchecked((int)frame.ReadTemporaryDword(0x60)) / 2 * coordinateStep);
         frame = frame.WriteTemporaryWord(0xC2, 0);
         frame = frame.WriteTemporaryWord(0xC8, unchecked((ushort)(SlotWord(frame, 0x96) << 4)));
         frame = frame.WriteTemporaryWord(0xCA, 0);
@@ -63,15 +71,19 @@ public static class NativeBattleCinematicGrid28
                 StoreWord(unchecked(work + 4), unchecked((ushort)projection.QuarterDepth));
                 StoreDword(unchecked(work + 8), color | command);
                 work = unchecked(work + 12);
-                frame = frame.WriteTemporaryWord(0xC4, unchecked((ushort)(frame.ReadTemporaryWord(0xC4) + 0x100)));
+                frame = frame.WriteTemporaryWord(0xC4, unchecked((ushort)(frame.ReadTemporaryWord(0xC4) + coordinateStep)));
             }
-            frame = frame.WriteTemporaryWord(0xC0, unchecked((ushort)(frame.ReadTemporaryWord(0xC0) + 0x100)));
+            frame = frame.WriteTemporaryWord(0xC0, unchecked((ushort)(frame.ReadTemporaryWord(0xC0) + coordinateStep)));
         }
         uint top = ManagerDword(0x74);
         uint bottom = unchecked(top + frame.ReadTemporaryDword(0x78));
         uint output = ManagerDword(0x7C);
         rows = unchecked((int)frame.ReadTemporaryDword(0x64));
         int v = unchecked((int)frame.ReadTemporaryDword(0x74));
+        if (!rowV.IsDefaultOrEmpty)
+        {
+            v &= 15;
+        }
         for (int row = 0; row < rows; row++)
         {
             columns = unchecked((int)frame.ReadTemporaryDword(0x60));
@@ -87,10 +99,10 @@ public static class NativeBattleCinematicGrid28
                 PutWord(0x1A, unchecked((ushort)frame.ReadTemporaryDword(0x68)));
                 PutWord(0xE, unchecked((ushort)frame.ReadTemporaryDword(0x6C)));
                 data[0x24] = data[0xC] = unchecked((byte)u);
-                u = unchecked(u + 16);
+                u = unchecked(u + textureStep);
                 data[0x30] = data[0x18] = (u & 0xF0) == 0 ? (byte)255 : unchecked((byte)u);
-                data[0x19] = data[0xD] = unchecked((byte)v);
-                data[0x31] = data[0x25] = (unchecked(v + 16) & 0xF0) == 0 ? (byte)255 : unchecked((byte)(v + 16));
+                data[0x19] = data[0xD] = rowV.IsDefaultOrEmpty ? unchecked((byte)v) : rowV[v];
+                data[0x31] = data[0x25] = rowV.IsDefaultOrEmpty ? (unchecked(v + textureStep) & 0xF0) == 0 ? (byte)255 : unchecked((byte)(v + textureStep)) : rowV[v + 1];
                 PutDword(8, Dword(top));
                 PutDword(0x14, Dword(unchecked(top + 12)));
                 PutDword(0x20, Dword(bottom));
@@ -112,7 +124,7 @@ public static class NativeBattleCinematicGrid28
                 void PutDword(int offset, uint value) => BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(offset), value);
                 void PutWord(int offset, ushort value) => BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(offset), value);
             }
-            v = unchecked(v + 16);
+            v = rowV.IsDefaultOrEmpty ? unchecked(v + textureStep) : (v + 1) & 15;
             top = unchecked(top + 12);
             bottom = unchecked(bottom + 12);
         }

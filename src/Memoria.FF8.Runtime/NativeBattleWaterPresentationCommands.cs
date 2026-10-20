@@ -4,7 +4,10 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleWaterPresentationServices(Func<NativeBattleWaterExecutionFrame, uint, ushort> ReadActorFlags, Func<NativeBattleWaterExecutionFrame, uint, ushort, NativeBattleWaterExecutionFrame> WriteActorFlags, Func<NativeBattleWaterExecutionFrame, uint, short, byte, NativeBattleWaterExecutionFrame> PlaySound501330);
+public sealed record NativeBattleWaterPresentationServices(Func<NativeBattleWaterExecutionFrame, uint, ushort> ReadActorFlags, Func<NativeBattleWaterExecutionFrame, uint, ushort, NativeBattleWaterExecutionFrame> WriteActorFlags, Func<NativeBattleWaterExecutionFrame, uint, short, byte, NativeBattleWaterExecutionFrame> PlaySound501330)
+{
+    public Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame>? UpdateSlot { get; init; }
+}
 
 /// <summary>Selected draw registration, cached actor position, actor flags and sound commands.</summary>
 public static class NativeBattleWaterPresentationCommands
@@ -104,8 +107,13 @@ public static class NativeBattleWaterPresentationCommands
             {
                 throw new InvalidDataException("Native selected update requires its actual current cached-bank slot.");
             }
+            byte kind = ReadSlot(current, 0x18, 1)[0];
+            if (services.UpdateSlot is { } selectedUpdate)
+            {
+                return selectedUpdate(current, kind);
+            }
             ImmutableArray<byte> active = [];
-            if (ReadSlot(current, 0x18, 1)[0] is 3 or 5 or 7)
+            if (kind is 3 or 5 or 7)
             {
                 byte[] order = Enumerable.Repeat((byte)0xFF, 128).ToArray();
                 for (int i = 0; i < order.Length; i++)

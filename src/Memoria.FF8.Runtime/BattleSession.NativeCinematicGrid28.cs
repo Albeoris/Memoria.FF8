@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicGrid28(NativeBattleWaterExecutionFrame frame, int resourceLength, NativeBattleCinematicResources resources, NativeBattleGraphicsState graphics)
+    private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicGrid28(NativeBattleWaterExecutionFrame frame, int resourceLength, NativeBattleCinematicResources resources, NativeBattleGraphicsState graphics, uint? selectedHandler = null)
     {
         NativeBattleActionMatrix? matrix = null;
         NativeBattleCinematicGrid28Services services = new((current, texture) => NativeBattleWaterTextureMetadata.SelectTPageB665C0(current, resources, texture), (current, texture) => new(current, NativeBattleWaterTextureMetadata.ReadClutB66640(current, resources, texture)), (current, selector) =>
@@ -78,7 +78,14 @@ public sealed partial class BattleSession
             graphics = written.Graphics;
             return written.Frame;
         });
-        return (NativeBattleCinematicGrid28.Draw(frame, services), graphics);
+        NativeBattleWaterExecutionFrame drawn = selectedHandler switch
+        {
+            null => NativeBattleCinematicGrid28.Draw(frame, services),
+            0xAAB290 => NativeBattleApocalypse221Grid.Draw51(frame, services),
+            0xAAB6D0 => NativeBattleApocalypse221Grid.Draw68(frame, services, resources.ReadStatic(0x186D4FC, 17).ToArray().ToImmutableArray()),
+            _ => throw new NotSupportedException("Native cinematic grid requires its authenticated selected spacing and UV directory.")
+        };
+        return (drawn, graphics);
     }
 
     private static byte[] ReadNativeGridTemporary(NativeBattleWaterExecutionFrame frame, uint address, int length)

@@ -265,6 +265,8 @@ public sealed partial class BattleSession
                     return NativeBattleCinematicAccelerationAC.Execute(current, program, NativeBattleWaterInstructionDispatcher.CurrentBank(current, assets[1].Data.Length), ResolveCurrentNode);
                 case 0x92:
                     return NativeBattleCinematicControlCommands.StoreTexturePair92(current, program);
+                case 0x91:
+                    return NativeBattleCinematicCopyPose91.Execute(current, program, ResolveCurrentNode, UpdateSlot);
                 case 0xB7 when profile.Effect == 206:
                     return NativeBattleCinematicControlCommands.DebugParametersB7(current, program);
                 case 0xB6 when profile.Effect == 206:
@@ -473,7 +475,7 @@ public sealed partial class BattleSession
                         uint sound = BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(address, 4), 4));
                         PublishNativeModuleSound(new(sound, unchecked((uint)(int)argument), null) { Pan = pan, RawPan = pan });
                         return frame;
-                    }));
+                    }) { UpdateSlot = UpdateSlot });
                 case 0x52:
                     return NativeBattleWaterTextureMetadata.Execute52AA3A60(current, resources);
                 case 0x13D:
@@ -684,6 +686,10 @@ public sealed partial class BattleSession
             {
                 return current;
             }
+            if (handler == 0xAA6270)
+            {
+                return NativeBattleApocalypse221Orbit11.Execute(current, ResolveCurrentNode);
+            }
             NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, assets[1].Data.Length);
             int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank);
             ImmutableArray<byte> active = kind is 3 or 5 or 7 ? current.Core.Read(0x2797454, 128).ToImmutableArray() : [];
@@ -695,6 +701,20 @@ public sealed partial class BattleSession
             return NativeBattleCinematicDraw.Run(profile, current, PrepareLighting, (frame, kind) =>
             {
                 uint selectedDrawHandler = NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "draw_table", kind, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.DrawTable + 4u * kind), 4)));
+                if (selectedDrawHandler == 0xAA6770)
+                {
+                    return NativeBattleApocalypse221ActorTint69.Execute(frame, new((_, address) => graphics.Models[PhysicalActorIndex(address)], (current, address, actor) =>
+                    {
+                        graphics = graphics with { Models = graphics.Models.SetItem(PhysicalActorIndex(address), actor) };
+                        return current;
+                    }));
+                }
+                if (selectedDrawHandler is 0xAAB290 or 0xAAB6D0)
+                {
+                    var grid = DrawNativeCinematicGrid28(frame, assets[1].Data.Length, resources, graphics, selectedDrawHandler);
+                    graphics = grid.Graphics;
+                    return grid.Frame;
+                }
                 if (selectedDrawHandler == 0xA90AA0)
                 {
                     var meteor = DrawNativeMeteor223Grid(frame, assets[1].Data.Length, resources, graphics);

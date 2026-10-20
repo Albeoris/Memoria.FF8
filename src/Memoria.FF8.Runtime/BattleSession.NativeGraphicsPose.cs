@@ -57,8 +57,13 @@ public sealed partial class BattleSession
 
     private NativeBattleVector ReadNativeGraphicsBone(NativeBattleGraphicsState graphics, int index, byte selector, short fraction)
     {
+        NativeBattleGraphicsModel model = graphics.Models[index];
+        if ((model.Flags0 & 2) == 0)
+        {
+            return (model.Transform ?? throw new NotSupportedException("Native502170 requires its model position WORDs.")).Position28;
+        }
         NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native bone projection requires its original skeleton and compressed animation source.");
-        return NativeBattlePoseMatrices.ReadBone(graphics.Models[index], source, selector, fraction);
+        return NativeBattlePoseMatrices.ReadBone(model, source, selector, fraction);
     }
 
     internal NativeBattleCameraPoint TransformNativeGraphicsCameraPoint(int index, byte lowNibble, NativeBattleCameraPoint local, bool mirror)
@@ -71,7 +76,14 @@ public sealed partial class BattleSession
 
     private NativeBattleModuleAnchor ReadNativeModelAnchor(NativeBattleGraphicsState graphics, int index)
     {
+        NativeBattleGraphicsModel model = graphics.Models[index];
+        if ((model.Flags0 & 2) == 0)
+        {
+            NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native571400 requires its model position and scale WORDs.");
+            NativeBattleVector position = transform.Position28;
+            return new(position.X, position.Y, position.Z, unchecked((short)(transform.Scale38 * 2000 >> 12)));
+        }
         NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native571400 requires its original skeleton and compressed animation source.");
-        return NativeBattlePoseMatrices.ReadAnchor(graphics.Models[index], source);
+        return NativeBattlePoseMatrices.ReadAnchor(model, source);
     }
 }

@@ -53,7 +53,7 @@ public static class NativeBattleModuleSpriteTemporary
         {
             staging = Dword(staging, address + 28, 0x808080);
         }
-        else if (ReadDword(staging, address + 28) != draw.SpriteColor)
+        else if (ReadRgb(staging, address + 28) != (draw.SpriteColor & 0xFFFFFF))
         {
             throw new InvalidDataException("Native571C80 color differs from its retained physical operand.");
         }
@@ -129,6 +129,12 @@ public static class NativeBattleModuleSpriteTemporary
     private static NativeBattleFileStaging Point(NativeBattleFileStaging staging, uint address, int x, int y) => Word(Word(staging, address, unchecked((ushort)x)), address + 2, unchecked((ushort)y));
     private static ushort ReadWord(NativeBattleFileStaging staging, uint address) => BinaryPrimitives.ReadUInt16LittleEndian(staging.Read(address, 2));
     private static uint ReadDword(NativeBattleFileStaging staging, uint address) => BinaryPrimitives.ReadUInt32LittleEndian(staging.Read(address, 4));
+
+    private static uint ReadRgb(NativeBattleFileStaging staging, uint address)
+    {
+        byte[] bytes = staging.Read(address, 3);
+        return (uint)(bytes[0] | bytes[1] << 8 | bytes[2] << 16);
+    }
 
     private static NativeBattleFileStaging Word(NativeBattleFileStaging staging, uint address, ushort value)
     {

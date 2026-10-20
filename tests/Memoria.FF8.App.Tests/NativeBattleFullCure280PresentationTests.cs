@@ -66,6 +66,16 @@ public sealed class NativeBattleFullCure280PresentationTests
                 NativeBattleGraphicsState graphics = current.NativeGraphics!;
                 if (graphics.OriginalEffect is { Binding.Effect: 280 } effect)
                 {
+                    if (effect.FullCure280 is { } entered)
+                    {
+                        Assert.True(current.NativeEffectMemory!.Cursor > 0, "Original TIM loading must leave a nonzero allocation cursor for this fixed-base regression.");
+                        Assert.Equal(0, entered.BufferOffset);
+                        foreach (NativeBattleEffectTaskPool pool in effect.Pools.Where(pool => pool.DescriptorAddress is 0x2508008 or 0x2507FF8 or 0x2507FE8))
+                        {
+                            uint offset = pool.DescriptorAddress == 0x2508008 ? 7124u : pool.DescriptorAddress == 0x2507FF8 ? 320u : 0u;
+                            Assert.Equal(0x20DFAB8u + offset, pool.BankAddress);
+                        }
+                    }
                     initialized = true;
                     if (graphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
                     {

@@ -105,6 +105,26 @@ public sealed partial class BattleSession
         {
             return EnterNativeFullCure280(graphics);
         }
+        if (effect.Binding.Entry == 0x6BBDA0)
+        {
+            return EnterNativeFlare124(graphics);
+        }
+        if (effect.Binding.Entry == 0x6C99C0)
+        {
+            return EnterNativeZombie(graphics);
+        }
+        if (effect.Binding.Entry == 0x6BEFD0)
+        {
+            return EnterNativeStop119(graphics);
+        }
+        if (effect.Binding.Entry == 0x6791F0)
+        {
+            return EnterNativeRapture288(graphics);
+        }
+        if (effect.Binding.Entry == 0x6C16A0)
+        {
+            return EnterNativeBreak117(graphics);
+        }
         if (effect.Binding.Entry == 0x6CFCD0)
         {
             return EnterNativeBerserk108(graphics);

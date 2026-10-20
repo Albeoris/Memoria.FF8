@@ -20,7 +20,7 @@ public sealed partial class BattleSession
         NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(0x2508018, 0x2508028, 20, 1);
         (roots, int slot) = roots.Append(0x67E7F0);
         roots = roots with { Slots = roots.Slots.SetItem(slot, roots.Slots[slot].WriteDword(12, 0).WriteDword(16, 0)) };
-        return graphics with { OriginalEffect = effect with { FullCure280 = new(memory.Cursor), Pools = [roots], ReturnedDescriptor = 0x2508018, DrawArenaOffset = null } };
+        return graphics with { OriginalEffect = effect with { FullCure280 = new(0), Pools = [roots], ReturnedDescriptor = 0x2508018, DrawArenaOffset = null } };
     }
 
     private NativeBattleGraphicsState AdvanceNativeFullCure280(NativeBattleGraphicsState graphics)
