@@ -173,7 +173,7 @@ public sealed partial class BattleSession
             int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank);
             switch (opcode)
             {
-                case 0x55 when profile.Effect == 223:
+                case 0x55 when selectedHandler == 0xB2B380:
                     return NativeBattleCinematicActionBranch55.Execute(current, program, context.ReadActionBytes);
                 case 0x106 when profile.Effect == 223:
                     return NativeBattleCinematicFieldWait106.Execute(current, program, ResolveCurrentNode);
@@ -267,6 +267,8 @@ public sealed partial class BattleSession
                     return NativeBattleCinematicControlCommands.StoreTexturePair92(current, program);
                 case 0x91:
                     return NativeBattleCinematicCopyPose91.Execute(current, program, ResolveCurrentNode, UpdateSlot);
+                case 0xAE when selectedHandler == 0xB2FBE0:
+                    return NativeBattleCinematicNextActionAE.Execute(current, program, value => NativeBattleCinematicNextActionAE.CaptureCurrent(value, assets[1].Data.Length, context.ReadActionBytes, graphics.Models));
                 case 0xB7 when profile.Effect == 206:
                     return NativeBattleCinematicControlCommands.DebugParametersB7(current, program);
                 case 0xB6 when profile.Effect == 206:
@@ -714,6 +716,12 @@ public sealed partial class BattleSession
                     var grid = DrawNativeCinematicGrid28(frame, assets[1].Data.Length, resources, graphics, selectedDrawHandler);
                     graphics = grid.Graphics;
                     return grid.Frame;
+                }
+                if (selectedDrawHandler == 0xAABB70)
+                {
+                    var breakup = DrawNativeApocalypse221Breakup(frame, assets[1].Data.Length, resources, graphics);
+                    graphics = breakup.Graphics;
+                    return breakup.Frame;
                 }
                 if (selectedDrawHandler == 0xA90AA0)
                 {

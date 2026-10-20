@@ -17,6 +17,7 @@ internal static partial class Program
                 string selectedGameDirectory = args.Length >= 3 ? args[2] : TestResources.GameDirectory;
                 Dictionary<string, Action> scenarios = new(StringComparer.OrdinalIgnoreCase)
                 {
+                    ["wait-corrupt-input"] = WaitAndCorruptInput,
                     ["native-keyon2"] = () => NativeKeyScan2Contract(selectedGameDirectory, true),
                     ["native-shared-choice-focus"] = NativeSharedChoiceFocusContract,
                     ["native-blocking-dialogue"] = NativeBlockingDialogueContract,
@@ -415,8 +416,10 @@ internal static partial class Program
     {
         GameSession session = new(new GameState());
         EventEngine engine = new(session);
-        byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_W, 256), (Jsm.Opcode.RET, 0));
+        byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_W, 256), (Jsm.Opcode.RET, 0)]]);
         engine.LoadField(100, content, []);
+        engine.Step();
+        Require(!session.State.Variables.ContainsKey(256), "Initialization executed the default WAIT script.");
         engine.Step();
         Require(!session.State.Variables.ContainsKey(256), "WAIT resumed in its starting frame.");
         engine.Step();

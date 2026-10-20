@@ -239,6 +239,18 @@ public sealed partial class GameAssets
             {
                 binding = binding with { Break117Resources = ReadNativeBreak117Resources() };
             }
+            if (binding.Effect == 149)
+            {
+                binding = binding with { Ultima149Resources = ReadNativeUltima149Resources() };
+            }
+            if (binding.Effect == 189)
+            {
+                binding = binding with { Wall189Resources = ReadNativeWall189Resources() };
+            }
+            if (binding.Effect == 39)
+            {
+                binding = binding with { Drain39Resources = ReadNativeDrain39Resources() };
+            }
             if (binding.Effect == 41)
             {
                 binding = binding with { Dribble41Resources = ReadNativeDribble41Resources() };

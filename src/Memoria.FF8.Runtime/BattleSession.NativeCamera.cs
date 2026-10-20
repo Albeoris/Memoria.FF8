@@ -160,6 +160,14 @@ public sealed partial class BattleSession
                 {
                     graphics = shivaCompleted;
                 }
+                else if (TryWriteNativeWall189Completion(graphics, address, value, out NativeBattleGraphicsState wallCompleted))
+                {
+                    graphics = wallCompleted;
+                }
+                else if (TryWriteNativeUltima149Completion(graphics, address, value, out NativeBattleGraphicsState ultimaCompleted))
+                {
+                    graphics = ultimaCompleted;
+                }
                 else if (TryWriteNativeCactuarCompletion(graphics, address, value, out NativeBattleGraphicsState cactuarCompleted))
                 {
                     graphics = cactuarCompleted;

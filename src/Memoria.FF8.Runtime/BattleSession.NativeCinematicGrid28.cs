@@ -74,7 +74,8 @@ public sealed partial class BattleSession
             return new(current, projected.Projected.Depth >> 2);
         }, (current, output, ordering, batch) =>
         {
-            var written = AppendNativeCinematicPackets(current, output, ordering, batch, graphics);
+            ushort flags = selectedHandler is 0xAAB290 or 0xAAB6D0 ? (ushort)1 : (ushort)0;
+            var written = AppendNativeCinematicPackets(current, output, ordering, batch, graphics, flags);
             graphics = written.Graphics;
             return written.Frame;
         });

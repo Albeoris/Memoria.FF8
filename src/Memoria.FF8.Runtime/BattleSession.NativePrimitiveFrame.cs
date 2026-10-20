@@ -241,6 +241,26 @@ public sealed partial class BattleSession
         {
             return (memory.Arena ?? throw new NotSupportedException("Native retained effect packet alias requires its original arena.")).Read(reference.ByteOffset, count);
         }
+        if (reference.Bank is "2296A30" or "D1B490" or "2293F50" or "2294DA0" or "2295BC0")
+        {
+            if (reference.Buffer != 0)
+            {
+                throw new InvalidDataException("Native Wall packet banks require their actual contiguous executable owners.");
+            }
+            NativeBattleWall189State state = memory.Wall189 ?? throw new NotSupportedException("Native Wall requires its retained executable packet banks.");
+            if (reference.Bank == "2296A30")
+            {
+                return state.Packets.Read(reference.ByteOffset, count);
+            }
+            System.Collections.Immutable.ImmutableArray<byte> packet = reference.Bank switch
+            {
+                "D1B490" => state.ClearPacket,
+                "2293F50" => state.Area,
+                "2294DA0" => state.Offset,
+                _ => state.Environment
+            };
+            return packet.AsSpan().Slice(reference.ByteOffset, count).ToArray();
+        }
         if (reference.Bank is "24224D4" or "24059F8" or "DBAEE0")
         {
             if (reference.Buffer != 0)

@@ -366,6 +366,8 @@ public static partial class NativeBattleCinematicDispatch
     private static readonly FrozenDictionary<(int Effect, string Table, int Index), uint> ApocalypseVariants = new Dictionary<(int Effect, string Table, int Index), uint>
     {
         [(221, "bone_table", 11)] = 0xAA6270,
+        [(221, "prim_table", 58)] = 0xAAAE60,
+        [(221, "draw_table", 50)] = 0xAABB70,
         [(221, "draw_table", 51)] = 0xAAB290,
         [(221, "draw_table", 68)] = 0xAAB6D0,
         [(221, "draw_table", 69)] = 0xAA6770,
@@ -377,5 +379,7 @@ public static partial class NativeBattleCinematicDispatch
         [(221, "prim_table", 0x10)] = 0xAAA2C0,
         [(221, "draw_table", 0x25)] = 0xAA7890,
         [(221, "draw_table", 0x3D)] = 0xAA6910,
+        [(221, "vm_table", 0x55)] = 0xAAE280,
+        [(221, "vm_table", 0xAE)] = 0xAB2C10,
     }.ToFrozenDictionary();
 }

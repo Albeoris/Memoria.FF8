@@ -13,6 +13,13 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native A3 resource does not identify its original a8def.tim bytes.");
         }
+        if (destination == 0x2296A30)
+        {
+            NativeEffectIoResult = -1;
+            NativeEffectMemory = NativeBattleWall189Finish.CopyCommonTexture(NativeEffectMemory ?? throw new NotSupportedException("Native Wall texture restore requires its current process memory."), resource.Data);
+            QueueNativeFileIo482610(resource.Data.Length, 0x508470);
+            return;
+        }
         if (destination == 0x24224D4)
         {
             NativeBattleEffectMemory retained = NativeEffectMemory ?? throw new NotSupportedException("Native Ultra Waves texture restore requires its process memory.");
@@ -32,6 +39,12 @@ public sealed partial class BattleSession
     {
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native508660 requires its current mutable TIM memory.");
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native508660 requires its retained texture queue.");
+        if (source == 0x2296A30)
+        {
+            (textures, _) = textures.EnqueueArenaTim505E30((memory.Wall189 ?? throw new NotSupportedException("Native Wall texture restore lost its actual TIM bytes.")).Packets, 0);
+            NativeEffectMemory = memory with { Textures = textures };
+            return;
+        }
         if (source == 0x24224D4)
         {
             (textures, _) = textures.EnqueueArenaTim505E30((memory.UltraWaves154 ?? throw new NotSupportedException("Native Ultra Waves texture restore lost its private TIM bytes.")).Packets, 0);
@@ -81,6 +94,29 @@ public sealed partial class BattleSession
         else
         {
             throw new NotSupportedException("Native Doomtrain completion requires its retained physical task bank.");
+        }
+        return true;
+    }
+
+    private bool TryWriteNativeWall189Completion(NativeBattleGraphicsState graphics, uint address, byte value, out NativeBattleGraphicsState updated)
+    {
+        updated = graphics;
+        uint relative = unchecked(address - 0x2293F60u);
+        if (relative >= 32 || relative % 16 != 14)
+        {
+            return false;
+        }
+        if (graphics.OriginalEffect is { Binding.Effect: 189 } effect)
+        {
+            updated = graphics with { OriginalEffect = NativeBattleWall189Finish.WriteCompletion(effect, address, value) };
+        }
+        else if (NativeEffectMemory?.DetachedReturnedTask is { Binding.Effect: 189 } detached)
+        {
+            NativeEffectMemory = NativeEffectMemory with { DetachedReturnedTask = NativeBattleWall189Finish.WriteCompletion(detached, address, value) };
+        }
+        else
+        {
+            throw new NotSupportedException("Native Wall texture completion requires its retained original root task bank.");
         }
         return true;
     }
