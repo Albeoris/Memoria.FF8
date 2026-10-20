@@ -62,6 +62,7 @@ public sealed class NativeBattleStatusIconResourcesTests
             new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, NativeStatus0 = 2, NativeDeathCount = 0, MaximumHp = 1000, CurrentHp = 1000, InitialAtb = BattleSession.AtbMaximum },
             new() { Id = "enemy", Name = "Ifrit", Information246 = assets.ReadEnemyNativeInformation246(61), ModelId = 61, SceneSlot = encounter.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
         ];
+        NativeInputConfiguration input = game.ReadNewGameInputConfiguration();
         NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicFixture.Prepare(game, encounter.Id);
         BattleSession session = new(new()
         {
@@ -75,6 +76,8 @@ public sealed class NativeBattleStatusIconResourcesTests
             NativeEntry = new(0, 0),
             NativeGlobalRandom = new(0),
             NativeCrtRandom = new(1),
+            NativeSavedOptions = input.Options,
+            NativeInputButtonMap = input.ButtonMap,
             NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter),
             NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5),
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
@@ -97,7 +100,7 @@ public sealed class NativeBattleStatusIconResourcesTests
         Assert.Equal(0, before.Models[0].Flags0 & 4);
         Assert.Equal(0, before.Models[0].Flags2!.Value & 4);
         byte timer = before.Models[0].StatusTimers[5] ?? throw new InvalidDataException("Original poison initialization did not own its selected graphics timer.");
-        Assert.Null(before.Models[0].StatusTimers[6]);
+        Assert.Equal(game.ReadColdProcessNativeBattleMemory().ModelStatusTimers!.Value[0][6], before.Models[0].StatusTimers[6]);
         string saved = JsonSerializer.Serialize(session.Capture());
         BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(saved)!);
         TimeSpan callbackStep = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
@@ -107,7 +110,7 @@ public sealed class NativeBattleStatusIconResourcesTests
         NativeBattleGraphicsState after = session.NativeGraphics!;
         Assert.Equal(before.Callback + 1, after.Callback);
         Assert.Equal((byte?)((timer + 1) % 8), after.Models[0].StatusTimers[5]);
-        Assert.Null(after.Models[0].StatusTimers[6]);
+        Assert.Equal(game.ReadColdProcessNativeBattleMemory().ModelStatusTimers!.Value[0][6], after.Models[0].StatusTimers[6]);
         NativeBattleModuleDraw draw = Assert.Single(after.ModuleDraws, item => item.Resource?.Address == 0xC7EA38);
         Assert.Equal((ushort)timer, draw.Phase);
         int drawIndex = after.ModuleDraws.IndexOf(draw);

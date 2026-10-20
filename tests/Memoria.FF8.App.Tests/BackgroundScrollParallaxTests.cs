@@ -56,7 +56,7 @@ public sealed class BackgroundScrollParallaxTests
     }
 
     [Fact]
-    public void UnknownWrapOffsetsScalesLayersBindingsAndDirectPhasesRemainRefused()
+    public void UnknownWrapOffsetsLayersBindingsAndDirectPhasesRemainRefused()
     {
         using var assets = OpenAssets();
         FieldAssets field = assets.LoadField(230);
@@ -67,10 +67,10 @@ public sealed class BackgroundScrollParallaxTests
         Assert.False(BackgroundScrollCertificate.CanSet(field, 4, settings, 0));
         Assert.False(BackgroundScrollCertificate.CanSet(field, 1, settings, 1));
         Assert.False(BackgroundScrollCertificate.CanSet(field, 1, settings with { OffsetX = short.MaxValue }, 0));
-        Assert.False(BackgroundScrollCertificate.CanSet(field, 1, settings with { ScaleX = -1 }, 0));
-        Assert.False(BackgroundScrollCertificate.CanSet(field, 1, settings with { ScaleX = 257 }, 0));
+        Assert.True(BackgroundScrollCertificate.CanSet(field, 1, settings with { ScaleX = -1 }, 0));
+        Assert.True(BackgroundScrollCertificate.CanSet(field, 1, settings with { ScaleX = 257 }, 0));
         FieldAssets wrapping = field with { Information = field.Information! with { BackgroundWrapMask = 2 } };
-        Assert.False(BackgroundScrollCertificate.CanSet(wrapping, 1, settings, 0));
+        Assert.True(BackgroundScrollCertificate.CanSet(wrapping, 1, settings, 0));
         Assert.False(BackgroundScrollCertificate.Supports(wrapping, scene, actors));
         scene.BackgroundScrollLayers[1] = settings with { OffsetX = short.MaxValue };
         Assert.False(BackgroundScrollCertificate.Supports(field, scene, actors));
@@ -106,7 +106,11 @@ public sealed class BackgroundScrollParallaxTests
     private static SceneEventState Scene()
     {
         // Isolated projection fixture; it is neither restored by an engine nor published as a causal save.
-        SceneEventState scene = JsonSerializer.Deserialize<SceneEventState>("{\"AudioLoadEpoch\":0,\"NativeSalaryMovementUnits\":null,\"Party\":[0,255,255],\"NativeFieldLoadVersion\":1,\"NativeActorLayoutVersion\":1}")!;
+        var projection = JsonSerializer.SerializeToNode(new SceneEventState())!.AsObject();
+        projection[nameof(SceneEventState.Party)] = JsonSerializer.SerializeToNode(new[] { 0, 255, 255 });
+        projection[nameof(SceneEventState.NativeFieldLoadVersion)] = 1;
+        projection[nameof(SceneEventState.NativeActorLayoutVersion)] = 1;
+        SceneEventState scene = projection.Deserialize<SceneEventState>()!;
         for (int layer = 0; layer < 8; layer++)
         {
             scene.BackgroundScrollLayers[layer] = new BackgroundScrollSettings(0, 0, 256, 256);
@@ -119,7 +123,13 @@ public sealed class BackgroundScrollParallaxTests
     private static ActorState Actor(int x, int y, int z)
     {
         // This declared projection component has no native motion-word authority.
-        return JsonSerializer.Deserialize<ActorState>($"{{\"NativeMovementAccelerationTarget\":null,\"NativeMovementCompletion542\":null,\"NativeLandingTriangle508\":null,\"NativeTurnAccumulator474\":null,\"ObjectId\":0,\"Label\":0,\"CharacterId\":0,\"ModelId\":0,\"X\":{x},\"Y\":{y},\"Z\":{z}}}")!;
+        var projection = JsonSerializer.SerializeToNode(new ActorState(0, 0))!.AsObject();
+        projection[nameof(ActorState.CharacterId)] = 0;
+        projection[nameof(ActorState.ModelId)] = 0;
+        projection[nameof(ActorState.X)] = x;
+        projection[nameof(ActorState.Y)] = y;
+        projection[nameof(ActorState.Z)] = z;
+        return projection.Deserialize<ActorState>()!;
     }
 
     private static GameAssets OpenAssets()

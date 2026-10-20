@@ -17,7 +17,7 @@ public sealed class NativeRequestTimingTests
         byte[] content = Modules(secondRequest);
         EventEngine Create()
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateSession();
             EventEngine engine = new(session);
             engine.LoadField(999, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;
@@ -45,14 +45,14 @@ public sealed class NativeRequestTimingTests
     }
 
     [Fact]
-    public void UnprovedSelfRequestRefusesBeforeConsumingOperandsOrTransferringItsSlot()
+    public void SelfRequestOutsideRetainedPhysicalActorRefusesBeforeConsumingOperandsOrTransferringItsSlot()
     {
-        GameSession session = new(new GameState());
+        GameSession session = CreateSession();
         EventEngine engine = new(session);
         engine.LoadField(999, Modules(Jsm.Opcode.REQ, selfRequest: true), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         engine.Step();
         Assert.Throws<EventScriptException>(() => engine.Step());
-        Assert.Contains("current-slot switching", engine.LastFault!.Message);
+        Assert.True(engine.LastFault!.Message.Contains("Native self REQ outside a retained physical actor requires its original dense BYTE598 identity comparison", StringComparison.Ordinal), engine.LastFault.Message);
         JsonElement fiber = engine.Capture().GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ScriptId").GetInt32() == 1);
         Assert.Equal(5, fiber.GetProperty("Position").GetInt32());
         Assert.Equal(2, fiber.GetProperty("Stack").GetArrayLength());
@@ -66,7 +66,7 @@ public sealed class NativeRequestTimingTests
         byte[] content = Modules(Jsm.Opcode.REQ, firstRequest: request);
         EventEngine Create()
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateSession();
             EventEngine engine = new(session);
             engine.LoadField(999, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;
@@ -83,6 +83,16 @@ public sealed class NativeRequestTimingTests
             Assert.Equal(frame < successorFrame ? -1 : 1, live.BackgroundStates[0]);
             Assert.True(JsonElement.DeepEquals(live.Capture(), restored.Capture()));
         }
+    }
+
+    private static GameSession CreateSession()
+    {
+        return new GameSession(new GameState
+        {
+            WorldControls = NativeWorldControlState.CreateNewGame(),
+            WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame(),
+            EventRandom = NativeEventRandomState.FromColdProcess().ClearSavedStateForNewGame()
+        });
     }
 
     private static byte[] Modules(Jsm.Opcode secondRequest, bool selfRequest = false, Jsm.Opcode firstRequest = Jsm.Opcode.REQ)
