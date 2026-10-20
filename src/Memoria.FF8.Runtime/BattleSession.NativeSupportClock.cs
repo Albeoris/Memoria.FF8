@@ -4,6 +4,7 @@ public sealed partial class BattleSession
 {
     private void AdvanceNativeSupportCallbacks()
     {
+        ObserveNativeUnknownStackCallback(0x482F80, "admitted support clock");
         if (nativeSupport is null)
         {
             return;

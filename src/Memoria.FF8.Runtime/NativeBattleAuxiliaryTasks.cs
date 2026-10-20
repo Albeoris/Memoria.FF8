@@ -136,7 +136,7 @@ public sealed partial record NativeBattleAuxiliaryState([property: JsonRequired]
         return this with { Slots = slots, Head = Tail is null ? slot : Head, Tail = slot };
     }
 
-    public NativeBattleAuxiliaryStep Advance(NativeBattleAuxiliaryInputs? inputs = null)
+    public NativeBattleAuxiliaryStep Advance(NativeBattleAuxiliaryInputs? inputs = null, Action<NativeBattleAuxiliaryTask>? observe = null)
     {
         Validate();
         ImmutableArray<NativeBattleAuxiliaryTask> slots = Slots;
@@ -147,6 +147,7 @@ public sealed partial record NativeBattleAuxiliaryState([property: JsonRequired]
         for (int? next = Head; next is int index;)
         {
             NativeBattleAuxiliaryTask task = slots[index];
+            observe?.Invoke(task);
             bool release;
             if (task.Kind is NativeBattleAuxiliaryKind.ModelSequence505C70 or NativeBattleAuxiliaryKind.ModelStatus50A000 or NativeBattleAuxiliaryKind.ModelResourceFlags50B080)
             {

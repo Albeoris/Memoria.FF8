@@ -17,6 +17,7 @@ public sealed partial class BattleSession
         try
         {
             AdvanceNativeHostTime();
+            BeginNativeFrameStack();
             if (NativeGraphics.UiServices is { } initial)
             {
                 bool requestPause = (initial.Flags942 & 2) != 0 && (NativeEffectMemory?.ActionPhaseDEA ?? throw new NotSupportedException("Native47CF60 pause admission requires its actual retained process BYTE DEA.")) != 0;
@@ -37,6 +38,7 @@ public sealed partial class BattleSession
             {
                 DispatchNativeUiService();
             }
+            nativePreCoreUiStack = false;
             if (NativeGraphics.UiServices?.PauseDE9 != true)
             {
                 if (Outcome == BattleOutcome.Active)
@@ -70,6 +72,7 @@ public sealed partial class BattleSession
         }
         finally
         {
+            EndNativeFrameStack();
             nativeUiBecameReady = null;
         }
     }
@@ -108,11 +111,17 @@ public sealed partial class BattleSession
             NativeGraphics = NativeGraphics with { UiServices = services };
             AdvanceNativeTriggerWidget();
             AdvanceNativeGuardianBoost();
+            ObserveNativeUiWindowStack(windows, NativeGraphics.UiServices!.Windows!);
+        }
+        if ((NativeGraphics.UiServices!.Flags942 & 0x400) != 0)
+        {
+            ObserveNativeUnknownStackCallback(0x4B19A0, "UI flag400 callback");
         }
         AdvanceNativeUiAtbService();
         services = NativeGraphics.UiServices!;
         if ((services.Flags942 & 8) != 0)
         {
+            ObserveNativeUnknownStackCallback(0x4AD620, "UI window-open command");
             services = services with { Commands = services.Commands.Enqueue(0, 80) };
             NativeGraphics = NativeGraphics with { UiServices = services.SetFlags(0, 8) };
         }
@@ -191,6 +200,7 @@ public sealed partial class BattleSession
         {
             return;
         }
+        ObserveNativeUnknownStackCallback(0x485160, "trigger receipt");
         //47CCB0 case4 calls485160 after485460 and before periodic/script callbacks, even while ATB is held.
         if (nativeTimedAction?.Command.NativeRenzokuken is not null && nativeRenzokukenProcesses.Count != 0)
         {

@@ -457,6 +457,7 @@ public sealed partial class BattleSession
             }
             while (TryTakeQueuedCommand(out BattleAttackCommand command))
             {
+                ObserveNativeUnknownStackCallback(0x485460, "new action dispatch");
                 try
                 {
                     if (command.NativeCallback is { } callback)
@@ -557,6 +558,7 @@ public sealed partial class BattleSession
             ActiveAction = action with { RemainingFrames = remaining };
             return;
         }
+        ObserveNativeUnknownStackCallback(0x485460, "active action advancement");
         if (action.Phase == BattleActionPhase.Windup)
         {
             CompleteNativeComponentTrigger(action);
@@ -740,6 +742,7 @@ public sealed partial class BattleSession
     {
         if (ActiveAction is { NativeHeaderIndex: null } active && (!CanRetainNativeSupportActor(byId[active.ActorId], active.NativePlayerReaction) || active.Phase == BattleActionPhase.Windup && !ActionHasValidTarget(active.TargetId, active.Ability, active.ActionId, active.NativeAction, active.NativeTargetMask, active.NativeGraphic)))
         {
+            ObserveNativeUnknownStackCallback(0x485460, "active action cancellation");
             RefundCancelledNativeItem(active);
             QueueNativeActionClockCompletion(0x47DDA0);
             byId[active.ActorId].IsBusy = false;

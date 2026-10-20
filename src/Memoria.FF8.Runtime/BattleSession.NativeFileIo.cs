@@ -18,6 +18,7 @@ public sealed partial class BattleSession
         NativeBattleFileIoState state = NativeFileIo ?? throw new NotSupportedException("Native48D0C0/482590 requires its actual retained file IO owner; explicitly migrate this standalone snapshot.");
         NativeFileIo = state.Advance482590((current, completion) =>
         {
+            ObserveNativeUnknownStackCallback(completion.Callback, "file completion");
             NativeFileIo = current;
             switch (completion.Callback)
             {

@@ -122,7 +122,7 @@ public sealed record NativeBattleScriptTasks([property: JsonRequired] ImmutableA
         return state with { Slots = state.Slots.SetItem(slot, task) };
     }
 
-    public NativeBattleScriptTasks Advance(Func<NativeBattleScriptTasks, int, NativeBattleScriptTasks> callback)
+    public NativeBattleScriptTasks Advance(Func<NativeBattleScriptTasks, int, NativeBattleScriptTasks> callback, Action<int>? observeRelease = null)
     {
         Validate();
         NativeBattleScriptTasks state = this;
@@ -157,6 +157,7 @@ public sealed record NativeBattleScriptTasks([property: JsonRequired] ImmutableA
         {
             if (state.Slots[slot].ReadByte(15) == 1)
             {
+                observeRelease?.Invoke(slot);
                 state = state with { Slots = state.Slots.SetItem(slot, state.Slots[slot].WriteByte(15, 0)) };
                 state = state.Release(slot);
             }

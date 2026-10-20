@@ -9,6 +9,7 @@ public sealed partial class BattleSession
         {
             return;
         }
+        ObserveNativeUnknownStackCallback(0x483470, "admitted status clock");
         // The caller already admitted the earlier DEB/UI gates.
         foreach (BattleCombatant actor in combatants.Where(candidate => candidate.IsActive && candidate.NativeIndex is >= 0 and < 7))
         {

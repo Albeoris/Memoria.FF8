@@ -139,7 +139,7 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
         return Advance(inputs, null);
     }
 
-    public NativeBattleModuleStep Advance(NativeBattleModuleInputs inputs, Func<NativeBattleModuleState, int, NativeBattleModuleInputs, NativeBattleModuleCallback>? dispatch)
+    public NativeBattleModuleStep Advance(NativeBattleModuleInputs inputs, Func<NativeBattleModuleState, int, NativeBattleModuleInputs, NativeBattleModuleCallback>? dispatch, Action<NativeBattleModuleTask>? observe = null)
     {
         Validate();
         NativeBattleModuleState state = this;
@@ -148,6 +148,7 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
         ImmutableArray<NativeBattleModuleDraw>.Builder draws = ImmutableArray.CreateBuilder<NativeBattleModuleDraw>();
         for (int? next = Head; next is int index;)
         {
+            observe?.Invoke(state.Slots[index]);
             NativeBattleModuleCallback callback = state.Slots[index].Callback is uint address
                 ? (dispatch ?? throw new NotSupportedException($"Native shared hit-effect callback {address:X8} requires its original dispatcher."))(state, index, inputs)
                 : state.Slots[index].Kind switch

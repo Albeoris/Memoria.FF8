@@ -17,6 +17,7 @@ public sealed partial class BattleSession
                 NativeGraphics = NativeGraphics with { UiServices = ui with { Commands = ui.Commands.Enqueue(checked((byte)actor.NativeIndex), 0x11) } };
                 break;
             case NativeBattleGaugeRegistrationKind.ForcedCommand:
+                ObserveNativeUnknownStackCallback(0x483EB0, "forced full-gauge command");
                 //483EB0 invokes485030 before486E00 and484D20. The current485030 owner requires a physical player slot.
                 NativeGraphics = NativeGraphics with { UiServices = ui with { Commands = ui.Commands.Enqueue(checked((byte)actor.NativeIndex), 0x12) } };
                 BattleCombatant target = ChooseNativeRandomActionTarget(false) ?? combatants.SingleOrDefault(candidate => candidate.NativeIndex == 3) ?? throw new NotSupportedException("Native486E00's no-living-enemy mask8 requires its actual physical slot3 command binding.");
@@ -34,6 +35,7 @@ public sealed partial class BattleSession
     {
         foreach (BattleCombatant actor in combatants.Where(candidate => candidate.NativeIndex is >= 3 and < 7 && (candidate.NativeCombatantFlags & 0x200) != 0).OrderBy(candidate => candidate.NativeIndex))
         {
+            ObserveNativeUnknownStackCallback(0x484720, "registered actor callback");
             //484720(actor,1,2): any nonzero third argument selects physical bank1, not a packet flags BYTE.
             QueueNativeCallback(actor, 1, 1);
             actor.NativeCombatantFlags &= ~0x200u;

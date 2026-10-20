@@ -87,7 +87,14 @@ public sealed class NativeBattleDispel109PresentationTests
                 {
                     Assert.InRange(67 - age, 0L, Math.Max(0L, current.NativeGraphics.Callback - prior.NativeGraphics.Callback - 1));
                     contacts++;
-                    Assert.Equal(contact.Primary.Sequence, current.NativeGraphics.Models[3].Sequence);
+                    if (contact.Primary.Sequence == 0)
+                    {
+                        Assert.Equal(prior.NativeGraphics.Models[3].Sequence, current.NativeGraphics.Models[3].Sequence);
+                    }
+                    else
+                    {
+                        Assert.Equal(contact.Primary.Sequence, current.NativeGraphics.Models[3].Sequence);
+                    }
                 }
                 NativeBattleOriginalEffectState? after = Selected(current);
                 if (before?.ReturnedDescriptor is > 0 && after?.ReturnedDescriptor == 0)

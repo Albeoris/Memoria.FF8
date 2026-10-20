@@ -5,13 +5,14 @@ public sealed record NativeBattleDescriptorCompletion(NativeBattleDescriptorStat
 
 public sealed partial record NativeBattleDescriptorState
 {
-    public NativeBattleDescriptorState Advance(Func<NativeBattleDescriptorState, int, NativeBattleDescriptorDispatch> dispatch, Func<NativeBattleDescriptorState, int, NativeBattleDescriptorCompletion> callback)
+    public NativeBattleDescriptorState Advance(Func<NativeBattleDescriptorState, int, NativeBattleDescriptorDispatch> dispatch, Func<NativeBattleDescriptorState, int, NativeBattleDescriptorCompletion> callback, Action<NativeBattleDescriptorState, int>? observe = null)
     {
         Validate();
         NativeBattleDescriptorState state = this;
         int? previous = null;
         for (int? next = TaskHead; next is int slot;)
         {
+            observe?.Invoke(state, slot);
             NativeBattleDescriptorCompletion completed;
             if (state.Tasks[slot].Kind == NativeBattleDescriptorTaskKind.Pump500CC0)
             {

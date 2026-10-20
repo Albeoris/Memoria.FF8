@@ -299,7 +299,7 @@ public sealed partial class BattleSession
                 return (loading.Phase, loading.Completed);
             },
             RestoreTextureBlink = model => graphics = graphics with { Models = graphics.Models.SetItem(model, graphics.Models[model] with { Flags0 = (ushort)(graphics.Models[model].Flags0 | 0x400) }) }
-        });
+        }, task => ObserveNativeAuxiliaryStack(graphics, task));
         if (step.CameraBlend is ushort blend)
         {
             NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native509930 requires its initialized camera owner.")) with { BlendProgress = blend };

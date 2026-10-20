@@ -4,12 +4,13 @@ public sealed partial class BattleSession
 {
     private void DispatchNativeScriptTasks()
     {
-        NativeBattleScriptTasks tasks = nativeScriptState.Tasks.Advance(Dispatch);
+        NativeBattleScriptTasks tasks = nativeScriptState.Tasks.Advance(Dispatch, _ => ObserveNativeUnknownStackCallback(0x482C30, "script task release"));
         nativeScriptState = nativeScriptState with { Tasks = tasks };
 
         NativeBattleScriptTasks Dispatch(NativeBattleScriptTasks state, int slot)
         {
             NativeBattleScriptTask task = state.Slots[slot];
+            ObserveNativeUnknownStackCallback(task.ReadDword(0), "script task callback");
             switch (task.ReadDword(0))
             {
                 case 0x48ACD0:

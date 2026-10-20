@@ -149,6 +149,10 @@ public sealed partial class BattleSession
         {
             return AdvanceNativePain34(graphics);
         }
+        if (effect.Binding.Entry == 0x6CF4A0)
+        {
+            return AdvanceNativeDispel109(graphics, ReadNativeCurrentStackOperand, PublishNativeCurrentStackOperand);
+        }
         if (effect.Binding.Entry == 0x614D70)
         {
             return AdvanceNativeTornado146(graphics);

@@ -52,7 +52,7 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState AdvanceNativeDescriptors(NativeBattleGraphicsState graphics)
     {
-        NativeBattleDescriptorState final = graphics.Descriptors.Advance(Dispatch, Poll);
+        NativeBattleDescriptorState final = graphics.Descriptors.Advance(Dispatch, Poll, (state, slot) => ObserveNativeDescriptorStack(graphics, state, slot));
         return graphics with { Descriptors = final };
 
         NativeBattleDescriptorDispatch Dispatch(NativeBattleDescriptorState descriptors, int slot)

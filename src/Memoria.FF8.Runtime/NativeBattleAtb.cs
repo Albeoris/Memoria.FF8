@@ -80,6 +80,7 @@ public sealed partial class BattleSession
         {
             return;
         }
+        ObserveNativeUnknownStackCallback(0x4842B0, "admitted ATB update");
         foreach (BattleCombatant actor in combatants.ToArray())
         {
             AdvanceNativeAtbParticipant(actor, nativeUiBecameReady);
