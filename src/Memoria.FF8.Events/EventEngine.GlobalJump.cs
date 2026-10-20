@@ -1,4 +1,4 @@
-using Albeoris.Games.FF8.Jsm;
+﻿using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
@@ -120,7 +120,7 @@ public sealed partial class EventEngine
             for (int index = 0; index < frames.Length; index++)
             {
                 NativeGlobalJumpFrame frame = frames[index];
-                if ((uint)frame.CallOperation >= program!.Operations.Count || program.Operations[frame.CallOperation] is not { Opcode: Jsm.Opcode.GJMP } call || (uint)call.Parameter >= program.NativeScriptPointers.Count || program.NativeScriptPointers[call.Parameter].Script.Start != frame.TargetOperation || frame.ReturnOperation != unchecked((ushort)(frame.CallOperation + 1)) || frame.OperandBase < previousBase + 9 || frame.OperandBase < 0 || !frame.Entered && (index != frames.Length - 1 || fiber.Position != frame.TargetOperation) || fiber.Stack.Length < frame.OperandBase + (frame.Entered ? 9 : 1))
+                if ((uint)frame.CallOperation >= program!.Operations.Count || program.Operations[frame.CallOperation] is not { Opcode: Jsm.Opcode.GJMP } call || (uint)call.Parameter >= program.NativeScriptPointers.Count || program.NativeScriptPointers[call.Parameter].Script.Start != frame.TargetOperation || frame.ReturnOperation != unchecked((ushort)(frame.CallOperation + 1)) || frame.OperandBase < previousBase + 9 || frame.OperandBase < 0 || !frame.Entered && (index != frames.Length - 1 || fiber.Position != frame.TargetOperation || fiber.Stack.Length != frame.OperandBase + 1) || fiber.Stack.Length < frame.OperandBase + (frame.Entered ? 9 : 1))
                 {
                     throw new InvalidDataException("Saved global call lost its original instruction, pointer, frame depth or entry boundary.");
                 }

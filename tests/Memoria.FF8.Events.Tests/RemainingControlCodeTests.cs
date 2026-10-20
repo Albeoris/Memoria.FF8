@@ -16,6 +16,7 @@ internal static partial class Program
 
     private static void RemainingSoundCodeContract()
     {
+        NativeZeroMaskDepartureLookupContract();
         foreach (bool transition in new[] { false, true })
         {
             foreach (int raw in new[] { -1, 0, 1, 127, 128, 255, 256, int.MaxValue })
@@ -84,6 +85,20 @@ internal static partial class Program
         }
     }
 
+    private static void NativeZeroMaskDepartureLookupContract()
+    {
+        GameSession session = CreateControlledMusicSession();
+        session.SetGlobalSoundProcess(session.GlobalSoundProcess! with { OriginalEffectIds = session.GlobalSoundProcess!.OriginalEffectIds.SetItem(7, 5534).SetItem(8, 5534) });
+        EventEngine engine = new(session);
+        byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, -1), (Jsm.Opcode.Unknown14, 0), (Jsm.Opcode.RET, 0));
+        engine.LoadField(100, content, []);
+        engine.Step();
+        NativeFieldSoundDeparture? departure = null;
+        engine.AudioCommandExecuted += command => departure = command as NativeFieldSoundDeparture;
+        engine.LoadField(101, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)), []);
+        Require(departure is not null && departure.Voices.SequenceEqual(new[] { 7 }), "Zero-mask departure failed the original mapped ushort(-2) first-voice lookup.");
+    }
+
     private static void RemainingControlCodeContract()
     {
         using GameAssets assets = new(TestResources.GameDirectory);
@@ -99,7 +114,7 @@ internal static partial class Program
         EventEngine engine = Create();
         engine.Step();
         engine.Step();
-        Require(engine.Scene.NativeDebugRequested && !engine.Capture().GetProperty("Fibers")[1].GetProperty("Results").TryGetProperty("2", out _), "DEBUG failed to yield its native turn.");
+        Require(engine.NativeDebugRequested && !engine.Capture().GetProperty("Fibers")[1].GetProperty("Results").TryGetProperty("2", out _), "DEBUG failed to yield its native turn.");
         engine.Step();
         JsonElement state = engine.Capture();
         Require(state.GetProperty("Fibers")[1].GetProperty("Position").GetInt32() == 9 && state.GetProperty("Fibers")[1].GetProperty("Results").GetProperty("2").GetInt32() == 71, "ENDING failed to retain its PC or no-op handlers consumed the wrong operands.");
@@ -120,8 +135,13 @@ internal static partial class Program
     private static void RemainingDialogueCodeContract()
     {
         using GameAssets assets = new(TestResources.GameDirectory);
-        GameSession Session() => CreateDirectedLinearTurnSession(assets.ReadNewGameCharacterVitals(), assets.ReadNewGameEconomy());
-        byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.RAMESW, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.RAMESW, 0), (Jsm.Opcode.PSHN_L, 256), (Jsm.Opcode.MESFORCUS, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
+        GameSession Session()
+        {
+            GameSession session = CreateDirectedLinearTurnSession(assets.ReadNewGameCharacterVitals(), assets.ReadNewGameEconomy());
+            session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
+            return session;
+        }
+        byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.RAMESW, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.RAMESW, 0), (Jsm.Opcode.PSHN_L, 256), (Jsm.Opcode.MESFORCUS, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 8));
         EventEngine Create()
         {
             EventEngine created = new(Session());
@@ -135,10 +155,10 @@ internal static partial class Program
         Require(engine.Scene.NativeDialogueFocus == 0 && engine.CurrentDialogue?.Channel == 0, "MESFORCUS failed to truncate to BYTE or select the explicit window.");
         EventEngine restored = Create();
         restored.Restore(engine.Capture());
-        Require(engine.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted && restored.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted && engine.Dialogues.Count == 1 && engine.Dialogues.Single().Channel == 1 && engine.CurrentDialogue is null, "Explicit native focus broadcast confirmation to an unfocused window.");
+        Require(engine.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted && restored.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted && engine.Dialogues.Count == 0 && engine.CurrentDialogue is null, "Global confirm did not preserve native ascending broadcast closure of ready automatic windows.");
         Require(JsonElement.DeepEquals(engine.Capture(), restored.Capture()), "Explicit focus restore/decision diverged.");
 
-        byte[] choices = DefaultRoutineProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.MESFORCUS, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.ASK, 0), (Jsm.Opcode.RET, 0));
+        byte[] choices = DefaultRoutineProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.MESFORCUS, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.ASK, 0), (Jsm.Opcode.RET, 8));
         EventEngine ask = new(Session());
         ask.LoadField(100, choices, ["Choose"], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         ask.Step();
@@ -151,19 +171,24 @@ internal static partial class Program
         askRestored.Restore(ask.Capture());
         Require(ask.Apply(new PlayerAction(PlayerActionKind.Choose, 4)).Accepted && askRestored.Apply(new PlayerAction(PlayerActionKind.Choose, 4)).Accepted, "Ordinary Choose did not accept the polled native choice.");
         Require(ask.Scene.NativeDialogueFocus == 2, "Choice selection restored focus before the VM completion poll.");
-        ask.Step();
-        askRestored.Step();
+        for (int callback = 0; callback < 8 && ask.Dialogues.Count != 0; callback++)
+        {
+            ask.Step();
+            askRestored.Step();
+        }
         Require(ask.Scene.NativeDialogueFocus == 7 && ask.Capture().GetProperty("Fibers")[1].GetProperty("Results").GetProperty("0").GetInt32() == 1 && JsonElement.DeepEquals(ask.Capture(), askRestored.Capture()), "ASK failed to restore focus or publish relative choice R0 across independent restore.");
 
-        byte[] message = DefaultRoutineProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MESW, 0), (Jsm.Opcode.PSHN_L, 17), (Jsm.Opcode.POPI_L, 4), (Jsm.Opcode.RET, 0));
+        byte[] message = DefaultRoutineProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MESW, 0), (Jsm.Opcode.PSHN_L, 17), (Jsm.Opcode.POPI_L, 4), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8));
         EventEngine mesw = new(Session());
         mesw.LoadField(100, message, ["Wait"], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         mesw.Step();
         mesw.Step();
         Require(mesw.CurrentDialogue is { Channel: 3, CanConfirm: true }, "MESW failed to open its default-position blocking window.");
         mesw.ConfirmDialogue();
-        mesw.Step();
-        mesw.Step();
+        for (int callback = 0; callback < 8 && !mesw.Capture().GetProperty("Fibers")[1].GetProperty("Results").TryGetProperty("4", out _); callback++)
+        {
+            mesw.Step();
+        }
         Require(mesw.Capture().GetProperty("Fibers")[1].GetProperty("Results").GetProperty("4").GetInt32() == 17, "MESW did not release its fiber after confirmation.");
     }
 }

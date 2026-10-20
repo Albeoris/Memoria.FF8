@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -10,6 +11,9 @@ internal static partial class Program
 {
     private static void NativeAllSoundVolumeContract()
     {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
+        NativeEconomy economy = assets.ReadNewGameEconomy();
         foreach (int rawVolume in new[] { -1, 0, 1, 2, 63, 64, 127, 128, 255, 256, int.MinValue, int.MaxValue })
         {
             foreach (bool previousVoice in new[] { false, true })
@@ -20,14 +24,15 @@ internal static partial class Program
                     operations.AddRange([(Jsm.Opcode.PSHN_L, 69), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.EFFECTPLAY, 0)]);
                 }
                 operations.AddRange([(Jsm.Opcode.PSHN_L, 1234), (Jsm.Opcode.PSHM_L, 512), (Jsm.Opcode.ALLSEVOL, 0), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0)]);
-                byte[] content = SyntheticProgram(operations.ToArray());
+                byte[] content = DefaultRoutineProgram(operations.ToArray());
                 EventEngine Create()
                 {
-                    GameSession session = CreateControlledMusicSession();
+                    GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
                     session.SetEventMemory(session.State.EventMemory.Write(512, 4, NativeScalarValue.Exact(rawVolume)));
                     EventEngine engine = new(session) { ResolveGlobalSoundResource = MutedGlobalSample };
-                    engine.LoadField(100, content, []);
+                    engine.LoadField(100, content, [], nativeRuntimeProfile: assets.NativeRuntimeProfile);
                     SetControlledMusicChannels(engine);
+                    engine.Step();
                     return engine;
                 }
                 EventEngine first = Create();
@@ -35,7 +40,7 @@ internal static partial class Program
                 NativeAllSoundVolume request = first.Scene.AllSoundVolume ?? throw new InvalidOperationException("ALLSEVOL failed to record its original volume request.");
                 Require(first.LastFault is null && request.RawVolume == rawVolume && request.Volume == (rawVolume & 127) && request.DurationMilliseconds == 0 && request.FirstVoice == 0 && request.VoiceCount == 32 && request.BackendStatus == GlobalSoundBackendStatus.Muted, "ALLSEVOL lost its DWORD width, low-seven-bit input, immediate duration or original all32 voice range.");
                 JsonElement state = first.Capture();
-                Require(state.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == 1234 && state.GetProperty("Fibers")[0].GetProperty("WaitReason").GetString() == "Frames" && first.Scene.SoundMusicVolume197 == 127 && first.Scene.SoundMusicVolume198 == 127, "ALLSEVOL consumed an extra operand, introduced an audio wait or overwrote music volume bytes.");
+                Require(state.GetProperty("Fibers")[1].GetProperty("Results").GetProperty("3").GetInt32() == 1234 && state.GetProperty("Fibers")[1].GetProperty("WaitReason").GetString() == "Frames" && first.Scene.SoundMusicVolume197 == 127 && first.Scene.SoundMusicVolume198 == 127, "ALLSEVOL consumed an extra operand, introduced an audio wait or overwrote music volume bytes.");
                 Require(first.Scene.GlobalSoundLatestAttempts.Count == (previousVoice ? 1 : 0) && first.Scene.GlobalSoundRequests.Count == (previousVoice ? 1 : 0) && (!previousVoice || first.Scene.GlobalSoundLatestAttempts[3].Volume == 20), "ALLSEVOL invented active voices or rewrote original sound attempt history.");
                 EventEngine restored = Create();
                 restored.Restore(state);
@@ -58,15 +63,15 @@ internal static partial class Program
                     Require(JsonElement.DeepEquals(before, restored.Capture()), "Rejected ALLSEVOL checkpoint changed its receiver.");
                 }
                 byte[] next = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0));
-                first.LoadField(101, next, []);
+                first.LoadField(101, next, [], nativeRuntimeProfile: assets.NativeRuntimeProfile);
                 Require(first.Scene.AllSoundVolume == request, "Field allocation erased the historical ALLSEVOL request.");
-                GameSession historicalSession = new(new GameState());
+                GameSession historicalSession = CreateDirectedLinearTurnSession(vitals, economy);
                 EventEngine historical = new(historicalSession);
-                historical.LoadField(101, next, []);
+                historical.LoadField(101, next, [], nativeRuntimeProfile: assets.NativeRuntimeProfile);
                 historical.Restore(first.Capture());
                 Require(JsonElement.DeepEquals(first.Capture(), historical.Capture()), "Historical ALLSEVOL did not restore at the reset field frame.");
-                first.LoadField(100, content, []);
-                historical.LoadField(100, content, []);
+                first.LoadField(100, content, [], nativeRuntimeProfile: assets.NativeRuntimeProfile);
+                historical.LoadField(100, content, [], nativeRuntimeProfile: assets.NativeRuntimeProfile);
                 historical.Restore(first.Capture());
                 Require(first.Frame == 0 && first.Scene.AllSoundVolume == request && first.Scene.AudioLoadEpoch > request.LoadEpoch && JsonElement.DeepEquals(first.Capture(), historical.Capture()), "ALLSEVOL lost its original load identity when revisiting the same field before its previous local frame.");
             }

@@ -12,7 +12,7 @@ internal static partial class Program
         using GameAssets assets = new(TestResources.GameDirectory);
         EventEngine Create(bool certificate = true, int duration = 65539)
         {
-            byte[] program = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 65547), (Jsm.Opcode.PSHN_L, 65558), (Jsm.Opcode.DSCROLL3, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 65540), (Jsm.Opcode.PSHN_L, 65531), (Jsm.Opcode.PSHN_L, 65556), (Jsm.Opcode.PSHN_L, 65566), (Jsm.Opcode.PSHN_L, duration), (Jsm.Opcode.CSCROLL3, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SCROLLSYNC2, 0), (Jsm.Opcode.PSHN_L, 88), (Jsm.Opcode.POPM_B, 5001), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0)]]);
+            byte[] program = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 65547), (Jsm.Opcode.PSHN_L, 65558), (Jsm.Opcode.DSCROLL3, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 65540), (Jsm.Opcode.PSHN_L, 65531), (Jsm.Opcode.PSHN_L, 65556), (Jsm.Opcode.PSHN_L, 65566), (Jsm.Opcode.PSHN_L, duration), (Jsm.Opcode.CSCROLL3, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SCROLLSYNC2, 0), (Jsm.Opcode.PSHN_L, 88), (Jsm.Opcode.POPM_B, 5001), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 8)]]);
             EventEngine engine = new(CreateDirectedLinearTurnSession(assets.ReadNewGameCharacterVitals(), assets.ReadNewGameEconomy()))
             {
                 CanSetBackgroundScrollPosition = (_, _, _) => true,
@@ -63,7 +63,7 @@ internal static partial class Program
             Require(declined.Scene.BackgroundScrollPositions[1] is { Mode: 3, X: 11, Y: 22 }, "Refused explicit cosine modified its retained direct row.");
         }
 
-        byte[] axisProgram = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 65536 + 90), (Jsm.Opcode.PSHN_L, 65536 + 3), (Jsm.Opcode.AXIS, 0), (Jsm.Opcode.AXISSYNC, 0), (Jsm.Opcode.PSHN_L, 99), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.RET, 0)]]);
+        byte[] axisProgram = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 65536 + 90), (Jsm.Opcode.PSHN_L, 65536 + 3), (Jsm.Opcode.AXIS, 0), (Jsm.Opcode.AXISSYNC, 0), (Jsm.Opcode.PSHN_L, 99), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
         EventEngine Axis()
         {
             EventEngine engine = new(CreateDirectedLinearTurnSession(assets.ReadNewGameCharacterVitals(), assets.ReadNewGameEconomy()));

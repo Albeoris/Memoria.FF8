@@ -9,6 +9,7 @@ public sealed partial class EventEngine
         int count = operation.Opcode switch
         {
             Jsm.Opcode.MESFORCUS => 1,
+            Jsm.Opcode.MESSYNC when NativeRuntimeProfile is { IsVerified: true } => 1,
             Jsm.Opcode.MESW => 2,
             Jsm.Opcode.ASK => 6,
             Jsm.Opcode.AASK => 8,
@@ -27,6 +28,10 @@ public sealed partial class EventEngine
         if (operation.Opcode != Jsm.Opcode.MESFORCUS && (uint)channel >= 8)
         {
             return "Native dialogue requires a window channel0..7";
+        }
+        if (operation.Opcode is Jsm.Opcode.ASK or Jsm.Opcode.AASK && dialogues.TryGetValue(channel, out DialogueState? occupied) && occupied.FirstChoice is null && fibers.Any(owner => owner.NativeDialogueConsumer?.Channel == channel))
+        {
+            return "Native choice replacement of an active blocking message requires separate physical window and occupied-mask owners";
         }
         if ((operation.Opcode == Jsm.Opcode.ASK || operation.Opcode == Jsm.Opcode.AASK && NativeRuntimeProfile is { IsVerified: true }) && Scene.NativeDialogueFocus is null)
         {

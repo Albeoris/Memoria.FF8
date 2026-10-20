@@ -35,7 +35,9 @@ internal static partial class Program
             byte[] program = SyntheticObjects([1, (16 << 7) | 1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], Choice(1, 0, false), [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.RET, 8)], Choice(17, 1, true)]);
             EventEngine Create()
             {
-                EventEngine engine = new(CreateDirectedLinearTurnSession(assets.ReadNewGameCharacterVitals(), assets.ReadNewGameEconomy()));
+                GameSession session = CreateDirectedLinearTurnSession(assets.ReadNewGameCharacterVitals(), assets.ReadNewGameEconomy());
+                session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
+                EventEngine engine = new(session);
                 engine.LoadField(100, program, ["Choose"], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
                 engine.Step();
                 return engine;
@@ -68,12 +70,15 @@ internal static partial class Program
             live.ConfirmDialogue(1);
             copy.ConfirmDialogue(1);
             Require(live.Scene.NativeDialogueFocus == 1, "Choice selection restored focus before its completing VM poll.");
-            live.Step();
-            copy.Step();
+            for (int callback = 0; callback < 8 && live.Dialogues.Any(dialogue => dialogue.Channel == 1); callback++)
+            {
+                live.Step();
+                copy.Step();
+            }
             Require(live.Scene.NativeDialogueFocus == 0 && live.CurrentDialogue?.Channel == 0 && JsonElement.DeepEquals(live.Capture(), copy.Capture()), "Completing second choice failed to restore the actual overwritten global marker.");
             live.ConfirmDialogue(0);
             copy.ConfirmDialogue(0);
-            Require(copy.Dialogues.Count == 0, "Closing-choice fixture unexpectedly retained a visible window.");
+            Require(copy.Dialogues.Single() is { Channel: 0, CanConfirm: false }, "Selected-choice fixture lost its retained physical window before native closing.");
             JsonElement closing = copy.Capture();
             JsonNode missingPrior = JsonNode.Parse(closing.GetRawText())!;
             missingPrior["Scene"]!.AsObject().Remove(opcode == Jsm.Opcode.ASK ? "NativeAskPreviousFocus" : "NativeAaskPreviousFocus");
@@ -86,8 +91,11 @@ internal static partial class Program
             {
                 Require(JsonElement.DeepEquals(closing, copy.Capture()), "Refused closed-choice focus restore changed live state.");
             }
-            live.Step();
-            copy.Step();
+            for (int callback = 0; callback < 8 && live.Dialogues.Count != 0; callback++)
+            {
+                live.Step();
+                copy.Step();
+            }
             Require(live.Scene.NativeDialogueFocus == 0 && live.CurrentDialogue is null && JsonElement.DeepEquals(live.Capture(), copy.Capture()), "First choice restored a per-window historical marker instead of the shared native global.");
         }
         Console.WriteLine("ASK/AASK focus: unchanged issue marker, actor-ordered poll focus, distinct opcode globals, overlap overwrite, VM completion restoration and independent restore passed.");

@@ -1,4 +1,4 @@
-using Albeoris.Games.FF8.Jsm;
+﻿using Albeoris.Games.FF8.Jsm;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Events;
@@ -18,6 +18,10 @@ public sealed partial class EventEngine
         if (count == 0)
         {
             return null;
+        }
+        if (operation.Opcode is Jsm.Opcode.ALLSEPOS or Jsm.Opcode.ALLSEPOSTRANS && FieldId < 72)
+        {
+            return "Native all-voice pan requires an ordinary field allocation";
         }
         return fiber.Stack.Count < count || fiber.Stack.Capture().Take(count).Any(value => !value.IsExact) ? $"{operation.Opcode} requires its original exact DWORD operands" : null;
     }
@@ -43,7 +47,7 @@ public sealed partial class EventEngine
         byte duration = transition ? unchecked((byte)(request.RawDuration ?? 0)) : (byte)0;
         byte pan = transition ? (byte)(unchecked((byte)(2 * request.RawPan)) >> 1) : (byte)(unchecked((byte)request.RawPan) >> 1);
         ValidateProcessMediaLoadOrigin(saved, request.LoadEpoch, request.FieldId, request.Frame);
-        if (request.Version != 1 || request.Opcode is not ("ALLSEPOS" or "ALLSEPOSTRANS") || transition != request.RawDuration.HasValue || request.DurationByte != duration || request.DurationMilliseconds != SoundPositionDuration(duration) || request.Pan != pan || request.ObjectId < 0 || request.ScriptId < 0 || request.Operation < 0)
+        if (request.Version != 1 || request.FieldId is < 72 or > ushort.MaxValue || request.Frame < 0 || request.Opcode is not ("ALLSEPOS" or "ALLSEPOSTRANS") || transition != request.RawDuration.HasValue || request.DurationByte != duration || request.DurationMilliseconds != SoundPositionDuration(duration) || request.Pan != pan || request.ObjectId < 0 || request.ScriptId < 0 || request.Operation < 0)
         {
             throw new InvalidDataException("Saved all-voice pan lost its original operands or native BYTE conversion.");
         }

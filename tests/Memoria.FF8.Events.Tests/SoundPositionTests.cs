@@ -21,7 +21,7 @@ internal static partial class Program
             byte[] content = SyntheticProgram(operations.ToArray());
             (GameSession Session, EventEngine Engine) Create()
             {
-                GameSession session = GameSession.CreateColdProcess();
+                GameSession session = CreateControlledMusicSession();
                 session.SetEventMemory(session.State.EventMemory.Write(3000, 4, NativeScalarValue.Exact(unchecked((int)sample.Mask))));
                 session.SetEventMemory(session.State.EventMemory.Write(3004, 4, NativeScalarValue.Exact(sample.Duration)));
                 session.SetEventMemory(session.State.EventMemory.Write(3008, 4, NativeScalarValue.Exact(sample.Pan)));

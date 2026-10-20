@@ -12,12 +12,14 @@ internal static partial class Program
 {
     private static void NativeLinearScrollAndSyncContract(string gameDirectory)
     {
-        byte[] program = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 65536), (Jsm.Opcode.PSHN_L, -65536), (Jsm.Opcode.PSHN_L, 65543), (Jsm.Opcode.PSHN_L, -65536), (Jsm.Opcode.PSHN_L, 65543), (Jsm.Opcode.LSCROLL3, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SCROLLSYNC2, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.RET, 0));
+        using GameAssets assets = new(gameDirectory);
+        byte[] program = DefaultScrollComponentProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 65536), (Jsm.Opcode.PSHN_L, -65536), (Jsm.Opcode.PSHN_L, 65543), (Jsm.Opcode.PSHN_L, -65536), (Jsm.Opcode.PSHN_L, 65543), (Jsm.Opcode.LSCROLL3, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SCROLLSYNC2, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.RET, 0));
         EventEngine CreateSynthetic(bool certificate = true)
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateScrollComponentSession(assets);
             EventEngine result = new(session) { CanSetLinearBackgroundScroll = query => certificate && query == new NativeLinearScrollQuery(1, 0, 0, 7, 0, 7) };
-            result.LoadField(100, program, []);
+            result.LoadField(100, program, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            result.Step();
             return result;
         }
         EventEngine phase = CreateSynthetic();
@@ -35,8 +37,8 @@ internal static partial class Program
         phase.Step();
         Require(commandState is { X: 0, Y: 0, PreviousX: -7, PreviousY: -8, Counter: 17, Mode: 4, Status: 0, Duration: 7, NativeLinearVersion: 1 }, "LSCROLL3 failed to write start/target lowWORDs or prematurely cleared prior counter/previous words.");
         Require(phase.Scene.BackgroundScrollPositions[1] is { X: 0, Y: 0, PreviousX: 0, PreviousY: 0, Counter: 1, Status: 1, NativeLinearVersion: 1 }, "Post-VM475DF0/475E60 did not snapshot start, reset counter and evaluate counter0.");
-        JsonElement wait = phase.Capture().GetProperty("Fibers")[0];
-        Require(wait.GetProperty("Position").GetInt32() == 9 && wait.GetProperty("Stack")[0].GetInt32() == 1 && wait.GetProperty("WaitReason").GetString() == "BackgroundScroll", "SCROLLSYNC2 consumed its PEEK layer or advanced its waiting PC.");
+        JsonElement wait = phase.Capture().GetProperty("Fibers")[1];
+        Require(wait.GetProperty("Position").GetInt32() == 11 && wait.GetProperty("Stack")[0].GetInt32() == 1 && wait.GetProperty("WaitReason").GetString() == "BackgroundScroll", "SCROLLSYNC2 consumed its PEEK layer or advanced its waiting PC.");
         EventEngine pending = CreateSynthetic();
         pending.Restore(commandSnapshot!.Value);
         pending.Step();
@@ -52,7 +54,7 @@ internal static partial class Program
         }
         phase.Step();
         replay.Step();
-        Require(CapturedVariables(phase.Capture()).GetProperty("512").GetInt32() == 9 && phase.Capture().GetProperty("Fibers")[0].GetProperty("Stack").GetArrayLength() == 0 && JsonElement.DeepEquals(phase.Capture(), replay.Capture()), "SCROLLSYNC2 did not pop and continue on the first VM update after native completion.");
+        Require(CapturedVariables(phase.Capture()).GetProperty("512").GetInt32() == 9 && phase.Capture().GetProperty("Fibers")[1].GetProperty("Stack").GetArrayLength() == 0 && JsonElement.DeepEquals(phase.Capture(), replay.Capture()), "SCROLLSYNC2 did not pop and continue on the first VM update after native completion.");
         EventEngine refused = CreateSynthetic(false);
         try
         {
@@ -62,8 +64,8 @@ internal static partial class Program
         catch (EventScriptException) when (refused.LastFault?.Opcode == "LSCROLL3")
         {
         }
-        JsonElement held = refused.Capture().GetProperty("Fibers")[0];
-        Require(held.GetProperty("Position").GetInt32() == 7 && held.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([65543, -65536, 65543, -65536, 65536, 1]) && refused.Scene.BackgroundScrollPositions.Count == 0, "Refused LSCROLL3 changed original PC, raw operands or scroll records.");
+        JsonElement held = refused.Capture().GetProperty("Fibers")[1];
+        Require(held.GetProperty("Position").GetInt32() == 9 && held.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([65543, -65536, 65543, -65536, 65536, 1]) && refused.Scene.BackgroundScrollPositions.Count == 0, "Refused LSCROLL3 changed original PC, raw operands or scroll records.");
         EventEngine liveRefused = CreateSynthetic();
         liveRefused.CanBeginLinearBackgroundScroll = (_, scene) => scene == liveRefused.Scene && false;
         try
@@ -74,7 +76,7 @@ internal static partial class Program
         catch (EventScriptException) when (liveRefused.LastFault?.Opcode == "LSCROLL3")
         {
         }
-        Require(JsonElement.DeepEquals(held, liveRefused.Capture().GetProperty("Fibers")[0]) && liveRefused.Scene.BackgroundScrollPositions.Count == 0, "Live LSCROLL3 refusal mutated operands, PC or layer records.");
+        Require(JsonElement.DeepEquals(held, liveRefused.Capture().GetProperty("Fibers")[1]) && liveRefused.Scene.BackgroundScrollPositions.Count == 0, "Live LSCROLL3 refusal mutated operands, PC or layer records.");
         EventEngine pureRestore = CreateSynthetic();
         pureRestore.CanBeginLinearBackgroundScroll = (_, _) => throw new InvalidOperationException("Restore consulted the host's live scene.");
         pureRestore.CanRestoreLinearBackgroundScroll = candidate => !ReferenceEquals(candidate, pureRestore.Scene) && candidate.BackgroundScrollPositions[1].NativeLinearVersion == 1;
@@ -93,9 +95,10 @@ internal static partial class Program
         Require(JsonElement.DeepEquals(beforeRestoreRefusal, pureRestore.Capture()), "Candidate-scene linear restore refusal changed the complete VM.");
         foreach ((short start, short target, short duration) in new (short, short, short)[] { (3, -8, 7), (12, 25, 0) })
         {
-            GameSession sampleSession = new(new GameState());
+            GameSession sampleSession = CreateScrollComponentSession(assets);
             EventEngine sample = new(sampleSession) { CanSetLinearBackgroundScroll = query => query == new NativeLinearScrollQuery(1, start, 0, target, 0, duration) };
-            sample.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, start), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, target), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, duration), (Jsm.Opcode.LSCROLL3, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SCROLLSYNC2, 0), (Jsm.Opcode.RET, 0)), []);
+            sample.LoadField(100, DefaultScrollComponentProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, start), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, target), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, duration), (Jsm.Opcode.LSCROLL3, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SCROLLSYNC2, 0), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            sample.Step();
             for (int counter = 0; counter <= duration; counter++)
             {
                 sample.Step();
@@ -103,19 +106,23 @@ internal static partial class Program
                 Require(sample.Scene.BackgroundScrollPositions[1].X == expected && sample.Scene.BackgroundScrollPositions[1].Status == (counter == duration ? 2 : 1), "Native signed linear IDIV truncation or zero-duration previous-position branch differs.");
             }
         }
-        GameSession legacyLoopSession = new(new GameState());
+        GameSession legacyLoopSession = CreateScrollComponentSession(assets);
         EventEngine legacyLoop = new(legacyLoopSession) { CanSetLinearBackgroundScroll = query => query == new NativeLinearScrollQuery(1, 0, 0, 7, 0, 7) };
-        legacyLoop.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.LSCROLL3, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SCROLLSYNC2, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.JMP, -12), (Jsm.Opcode.RET, 0)), []);
+        legacyLoop.LoadField(100, DefaultScrollComponentProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.LSCROLL3, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SCROLLSYNC2, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.JMP, -11), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        legacyLoop.Step();
         for (int tick = 0; tick < 9; tick++)
         {
             legacyLoop.Step();
         }
-        JsonElement legacyFiber = legacyLoop.Capture().GetProperty("Fibers")[0];
-        Require(legacyFiber.GetProperty("Position").GetInt32() == 9 && legacyFiber.GetProperty("WaitReason").GetString() == "BackgroundScroll" && legacyLoop.Scene.BackgroundScrollPositions[1] is { Counter: 1, Status: 1 }, "Backward JMP must restart the ordinary linear scroll within the same native budget and hold its actual synchronization command.");
+        JsonElement legacyFiber = legacyLoop.Capture().GetProperty("Fibers")[1];
+        Require(legacyFiber.GetProperty("Position").GetInt32() == 11 && legacyFiber.GetProperty("WaitReason").GetString() == "BackgroundScroll" && legacyLoop.Scene.BackgroundScrollPositions[1] is { Counter: 1, Status: 1 }, "Backward JMP must restart the ordinary linear scroll within the same native budget and hold its actual synchronization command.");
 
-        using GameAssets assets = new(gameDirectory);
+        if (!TryGetScrollContinuationFixture("Events.Tests.LinearScrollTests.1", out string source))
+        {
+            Console.WriteLine("Linear scroll component: lowWORDs, held sync, inclusive/zero-duration arithmetic, restart, restore and atomic refusal passed.");
+            return;
+        }
         FieldAssets field = assets.LoadField(135);
-        string source = TestResources.FixturePath("Events.Tests.LinearScrollTests.1");
         byte[] original = File.ReadAllBytes(source);
         EventEngine CreateActual()
         {

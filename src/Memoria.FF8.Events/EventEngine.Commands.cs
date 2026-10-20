@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Runtime;
 
@@ -27,7 +27,7 @@ public sealed partial class EventEngine
                 args = ExecuteRemainingDialogueCode(fiber, opcode);
                 break;
             case Jsm.Opcode.DEBUG:
-                Scene.NativeDebugRequested = true;
+                services.SetNativeFieldDebugRequested(true);
                 WaitFrames(fiber, 1);
                 break;
             case Jsm.Opcode.MOVIECUT:
@@ -993,6 +993,11 @@ public sealed partial class EventEngine
                 Scene.DialogueWindows[args[0]] = new DialogueWindow(args[0], args[1], args[2], args[3], args[4]);
                 break;
             case Jsm.Opcode.MESSYNC:
+                if (NativeRuntimeProfile is { IsVerified: true })
+                {
+                    args = ExecuteNativeMessageSync(fiber);
+                    break;
+                }
                 args = Pop(fiber, 1);
                 int channel = args[0];
                 if (dialogues.TryGetValue(channel, out DialogueState? synchronized))

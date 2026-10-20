@@ -50,6 +50,7 @@ public sealed partial class EventEngine
         get => Scene.NativeTutorial is null && Scene.NativeMenuTutorial is null && partyMenu is null && userControlEnabled && (NativeRuntimeProfile is not { IsVerified: true } || defaultsStarted);
         private set => userControlEnabled = value;
     }
+    public bool NativeDebugRequested => services.NativeFieldDebugRequested;
     public bool IsDialogueOpen => dialogues.Count != 0;
     public bool IsDialogueBlocking => Scene.NativeDialogueFocus is not null ? CurrentDialogue?.CanConfirm == true : dialogues.Values.Any(dialogue => dialogue.CanConfirm);
     // Native4767B0 forwards held directional input to4789A0 independently of
@@ -188,7 +189,6 @@ public sealed partial class EventEngine
         Scene.NativeDialogueFocus = nativeRuntimeProfile is { IsVerified: true } ? byte.MaxValue : previousScene.NativeDialogueFocus;
         Scene.NativeAskPreviousFocus = previousScene.NativeAskPreviousFocus;
         Scene.NativeAaskPreviousFocus = previousScene.NativeAaskPreviousFocus;
-        Scene.NativeDebugRequested = previousScene.NativeDebugRequested;
         Scene.VibrationRequest = previousScene.VibrationRequest;
         Scene.AllSoundVolumeTransition = previousScene.AllSoundVolumeTransition;
         Scene.AllSoundVolume = previousScene.AllSoundVolume;
@@ -394,6 +394,7 @@ public sealed partial class EventEngine
         {
             actor.StepRotation();
         }
+        StepNativeAutomaticDialogueClosuresBeforeVm();
         int currentGeneration = generation;
         foreach (ActorState actor in NativeCallbackActors())
         {
@@ -501,11 +502,14 @@ public sealed partial class EventEngine
         }
         if (dialogue.FirstChoice is null && !dialogue.IsNamePrompt)
         {
-            //49FEB0 admits confirmation only for the marker selected by49FD50.
-            foreach (DialogueState automatic in dialogues.Values.Where(item => item.CanConfirm && item.FirstChoice is null && !item.IsNamePrompt && (Scene.NativeDialogueFocus is null || item.Channel == Scene.NativeDialogueFocus)).ToArray())
+            //529FF0 broadcasts the same global confirm edge to ready automatic windows.
+            foreach (DialogueState automatic in dialogues.Values.Where(item => item.CanConfirm && item.FirstChoice is null && !item.IsNamePrompt).ToArray())
             {
                 RecordDialogueOutcome(automatic, null, null);
-                CloseDialogue(automatic.Channel);
+                if (!TryConfirmNativeBlockingDialogue(automatic, null))
+                {
+                    CloseDialogue(automatic.Channel);
+                }
             }
             return;
         }
@@ -518,7 +522,10 @@ public sealed partial class EventEngine
             }
             foreach (Fiber fiber in fibers.Where(item => item.DialogueChannel == dialogue.Channel))
             {
-                fiber.Results[0] = selected - first;
+                if (fiber.NativeDialogueConsumer is null)
+                {
+                    fiber.Results[0] = selected - first;
+                }
             }
         }
         if (dialogue.IsNamePrompt)
@@ -527,7 +534,11 @@ public sealed partial class EventEngine
             Scene.Names[nameEntity] = selectedName;
         }
         RecordDialogueOutcome(dialogue, dialogue.FirstChoice is null ? null : choice ?? dialogue.InitialChoice ?? dialogue.FirstChoice, dialogue.IsNamePrompt ? Scene.Names[nameEntity] : null);
-        CloseDialogue(dialogue.Channel);
+        int? relativeSelection = dialogue.FirstChoice is int firstChoice ? (choice ?? dialogue.InitialChoice ?? firstChoice) - firstChoice : null;
+        if (!TryConfirmNativeBlockingDialogue(dialogue, relativeSelection))
+        {
+            CloseDialogue(dialogue.Channel);
+        }
         if (dialogue.IsNamePrompt)
         {
             ConsumeNativeFieldRequestPacket();

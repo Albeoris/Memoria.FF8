@@ -77,16 +77,16 @@ internal static partial class Program
                 JsonElement receiving = resumed.Capture();
                 JsonObject corrupt = JsonNode.Parse(receiving.GetRawText())!.AsObject();
                 corrupt["SavedBattleFlags"]!["Value"] = resumedSession.State.SavedBattleFlags!.Value ^ 1;
-                bool rejected = false;
+                bool rejectedAlias = false;
                 try
                 {
                     resumed.Restore(JsonSerializer.SerializeToElement(corrupt));
                 }
                 catch (InvalidDataException)
                 {
-                    rejected = true;
+                    rejectedAlias = true;
                 }
-                Require(rejected && JsonElement.DeepEquals(receiving, resumed.Capture()), "A contradictory saved battle flag alias changed the receiving VM before refusal.");
+                Require(rejectedAlias && JsonElement.DeepEquals(receiving, resumed.Capture()), "A contradictory saved battle flag alias changed the receiving VM before refusal.");
             }
         }
         NativeCharacterVitals original = assets.ReadNewGameCharacterVitals();

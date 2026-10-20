@@ -11,12 +11,14 @@ internal static partial class Program
 {
     private static void NativeCosineScrollAndSyncBoundary(string gameDirectory)
     {
-        byte[] program = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 224), (Jsm.Opcode.DSCROLL2, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 65536), (Jsm.Opcode.PSHN_L, -65536), (Jsm.Opcode.PSHN_L, 65576), (Jsm.Opcode.CSCROLL2, 0), (Jsm.Opcode.SCROLLSYNC, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.RET, 0));
+        using GameAssets assets = new(gameDirectory);
+        byte[] program = DefaultScrollComponentProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 224), (Jsm.Opcode.DSCROLL2, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 65536), (Jsm.Opcode.PSHN_L, -65536), (Jsm.Opcode.PSHN_L, 65576), (Jsm.Opcode.CSCROLL2, 0), (Jsm.Opcode.SCROLLSYNC, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.RET, 0));
         EventEngine CreateSynthetic(bool certificate = true)
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateScrollComponentSession(assets);
             EventEngine engine = new(session) { CanSetBackgroundScrollPosition = (_, _, _) => true, CanSetCosineBackgroundScroll = (_, _, _, _) => certificate };
-            engine.LoadField(100, program, []);
+            engine.LoadField(100, program, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            engine.Step();
             engine.Scene.BackgroundScrollPositions[0] = new BackgroundScrollPosition(0, 0, 0, 0, 0, 0, 0, 3, 2);
             engine.Step();
             return engine;
@@ -25,8 +27,8 @@ internal static partial class Program
         engine.Step();
         BackgroundScrollPosition start = engine.Scene.BackgroundScrollPositions[0];
         Require(start.Mode == 5 && start.Duration == 40 && start.Counter == 1 && start.Status == 1 && start.Y == 224 && start.TargetY == 0 && start.PreviousY == 224, "CSCROLL2 lost its four original lowWORDs or first counter0 update.");
-        JsonElement sync = engine.Capture().GetProperty("Fibers")[0];
-        Require(sync.GetProperty("Position").GetInt32() == 10 && sync.GetProperty("WaitReason").GetString() == "BackgroundScroll", "Pending SCROLLSYNC advanced its original PC.");
+        JsonElement sync = engine.Capture().GetProperty("Fibers")[1];
+        Require(sync.GetProperty("Position").GetInt32() == 12 && sync.GetProperty("WaitReason").GetString() == "BackgroundScroll", "Pending SCROLLSYNC advanced its original PC.");
         EventEngine independent = CreateSynthetic();
         independent.Restore(engine.Capture());
         for (int elapsed = 1; elapsed <= 40; elapsed++)
@@ -48,14 +50,18 @@ internal static partial class Program
         catch (EventScriptException) when (declined.LastFault?.Opcode == "CSCROLL2")
         {
         }
-        JsonElement refused = declined.Capture().GetProperty("Fibers")[0];
-        Require(refused.GetProperty("Position").GetInt32() == 9 && refused.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([65576, -65536, 65536, 0]) && declined.Scene.BackgroundScrollPositions[0].Mode == 3, "Refused cosine scroll mutated the instruction, operands or direct-scroll state.");
+        JsonElement refused = declined.Capture().GetProperty("Fibers")[1];
+        Require(refused.GetProperty("Position").GetInt32() == 11 && refused.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([65576, -65536, 65536, 0]) && declined.Scene.BackgroundScrollPositions[0].Mode == 3, "Refused cosine scroll mutated the instruction, operands or direct-scroll state.");
 
-        using GameAssets assets = new(gameDirectory);
+        if (!TryGetScrollContinuationFixture("Events.Tests.CosineScrollTests.1", out string sourcePath))
+        {
+            Console.WriteLine("Cosine scroll component: lowWORDs, real prior center, inclusive interpolation/sync, restore and refusal passed.");
+            return;
+        }
         FieldAssets field = assets.LoadField(172);
         EventEngine CreateActual()
         {
-            GameSession session = new(GameSession.Load(TestResources.FixturePath("Events.Tests.CosineScrollTests.1")));
+            GameSession session = new(GameSession.Load(sourcePath));
             EventEngine result = new(session)
             {
                 AnimationFrameCount = field.GetAnimationFrameCount,

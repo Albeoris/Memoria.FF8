@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
@@ -19,6 +19,7 @@ internal static partial class Program
                 {
                     ["native-keyon2"] = () => NativeKeyScan2Contract(selectedGameDirectory, true),
                     ["native-shared-choice-focus"] = NativeSharedChoiceFocusContract,
+                    ["native-blocking-dialogue"] = NativeBlockingDialogueContract,
                     ["native-blink-eyes"] = () => NativeBlinkEyesContract(selectedGameDirectory),
                     ["native-global-jump"] = () => NativeGlobalJumpContract(selectedGameDirectory),
                     ["remaining-scroll-codes"] = RemainingLayerScrollContracts,

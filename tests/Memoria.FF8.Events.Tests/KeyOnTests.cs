@@ -69,7 +69,7 @@ internal static partial class Program
 
         GameSession dialogueSession = CreateSession();
         EventEngine dialogue = new(dialogueSession);
-        byte[] dialogueContent = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MES, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MESSYNC, 0), (Jsm.Opcode.PSHN_L, 0x40), (Jsm.Opcode.KEYON, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.RET, 8)]]);
+        byte[] dialogueContent = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MES, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MESSYNC, 0), (Jsm.Opcode.PSHN_L, 0x40), (Jsm.Opcode.KEYON, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
         dialogue.LoadField(100, dialogueContent, ["Continue"], nativeRuntimeProfile: assets.NativeRuntimeProfile);
         dialogue.Step();
         dialogue.Step();
@@ -82,7 +82,14 @@ internal static partial class Program
         restored.Restore(pending);
         dialogue.Step();
         restored.Step();
-        Require(dialogueSession.State.Variables[5000] == 1 && JsonElement.DeepEquals(dialogue.Capture(), restored.Capture()), "Saving between confirmation and the next callback lost or repeated its pending edge.");
+        Require(dialogue.ButtonInput is { Pressed: 0x40 } && !dialogueSession.State.Variables.ContainsKey(5000) && JsonElement.DeepEquals(dialogue.Capture(), restored.Capture()), "Native MESSYNC skipped its real closing callback or confirmation-edge sampling changed across restore.");
+        for (int callback = 0; callback < 8 && !dialogueSession.State.Variables.ContainsKey(5000); callback++)
+        {
+            dialogue.Step();
+            restored.Step();
+            Require(JsonElement.DeepEquals(dialogue.Capture(), restored.Capture()), "Native message closing cadence diverged after a pending confirmation restore.");
+        }
+        Require(dialogueSession.State.Variables.TryGetValue(5000, out int afterClose) && afterClose == 0 && dialogue.ButtonInput is { Pressed: 0 }, "KEYON replayed a confirmation edge after native MESSYNC finished closing its window.");
 
         GameSession invalidSession = CreateSession();
         EventEngine invalid = new(invalidSession);

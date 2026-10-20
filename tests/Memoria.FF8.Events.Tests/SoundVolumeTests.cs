@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -10,19 +11,23 @@ internal static partial class Program
 {
     private static void NativeSoundVolumeContract()
     {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
+        NativeEconomy economy = assets.ReadNewGameEconomy();
         foreach (uint rawMask in new[] { 1u, 4u, 5u, 0x800000u, 0xFFFFFFu, 0xFF800005u })
         {
             foreach (int rawVolume in new[] { -1, 0, 2, 63, 64, 127, 128, 255, 256, int.MinValue, int.MaxValue })
             {
-                byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.INITSOUND, 0), (Jsm.Opcode.PSHN_L, 69), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.EFFECTPLAY, 0), (Jsm.Opcode.PSHN_L, 1234), (Jsm.Opcode.PSHM_L, 512), (Jsm.Opcode.PSHM_L, 516), (Jsm.Opcode.SEVOL, 0), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
+                byte[] content = DefaultRoutineProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.INITSOUND, 0), (Jsm.Opcode.PSHN_L, 69), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.EFFECTPLAY, 0), (Jsm.Opcode.PSHN_L, 1234), (Jsm.Opcode.PSHM_L, 512), (Jsm.Opcode.PSHM_L, 516), (Jsm.Opcode.SEVOL, 0), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
                 EventEngine Create()
                 {
-                    GameSession session = CreateControlledMusicSession();
+                    GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
                     session.SetEventMemory(session.State.EventMemory.Write(512, 4, NativeScalarValue.Exact(unchecked((int)rawMask))));
                     session.SetEventMemory(session.State.EventMemory.Write(516, 4, NativeScalarValue.Exact(rawVolume)));
                     EventEngine engine = new(session) { ResolveGlobalSoundResource = MutedGlobalSample };
-                    engine.LoadField(100, content, []);
+                    engine.LoadField(100, content, [], nativeRuntimeProfile: assets.NativeRuntimeProfile);
                     SetControlledMusicChannels(engine);
+                    engine.Step();
                     return engine;
                 }
                 EventEngine first = Create();
@@ -32,7 +37,7 @@ internal static partial class Program
                 int voice = System.Numerics.BitOperations.TrailingZeroCount(mask) + 1;
                 Require(first.LastFault is null && request.RawMask == rawMask && request.RawVolume == rawVolume && request.Mask == mask && request.Voice == voice && request.Volume == (rawVolume & 127) && request.DurationMilliseconds == 0 && request.BackendStatus == GlobalSoundBackendStatus.Muted, "SEVOL lost native mask/volume DWORD order, low24 selection, least voice, low-seven-bit volume or immediate duration.");
                 JsonElement state = first.Capture();
-                Require(state.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == 1234 && state.GetProperty("Fibers")[0].GetProperty("WaitReason").GetString() == "Frames" && first.Scene.SoundMusicVolume197 == 127 && first.Scene.SoundMusicVolume198 == 127, "SEVOL consumed an extra operand, introduced a sound wait or rewrote music bytes.");
+                Require(state.GetProperty("Fibers")[1].GetProperty("Results").GetProperty("3").GetInt32() == 1234 && state.GetProperty("Fibers")[1].GetProperty("WaitReason").GetString() == "Frames" && first.Scene.SoundMusicVolume197 == 127 && first.Scene.SoundMusicVolume198 == 127, "SEVOL consumed an extra operand, introduced a sound wait or rewrote music bytes.");
                 Require(first.Scene.GlobalSoundLatestAttempts.Count == 1 && first.Scene.GlobalSoundRequests.Count == 1 && first.Scene.GlobalSoundLatestAttempts[3].Volume == 20 && first.Scene.GlobalSoundLatestAttempts[3].OriginalEffectId == 69, "SEVOL invented buffers or altered original effect-ID/attempt history.");
                 EventEngine restored = Create();
                 restored.Restore(state);
@@ -55,15 +60,15 @@ internal static partial class Program
                     Require(JsonElement.DeepEquals(before, restored.Capture()), "Rejected SEVOL receipt changed its receiver.");
                 }
                 byte[] next = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0));
-                first.LoadField(101, next, []);
+                first.LoadField(101, next, [], nativeRuntimeProfile: assets.NativeRuntimeProfile);
                 Require(first.Scene.SoundVolume == request, "Field allocation erased the historical SEVOL request.");
-                GameSession historicalSession = new(new GameState());
+                GameSession historicalSession = CreateDirectedLinearTurnSession(vitals, economy);
                 EventEngine historical = new(historicalSession);
-                historical.LoadField(101, next, []);
+                historical.LoadField(101, next, [], nativeRuntimeProfile: assets.NativeRuntimeProfile);
                 historical.Restore(first.Capture());
                 Require(JsonElement.DeepEquals(first.Capture(), historical.Capture()), "Historical SEVOL failed to restore at the reset field clock.");
-                first.LoadField(100, content, []);
-                historical.LoadField(100, content, []);
+                first.LoadField(100, content, [], nativeRuntimeProfile: assets.NativeRuntimeProfile);
+                historical.LoadField(100, content, [], nativeRuntimeProfile: assets.NativeRuntimeProfile);
                 historical.Restore(first.Capture());
                 Require(first.Frame == 0 && first.Scene.SoundVolume == request && first.Scene.AudioLoadEpoch > request.LoadEpoch && JsonElement.DeepEquals(first.Capture(), historical.Capture()), "SEVOL lost its original load identity when revisiting the same field before its previous local frame.");
             }

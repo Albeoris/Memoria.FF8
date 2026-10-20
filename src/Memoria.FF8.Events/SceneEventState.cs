@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using System.Text.Json.Serialization;
 using Memoria.FF8.Runtime;
 
@@ -71,8 +71,6 @@ public sealed class SceneEventState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte? NativeAaskPreviousFocus { get; internal set; }
 
-    [JsonInclude]
-    public bool NativeDebugRequested { get; internal set; }
 
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

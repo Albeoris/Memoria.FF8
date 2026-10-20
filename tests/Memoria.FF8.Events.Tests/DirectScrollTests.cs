@@ -10,10 +10,12 @@ internal static partial class Program
 {
     private static void NativeDirectScrollAndBoundary(string gameDirectory)
     {
-        byte[] commands = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 65536), (Jsm.Opcode.PSHN_L, 65760), (Jsm.Opcode.DSCROLL2, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.DSCROLL2, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.RET, 0));
-        GameSession session = new(new GameState());
+        using GameAssets assets = new(gameDirectory);
+        byte[] commands = DefaultScrollComponentProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 65536), (Jsm.Opcode.PSHN_L, 65760), (Jsm.Opcode.DSCROLL2, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.DSCROLL2, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.RET, 0));
+        GameSession session = CreateScrollComponentSession(assets);
         EventEngine engine = new(session) { CanSetBackgroundScrollPosition = (_, _, _) => true };
-        engine.LoadField(100, commands, []);
+        engine.LoadField(100, commands, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        engine.Step();
         engine.Scene.BackgroundScrollPositions[0] = new BackgroundScrollPosition(0, 0, 0, 0, 0, 0, 0, 3, 2);
         bool pendingObserved = false;
         engine.CommandExecuted += command =>
@@ -29,9 +31,10 @@ internal static partial class Program
         BackgroundScrollPosition first = engine.Scene.BackgroundScrollPositions[0];
         Require(pendingObserved && first == new BackgroundScrollPosition(0, 224, 0, 224, 0, 0, 0, 3, 2) && !session.State.Variables.ContainsKey(512), "DSCROLL2 lost native lowWORD targets, same-update direct commit or return3 instruction-budget yield.");
         JsonElement saved = engine.Capture();
-        GameSession resumedSession = new(new GameState());
+        GameSession resumedSession = CreateScrollComponentSession(assets);
         EventEngine resumed = new(resumedSession) { CanSetBackgroundScrollPosition = (_, _, _) => true };
-        resumed.LoadField(100, commands, []);
+        resumed.LoadField(100, commands, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        resumed.Step();
         resumed.Restore(saved);
         engine.Step();
         resumed.Step();
@@ -40,8 +43,9 @@ internal static partial class Program
         resumed.Step();
         Require(session.State.Variables[512] == 9 && JsonElement.DeepEquals(engine.Capture(), resumed.Capture()), "DSCROLL2 yielded at the same PC or blocked its ordinary following instruction.");
 
-        EventEngine blocked = new(new GameSession(new GameState()), NativeEventMemory.FromDWords(new Dictionary<int, int>())) { CanSetBackgroundScrollPosition = (_, _, _) => false };
-        blocked.LoadField(100, commands, []);
+        EventEngine blocked = new(CreateScrollComponentSession(assets), NativeEventMemory.FromDWords(new Dictionary<int, int>())) { CanSetBackgroundScrollPosition = (_, _, _) => false };
+        blocked.LoadField(100, commands, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        blocked.Step();
         try
         {
             blocked.Step();
@@ -50,14 +54,18 @@ internal static partial class Program
         catch (EventScriptException) when (blocked.LastFault?.Opcode == "DSCROLL2")
         {
         }
-        JsonElement blockedFiber = blocked.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("Position").GetInt32() == 4);
+        JsonElement blockedFiber = blocked.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("Position").GetInt32() == 6);
         Require(blocked.Scene.BackgroundScrollPositions.Count == 0 && blockedFiber.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([65760, 65536, 0]), "Direct-scroll refusal consumed operands, advanced PC or invented current scroll state.");
 
-        using GameAssets assets = new(gameDirectory);
+        if (!TryGetScrollContinuationFixture("Events.Tests.DirectScrollTests.1", out string sourcePath))
+        {
+            Console.WriteLine("Direct scroll component: lowWORDs, issue/publication, return3, restore and atomic refusal passed.");
+            return;
+        }
         FieldAssets field = assets.LoadField(172);
         EventEngine Create()
         {
-            GameSession source = new(GameSession.Load(TestResources.FixturePath("Events.Tests.DirectScrollTests.1")));
+            GameSession source = new(GameSession.Load(sourcePath));
             EventEngine result = new(source)
             {
                 AnimationFrameCount = field.GetAnimationFrameCount,

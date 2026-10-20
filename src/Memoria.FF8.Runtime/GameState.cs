@@ -14,6 +14,8 @@ public enum SceneKind
 /// <summary>A recreation checkpoint, not an original FF8 save-file format.</summary>
 public sealed record GameState
 {
+    /// <summary>Process DWORD1D9CDC0, initially zero and set to1 by the PC DEBUG handler.</summary>
+    public bool NativeFieldDebugRequested { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativePcSaveData? OriginalSave { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -146,6 +148,9 @@ public readonly record struct InputFrame(float Horizontal, float Vertical, bool 
 
 public interface IEventServices
 {
+    bool NativeFieldDebugRequested => false;
+    bool CanStoreNativeFieldDebugRequested => false;
+    void SetNativeFieldDebugRequested(bool requested) => throw new NotSupportedException("This service cannot retain the native field DEBUG process owner.");
     NativeMovieSource? MovieSource => null;
     bool CanStoreMovieSource => false;
     void SetMovieSource(NativeMovieSource source)

@@ -1,4 +1,4 @@
-using Albeoris.Games.FF8.Jsm;
+﻿using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
@@ -9,6 +9,10 @@ public sealed partial class EventEngine
 
     private string? UnsupportedRemainingControlCode(Fiber fiber, JsmOperation operation)
     {
+        if (operation.Opcode == Jsm.Opcode.DEBUG)
+        {
+            return services.CanStoreNativeFieldDebugRequested ? null : "DEBUG requires its writable native process flag owner";
+        }
         if (operation.Opcode is not (Jsm.Opcode.MOVIECUT or Jsm.Opcode.BATTLECUT))
         {
             return null;

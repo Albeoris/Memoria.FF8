@@ -13,7 +13,7 @@ internal sealed partial class GameWorld
 
     private IReadOnlyList<PixelImage>? RegisteredEyeTextures(ActorState actor, int modelId)
     {
-        if (!Events.Actors.Any(item => item.NativeEyes is { Mode: not 0 }))
+        if (modelId < 0 || !Events.Scene.NativeActorObjectIds.Contains(actor.ObjectId) || !Events.Actors.Any(item => item.NativeEyes is { Mode: not 0 }))
         {
             return null;
         }
