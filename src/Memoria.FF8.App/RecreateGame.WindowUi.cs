@@ -55,47 +55,35 @@ internal sealed partial class RecreateGame
     private void DrawNativePartyUi(Rectangle bounds)
     {
         NativePartyMenuState menu = events!.PartyMenu!;
-        string title = menu.Kind switch { NativeFieldMenuKind.Normal => "Menu", NativeFieldMenuKind.Save => "Save", NativeFieldMenuKind.Shop => "Shop", NativeFieldMenuKind.WeaponShop => "Junk Shop", _ => "Party" };
-        string Name(byte row) => row == 255 ? "Empty" : Memoria.FF8.GameUi.LiveMenuData.CharacterName(session.State, row, events.Scene.Names, liveMenuCatalog);
-        string party = menu.Kind == NativeFieldMenuKind.Save ? "Save slots are unavailable." : menu.Kind is NativeFieldMenuKind.Shop or NativeFieldMenuKind.WeaponShop ? "Opening shop" : menu.TemporaryCombatParty is null ? "Opening party menu" : string.Join(" / ", menu.TemporaryCombatParty.Select(row => row == 255 ? "Empty" : Name(row)));
-        IReadOnlyList<PlayerAction> inputs = Memoria.FF8.GameUi.NativePartyMenuProjection.Inputs(menu);
-        List<string> candidates = inputs.Select(input => input.Kind switch
-        {
-            PlayerActionKind.SelectPartySlot => $"Slot {input.Value + 1}: {Name(menu.TemporaryCombatParty![input.Value])}",
-            PlayerActionKind.SelectPartyMember => input.Value == 255 ? "Reserve: Empty (remove member)" : $"Reserve: {Name((byte)input.Value)}",
-            _ => "Confirm party"
-        }).ToList();
-        string instruction = menu.Phase is NativePartyMenuPhase.FieldReentry or NativePartyMenuPhase.FieldResumeInitialization ? "Returning to field" : menu.Kind == NativeFieldMenuKind.Save ? "Continue without saving" : menu.Kind is NativeFieldMenuKind.Normal or NativeFieldMenuKind.Shop or NativeFieldMenuKind.WeaponShop ? "Return to field" : menu.SelectedPartySlot is not null ? "Select destination" : "Select a slot to change, or Confirm party";
-        string key = string.Join("|", title, party, menu.SelectedPartySlot, partyMenuCandidate, instruction, string.Join(";", candidates));
         batch.Draw(pixel, bounds, Color.Black * 0.8f);
-        if (nativePartyWindowUi is null || nativePartyWindowKey != key)
+        if (menu is { Kind: NativeFieldMenuKind.PartySelection, TemporaryCombatParty.Length: 3, TemporaryReserveParty.Length: 8 })
         {
-            UiAnchorPanel root = new();
-            UiPanel panel = new() { Anchors = new UiAnchors(0.04f, 0.04f, 0.96f, 0.96f), Padding = 16 };
-            UiGrid content = new() { Gap = 8 };
-            content.ColumnDefinitions.Add(UiGridLength.Star());
-            content.RowDefinitions.Add(UiGridLength.Pixel(36));
-            content.RowDefinitions.Add(UiGridLength.Pixel(40));
-            content.RowDefinitions.Add(UiGridLength.Star());
-            content.RowDefinitions.Add(UiGridLength.Pixel(40));
-            content.Children.Add(new UiLabel { Text = title, FontSize = 26 });
-            content.Children.Add(new UiLabel { GridRow = 1, Text = party, FontSize = 20 });
-            List<UiImageSource?> portraits = inputs.Select(input =>
+            IReadOnlySet<int> visible = menu.TemporaryCombatParty.Concat(menu.TemporaryReserveParty).Where(row => row != 255).Select(row => (int)row).ToHashSet();
+            string key = string.Join("|", menu.Phase, menu.SelectedPartySlot, menu.LockedMask, partyMenuCandidate, string.Join(",", menu.TemporaryCombatParty), string.Join(",", menu.TemporaryReserveParty), string.Join(";", visible.Select(row => session.State.CharacterVitals?.Records.ElementAtOrDefault(row)).Where(character => character is not null).Select(character => $"{character!.CharacterId}:{character.Experience}:{character.HitPoints}:{GameUi.LiveMenuData.CharacterName(session.State, character.CharacterId, events.Scene.Names, liveMenuCatalog)}")));
+            if (nativePartyWindowUi is null || nativePartyWindowKey != key)
             {
-                int row = input.Kind == PlayerActionKind.SelectPartySlot ? menu.TemporaryCombatParty![input.Value] : input.Kind == PlayerActionKind.SelectPartyMember ? input.Value : 255;
-                return row != 255 && session.State.CharacterVitals?.Records.ElementAtOrDefault(row) is { } character ? new UiImageSource?(new UiImageSource(UiImageKind.CharacterPortrait, character.CharacterId)) : null;
-            }).ToList();
-            content.Children.Add(new UiList { GridRow = 2, Items = candidates, Images = portraits, SelectedIndex = partyMenuCandidate, RowHeight = 40, FontSize = 20 });
-            content.Children.Add(new UiLabel { GridRow = 3, Text = instruction, FontSize = 16, Muted = true });
-            panel.Children.Add(content);
-            root.Children.Add(panel);
-            nativePartyWindowUi = CreateWindowView(root);
-            nativePartyWindowKey = key;
+                GameUi.MenuData data = GameUi.LiveMenuData.Build(session.State, events.Scene.Names, liveMenuCatalog, visible);
+                nativePartyWindowUi = GameUi.PartySelectionView.Build(menu, data, partyMenuCandidate);
+                nativePartyWindowKey = key;
+            }
+            DrawWindowView(nativePartyWindowUi, bounds);
+            return;
         }
-
+        string message = menu.Phase is NativePartyMenuPhase.FieldReentry or NativePartyMenuPhase.FieldResumeInitialization ? "Returning to field" : menu.Kind switch
+        {
+            NativeFieldMenuKind.Normal => "Opening menu",
+            NativeFieldMenuKind.Save => "Opening save menu",
+            NativeFieldMenuKind.Shop => "Opening shop",
+            NativeFieldMenuKind.WeaponShop => "Opening junk shop",
+            _ => "Opening party menu"
+        };
+        if (nativePartyWindowUi is null || nativePartyWindowKey != message)
+        {
+            nativePartyWindowUi = new UiView(new GameUi.NoticeElement(message));
+            nativePartyWindowKey = message;
+        }
         DrawWindowView(nativePartyWindowUi, bounds);
     }
-
     private void DrawNoticeUi(Rectangle bounds, string message, bool bottom)
     {
         UiView? view = bottom ? bottomNoticeWindowUi : topNoticeWindowUi;

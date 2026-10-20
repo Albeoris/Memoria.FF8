@@ -59,6 +59,10 @@ public sealed partial class EventEngine
         {
             throw new ArgumentException("Field item use requires an item BYTE and a physical character row0..7.", nameof(action));
         }
+        if (action.Kind == PlayerActionKind.SwitchPartyMembers)
+        {
+            NativePartySwitchInput.Validate(action);
+        }
         if (NativeJunctionMenuInput.IsMenuAction(action.Kind))
         {
             NativeJunctionMenuInput.Validate(action);

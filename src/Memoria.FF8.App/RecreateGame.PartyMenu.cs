@@ -33,7 +33,7 @@ internal sealed partial class RecreateGame
                 IReadOnlyList<PlayerAction> choices = NativePartyMenuProjection.Inputs(events.PartyMenu);
                 if (choices.Count > 0)
                 {
-                    int next = Math.Clamp(partyMenuCandidate + input.MenuVertical, 0, choices.Count - 1);
+                    int next = PartySelectionView.Navigate(events.PartyMenu, partyMenuCandidate, input.MenuHorizontal, input.MenuVertical);
                     if (next != partyMenuCandidate)
                     {
                         fieldAudio?.PlayUiSound(MenuSound.Move);
@@ -42,9 +42,9 @@ internal sealed partial class RecreateGame
                 }
                 if (input.Confirm && choices.Count > 0)
                 {
-                    world!.Apply(choices[partyMenuCandidate]);
-                    fieldAudio?.PlayUiSound(MenuSound.Confirm);
-                    partyMenuCandidate = 0;
+                    PlayerActionResult result = world!.Apply(choices[partyMenuCandidate]);
+                    fieldAudio?.PlayUiSound(result.Accepted ? MenuSound.Confirm : MenuSound.Cancel);
+                    partyMenuCandidate = events.PartyMenu?.SelectedPartySlot ?? 0;
                     fieldSeconds = 0;
                     return;
                 }

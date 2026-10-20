@@ -123,7 +123,7 @@ This host advances through queue commands rather than a timed simulation loop. I
 | Option | Meaning |
 | --- | --- |
 | `--output PNG` | Required destination. |
-| `--screen SCREEN_ID` | Default `debug-room`; examples include `main`, `battle-debug`, `name-input`, `native-tutorial`, `triple-triad`. |
+| `--screen SCREEN_ID` | Default `debug-room`; examples include `main`, `party-selection`, `battle-debug`, `name-input`, `native-tutorial`, `triple-triad`. |
 | `--game-dir DIRECTORY` | Installed game directory, otherwise the configured environment value. |
 | `--state JSON` | Use a standalone snapshot where supported; otherwise preview data is a fixture. `native-tutorial` and `triple-triad` require a snapshot containing the corresponding active interface. |
 | `--resolution WIDTHxHEIGHT` | Default `960x672`; width `320..4096`, height `240..4096`. |
@@ -131,6 +131,7 @@ This host advances through queue commands rather than a timed simulation loop. I
 | `--expanded` | Expand supported fixture views. |
 | `--name-subject NUMBER` | Naming subject; default `0`. |
 | `--name-page NUMBER` | Naming page advancement count; default `0`. |
+| `--inputs INPUTS` | Comma-separated menu inputs. The `party-selection` preview supports directional inputs; `--expanded` selects a source cell in its fixture. A supplied `--state` displays the retained party panes and pending selection. |
 
 ```powershell
 ./Data/Memoria.FF8.exe --menu-preview --screen main --output ./output/main-menu.png

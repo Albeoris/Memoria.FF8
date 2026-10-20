@@ -105,10 +105,12 @@ public sealed partial class EventEngine
         RecordPartyBindingMemory();
     }
 
-    private NativeCharacterVitals PrepareNativeReserveParty(NativeCharacterVitals current)
+    private NativeCharacterVitals PrepareNativeReserveParty(NativeCharacterVitals current) => PrepareNativeReserveParty(current, Scene.Party.Select(row => (byte)row).ToArray());
+
+    private static NativeCharacterVitals PrepareNativeReserveParty(NativeCharacterVitals current, IReadOnlyList<byte> fieldParty)
     {
         current.Validate();
-        byte[] reserve = Enumerable.Range(0, 6).Where(identity => !Scene.Party.Contains(identity)).Select(identity => (byte)identity).ToArray();
+        byte[] reserve = Enumerable.Range(0, 6).Where(identity => !fieldParty.Contains((byte)identity)).Select(identity => (byte)identity).ToArray();
         if (reserve.Length > 3)
         {
             throw new NotSupportedException("Native reserve construction would overwrite primary party bytes194 onward outside its six-byte backup owner.");

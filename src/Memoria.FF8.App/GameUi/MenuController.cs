@@ -55,6 +55,7 @@ public sealed partial class MenuController
     public IReadOnlyList<MenuEntry> Entries => CurrentScreen.Entries(this);
     public MenuEntry? SelectedEntry => Entries.Count == 0 ? null : Entries[Math.Clamp(SelectedIndex, 0, Entries.Count - 1)];
     public MenuCharacter? Character => _characterId.Length > 0 ? Data.Characters.FirstOrDefault(c => c.Id == _characterId) : Data.Characters.FirstOrDefault(c => c.InParty) ?? Data.Characters.FirstOrDefault();
+    public string ExchangeId => _exchangeId;
     public bool IsSelectingCharacter => _characterSelectionDestination.Length > 0;
     public string CharacterSelectionDestination => _characterSelectionDestination;
     public int CharacterSelectionIndex => _characterSelectionIndex;
@@ -183,6 +184,10 @@ public sealed partial class MenuController
             return;
         }
         if (NavigateAbilityJunction(input))
+        {
+            return;
+        }
+        if (NavigateNativeSwitch(input))
         {
             return;
         }
@@ -638,6 +643,7 @@ public sealed partial class MenuController
             }
             action = action.Kind switch
             {
+                "party-switch" => action with { SubjectId = _exchangeId },
                 "item-use" => action with { SubjectId = Item?.Id ?? "" },
                 "junction-gf" => action with { TargetId = Character?.Id ?? "" },
                 "junction-off" => action with { TargetId = Character?.Id ?? "" },
@@ -662,6 +668,11 @@ public sealed partial class MenuController
                 }
                 ScreenId = "item-use";
                 _itemId = "";
+            }
+            if (action.Kind == "party-switch")
+            {
+                ScreenId = _history.TryPop(out string? sourceScreen) ? sourceScreen : "switch-party";
+                ScreenOpened?.Invoke(ScreenId);
             }
             if (action.Kind is "junction-magic" or "junction-auto")
             {

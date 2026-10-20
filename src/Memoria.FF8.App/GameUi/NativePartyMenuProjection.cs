@@ -14,7 +14,11 @@ public static class NativePartyMenuProjection
         List<PlayerAction> inputs = Enumerable.Range(0, 3).Select(slot => new PlayerAction(PlayerActionKind.SelectPartySlot, slot)).ToList();
         if (menu.SelectedPartySlot is not null)
         {
-            inputs.AddRange(menu.TemporaryReserveParty.Where(row => row == 255 || (menu.LockedMask & 1 << row) == 0).Distinct().Select(row => new PlayerAction(PlayerActionKind.SelectPartyMember, row)));
+            byte source = menu.TemporaryCombatParty[menu.SelectedPartySlot.Value];
+            if (source == 255 || (menu.LockedMask & 1 << source) == 0)
+            {
+                inputs.AddRange(menu.TemporaryReserveParty.Where(row => row == 255 || (menu.LockedMask & 1 << row) == 0).Distinct().Select(row => new PlayerAction(PlayerActionKind.SelectPartyMember, row)));
+            }
         }
         else if (menu.TemporaryCombatParty.All(row => row != 255))
         {

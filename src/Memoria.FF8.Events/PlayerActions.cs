@@ -37,7 +37,8 @@ public enum PlayerActionKind
     RemoveJunctions,
     UseFieldMagic,
     TransferMagic,
-    AutoJunction
+    AutoJunction,
+    SwitchPartyMembers
 }
 
 public enum PlayerTriggerKind
@@ -162,6 +163,15 @@ public sealed partial class EventEngine
             {
                 bool menuCallback = PartyMenu is { Kind: NativeFieldMenuKind.Normal, Phase: NativePartyMenuPhase.Active };
                 accepted = ApplyMagicMenuAction(action);
+                if (accepted && menuCallback)
+                {
+                    advanced = 1;
+                }
+            }
+            else if (action.Kind == PlayerActionKind.SwitchPartyMembers)
+            {
+                bool menuCallback = PartyMenu is { Kind: NativeFieldMenuKind.Normal, Phase: NativePartyMenuPhase.Active };
+                accepted = ApplyPartySwitchMenuAction(action);
                 if (accepted && menuCallback)
                 {
                     advanced = 1;

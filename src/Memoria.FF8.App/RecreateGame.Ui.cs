@@ -94,7 +94,8 @@ internal sealed partial class RecreateGame
         else
         {
             EnsureLiveMenuCatalog();
-            data = LiveMenuData.Build(session.State, events?.Scene.Names, liveMenuCatalog!, placeId: events?.Scene.PlaceId);
+            GameState menuState = events?.PartyMenu is { Kind: NativeFieldMenuKind.Normal, Phase: NativePartyMenuPhase.Active } activeMenu && session.State.WorldControls is { } controls ? session.State with { WorldControls = controls with { Menu209 = activeMenu.NativeEntrySelection } } : session.State;
+            data = LiveMenuData.Build(menuState, events?.Scene.Names, liveMenuCatalog!, placeId: events?.Scene.PlaceId);
             NativeRefinementMenuProjection.Augment(data, session.State, nativeRefinementDefinitions!, liveMenuCatalog!);
         }
         data.Settings["Music volume"] = uiPreferences.MusicVolume + "%";
@@ -187,6 +188,16 @@ internal sealed partial class RecreateGame
         if (action.Kind == "new-game-start")
         {
             StartNewGameSession();
+            return;
+        }
+        if (action.Kind == "party-switch")
+        {
+            PlayerActionResult result = world!.Apply(NativePartySwitchMenuProjection.PlayerAction(action));
+            if (!result.Accepted)
+            {
+                ShowSaveNotice("The current menu does not permit this party-member exchange.");
+            }
+            fieldSeconds = 0;
             return;
         }
         if (NativeMagicMenuProjection.IsAction(action))

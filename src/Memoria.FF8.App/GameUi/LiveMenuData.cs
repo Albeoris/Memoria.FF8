@@ -46,6 +46,20 @@ public static class LiveMenuData
         {
             vitals.Validate();
             state.WorldControls?.Validate();
+            if (state.Scene is SceneKind.Field or SceneKind.WorldMap && !vitals.DreamEnabled && ((state.WorldControls?.Menu209 ?? 0) & 2) != 0)
+            {
+                result.SupportedActions.Add("party-switch");
+                for (int source = 0; source < 8; source++)
+                {
+                    for (int target = 0; target < 8; target++)
+                    {
+                        if (Memoria.FF8.Events.NativePartySwitchInput.CanExchange(vitals, source, target, state.WorldControls!.Menu209))
+                        {
+                            result.SupportedActions.Add($"party-switch:character-{source}:character-{target}");
+                        }
+                    }
+                }
+            }
             IEnumerable<int> rows = vitals.CombatParty.Where(row => row != 255).Select(row => (int)row).Concat(Enumerable.Range(0, vitals.Records.Length).Where(row => !vitals.CombatParty.Contains((byte)row)));
             foreach (int row in rows)
             {

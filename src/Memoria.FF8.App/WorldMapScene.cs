@@ -308,6 +308,18 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             throw new ArgumentOutOfRangeException(nameof(action), "World action duration must be between one and 30000 simulation frames.");
         }
+        if (action.Kind == PlayerActionKind.SwitchPartyMembers)
+        {
+            NativePartySwitchInput.Validate(action);
+            NativeCharacterVitals vitals = session.State.CharacterVitals ?? throw new NotSupportedException("Switch requires the saved character owner.");
+            byte entry = session.State.WorldControls?.Menu209 ?? 0;
+            if (HasPendingBattle?.Invoke() == true || CurrentDialogue is not null || !NativePartySwitchInput.CanExchange(vitals, action.Value, action.Quantity!.Value, entry))
+            {
+                return new PlayerActionResult(false, new PlayerTrigger(PlayerTriggerKind.WorldMap, session.State.FieldId, State.Frame, null, null), 0, "The current world menu does not permit this party-member exchange.");
+            }
+            session.SetCharacterVitals(NativePartySwitchInput.Apply(vitals, action, entry));
+            return new PlayerActionResult(true, new PlayerTrigger(PlayerTriggerKind.WorldMap, session.State.FieldId, State.Frame, null, null), 0);
+        }
         if (NativeMagicMenuInput.IsMenuAction(action.Kind))
         {
             return ApplyMagicMenuAction(action);

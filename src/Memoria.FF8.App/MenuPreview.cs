@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Text.Json;
 using Memoria.FF8.GameUi;
+using Memoria.FF8.Events;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
@@ -86,6 +87,41 @@ internal static class MenuPreview
         if (screen.StartsWith("player-save", StringComparison.Ordinal))
         {
             view = BuildPlayerSavePreview(screen, statePath);
+        }
+        else if (screen == "party-selection")
+        {
+            NativePartyMenuState menu = new(0, string.Empty, string.Empty, 0, 0, 0, 0, 0, NativePartyMenuPhase.Active, 2, [0, 4, 255], 0x3F, 1, 1, false, NativeFieldMenuKind.PartySelection, 2, 0, null, null, null, [1, 2, 3, 5, 255, 255, 255, 255], expanded ? 2 : null);
+            MenuData data;
+            if (statePath is not null)
+            {
+                GameState state = GameSession.Load(statePath);
+                menu = state.EventState?.GetProperty("PartyMenu").Deserialize<NativePartyMenuState>() ?? throw new ArgumentException("Party selection preview requires an active party menu.");
+                if (menu is not { Kind: NativeFieldMenuKind.PartySelection, TemporaryCombatParty.Length: 3, TemporaryReserveParty.Length: 8 })
+                {
+                    throw new ArgumentException("Party selection preview requires initialized combat and reserve panes.");
+                }
+                using GameAssets assets = new(gameDirectory);
+                IReadOnlySet<int> visible = menu.TemporaryCombatParty!.Concat(menu.TemporaryReserveParty!).Where(row => row != 255).Select(row => (int)row).ToHashSet();
+                data = LiveMenuData.Build(state, catalog: LiveMenuCatalog.ReadInstalled(assets), visibleCharacterRows: visible);
+            }
+            else
+            {
+                data = MenuDemoData.Create();
+                foreach (MenuCharacter character in data.Characters)
+                {
+                    character.Id = $"character-{character.NativeId}";
+                }
+            }
+            int candidate = 0;
+            if (inputs is not null)
+            {
+                foreach (string input in inputs.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    MenuInput direction = Enum.Parse<MenuInput>(input, ignoreCase: true);
+                    candidate = PartySelectionView.Navigate(menu, candidate, direction == MenuInput.Left ? -1 : direction == MenuInput.Right ? 1 : 0, direction == MenuInput.Up ? -1 : direction == MenuInput.Down ? 1 : 0);
+                }
+            }
+            view = PartySelectionView.Build(menu, data, candidate);
         }
         else if (screen == "native-tutorial")
         {
