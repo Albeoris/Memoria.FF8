@@ -9,10 +9,14 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class ScriptedInputPacingTests
 {
-    [Fact]
-    public void PollingOwnershipSurvivesInstructionBudgetsBetweenQueries()
+    [Theory]
+    [InlineData(Jsm.Opcode.KEYSCAN)]
+    [InlineData(Jsm.Opcode.KEYSCAN2)]
+    [InlineData(Jsm.Opcode.KEYON)]
+    [InlineData(Jsm.Opcode.KEYON2)]
+    public void PollingOwnershipSurvivesInstructionBudgetsBetweenQueries(Jsm.Opcode query)
     {
-        List<(Jsm.Opcode Opcode, int Parameter)> commands = [(Jsm.Opcode.UCOFF, 0), (Jsm.Opcode.PSHN_L, 64), (Jsm.Opcode.KEYSCAN2, 0)];
+        List<(Jsm.Opcode Opcode, int Parameter)> commands = [(Jsm.Opcode.UCOFF, 0), (Jsm.Opcode.PSHN_L, 64), (query, 0)];
         commands.AddRange(Enumerable.Repeat((Jsm.Opcode.NOP, 0), 40));
         commands.Add((Jsm.Opcode.JMP, 1 - commands.Count));
         EventEngine engine = Create(commands.ToArray());
@@ -20,7 +24,7 @@ public sealed class ScriptedInputPacingTests
         int callbacksWithoutQueries = 0;
         engine.CommandExecuted += command =>
         {
-            if (command.Name == "KEYSCAN2")
+            if (command.Name == query.ToString())
             {
                 queries++;
             }
