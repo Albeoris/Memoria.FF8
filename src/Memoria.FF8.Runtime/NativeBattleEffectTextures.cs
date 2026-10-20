@@ -22,7 +22,10 @@ public sealed record NativeBattleEffectVramUpload(short X, short Y, short Width,
 {
     public bool Copied { get; init; }
 }
-public sealed record NativeBattleEffectTextureDrain(NativeBattleEffectTextureState State, ImmutableArray<NativeBattleEffectVramUpload> Uploads);
+public sealed record NativeBattleEffectTextureDrain(NativeBattleEffectTextureState State, ImmutableArray<NativeBattleEffectVramUpload> Uploads)
+{
+    public NativeBattleEffectArena? Arena { get; init; }
+}
 
 /// <summary>505E30/505D20's32 physical16-byte slots and45BD30's retained1024x51216-bit VRAM.</summary>
 public sealed record NativeBattleEffectTextureState([property: JsonRequired] ImmutableArray<NativeBattleEffectTimUpload?> Slots, [property: JsonRequired] int Count, [property: JsonRequired] NativeBattleEffectAnimationRegisters? Animation, [property: JsonRequired] ImmutableArray<NativeBattleEffectMemoryRegion> VramRegions)
@@ -120,6 +123,15 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
                 else
                 {
                     RequireSource(slot.Source!, slot.Offset, length);
+                }
+            }
+            else if (slot is { Kind: 2, Rectangle: { } readback })
+            {
+                RequireRectangle(readback);
+                RequireArenaRange(slot.ArenaOffset ?? throw new InvalidDataException("Native readback requires its actual arena destination."), checked(2 * readback.Width * readback.Height));
+                if (slot.Source is not null || slot.Offset != 0 || slot.StagingAddress is not null || slot.ProcessAddress is not null)
+                {
+                    throw new InvalidDataException("Native readback requires one destination pointer union arm.");
                 }
             }
             else if (slot is not null && (slot.Kind != 3 || slot.Copy is null || slot.ArenaOffset is not null || slot.StagingAddress is not null || slot.ProcessAddress is not null))
@@ -255,6 +267,19 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
         return this with { Slots = Slots.SetItem(Count, slot), Count = Count + 1 };
     }
 
+    public NativeBattleEffectTextureState EnqueueArenaReadback505E70(NativeBattleEffectTextureRectangle rectangle, int destinationOffset)
+    {
+        Validate();
+        RequireRectangle(rectangle);
+        RequireArenaRange(destinationOffset, checked(2 * rectangle.Width * rectangle.Height));
+        if (Count == 31)
+        {
+            throw new NotSupportedException("Native505E70 increments its count to32 without writing the final slot; the resulting stale-slot drain is unsupported.");
+        }
+        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(null, 0)) with { Kind = 2, Source = null, Offset = 0, Rectangle = rectangle, ArenaOffset = destinationOffset, StagingAddress = null, ProcessAddress = null };
+        return this with { Slots = Slots.SetItem(Count, slot), Count = Count + 1 };
+    }
+
     public NativeBattleEffectTextureDrain Drain505D20(NativeBattleEffectArena? arenaSource = null, NativeBattleFileStaging? stagingSource = null, Func<uint, NativeBattleEffectHeapAllocation>? resolveProcessTim = null, NativeBattleScriptedEffectMemory? scriptedSource = null)
     {
         Validate();
@@ -267,6 +292,19 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
         for (int index = 0; index < Count; index++)
         {
             NativeBattleEffectTimUpload pending = Slots[index]!;
+            if (pending.Kind == 2)
+            {
+                NativeBattleEffectTextureRectangle rectangle = pending.Rectangle!;
+                NativeBattleEffectArena destination = arenaSource ?? throw new NotSupportedException("Native505D20 readback requires its latest effect arena destination.");
+                int bytesPerRow = checked(2 * rectangle.Width);
+                for (int row = 0; row < rectangle.Height; row++)
+                {
+                    byte[] bytes = bank.Read(checked(2 * ((rectangle.Y + row) * 1024 + rectangle.X)), bytesPerRow);
+                    destination = destination.Write(checked(pending.ArenaOffset!.Value + row * bytesPerRow), bytes);
+                }
+                arenaSource = destination;
+                continue;
+            }
             if (pending.Kind == 3)
             {
                 Copy(pending.Copy!);
@@ -324,7 +362,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
                 uploads.Add(new(x, y, width, height, bytes));
             }
         }
-        return new(this with { Count = 0, VramRegions = bank.Regions }, uploads.ToImmutable());
+        return new(this with { Count = 0, VramRegions = bank.Regions }, uploads.ToImmutable()) { Arena = arenaSource };
 
         void Copy(NativeBattleEffectVramCopy copy)
         {

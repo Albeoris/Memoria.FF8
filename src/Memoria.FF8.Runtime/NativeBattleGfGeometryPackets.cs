@@ -29,7 +29,10 @@ public sealed record NativeBattleGfGeometryAttempt(int ByteOffsetRelative, Immut
     public int PacketLength => Data.Length;
 }
 
-public sealed record NativeBattleGfGeometryBatch(ImmutableArray<NativeBattleGfGeometryAttempt> Attempts, int AllocationBytes);
+public sealed record NativeBattleGfGeometryBatch(ImmutableArray<NativeBattleGfGeometryAttempt> Attempts, int AllocationBytes)
+{
+    public bool NativeUnlinkedAllocation { get; init; }
+}
 
 /// <summary>7043B0's eight original geometry groups, using actual45FE10/45FAA0 projection and native packet layouts.</summary>
 public static class NativeBattleGfGeometryPackets

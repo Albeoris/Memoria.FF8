@@ -4,7 +4,12 @@ public sealed partial class BattleSession
 {
     private void DispatchNativeStatusTimers()
     {
-        // The caller admits this update through the native battle clock before advancing status timers.
+        //47CCB0 rechecks1D27B00 after action dispatch, even when the earlier4842B0 pass admitted DEB.
+        if (nativeBattleClock is { ActionPause: not 0 } || NativeScriptAllocationPaused)
+        {
+            return;
+        }
+        // The caller already admitted the earlier DEB/UI gates.
         foreach (BattleCombatant actor in combatants.Where(candidate => candidate.IsActive && candidate.NativeIndex is >= 0 and < 7))
         {
             if ((NativeSavedStatusBits(actor) & 5) != 0)

@@ -344,7 +344,7 @@ public sealed partial class BattleSession
                     }
                     process = process with { TextureWindowCache = cache };
                 }
-                effectMemory = effectMemory with { Textures = drain.State, PrimitiveProcess = process };
+                effectMemory = effectMemory with { Textures = drain.State, PrimitiveProcess = process, Arena = drain.Arena ?? effectMemory.Arena };
             }
             NativeEffectMemory = effectMemory;
         }

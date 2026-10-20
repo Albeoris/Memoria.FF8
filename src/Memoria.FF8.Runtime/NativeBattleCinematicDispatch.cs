@@ -1333,7 +1333,7 @@ public static partial class NativeBattleCinematicDispatch
             }
             return handler;
         }
-        if (VariantSlots.TryGetValue((effect, table, index), out uint variant) || GuestNoOps.TryGetValue((effect, table, index), out variant) || GuestVariants.TryGetValue((effect, table, index), out variant))
+        if (VariantSlots.TryGetValue((effect, table, index), out uint variant) || GuestNoOps.TryGetValue((effect, table, index), out variant) || GuestVariants.TryGetValue((effect, table, index), out variant) || MeteorNoOps.TryGetValue((effect, table, index), out variant) || MeteorVariants.TryGetValue((effect, table, index), out variant))
         {
             if (handler != variant)
             {
@@ -1341,7 +1341,7 @@ public static partial class NativeBattleCinematicDispatch
             }
             return handler;
         }
-        if (GuestAliasSlots.TryGetValue((effect, table, index), out uint selectedAlias))
+        if (GuestAliasSlots.TryGetValue((effect, table, index), out uint selectedAlias) || MeteorAliasSlots.TryGetValue((effect, table, index), out selectedAlias))
         {
             if (handler != selectedAlias)
             {
@@ -1363,7 +1363,7 @@ public static partial class NativeBattleCinematicDispatch
         {
             throw new NotSupportedException("Native cinematic dispatch selected a noncallable table entry.");
         }
-        if (effect == 201 && (CanonicalHandlers.Contains(handler) || RegionalCanonicalHandlers.Contains(handler) || GuestAliases.Values.Contains(handler)))
+        if (effect == 201 && (CanonicalHandlers.Contains(handler) || RegionalCanonicalHandlers.Contains(handler) || GuestAliases.Values.Contains(handler) || MeteorAliases.Values.Contains(handler)))
         {
             return handler;
         }
@@ -1375,6 +1375,6 @@ public static partial class NativeBattleCinematicDispatch
         {
             return regionalCanonical;
         }
-        return (Aliases.TryGetValue((effect, handler), out uint canonical) || GuestAliases.TryGetValue((effect, handler), out canonical)) ? canonical : throw new NotSupportedException($"Native cinematic effect {effect} handler {handler:X8} requires its selected implementation contract.");
+        return (Aliases.TryGetValue((effect, handler), out uint canonical) || GuestAliases.TryGetValue((effect, handler), out canonical) || MeteorAliases.TryGetValue((effect, handler), out canonical)) ? canonical : throw new NotSupportedException($"Native cinematic effect {effect} handler {handler:X8} requires its selected implementation contract.");
     }
 }

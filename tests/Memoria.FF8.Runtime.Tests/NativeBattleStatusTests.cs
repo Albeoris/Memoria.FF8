@@ -89,6 +89,33 @@ public sealed class NativeBattleStatusTests
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(BattleSession.Restore(snapshot).Capture()));
     }
 
+    [Theory]
+    [InlineData(0x2000u, 13, 2)]
+    [InlineData(0x20u, 5, 2)]
+    [InlineData(2u, 1, 3)]
+    public void Native_action_pause_freezes_new_status_timer_through_dispatch_and_releases_one_status_pass(uint mask, int bit, int decrement)
+    {
+        BattleSession battle = CreateBattle(Action(0, mask, 255), nativeClock: true);
+        Hit(battle);
+        BattleSnapshot paused = battle.Capture();
+        Assert.Equal(1u, paused.NativeClock!.ActionPause);
+        Assert.Equal(120, paused.Combatants.Single(actor => actor.Id == "enemy").NativeStatus!.Timers[bit]);
+        BattleSession cold = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(paused))!);
+        int ticks = 0;
+        while (battle.Capture().NativeClock!.ActionPause != 0 && ticks++ < 100)
+        {
+            battle.Tick();
+            cold.Tick();
+            Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(cold.Capture()));
+            if (battle.Capture().NativeClock!.ActionPause != 0)
+            {
+                Assert.Equal(120, battle.Capture().Combatants.Single(actor => actor.Id == "enemy").NativeStatus!.Timers[bit]);
+            }
+        }
+        Assert.True(ticks < 100);
+        Assert.Equal(120 - decrement, battle.Capture().Combatants.Single(actor => actor.Id == "enemy").NativeStatus!.Timers[bit]);
+    }
+
     private static void Hit(BattleSession battle)
     {
         battle.QueueAction("party", "enemy", BattleAbility.Magic, 1);
@@ -99,11 +126,13 @@ public sealed class NativeBattleStatusTests
         Assert.Equal(BattleActionPhase.Recovery, battle.ActiveAction!.Phase);
     }
 
-    private static BattleSession CreateBattle(BattleNativeAction native, byte resistance = 0, ushort initialSaved = 0, uint initialBattle = 0)
+    private static BattleSession CreateBattle(BattleNativeAction native, byte resistance = 0, ushort initialSaved = 0, uint initialBattle = 0, bool nativeClock = false)
     {
         BattleDefinition definition = new()
         {
             NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
+            NativeClockRules = nativeClock ? new(10) : null,
+            NativeBattleSpeed = nativeClock ? (byte)0 : null,
             Name = "Native status component",
             NativeStatusRules = new(0, Enumerable.Repeat((byte)30, 14).ToImmutableArray()),
             Combatants =

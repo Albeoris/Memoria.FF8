@@ -87,7 +87,7 @@ public static class NativeBattleCommonPacketArena
             }
             acceptedEnd = Math.Max(acceptedEnd, end);
         }
-        if (acceptedEnd != batch.AllocationBytes)
+        if (acceptedEnd != batch.AllocationBytes && !batch.NativeUnlinkedAllocation)
         {
             throw new InvalidDataException("Native common packet accepted extent differs from its final physical cursor.");
         }

@@ -173,6 +173,14 @@ public sealed partial class BattleSession
             int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank);
             switch (opcode)
             {
+                case 0x55 when profile.Effect == 223:
+                    return NativeBattleCinematicActionBranch55.Execute(current, program, context.ReadActionBytes);
+                case 0x106 when profile.Effect == 223:
+                    return NativeBattleCinematicFieldWait106.Execute(current, program, ResolveCurrentNode);
+                case 0x35 when profile.Effect == 223:
+                case 0xBB when profile.Effect == 223:
+                case 0xBD when profile.Effect == 223:
+                    return ExecuteNativeMeteor223Texture(current, program, resources);
                 case 0x2D:
                     return NativeBattleCinematicPresentationCommands.SetGraphicsFlag2D(current, graphics.Flags, value => graphics = graphics with { Flags = value });
                 case 0x53:
@@ -687,6 +695,20 @@ public sealed partial class BattleSession
             return NativeBattleCinematicDraw.Run(profile, current, PrepareLighting, (frame, kind) =>
             {
                 uint selectedDrawHandler = NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "draw_table", kind, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.DrawTable + 4u * kind), 4)));
+                if (selectedDrawHandler == 0xA90AA0)
+                {
+                    var meteor = DrawNativeMeteor223Grid(frame, assets[1].Data.Length, resources, graphics);
+                    graphics = meteor.Graphics;
+                    return meteor.Frame;
+                }
+                if (selectedDrawHandler == 0xA91F20)
+                {
+                    uint manager = CoreDword(frame, 0x27973EC);
+                    uint action = CoreDword(frame, manager + 0xCC);
+                    int count = context.ReadActionBytes(frame, action + 0x10, 1)[0];
+                    uint targets = BinaryPrimitives.ReadUInt32LittleEndian(context.ReadActionBytes(frame, action + 8, 4));
+                    return NativeBattleMeteor223Commands.SpreadResults(frame, count, (current, target) => context.ApplyContact506690(current, unchecked(targets + (uint)(24 * target))));
+                }
                 if (selectedDrawHandler == 0xB4BBE0)
                 {
                     var breakup = DrawNativeControl18Breakup(frame, assets[1].Data.Length, graphics);

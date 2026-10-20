@@ -259,6 +259,14 @@ public sealed partial class BattleSession
             }
             return (memory.SandStorm176 ?? throw new NotSupportedException("Native Sand Storm requires its retained executable packet bank.")).Module.Read(reference.ByteOffset, count);
         }
+        if (reference.Bank == "2476660")
+        {
+            if (reference.Buffer != 0)
+            {
+                throw new InvalidDataException("Native Regen uses one retained physical packet bank.");
+            }
+            return (memory.Regen147 ?? throw new NotSupportedException("Native Regen requires its retained process storage.")).Storage.Read(reference.ByteOffset, count);
+        }
         if (reference.Bank == "230AD0C")
         {
             if (reference.Buffer != 0)

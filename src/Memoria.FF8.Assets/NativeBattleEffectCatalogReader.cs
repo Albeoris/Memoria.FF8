@@ -199,6 +199,26 @@ public sealed partial class GameAssets
             {
                 binding = binding with { Slow123Resources = ReadNativeSlow123Resources() };
             }
+            if (binding.Effect == 125)
+            {
+                binding = binding with { Haste125Resources = ReadNativeHaste125Resources() };
+            }
+            if (binding.Effect == 115)
+            {
+                binding = binding with { Float115Resources = ReadNativeFloat115Resources() };
+            }
+            if (binding.Effect == 121)
+            {
+                binding = binding with { BlindResources = ReadNativeBlindResources() };
+            }
+            if (binding.Effect == 147)
+            {
+                binding = binding with { Regen147Resources = ReadNativeRegen147Resources() };
+            }
+            if (binding.Effect == 280)
+            {
+                binding = binding with { FullCure280Resources = ReadNativeFullCure280Resources() };
+            }
             if (binding.Effect == 41)
             {
                 binding = binding with { Dribble41Resources = ReadNativeDribble41Resources() };

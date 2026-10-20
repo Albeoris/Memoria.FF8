@@ -99,7 +99,7 @@ public static partial class NativeBattleEffectPacketArena
                 }
             }
         }
-        if (acceptedEnd != batch.AllocationBytes)
+        if (acceptedEnd != batch.AllocationBytes && !batch.NativeUnlinkedAllocation)
         {
             throw new InvalidDataException("Native accepted effect packet extent differs from its original final cursor.");
         }

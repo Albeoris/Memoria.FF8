@@ -110,9 +110,9 @@ internal static class NativeBattleEffectFixtureExporter
             }
             if (request.OrdinaryMagicAdmission)
             {
-                if (request.Command != 2 || request.TargetActorIndex != 3 || request.AdmissionProbeMaximumCallbacks == 0)
+                if (request.Command != 2 || request.TargetActorIndex is not (0 or 3) || request.AdmissionProbeMaximumCallbacks == 0)
                 {
-                    throw new InvalidDataException("The ordinary Magic component requires its original command2 row, enemy target and explicit producer budget.");
+                    throw new InvalidDataException("The ordinary Magic component requires its original command2 row, explicit party0/enemy3 target and producer budget.");
                 }
                 actors[0] = actors[0] with { Abilities = [BattleAbility.Attack, BattleAbility.Magic], MagicStocks = [new(request.ActionId, 2)], Magic = 30, NativeStatusResistances = new byte[40] };
                 actors[1] = actors[1] with { MaximumHp = 10000, CurrentHp = 10000, Spirit = 5, NativeStatusResistances = new byte[40] };
@@ -127,6 +127,7 @@ internal static class NativeBattleEffectFixtureExporter
                 ActionDefinitions = BattlePartyProjection.CreateActions(game.ReadNewGameCharacterVitals(), assets.ActionDefinitions),
                 NativeActions = assets.NativeActions.ToArray(),
                 NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+                NativeClockRules = request.OrdinaryMagicAdmission ? assets.ReadNativeClockRules() : null,
                 NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5),
                 NativeVibrationProcess = NativeVibrationProcessState.FromColdProcess(),
                 NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(),
@@ -143,6 +144,7 @@ internal static class NativeBattleEffectFixtureExporter
                 NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([request.Effect]),
                 NativeCommonEffectTexture = game.ReadNativeCommonEffectTexture(),
                 NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
+                NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap,
                 NativeScannedModels = game.ReadNewGameScannedModels(),
                 NativeScanAlwaysShow = (game.ReadNewGameInputConfiguration().Options & 0x100) != 0,
                 NativeActionCameraRules = game.ReadNativeActionCameraRules(),
@@ -177,7 +179,8 @@ internal static class NativeBattleEffectFixtureExporter
             {
                 boundary = "before-ordinary-input";
                 Save(boundary, before);
-                battle.QueueAction("party", "enemy", BattleAbility.Magic, request.ActionId);
+                string targetId = before.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).Id;
+                battle.QueueAction("party", targetId, BattleAbility.Magic, request.ActionId);
                 for (int count = 0; count < request.AdmissionProbeMaximumCallbacks; count++)
                 {
                     BattleSnapshot prior = battle.Capture();

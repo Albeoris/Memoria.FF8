@@ -43,11 +43,8 @@ public static class NativeBattleCinematicResourcesReader
                 vibrationEnd = next;
             }
         }
-        int ownedEnd = checked(vibrationEnd + 2);
-        if (ownedEnd > initialFile0.Length)
-        {
-            throw new InvalidDataException("Native cinematic vibration requires its actual adjacent lookahead bytes.");
-        }
+        int requestedEnd = checked(vibrationEnd + 2);
+        int ownedEnd = Math.Min(requestedEnd, initialFile0.Length);
         ReadOnlySpan<byte> vibrationBytes = initialFile0.AsSpan().Slice(vibrationStart, ownedEnd - vibrationStart);
         int tableBytes = 0;
         for (int offset = 0; offset <= vibrationBytes.Length - 4; offset += 4)
@@ -75,7 +72,36 @@ public static class NativeBattleCinematicResourcesReader
         }
         NativeVibrationBank vibration = new(Convert.ToHexString(SHA256.HashData(initialFile0.AsSpan())), offsets.MoveToImmutable(), vibrationBytes.ToArray().ToImmutableArray());
         vibration.Validate();
+        if (ownedEnd < requestedEnd)
+        {
+            foreach (int offset in vibration.Offsets.Where(offset => offset != 0))
+            {
+                int firstLength = vibration.ReadWord(offset);
+                RequireReachableLookahead(offset + 4, firstLength);
+                RequireReachableLookahead(offset + 4 + firstLength, vibration.ReadWord(offset + 2));
+            }
+        }
         return vibration;
+
+        void RequireReachableLookahead(int start, int length)
+        {
+            for (int cursor = 0; cursor < length; cursor += 2)
+            {
+                int duration = checked(start + cursor + 1);
+                if (duration >= vibration.Bytes.Length)
+                {
+                    throw new InvalidDataException("Native cinematic vibration requires its actual following duration byte.");
+                }
+                if (vibration.Bytes[duration] == 255)
+                {
+                    return;
+                }
+                if (duration + 1 >= vibration.Bytes.Length)
+                {
+                    throw new InvalidDataException("Native cinematic vibration requires its actual adjacent interpolation byte.");
+                }
+            }
+        }
     }
 
     private static NativeBattleCinematicResources ReadStatic(NativeExecutableMemory memory, NativeBattleCinematicProfile profile, NativeVibrationBank? vibration)
