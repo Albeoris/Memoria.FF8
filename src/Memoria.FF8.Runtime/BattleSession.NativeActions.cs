@@ -102,7 +102,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private bool ResolveInstalledNativeAction(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleActionDefinition action)
+    private bool ResolveInstalledNativeAction(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleActionDefinition action, bool queueGraphics = true)
     {
         NativeBattleActionProductionContext context = nativeProductionContext ?? throw new NotSupportedException("Native48E830 requires its actual485610 event/repeat context.");
         NativeBattleActionHeaderPreparation header = BuildNativeActionHeaderPreparation(actor, command, action.NativeAction!);
@@ -121,7 +121,7 @@ public sealed partial class BattleSession
         }
         (nativeActionPackets, _) = nativeActionPackets.Publish(produced.PublishedTargetCount);
         nativeActionScratch = nativeActionScratch with { LastPublishedTargetCountE05 = produced.PublishedTargetCount };
-        if (NativeGraphics is { } graphics)
+        if (queueGraphics && NativeGraphics is { } graphics)
         {
             graphics = QueueNativeDescriptor(graphics, 104, checked(0x1D280C4u + 20u * (uint)headerIndex));
             if (header.Command == 14 && command.NativeLimitCallback == NativeLimitCallback.ShotOpening)
@@ -193,6 +193,12 @@ public sealed partial class BattleSession
                 }
             }
         }
+        bool unavailable = result == 0 && ((modifiers & 4) != 0 || !nativeScriptState.DisableAutomaticTargetReplacement);
+        nativeActionScratch = nativeActionScratch with { TargetUnavailableB0E = unavailable };
+        if (unavailable && (modifiers & 4) == 0)
+        {
+            result = selected;
+        }
         return combatants.Where(candidate => candidate.NativeIndex is >= 0 and < 7 && (result & (1 << candidate.NativeIndex)) != 0).OrderBy(candidate => candidate.NativeIndex).ToArray();
     }
 
@@ -216,6 +222,22 @@ public sealed partial class BattleSession
 
     private void ResolveInstalledNativeHitCore(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native)
     {
+        if (native.Command == 241 && native.ActionId is 65530 or 65532)
+        {
+            recipient.NativeCombatantFlags &= ~0x4000u;
+            MarkNativeContactFlags(1, 0);
+            FinalizeNativeContactPresentation();
+            ApplyDamage(actor, recipient, 0, action.Name, publishDamage: false);
+            if (native.ActionId == 65532)
+            {
+                BeginNativeContactSecondary(actor, 0, false);
+                NativeContactWorking contact = nativeContactWorking!;
+                contact.Secondary = contact.Secondary! with { Flags2 = 1 };
+                ApplyDamage(recipient, actor, 0, action.Name, counterEligible: false, publishDamage: false);
+                EndNativeContactSecondary();
+            }
+            return;
+        }
         if (native.Command == 0 && native.ActionId == 9)
         {
             //48FE20's internal9 default has zero magnitude and DF5 suppresses action-memory/counter production.

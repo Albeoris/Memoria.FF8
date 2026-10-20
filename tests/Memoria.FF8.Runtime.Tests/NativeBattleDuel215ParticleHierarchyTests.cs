@@ -1,7 +1,25 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleDuel215ParticleHierarchyTests
 {
+    [Fact]
+    public void ChildSelectorKeepsTheTwoActualNulBytesReachedByItsThreeGeometryIndices()
+    {
+        NativeBattleModulePoolTask task = new(1, 0, null, 0x69CB10, new byte[648].ToImmutableArray());
+        task = task.WriteWord(18, 4096);
+        NativeBattleDuel215Program program = NativeBattleDuel215Controller.ParticleProgram69CB10(task, new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096));
+        Assert.Equal(3, program.Windows.Length);
+        Assert.Equal('0', program.Windows[0]);
+        Assert.Equal('\0', program.Windows[1]);
+        Assert.Equal('\0', program.Windows[2]);
+        Assert.Throws<IndexOutOfRangeException>(() =>
+        {
+            _ = program.Windows[3];
+        });
+    }
+
     [Theory]
     [InlineData(1024, 2048, -2048)]
     [InlineData(-1024, -2048, 2048)]

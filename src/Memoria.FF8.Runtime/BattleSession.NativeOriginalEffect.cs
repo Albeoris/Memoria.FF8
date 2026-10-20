@@ -253,6 +253,10 @@ public sealed partial class BattleSession
         {
             return EnterNativeRinoa88(graphics);
         }
+        if (effect.Binding.Entry == 0x6F9CF0)
+        {
+            return EnterNativeRinoa89(graphics, effect.Binding.Rinoa89Resources ?? throw new NotSupportedException("Native Wishing Star requires its original resources."));
+        }
         if (effect.Binding.Entry == 0x5AA3E0)
         {
             return EnterNativeShot198(graphics);

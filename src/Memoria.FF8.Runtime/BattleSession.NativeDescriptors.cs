@@ -303,6 +303,7 @@ public sealed partial class BattleSession
         return callback switch
         {
             0 => graphics,
+            0x4852B0 => RunNativeDuelSelection4852B0(graphics),
             0x47DD90 => ResetNativeActionPacketCounts(graphics),
             0x47DDA0 or 0x47DE70 or 0x47E120 => RunNativeDescriptorActionCallback(graphics, callback),
             0x48F350 or 0x48F3F0 => RunNativeRenzokukenFinisherCallback(graphics, callback),

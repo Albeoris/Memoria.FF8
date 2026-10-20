@@ -5,7 +5,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
-public sealed class NativeBattleDuel112CastTests
+public sealed partial class NativeBattleDuel112CastTests
 {
     [Fact]
     public void Prepare_named_cold_Duel_opening_standalone_migration()
@@ -113,8 +113,13 @@ public sealed class NativeBattleDuel112CastTests
         RunOriginalDuelEffect(112, duelCommandRoute);
     }
 
-    internal static void RunOriginalDuelEffect(ushort effectId, bool duelCommandRoute)
+    internal static void RunOriginalDuelEffect(ushort effectId, bool duelCommandRoute, byte? requiredBasicAction = null)
     {
+        if (requiredBasicAction is byte basicAction)
+        {
+            Assert.InRange(basicAction, (byte)0, (byte)5);
+            Assert.True(duelCommandRoute);
+        }
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select the installed original game resources.");
         using GameAssets game = new(directory!);
@@ -137,11 +142,15 @@ public sealed class NativeBattleDuel112CastTests
         Directory.CreateDirectory(output);
         Console.WriteLine("Duel evidence: " + output);
         BattleSnapshot before = battle.Capture();
-        bool queuedChoice = false;
+        BattleNativeDuelState? savedDuel = namedSource?.NativeLimits.SingleOrDefault(owner => owner.ActorId == "party")?.Duel;
+        bool queuedChoice = savedDuel is { Phase: BattleNativeDuelPhase.Finisher } && NativeBattleDuelRules.ActionId(definition.Combatants[0].NativeLimit!, savedDuel.MoveSetId) == action.ActionId;
         bool selected = false;
         bool drawn = false;
         bool midpoint = false;
         int duelInputs = 0;
+        bool basicQueued = false;
+        bool basicObserved = false;
+        bool basicMidpoint = false;
         try
         {
             if (namedSource is null)
@@ -180,10 +189,29 @@ public sealed class NativeBattleDuel112CastTests
                     }
                     Assert.Equal(choice.Finisher ? BattleNativeDuelPhase.Finisher : BattleNativeDuelPhase.AwaitingEffect, battle.GetNativeDuel("party")!.Phase);
                     queuedChoice = choice.ActionId == action.ActionId;
+                    if (requiredBasicAction == choice.ActionId && !choice.Finisher)
+                    {
+                        basicQueued = true;
+                    }
                     File.WriteAllText(Path.Combine(output, "duel-input-" + duelInputs + ".json"), JsonSerializer.Serialize(choice));
                     CompareNext("duel-input-" + duelInputs++);
                 }
                 NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+                if (basicQueued && !basicMidpoint && graphics.OriginalEffect is { Binding.Effect: 274, ReturnedDescriptor: > 0 } opening)
+                {
+                    NativeBattleEffectTaskPool? targetPool = opening.Pools.SingleOrDefault(pool => pool.DescriptorAddress == 0x25084A8);
+                    NativeBattleModulePoolTask? target = targetPool?.Slots.Single();
+                    if (target is not null && (target.Flags & 1) != 0 && target.ReadByte(15) == requiredBasicAction + 2 && target.ReadWord(12) > 0)
+                    {
+                        basicObserved = true;
+                        if (target.ReadWord(12) >= Math.Max(1, target.ReadByte(17) / 2))
+                        {
+                            Assert.NotEmpty(graphics.PrimitiveFrame!.LastCommands);
+                            CompareNext("basic-midpoint-" + requiredBasicAction);
+                            basicMidpoint = true;
+                        }
+                    }
+                }
                 bool active = graphics.OriginalEffect is { ReturnedDescriptor: > 0 } selectedEffect && selectedEffect.Binding.Effect == effectId && (!duelCommandRoute || queuedChoice);
                 if (active)
                 {
@@ -196,7 +224,8 @@ public sealed class NativeBattleDuel112CastTests
                         byte[] backgroundPixels = new BattleScenePresentation(assets, definition, true).Render(background, 320, 224).ToArray();
                         drawn = Enumerable.Range(0, pixels.Length / 4).Any(index => !pixels.AsSpan(index * 4, 3).SequenceEqual(backgroundPixels.AsSpan(index * 4, 3)));
                     }
-                    if (!midpoint && graphics.OriginalEffect!.Pools.Length == (effectId == 112 ? 5 : 3) && graphics.OriginalEffect.Pools[1].Slots[0].ReadWord(12) >= 70)
+                    int expectedPools = effectId switch { 112 or 216 => 5, 212 => 4, 215 => 3, _ => throw new NotSupportedException("The selected Duel finisher has no original task-bank contract in this fixture.") };
+                    if (!midpoint && graphics.OriginalEffect!.Pools.Length == expectedPools && graphics.OriginalEffect.Pools[1].Slots[0].ReadWord(12) >= 70)
                     {
                         CompareNext("midpoint");
                         midpoint = true;
@@ -206,10 +235,12 @@ public sealed class NativeBattleDuel112CastTests
                 {
                     Assert.True(drawn);
                     Assert.True(midpoint);
+                    Assert.True(requiredBasicAction is null || basicObserved);
+                    Assert.True(requiredBasicAction is null || basicMidpoint);
                     Assert.Contains(battle.Events, entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy");
                     battle.SetMode(BattleAtbMode.Normal);
                     CompareNext("completed");
-                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", duelCommandRoute, duelInputs, queuedChoice, selected, drawn, midpoint, battle.Frame, NativeCallback = battle.NativeGraphics!.Callback, Mode = battle.Mode.ToString() }));
+                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", duelCommandRoute, requiredBasicAction, basicQueued, basicObserved, basicMidpoint, duelInputs, queuedChoice, selected, drawn, midpoint, battle.Frame, NativeCallback = battle.NativeGraphics!.Callback, Mode = battle.Mode.ToString() }));
                     return;
                 }
             }
@@ -219,7 +250,7 @@ public sealed class NativeBattleDuel112CastTests
         {
             NativeBattleRestorationPresentationTests.Publish(output, "before-boundary", before, null);
             NativeBattleRestorationPresentationTests.Publish(output, "failed-live", battle.Capture(), null);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", duelCommandRoute, duelInputs, queuedChoice, selected, drawn, midpoint, before.Frame, NativeCallback = before.NativeGraphics?.Callback, Error = error.ToString() }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", duelCommandRoute, requiredBasicAction, basicQueued, basicObserved, basicMidpoint, duelInputs, queuedChoice, selected, drawn, midpoint, before.Frame, NativeCallback = before.NativeGraphics?.Callback, Error = error.ToString() }));
             throw;
         }
 
@@ -227,6 +258,7 @@ public sealed class NativeBattleDuel112CastTests
         {
             BattleNativeLimitDefinition rules = definition.Combatants[0].NativeLimit!;
             BattleNativeDuelState state = battle.GetNativeDuel("party")!;
+            ushort desiredAction = requiredBasicAction is byte required && !basicQueued ? required : action.ActionId;
             Queue<(byte MoveSet, byte First)> pending = new();
             HashSet<byte> visited = [state.MoveSetId];
             pending.Enqueue((state.MoveSetId, byte.MaxValue));
@@ -240,7 +272,7 @@ public sealed class NativeBattleDuel112CastTests
                         continue;
                     }
                     byte first = current.First == byte.MaxValue ? next : current.First;
-                    if (NativeBattleDuelRules.ActionId(rules, next) == action.ActionId)
+                    if (NativeBattleDuelRules.ActionId(rules, next) == desiredAction)
                     {
                         //Manual native input compares button edges even when the learned flag hides the choice label.
                         return battle.GetNativeDuelChoices("party").Single(choice => choice.MoveSetId == first);

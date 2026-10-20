@@ -11,6 +11,10 @@ public static class NativeBattleDuel215ResourcesReader
     public static NativeBattleDuel215Resources Read(byte[] executable, NativeBattleEffectHeapAllocation initialTim, ImmutableArray<NativeBattleEffectFileAsset> files)
     {
         NativeExecutableMemory memory = new(executable);
+        if (!memory.Read(0xFE0FB4, 3).AsSpan().SequenceEqual(new byte[] { 0x30, 0, 0 }))
+        {
+            throw new InvalidDataException("Native Duel215 child selectors differ from their original three-byte span.");
+        }
         NativeBattleDuel215Resources result = new(memory.Read(NativeBattleDuel215Resources.Address, checked((int)(NativeBattleDuel215Resources.EndAddress - NativeBattleDuel215Resources.Address))).ToImmutableArray(), memory.ReadLoader(0x2508938, 0x74).ToImmutableArray(), initialTim, files);
         result.Validate();
         return result;

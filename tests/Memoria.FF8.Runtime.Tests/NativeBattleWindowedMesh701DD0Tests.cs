@@ -53,9 +53,39 @@ public sealed class NativeBattleWindowedMesh701DD0Tests
         Assert.Equal(0u, U32(result.Staging, 64));
     }
 
-    private static NativeBattleWindowedMesh701DD0Result Draw(NativeBattleFileStaging staging, NativeBattleEsunaMeshContext context, bool gteRejected = false, bool reversed = false, bool zeroArea = false)
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Gt3RetainsRawRejectedSourceAndPublishesAcceptedGouraudWindowStores(bool rejected)
     {
-        ImmutableArray<byte> mesh = Mesh();
+        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0x1A77238, Enumerable.Repeat((byte)0xA5, 88).ToArray());
+        NativeBattleWindowedMesh701DD0Result result = Draw(staging, Context() with { Flags = 0x2002, UOffset = 10, VOffset = 10 }, gteRejected: rejected, gouraud: true);
+        if (rejected)
+        {
+            NativeBattleGfGeometryAttempt attempt = Assert.Single(result.Batch.Attempts);
+            Assert.Null(attempt.Primitive);
+            Assert.Equal(0, result.Batch.AllocationBytes);
+            Assert.Equal(0x34112233u, BinaryPrimitives.ReadUInt32LittleEndian(attempt.Data.AsSpan().Slice(4)));
+            Assert.Equal(NativeBattleGfPacketByteState.Untouched, attempt.WriteMask[16]);
+            Assert.Equal(NativeBattleGfPacketByteState.Known, attempt.WriteMask[36]);
+        }
+        else
+        {
+            Assert.Equal(64, result.Batch.AllocationBytes);
+            NativeBattleGeometryPrimitive primitive = result.Batch.Attempts[2].Primitive!;
+            Assert.Equal(0x36112233u, primitive.Words[1]);
+            Assert.Equal(0x00445566u, primitive.Words[4]);
+            Assert.Equal(0x00778899u, primitive.Words[7]);
+            Assert.Equal(0x12349484u, primitive.Words[3]);
+            Assert.Equal(0x56788494u, primitive.Words[6]);
+            Assert.Equal(0x0000949Eu, primitive.Words[9]);
+            Assert.Equal(0x115005Cu, U32(result.Staging, 52));
+        }
+    }
+
+    private static NativeBattleWindowedMesh701DD0Result Draw(NativeBattleFileStaging staging, NativeBattleEsunaMeshContext context, bool gteRejected = false, bool reversed = false, bool zeroArea = false, bool gouraud = false)
+    {
+        ImmutableArray<byte> mesh = Mesh(gouraud);
         NativeBattleVector Vertex(int offset)
         {
             int corner = offset / 8;
@@ -70,8 +100,25 @@ public sealed class NativeBattleWindowedMesh701DD0Tests
 
     private static NativeBattleEsunaMeshContext Context() => new(0x2001, null, null, -20, 0, 0, new(0, 0, 256, 256), new(0, 0, 128, 128), 17, 2);
     private static uint U32(NativeBattleFileStaging staging, uint offset) => BinaryPrimitives.ReadUInt32LittleEndian(staging.Read(0x1A77238 + offset, 4));
-    private static ImmutableArray<byte> Mesh()
+    private static ImmutableArray<byte> Mesh(bool gouraud)
     {
+        if (gouraud)
+        {
+            byte[] triangle = new byte[92];
+            BinaryPrimitives.WriteUInt32LittleEndian(triangle, 32);
+            BinaryPrimitives.WriteUInt32LittleEndian(triangle.AsSpan(4), 3);
+            BinaryPrimitives.WriteUInt32LittleEndian(triangle.AsSpan(56), 1);
+            BinaryPrimitives.WriteUInt32LittleEndian(triangle.AsSpan(60), 0x34112233);
+            BinaryPrimitives.WriteUInt16LittleEndian(triangle.AsSpan(64), 0);
+            BinaryPrimitives.WriteUInt16LittleEndian(triangle.AsSpan(66), 2);
+            BinaryPrimitives.WriteUInt16LittleEndian(triangle.AsSpan(68), 4);
+            BinaryPrimitives.WriteUInt16LittleEndian(triangle.AsSpan(70), 0x0A14);
+            BinaryPrimitives.WriteUInt32LittleEndian(triangle.AsSpan(72), 0x12340AFA);
+            BinaryPrimitives.WriteUInt32LittleEndian(triangle.AsSpan(76), 0x5678FA0A);
+            BinaryPrimitives.WriteUInt32LittleEndian(triangle.AsSpan(80), 0x00445566);
+            BinaryPrimitives.WriteUInt32LittleEndian(triangle.AsSpan(84), 0x00778899);
+            return triangle.ToImmutableArray();
+        }
         byte[] mesh = new byte[84];
         BinaryPrimitives.WriteUInt32LittleEndian(mesh, 32);
         BinaryPrimitives.WriteUInt32LittleEndian(mesh.AsSpan(4), 3);

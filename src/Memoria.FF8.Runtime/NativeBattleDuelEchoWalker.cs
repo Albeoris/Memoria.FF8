@@ -7,6 +7,16 @@ public static class NativeBattleDuelEchoWalker
 {
     public static NativeBattleModulePoolTask Draw68A990(NativeBattleModulePoolTask context, int offset, uint sectionAddress, Func<int, int, byte[]> readSection, NativeBattleModulePoolTask echo, int echoOffset, int history, NativeBattleCameraProjection projection, Action<int, ImmutableArray<byte>> writeCpu, Func<int, (byte[] Data, bool[] Known)> readCpu, Action<NativeBattleGfGeometryBatch> submit, int tableBaseBucket, byte depthShift, short zsf3, short zsf4, Action<NativeBattleModulePoolTask, int, int>? observeContext = null)
     {
+        return Draw(context, offset, sectionAddress, readSection, echo, echoOffset, history, projection, writeCpu, readCpu, submit, tableBaseBucket, depthShift, zsf3, zsf4, observeContext, 512, 256);
+    }
+
+    public static NativeBattleModulePoolTask Draw697700(NativeBattleModulePoolTask context, int offset, uint sectionAddress, Func<int, int, byte[]> readSection, NativeBattleModulePoolTask echo, int echoOffset, int history, NativeBattleCameraProjection projection, Action<int, ImmutableArray<byte>> writeCpu, Func<int, (byte[] Data, bool[] Known)> readCpu, Action<NativeBattleGfGeometryBatch> submit, int tableBaseBucket, byte depthShift, short zsf3, short zsf4, Action<NativeBattleModulePoolTask, int, int>? observeContext = null)
+    {
+        return Draw(context, offset, sectionAddress, readSection, echo, echoOffset, history, projection, writeCpu, readCpu, submit, tableBaseBucket, depthShift, zsf3, zsf4, observeContext, 1152, 576);
+    }
+
+    internal static NativeBattleModulePoolTask Draw(NativeBattleModulePoolTask context, int offset, uint sectionAddress, Func<int, int, byte[]> readSection, NativeBattleModulePoolTask echo, int echoOffset, int history, NativeBattleCameraProjection projection, Action<int, ImmutableArray<byte>> writeCpu, Func<int, (byte[] Data, bool[] Known)> readCpu, Action<NativeBattleGfGeometryBatch> submit, int tableBaseBucket, byte depthShift, short zsf3, short zsf4, Action<NativeBattleModulePoolTask, int, int>? observeContext, int historyStride, int preparedOffset)
+    {
         int count = Int(0);
         if (count > 256)
         {
@@ -46,7 +56,7 @@ public static class NativeBattleDuelEchoWalker
                     }
                     continue;
                 }
-                int matrixAddress = checked(NativeBattleDuelEcho.ReadHistoryOffset(echo, echoOffset, history) + 256 + selected * 32);
+                int matrixAddress = checked(NativeBattleDuelEcho.ReadHistoryOffset(echo, echoOffset, history, historyStride) + preparedOffset + selected * 32);
                 NativeBattleActionMatrix matrix = Matrix(echo, matrixAddress);
                 NativeBattleDuelEchoProjectionResult projected = NativeBattleDuelEchoProjection.Project6A2A90(context, offset, Bytes(cursor, checked(2 + vertices * 6)).ToImmutableArray(), matrix, projection, destination, writeCpu, observeContext);
                 context = projected.Context;

@@ -8,6 +8,12 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleDuel212CastTests
 {
     [Fact]
+    public void Installed_Burning_Rave_uses_the_original_Duel_command_route()
+    {
+        NativeBattleDuel112CastTests.RunOriginalDuelEffect(212, true);
+    }
+
+    [Fact]
     public void Capture_named_Burning_Rave_standalone_at_target_phase()
     {
         string? input = Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_SNAPSHOT");

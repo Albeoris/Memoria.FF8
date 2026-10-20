@@ -79,10 +79,7 @@ public sealed partial class BattleSession
     {
         int header = command.NativeHeaderIndex ?? throw new InvalidDataException("Native queued presentation lacks its factual header.");
         ValidateNativeHeaderReference(GetActor(command.ActorId), header);
-        if (header >= nativeActionPackets.ActionCount)
-        {
-            throw new InvalidDataException("Native queued presentation refers to an already released event header.");
-        }
+        //47DD90 resets only the counts; a queued104 still owns its physical prepared slot.
     }
 
     private BattleAttackCommand[] CaptureNativeQueuedEventPresentations()
@@ -109,7 +106,7 @@ public sealed partial class BattleSession
 
     private BattleActionPresentation? CaptureNativeEventPresentation()
     {
-        if (ActiveAction is not { NativeHeaderIndex: int headerIndex } action || headerIndex >= nativeActionPackets.ActionCount && nativeActionPackets.ActiveHeaderIndex != headerIndex)
+        if (ActiveAction is not { NativeHeaderIndex: int headerIndex } action)
         {
             return null;
         }

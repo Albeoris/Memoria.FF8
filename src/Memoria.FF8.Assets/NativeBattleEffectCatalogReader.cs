@@ -404,6 +404,15 @@ public sealed partial class GameAssets
                 binding = binding with { Shot198Resources = ReadNativeShot198Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 89)
+            {
+                if (binding.Entry != 0x6F9CF0 || binding.Initializer != 0x5755E0 || binding.InitializerIsRet != true || binding.InitializerResource is not null || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Native Wishing Star differs from its original entry and empty initializer.");
+                }
+                binding = binding with { Rinoa89Resources = ReadNativeRinoa89Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 197)
             {
                 binding = binding with { Shot197Resources = ReadNativeShot197Resources() };

@@ -510,7 +510,17 @@ public sealed partial class BattleSession
                     Log("Windup", actor.Id, target.Id, 0, $"{actor.Name}: {command.NativeAction?.Name ?? ActionName(command.Ability, command.ActionId)} → {target.Name}.");
                     if (command.NativeHeaderIndex is not null && command.NativeQueuedCommand is not (0 or 247) && command.NativeAiCallbackStage is null && command.NativePlayerReaction is null && nativeActionScratch.ComponentCompletion is null)
                     {
-                        QueueNativeActionClockCompletion(0x47DE70);
+                        if (NativeGraphics is { } duelGraphics && nativeDuelProcesses.TryGetValue(actor.Id, out BattleNativeDuelState? duel) && duel.Selection1D28DEF is not null)
+                        {
+                            if (command.NativeDuel is not null)
+                            {
+                                NativeGraphics = QueueNativeDescriptor(duelGraphics, 10, 0x4852B0);
+                            }
+                        }
+                        else
+                        {
+                            QueueNativeActionClockCompletion(0x47DE70);
+                        }
                     }
                     PublishNativeSequenceMessages(actor, command.NativeSequence, 0);
                     return;
@@ -1200,6 +1210,7 @@ public sealed partial class BattleSession
         nativeLastAllocatedIndex = snapshot.NativeLastAllocatedIndex;
         ValidateNativeSavedBattleFlagEffects();
         RestoreNativeLimits(snapshot.NativeLimits);
+        ValidateNativeDuelControlOwners();
         RestoreNativeBattleUiRandom(snapshot.NativeBattleUiRandom);
         RestoreNativeGuardianBoost(snapshot.NativeGuardianBoost);
         RestoreNativeScannedModels(snapshot.NativeScannedModels);
@@ -1234,7 +1245,7 @@ public sealed partial class BattleSession
         }
         if (nativeAction is not null)
         {
-            BattleNativeAction installed = FindNativeCommandAction(actor, nativeAction.Command, nativeAction.ActionId, nativeAction.CrisisLevel);
+            BattleNativeAction installed = nativeAction is { Command: 241, ActionId: 65530 or 65532 } ? ValidateNativeDuelControl241(actor, nativeHeaderIndex, nativeAction) : FindNativeCommandAction(actor, nativeAction.Command, nativeAction.ActionId, nativeAction.CrisisLevel);
             if (!System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(installed), System.Text.Json.JsonSerializer.SerializeToElement(nativeAction)))
             {
                 throw new InvalidDataException("Queued native action differs from its installed kernel contract.");

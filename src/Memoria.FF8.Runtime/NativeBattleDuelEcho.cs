@@ -8,7 +8,7 @@ public static class NativeBattleDuelEcho
 {
     public static NativeBattleModulePoolTask Initialize6A1230(NativeBattleModulePoolTask task, int offset, ImmutableArray<byte> bones)
     {
-        if (bones.IsDefault || bones.Length > 16 || bones.Any(bone => bone >= 128) || bones.Distinct().Count() != bones.Length)
+        if (bones.IsDefault || bones.Length > 128 || bones.Any(bone => bone >= 128) || bones.Distinct().Count() != bones.Length)
         {
             throw new InvalidDataException("Native Duel echo requires its original bounded bone selectors.");
         }
@@ -23,6 +23,16 @@ public static class NativeBattleDuelEcho
 
     public static NativeBattleModulePoolTask Capture68ADF0(NativeBattleModulePoolTask task, int offset, int boneCount, Func<int, (byte[] Data, bool[] Known)> readCurrentMatrix32)
     {
+        return Capture(task, offset, boneCount, readCurrentMatrix32, 512);
+    }
+
+    public static NativeBattleModulePoolTask Capture697850(NativeBattleModulePoolTask task, int offset, int boneCount, Func<int, (byte[] Data, bool[] Known)> readCurrentMatrix32)
+    {
+        return Capture(task, offset, boneCount, readCurrentMatrix32, 1152);
+    }
+
+    private static NativeBattleModulePoolTask Capture(NativeBattleModulePoolTask task, int offset, int boneCount, Func<int, (byte[] Data, bool[] Known)> readCurrentMatrix32, int historyStride)
+    {
         if ((uint)boneCount > 128)
         {
             throw new InvalidDataException("Native Duel echo requires its actual skeleton count.");
@@ -33,7 +43,7 @@ public static class NativeBattleDuelEcho
         task = task.WriteByte(offset + 2, next >= 2 ? (byte)0 : next);
         byte count = unchecked((byte)(task.ReadByte(offset + 1) + 1));
         task = task.WriteByte(offset + 1, count > 2 ? (byte)2 : count);
-        int bank = checked(offset + 136 + (ring << 9));
+        int bank = checked(offset + 136 + ring * historyStride);
         for (int bone = 0; bone < boneCount; bone++)
         {
             int selected = unchecked((sbyte)task.ReadByte(offset + 5 + bone));
@@ -70,11 +80,16 @@ public static class NativeBattleDuelEcho
 
     public static int ReadHistoryOffset(NativeBattleModulePoolTask task, int offset, int history)
     {
+        return ReadHistoryOffset(task, offset, history, 512);
+    }
+
+    internal static int ReadHistoryOffset(NativeBattleModulePoolTask task, int offset, int history, int historyStride)
+    {
         if (history < 0 || history >= task.ReadByte(offset + 1))
         {
             throw new InvalidDataException("Native Duel echo history leaves its actual retained ring count.");
         }
-        return checked(offset + 136 + 512 * ((task.ReadByte(offset + 3) - history) & 1));
+        return checked(offset + 136 + historyStride * ((task.ReadByte(offset + 3) - history) & 1));
     }
 
     public static NativeBattleActionMatrix ReadHistoryMatrix(NativeBattleModulePoolTask task, int offset, int history, int bone)

@@ -8,6 +8,55 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleDuel215CastTests
 {
     [Fact]
+    public void Capture_named_My_Final_Heaven_standalone_at_target_phase()
+    {
+        string? input = Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_SNAPSHOT");
+        string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_OUTPUT");
+        Assert.SkipUnless(input is not null && File.Exists(input) && output is not null, "Select the standalone input and diagnostic output directory.");
+        int phase = int.Parse(Environment.GetEnvironmentVariable("MEMORIA_FF8_DUEL_TARGET_PHASE") ?? "160");
+        Assert.InRange(phase, 1, 279);
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSnapshot source = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(input!))!;
+        BattleSession battle = BattleSession.Restore(source);
+        battle.AttachNativeEffectResourceResolver(effectId => game.ReadNativeEffectCatalogForEffects([effectId])[effectId - 1]);
+        BattleScenePresentation scene = new(assets, source.Definition, true);
+        Directory.CreateDirectory(output!);
+        BattleSnapshot before = source;
+        try
+        {
+            for (int callback = 0; callback < 512; callback++)
+            {
+                if (battle.NativeGraphics?.OriginalEffect is { Binding.Effect: 215, ReturnedDescriptor: > 0, Pools.Length: 3 } effect && effect.Pools[1].Slots[0].ReadWord(12) >= phase)
+                {
+                    BattleSnapshot selected = battle.Capture();
+                    NativeBattleRestorationPresentationTests.Publish(output!, "selected", selected, scene.Render(battle, 320, 224).ToArray());
+                    BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(Path.Combine(output!, "selected.battle.json")))!);
+                    clone.AttachNativeEffectResourceResolver(effectId => game.ReadNativeEffectCatalogForEffects([effectId])[effectId - 1]);
+                    Assert.Equal(JsonSerializer.Serialize(selected), JsonSerializer.Serialize(clone.Capture()));
+                    before = selected;
+                    battle.Tick();
+                    clone.Tick();
+                    Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
+                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition, true).Render(clone, 320, 224).ToArray());
+                    NativeBattleRestorationPresentationTests.Publish(output!, "selected-next", battle.Capture(), scene.Render(battle, 320, 224).ToArray());
+                    File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "passed", Input = input, TargetPhase = phase, ActualPhase = selected.NativeGraphics!.OriginalEffect!.Pools[1].Slots[0].ReadWord(12), selected.Frame, selected.NativeGraphics.Callback }));
+                    return;
+                }
+                before = battle.Capture();
+                battle.Tick();
+            }
+            Assert.Fail("The selected standalone did not reach the requested active My Final Heaven target phase.");
+        }
+        catch
+        {
+            NativeBattleRestorationPresentationTests.Publish(output!, "before-boundary", before, null);
+            NativeBattleRestorationPresentationTests.Publish(output!, "failed-live", battle.Capture(), null);
+            throw;
+        }
+    }
+
+    [Fact]
     public void Installed_My_Final_Heaven_uses_the_original_Duel_command_route()
     {
         NativeBattleDuel112CastTests.RunOriginalDuelEffect(215, true);

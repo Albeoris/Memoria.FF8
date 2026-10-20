@@ -13,6 +13,12 @@ public static partial class NativeBattleDuel215Controller
         return new([unchecked((short)cosine), 0, unchecked((short)-sine), 0, scale, 0, unchecked((short)sine), 0, unchecked((short)cosine)], 0, 0, 0, 4096);
     }
 
+    public static NativeBattleDuel215Program ParticleProgram69CB10(NativeBattleModulePoolTask task, NativeBattleActionMatrix view)
+    {
+        NativeBattleActionMatrix local = ParticleBasis6ED1E0(unchecked((short)task.ReadWord(20)), unchecked((short)task.ReadWord(18))) with { X = unchecked((short)task.ReadWord(12)), Y = unchecked((short)task.ReadWord(14)), Z = unchecked((short)task.ReadWord(16)) };
+        return new(NativeBattleGfMatrices.Compose56C2F0(view, local), new(0, 0, 0), "0\0\0", -128, 0, 0, Arena + 63768);
+    }
+
     public static NativeBattleDuel215ParticleHierarchyStep Advance69CB10(NativeBattleDuel215Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleLogicalOrdering ordering)
     {
         NativeBattleModulePoolTask task = pool.Slots[slot];
@@ -29,8 +35,7 @@ public static partial class NativeBattleDuel215Controller
             _ => throw new NotSupportedException("Native Duel215 particle hierarchy selected an unsupported original program.")
         };
         NativeBattleGfAnimationSource source = new(address, resources.Read(address, checked((int)(NativeBattleDuel215Resources.EndAddress - address))));
-        NativeBattleActionMatrix local = ParticleBasis6ED1E0(unchecked((short)task.ReadWord(20)), unchecked((short)task.ReadWord(18))) with { X = unchecked((short)task.ReadWord(12)), Y = unchecked((short)task.ReadWord(14)), Z = unchecked((short)task.ReadWord(16)) };
-        NativeBattleDuel215Program context = new(NativeBattleGfMatrices.Compose56C2F0(view, local), new(0, 0, 0), "0", -128, 0, 0, Arena + 63768);
+        NativeBattleDuel215Program context = ParticleProgram69CB10(task, view);
         NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(24, size).ToImmutableArray());
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, node) =>
         {

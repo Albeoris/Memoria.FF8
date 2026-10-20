@@ -7,6 +7,8 @@ public sealed record NativeBattleActionScratch
 {
     [JsonRequired]
     public bool? DeferredEffectsE00 { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? TargetUnavailableB0E { get; init; }
     [JsonRequired]
     public bool? GuardianFormulaE1E { get; init; }
     [JsonRequired]

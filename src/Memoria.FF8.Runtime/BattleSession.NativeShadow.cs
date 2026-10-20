@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState SubmitNativeShadowPackets5088A0(NativeBattleGraphicsState graphics, NativeBattleGraphicsModel model, NativeBattleCameraProjection projection, int tableBaseBucket, bool ordinaryModel, byte depthShift = 16)
+    private NativeBattleGraphicsState SubmitNativeShadowPackets5088A0(NativeBattleGraphicsState graphics, NativeBattleGraphicsModel model, NativeBattleCameraProjection projection, int tableBaseBucket, bool ordinaryModel, byte depthShift = 16, uint? privateOrderingAddress = null)
     {
         if (this.definition.NativeGraphics?.PrimitiveTables is null || (model.Flags0 & 0x20) != 0)
         {
@@ -32,6 +32,13 @@ public sealed partial class BattleSession
         NativeBattlePrimitiveProcess packets = memory.PrimitiveProcess ?? throw new NotSupportedException("Native5088A0 requires its actual common packet cursor.");
         NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native5088A0 requires its initialized OT.");
         NativeBattleGfGeometryBatch batch = NativeBattleShadowPackets.EmitBatch5088A0(vertices, model.Color44 ?? throw new NotSupportedException("Native5088A0 requires modelDWORD44."), gouraud, tableBaseBucket, depthShift);
+        if (privateOrderingAddress is uint table)
+        {
+            NativeBattleRinoa89Frame capture = new(memory, graphics.OriginalEffect ?? throw new NotSupportedException("Native private shadow capture requires its actual effect owner."), NativeFileStaging ?? throw new NotSupportedException("Native private shadow capture requires its actual staging owner."), nativeCrtRandom ?? throw new NotSupportedException("Native private capture requires its actual CRT owner."));
+            NativeBattleRinoa89CaptureStep captured = NativeBattleRinoa89Capture.AppendCommon(capture, frame.Pending, batch, table);
+            NativeEffectMemory = captured.Frame.Memory;
+            return graphics with { PrimitiveFrame = frame with { Pending = captured.Ordering } };
+        }
         NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(packets, frame.Pending, batch);
         NativeEffectMemory = memory with { PrimitiveProcess = written.Process };
         return graphics with { PrimitiveFrame = frame with { Pending = written.Ordering } };

@@ -28,18 +28,13 @@ public sealed partial class BattleSession
             staging = known[offset] ? staging.Write(address + 64 + (uint)offset, bytes.AsSpan(offset, 1)) : staging.MarkUnknown(address + 64 + (uint)offset, 1);
         }
         NativeFileStaging = staging;
-        graphics = DrawNativeEffectModel5099D0(graphics, index, matrix, projection, shadowTableBase, shadowDepthShift, bodyDepthShift);
+        graphics = DrawNativeEffectModel5099D0(graphics, index, matrix, projection, shadowTableBase, shadowDepthShift, bodyDepthShift, contextMaskAddress: address + 80);
         staging = NativeFileStaging ?? throw new InvalidDataException("Native effect model context lost its physical owner during drawing.");
-        model = graphics.Models[index];
-        if (model.LinkedStagedResourceRow is not null || model.LinkedTextureResourceIndex is not null)
-        {
-            staging = staging.Write(address + 80, BitConverter.GetBytes(uint.MaxValue));
-        }
         NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(staging, 92);
         return graphics;
     }
 
-    private NativeBattleGraphicsState DrawNativeEffectModel5099D0(NativeBattleGraphicsState graphics, int index, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int shadowTableBase, byte shadowDepthShift, byte bodyDepthShift = 4)
+    private NativeBattleGraphicsState DrawNativeEffectModel5099D0(NativeBattleGraphicsState graphics, int index, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int shadowTableBase, byte shadowDepthShift, byte bodyDepthShift = 4, uint? privateOrderingAddress = null, short? depthCue = null, uint? contextMaskAddress = null)
     {
         NativeBattleGraphicsModel model = graphics.Models[index];
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
@@ -47,7 +42,7 @@ public sealed partial class BattleSession
         NativeBattleGraphicsDefinition rules = definition.NativeGraphics ?? throw new NotSupportedException("Native effect body drawing requires its current graphics definition.");
         NativeBattlePrimitiveCapabilities capabilities = rules.PrimitiveCapabilities ?? throw new NotSupportedException("Native effect body drawing requires its actual renderer capabilities.");
         NativeBattleSummonColors colors = rules.Rules.SummonColors ?? throw new NotSupportedException("Native effect body drawing requires its authenticated color arithmetic.");
-        graphics = SubmitNativeShadowPackets5088A0(graphics, model, projection, shadowTableBase, false, shadowDepthShift);
+        graphics = SubmitNativeShadowPackets5088A0(graphics, model, projection, shadowTableBase, false, shadowDepthShift, privateOrderingAddress);
         model = NativeBattleBodyBoneMatrices.Compose5095B0(model, matrix);
         graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
         DrawSource(GeometryPointer(model.ActiveResourceRow100, model.ActiveStagedResourceRow100), NativeBattleBodyBoneMatrices.Require(model, source), source.BoneCount, model.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native effect body drawing requires its current object mask."));
@@ -55,6 +50,10 @@ public sealed partial class BattleSession
         graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
         if (model.LinkedStagedResourceRow is not null || model.LinkedTextureResourceIndex is not null)
         {
+            if (contextMaskAddress is uint maskAddress)
+            {
+                NativeFileStaging = (NativeFileStaging ?? throw new NotSupportedException("Native linked body drawing requires its actual physical context.")).Write(maskAddress, BitConverter.GetBytes(uint.MaxValue));
+            }
             NativeBattlePoseSource linkedSource = resource.LinkedPoseSource ?? throw new NotSupportedException("Native effect body drawing requires its actual independent linked pose source.");
             NativeBattleBodyBoneMatrices linkedBones = model.CurrentLinkedBoneMatrices ?? throw new NotSupportedException("Native effect body drawing requires its actually published linked matrices.");
             _ = NativeBattleBodyBoneMatrices.Require(model with { CurrentBodyBoneMatrices = linkedBones }, linkedSource);
@@ -86,15 +85,26 @@ public sealed partial class BattleSession
             int capacity = checked((cpu.ScratchMaximum ?? throw new NotSupportedException("Native effect body drawing requires its actual loaded projected workspace maximum.")) * 8);
             uint scratch = checked(0x196B018u - (uint)capacity);
             (byte[] retained, _) = staging.ReadSnapshot(scratch, capacity);
-            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, bones, projection, color, mask, retained.ToImmutableArray(), colors, bodyDepthShift, new(0, 0, 320, 216), 17, null);
+            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, bones, projection, color, mask, retained.ToImmutableArray(), colors, bodyDepthShift, new(0, 0, 320, 216), 17, depthCue);
             if (drawn.ProjectedBytesWritten != 0)
             {
                 NativeFileStaging = staging.Write(scratch, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten));
             }
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native effect body drawing requires its initialized ordering table.");
-            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, drawn.Packets);
-            NativeEffectMemory = memory with { PrimitiveProcess = written.Process.Publish50FDF0(CommonAddress(written.Process), null) };
-            graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
+            if (privateOrderingAddress is uint table)
+            {
+                NativeBattleRinoa89Frame capture = new(memory with { PrimitiveProcess = process }, graphics.OriginalEffect ?? throw new NotSupportedException("Native private body capture requires its actual effect owner."), NativeFileStaging!, nativeCrtRandom ?? throw new NotSupportedException("Native private capture requires its actual CRT owner."));
+                NativeBattleRinoa89CaptureStep written = NativeBattleRinoa89Capture.AppendCommon(capture, primitive.Pending, drawn.Packets, table);
+                NativeBattlePrimitiveProcess published = written.Frame.Memory.PrimitiveProcess!;
+                NativeEffectMemory = written.Frame.Memory with { PrimitiveProcess = published.Publish50FDF0(CommonAddress(published), null) };
+                graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
+            }
+            else
+            {
+                NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, drawn.Packets);
+                NativeEffectMemory = memory with { PrimitiveProcess = written.Process.Publish50FDF0(CommonAddress(written.Process), null) };
+                graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
+            }
 
             byte[] Read(int offset, int length)
             {

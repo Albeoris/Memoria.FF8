@@ -8,7 +8,7 @@ public static class NativeBattlePandemona291Restoration
     {
         short sine = unchecked((short)NativeBattleCameraMath.Sine(unchecked((short)angle)));
         short cosine = unchecked((short)NativeBattleCameraMath.Cosine(unchecked((short)angle)));
-        return new([4096, 0, 0, 0, sine, cosine, 0, unchecked((short)-cosine), sine], 0, 0, 0, 4096);
+        return new([4096, 0, 0, 0, cosine, sine, 0, unchecked((short)-sine), cosine], 0, 0, 0, 4096);
     }
 
     public static NativeBattleActionMatrix Rotation701270(int angle)
@@ -16,7 +16,7 @@ public static class NativeBattlePandemona291Restoration
         int negative = -unchecked((short)angle);
         short sine = unchecked((short)NativeBattleCameraMath.Sine(negative));
         short cosine = unchecked((short)NativeBattleCameraMath.Cosine(negative));
-        return new([sine, 0, unchecked((short)-cosine), 0, 4096, 0, cosine, 0, sine], 0, 0, 0, 4096);
+        return new([cosine, 0, unchecked((short)-sine), 0, 4096, 0, sine, 0, cosine], 0, 0, 0, 4096);
     }
 
     public static NativeBattleActionMatrix Basis50CBA0(int x, int y, int z, NativeBattleVector translation)
