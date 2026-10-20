@@ -16,6 +16,7 @@ The imported source preserves these changes relative to that revision:
 - `Albeoris.Games.FF8.Jsm/Sources/Instructions/{AASK,AMES,AMESW,ASK,MES,RAMESW,WINSIZE}.cs`: expose message channel, position, choice and window-size expressions through the added instruction interfaces.
 - `Albeoris.Games.FF8.Jsm/Sources/Instructions/I{ChannelMessage,ChoiceMessage,PositionedMessage,WindowSize}Instruction.cs` and `Sources/Messages/`: retain the corresponding typed field-message context API and resolver.
 - `Albeoris.Games.FF8.Jsm/Albeoris.Games.FF8.Jsm.csproj`: targets .NET 10 and exposes internals to its upstream test assembly.
+- `Albeoris.Games.FF8.Jsm/Sources/`: annotate optional control branches, execution state, factory results and formatter inputs for nullable reference checking; require an active execution context when accessing the current field object.
 
 `Directory.Build.props` and `Directory.Build.targets` are Memoria integration files: they use .NET 10 only, retain upstream warning policy and disable package generation. All package versions come from the product's `Directory.Packages.props`.
 

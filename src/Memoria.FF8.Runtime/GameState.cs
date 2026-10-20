@@ -40,7 +40,7 @@ public sealed record GameState
     public int Version { get; init; } = 1;
     public SceneKind Scene { get; init; } = SceneKind.Title;
     public int FieldId { get; init; } = 74;
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public int? PreviousFieldId { get; init; }
     public string FieldName { get; init; } = "start0";
     public int EntryPoint { get; init; }

@@ -129,7 +129,7 @@ namespace Albeoris.Games.FF8.Jsm
                     operation++;
 
                     stack.CurrentLabel = i;
-                    IJsmExpression expression = Jsm.Expression.TryMake(opcode, parameter, stack);
+                    IJsmExpression? expression = Jsm.Expression.TryMake(opcode, parameter, stack);
                     if (expression != null)
                     {
                         if (expression is Jsm.Expression.PSHN_L constant && operations is not null)
@@ -139,7 +139,7 @@ namespace Albeoris.Games.FF8.Jsm
                         continue;
                     }
 
-                    JsmInstruction instruction = JsmInstruction.TryMake(opcode, parameter, stack);
+                    JsmInstruction? instruction = JsmInstruction.TryMake(opcode, parameter, stack);
                     if (instruction != null)
                     {
                         labelBuilder.TraceInstruction(i, stack.CurrentLabel, new IndexedInstruction(instructions.Count, instruction));

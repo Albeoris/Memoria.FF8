@@ -53,7 +53,7 @@ namespace Albeoris.Games.FF8.Jsm
                 foreach (var pair in _targets)
                 {
                     var offset = pair.Key;
-                    if (!_candidates.TryGetValue(offset, out IndexedInstruction target))
+                    if (!_candidates.TryGetValue(offset, out IndexedInstruction? target))
                         throw new InvalidProgramException($"Invalid jump target: {pair.Key}");
 
                     foreach (var jump in pair.Value)

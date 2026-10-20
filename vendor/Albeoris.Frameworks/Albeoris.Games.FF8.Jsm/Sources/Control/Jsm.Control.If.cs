@@ -14,7 +14,7 @@ namespace Albeoris.Games.FF8.Jsm
                 private readonly List<JsmInstruction> _instructions;
                 private readonly IfSegment IfRange;
                 private readonly List<ElseIfSegment> ElseIfRanges = new List<ElseIfSegment>();
-                private ElseSegment ElseRange;
+                private ElseSegment? ElseRange;
 
                 public If(List<JsmInstruction> instructions, Int32 from, Int32 to)
                 {

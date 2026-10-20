@@ -8,13 +8,13 @@ namespace Albeoris.Games.FF8.Jsm
     {
         public static partial class Expression
         {
-            public static IJsmExpression TryMake(Jsm.Opcode opcode, Int32 param, IExpressionStack stack)
+            public static IJsmExpression? TryMake(Jsm.Opcode opcode, Int32 param, IExpressionStack stack)
             {
-                IJsmExpression result = TryMakeInternal(opcode, param, stack);
+                IJsmExpression? result = TryMakeInternal(opcode, param, stack);
                 return result?.Evaluate(StatelessServices.Instance); // Simplify the expression
             }
 
-            private static IJsmExpression TryMakeInternal(Jsm.Opcode opcode, Int32 param, IExpressionStack stack)
+            private static IJsmExpression? TryMakeInternal(Jsm.Opcode opcode, Int32 param, IExpressionStack stack)
             {
                 switch (opcode)
                 {

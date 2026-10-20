@@ -22,17 +22,17 @@ jobs:
     env:
       NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Find an existing tested distribution for this commit
         id: distribution
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const findDistribution = require('./.github/scripts/find-distribution.cjs');
             await findDistribution({ github, context, core });
       - name: Download the existing distribution
         if: steps.distribution.outputs.reuse == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: Memoria-FF8-win-x64
           path: artifacts
@@ -40,7 +40,7 @@ jobs:
           run-id: ${{ steps.distribution.outputs.run-id }}
       - name: Cache NuGet packages
         if: steps.distribution.outputs.reuse != 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ env.NUGET_PACKAGES }}
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Build.*', '**/Directory.Packages.props', '**/NuGet.Config', '**/nuget.config', '**/packages.lock.json', 'global.json') }}
@@ -49,7 +49,7 @@ jobs:
         if: steps.distribution.outputs.reuse != 'true'
         shell: pwsh
         run: ./Build.ps1 -Test
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: steps.distribution.outputs.reuse != 'true'
         with:
           name: Memoria-FF8-win-x64
@@ -80,7 +80,7 @@ jobs:
       group: windows-nightly
       cancel-in-progress: false
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: Memoria-FF8-win-x64
           path: artifacts

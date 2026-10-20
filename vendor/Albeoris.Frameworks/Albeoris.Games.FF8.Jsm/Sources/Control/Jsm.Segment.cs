@@ -71,7 +71,7 @@ namespace Albeoris.Games.FF8.Jsm
             private static void AppendItems(StringBuilder sb, IEnumerable<Object> items)
             {
                 Int32 position = -1;
-                JMP lastItem = null;
+                JMP? lastItem = null;
                 foreach (var item in items)
                 {
                     if (lastItem != null)

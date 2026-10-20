@@ -10,7 +10,9 @@ namespace Albeoris.Games.FF8.Jsm.Core
     {
         private readonly OrderedDictionary<Int32, FieldObject> _objects = new OrderedDictionary<Int32, FieldObject>();
 
-        public FieldObject CurrentObject { get; private set; }
+        private FieldObject? _currentObject;
+
+        public FieldObject CurrentObject => _currentObject ?? throw new InvalidOperationException("No field object is currently executing.");
 
         public EventEngine()
         {
@@ -41,11 +43,11 @@ namespace Albeoris.Games.FF8.Jsm.Core
             foreach (var obj in _objects.Values)
             {
                 Console.WriteLine("Object: {0}", obj.InternalName);
-                CurrentObject = obj;
+                _currentObject = obj;
                 obj.Scripts.Update(services);
             }
 
-            CurrentObject = null;
+            _currentObject = null;
 
             Console.WriteLine("============ Milliseconds: {0} ============", sw.Elapsed.Milliseconds);
         }

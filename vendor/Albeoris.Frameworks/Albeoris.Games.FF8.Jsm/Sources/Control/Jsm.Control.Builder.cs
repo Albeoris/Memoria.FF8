@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using Albeoris.Games.FF8.Jsm.Instructions;
 
 namespace Albeoris.Games.FF8.Jsm
@@ -25,29 +26,29 @@ namespace Albeoris.Games.FF8.Jsm
                 }
 
                 private Int32 _index;
-                private JPF _begin;
 
                 public IReadOnlyList<IJsmControl> Make()
                 {
                     for (_index = 0; _index < _instructions.Count; _index++)
                     {
-                        if (TryMakeGotoOrSkip())
+                        if (TryMakeGotoOrSkip(out JPF? begin))
                             continue;
 
-                        if (TryMakeWhile())
+                        if (TryMakeWhile(begin))
                             continue;
 
-                        if (TryMakeIf())
+                        if (TryMakeIf(begin))
                             continue;
 
-                        throw new InvalidProgramException($"Cannot recognize the logical block: {_begin}");
+                        throw new InvalidProgramException($"Cannot recognize the logical block: {begin}");
                     }
 
                     return _result;
                 }
 
-                private Boolean TryMakeGotoOrSkip()
+                private Boolean TryMakeGotoOrSkip([NotNullWhen(false)] out JPF? begin)
                 {
+                    begin = null;
                     var instruction = _instructions[_index];
                     if (instruction is JMP @goto && _processed.TryProcess(@goto))
                     {
@@ -62,28 +63,28 @@ namespace Albeoris.Games.FF8.Jsm
                     if (!_processed.TryProcess(jpf))
                         return true;
 
-                    _begin = jpf;
+                    begin = jpf;
                     return false;
                 }
 
-                private Boolean TryMakeWhile()
+                private Boolean TryMakeWhile(JPF begin)
                 {
-                    if (_instructions[_begin.Index - 1] is JMP jmp && jmp.Index == _index)
+                    if (_instructions[begin.Index - 1] is JMP jmp && jmp.Index == _index)
                     {
                         _processed.TryProcess(jmp);
-                        _result.Add(new While(_instructions, _index, _begin.Index));
+                        _result.Add(new While(_instructions, _index, begin.Index));
                         return true;
                     }
 
                     return false;
                 }
 
-                private Boolean TryMakeIf()
+                private Boolean TryMakeIf(JPF begin)
                 {
-                    JPF jpf = _begin;
-                    JMP jmp = _instructions[_begin.Index - 1] as JMP;
+                    JPF jpf = begin;
+                    JMP? jmp = _instructions[begin.Index - 1] as JMP;
 
-                    If control = new If(_instructions, _index, _begin.Index);
+                    If control = new If(_instructions, _index, begin.Index);
                     _result.Add(control);
 
                     if (jmp == null)
@@ -122,14 +123,14 @@ namespace Albeoris.Games.FF8.Jsm
                     while (true)
                     {
                         Int32 newJpfIndex = jpf.Index;
-                        JPF newJpf = _instructions[newJpfIndex] as JPF;
+                        JPF? newJpf = _instructions[newJpfIndex] as JPF;
                         if (newJpf == null || newJpf.Index > endOfBlock)
                         {
                             control.AddElse(jpf.Index, endOfBlock);
                             return;
                         }
 
-                        JMP newJmp = _instructions[newJpf.Index - 1] as JMP;
+                        JMP? newJmp = _instructions[newJpf.Index - 1] as JMP;
                         if (newJmp == null)
                         {
                             if (newJpf.Index == endOfBlock)

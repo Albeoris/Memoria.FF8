@@ -30,7 +30,7 @@ namespace Albeoris.Games.FF8.Jsm.Instructions
             throw new NotImplementedException($"The instruction {GetType()} is not implemented yet. Please override \"{nameof(Execute)}\" method if you know the correct behavior or \"{nameof(TestExecute)}\" method for test environment.");
         }
 
-        public static JsmInstruction TryMake(Jsm.Opcode opcode, Int32 parameter, IExpressionStack stack)
+        public static JsmInstruction? TryMake(Jsm.Opcode opcode, Int32 parameter, IExpressionStack stack)
         {
             if (Factories.TryGetValue(opcode, out var make))
             {

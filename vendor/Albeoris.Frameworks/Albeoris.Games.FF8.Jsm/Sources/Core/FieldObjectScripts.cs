@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Albeoris.Games.FF8.Jsm.Core
 {
@@ -9,8 +10,8 @@ namespace Albeoris.Games.FF8.Jsm.Core
         private readonly PriorityQueue<Executer, Int32> _executionQueue = new PriorityQueue<Executer, Int32>();
 
         private Boolean _isInitialized;
-        private IAwaiter _currentState;
-        private Executer _currentExecuter;
+        private IAwaiter? _currentState;
+        private Executer? _currentExecuter;
 
         public void Add(Int32 scriptId, IScriptExecuter executer)
         {
@@ -64,7 +65,7 @@ namespace Albeoris.Games.FF8.Jsm.Core
 
                 if (_currentExecuter != null)
                 {
-                    while (_currentExecuter.Next(out IAwaitable current))
+                    while (_currentExecuter.Next(out IAwaitable? current))
                     {
                         if (current == null)
                             throw new InvalidOperationException();
@@ -127,7 +128,7 @@ namespace Albeoris.Games.FF8.Jsm.Core
         private sealed class Executer : IAwaitable, IAwaiter
         {
             private readonly IScriptExecuter _executer;
-            private IEnumerator<IAwaitable> _en;
+            private IEnumerator<IAwaitable>? _en;
 
             public Executer(IScriptExecuter executer)
             {
@@ -145,7 +146,7 @@ namespace Albeoris.Games.FF8.Jsm.Core
                 _en = _executer.Execute(services).GetEnumerator();
             }
 
-            public Boolean Next(out IAwaitable awaitable)
+            public Boolean Next([NotNullWhen(true)] out IAwaitable? awaitable)
             {
                 if (_en == null)
                     throw new InvalidOperationException("The script hasn't yet started.");

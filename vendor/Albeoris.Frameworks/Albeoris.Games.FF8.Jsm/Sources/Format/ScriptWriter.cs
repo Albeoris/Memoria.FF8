@@ -25,7 +25,7 @@ namespace Albeoris.Games.FF8.Jsm.Format
             _newLine = true;
         }
 
-        public void AppendLine(String text)
+        public void AppendLine(String? text)
         {
             AppendIndent();
 
@@ -34,7 +34,7 @@ namespace Albeoris.Games.FF8.Jsm.Format
             HasWhiteLine = (text == "{");
         }
 
-        public void Append(String text)
+        public void Append(String? text)
         {
             AppendIndent();
 

@@ -26,7 +26,7 @@ namespace Albeoris.Games.FF8.Jsm.Core
         public override String ToString() => $"Angle: {Angle360}°";
         public override Int32 GetHashCode() => Angle360.GetHashCode();
 
-        public override Boolean Equals(Object obj)
+        public override Boolean Equals(Object? obj)
         {
             if (obj is Degrees degrees)
                 return Angle360 == degrees.Angle360;

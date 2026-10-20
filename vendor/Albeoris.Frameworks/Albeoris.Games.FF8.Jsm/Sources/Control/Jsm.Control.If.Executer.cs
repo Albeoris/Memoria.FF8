@@ -22,7 +22,7 @@ namespace Albeoris.Games.FF8.Jsm
 
                     public IEnumerable<IAwaitable> Execute(IServices services)
                     {
-                        IEnumerable<IJsmInstruction> executable = GetExecutableInstructions(services);
+                        IEnumerable<IJsmInstruction>? executable = GetExecutableInstructions(services);
                         if (executable == null)
                             yield break;
 
@@ -42,7 +42,7 @@ namespace Albeoris.Games.FF8.Jsm
                         return true;
                     }
 
-                    private IEnumerable<IJsmInstruction> GetExecutableInstructions(IServices services)
+                    private IEnumerable<IJsmInstruction>? GetExecutableInstructions(IServices services)
                     {
                         if (CanExecute(_aggregator.IfRange.Jpf, services))
                             return _aggregator.IfRange.GetBodyInstructions();

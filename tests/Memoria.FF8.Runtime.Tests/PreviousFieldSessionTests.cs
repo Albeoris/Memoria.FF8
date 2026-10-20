@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -32,8 +33,10 @@ public sealed class PreviousFieldSessionTests
         }
     }
 
-    [Fact]
-    public void UnknownAndNewGameOriginsRemainNullAndAreOmittedFromCheckpointJson()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void UnknownAndNewGameOriginsRemainNullAndAreOmittedFromCheckpointJson(bool compact)
     {
         var session = new GameSession(new GameState());
         session.RequestField(159, 0);
@@ -48,9 +51,37 @@ public sealed class PreviousFieldSessionTests
         string path = Path.Combine(Path.GetTempPath(), "ff8-unknown-previous-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {
-            session.Save(path);
-            Assert.DoesNotContain("PreviousFieldId", File.ReadAllText(path));
+            session.Save(path, compact);
+            if (!compact)
+            {
+                Assert.DoesNotContain("PreviousFieldId", File.ReadAllText(path));
+            }
             Assert.Null(GameSession.Load(path).PreviousFieldId);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Theory]
+    [InlineData(false, 0)]
+    [InlineData(true, 0)]
+    [InlineData(false, 160)]
+    [InlineData(true, 160)]
+    public void KnownOriginsIncludingZeroRemainPresentInCheckpointJson(bool compact, int previousFieldId)
+    {
+        var session = new GameSession(new GameState { Scene = SceneKind.Field, FieldId = 159, PreviousFieldId = previousFieldId });
+        string path = Path.Combine(Path.GetTempPath(), "ff8-known-previous-" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            session.Save(path, compact);
+            if (!compact)
+            {
+                using JsonDocument checkpoint = JsonDocument.Parse(File.ReadAllText(path));
+                Assert.Equal(previousFieldId, checkpoint.RootElement.GetProperty(nameof(GameState.PreviousFieldId)).GetInt32());
+            }
+            Assert.Equal(previousFieldId, GameSession.Load(path).PreviousFieldId);
         }
         finally
         {

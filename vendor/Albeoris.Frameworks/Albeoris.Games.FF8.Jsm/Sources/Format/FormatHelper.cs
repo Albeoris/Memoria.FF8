@@ -80,7 +80,7 @@ namespace Albeoris.Games.FF8.Jsm.Format
             return message.Split(Separators, StringSplitOptions.None);
         }
 
-        public static void FormatGlobalGet<T>(GlobalVariableId<T> globalVariable, Int32[] knownVariables, ScriptWriter sw, IScriptFormatterContext formatterContext, IServices executionContext) where T: unmanaged
+        public static void FormatGlobalGet<T>(GlobalVariableId<T> globalVariable, Int32[]? knownVariables, ScriptWriter sw, IScriptFormatterContext formatterContext, IServices executionContext) where T: unmanaged
         {
             if (knownVariables == null || Array.BinarySearch(knownVariables, globalVariable.VariableId) < 0)
             {
@@ -100,7 +100,7 @@ namespace Albeoris.Games.FF8.Jsm.Format
             sw.Append("]");
         }
 
-        public static void FormatGlobalSet<T>(GlobalVariableId<T> globalVariable, IJsmExpression value, Int32[] knownVariables, ScriptWriter sw, IScriptFormatterContext formatterContext, IServices executionContext) where T: unmanaged
+        public static void FormatGlobalSet<T>(GlobalVariableId<T> globalVariable, IJsmExpression value, Int32[]? knownVariables, ScriptWriter sw, IScriptFormatterContext formatterContext, IServices executionContext) where T: unmanaged
         {
             sw.Append("G");
 
@@ -306,7 +306,7 @@ namespace Albeoris.Games.FF8.Jsm.Format
                 return Argument(argumentName, argumentValue ? "true" : "false");
             }
 
-            public MethodFormatter Argument(String argumentName, IJsmExpression argumentExpression)
+            public MethodFormatter Argument(String? argumentName, IJsmExpression argumentExpression)
             {
                 ScriptWriter sw = Formatter.Sw;
 
@@ -325,7 +325,7 @@ namespace Albeoris.Games.FF8.Jsm.Format
                 return this;
             }
 
-            public MethodFormatter Argument<T>(String argumentName, IJsmExpression argumentExpression)
+            public MethodFormatter Argument<T>(String? argumentName, IJsmExpression argumentExpression)
             {
                 ScriptWriter sw = Formatter.Sw;
 

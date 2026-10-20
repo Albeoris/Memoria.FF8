@@ -24,7 +24,7 @@ namespace Albeoris.Games.FF8.Jsm
                     _segment.Add(_instructions[from]);
                 }
 
-                public override String ToString()
+                public override String? ToString()
                 {
                     StringBuilder sb = new StringBuilder();
 
