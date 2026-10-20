@@ -25,6 +25,34 @@ public sealed class ScriptedInterfaceClockTests
     }
 
     [Theory]
+    [InlineData("App.Tests.ScriptedInterfaceClockTests.2", false)]
+    [InlineData("App.Tests.ScriptedInterfaceClockTests.3", true)]
+    public void Original_train_briefing_accelerates_while_code_practice_keeps_real_time(string resource, bool scriptedInterface)
+    {
+        string snapshot = TestResources.FixturePath(resource);
+        byte[] original = File.ReadAllBytes(snapshot);
+        using GameWorld world = new(new GameSession(GameSession.Load(snapshot)), TestResources.GameDirectory, validateWorldPresentation: false);
+        world.EnsureField();
+        EventEngine engine = world.Events;
+        Assert.Equal(896, engine.FieldId);
+        Assert.NotNull(engine.DiscoverScriptedInput());
+        engine.Step();
+        Assert.Equal(scriptedInterface, engine.IsScriptedInterface);
+
+        GameplayClock clock = new();
+        clock.ToggleSpeed();
+        long initialFrame = engine.Frame;
+        TimeSpan sample = TimeSpan.FromTicks(333334);
+        for (int update = 0; update < 30; update++)
+        {
+            engine.Update(clock.Advance(sample, SceneKind.Field, engine.IsScriptedInterface));
+            Assert.Equal(scriptedInterface, engine.IsScriptedInterface);
+            Assert.Null(engine.LastFault);
+        }
+        Assert.Equal(scriptedInterface ? 30 : 90, engine.Frame - initialFrame);
+        Assert.Equal(original, File.ReadAllBytes(snapshot));
+    }
+    [Theory]
     [InlineData(234, false)]
     [InlineData(235, true)]
     [InlineData(232, false)]

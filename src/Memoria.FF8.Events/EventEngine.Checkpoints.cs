@@ -857,6 +857,8 @@ public sealed partial class EventEngine
         preparedWorldTransitions.Clear();
         actors.AddRange(saved.Actors);
         fibers.Clear();
+        inputPollingFibers.Clear();
+        inputPollingObserved = false;
         fibers.AddRange(restored);
         dialogues.Clear();
         foreach (DialogueState dialogue in saved.Dialogues)

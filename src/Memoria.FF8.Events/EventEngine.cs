@@ -10,6 +10,8 @@ public sealed partial class EventEngine
     private readonly IEventServices services;
     private readonly List<ActorState> actors = [];
     private readonly List<Fiber> fibers = [];
+    private readonly Dictionary<Fiber, HashSet<int>> inputPollingFibers = [];
+    private bool inputPollingObserved;
     // Native529FF0 visits its eight fixed channels in ascending order. Keep
     // host presentation, receipts and checkpoints independent of removed slots.
     private readonly SortedDictionary<int, DialogueState> dialogues = [];
@@ -67,11 +69,14 @@ public sealed partial class EventEngine
         private set => currentDialogue = value;
     }
     public IReadOnlyList<ActorState> Actors => actors;
-    // Button-polling interfaces own their real-time repeat delays even when characters remain visible.
+    // Host pacing follows executed input owners, including their pending repeat delays.
+    // Before the first callback, conservatively keep candidate interfaces at real time.
     public bool IsScriptedInterface => !IsUserControlEnabled && program is not null &&
-        (!actors.Any(actor => actor.Active && actor.Visible && actor.RenderModelId >= 0)
-            ? program.Operations.Any(operation => operation.Opcode is Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2 or Jsm.Opcode.KEYON or Jsm.Opcode.KEYON2)
-            : fibers.Any(fiber => !fiber.Complete && fiber.WaitReason != WaitReason.NativeHalt && fiber.Script.ReachableOperations.Any(index => program.Operations[index].Opcode is Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2 or Jsm.Opcode.KEYON or Jsm.Opcode.KEYON2)));
+        (inputPollingObserved
+            ? inputPollingFibers.Keys.Any(fiber => !fiber.Complete && fiber.WaitReason != WaitReason.NativeHalt)
+            : !actors.Any(actor => actor.Active && actor.Visible && actor.RenderModelId >= 0)
+                ? program.Operations.Any(operation => operation.Opcode is Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2 or Jsm.Opcode.KEYON or Jsm.Opcode.KEYON2)
+                : fibers.Any(fiber => !fiber.Complete && fiber.WaitReason != WaitReason.NativeHalt && fiber.Script.ReachableOperations.Any(index => program.Operations[index].Opcode is Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2 or Jsm.Opcode.KEYON or Jsm.Opcode.KEYON2)));
     public IReadOnlyDictionary<int, int> BackgroundStates => backgroundStates;
     public SceneEventState Scene { get; private set; } = new();
     public Func<int, int, int>? AnimationFrameCount { get; set; }
@@ -145,6 +150,8 @@ public sealed partial class EventEngine
         preparedWorldTransitions.Clear();
         preparedDiscMounts.Clear();
         fibers.Clear();
+        inputPollingFibers.Clear();
+        inputPollingObserved = false;
         InfGateways = [];
         InfAreaTriggers = [];
         dialogues.Clear();
@@ -386,6 +393,19 @@ public sealed partial class EventEngine
         AdvanceNativeFieldCallbackClock();
         Frame++;
         SampleNativeDrawPointParticlePalette();
+        if (!inputPollingObserved)
+        {
+            // A restored interface may be partway through a repeat delay or instruction budget.
+            foreach (Fiber fiber in fibers.Where(fiber => !fiber.Complete && fiber.WaitReason != WaitReason.NativeHalt && fiber.Script.ReachableOperations.Any(index => program.Operations[index].Opcode is Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2 or Jsm.Opcode.KEYON or Jsm.Opcode.KEYON2)))
+            {
+                inputPollingFibers[fiber] = [];
+            }
+            inputPollingObserved = true;
+        }
+        foreach (Fiber fiber in inputPollingFibers.Keys.Where(fiber => fiber.Complete || fiber.WaitReason == WaitReason.NativeHalt).ToArray())
+        {
+            inputPollingFibers.Remove(fiber);
+        }
         SampleFieldButtons();
         CompleteNativeBattleReturnBeforeVm();
         SampleMoviePlayback();
@@ -744,6 +764,23 @@ public sealed partial class EventEngine
             {
                 NativeScalarValue[]? enteringResults = operation.Opcode == Jsm.Opcode.LBL && fiber.NativeGlobalJumps.Count == 0 && HasNativeOperandRecord(fiber.ObjectId) && !fiber.NativeResultFrameEntered ? ReadNativeDoorLiveResults(fiber) : null;
                 Execute(fiber, operation);
+                if (operation.Opcode is Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2 or Jsm.Opcode.KEYON or Jsm.Opcode.KEYON2)
+                {
+                    if (inputPollingFibers.TryGetValue(fiber, out HashSet<int>? polled))
+                    {
+                        polled.Clear();
+                    }
+                    else
+                    {
+                        inputPollingFibers.Add(fiber, []);
+                    }
+                }
+                else if (fiber.Position != operationIndex && inputPollingFibers.TryGetValue(fiber, out HashSet<int>? visited) && !visited.Add(operationIndex))
+                {
+                    // A completed cycle without a query has left the input branch.
+                    // Blocked commands and instruction-budget yields retain ownership.
+                    inputPollingFibers.Remove(fiber);
+                }
                 if (enteringResults is not null && fiber.NativeResultFrameEntered)
                 {
                     foreach (NativeScalarValue result in enteringResults)
