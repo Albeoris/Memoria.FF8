@@ -196,6 +196,10 @@ public sealed partial class BattleSession
                 {
                     graphics = sirenCompleted;
                 }
+                else if (TryWriteNativeTheEnd85Completion(graphics, address, value, out NativeBattleGraphicsState theEndCompleted))
+                {
+                    graphics = theEndCompleted;
+                }
                 else if (TryWriteNativeDoomtrain191Completion(graphics, address, value, out NativeBattleGraphicsState doomtrainCompleted))
                 {
                     graphics = doomtrainCompleted;

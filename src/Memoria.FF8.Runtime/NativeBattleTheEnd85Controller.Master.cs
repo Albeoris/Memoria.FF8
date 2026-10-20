@@ -134,7 +134,10 @@ public static partial class NativeBattleTheEnd85Controller
             Accept(step.Frame);
             if (step.Complete)
             {
-                hierarchy = hierarchy.Complete8DC530(address);
+                if (!step.HierarchyReleased)
+                {
+                    hierarchy = hierarchy.Complete8DC530(address);
+                }
                 return 2;
             }
             return 0;

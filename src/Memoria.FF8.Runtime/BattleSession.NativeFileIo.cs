@@ -95,6 +95,13 @@ public sealed partial class BattleSession
                 case 0x73A610:
                     CompleteNativeSiren95File(completion.Callback);
                     break;
+                case 0x784C60:
+                case 0x784CC0:
+                case 0x784CD0:
+                case 0x784CE0:
+                case 0x784CF0:
+                    CompleteNativeTheEnd85File(completion.Callback);
+                    break;
                 case 0x762A50:
                 case 0x762A80:
                 case 0x762AB0:

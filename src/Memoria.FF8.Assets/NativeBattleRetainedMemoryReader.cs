@@ -122,7 +122,7 @@ public static class NativeBattleRetainedMemoryReader
                 uint packed = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0xB8BA00u + (uint)index * 4, 4));
                 return new NativeBattleModelColorOverride((byte)(packed >> 24), packed & 0xFFFFFF);
             }).ToImmutableArray()),
-            PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess() with { TexturePage = BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(0x1C48818, 2)), Buffer80 = ReadLoaderBytes(0x1D96A80, 1)[0], TextureWindowBits = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1CA8848, 4)) }
+            PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess() with { DrawMode2795BD0 = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x2795BD0, 4)), TexturePage = BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(0x1C48818, 2)), Buffer80 = ReadLoaderBytes(0x1D96A80, 1)[0], TextureWindowBits = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1CA8848, 4)) }
         };
         if (effectMemory.SharedEffectRandom!.State != 0)
         {

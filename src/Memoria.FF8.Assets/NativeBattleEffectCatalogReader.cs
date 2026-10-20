@@ -252,6 +252,21 @@ public sealed partial class GameAssets
                 binding = binding with { Quake38Resources = ReadNativeQuake38Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 85)
+            {
+                binding = binding with { TheEnd85Resources = ReadNativeTheEnd85Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 34)
+            {
+                binding = binding with { Pain34Resources = ReadNativePain34Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 109)
+            {
+                binding = binding with { Dispel109Resources = ReadNativeDispel109Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 146)
             {
                 binding = binding with { Tornado146Resources = ReadNativeTornado146Resources() };

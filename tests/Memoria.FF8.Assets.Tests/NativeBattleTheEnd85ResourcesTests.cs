@@ -11,6 +11,10 @@ public sealed class NativeBattleTheEnd85ResourcesTests
         using GameAssets game = new(TestResources.GameDirectory);
         NativeExecutableMemory image = new(game.ReadNativeExecutable());
         NativeBattleTheEnd85Resources resources = game.ReadNativeTheEnd85Resources();
+        NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([85])[84];
+        Assert.Equal(0x7844A0u, binding.Entry);
+        Assert.Equal(0x784480u, binding.Initializer);
+        Assert.Same(resources, binding.TheEnd85Resources);
         NativeBattleTheEnd85State state = NativeBattleTheEnd85State.FromColdProcess();
         Assert.Equal(image.ReadLoader(NativeBattleTheEnd85State.GlobalAddress, NativeBattleTheEnd85State.GlobalLength), state.Read(NativeBattleTheEnd85State.GlobalAddress, NativeBattleTheEnd85State.GlobalLength));
         Assert.Equal(image.ReadLoader(NativeBattleEffectNodeContextMemory.Address, NativeBattleEffectNodeContextMemory.Length), NativeBattleEffectNodeContextMemory.Capture(NativeBattleEffectMemory.FromColdProcess()).Read(0, NativeBattleEffectNodeContextMemory.Length));

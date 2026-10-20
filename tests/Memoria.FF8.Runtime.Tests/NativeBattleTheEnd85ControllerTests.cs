@@ -43,6 +43,28 @@ public sealed class NativeBattleTheEnd85ControllerTests
         Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(NativeBattleTheEnd85Controller.Advance784630(restored, fixture.Inputs)));
     }
 
+    [Fact]
+    public void A_leaf_that_releases_its_own_hierarchy_decrements_the_parent_once()
+    {
+        var fixture = Fixture(1, 1);
+        NativeBattleTheEnd85Frame frame = WithRoot(fixture.Frame, Root(fixture.Frame).WriteByte(41, 6).WriteWord(94, 1));
+        NativeBattleEffectHierarchyAppend appended = new NativeBattleEffectHierarchy(frame.Effect.Pools).Append8DC540(7, 0x8DDC30, 64, NativeBattleTheEnd85Controller.MainBank, (pointer, header, target) => NativeBattleCureController.SelectActors(frame.Effect.Parameters!, fixture.Inputs.Packets, pointer, header, target));
+        frame = frame with { Effect = frame.Effect with { Pools = appended.Hierarchy.Pools } };
+        NativeBattleTheEnd85Inputs inputs = fixture.Inputs with
+        {
+            AdvanceLeaf = (current, address) =>
+            {
+                Assert.Equal(appended.Address, address);
+                NativeBattleEffectHierarchy released = new NativeBattleEffectHierarchy(current.Effect.Pools).Complete8DC530(address);
+                return new(current with { Effect = current.Effect with { Pools = released.Pools } }, true) { HierarchyReleased = true };
+            }
+        };
+        frame = NativeBattleTheEnd85Controller.Advance784630(frame, inputs);
+        Assert.Equal((byte)0, Root(frame).ReadByte(0x28));
+        Assert.Equal((ushort)0, Root(frame).ReadWord(0x5E));
+        Assert.Null(frame.Effect.Pools[7].Head);
+    }
+
     private static NativeBattleModulePoolTask Root(NativeBattleTheEnd85Frame frame) => frame.Effect.Pools[0].Slots[0];
     private static NativeBattleTheEnd85Frame WithRoot(NativeBattleTheEnd85Frame frame, NativeBattleModulePoolTask task) => frame with { Effect = frame.Effect with { Pools = new NativeBattleEffectHierarchy(frame.Effect.Pools).Write(NativeBattleTheEnd85Controller.MainBank, task).Pools } };
     private static (NativeBattleTheEnd85Frame Frame, NativeBattleTheEnd85Inputs Inputs) Fixture(byte targets, byte repeats)

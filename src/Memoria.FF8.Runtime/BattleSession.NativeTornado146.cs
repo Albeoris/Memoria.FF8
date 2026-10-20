@@ -326,4 +326,3 @@ public sealed partial class BattleSession
         return true;
     }
 }
-
