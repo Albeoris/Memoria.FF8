@@ -92,6 +92,13 @@ internal sealed class SystemTextRenderer(GraphicsDevice device) : IDisposable
         DrawTexture(batch, GetTexture(value, size, float.PositiveInfinity, fontFamily, preserveLineMetrics: true), position - new XnaVector2(margin), color);
     }
 
+    public void DrawLineClipped(SpriteBatch batch, string value, float size, XnaVector2 position, XnaColor color, Microsoft.Xna.Framework.Rectangle clip, string? fontFamily = null)
+    {
+        float margin = SystemTextLayout.RasterMargin(size) / (float)SystemTextLayout.RasterScale;
+        Texture2D texture = GetTexture(value, size, float.PositiveInfinity, fontFamily, preserveLineMetrics: true);
+        DrawClipped(batch, texture, position - new XnaVector2(margin), color, clip);
+    }
+
     private static void DrawTexture(SpriteBatch batch, Texture2D texture, XnaVector2 position, XnaColor color)
     {
         batch.Draw(texture, position + new XnaVector2(1, 2), null, XnaColor.Black * (color.A / 255f * 0.75f), 0, XnaVector2.Zero, 1f / SystemTextLayout.RasterScale, SpriteEffects.None, 0);

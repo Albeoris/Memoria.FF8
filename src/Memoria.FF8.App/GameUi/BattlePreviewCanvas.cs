@@ -138,7 +138,14 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IBattleMessageCanvas, IDi
                 {
                     Microsoft.Xna.Framework.Color color = placed.Run.Color * (placed.Run.Blink ? DialogueBlink.Opacity(seconds) : 1);
                     float x = Math.Max(0, (bounds.Width - line.Width) / 2) + placed.X;
-                    Text(placed.Run.Text, size, new UiRect(bounds.X + x, y, bounds.Width - x, measure.LineHeight), new UiColor(color.R, color.G, color.B, color.A));
+                    if (placed.Run.IsButton)
+                    {
+                        ButtonPrompt.DrawCanvas(this, placed.Run.Text, size, new UiRect(bounds.X + x, y, bounds.Width - x, measure.LineHeight), placed.Run.Blink ? DialogueBlink.Opacity(seconds) : 1, null);
+                    }
+                    else
+                    {
+                        Text(placed.Run.Text, size, new UiRect(bounds.X + x, y, bounds.Width - x, measure.LineHeight), new UiColor(color.R, color.G, color.B, color.A));
+                    }
                 }
                 y += measure.LineHeight;
             }

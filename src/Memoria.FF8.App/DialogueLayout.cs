@@ -16,6 +16,30 @@ internal static class DialogueLayout
 
     internal static float ChoiceIndent(float lineHeight) => lineHeight * 1.5f + ChoicePointerGap;
 
+    internal static float MeasureRun(DialogueRun run, Func<string, float> measure, float lineHeight)
+    {
+        return run.IsButton ? ButtonPrompt.Advance(measure(run.Text), lineHeight) : measure(run.Text);
+    }
+
+    private static float MeasureRuns(IEnumerable<DialogueRun> runs, Func<string, float> measure, float lineHeight)
+    {
+        float width = 0;
+        string plain = "";
+        foreach (DialogueRun run in runs)
+        {
+            if (run.IsButton)
+            {
+                width += measure(plain) + MeasureRun(run, measure, lineHeight);
+                plain = "";
+            }
+            else
+            {
+                plain += run.Text;
+            }
+        }
+        return width + measure(plain);
+    }
+
     public static IReadOnlyList<DialogueVisualPage> Create(DialogueDocument document, DialogueState dialogue, DialogueWindow? window, float lineHeight, Func<string, float> measure)
     {
         const float maximumWidth = 320 - 2 * ScreenPadding - 2 * DialoguePresentation.Padding;
@@ -36,7 +60,7 @@ internal static class DialogueLayout
         }
         foreach (var sourcePage in sourcePages)
         {
-            float naturalWidth = sourcePage.Lines.Select(line => measure((IsChoice(line) ? line : RemoveQuoteAlignmentSpace(line)).Text) + (line.IsQuoteStart ? 0 : measure(line.HangingIndent))).DefaultIfEmpty(0).Max();
+            float naturalWidth = sourcePage.Lines.Select(line => MeasureRuns((IsChoice(line) ? line : RemoveQuoteAlignmentSpace(line)).Runs, measure, lineHeight) + (line.IsQuoteStart ? 0 : measure(line.HangingIndent))).DefaultIfEmpty(0).Max();
             float width = Math.Min(maximumWidth, Math.Max(requestedWidth, naturalWidth));
             string? speaker = sourcePage.Speaker;
             float speakerWidth = speaker is null ? 0 : measure(speaker);
@@ -83,7 +107,7 @@ internal static class DialogueLayout
             foreach (var run in source.Runs)
             {
                 runs.Add(new DialoguePlacedRun(run, x));
-                x += measure(run.Text);
+                x += MeasureRun(run, measure, lineHeight);
             }
             yield return new DialogueVisualLine(runs, x, source.SourceLineIndex, true);
             yield break;
@@ -93,6 +117,11 @@ internal static class DialogueLayout
         List<DialogueRun> elements = [];
         foreach (var run in source.Runs)
         {
+            if (run.IsButton)
+            {
+                elements.Add(run);
+                continue;
+            }
             var enumerator = StringInfo.GetTextElementEnumerator(run.Text);
             while (enumerator.MoveNext())
             {
@@ -106,16 +135,23 @@ internal static class DialogueLayout
             float indent = first && source.IsQuoteStart ? 0 : measure(source.HangingIndent);
             int end = position;
             int breakAt = -1;
+            float completedWidth = 0;
             string candidate = "";
             while (end < elements.Count)
             {
-                string next = candidate + elements[end].Text;
-                if (end > position && indent + measure(next) > maximumWidth)
+                DialogueRun element = elements[end];
+                string next = element.IsButton ? "" : candidate + element.Text;
+                float nextWidth = element.IsButton ? completedWidth + measure(candidate) + MeasureRun(element, measure, lineHeight) : completedWidth + measure(next);
+                if (end > position && indent + nextWidth > maximumWidth)
                 {
                     break;
                 }
+                if (element.IsButton)
+                {
+                    completedWidth = nextWidth;
+                }
                 candidate = next;
-                if (string.IsNullOrWhiteSpace(elements[end].Text))
+                if (!element.IsButton && string.IsNullOrWhiteSpace(element.Text))
                 {
                     breakAt = end;
                 }
@@ -131,12 +167,12 @@ internal static class DialogueLayout
             while (cursor < end)
             {
                 var run = elements[cursor++];
-                while (cursor < end && elements[cursor].Color == run.Color && elements[cursor].Blink == run.Blink)
+                while (!run.IsButton && cursor < end && !elements[cursor].IsButton && elements[cursor].Color == run.Color && elements[cursor].Blink == run.Blink)
                 {
                     run = run with { Text = run.Text + elements[cursor++].Text };
                 }
                 placed.Add(new DialoguePlacedRun(run, x));
-                x += measure(run.Text);
+                x += MeasureRun(run, measure, lineHeight);
             }
             yield return new DialogueVisualLine(placed, x, source.SourceLineIndex, false);
             position = end;

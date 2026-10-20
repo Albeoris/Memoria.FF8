@@ -38,7 +38,14 @@ internal sealed partial class MonoGameUiCanvas
             {
                 Color color = placed.Run.Color * (placed.Run.Blink ? DialogueBlink.Opacity(seconds) : 1);
                 float x = Math.Max(0, (bounds.Width - line.Width) / 2) + placed.X;
-                text.DrawWrappedClipped(batch, placed.Run.Text, size, new Vector2(bounds.X + x, y), Math.Max(1, bounds.Width - x), color, clip);
+                if (placed.Run.IsButton)
+                {
+                    ButtonPrompt.Draw(batch, pixel, text, placed.Run.Text, size, new Vector2(bounds.X + x, y), layout.LineHeight, color.A / 255f, text.FontFamily, clip);
+                }
+                else
+                {
+                    text.DrawWrappedClipped(batch, placed.Run.Text, size, new Vector2(bounds.X + x, y), Math.Max(1, bounds.Width - x), color, clip);
+                }
             }
             y += layout.LineHeight;
         }

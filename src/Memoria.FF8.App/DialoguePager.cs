@@ -36,7 +36,7 @@ internal sealed class DialoguePager
         return UiTextReveal.VisiblePrefix(text, ref remaining);
     }
 
-    private static int CharacterCount(DialogueVisualPage page) => page.Lines.Sum(line => line.Runs.Sum(run => UiTextReveal.CharacterCount(run.Run.Text)));
+    private static int CharacterCount(DialogueVisualPage page) => page.Lines.Sum(line => line.Runs.Sum(run => run.Run.IsButton ? 1 : UiTextReveal.CharacterCount(run.Run.Text)));
 
     public bool Advance(int pageCount)
     {

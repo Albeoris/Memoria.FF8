@@ -29,7 +29,7 @@ public sealed class DialogueRichTextTests
         foreach (string parameter in new[] { key.ToString(), ((byte)key).ToString() })
         {
             DialogueRun run = Assert.Single(Assert.Single(Assert.Single(DialogueTextFormatter.Parse($"{{Color GreenBlink}}{{Key {parameter}}}").Pages).Lines).Runs);
-            Assert.Equal(new DialogueRun(expected, Color.Lime, true), run);
+            Assert.Equal(new DialogueRun(expected, Color.Lime, true, IsButton: true), run);
         }
     }
 

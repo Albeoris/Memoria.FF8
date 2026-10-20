@@ -9,7 +9,7 @@ internal enum DialoguePageBoundary
     Next
 }
 
-internal sealed record DialogueRun(string Text, Color Color, bool Blink = false);
+internal sealed record DialogueRun(string Text, Color Color, bool Blink = false, bool IsButton = false);
 
 internal sealed record DialogueLine(IReadOnlyList<DialogueRun> Runs, int SourceLineIndex, string HangingIndent = "", bool IsQuoteStart = false, bool IsSpeaker = false, bool IsThought = false)
 {

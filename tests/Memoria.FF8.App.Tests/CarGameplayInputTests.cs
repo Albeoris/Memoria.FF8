@@ -20,11 +20,11 @@ public sealed class CarGameplayInputTests
     }
 
     [Theory]
-    [InlineData(Keys.NumPad6, 0x80, -1f)]
-    [InlineData(Keys.NumPad8, 0x10, 1f)]
-    [InlineData(Keys.NumPad4, 0x40, 0f)]
-    [InlineData(Keys.E, 0x02, 0f)]
-    public void Remapped_buttons_emit_the_native_car_packet_shown_by_the_binding_hint(Keys key, int buttons, float vertical)
+    [InlineData(Keys.NumPad6, 0x80, -1f, "N6")]
+    [InlineData(Keys.NumPad8, 0x10, 1f, "N8")]
+    [InlineData(Keys.NumPad4, 0x40, 0f, "N4")]
+    [InlineData(Keys.E, 0x02, 0f, "E")]
+    public void Remapped_buttons_emit_the_native_car_packet_shown_by_the_binding_hint(Keys key, int buttons, float vertical, string hint)
     {
         KeyboardInput keyboard = new() { Profile = CarProfile() };
         InputFrame input = keyboard.Read(new KeyboardState(key), true);
@@ -37,7 +37,7 @@ public sealed class CarGameplayInputTests
         Assert.Equal(0, horizontal);
         Assert.Equal(vertical, throttle);
         Assert.Equal(0, action.CameraHorizontal);
-        Assert.Equal(key.ToString(), keyboard.NativeButtonBindingHint((ushort)buttons));
+        Assert.Equal(hint, keyboard.NativeButtonBindingHint((ushort)buttons));
     }
 
     [Fact]
@@ -45,7 +45,25 @@ public sealed class CarGameplayInputTests
     {
         KeyboardInput keyboard = new() { Profile = CarProfile() };
 
-        Assert.Equal("NumPad8 Back\nNumPad6 Forward\nNumPad4 Get on/off\nE POV", DialogueTextFormatter.Format("{Key Menu} Back{Line}{Key Cards} Forward{Line}{Key Confirm} Get on/off{Line}{Key EscapeKey2} POV", buttonBindingHint: keyboard.NativeButtonBindingHint));
+        Assert.Equal("N8 Back\nN6 Forward\nN4 Get on/off\nE POV", DialogueTextFormatter.Format("{Key Menu} Back{Line}{Key Cards} Forward{Line}{Key Confirm} Get on/off{Line}{Key EscapeKey2} POV", buttonBindingHint: keyboard.NativeButtonBindingHint));
+    }
+
+    [Theory]
+    [InlineData(Keys.NumPad0, "N0")]
+    [InlineData(Keys.NumPad1, "N1")]
+    [InlineData(Keys.NumPad2, "N2")]
+    [InlineData(Keys.NumPad3, "N3")]
+    [InlineData(Keys.NumPad4, "N4")]
+    [InlineData(Keys.NumPad5, "N5")]
+    [InlineData(Keys.NumPad6, "N6")]
+    [InlineData(Keys.NumPad7, "N7")]
+    [InlineData(Keys.NumPad8, "N8")]
+    [InlineData(Keys.NumPad9, "N9")]
+    public void Numpad_binding_hints_use_compact_key_labels(Keys key, string expected)
+    {
+        InputChord chord = new([key], []);
+
+        Assert.Equal(expected, chord.DisplayName);
     }
 
     [Theory]

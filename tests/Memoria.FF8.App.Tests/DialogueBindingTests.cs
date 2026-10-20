@@ -120,7 +120,8 @@ public sealed class DialogueBindingTests
         var changed = Get();
         Assert.NotSame(first.Pages, changed.Pages);
         Assert.Equal(1, changed.Pager.PageIndex);
-        Assert.Contains(changed.Pages[1].Lines.SelectMany(line => line.Runs), run => run.Run.Text.Contains("K4", StringComparison.Ordinal));
+        Assert.Contains(changed.Pages[1].Lines.SelectMany(line => line.Runs), run => run.Run.IsButton && run.Run.Text == "K");
+        Assert.Contains(changed.Pages[1].Lines.SelectMany(line => line.Runs), run => !run.Run.IsButton && run.Run.Text == "4");
         Assert.Same(changed.Pages, Get().Pages);
     }
 }

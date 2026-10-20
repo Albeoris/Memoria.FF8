@@ -123,8 +123,16 @@ internal sealed partial class RecreateGame
             foreach (var run in line.Runs)
             {
                 float alpha = run.Run.Blink ? DialogueBlink.Opacity(seconds) : 1;
-                string visibleText = DialoguePager.VisiblePrefix(run.Run.Text, ref remaining);
-                text.DrawLine(batch, visibleText, fontSize, position + new Vector2(run.X * scale, 0), run.Run.Color * alpha, family);
+                string visibleText = ButtonPrompt.VisibleText(run.Run, ref remaining);
+                Vector2 runPosition = position + new Vector2(run.X * scale, 0);
+                if (run.Run.IsButton)
+                {
+                    ButtonPrompt.Draw(batch, pixel, text, visibleText, fontSize, runPosition, lineHeight, alpha, family, bounds);
+                }
+                else
+                {
+                    text.DrawLine(batch, visibleText, fontSize, runPosition, run.Run.Color * alpha, family);
+                }
             }
             position.Y += lineHeight;
         }

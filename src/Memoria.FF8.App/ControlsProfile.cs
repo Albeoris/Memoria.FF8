@@ -71,6 +71,16 @@ public sealed record InputChord(Keys[] Keys, Buttons[] Buttons)
         Microsoft.Xna.Framework.Input.Keys.RightShift => "Right Shift",
         Microsoft.Xna.Framework.Input.Keys.LeftAlt => "Left Alt",
         Microsoft.Xna.Framework.Input.Keys.RightAlt => "Right Alt",
+        Microsoft.Xna.Framework.Input.Keys.NumPad0 => "N0",
+        Microsoft.Xna.Framework.Input.Keys.NumPad1 => "N1",
+        Microsoft.Xna.Framework.Input.Keys.NumPad2 => "N2",
+        Microsoft.Xna.Framework.Input.Keys.NumPad3 => "N3",
+        Microsoft.Xna.Framework.Input.Keys.NumPad4 => "N4",
+        Microsoft.Xna.Framework.Input.Keys.NumPad5 => "N5",
+        Microsoft.Xna.Framework.Input.Keys.NumPad6 => "N6",
+        Microsoft.Xna.Framework.Input.Keys.NumPad7 => "N7",
+        Microsoft.Xna.Framework.Input.Keys.NumPad8 => "N8",
+        Microsoft.Xna.Framework.Input.Keys.NumPad9 => "N9",
         _ => key.ToString()
     };
 

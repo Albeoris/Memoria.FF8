@@ -17,7 +17,7 @@ internal static partial class DialogueTextFormatter
 
     public static DialogueDocument Parse(string encoded, IReadOnlyDictionary<int, string>? names = null, NativeMessageVariables? messageVariables = null, Func<ushort, string>? buttonBindingHint = null)
     {
-        string expanded = ExpandButtonBindings(NativeMessageVariables.Expand(encoded, messageVariables), buttonBindingHint);
+        string expanded = NativeMessageVariables.Expand(encoded, messageVariables);
         List<DialoguePage> pages = [];
         List<DialogueLine> lines = [];
         List<DialogueRun> runs = [];
@@ -95,6 +95,17 @@ internal static partial class DialogueTextFormatter
                     // Native common message4 uses key65 for the junctioned-magic J marker.
                     Append("J");
                     break;
+                case "Key":
+                    ushort buttons = ResolveButton(parameter);
+                    if (buttons != 0)
+                    {
+                        runs.Add(new DialogueRun((buttonBindingHint ?? DefaultButtonBindingHint)(buttons), color, blink, IsButton: true));
+                    }
+                    else
+                    {
+                        Append(match.Value);
+                    }
+                    break;
                 default:
                     // Preserve unrelated placeholders until their owning UI supplies a presentation contract.
                     Append(match.Value);
@@ -120,20 +131,26 @@ internal static partial class DialogueTextFormatter
     {
         return InlineTag().Replace(encoded, match =>
         {
-            if (match.Groups[1].Value != "Key" || !Enum.TryParse(match.Groups[2].Value, out TextTagKey key))
+            if (match.Groups[1].Value != "Key")
             {
                 return match.Value;
             }
-            // Native logical20..2F and fixed30..3F use button indices, not the enum's action names.
-            // The admitted native mapping is identity; host bindings supply the current device labels.
-            byte code = (byte)key;
-            ushort buttons = code is >= 0x20 and <= 0x3F ? (ushort)(1 << (code & 0x0F)) : (ushort)0;
-            if ((buttons & 0x0600) != 0)
-            {
-                return match.Value;
-            }
+            ushort buttons = ResolveButton(match.Groups[2].Value);
             return buttons == 0 ? match.Value : (buttonBindingHint ?? DefaultButtonBindingHint)(buttons);
         });
+    }
+
+    private static ushort ResolveButton(string parameter)
+    {
+        if (!Enum.TryParse(parameter, out TextTagKey key))
+        {
+            return 0;
+        }
+        // Native logical20..2F and fixed30..3F use button indices, not the enum's action names.
+        // The admitted native mapping is identity; host bindings supply the current device labels.
+        byte code = (byte)key;
+        ushort buttons = code is >= 0x20 and <= 0x3F ? (ushort)(1 << (code & 0x0F)) : (ushort)0;
+        return (buttons & 0x0600) == 0 ? buttons : (ushort)0;
     }
 
     private static string CharacterName(TextTagCharacter character, IReadOnlyDictionary<int, string>? names)
@@ -267,6 +284,11 @@ internal static partial class DialogueTextFormatter
                     List<DialogueRun> thoughtRuns = [];
                     foreach (DialogueRun run in line.Runs)
                     {
+                        if (run.IsButton)
+                        {
+                            thoughtRuns.Add(run);
+                            continue;
+                        }
                         foreach (char character in run.Text)
                         {
                             if (character is '(' or '（')
@@ -332,7 +354,7 @@ internal static partial class DialogueTextFormatter
         {
             return;
         }
-        if (runs.Count > 0 && runs[^1].Color == color && runs[^1].Blink == blink)
+        if (runs.Count > 0 && !runs[^1].IsButton && runs[^1].Color == color && runs[^1].Blink == blink)
         {
             runs[^1] = runs[^1] with { Text = runs[^1].Text + text };
         }

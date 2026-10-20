@@ -105,6 +105,11 @@ internal sealed class NativeTutorialDocumentElement(string text, float fontSize,
                 var color = placed.Run.Color;
                 float x = Bounds.X + 35 + placed.X;
                 string value = placed.Run.Text;
+                if (placed.Run.IsButton)
+                {
+                    ButtonPrompt.DrawCanvas(canvas, value, renderedFontSize, new UiRect(x, Bounds.Y + index * lineHeight, Math.Max(0, Bounds.Right - x), lineHeight), 1, fontFamily);
+                    continue;
+                }
                 int start = 0;
                 for (int character = 0; character <= value.Length; character++)
                 {
