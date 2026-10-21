@@ -8,6 +8,7 @@ namespace Memoria.FF8.App.Tests;
 
 internal sealed record NativeEffectFixtureRequest(string Id, ushort Effect, byte Command, ushort ActionId, byte TargetActorIndex, int EntryMaximumCallbacks, int ProcessTimeoutSeconds)
 {
+    public ushort? ControlledShellEffect { get; init; }
     public int AdmissionProbeMaximumCallbacks { get; init; }
     public bool OrdinaryMagicAdmission { get; init; }
     public bool DeferredGuardianFormulaAdmission { get; init; }
@@ -17,7 +18,8 @@ internal sealed record NativeEffectFixtureRequest(string Id, ushort Effect, byte
 }
 internal sealed record NativeEffectFixtureRequests(NativeEffectFixtureRequest[] Cases);
 internal sealed record NativeEffectFixtureArtifact(string Boundary, string File, string Sha256, long Bytes, long Frame, long NativeCallback);
-internal sealed record NativeEffectFixtureExportResult(string Id, ushort Effect, string Status, string Boundary, string? FirstBlocker, NativeEffectFixtureArtifact[] Artifacts)
+internal sealed record NativeEffectFixtureSelection(bool OriginalKernelEffectReference, byte ShellCommand, ushort ShellActionId, ushort ShellEffect, int KernelSection, int KernelIndex, ushort RequestedModuleEffect);
+internal sealed record NativeEffectFixtureExportResult(string Id, ushort Effect, string Status, string Boundary, string? FirstBlocker, NativeEffectFixtureArtifact[] Artifacts, NativeEffectFixtureSelection? Selection = null)
 {
     public string Scenario { get; init; } = "Fresh installed-resource component; controlled post-formula seven-HP damage; manual action104 descriptor; no story continuation or formula admission";
     public string[] Pending { get; init; } = ["Effect termination contract", "Effect initialization and completion", "Native comparison", "Significant graphics", "Camera", "Sound", "Independent cold next callback", "Ordinary command admission"];
@@ -43,6 +45,10 @@ internal static class NativeBattleEffectFixtureExporter
         {
             throw new InvalidDataException("The deferred guardian formula component requires its original command254 row and enemy target without a post-formula healing or Magic input.");
         }
+        if (request.ControlledShellEffect is ushort shell && (shell is < 1 or > 400 || request.OrdinaryMagicAdmission || request.DeferredGuardianFormulaAdmission || request.HealingContact || request.RevivalContact))
+        {
+            throw new InvalidDataException("Explicit module selection requires a valid original shell effect and a controlled post-formula damage component; ordinary, deferred, healing and revival admission cannot use it.");
+        }
         if (request.PartyModelId is < 0 or > 10)
         {
             throw new InvalidDataException("The fresh component requires an explicit original party model index.");
@@ -53,6 +59,21 @@ internal static class NativeBattleEffectFixtureExporter
     {
         BattleNativeAction[] matches = actions.Where(action => action.Command == request.Command && action.ActionId == request.ActionId && action.MagicId == request.Effect).ToArray();
         return matches.Length == 1 ? matches[0] : throw new InvalidDataException("The fixture request does not identify exactly one original kernel command/action/effect row; effect aliases are not inferred.");
+    }
+
+    internal static BattleNativeAction SelectComponentAction(IEnumerable<BattleNativeAction> actions, NativeEffectFixtureRequest request)
+    {
+        Validate(request);
+        return SelectAction(actions, request.ControlledShellEffect is ushort shell ? request with { Effect = shell } : request);
+    }
+
+    internal static ushort SelectHeaderEffect(BattleNativeAction action, NativeEffectFixtureRequest request)
+    {
+        if (action.Command != request.Command || action.ActionId != request.ActionId || action.MagicId != (request.ControlledShellEffect ?? request.Effect))
+        {
+            throw new InvalidDataException("The controlled component header requires its actual selected original kernel shell.");
+        }
+        return request.ControlledShellEffect is null ? action.MagicId : request.Effect;
     }
 
     internal static byte SelectSequence(ImmutableArray<byte> commandSequences, byte command, ushort action)
@@ -84,6 +105,7 @@ internal static class NativeBattleEffectFixtureExporter
     {
         string boundary = "request";
         List<NativeEffectFixtureArtifact> artifacts = [];
+        NativeEffectFixtureSelection? selection = null;
         try
         {
             Validate(request);
@@ -91,7 +113,8 @@ internal static class NativeBattleEffectFixtureExporter
             boundary = "original-action-row";
             using GameAssets game = new(gameDirectory);
             using BattleAssets assets = new(gameDirectory);
-            BattleNativeAction native = SelectAction(assets.NativeActions, request);
+            BattleNativeAction native = SelectComponentAction(assets.NativeActions, request);
+            selection = new(request.ControlledShellEffect is null, native.Command, native.ActionId, native.MagicId, native.KernelSection, native.KernelIndex, request.Effect);
             boundary = "original-resources";
             BattleEncounter formation = assets.LoadEncounter(94);
             BattleStage stage = assets.LoadStage(formation.StageId);
@@ -191,7 +214,7 @@ internal static class NativeBattleEffectFixtureExporter
                     catch (Exception error)
                     {
                         Save("before-ordinary-blocker", prior);
-                        return new(request.Id, request.Effect, "blocked", boundary, error.GetType().Name + ": " + error.Message, artifacts.ToArray()) { Scenario = "Fresh declared-stock original-resource Magic command; ordinary logical formula/header producer; no manually supplied contacts or descriptor104" };
+                        return new(request.Id, request.Effect, "blocked", boundary, error.GetType().Name + ": " + error.Message, artifacts.ToArray(), selection) { Scenario = "Fresh declared-stock original-resource Magic command; ordinary logical formula/header producer; no manually supplied contacts or descriptor104" };
                     }
                     BattleSnapshot current = battle.Capture();
                     if (current.NativeGraphics!.Descriptors.Queue.Any(slot => current.NativeGraphics.Descriptors.Packets[slot].Command == 104))
@@ -208,11 +231,11 @@ internal static class NativeBattleEffectFixtureExporter
                         }
                         boundary = "ordinary-produced-action104";
                         Save(boundary, current);
-                        return new(request.Id, request.Effect, "fixture-only", boundary, null, artifacts.ToArray()) { Scenario = "Fresh declared-stock original-resource Magic command; formula/header producer and stock2-to1; no manually supplied contacts or descriptor104", Pending = ["Independent next producer callback", "Whole ordinary action completion", "Native comparison"] };
+                        return new(request.Id, request.Effect, "fixture-only", boundary, null, artifacts.ToArray(), selection) { Scenario = "Fresh declared-stock original-resource Magic command; formula/header producer and stock2-to1; no manually supplied contacts or descriptor104", Pending = ["Independent next producer callback", "Whole ordinary action completion", "Native comparison"] };
                     }
                 }
                 Save("ordinary-producer-limit", battle.Capture());
-                return new(request.Id, request.Effect, "blocked", boundary, "The ordinary producer did not enqueue action104 within its explicit diagnostic callback budget.", artifacts.ToArray()) { Scenario = "Fresh declared-stock original-resource Magic command; ordinary producer; no manually supplied contact" };
+                return new(request.Id, request.Effect, "blocked", boundary, "The ordinary producer did not enqueue action104 within its explicit diagnostic callback budget.", artifacts.ToArray(), selection) { Scenario = "Fresh declared-stock original-resource Magic command; ordinary producer; no manually supplied contact" };
             }
             boundary = "controlled-post-formula";
             BattleCombatantSnapshot target = before.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex);
@@ -250,7 +273,7 @@ internal static class NativeBattleEffectFixtureExporter
             before = before with { Combatants = before.Combatants.Select(actor => actor.Id == target.Id ? target : actor).ToArray() };
             NativeBattleActionPacketsState packets = battle.NativeActionPackets;
             byte sequence = SelectSequence(definition.NativeCommandSequences, native.Command, native.ActionId);
-            (packets, int header) = packets.Prepare(new(0, native.Command, sequence, -1, native.ActionId, native.MagicId, null));
+            (packets, int header) = packets.Prepare(new(0, native.Command, sequence, -1, native.ActionId, SelectHeaderEffect(native, request), null));
             // Deferred guardian admission replaces this placeholder through the actual Boost/formula callback.
             // Other component scenarios supply their declared post-formula seven-HP contact.
             (packets, _) = packets.AppendContact(new(new(request.TargetActorIndex, native.DamagePresentation, request.TargetActorIndex == 3 ? (byte)1 : (byte)0, request.HealingContact ? (byte)1 : (byte)0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
@@ -275,7 +298,7 @@ internal static class NativeBattleEffectFixtureExporter
                     catch (Exception error)
                     {
                         Save("last-complete-before-blocker", prior);
-                        return new(request.Id, request.Effect, "blocked", boundary, error.GetType().Name + ": " + error.Message, artifacts.ToArray());
+                        return new(request.Id, request.Effect, "blocked", boundary, error.GetType().Name + ": " + error.Message, artifacts.ToArray(), selection);
                     }
                     if (battle.NativeGraphics?.Callback != prior.NativeGraphics!.Callback + 1)
                     {
@@ -285,20 +308,20 @@ internal static class NativeBattleEffectFixtureExporter
                     if (battle.NativeGraphics!.OriginalEffect is { ReturnedDescriptor: > 0 } selected && selected.Binding.Effect == request.Effect)
                     {
                         Save("initialized-prefix", battle.Capture());
-                        return new(request.Id, request.Effect, "fixture-only", boundary, "The live initialized entry was reached; effect execution and termination acceptance remain pending.", artifacts.ToArray());
+                        return new(request.Id, request.Effect, "fixture-only", boundary, "The live initialized entry was reached; effect execution and termination acceptance remain pending.", artifacts.ToArray(), selection);
                     }
                 }
                 Save("diagnostic-prefix-limit", battle.Capture());
-                return new(request.Id, request.Effect, "fixture-only", boundary, "The explicit diagnostic prefix budget ended without a live initialized effect; this is not an effect duration bound or completion claim.", artifacts.ToArray());
+                return new(request.Id, request.Effect, "fixture-only", boundary, "The explicit diagnostic prefix budget ended without a live initialized effect; this is not an effect duration bound or completion claim.", artifacts.ToArray(), selection);
             }
-            return new(request.Id, request.Effect, "fixture-only", boundary, "Effect execution and termination contract were not supplied; no effect completion was attempted or accepted.", artifacts.ToArray())
+            return new(request.Id, request.Effect, "fixture-only", boundary, "Effect execution and termination contract were not supplied; no effect completion was attempted or accepted.", artifacts.ToArray(), selection)
             {
-                Scenario = request.DeferredGuardianFormulaAdmission ? "Fresh installed-resource guardian component; enemy starts at10000HP; manual action104 header contains a seven-HP placeholder, replaced by the actual deferred Boost4850A0 formula callback; ordinary command/UI producer unproved" : request.RevivalContact ? "Fresh installed-resource three-actor component; controlled post-formula seven-HP revival with prior KO display; manual action104 descriptor; no story continuation or formula admission" : request.HealingContact ? "Fresh installed-resource component; controlled post-formula seven-HP healing; manual action104 descriptor; no story continuation or formula admission" : "Fresh installed-resource component; controlled post-formula seven-HP damage; manual action104 descriptor; no story continuation or formula admission"
+                Scenario = request.ControlledShellEffect is not null ? "Explicit direct-module selection using an authenticated original command shell; controlled seven-HP contact; no original kernel reference to the requested module, formula or ordinary command admission" : request.DeferredGuardianFormulaAdmission ? "Fresh installed-resource guardian component; enemy starts at10000HP; manual action104 header contains a seven-HP placeholder, replaced by the actual deferred Boost4850A0 formula callback; ordinary command/UI producer unproved" : request.RevivalContact ? "Fresh installed-resource three-actor component; controlled post-formula seven-HP revival with prior KO display; manual action104 descriptor; no story continuation or formula admission" : request.HealingContact ? "Fresh installed-resource component; controlled post-formula seven-HP healing; manual action104 descriptor; no story continuation or formula admission" : "Fresh installed-resource component; controlled post-formula seven-HP damage; manual action104 descriptor; no story continuation or formula admission"
             };
         }
         catch (Exception error)
         {
-            return new(request.Id, request.Effect, "blocked", boundary, error.GetType().Name + ": " + error.Message, artifacts.ToArray());
+            return new(request.Id, request.Effect, "blocked", boundary, error.GetType().Name + ": " + error.Message, artifacts.ToArray(), selection);
         }
 
         void Save(string name, BattleSnapshot snapshot)

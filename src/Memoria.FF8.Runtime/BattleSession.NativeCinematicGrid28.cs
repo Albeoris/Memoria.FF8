@@ -84,6 +84,7 @@ public sealed partial class BattleSession
             null => NativeBattleCinematicGrid28.Draw(frame, services),
             0xAAB290 => NativeBattleApocalypse221Grid.Draw51(frame, services),
             0xAAB6D0 => NativeBattleApocalypse221Grid.Draw68(frame, services, resources.ReadStatic(0x186D4FC, 17).ToArray().ToImmutableArray()),
+            0xAC2230 => NativeBattleCinematicGrid28.DrawEnemy67(frame, services),
             _ => throw new NotSupportedException("Native cinematic grid requires its authenticated selected spacing and UV directory.")
         };
         return (drawn, graphics);

@@ -186,7 +186,7 @@ public static class NativeBattleScriptedMeshPreparation
             int expectedStride = type switch
             {
                 6 or 16 => 12,
-                2 or 7 or 8 => 20,
+                2 or 7 or 8 or 14 => 20,
                 9 or 12 => 28,
                 17 or 18 => 24,
                 19 => 36,

@@ -1318,6 +1318,10 @@ public static partial class NativeBattleCinematicDispatch
 
     public static uint RequireSlot(int effect, string table, int index, uint handler)
     {
+        if (TryRequireEnemySlot(effect, table, index, handler, out uint enemyCanonical))
+        {
+            return enemyCanonical;
+        }
         if (ControlVariantSlots.TryGetValue((effect, table, index), out uint controlVariant))
         {
             if (handler != controlVariant)
@@ -1363,6 +1367,10 @@ public static partial class NativeBattleCinematicDispatch
         if (handler == 0)
         {
             throw new NotSupportedException("Native cinematic dispatch selected a noncallable table entry.");
+        }
+        if (EnemyAliases.TryGetValue((effect, handler), out uint enemyCanonical))
+        {
+            return enemyCanonical;
         }
         if (effect == 201 && (CanonicalHandlers.Contains(handler) || RegionalCanonicalHandlers.Contains(handler) || GuestAliases.Values.Contains(handler) || MeteorAliases.Values.Contains(handler) || ApocalypseAliases.Values.Contains(handler)))
         {

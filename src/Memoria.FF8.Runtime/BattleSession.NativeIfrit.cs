@@ -227,11 +227,36 @@ public sealed partial class BattleSession
             int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank);
             switch (opcode)
             {
+                case 0xAF when selectedHandler == 0xB52F20:
+                    return NativeBattleCinematicContextCommandAF.Execute(current, program);
+                case 0xB3 when selectedHandler == 0xAC7800:
+                    return NativeBattleCinematicPath179.Execute(current, program, ResolveCurrentNode);
+                case 0xB9 when selectedHandler == 0xB2CA80:
+                    return NativeBattleCinematicNegateB9.Execute(current, program, bank, index, UpdateSlot);
+                case 0xBE when selectedHandler == 0xB3A9B0:
+                    return NativeBattleCinematicActorCommands77.BranchBE(current, program, pointer => unchecked((byte)graphics.Models[PhysicalActor(pointer)].Flags0));
+                case 0xC1 when selectedHandler == 0xB3AA00:
+                    return NativeBattleCinematicActorCommands77.ExecuteC1(current, new(frame =>
+                    {
+                        NativeBattleUiServices ui = graphics.UiServices ?? throw new NotSupportedException("Native cinematic menu command requires its retained UI flags.");
+                        graphics = graphics with { UiServices = ui.SetFlags(0x200, 0x100) };
+                        return frame;
+                    }, frame =>
+                    {
+                        NativeEffectMemory = RequireWaterMemory() with { Arena = frame.Arena, ScriptedEffects = frame.Core };
+                        graphics = BeginNativeOutcome47DF60(graphics);
+                        return frame;
+                    }, (frame, pointer) =>
+                    {
+                        graphics = SetNativeDescriptorStatusAndStanding(graphics, PhysicalActor(pointer), 0x8000);
+                        return frame;
+                    }));
                 case 0x55 when selectedHandler == 0xB2B380:
                     return NativeBattleCinematicActionBranch55.Execute(current, program, context.ReadActionBytes);
                 case 0x106 when profile.Effect == 223:
                     return NativeBattleCinematicFieldWait106.Execute(current, program, ResolveCurrentNode);
                 case 0x35 when profile.Effect == 223:
+                case 0x35 when selectedHandler == 0xA996A0:
                 case 0xBB when profile.Effect == 223:
                 case 0xBD when profile.Effect == 223:
                     return ExecuteNativeMeteor223Texture(current, program, resources);
@@ -738,6 +763,10 @@ public sealed partial class BattleSession
         NativeBattleWaterExecutionFrame UpdateSlot(NativeBattleWaterExecutionFrame current, byte kind)
         {
             uint handler = NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "bone_table", kind, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.BoneTable + 4u * kind), 4)));
+            if (NativeBattleCinematicDispatch.IsNoOp(profile.Effect, "bone_table", kind, handler))
+            {
+                return current;
+            }
             if (handler == 0xB264A0)
             {
                 return current;
@@ -746,10 +775,28 @@ public sealed partial class BattleSession
             {
                 return NativeBattleApocalypse221Orbit11.Execute(current, ResolveCurrentNode);
             }
+            if (handler == 0xB265B0)
+            {
+                return NativeBattleCinematicPosePosition9.Update(current, pointer =>
+                {
+                    int actorIndex = PhysicalActorIndex(pointer);
+                    NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
+                    NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actorIndex).PoseSource ?? throw new NotSupportedException("Native pose position requires its current actor rig.");
+                    NativeBattleDecodedPose pose = NativeBattlePoseMatrices.ReadDecodedPose(actor.SequenceState ?? throw new NotSupportedException("Native pose position requires its retained current decoded pose."), source);
+                    return new(BinaryPrimitives.ReadInt16LittleEndian(source.Skeleton.AsSpan().Slice(2, 2)), pose.Translation);
+                });
+            }
             NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, assets[1].Data.Length);
             int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank);
             ImmutableArray<byte> active = kind is 3 or 5 or 7 ? current.Core.Read(0x2797454, 128).ToImmutableArray() : [];
-            return current with { Arena = NativeBattleWaterSlots.UpdateSelected(current.Arena, bank, index, active) };
+            try
+            {
+                return current with { Arena = NativeBattleWaterSlots.UpdateSelected(current.Arena, bank, index, active) };
+            }
+            catch (NotSupportedException error)
+            {
+                throw new NotSupportedException($"Native cinematic bone kind {kind:X2} handler {handler:X8} requires its current slot-update contract.", error);
+            }
         }
 
         NativeBattleWaterExecutionFrame DrawSlots(NativeBattleWaterExecutionFrame current, int budget)
@@ -757,6 +804,18 @@ public sealed partial class BattleSession
             return NativeBattleCinematicDraw.Run(profile, current, PrepareLighting, (frame, kind) =>
             {
                 uint selectedDrawHandler = NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "draw_table", kind, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.DrawTable + 4u * kind), 4)));
+                if (selectedDrawHandler is 0xAD9BF0 or 0xACE7B0)
+                {
+                    var palette = DrawNativeCinematicPalette47(frame, graphics);
+                    graphics = palette.Graphics;
+                    return palette.Frame;
+                }
+                if (selectedDrawHandler == 0xAC26B0)
+                {
+                    var shatter = DrawNativeCinematicStageShatter49(frame, assets[1].Data.Length, graphics);
+                    graphics = shatter.Graphics;
+                    return shatter.Frame;
+                }
                 if (selectedDrawHandler == 0xAA6770)
                 {
                     return NativeBattleApocalypse221ActorTint69.Execute(frame, new((_, address) => graphics.Models[PhysicalActorIndex(address)], (current, address, actor) =>
@@ -765,7 +824,7 @@ public sealed partial class BattleSession
                         return current;
                     }));
                 }
-                if (selectedDrawHandler is 0xAAB290 or 0xAAB6D0)
+                if (selectedDrawHandler is 0xAAB290 or 0xAAB6D0 or 0xAC2230)
                 {
                     var grid = DrawNativeCinematicGrid28(frame, assets[1].Data.Length, resources, graphics, selectedDrawHandler);
                     graphics = grid.Graphics;

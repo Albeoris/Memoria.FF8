@@ -17,7 +17,12 @@ public static class NativeBattleCinematicGrid28
     internal static NativeBattleWaterExecutionFrame DrawApocalypse(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicGrid28Services services, ImmutableArray<byte> rowV)
         => DrawCore(frame, services, 512, 32, 511, rowV);
 
-    private static NativeBattleWaterExecutionFrame DrawCore(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicGrid28Services services, int coordinateStep, int textureStep, int positionMask, ImmutableArray<byte> rowV)
+    internal static NativeBattleWaterExecutionFrame DrawEnemy67(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicGrid28Services services)
+    {
+        return DrawCore(frame, services, 512, 32, 511, [], enemyUvPolicy: true);
+    }
+
+    private static NativeBattleWaterExecutionFrame DrawCore(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicGrid28Services services, int coordinateStep, int textureStep, int positionMask, ImmutableArray<byte> rowV, bool enemyUvPolicy = false)
     {
         ArgumentNullException.ThrowIfNull(services);
         uint payload = SlotDword(0xB8);
@@ -30,7 +35,7 @@ public static class NativeBattleCinematicGrid28
         frame = clut.Frame.WriteTemporaryDword(0x6C, clut.Value);
         int columns = unchecked((int)frame.ReadTemporaryDword(0x60));
         int rows = unchecked((int)frame.ReadTemporaryDword(0x64));
-        int firstU = unchecked(-(columns / 2 * textureStep) - ((SlotWord(frame, 0x98) >> 4) & (textureStep * 15)));
+        int firstU = unchecked(-(columns / 2 * textureStep) - ((SlotWord(frame, 0x98) >> 4) & (enemyUvPolicy ? 0xE0 : textureStep * 15)));
         frame = frame.WriteTemporaryDword(0x70, unchecked((uint)firstU));
         int firstV = unchecked(-(rows / 2 * textureStep) - ((SlotWord(frame, 0x94) >> 4) & (textureStep * 15)));
         frame = frame.WriteTemporaryDword(0x74, unchecked((uint)firstV));
@@ -98,9 +103,13 @@ public static class NativeBattleCinematicGrid28
                 PutDword(0x28, Dword(unchecked(bottom + 20)));
                 PutWord(0x1A, unchecked((ushort)frame.ReadTemporaryDword(0x68)));
                 PutWord(0xE, unchecked((ushort)frame.ReadTemporaryDword(0x6C)));
+                if (enemyUvPolicy)
+                {
+                    u &= 0x60;
+                }
                 data[0x24] = data[0xC] = unchecked((byte)u);
                 u = unchecked(u + textureStep);
-                data[0x30] = data[0x18] = (u & 0xF0) == 0 ? (byte)255 : unchecked((byte)u);
+                data[0x30] = data[0x18] = (u & (enemyUvPolicy ? 0x70 : 0xF0)) == 0 ? enemyUvPolicy ? (byte)0x7F : (byte)0xFF : unchecked((byte)u);
                 data[0x19] = data[0xD] = rowV.IsDefaultOrEmpty ? unchecked((byte)v) : rowV[v];
                 data[0x31] = data[0x25] = rowV.IsDefaultOrEmpty ? (unchecked(v + textureStep) & 0xF0) == 0 ? (byte)255 : unchecked((byte)(v + textureStep)) : rowV[v + 1];
                 PutDword(8, Dword(top));
