@@ -4,6 +4,19 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleCuragaNodeKinematics
 {
+    internal static NativeBattleEffectNodeBank CurrentBank(NativeBattleCuragaNodeMemory memory)
+    {
+        NativeBattleEffectMemory process = memory.CaptureProcessMemory();
+        NativeBattleCuragaExecutableState retained = memory.Profile.RequireExecutable(process);
+        if (memory.Profile.Effect != 43)
+        {
+            return CurrentBank(retained);
+        }
+        NativeBattleMeltingBubble43Resources resources = memory.Binding.MeltingBubble43Resources ?? throw new NotSupportedException("Melting Bubble requires its addressed original resource catalog.");
+        NativeBattleMeltingBubble43State state = process.RequireMeltingBubble43();
+        return new(retained.ResourceAddress, retained.Data ?? throw new NotSupportedException("Melting Bubble requires its original initialized directory bytes."), (address, length) => address >= NativeBattleMeltingBubble43Profile.ChannelBase ? state.ReadChannel(address, length) : resources.ReadStatic(address, length), resources.ReadResource);
+    }
+
     internal static NativeBattleEffectNodeBank CurrentBank(NativeBattleCuragaExecutableState? source)
     {
         NativeBattleCuragaExecutableState retained = source ?? throw new NotSupportedException("Native Curaga node requires its retained current executable bank.");

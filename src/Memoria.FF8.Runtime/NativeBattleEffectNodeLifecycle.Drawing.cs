@@ -53,7 +53,7 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
                     NativeBattleActionMatrix matrix = ReadMatrix(node + 0xAC);
                     if (!resources.TryGetValue(resource, out ImmutableArray<byte> bytes))
                     {
-                        bytes = bank.Read(resource, checked(bank.Length - (int)(resource - bank.Address))).ToImmutableArray();
+                        bytes = bank.ReadResource(resource);
                         resources.Add(resource, bytes);
                     }
                     NativeBattleGfGeometryBatch batch;

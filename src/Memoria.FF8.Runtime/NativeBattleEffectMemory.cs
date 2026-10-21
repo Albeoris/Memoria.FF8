@@ -41,6 +41,12 @@ public sealed partial record NativeBattleEffectMemory([property: JsonRequired] N
         DrinkMagic37?.Validate();
         Raldo19?.Validate();
         Effect20?.Validate();
+        MeltingBubble43?.Validate();
+        MeltingBubble43Executable?.Validate();
+        if (MeltingBubble43Executable is { } directory43 && (directory43.ResourceAddress != 0x15C6080 || directory43.InitializationFlag != 1 || directory43.Data is null))
+        {
+            throw new InvalidDataException("Melting Bubble requires its actual initialized directory and absolute pointers.");
+        }
         WindBlast29?.Validate();
         WindBlast29Executable?.Validate();
         if (WindBlast29Executable is { ResourceAddress: not 0x17D27DC })

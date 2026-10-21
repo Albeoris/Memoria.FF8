@@ -37,6 +37,8 @@ public sealed class NativeBattleRetainedMemoryTests
         NativeBattleQuezacotlExecutableMemory executableMemory = Assert.IsType<NativeBattleQuezacotlExecutableMemory>(actual.EffectMemory!.QuezacotlExecutableMemory);
         byte[] executable = File.ReadAllBytes(Path.Combine(assets.GameDirectory, "FF8_EN.exe"));
         Assert.Null(generic.EffectMemory.DrinkMagic37);
+        Assert.Null(generic.EffectMemory.MeltingBubble43);
+        Assert.Null(generic.EffectMemory.MeltingBubble43Executable);
         Assert.Null(generic.EffectMemory.WindBlast29);
         Assert.Null(generic.EffectMemory.WindBlast29Executable);
         Assert.Null(generic.EffectMemory.Effect60);
@@ -98,6 +100,8 @@ public sealed class NativeBattleRetainedMemoryTests
             },
             Raldo19Executable = NativeBattleCuragaExecutableState.FromColdProcess(19),
             Effect20 = NativeBattleEffect20State.FromColdProcess(System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(image.ReadLoader(0x27268F8, 4)), System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(image.ReadLoader(0x2722960, 4))),
+            MeltingBubble43 = NativeBattleMeltingBubble43State.FromColdProcess(System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(image.ReadLoader(0x2656220, 4)), System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(image.ReadLoader(0x265587C, 4)), NativeBattleMeltingBubble43Profile.ChannelRegions.SelectMany(region => image.ReadLoader(region.Address, region.Length)).ToImmutableArray()),
+            MeltingBubble43Executable = new(1, image.ReadLoader(0x15C6080, 260).ToImmutableArray()) { ResourceAddress = 0x15C6080 },
             WindBlast29 = NativeBattleWindBlast29State.FromColdProcess(System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(image.ReadLoader(0x26D74E8, 4)), System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(image.ReadLoader(0x26D6B44, 4))),
             WindBlast29Executable = NativeBattleCuragaExecutableState.FromColdProcess(29),
             Effect60 = NativeBattleEffect60State.FromColdProcess(image.ReadLoader(NativeBattleEffect60Profile.SharedAddress, 84).ToImmutableArray(), image.ReadLoader(NativeBattleEffect60Profile.SavedRotationAddress, 8).ToImmutableArray(), image.ReadLoader(NativeBattleEffect60Profile.MorphScratchAddress, NativeBattleEffect60Profile.MorphScratchLength).ToImmutableArray(), System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(image.ReadLoader(0x2607050, 4)), System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(image.ReadLoader(0x2605DD4, 4))),

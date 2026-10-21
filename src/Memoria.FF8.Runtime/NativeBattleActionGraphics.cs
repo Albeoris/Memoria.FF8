@@ -398,6 +398,9 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleWindBlast29Resources? WindBlast29Resources { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleMeltingBubble43Resources? MeltingBubble43Resources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleRestorationResources? RestorationResources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

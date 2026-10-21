@@ -8,7 +8,7 @@ public static partial class NativeBattleCuragaNodeKinematics
     public static NativeBattleCuragaNodePresentationStep AdvanceAndDraw87EC80(NativeBattleCuragaFrame frame, uint contextTask, NativeCrtRandomState random, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors? colors = null)
     {
         NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
-        NativeBattleEffectNodeBank bank = CurrentBank(memory.Profile.RequireExecutable(frame.Memory));
+        NativeBattleEffectNodeBank bank = CurrentBank(memory);
         NativeBattleEffectNodeLifecycle core = CreateLifecycle(memory, bank, readModel);
         if (memory.Profile.StreamsPacketProducers)
         {
@@ -23,7 +23,7 @@ public static partial class NativeBattleCuragaNodeKinematics
     public static NativeBattleCuragaNodeDrawStep DrawNodes880390And87ED10(NativeBattleCuragaFrame frame, uint contextTask, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors? colors = null)
     {
         NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
-        NativeBattleEffectNodeBank bank = CurrentBank(memory.Profile.RequireExecutable(frame.Memory));
+        NativeBattleEffectNodeBank bank = CurrentBank(memory);
         if (memory.Profile.StreamsPacketProducers)
         {
             NativeBattleGfGeometryBatch streamed = CreateLifecycle(memory, bank).DrawNodes(projection, cameraRoll, PrepareMeshes(memory, projection, colors), (meshes, packetBatch) => ordering = StreamBatch(memory, frame, ordering, packetBatch, meshes));

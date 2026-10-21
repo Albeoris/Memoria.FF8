@@ -2,7 +2,10 @@ using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCuragaNodeEngineInputs(Func<NativeBattleCuragaFrame, uint, NativeBattleCuragaFrame> AdvanceBirthUpdateAndDraw);
+public sealed record NativeBattleCuragaNodeEngineInputs(Func<NativeBattleCuragaFrame, uint, NativeBattleCuragaFrame> AdvanceBirthUpdateAndDraw)
+{
+    public Func<NativeBattleCuragaFrame, uint, NativeBattleCuragaFrame>? BeforeAdvanceContext { get; init; }
+}
 public sealed record NativeBattleCuragaNodeEngineStep(NativeBattleCuragaFrame Frame, bool Complete);
 
 /// <summary>87EC80's context phases and ordered birth/update/sprite/mesh execution. Persistent nodes remain in the original arena.</summary>
@@ -61,6 +64,7 @@ public static class NativeBattleCuragaNodeEngine
 
     public static NativeBattleCuragaNodeEngineStep Advance87EC80(NativeBattleCuragaFrame frame, uint contextTask, NativeBattleCuragaNodeEngineInputs inputs)
     {
+        frame = inputs.BeforeAdvanceContext?.Invoke(frame, contextTask) ?? frame;
         var step = NativeBattleEffectNodeLifecycle.AdvanceContext(ReadTask, WriteTask, () => frame = inputs.AdvanceBirthUpdateAndDraw(frame, contextTask));
         ushort emitterCount = frame.State.PassCount26D82EA ?? throw new NotSupportedException("Native87EC80 requires87DC50's actual per-pass emitter-count reset.");
         ushort geometryCount = frame.State.PassCount26D82DA ?? throw new NotSupportedException("Native87EC80 requires87DC50's actual per-pass geometry-count reset.");
@@ -77,14 +81,8 @@ public static class NativeBattleCuragaNodeEngine
     public static NativeBattleCuragaFrame Birth882E20(NativeBattleCuragaFrame frame, uint contextTask)
     {
         NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
-        NativeBattleCuragaExecutableState executable = memory.Profile.RequireExecutable(frame.Memory);
-        Birth(memory, executable);
+        NativeBattleCuragaNodeKinematics.CreateLifecycle(memory, NativeBattleCuragaNodeKinematics.CurrentBank(memory)).Birth();
         return memory.Flush();
-    }
-
-    internal static void Birth(NativeBattleCuragaNodeMemory memory, NativeBattleCuragaExecutableState executable)
-    {
-        NativeBattleCuragaNodeKinematics.CreateLifecycle(memory, NativeBattleCuragaNodeKinematics.CurrentBank(executable)).Birth();
     }
 
     public static NativeBattleCuragaFrame AdvanceList8804D0(NativeBattleCuragaFrame frame, uint contextTask, Func<NativeBattleCuragaFrame, uint, int, NativeBattleCuragaFrame> advanceEmitter, Func<NativeBattleCuragaFrame, uint, int, NativeBattleCuragaFrame> advanceGeometry)

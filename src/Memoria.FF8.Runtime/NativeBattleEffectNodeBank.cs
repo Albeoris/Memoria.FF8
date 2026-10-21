@@ -6,11 +6,12 @@ namespace Memoria.FF8.Runtime;
 internal sealed class NativeBattleEffectNodeBank
 {
     private readonly Func<uint, int, byte[]>? readExternal;
+    private readonly Func<uint, ImmutableArray<byte>>? readResource;
     internal uint Address { get; }
     internal ImmutableArray<byte> Data { get; private set; }
     internal int Length => Data.Length;
 
-    internal NativeBattleEffectNodeBank(uint address, ImmutableArray<byte> data, Func<uint, int, byte[]>? readExternal = null)
+    internal NativeBattleEffectNodeBank(uint address, ImmutableArray<byte> data, Func<uint, int, byte[]>? readExternal = null, Func<uint, ImmutableArray<byte>>? readResource = null)
     {
         if (data.IsDefaultOrEmpty || (ulong)address + (uint)data.Length > uint.MaxValue)
         {
@@ -19,6 +20,7 @@ internal sealed class NativeBattleEffectNodeBank
         Address = address;
         Data = data;
         this.readExternal = readExternal;
+        this.readResource = readResource;
     }
 
     internal byte[] Read(uint address, int length)
@@ -43,6 +45,20 @@ internal sealed class NativeBattleEffectNodeBank
             throw new InvalidDataException("Native node external owner must supply exactly the requested addressed bytes.");
         }
         return result;
+    }
+
+    internal ImmutableArray<byte> ReadResource(uint address)
+    {
+        if (readResource is null)
+        {
+            return Read(address, checked(Length - (int)(address - Address))).ToImmutableArray();
+        }
+        ImmutableArray<byte> bytes = readResource(address);
+        if (bytes.IsDefaultOrEmpty)
+        {
+            throw new InvalidDataException("An addressed effect resource requires its complete original byte span.");
+        }
+        return bytes;
     }
 
     internal void ReplaceData(ImmutableArray<byte> data)
