@@ -59,12 +59,13 @@ try {
         try {
             $env:MEMORIA_FF8_APP_PATH = Join-Path $data 'Memoria.FF8.exe'
             Invoke-DotNet @('run', '--project', 'tests/Memoria.Launcher.Tests', '-c', $Configuration)
-            Invoke-DotNet @('run', '--project', 'tests/Memoria.FF8.App.Tests', '-c', $Configuration, '--', '--filter-class', '*Remastered*')
+            Invoke-DotNet @('run', '--project', 'tests/Memoria.FF8.App.Tests', '-c', $Configuration, '--', '--filter-class', '*Remastered*', '--filter-class', '*FieldActorCaptureTests', '--filter-class', '*OpeningPresentationTests')
         }
         finally {
             $env:MEMORIA_FF8_APP_PATH = $previousAppPath
         }
         Invoke-DotNet @('run', '--project', 'tests/Memoria.FF8.Ui.Tests', '-c', $Configuration)
+        Invoke-DotNet @('run', '--project', 'tests/Memoria.FF8.Assets.Tests', '-c', $Configuration, '--', '--filter-class', '*FieldPoseInterpolationTests', '--filter-class', '*FieldRenderInterpolationTests')
         Invoke-DotNet @('run', '--project', 'tests/Memoria.FF8.Runtime.Tests', '-c', $Configuration)
     }
 

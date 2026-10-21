@@ -39,6 +39,7 @@ Tests that need installed resources or external fixtures require explicit config
 | `MEMORIA_FF8_GAME_DIR` / `FF8_GAME_DIRECTORY` | Original game resources for installed-resource tests. |
 | `MEMORIA_FF8_TEST_FIXTURE_CATALOG` | JSON object mapping neutral test resource IDs to externally supplied fixture paths. |
 | `MEMORIA_FF8_TEST_FIXTURES` | Fixture base directory. If unset, the catalog's containing directory is used. Relative catalog entries resolve against this base. |
+| `MEMORIA_FF8_OPENING_OUTPUT` | Optional output directory retaining the opening presentation tests' standalone 30/60 FPS corridor snapshots. Without it, snapshots are temporary. |
 | `MEMORIA_FF8_REMASTERED_DIR` | Optional Remastered installation for installed Remastered tests. It also selects the optional opening-route acceptance installation; normal engine launch still uses `--game-dir` or `MEMORIA_FF8_GAME_DIR`. |
 | `MEMORIA_FF8_REMASTERED_PROOF_DIR` | Optional output root retaining the opening acceptance standalone save, image and report. |
 | `MEMORIA_FF8_AUTOPLAY_ACCEPTANCE` | Set to `1` to opt in to the full autonomous exploration acceptance test. This does not enable the CLI mode, which needs no environment flag. |

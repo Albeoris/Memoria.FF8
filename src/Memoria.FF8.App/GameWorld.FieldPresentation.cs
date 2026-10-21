@@ -46,14 +46,29 @@ internal sealed partial class GameWorld
         bool patched = modActors.TryGetValue(actor.ObjectId, out var mod) && IsActorPatchActive(mod.Patch);
         DebugActorView? view = session.State.DebugView?.Actors.GetValueOrDefault(actor.ObjectId);
         bool customAnimation = patched || view?.AnimationId is not null || view?.Frame is not null;
-        int first = customAnimation ? 0 : actor.AnimationFirst;
-        int terminal = customAnimation ? presentationField!.GetAnimationFrameCount(visual.ModelId, visual.AnimationId) : Math.Max(actor.AnimationLast + 1, (int)MathF.Ceiling(visual.AnimationFrame) + 1);
+        int? frameCount = null;
         if ((uint)visual.ModelId < presentationField!.Models.Count && (uint)visual.AnimationId < presentationField.Models[visual.ModelId].Animations.Count)
         {
-            terminal = Math.Min(terminal, presentationField.GetAnimationFrameCount(visual.ModelId, visual.AnimationId));
+            frameCount = presentationField.GetAnimationFrameCount(visual.ModelId, visual.AnimationId);
         }
-        // A native held animation may retain its final frame in the terminal word itself.
-        // Presentation includes that current sample without changing the physical header or completion state.
+        return CaptureFieldActor(actor, visual, frameCount, customAnimation);
+    }
+
+    internal static FieldActorSample CaptureFieldActor(ActorState actor, ActorVisual visual, int? frameCount, bool customAnimation = false)
+    {
+        // Completion can move the held phase below the retained first frame or into the terminal word.
+        // Sampling bounds must include that pose and its fractional neighbour, independently of playback bounds.
+        int first = customAnimation ? 0 : actor.AnimationFirst;
+        int terminal = customAnimation ? frameCount ?? throw new InvalidDataException("Custom animation requires its selected clip metadata.") : actor.AnimationLast + 1;
+        if (!customAnimation && !actor.AnimationLoop)
+        {
+            first = Math.Min(first, (int)MathF.Floor(visual.AnimationFrame));
+            terminal = Math.Max(terminal, (int)MathF.Ceiling(visual.AnimationFrame) + 1);
+        }
+        if (frameCount is int count)
+        {
+            terminal = Math.Min(terminal, count);
+        }
         return new FieldActorSample(actor, actor.PresentationPositionRevision, actor.PresentationAnimationRevision, visual, first, terminal, customAnimation || actor.AnimationLoop, customAnimation ? 1 : actor.AnimationSpeed);
     }
 }
