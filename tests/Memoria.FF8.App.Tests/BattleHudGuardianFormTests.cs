@@ -55,7 +55,8 @@ public sealed class BattleHudGuardianFormTests
         List<BattleInput> inputs = [];
         BattleHudController hud = Hud(battle, inputs);
         hud.Choose(1);
-        Assert.Equal(enabled, Assert.Single(hud.ChoiceLabels).Contains('>'));
+        Assert.Equal("Renamed GF", Assert.Single(hud.ChoiceLabels));
+        Assert.Equal(enabled ? ">" : "", hud.ChoiceValue(hud.SelectedAction!));
         hud.Navigate(MenuInput.Confirm);
         Assert.True(hud.SelectingTarget);
         hud.Navigate(MenuInput.Confirm);
