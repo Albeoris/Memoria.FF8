@@ -32,11 +32,6 @@ internal sealed partial class RecreateGame
                 uiCanvas?.MenuPointer(new UiRect(bounds.Center.X - measured.X / 2 - pointerHeight * 1.8f, y + (measured.Y - pointerHeight) / 2, pointerHeight * 1.5f, pointerHeight));
             }
         }
-
-        string hint = $"Confirm: {keyboard.BindingPrompt(ControlAction.Confirm)}    Menu: {keyboard.BindingPrompt(ControlAction.Menu)}    Load: {keyboard.BindingPrompt(ControlAction.LoadMenu)}";
-        float hintSize = Math.Min(bounds.Height * 0.02f, bounds.Width * 0.024f);
-        UiSize hintMeasure = ButtonPromptText.Measure(hint, hintSize, bounds.Width, "Times New Roman");
-        uiCanvas?.Text(hint, hintSize, new UiRect(bounds.Center.X - hintMeasure.Width / 2, bounds.Y + bounds.Height * 0.89f, hintMeasure.Width + 2, hintMeasure.Height), new UiColor(155, 155, 155), "Times New Roman");
     }
 
     private float WindowTextScale => uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f;
