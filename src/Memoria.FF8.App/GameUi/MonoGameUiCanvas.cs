@@ -13,6 +13,12 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
     private readonly MenuArtworkProvider artwork = new(gameDirectory);
     private readonly Dictionary<UiImageSource, Texture2D> images = [];
     private string? cardFontFamily;
+    private readonly UiTextOverflow textOverflow = new();
+
+    public void BeginFrame(TimeSpan time)
+    {
+        textOverflow.BeginFrame(time);
+    }
 
     public void PrepareTripleTriad(TripleTriadController controller)
     {
@@ -183,13 +189,17 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
         {
             return;
         }
-        Vector2 position = new(bounds.X, bounds.Y);
+        UiTextViewport layout = textOverflow.Layout(value, size, bounds, fontFamily ?? text.FontFamily, width =>
+        {
+            Vector2 measured = text.MeasureWrapped(value, size, width, fontFamily);
+            return new UiSize(measured.X, measured.Y);
+        });
+        Vector2 position = new(bounds.X - layout.OffsetX, bounds.Y - layout.OffsetY);
         if (verticalAlignment is UiAlignment.Center or UiAlignment.End)
         {
-            float height = text.MeasureWrapped(value, size, bounds.Width, fontFamily).Y;
-            position.Y += (bounds.Height - height) * (verticalAlignment == UiAlignment.Center ? 0.5f : 1);
+            position.Y += Math.Max(0, bounds.Height - layout.Content.Height) * (verticalAlignment == UiAlignment.Center ? 0.5f : 1);
         }
-        text.DrawWrappedClipped(batch, value, size, position, bounds.Width, ColorFor(color), Rectangle.Intersect(RectangleFor(bounds), CurrentClip), fontFamily);
+        text.DrawWrappedClipped(batch, value, size, position, layout.WrapWidth, ColorFor(color), Rectangle.Intersect(RectangleFor(bounds), CurrentClip), fontFamily);
     }
 
     public void Line(float x1, float y1, float x2, float y2, UiColor color, float thickness)

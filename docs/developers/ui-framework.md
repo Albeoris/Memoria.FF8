@@ -16,6 +16,8 @@ Create a root container, add its children, construct `UiView` and call `Resize`.
 
 Draw with `UiView.Draw(canvas, theme)`. `IUiCanvas.PushClip` intersects the current clip and `PopClip` restores it. All rectangles and text use one coordinate space. Font selection and actual text measurement belong to the adapter. Children draw in order and hit-test in reverse order. Ancestor visibility, enabled state and clipping also constrain input.
 
+The application and raster preview adapters automatically scroll ordinary text when wrapping exceeds the rectangle's fixed height. A single paragraph becomes a horizontally scrolling line; explicit line breaks remain intact and an overflowing multiline block scrolls vertically. Text that fits keeps its normal wrapping and alignment. `UiTextOverflow` measures through the adapter and retains animation across rebuilt views. Call the adapter's `BeginFrame(TimeSpan)` once per presented frame: the text pauses for 1.5 seconds at the beginning, moves at 1.5 font sizes per second, pauses for 2 seconds at the end, then repeats. Changing text, font, bounds or visibility restarts the cycle. The original rectangle and ancestor clips remain in effect, including for HELP panels.
+
 ```csharp
 UiGrid root = new() { Gap = 8, Padding = 12 };
 root.ColumnDefinitions.Add(UiGridLength.Star(3));

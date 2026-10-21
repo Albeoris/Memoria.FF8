@@ -1073,6 +1073,7 @@ internal sealed partial class RecreateGame : Game
 
     protected override void Draw(GameTime gameTime)
     {
+        uiCanvas?.BeginFrame(gameTime.TotalGameTime);
         if (battleEntryTransition is not null)
         {
             DrawBattleEntry(gameTime);

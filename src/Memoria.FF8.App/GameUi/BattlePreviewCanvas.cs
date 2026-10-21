@@ -17,6 +17,12 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IBattleMessageCanvas, IDi
     private Bitmap? menuPointer;
     private readonly MenuArtworkProvider artwork;
     private readonly Dictionary<UiImageSource, Bitmap> images = [];
+    private readonly UiTextOverflow textOverflow = new();
+
+    public void BeginFrame(TimeSpan time)
+    {
+        textOverflow.BeginFrame(time);
+    }
 
     public BattlePreviewCanvas(Bitmap bitmap, string? gameDirectory = null)
     {
@@ -192,18 +198,23 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IBattleMessageCanvas, IDi
         {
             return;
         }
-        using Bitmap glyphs = SystemTextLayout.Rasterize(text, fontSize, bounds.Width);
-        float y = bounds.Y;
+        UiTextViewport layout = textOverflow.Layout(text, fontSize, bounds, null, width =>
+        {
+            using Bitmap measured = SystemTextLayout.Rasterize(text, fontSize, width);
+            return new UiSize(measured.Width / (float)SystemTextLayout.RasterScale, measured.Height / (float)SystemTextLayout.RasterScale);
+        });
+        using Bitmap glyphs = SystemTextLayout.Rasterize(text, fontSize, layout.WrapWidth);
+        float y = bounds.Y - layout.OffsetY;
         if (verticalAlignment is UiAlignment.Center or UiAlignment.End)
         {
             float height = glyphs.Height / (float)SystemTextLayout.RasterScale;
-            y += (bounds.Height - height) * (verticalAlignment == UiAlignment.Center ? 0.5f : 1);
+            y += Math.Max(0, bounds.Height - height) * (verticalAlignment == UiAlignment.Center ? 0.5f : 1);
         }
         PushClip(bounds);
         try
         {
-            DrawTinted(glyphs, bounds.X + 1, y + 2, new UiColor(0, 0, 0, (byte)(color.A * 0.75f)));
-            DrawTinted(glyphs, bounds.X, y, color);
+            DrawTinted(glyphs, bounds.X - layout.OffsetX + 1, y + 2, new UiColor(0, 0, 0, (byte)(color.A * 0.75f)));
+            DrawTinted(glyphs, bounds.X - layout.OffsetX, y, color);
         }
         finally
         {
