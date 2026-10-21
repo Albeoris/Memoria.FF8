@@ -143,6 +143,8 @@ internal sealed partial class GameWorld
                 Events.CommitNativeBattleFieldReturn(prepared);
             });
             PublishReloadedBattleField(reloadedField!);
+            //471F70 follows the kind3 resume tail with a complete4767B0 field callback.
+            Events.Step();
         }
         else if (occurrence.ScriptedOwner is not null)
         {
@@ -165,6 +167,8 @@ internal sealed partial class GameWorld
             PublishReloadedBattleField(reloadedField!);
             RandomEncounterSessionState encounters = session.State.RandomEncounters ?? throw new InvalidOperationException("Random outcome lost its playthrough owner.");
             session.SetRandomEncounters(encounters with { Pending = null });
+            //Release the encounter owner before the resumed callback checks for a pending battle.
+            Events.Step();
         }
     }
 

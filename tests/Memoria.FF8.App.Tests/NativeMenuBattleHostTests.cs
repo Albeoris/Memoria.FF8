@@ -65,23 +65,29 @@ public sealed class NativeMenuBattleHostTests
             restored.ApplyBattleInput(new BattleInput(BattleInputKind.Tick));
         }
         Assert.True(restored.Battle.CanReturnToField, "The native victory callbacks must reach the menu battle return boundary.");
+        long fieldFrameBeforeReturn = restored.Events.Frame;
         restored.ApplyBattleInput(new BattleInput(BattleInputKind.Return));
+        Assert.Equal(fieldFrameBeforeReturn + 1, restored.Events.Frame);
         Assert.Null(restored.Battle);
         Assert.Null(restored.Events.PendingMenuBattle);
         Assert.Equal(SceneKind.Field, restoredSession.State.Scene);
         Assert.Equal(fieldId, restoredSession.State.FieldId);
         Assert.Equal(count - 1, LampCount(restoredSession));
         Assert.Equal(1, restoredSession.State.CharacterVitals!.GuardianForces[5].Flags & 1);
-        restored.Apply(new PlayerAction(PlayerActionKind.Wait));
-        restored.EnsureField();
-        string returnedSnapshot = TestResources.ArtifactFile("menu-battle-returned-wait1.json");
-        restoredSession.SetEventState(restored.Events.Capture());
+        JsonElement returnedEvents = restored.Events.Capture();
+        byte[] returnedPixels = restored.Render(TimeSpan.Zero).ToArray();
+        Assert.NotEmpty(returnedPixels);
+        Assert.Equal(returnedPixels, restored.Render(TimeSpan.Zero));
+        Assert.True(JsonElement.DeepEquals(returnedEvents, restored.Events.Capture()));
+        string returnedSnapshot = TestResources.ArtifactFile("menu-battle-returned.json");
+        restoredSession.SetEventState(returnedEvents);
         restoredSession.Save(returnedSnapshot);
         GameSession returnedSession = new(GameSession.Load(returnedSnapshot));
         using GameWorld returned = new(returnedSession, game);
         returned.EnsureField();
         Assert.Equal(count - 1, LampCount(returnedSession));
         Assert.True(JsonElement.DeepEquals(restored.Events.Capture(), returned.Events.Capture()));
+        Assert.Equal(returnedPixels, returned.Render(TimeSpan.Zero));
     }
 
     [Fact]

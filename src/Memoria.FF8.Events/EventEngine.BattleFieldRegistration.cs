@@ -85,6 +85,8 @@ public sealed partial class EventEngine
         {
             actors[objectId].NativeAnimationHeader = header;
             actors[objectId].NativeEyes = eyesToBind[objectId];
+            //The projection receipt belongs to the replaced model draw, including hidden instances.
+            actors[objectId].NativeFootstepModelOrigin = null;
         }
         Scene.NativeFieldRegistration = step.State;
         if (Scene.NativeEyeProcess is not null)
