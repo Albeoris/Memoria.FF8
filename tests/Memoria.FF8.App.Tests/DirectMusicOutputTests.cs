@@ -5,6 +5,29 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class DirectMusicOutputTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FocusResumePreservesAnExistingNativeMusicPause(bool nativePaused)
+    {
+        using HelperFixture fixture = new("normal");
+        using DirectMusicOutput music = new(fixture.StartInfo(), TimeSpan.FromSeconds(5));
+        using FieldAudioPresentation presentation = new(0, "", "");
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        typeof(FieldAudioPresentation).GetField("music", flags)!.SetValue(presentation, music);
+        if (nativePaused)
+        {
+            typeof(FieldAudioPresentation).GetMethod("PauseMusicOutput", flags)!.Invoke(presentation, null);
+        }
+        presentation.SetFocusPaused(true);
+        presentation.SetFocusPaused(true);
+        presentation.SetFocusPaused(false);
+        presentation.SetFocusPaused(false);
+        Assert.True(music.IsPlaying);
+        string[] commands = File.ReadAllLines(fixture.Commands).Select(line => JsonSerializer.Deserialize<JsonElement>(line).GetProperty("Command").GetString()!).ToArray();
+        Assert.Equal(nativePaused ? ["Pause", "Pause", "Playing"] : new[] { "Pause", "Resume", "Playing" }, commands);
+    }
+
     [Fact]
     public async Task StartupTimeoutDoesNotBlockGameplayOrRestartHelper()
     {

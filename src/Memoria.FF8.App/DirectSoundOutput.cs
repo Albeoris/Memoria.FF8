@@ -66,8 +66,45 @@ internal sealed class DirectSoundOutput : IDisposable
     internal sealed class Buffer(nint instance) : IDisposable
     {
         private nint handle = instance;
-        public void Play(bool loop) => WindowsAudioCom.Check(WindowsAudioCom.Method<PlayBuffer>(handle, 12)(handle, 0, 0, loop ? 1u : 0u));
-        public void Stop() => WindowsAudioCom.Check(WindowsAudioCom.Method<NoArguments>(handle, 18)(handle));
+        private bool paused;
+        private bool pausedLoop;
+
+        public void Play(bool loop)
+        {
+            WindowsAudioCom.Check(WindowsAudioCom.Method<PlayBuffer>(handle, 12)(handle, 0, 0, loop ? 1u : 0u));
+            paused = false;
+        }
+
+        public void Stop()
+        {
+            WindowsAudioCom.Check(WindowsAudioCom.Method<NoArguments>(handle, 18)(handle));
+            paused = false;
+        }
+
+        public void Pause()
+        {
+            if (paused)
+            {
+                return;
+            }
+            WindowsAudioCom.Check(WindowsAudioCom.Method<GetStatus>(handle, 9)(handle, out uint status));
+            if ((status & 1) == 0)
+            {
+                return;
+            }
+            // DirectSound Stop retains the current playback cursor.
+            Stop();
+            pausedLoop = (status & 4) != 0;
+            paused = true;
+        }
+
+        public void Resume()
+        {
+            if (paused)
+            {
+                Play(pausedLoop);
+            }
+        }
         public void Volume(int hundredthDecibels) => WindowsAudioCom.Check(WindowsAudioCom.Method<SetValue>(handle, 15)(handle, hundredthDecibels));
         public void Pan(int hundredthDecibels) => WindowsAudioCom.Check(WindowsAudioCom.Method<SetValue>(handle, 16)(handle, hundredthDecibels));
         public void Dispose()
@@ -101,6 +138,7 @@ internal sealed class DirectSoundOutput : IDisposable
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int CreateBuffer(nint self, ref BufferDescription description, out nint buffer, nint outer);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int LockBuffer(nint self, uint offset, uint bytes, out nint first, out uint firstLength, out nint second, out uint secondLength, uint flags);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int UnlockBuffer(nint self, nint first, uint firstLength, nint second, uint secondLength);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int GetStatus(nint self, out uint status);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int PlayBuffer(nint self, uint reserved, uint priority, uint flags);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int SetValue(nint self, int value);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int NoArguments(nint self);

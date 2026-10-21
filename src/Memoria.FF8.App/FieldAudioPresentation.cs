@@ -357,6 +357,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         if (Path.GetExtension(path).Equals(".sgt", StringComparison.OrdinalIgnoreCase))
         {
             Music.Play(path, OutputGain(Catalog.MusicVolume(volume.Value), musicPreference), startPoint);
+            nativeMidiPaused = false;
             musicKinds[slot] = MusicKind.Midi;
             midiVolume = volume.Value;
             midiRamp = null;
@@ -451,6 +452,10 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
 
     public void Update()
     {
+        if (focusPaused)
+        {
+            return;
+        }
         if (music?.Error is Exception failure)
         {
             midiRamp = null;
@@ -554,6 +559,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         if (musicKinds[slot] == MusicKind.Midi)
         {
             music?.Stop();
+            nativeMidiPaused = false;
             midiRamp = null;
         }
         else if (musicKinds[slot] == MusicKind.Stream)
@@ -607,11 +613,33 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         public Ramp? PanRamp { get; set; }
     }
 
-    internal sealed class Ramp(float initial, float target, int milliseconds)
+    internal sealed class Ramp(float initial, float target, int milliseconds, TimeProvider? timeProvider = null)
     {
-        private readonly Stopwatch clock = Stopwatch.StartNew();
-        public bool Finished => milliseconds <= 0 || clock.Elapsed.TotalMilliseconds >= milliseconds;
-        public float Value => Finished ? target : initial + (target - initial) * (float)(clock.Elapsed.TotalMilliseconds / milliseconds);
+        private readonly TimeProvider time = timeProvider ?? TimeProvider.System;
+        private long started = (timeProvider ?? TimeProvider.System).GetTimestamp();
+        private TimeSpan elapsed;
+        private bool paused;
+        private double ElapsedMilliseconds => (elapsed + (paused ? TimeSpan.Zero : time.GetElapsedTime(started))).TotalMilliseconds;
+        public bool Finished => milliseconds <= 0 || ElapsedMilliseconds >= milliseconds;
+        public float Value => Finished ? target : initial + (target - initial) * (float)(ElapsedMilliseconds / milliseconds);
+
+        public void Pause()
+        {
+            if (!paused)
+            {
+                elapsed += time.GetElapsedTime(started);
+                paused = true;
+            }
+        }
+
+        public void Resume()
+        {
+            if (paused)
+            {
+                started = time.GetTimestamp();
+                paused = false;
+            }
+        }
     }
 
     private enum MusicKind

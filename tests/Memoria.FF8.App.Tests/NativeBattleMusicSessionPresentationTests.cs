@@ -169,6 +169,7 @@ public sealed class NativeBattleMusicSessionPresentationTests
             NativeEffectMeshes = game.ReadNativeEffectMeshes(),
             NativeEffectCatalog = game.ReadNativeEffectCatalog(),
             NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
+            NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap,
             NativeActionCameraRules = game.ReadNativeActionCameraRules(),
             NativeStageSource = stage.NativeSource,
             NativeStageCameraBank = stage.NativeCameraBank,

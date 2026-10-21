@@ -6,6 +6,7 @@ internal sealed partial class FieldAudioPresentation
 {
     private void PauseMusicOutput()
     {
+        nativeMidiPaused = true;
         if (streamedMusic is not null && !streamedMusicPaused)
         {
             streamedMusic.Stop();
@@ -16,6 +17,7 @@ internal sealed partial class FieldAudioPresentation
 
     private void ResumeMusicOutput()
     {
+        nativeMidiPaused = false;
         if (streamedMusic is not null && streamedMusicPaused)
         {
             streamedMusic.Play(true);

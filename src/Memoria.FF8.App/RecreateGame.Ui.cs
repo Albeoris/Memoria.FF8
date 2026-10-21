@@ -609,7 +609,7 @@ internal sealed partial class RecreateGame
 
     private void SynchronizeUiMoviePause()
     {
-        bool pause = userPaused || updateSave.Paused || gameMenus?.IsOpen == true || drainUiButtons || battleDebug is not null || debugBattle is not null || sceneInspector is not null;
+        bool pause = focusPaused || userPaused || updateSave.Paused || gameMenus?.IsOpen == true || drainUiButtons || battleDebug is not null || debugBattle is not null || sceneInspector is not null;
         if (pause && !uiMovieSuspended)
         {
             movie?.Suspend();

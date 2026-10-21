@@ -136,6 +136,10 @@ internal sealed partial class RecreateGame : Game
     {
         // Keep launcher handoff and recovery commands responsive while gameplay is paused or inactive.
         updateControls?.Poll();
+        if (UpdateFocusPause())
+        {
+            return;
+        }
         if (updateSave.Paused)
         {
             presentationPacer.WaitForNextFrame(appliedFrameLimit ?? 60);
@@ -1266,6 +1270,7 @@ internal sealed partial class RecreateGame : Game
     {
         if (disposing)
         {
+            focusDisposed = true;
             DisposeBattleEntry();
             DisposeStartup();
             titleArtwork?.Dispose();

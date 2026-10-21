@@ -10,6 +10,11 @@ internal sealed class PresentationTiming
 
     public TimeSpan SimulationTotal { get; private set; }
 
+    public void DiscardPendingTime()
+    {
+        accumulated = TimeSpan.Zero;
+    }
+
     public static int FrameLimit(UiPreferences preferences, bool menu, bool battle, bool worldMap = false)
     {
         return menu ? preferences.MenuFps : battle ? preferences.BattleFps : worldMap ? preferences.WorldFps : preferences.FieldFps;
