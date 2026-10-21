@@ -59,7 +59,7 @@ public sealed class NativeBattleContactEffectTests
         Assert.True(secondary.Loaded);
         Assert.True(secondary.Secondary);
         Assert.False(secondary.DeferPetrify);
-        Assert.False(secondary.SpecialSound);
+        Assert.False(secondary.StageTargetRefresh);
         Assert.False(secondary.EjectionService7);
         Assert.True(secondary.SelectSequence);
         Assert.Equal(0x200014u, secondary.ImmediateStatusFlags);

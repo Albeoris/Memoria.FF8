@@ -3,7 +3,10 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCureResources(NativeBattleEffectHeapAllocation Animation, ImmutableArray<NativeBattleModuleResource> Sprites, uint Sound);
+public sealed record NativeBattleCureResources(NativeBattleEffectHeapAllocation Animation, ImmutableArray<NativeBattleModuleResource> Sprites, uint Sound)
+{
+    public ushort Effect { get; init; } = 1;
+}
 public sealed record NativeBattleCureState([property: JsonRequired] int SourceArenaOffset, [property: JsonRequired] int? PrimaryDrawCursor, [property: JsonRequired] int? SecondaryDrawCursor, [property: JsonRequired] NativeBattleActionMatrix? CopiedCamera)
 {
     public int Counter278C7E0 { get; init; }
@@ -26,18 +29,18 @@ public static class NativeBattleCureController
     {
         effect.Validate();
         packets.Validate();
+        NativeBattleCureFamilyProfile profile = NativeBattleCureFamilyProfile.ForEffect(effect.Binding.Effect);
+        if (resources.Effect != profile.Effect)
+        {
+            throw new InvalidDataException("Native Cure family resources belong to another module.");
+        }
         NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native8D6A00 requires50AFC0 parameters.");
-        if (effect.Binding.Entry != 0x8D6A00)
+        if (effect.Binding.Entry != profile.Entry)
         {
             throw new InvalidDataException("Native Cure controller requires its original8D6A00 entry.");
         }
-        NativeBattleEffectHierarchy hierarchy = new([
-            NativeBattleEffectTaskPool.Initialize(0x277AFC0, 0x277AEF8, 100, 2),
-            NativeBattleEffectTaskPool.Initialize(0x278A228, 0x278C628, 88, 4),
-            NativeBattleEffectTaskPool.Initialize(0x277BF70, 0x277BF80, 108, 300),
-            NativeBattleEffectTaskPool.Initialize(0x278C788, 0x278A238, 92, 100)
-        ]);
-        NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 0x8D6B30, 100);
+        NativeBattleEffectHierarchy hierarchy = new(profile.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
+        NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, profile.Callback(0x8D6B30), 100);
         hierarchy = root.Hierarchy;
         NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78);
         NativeBattleEffectTaskActors actors = SelectActors(parameters, packets, 0x1D99A78, unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
@@ -51,7 +54,7 @@ public static class NativeBattleCureController
         }
         task = task.WriteByte(0x2C, actors.Actor).WriteByte(0x2D, actors.Target).WriteByte(0x29, 0).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
         hierarchy = hierarchy.Write(root.Address, task);
-        int arenaOffset = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x277AEC0)?.ArenaOffset ?? throw new NotSupportedException("Native8D6A00 requires the observed277AEC0 initializer pointer.");
+        int arenaOffset = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == profile.InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Native8D6A00 requires the observed277AEC0 initializer pointer.");
         if (arenaOffset > NativeBattleEffectArena.Length - 0x20000)
         {
             throw new NotSupportedException("Native8D6A00 draw-buffer bases leave its original effect arena.");
@@ -63,7 +66,7 @@ public static class NativeBattleCureController
             (textures, _) = textures.EnqueueArenaTim505E30(memory.Arena ?? throw new NotSupportedException("Native8D6A00 requires its actual571B80 arena."), arenaOffset);
             memory = memory with { Textures = textures };
         }
-        effect = effect with { Pools = hierarchy.Pools, ReturnedDescriptor = 0x277AFC0 };
+        effect = effect with { Pools = hierarchy.Pools, ReturnedDescriptor = profile.Pools[0].Descriptor };
         return new(memory, effect, new(arenaOffset, null, null, null));
     }
 
@@ -75,6 +78,11 @@ public static class NativeBattleCureController
             return new(frame, [], []);
         }
         RequireController(frame.Effect);
+        NativeBattleCureFamilyProfile profile = NativeBattleCureFamilyProfile.ForEffect(frame.Effect.Binding.Effect);
+        if (resources.Effect != profile.Effect)
+        {
+            throw new InvalidDataException("Native Cure family resources belong to another module.");
+        }
         inputs.Camera.Validate();
         ImmutableArray<int>.Builder contacts = ImmutableArray.CreateBuilder<int>();
         ImmutableArray<NativeBattleModuleSound>.Builder sounds = ImmutableArray.CreateBuilder<NativeBattleModuleSound>();
@@ -85,7 +93,7 @@ public static class NativeBattleCureController
         NativeBattleEffectHierarchyStep main = hierarchy.Advance(0, (state, address) =>
         {
             NativeBattleModulePoolTask task = state.Read(address);
-            if (task.Callback != 0x8D6B30)
+            if (task.Callback != profile.Callback(0x8D6B30))
             {
                 throw new NotSupportedException($"Native Cure main callback{task.Callback:X} is not8D6B30.");
             }
@@ -111,7 +119,7 @@ public static class NativeBattleCureController
                     break;
                 case 3:
                     state = state.Write(address, task.WriteByte(0x63, 1));
-                    state = state.Append8DC540(1, 0x8D6CC0, 88, address, Select).Hierarchy;
+                    state = state.Append8DC540(1, profile.Callback(0x8D6CC0), 88, address, Select).Hierarchy;
                     state = IncrementPhase(state, address);
                     break;
                 case 4:
@@ -168,13 +176,13 @@ public static class NativeBattleCureController
             bool complete = (task.ReadByte(0x26) & 1) != 0 && task.ReadByte(0x28) == 0;
             return new(complete ? state.Complete8DC530(address) : state, complete ? 2 : 0);
         });
-        current = current with { Effect = current.Effect with { Pools = main.Hierarchy.Pools, ReturnedDescriptor = main.Survivors == 0 ? 0u : 0x277AFC0u } };
+        current = current with { Effect = current.Effect with { Pools = main.Hierarchy.Pools, ReturnedDescriptor = main.Survivors == 0 ? 0u : profile.Pools[0].Descriptor } };
         return new(current, contacts.ToImmutable(), sounds.ToImmutable());
 
         NativeBattleEffectHierarchyCallback AdvanceChild(NativeBattleEffectHierarchy state, uint address)
         {
             NativeBattleModulePoolTask task = state.Read(address);
-            if (task.Callback != 0x8D6CC0)
+            if (task.Callback != profile.Callback(0x8D6CC0))
             {
                 throw new NotSupportedException($"Native Cure child callback{task.Callback:X} is not8D6CC0.");
             }
@@ -188,7 +196,7 @@ public static class NativeBattleCureController
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
                 case 0:
-                    state = state.Append8DC540(2, 0x8D6D80, 108, address, Select).Hierarchy;
+                    state = state.Append8DC540(2, profile.Callback(0x8D6D80), 108, address, Select).Hierarchy;
                     state = IncrementPhase(state, address);
                     break;
                 case 1:
@@ -253,16 +261,17 @@ public static class NativeBattleCureController
 
     private static void RequireController(NativeBattleOriginalEffectState effect)
     {
-        if (effect.Binding.Entry != 0x8D6A00 || effect.Parameters is null || effect.ReturnedDescriptor != 0x277AFC0 || effect.Pools.Length != 4 || effect.Pools[0].DescriptorAddress != 0x277AFC0 || effect.Pools[1].DescriptorAddress != 0x278A228 || effect.Pools[2].DescriptorAddress != 0x277BF70 || effect.Pools[3].DescriptorAddress != 0x278C788)
+        NativeBattleCureFamilyProfile profile = NativeBattleCureFamilyProfile.ForEffect(effect.Binding.Effect);
+        if (effect.Binding.Entry != profile.Entry || effect.Parameters is null || effect.ReturnedDescriptor != profile.Pools[0].Descriptor || effect.Pools.Length != 4)
         {
-            throw new InvalidDataException("Native Cure scheduler requires its four initialized original descriptors.");
+            throw new InvalidDataException("Native Cure family scheduler requires its four initialized original descriptors.");
         }
         new NativeBattleEffectHierarchy(effect.Pools).Validate();
-        (uint Bank, ushort Stride, int Capacity)[] banks = [(0x277AEF8, 100, 2), (0x278C628, 88, 4), (0x277BF80, 108, 300), (0x278A238, 92, 100)];
+        ImmutableArray<NativeBattleCureFamilyPool> banks = profile.Pools;
         for (int index = 0; index < banks.Length; index++)
         {
             NativeBattleEffectTaskPool pool = effect.Pools[index];
-            if (pool.BankAddress != banks[index].Bank || pool.Stride != banks[index].Stride || pool.Slots.Length != banks[index].Capacity)
+            if (pool.DescriptorAddress != banks[index].Descriptor || pool.BankAddress != banks[index].Bank || pool.Stride != banks[index].Stride || pool.Slots.Length != banks[index].Capacity)
             {
                 throw new InvalidDataException("Native Cure scheduler lost an original physical bank, stride or capacity.");
             }

@@ -8,6 +8,16 @@ public sealed partial class BattleSession
     {
         NativeBattleStageSource source = definition.NativeStageSource ?? throw new NotSupportedException("Native500EA0 requires its installed stage skeleton, animations and TIM; migrate the standalone definition explicitly.");
         NativeStage = (NativeStage ?? throw new NotSupportedException("Native500EA0 requires its retained process stage rows; migrate the standalone snapshot explicitly.")).Initialize500EA0(source);
+        if (source.Callback?.Address == NativeBattleFinalStage142.CallbackAddress)
+        {
+            NativeBattleFinalStage142State specialized = NativeStage.FinalStage142 ?? throw new NotSupportedException("Native512500 requires its retained final-stage process owner.");
+            specialized = NativeBattleFinalStage142.Initialize0(specialized);
+            if (source.Texture.Data.Length < 0x14 + 8192)
+            {
+                throw new InvalidDataException("Native512500 requires its original full stage CLUT.");
+            }
+            NativeStage = NativeStage with { FinalStage142 = specialized with { ClutSource = new(source.Texture.Identity + ":CLUT", source.Texture.Data.Slice(0x14, 8192)), GenericCursor = 0x1941998 } };
+        }
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native500FB0 requires its retained original texture upload owner.");
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native500FB0 requires the retained505E30 queue and VRAM.");
         (textures, _) = textures.EnqueueTim505E30(source.Texture);
@@ -17,7 +27,7 @@ public sealed partial class BattleSession
     private void RegisterNativeStage506DE0()
     {
         NativeBattleStageCallback callback = definition.NativeStageSource?.Callback ?? throw new NotSupportedException("Native506DE0 requires the installed stage initializer's original callback binding.");
-        if (callback.UpdateTexture0 is null)
+        if (callback.UpdateTexture0 is null && callback.Address != NativeBattleFinalStage142.CallbackAddress)
         {
             throw new NotSupportedException($"Native stage callback{callback.Address:X} requires its original specialized stage service.");
         }
@@ -43,6 +53,10 @@ public sealed partial class BattleSession
         if (state.Task is not { } task)
         {
             return graphics;
+        }
+        if (task.Callback.Address == NativeBattleFinalStage142.CallbackAddress)
+        {
+            return AdvanceNativeFinalStage142(graphics, state, task);
         }
         if (task.Phase == 0)
         {

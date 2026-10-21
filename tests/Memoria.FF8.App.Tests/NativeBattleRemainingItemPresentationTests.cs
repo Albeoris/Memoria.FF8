@@ -177,7 +177,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
                 }
                 // Recovery geometry and status-cure ACT packets use the current effect arena's canonical20DFAB8 bank.
                 // Require the selected typed owner as well; unrelated packet banks never establish visibility.
-                if ((native.MagicId == 7 || statusCure) && graphics.OriginalEffect is { ReturnedDescriptor: > 0 } effect && (native.MagicId == 7 && effect.Recovery is not null || statusCure && effect.StatusCureItem is not null) && effect.RequestedEffect == native.MagicId && graphics.PrimitiveFrame is { } frame && frame.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
+                if ((native.MagicId is 7 or 50 || statusCure) && graphics.OriginalEffect is { ReturnedDescriptor: > 0 } effect && (native.MagicId == 7 && effect.Recovery is not null || native.MagicId == 50 && effect.Cure is not null || statusCure && effect.StatusCureItem is not null) && effect.RequestedEffect == native.MagicId && graphics.PrimitiveFrame is { } frame && frame.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
                 {
                     byte[] rendered = scene.Render(battle, 320, 224).ToArray();
                     NativeBattlePrimitiveFrame withoutFrame = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
@@ -199,7 +199,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
                         restoredLive = true;
                     }
                 }
-                else if (native.MagicId != 7 && !statusCure && !restoredLive && graphics.OriginalEffect is { ReturnedDescriptor: > 0 } otherEffect && otherEffect.RequestedEffect == native.MagicId && graphics.PrimitiveFrame is { LastCommands.IsEmpty: false })
+                else if (native.MagicId is not (7 or 50) && !statusCure && !restoredLive && graphics.OriginalEffect is { ReturnedDescriptor: > 0 } otherEffect && otherEffect.RequestedEffect == native.MagicId && graphics.PrimitiveFrame is { LastCommands.IsEmpty: false })
                 {
                     battle = VerifyContinuation("live", current);
                     restoredLive = true;
@@ -235,7 +235,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
             BattleSnapshot completed = battle.Capture();
             Assert.True(selected, "The actual item command never selected its original effect.");
             Assert.True(restoredLive, "No live effect task with primitive commands reached disk restoration.");
-            if (native.MagicId == 7 || statusCure)
+            if (native.MagicId is 7 or 50 || statusCure)
             {
                 Assert.True(peakChangedRgb > 0, "The original item effect arena packets changed no RGB pixels.");
                 PublishPeak();

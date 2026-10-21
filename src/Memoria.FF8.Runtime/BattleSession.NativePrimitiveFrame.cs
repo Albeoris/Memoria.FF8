@@ -237,6 +237,15 @@ public sealed partial class BattleSession
     private byte[] ReadNativePhysicalPrimitive(NativeBattlePrimitiveReference reference, int count)
     {
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native retained packet alias requires its process arena owners.");
+        if (reference.Bank == "1D9A020")
+        {
+            if (reference.Buffer != 0)
+            {
+                throw new InvalidDataException("Native final stage overlay uses its contiguous physical banks.");
+            }
+            NativeBattleFinalStage142State stage = NativeStage?.FinalStage142 ?? throw new NotSupportedException("Native final stage overlay requires its retained packet owner.");
+            return stage.ReadOverlay(checked(NativeBattleFinalStage142.OverlayBankAddress + (uint)reference.ByteOffset), count);
+        }
         if (reference.Bank == "20DFAB8" && reference.Buffer == 0)
         {
             return (memory.Arena ?? throw new NotSupportedException("Native retained effect packet alias requires its original arena.")).Read(reference.ByteOffset, count);

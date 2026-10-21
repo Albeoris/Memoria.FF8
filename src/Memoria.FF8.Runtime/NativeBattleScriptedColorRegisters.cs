@@ -9,6 +9,8 @@ public sealed record NativeBattleScriptedColorRegisters([property: JsonRequired]
     public ImmutableArray<byte>? NormalInput { get; init; }
     public uint? Material { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public uint? Ir0 { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ImmutableArray<bool>? NormalInputKnown { get; init; }
 
     public static NativeBattleScriptedColorRegisters Unknown() => new([null, null, null], [null, null, null], [null, null, null], null);

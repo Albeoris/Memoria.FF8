@@ -37,6 +37,10 @@ public sealed partial record NativeBattleCameraState
     public ushort? CanonicalViewPadding { get; init; }
     public NativeBattleCameraProjection? Projection { get; init; }
     public bool ProjectionOffsetsCleared { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public short? ScreenOffsetScratchX { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public short? ScreenOffsetScratchY { get; init; }
 
     public NativeBattleCameraState PublishProjection(uint graphicsFlags)
     {
@@ -52,10 +56,10 @@ public sealed partial record NativeBattleCameraState
             view = NativeBattleCameraViewTranslationScratch.Apply5033E0(view, x, y, z);
         }
         bool published = (graphicsFlags & 4) != 0;
-        NativeBattleCameraProjection? projection = view is null && Projection is null && !published ? null : new(view, published ? FocalLength is short focal ? unchecked((ushort)focal) : null : Projection?.FocalLength, published ? ProjectionOffsetsCleared ? (short)160 : null : Projection?.OffsetX, published ? ProjectionOffsetsCleared ? (short)108 : null : Projection?.OffsetY);
+        NativeBattleCameraProjection? projection = view is null && Projection is null && !published ? null : new(view, published ? FocalLength is short focal ? unchecked((ushort)focal) : null : Projection?.FocalLength, published ? ScreenOffsetScratchX is short sx ? unchecked((short)(sx + 160)) : ProjectionOffsetsCleared ? (short)160 : null : Projection?.OffsetX, published ? ScreenOffsetScratchY is short sy ? unchecked((short)(sy + 108)) : ProjectionOffsetsCleared ? (short)108 : null : Projection?.OffsetY);
         //500900 writes the screen offsets, then unconditionally clears their
         //two scratch WORDs. Unknown retained first-frame offsets stay unknown.
-        return this with { Projection = projection, CanonicalViewPadding = CurrentPose is not null && Roll != 0 ? null : CanonicalViewPadding, ProjectionOffsetsCleared = ProjectionOffsetsCleared || published, ViewTranslationScratch = new(0, 0, 0) };
+        return this with { Projection = projection, CanonicalViewPadding = CurrentPose is not null && Roll != 0 ? null : CanonicalViewPadding, ProjectionOffsetsCleared = ProjectionOffsetsCleared || published, ScreenOffsetScratchX = published ? (short)0 : ScreenOffsetScratchX, ScreenOffsetScratchY = published ? (short)0 : ScreenOffsetScratchY, ViewTranslationScratch = new(0, 0, 0) };
     }
 
     public NativeBattlePackedMatrix32 CapturePackedView1D97778()

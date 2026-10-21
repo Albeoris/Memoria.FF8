@@ -103,6 +103,7 @@ public static class NativeBattleRetainedMemoryReader
             DoubleMorph = new(NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0x163FFD0u).Bytes),
             TripleMorph = new(NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0x1627970u).Bytes),
             CureContextF4 = BinaryPrimitives.ReadInt16LittleEndian(ReadLoaderBytes(0x278C8DC, 2)),
+            Potion50ContextF4 = BinaryPrimitives.ReadInt16LittleEndian(ReadLoaderBytes(0x26464D4, 2)),
             CuraContextF4 = BinaryPrimitives.ReadInt16LittleEndian(ReadLoaderBytes(0x270046C, 2)),
             CuraSceneFade = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x2700360, 4)),
             CuragaExecutable = new(BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(NativeBattleCuragaExecutableState.Address, 4)), null),

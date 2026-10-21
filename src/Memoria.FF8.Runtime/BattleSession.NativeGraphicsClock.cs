@@ -408,9 +408,9 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState ApplyNativeGraphicsContact(NativeBattleGraphicsState graphics, NativeBattleContactHalf half, NativeBattleContactEffectPlan plan)
     {
-        if (plan.SpecialSound)
+        if (plan.StageTargetRefresh)
         {
-            throw new NotSupportedException("Native model140 contact requires its50E510 effect-service owner.");
+            UpdateNativeFinalStage142Target3(graphics);
         }
         if (!plan.Loaded)
         {

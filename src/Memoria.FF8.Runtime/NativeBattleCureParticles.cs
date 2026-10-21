@@ -16,12 +16,17 @@ public static partial class NativeBattleCureParticles
 {
     public static NativeBattleCureParticleStep AdvancePrivate(NativeBattleCureFrame frame, uint address, NativeBattleCureResources resources, NativeBattleCureParticleInputs inputs)
     {
+        NativeBattleCureFamilyProfile profile = NativeBattleCureFamilyProfile.ForEffect(frame.Effect.Binding.Effect);
+        if (resources.Effect != profile.Effect)
+        {
+            throw new InvalidDataException("Native Cure family resources belong to another module.");
+        }
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new InvalidDataException("Native Cure particles require50AFC0 parameters.");
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address);
         NativeCrtRandomState random = inputs.CrtRandom;
         NativeBattleCureFrame current = frame;
-        switch (task.Callback)
+        switch (profile.CanonicalParticleCallback(task.Callback))
         {
             case 0x8DCC20:
                 return AdvanceWedge8DCC20(frame, address, inputs);
@@ -89,7 +94,7 @@ public static partial class NativeBattleCureParticles
         NativeBattleEffectHierarchyAppend Append(int pool, uint callback, int bytes)
         {
             Put();
-            NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(pool, callback, bytes, address, (pointer, group, target) => NativeBattleCureController.SelectActors(parameters, inputs.Controller.Packets, pointer, group, target));
+            NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(pool, profile.Callback(callback), bytes, address, (pointer, group, target) => NativeBattleCureController.SelectActors(parameters, inputs.Controller.Packets, pointer, group, target));
             hierarchy = appended.Hierarchy;
             task = hierarchy.Read(address);
             return appended;
@@ -100,7 +105,7 @@ public static partial class NativeBattleCureParticles
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
                 case 0:
-                    task = task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 2)).WriteDword(0x4C, 0x1641F78);
+                    task = task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 2)).WriteDword(0x4C, profile.Sprite(0x1641F78));
                     task = CopyFirstAnchor(task, 0x60).WriteWord(0x62, unchecked((ushort)TopY(task)));
                     short radius = unchecked((short)(2 * SpanXZ(task)));
                     task = task.WriteWord(0x68, unchecked((ushort)(radius > 1024 ? 1024 : radius)));
@@ -116,7 +121,7 @@ public static partial class NativeBattleCureParticles
                 case 1:
                     if (Word(task, 0x24) >= 20)
                     {
-                        task = task.WriteDword(0x4C, 0x1641FCC).WriteWord(0x52, 4);
+                        task = task.WriteDword(0x4C, profile.Sprite(0x1641FCC)).WriteWord(0x52, 4);
                         IncrementPhase();
                     }
                     break;
@@ -164,7 +169,7 @@ public static partial class NativeBattleCureParticles
             {
                 byte gray = unchecked((byte)(60 - 3 * task.ReadByte(0x24)));
                 uint color = (uint)(gray | gray << 8 | gray << 16);
-                Draw(0x1642504, 0, new(Word(task, 0x1C), 0, Word(task, 0x20), 0), 0, 4, color, NativeBattlePoseMatrices.RotationWords(new(1024, 0, 0)));
+                Draw(profile.Sprite(0x1642504), 0, new(Word(task, 0x1C), 0, Word(task, 0x20), 0), 0, 4, color, NativeBattlePoseMatrices.RotationWords(new(1024, 0, 0)));
             }
         }
 
@@ -218,7 +223,7 @@ public static partial class NativeBattleCureParticles
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
                 case 0:
-                    task = task.WriteDword(0x4C, trail ? 0x1642238u : 0x164205Cu).WriteWord(0x52, trail ? (ushort)8 : (ushort)16);
+                    task = task.WriteDword(0x4C, profile.Sprite(trail ? 0x1642238u : 0x164205Cu)).WriteWord(0x52, trail ? (ushort)8 : (ushort)16);
                     if (trail)
                     {
                         task = task.WriteWord(0x58, unchecked((ushort)((Rand() & 31) - 16))).WriteWord(0x5C, unchecked((ushort)((Rand() & 31) - 16))).WriteWord(0x5A, (ushort)((Rand() & 15) + 16));

@@ -490,7 +490,7 @@ public sealed partial class BattleSession
         {
             return EnterNativeBlizzard61ABA0(graphics);
         }
-        if (effect.Binding.Entry == 0x8D6A00)
+        if (effect.Binding.Entry is 0x8D6A00 or 0x81FA10)
         {
             return EnterNativeCure8D6A00(graphics);
         }

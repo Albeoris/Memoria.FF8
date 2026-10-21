@@ -760,6 +760,10 @@ public sealed partial class GameAssets
                 binding = binding with { Effect3Resources = ReadNativeEffect3Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Entry == 0x81FA10)
+            {
+                binding = binding with { CureResources = ReadNativePotion50Resources() };
+            }
             if (binding.Entry == 0x8D6A00)
             {
                 binding = binding with { CureResources = ReadNativeCureResources() };
