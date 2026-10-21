@@ -67,4 +67,3 @@ public static class NativeBattleResultPresentation
         return threshold > experience ? threshold - experience : 0;
     }
 }
-
