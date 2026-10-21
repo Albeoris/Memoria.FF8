@@ -55,14 +55,14 @@ public sealed class WorldBattlePublicationTests
         Assert.True(battle.NativeEntryReady);
         BattleCombatant actor = battle.Combatants.First(actor => actor.IsPlayer && actor.IsReady);
         BattleCombatant target = battle.Combatants.First(actor => !actor.IsPlayer && actor.IsAlive && !actor.Untargetable);
-        int completed = battle.Events.Count(item => item.Kind == "ActionComplete");
+        int completed = battle.Events.Count(item => item.Kind == "ActionComplete" && item.ActorId == actor.Id);
         world.ApplyBattleInput(new(BattleInputKind.Attack, ActorId: actor.Id, TargetId: target.Id));
-        for (int callback = 0; callback < 600 && battle.Events.Count(item => item.Kind == "ActionComplete") == completed; callback++)
+        for (int callback = 0; callback < 600 && battle.Events.Count(item => item.Kind == "ActionComplete" && item.ActorId == actor.Id) == completed; callback++)
         {
             Advance(world);
         }
         Assert.Contains(battle.Events, item => item.Kind == "Windup" && item.ActorId == actor.Id);
-        Assert.True(battle.Events.Count(item => item.Kind == "ActionComplete") > completed);
+        Assert.True(battle.Events.Count(item => item.Kind == "ActionComplete" && item.ActorId == actor.Id) > completed);
         Assert.Equal(0.8f, battle.NativeGraphics!.PrimitiveFrame!.LastDepthState!.BucketMix);
         GameState saved = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.PrepareSnapshot()))!;
         using GameWorld restored = Restore(new GameSession(saved));
