@@ -1,0 +1,132 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Field" xml:space="preserve">
+    <value>Field</value>
+  </data>
+  <data name="Battle" xml:space="preserve">
+    <value>Battle</value>
+  </data>
+  <data name="Owner" xml:space="preserve">
+    <value>Owner: {0}</value>
+  </data>
+  <data name="Unbound" xml:space="preserve">
+    <value>Unbound</value>
+  </data>
+  <data name="Exhausted" xml:space="preserve">
+    <value>Exhausted</value>
+  </data>
+  <data name="UnavailableOwner" xml:space="preserve">
+    <value>Owner unavailable</value>
+  </data>
+  <data name="MissingCommand" xml:space="preserve">
+    <value>Magic command missing</value>
+  </data>
+  <data name="StatusRestricted" xml:space="preserve">
+    <value>Caster status prevents magic</value>
+  </data>
+  <data name="Caster" xml:space="preserve">
+    <value>Caster: {0}</value>
+  </data>
+  <data name="MemoriaDestination" xml:space="preserve">
+    <value>Magic rules, personal Attack choices or usage history require a Memoria save. Choose a Memoria slot; original FF8 files remain intact.</value>
+  </data>
+  <data name="AttackSlotHelp" xml:space="preserve">
+    <value>The first slot remains Attack. Smart Attack unlocks a personal physical or magic preference.</value>
+  </data>
+  <data name="PhysicalOnly" xml:space="preserve">
+    <value>Physical only</value>
+  </data>
+  <data name="SmartMagic" xml:space="preserve">
+    <value>Smart magic</value>
+  </data>
+  <data name="AttackChoiceHelp" xml:space="preserve">
+    <value>Choose physical attacks or automatic magic using the normal Magic command and casting rules.</value>
+  </data>
+  <data name="SharedDescription" xml:space="preserve">
+    <value>Use one party magic bank with exclusive Junction owners. Review quantities, overflow, bindings and HP before changing this save.</value>
+  </data>
+  <data name="InfiniteDescription" xml:space="preserve">
+    <value>Preserve casting stock and spend limited battle or field uses. Junction bonuses still use stock; victory restores one field use.</value>
+  </data>
+  <data name="SmartDescription" xml:space="preserve">
+    <value>Unlock personal automatic Attack choices. Uses hidden enemy information and favorable spell selection; ordinary costs and command restrictions apply.</value>
+  </data>
+  <data name="ReviewTitle" xml:space="preserve">
+    <value>Magic Stock migration preview</value>
+  </data>
+  <data name="ReviewHelp" xml:space="preserve">
+    <value>Review every change. Apply commits the entire migration; Cancel leaves the save unchanged.</value>
+  </data>
+  <data name="Apply" xml:space="preserve">
+    <value>Apply</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="PhysicalOverride" xml:space="preserve">
+    <value>Hold {0}: Physical Attack</value>
+  </data>
+  <data name="Moved" xml:space="preserve">
+    <value>Moved: record {0} → {1}, {2} ×{3}</value>
+  </data>
+  <data name="Overflow" xml:space="preserve">
+    <value>Overflow retained: record {0}, {1} ×{2}</value>
+  </data>
+  <data name="Removed" xml:space="preserve">
+    <value>Removed Junction: record {0}, slot {1}, {2}</value>
+  </data>
+  <data name="HpChange" xml:space="preserve">
+    <value>Record {0}: maximum HP {1} → {2}</value>
+  </data>
+  <data name="NoStockChanges" xml:space="preserve">
+    <value>No stock, Junction or maximum HP changes.</value>
+  </data>
+  <data name="SmartLocked" xml:space="preserve">
+    <value>Enable Smart Attack in Config to change this preference.</value>
+  </data>
+  <data name="SharedLabel" xml:space="preserve">
+    <value>Shared magic stock</value>
+  </data>
+  <data name="InfiniteLabel" xml:space="preserve">
+    <value>Infinite magic</value>
+  </data>
+  <data name="SmartLabel" xml:space="preserve">
+    <value>Smart Attack</value>
+  </data>
+  <data name="ConservativeHelp" xml:space="preserve">
+    <value>Conservative Auto Junction preserves every other character's spell ownership.</value>
+  </data>
+  <data name="PartyLabel" xml:space="preserve">
+    <value>Entire party · {0}</value>
+  </data>
+  <data name="PartyHelp" xml:space="preserve">
+    <value>Review ownership and HP changes before allowing Auto Junction to reassign other characters' spells.</value>
+  </data>
+  <data name="CommandSlotHelp" xml:space="preserve">
+    <value>Select a command for this slot.</value>
+  </data>
+  <data name="SettingBeginHelp" xml:space="preserve">
+    <value>Start a new game with these gameplay rules. More settings are available in Config.</value>
+  </data>
+  <data name="DeferredReview" xml:space="preserve">
+    <value>A magic mode change is pending. Review the migration before applying it.</value>
+  </data>
+  <data name="StockHelp" xml:space="preserve">
+    <value>Browse stock, remaining field uses and Junction ownership.</value>
+  </data>
+  <data name="RefinementCost" xml:space="preserve">
+    <value>Consume {0} {1}; receive {2} {3}. The complete batch ingredient cost is paid.</value>
+  </data>
+</root>

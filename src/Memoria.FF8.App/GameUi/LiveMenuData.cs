@@ -18,6 +18,8 @@ public static class LiveMenuData
         ArgumentNullException.ThrowIfNull(state);
         MenuData result = new()
         {
+            SharedMagicStock = state.CharacterVitals?.MagicSystem.SharedMagicStock == true,
+            SmartAttack = state.GameplayPreferences.SmartAttack,
             PlayTime = state.Playtime is { } playtime ? TimeSpan.FromSeconds(playtime.Seconds) : null,
             Location = catalog?.LocationName(state, placeId) ?? "Unavailable",
             SourceDescription = "Live session: native inventory, party and junction records",
@@ -72,6 +74,7 @@ public static class LiveMenuData
                 }
                 MenuCharacter character = new()
                 {
+                    AttackMode = vitals.MagicSystem.AttackModes[row].ToString(),
                     NativeFieldItemTargetAllowed = (native.MemberFlags & 1) != 0 && (!vitals.DreamEnabled || inParty),
                     Id = $"character-{row}",
                     NativeId = native.CharacterId,
@@ -80,7 +83,7 @@ public static class LiveMenuData
                     Level = NativeStatDefinitions.Level(native.Experience, vitals.Definitions.Characters[native.CharacterId]),
                     CurrentHp = native.HitPoints.Minimum == native.HitPoints.Maximum ? native.HitPoints.Minimum : null,
                     HpDisplay = native.HitPoints.Minimum == native.HitPoints.Maximum ? native.HitPoints.Minimum.ToString(System.Globalization.CultureInfo.InvariantCulture) : $"{native.HitPoints.Minimum}..{native.HitPoints.Maximum}",
-                    MaximumHp = vitals.Definitions.CharacterMaximum(native),
+                    MaximumHp = vitals.GetMagicMaximumHitPoints(row),
                     Experience = native.Experience <= int.MaxValue ? (int)native.Experience : null,
                     Weapon = catalog?.WeaponName(vitals.DreamEnabled && native.CharacterId >= 8 ? vitals.DreamWeapons[native.CharacterId - 8] : native.Weapon) ?? $"Weapon {(vitals.DreamEnabled && native.CharacterId >= 8 ? vitals.DreamWeapons[native.CharacterId - 8] : native.Weapon)}"
                 };
@@ -123,7 +126,7 @@ public static class LiveMenuData
                 if (catalog is not null)
                 {
                     int characterRow = row;
-                    foreach (var stat in Statistics(catalog.ReadStatRules(vitals, row), native))
+                    foreach (var stat in Statistics(catalog.ReadStatRules(vitals, row), native, vitals.GetMagicInventory(row)))
                     {
                         character.Stats.Add(stat.Key, stat.Value);
                     }
@@ -136,8 +139,8 @@ public static class LiveMenuData
                             throw new ArgumentException("Junction preview requires the selected character's stock.", nameof(spellId));
                         }
                         int spell = spellId == "0" ? 0 : int.Parse(spellId.AsSpan(prefix.Length), System.Globalization.CultureInfo.InvariantCulture);
-                        NativeCharacterVitals preview = vitals.SetJunctionMagic(characterRow, slot, spell);
-                        return Statistics(catalog.ReadStatRules(preview, characterRow), preview.Records[characterRow]);
+                        NativeCharacterVitals preview = vitals.SetJunctionMagic(characterRow, slot, spell, true);
+                        return Statistics(catalog.ReadStatRules(preview, characterRow), preview.Records[characterRow], preview.GetMagicInventory(characterRow));
                     };
                 }
                 for (int slot = 0; slot < native.Junction.MagicJunctions.Length; slot++)
@@ -152,12 +155,32 @@ public static class LiveMenuData
                         character.Junctions[JunctionSlotName(slot)] = catalog?.MagicName(spell) ?? $"Magic {spell}";
                     }
                 }
-                foreach (NativeMagicStock stock in native.MagicInventory.Where(stock => stock.SpellId != 0 && stock.Count != 0))
+                foreach (NativeMagicStock stock in vitals.GetMagicInventory(row).Where(stock => stock.SpellId != 0 && stock.Count != 0))
                 {
                     // Native4C8990 draws icon192 for a junctioned stock; ordinary rows have no category icon.
                     string magicId = $"magic-{row}-{stock.SpellId}";
-                    result.Magic.Add(new MenuMagic { Id = magicId, Icon = NativeCharacterVitals.IsMagicJunctioned(native, stock.SpellId) ? new UiImageSource(UiImageKind.Icon, 192) : null, CharacterId = character.Id, Name = catalog?.MagicName(stock.SpellId) ?? $"Magic {stock.SpellId}", Quantity = stock.Count, Description = catalog?.MagicDescription(stock.SpellId) ?? "Magic description unavailable." });
-                    if (state.Scene is SceneKind.Field or SceneKind.WorldMap && character.CurrentHp is not null && catalog?.IsFieldMagic(stock.SpellId) == true)
+                    int? owner = vitals.MagicSystem.SharedMagicStock ? MagicJunctionPolicy.GetOwner(vitals, stock.SpellId) : NativeCharacterVitals.IsMagicJunctioned(native, stock.SpellId) ? row : null;
+                    int? caster = catalog is null ? null : vitals.ResolveFieldMagicCaster(row, stock.SpellId, actorRow => catalog.ReadStatRules(vitals, actorRow), state.WorldControls);
+                    MagicCastQuote quote = MagicCastingService.Quote(vitals, caster ?? row, stock.SpellId, MagicCastContext.Field);
+                    string availability = catalog is null ? "" : caster is null ? owner is not null && owner != row ? MagicUiText.Get("UnavailableOwner") : MagicUiText.Get("StatusRestricted") : !quote.Allowed ? MagicUiText.Get("Exhausted") : "";
+                    MenuMagic magic = new()
+                    {
+                        Id = magicId,
+                        Icon = owner is not null ? new UiImageSource(UiImageKind.Icon, 192) : null,
+                        CharacterId = character.Id,
+                        Name = catalog?.MagicName(stock.SpellId) ?? $"Magic {stock.SpellId}",
+                        Quantity = stock.Count,
+                        Description = catalog?.MagicDescription(stock.SpellId) ?? "Magic description unavailable.",
+                        RemainingUses = vitals.MagicSystem.InfiniteMagic ? quote.Available : null,
+                        Capacity = vitals.MagicSystem.InfiniteMagic ? quote.Capacity : null,
+                        Owner = owner is int ownerRow ? MagicUiText.Format("Owner", CharacterName(state, vitals.Records[ownerRow].CharacterId, names, catalog)) : vitals.MagicSystem.SharedMagicStock ? MagicUiText.Get("Unbound") : "",
+                        Availability = availability,
+                        Caster = caster is int casterRow && vitals.MagicSystem.SharedMagicStock ? MagicUiText.Format("Caster", CharacterName(state, vitals.Records[casterRow].CharacterId, names, catalog)) : "",
+                        JunctionAvailable = owner is null || owner == row
+                    };
+                    magic.Description = string.Join(" · ", new[] { magic.Description, magic.AccessPresentation }.Where(value => value.Length > 0));
+                    result.Magic.Add(magic);
+                    if (state.Scene is SceneKind.Field or SceneKind.WorldMap && character.CurrentHp is not null && catalog?.IsFieldMagic(stock.SpellId) == true && caster is not null && quote.Allowed)
                     {
                         result.SupportedActions.Add($"magic-use:{magicId}");
                     }
@@ -199,7 +222,11 @@ public static class LiveMenuData
             }
             if (state.Scene is SceneKind.Field or SceneKind.WorldMap)
             {
-                result.SupportedActions.UnionWith(["junction-gf", "junction-command", "junction-ability", "junction-magic", "junction-off", "junction-auto", "gf-learn", "magic-transfer"]);
+                result.SupportedActions.UnionWith(["attack-mode", "junction-gf", "junction-command", "junction-ability", "junction-magic", "junction-magic-reassign", "junction-off", "junction-auto", "junction-auto-party", "gf-learn"]);
+                if (!vitals.MagicSystem.SharedMagicStock)
+                {
+                    result.SupportedActions.Add("magic-transfer");
+                }
             }
         }
         if (state.CardInventory is { } cards)
@@ -253,9 +280,9 @@ public static class LiveMenuData
         return level == 100 ? 0 : checked((int)(10L * level * curve.ExperienceStep + (long)level * level * curve.ExperienceFraction / 256 - experience));
     }
 
-    private static Dictionary<string, int> Statistics(BattleNativePlayerStatRules rules, NativeCharacterVital character)
+    private static Dictionary<string, int> Statistics(BattleNativePlayerStatRules rules, NativeCharacterVital character, IReadOnlyList<NativeMagicStock> inventory)
     {
-        BattleNativePlayerStatistics stats = rules.Project(character.MagicInventory, new BattleNativeCharacterGrowth(character.HitPointBonus, character.StatBonuses.ToImmutableArray()));
+        BattleNativePlayerStatistics stats = rules.Project(inventory, new BattleNativeCharacterGrowth(character.HitPointBonus, character.StatBonuses.ToImmutableArray()));
         return new(StringComparer.Ordinal)
         {
             ["HP"] = stats.MaximumHp,

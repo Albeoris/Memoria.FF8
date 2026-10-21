@@ -1,4 +1,4 @@
-﻿namespace Memoria.FF8.Runtime;
+namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
@@ -72,7 +72,15 @@ public sealed partial class BattleSession
         {
             int spell = command.NativeAction?.ActionId ?? command.ActionId;
             //486A10 returns FF on the last debit;485610 then skips the affinity loop.
-            continueAffinity = actor.TryConsumeMagic(spell) && actor.NativeMagicInventory.Any(stock => stock.SpellId == spell && stock.Count > 0);
+            if (command.MagicReservationId is not null)
+            {
+                CommitMagicReservation(command.MagicReservationId);
+                continueAffinity = magicVitals?.MagicSystem.InfiniteMagic == true || actor.MagicStocks.Any(stock => stock.Id == spell && stock.Count > 0);
+            }
+            else
+            {
+                continueAffinity = actor.TryConsumeMagic(spell) && actor.NativeMagicInventory.Any(stock => stock.SpellId == spell && stock.Count > 0);
+            }
         }
         ReprojectNativePlayerStatistics(actor);
         return continueAffinity;
@@ -90,6 +98,7 @@ public sealed partial class BattleSession
 
     private void RefundCancelledNativeItem(BattleAttackCommand command)
     {
+        ReleaseMagicReservation(command.MagicReservationId);
         if (command.NativeHeaderIndex is null && command.NativePlayerReaction is null && command.ReservedNativeItemSlot is int slot)
         {
             RefundNativeReservedItem(slot, command.NativeAction?.ActionId ?? command.ActionId);
@@ -98,6 +107,7 @@ public sealed partial class BattleSession
 
     private void RefundCancelledNativeItem(BattleActionPresentation command)
     {
+        ReleaseMagicReservation(command.MagicReservationId);
         if (command.NativeHeaderIndex is null && command.NativePlayerReaction is null && command.Phase == BattleActionPhase.Windup && command.ReservedNativeItemSlot is int slot)
         {
             RefundNativeReservedItem(slot, command.NativeAction?.ActionId ?? command.ActionId);

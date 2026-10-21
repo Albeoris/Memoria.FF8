@@ -207,6 +207,7 @@ internal sealed partial class RecreateGame
         }
         battleHud!.TextScale = uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f;
         battleHud.GunbladeBindingHint = keyboard.BindingHint(ControlAction.RotateRight);
+        battleHud.PhysicalOverrideBindingHint = keyboard.BindingHint(ControlAction.CameraLeft);
     }
 
     private void CompleteBattleResult()
@@ -245,7 +246,14 @@ internal sealed partial class RecreateGame
                 }
                 break;
             case BattleInputKind.Attack:
-                debugBattle.QueueAttack(input.ActorId!, input.TargetId!);
+                if (input.SmartAttackPreview is { } preview)
+                {
+                    debugBattle.QueueSmartAttack(preview);
+                }
+                else
+                {
+                    debugBattle.QueueSmartAttack(input.ActorId!, input.TargetId!, input.ForcePhysical);
+                }
                 break;
             case BattleInputKind.Action:
                 debugBattle.QueueAction(input.ActorId!, input.TargetId!, input.Ability, input.ActionId, input.DrawCast, input.MagicTargets.IsEmpty ? null : input.MagicTargets);

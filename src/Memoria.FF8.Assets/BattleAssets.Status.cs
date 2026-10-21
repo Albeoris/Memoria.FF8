@@ -63,7 +63,7 @@ public sealed partial class BattleAssets
         vitals.Validate();
         NativeCharacterVital character = vitals.Records[row];
         BattleNativePlayerStatRules rules = ReadPlayerNativeStatRules(vitals, row);
-        ImmutableArray<byte> resistance = rules.ProjectStatusResistances(character.MagicInventory);
+        ImmutableArray<byte> resistance = rules.ProjectStatusResistances(vitals.GetMagicInventory(row));
         uint passiveFlags = rules.NativeStatusPassiveFlags!.Value;
         uint battle = (passiveFlags & 0x1000) != 0 ? 0x80u : 0;
         if ((passiveFlags & 0x4000) != 0)

@@ -4,6 +4,9 @@ namespace Memoria.FF8.Ui;
 public sealed class UiView
 {
     private bool _pointerPressed;
+    private bool _hasPointerPosition;
+    private float _pointerX;
+    private float _pointerY;
     private float _viewportWidth;
     private float _viewportHeight;
     private float _designWidth;
@@ -155,12 +158,15 @@ public sealed class UiView
         EnsureLayout();
         bool activate = pressed && !_pointerPressed;
         _pointerPressed = pressed;
-        EnsureFocus();
-        if (!activate)
+        bool moved = !_hasPointerPosition || x != _pointerX || y != _pointerY;
+        _hasPointerPosition = true;
+        _pointerX = x;
+        _pointerY = y;
+        if (!moved && !activate)
         {
             return;
         }
-
+        EnsureFocus();
         GetTransform(out float scale, out float offsetX, out float offsetY);
         float designX = (x - offsetX) / scale;
         float designY = (y - offsetY) / scale;
@@ -173,8 +179,15 @@ public sealed class UiView
         UiElement? focusTarget = FindFocusableAncestor(Root, hit, null);
         if (focusTarget != null)
         {
-            SetFocus(focusTarget);
-            focusTarget.Pointer(designX, designY);
+            if (moved)
+            {
+                focusTarget.PointerHover(designX, designY);
+            }
+            if (activate)
+            {
+                SetFocus(focusTarget);
+                focusTarget.Pointer(designX, designY);
+            }
         }
     }
 

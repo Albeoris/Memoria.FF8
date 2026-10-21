@@ -20,7 +20,7 @@ public static partial class BattleResultProjection
         {
             throw new InvalidDataException("Battle defeat reward facts require their current formation and actual party credit owners.");
         }
-        NativeCharacterVitals vitals = sourceVitals.DeepCopy();
+        NativeCharacterVitals vitals = ApplyMagicSystemReceipt(result, sourceVitals.DeepCopy());
         NativeEconomy economy = sourceEconomy.DeepCopy();
         NativeCharacterVital[] records = vitals.Records.ToArray();
         foreach (BattlePartyResult member in result.Party)
@@ -31,7 +31,7 @@ public static partial class BattleResultProjection
                 throw new InvalidDataException("Battle result HP/status effect operands disagree with their current canonical owner.");
             }
             NativeMagicStock[] stocks = record.MagicInventory.ToArray();
-            foreach (BattleMagicChange change in member.MagicChanges)
+            foreach (BattleMagicChange change in result.MagicSystemReceipt is null ? member.MagicChanges : Array.Empty<BattleMagicChange>())
             {
                 int slot = Array.FindIndex(stocks, stock => stock.SpellId == change.SpellId);
                 int before = slot < 0 ? 0 : stocks[slot].Count;
@@ -50,7 +50,7 @@ public static partial class BattleResultProjection
                 int after = before + change.Change;
                 stocks[slot] = new NativeMagicStock(after == 0 ? (byte)0 : change.SpellId, checked((byte)after));
             }
-            if (member.MagicInventoryAfter is { } finalInventory)
+            if (result.MagicSystemReceipt is null && member.MagicInventoryAfter is { } finalInventory)
             {
                 BattleCombatant.ValidateMagicInventory(finalInventory);
                 for (int spell = 1; spell < 64; spell++)
@@ -63,7 +63,15 @@ public static partial class BattleResultProjection
                 stocks = finalInventory.ToArray();
             }
             //486CD0 retains physical inventory positions and clears any of the twenty junctions whose spell is exhausted.
-            byte[] junctions = record.Junction.MagicJunctions.Select(spell => stocks.Any(stock => stock.SpellId == spell && stock.Count > 0) ? spell : (byte)0).ToArray();
+            byte[] junctions = record.Junction.MagicJunctions.ToArray();
+            for (int slot = 0; slot < junctions.Length; slot++)
+            {
+                bool present = result.MagicSystemReceipt is null ? stocks.Any(stock => stock.SpellId == junctions[slot] && stock.Count > 0) : vitals.GetMagicCount(member.Row, junctions[slot]) > 0;
+                if (!present && (slot != 19 || !vitals.MagicSystem.RequiresMemoriaFormat))
+                {
+                    junctions[slot] = 0;
+                }
+            }
             records[member.Row] = record with { HitPoints = new NativeHpWord(member.HitPointsAfter, member.HitPointsAfter), Status = member.StatusAfter, MagicInventory = stocks, Junction = record.Junction with { MagicJunctions = junctions } };
         }
         foreach (BattleEnemyDefeat defeat in result.EnemyDefeats.Where(defeat => defeat.Credit == BattleDefeatCredit.Character))
@@ -164,6 +172,14 @@ public static partial class BattleResultProjection
                 vitals = vitals.AwardGuardianForceAbilityPoints(id, points);
                 abilityPoints[id] = points;
             }
+        }
+        if (vitals.MagicSystem.RequiresMemoriaFormat)
+        {
+            vitals = MagicJunctionPolicy.Reconcile(vitals, out _);
+        }
+        if (result.Outcome == BattleOutcome.Victory && !result.DebugVictory)
+        {
+            vitals = MagicCastingService.RecoverVictory(vitals, result.Encounter.OccurrenceId);
         }
         return new BattleResultOwners(vitals.RebuildParty(), loot.Economy, loot.Cards, new BattleRewardSummary(experience.Characters, experience.GuardianForces, abilityPoints, loot.ItemsGranted, loot.CardsGranted));
     }

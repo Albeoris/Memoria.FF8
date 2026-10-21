@@ -38,6 +38,8 @@ public enum PlayerActionKind
     UseFieldMagic,
     TransferMagic,
     AutoJunction,
+    AutoJunctionParty,
+    ReassignJunctionMagic,
     SwitchPartyMembers
 }
 

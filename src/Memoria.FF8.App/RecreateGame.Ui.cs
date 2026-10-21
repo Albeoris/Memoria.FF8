@@ -16,6 +16,7 @@ internal sealed partial class RecreateGame
     private MonoGameUiCanvas? uiCanvas;
     private readonly UiTheme uiTheme = new();
     private UiPreferences uiPreferences = new();
+    private GameplayPreferences newGameMagicPreferences = new();
     private bool uiMovieSuspended;
     private LiveMenuCatalog? liveMenuCatalog;
     private NativeRefinementDefinitions? nativeRefinementDefinitions;
@@ -110,6 +111,11 @@ internal sealed partial class RecreateGame
         data.Settings["UI font size"] = uiPreferences.UiFontSize.ToString();
         data.Settings["Dialogue font"] = uiPreferences.DialogueFontFamily;
         data.Settings["Dialogue font size"] = uiPreferences.DialogueFontSize.ToString();
+        GameplayPreferences magicPreferences = session.State.Scene == SceneKind.Title ? newGameMagicPreferences : session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences;
+        data.Settings["Shared magic stock"] = magicPreferences.SharedMagicStock ? "On" : "Off";
+        data.Settings["Infinite magic"] = magicPreferences.InfiniteMagic ? "On" : "Off";
+        data.Settings["Smart Attack"] = magicPreferences.SmartAttack ? "On" : "Off";
+        data.SupportedActions.UnionWith(["config:Shared magic stock", "config:Infinite magic", "config:Smart Attack", "attack-mode"]);
         data.Settings["Battle ATB mode"] = ReadCurrentUiPreferences().AtbMode == BattleAtbMode.Normal ? "Classic" : "Turn Based";
         data.Settings["Gunblade trigger"] = ReadCurrentUiPreferences().GunbladeMode.ToString();
         data.Settings["Battle policy"] = ReadCurrentUiPreferences().BattlePolicyLabel;
@@ -185,6 +191,10 @@ internal sealed partial class RecreateGame
 
     private void ApplyLiveMenuAction(MenuAction action)
     {
+        if (ApplyMagicRulesMenuAction(action))
+        {
+            return;
+        }
         if (action.Kind == "new-game-start")
         {
             StartNewGameSession();
@@ -378,6 +388,7 @@ internal sealed partial class RecreateGame
         }
         if (!hostOnly)
         {
+            PresentPendingMagicModeReview();
             SynchronizeNativeNamePrompt();
         }
         if (!hostOnly && !gameMenus.IsOpen && !saveMenu.IsOpen && IsNativeGridMenuActive)

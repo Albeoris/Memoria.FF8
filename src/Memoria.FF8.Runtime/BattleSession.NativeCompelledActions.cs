@@ -1,4 +1,4 @@
-﻿namespace Memoria.FF8.Runtime;
+namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
@@ -25,15 +25,21 @@ public sealed partial class BattleSession
 
     private BattleAttackCommand PrepareNativeQueuedCommand(BattleCombatant actor, BattleAttackCommand original)
     {
+        original = RevalidateSmartAttack(actor, original);
         if (original.NativePlayerReaction is not null)
         {
             return original;
+        }
+        if (RequiresNativeCompelledCommand(actor))
+        {
+            ReleaseMagicReservation(original.MagicReservationId);
         }
         NativeCompelledCommand? prepared = PrepareNativeCompelledCommand(actor);
         if (prepared is null)
         {
             return original;
         }
+        ReleaseMagicReservation(original.MagicReservationId);
         int? reserved = prepared.Command == 4 ? ConsumeNativeItem(prepared.ActionId) : null;
         if (original.ReservedNativeItemSlot is int previousSlot)
         {
@@ -62,18 +68,21 @@ public sealed partial class BattleSession
         uint battleStatus = NativeBattleStatusBits(actor);
         if ((battleStatus & 0x2000000) != 0)
         {
-            //483D60 scans physical slots from RNG&31; Angel Wing ignores command availability and does not consume magic.
-            NativeMagicStock[] eligible = actor.NativeMagicInventory.Where(stock => stock.SpellId != 0 && (RequiredNativeSpellFlags(stock.SpellId) & 0x40) != 0).ToArray();
-            if (eligible.Length == 0)
+            // Angel Wing keeps its native free-cast source; stock and ownership still select its candidates.
+            NativeCharacterVitals? owner = actor.MagicOwner?.Invoke();
+            bool logical = owner is not null && (owner.MagicSystem.SharedMagicStock || owner.MagicSystem.RecordZeroExtension.Length != 0 && actor.MagicRecordId == 0);
+            NativeMagicStock[] inventory = logical ? actor.MagicStocks.Select(stock => new NativeMagicStock((byte)stock.Id, (byte)stock.Count)).ToArray() : actor.NativeMagicInventory;
+            bool Eligible(NativeMagicStock stock) => stock.SpellId != 0 && (RequiredNativeSpellFlags(stock.SpellId) & 0x40) != 0 && (owner is null || actor.MagicRecordId is not int row || MagicJunctionPolicy.CanAccess(owner, row, stock.SpellId));
+            if (!inventory.Any(Eligible))
             {
                 return new(1, 0, ResolveNativeAiTargetMask(actor, 202), false);
             }
-            int slot = NextRandomByte() & 31;
-            while (actor.NativeMagicInventory[slot].SpellId == 0 || (RequiredNativeSpellFlags(actor.NativeMagicInventory[slot].SpellId) & 0x40) == 0)
+            int slot = logical ? NextRandomByte() % inventory.Length : NextRandomByte() & 31;
+            while (!Eligible(inventory[slot]))
             {
-                slot = (slot + 1) & 31;
+                slot = (slot + 1) % inventory.Length;
             }
-            byte spell = actor.NativeMagicInventory[slot].SpellId;
+            byte spell = inventory[slot].SpellId;
             return new(2, spell, NativeCompelledTargetMask(actor, RequiredNativeSpellFlags(spell), true), true);
         }
         if ((NativeSavedStatusBits(actor) & 0x20) != 0)
@@ -100,16 +109,22 @@ public sealed partial class BattleSession
                 case 12:
                     return new(command, 0, ResolveNativeAiTargetMask(actor, side != 0 ? (byte)201 : (byte)202), false);
                 case 2:
-                    if ((rules & 2) == 0 && actor.NativeMagicInventory.Any(stock => stock.SpellId != 0))
+                    if ((rules & 2) == 0)
                     {
-                        int occupied = actor.NativeMagicInventory.Count(stock => stock.SpellId != 0);
-                        int slot = NextRandomByte() % occupied;
-                        while (actor.NativeMagicInventory[slot].SpellId == 0)
+                        NativeCharacterVitals? stockOwner = actor.MagicOwner?.Invoke();
+                        bool logicalStock = stockOwner is not null && actor.MagicRecordId is int record && (stockOwner.MagicSystem.SharedMagicStock || stockOwner.MagicSystem.InfiniteMagic || record == 0 && stockOwner.MagicSystem.RecordZeroExtension.Length != 0);
+                        NativeMagicStock[] candidates = logicalStock ? actor.MagicStocks.Where(stock => MagicCastingService.Quote(stockOwner!, actor.MagicRecordId!.Value, stock.Id, MagicCastContext.Battle).Allowed).Select(stock => new NativeMagicStock((byte)stock.Id, (byte)stock.Count)).ToArray() : actor.NativeMagicInventory;
+                        int occupied = candidates.Count(stock => stock.SpellId != 0);
+                        if (occupied != 0)
                         {
-                            slot = (slot + 1) & 31;
+                            int slot = NextRandomByte() % occupied;
+                            while (candidates[slot].SpellId == 0)
+                            {
+                                slot = (slot + 1) % candidates.Length;
+                            }
+                            byte spell = candidates[slot].SpellId;
+                            return new(2, spell, NativeCompelledTargetMask(actor, RequiredNativeSpellFlags(spell), side == 0), false);
                         }
-                        byte spell = actor.NativeMagicInventory[slot].SpellId;
-                        return new(2, spell, NativeCompelledTargetMask(actor, RequiredNativeSpellFlags(spell), side == 0), false);
                     }
                     break;
                 case 4:

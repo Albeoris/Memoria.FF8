@@ -13,7 +13,7 @@ public sealed class BattlePlayerStatReader(byte[] kernel)
     {
         BattleNativePlayerStatRules rules = ReadRules(vitals, row);
         NativeCharacterVital character = vitals.Records[row];
-        BattleNativePlayerStatistics stats = rules.Project(character.MagicInventory, new BattleNativeCharacterGrowth(character.HitPointBonus, character.StatBonuses.ToImmutableArray()));
+        BattleNativePlayerStatistics stats = rules.Project(vitals.GetMagicInventory(row), new BattleNativeCharacterGrowth(character.HitPointBonus, character.StatBonuses.ToImmutableArray()));
         return new BattlePlayerStats(stats.Strength, stats.Vitality, stats.Magic, stats.Spirit, stats.Speed, stats.Luck, stats.Hit, stats.Evasion, stats.ElementDefenses.ToArray(), stats.ElementAttack, stats.ElementAttackPercent);
     }
 

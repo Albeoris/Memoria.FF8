@@ -96,7 +96,7 @@ public sealed record NativeDrawPointCatalog(string ExecutableHash, string Kernel
             }
             NativeCharacterVital character = vitals.Records[vitals.CombatParty[combat]];
             string line = lines[slot + 2].Replace("{Char Squall}", CharacterTag(identity), StringComparison.Ordinal);
-            if (NativeCharacterVitals.GetMagicCapacity(character, magicId) == 0 && (eligibleCombatSlots & (1 << combat)) != 0)
+            if (vitals.GetMagicCapacity(vitals.CombatParty[combat], magicId) == 0 && (eligibleCombatSlots & (1 << combat)) != 0)
             {
                 line = line.Replace("{Color Disabled}", "{Color White}", StringComparison.Ordinal);
             }

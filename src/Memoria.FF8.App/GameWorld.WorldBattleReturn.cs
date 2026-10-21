@@ -60,6 +60,7 @@ internal sealed partial class GameWorld
             candidate.PrepareFieldEntry = PrepareNativeWorldFieldEntry;
             candidate.ReadFieldMagicStatRules = (vitals, row) => BattleResources.ReadPlayerNativeStatRules(vitals, row);
             candidate.ResolveNativeAutoJunction = (vitals, row, priority) => assets.ReadNativeTutorialCatalog().AutoJunction(vitals, row, priority);
+            candidate.ResolveNativeAutoJunctionParty = (vitals, row, priority) => assets.ReadNativeTutorialCatalog().AutoJunction(vitals, row, priority, true);
             ConfigureWorldSalaryEffects(candidate);
             publishMusic();
             session.PublishNativeWorldBattleMusic(Events.Scene.MusicProcess!);

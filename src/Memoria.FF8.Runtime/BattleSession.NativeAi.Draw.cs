@@ -7,7 +7,9 @@ public sealed partial class BattleSession
         //487DF0 reads the previous queued target WORD B94, rather than the interpreter's local target mask.
         int index = System.Numerics.BitOperations.TrailingZeroCount((uint)actor.NativePreviousTargetMask);
         BattleCombatant source = combatants.FirstOrDefault(candidate => candidate.NativeIndex == index) ?? throw new NotSupportedException("Native AI Draw requires an allocated actor in its previous queued target mask.");
-        int occupied = source.NativeMagicInventory.Count(stock => stock.SpellId != 0);
+        bool logical = source.MagicOwner is not null && (source.MagicOwner().MagicSystem.SharedMagicStock || source.MagicOwner().MagicSystem.RecordZeroExtension.Length != 0 && source.MagicRecordId == 0);
+        NativeMagicStock[] inventory = logical ? source.MagicStocks.Select(stock => new NativeMagicStock((byte)stock.Id, (byte)stock.Count)).ToArray() : source.NativeMagicInventory;
+        int occupied = inventory.Count(stock => stock.SpellId != 0);
         if (occupied == 0)
         {
             actor.NativeDrawnSpell = 255;
@@ -15,11 +17,11 @@ public sealed partial class BattleSession
         }
         //4837E0 deliberately starts at RNG % count, then scans physical slots; it does not choose the nth nonempty entry.
         int slot = NextRandomByte() % occupied;
-        while (source.NativeMagicInventory[slot].SpellId == 0)
+        while (inventory[slot].SpellId == 0)
         {
-            slot = (slot + 1) & 31;
+            slot = (slot + 1) % inventory.Length;
         }
-        NativeMagicStock selected = source.NativeMagicInventory[slot];
+        NativeMagicStock selected = inventory[slot];
         actor.NativeDrawnSpell = selected.SpellId;
         BattleNativeAction spell = FindInstalledNativeAction(2, selected.SpellId);
         string spellName = spell.Name ?? throw new InvalidDataException("Native AI Draw requires the installed spell name.");

@@ -37,6 +37,12 @@ public sealed partial class BattleCombatant
 
     internal bool TryConsumeMagic(int id)
     {
+        if (MagicOwner is not null && SetMagicOwner is not null && MagicRecordId is int row)
+        {
+            NativeCharacterVitals next = MagicOwner().ChangeMagicStock(row, id, -1, MagicOperationReason.ScriptRemoval, out MagicStockMutation result);
+            SetMagicOwner(next);
+            return result.Accepted != 0;
+        }
         int index = Array.FindIndex(NativeMagicInventory, stock => stock.SpellId == id && stock.Count > 0);
         if (index < 0)
         {
@@ -50,6 +56,12 @@ public sealed partial class BattleCombatant
 
     internal int AddMagic(int id, int quantity)
     {
+        if (MagicOwner is not null && SetMagicOwner is not null && MagicRecordId is int row)
+        {
+            NativeCharacterVitals next = MagicOwner().ChangeMagicStock(row, id, quantity, MagicOperationReason.DrawStock, out MagicStockMutation result);
+            SetMagicOwner(next);
+            return result.Accepted;
+        }
         int index = Array.FindIndex(NativeMagicInventory, stock => stock.SpellId == id);
         if (index < 0)
         {

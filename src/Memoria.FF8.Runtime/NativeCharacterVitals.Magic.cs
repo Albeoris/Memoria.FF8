@@ -27,7 +27,7 @@ public sealed partial record NativeCharacterVitals
         {
             throw new InvalidDataException("Native magic junction lookup requires all twenty saved junction bytes.");
         }
-        return magicId != 0 && character.Junction.MagicJunctions.Any(spell => spell == magicId);
+        return magicId != 0 && character.Junction.MagicJunctions.Take(19).Any(spell => spell == magicId);
     }
 
     /// <summary>Native47EE00 inserts exactly one unit without sorting or clearing a retained empty-slot count.</summary>
@@ -38,22 +38,8 @@ public sealed partial record NativeCharacterVitals
         {
             throw new NotSupportedException("Native magic insertion requires an owned physical saved row.");
         }
-        NativeCharacterVital character = Records[physicalRow];
-        result = GetMagicCapacity(character, magicId);
-        if (result != 0 || magicId == 0)
-        {
-            return this;
-        }
-        int slot = Array.FindIndex(character.MagicInventory, stock => stock.SpellId == magicId);
-        if (slot < 0)
-        {
-            slot = Array.FindIndex(character.MagicInventory, stock => stock.SpellId == 0);
-        }
-        NativeMagicStock[] inventory = character.MagicInventory.ToArray();
-        inventory[slot] = new NativeMagicStock(unchecked((byte)magicId), unchecked((byte)(inventory[slot].Count + 1)));
-        NativeCharacterVital[] records = Records.ToArray();
-        records[physicalRow] = character with { MagicInventory = inventory };
-        return (this with { Records = records }).DeepCopy();
+        result = magicId == 0 ? 0 : GetMagicCapacity(physicalRow, magicId);
+        return result == 0 && magicId != 0 ? ChangeMagicStock(physicalRow, magicId, 1, MagicOperationReason.DrawPoint, out _) : this;
     }
 
     private static void RequireMagicInventory(NativeCharacterVital character)

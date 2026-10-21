@@ -79,6 +79,7 @@ public sealed record BattleStatusEffectDefinition
 
 public sealed record BattleCombatantDefinition
 {
+    public int? MagicRecordId { get; init; }
     public byte? Information246 { get; init; }
     public BattleNativeEnemySpecial? NativeSpecial { get; init; }
     public BattleNativeCharacterGrowth? NativeGrowth { get; init; }
@@ -144,6 +145,7 @@ public sealed record BattleCombatantDefinition
 
 public sealed record BattleDefinition
 {
+    public NativeCharacterVitals? MagicVitals { get; init; }
     public NativeBattleClockRules? NativeClockRules { get; init; }
     public NativeBattleSupportRules? NativeSupportRules { get; init; }
     public NativeBattleRetainedMemory? NativeRetainedMemory { get; init; }
@@ -223,6 +225,8 @@ public enum BattleActionPhase
 
 public sealed record BattleAttackCommand(string ActorId, string TargetId, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false, int NativeTargetSelector = 0)
 {
+    public string? MagicReservationId { get; init; }
+    public BattleSmartAttackPreview? SmartAttack { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public int? NativeHeaderIndex { get; init; }
     public BattleNativeCallback? NativeCallback { get; init; }
@@ -248,6 +252,8 @@ public sealed record BattleAttackCommand(string ActorId, string TargetId, Battle
 }
 public sealed record BattleActionPresentation(string ActorId, string TargetId, BattleActionPhase Phase, int RemainingFrames, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false, int NativeTargetSelector = 0)
 {
+    public string? MagicReservationId { get; init; }
+    public BattleSmartAttackPreview? SmartAttack { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public int? NativeHeaderIndex { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
@@ -300,6 +306,7 @@ public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, 
 
 public sealed record BattleSnapshot
 {
+    public NativeCharacterVitals? MagicVitals { get; init; }
     public NativeExamTimerState? NativeExamTimer { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public long? NativeHostCallbacks { get; init; }
@@ -605,8 +612,12 @@ public sealed partial class BattleCombatant
     public int ElementAttack => definition.ElementAttack;
     public int ElementAttackPercent => definition.ElementAttackPercent;
     public IReadOnlyList<int> ElementDefenses => Array.AsReadOnly(definition.ElementDefenses);
-    internal NativeMagicStock[] NativeMagicInventory { get; } = Enumerable.Repeat(new NativeMagicStock(0, 0), 32).ToArray();
-    public IReadOnlyList<BattleStock> MagicStocks => NativeMagicInventory.Where(stock => stock.SpellId != 0 && stock.Count > 0).Select(stock => new BattleStock(stock.SpellId, stock.Count)).ToArray();
+    private readonly NativeMagicStock[] nativeMagicInventory = Enumerable.Repeat(new NativeMagicStock(0, 0), 32).ToArray();
+    internal Func<NativeCharacterVitals>? MagicOwner { get; set; }
+    internal Action<NativeCharacterVitals>? SetMagicOwner { get; set; }
+    public int? MagicRecordId => definition.MagicRecordId;
+    internal NativeMagicStock[] NativeMagicInventory => MagicOwner is not null && MagicRecordId is int row ? MagicOwner().Records[MagicOwner().MagicSystem.SharedMagicStock ? 0 : row].MagicInventory : nativeMagicInventory;
+    public IReadOnlyList<BattleStock> MagicStocks => (MagicOwner is not null && MagicRecordId is int row ? MagicOwner().GetMagicInventory(row) : NativeMagicInventory.AsEnumerable()).Where(stock => stock.SpellId != 0 && stock.Count > 0).Select(stock => new BattleStock(stock.SpellId, stock.Count)).ToArray();
     public IReadOnlyList<NativeMagicStock> NativeMagicSlots => Array.AsReadOnly(NativeMagicInventory);
     public IReadOnlyList<BattleDrawSpell> DrawSpells => nativeDrawSlots.Where(slot => slot.Id is > 0 and < 64).Select(slot => new BattleDrawSpell(slot.Id, slot.Resistance)).ToArray();
     public NativeBattleMugDefinition? NativeMug => definition.NativeTemplate?.NativeMug ?? definition.NativeMug;

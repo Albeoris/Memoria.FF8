@@ -9,6 +9,8 @@ internal sealed class BattleHudElement : UiElement
     private readonly BattleHudController controller;
     private float Scale => Math.Min(Bounds.Width / 960, Bounds.Height / 672);
     private float Left => Bounds.X + (Bounds.Width - 960 * Scale) / 2;
+    private bool ShowingMagicList => controller.SelectingAction && !controller.SelectingTarget && controller.SelectedCommand == BattleAbility.Magic;
+    private float CommandWidth => ShowingMagicList ? 440 : 194;
     private float Top => Bounds.Y + (Bounds.Height - 672 * Scale) / 2;
 
     public BattleHudElement(BattleHudController controller)
@@ -50,7 +52,7 @@ internal sealed class BattleHudElement : UiElement
         float menuHeight = session.Outcome != BattleOutcome.Active ? 76 : 20 + Math.Max(1, Math.Min(4, rows)) * 28;
         if (canAttack || session.Outcome != BattleOutcome.Active)
         {
-            theme.Panel(canvas, Rect(30, 516, 194, menuHeight), caption, 17 * Scale * controller.TextScale);
+            theme.Panel(canvas, Rect(30, 516, CommandWidth, menuHeight), caption, 17 * Scale * controller.TextScale);
         }
         if (session.Outcome != BattleOutcome.Active)
         {
@@ -59,6 +61,9 @@ internal sealed class BattleHudElement : UiElement
         }
         else if (controller.SelectingTarget)
         {
+            theme.Panel(canvas, Rect(30, 452, 440, 58));
+            Text(canvas, theme, controller.TargetActionCaption, 44, 459, 412, 24, 20);
+            Text(canvas, theme, controller.PhysicalOverrideCaption, 44, 483, 412, 22, 15, true);
             DrawTargets(canvas, theme);
         }
         else if (canAttack)
@@ -72,8 +77,8 @@ internal sealed class BattleHudElement : UiElement
                 {
                     theme.Pointer(canvas, Left + 38 * Scale, Top + (y + 5) * Scale, 10 * Scale);
                 }
-                bool unavailable = actions.Count > start + row && !actions[start + row].Available;
-                Text(canvas, theme, choices[start + row], 60, y, 156, 26, 20, unavailable);
+                bool unavailable = actions.Count > start + row && (!actions[start + row].Available || controller.SelectedCommand == BattleAbility.Magic && controller.SelectedActor is { } caster && !session.QuoteMagic(caster.Id, actions[start + row].Id).Allowed);
+                Text(canvas, theme, choices[start + row], 60, y, CommandWidth - 38, 26, ShowingMagicList ? 18 : 20, unavailable);
             }
         }
 
@@ -165,13 +170,26 @@ internal sealed class BattleHudElement : UiElement
         return true;
     }
 
+    public override void PointerHover(float x, float y)
+    {
+        if (!controller.SelectingTarget || !Rect(30, 530, 194, 84).Contains(x, y))
+        {
+            return;
+        }
+        int index = (int)Math.Floor((y - Rect(0, 530, 0, 0).Y) / (28 * Scale));
+        if (index >= 0 && index < controller.VisibleTargets.Count)
+        {
+            controller.SelectTarget(controller.VisibleTargets[index].Id, false);
+        }
+    }
+
     public override void Pointer(float x, float y)
     {
         if (controller.Session.Outcome == BattleOutcome.Victory && Rect(144, 376, 672, 40).Contains(x, y))
         {
             controller.ChangeRewardPage(x < Rect(480, 0, 0, 0).X ? -1 : 1);
         }
-        else if (Rect(30, 516, 194, 132).Contains(x, y))
+        else if (Rect(30, 516, CommandWidth, 132).Contains(x, y))
         {
             if (controller.Session.Outcome != BattleOutcome.Active)
             {

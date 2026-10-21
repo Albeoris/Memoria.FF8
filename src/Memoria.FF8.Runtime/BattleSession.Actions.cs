@@ -51,7 +51,7 @@ public sealed partial class BattleSession
         switch (ability)
         {
             case BattleAbility.Magic:
-                if (!actor.MagicStocks.Any(stock => stock.Id == actionId && stock.Count > 0))
+                if (GetAvailableMagicCasts(actorId, actionId) == 0)
                 {
                     throw new InvalidOperationException("The selected battle magic stock is exhausted.");
                 }
@@ -69,6 +69,7 @@ public sealed partial class BattleSession
                 throw new NotSupportedException($"Battle command {ability} is unsupported.");
         }
         BattleAttackCommand queued = new(actorId, targetId, ability, actionId, drawCast) { NativeMagicTargets = magicMasks, ReservedNativeItemSlot = reservedItemSlot, NativeQueuedCommand = ability switch { BattleAbility.Magic => 2, BattleAbility.Item => 4, BattleAbility.Draw => 6, BattleAbility.GuardianForce => 254, _ => null } };
+        queued = EnsureMagicReservation(actor, queued with { SmartAttack = pendingSmartAttack });
         OnNativePlayerCommandSubmitted(actor, ability == BattleAbility.GuardianForce ? (byte)3 : queued.NativeQueuedCommand!.Value);
         if (NativeGraphics is not null)
         {

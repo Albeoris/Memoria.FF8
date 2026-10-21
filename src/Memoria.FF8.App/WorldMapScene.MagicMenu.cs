@@ -15,7 +15,7 @@ internal sealed partial class WorldMapScene
         }
         NativeCharacterVitals source = session.State.CharacterVitals ?? throw new NotSupportedException("Magic input requires authentic saved characters.");
         BattleNativePlayerStatRules? rules = action.Kind == PlayerActionKind.UseFieldMagic ? ReadFieldMagicStatRules?.Invoke(source, NativeMagicMenuInput.Validate(action).Source) : null;
-        session.SetCharacterVitals(NativeMagicMenuInput.Apply(source, action, rules, session.State.WorldControls));
+        session.SetCharacterVitals(NativeMagicMenuInput.Apply(source, action, rules, session.State.WorldControls, row => ReadFieldMagicStatRules!(source, row)));
         return new PlayerActionResult(true, new PlayerTrigger(PlayerTriggerKind.WorldMap, session.State.FieldId, State.Frame, null, null), 0);
     }
 }

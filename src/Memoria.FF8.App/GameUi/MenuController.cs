@@ -11,6 +11,7 @@ public sealed partial class MenuController
     private readonly Stack<string> _history = new();
     private MenuData? _demo;
     private MenuData? _liveData;
+    private bool sortMagicByName;
     private string _characterId = "";
     private string _gfId = "";
     private string _itemId = "";
@@ -47,7 +48,22 @@ public sealed partial class MenuController
     public bool IsDemo { get; private set; }
     public string ScreenId { get; private set; } = "main";
     public string Message { get; private set; } = "";
-    public MenuData Data => IsDemo ? _demo! : _liveData ??= _liveProvider?.Invoke() ?? new MenuData();
+    public MenuData Data
+    {
+        get
+        {
+            MenuData data = IsDemo ? _demo! : _liveData ??= _liveProvider?.Invoke() ?? new MenuData();
+            if (sortMagicByName)
+            {
+                data.Magic.Sort((left, right) =>
+                {
+                    int name = string.Compare(left.Name, right.Name, StringComparison.CurrentCultureIgnoreCase);
+                    return name != 0 ? name : string.Compare(left.Id, right.Id, StringComparison.Ordinal);
+                });
+            }
+            return data;
+        }
+    }
     public IReadOnlyCollection<MenuScreenDefinition> Definitions => _screens.Values;
     public IReadOnlyList<string> ScreenIds => _screens.Keys.ToArray();
     public MenuScreenDefinition CurrentScreen => _screens[ScreenId];
@@ -140,12 +156,28 @@ public sealed partial class MenuController
 
     public void InvalidateLiveData()
     {
+        string? selected = ScreenId is "magic-use" or "magic-stock" or "magic-exchange" or "junction-stock" ? SelectedEntry?.Id : null;
         _liveData = null;
         _view = null;
+        if (selected is not null)
+        {
+            int index = Entries.ToList().FindIndex(entry => entry.Id == selected);
+            if (index >= 0)
+            {
+                _selections[ScreenId] = index;
+            }
+        }
     }
 
     public void Close()
     {
+        if (ScreenId == "mode-review")
+        {
+            cancelMagicRules?.Invoke();
+            cancelMagicRules = null;
+            applyMagicRules = null;
+            _liveData = null;
+        }
         CancelControlsCapture();
         IsOpen = false;
         _nameTarget = null;
@@ -299,6 +331,13 @@ public sealed partial class MenuController
 
     public void Back()
     {
+        if (ScreenId == "mode-review")
+        {
+            cancelMagicRules?.Invoke();
+            cancelMagicRules = null;
+            applyMagicRules = null;
+            _liveData = null;
+        }
         if (IsNamePrompt)
         {
             DeleteNameCharacter();
@@ -493,6 +532,10 @@ public sealed partial class MenuController
     public void Execute(MenuAction action)
     {
         _view = null;
+        if (ExecuteMagicRulesAction(action))
+        {
+            return;
+        }
         if (TryExecuteNativeTutorialBrowser(action))
         {
             return;
@@ -648,8 +691,11 @@ public sealed partial class MenuController
                 "junction-gf" => action with { TargetId = Character?.Id ?? "" },
                 "junction-off" => action with { TargetId = Character?.Id ?? "" },
                 "junction-auto" => action with { TargetId = Character?.Id ?? "" },
+                "attack-mode" => action with { TargetId = Character?.Id ?? "" },
                 "junction-command" => action with { TargetId = Character?.Id ?? "", Value = (_commandSlot - 1).ToString(System.Globalization.CultureInfo.InvariantCulture) },
                 "junction-ability" => action with { TargetId = Character?.Id ?? "", Value = _abilitySlot.ToString(System.Globalization.CultureInfo.InvariantCulture) },
+                "junction-magic-reassign" => action with { TargetId = Character?.Id ?? "", Value = _junctionSlot },
+                "junction-auto-party" => action with { TargetId = Character?.Id ?? "" },
                 "junction-magic" => action with { TargetId = Character?.Id ?? "", Value = _junctionSlot },
                 "gf-learn" => action with { TargetId = GuardianForce?.Id ?? "" },
                 _ => action

@@ -23,7 +23,7 @@ public sealed partial class BattleAssets
         ImmutableArray<byte> weapon = NativeKernelRecords.Single(record => record.Section == 4 && record.Index == weaponId).Bytes;
         int spellId = character.Junction.MagicJunctions[10];
         ImmutableArray<byte> spell = NativeKernelRecords.Single(record => record.Section == 1 && record.Index == spellId).Bytes;
-        int quantity = spellId == 0 ? 0 : character.MagicInventory.FirstOrDefault(stock => stock.SpellId == spellId)?.Count ?? 0;
+        int quantity = spellId == 0 ? 0 : MagicJunctionPolicy.GetEffectiveCount(vitals, row, spellId);
         ushort junctionStatuses = BinaryPrimitives.ReadUInt16LittleEndian(spell.AsSpan().Slice(38));
         //496AC0/496AF0 split the junction mask into saved status bits0..6 and Sleep/Slow/Stop battle bits.
         uint battleStatuses = (junctionStatuses & 0x80) != 0 ? 1u : 0;

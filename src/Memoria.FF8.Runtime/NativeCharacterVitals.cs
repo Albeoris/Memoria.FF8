@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
@@ -91,6 +91,7 @@ public sealed partial record NativeCharacterVitals
         {
             throw new InvalidDataException("Native saved-stat owner lacks current GF records, dream weapons or immutable kernel inputs.");
         }
+        MagicSystem.Validate();
         Definitions.Validate();
         MenuDefinitions.Validate();
         foreach (NativeCharacterVital record in Records)
@@ -106,7 +107,7 @@ public sealed partial record NativeCharacterVitals
 
     public NativeCharacterVitals DeepCopy()
     {
-        return this with { Records = Records.Select(record => record with { Junction = record.Junction with { MagicJunctions = record.Junction.MagicJunctions.ToArray() }, StatBonuses = record.StatBonuses.ToArray(), MagicInventory = record.MagicInventory.ToArray(), GuardianForceCompatibility = record.GuardianForceCompatibility?.ToArray() }).ToArray(), CombatParty = CombatParty.ToArray(), GuardianForces = GuardianForces.ToArray(), DreamWeapons = DreamWeapons.ToArray(), JunctionPartyBackup = JunctionPartyBackup.ToArray() };
+        return this with { MagicSystem = MagicSystem.DeepCopy(), Records = Records.Select(record => record with { Junction = record.Junction with { MagicJunctions = record.Junction.MagicJunctions.ToArray() }, StatBonuses = record.StatBonuses.ToArray(), MagicInventory = record.MagicInventory.ToArray(), GuardianForceCompatibility = record.GuardianForceCompatibility?.ToArray() }).ToArray(), CombatParty = CombatParty.ToArray(), GuardianForces = GuardianForces.ToArray(), DreamWeapons = DreamWeapons.ToArray(), JunctionPartyBackup = JunctionPartyBackup.ToArray() };
     }
 
     /// <summary>Native522110 writes the HP WORD at its wrapped full-DWORD physical row address.</summary>
@@ -144,7 +145,7 @@ public sealed partial record NativeCharacterVitals
         byte[] temporaryParty = CombatParty.ToArray();
         temporaryParty[0] = (byte)index;
         NativeCharacterVitals temporary = (this with { Records = records, CombatParty = temporaryParty }).RebuildParty();
-        ushort maximum = temporary.Definitions.CharacterMaximum(temporary.Records[index]);
+        ushort maximum = temporary.GetMagicMaximumHitPoints(index);
         records = temporary.Records.ToArray();
         records[index] = records[index] with { HitPoints = new NativeHpWord(maximum, maximum), Status = (ushort)(selected.Status & 0x0080) };
         NativeCharacterVitals restored = (temporary with { Records = records, CombatParty = CombatParty.ToArray() }).RebuildParty();
@@ -165,7 +166,7 @@ public sealed partial record NativeCharacterVitals
         foreach (byte slot in CombatParty.Where(slot => slot != 255))
         {
             NativeCharacterVital current = records[slot];
-            ushort maximum = Definitions.CharacterMaximum(current);
+            ushort maximum = MagicMaximumHitPoints(current);
             records[slot] = current with { HitPoints = ClampHitPoints(current.HitPoints, maximum) };
         }
         return (this with { Records = records, GuardianForces = RefreshGuardianForces().GuardianForces }).DeepCopy();
@@ -210,7 +211,7 @@ public sealed partial record NativeCharacterVitals
                 continue;
             }
             next = (next with { CombatParty = [(byte)row, 255, 255] }).RebuildParty();
-            ushort maximum = next.Definitions.CharacterMaximum(next.Records[row]);
+            ushort maximum = next.GetMagicMaximumHitPoints(row);
             NativeCharacterVital[] records = next.Records.ToArray();
             records[row] = records[row] with { HitPoints = new NativeHpWord(maximum, maximum), Status = (ushort)(records[row].Status & 0x80) };
             next = (next with { Records = records, CombatParty = CombatParty.ToArray() }).RebuildParty();

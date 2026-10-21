@@ -9,6 +9,7 @@ Start with [installation and first launch](players/getting-started.md), then use
 | Guide | What you will find |
 | --- | --- |
 | [Controls](players/controls.md) | Keyboard, controller, remapping and shortcuts. |
+| [Magic rules and Smart Attack](players/magic-system.md) | Shared stock, limited uses, automatic attacks and save compatibility. |
 | [Saves](players/saves.md) | Save locations, standalone snapshots and loading limitations. |
 | [Debug Room](players/debug-room.md) | In-game settings, names, previews and the battle laboratory. |
 | [Automatic exploration](players/automatic-exploration.md) | Start, pause, resume and reproduce an experimental automated run. |

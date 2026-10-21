@@ -9,6 +9,10 @@ internal static class SnapshotDefaults
     internal static GameState Deserialize(Stream stream, JsonSerializerOptions options)
     {
         JsonObject saved = JsonSerializer.Deserialize<JsonObject>(stream, options) ?? throw new JsonException("Expected a saved game object.");
+        if (saved["GameplayPreferences"] is JsonObject preferences && new[] { "SharedMagicStock", "InfiniteMagic", "SmartAttack" }.Any(flag => preferences[flag] is JsonValue value && value.TryGetValue(out bool enabled) && enabled) && saved["CharacterVitals"] is JsonObject vitals && !vitals.ContainsKey("MagicSystem"))
+        {
+            throw new InvalidDataException("Enabled magic rules require their saved magic-system owner.");
+        }
         // Execution snapshots require their saved counters and matching retained-memory copies verbatim.
         if (saved["Battle"] is JsonObject existingBattle && !IsIdleBattle(existingBattle))
         {
@@ -65,7 +69,7 @@ internal static class SnapshotDefaults
         {
             saved.Add(name, value?.DeepClone());
         }
-        else if (current is JsonObject savedObject && value is JsonObject defaultObject)
+        else if (name != "MagicSystem" && current is JsonObject savedObject && value is JsonObject defaultObject)
         {
             Complete(savedObject, defaultObject, name is "EffectMemory" or "NativeEffectMemory");
         }

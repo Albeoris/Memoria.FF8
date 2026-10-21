@@ -1,0 +1,132 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Field" xml:space="preserve">
+    <value>Поле</value>
+  </data>
+  <data name="Battle" xml:space="preserve">
+    <value>Бой</value>
+  </data>
+  <data name="Owner" xml:space="preserve">
+    <value>Владелец: {0}</value>
+  </data>
+  <data name="Unbound" xml:space="preserve">
+    <value>Без привязки</value>
+  </data>
+  <data name="Exhausted" xml:space="preserve">
+    <value>Использования исчерпаны</value>
+  </data>
+  <data name="UnavailableOwner" xml:space="preserve">
+    <value>Владелец недоступен</value>
+  </data>
+  <data name="MissingCommand" xml:space="preserve">
+    <value>Нет команды «Магия»</value>
+  </data>
+  <data name="StatusRestricted" xml:space="preserve">
+    <value>Состояние мешает колдовать</value>
+  </data>
+  <data name="Caster" xml:space="preserve">
+    <value>Заклинатель: {0}</value>
+  </data>
+  <data name="MemoriaDestination" xml:space="preserve">
+    <value>Правила магии, личные настройки атаки и история использований требуют сохранения Memoria. Выберите ячейку Memoria; исходные файлы FF8 останутся целы.</value>
+  </data>
+  <data name="AttackSlotHelp" xml:space="preserve">
+    <value>Первая ячейка остаётся атакой. Умная атака открывает личный выбор физических атак или магии.</value>
+  </data>
+  <data name="PhysicalOnly" xml:space="preserve">
+    <value>Только физические</value>
+  </data>
+  <data name="SmartMagic" xml:space="preserve">
+    <value>Умная магия</value>
+  </data>
+  <data name="AttackChoiceHelp" xml:space="preserve">
+    <value>Выберите физические атаки или автоматическую магию с обычной командой «Магия» и обычными затратами.</value>
+  </data>
+  <data name="SharedDescription" xml:space="preserve">
+    <value>Общий запас магии с единственным владельцем каждой привязки. Перед изменением проверьте перенос, остатки, привязки и HP.</value>
+  </data>
+  <data name="InfiniteDescription" xml:space="preserve">
+    <value>Заклинания сохраняют запас, расходуя ограниченные использования в бою и на поле. Победа восстанавливает одно использование на поле.</value>
+  </data>
+  <data name="SmartDescription" xml:space="preserve">
+    <value>Открывает личный выбор автоматической атаки. Использует скрытые сведения о врагах и выгодно подбирает магию; обычные ограничения действуют.</value>
+  </data>
+  <data name="ReviewTitle" xml:space="preserve">
+    <value>Предпросмотр переноса магии</value>
+  </data>
+  <data name="ReviewHelp" xml:space="preserve">
+    <value>Проверьте изменения. Применение переносит всё; отмена ничего не меняет.</value>
+  </data>
+  <data name="Apply" xml:space="preserve">
+    <value>Применить</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>Отмена</value>
+  </data>
+  <data name="PhysicalOverride" xml:space="preserve">
+    <value>Удерживать {0}: физическая атака</value>
+  </data>
+  <data name="Moved" xml:space="preserve">
+    <value>Перенос: запись {0} → {1}, {2} ×{3}</value>
+  </data>
+  <data name="Overflow" xml:space="preserve">
+    <value>Остаток сохранён: запись {0}, {1} ×{2}</value>
+  </data>
+  <data name="Removed" xml:space="preserve">
+    <value>Привязка снята: запись {0}, ячейка {1}, {2}</value>
+  </data>
+  <data name="HpChange" xml:space="preserve">
+    <value>Запись {0}: максимум HP {1} → {2}</value>
+  </data>
+  <data name="NoStockChanges" xml:space="preserve">
+    <value>Запасы, привязки и максимум HP не изменятся.</value>
+  </data>
+  <data name="SmartLocked" xml:space="preserve">
+    <value>Включите умную атаку в настройках, чтобы изменить этот выбор.</value>
+  </data>
+  <data name="SharedLabel" xml:space="preserve">
+    <value>Общий запас магии</value>
+  </data>
+  <data name="InfiniteLabel" xml:space="preserve">
+    <value>Бесконечная магия</value>
+  </data>
+  <data name="SmartLabel" xml:space="preserve">
+    <value>Умная атака</value>
+  </data>
+  <data name="ConservativeHelp" xml:space="preserve">
+    <value>Бережная автопривязка сохраняет привязки магии других персонажей.</value>
+  </data>
+  <data name="PartyLabel" xml:space="preserve">
+    <value>Вся группа · {0}</value>
+  </data>
+  <data name="PartyHelp" xml:space="preserve">
+    <value>Проверьте изменения владельцев и HP перед передачей магии других персонажей.</value>
+  </data>
+  <data name="CommandSlotHelp" xml:space="preserve">
+    <value>Выберите команду для этой ячейки.</value>
+  </data>
+  <data name="SettingBeginHelp" xml:space="preserve">
+    <value>Начать новую игру с этими правилами. Остальные настройки доступны в Config.</value>
+  </data>
+  <data name="DeferredReview" xml:space="preserve">
+    <value>Ожидает изменение правил магии. Проверьте перенос перед применением.</value>
+  </data>
+  <data name="StockHelp" xml:space="preserve">
+    <value>Запасы, оставшиеся использования на поле и владельцы привязок.</value>
+  </data>
+  <data name="RefinementCost" xml:space="preserve">
+    <value>Расход: {0} {1}; результат: {2} {3}. Ингредиенты расходуются за всю партию.</value>
+  </data>
+</root>

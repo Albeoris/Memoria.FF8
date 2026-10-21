@@ -42,6 +42,7 @@ internal sealed class PlayerSaveMenu
     public bool IsTransferring => transferSource is not null;
     public int? TransferSource => transferSource?.Slot;
     public Func<int, bool>? BeforeBankChange { get; set; }
+    public Func<bool>? RequiresMemoriaFormat { get; set; }
     public string? Message { get; private set; }
     public IReadOnlyList<PlayerSaveEntry> Entries { get; private set; } = [];
     public event Action<MenuSound>? SoundRequested;
@@ -70,6 +71,11 @@ internal sealed class PlayerSaveMenu
         confirmRequested = false;
         cancelRequested = false;
         Bank = IsQuick ? 0 : rememberedBanks.GetValueOrDefault(mode);
+        if (IsSaving && RequiresMemoriaFormat?.Invoke() == true)
+        {
+            Bank = 0;
+            Message = MagicUiText.Get("MemoriaDestination");
+        }
         Page = 0;
         RefreshEntries();
         if (IsQuick)
@@ -107,6 +113,12 @@ internal sealed class PlayerSaveMenu
         if (bank < 0 || bank >= PlayerSaveStore.BankCount)
         {
             throw new ArgumentOutOfRangeException(nameof(bank));
+        }
+        if (IsSaving && !IsTransferring && bank != 0 && RequiresMemoriaFormat?.Invoke() == true)
+        {
+            Message = MagicUiText.Get("MemoriaDestination");
+            SoundRequested?.Invoke(MenuSound.Cancel);
+            return false;
         }
         if (IsTransferring && (bank == 0) == (PlayerSaveStore.GetBank(TransferSource!.Value) == 0))
         {
@@ -249,6 +261,13 @@ internal sealed class PlayerSaveMenu
         {
             Message = "No quick saves.";
             SoundRequested?.Invoke(MenuSound.Cancel);
+            return;
+        }
+        if (IsSaving && !IsTransferring && Bank != 0 && RequiresMemoriaFormat?.Invoke() == true)
+        {
+            ChangeBank(0);
+            ConfirmOverwrite = false;
+            Message = MagicUiText.Get("MemoriaDestination");
             return;
         }
         PlayerSaveEntry entry = Entries[Selection];

@@ -149,11 +149,11 @@ public sealed partial record NativeCharacterVitals
         packed = (packed & ~(255u << (8 * slot))) | ((uint)ability << (8 * slot));
         junction = command ? junction with { Commands = packed } : junction with { Abilities = packed };
         records[row] = records[row] with { Junction = junction };
-        records[row] = records[row] with { HitPoints = ClampHitPoints(records[row].HitPoints, Definitions.CharacterMaximum(records[row])) };
+        records[row] = records[row] with { HitPoints = ClampHitPoints(records[row].HitPoints, MagicMaximumHitPoints(records[row])) };
         return this with { Records = records };
     }
 
-    public NativeCharacterVitals SetJunctionMagic(int row, int slot, int spell)
+    public NativeCharacterVitals SetJunctionMagic(int row, int slot, int spell, bool reassign = false)
     {
         Validate();
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)row, 8u);
@@ -161,23 +161,12 @@ public sealed partial record NativeCharacterVitals
         {
             throw new ArgumentOutOfRangeException(nameof(slot), "Magic junction requires one of the nineteen native slots and an actual kernel spell.");
         }
-        if (!JunctionMagicSlotAvailable(row, slot) || spell != 0 && !Records[row].MagicInventory.Any(stock => stock.SpellId == spell && stock.Count > 0))
+        if (!JunctionMagicSlotAvailable(row, slot) || spell != 0 && GetMagicCount(row, spell) == 0)
         {
             throw new InvalidOperationException("Magic junction requires its learned GF slot ability and a stocked spell.");
         }
-        NativeCharacterVital[] records = Records.ToArray();
-        byte[] junctions = records[row].Junction.MagicJunctions.ToArray();
-        for (int index = 0; index < 19; index++)
-        {
-            if (spell != 0 && junctions[index] == spell)
-            {
-                junctions[index] = 0;
-            }
-        }
-        junctions[slot] = checked((byte)spell);
-        records[row] = records[row] with { Junction = records[row].Junction with { MagicJunctions = junctions } };
-        records[row] = records[row] with { HitPoints = ClampHitPoints(records[row].HitPoints, Definitions.CharacterMaximum(records[row])) };
-        return this with { Records = records };
+        NativeCharacterVitals result = MagicJunctionPolicy.Assign(this, row, slot, spell, reassign);
+        return result.RebuildMenuRow(row);
     }
 
     public NativeCharacterVitals ToggleGuardianForceJunction(int row, int id)
@@ -228,7 +217,7 @@ public sealed partial record NativeCharacterVitals
             Array.Clear(magic);
         }
         records[row] = records[row] with { Junction = junction with { Commands = commands, Abilities = abilities, MagicJunctions = magic } };
-        records[row] = records[row] with { HitPoints = ClampHitPoints(records[row].HitPoints, Definitions.CharacterMaximum(records[row])) };
+        records[row] = records[row] with { HitPoints = ClampHitPoints(records[row].HitPoints, MagicMaximumHitPoints(records[row])) };
         return result.RebuildParty();
     }
 }

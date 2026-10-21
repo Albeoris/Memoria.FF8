@@ -12,6 +12,8 @@ public sealed record MenuAction(string Kind, string SubjectId = "", string Targe
 public sealed class MenuData
 {
     public bool? CardCollectionComplete { get; set; }
+    public bool SharedMagicStock { get; set; }
+    public bool SmartAttack { get; set; }
     public List<MenuCharacter> Characters { get; } = [];
     public List<MenuGuardianForce> GuardianForces { get; } = [];
     public List<MenuItem> Items { get; } = [];
@@ -35,6 +37,7 @@ public sealed class MenuData
 public sealed class MenuCharacter
 {
     public bool NativeFieldItemTargetAllowed { get; set; }
+    public string AttackMode { get; set; } = "PhysicalOnly";
     public string Id { get; set; } = "";
     public int? NativeId { get; set; }
     public string Name { get; set; } = "";
@@ -133,6 +136,14 @@ public sealed class MenuMagic
     public int Quantity { get; set; }
     public string Description { get; set; } = "";
     public int DemoHealing { get; set; }
+    public int? RemainingUses { get; set; }
+    public int? Capacity { get; set; }
+    public string Owner { get; set; } = "";
+    public string Availability { get; set; } = "";
+    public string Caster { get; set; } = "";
+    public bool JunctionAvailable { get; set; } = true;
+    public string StockPresentation => Capacity is int capacity ? $"×{Quantity} · {MagicUiText.Get("Field")} {RemainingUses}/{capacity}" : $"×{Quantity}";
+    public string AccessPresentation => string.Join(" · ", new[] { Owner, Availability, Caster }.Where(value => value.Length > 0));
 }
 
 public sealed class MenuCard
@@ -175,6 +186,7 @@ public sealed record MenuRecipe(string Id, string Ability, string IngredientId, 
     public int? NativeRecipeIndex { get; init; }
     public byte? NativeKind { get; init; }
     public string? IngredientName { get; init; }
+    public IReadOnlyDictionary<int, int> OutputCapacity { get; init; } = new Dictionary<int, int>();
     public IReadOnlyDictionary<int, int> MaximumBatches { get; init; } = new Dictionary<int, int>();
 }
 

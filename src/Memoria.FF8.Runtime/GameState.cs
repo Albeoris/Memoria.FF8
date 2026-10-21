@@ -21,6 +21,10 @@ public sealed record GameState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleAbandonment[]? AbandonedNativeBattles { get; init; }
     public GameplayPreferences GameplayPreferences { get; init; } = new();
+    public GameplayPreferences? PendingGameplayPreferences { get; init; }
+    public bool PendingMagicModeReview { get; init; }
+    [JsonIgnore]
+    public MagicSystemState? MagicSystem => CharacterVitals?.MagicSystem;
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public PendingEntityName[]? PendingEntityNames { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

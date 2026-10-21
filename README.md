@@ -86,7 +86,7 @@ The [documentation index](docs/README.md) is the starting point for players, mod
 
 | Topic | Guides |
 | --- | --- |
-| Playing | [Controls](docs/players/controls.md), [saves](docs/players/saves.md), [Debug Room](docs/players/debug-room.md). |
+| Playing | [Controls](docs/players/controls.md), [saves](docs/players/saves.md), [magic rules and Smart Attack](docs/players/magic-system.md), [Debug Room](docs/players/debug-room.md). |
 | Mods | [Textures](docs/modding/texture-mods.md), [file replacements](docs/modding/file-replacements.md), [native field mods](docs/modding/field-mods.md). |
 | Engine development | [Architecture](docs/developers/architecture.md), [UI](docs/developers/ui-framework.md), [rendering](docs/developers/rendering.md). |
 | Tools and automation | [Command line](docs/reference/command-line.md), [environment variables](docs/reference/environment-variables.md), [control API](docs/reference/control-api.md), [automatic exploration](docs/players/automatic-exploration.md). |

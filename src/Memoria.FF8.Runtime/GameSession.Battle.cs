@@ -169,5 +169,9 @@ public sealed partial class GameSession
     {
         NativeBattleRetainedMemory? memory = owned is null ? State.NativeBattleMemory : NativeBattleRetainedMemory.Capture(owned, State.NativeBattleMemory?.ColdExecutableSha256 ?? owned.Definition.NativeRetainedMemory?.ColdExecutableSha256);
         State = AdvanceNativePlaytime(State with { Battle = owned, NativeBattleMemory = memory, ExamTimer = owned?.NativeExamTimer ?? State.ExamTimer, VibrationProcess = owned?.NativeVibrationProcess ?? State.VibrationProcess, GlobalSoundProcess = owned?.NativeGlobalSoundProcess ?? State.GlobalSoundProcess });
+        if (owned is null && State.PendingBattleEncounter is null)
+        {
+            ApplyPendingGameplayPreferences();
+        }
     }
 }

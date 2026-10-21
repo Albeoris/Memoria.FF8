@@ -561,41 +561,24 @@ public sealed partial class BattleSession
     private bool NativePhysicalActionHits(BattleCombatant actor, BattleCombatant recipient, BattleNativeAction native)
     {
         int hit = native.Hit ?? 255;
-        if ((NativeBattleStatusBits(recipient) & 9) != 0 || hit == 255)
-        {
-            return true;
-        }
-        if ((NativeSavedStatusBits(actor) & 8) != 0)
-        {
-            hit >>= 2;
-        }
-        int chance = 255 * Math.Max(0, hit + (actor.Luck >> 1) - recipient.Evasion - recipient.Luck) / 100;
-        int draw = NextRandomByte();
-        return chance != 0 && chance >= draw;
+        uint targetStatus = NativeBattleStatusBits(recipient);
+        int draw = (targetStatus & 9) != 0 || hit == 255 ? 0 : NextRandomByte();
+        return NativeBattleDamage.PhysicalHits(hit, actor.Luck, recipient.Evasion, recipient.Luck, NativeSavedStatusBits(actor), targetStatus, draw);
     }
 
     private bool NativePhysicalCritical(BattleCombatant actor, BattleNativeAction native)
     {
-        int chance = native.Critical.GetValueOrDefault() + actor.Luck;
-        int draw = NextRandomByte();
-        return chance != 0 && chance >= draw;
+        return NativeBattleDamage.PhysicalCritical(native.Critical.GetValueOrDefault(), actor.Luck, NextRandomByte());
     }
 
     private int ModifyNativeMagicDamage(BattleCombatant recipient, BattleNativeAction native, int damage)
     {
         uint statuses = NativeBattleStatusBits(recipient);
-        if ((native.AttackFlags & 3) == 1 && (statuses & 0x40) != 0)
+        if ((native.AttackFlags & 3) == 1 && (statuses & 0x40) != 0 && damage != 0)
         {
-            if (damage != 0)
-            {
-                MarkNativeContactFlags(0x20, 0);
-            }
-            damage >>= 1;
+            MarkNativeContactFlags(0x20, 0);
         }
-        if ((statuses & 0x80000) != 0)
-        {
-            damage >>= 1;
-        }
+        damage = NativeBattleDamage.MagicMitigation(damage, native.AttackFlags, statuses);
         return ModifyNativeElement(recipient, native, damage, false);
     }
 
@@ -607,7 +590,7 @@ public sealed partial class BattleSession
         }
         int element = System.Numerics.BitOperations.TrailingZeroCount((uint)native.Element);
         int defense = (NativeSavedStatusBits(recipient) & 0x40) != 0 && element == 7 ? 700 : recipient.ElementDefenses[element];
-        return physical ? damage + damage * native.ElementPercent.GetValueOrDefault() * (800 - defense) / 10_000 : damage * (900 - defense) / 100;
+        return NativeBattleDamage.Element(damage, native.Element, defense, physical, native.ElementPercent.GetValueOrDefault());
     }
 
     private void DispatchNativeActionCounter(BattleCombatant recipient)

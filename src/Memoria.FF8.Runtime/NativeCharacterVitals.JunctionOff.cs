@@ -10,7 +10,7 @@ public sealed partial record NativeCharacterVitals
         NativeCharacterVital current = records[row];
         NativeCharacterJunction junction = all ? current.Junction.Reset() : current.Junction with { MagicJunctions = new byte[20] };
         current = current with { Junction = junction };
-        records[row] = current with { HitPoints = ClampHitPoints(current.HitPoints, Definitions.CharacterMaximum(current)) };
+        records[row] = current with { HitPoints = ClampHitPoints(current.HitPoints, MagicMaximumHitPoints(current)) };
         return (this with { Records = records }).RebuildParty();
     }
 }

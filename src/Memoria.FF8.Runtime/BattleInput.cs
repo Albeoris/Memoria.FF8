@@ -1,4 +1,4 @@
-﻿namespace Memoria.FF8.Runtime;
+namespace Memoria.FF8.Runtime;
 
 public enum BattleInputKind
 {
@@ -22,6 +22,8 @@ public enum BattleInputKind
 /// <summary>Live combat controls and settings for the current game.</summary>
 public sealed record BattleInput(BattleInputKind Kind, int Frames = 1, string? ActorId = null, string? TargetId = null, BattleAtbMode Mode = BattleAtbMode.Normal, bool FullCombat = false, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false, bool? RandomEncounters = null, byte? NativeSeed = null, BattleGunbladeMode GunbladeMode = BattleGunbladeMode.Manual)
 {
+    public bool ForcePhysical { get; init; }
+    public BattleSmartAttackPreview? SmartAttackPreview { get; init; }
     public string? DrawCastTargetId { get; init; }
     public System.Collections.Immutable.ImmutableArray<string> MagicTargets { get; init; } = [];
     public void Validate()

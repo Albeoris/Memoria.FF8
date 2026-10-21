@@ -13,6 +13,10 @@ public sealed partial record NativeCharacterVitals
             return this;
         }
         int row = CombatParty[slot];
+        if (MagicSystem.RequiresMemoriaFormat)
+        {
+            return ChangeMagicStock(row, rawSpell, quantity, MagicOperationReason.ScriptReward, out _);
+        }
         NativeMagicStock[] inventory = Records[row].MagicInventory.ToArray();
         for (int remaining = quantity; remaining > 0; remaining--)
         {

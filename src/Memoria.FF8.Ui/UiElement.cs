@@ -115,6 +115,11 @@ public class UiElement
         return this;
     }
 
+    /// <summary>Pointer movement without activation.</summary>
+    public virtual void PointerHover(float x, float y)
+    {
+    }
+
     public virtual bool Key(UiKey key)
     {
         return false;

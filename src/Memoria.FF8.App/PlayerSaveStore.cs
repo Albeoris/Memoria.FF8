@@ -96,6 +96,11 @@ internal sealed partial class PlayerSaveStore
         return IsInDirectory(fullPath, directory) || OriginalDirectory is { } original && IsInDirectory(fullPath, original);
     }
 
+    public static bool RequiresMemoriaFormat(GameState state)
+    {
+        return state.CharacterVitals?.MagicSystem.RequiresMemoriaFormat == true || state.GameplayPreferences.SharedMagicStock || state.GameplayPreferences.InfiniteMagic || state.GameplayPreferences.SmartAttack || state.PendingGameplayPreferences is not null;
+    }
+
     public void Save(int slot, GameSession session, Action<GameState>? validateContinuation = null)
     {
         if (slot < 0 || slot > TotalSlotCount)

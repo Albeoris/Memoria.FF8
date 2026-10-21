@@ -216,13 +216,14 @@ public sealed record NativeFieldItem(byte Type, byte TargetFlags, byte Power, by
             }
             NativeCharacterVitals grown = vitals.DeepCopy();
             NativeCharacterVital updated = target with { HitPointBonus = hpBonus, StatBonuses = bonuses };
-            ushort maximumHp = grown.Definitions.CharacterMaximum(updated);
+            grown.Records[row] = updated;
+            ushort maximumHp = grown.GetMagicMaximumHitPoints(row);
             ushort hitPoints = Math.Min(updated.HitPoints.Minimum, maximumHp);
             grown.Records[row] = updated with { HitPoints = new NativeHpWord(hitPoints, hitPoints), Status = RecomputeStatus(hitPoints, maximumHp, updated.Status) };
             return (grown.RebuildParty(), Consume(economy, slot), true);
         }
         int hp = target.HitPoints.Minimum;
-        int maximum = vitals.Definitions.CharacterMaximum(target);
+        int maximum = vitals.GetMagicMaximumHitPoints(row);
         ushort status = target.Status;
         if (Type is 0 or 21)
         {
@@ -363,7 +364,7 @@ public sealed record NativeFieldItem(byte Type, byte TargetFlags, byte Power, by
                 {
                     continue;
                 }
-                ushort maximum = next.Definitions.CharacterMaximum(character);
+                ushort maximum = next.GetMagicMaximumHitPoints(row);
                 ushort status = (ushort)(character.Status & 0x80);
                 changed |= character.HitPoints.Minimum != maximum || character.HitPoints.Maximum != maximum || character.Status != status;
                 next.Records[row] = character with { HitPoints = new NativeHpWord(maximum, maximum), Status = status };

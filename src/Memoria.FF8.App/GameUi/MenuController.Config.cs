@@ -35,7 +35,7 @@ public sealed partial class MenuController
         List<MenuEntry> entries = [];
         foreach (MenuSetting setting in MenuSettings.Definitions)
         {
-            if (ScreenId == "new-game-options" ? setting.Id is not ("Battle ATB mode" or "Rare card markers") : ConfigCategory(setting.Id) != ScreenId["config-".Length..])
+            if (ScreenId == "new-game-options" ? setting.Id is not ("Battle ATB mode" or "Rare card markers" or "Shared magic stock" or "Infinite magic" or "Smart Attack") : ConfigCategory(setting.Id) != ScreenId["config-".Length..])
             {
                 continue;
             }
@@ -49,7 +49,7 @@ public sealed partial class MenuController
             }
             string value = Data.Settings.GetValueOrDefault(setting.Id, setting.Values[0]);
             int next = (Array.IndexOf(setting.Values, value) + 1) % setting.Values.Length;
-            entries.Add(new MenuEntry(setting.Id, setting.Id, setting.Description, Action: new MenuAction("config", setting.Id, Value: setting.Values[next])));
+            entries.Add(new MenuEntry(setting.Id, MagicUiText.SettingLabel(setting.Id), setting.Description, Action: new MenuAction("config", setting.Id, Value: setting.Values[next])));
         }
         if (ScreenId == "config-controls")
         {
@@ -58,7 +58,7 @@ public sealed partial class MenuController
         }
         if (ScreenId == "new-game-options")
         {
-            entries.Add(new MenuEntry("begin", "Begin", "Start a new game with the selected ATB mode and rare card markers. More settings are available in Config.", Action: new MenuAction("new-game-start")));
+            entries.Add(new MenuEntry("begin", "Begin", MagicUiText.Get("SettingBeginHelp"), Action: new MenuAction("new-game-start")));
         }
         return entries;
     }
@@ -108,7 +108,7 @@ public sealed partial class MenuController
         {
             row = new UiNumericSlider
             {
-                Text = setting.Id == "Battle ATB mode" ? "ATB mode" : setting.Id,
+                Text = setting.Id == "Battle ATB mode" ? "ATB mode" : MagicUiText.SettingLabel(setting.Id),
                 Max = numbers[^1],
                 Min = numbers[0],
                 Step = numbers.Zip(numbers.Skip(1), (left, right) => right - left).Min(),
@@ -127,7 +127,7 @@ public sealed partial class MenuController
         {
             row = new UiChoiceRow
             {
-                Text = setting.Id == "Battle ATB mode" ? "ATB mode" : setting.Id,
+                Text = setting.Id == "Battle ATB mode" ? "ATB mode" : MagicUiText.SettingLabel(setting.Id),
                 Items = setting.Values,
                 SelectedIndex = Math.Max(0, Array.IndexOf(setting.Values, value)),
                 LabelWidthRatio = 0.45f,

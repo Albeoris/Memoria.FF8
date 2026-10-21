@@ -13,6 +13,7 @@ public sealed partial record NativeCharacterVitals
             return state.DeepCopy();
         }
         int row = NativeMembershipRow(rawCharacter);
+        NativeCharacterVitals historySource = state;
         NativeCharacterVital[] records = state.Records.ToArray();
         ushort flags = records[row].MemberFlags;
         if (enabled)
@@ -25,19 +26,40 @@ public sealed partial record NativeCharacterVitals
             flags = (ushort)(flags & 0xFFF6);
         }
         records[row] = records[row] with { MemberFlags = flags };
-        if (!enabled && rawCharacter == 6)
+        if (!state.MagicSystem.SharedMagicStock && !enabled && rawCharacter == 6)
         {
             // Native56DB20 copies all64 magic bytes from physical row6 to5,
             // then47E410 clears four16-byte blocks in the source row.
             records[5] = records[5] with { MagicInventory = records[6].MagicInventory.ToArray() };
             records[6] = records[6] with { MagicInventory = EmptyNativeMagicInventory() };
         }
-        else if (!enabled && rawCharacter == 7)
+        else if (!state.MagicSystem.SharedMagicStock && !enabled && rawCharacter == 7)
         {
-            RedistributeNativeSeiferMagic(records);
+            state = state.RedistributeNativeSeiferMagic(records);
         }
         // Native membership/inventory writes do not rebuild after the reset.
-        return (state with { Records = records }).DeepCopy();
+        NativeCharacterVitals result = state with { Records = records };
+        if (!state.MagicSystem.SharedMagicStock && !enabled && rawCharacter is 6 or 7)
+        {
+            int source = rawCharacter;
+            for (int target = 0; target < records.Length; target++)
+            {
+                if (target == source)
+                {
+                    continue;
+                }
+                foreach (NativeMagicStock stock in historySource.GetMagicInventory(source).Where(stock => stock.SpellId != 0 && stock.Count > 0))
+                {
+                    int before = historySource.GetMagicCount(target, stock.SpellId);
+                    int after = result.GetMagicCount(target, stock.SpellId);
+                    if (rawCharacter == 6 ? target == 5 && after > 0 : after > before)
+                    {
+                        result = MagicCastingService.PropagatePersonalHistory(result, source, target, stock.SpellId);
+                    }
+                }
+            }
+        }
+        return result.DeepCopy();
     }
 
     public NativeCharacterVitals WithPartyMemberFlags(int rawCharacter)
@@ -67,9 +89,9 @@ public sealed partial record NativeCharacterVitals
 
     private static NativeMagicStock[] EmptyNativeMagicInventory() => Enumerable.Range(0, 32).Select(_ => new NativeMagicStock(0, 0)).ToArray();
 
-    private static void RedistributeNativeSeiferMagic(NativeCharacterVital[] records)
+    private NativeCharacterVitals RedistributeNativeSeiferMagic(NativeCharacterVital[] records)
     {
-        NativeMagicStock[][] inventories = records.Select(record => record.MagicInventory.ToArray()).ToArray();
+        NativeMagicStock[][] inventories = records.Select((record, row) => row == 0 ? record.MagicInventory.Concat(MagicSystem.RecordZeroExtension).ToArray() : record.MagicInventory.ToArray()).ToArray();
         foreach (NativeMagicStock stock in records[7].MagicInventory)
         {
             if (stock.SpellId == 0)
@@ -109,7 +131,7 @@ public sealed partial record NativeCharacterVitals
                 {
                     continue;
                 }
-                int empty = Array.FindIndex(inventories[row], candidate => candidate.SpellId == 0);
+                int empty = row == 0 && GetMagicInventory(0).Count >= 32 ? -1 : Array.FindIndex(inventories[row], candidate => candidate.SpellId == 0);
                 if (empty >= 0)
                 {
                     inventories[row][empty] = new NativeMagicStock(stock.SpellId, unchecked((byte)remaining));
@@ -119,7 +141,8 @@ public sealed partial record NativeCharacterVitals
         }
         for (int row = 0; row < records.Length; row++)
         {
-            records[row] = records[row] with { MagicInventory = row == 7 ? EmptyNativeMagicInventory() : inventories[row] };
+            records[row] = records[row] with { MagicInventory = row == 7 ? EmptyNativeMagicInventory() : inventories[row].Take(32).ToArray() };
         }
+        return this with { MagicSystem = MagicSystem with { RecordZeroExtension = inventories[0].Skip(32).Where(stock => stock.SpellId != 0 && stock.Count != 0).ToArray() } };
     }
 }

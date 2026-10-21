@@ -30,7 +30,7 @@ public sealed partial record NativeCharacterVitals
         byte[] priorParty = CombatParty.ToArray();
         NativeCharacterVitals temporary = (this with { CombatParty = [(byte)physicalRow, 255, 255] }).RebuildParty();
         NativeCharacterVital row = temporary.Records[physicalRow];
-        ushort maximum = temporary.Definitions.CharacterMaximum(row);
+        ushort maximum = temporary.GetMagicMaximumHitPoints(physicalRow);
         NativeCharacterVital[] records = temporary.Records.ToArray();
         records[physicalRow] = row with { Status = MenuRowStatus(row.Status, row.HitPoints, maximum) };
         return (temporary with { Records = records, CombatParty = priorParty }).RebuildParty();
@@ -43,7 +43,7 @@ public sealed partial record NativeCharacterVitals
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)physicalRow, (uint)Records.Length);
         NativeCharacterVital[] records = Records.ToArray();
         NativeCharacterVital row = records[physicalRow];
-        records[physicalRow] = NormalizeMagicInventory(row);
+        records[physicalRow] = NormalizeLogicalMagicInventory(physicalRow, row);
         return (this with { Records = records }).RebuildMenuRow(physicalRow);
     }
 
@@ -60,7 +60,25 @@ public sealed partial record NativeCharacterVitals
     public NativeCharacterVitals NormalizeMagicInventories()
     {
         Validate();
-        return this with { Records = Records.Select(NormalizeMagicInventory).ToArray() };
+        return this with { Records = Records.Select((row, index) => NormalizeLogicalMagicInventory(index, row)).ToArray() };
+    }
+
+    private NativeCharacterVital NormalizeLogicalMagicInventory(int physicalRow, NativeCharacterVital row)
+    {
+        if (!MagicSystem.RequiresMemoriaFormat)
+        {
+            return NormalizeMagicInventory(row);
+        }
+        NativeMagicStock[] magic = row.MagicInventory.Select(stock => stock.SpellId == 0 || stock.Count == 0 ? new NativeMagicStock(0, 0) : stock).ToArray();
+        byte[] junctions = row.Junction.MagicJunctions.ToArray();
+        for (int slot = 0; slot < 19; slot++)
+        {
+            if (junctions[slot] != 0 && MagicJunctionPolicy.GetEffectiveCount(this, physicalRow, junctions[slot]) == 0)
+            {
+                junctions[slot] = 0;
+            }
+        }
+        return row with { MagicInventory = magic, Junction = row.Junction with { MagicJunctions = junctions } };
     }
 
     private static ushort MenuRowStatus(ushort prior, NativeHpWord hitPoints, ushort maximum)

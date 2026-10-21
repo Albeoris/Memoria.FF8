@@ -384,7 +384,7 @@ public sealed partial class GameSession : IEventServices
         {
             throw new NotSupportedException("Character initialization requires the untouched authentic New Game before its first engine transaction.");
         }
-        SetCharacterVitals(vitals);
+        SetCharacterVitals(MagicModeCoordinator.Preview(vitals, State.GameplayPreferences).Vitals);
     }
 
     public void SetCharacterVitals(NativeCharacterVitals vitals)
@@ -643,6 +643,12 @@ public sealed partial class GameSession : IEventServices
             throw new InvalidDataException("Saved gameplay preferences cannot be null.");
         }
         state.GameplayPreferences.Validate();
+        state.PendingGameplayPreferences?.Validate();
+        state.CharacterVitals?.ValidateMagicSystemConsistency();
+        if (state.CharacterVitals is { } magicVitals && (magicVitals.MagicSystem.SharedMagicStock != state.GameplayPreferences.SharedMagicStock || magicVitals.MagicSystem.InfiniteMagic != state.GameplayPreferences.InfiniteMagic || magicVitals.MagicSystem.SmartAttack != state.GameplayPreferences.SmartAttack))
+        {
+            throw new InvalidDataException("Saved gameplay rules disagree with their magic-system owner.");
+        }
         ValidateEntityNames(state);
         ValidateTripleTriadCheckpoint(state);
         ValidateNativePlaytime(state);

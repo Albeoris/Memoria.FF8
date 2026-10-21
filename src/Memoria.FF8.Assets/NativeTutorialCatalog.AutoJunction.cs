@@ -7,7 +7,7 @@ namespace Memoria.FF8.Assets;
 public sealed partial class NativeTutorialCatalog
 {
     /// <summary>Original Junction Auto: 4DC439, priority tables B885C8/B885D8/B885E8 and greedy selectors 4DFDE0/4DFE90.</summary>
-    public NativeCharacterVitals AutoJunction(NativeCharacterVitals party, int row, int priority)
+    public NativeCharacterVitals AutoJunction(NativeCharacterVitals party, int row, int priority, bool entireParty = false)
     {
         ArgumentNullException.ThrowIfNull(party);
         party.Validate();
@@ -31,18 +31,11 @@ public sealed partial class NativeTutorialCatalog
             [0, 2, 4, 6, 10, 12, 1, 3, 5, 7, 8, 9, 11]
         ];
         NativeCharacterVital character = party.Records[row];
-        uint remaining = 0;
-        for (int index = 0; index < character.MagicInventory.Length; index++)
+        NativeMagicStock[] inventory = party.GetMagicInventory(row).Where(stock => stock.SpellId != 0 && stock.Count != 0 && (!party.MagicSystem.SharedMagicStock || entireParty || MagicJunctionPolicy.GetOwner(party, stock.SpellId) is not int owner || owner == row)).ToArray();
+        HashSet<int> remaining = Enumerable.Range(0, inventory.Length).ToHashSet();
+        if (inventory.Any(stock => stock.SpellId >= 57))
         {
-            NativeMagicStock stock = character.MagicInventory[index];
-            if (stock.SpellId != 0 && stock.Count != 0)
-            {
-                if (stock.SpellId >= 57)
-                {
-                    throw new InvalidDataException("Original Auto junction stock has no magic kernel record.");
-                }
-                remaining |= 1u << index;
-            }
+            throw new InvalidDataException("Original Auto junction stock has no magic kernel record.");
         }
         byte[] junctions = character.Junction.MagicJunctions.ToArray();
         Array.Clear(junctions, 0, 19);
@@ -54,13 +47,13 @@ public sealed partial class NativeTutorialCatalog
             {
                 int selected = -1;
                 int maximum = 0;
-                for (int index = 0; index < 32; index++)
+                for (int index = 0; index < inventory.Length; index++)
                 {
-                    if ((remaining & (1u << index)) == 0)
+                    if (!remaining.Contains(index))
                     {
                         continue;
                     }
-                    NativeMagicStock stock = character.MagicInventory[index];
+                    NativeMagicStock stock = inventory[index];
                     ReadOnlySpan<byte> magic = kernel.AsSpan(start + stock.SpellId * 60, 60);
                     int coefficient = category switch
                     {
@@ -80,13 +73,41 @@ public sealed partial class NativeTutorialCatalog
                 }
                 if (selected >= 0)
                 {
-                    remaining &= ~(1u << selected);
-                    junctions[destination + repeat] = character.MagicInventory[selected].SpellId;
+                    remaining.Remove(selected);
+                    junctions[destination + repeat] = inventory[selected].SpellId;
                 }
             }
         }
         NativeCharacterVital[] records = party.Records.ToArray();
+        if (party.MagicSystem.SharedMagicStock && entireParty)
+        {
+            HashSet<byte> assigned = junctions.Take(19).Where(spell => spell != 0).ToHashSet();
+            for (int other = 0; other < records.Length; other++)
+            {
+                if (other == row)
+                {
+                    continue;
+                }
+                byte[] otherSlots = records[other].Junction.MagicJunctions.ToArray();
+                for (int slot = 0; slot < 19; slot++)
+                {
+                    if (assigned.Contains(otherSlots[slot]))
+                    {
+                        otherSlots[slot] = 0;
+                    }
+                }
+                records[other] = records[other] with { Junction = records[other].Junction with { MagicJunctions = otherSlots } };
+            }
+        }
         records[row] = character with { Junction = character.Junction with { MagicJunctions = junctions } };
-        return (party with { Records = records }).RebuildMagicMenuRow(row).RebuildParty();
+        NativeCharacterVitals result = (party with { Records = records }).RebuildMagicMenuRow(row);
+        for (int other = 0; other < records.Length; other++)
+        {
+            if (other != row && records[other].Junction != party.Records[other].Junction)
+            {
+                result = result.RebuildMenuRow(other);
+            }
+        }
+        return result.RebuildParty();
     }
 }

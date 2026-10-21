@@ -19,9 +19,9 @@ public sealed partial record NativeCharacterVitals
         {
             throw new InvalidDataException("Field magic requires the current caster's native statistic rules.");
         }
-        int slot = Array.FindIndex(source.MagicInventory, stock => stock.SpellId == magicId);
+        MagicCastQuote quote = MagicCastingService.Quote(this, sourceRow, magicId, MagicCastContext.Field);
         used = false;
-        if (slot < 0 || source.MagicInventory[slot].Count == 0)
+        if (!quote.Allowed)
         {
             return this;
         }
@@ -34,14 +34,14 @@ public sealed partial record NativeCharacterVitals
         int power = spell[8];
         int cure = spell[20];
         int before = target.HitPoints.Minimum;
-        int maximum = Definitions.CharacterMaximum(target);
+        int maximum = GetMagicMaximumHitPoints(targetRow);
         int hp = before;
         int status = target.Status;
         switch (type)
         {
             case 3:
                 BattleNativeCharacterGrowth growth = new(source.HitPointBonus, source.StatBonuses.ToImmutableArray());
-                int magic = sourceRules.Project(source.MagicInventory, growth).Magic;
+                int magic = sourceRules.Project(GetMagicInventory(sourceRow), growth).Magic;
                 int amount = ((magic + power) / 2) * power;
                 if ((status & 1) != 0 || (status & 0x40) != 0 && (cure & 0x40) == 0)
                 {
@@ -68,16 +68,15 @@ public sealed partial record NativeCharacterVitals
         }
         NativeCharacterVital[] records = Records.ToArray();
         records[targetRow] = target with { HitPoints = new((ushort)hp, (ushort)hp), Status = (ushort)status };
-        NativeMagicStock[] stocks = records[sourceRow].MagicInventory.ToArray();
-        byte remaining = (byte)(stocks[slot].Count - 1);
-        stocks[slot] = new(remaining == 0 ? (byte)0 : (byte)magicId, remaining);
-        records[sourceRow] = records[sourceRow] with { MagicInventory = stocks };
+        string actionId = Guid.NewGuid().ToString("N");
+        NativeCharacterVitals reserved = MagicCastingService.Reserve(this, sourceRow, magicId, MagicCastContext.Field, actionId);
+        NativeCharacterVitals result = reserved with { Records = records };
+        result = MagicCastingService.Commit(result, actionId);
         used = true;
-        NativeCharacterVitals result = this with { Records = records };
-        return remaining == 0 ? result.RebuildMagicMenuRow(sourceRow) : result.RebuildMenuRow(sourceRow);
+        return result.RebuildMagicMenuRow(sourceRow);
     }
 
-    /// <summary>Field Magic stock movement preserves inventory slots, caps stocks at100 and clears depleted junction assignments through4C2FA0.</summary>
+    /// <summary>Transfers use the logical inventory transaction and carry persistent field history.</summary>
     public NativeCharacterVitals TransferMagic(int sourceRow, int magicId, int targetRow, int requested, out int moved)
     {
         Validate();
@@ -86,49 +85,14 @@ public sealed partial record NativeCharacterVitals
         ArgumentOutOfRangeException.ThrowIfLessThan(magicId, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(magicId, 56);
         ArgumentOutOfRangeException.ThrowIfNegative(requested);
-        moved = 0;
-        if (sourceRow == targetRow || requested == 0)
+        if (!MagicSystem.SharedMagicStock && (sourceRow == targetRow || requested == 0))
         {
+            moved = 0;
             return this;
         }
-        NativeCharacterVital source = Records[sourceRow];
-        NativeCharacterVital target = Records[targetRow];
-        int sourceSlot = Array.FindIndex(source.MagicInventory, stock => stock.SpellId == magicId);
-        int targetSlot = Array.FindIndex(target.MagicInventory, stock => stock.SpellId == magicId);
-        if (targetSlot < 0)
-        {
-            targetSlot = Array.FindIndex(target.MagicInventory, stock => stock.SpellId == 0);
-        }
-        if (sourceSlot < 0 || targetSlot < 0)
-        {
-            return this;
-        }
-        int targetCount = target.MagicInventory[targetSlot].SpellId == 0 ? 0 : target.MagicInventory[targetSlot].Count;
-        moved = Math.Min(requested, Math.Min(source.MagicInventory[sourceSlot].Count, Math.Max(0, 100 - targetCount)));
-        if (moved == 0)
-        {
-            return this;
-        }
-        NativeMagicStock[] sourceStocks = source.MagicInventory.ToArray();
-        NativeMagicStock[] targetStocks = target.MagicInventory.ToArray();
-        int remaining = sourceStocks[sourceSlot].Count - moved;
-        sourceStocks[sourceSlot] = new(remaining == 0 ? (byte)0 : (byte)magicId, (byte)remaining);
-        targetStocks[targetSlot] = new((byte)magicId, (byte)(targetCount + moved));
-        byte[] junctions = source.Junction.MagicJunctions.ToArray();
-        if (remaining == 0)
-        {
-            for (int index = 0; index < 19; index++)
-            {
-                if (junctions[index] == magicId)
-                {
-                    junctions[index] = 0;
-                }
-            }
-        }
-        NativeCharacterVital[] records = Records.ToArray();
-        records[sourceRow] = source with { MagicInventory = sourceStocks, Junction = source.Junction with { MagicJunctions = junctions } };
-        records[targetRow] = target with { MagicInventory = targetStocks };
-        return (this with { Records = records }).RebuildMenuRow(sourceRow).RebuildMenuRow(targetRow);
+        NativeCharacterVitals result = TransferMagicStock(sourceRow, targetRow, magicId, requested, out MagicStockMutation mutation);
+        moved = mutation.Accepted;
+        return moved == 0 ? this : result.RebuildMenuRow(sourceRow).RebuildMenuRow(targetRow);
     }
 
     private void RequireFieldMagicRow(int row)

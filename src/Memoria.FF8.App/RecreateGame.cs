@@ -81,6 +81,7 @@ internal sealed partial class RecreateGame : Game
         }, originalDirectory: ReadOriginalSaveDirectory(), loadOriginal: LoadOriginalPlayerState);
         saveMenu = new PlayerSaveMenu(playerSaves);
         saveMenu.BeforeBankChange = EnsurePlayerSaveBank;
+        saveMenu.RequiresMemoriaFormat = () => PlayerSaveStore.RequiresMemoriaFormat(session.State);
         saveMenu.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
         globalSettings.ImportLegacyFiles(options.SavePath);
         uiPreferences = GameUi.UiPreferences.Load(UiPreferencesPath);
@@ -811,7 +812,7 @@ internal sealed partial class RecreateGame : Game
         world?.Dispose();
         world = null;
         session.StartNewGame();
-        session.SetGameplayPreferences(new GameplayPreferences { AtbMode = uiPreferences.AtbMode, GunbladeMode = uiPreferences.GunbladeMode });
+        session.SetGameplayPreferences(newGameMagicPreferences with { AtbMode = uiPreferences.AtbMode, GunbladeMode = uiPreferences.GunbladeMode });
         BattleInput[] battleSettingsInputs = uiPreferences.CreateBattleSettingsInputs();
         if (battleSettingsInputs.Length > 0)
         {

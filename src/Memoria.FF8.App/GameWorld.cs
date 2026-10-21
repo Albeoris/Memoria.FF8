@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Rendering;
@@ -112,6 +112,7 @@ internal sealed partial class GameWorld : IDisposable
         Events.ResolveNativeFieldItem = id => FieldItemCatalog.FieldItem(id);
         Events.ResolveNativeFieldItemStatRules = assets.ReadFieldItemStatRules;
         Events.ResolveNativeAutoJunction = (vitals, row, priority) => assets.ReadNativeTutorialCatalog().AutoJunction(vitals, row, priority);
+        Events.ResolveNativeAutoJunctionParty = (vitals, row, priority) => assets.ReadNativeTutorialCatalog().AutoJunction(vitals, row, priority, true);
         ConfigureTripleTriadHost();
         ConfigureBattleHost();
         ConfigureRandomEncounterHost();
@@ -210,6 +211,7 @@ internal sealed partial class GameWorld : IDisposable
             worldScene = new WorldMapScene(session, assets.GameDirectory, resources);
             worldScene.ReadFieldMagicStatRules = (vitals, row) => BattleResources.ReadPlayerNativeStatRules(vitals, row);
             worldScene.ResolveNativeAutoJunction = (vitals, row, priority) => assets.ReadNativeTutorialCatalog().AutoJunction(vitals, row, priority);
+            worldScene.ResolveNativeAutoJunctionParty = (vitals, row, priority) => assets.ReadNativeTutorialCatalog().AutoJunction(vitals, row, priority, true);
             worldScene.PrepareFieldEntry = PrepareNativeWorldFieldEntry;
             ConfigureWorldSalaryEffects(worldScene);
             if (session.State.DepartingFieldState is System.Text.Json.JsonElement frozenDeparture)

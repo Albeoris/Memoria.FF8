@@ -65,13 +65,13 @@ public sealed record NativeRefinementDefinitions(string ExecutableHash, string K
         {
             throw new InvalidDataException("Refinement requires unambiguous native stock IDs with counts at most100.");
         }
-        NativeCharacterVital? character = kind is 0 or 2 ? NativeCharacterVitals.NormalizeMagicInventory(vitals.Records[row]) : null;
-        if (character is not null && NativeCharacterVitals.GetMagicCapacity(character, recipe.Output) != 0)
+        bool magicOutput = kind is 0 or 2;
+        if (magicOutput && vitals.GetMagicCapacity(row, recipe.Output) != 0)
         {
             return 0;
         }
-        int ingredients = kind == 4 ? cards?.AvailableCount(recipe.Ingredient) ?? 0 : kind == 2 ? character!.MagicInventory.FirstOrDefault(stock => stock.SpellId == recipe.Ingredient)?.Count ?? 0 : economy.Items.FirstOrDefault(stock => stock.ItemId == recipe.Ingredient)?.Count ?? 0;
-        int output = character is not null ? character.MagicInventory.FirstOrDefault(stock => stock.SpellId == recipe.Output)?.Count ?? 0 : economy.Items.FirstOrDefault(stock => stock.ItemId == recipe.Output)?.Count ?? 0;
+        int ingredients = kind == 4 ? cards?.AvailableCount(recipe.Ingredient) ?? 0 : kind == 2 ? vitals.GetMagicCount(row, recipe.Ingredient) : economy.Items.FirstOrDefault(stock => stock.ItemId == recipe.Ingredient)?.Count ?? 0;
+        int output = magicOutput ? vitals.GetMagicCount(row, recipe.Output) : economy.Items.FirstOrDefault(stock => stock.ItemId == recipe.Output)?.Count ?? 0;
         //4D8FAE rounds capacity UP: the last complete batch may lose excess output at100.
         return Math.Max(0, Math.Min(ingredients / recipe.IngredientCount, (100 - output + recipe.OutputCount - 1) / recipe.OutputCount));
     }
@@ -94,33 +94,15 @@ public sealed record NativeRefinementDefinitions(string ExecutableHash, string K
         NativeCardInventory? nextCards = cards?.DeepCopy();
         if (kind is 0 or 2)
         {
-            NativeCharacterVital character = nextVitals.Records[row];
-            NativeMagicStock[] magic = character.MagicInventory.ToArray();
-            int slot = Array.FindIndex(magic, stock => stock.SpellId == recipe.Output && stock.Count != 0);
-            if (slot < 0)
-            {
-                slot = Array.FindIndex(magic, stock => stock.SpellId == 0);
-            }
-            magic[slot] = new NativeMagicStock(recipe.Output, checked((byte)Math.Min(100, (magic[slot].SpellId == recipe.Output ? magic[slot].Count : 0) + produced)));
-            byte[] junctions = character.Junction.MagicJunctions.ToArray();
+            nextVitals = nextVitals.ChangeMagicStock(row, recipe.Output, produced, MagicOperationReason.RefinementOutput, out _);
             if (kind == 2)
             {
-                int ingredientSlot = Array.FindIndex(magic, stock => stock.SpellId == recipe.Ingredient);
-                int remaining = magic[ingredientSlot].Count - consumed;
-                magic[ingredientSlot] = remaining == 0 ? new NativeMagicStock(0, 0) : magic[ingredientSlot] with { Count = checked((byte)remaining) };
-                if (remaining == 0)
+                nextVitals = nextVitals.ChangeMagicStock(row, recipe.Ingredient, -consumed, MagicOperationReason.RefinementInput, out MagicStockMutation ingredient);
+                if (ingredient.Accepted != consumed)
                 {
-                    //4C2D50 clears the nineteen stat junctions on exhausted ingredient magic.
-                    for (int index = 0; index < 19; index++)
-                    {
-                        if (junctions[index] == recipe.Ingredient)
-                        {
-                            junctions[index] = 0;
-                        }
-                    }
+                    throw new InvalidOperationException("The refinement ingredient changed before the transaction could commit.");
                 }
             }
-            nextVitals.Records[row] = character with { MagicInventory = magic, Junction = character.Junction with { MagicJunctions = junctions } };
             nextVitals = nextVitals.RebuildMagicMenuRow(row);
         }
         else

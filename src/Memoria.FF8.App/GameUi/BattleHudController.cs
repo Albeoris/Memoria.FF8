@@ -328,7 +328,7 @@ public sealed partial class BattleHudController
         }
         if (!SelectingTarget)
         {
-            if (SelectedAction is { Available: false })
+            if (SelectedAction is { Available: false } || SelectedCommand == BattleAbility.Magic && SelectedAction is { } magicAction && !session.QuoteMagic(actor.Id, magicAction.Id).Allowed)
             {
                 ShowCommandError("The selected action is unavailable.");
                 return;
@@ -351,12 +351,20 @@ public sealed partial class BattleHudController
         {
             return;
         }
-        string name = SelectedCommand == BattleAbility.Attack ? "Attack" : SelectedAction!.Name;
+        BattleSmartAttackPreview? smartPreview = SelectedCommand == BattleAbility.Attack ? ConfirmedAttackPreview() : null;
+        string name = smartPreview?.Name ?? (SelectedCommand == BattleAbility.Attack ? "Attack" : SelectedAction!.Name);
         try
         {
             if (SelectedCommand == BattleAbility.Attack)
             {
-                attack(actor.Id, target.Id);
+                if (execute is not null)
+                {
+                    execute(new BattleInput(BattleInputKind.Attack, ActorId: actor.Id, TargetId: target.Id) { ForcePhysical = ForcePhysical, SmartAttackPreview = smartPreview });
+                }
+                else
+                {
+                    attack(actor.Id, target.Id);
+                }
             }
             else
             {
@@ -413,7 +421,7 @@ public sealed partial class BattleHudController
         return SelectedCommand switch
         {
             BattleAbility.Draw => label,
-            BattleAbility.Magic => label + (magicCastCount > 1 ? $" ×{magicCastCount}" : "") + "  " + SelectedActor!.MagicStocks.Single(stock => stock.Id == action.Id).Count,
+            BattleAbility.Magic => MagicChoiceLabel(action, label),
             BattleAbility.Item => label + "  " + session.Items.Single(stock => stock.Id == action.Id).Count,
             _ => label
         };

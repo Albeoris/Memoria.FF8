@@ -33,6 +33,19 @@ public sealed record NativeBattleRandomState([property: JsonRequired] ImmutableA
         return this with { Indexes = indexes.ToImmutableArray() };
     }
 
+    /// <summary>An unknown table phase for a pure forecast, independent of the live random cursor.</summary>
+    public static NativeBattleRandomState ForecastPhase(byte phase)
+    {
+        return new(ImmutableArray.CreateRange(Enumerable.Repeat(phase, 8)), 0);
+    }
+
+    internal static byte DrawForecast(ref byte phase)
+    {
+        byte value = table[phase];
+        phase = unchecked((byte)(phase + 1));
+        return value;
+    }
+
     public void Validate()
     {
         if (Indexes.IsDefault || Indexes.Length != 8 || Lane >= 8)

@@ -17,14 +17,23 @@ public static class NativeMagicMenuInput
         return (source, spell, target);
     }
 
-    public static NativeCharacterVitals Apply(NativeCharacterVitals vitals, PlayerAction action, BattleNativePlayerStatRules? sourceRules = null, NativeWorldControlState? controls = null)
+    public static NativeCharacterVitals Apply(NativeCharacterVitals vitals, PlayerAction action, BattleNativePlayerStatRules? sourceRules = null, NativeWorldControlState? controls = null, Func<int, BattleNativePlayerStatRules>? readRules = null)
     {
         var selection = Validate(action);
-        if (!vitals.IsMenuCharacterAvailable(selection.Source, controls) || !vitals.IsMenuCharacterAvailable(selection.Target, controls))
+        int source = selection.Source;
+        if (action.Kind == PlayerActionKind.UseFieldMagic && vitals.MagicSystem.SharedMagicStock)
+        {
+            source = vitals.ResolveFieldMagicCaster(source, selection.Spell, readRules ?? (_ => sourceRules ?? throw new NotSupportedException("Shared field casting requires current actor statistics.")), controls) ?? throw new InvalidOperationException("No eligible field caster can use this shared spell.");
+            if (readRules is not null)
+            {
+                sourceRules = readRules(source);
+            }
+        }
+        if (!vitals.IsMenuCharacterAvailable(source, controls) || !vitals.IsMenuCharacterAvailable(selection.Target, controls))
         {
             throw new InvalidOperationException("Magic input selected a character outside the current native menu roster.");
         }
-        return action.Kind == PlayerActionKind.UseFieldMagic ? vitals.CastFieldMagic(selection.Source, selection.Spell, selection.Target, sourceRules ?? throw new NotSupportedException("Field magic requires the caster's authenticated kernel statistic inputs."), out _) : vitals.TransferMagic(selection.Source, selection.Spell, selection.Target, action.Value, out _);
+        return action.Kind == PlayerActionKind.UseFieldMagic ? vitals.CastFieldMagic(source, selection.Spell, selection.Target, sourceRules ?? throw new NotSupportedException("Field magic requires the caster's authenticated kernel statistic inputs."), out _) : vitals.TransferMagic(selection.Source, selection.Spell, selection.Target, action.Value, out _);
     }
 }
 
@@ -42,7 +51,7 @@ public sealed partial class EventEngine
         }
         NativeCharacterVitals source = services.CharacterVitals ?? throw new NotSupportedException("Magic input requires authentic saved characters.");
         BattleNativePlayerStatRules? rules = action.Kind == PlayerActionKind.UseFieldMagic ? ReadFieldMagicStatRules?.Invoke(source, NativeMagicMenuInput.Validate(action).Source) : null;
-        NativeCharacterVitals next = NativeMagicMenuInput.Apply(source, action, rules, services.WorldControls);
+        NativeCharacterVitals next = NativeMagicMenuInput.Apply(source, action, rules, services.WorldControls, ReadFieldMagicStatRules is null ? null : row => ReadFieldMagicStatRules(source, row));
         if (activeMenu)
         {
             PublishPartyMenuCallback(next, services.Economy!, services.ShotAvailability!, services.SalaryPresentation!.Advance(1), advanceVibration: true);
