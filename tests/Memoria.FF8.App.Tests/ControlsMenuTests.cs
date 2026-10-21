@@ -47,6 +47,85 @@ public sealed class ControlsMenuTests
         Assert.Equal("config-keyboard-choice", menus.ScreenId);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Simple_capture_returns_to_the_selected_action_and_drains_input(bool click)
+    {
+        ControlsProfile profile = ControlsProfile.CreateDefault();
+        MenuController menus = Connected(() => profile, next => profile = next);
+        menus.Open("config");
+        menus.Push("config-keyboard");
+        menus.SelectEntry("config-keyboard", nameof(ControlAction.MoveUp));
+        if (click)
+        {
+            UiView view = menus.BuildView();
+            UiList commands = Assert.IsType<UiList>(view.FocusedElement);
+            view.Pointer(commands.Bounds.Right - 12, commands.Bounds.Y + commands.RowHeight * menus.SelectedIndex + 12, true);
+        }
+        else
+        {
+            menus.Navigate(MenuInput.Confirm);
+        }
+        Assert.True(menus.IsCapturingControls);
+        menus.UpdateControlsCapture(default, default, true);
+        menus.UpdateControlsCapture(new(Keys.K), default, true);
+        menus.UpdateControlsCapture(default, default, true);
+        Assert.Equal("config-keyboard", menus.ScreenId);
+        Assert.Equal(nameof(ControlAction.MoveUp), menus.SelectedEntry?.Id);
+        Assert.Equal("Binding saved.", menus.Message);
+        Assert.Equal(Keys.K, profile.GetBindings(ControlAction.MoveUp, ControlDevice.Keyboard).Single().Keys.Single());
+        Assert.True(menus.UpdateControlsCapture(new(Keys.K), default, true));
+        Assert.True(menus.UpdateControlsCapture(default, default, true));
+        Assert.False(menus.UpdateControlsCapture(default, default, true));
+        menus.Navigate(MenuInput.Cancel);
+        Assert.Equal("config", menus.ScreenId);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Simple_capture_conflict_returns_to_list_after_keep_or_replace(bool replace)
+    {
+        ControlsProfile profile = ControlsProfile.CreateDefault();
+        MenuController menus = Connected(() => profile, next => profile = next);
+        menus.Open("config-keyboard");
+        menus.SelectEntry("config-keyboard", nameof(ControlAction.QuickSave));
+        menus.Navigate(MenuInput.Confirm);
+        menus.UpdateControlsCapture(default, default, true);
+        menus.UpdateControlsCapture(new(Keys.F9), default, true);
+        menus.UpdateControlsCapture(default, default, true);
+        Assert.Equal("config-controls-conflict", menus.ScreenId);
+        if (replace)
+        {
+            menus.Navigate(MenuInput.Down);
+        }
+        menus.Navigate(MenuInput.Confirm);
+        Assert.Equal("config-keyboard", menus.ScreenId);
+        Assert.Equal(nameof(ControlAction.QuickSave), menus.SelectedEntry?.Id);
+        Assert.Equal(replace ? Keys.F9 : Keys.F5, profile.GetBindings(ControlAction.QuickSave, ControlDevice.Keyboard).Single().Keys.Single());
+    }
+
+    [Fact]
+    public void Simple_capture_cancel_returns_to_list_and_advanced_save_stays_in_advanced()
+    {
+        ControlsProfile profile = ControlsProfile.CreateDefault();
+        MenuController menus = Connected(() => profile, next => profile = next);
+        menus.Open("config-keyboard");
+        menus.SelectEntry("config-keyboard", nameof(ControlAction.MoveUp));
+        menus.Navigate(MenuInput.Confirm);
+        menus.UpdateControlsCapture(default, default, true);
+        menus.UpdateControlsCapture(new(Keys.Escape), default, true);
+        Assert.Equal("config-keyboard", menus.ScreenId);
+        menus.UpdateControlsCapture(default, default, true);
+        menus.Navigate(MenuInput.Alternate);
+        Capture(menus, new(Keys.K));
+        Assert.Equal("config-keyboard-choice", menus.ScreenId);
+        Assert.Equal("Binding saved.", menus.Message);
+        menus.Navigate(MenuInput.Cancel);
+        Assert.Equal("config-keyboard", menus.ScreenId);
+    }
+
     [Fact]
     public void Controls_screens_render_using_the_live_canvas_without_a_graphics_device()
     {

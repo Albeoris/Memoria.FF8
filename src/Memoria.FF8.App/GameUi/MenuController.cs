@@ -501,7 +501,7 @@ public sealed partial class MenuController
         }
         if (captureBinding)
         {
-            Execute(new("controls-capture"));
+            Execute(new("controls-capture", Value: "return-to-list"));
         }
         if (entry.Action?.Kind is not ("menu-back" or "name-save"))
         {

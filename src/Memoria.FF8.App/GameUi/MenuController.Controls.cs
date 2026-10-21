@@ -19,6 +19,7 @@ public sealed partial class MenuController
     private ControlAction _controlsAction = ControlAction.Confirm;
     private InputChord? _pendingChord;
     private bool _captureControls;
+    private bool _returnToControlsList;
     private bool _captureArmed;
     private bool _drainControls;
     private InputChord? _capturedChord;
@@ -219,6 +220,7 @@ public sealed partial class MenuController
             case "controls-capture":
                 if (CanWriteControls)
                 {
+                    _returnToControlsList = action.Value == "return-to-list";
                     _captureControls = true;
                     _captureArmed = false;
                     _drainControls = false;
@@ -237,6 +239,7 @@ public sealed partial class MenuController
             case "controls-keep":
                 _pendingChord = null;
                 Back();
+                ReturnFromControlsCapture();
                 return true;
             case "controls-replace":
                 if (_pendingChord is not null && WriteControls(() => CurrentControls.WithBinding(_controlsAction, _controlsDevice, _pendingChord, replaceConflicts: true)))
@@ -244,6 +247,7 @@ public sealed partial class MenuController
                     _pendingChord = null;
                     Back();
                     Message = "Binding saved.";
+                    ReturnFromControlsCapture();
                 }
                 return true;
             case "controls-reset-confirm":
@@ -325,13 +329,27 @@ public sealed partial class MenuController
                 Push("config-controls-conflict");
                 return;
             }
-            WriteControls(() => CurrentControls.WithBinding(_controlsAction, _controlsDevice, chord));
+            if (WriteControls(() => CurrentControls.WithBinding(_controlsAction, _controlsDevice, chord)))
+            {
+                ReturnFromControlsCapture();
+            }
         }
         catch (ArgumentException error)
         {
             Message = error.Message;
             Console.Error.WriteLine(error);
             _view = null;
+        }
+    }
+
+    private void ReturnFromControlsCapture()
+    {
+        if (_returnToControlsList && ScreenId == ControlsChoiceScreen)
+        {
+            _returnToControlsList = false;
+            string message = Message;
+            Back();
+            Message = message;
         }
     }
 
@@ -345,6 +363,7 @@ public sealed partial class MenuController
         _capturedChord = null;
         _drainControls = true;
         Message = "Capture cancelled; binding unchanged.";
+        ReturnFromControlsCapture();
         _view = null;
     }
 
