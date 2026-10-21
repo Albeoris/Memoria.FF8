@@ -12,7 +12,7 @@ public static class NativeBattleModuleSpriteTemporary
         return Word(Dword(staging, address, resourceAddress), address + 36, flags);
     }
 
-    public static NativeBattleModuleSpriteTemporaryResult Emit571C80(NativeBattleFileStaging staging, uint address, NativeBattleModuleDraw draw, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift)
+    public static NativeBattleModuleSpriteTemporaryResult Emit571C80(NativeBattleFileStaging staging, uint address, NativeBattleModuleDraw draw, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift, NativeBattlePackedMatrix32? capturedMatrix = null)
     {
         NativeBattleModuleResource resource = draw.Resource ?? throw new InvalidDataException("Native571C80 requires its actual sprite resource.");
         NativeBattleModuleSpriteFrame selected = draw.SpriteFrame ?? throw new InvalidDataException("Native571C80 requires its actual selected frame.");
@@ -41,6 +41,18 @@ public static class NativeBattleModuleSpriteTemporary
         }
         NativeBattleActionMatrix main = NativeBattlePoseMatrices.ModuleSpriteCamera(draw, projection.View ?? throw new NotSupportedException("Native571C80 requires its loaded camera."), cameraRoll);
         staging = Matrix(staging, address + 132, main);
+        if (capturedMatrix is not null)
+        {
+            capturedMatrix.Validate();
+            for (int index = 18; index < 20; index++)
+            {
+                staging = staging.Write(address + 132 + (uint)index, [capturedMatrix.Bytes[index]]);
+                if (!capturedMatrix.Known[index])
+                {
+                    staging = staging.MarkUnknown(address + 132 + (uint)index, 1);
+                }
+            }
+        }
         if ((flags & 2) != 0)
         {
             if (draw.Direction is not (4096 or -4096))
@@ -103,13 +115,16 @@ public static class NativeBattleModuleSpriteTemporary
             NativeBattleModuleProjectedVertex c = NativeBattleModuleProjection.Project45FE10(matrix, new(unchecked((short)-width), unchecked((short)height), 0), projection);
             uint gteFlags = a.Flags | b.Flags | c.Flags;
             staging = Dword(staging, address + 64, gteFlags);
-            if ((gteFlags & 0x60000) != 0 || accepted)
+            if ((gteFlags & 0x60000) != 0)
             {
                 continue;
             }
             NativeBattleModuleProjectedVertex d = NativeBattleModuleProjection.Project45FAA0(matrix, new(unchecked((short)width), unchecked((short)height), 0), projection, 0, 0);
-            int average = (a.Depth + b.Depth + c.Depth + d.Depth) >> 4;
-            staging = Dword(staging, address + 60, unchecked((uint)average));
+            if (!accepted)
+            {
+                int average = (a.Depth + b.Depth + c.Depth + d.Depth) >> 4;
+                staging = Dword(staging, address + 60, unchecked((uint)average));
+            }
             accepted = true;
         }
         NativeBattleModulePacketBatch batch = NativeBattleModulePackets.EmitSprite571DC0(draw, projection, cameraRoll, tableBaseBucket, depthShift);

@@ -19,7 +19,7 @@ public static partial class NativeBattleCuragaNodeKinematics
     internal static NativeBattleCuragaFrame FlushCurrent(NativeBattleCuragaNodeMemory memory, NativeBattleEffectNodeBank bank)
     {
         NativeBattleCuragaFrame result = memory.Flush();
-        NativeBattleCuragaFamilyProfile profile = NativeBattleCuragaFamilyProfile.ForEffect(result.Effect.Binding.Effect);
+        NativeBattleCuragaFamilyProfile profile = NativeBattleCuragaFamilyProfile.ForGenericNodes(result.Effect.Binding.Effect);
         NativeBattleCuragaExecutableState retained = profile.RequireExecutable(result.Memory);
         return result with { Memory = profile.WithExecutable(result.Memory, retained with { Data = bank.Data }) };
     }

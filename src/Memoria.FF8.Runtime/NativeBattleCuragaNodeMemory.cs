@@ -5,12 +5,13 @@ internal sealed class NativeBattleCuragaNodeMemory : NativeBattleEffectNodeMemor
 {
     private readonly NativeBattleCuragaFrame frame;
     internal NativeBattleCuragaState State { get; set; }
+    internal NativeBattleCuragaFamilyProfile Profile => NativeBattleCuragaFamilyProfile.ForGenericNodes(frame.Effect.Binding.Effect);
 
-    internal NativeBattleCuragaNodeMemory(NativeBattleCuragaFrame frame, uint taskAddress) : base(frame.Memory, frame.Effect, taskAddress, frame.State.Auxiliary25F8 ?? throw new NotSupportedException("Native Curaga emitter storage requires the executed87DE10 allocation/clear."), 0x25F8, frame.State.Auxiliary16F80 ?? throw new NotSupportedException("Native Curaga geometry storage requires the executed87DE10 allocation/clear."), 0x16F80)
+    internal NativeBattleCuragaNodeMemory(NativeBattleCuragaFrame frame, uint taskAddress) : base(frame.Memory, frame.Effect, taskAddress, frame.State.Auxiliary25F8 ?? throw new NotSupportedException("Native Curaga emitter storage requires the executed87DE10 allocation/clear."), NativeBattleCuragaFamilyProfile.ForGenericNodes(frame.Effect.Binding.Effect).EmitterStorageLength, frame.State.Auxiliary16F80 ?? throw new NotSupportedException("Native Curaga geometry storage requires the executed87DE10 allocation/clear."), NativeBattleCuragaFamilyProfile.ForGenericNodes(frame.Effect.Binding.Effect).GeometryStorageLength)
     {
         this.frame = frame;
         State = frame.State;
-        if (new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(taskAddress).Callback != NativeBattleCuragaFamilyProfile.ForEffect(frame.Effect.Binding.Effect).Callback(0x87E1A0))
+        if (new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(taskAddress).Callback != NativeBattleCuragaFamilyProfile.ForGenericNodes(frame.Effect.Binding.Effect).Callback(0x87E1A0))
         {
             throw new InvalidDataException("Native Curaga node context requires its own87E1A0 callback.");
         }

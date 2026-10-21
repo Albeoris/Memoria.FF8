@@ -14,9 +14,17 @@ public readonly record struct NativeBattleModuleDepthCueVertex(NativeBattleModul
     public short Ir2 { get; init; }
 }
 
+public readonly record struct NativeBattleModuleProjectionObservation(NativeBattleModuleProjectedVertex Projected, int X, int Y, int Z, double Factor);
+
 /// <summary>45FE10/45FAA0 module projection, distinct from50F900's bulk body projection.</summary>
 public static class NativeBattleModuleProjection
 {
+    public static NativeBattleModuleProjectionObservation Observe45FE10(NativeBattleActionMatrix matrix, NativeBattleVector vertex, NativeBattleCameraProjection projection)
+    {
+        var result = ProjectCore(matrix, vertex, projection);
+        return new(result.Projected, result.X, result.Y, result.Z, result.Factor);
+    }
+
     public static NativeBattleModuleProjectedVertex Project45FE10(NativeBattleActionMatrix matrix, NativeBattleVector vertex, NativeBattleCameraProjection projection) => ProjectCore(matrix, vertex, projection).Projected;
 
     public static NativeBattleModuleProjectedVertex Project45FAA0(NativeBattleActionMatrix matrix, NativeBattleVector vertex, NativeBattleCameraProjection projection, short dqa, int dqb)

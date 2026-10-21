@@ -8,7 +8,7 @@ public static partial class NativeBattleCuragaNodeKinematics
     public static NativeBattleCuragaNodePresentationStep AdvanceAndDraw87EC80(NativeBattleCuragaFrame frame, uint contextTask, NativeCrtRandomState random, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors? colors = null)
     {
         NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
-        NativeBattleEffectNodeBank bank = CurrentBank(NativeBattleCuragaFamilyProfile.ForEffect(frame.Effect.Binding.Effect).RequireExecutable(frame.Memory));
+        NativeBattleEffectNodeBank bank = CurrentBank(NativeBattleCuragaFamilyProfile.ForGenericNodes(frame.Effect.Binding.Effect).RequireExecutable(frame.Memory));
         NativeBattleEffectNodeLifecycle core = CreateLifecycle(memory, bank, readModel);
         NativeBattleGfGeometryBatch batch = core.AdvanceAndDraw(ref random, projection, cameraRoll, PrepareMeshes(memory, projection, colors));
         NativeBattleCuragaNodeDrawStep drawn = CommitDraws(memory, bank, ordering, batch);
@@ -18,16 +18,25 @@ public static partial class NativeBattleCuragaNodeKinematics
     public static NativeBattleCuragaNodeDrawStep DrawNodes880390And87ED10(NativeBattleCuragaFrame frame, uint contextTask, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors? colors = null)
     {
         NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
-        NativeBattleEffectNodeBank bank = CurrentBank(NativeBattleCuragaFamilyProfile.ForEffect(frame.Effect.Binding.Effect).RequireExecutable(frame.Memory));
+        NativeBattleEffectNodeBank bank = CurrentBank(NativeBattleCuragaFamilyProfile.ForGenericNodes(frame.Effect.Binding.Effect).RequireExecutable(frame.Memory));
         NativeBattleGfGeometryBatch batch = CreateLifecycle(memory, bank).DrawNodes(projection, cameraRoll, PrepareMeshes(memory, projection, colors));
         return CommitDraws(memory, bank, ordering, batch);
     }
 
     private static NativeBattleCuragaNodeDrawStep CommitDraws(NativeBattleCuragaNodeMemory memory, NativeBattleEffectNodeBank bank, NativeBattleLogicalOrdering ordering, NativeBattleGfGeometryBatch batch)
     {
-        NativeBattleCuragaFrame result = FlushCurrent(memory, bank);
+        return CommitBatch(FlushCurrent(memory, bank), ordering, batch);
+    }
+
+    public static NativeBattleCuragaNodeDrawStep CommitBatch(NativeBattleCuragaFrame result, NativeBattleLogicalOrdering ordering, NativeBattleGfGeometryBatch batch)
+    {
         if (batch.Attempts.Length != 0)
         {
+            if (NativeBattleCuragaFamilyProfile.ForGenericNodes(result.Effect.Binding.Effect).UsesCommonPacketCursor)
+            {
+                NativeBattleCommonPacketWrite common = NativeBattleCommonPacketArena.Append(result.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native generic node packets require their allocated common packet owner."), ordering, batch);
+                return new(result with { Memory = result.Memory with { PrimitiveProcess = common.Process } }, common.Ordering, batch);
+            }
             int cursor = result.State.PrimaryDrawCursor ?? throw new NotSupportedException("Native Curaga packet writes require87DC50's actual primary26D75C0 cursor.");
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(result.Memory, cursor, ordering, batch);
             result = result with { Memory = written.Memory, State = result.State with { PrimaryDrawCursor = written.Cursor } };

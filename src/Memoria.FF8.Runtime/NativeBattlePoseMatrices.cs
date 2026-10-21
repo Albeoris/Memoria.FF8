@@ -11,6 +11,11 @@ public sealed record NativeBattleModelTransform(NativeBattleVector Initial20, Na
 
 public readonly record struct NativeBattleModelScaleVector(int X, int Y, int Z);
 
+public sealed record NativeBattleBoneAnchorProducer(NativeBattleActionMatrix? Matrix, short Distance, NativeBattleVector DisabledPosition)
+{
+    public bool Enabled => Matrix is not null;
+}
+
 /// <summary>508C90 bone matrices and502170/571400 model anchors, with native WORD stores and biased-double matrix conversion.</summary>
 public static partial class NativeBattlePoseMatrices
 {
@@ -48,10 +53,21 @@ public static partial class NativeBattlePoseMatrices
 
     public static NativeBattleVector ReadBone(NativeBattleGraphicsModel model, NativeBattlePoseSource source, byte selector, short fraction)
     {
+        NativeBattleBoneAnchorProducer producer = ResolveBoneAnchor502170(model, source, selector, fraction);
+        if (!producer.Enabled)
+        {
+            return producer.DisabledPosition;
+        }
+        NativeBattleFullMacVertex mac = NativeBattleGfMatrices.TransformMac460840(producer.Matrix!, new(0, 0, producer.Distance));
+        return new(unchecked((short)mac.X), unchecked((short)mac.Y), unchecked((short)mac.Z));
+    }
+
+    public static NativeBattleBoneAnchorProducer ResolveBoneAnchor502170(NativeBattleGraphicsModel model, NativeBattlePoseSource source, byte selector, short fraction)
+    {
         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native502170 requires its model transform owner.");
         if ((model.Flags0 & 2) == 0)
         {
-            return transform.Position28;
+            return new(null, 0, transform.Position28);
         }
         if (model.ModelId4 == 0x8F)
         {
@@ -84,8 +100,7 @@ public static partial class NativeBattlePoseMatrices
         Matrix selected = Compose(world, new(retained.Rotation.ToArray(), retained.X, retained.Y, retained.Z));
         short parent = ReadWord(source.Skeleton, 16 + bone * 48);
         int distance = parent < 0 ? 0 : fraction * ReadWord(source.Skeleton, 18 + bone * 48) >> 12;
-        //56C820/GTE MVMVA publishes signed MAC DWORDs;502170 stores their low WORDs.
-        return new(unchecked((short)(selected.X + ((long)selected.Rotation[2] * distance >> 12))), unchecked((short)(selected.Y + ((long)selected.Rotation[5] * distance >> 12))), unchecked((short)(selected.Z + ((long)selected.Rotation[8] * distance >> 12))));
+        return new(new(selected.Rotation.ToImmutableArray(), selected.X, selected.Y, selected.Z, 4096), unchecked((short)distance), transform.Position28);
     }
 
     public static NativeBattleVector TransformCameraPoint(NativeBattleGraphicsModel model, NativeBattlePoseSource source, byte lowNibble, NativeBattleVector local, bool mirror)

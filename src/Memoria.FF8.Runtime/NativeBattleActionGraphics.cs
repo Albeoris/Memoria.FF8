@@ -381,6 +381,9 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
     public ImmutableArray<NativeBattleScanCameraProfile>? ScanCameraProfiles { get; init; }
     public NativeBattleCuraResources? CuraResources { get; init; }
     public NativeBattleCuragaResources? CuragaResources { get; init; }
+    public NativeBattleAquaResources? AquaResources { get; init; }
+    public NativeBattleDrawStock15Resources? DrawStock15Resources { get; init; }
+    public NativeBattleActorDirectorResources? ActorDirectorResources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleRestorationResources? RestorationResources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

@@ -18,15 +18,25 @@ public sealed record NativeBattleCuragaExecutableState([property: JsonRequired] 
 
     public uint ResourceAddress { get; init; } = Address;
 
-    public static NativeBattleCuragaExecutableState FromColdProcess(ushort effect = 28) => new(0, null) { ResourceAddress = NativeBattleCuragaFamilyProfile.ForEffect(effect).ExecutableAddress };
+    [JsonIgnore]
+    public int ByteLength => ResourceAddress switch
+    {
+        0x17FC68C => 0x5944,
+        0x17F7F1C => 0x4770,
+        0x1795000 => 0x2CC0,
+        0x17D5F4C or 0x17AB0E8 => Length,
+        _ => throw new InvalidDataException("Native generic node bank has no original module identity.")
+    };
+
+    public static NativeBattleCuragaExecutableState FromColdProcess(ushort effect = 28) => new(0, null) { ResourceAddress = NativeBattleCuragaFamilyProfile.ForGenericNodes(effect).ExecutableAddress };
 
     public void Validate()
     {
-        if (ResourceAddress is not (0x17D5F4C or 0x17AB0E8))
+        if (ResourceAddress is not (0x17D5F4C or 0x17AB0E8 or 0x17FC68C or 0x17F7F1C or 0x1795000))
         {
             throw new InvalidDataException("Native Curaga family executable bank has no original module identity.");
         }
-        if (Data is { } bytes && (bytes.IsDefault || bytes.Length != Length || BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan()) != InitializationFlag))
+        if (Data is { } bytes && (bytes.IsDefault || bytes.Length != ByteLength || BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan()) != InitializationFlag))
         {
             throw new InvalidDataException("Native Curaga executable bank contradicts its retained initialization DWORD or original extent.");
         }
@@ -48,7 +58,7 @@ public sealed record NativeBattleCuragaExecutableState([property: JsonRequired] 
             }
             return this;
         }
-        if (source.Data.IsDefault || source.Data.Length != Length || BinaryPrimitives.ReadUInt32LittleEndian(source.Data.AsSpan()) != 0)
+        if (source.Data.IsDefault || source.Data.Length != ByteLength || BinaryPrimitives.ReadUInt32LittleEndian(source.Data.AsSpan()) != 0)
         {
             throw new InvalidDataException("Native Curaga first-use materialization requires the authenticated uninitialized17D5F4C resource.");
         }
@@ -61,7 +71,7 @@ public sealed record NativeBattleCuragaExecutableState([property: JsonRequired] 
     {
         Validate();
         ImmutableArray<byte> bytes = Data ?? throw new NotSupportedException("Native Curaga requires its materialized executable resource bytes.");
-        if (address < ResourceAddress || count < 0 || address - ResourceAddress > Length || count > Length - (address - ResourceAddress))
+        if (address < ResourceAddress || count < 0 || address - ResourceAddress > ByteLength || count > ByteLength - (address - ResourceAddress))
         {
             throw new InvalidDataException("Native Curaga executable read leaves17D5F4C's original resource.");
         }

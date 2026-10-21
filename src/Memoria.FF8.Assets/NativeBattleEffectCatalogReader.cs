@@ -799,6 +799,21 @@ public sealed partial class GameAssets
                 binding = binding with { CuraResources = ReadNativeCuraResources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Entry is 0x8AB140 or 0x7E58C0)
+            {
+                binding = binding with { ActorDirectorResources = ReadNativeActorDirectorResources(binding.Effect) };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Entry == NativeBattleDrawStock15Profile.Entry)
+            {
+                binding = binding with { DrawStock15Resources = ReadNativeDrawStock15Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Entry is 0x808820 or 0x7D1E80)
+            {
+                binding = binding with { AquaResources = ReadNativeAquaResources(binding.Effect) };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Entry == 0x817410)
             {
                 binding = binding with { CuragaResources = ReadNativePotion52Resources() };

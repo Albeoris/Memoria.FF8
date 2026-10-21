@@ -62,6 +62,7 @@ public sealed partial record NativeBattleOriginalEffectState([property: JsonRequ
             throw new InvalidDataException("Native heap resource globals require explicit distinct allocation-slot owners, separate from arena pointers.");
         }
         Firaga?.Validate();
+        DrawStock15?.Validate();
         foreach (NativeBattleEffectTaskPool pool in Pools)
         {
             pool.Validate();

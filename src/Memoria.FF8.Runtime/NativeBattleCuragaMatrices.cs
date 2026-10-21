@@ -5,24 +5,26 @@ public static class NativeBattleCuragaMatrices
 {
     public static NativeBattleActionMatrix Identity8DD770() => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
 
+    public static int Cosine8DDRotation(short angle) => NativeBattleCameraMath.Sine((angle + 0x400) & 0xFFF);
+
     public static NativeBattleActionMatrix RotateX8DD7E0(NativeBattleActionMatrix matrix, short angle)
     {
         short sine = unchecked((short)NativeBattleCameraMath.Sine(angle));
-        short cosine = unchecked((short)NativeBattleCameraMath.Cosine(angle));
+        short cosine = unchecked((short)Cosine8DDRotation(angle));
         return NativeBattlePoseMatrices.MultiplyGteRotation45E470(matrix, new([4096, 0, 0, 0, cosine, unchecked((short)-sine), 0, sine, cosine], 0, 0, 0, 4096));
     }
 
     public static NativeBattleActionMatrix RotateY8DD8A0(NativeBattleActionMatrix matrix, short angle)
     {
         short sine = unchecked((short)NativeBattleCameraMath.Sine(angle));
-        short cosine = unchecked((short)NativeBattleCameraMath.Cosine(angle));
+        short cosine = unchecked((short)Cosine8DDRotation(angle));
         return NativeBattlePoseMatrices.MultiplyGteRotation45E470(matrix, new([cosine, 0, sine, 0, 4096, 0, unchecked((short)-sine), 0, cosine], 0, 0, 0, 4096));
     }
 
     public static NativeBattleActionMatrix RotateZ8DD960(NativeBattleActionMatrix matrix, short angle)
     {
         short sine = unchecked((short)NativeBattleCameraMath.Sine(angle));
-        short cosine = unchecked((short)NativeBattleCameraMath.Cosine(angle));
+        short cosine = unchecked((short)Cosine8DDRotation(angle));
         return NativeBattlePoseMatrices.MultiplyGteRotation45E470(matrix, new([cosine, unchecked((short)-sine), 0, sine, cosine, 0, 0, 0, 4096], 0, 0, 0, 4096));
     }
 

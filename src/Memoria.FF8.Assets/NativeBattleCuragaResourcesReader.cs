@@ -19,12 +19,18 @@ public static class NativeBattleCuragaResourcesReader
         NativeBattleEffectHeapAllocation animation = new($"FF8_EN:{animationAddress:X}", NativeBattleEffectStaticResourcesReader.Read(executable, animationAddress, length));
         uint sound = BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleEffectStaticResourcesReader.Read(executable, profile.SoundAddress, 4).AsSpan());
         ImmutableArray<byte> flash = NativeBattleEffectStaticResourcesReader.Read(executable, profile.FlashAddress, 12);
-        ImmutableArray<byte> originalBank = NativeBattleEffectStaticResourcesReader.Read(executable, profile.ExecutableAddress, NativeBattleCuragaExecutableState.Length);
+        return new(animation, sound) { Effect = effect, Executable = ReadExecutableSource(executable, effect), FlashProgram = Enumerable.Range(0, 3).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(flash.AsSpan().Slice(4 * index))).ToImmutableArray() };
+    }
+
+    public static NativeBattleCuragaExecutableSource ReadExecutableSource(byte[] executable, ushort effect = 28)
+    {
+        NativeBattleCuragaFamilyProfile profile = NativeBattleCuragaFamilyProfile.ForGenericNodes(effect);
+        ImmutableArray<byte> originalBank = NativeBattleEffectStaticResourcesReader.Read(executable, profile.ExecutableAddress, profile.ExecutableLength);
         if (BinaryPrimitives.ReadUInt32LittleEndian(originalBank.AsSpan()) != 0)
         {
             throw new InvalidDataException("Native Curaga catalog requires the original uninitialized executable resource.");
         }
-        return new(animation, sound) { Effect = effect, Executable = new(originalBank) { ResourceAddress = profile.ExecutableAddress }, FlashProgram = Enumerable.Range(0, 3).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(flash.AsSpan().Slice(4 * index))).ToImmutableArray() };
+        return new(originalBank) { ResourceAddress = profile.ExecutableAddress };
     }
 }
 

@@ -40,6 +40,19 @@ public sealed class NativeBattleEffectFixtureExporterTests
     }
 
     [Fact]
+    public void Blue_magic_component_requires_the_selected_original_crisis_variant()
+    {
+        NativeEffectFixtureRequest request = Request() with { Command = 15, Effect = 72 };
+        BattleNativeAction[] variants = Enumerable.Range(1, 4).Select(crisis => Action() with { Command = 15, MagicId = 72, CrisisLevel = (byte)crisis, SupplementalKernelIndex = 4 + crisis }).ToArray();
+        Assert.Throws<InvalidDataException>(() => NativeBattleEffectFixtureExporter.SelectAction(variants, request));
+        foreach (BattleNativeAction variant in variants)
+        {
+            Assert.Same(variant, NativeBattleEffectFixtureExporter.SelectAction(variants, request with { CrisisLevel = variant.CrisisLevel }));
+        }
+        Assert.Throws<InvalidDataException>(() => NativeBattleEffectFixtureExporter.SelectAction(variants, request with { CrisisLevel = 5 }));
+    }
+
+    [Fact]
     public void Header_sequence_reuses_original_command_table_and_existing_special_command_contract()
     {
         ImmutableArray<byte> table = Enumerable.Range(0, 39).Select(value => (byte)value).ToImmutableArray();

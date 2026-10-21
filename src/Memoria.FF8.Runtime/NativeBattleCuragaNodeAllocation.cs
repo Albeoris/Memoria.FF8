@@ -42,7 +42,7 @@ public static class NativeBattleCuragaNodes
     {
         int start = memory.State.Auxiliary25F8 ?? throw new NotSupportedException("Native881700 requires87DE10's emitter pool.");
         ushort cursor = memory.State.Counter26D76C0 ?? throw new NotSupportedException("Native881700 requires the actual26D76C0 scan cursor.");
-        int? node = NativeBattleEffectNodeAllocation.AllocateEmitter(memory, start, 90, ref cursor, parentPointer, sourceIndex, targetIndex);
+        int? node = NativeBattleEffectNodeAllocation.AllocateEmitter(memory, start, memory.Profile.EmitterCapacity, ref cursor, parentPointer, sourceIndex, targetIndex);
         memory.State = memory.State with { Counter26D76C0 = cursor };
         return node;
     }
@@ -51,7 +51,7 @@ public static class NativeBattleCuragaNodes
     {
         int start = memory.State.Auxiliary16F80 ?? throw new NotSupportedException("Native882080 requires87DE10's geometry pool.");
         ushort cursor = memory.State.Counter26D82E8 ?? throw new NotSupportedException("Native882080 requires the actual26D82E8 scan cursor.");
-        int? node = NativeBattleEffectNodeAllocation.AllocateGeometry(memory, start, 140, ref cursor, emitter, sourceIndex);
+        int? node = NativeBattleEffectNodeAllocation.AllocateGeometry(memory, start, memory.Profile.GeometryCapacity, ref cursor, emitter, sourceIndex);
         memory.State = memory.State with { Counter26D82E8 = cursor };
         return node;
     }

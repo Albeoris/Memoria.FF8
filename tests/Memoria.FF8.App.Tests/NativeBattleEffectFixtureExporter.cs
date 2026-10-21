@@ -13,6 +13,7 @@ internal sealed record NativeEffectFixtureRequest(string Id, ushort Effect, byte
     public bool OrdinaryMagicAdmission { get; init; }
     public bool DeferredGuardianFormulaAdmission { get; init; }
     public int PartyModelId { get; init; }
+    public byte? CrisisLevel { get; init; }
     public bool HealingContact { get; init; }
     public bool RevivalContact { get; init; }
     public int EncounterId { get; init; } = 94;
@@ -75,7 +76,7 @@ internal static class NativeBattleEffectFixtureExporter
 
     internal static BattleNativeAction SelectAction(IEnumerable<BattleNativeAction> actions, NativeEffectFixtureRequest request)
     {
-        BattleNativeAction[] matches = actions.Where(action => action.Command == request.Command && action.ActionId == request.ActionId && action.MagicId == request.Effect).ToArray();
+        BattleNativeAction[] matches = actions.Where(action => action.Command == request.Command && action.ActionId == request.ActionId && action.MagicId == request.Effect && (request.CrisisLevel is null || action.CrisisLevel == request.CrisisLevel)).ToArray();
         return matches.Length == 1 ? matches[0] : throw new InvalidDataException("The fixture request does not identify exactly one original kernel command/action/effect row; effect aliases are not inferred.");
     }
 

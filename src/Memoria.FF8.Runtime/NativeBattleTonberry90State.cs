@@ -6,6 +6,30 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattlePackedMatrix32([property: JsonRequired] ImmutableArray<byte> Bytes, [property: JsonRequired] ImmutableArray<bool> Known)
 {
+    public static NativeBattlePackedMatrix32 FromMatrix(NativeBattleActionMatrix matrix, ushort? padding)
+    {
+        matrix.Validate();
+        byte[] bytes = new byte[32];
+        bool[] known = Enumerable.Repeat(true, 32).ToArray();
+        for (int index = 0; index < 9; index++)
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(index * 2), matrix.Rotation[index]);
+        }
+        if (padding is { } word)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(18), word);
+        }
+        else
+        {
+            known[18] = false;
+            known[19] = false;
+        }
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(20), matrix.X);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(24), matrix.Y);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(28), matrix.Z);
+        return new(bytes.ToImmutableArray(), known.ToImmutableArray());
+    }
+
     public NativeBattleActionMatrix ReadMatrix()
     {
         Validate();

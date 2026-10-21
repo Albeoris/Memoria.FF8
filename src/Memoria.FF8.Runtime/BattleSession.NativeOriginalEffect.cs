@@ -514,6 +514,18 @@ public sealed partial class BattleSession
         {
             return EnterNativeCura889D60(graphics);
         }
+        if (effect.Binding.Entry is 0x8AB140 or 0x7E58C0)
+        {
+            return RunNativeActorDirector(graphics, true);
+        }
+        if (effect.Binding.Entry == NativeBattleDrawStock15Profile.Entry)
+        {
+            return RunNativeDrawStock15(graphics, true);
+        }
+        if (effect.Binding.Entry is 0x808820 or 0x7D1E80)
+        {
+            return RunNativeAqua(graphics, true);
+        }
         if (effect.Binding.Entry is 0x87DB10 or 0x817410)
         {
             return EnterNativeCuraga87DB10(graphics);

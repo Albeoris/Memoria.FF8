@@ -83,6 +83,8 @@ public static class NativeBattleRetainedMemoryReader
                 Complete269D93A = BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(0x269D93A, 2)),
                 Presentation = new(ReadScanOwner(0x269A168, 0x50), ReadScanOwner(0x269A1BC, 28), ReadScanOwner(0x269A1D8, 28), ReadScanOwner(0x269CE34, 28), ReadScanOwner(0x269AA78, 24), BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(0x269AA90, 2)), BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(0x269D938, 2)), BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(0x269CE2C, 2)), BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x269CE30, 4)))
             },
+            ModuleSpriteBillboard21DFED0 = new(ReadLoaderBytes(0x21DFED0, 32).ToImmutableArray(), Enumerable.Repeat(true, 32).ToImmutableArray()),
+            GeometryRegisters = NativeBattleGeometryRegisters.Unknown() with { AnchorScratch8 = ReadLoaderBytes(0x1D97708, 8).Select(value => (byte?)value).ToImmutableArray() },
             Parameter80 = ReadLoaderBytes(0x1D99A80, 1)[0],
             Parameter82 = ReadLoaderBytes(0x1D99A82, 1)[0],
             ReturnedTaskPointer1D96AAC = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1D96AAC, 4)),
@@ -110,6 +112,13 @@ public static class NativeBattleRetainedMemoryReader
             Potion51SceneFade = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x26349A8, 4)),
             CuragaExecutable = new(BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(NativeBattleCuragaExecutableState.Address, 4)), null),
             Potion52Executable = ReadPotion52Executable(),
+            DrawStock15Executable = ReadDrawStock15Executable(),
+            ActorDirector16Executable = ReadActorDirectorExecutable(16),
+            ActorDirector61Executable = ReadActorDirectorExecutable(61),
+            ActorDirector16 = NativeBattleActorDirectorState.FromColdProcess(16) with { Shared84 = ReadLoaderBytes(NativeBattleActorDirectorProfile.ForEffect(16).SharedAddress, 84).ToImmutableArray() },
+            ActorDirector61 = NativeBattleActorDirectorState.FromColdProcess(61) with { Shared84 = ReadLoaderBytes(NativeBattleActorDirectorProfile.ForEffect(61).SharedAddress, 84).ToImmutableArray() },
+            Aqua55 = new(55, ReadLoaderBytes(0x26163B0, 84).ToImmutableArray(), memory.Read(0x15A4168, 10600).ToImmutableArray()),
+            Aqua72 = new(72, ReadLoaderBytes(0x25FA370, 84).ToImmutableArray(), memory.Read(0x158A4BC, 10600).ToImmutableArray()),
             EsunaExecutable = new(24, BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(NativeBattleRestorationProfile.Esuna.ExecutableAddress, 4)), null),
             FullLifeExecutable = new(27, BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(NativeBattleRestorationProfile.FullLife.ExecutableAddress, 4)), null),
             Effect57Executable = new(57, BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(NativeBattleRestorationProfile.Effect57.ExecutableAddress, 4)), null),
@@ -128,6 +137,24 @@ public static class NativeBattleRetainedMemoryReader
             }).ToImmutableArray()),
             PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess() with { DrawMode2795BD0 = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x2795BD0, 4)), TexturePage = BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(0x1C48818, 2)), Buffer80 = ReadLoaderBytes(0x1D96A80, 1)[0], TextureWindowBits = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1CA8848, 4)) }
         };
+        NativeBattleCuragaExecutableState ReadActorDirectorExecutable(ushort effect)
+        {
+            NativeBattleActorDirectorProfile profile = NativeBattleActorDirectorProfile.ForEffect(effect);
+            uint flag = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(profile.SourceAddress, 4));
+            NativeBattleCuragaExecutableState retained = new(flag, flag == 0 ? null : ReadLoaderBytes(profile.SourceAddress, profile.SourceLength).ToImmutableArray()) { ResourceAddress = profile.SourceAddress };
+            retained.Validate();
+            return retained;
+        }
+
+        NativeBattleCuragaExecutableState ReadDrawStock15Executable()
+        {
+            const uint address = 0x17FC68C;
+            uint flag = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(address, 4));
+            NativeBattleCuragaExecutableState retained = new(flag, flag == 0 ? null : ReadLoaderBytes(address, 0x5944).ToImmutableArray()) { ResourceAddress = address };
+            retained.Validate();
+            return retained;
+        }
+
         NativeBattleCuragaExecutableState ReadPotion52Executable()
         {
             const uint address = 0x17AB0E8;
