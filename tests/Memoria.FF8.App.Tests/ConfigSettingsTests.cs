@@ -36,7 +36,7 @@ public sealed class ConfigSettingsTests
         List<MenuAction> applied = [];
         MenuController controller = new(() => data, applied.Add);
         controller.Open("config");
-        Assert.Equal(["config-gameplay", "config-display", "config-audio", "config-interface", "config-controls"], controller.Entries.Select(entry => entry.Id));
+        Assert.Equal(["config-gameplay", "config-display", "config-graphics", "config-audio", "config-interface", "config-controls"], controller.Entries.Select(entry => entry.Id));
         controller.Open("config-interface");
         Assert.Equal("Cursor", Assert.Single(controller.Entries).Id);
         UiView view = controller.BuildView();
@@ -46,6 +46,30 @@ public sealed class ConfigSettingsTests
         controller.Open("config-controls");
         controller.Navigate(MenuInput.Confirm);
         Assert.Equal("config-controller", controller.ScreenId);
+    }
+
+    [Fact]
+    public void Graphics_menu_exposes_anti_aliasing_choices_and_keeps_navigation_in_settings()
+    {
+        MenuController controller = new();
+        controller.Open("config", demo: true);
+        controller.Navigate(MenuInput.Down);
+        controller.Navigate(MenuInput.Down);
+        Assert.Equal("config-graphics", controller.SelectedEntry!.Id);
+        controller.Navigate(MenuInput.Confirm);
+        Assert.Equal("config-graphics", controller.ScreenId);
+        Assert.Equal("Anti-aliasing", Assert.Single(controller.Entries).Id);
+        Assert.Equal("MSAA 8x", controller.Data.Settings["Anti-aliasing"]);
+        UiView view = controller.BuildView();
+        UiChoiceRow choice = Assert.Single(Descendants(view.Root).OfType<UiChoiceRow>());
+        Assert.Equal(["Off", "MSAA 2x", "MSAA 4x", "MSAA 8x"], choice.Items);
+        Assert.Equal(3, choice.SelectedIndex);
+        controller.Navigate(MenuInput.Left);
+        Assert.Equal("MSAA 4x", controller.Data.Settings["Anti-aliasing"]);
+        controller.Navigate(MenuInput.Right);
+        Assert.Equal("MSAA 8x", controller.Data.Settings["Anti-aliasing"]);
+        controller.Open("config-display", demo: true);
+        Assert.DoesNotContain(controller.Entries, entry => entry.Id == "Anti-aliasing");
     }
 
     [Fact]

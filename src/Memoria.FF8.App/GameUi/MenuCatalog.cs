@@ -93,7 +93,7 @@ public static class MenuCatalog
         Add("card-detail", "Card · Details", "Card rank, element and collection metadata.", _ => [], c => CardDetails(c.Card));
 
         Add("config", "Config", "Choose a settings category.", c => c.ConfigEntries(), main: true);
-        foreach (var category in new[] { ("gameplay", "Gameplay"), ("display", "Display"), ("audio", "Audio"), ("interface", "Interface"), ("controls", "Controls") })
+        foreach (var category in new[] { ("gameplay", "Gameplay"), ("display", "Display"), ("graphics", "Graphics"), ("audio", "Audio"), ("interface", "Interface"), ("controls", "Controls") })
         {
             Add("config-" + category.Item1, category.Item2, "Select a setting.", c => c.ConfigEntries());
         }

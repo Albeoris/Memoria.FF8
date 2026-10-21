@@ -6,6 +6,7 @@ namespace Memoria.FF8.GameUi;
 /// <summary>Local presentation preferences and battle settings applied to the running game.</summary>
 internal sealed record UiPreferences
 {
+    public GraphicsPreferences Graphics { get; init; } = new();
     public int WindowWidth { get; init; } = 1024;
     public int WindowHeight { get; init; } = 768;
     public bool VSync { get; init; } = true;
@@ -66,6 +67,18 @@ internal sealed record UiPreferences
 
     public UiPreferences WithSetting(string key, string value)
     {
+        if (key == "Anti-aliasing")
+        {
+            int samples = value switch
+            {
+                "Off" => 0,
+                "MSAA 2x" => 2,
+                "MSAA 4x" => 4,
+                "MSAA 8x" => 8,
+                _ => throw new ArgumentException("Anti-aliasing requires Off, MSAA 2x, MSAA 4x or MSAA 8x.")
+            };
+            return this with { Graphics = Graphics with { MsaaSamples = samples } };
+        }
         if (key == "Show FPS")
         {
             return value switch
@@ -229,6 +242,11 @@ internal sealed record UiPreferences
 
     private void Validate()
     {
+        if (Graphics is null)
+        {
+            throw new InvalidDataException("Graphics preferences must be an object.");
+        }
+        Graphics.Validate();
         if (WindowWidth < 1 || WindowHeight < 1)
         {
             throw new InvalidDataException("Window dimensions must be positive.");

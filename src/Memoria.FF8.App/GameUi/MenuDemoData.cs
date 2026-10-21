@@ -94,6 +94,7 @@ public static class MenuDemoData
             data.Settings[setting.Id] = setting.Values[0];
         }
         data.Settings["Quick saves"] = "9";
+        data.Settings["Anti-aliasing"] = "MSAA 8x";
         AddLimits(data);
         AddBattle(data);
         return data;
@@ -172,6 +173,7 @@ public static class MenuSettings
     [
         new("Show FPS", "Show measured visual frame changes per real second. Identical frames and the FPS overlay do not count; a still scene may show 0 FPS.", ["Off", "On"]),
         new("V-Sync", "Synchronize presentation with the display refresh rate. Applies to this installation.", ["On", "Off"]),
+        new("Anti-aliasing", "Smooth rendered edges with multisample anti-aliasing. Applies immediately and is shared by every save on this installation. Unsupported sample counts use the highest supported count up to the selected value.", ["Off", "MSAA 2x", "MSAA 4x", "MSAA 8x"]),
         new("Field FPS", "Field and movie presentation at 30 or 60 FPS. At 60, field movement and animation interpolate between original simulation frames. Gameplay timing is unchanged. V-Sync may limit output further.", ["30", "60"]),
         new("World FPS", "World travel presentation limit. Simulation remains at its original rate; 60 FPS interpolates movement and camera between updates. V-Sync may limit output further.", ["30", "60"]),
         new("Battle FPS", "Battle presentation limit. Higher limits can show more animation frames when game speed is increased. Applies to this installation.", ["15", "30", "60", "90", "120", "144", "240", "Unlimited"]),

@@ -43,6 +43,11 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
     internal int FrameDrawCalls { get; private set; }
     internal int FrameTextureUploads { get; private set; }
 
+    internal void InvalidatePresentation()
+    {
+        PresentationVersion++;
+    }
+
     public void Begin(int width, int height, Vector4N clearColor, float clearDepth = 1)
     {
         if (active)

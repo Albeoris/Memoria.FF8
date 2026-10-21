@@ -53,6 +53,18 @@ Open **Config → Display** to choose **Field FPS: 30 or 60** (default 60). At 6
 
 **Show FPS**, also available under **Debug Room → UI**, displays completed presentations per real second as **FPS** and visible RGB changes as **Changes/s**. A still scene can show 60 FPS and 0 Changes/s. Repeated identical frames and the overlay itself do not count as changes. Both measurements include rendering, pacing and V-Sync waits; neither is the configured limit or simulation speed.
 
+## Graphics
+
+**Config → Graphics → Anti-aliasing** offers **Off**, **MSAA 2x**, **MSAA 4x** and **MSAA 8x**. The default is **MSAA 8x**. Changes apply immediately and are shared by all saves. The graphics device uses a supported sample count when the requested quality is unavailable.
+
+The same setting is stored in the `Graphics` section of `%LOCALAPPDATA%/Memoria/FF8/ui-settings.json`. Set `MsaaSamples` to `0`, `2`, `4` or `8`; existing configuration files without this section retain the default. Close the game before editing the file directly.
+
+```json
+"Graphics": {
+  "MsaaSamples": 8
+}
+```
+
 ## Movies and naming
 
 Hold the currently bound **Cancel** input for one second to request a movie skip. A progress hint appears while holding. A brief press does not complete the gesture. The gesture follows the Cancel binding; there is no separate movie-skip binding.

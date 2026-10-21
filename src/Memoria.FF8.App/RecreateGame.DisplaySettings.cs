@@ -9,6 +9,7 @@ internal sealed partial class RecreateGame
     private readonly PresentationPacer presentationPacer = new();
     private int? appliedFrameLimit;
     private bool appliedNativeBattlePacing;
+    private int appliedMsaaSamples;
 
     private void ApplyDisplaySettings()
     {
@@ -28,10 +29,18 @@ internal sealed partial class RecreateGame
             appliedNativeBattlePacing = nativeBattle;
             presentationPacer.Reset();
         }
-        if (graphics.SynchronizeWithVerticalRetrace != uiPreferences.VSync)
+        bool samplesChanged = appliedMsaaSamples != uiPreferences.Graphics.MsaaSamples;
+        if (graphics.SynchronizeWithVerticalRetrace != uiPreferences.VSync || samplesChanged)
         {
             graphics.SynchronizeWithVerticalRetrace = uiPreferences.VSync;
+            graphics.PreferMultiSampling = uiPreferences.Graphics.MsaaSamples > 0;
             graphics.ApplyChanges();
+            appliedMsaaSamples = uiPreferences.Graphics.MsaaSamples;
+            if (samplesChanged)
+            {
+                fieldGpu?.InvalidatePresentation();
+                battleGpu?.InvalidatePresentation();
+            }
         }
     }
 

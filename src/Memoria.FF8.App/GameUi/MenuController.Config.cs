@@ -9,15 +9,17 @@ public sealed partial class MenuController
     [
         ("gameplay", "Gameplay", "Battle rules and assistance. Gameplay options belong to this save; Title sets defaults for a new game."),
         ("display", "Display", "V-Sync and scene presentation limits. Shared by every save on this installation."),
+        ("graphics", "Graphics", "Anti-aliasing and rendering quality. Shared by every save on this installation."),
         ("audio", "Audio", "Music and sound-effect output. Shared by every save on this installation."),
         ("interface", "Interface", "Text, fonts, cursors and dialogue presentation. Shared by every save on this installation."),
         ("controls", "Controls", "Keyboard and controller mappings, dead zones and vibration. Shared by every save on this installation.")
     ];
-    private bool IsConfigSettingsScreen => ScreenId is "config" or "config-gameplay" or "config-display" or "config-audio" or "config-interface" or "config-controls" or "new-game-options";
+    private bool IsConfigSettingsScreen => ScreenId is "config" or "config-gameplay" or "config-display" or "config-graphics" or "config-audio" or "config-interface" or "config-controls" or "new-game-options";
 
     private static string ConfigCategory(string id) => id switch
     {
         "V-Sync" or "Field FPS" or "World FPS" or "Battle FPS" or "Menu FPS" or "Show FPS" => "display",
+        "Anti-aliasing" => "graphics",
         "Music volume" or "Effect volume" or "Sound" => "audio",
         "Controller" or "Vibration" => "controls",
         "Quick saves" or "Cursor" or "Field message" or "Rare card markers" or "Text scale" or "UI font" or "UI font size" or "Dialogue font" or "Dialogue font size" => "interface",
