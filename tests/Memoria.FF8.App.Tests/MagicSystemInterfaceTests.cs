@@ -77,7 +77,7 @@ public sealed class MagicSystemInterfaceTests
     }
 
     [Fact]
-    public void SharedInventoryDisablesExchangeAndDisplaysOnlyRemainingUses()
+    public void SharedInventoryDisablesExchangeAndDisplaysRemainingUsesAndStock()
     {
         MenuData data = new() { SharedMagicStock = true };
         data.Characters.Add(new MenuCharacter { Id = "character-0", InParty = true });
@@ -87,7 +87,7 @@ public sealed class MagicSystemInterfaceTests
         Assert.False(menu.Entries.Single(entry => entry.Id == "magic-exchange").Enabled);
         menu.Open("magic-stock");
         Assert.Equal("Cure", menu.Entries[0].Label);
-        Assert.Equal("0/4", menu.Magic!.StockPresentation);
+        Assert.Equal("0/4  100", menu.Magic!.StockPresentation);
         Assert.Equal(100, menu.Magic!.Quantity);
     }
 

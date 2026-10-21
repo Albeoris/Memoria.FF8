@@ -147,7 +147,7 @@ public sealed class MenuMagic
     public string Availability { get; set; } = "";
     public string Caster { get; set; } = "";
     public bool JunctionAvailable { get; set; } = true;
-    public string StockPresentation => Capacity is int capacity ? $"{RemainingUses}/{capacity}" : Quantity.ToString();
+    public string StockPresentation => Capacity is int capacity ? $"{RemainingUses}/{capacity}  {Quantity}" : Quantity.ToString();
     public string AccessPresentation => string.Join(" · ", new[] { Owner, Availability, Caster }.Where(value => value.Length > 0));
 }
 

@@ -29,7 +29,7 @@ public sealed class MenuColumnTests
 
     [Theory]
     [MemberData(nameof(MagicCases))]
-    public void FieldMagicRowsKeepNamesOwnersAndOneCountInSeparateColumns(bool shared, bool finite, int stock, int uses, bool bound)
+    public void FieldMagicRowsKeepStockAndUsesAlongsideNamesAndOwners(bool shared, bool finite, int stock, int uses, bool bound)
     {
         foreach (string screen in new[] { "magic", "magic-use", "magic-stock", "magic-exchange", "junction-stock" })
         {
@@ -40,7 +40,7 @@ public sealed class MenuColumnTests
             UiList list = Assert.Single(Descendants(view.Root).OfType<UiList>(), element => screen is "magic" ? element.Id == "magic-preview-character-0" : element.Id == "commands");
             int offset = screen == "junction-stock" ? 1 : 0;
             Assert.Equal(new[] { "Fire", "Very long spell name" }, list.Items.Skip(offset));
-            string[] counts = finite ? [uses + "/4", (5 - uses) + "/4"] : [stock.ToString(), (106 - stock).ToString()];
+            string[] counts = finite && screen != "junction-stock" ? [$"{uses}/4  {stock}", $"{5 - uses}/4  {106 - stock}"] : [stock.ToString(), (106 - stock).ToString()];
             Assert.Equal(counts, list.SecondaryItems.Skip(offset));
             Assert.Empty(list.Images);
             Assert.Equal(shared && bound ? data.Magic[0].OwnerIcon : null, list.TrailingImages[offset]);
@@ -58,11 +58,13 @@ public sealed class MenuColumnTests
     }
 
     [Theory]
-    [InlineData(960, 672, "100%")]
-    [InlineData(1280, 720, "150%")]
-    public void FieldMagicGeometryKeepsNameStartsAndCountEdgesAlignedWithMissingOwner(int width, int height, string scale)
+    [InlineData(960, 672, "100%", false)]
+    [InlineData(960, 672, "100%", true)]
+    [InlineData(1280, 720, "150%", false)]
+    [InlineData(1280, 720, "150%", true)]
+    public void FieldMagicGeometryKeepsNameStartsAndCountEdgesAlignedWithMissingOwner(int width, int height, string scale, bool infinite)
     {
-        MenuData data = MagicData(true, false, 6, 1, true);
+        MenuData data = MagicData(true, infinite, 6, 1, true);
         data.Settings["Text scale"] = scale;
         MenuController menus = new(() => data);
         menus.Open("magic-stock");
@@ -71,7 +73,7 @@ public sealed class MenuColumnTests
         UiList list = Assert.Single(Descendants(view.Root).OfType<UiList>(), element => element.Id == "commands");
         RecordingCanvas canvas = new();
         list.Draw(canvas, new UiTheme());
-        AssertAligned(canvas, "Fire", "Very long spell name", "6", "100");
+        AssertAligned(canvas, "Fire", "Very long spell name", infinite ? "1/4  6" : "6", infinite ? "4/4  100" : "100");
         Assert.Single(canvas.Images);
     }
 

@@ -14,7 +14,7 @@ public sealed partial class MenuController
         if (ScreenId == "junction-stock" || entries.Any(entry => entry.Action?.Kind == "select-magic"))
         {
             list.Items = entries.Select(entry => CommandMagic(entry)?.Name ?? entry.Label).ToList();
-            list.SecondaryItems = entries.Select(entry => CommandMagic(entry)?.StockPresentation ?? "").ToList();
+            list.SecondaryItems = entries.Select(entry => ScreenId == "junction-stock" ? CommandMagic(entry)?.Quantity.ToString() ?? "" : CommandMagic(entry)?.StockPresentation ?? "").ToList();
             list.Images = [];
             list.TrailingImages = entries.Select(entry => Data.SharedMagicStock ? CommandMagic(entry)?.OwnerIcon : null).ToList();
             list.TrailingImagesBeforeSecondary = true;
