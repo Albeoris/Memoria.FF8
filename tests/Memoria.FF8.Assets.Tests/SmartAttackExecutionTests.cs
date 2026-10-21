@@ -63,6 +63,32 @@ public sealed class SmartAttackExecutionTests
         Assert.Single(battle.Events, item => item.Kind == "Damage" && item.TargetId == "enemy");
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void InstalledSmartDrawUsesSeparateRecipientAndRestoresWithoutSpendingMagic(bool shared, bool infinite)
+    {
+        BattleDefinition definition = Create(shared, infinite, true, stock: 0).Capture().Definition;
+        using GameAssets game = new(TestResources.GameDirectory);
+        BattleCombatantDefinition caster = definition.Combatants[0] with { Abilities = [BattleAbility.Attack, BattleAbility.Draw] };
+        BattleCombatantDefinition source = definition.Combatants[1] with { Id = "source", Name = "Source", ModelId = 3, NativeDrawSlots = [new(1, 0), new(0, 0), new(0, 0), new(0, 0)] };
+        BattleSession battle = new(definition with { NativeKnownMagic = game.ReadNewGameKnownMagic().Add(1), Combatants = [caster, definition.Combatants[1], source] }, BattleAtbMode.TurnBased);
+        string before = JsonSerializer.Serialize(battle.MagicVitals);
+        BattleSmartAttackPreview preview = battle.PreviewSmartAttack("caster", "enemy");
+        Assert.Equal(BattleAbility.Draw, preview.Ability);
+        Assert.Equal("source", preview.DrawSourceId);
+        battle.QueueSmartAttack(preview);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        Complete(battle);
+        Complete(restored);
+        Assert.Single(battle.Events, item => item.Kind == "Damage" && item.TargetId == "enemy" && item.Amount > 0);
+        Assert.Equal(10_000, battle.Combatants.Single(actor => actor.Id == "source").CurrentHp);
+        Assert.Equal(before, JsonSerializer.Serialize(battle.MagicVitals));
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
     private static BattleSession Create(bool shared, bool infinite, bool smart, uint status = 0, bool bound = false, int stock = 10, int enemyHp = 10_000)
     {
         string directory = TestResources.GameDirectory;

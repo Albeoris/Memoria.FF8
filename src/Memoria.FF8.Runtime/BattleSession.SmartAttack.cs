@@ -4,7 +4,11 @@ using System.Text;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record BattleSmartAttackPreview(string ActorId, string TargetId, BattleAbility Ability, int ActionId, string Name, int CastCount, bool ForcePhysical, string Revision, int TargetIndex, double ExpectedDamage, double KillProbability);
+public sealed record BattleSmartAttackPreview(string ActorId, string TargetId, BattleAbility Ability, int ActionId, string Name, int CastCount, bool ForcePhysical, string Revision, int TargetIndex, double ExpectedDamage, double KillProbability)
+{
+    public string? DrawSourceId { get; init; }
+    public int? DrawSourceIndex { get; init; }
+}
 
 public sealed partial class BattleSession
 {
@@ -38,12 +42,19 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("The displayed Smart Attack choice changed; select the target again.");
         }
         BattleCombatant actor = GetActor(preview.ActorId);
-        if (preview.Ability == BattleAbility.Magic)
+        if (preview.Ability is BattleAbility.Magic or BattleAbility.Draw)
         {
             pendingSmartAttack = preview;
             try
             {
-                QueueAction(preview.ActorId, preview.TargetId, BattleAbility.Magic, preview.ActionId, magicTargets: preview.CastCount > 1 ? Enumerable.Repeat(preview.TargetId, preview.CastCount).ToArray() : null);
+                if (preview.DrawSourceId is { } source)
+                {
+                    QueueAction(preview.ActorId, source, BattleAbility.Draw, preview.ActionId, true, drawCastTargetId: preview.TargetId);
+                }
+                else
+                {
+                    QueueAction(preview.ActorId, preview.TargetId, BattleAbility.Magic, preview.ActionId, magicTargets: preview.CastCount > 1 ? Enumerable.Repeat(preview.TargetId, preview.CastCount).ToArray() : null);
+                }
             }
             finally
             {
@@ -78,7 +89,7 @@ public sealed partial class BattleSession
 
     private bool CanSmartCast(BattleCombatant actor, BattleCombatant target)
     {
-        return magicVitals is not null && magicVitals.MagicSystem.SmartAttack && actor.MagicRecordId is int row && magicVitals.MagicSystem.AttackModes[row] == MagicAttackMode.SmartMagic && actor.IsPlayer && actor.IsAlive && target.IsAlive && target.IsActive && !target.IsPlayer && !target.Untargetable && PhysicalCommand(actor) is 1 or 12 && actor.Abilities.Contains(BattleAbility.Magic) && CanNativeBattleActorAct(actor) && !RequiresNativeCompelledCommand(actor) && (NativeSavedStatusBits(actor) & 0x10) == 0 && !HasStatus(actor, BattleStatusKind.Silence);
+        return magicVitals is not null && magicVitals.MagicSystem.SmartAttack && actor.MagicRecordId is int row && magicVitals.MagicSystem.AttackModes[row] == MagicAttackMode.SmartMagic && actor.IsPlayer && actor.IsAlive && target.IsAlive && target.IsActive && !target.IsPlayer && !target.Untargetable && PhysicalCommand(actor) is 1 or 12 && (actor.Abilities.Contains(BattleAbility.Magic) || actor.Abilities.Contains(BattleAbility.Draw)) && CanNativeBattleActorAct(actor) && !RequiresNativeCompelledCommand(actor) && (NativeSavedStatusBits(actor) & 0x10) == 0 && !HasStatus(actor, BattleStatusKind.Silence);
     }
 
     private BattleSmartAttackPreview SelectSmartAttack(BattleCombatant actor, BattleCombatant target, bool forcePhysical, string? reservation)
@@ -90,22 +101,34 @@ public sealed partial class BattleSession
         {
             return result;
         }
-        List<(BattleActionDefinition Action, int Available, int Stock, int Casts, BattleDamageForecast Forecast)> candidates = [];
+        List<(BattleActionDefinition Action, int Available, int Stock, int Casts, BattleDamageForecast Forecast, BattleCombatant? Source)> candidates = [];
         foreach (BattleActionDefinition action in definition.ActionDefinitions.Where(IsSmartSpell))
         {
             if (NativeActionReflects(target, action.NativeAction!))
             {
                 continue;
             }
-            int available = GetAvailableMagicCasts(actor.Id, action.Id, reservation);
-            if (available == 0)
+            if (actor.Abilities.Contains(BattleAbility.Draw) && nativeKnownMagic?.Contains(action.Id) == true)
             {
-                continue;
+                foreach (BattleCombatant source in combatants.Where(source => source.IsActive && source.IsAlive && !source.IsPlayer && !source.Untargetable && source.NativeDrawSlots.Any(slot => slot.Id == action.Id)))
+                {
+                    candidates.Add((action, 1, 0, 1, ForecastMagic(actor, target, action.NativeAction!, 1, source, action.DrawResist), source));
+                }
             }
-            int casts = AffordableSmartCasts(actor, action.Id, available);
-            candidates.Add((action, available, actor.MagicStocks.FirstOrDefault(stock => stock.Id == action.Id)?.Count ?? 0, casts, ForecastMagic(actor, target, action.NativeAction!, casts)));
+            int available = actor.Abilities.Contains(BattleAbility.Magic) ? GetAvailableMagicCasts(actor.Id, action.Id, reservation) : 0;
+            if (available > 0)
+            {
+                int casts = AffordableSmartCasts(actor, action.Id, available);
+                candidates.Add((action, available, actor.MagicStocks.FirstOrDefault(stock => stock.Id == action.Id)?.Count ?? 0, casts, ForecastMagic(actor, target, action.NativeAction!, casts), null));
+            }
         }
-        foreach (var group in candidates.GroupBy(candidate => candidate.Action.NativeAction!.Element).OrderByDescending(group => group.Sum(candidate => candidate.Available)).ThenByDescending(group => group.Sum(candidate => candidate.Stock)).ThenBy(group => group.Key))
+        var drawnKill = candidates.Where(candidate => candidate.Source is not null && candidate.Forecast.KillProbability > 0.9).OrderBy(candidate => candidate.Forecast.ExpectedDamage).ThenBy(candidate => candidate.Action.Id).ThenBy(candidate => candidate.Source!.NativeIndex).ToArray();
+        if (drawnKill.Length > 0)
+        {
+            var chosen = drawnKill[0];
+            return result with { Ability = BattleAbility.Draw, ActionId = chosen.Action.Id, Name = "Draw: " + (chosen.Action.DisplayName ?? chosen.Action.Name), CastCount = 1, ExpectedDamage = chosen.Forecast.ExpectedDamage, KillProbability = chosen.Forecast.KillProbability, DrawSourceId = chosen.Source!.Id, DrawSourceIndex = chosen.Source.NativeIndex };
+        }
+        foreach (var group in candidates.Where(candidate => candidate.Source is null).GroupBy(candidate => candidate.Action.NativeAction!.Element).OrderByDescending(group => group.Sum(candidate => candidate.Available)).ThenByDescending(group => group.Sum(candidate => candidate.Stock)).ThenBy(group => group.Key))
         {
             var sufficient = group.Where(candidate => candidate.Forecast.KillProbability > 0.9).OrderBy(candidate => candidate.Forecast.ExpectedDamage).ThenBy(candidate => candidate.Action.Id).ToArray();
             if (sufficient.Length > 0)
@@ -114,11 +137,11 @@ public sealed partial class BattleSession
                 return result with { Ability = BattleAbility.Magic, ActionId = chosen.Action.Id, Name = chosen.Action.DisplayName ?? chosen.Action.Name, CastCount = chosen.Casts, ExpectedDamage = chosen.Forecast.ExpectedDamage, KillProbability = chosen.Forecast.KillProbability };
             }
         }
-        var strongest = candidates.OrderByDescending(candidate => candidate.Forecast.ExpectedDamage).ThenByDescending(candidate => candidate.Available).ThenBy(candidate => candidate.Action.Id).ToArray();
+        var strongest = candidates.OrderByDescending(candidate => candidate.Forecast.ExpectedDamage).ThenByDescending(candidate => candidate.Source is not null).ThenByDescending(candidate => candidate.Available).ThenBy(candidate => candidate.Action.Id).ThenBy(candidate => candidate.Source?.NativeIndex).ToArray();
         if (strongest.Length > 0 && (strongest[0].Forecast.ExpectedDamage > 0 || strongest[0].Forecast.ExpectedDamage > physical.ExpectedDamage))
         {
             var chosen = strongest[0];
-            return result with { Ability = BattleAbility.Magic, ActionId = chosen.Action.Id, Name = chosen.Action.DisplayName ?? chosen.Action.Name, CastCount = chosen.Casts, ExpectedDamage = chosen.Forecast.ExpectedDamage, KillProbability = chosen.Forecast.KillProbability };
+            return result with { Ability = chosen.Source is null ? BattleAbility.Magic : BattleAbility.Draw, ActionId = chosen.Action.Id, Name = (chosen.Source is null ? "" : "Draw: ") + (chosen.Action.DisplayName ?? chosen.Action.Name), CastCount = chosen.Casts, ExpectedDamage = chosen.Forecast.ExpectedDamage, KillProbability = chosen.Forecast.KillProbability, DrawSourceId = chosen.Source?.Id, DrawSourceIndex = chosen.Source?.NativeIndex };
         }
         return result;
     }
@@ -146,10 +169,11 @@ public sealed partial class BattleSession
     private string SmartRevision(BattleCombatant actor, BattleCombatant target)
     {
         string state = string.Join('|', actor.Id, target.Id, target.NativeIndex, actor.Attack, actor.Magic, actor.Luck, actor.WeaponId, actor.ModelId, actor.IsActive, actor.IsAlive, actor.NativeAttack, actor.NativePlayerStatRules?.NativeStatusPassiveFlags, string.Join(',', actor.NativePlayerStatRules?.MagicJunctions ?? []), string.Join(',', actor.NativeCommandSlots), string.Join(',', actor.Abilities), actor.MagicRecordId is int row ? magicVitals?.MagicSystem.AttackModes[row] : null, target.Defense, target.Spirit, target.Evasion, target.Luck, target.CurrentHp, target.IsActive, target.Untargetable, NativeSavedStatusBits(actor), NativeBattleStatusBits(actor), NativeSavedStatusBits(target), NativeBattleStatusBits(target), target.NativeCombatantFlags, string.Join(',', target.ElementDefenses), GunbladeMode, magicVitals?.MagicSystem.SmartAttack, magicVitals?.MagicSystem.InfiniteMagic, magicVitals?.MagicSystem.SharedMagicStock, string.Join(',', actor.MagicStocks.Select(stock => $"{stock.Id}:{stock.Count}:{GetAvailableMagicCasts(actor.Id, stock.Id)}")));
+        state += "|" + string.Join(',', nativeKnownMagic?.Words ?? []) + "|" + string.Join(';', combatants.Where(source => !source.IsPlayer).Select(source => $"{source.Id}:{source.NativeIndex}:{source.Level}:{source.IsActive}:{source.IsAlive}:{source.Untargetable}:{string.Join(',', source.NativeDrawSlots.Select(slot => $"{slot.Id}:{slot.Resistance}"))}")) + "|" + actor.Level;
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(state)));
     }
 
-    private BattleDamageForecast ForecastMagic(BattleCombatant actor, BattleCombatant target, BattleNativeAction native, int casts)
+    private BattleDamageForecast ForecastMagic(BattleCombatant actor, BattleCombatant target, BattleNativeAction native, int casts, BattleCombatant? drawSource = null, int drawResist = 0)
     {
         uint statuses = NativeBattleStatusBits(target);
         ushort saved = NativeSavedStatusBits(target);
@@ -171,12 +195,25 @@ public sealed partial class BattleSession
         }
         return BattleActionForecaster.FromNativePhases(draw =>
         {
+            if (drawSource is not null)
+            {
+                NativeBattleDrawSlot entry = drawSource.NativeDrawSlots.First(slot => slot.Id == native.ActionId);
+                int quantity = NativeDrawQuantity(actor, drawSource, drawResist, entry.Resistance, draw());
+                if (quantity == 0)
+                {
+                    return 0;
+                }
+            }
             int total = 0;
             for (int cast = 0; cast < casts && total < target.CurrentHp; cast++)
             {
                 int damage = immune ? 0 : NativeBattleDamage.Magic(powers[cast], spirit, native.Power, draw(), !actor.IsPlayer, Difficulty);
                 damage = NativeBattleDamage.MagicMitigation(damage, native.AttackFlags, statuses);
                 damage = ForecastElement(target, native, damage, false);
+                if (drawSource is not null)
+                {
+                    damage = damage * (draw() + 10) / 150;
+                }
                 total += Math.Clamp(damage, (native.AttackFlags & 8) != 0 ? -60_000 : -9_999, (native.AttackFlags & 8) != 0 ? 60_000 : 9_999);
             }
             return total;

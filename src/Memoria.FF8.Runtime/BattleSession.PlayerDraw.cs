@@ -18,7 +18,7 @@ public sealed partial class BattleSession
         {
             ValidatePlayerDrawCastTarget(actor, FindAction(BattleAbility.Magic, selection), castTargetId);
         }
-        BattleAttackCommand queued = new(actorId, sourceId, BattleAbility.Draw, selection, cast) { NativeQueuedCommand = 6, DrawCastTargetId = castTargetId };
+        BattleAttackCommand queued = new(actorId, sourceId, BattleAbility.Draw, selection, cast) { NativeQueuedCommand = 6, DrawCastTargetId = castTargetId, SmartAttack = pendingSmartAttack };
         OnNativePlayerCommandSubmitted(actor, 6);
         EnqueueNativeInputCommand(queued);
         actor.Atb = 0;
@@ -75,7 +75,7 @@ public sealed partial class BattleSession
             if (available)
             {
                 NativeBattleDrawSlot entry = source.NativeDrawSlots.First(slot => slot.Id == command.ActionId);
-                quantity = Math.Clamp(((((actor.Level - source.Level + 10) >> 1) - spell.DrawResist + (NextRandomByte() & 31) + 1 + actor.Magic) / 5) - entry.Resistance, 0, 9);
+                quantity = NativeDrawQuantity(actor, source, spell.DrawResist, entry.Resistance, NextRandomByte());
                 failed = quantity == 0;
                 if (!command.DrawCast)
                 {
@@ -98,6 +98,11 @@ public sealed partial class BattleSession
         }
         BattleNativeDrawContext result = new(checked((byte)command.ActionId), checked((byte)quantity), checked((byte)added), failed);
         return command with { NativeDraw = result, NativeAction = native, NativeTargetMask = mask };
+    }
+
+    private static int NativeDrawQuantity(BattleCombatant actor, BattleCombatant source, int drawResist, int resistance, int random)
+    {
+        return Math.Clamp(((((actor.Level - source.Level + 10) >> 1) - drawResist + (random & 31) + 1 + actor.Magic) / 5) - resistance, 0, 9);
     }
 
     private void ResolvePlayerDraw(BattleCombatant actor, BattleCombatant source, BattleActionPresentation command)

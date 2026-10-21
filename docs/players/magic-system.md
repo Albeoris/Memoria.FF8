@@ -47,20 +47,20 @@ Spent uses persist through sorting, menu changes, Junction changes, transfers, d
 
 Enable **Smart Attack**, then open **Junction → Ability** and select the first Attack slot. Choose **Physical only** or **Smart magic** for that character. The initial choice is Physical only. Disabling the global option makes attacks physical while preserving personal choices for later.
 
-Smart magic requires an available Magic command and an eligible caster. It uses actual enemy HP, defenses, elemental behavior and immediate damage forecasts, including otherwise hidden information. It does not perform Scan or reveal those numerical values in the HUD. This hidden-information advantage and favorable automatic selection are deliberate gameplay changes.
+Smart magic requires an available Magic or Draw command and an eligible caster. It uses actual enemy HP, defenses, elemental behavior and immediate damage forecasts, including otherwise hidden information. It does not perform Scan or reveal those numerical values in the HUD. This hidden-information advantage and favorable automatic selection are deliberate gameplay changes. With Draw available, it also considers revealed spells from every living, targetable enemy; entries displayed as `????` are excluded.
 
 For the highlighted enemy, selection follows these rules:
 
 1. Keep the physical attack if it already has a kill probability strictly above 90%.
-2. Group eligible damage spells by element and prefer the group with the largest sum of remaining usable casts, then stock. For example, Fire 1 + Fira 1 + Firaga 2 contributes four available casts to the fire group.
-3. Within the first preferred group with a reliable kill, choose the weakest sufficient action. A reliable kill means strictly above 90%; exactly 90% does not qualify.
-4. If no eligible spell reliably kills, choose the eligible action with the highest expected immediate damage. If none is usable, retain the physical command.
+2. Prefer a revealed Draw/Cast spell that reliably kills, choosing the weakest sufficient action. The forecast includes failed draws and the normal Draw/Cast damage variation. A reliable kill means strictly above 90%; exactly 90% does not qualify.
+3. Otherwise, group eligible stocked damage spells by element and prefer the group with the largest sum of remaining usable casts, then stock. For example, Fire 1 + Fira 1 + Firaga 2 contributes four available casts to the fire group. Within the first preferred group with a reliable kill, choose the weakest sufficient action. A reliable stocked spell takes precedence over an unreliable Draw/Cast.
+4. If no eligible spell reliably kills, choose the eligible action with the highest expected immediate damage across Draw/Cast and stock. Equal damage favors Draw/Cast to preserve reserves. If none is usable, retain the physical command.
 
-Double and Triple are included when available and affordable. The target-time caption displays both the chosen spell and repetition count, for example `Firaga ×3`. Each cast follows the normal action and resource rules.
+Double and Triple are included for stocked spells when available and affordable; Draw/Cast performs one cast. The target-time caption displays both the chosen spell and repetition count, for example `Firaga ×3`, or `Draw: Fire` for a drawn spell. The source enemy can differ from the selected damage target. Each cast follows the normal action and resource rules; Draw/Cast consumes no personal stock or limited-use allowance.
 
 Mug takes priority whenever the target still has an available steal item. After that item is unavailable, normal Smart selection applies. Limit selections retain their own commands.
 
-Smart candidates are supported, pure, single-target damage spells. Healing, status and protective magic, mixed damage/status spells, drain, percentage damage, group spells, random multi-hit spells, Draw Cast, GF effects, items and Limits remain manual. Reflected or unsafe redirected magic is excluded. Immunity and absorption affect the forecast; nominal spell tier cannot make an ineffective spell a useful candidate.
+Smart candidates are supported, pure, single-target damage spells. Healing, status and protective magic, mixed damage/status spells, drain, percentage damage, group spells, random multi-hit spells, GF effects, items and Limits remain manual. Reflected or unsafe redirected magic is excluded. Immunity and absorption affect the forecast; nominal spell tier cannot make an ineffective spell a useful candidate.
 
 ## Target preview and physical override
 
@@ -68,7 +68,7 @@ The target panel keeps a selected-action caption while choosing an enemy. Keyboa
 
 Hold the mapped **Camera left** control while choosing an Attack target to force the physical command; release it to recompute Smart magic. The HUD shows the current binding. The full two-button escape chord takes precedence over the override where retreat handling is supported. This option does not add a new retreat system.
 
-Confirmation latches the displayed choice and reserves its resource. Two actors cannot reserve the same final use. Before execution, the engine rechecks the actor, confirmed target, ownership, status and reserved resource. An invalid automatic spell releases its reservation and falls back to a legal physical action or cancels; it does not silently upgrade to a different spell. Ordinary physical attacks retain gunblade timing, while automatic spells create no gunblade trigger window.
+Confirmation latches the displayed choice and reserves its resource for stocked spells. Two actors cannot reserve the same final use. Before execution, the engine rechecks the actor, confirmed target, ownership, status, reserved resource and any Draw source. An invalid automatic spell releases its reservation and falls back to a legal physical action or cancels; it does not silently upgrade to a different spell. Ordinary physical attacks retain gunblade timing, while automatic spells create no gunblade trigger window.
 
 ## Save compatibility
 
