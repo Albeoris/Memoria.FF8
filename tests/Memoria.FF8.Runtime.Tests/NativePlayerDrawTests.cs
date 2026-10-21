@@ -4,6 +4,42 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativePlayerDrawTests
 {
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(12, false)]
+    [InlineData(98, false)]
+    [InlineData(99, false)]
+    [InlineData(100, false)]
+    [InlineData(0, true)]
+    [InlineData(12, true)]
+    [InlineData(98, true)]
+    [InlineData(99, true)]
+    [InlineData(100, true)]
+    public void StockMessageIncludesFinalPoolAndPreservesResourceTextAfterRestore(int initialStock, bool localized)
+    {
+        BattleSession battle = Create(initialStock, localized);
+        battle.QueueAction("party", "source", BattleAbility.Draw, 1);
+        battle.Tick();
+        BattleSnapshot prepared = battle.Capture();
+        BattleNativeDrawContext draw = prepared.ActiveAction!.NativeDraw!;
+        int total = Math.Min(100, initialStock + draw.Quantity);
+        Assert.Equal(total - initialStock, draw.Added);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(prepared))!);
+
+        Complete(battle);
+        Complete(restored);
+
+        string expected = localized ? $"Выкачали {draw.Added} ({total}/100) Fire{(draw.Added == 1 ? "." : "!")}" : $"Caster stocks {draw.Added} ({total}/100) Fire.";
+        Assert.Equal(total, Assert.Single(battle.Combatants[0].MagicStocks).Count);
+        Assert.Equal(expected, Assert.Single(battle.Events, entry => entry.Kind == "Draw").Message);
+        Assert.Equal(expected, Assert.Single(restored.Events, entry => entry.Kind == "Draw").Message);
+        if (localized)
+        {
+            Assert.Equal(expected, Assert.Single(battle.Events, entry => entry.Kind == "NativeText").Message);
+            Assert.Equal(expected, Assert.Single(restored.Events, entry => entry.Kind == "NativeText").Message);
+        }
+    }
+
     [Fact]
     public void StockIsPreparedOnceBeforeWindupAndPreservesPhysicalStockSlots()
     {
@@ -113,13 +149,20 @@ public sealed class NativePlayerDrawTests
         Assert.Empty(battle.Combatants[3].DrawGuardianForces);
     }
 
-    private static BattleSession Create()
+    private static BattleSession Create(int initialStock = 2, bool localized = false)
     {
         NativeMagicStock[] stocks = Enumerable.Repeat(new NativeMagicStock(0, 0), 32).ToArray();
-        stocks[7] = new(1, 2);
+        stocks[7] = initialStock == 0 ? new(0, 0) : new(1, checked((byte)initialStock));
+        string?[] messages = new string?[120];
+        messages[8] = "!";
+        messages[9] = "Выкачали";
+        messages[11] = " 0123456789";
+        messages[118] = ".";
         return new(new BattleDefinition
         {
             Name = "Native player Draw",
+            NativeMessageSpeed = localized ? (byte)0 : null,
+            NativeGlobalMessages = localized ? messages : [],
             Combatants =
             [
                 new() { Id = "party", Name = "Caster", IsPlayer = true, MaximumHp = 500, CurrentHp = 100, Magic = 100, Speed = 1, Level = 10, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.Draw], NativeMagicInventory = stocks },

@@ -159,7 +159,9 @@ public sealed partial class BattleSession
     private string NativeDrawResultText(BattleCombatant actor, BattleNativeDrawContext result, bool cast)
     {
         string name = result.Selection >= 64 ? $"{{Name {GameNames.DefaultName(GameNames.GuardianForceSubject(result.Selection - 64))}}}" : FindAction(BattleAbility.Magic, result.Selection).Name;
-        string text = result.Failed ? "Draw failed." : result.Selection >= 64 ? $"Acquired {name}." : cast ? $"Cast {name}." : $"{actor.Name} stocks {result.Added} {name}.";
+        int total = !result.Failed && result.Selection < 64 && !cast ? actor.MagicStocks.FirstOrDefault(stock => stock.Id == result.Selection)?.Count ?? 0 : 0;
+        string stockTotal = $" ({total.ToString(System.Globalization.CultureInfo.InvariantCulture)}/100)";
+        string text = result.Failed ? "Draw failed." : result.Selection >= 64 ? $"Acquired {name}." : cast ? $"Cast {name}." : $"{actor.Name} stocks {result.Added}{stockTotal} {name}.";
         if (definition.NativeGlobalMessages.Length != 0)
         {
             string digits = NativeBattleGlobalText(11);
@@ -169,7 +171,7 @@ public sealed partial class BattleSession
             }
             string quantity = string.Concat(result.Added.ToString(System.Globalization.CultureInfo.InvariantCulture).Select(digit => digits[digit - '0' + 1]));
             string castName = cast && !result.Failed ? definition.NativeCommandNames.ElementAtOrDefault(9) ?? throw new NotSupportedException("Draw Cast text requires the original kernel command9 name.") : "";
-            text = result.Failed ? NativeBattleGlobalText(5) : result.Selection >= 64 ? NativeBattleGlobalText(51) + digits[0] + name + NativeBattleGlobalText(118) : cast ? castName + digits[0] + name : NativeBattleGlobalText(9) + digits[0] + quantity + digits[0] + name + NativeBattleGlobalText(result.Added == 1 ? 118 : 8);
+            text = result.Failed ? NativeBattleGlobalText(5) : result.Selection >= 64 ? NativeBattleGlobalText(51) + digits[0] + name + NativeBattleGlobalText(118) : cast ? castName + digits[0] + name : NativeBattleGlobalText(9) + digits[0] + quantity + stockTotal + digits[0] + name + NativeBattleGlobalText(result.Added == 1 ? 118 : 8);
         }
         return text;
     }
