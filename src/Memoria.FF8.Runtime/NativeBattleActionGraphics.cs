@@ -388,6 +388,8 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
     public NativeBattleMightyGuardResources? MightyGuardResources { get; init; }
     public NativeBattleDrinkMagic37Resources? DrinkMagic37Resources { get; init; }
     public NativeBattleRaldo19Resources? Raldo19Resources { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleEffect20Resources? Effect20Resources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleRestorationResources? RestorationResources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

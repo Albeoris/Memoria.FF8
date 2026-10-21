@@ -38,6 +38,7 @@ public sealed class NativeBattleRetainedMemoryTests
         byte[] executable = File.ReadAllBytes(Path.Combine(assets.GameDirectory, "FF8_EN.exe"));
         Assert.Null(generic.EffectMemory.DrinkMagic37);
         Assert.Null(generic.EffectMemory.Raldo19);
+        Assert.Null(generic.EffectMemory.Effect20);
         Assert.Null(generic.EffectMemory.Raldo19Executable);
         NativeBattleDrinkMagic37State drink = actual.EffectMemory.RequireDrinkMagic37();
         Assert.Null(drink.Nodes);
@@ -89,6 +90,7 @@ public sealed class NativeBattleRetainedMemoryTests
                 Counter272DDDC = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(image.ReadLoader(0x272DDDC, 4))
             },
             Raldo19Executable = NativeBattleCuragaExecutableState.FromColdProcess(19),
+            Effect20 = NativeBattleEffect20State.FromColdProcess(System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(image.ReadLoader(0x27268F8, 4)), System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(image.ReadLoader(0x2722960, 4))),
             Scan = generic.EffectMemory.Scan with
             {
                 MutableMeshes = new[] { (Address: 0x15CDDECu, Length: 0x3E8), (Address: 0x15CE1D4u, Length: 0x768) }.ToImmutableDictionary(item => item.Address, item => new NativeBattleScanByteOwner(image.ReadLoader(item.Address, item.Length).ToImmutableArray(), Enumerable.Repeat(true, item.Length).ToImmutableArray()))

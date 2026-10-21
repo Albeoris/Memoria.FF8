@@ -124,6 +124,7 @@ public static class NativeBattleRetainedMemoryReader
                 Counter272DDDC = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x272DDDC, 4))
             },
             Raldo19Executable = new(BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(NativeBattleRaldo19Profile.ExecutableAddress, 4)), null) { ResourceAddress = NativeBattleRaldo19Profile.ExecutableAddress },
+            Effect20 = NativeBattleEffect20State.FromColdProcess(BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x27268F8, 4)), BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x2722960, 4))),
             MightyGuard73 = NativeBattleMightyGuardState.FromColdProcess(73) with { InitializationFlag = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x178557C, 4)) },
             MightyGuard78 = NativeBattleMightyGuardState.FromColdProcess(78) with { InitializationFlag = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x176E194, 4)) },
             DrawStock15Executable = ReadDrawStock15Executable(),

@@ -17,7 +17,7 @@ public static class NativeBattleRaldo19Controller
         NativeBattleEffectParameters parameters = effect.Parameters ?? throw new NotSupportedException("Raldo entry requires its captured action parameters.");
         NativeBattleEffectHierarchy hierarchy = new(NativeBattleRaldo19Profile.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, NativeBattleRaldo19Profile.RootCallback, 100);
-        NativeBattleModulePoolTask task = InitializeRoot(root.Hierarchy.Read(root.Address), parameters, packets);
+        NativeBattleModulePoolTask task = NativeBattleEffectRootTask.Initialize(root.Hierarchy.Read(root.Address), parameters, packets);
         hierarchy = root.Hierarchy.Write(root.Address, task);
         int source = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == NativeBattleRaldo19Profile.InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Raldo requires its executed initializer resource pointer.");
         if (source < 0 || source > NativeBattleEffectArena.Length - 2 * NativeBattleRaldo19Profile.DrawStep)
@@ -347,21 +347,6 @@ public static class NativeBattleRaldo19Controller
         short z = unchecked((short)(target.Position28.Z - actor.Position28.Z));
         int angle = NativePrecision53.RoundInteger(Math.Atan2(x, z) * (double)BitConverter.Int32BitsToSingle(0x4422F983));
         return state.WithWord(0x4A, (angle - 0x800) & 0xFFF);
-    }
-
-    internal static NativeBattleModulePoolTask InitializeRoot(NativeBattleModulePoolTask task, NativeBattleEffectParameters parameters, NativeBattleActionPacketsState packets)
-    {
-        task = task.WriteDword(0x0C, 0x1D99A78);
-        NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, task.ReadDword(0x0C), unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
-        byte targets = header.ReadByte(0x10);
-        byte groups = header.ReadByte(0x11);
-        byte maximum = unchecked((byte)(targets - 1));
-        if (maximum < groups)
-        {
-            maximum = groups;
-        }
-        return task.WriteByte(0x2C, actors.Actor).WriteByte(0x29, 0).WriteByte(0x2D, actors.Target).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
     }
 
     private static NativeBattleEffectHierarchy Next(NativeBattleEffectHierarchy hierarchy, uint address)

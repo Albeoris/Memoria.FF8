@@ -40,6 +40,7 @@ public sealed partial record NativeBattleEffectMemory([property: JsonRequired] N
         GeometryRegisters?.Validate();
         DrinkMagic37?.Validate();
         Raldo19?.Validate();
+        Effect20?.Validate();
         Raldo19Executable?.Validate();
         if (Raldo19Executable is { ResourceAddress: not NativeBattleRaldo19Profile.ExecutableAddress })
         {

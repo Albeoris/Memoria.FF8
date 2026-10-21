@@ -40,7 +40,6 @@ public static class NativeBattleDrinkMagic37OrbRendering
         Rotate('Z', Signed(task, 0x48));
         matrix = matrix with { X = Signed(task, 0x1C), Y = Signed(task, 0x1E), Z = Signed(task, 0x20) };
         matrix = NativeBattlePoseMatrices.Scale56BEF0(matrix, unchecked((int)task.ReadDword(0x30)), unchecked((int)task.ReadDword(0x34)), unchecked((int)task.ReadDword(0x38)));
-        operations.Add(new NativeBattleDrawStock15MatrixProduct(camera, matrix) { Padding18 = cameraPadding18 });
         matrix = NativeBattleGfMatrices.Compose56C2F0(camera, matrix);
         operations.Add(new NativeBattleDrawStock15Matrix(matrix, true, true));
         NativeBattleEffectArena context = Dword(retained104, 0, task.ReadDword(0x4C));

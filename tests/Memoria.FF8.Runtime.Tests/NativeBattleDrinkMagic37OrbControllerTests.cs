@@ -69,6 +69,9 @@ public sealed class NativeBattleDrinkMagic37OrbControllerTests
         Assert.Equal((ushort)256, BinaryPrimitives.ReadUInt16LittleEndian(prepared.Context104.Read(0x2A, 2)));
         Assert.All(prepared.Context104.ReadSnapshot(0x44, 2).Known, known => Assert.False(known));
         Assert.Equal(new[] { 'Y', 'X', 'Z' }, prepared.Operations.OfType<NativeBattleDrawStock15Rotate>().Select(operation => operation.Axis));
+        Assert.Equal(4, prepared.Operations.Length);
+        Assert.DoesNotContain(prepared.Operations, operation => operation is NativeBattleDrawStock15MatrixProduct);
+        Assert.IsType<NativeBattleDrawStock15Matrix>(prepared.Operations[^1]);
     }
 
     private static (NativeBattleEffectHierarchy Hierarchy, uint Address, NativeBattleDrinkMagic37OrbInputs Inputs) Fixture()
