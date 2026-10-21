@@ -19,7 +19,7 @@ public static partial class NativeBattleCuragaNodeKinematics
     internal static NativeBattleCuragaFrame FlushCurrent(NativeBattleCuragaNodeMemory memory, NativeBattleEffectNodeBank bank)
     {
         NativeBattleCuragaFrame result = memory.Flush();
-        NativeBattleCuragaFamilyProfile profile = NativeBattleCuragaFamilyProfile.ForGenericNodes(result.Effect.Binding.Effect);
+        NativeBattleCuragaFamilyProfile profile = memory.Profile;
         NativeBattleCuragaExecutableState retained = profile.RequireExecutable(result.Memory);
         return result with { Memory = profile.WithExecutable(result.Memory, retained with { Data = bank.Data }) };
     }
@@ -59,7 +59,7 @@ public static partial class NativeBattleCuragaNodeKinematics
                     return emitted.Batch;
                 };
             }
-            if (memory.Profile.Effect is 19 or 23 or 73 or 78 or 81 or 82)
+            if (memory.Profile.Effect is 19 or 23 or 60 or 73 or 78 or 81 or 82)
             {
                 uint meshAddress = memory.Dword(node + 0x170);
                 short waveFade = unchecked((short)memory.Word(node + 0x1CE));

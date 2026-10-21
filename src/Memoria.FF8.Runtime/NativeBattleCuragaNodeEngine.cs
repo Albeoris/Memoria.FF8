@@ -11,7 +11,7 @@ public static class NativeBattleCuragaNodeEngine
     public static NativeBattleCuragaLeafStep AdvanceGeneric87E1A0(NativeBattleCuragaFrame frame, uint contextTask, NativeBattleCuragaResources resources, NativeBattleCuragaControllerInputs controllerInputs, NativeBattleCuragaNodeEngineInputs inputs)
     {
         NativeBattleModulePoolTask task = ReadTask();
-        if (task.Callback != NativeBattleCuragaFamilyProfile.ForGenericNodes(frame.Effect.Binding.Effect).Callback(0x87E1A0))
+        if (task.Callback != NativeBattleCuragaFamilyProfile.ForGenericTask(frame, contextTask).Callback(0x87E1A0))
         {
             throw new InvalidDataException("Native Curaga generic task requires its original87E1A0 callback.");
         }
@@ -77,7 +77,7 @@ public static class NativeBattleCuragaNodeEngine
     public static NativeBattleCuragaFrame Birth882E20(NativeBattleCuragaFrame frame, uint contextTask)
     {
         NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
-        NativeBattleCuragaExecutableState executable = NativeBattleCuragaFamilyProfile.ForGenericNodes(frame.Effect.Binding.Effect).RequireExecutable(frame.Memory);
+        NativeBattleCuragaExecutableState executable = memory.Profile.RequireExecutable(frame.Memory);
         Birth(memory, executable);
         return memory.Flush();
     }

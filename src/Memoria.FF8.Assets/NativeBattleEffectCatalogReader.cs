@@ -819,6 +819,11 @@ public sealed partial class GameAssets
                 binding = binding with { Effect20Resources = ReadNativeEffect20Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Entry == NativeBattleEffect60Profile.Entry)
+            {
+                binding = binding with { Effect60Resources = ReadNativeEffect60Resources() };
+            }
+
             if (binding.Entry == NativeBattlePsychoBlast23Profile.Entry)
             {
                 binding = binding with { PsychoBlast23Resources = ReadNativePsychoBlast23Resources() };

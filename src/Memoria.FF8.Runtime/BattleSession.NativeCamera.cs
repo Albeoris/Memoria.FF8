@@ -240,6 +240,10 @@ public sealed partial class BattleSession
                 {
                     graphics = roughDivide163Completed;
                 }
+                else if (TryWriteNativeEffect60Completion(graphics, address, value, out NativeBattleGraphicsState effect60Completed))
+                {
+                    graphics = effect60Completed;
+                }
                 else if (TryWriteNativePsychoBlast23Completion(graphics, address, value, out NativeBattleGraphicsState psychoBlast23Completed))
                 {
                     graphics = psychoBlast23Completed;

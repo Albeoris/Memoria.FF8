@@ -41,6 +41,13 @@ public sealed partial record NativeBattleEffectMemory([property: JsonRequired] N
         DrinkMagic37?.Validate();
         Raldo19?.Validate();
         Effect20?.Validate();
+        Effect60?.Validate();
+        Effect60PrimaryExecutable?.Validate();
+        Effect60SecondaryExecutable?.Validate();
+        if (Effect60PrimaryExecutable is { ResourceAddress: not 0x1797CC0 } || Effect60SecondaryExecutable is { ResourceAddress: not 0x179C998 })
+        {
+            throw new InvalidDataException("The retained effect60 banks disagree with their physical module owners.");
+        }
         PsychoBlast23?.Validate();
         PsychoBlast23Executable?.Validate();
         if (PsychoBlast23Executable is { ResourceAddress: not 0x17EA4F0 })

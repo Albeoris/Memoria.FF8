@@ -5,7 +5,7 @@ public static class NativeBattleCuragaContext
 {
     public static NativeBattleCuragaFrame Initialize87E230(NativeBattleCuragaFrame frame, uint address, NativeBattleCuragaResources resources, NativeBattleCuragaControllerInputs inputs)
     {
-        NativeBattleCuragaFamilyProfile profile = NativeBattleCuragaFamilyProfile.ForGenericNodes(frame.Effect.Binding.Effect);
+        NativeBattleCuragaFamilyProfile profile = NativeBattleCuragaFamilyProfile.ForGenericTask(frame, address);
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address);
         if (task.Callback != profile.Callback(0x87E1A0) || task.ReadDword(0x30) != profile.ExecutableAddress)
