@@ -49,6 +49,16 @@ public static class NativeBattleRecoveryLifecycle
             short sourceFlags = BinaryPrimitives.ReadInt16LittleEndian(source.AsSpan(0x3A));
             short fade = unchecked((short)memory.Word(node + 0x1CE));
             uint? farColor = fade == 0 ? null : memory.Dword(node + 0x16C);
+            if (memory.Profile.Effect == 7)
+            {
+                sbyte sourceIndex = unchecked((sbyte)memory.Byte(node + 0x1D6));
+                NativeBattleEsunaMeshOperands prepared = NativeBattleRecoveryMeshPackets.Prepare8CF4C0(memory.ContextWord(0x2A), sourceIndex, sourceFlags, fade, farColor);
+                if (sourceIndex == 0)
+                {
+                    memory.ContextWord(0x2A, prepared.NextUvCounter);
+                }
+                return (bytes, matrix) => NativeBattleRestorationMeshPackets.EmitBatch88E240(bytes, matrix, projection, prepared.Context, colors);
+            }
             uint flags = sourceFlags == 0 ? 0x30u : 0;
             if (fade != 0)
             {

@@ -37,6 +37,10 @@ public sealed partial class BattleSession
         {
             return graphics;
         }
+        if (effect.Binding.Effect is >= 292 and <= 296)
+        {
+            return AdvanceNativeStatusCureItem(graphics);
+        }
         if (effect.Binding.Entry is 0x6BD8E0 or 0x6BE960)
         {
             return AdvanceNativeStatusMagic(graphics);
@@ -501,7 +505,7 @@ public sealed partial class BattleSession
         {
             return AdvanceNativeRestoration(graphics);
         }
-        if (effect.Binding.Entry is 0x811F70 or 0x7F7CB0 or 0x7F2810)
+        if (effect.Binding.Entry is 0x8CE3D0 or 0x811F70 or 0x7F7CB0 or 0x7F2810)
         {
             return AdvanceNativeRecovery(graphics);
         }

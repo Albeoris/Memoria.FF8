@@ -85,7 +85,13 @@ public static class NativeBattleRecoveryResourcesReader
                 }
             }
         }
-        int[] expected = effect == 53 ? [6, 2, 3, 3] : [10, 2, 5, 2];
+        int[] expected = effect switch
+        {
+            7 => [5, 2, 3, 2],
+            53 => [6, 2, 3, 3],
+            58 or 59 => [10, 2, 5, 2],
+            _ => throw new NotSupportedException("Native recovery directory counts require their original profile.")
+        };
         if (!counts.SequenceEqual(expected))
         {
             throw new InvalidDataException("Native recovery bank does not have its authenticated four original directories.");

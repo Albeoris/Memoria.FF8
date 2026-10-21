@@ -800,9 +800,14 @@ public sealed partial class GameAssets
                 binding = binding with { RestorationResources = ReadNativeRestorationResources(binding.Effect) };
                 catalog = catalog.SetItem(index, binding);
             }
-            if (binding.Entry is 0x811F70 or 0x7F7CB0 or 0x7F2810)
+            if (binding.Entry is 0x8CE3D0 or 0x811F70 or 0x7F7CB0 or 0x7F2810)
             {
                 binding = binding with { RecoveryResources = ReadNativeRecoveryResources(binding.Effect) };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect is >= 292 and <= 296)
+            {
+                binding = binding with { StatusCureItemResources = ReadNativeStatusCureItemResources(binding.Effect) };
                 catalog = catalog.SetItem(index, binding);
             }
             if (binding.Initializer == 0 || binding.InitializerIsRet == true)

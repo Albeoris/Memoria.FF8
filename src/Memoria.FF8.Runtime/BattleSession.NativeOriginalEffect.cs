@@ -54,6 +54,10 @@ public sealed partial class BattleSession
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Native effect invocation requires its actual loaded module entry.");
         _ = effect.Parameters ?? throw new InvalidDataException("Native effect entry lacks its50AFC0 parameter block.");
         ObserveNativeUnknownStackCallback(effect.Binding.Entry, "original effect entry");
+        if (effect.Binding.Effect is >= 292 and <= 296)
+        {
+            return EnterNativeStatusCureItem(graphics);
+        }
         if (effect.Binding.Entry == 0x694520)
         {
             return EnterNativeWhiteWind226(graphics);
@@ -518,7 +522,7 @@ public sealed partial class BattleSession
         {
             return EnterNativeRestoration(graphics);
         }
-        if (effect.Binding.Entry is 0x811F70 or 0x7F7CB0 or 0x7F2810)
+        if (effect.Binding.Entry is 0x8CE3D0 or 0x811F70 or 0x7F7CB0 or 0x7F2810)
         {
             return EnterNativeRecovery(graphics);
         }

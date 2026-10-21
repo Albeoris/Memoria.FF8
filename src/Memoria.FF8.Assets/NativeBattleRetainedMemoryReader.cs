@@ -110,7 +110,7 @@ public static class NativeBattleRetainedMemoryReader
             FullLifeExecutable = new(27, BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(NativeBattleRestorationProfile.FullLife.ExecutableAddress, 4)), null),
             Effect57Executable = new(57, BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(NativeBattleRestorationProfile.Effect57.ExecutableAddress, 4)), null),
             RemedyExecutable = new(67, BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(NativeBattleRestorationProfile.Remedy.ExecutableAddress, 4)), null),
-            RecoveryExecutables = new ushort[] { 53, 58, 59 }.Select(effect => NativeBattleRecoveryResourcesReader.ReadColdProcessState(memory, effect)).ToImmutableArray(),
+            RecoveryExecutables = new ushort[] { 7, 53, 58, 59 }.Select(effect => NativeBattleRecoveryResourcesReader.ReadColdProcessState(memory, effect)).ToImmutableArray(),
             QuezacotlExecutableMemory = new(ReadLoaderBytes(NativeBattleQuezacotlExecutableMemory.Address, NativeBattleQuezacotlExecutableMemory.Length).ToImmutableArray()),
             Active = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x1D99A64, 4)),
             SelectedIndex = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x1D99A68, 4)),
