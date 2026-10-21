@@ -4,6 +4,19 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
+    private void InitializeNativePrimitiveDepth47CE10()
+    {
+        if (definition.NativeGraphics?.PrimitiveTables is null)
+        {
+            return;
+        }
+        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native47CE10 requires its retained primitive process owner.");
+        NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native47CE10 requires its retained primitive process owner.");
+        NativeBattlePrimitiveDepthState depth = process.Depth ?? throw new NotSupportedException("Native47CE10 requires its retained depth owner.");
+        // The mode initialization callback selects the depth blend before47CCB0 enters500870/500400.
+        NativeEffectMemory = memory with { PrimitiveProcess = process with { Depth = depth.SetBucketMix460B60(0.8f) } };
+    }
+
     private NativeBattleGraphicsState InitializeNativePrimitiveFrame500400(NativeBattleGraphicsState graphics)
     {
         if (definition.NativeGraphics?.PrimitiveTables is null)

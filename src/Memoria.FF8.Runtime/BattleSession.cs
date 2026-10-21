@@ -101,6 +101,7 @@ public sealed partial class BattleSession
             {
                 InitializeNativeStageCamera();
             }
+            InitializeNativePrimitiveDepth47CE10();
             InitializeNativeBattleTimer47CCB0();
             InitializeNativeEntry();
             InitializeNativeGraphics();

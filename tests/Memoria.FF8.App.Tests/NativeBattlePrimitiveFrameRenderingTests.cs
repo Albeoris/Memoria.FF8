@@ -197,6 +197,24 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
     }
 
     [Fact]
+    public void Battle_entry_depth_blend_keeps_the_sky_bucket_behind_overlapping_nearer_geometry()
+    {
+        NativeBattleLogicalResolvedCommand mountain = Quad(0x28, 0x000064, 4122, 1);
+        mountain = mountain with { Command = mountain.Command with { VertexPayload4 = [30000, 30000, 30000, 30000] } };
+        NativeBattleLogicalResolvedCommand sky = Quad(0x28, 0x640000, 4382, 1);
+        sky = sky with { Command = sky.Command with { VertexPayload4 = [29500, 29500, 29500, 29500] } };
+        NativeBattlePrimitiveFrame frame = Frame([mountain, sky]) with { LastDescriptorPerspective = true };
+        BattleRenderer renderer = new(320, 216);
+        int sample = 4 * (20 * 320 + 20);
+        Assert.Equal(new byte[] { 0, 0, 100, 255 }, renderer.RenderNativePrimitiveFrame(frame, null).AsSpan(sample, 4).ToArray());
+
+        frame = frame with { LastDepthState = frame.LastDepthState!.SetBucketMix460B60(0.8f) };
+
+        Assert.Equal(new byte[] { 100, 0, 0, 255 }, renderer.RenderNativePrimitiveFrame(frame, null).AsSpan(sample, 4).ToArray());
+        Assert.Equal(new byte[] { 100, 0, 0, 255 }, renderer.RenderNativePrimitiveFrame(frame with { LastCommands = [sky, mountain] }, null).AsSpan(sample, 4).ToArray());
+    }
+
+    [Fact]
     public void Opaque_original_packets_use_less_equal_depth_independently_of_their_submission_order()
     {
         BattleRenderer renderer = new(320, 216);

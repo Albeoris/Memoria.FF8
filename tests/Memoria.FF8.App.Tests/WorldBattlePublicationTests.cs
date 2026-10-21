@@ -8,6 +8,72 @@ public sealed class WorldBattlePublicationTests
     private static readonly TimeSpan Callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + BattleSession.FramesPerSecond - 1) / BattleSession.FramesPerSecond);
 
     [Fact]
+    public void Fresh_world_battle_entry_selects_native_depth_mix_and_restores_the_next_callback()
+    {
+        string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_WORLD_BATTLE_ENTRY_SNAPSHOT");
+        Assert.SkipUnless(source is not null && File.Exists(source), "An optional standalone world battle entry fixture is required.");
+        GameSession session = new(GameSession.Load(source!));
+        Assert.Equal(SceneKind.WorldMap, session.State.Scene);
+        Assert.Null(session.State.Battle);
+        using GameWorld world = new(session, TestResources.GameDirectory);
+        world.EnsureField();
+        world.ApplyBattleInput(new(BattleInputKind.StartEncounter, NativeSeed: 0));
+        NativeBattlePrimitiveDepthState depth = world.Battle!.NativeEffectMemory!.PrimitiveProcess!.Depth!;
+        Assert.Equal(0.8f, depth.BucketMix);
+        Assert.Equal((float)(1d - (double)0.8f), depth.RemainingWeight);
+        Advance(world);
+        Assert.Equal(depth, world.Battle.NativeGraphics!.PrimitiveFrame!.LastDepthState);
+        string directory = Path.Combine(Path.GetTempPath(), "Memoria-world-battle-entry-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            string path = Path.Combine(directory, "battle.json");
+            session.Save(path, compact: true);
+            GameSession restoredSession = new(GameSession.Load(path));
+            using GameWorld restored = Restore(restoredSession);
+            Assert.Equal(depth, restored.Battle!.NativeEffectMemory!.PrimitiveProcess!.Depth);
+            Advance(world);
+            Advance(restored);
+            Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(world.Battle.Capture()), JsonSerializer.SerializeToElement(restored.Battle.Capture())));
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public void World_battle_physical_action_completes_with_initialized_depth_and_restores_its_next_callback()
+    {
+        GameSession session = LoadWorldBattle();
+        using GameWorld world = Restore(session);
+        BattleSession battle = world.Battle!;
+        for (int callback = 0; callback < 600 && (!battle.NativeEntryReady || !battle.Combatants.Any(actor => actor.IsPlayer && actor.IsReady)); callback++)
+        {
+            Advance(world);
+        }
+        Assert.True(battle.NativeEntryReady);
+        BattleCombatant actor = battle.Combatants.First(actor => actor.IsPlayer && actor.IsReady);
+        BattleCombatant target = battle.Combatants.First(actor => !actor.IsPlayer && actor.IsAlive && !actor.Untargetable);
+        int completed = battle.Events.Count(item => item.Kind == "ActionComplete");
+        world.ApplyBattleInput(new(BattleInputKind.Attack, ActorId: actor.Id, TargetId: target.Id));
+        for (int callback = 0; callback < 600 && battle.Events.Count(item => item.Kind == "ActionComplete") == completed; callback++)
+        {
+            Advance(world);
+        }
+        Assert.Contains(battle.Events, item => item.Kind == "Windup" && item.ActorId == actor.Id);
+        Assert.True(battle.Events.Count(item => item.Kind == "ActionComplete") > completed);
+        Assert.Equal(0.8f, battle.NativeGraphics!.PrimitiveFrame!.LastDepthState!.BucketMix);
+        GameState saved = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.PrepareSnapshot()))!;
+        using GameWorld restored = Restore(new GameSession(saved));
+
+        Advance(world);
+        Advance(restored);
+
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(battle.Capture()), JsonSerializer.SerializeToElement(restored.Battle!.Capture())));
+    }
+
+    [Fact]
     public void World_battle_tick_publishes_live_owners_without_serializing_the_dormant_field()
     {
         GameSession session = LoadWorldBattle();

@@ -55,6 +55,8 @@ public sealed class BalambEncounterStartupTests
             Assert.NotNull(battle.NativeGraphics);
             Assert.NotNull(definition.NativeClockRules);
             Assert.False(battle.NativeEntryReady);
+            Assert.Equal(0.8f, battle.NativeEffectMemory!.PrimitiveProcess!.Depth!.BucketMix);
+            Assert.Equal((float)(1d - (double)0.8f), battle.NativeEffectMemory.PrimitiveProcess.Depth.RemainingWeight);
             Assert.Equal(new NativeBattleMusicCommandState(false, null, null, null, 0x1CE075C, false), battle.NativeMusicProcess!.Commands);
             BattleSnapshot snapshot = battle.Capture();
             BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);

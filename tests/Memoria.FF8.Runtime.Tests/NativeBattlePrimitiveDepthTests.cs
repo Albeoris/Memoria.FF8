@@ -6,6 +6,26 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattlePrimitiveDepthTests
 {
     [Fact]
+    public void Battle_entry_bucket_mix_preserves_far_bucket_order_when_synthetic_vertex_depths_cross()
+    {
+        NativeBattlePrimitiveDepthState cold = NativeBattlePrimitiveDepthState.FromColdProcess();
+        NativeBattlePrimitiveDepthState battle = cold.SetBucketMix460B60(0.8f);
+        Assert.Equal(0.8f, battle.BucketMix);
+        Assert.Equal((float)(1d - (double)0.8f), battle.RemainingWeight);
+        // Synthetic intersecting planes isolate bucket weighting without assuming particular installed vertices.
+        ImmutableArray<int> skyDepths = [30000, 30000, 30000, 30000];
+        ImmutableArray<int> mountainDepths = [31000, 31000, 31000, 31000];
+        Assert.True(cold.Project461220(4382, true, 0, skyDepths)[0].Depth < cold.Project461220(4122, true, 0, mountainDepths)[0].Depth);
+        ImmutableArray<NativeBattlePrimitiveDepthVertex> sky = battle.Project461220(4382, true, 0, skyDepths);
+        ImmutableArray<NativeBattlePrimitiveDepthVertex> mountain = battle.Project461220(4122, true, 0, mountainDepths);
+        Assert.True(sky[0].Depth > mountain[0].Depth);
+        Assert.Equal(1f / 30000, sky[0].ReciprocalW);
+        NativeBattlePrimitiveDepthState restored = JsonSerializer.Deserialize<NativeBattlePrimitiveDepthState>(JsonSerializer.Serialize(battle))!;
+        Assert.Equal(sky, restored.Project461220(4382, true, 0, skyDepths));
+        Assert.Equal(mountain, restored.Project461220(4122, true, 0, mountainDepths));
+    }
+
+    [Fact]
     public void Disabled_descriptor_or_zero_first_proxy_depth_uses_the_original_bucket_plane_without_RHW()
     {
         NativeBattlePrimitiveDepthState state = NativeBattlePrimitiveDepthState.FromColdProcess();
