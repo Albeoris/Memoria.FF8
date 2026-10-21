@@ -114,10 +114,17 @@ internal static class WorldAssetReader
                 {
                     throw new InvalidDataException("World polygon references an absent vertex.");
                 }
-                triangles.Add(new WorldTriangle(positions[item[0]], positions[item[1]], positions[item[2]], new Vector2(item[6], item[7]) / 256, new Vector2(item[8], item[9]) / 256, new Vector2(item[10], item[11]) / 256, (byte)(item[12] >> 4), (byte)(item[12] & 15), item[13], item[14], item[15]) { NativeBlockIndex = block, NativePolygonIndex = polygon });
+                triangles.Add(new WorldTriangle(positions[item[0]], positions[item[1]], positions[item[2]], TerrainUv(item[6], item[7]), TerrainUv(item[8], item[9]), TerrainUv(item[10], item[11]), (byte)(item[12] >> 4), (byte)(item[12] & 15), item[13], item[14], item[15]) { NativeBlockIndex = block, NativePolygonIndex = polygon });
             }
         }
         return new WorldSegment(mapId, sourceId, group, triangles);
+    }
+
+    private static Vector2 TerrainUv(byte u, byte v)
+    {
+        // Native UV bytes address texels. Map to their centers so constant rows/columns
+        // cannot alternate with a neighbor after perspective interpolation.
+        return (new Vector2(u, v) + new Vector2(0.5f)) / 256;
     }
 
     public static bool TryHeight(WorldTriangle triangle, float x, float z, out float height)

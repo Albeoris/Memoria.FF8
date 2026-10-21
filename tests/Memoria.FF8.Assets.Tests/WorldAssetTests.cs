@@ -23,8 +23,8 @@ public sealed class WorldAssetTests
         {
             Assert.InRange(triangle.TexturePage, 0, 15);
             Assert.InRange(triangle.Palette, 0, 15);
-            Assert.InRange(triangle.UvA.X, 0, 255 / 256f);
-            Assert.InRange(triangle.UvA.Y, 0, 255 / 256f);
+            Assert.InRange(triangle.UvA.X, 0.5f / 256, 255.5f / 256);
+            Assert.InRange(triangle.UvA.Y, 0.5f / 256, 255.5f / 256);
         }
         WorldGround ground = Assert.IsType<WorldGround>(assets.FindGround(24576, -29406, StaticGarden, 658));
         Assert.True(ground.Triangle.Walkable);
