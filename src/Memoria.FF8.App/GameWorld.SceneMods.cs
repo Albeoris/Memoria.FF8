@@ -12,7 +12,8 @@ internal sealed partial class GameWorld
     private FieldSceneMods? appliedSceneMods;
     private FieldAssets? appliedSceneField;
     private FieldAssets? presentationField;
-    private readonly Dictionary<FieldBackgroundKey, (bool Visible, string Package)> modBackgrounds = [];
+    private readonly Dictionary<BackgroundTile, (bool Visible, string Package)> modBackgrounds = [];
+    private readonly Dictionary<BackgroundTile, bool> modBackgroundVisibility = [];
     private readonly Dictionary<int, (FieldActorPatch Patch, int ModelId, string Package)> modActors = [];
 
     private void RefreshSceneMods()
@@ -28,7 +29,7 @@ internal sealed partial class GameWorld
             return;
         }
         fieldPresentation.Reset();
-        Dictionary<FieldBackgroundKey, (bool Visible, string Package)> backgrounds = [];
+        Dictionary<BackgroundTile, (bool Visible, string Package)> backgrounds = [];
         Dictionary<int, (FieldActorPatch Patch, int ModelId, string Package)> actors = [];
         List<FieldModel> models = Field.Models.ToList();
         Dictionary<(int Field, int Model), int> importedModels = [];
@@ -42,11 +43,15 @@ internal sealed partial class GameWorld
             foreach (FieldBackgroundPatch background in patch.Backgrounds)
             {
                 FieldBackgroundKey key = new(background.Layer, background.ModuleId, background.State);
-                if (!Field.Background.Any(tile => Key(tile) == key))
+                BackgroundTile[] selected = Field.Background.Where(tile => Key(tile) == key && (background.Region is null || background.Region.Contains(tile.X, tile.Y))).ToArray();
+                if (selected.Length == 0)
                 {
                     throw new InvalidDataException($"{owned.PackageId}: {Field.Name} has no background {key}.");
                 }
-                backgrounds.TryAdd(key, (background.Visible, owned.PackageId));
+                foreach (BackgroundTile tile in selected)
+                {
+                    backgrounds.TryAdd(tile, (background.Visible, owned.PackageId));
+                }
             }
             foreach (FieldActorPatch actor in patch.Actors)
             {
@@ -73,9 +78,11 @@ internal sealed partial class GameWorld
         FieldAssets next = Field with { Models = Array.AsReadOnly(models.ToArray()) };
         FieldRenderer nextRenderer = new(next, renderWidth, renderHeight);
         modBackgrounds.Clear();
+        modBackgroundVisibility.Clear();
         foreach (var pair in backgrounds)
         {
             modBackgrounds.Add(pair.Key, pair.Value);
+            modBackgroundVisibility.Add(pair.Key, pair.Value.Visible);
         }
         modActors.Clear();
         foreach (var pair in actors)
@@ -135,15 +142,6 @@ internal sealed partial class GameWorld
 
     private IReadOnlyDictionary<FieldBackgroundKey, bool>? SceneBackgroundVisibility()
     {
-        if (modBackgrounds.Count == 0 && inspectionBackgrounds.Count == 0)
-        {
-            return null;
-        }
-        Dictionary<FieldBackgroundKey, bool> result = modBackgrounds.ToDictionary(pair => pair.Key, pair => pair.Value.Visible);
-        foreach (var pair in inspectionBackgrounds)
-        {
-            result[pair.Key] = pair.Value;
-        }
-        return result;
+        return inspectionBackgrounds.Count == 0 ? null : inspectionBackgrounds;
     }
 }

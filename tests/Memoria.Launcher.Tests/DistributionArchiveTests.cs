@@ -20,13 +20,13 @@ public sealed class DistributionArchiveTests
                 Assert.True(Directory.Exists(directory));
                 Assert.Empty(Directory.EnumerateFileSystemEntries(directory));
             }
-            foreach (string relative in new[] { "README.md", "fields/bghall_6.json" })
+            foreach (string relative in new[] { "README.md", "fields/bghall_6.json", "fields/bgroom_1.json" })
             {
-                string path = "Data/BundledMods/Memoria/Fix_CidUnpixelated/" + relative;
+                string path = "Data/BundledMods/Memoria/Depixelation/" + relative;
                 Assert.True(File.Exists(Path.Combine(destination, path)));
                 Assert.Contains(manifest.Files, file => file.Path == path);
             }
-            Assert.False(File.Exists(Path.Combine(destination, "Data/BundledMods/Memoria/Fix_CidUnpixelated/mod.ini")));
+            Assert.False(File.Exists(Path.Combine(destination, "Data/BundledMods/Memoria/Depixelation/mod.ini")));
             Assert.False(Directory.Exists(Path.Combine(destination, "Mods", "Memoria")));
         }
         finally

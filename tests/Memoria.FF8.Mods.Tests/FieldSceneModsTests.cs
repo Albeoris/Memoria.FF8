@@ -86,6 +86,32 @@ public sealed class FieldSceneModsTests
         Assert.Empty(result.Patches);
     }
 
+    [Theory]
+    [InlineData("{\"x\":-64,\"y\":48,\"width\":0,\"height\":64}")]
+    [InlineData("{\"x\":-32769,\"y\":48,\"width\":48,\"height\":64}")]
+    [InlineData("{\"x\":-64,\"y\":48,\"width\":48,\"height\":65537}")]
+    [InlineData("{\"x\":-64,\"y\":48,\"width\":48}")]
+    public void InvalidTileRegionsRejectPublication(string region)
+    {
+        string json = Valid.Replace("\"visible\":false", "\"visible\":false,\"region\":" + region, StringComparison.Ordinal);
+        Assert.False(FieldSceneMods.TryPrepare(Catalog(File("Memoria/example", json)), out _, out var diagnostics));
+        Assert.Equal("Memoria.InvalidFieldPatch", Assert.Single(diagnostics).Code);
+    }
+
+    [Fact]
+    public void RegionUsesOriginalTileOriginsAndExclusiveRightAndBottomEdges()
+    {
+        const string region = "{\"x\":-64,\"y\":48,\"width\":48,\"height\":64}";
+        string json = Valid.Replace("\"visible\":false", "\"visible\":false,\"region\":" + region, StringComparison.Ordinal);
+        Assert.True(FieldSceneMods.TryPrepare(Catalog(File("Memoria/example", json)), out var result, out _));
+        FieldBackgroundRegion selection = Assert.IsType<FieldBackgroundRegion>(Assert.Single(Assert.Single(result.Patches).Patch.Backgrounds).Region);
+        Assert.True(selection.Contains(-64, 48));
+        Assert.True(selection.Contains(-17, 111));
+        Assert.False(selection.Contains(-65, 48));
+        Assert.False(selection.Contains(-16, 48));
+        Assert.False(selection.Contains(-64, 112));
+    }
+
     private static ModFile File(string package, string json) => new(package, ModFormat.Memoria, "fields/bghall_6.json", 1, () => Encoding.UTF8.GetBytes(json));
 
     private static ModCatalogSnapshot Catalog(params ModFile[] files) => new(1, [], files);

@@ -42,8 +42,8 @@ public sealed class PackageManifestTests : IDisposable
     }
 
     [Theory]
-    [InlineData("Mods/Memoria/Fix_CidUnpixelated/fields/bghall_6.json")]
-    [InlineData("Data/BundledMods/Memoria/Fix_CidUnpixelated/fields/bghall_6.json")]
+    [InlineData("Mods/Memoria/Depixelation/fields/bghall_6.json")]
+    [InlineData("Data/BundledMods/Memoria/Depixelation/fields/bghall_6.json")]
     public void ArchiveIncludesOnlyInventoriedNativeModFiles(string path)
     {
         PackageManifest manifest = Manifest();

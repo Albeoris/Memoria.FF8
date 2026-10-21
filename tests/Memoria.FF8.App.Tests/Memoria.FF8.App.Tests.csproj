@@ -7,7 +7,7 @@
     <ApplicationManifest>../../src/Memoria.FF8.App/app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
-    <Content Include="../../Mods/Memoria/Fix_CidUnpixelated/fields/bghall_6.json" Link="BundledMods/Memoria/Fix_CidUnpixelated/fields/bghall_6.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../Mods/Memoria/Depixelation/fields/*.json" Link="BundledMods/Memoria/Depixelation/fields/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="../Shared/NativeBattleCommandSequenceFixture.cs" Link="NativeBattleCommandSequenceFixture.cs" />
     <Using Include="Memoria.FF8.Tests" />
     <Using Include="Xunit" />

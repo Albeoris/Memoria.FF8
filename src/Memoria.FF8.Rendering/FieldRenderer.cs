@@ -98,7 +98,7 @@ public sealed partial class FieldRenderer
     public int OutputHeight { get; }
 
     /// <summary>The returned reusable framebuffer is valid until the next Render call.</summary>
-    public byte[] Render(IReadOnlyDictionary<int, int> backgroundStates, IEnumerable<ActorVisual> actors, TimeSpan elapsed, Vector3? backgroundShade = null, int cameraIndex = 0, IReadOnlyDictionary<int, Vector3>? backgroundModuleShades = null, bool backgroundVisible = true, IReadOnlySet<int>? hiddenBackgroundModules = null, IReadOnlyDictionary<int, Vector2>? backgroundScrollOffsets = null, Vector2 actorScrollOffset = default, FieldNativeBackgroundWrapFrame? nativeWrapFrame = null, sbyte drawingJitterX = 0, sbyte drawingJitterY = 0, IReadOnlyList<CardMarkerVisual>? cardMarkers = null, NativeDrawPointParticles? drawPointParticles = null, NativeDrawPointParticleTables? drawPointParticleTables = null, ushort? drawPointDisplayMask = null, NativeFadeDraw? fade = null, IReadOnlyDictionary<FieldBackgroundKey, bool>? backgroundVisibility = null, FieldBackgroundBlend? backgroundBlend = null, IReadOnlyDictionary<int, short>? backgroundLayerScales = null)
+    public byte[] Render(IReadOnlyDictionary<int, int> backgroundStates, IEnumerable<ActorVisual> actors, TimeSpan elapsed, Vector3? backgroundShade = null, int cameraIndex = 0, IReadOnlyDictionary<int, Vector3>? backgroundModuleShades = null, bool backgroundVisible = true, IReadOnlySet<int>? hiddenBackgroundModules = null, IReadOnlyDictionary<int, Vector2>? backgroundScrollOffsets = null, Vector2 actorScrollOffset = default, FieldNativeBackgroundWrapFrame? nativeWrapFrame = null, sbyte drawingJitterX = 0, sbyte drawingJitterY = 0, IReadOnlyList<CardMarkerVisual>? cardMarkers = null, NativeDrawPointParticles? drawPointParticles = null, NativeDrawPointParticleTables? drawPointParticleTables = null, ushort? drawPointDisplayMask = null, NativeFadeDraw? fade = null, IReadOnlyDictionary<FieldBackgroundKey, bool>? backgroundVisibility = null, FieldBackgroundBlend? backgroundBlend = null, IReadOnlyDictionary<int, short>? backgroundLayerScales = null, IReadOnlyDictionary<BackgroundTile, bool>? backgroundTileVisibility = null)
     {
         ActorVisual[] preparedActors = actors.ToArray();
         foreach (ActorVisual actor in preparedActors.Where(actor => actor.Visible && (uint)actor.ModelId < field.Models.Count && field.Models[actor.ModelId].Bones.Count > 0 && field.Models[actor.ModelId].Faces.Count > 0))
@@ -178,6 +178,10 @@ public sealed partial class FieldRenderer
             BackgroundTile tile = raster.Tile;
             int state = backgroundStates.GetValueOrDefault(tile.AnimationId, -1);
             bool selected = tile.Draw && (tile.AnimationId == 255 || tile.AnimationState == state);
+            if (backgroundTileVisibility?.TryGetValue(tile, out bool tileVisible) == true)
+            {
+                selected = tileVisible;
+            }
             if (backgroundVisibility?.TryGetValue(new(tile.Layer, tile.AnimationId, tile.AnimationState), out bool overrideVisible) == true)
             {
                 selected = overrideVisible;

@@ -3,12 +3,23 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Mods;
 
+public sealed record FieldBackgroundRegion
+{
+    public required int X { get; init; }
+    public required int Y { get; init; }
+    public required int Width { get; init; }
+    public required int Height { get; init; }
+
+    public bool Contains(int x, int y) => x >= X && x < (long)X + Width && y >= Y && y < (long)Y + Height;
+}
+
 public sealed record FieldBackgroundPatch
 {
     public required int Layer { get; init; }
     public required int ModuleId { get; init; }
     public required int State { get; init; }
     public required bool Visible { get; init; }
+    public FieldBackgroundRegion? Region { get; init; }
 }
 
 public sealed record FieldModelReference
@@ -98,12 +109,12 @@ public sealed class FieldSceneMods
         {
             throw new InvalidDataException("A field patch requires between 1 and 4096 background or actor changes.");
         }
-        HashSet<(int Layer, int Module, int State)> backgrounds = [];
+        HashSet<(int Layer, int Module, int State, FieldBackgroundRegion? Region)> backgrounds = [];
         foreach (FieldBackgroundPatch background in patch.Backgrounds)
         {
-            if (background is null || background.Layer is < 0 or > 3 || background.ModuleId is < 0 or > 255 || background.State is < 0 or > 255 || !backgrounds.Add((background.Layer, background.ModuleId, background.State)))
+            if (background is null || background.Layer is < 0 or > 3 || background.ModuleId is < 0 or > 255 || background.State is < 0 or > 255 || !backgrounds.Add((background.Layer, background.ModuleId, background.State, background.Region)) || background.Region is { } region && (region.X is < short.MinValue or > short.MaxValue || region.Y is < short.MinValue or > short.MaxValue || region.Width is < 1 or > 65536 || region.Height is < 1 or > 65536))
             {
-                throw new InvalidDataException("Background selectors require unique layer (0..3), moduleId (0..255), and state (0..255) addresses.");
+                throw new InvalidDataException("Background selectors require unique layer (0..3), moduleId (0..255), state (0..255), and optional region addresses with signed 16-bit origins and dimensions in 1..65536.");
             }
         }
         HashSet<int> actors = [];

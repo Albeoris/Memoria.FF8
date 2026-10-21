@@ -22,7 +22,7 @@ internal sealed partial class GameResourceHost
                 }
                 foreach (FieldBackgroundPatch background in patch.Backgrounds)
                 {
-                    if (!target.Background.Any(tile => tile.Layer == background.Layer && tile.AnimationId == background.ModuleId && tile.AnimationState == background.State))
+                    if (!target.Background.Any(tile => tile.Layer == background.Layer && tile.AnimationId == background.ModuleId && tile.AnimationState == background.State && (background.Region is null || background.Region.Contains(tile.X, tile.Y))))
                     {
                         throw new InvalidDataException($"Background group {background.Layer}:{background.ModuleId}:{background.State} does not exist in {target.Name}.");
                     }

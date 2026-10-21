@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "fieldId": 232,
+  "fieldName": "bgroom_1",
+  "backgrounds": [
+    {
+      "layer": 0,
+      "moduleId": 5,
+      "state": 0,
+      "visible": false,
+      "region": { "x": -64, "y": 48, "width": 48, "height": 64 }
+    }
+  ]
+}

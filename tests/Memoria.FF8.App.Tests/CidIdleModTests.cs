@@ -16,8 +16,8 @@ public sealed class CidIdleModTests
     {
         string source = TestResources.FixturePath("App.Tests.CidIdleMod.1");
         string game = TestResources.GameDirectory;
-        string patchPath = Path.Combine(AppContext.BaseDirectory, "BundledMods", "Memoria", "Fix_CidUnpixelated", "fields", "bghall_6.json");
-        ModFile file = new("Memoria/Fix_CidUnpixelated", ModFormat.Memoria, "fields/bghall_6.json", 1, () => File.ReadAllBytes(patchPath));
+        string patchPath = Path.Combine(AppContext.BaseDirectory, "BundledMods", "Memoria", "Depixelation", "fields", "bghall_6.json");
+        ModFile file = new("Memoria/Depixelation", ModFormat.Memoria, "fields/bghall_6.json", 1, () => File.ReadAllBytes(patchPath));
         Assert.True(FieldSceneMods.TryPrepare(new(1, [], [file]), out FieldSceneMods mods, out var diagnostics));
         Assert.Empty(diagnostics);
         FieldActorPatch binding = Assert.Single(Assert.Single(mods.Patches).Patch.Actors);

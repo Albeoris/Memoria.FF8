@@ -29,9 +29,10 @@ internal sealed partial class GameWorld
             FieldBackgroundKey key = group.Key;
             BackgroundTile[] tiles = group.ToArray();
             bool native = tiles.Any(tile => tile.Draw) && (key.ModuleId == 255 || Events.BackgroundStates.GetValueOrDefault(key.ModuleId, -1) == key.State);
-            bool fromMod = modBackgrounds.TryGetValue(key, out var mod);
+            var patchedTiles = tiles.Where(modBackgrounds.ContainsKey).ToArray();
+            bool fromMod = patchedTiles.Length > 0;
             bool inspected = inspectionBackgrounds.TryGetValue(key, out bool overrideVisible);
-            bool enabled = inspected ? overrideVisible : fromMod ? mod.Visible : native;
+            bool enabled = inspected ? overrideVisible : tiles.Any(tile => modBackgrounds.TryGetValue(tile, out var mod) ? mod.Visible : tile.Draw && (key.ModuleId == 255 || Events.BackgroundStates.GetValueOrDefault(key.ModuleId, -1) == key.State));
             string name = key.ModuleId == 255 ? $"Layer {key.Layer} / static / state {key.State}" : $"Layer {key.Layer} / module {key.ModuleId} / state {key.State}";
             entries.Add(new(key.ToString(), SceneInspectorKind.Layer, name, enabled,
             [
@@ -41,7 +42,7 @@ internal sealed partial class GameWorld
                 $"Bounds: ({tiles.Min(tile => tile.X)}, {tiles.Min(tile => tile.Y)}) - ({tiles.Max(tile => tile.X + tile.Image.Width)}, {tiles.Max(tile => tile.Y + tile.Image.Height)})",
                 $"Depths: {string.Join(", ", tiles.Select(tile => tile.Z).Distinct().Order().Take(12))}",
                 $"Blend: {string.Join(", ", tiles.Select(tile => tile.BlendMode).Distinct())}",
-                fromMod ? $"Mod: {mod.Package} / visible {mod.Visible}" : "Mod: none",
+                fromMod ? $"Mod: {string.Join(", ", patchedTiles.Select(tile => modBackgrounds[tile].Package).Distinct())} / {patchedTiles.Length} of {tiles.Length} tiles" : "Mod: none",
                 inspected ? $"Temporary visibility: {overrideVisible}" : "Temporary visibility: inherited"
             ]));
         }

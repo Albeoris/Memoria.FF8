@@ -69,14 +69,14 @@ Memoria.Launcher.exe
 Data/
   BundledMods/
     Memoria/
-      Fix_CidUnpixelated/
+      Depixelation/
 Mods/
   Tonberry/
   Demaster/
   Junction/
 ```
 
-Tonberry, Demaster and Junction directories are empty and ready for user-installed mods. `Data/BundledMods/Memoria/Fix_CidUnpixelated` is a bundled native [field mod](docs/modding/field-mods.md); it contains scene configuration and loads all game resources from your installation. Game-directory and selected user mods take priority over bundled files with the same package ID and relative path. Bundled files fill missing paths and use the selected package’s enable setting. Bundled files stay under `Data/` so existing launchers can install future releases.
+Tonberry, Demaster and Junction directories are empty and ready for user-installed mods. `Data/BundledMods/Memoria/Depixelation` is a bundled native [field mod](docs/modding/field-mods.md); it contains scene configuration and loads all game resources from your installation. Game-directory and selected user mods take priority over bundled files with the same package ID and relative path. Bundled files fill missing paths and use the selected package’s enable setting. Bundled files stay under `Data/` so existing launchers can install future releases.
 
 The required Albeoris.Frameworks source is [vendored](vendor/Albeoris.Frameworks/README.md). No sibling repository or submodule is needed. See [Build and test](docs/developers/building-and-testing.md) for development builds, test projects and optional local inputs.
 
