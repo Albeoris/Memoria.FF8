@@ -20,7 +20,10 @@ internal sealed partial class RecreateGame
     {
         float size = Math.Min(bounds.Height * 0.044f, bounds.Width * 0.06f);
         float rowHeight = bounds.Height * 0.074f;
-        float top = bounds.Y + bounds.Height * 0.63f;
+        // The title wordmark ends at y = 530 in the artwork's 900-unit design height.
+        float blackAreaTop = bounds.Y + bounds.Height * (530f / 900f);
+        float groupHeight = rowHeight * (TitleChoices.Length - 1) + text.MeasureWrapped(TitleChoices[^1], size, float.PositiveInfinity, "Times New Roman").Y;
+        float top = (blackAreaTop + bounds.Bottom - groupHeight) / 2;
         for (int index = 0; index < TitleChoices.Length; index++)
         {
             Vector2 measured = text.MeasureWrapped(TitleChoices[index], size, float.PositiveInfinity, "Times New Roman");
