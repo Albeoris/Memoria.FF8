@@ -133,7 +133,7 @@ public sealed class ConfigSettingsTests
     [Theory]
     [InlineData("100%", 640, 448)]
     [InlineData("150%", 1920, 1080)]
-    public void New_game_shows_both_settings_and_begin_together(string scale, int width, int height)
+    public void New_game_shows_all_settings_and_begin_together(string scale, int width, int height)
     {
         MenuController controller = new();
         controller.Open("new-game-options", demo: true);
@@ -141,7 +141,7 @@ public sealed class ConfigSettingsTests
         UiView view = controller.BuildView();
         view.Resize(width, height);
         UiChoiceRow[] rows = Descendants(view.Root).OfType<UiChoiceRow>().ToArray();
-        Assert.Equal(["Battle ATB mode", "Rare card markers"], rows.Select(row => row.Id));
+        Assert.Equal(["Battle ATB mode", "Shared magic stock", "Infinite magic", "Smart Attack", "Rare card markers"], rows.Select(row => row.Id));
         UiButton begin = Assert.Single(Descendants(view.Root).OfType<UiButton>(), button => button.Id == "begin");
         foreach (UiElement row in rows.Cast<UiElement>().Append(begin))
         {
@@ -149,7 +149,11 @@ public sealed class ConfigSettingsTests
             Assert.True(row.Bounds.Y >= view.Root.Bounds.Y);
             Assert.True(row.Bounds.Bottom <= view.Root.Bounds.Bottom);
         }
-        Assert.True(rows[1].Bounds.Bottom <= begin.Bounds.Y);
+        for (int index = 1; index < rows.Length; index++)
+        {
+            Assert.True(rows[index - 1].Bounds.Bottom <= rows[index].Bounds.Y + 0.01f, $"{rows[index - 1].Id} ends at {rows[index - 1].Bounds.Bottom}; {rows[index].Id} starts at {rows[index].Bounds.Y}.");
+        }
+        Assert.True(rows[^1].Bounds.Bottom <= begin.Bounds.Y + 0.01f);
     }
 
     [Fact]

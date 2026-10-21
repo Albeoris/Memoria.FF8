@@ -86,7 +86,7 @@ public sealed partial class MenuController
         if (newGame)
         {
             UiAnchorPanel modal = new();
-            page.Anchors = new UiAnchors(0.08f, 0.25f, 0.92f, 0.75f);
+            page.Anchors = new UiAnchors(0.08f, 0.12f, 0.92f, 0.88f);
             modal.Children.Add(page);
             return modal;
         }

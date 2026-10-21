@@ -7,12 +7,16 @@ public sealed class MenuControllerTests
     [Fact]
     public void EveryRegisteredDemoScreenBuildsAndEveryDestinationExists()
     {
-        var controller = new MenuController();
-        var ids = controller.ScreenIds;
+        var ids = new MenuController().ScreenIds;
         Assert.True(ids.Count >= 70);
         foreach (var id in ids)
         {
+            var controller = new MenuController();
             controller.Open(id, demo: true);
+            if (id == "magazine")
+            {
+                MagazineMenuFixture.AddOwnedPage(controller);
+            }
             Assert.NotNull(controller.BuildView());
             foreach (var entry in controller.Entries)
             {
@@ -22,6 +26,34 @@ public sealed class MenuControllerTests
                 }
             }
         }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MagazineViewerRejectsMissingOriginalPageMetadata(bool demo)
+    {
+        MenuController controller = new(() => new MenuData());
+        controller.Open("magazine", demo);
+
+        NotSupportedException exception = Assert.Throws<NotSupportedException>(() => controller.BuildView());
+
+        Assert.Equal("Magazine viewing requires original page layout metadata.", exception.Message);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MagazineViewerRejectsOwnedPageWithoutOriginalLayout(bool demo)
+    {
+        MenuController controller = new(() => new MenuData());
+        controller.Open("magazine", demo);
+        MenuItem item = MagazineMenuFixture.AddOwnedPage(controller);
+        item.NativeMagazinePages[0] = item.NativeMagazinePages[0] with { Layout = null };
+
+        NotSupportedException exception = Assert.Throws<NotSupportedException>(() => controller.BuildView());
+
+        Assert.Equal("Magazine page lacks its original layout and artwork descriptors.", exception.Message);
     }
 
     [Fact]

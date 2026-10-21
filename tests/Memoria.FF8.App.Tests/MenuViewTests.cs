@@ -124,10 +124,14 @@ public sealed class MenuViewTests
     [Fact]
     public void Every_registered_view_draws_with_balanced_clipping_at_small_and_large_viewports()
     {
-        var menus = new MenuController();
-        foreach (string screen in menus.ScreenIds)
+        foreach (string screen in new MenuController().ScreenIds)
         {
+            var menus = new MenuController();
             menus.Open(screen, true);
+            if (screen == "magazine")
+            {
+                MagazineMenuFixture.AddOwnedPage(menus);
+            }
             foreach (var (width, height) in new[] { (640, 448), (1920, 1080) })
             {
                 UiView view = menus.BuildView();
@@ -358,10 +362,14 @@ public sealed class MenuViewTests
     [Fact]
     public void EveryRegisteredLiveScreenBuildsAndDrawsWithoutProjectedData()
     {
-        MenuController menus = new(() => new MenuData());
-        foreach (string screen in menus.ScreenIds)
+        foreach (string screen in new MenuController().ScreenIds)
         {
+            MenuController menus = new(() => new MenuData());
             menus.Open(screen);
+            if (screen == "magazine")
+            {
+                MagazineMenuFixture.AddOwnedPage(menus);
+            }
             UiView view = menus.BuildView();
             ValidationCanvas canvas = new();
             view.Draw(canvas, new UiTheme());

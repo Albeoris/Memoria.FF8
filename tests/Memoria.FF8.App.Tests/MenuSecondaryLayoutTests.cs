@@ -10,9 +10,23 @@ public sealed class MenuSecondaryLayoutTests
     {
         var controller = new MenuController();
         controller.Open("config", demo: true);
+        int category = controller.Entries.ToList().FindIndex(entry => entry.Id == "config-interface");
+        Assert.True(category >= 0);
+        for (int index = 0; index < category; index++)
+        {
+            controller.Navigate(MenuInput.Down);
+        }
+        controller.Navigate(MenuInput.Confirm);
+        Assert.Equal("config-interface", controller.ScreenId);
+        controller.Data.Settings["Text scale"] = "150%";
+        controller.Data.Settings["Dialogue font size"] = "12";
         controller.Navigate(MenuInput.PageDown);
         UiView view = controller.BuildView();
-        UiNumericSlider slider = Descendants(view.Root).OfType<UiNumericSlider>().First();
+        UiNumericSlider slider = Assert.Single(Descendants(view.Root).OfType<UiNumericSlider>());
+        Assert.Equal("Dialogue font size", slider.Id);
+        Assert.DoesNotContain(Descendants(view.Root).OfType<UiSettingRow>(), row => row.Id == "Quick saves");
+        Assert.True(slider.LabelBounds.Right <= slider.ValueBounds.X);
+        Assert.True(slider.ValueBounds.Right <= slider.Bounds.Right);
         int clicked = controller.Entries.ToList().FindIndex(entry => entry.Id == slider.Id);
         string setting = slider.Id!;
         string before = controller.Data.Settings[setting];
