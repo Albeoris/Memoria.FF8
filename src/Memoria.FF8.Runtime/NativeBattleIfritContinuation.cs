@@ -10,9 +10,44 @@ public static class NativeBattleIfritContinuation
     public const int LandingInstructionOffset = 0x154;
     public const int LandingAnimationFrame = 49;
 
+    private static readonly IReadOnlyDictionary<int, ushort> ResourceInitializationInstructions = new Dictionary<int, ushort>
+    {
+        [0x112] = 0x006D,
+        [0x114] = 0x013D,
+        [0x118] = 0x0031,
+        [0x3EC] = 0x013D,
+        [0x246] = 0x0027,
+        [0x24A] = 0x0027,
+        [0x24E] = 0x0029,
+        [0x252] = 0x0029,
+        [0x258] = 0x0027,
+        [0x25C] = 0x0028,
+        [0x260] = 0x0028,
+        [0x264] = 0x0028,
+        [0x26A] = 0x0028,
+        [0x26E] = 0x0028,
+        [0x272] = 0x0028,
+        [0x276] = 0x0028,
+        [0x27A] = 0x0028,
+        [0x27E] = 0x0028,
+        [0x286] = 0x8406,
+        [0x288] = 0x8029,
+        [0x28E] = 0x8606,
+        [0x290] = 0x0029,
+        [0x298] = 0x0231,
+        [0x2A4] = 0x8806,
+        [0x2A6] = 0x8029,
+        [0x2AE] = 0x8A06,
+        [0x19B6] = 0x0039
+    };
+
     public static NativeBattleWaterExecutionFrame Initialize(NativeBattleWaterExecutionFrame frame, NativeBattleWaterInitializationResource resource0, NativeBattleWaterInitializationResource resource1, uint magicTextureBufferAddress, NativeBattleCinematicModelServices modelServices, Func<NativeBattleWaterExecutionFrame, int, NativeBattleWaterExecutionFrame> initializeResourceInstruction)
     {
         ArgumentNullException.ThrowIfNull(initializeResourceInstruction);
+        foreach (int offset in ResourceInitializationInstructions.Keys)
+        {
+            RequireResourceInstruction(offset);
+        }
         NativeCrtRandomState random = frame.Random;
         frame = InitializeSceneDependencies(frame, resource0, resource1, magicTextureBufferAddress);
         NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resource1.Length);
@@ -32,7 +67,7 @@ public static class NativeBattleIfritContinuation
         uint command = CoreDword(frame, 0x27973C0);
         ushort tick = CoreWord(frame, command + 0xC);
         frame = frame with { Core = frame.Core.Write(0x2797454, Enumerable.Repeat((byte)0xFF, 128).ToArray()).Write(0x2797554, Enumerable.Repeat((byte)0xFF, 128).ToArray()) };
-        byte[] order = [0, 1, 2, 3, 4, 5, 6, 7, 8, 14, 15, 17, 18];
+        byte[] order = [0x80, 0x81, 2, 3, 4, 5, 6, 7, 8, 14, 15, 17, 18];
         frame = frame with { Core = frame.Core.Write(0x2797454, order) };
         frame = WriteCoreWord(frame, header + 0x18, checked((ushort)order.Length));
         frame = WriteCoreWord(frame, header, 0x8010);
@@ -42,8 +77,11 @@ public static class NativeBattleIfritContinuation
         frame = WriteSlotWord(frame, 0xC, checked((ushort)(((ReadWord(0x152) >> 9) - 1) * tick)));
         frame = InitializeModelDependency(frame, resource0, resource1, modelServices);
         frame = WriteSlotWord(frame, 0x16, 0x8001);
+        byte caster = frame.Arena.Read(bank.SlotOffset(frame.Arena, 0) + 0x1B, 1)[0];
+        frame = frame with { Arena = frame.Arena.Write(SlotOffset(frame, 0x1B, 1), [caster]) };
         frame = frame with { Arena = NativeBattleWaterSlots.InitializeB65160(frame.Arena, bank, 18, tick, CoreWord(frame, command + 0xE), CoreWord(frame, header + 0x1C)) };
         Select(18);
+        frame = frame with { Arena = frame.Arena.Write(SlotOffset(frame, 0x1B, 1), [caster]) };
         frame = WriteSlotWord(frame, 0x12, 0x800F);
         frame = WriteSlotWord(frame, 0x14, 0x8001);
         frame = WriteSlotDword(frame, 0, checked(resource0.Address + 0x702));
@@ -51,13 +89,21 @@ public static class NativeBattleIfritContinuation
         int postFlagTicks = (ReadWord(0x14A) >> 9) + (ReadWord(0x14C) >> 9);
         byte remainingShakeIterations = checked((byte)(ReadWord(0x6F4) - (postFlagTicks - ReadWord(0x6CC) - ReadWord(0x6E0))));
         frame = frame with { Arena = frame.Arena.Write(SlotOffset(frame, 0x20, 1), [remainingShakeIterations]) };
-        foreach (byte index in order)
+        ImmutableArray<byte> activeOrder = order.Concat(Enumerable.Repeat((byte)0xFF, 128 - order.Length)).ToImmutableArray();
+        foreach (byte entry in order)
         {
-            frame = frame with { Arena = NativeBattleWaterSlots.UpdateSelected(frame.Arena, bank, index, order.Concat(Enumerable.Repeat((byte)0xFF, 128 - order.Length)).ToArray().ToImmutableArray()) };
+            int index = entry & 0x7F;
+            frame = frame with { Arena = NativeBattleWaterSlots.UpdateSelected(frame.Arena, bank, index, activeOrder) };
             frame = frame with { Arena = NativeBattleWaterSlots.CachePositionAA17D0(frame.Arena, bank, index) };
         }
+        Select(5);
+        PrepareResource(0x19B6);
         Select(0);
-        return frame with { Random = random };
+        if (frame.Random != random)
+        {
+            throw new InvalidDataException("Ifrit continuation initialization cannot advance gameplay random state.");
+        }
+        return frame;
 
         void Select(int index)
         {
@@ -67,9 +113,22 @@ public static class NativeBattleIfritContinuation
 
         void PrepareResource(int offset)
         {
+            RequireResourceInstruction(offset);
             frame = WriteCoreDword(frame, 0x2797450, checked(resource0.Address + (uint)offset));
             frame = frame.WriteTemporaryWord(0x14A, ReadWord(offset));
             frame = initializeResourceInstruction(frame, offset);
+            if (frame.Random != random)
+            {
+                throw new InvalidDataException("Ifrit continuation initialization cannot advance gameplay random state.");
+            }
+        }
+
+        void RequireResourceInstruction(int offset)
+        {
+            if (offset < 0 || offset > resource0.Length - 2 || !ResourceInitializationInstructions.TryGetValue(offset, out ushort expected) || ReadWord(offset) != expected)
+            {
+                throw new InvalidDataException("Ifrit continuation source is not a supported initialization instruction.");
+            }
         }
 
         ushort ReadWord(int offset) => BinaryPrimitives.ReadUInt16LittleEndian(frame.Arena.Read(resource0.ArenaOffset + offset, 2));
@@ -87,14 +146,18 @@ public static class NativeBattleIfritContinuation
             frame = NativeBattleWaterWorkCommands.Execute(frame, program, magicTextureBufferAddress);
         }
         NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resource1.Length);
+        frame = WriteCoreDword(frame, 0x2797450, checked(resource0.Address + 0x10E));
+        frame = frame.WriteTemporaryWord(0x14A, ReadWord(0x10E));
+        frame = NativeBattleWaterFieldControl.Execute(frame, program, bank, 0);
         ushort tick = CoreWord(frame, command + 0xC);
         ushort secondaryTick = CoreWord(frame, command + 0xE);
         ushort flags = CoreWord(frame, header + 0x1C);
+        byte caster = frame.Arena.Read(bank.SlotOffset(frame.Arena, 0) + 0x1B, 1)[0];
         int postFlagTicks = Wait(ReadWord(0x14A)) + Wait(ReadWord(0x14C));
         // Only persistent source dependencies are allocated; identifiers for newly created children remain local to this invocation.
         Create(1, 0x8000, 0, 0, 0x2B0);
         Create(2, 0x8001, 0, 0, 0x388, Wait(ReadWord(0x386)) - postFlagTicks - 1);
-        Create(3, 0x8002, 0, 0, 0x324, Wait(ReadWord(0x320)) - 1);
+        Create(3, 0x8002, 0, 0, 0x324, Wait(ReadWord(0x322)) - 1);
         Create(4, ReadWord(0x3F2), 0x8001, 0, 0x418, Wait(ReadWord(0x416)) - postFlagTicks - 1);
         int accelerationTicks = Wait(ReadWord(0x40A));
         int flagInterval = Wait(ReadWord(0x138)) + Wait(ReadWord(0x13A)) + Wait(ReadWord(0x140));
@@ -132,6 +195,7 @@ public static class NativeBattleIfritContinuation
             frame = frame with { Arena = NativeBattleWaterSlots.InitializeB65160(frame.Arena, bank, index, tick, secondaryTick, flags) };
             frame = WriteCoreDword(frame, 0x27973E8, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(frame.Arena, index)));
             frame = frame.WriteTemporaryByte(0x142, checked((byte)index));
+            frame = frame with { Arena = frame.Arena.Write(SlotOffset(frame, 0x1B, 1), [caster]) };
             frame = WriteSlotWord(frame, 0x12, id);
             frame = WriteSlotWord(frame, 0x14, parent);
             frame = WriteSlotWord(frame, 0x16, ancestor);
@@ -173,29 +237,35 @@ public static class NativeBattleIfritContinuation
         frame = frame.WriteTemporaryWord(0x14A, ReadWord(0x11C));
         frame = NativeBattleWaterWorkCommands.Execute(frame, program);
         RequireInstruction(0x7E0, 0x33);
-        RequireInstruction(0x856, 0x33);
-        RequireInstruction(0x85A, 0x68);
-        RequireInstruction(0x85E, 0x3F);
+        RequireInstruction(0x858, 0x33);
+        RequireInstruction(0x85C, 0x68);
+        RequireInstruction(0x860, 0x3F);
         NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resource1.Length);
         uint command = CoreDword(frame, 0x27973C0);
         uint header = CoreDword(frame, 0x279744C);
         frame = frame with { Arena = NativeBattleWaterSlots.InitializeB65160(frame.Arena, bank, modelSlot, CoreWord(frame, command + 0xC), CoreWord(frame, command + 0xE), CoreWord(frame, header + 0x1C)) };
         frame = WriteCoreDword(frame, 0x27973E8, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(frame.Arena, modelSlot)));
         frame = frame.WriteTemporaryByte(0x142, checked((byte)modelSlot));
-        frame = WriteSlotWord(frame, 0x12, ReadWord(0x858));
+        frame = WriteSlotWord(frame, 0x12, ReadWord(0x85A));
         frame = WriteSlotWord(frame, 0x14, ReadWord(0x7E2));
-        frame = WriteSlotWord(frame, 0x9C, ReadWord(0x85C));
-        frame = WriteCoreDword(frame, 0x2797450, checked(resource0.Address + 0x85E));
-        frame = frame.WriteTemporaryWord(0x14A, ReadWord(0x85E));
+        frame = WriteSlotWord(frame, 0x9C, ReadWord(0x85E));
+        frame = WriteCoreDword(frame, 0x2797450, checked(resource0.Address + 0x860));
+        frame = frame.WriteTemporaryWord(0x14A, ReadWord(0x860));
         frame = NativeBattleCinematicModel.Register(frame, program, services);
         uint model = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xBC, 4));
-        frame = NativeBattleCinematicModel.DecodePose(frame, model, 0, LandingAnimationFrame, services);
-        frame = frame with { Arena = frame.Arena.Write(ArenaOffset(model, 2), BitConverter.GetBytes(checked((ushort)LandingAnimationFrame))) };
-        // The original scale rise ends at 0x100 before the landing handoff; only its settled transform is needed.
+        int animationFrame = 1 + (ReadWord(0x138) >> 9) + (ReadWord(0x13A) >> 9) + (ReadWord(0x140) >> 9) + (ReadWord(0x14A) >> 9) + (ReadWord(0x14C) >> 9);
+        if (animationFrame != LandingAnimationFrame)
+        {
+            throw new InvalidDataException("Ifrit continuation landing pose differs from its original source timing.");
+        }
+        frame = NativeBattleCinematicModel.DecodePose(frame, model, 0, animationFrame, services);
+        frame = frame with { Arena = frame.Arena.Write(ArenaOffset(model, 2), BitConverter.GetBytes(checked((ushort)animationFrame))) };
+        int scale = (unchecked((short)ReadWord(0x86E)) >> 8) * (ReadWord(0x870) >> 9);
+        // Decode the completed original scale rise directly, without its presentation or intermediate physics.
         for (int lane = 0; lane < 3; lane++)
         {
-            frame = WriteSlotDword(frame, 0x50 + 4 * lane, 0x01000000);
-            frame = WriteSlotWord(frame, 0x8C + 2 * lane, 0x100);
+            frame = WriteSlotDword(frame, 0x50 + 4 * lane, unchecked((uint)(scale << 16)));
+            frame = WriteSlotWord(frame, 0x8C + 2 * lane, checked((ushort)scale));
         }
         frame = WriteSlotDword(frame, 0, checked(resource0.Address + 0x874));
         return frame;

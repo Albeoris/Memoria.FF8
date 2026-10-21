@@ -75,6 +75,10 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
     public void Validate()
     {
         GuardianFormPresentation?.Validate();
+        if (GuardianFormHumanFocalToRestore is <= 0)
+        {
+            throw new InvalidDataException("Saved GF camera restoration requires a positive focal length.");
+        }
         ActionContext?.Validate();
         OriginalEffect?.Validate();
         UiServices?.Validate();

@@ -79,12 +79,20 @@ public sealed partial class BattleSession
             graphics = QueueNativeEntryModels(graphics);
         }
         //500900: descriptor/callback listAA4, then published effect listAA8, then model listA94, then camera5033E0.
-        graphics = AdvanceNativeGraphicsRequests(graphics);
-        flags = graphics.Flags;
-        graphics = AdvanceNativeAuxiliary(graphics);
-        graphics = AdvanceNativeModuleEffects(graphics);
-        graphics = AdvanceNativeOriginalEffect(graphics);
-        graphics = AdvanceGuardianFormPresentation(graphics);
+        try
+        {
+            graphics = AdvanceNativeGraphicsRequests(graphics);
+            flags = graphics.Flags;
+            graphics = AdvanceNativeAuxiliary(graphics);
+            graphics = AdvanceNativeModuleEffects(graphics);
+            graphics = AdvanceNativeOriginalEffect(graphics);
+            graphics = AdvanceGuardianFormPresentation(graphics);
+        }
+        catch when (GuardianFormOwnsCurrentPresentation())
+        {
+            FailOwnedGuardianFormPresentation();
+            throw;
+        }
         flags = graphics.Flags;
         graphics = SubmitNativeModulePackets(graphics);
         graphics = ConsumeNativeGraphicsContacts(graphics);
@@ -96,6 +104,7 @@ public sealed partial class BattleSession
             models = graphics.Models;
         }
         graphics = graphics with { Models = models, Effects = effects.State };
+        graphics = FrameGuardianFormIdleCamera(graphics);
         for (int index = 0; index < 7; index++)
         {
             NativeBattleGraphicsModel model = models[index];

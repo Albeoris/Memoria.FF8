@@ -1,4 +1,4 @@
-namespace Memoria.FF8.Runtime;
+﻿namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
@@ -29,6 +29,11 @@ public sealed partial class BattleSession
         }
         if (command is 1 or 12 or 28 && id == 0)
         {
+            if (GetGuardianForm(actor.Id) is { EntryCompleted: true } form)
+            {
+                BattleNativeAction physical = GuardianFormResources(form.GuardianForceId).PhysicalAction;
+                return physical with { Command = command, DispatchCommand = command, ActionId = id, Name = "Attack" };
+            }
             BattleNativeAction attack = actor.NativeAttack ?? throw new NotSupportedException("Native physical command requires its character-owned equipped weapon and junction metadata.");
             BattleNativeCommandBinding? binding = actor.NativeCommands.FirstOrDefault(binding => binding.Command == command);
             return attack with { Command = command, DispatchCommand = command, Name = binding?.Name ?? attack.Name, TargetFlags = binding?.TargetFlags ?? attack.TargetFlags };

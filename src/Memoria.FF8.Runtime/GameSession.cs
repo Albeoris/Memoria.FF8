@@ -707,6 +707,14 @@ public sealed partial class GameSession : IEventServices
         }
         state.GameplayPreferences.Validate();
         state.PendingGameplayPreferences?.Validate();
+        if (state.Battle is { Definition: { } battleDefinition } && battleDefinition.GuardianFormsEnabled != state.GameplayPreferences.GuardianFormsEnabled)
+        {
+            throw new InvalidDataException("Saved battle GF Transformations option differs from its save preference.");
+        }
+        if ((state.Battle is not null || state.PendingBattleEncounter is not null) && state.PendingGameplayPreferences is { } pendingPreferences && pendingPreferences.GuardianFormsEnabled != state.GameplayPreferences.GuardianFormsEnabled)
+        {
+            throw new InvalidDataException("Saved pending GF Transformations preference cannot change during a battle.");
+        }
         state.CharacterVitals?.ValidateMagicSystemConsistency();
         if (state.CharacterVitals is { } magicVitals && (magicVitals.MagicSystem.SharedMagicStock != state.GameplayPreferences.SharedMagicStock || magicVitals.MagicSystem.InfiniteMagic != state.GameplayPreferences.InfiniteMagic || magicVitals.MagicSystem.SmartAttack != state.GameplayPreferences.SmartAttack))
         {

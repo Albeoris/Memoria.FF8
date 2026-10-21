@@ -128,13 +128,13 @@ public sealed partial class BattleSession
             GuardianFormAction = binding,
             GuardianFormInvocation = finisher ? new(form.InvocationId, form.GuardianForceId, GuardianFormInvocationMode.FinisherWithoutEntry) : null
         };
+        _ = nativeCommandBanks.Allocate(finisher ? (byte)1 : (byte)2);
         if (finisher)
         {
             PrepareGuardianFormFinisher(actor, form);
         }
-        _ = nativeCommandBanks.Allocate(finisher ? (byte)1 : (byte)2);
         EnqueueNativeInputCommand(command);
-        OnNativePlayerCommandSubmitted(actor, command.NativeQueuedCommand!.Value);
+        OnNativePlayerCommandSubmitted(actor, finisher ? (byte)3 : command.NativeQueuedCommand!.Value);
         actor.Atb = 0;
         actor.IsBusy = true;
         if (finisher)
@@ -208,7 +208,7 @@ public sealed partial class BattleSession
         {
             BattleGuardianForceVital gf = guardianForces[id];
             guardianForces[id] = NativeGuardianForceShieldResult(gf, checked((ushort)Math.Clamp(hp, 0, gf.MaximumHitPoints)));
-        });
+        }, BattleGuardianFormProfiles.Find(id)!.Adjustments);
         actor.RefreshNativeHpStatusFlags();
     }
 
@@ -273,8 +273,12 @@ public sealed partial class BattleSession
         {
             actor.HumanHitPoints = 0;
         }
-        CancelUncommittedGuardianFormCommands(actor);
-        actor.Atb = 0;
+        if (form.Phase != BattleGuardianFormPhase.Returning)
+        {
+            CancelUncommittedGuardianFormCommands(actor);
+            RemoveNativeUiReady(actor);
+            actor.Atb = 0;
+        }
         if (HasCommittedGuardianFormAction(actor.Id))
         {
             return;
@@ -286,19 +290,62 @@ public sealed partial class BattleSession
             actor.NativeStatus1 &= 0x7FFFFFFF;
         }
         actor.RefreshNativeHpStatusFlags();
-        if (nativePartyPresentation is { } presentation)
-        {
-            NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(actor.NativeIndex);
-            nativePartyPresentation = presentation with { Rows = presentation.Rows.SetItem(actor.NativeIndex, row with { HitPoints = checked((ushort)actor.CurrentHp), MaximumHitPoints = checked((ushort)actor.MaximumHp), DisplayedHitPointsQ12 = actor.CurrentHp << 12 }) };
-        }
+        RestoreGuardianFormHumanVital(actor);
         actor.Atb = 0;
         guardianForms.Remove(actor.Id);
         Log("GuardianFormReturned", actor.Id, actor.Id, form.GuardianForceId, "GF form returned.");
     }
 
+    private void FailGuardianFormPresentation(string actorId, long invocationId)
+    {
+        if (GetGuardianForm(actorId) is not { } form || form.InvocationId != invocationId)
+        {
+            return;
+        }
+        BattleCombatant actor = GetActor(actorId);
+        actor.GuardianFormVitals = null;
+        if ((NativeSavedStatusBits(actor) & 1) != 0 || (NativeBattleStatusBits(actor) & 0x10000) != 0)
+        {
+            actor.HumanHitPoints = 0;
+        }
+        CancelUncommittedGuardianFormCommands(actor);
+        guardianForms!.Remove(actorId);
+        BattleAttackCommand[] retained = actions.Where(command => command.ActorId != actorId || command.GuardianFormAction is null && command.GuardianFormInvocation is null).ToArray();
+        actions.Clear();
+        foreach (BattleAttackCommand command in retained)
+        {
+            actions.Enqueue(command);
+        }
+        if (ActiveAction is { } action && action.ActorId == actorId && (action.GuardianFormAction is not null || action.GuardianFormInvocation is not null))
+        {
+            CompleteActionPresentation(action, "GF presentation failed after action admission.");
+        }
+        if (guardianForceCasts.TryGetValue(actorId, out BattleGuardianForceCast? cast))
+        {
+            guardianForceCasts[actorId] = cast with { Command = cast.Command with { GuardianFormInvocation = null } };
+            actor.NativeStatus1 &= 0x7FFFFFFF;
+        }
+        actor.Atb = 0;
+        actor.NativeCombatantFlags &= ~0xCu;
+        actor.IsBusy = guardianForceCasts.ContainsKey(actorId) || QueuedActions.Any(command => command.ActorId == actorId);
+        actor.RefreshNativeHpStatusFlags();
+        RestoreGuardianFormHumanVital(actor);
+        RemoveNativeUiReady(actor);
+        Log("GuardianFormFailed", actorId, actorId, form.GuardianForceId, "GF presentation resources were released after failure.");
+    }
+
+    private void RestoreGuardianFormHumanVital(BattleCombatant actor)
+    {
+        if (nativePartyPresentation is { } presentation)
+        {
+            NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(actor.NativeIndex);
+            nativePartyPresentation = presentation with { Rows = presentation.Rows.SetItem(actor.NativeIndex, row with { HitPoints = checked((ushort)actor.CurrentHp), MaximumHitPoints = checked((ushort)actor.MaximumHp), DisplayedHitPointsQ12 = actor.CurrentHp << 12 }) };
+        }
+    }
+
     private bool HasCommittedGuardianFormAction(string actorId)
     {
-        return ActiveAction is { NativeHeaderIndex: not null, GuardianFormAction: not null } action && action.ActorId == actorId || actions.Any(command => command.ActorId == actorId && command.NativeHeaderIndex is not null && command.GuardianFormAction is not null) || resolvingNativeAction is { GuardianFormAction: not null } resolving && resolving.ActorId == actorId && nativeActionCommitDepth != 0;
+        return ActiveAction is { NativeHeaderIndex: not null } action && action.ActorId == actorId || actions.Any(command => command.ActorId == actorId && command.NativeHeaderIndex is not null) || resolvingNativeAction is { } resolving && resolving.ActorId == actorId && nativeActionCommitDepth != 0;
     }
 
     private void CancelUncommittedGuardianFormCommands(BattleCombatant actor)
@@ -335,7 +382,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private bool ApplyGuardianFormDamage(BattleCombatant? source, BattleCombatant target, int amount, string label, bool publishDamage)
+    private bool ApplyGuardianFormDamage(BattleCombatant? source, BattleCombatant target, int amount, string label, bool counterEligible, bool publishDamage)
     {
         if (target.GuardianFormVitals is null)
         {
@@ -357,6 +404,15 @@ public sealed partial class BattleSession
         if (target.CurrentHp == 0)
         {
             ReturnGuardianForm(target, false);
+        }
+        bool storeMemory = nativeContactWorking is null || target.CurrentHp != 0 && NativeSurvivingContactStoresMemory(target);
+        if (storeMemory && source is not null && (resolvingNativeAction ?? ActiveAction) is { } action)
+        {
+            RecordNativeActionMemory(source, target, action);
+        }
+        if (counterEligible && source is not null && target.IsAlive)
+        {
+            QueueNativeReaction(target, 2);
         }
         return true;
     }
@@ -381,7 +437,7 @@ public sealed partial class BattleSession
     {
         if (command.GuardianFormAction is null && command.GuardianFormInvocation is null)
         {
-            if (GetGuardianForm(command.ActorId) is { EntryCompleted: true } && command.NativeCallback is null && command.NativePlayerReaction is null && command.NativeAction is not { Command: 0, ActionId: 2 or 6 })
+            if (GetGuardianForm(command.ActorId) is { EntryCompleted: true } && command.NativeCallback is null && command.NativePlayerReaction is null && command.NativeAction is not { Command: 0, ActionId: 2 or 6 } && !(RequiresNativeCompelledCommand(GetActor(command.ActorId)) && command.Ability == BattleAbility.Attack && command.NativeQueuedCommand == 1 && command.NativeAction is null))
             {
                 throw new InvalidDataException("Saved transformed actor command lacks its form binding.");
             }
@@ -426,6 +482,10 @@ public sealed partial class BattleSession
 
     private void ValidateGuardianFormOwners()
     {
+        if (NativeGraphics?.GuardianFormHumanFocalToRestore is not null && (!GuardianFormsEnabled || lastGuardianFormInvocation == 0))
+        {
+            throw new InvalidDataException("Saved GF camera restoration lacks its feature invocation owner.");
+        }
         if (guardianForms is null)
         {
             if (NativeGraphics?.GuardianFormPresentation is not null || QueuedActions.Any(command => command.GuardianFormInvocation is not null || command.GuardianFormAction is not null) || ActiveAction?.GuardianFormInvocation is not null || ActiveAction?.GuardianFormAction is not null || guardianForceCasts.Values.Any(cast => cast.Command.GuardianFormInvocation is not null))
@@ -438,7 +498,8 @@ public sealed partial class BattleSession
         {
             presentation.Validate();
             BattleGuardianFormState owner = GetGuardianForm(presentation.ActorId) ?? throw new InvalidDataException("Saved GF presentation lacks its logical form owner.");
-            if (owner.InvocationId != presentation.InvocationId || GetActor(owner.ActorId).NativeIndex != presentation.ActorIndex || owner.Phase == BattleGuardianFormPhase.Entering && presentation.Mode != GuardianFormInvocationMode.EntryOnly || owner.Phase == BattleGuardianFormPhase.Finishing && presentation.Mode != GuardianFormInvocationMode.FinisherWithoutEntry)
+            bool queuedFinisher = owner.Phase == BattleGuardianFormPhase.Finishing && presentation.Mode == GuardianFormInvocationMode.EntryOnly && presentation.Phase == 3 && QueuedActions.Any(command => command.ActorId == owner.ActorId && command.NativeHeaderIndex is null && command.GuardianFormInvocation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry } invocation && invocation.Id == owner.InvocationId);
+            if (owner.InvocationId != presentation.InvocationId || GetActor(owner.ActorId).NativeIndex != presentation.ActorIndex || owner.Phase == BattleGuardianFormPhase.Entering && presentation.Mode != GuardianFormInvocationMode.EntryOnly || owner.Phase == BattleGuardianFormPhase.Finishing && presentation.Mode != GuardianFormInvocationMode.FinisherWithoutEntry && !queuedFinisher)
             {
                 throw new InvalidDataException("Saved GF presentation differs from its logical invocation.");
             }

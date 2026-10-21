@@ -16,6 +16,10 @@ public sealed partial class BattleSession
             return actor.IsReady && CanNativeBattleActorAct(actor);
         }
         NativeBattleUiServices ui = NativeGraphics!.UiServices ?? throw new InvalidDataException("Native command admission lost its initialized UI owner.");
+        if (lastGuardianFormInvocation != 0 && ui.Commands.Queue.Any(slot => ui.Commands.Packets[slot].Bytes[0] == actor.NativeIndex && ui.Commands.Packets[slot].Command == 0x12))
+        {
+            return false;
+        }
         return !actor.IsBusy && actor.NativeIndex is >= 0 and < 3 && (ui.ReadyMask & (1u << actor.NativeIndex)) != 0;
     }
 

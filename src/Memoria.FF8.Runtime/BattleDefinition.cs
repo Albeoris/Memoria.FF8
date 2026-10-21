@@ -590,10 +590,10 @@ public sealed partial class BattleCombatant
         }
     }
     public int Speed => ScaleNativeStat(4, definition.Speed);
-    public int Attack => ScaleNativeStat(0, definition.Attack);
+    public int Attack => checked(ScaleNativeStat(0, definition.Attack) * (GuardianFormVitals?.Adjustments.StrengthPercent ?? 100) / 100);
     public int Defense => ScaleNativeStat(1, definition.Defense);
     public int Level => definition.Level;
-    public int Magic => ScaleNativeStat(2, definition.Magic);
+    public int Magic => checked(ScaleNativeStat(2, definition.Magic) * (GuardianFormVitals?.Adjustments.MagicPercent ?? 100) / 100);
     public int Spirit => ScaleNativeStat(3, definition.Spirit);
     public int Evasion => ScaleNativeStat(5, definition.Evasion);
     public int Luck => definition.Luck;

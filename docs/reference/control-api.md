@@ -201,6 +201,9 @@ These commands are windowed. They return `{Battle, DebugMenuOpen, Definition}`; 
 | `GunbladeTrigger` | Supplies the current gunblade trigger edge. |
 | `ShotTrigger` | Supplies the active Shot process trigger for explicit `ActorId`. |
 | `GuardianBoost` | Supplies the current GF boost input. |
+| `GuardianFormActivate` | Requests transformation with `ActorId`, the same `TargetId`, and GF ID in `ActionId`; requires the save's GF Transformations option. |
+| `GuardianFormAction` | Submits the active form's explicit actor/target action: `ActionId` 0 = Attack, 1 = Fire, 2 = Hell Fire. |
+| `GuardianFormSkip` | Requests Skip for the current shortened finisher; repeated requests do not create another attack. |
 | `InstantVictory`, `InstantDefeat` | Debug completion inputs; they are not ordinary combat results. |
 | `Return` | Completes the game-owned encounter return through its outcome owner. |
 

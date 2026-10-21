@@ -78,10 +78,47 @@ public sealed partial class BattleSession
             return current;
         });
         NativeBattleScriptedCallbackServices services = new(ReadInstruction, ExecuteInstruction, UpdateSlot, DrawSlots, ClearOrderingTable, PublishFocal) { ReadCurrentFocal = _ => NativeCamera?.FocalLength ?? throw new NotSupportedException("Native cinematic requires its current scratch focal WORD after script execution.") };
+        if (effect.Binding.Effect == 201 && graphics.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 4 } continuation && ActiveAction is { GuardianFormInvocation: { Mode: GuardianFormInvocationMode.FinisherWithoutEntry } invocation } currentAction && currentAction.ActorId == continuation.ActorId && invocation.Id == continuation.InvocationId)
+        {
+            NativeBattleEffectMemory memory = RequireWaterMemory();
+            NativeBattleWaterTemporaryFrame temporary = NativeBattleWater222Controller.CreateTemporaryFrame(WaterTemporaryAddress);
+            NativeBattleWaterFrameBindingResult binding = NativeBattleWaterFrameBinding.Bind(memory.ScriptedEffects!, temporary, input.Directories);
+            NativeBattleWaterExecutionFrame execution = new(binding.Core, memory.Arena!, binding.TemporaryFrame, nativeCrtRandom!);
+            execution = execution.WriteTemporaryByte(0x145, 0).WriteTemporaryByte(0x143, 0).WriteTemporaryByte(0x144, 0);
+            execution = NativeBattleIfritContinuation.Initialize(execution, CurrentResource(0, profile.File0Publication), CurrentResource(1, profile.File1Publication), memory.MagicTextureBufferAddress1D99A88 ?? throw new NotSupportedException("GF continuation requires its published magic texture buffer."), ModelServices(0), InitializeResourceInstruction);
+            NativeEffectMemory = RequireWaterMemory() with { Arena = execution.Arena, ScriptedEffects = execution.Core };
+            nativeCrtRandom = execution.Random;
+            NativeCamera = NativeCamera!.PublishProjection(graphics.Flags);
+            input = input with { ViewMatrix = MatrixBytes(NativeCamera.Projection!.View!) };
+            graphics = graphics with { GuardianFormPresentation = continuation with { Phase = 5 } };
+            NativeGraphics = graphics;
+        }
         NativeBattleCinematicFrame advanced = NativeBattleCinematicController.Advance(profile, new(RequireWaterMemory(), effect, nativeCrtRandom ?? throw new NotSupportedException("Native cinematic callback requires its retained CRT state.")), input, services, WaterTemporaryAddress, RequireWaterMemory);
         NativeEffectMemory = advanced.Memory;
         nativeCrtRandom = advanced.Random;
         return graphics with { OriginalEffect = advanced.Effect with { Parameters = outputParameters } };
+
+        NativeBattleWaterInitializationResource CurrentResource(int index, uint publication)
+        {
+            NativeBattleEffectResourcePointer pointer = effect.ResourcePointers.Single(pointer => pointer.GlobalAddress == publication);
+            return new(pointer.ArenaOffset, assets[index].Data.Length, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)pointer.ArenaOffset));
+        }
+
+        NativeBattleWaterExecutionFrame InitializeResourceInstruction(NativeBattleWaterExecutionFrame current, int offset)
+        {
+            ushort opcode = (ushort)(current.ReadTemporaryWord(0x14A) & 0x1FF);
+            if (opcode != 6 || offset == 0x2AE)
+            {
+                return ExecuteInstruction(current, opcode);
+            }
+            NativeBattleCinematicIoStep prepared = NativeBattleCinematicIoCommands.Execute(current, Program(current, CoreDword(current, 0x2797450)), resources, profile.LoadCallback);
+            NativeBattleWaterFileReadRequest request = prepared.Request ?? throw new InvalidDataException("Ifrit continuation resource preparation encountered an unresolved earlier load.");
+            NativeBattleEffectMemory memory = RequireWaterMemory() with { Arena = prepared.Frame.Arena, ScriptedEffects = prepared.Frame.Core };
+            NativeBattleWaterIoQueued loaded = NativeBattleCinematicIoCommands.CopyAndQueue(memory, NativeBattleFileIoState.FromColdProcess(), request, resources);
+            NativeBattleScriptedEffectMemory completed = NativeBattleWaterIoCommands.CompleteAA0ED0(loaded.Memory.ScriptedEffects!);
+            NativeEffectMemory = loaded.Memory with { ScriptedEffects = completed };
+            return prepared.Frame with { Arena = loaded.Memory.Arena!, Core = completed };
+        }
 
         byte[] ReadAction(uint address, int length)
         {

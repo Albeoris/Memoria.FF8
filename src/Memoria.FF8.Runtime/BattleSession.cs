@@ -143,6 +143,7 @@ public sealed partial class BattleSession
             if (!nativeGraphicsPresentationDriven)
             {
                 DispatchTurnBasedFrame();
+                AdvanceSkippedGuardianFormPresentation();
             }
             return;
         }
@@ -695,7 +696,7 @@ public sealed partial class BattleSession
         BattleCombatant? nativeSource = nativeContactWorking?.Actor ?? actor;
         int nativeMagnitude = nativeContactWorking is { CommittingSecondary: false } contact ? contact.Magnitude : amount;
         AccumulateNativeReturnDamage(target, nativeSource, nativeMagnitude);
-        if (ApplyGuardianFormDamage(actor, target, amount, source, publishDamage))
+        if (ApplyGuardianFormDamage(actor, target, amount, source, counterEligible, publishDamage))
         {
             return;
         }
@@ -891,7 +892,8 @@ public sealed partial class BattleSession
         {
             foreach (string actorId in guardianForms.Keys.ToArray())
             {
-                ReturnGuardianForm(GetActor(actorId), !GetActor(actorId).IsAlive);
+                BattleCombatant actor = GetActor(actorId);
+                ReturnGuardianForm(actor, (NativeSavedStatusBits(actor) & 1) != 0 || (NativeBattleStatusBits(actor) & 0x10000) != 0);
             }
         }
         Outcome = outcome;
@@ -906,6 +908,14 @@ public sealed partial class BattleSession
         actions.Clear();
         ActiveAction = null;
         ClearNativeQueuedCommands();
+        if (guardianForms is not null)
+        {
+            foreach (string actorId in guardianForms.Keys.ToArray())
+            {
+                BattleCombatant actor = GetActor(actorId);
+                ReturnGuardianForm(actor, (NativeSavedStatusBits(actor) & 1) != 0 || (NativeBattleStatusBits(actor) & 0x10000) != 0);
+            }
+        }
         nativeGuardianBoost = null;
         guardianForceCasts.Clear();
         CompleteNativeGraphicsAction();

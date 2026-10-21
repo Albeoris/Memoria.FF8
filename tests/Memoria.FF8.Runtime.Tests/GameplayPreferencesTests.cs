@@ -91,6 +91,50 @@ public sealed class GameplayPreferencesTests
         Assert.Equal(!enabled, session.State.GameplayPreferences.GuardianFormsEnabled);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Saved_battle_guardian_forms_option_must_match_its_save_owner(bool enabled)
+    {
+        BattleSession battle = new(new BattleDefinition
+        {
+            GuardianFormsEnabled = enabled,
+            Combatants = [new() { Id = "party", Name = "Squall", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
+        }, BattleAtbMode.TurnBased);
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
+        GameState state = session.State with
+        {
+            GameplayPreferences = new GameplayPreferences { GuardianFormsEnabled = !enabled },
+            Battle = battle.Capture()
+        };
+        Assert.Contains("battle GF Transformations option differs", Assert.Throws<InvalidDataException>(() => new GameSession(state)).Message);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Saved_pending_guardian_forms_changes_cannot_bypass_the_battle_boundary(bool enabled)
+    {
+        BattleSession battle = new(new BattleDefinition
+        {
+            GuardianFormsEnabled = enabled,
+            Combatants = [new() { Id = "party", Name = "Squall", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
+        }, BattleAtbMode.TurnBased);
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
+        GameState state = session.State with
+        {
+            GameplayPreferences = new GameplayPreferences { GuardianFormsEnabled = enabled },
+            Battle = battle.Capture(),
+            PendingGameplayPreferences = new GameplayPreferences { GuardianFormsEnabled = !enabled }
+        };
+        Assert.Contains("pending GF Transformations", Assert.Throws<InvalidDataException>(() => new GameSession(state)).Message);
+        string hash = new('0', 64);
+        BattleEncounterOccurrence pending = new("feature-boundary", 1, hash, SceneKind.Field, 74, 1, hash, null);
+        Assert.Contains("pending GF Transformations", Assert.Throws<InvalidDataException>(() => new GameSession(state with { Battle = null, PendingBattleEncounter = pending })).Message);
+    }
+
     [Fact]
     public void Invalid_gameplay_choices_are_rejected_before_state_changes()
     {

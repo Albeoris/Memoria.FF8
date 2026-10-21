@@ -118,6 +118,10 @@ public sealed partial class BattleSession
     private byte ResolveNativeDispatchSequence(BattleCombatant actor, byte command, byte supplied, ushort action)
     {
         byte sequence = supplied;
+        if (actor.GuardianFormVitals is not null && command is 1 or 12 or 28 && GetGuardianForm(actor.Id) is { } form)
+        {
+            sequence = GuardianFormResources(form.GuardianForceId).PhysicalSequence;
+        }
         if (actor.NativeIndex < 3 && actor.GuardianFormVitals is null)
         {
             if (command < 39)
