@@ -16,7 +16,7 @@ public sealed partial class BattleHudController
         MagicCastQuote quote = session.QuoteMagic(actor.Id, action.Id);
         int stock = actor.MagicStocks.FirstOrDefault(stock => stock.Id == action.Id)?.Count ?? 0;
         string uses = session.InfiniteMagic ? $" · {MagicUiText.Get("Battle")} {quote.Available}/{quote.Capacity}" : "";
-        int? owner = session.GetMagicJunctionOwner(action.Id);
+        int? owner = session.GetMagicJunctionOwner(actor.Id, action.Id);
         string ownerText = owner is int row ? " · " + MagicUiText.Format("Owner", session.Combatants.FirstOrDefault(candidate => candidate.MagicRecordId == row)?.Name ?? $"{row}") : "";
         string unavailable = !quote.Allowed ? " · " + MagicUiText.Get("Exhausted") : "";
         return label + (magicCastCount > 1 ? $" ×{magicCastCount}" : "") + $" ×{stock}" + uses + ownerText + unavailable;

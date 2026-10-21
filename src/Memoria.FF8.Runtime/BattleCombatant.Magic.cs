@@ -16,6 +16,14 @@ public sealed partial class BattleCombatant
     internal void RestoreMagicInventory(NativeMagicStock[] slots)
     {
         ValidateMagicInventory(slots);
+        if (MagicOwner is not null && MagicRecordId is not null)
+        {
+            if (!slots.SequenceEqual(NativeMagicInventory))
+            {
+                throw new InvalidDataException("A saved combatant magic view contradicts its authoritative bank.");
+            }
+            return;
+        }
         Array.Copy(slots, NativeMagicInventory, 32);
     }
 

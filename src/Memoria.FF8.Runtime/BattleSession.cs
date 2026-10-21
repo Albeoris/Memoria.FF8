@@ -352,7 +352,7 @@ public sealed partial class BattleSession
         ArgumentNullException.ThrowIfNull(snapshot);
         try
         {
-            if (snapshot.Definition.MagicVitals is not null && snapshot.MagicVitals is null)
+            if ((snapshot.Definition.MagicVitals is not null) != (snapshot.MagicVitals is not null))
             {
                 throw new InvalidDataException("A battle checkpoint with magic rules requires its authoritative banks and reservations.");
             }

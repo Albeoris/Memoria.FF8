@@ -5,7 +5,19 @@ public sealed partial class BattleSession
     private NativeCharacterVitals? magicVitals;
     public NativeCharacterVitals? MagicVitals => magicVitals?.DeepCopy();
     public bool InfiniteMagic => magicVitals?.MagicSystem.InfiniteMagic == true;
-    public int? GetMagicJunctionOwner(int spellId) => magicVitals is null ? null : MagicJunctionPolicy.GetOwner(magicVitals, spellId);
+    public int? GetMagicJunctionOwner(string actorId, int spellId)
+    {
+        if (magicVitals is null)
+        {
+            return null;
+        }
+        if (magicVitals.MagicSystem.SharedMagicStock)
+        {
+            return MagicJunctionPolicy.GetOwner(magicVitals, spellId);
+        }
+        int? row = GetActor(actorId).MagicRecordId;
+        return row is int owner && Enumerable.Range(0, 19).Any(slot => magicVitals.Records[owner].Junction.MagicJunctions[slot] == spellId && magicVitals.JunctionMagicSlotAvailable(owner, slot)) ? owner : null;
+    }
 
     private void InitializeBattleMagic(NativeCharacterVitals? source, bool newEncounter)
     {
@@ -101,6 +113,10 @@ public sealed partial class BattleSession
             return;
         }
         magicVitals.ValidateMagicSystemConsistency();
+        if (string.IsNullOrWhiteSpace(magicVitals.MagicSystem.EncounterId))
+        {
+            throw new InvalidDataException("A saved battle magic ledger requires its genuine encounter identity.");
+        }
         if (definition.MagicVitals is { } initial)
         {
             MagicSystemState before = initial.MagicSystem;
@@ -109,9 +125,17 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("A battle checkpoint cannot change its saved magic rules or field histories.");
             }
+            if (definition.Combatants.Any(actor => actor.MagicRecordId is int row && initial.Records[row].CharacterId != magicVitals.Records[row].CharacterId))
+            {
+                throw new InvalidDataException("A saved magic bank cannot change the current caster identity or profile.");
+            }
         }
         bool NeedsReservation(string actorId, BattleAbility ability, BattleNativeAction? native, bool free, int? header)
         {
+            if (header is null && free && !(ability == BattleAbility.Magic && native?.Command == 247 || ability == BattleAbility.EnemyAbility && native?.Command == 2 && (NativeBattleStatusBits(GetActor(actorId)) & 0x2000000) != 0))
+            {
+                throw new InvalidDataException("A saved free spell requires its original reflected or Angel Wing source.");
+            }
             return header is null && !free && ability != BattleAbility.Draw && GetActor(actorId).MagicRecordId is not null && (ability == BattleAbility.Magic || native?.Command == 2);
         }
         List<(string? Identity, string Actor, int Spell, bool Required)> commands = actions.Concat(nativeCommandBanks.BoundCommands).Where(command => command.NativeCallback is null).Select(command => (command.MagicReservationId, command.ActorId, (int)(command.NativeAction?.ActionId ?? command.ActionId), NeedsReservation(command.ActorId, command.Ability, command.NativeAction, command.FreeNativeMagic, command.NativeHeaderIndex))).ToList();
@@ -127,6 +151,15 @@ public sealed partial class BattleSession
         if (commands.Any(command => command.Required && command.Identity is null))
         {
             throw new InvalidDataException("A saved ordinary spell requires its original cast reservation identity.");
+        }
+        foreach (BattleAttackCommand command in actions.Concat(nativeCommandBanks.BoundCommands).Where(command => command.NativeHeaderIndex is null && command.MagicReservationId is not null))
+        {
+            MagicCastReservation? reservation = magicVitals.MagicSystem.Reservations.FirstOrDefault(candidate => candidate.ActionId == command.MagicReservationId);
+            int cost = MagicCost(GetActor(command.ActorId), Math.Max(1, command.NativeMagicTargets.Length));
+            if (reservation is null || reservation.Count != cost)
+            {
+                throw new InvalidDataException("A saved repeated spell requires its complete quoted cast reservation.");
+            }
         }
         foreach (MagicCastReservation reservation in magicVitals.MagicSystem.Reservations)
         {
@@ -151,7 +184,14 @@ public sealed partial class BattleSession
             return true;
         }
         MagicCastReservation? reservation = magicVitals.MagicSystem.Reservations.FirstOrDefault(candidate => candidate.ActionId == command.MagicReservationId);
-        return reservation is not null && MagicCastingService.Quote(magicVitals, row, reservation.SpellId, MagicCastContext.Battle, reservation.ActionId).Allowed && (command.Ability != BattleAbility.Magic || (NativeSavedStatusBits(actor) & 0x10) == 0 && actor.Abilities.Contains(BattleAbility.Magic));
+        if (reservation is null)
+        {
+            return false;
+        }
+        uint statuses = NativeBattleStatusBits(actor);
+        int casts = command.NativeMagicTargets.Length >= 3 && (statuses & 0x40000) != 0 ? 3 : command.NativeMagicTargets.Length >= 2 && (statuses & 0x20000) != 0 ? 2 : 1;
+        MagicCastQuote quote = MagicCastingService.Quote(magicVitals, row, reservation.SpellId, MagicCastContext.Battle, reservation.ActionId);
+        return quote.Available >= MagicCost(actor, casts) && (command.Ability != BattleAbility.Magic || (NativeSavedStatusBits(actor) & 0x10) == 0 && actor.Abilities.Contains(BattleAbility.Magic));
     }
 
     private BattleAttackCommand RevalidateSmartAttack(BattleCombatant actor, BattleAttackCommand command)

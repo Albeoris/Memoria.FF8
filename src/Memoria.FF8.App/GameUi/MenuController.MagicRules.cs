@@ -26,7 +26,7 @@ public sealed partial class MenuController
     {
         string mode = Character?.AttackMode == "SmartMagic" ? MagicUiText.Get("SmartMagic") : MagicUiText.Get("PhysicalOnly");
         MenuEntry attack = new("attack", (Character?.Commands.FirstOrDefault() ?? "Attack") + " · " + mode, Data.SmartAttack ? MagicUiText.Get("AttackChoiceHelp") : MagicUiText.Get("SmartLocked"), Action: new MenuAction("attack-mode", Value: Character?.AttackMode == "SmartMagic" ? "PhysicalOnly" : "SmartMagic"), Enabled: Data.SmartAttack);
-        return new[] { attack }.Concat(Enumerable.Range(1, 3).Select(slot => new MenuEntry(slot.ToString(), Character?.Commands.ElementAtOrDefault(slot) ?? "--", MagicUiText.Get("CommandSlotHelp"), "junction-command-choice", new MenuAction("select-command-slot", slot.ToString())))).ToArray();
+        return (Data.SmartAttack ? new[] { attack } : Array.Empty<MenuEntry>()).Concat(Enumerable.Range(1, 3).Select(slot => new MenuEntry(slot.ToString(), Character?.Commands.ElementAtOrDefault(slot) ?? "--", MagicUiText.Get("CommandSlotHelp"), "junction-command-choice", new MenuAction("select-command-slot", slot.ToString())))).ToArray();
     }
 
     internal IReadOnlyList<MenuEntry> AutoJunctionEntries()
@@ -37,7 +37,7 @@ public sealed partial class MenuController
             entries.Add(new MenuEntry(priority, priority, MagicUiText.Get("ConservativeHelp"), Action: new MenuAction("junction-auto", Value: priority)));
             if (Data.SharedMagicStock)
             {
-                entries.Add(new MenuEntry("party-" + priority, "Entire party · " + priority, MagicUiText.Get("PartyHelp"), Action: new MenuAction("junction-auto-party", Value: priority)));
+                entries.Add(new MenuEntry("party-" + priority, MagicUiText.Format("PartyLabel", priority), MagicUiText.Get("PartyHelp"), Action: new MenuAction("junction-auto-party", Value: priority)));
             }
         }
         return entries;

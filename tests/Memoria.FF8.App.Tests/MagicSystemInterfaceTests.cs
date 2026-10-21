@@ -49,7 +49,7 @@ public sealed class MagicSystemInterfaceTests
         menu.Open("config-gameplay");
         _ = menu.Data;
         int cancellations = 0;
-        menu.ShowMagicRulesReview(["Fire ×50 moved"], () => Assert.Fail("Unexpected migration."), () => cancellations++);
+        menu.ShowMagicRulesReview(["Fire Ã—50 moved"], () => Assert.Fail("Unexpected migration."), () => cancellations++);
         menu.Back();
         Assert.Equal(1, cancellations);
         Assert.Equal("config-gameplay", menu.ScreenId);
@@ -71,7 +71,7 @@ public sealed class MagicSystemInterfaceTests
         menu.Execute(menu.Entries[0].Action!);
         Assert.Equal(new MenuAction("attack-mode", TargetId: "character-0", Value: "PhysicalOnly"), requested);
         data.SmartAttack = false;
-        Assert.False(menu.Entries[0].Enabled);
+        Assert.Equal(new[] { "1", "2", "3" }, menu.Entries.Select(entry => entry.Id));
         Assert.Equal("SmartMagic", data.Characters[0].AttackMode);
     }
 

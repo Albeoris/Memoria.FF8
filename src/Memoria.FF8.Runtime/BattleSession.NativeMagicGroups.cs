@@ -77,6 +77,10 @@ public sealed partial class BattleSession
         int completed = 0;
         for (int index = 0; index < count; index++)
         {
+            if (command.MagicReservationId is not null && !singleCost && GetAvailableMagicCasts(actor.Id, command.ActionId, command.MagicReservationId) == 0)
+            {
+                break;
+            }
             statuses = NativeBattleStatusBits(actor);
             if (index > 0 && ((NativeSavedStatusBits(actor) & 0x35) != 0 || (statuses & 0x4009) != 0 || index == 1 && (statuses & 0x60000) == 0 || index == 2 && (statuses & 0x40000) == 0))
             {

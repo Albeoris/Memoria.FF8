@@ -30,7 +30,7 @@ public sealed partial class BattleHudController
         get
         {
             BattleSmartAttackPreview? preview = TargetActionPreview;
-            return preview is not null ? preview.Name + (preview.CastCount > 1 ? $" ×{preview.CastCount}" : "") : SelectedAction?.Name ?? CommandLabel(SelectedCommand);
+            return preview is not null ? preview.Name + (preview.CastCount > 1 ? $" Ã—{preview.CastCount}" : "") : SelectedAction?.Name ?? CommandLabel(SelectedCommand);
         }
     }
     public string PhysicalOverrideCaption => SelectedCommand == BattleAbility.Attack ? MagicUiText.Format("PhysicalOverride", PhysicalOverrideBindingHint) : "";
