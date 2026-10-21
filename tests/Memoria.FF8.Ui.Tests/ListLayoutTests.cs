@@ -141,6 +141,152 @@ public sealed class ListLayoutTests
         Assert.Equal(80, secondary.Clip.Right);
     }
 
+    [Fact]
+    public void Automatic_value_width_and_mixed_icon_gutters_stay_fixed_across_pages()
+    {
+        UiImageSource icon = new(UiImageKind.Icon, 1);
+        UiImageSource marker = new(UiImageKind.Icon, 2);
+        UiList list = new()
+        {
+            Items = ["Fire", "Blizzard", "Thunder"],
+            SecondaryItems = ["9", "100", "99999"],
+            Images = [icon, null, icon],
+            TrailingImages = [marker, null],
+            AutoSecondaryWidth = true,
+            SecondaryAlignment = UiAlignment.End,
+            TrailingImagesBeforeSecondary = true,
+            Paginated = true,
+            PageSize = 2,
+            RowHeight = 20,
+            FontSize = 20,
+            TextInset = 0
+        };
+        list.Arrange(new UiRect(0, 0, 224, 64));
+        MeasuringCanvas canvas = new();
+        list.Draw(canvas, new UiTheme());
+
+        Assert.Equal(20, canvas.Texts[0].Bounds.X);
+        Assert.Equal(20, canvas.Texts[2].Bounds.X);
+        Assert.Equal(130, canvas.Texts[0].Bounds.Width);
+        Assert.Equal(canvas.Texts[0].Bounds.Width, canvas.Texts[2].Bounds.Width);
+        Assert.Equal(170, canvas.Texts[1].Clip.X);
+        Assert.Equal(canvas.Texts[1].Clip.X, canvas.Texts[3].Clip.X);
+        Assert.Equal(220, canvas.Texts[1].Bounds.X + 10);
+        Assert.Equal(220, canvas.Texts[3].Bounds.X + 30);
+        Assert.True(canvas.Texts[0].Bounds.Right < canvas.Images[1].Bounds.X);
+        Assert.True(canvas.Images[1].Bounds.Right < canvas.Texts[1].Clip.X);
+        Assert.Equal(2, list.PageCount);
+
+        list.Key(UiKey.PageDown);
+        canvas.Texts.Clear();
+        canvas.Images.Clear();
+        list.Draw(canvas, new UiTheme());
+        Assert.Equal("Thunder", canvas.Texts[0].Text);
+        Assert.Equal(20, canvas.Texts[0].Bounds.X);
+        Assert.Equal(130, canvas.Texts[0].Bounds.Width);
+        Assert.Equal(170, canvas.Texts[1].Clip.X);
+        Assert.Equal(220, canvas.Texts[1].Bounds.X + 50);
+        Assert.Single(canvas.Images);
+    }
+
+    [Fact]
+    public void Shared_leading_gutter_expands_unmarked_rows_and_updates_pagination_and_hit_testing()
+    {
+        UiList list = new()
+        {
+            Items = ["abcdefgh", "abcdefgh", "ab"],
+            Images = [new UiImageSource(UiImageKind.Icon, 1)],
+            RowHeight = 20,
+            FontSize = 20,
+            TextInset = 0,
+            Paginated = true
+        };
+        list.Arrange(new UiRect(0, 0, 104, 64));
+        MeasuringCanvas canvas = new();
+        list.Draw(canvas, new UiTheme());
+        Assert.Equal(2, list.PageCount);
+        Assert.Equal(20, canvas.Texts[0].Bounds.X);
+        Assert.Equal(20, canvas.Texts[1].Bounds.X);
+        Assert.All(canvas.Texts.Where(text => !text.Text.StartsWith("P.")), text => Assert.Equal(20, text.Bounds.Height));
+
+        list.Arrange(new UiRect(0, 0, 84, 84));
+        canvas.Texts.Clear();
+        list.Draw(canvas, new UiTheme());
+        Assert.Equal(2, list.PageCount);
+        Assert.Equal(40, canvas.Texts[0].Bounds.Height);
+        list.Key(UiKey.PageDown);
+        canvas.Texts.Clear();
+        list.Draw(canvas, new UiTheme());
+        Assert.Equal(20, canvas.Texts[0].Bounds.X);
+        Assert.Equal(40, canvas.Texts[0].Bounds.Height);
+        list.Pointer(30, 25);
+        Assert.Equal(1, list.SelectedIndex);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Automatic_columns_measure_wrapped_names_with_the_same_icon_gutters_as_drawing(bool markerBeforeValue)
+    {
+        UiList list = new()
+        {
+            Items = ["abcdef", "abcdef", "abc"],
+            SecondaryItems = ["100", "9", "50"],
+            Images = [new UiImageSource(UiImageKind.Icon, 1)],
+            TrailingImages = [new UiImageSource(UiImageKind.Icon, 2)],
+            AutoSecondaryWidth = true,
+            SecondaryAlignment = UiAlignment.End,
+            TrailingImagesBeforeSecondary = markerBeforeValue,
+            RowHeight = 20,
+            FontSize = 20,
+            TextInset = 0,
+            Paginated = true
+        };
+        list.Arrange(new UiRect(0, 0, 124, 104));
+        MeasuringCanvas canvas = new();
+        list.Draw(canvas, new UiTheme());
+        Assert.Equal(2, list.PageCount);
+        Assert.Equal(2, list.EffectivePageSize);
+        Assert.Equal(40, canvas.Texts[0].Bounds.Height);
+        Assert.Equal(40, canvas.Texts[2].Bounds.Height);
+        Assert.Equal(40, canvas.Texts[2].Bounds.Y);
+        Assert.Equal(canvas.Texts[0].Bounds.Width, canvas.Texts[2].Bounds.Width);
+        Assert.Equal(canvas.Texts[0].WrappedHeight, canvas.Texts[0].Bounds.Height);
+        Assert.Equal(canvas.Texts[2].WrappedHeight, canvas.Texts[2].Bounds.Height);
+        list.Pointer(30, 60);
+        Assert.Equal(1, list.SelectedIndex);
+    }
+
+    [Fact]
+    public void Automatic_value_column_preserves_glyph_advance_wrap_width_and_refreshes_changed_values()
+    {
+        UiList list = new()
+        {
+            Items = ["abc", "abc"],
+            SecondaryItems = ["100", "9"],
+            AutoSecondaryWidth = true,
+            SecondaryAlignment = UiAlignment.End,
+            RowHeight = 20,
+            FontSize = 20,
+            TextInset = 0
+        };
+        list.Arrange(new UiRect(0, 0, 104, 100));
+        MeasuringCanvas canvas = new() { GlyphInset = 2 };
+        list.Draw(canvas, new UiTheme());
+        Assert.Equal(72, canvas.Texts[1].Clip.X);
+        Assert.Equal(20, canvas.Texts[1].WrappedHeight);
+        Assert.Equal(20, canvas.Texts[1].Bounds.Height);
+        Assert.Equal(100, canvas.Texts[1].Bounds.X + 28);
+        Assert.True(canvas.Texts[0].Bounds.Right <= canvas.Texts[1].Clip.X - 4);
+
+        list.SecondaryItems[1] = "10000";
+        canvas.Texts.Clear();
+        list.Draw(canvas, new UiTheme());
+        Assert.Equal(52, canvas.Texts[1].Clip.X);
+        Assert.Equal(52, canvas.Texts[3].Clip.X);
+        Assert.Equal(20, canvas.Texts[3].WrappedHeight);
+    }
+
     private sealed class MeasuringCanvas : IUiCanvas
     {
         private readonly Stack<UiRect> _clips = new();
@@ -148,6 +294,7 @@ public sealed class ListLayoutTests
         public float GlyphInset { get; init; }
         public List<(string Text, UiRect Bounds, UiRect Clip, float WrappedHeight)> Texts { get; } = [];
         public List<UiRect> Pointers { get; } = [];
+        public List<(UiImageSource Source, UiRect Bounds)> Images { get; } = [];
 
         public UiSize MeasureText(string text, float fontSize, float maximumWidth)
         {
@@ -193,6 +340,7 @@ public sealed class ListLayoutTests
 
         public void Image(UiImageSource source, UiRect bounds)
         {
+            Images.Add((source, bounds));
         }
 
         public void Line(float x1, float y1, float x2, float y2, UiColor color, float thickness)

@@ -11,20 +11,21 @@ public sealed partial class BattleHudController
 
     public int MagicCastCount => magicCastCount;
 
-    private string MagicChoiceLabel(BattleActionDefinition action, string label)
+    internal string ChoiceValue(BattleActionDefinition action)
     {
-        BattleCombatant actor = SelectedActor!;
-        MagicCastQuote quote = session.QuoteMagic(actor.Id, action.Id);
-        int stock = actor.MagicStocks.FirstOrDefault(stock => stock.Id == action.Id)?.Count ?? 0;
-        string uses = session.InfiniteMagic ? $" · {MagicUiText.Get("Battle")} {quote.Available}/{quote.Capacity}" : "";
-        string unavailable = !quote.Allowed ? " · " + MagicUiText.Get("Exhausted") : "";
-        return label + (magicCastCount > 1 ? $" ×{magicCastCount}" : "") + $" ×{stock}" + uses + unavailable;
+        if (SelectedCommand == BattleAbility.Magic)
+        {
+            MagicCastQuote quote = session.QuoteMagic(SelectedActor!.Id, action.Id);
+            return session.InfiniteMagic ? $"{quote.Available}/{quote.Capacity}" : (SelectedActor.MagicStocks.FirstOrDefault(stock => stock.Id == action.Id)?.Count ?? 0).ToString();
+        }
+        int? itemId = action.NativeAction is { Command: 14 } shot ? shot.ActionId + 101 : SelectedCommand == BattleAbility.Item ? action.Id : null;
+        return itemId is int id ? (session.Items.FirstOrDefault(item => item.Id == id)?.Count ?? 0).ToString() : CanOpenGuardianFormActions(action) ? ">" : "";
     }
 
     internal UiImageSource? MagicOwnerIcon(BattleActionDefinition action)
     {
         int? owner = session.GetMagicJunctionOwner(SelectedActor!.Id, action.Id);
-        return owner is int row && session.MagicVitals is { } vitals ? new UiImageSource(UiImageKind.CharacterPortrait, vitals.Records[row].CharacterId) : null;
+        return owner is int row && session.MagicVitals is { MagicSystem.SharedMagicStock: true } vitals ? new UiImageSource(UiImageKind.CharacterPortrait, vitals.Records[row].CharacterId) : null;
     }
 
     private void ChangeMagicCastCount(int direction)

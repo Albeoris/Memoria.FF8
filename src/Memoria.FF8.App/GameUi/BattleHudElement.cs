@@ -10,7 +10,7 @@ internal sealed partial class BattleHudElement : UiElement
     private float Scale => Math.Min(Bounds.Width / 960, Bounds.Height / 672);
     private float Left => Bounds.X + (Bounds.Width - 960 * Scale) / 2;
     private bool ShowingMagicList => controller.SelectingAction && !controller.SelectingGuardianFormAction && !controller.HasGuardianFormCommands && !controller.SelectingTarget && controller.SelectedCommand == BattleAbility.Magic;
-    private float CommandWidth => ShowingMagicList ? 440 : 194;
+    private float CommandWidth { get; set; } = 194;
     private float Top => Bounds.Y + (Bounds.Height - 672 * Scale) / 2;
 
     public BattleHudElement(BattleHudController controller)
@@ -28,6 +28,19 @@ internal sealed partial class BattleHudElement : UiElement
     private void Text(IUiCanvas canvas, UiTheme theme, string value, float x, float y, float width, float height, float size = 18, bool muted = false)
     {
         canvas.Text(value, size * Scale * controller.TextScale, Rect(x, y, width, height), muted ? theme.Muted : theme.Foreground);
+    }
+
+    private void ChoiceText(IUiCanvas canvas, UiTheme theme, string value, float x, float y, float width, float size, bool muted)
+    {
+        canvas.PushClip(Rect(x, y, width, 26));
+        try
+        {
+            Text(canvas, theme, value, x, y, Math.Max(width, CommandWidth), 26, size, muted);
+        }
+        finally
+        {
+            canvas.PopClip();
+        }
     }
 
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
@@ -57,6 +70,26 @@ internal sealed partial class BattleHudElement : UiElement
         bool canAttack = !controller.CommandMenuHidden && controller.SelectedActor is not null && session.Outcome == BattleOutcome.Active;
         IReadOnlyList<string> choices = controller.ChoiceLabels;
         string caption = session.Outcome != BattleOutcome.Active ? "RESULT" : controller.SelectingTarget ? "TARGET" : controller.SelectingGuardianFormAction ? "GF ACTION" : controller.SelectingDrawMode ? "DRAW" : controller.SelectingAction ? controller.SelectedCommand.ToString().ToUpperInvariant() : "COMMAND";
+        IReadOnlyList<BattleActionDefinition> actions = controller.SelectingAction && !controller.SelectingDrawMode && !controller.SelectingGuardianFormAction && !controller.HasGuardianFormCommands ? controller.ActionChoices : [];
+        string[] values = actions.Select(controller.ChoiceValue).ToArray();
+        float fontSize = (ShowingMagicList ? 18 : 20) * controller.TextScale;
+        float valueWidth = 0;
+        float ownerWidth = ShowingMagicList && actions.Any(action => controller.MagicOwnerIcon(action).HasValue) ? 30 : 0;
+        if (actions.Count > 0)
+        {
+            float nameWidth = choices.Select(value => canvas.MeasureText(value, fontSize * Scale, 4096 * Scale).Width / Scale).DefaultIfEmpty(0).Max();
+            valueWidth = values.Select(value => canvas.MeasureText(value, fontSize * Scale, 4096 * Scale).Width / Scale).DefaultIfEmpty(0).Max();
+            float fixedWidth = 38 + ownerWidth + (valueWidth > 0 ? 12 : 0);
+            float textWidth = nameWidth + valueWidth;
+            float fit = Math.Min(1, Math.Min(24 / fontSize, (440 - fixedWidth) / Math.Max(1, textWidth)));
+            fontSize *= fit;
+            valueWidth *= fit;
+            CommandWidth = Math.Clamp(fixedWidth + textWidth * fit, 194, 440);
+        }
+        else
+        {
+            CommandWidth = 194;
+        }
         int rows = controller.SelectingTarget ? controller.VisibleTargets.Count : choices.Count;
         float menuHeight = session.Outcome != BattleOutcome.Active ? 76 : 20 + Math.Max(1, Math.Min(4, rows)) * 28;
         if (canAttack || session.Outcome != BattleOutcome.Active)
@@ -78,7 +111,6 @@ internal sealed partial class BattleHudElement : UiElement
         else if (canAttack)
         {
             int start = Math.Clamp(controller.ChoiceIndex - 1, 0, Math.Max(0, choices.Count - 4));
-            IReadOnlyList<BattleActionDefinition> actions = controller.SelectingAction && !controller.SelectingDrawMode && !controller.SelectingGuardianFormAction ? controller.ActionChoices : [];
             for (int row = 0; row < 4 && start + row < choices.Count; row++)
             {
                 float y = 530 + row * 28;
@@ -87,13 +119,19 @@ internal sealed partial class BattleHudElement : UiElement
                     theme.Pointer(canvas, Left + 38 * Scale, Top + (y + 5) * Scale, 10 * Scale);
                 }
                 bool unavailable = actions.Count > start + row && (!actions[start + row].Available || controller.SelectedCommand == BattleAbility.Magic && controller.SelectedActor is { } caster && !session.QuoteMagic(caster.Id, actions[start + row].Id).Allowed);
+                float valueLeft = 30 + CommandWidth - 8 - valueWidth;
+                float ownerLeft = valueLeft - (valueWidth > 0 ? 12 : 0) - ownerWidth;
                 UiImageSource? ownerIcon = ShowingMagicList && actions.Count > start + row ? controller.MagicOwnerIcon(actions[start + row]) : null;
                 if (ownerIcon is { } portrait)
                 {
-                    canvas.Image(portrait, Rect(60, y, 26, 26));
+                    canvas.Image(portrait, Rect(ownerLeft, y, 26, 26));
                 }
-                float imageWidth = ownerIcon.HasValue ? 30 : 0;
-                Text(canvas, theme, choices[start + row], 60 + imageWidth, y, CommandWidth - 38 - imageWidth, 26, ShowingMagicList ? 18 : 20, unavailable);
+                ChoiceText(canvas, theme, choices[start + row], 60, y, Math.Max(0, ownerLeft - 60), fontSize / controller.TextScale, unavailable);
+                if (values.Length > start + row)
+                {
+                    float width = canvas.MeasureText(values[start + row], fontSize * Scale, 4096 * Scale).Width / Scale;
+                    ChoiceText(canvas, theme, values[start + row], valueLeft + Math.Max(0, valueWidth - width), y, Math.Min(valueWidth, width), fontSize / controller.TextScale, unavailable);
+                }
             }
         }
 

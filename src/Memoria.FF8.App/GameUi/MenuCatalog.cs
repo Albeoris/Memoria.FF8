@@ -141,7 +141,7 @@ public static class MenuCatalog
     private static MenuEntry Action(string id, string label, string help, string kind, string subject = "", string target = "", string value = "") => new(id, label, help, Action: new MenuAction(kind, subject, target, value));
     private static IReadOnlyList<string> Boundary(MenuController c) => c.ScreenId == "debug-room" ? [c.Data.SourceDescription] : [];
     private static IEnumerable<MenuMagic> CharacterMagic(MenuController c) => c.Data.Magic.Where(m => m.CharacterId == c.Character?.Id);
-    private static IReadOnlyList<MenuEntry> MagicEntries(MenuController c, string destination) => CharacterMagic(c).Select(m => new MenuEntry(m.Id, $"{m.Name}   {m.StockPresentation}", m.Description, destination, new MenuAction("select-magic", m.Id), m.Quantity > 0 && (destination != "magic-target" || c.IsDemo || c.Data.SupportedActions.Contains("magic-use") || c.Data.SupportedActions.Contains($"magic-use:{m.Id}")))).ToArray();
+    private static IReadOnlyList<MenuEntry> MagicEntries(MenuController c, string destination) => CharacterMagic(c).Select(m => new MenuEntry(m.Id, m.Name, m.Description, destination, new MenuAction("select-magic", m.Id), m.Quantity > 0 && (destination != "magic-target" || c.IsDemo || c.Data.SupportedActions.Contains("magic-use") || c.Data.SupportedActions.Contains($"magic-use:{m.Id}")))).ToArray();
     private static IReadOnlyList<MenuEntry> CommandChoices(MenuController c)
     {
         if (c.IsDemo)
@@ -163,7 +163,7 @@ public static class MenuCatalog
     private static IReadOnlyList<MenuEntry> JunctionStock(MenuController c)
     {
         bool available = c.IsDemo || c.Character?.AvailableJunctionSlots.Contains(c.JunctionSlot) == true;
-        MenuEntry[] spells = CharacterMagic(c).Where(magic => magic.Quantity > 0).Select(magic => new MenuEntry(magic.Id, $"{magic.Name}   {magic.Quantity}", $"Junction {magic.Name} to {c.JunctionSlot}. {magic.AccessPresentation}", Action: new MenuAction(magic.JunctionAvailable ? "junction-magic" : "junction-magic-reassign", magic.Id, Value: magic.Name), Enabled: available)).ToArray();
+        MenuEntry[] spells = CharacterMagic(c).Where(magic => magic.Quantity > 0).Select(magic => new MenuEntry(magic.Id, magic.Name, $"Junction {magic.Name} to {c.JunctionSlot}. {magic.AccessPresentation}", Action: new MenuAction(magic.JunctionAvailable ? "junction-magic" : "junction-magic-reassign", magic.Id, Value: magic.Name), Enabled: available)).ToArray();
         return c.IsDemo ? spells : [new MenuEntry("0", "Empty", "Remove magic from this slot.", Action: new MenuAction("junction-magic", "0"), Enabled: available), .. spells];
     }
 

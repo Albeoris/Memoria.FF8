@@ -112,6 +112,10 @@ public sealed class UiList : UiElement
     /// <summary>Expands vertical rows to fit the renderer's wrapped text measurements.</summary>
     public bool AutoRowHeight { get; set; } = true;
     public UiAlignment SecondaryAlignment { get; set; } = UiAlignment.Start;
+    /// <summary>Sizes the shared secondary column from the renderer's measurements of all item values.</summary>
+    public bool AutoSecondaryWidth { get; set; }
+    /// <summary>Places the shared trailing image gutter before the secondary column when that column is present.</summary>
+    public bool TrailingImagesBeforeSecondary { get; set; }
     private bool HasMeasuredRows => AutoRowHeight && Orientation == UiOrientation.Vertical && _hasMeasuredRows && _rowHeights.Length == Items.Count;
     private bool UsesPagination => Paginated && Orientation == UiOrientation.Vertical;
     private float FooterHeight => UsesPagination ? Math.Min(24, Math.Max(0, Bounds.Height)) : 0;
@@ -173,7 +177,9 @@ public sealed class UiList : UiElement
 
     public override UiSize Measure(UiSize available)
     {
-        float width = Items.Select((item, index) => (item.Length + (index < SecondaryItems.Count ? SecondaryItems[index].Length : 0)) * 10f + TextInset + 4 + (index < Images.Count && Images[index].HasValue ? RowHeight : 0) + (index < TrailingImages.Count && TrailingImages[index].HasValue ? RowHeight : 0)).DefaultIfEmpty(0).Max();
+        float imageWidth = Images.Take(Items.Count).Any(image => image.HasValue) ? RowHeight : 0;
+        float trailingWidth = TrailingImages.Take(Items.Count).Any(image => image.HasValue) ? RowHeight : 0;
+        float width = Items.Select((item, index) => (item.Length + (index < SecondaryItems.Count ? SecondaryItems[index].Length : 0)) * 10f + TextInset + 4 + imageWidth + trailingWidth).DefaultIfEmpty(0).Max();
         return Orientation == UiOrientation.Horizontal
             ? ResolveDesiredSize(width * Items.Count, RowHeight, available)
             : ResolveDesiredSize(width, (UsesPagination && PageSize > 0 ? Math.Min(Items.Count, PageSize) : Items.Count) * RowHeight + (UsesPagination ? 24 : 0), available);
@@ -192,9 +198,10 @@ public sealed class UiList : UiElement
 
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
     {
-        MeasureRows(canvas, theme);
+        float rowWidth = Orientation == UiOrientation.Horizontal && Items.Count > 0 ? Bounds.Width / Items.Count : Bounds.Width;
+        ListColumns columns = MeasureColumns(canvas, theme, rowWidth);
+        MeasureRows(canvas, theme, columns);
         EnsureSelectionVisible();
-        bool reserveTrailingImage = TrailingImages.Take(Items.Count).Any(image => image.HasValue);
         foreach ((int index, UiRect row) in VisibleRowBounds())
         {
             canvas.PushClip(row.Intersect(new UiRect(Bounds.X, Bounds.Y, Bounds.Width, UsesPagination ? ContentHeight : Bounds.Height)));
@@ -208,34 +215,32 @@ public sealed class UiList : UiElement
                     }
                 }
 
-                float trailingWidth = reserveTrailingImage ? Math.Min(RenderedRowHeight, Math.Max(0, row.Width - TextInset - 4)) : 0;
-                float imageWidth = 0;
+                bool hasSecondary = index < SecondaryItems.Count;
+                RowColumns rowColumns = ColumnsForRow(columns, hasSecondary);
                 if (index < Images.Count && Images[index] is { } image)
                 {
-                    imageWidth = Math.Min(RenderedRowHeight, Math.Max(0, row.Width - TextInset - 4 - trailingWidth));
-                    canvas.Image(image, new UiRect(row.X + TextInset, row.Y, imageWidth, row.Height).Inset(2));
+                    canvas.Image(image, new UiRect(row.X + TextInset, row.Y, columns.ImageWidth, row.Height).Inset(2));
                 }
                 if (index < TrailingImages.Count && TrailingImages[index] is { } trailing)
                 {
-                    canvas.Image(trailing, new UiRect(row.Right - 4 - trailingWidth, row.Y, trailingWidth, row.Height).Inset(2));
+                    canvas.Image(trailing, new UiRect(row.X + rowColumns.TrailingLeft, row.Y, columns.TrailingWidth, row.Height).Inset(2));
                 }
                 bool enabled = Enabled && (index >= EnabledItems.Count || EnabledItems[index]);
-                float textLeft = row.X + TextInset + imageWidth;
-                float textRight = row.Right - 4 - trailingWidth;
-                float secondaryLeft = row.X + TextInset + Math.Max(0, row.Width - TextInset - 4 - trailingWidth) * (1 - SecondaryWidth);
-                bool hasSecondary = index < SecondaryItems.Count;
-                canvas.Text(Items[index], FontSize > 0 ? FontSize : theme.FontSize, new UiRect(textLeft, row.Y, Math.Max(0, (hasSecondary ? Math.Min(secondaryLeft, textRight) : textRight) - textLeft), row.Height), enabled ? theme.Foreground : theme.Muted, UiAlignment.Center);
+                float textLeft = row.X + TextInset + columns.ImageWidth;
+                float secondaryLeft = row.X + rowColumns.SecondaryLeft;
+                float textRight = row.X + rowColumns.SecondaryRight;
+                canvas.Text(Items[index], FontSize > 0 ? FontSize : theme.FontSize, new UiRect(textLeft, row.Y, rowColumns.PrimaryWidth, row.Height), enabled ? theme.Foreground : theme.Muted, UiAlignment.Center);
                 if (hasSecondary)
                 {
-                    UiRect secondaryBounds = new(secondaryLeft, row.Y, Math.Max(0, textRight - secondaryLeft), row.Height);
-                    UiRect secondaryClip = secondaryBounds;
+                    UiRect secondaryClip = new(secondaryLeft, row.Y, Math.Max(0, textRight - secondaryLeft), row.Height);
+                    UiRect secondaryBounds = new(secondaryLeft, row.Y, Math.Max(secondaryClip.Width, columns.SecondaryWrapWidth), row.Height);
                     if (SecondaryAlignment is UiAlignment.End or UiAlignment.Center)
                     {
                         UiSize? measured = TryMeasureText(canvas, SecondaryItems[index], FontSize > 0 ? FontSize : theme.FontSize, secondaryBounds.Width);
                         if (measured.HasValue)
                         {
-                            float width = Math.Min(secondaryBounds.Width, measured.Value.Width);
-                            float shift = (secondaryBounds.Width - width) * (SecondaryAlignment == UiAlignment.End ? 1 : 0.5f);
+                            float width = Math.Min(secondaryClip.Width, measured.Value.Width);
+                            float shift = (secondaryClip.Width - width) * (SecondaryAlignment == UiAlignment.End ? 1 : 0.5f);
                             // Visible glyph bounds can be narrower than the advances used for wrapping.
                             // Keep the original wrap width when shifting the visible text into alignment.
                             secondaryBounds = new UiRect(secondaryBounds.X + shift, row.Y, secondaryBounds.Width, row.Height);
@@ -501,7 +506,63 @@ public sealed class UiList : UiElement
         }
     }
 
-    private void MeasureRows(IUiCanvas canvas, UiTheme theme)
+    private readonly record struct ListColumns(float TextRight, float ImageWidth, float TrailingWidth, float SecondaryWidth, float SecondaryWrapWidth);
+    private readonly record struct RowColumns(float PrimaryWidth, float SecondaryLeft, float SecondaryRight, float TrailingLeft);
+
+    private ListColumns MeasureColumns(IUiCanvas canvas, UiTheme theme, float rowWidth)
+    {
+        float textRight = Math.Max(TextInset, rowWidth - 4);
+        float available = Math.Max(0, textRight - TextInset);
+        float trailingWidth = TrailingImages.Take(Items.Count).Any(image => image.HasValue) ? Math.Min(RenderedRowHeight, available) : 0;
+        float imageWidth = Images.Take(Items.Count).Any(image => image.HasValue) ? Math.Min(RenderedRowHeight, available - trailingWidth) : 0;
+        float secondaryWidth = (available - trailingWidth) * SecondaryWidth;
+        float secondaryWrapWidth = 0;
+        if (AutoSecondaryWidth)
+        {
+            float maximumWidth = Math.Max(0, available - trailingWidth - imageWidth);
+            float measuredWidth = 0;
+            bool measuredAll = true;
+            foreach (string secondary in SecondaryItems.Take(Items.Count))
+            {
+                UiSize? measured = TryMeasureText(canvas, secondary, FontSize > 0 ? FontSize : theme.FontSize, maximumWidth);
+                if (!measured.HasValue)
+                {
+                    measuredAll = false;
+                    break;
+                }
+                measuredWidth = Math.Max(measuredWidth, measured.Value.Width);
+            }
+            if (measuredAll)
+            {
+                secondaryWidth = Math.Clamp(measuredWidth, 0, maximumWidth);
+                secondaryWrapWidth = maximumWidth;
+            }
+        }
+        return new ListColumns(textRight, imageWidth, trailingWidth, secondaryWidth, secondaryWrapWidth);
+    }
+
+    private RowColumns ColumnsForRow(ListColumns columns, bool hasSecondary)
+    {
+        float textLeft = TextInset + columns.ImageWidth;
+        float secondaryRight = columns.TextRight - columns.TrailingWidth;
+        float secondaryLeft = Math.Max(textLeft, secondaryRight - columns.SecondaryWidth);
+        float trailingLeft = secondaryRight;
+        float primaryRight = hasSecondary ? secondaryLeft : secondaryRight;
+        if (hasSecondary && TrailingImagesBeforeSecondary)
+        {
+            secondaryRight = columns.TextRight;
+            secondaryLeft = Math.Max(textLeft + columns.TrailingWidth, secondaryRight - columns.SecondaryWidth);
+            trailingLeft = secondaryLeft - columns.TrailingWidth;
+            primaryRight = trailingLeft;
+        }
+        if (hasSecondary && AutoSecondaryWidth && (!TrailingImagesBeforeSecondary || columns.TrailingWidth == 0))
+        {
+            primaryRight -= Math.Min(4, Math.Max(0, primaryRight - textLeft));
+        }
+        return new RowColumns(Math.Max(0, primaryRight - textLeft), secondaryLeft, secondaryRight, trailingLeft);
+    }
+
+    private void MeasureRows(IUiCanvas canvas, UiTheme theme, ListColumns columns)
     {
         if (!AutoRowHeight || Orientation == UiOrientation.Horizontal)
         {
@@ -512,15 +573,12 @@ public sealed class UiList : UiElement
             _measurements = new RowMeasurement[Items.Count];
             _rowHeights = new float[Items.Count];
         }
-        bool trailing = TrailingImages.Take(Items.Count).Any(image => image.HasValue);
-        float trailingWidth = trailing ? Math.Min(RenderedRowHeight, Math.Max(0, Bounds.Width - TextInset - 4)) : 0;
-        float textWidth = Math.Max(0, Bounds.Width - TextInset - 4 - trailingWidth);
         bool expanded = false;
         for (int index = 0; index < Items.Count; index++)
         {
-            float imageWidth = index < Images.Count && Images[index].HasValue ? Math.Min(RenderedRowHeight, textWidth) : 0;
             bool secondary = index < SecondaryItems.Count;
-            RowMeasurement measurement = new(Items[index], secondary ? SecondaryItems[index] : null, Math.Max(0, textWidth * (secondary ? 1 - SecondaryWidth : 1) - imageWidth), secondary ? textWidth * SecondaryWidth : 0, FontSize > 0 ? FontSize : theme.FontSize, RenderedRowHeight);
+            RowColumns rowColumns = ColumnsForRow(columns, secondary);
+            RowMeasurement measurement = new(Items[index], secondary ? SecondaryItems[index] : null, rowColumns.PrimaryWidth, secondary ? Math.Max(columns.SecondaryWrapWidth, rowColumns.SecondaryRight - rowColumns.SecondaryLeft) : 0, FontSize > 0 ? FontSize : theme.FontSize, RenderedRowHeight);
             if (_measurements[index] != measurement)
             {
                 UiSize? primary = TryMeasureText(canvas, measurement.Text, measurement.FontSize, measurement.PrimaryWidth);

@@ -239,7 +239,7 @@ public sealed partial class MenuController
 
     private UiList Commands(float rowHeight, float fontSize)
     {
-        return new UiList
+        UiList list = new()
         {
             Id = "commands",
             Paginated = true,
@@ -258,6 +258,8 @@ public sealed partial class MenuController
             SelectionChanged = index => Select(index, Entries.Count),
             Confirmed = Activate
         };
+        ConfigureCommandColumns(list);
+        return list;
     }
 
     private UiElement Details()

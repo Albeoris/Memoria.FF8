@@ -439,18 +439,9 @@ public sealed partial class BattleHudController
     private string ChoiceLabel(BattleActionDefinition action)
     {
         string label = action.DisplayName ?? action.Name;
-        if (action.NativeAction is { Command: 14 } shot)
-        {
-            return label + "  " + (session.Items.FirstOrDefault(item => item.Id == shot.ActionId + 101)?.Count ?? 0);
-        }
-        return SelectedCommand switch
-        {
-            BattleAbility.Draw => label,
-            BattleAbility.Magic => MagicChoiceLabel(action, label),
-            BattleAbility.Item => label + "  " + session.Items.Single(stock => stock.Id == action.Id).Count,
-            _ => label + (CanOpenGuardianFormActions(action) ? "  >" : "")
-        };
+        return label;
     }
+
     public void SelectParty(string actorId)
     {
         if (!NativeTimedLimitActive && !CommandMenuHidden && Party.Any(actor => actor.Id == actorId && CanChooseCommand(actor)))
