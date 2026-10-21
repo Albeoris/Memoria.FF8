@@ -136,6 +136,7 @@ internal sealed partial class RecreateGame : Game
         updateControls?.Poll();
         if (updateSave.Paused)
         {
+            presentationPacer.WaitForNextFrame(appliedFrameLimit ?? 60);
             controllerFeedback?.Update(session.State.VibrationProcess, false, keyboard.Profile.Controller.VibrationEnabled);
             return;
         }
