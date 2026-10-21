@@ -11,6 +11,7 @@ This directory contains only the source and embedded resources needed by Memoria
 The imported source preserves these changes relative to that revision:
 
 - `Albeoris.Games.FF8.TextEncoding.Abstractions/Tags/TextTagKey.cs`: imports the semantic junction, ability and element icon keys from upstream commit `39f302eaea422236342d00c748af45ed1f85f4cc`.
+- The same enum imports the thirteen semantic status icon keys from upstream commit `0e3fc21c28c0ad45aa37e5f054a757a2c6abf2d3`.
 
 - `Albeoris.Games.FF8.FlArchives/FlArchive.cs`: disposal releases owned resources even when flushing fails, for both synchronous and asynchronous disposal.
 - `Albeoris.Games.FF8.Jsm/Sources/Instructions/{AASK,AMES,AMESW,ASK,MES,RAMESW,WINSIZE}.cs`: expose message channel, position, choice and window-size expressions through the added instruction interfaces.

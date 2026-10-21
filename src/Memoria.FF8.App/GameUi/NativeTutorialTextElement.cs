@@ -64,6 +64,7 @@ internal sealed partial class NativeTutorialTextElement(string text, float nativ
             TextTagKey.JunctionMarker => 192,
             >= TextTagKey.JunctionAbility and <= TextTagKey.MenuAbility => 216 + (int)key - (int)TextTagKey.JunctionAbility,
             >= TextTagKey.FireElement and <= TextTagKey.HolyElement => 288 + (int)key - (int)TextTagKey.FireElement,
+            >= TextTagKey.DeathStatus and <= TextTagKey.DrainStatus => 272 + (int)key - (int)TextTagKey.DeathStatus,
             _ => null
         };
     }

@@ -27,6 +27,19 @@ public sealed class NativeTutorialTextRenderTests
     [InlineData(TextTagKey.WindElement, 293)]
     [InlineData(TextTagKey.WaterElement, 294)]
     [InlineData(TextTagKey.HolyElement, 295)]
+    [InlineData(TextTagKey.DeathStatus, 272)]
+    [InlineData(TextTagKey.PoisonStatus, 273)]
+    [InlineData(TextTagKey.PetrifyStatus, 274)]
+    [InlineData(TextTagKey.DarknessStatus, 275)]
+    [InlineData(TextTagKey.SilenceStatus, 276)]
+    [InlineData(TextTagKey.BerserkStatus, 277)]
+    [InlineData(TextTagKey.ZombieStatus, 278)]
+    [InlineData(TextTagKey.SleepStatus, 279)]
+    [InlineData(TextTagKey.SlowStatus, 280)]
+    [InlineData(TextTagKey.StopStatus, 281)]
+    [InlineData(TextTagKey.CurseStatus, 282)]
+    [InlineData(TextTagKey.ConfuseStatus, 283)]
+    [InlineData(TextTagKey.DrainStatus, 284)]
     public void NamedAndNumericTagsDrawTheOriginalIconWithoutLiteralTagText(TextTagKey key, int icon)
     {
         foreach (string parameter in new[] { key.ToString(), ((byte)key).ToString(System.Globalization.CultureInfo.InvariantCulture) })
@@ -45,6 +58,26 @@ public sealed class NativeTutorialTextRenderTests
             Assert.Equal(new[] { "Before ", "After" }, canvas.Texts.Select(text => text.Value));
             Assert.All(canvas.Texts, text => Assert.DoesNotContain("{Key", text.Value));
         }
+    }
+
+    [Theory]
+    [InlineData(640, 480)]
+    [InlineData(1280, 720)]
+    public void OriginalStatusPageDrawsAllThirteenIconsWithoutLiteralTags(int width, int height)
+    {
+        using GameAssets assets = InstalledAssets();
+        UiView view = PageView(assets, 65, width, height, out _);
+        NativeTutorialTextElement[] labels = Descendants(view.Root).OfType<NativeTutorialTextElement>().ToArray();
+        RecordingCanvas canvas = new();
+        foreach (NativeTutorialTextElement label in labels)
+        {
+            label.Draw(canvas, new UiTheme());
+        }
+
+        Assert.Equal(Enumerable.Range(272, 13), canvas.Images.Select(image => image.Source.Id));
+        Assert.DoesNotContain(canvas.Texts, text => text.Value.Contains("{Key", StringComparison.Ordinal));
+        Assert.Contains(labels, label => label.Text.Contains("{Key DeathStatus}", StringComparison.Ordinal));
+        Assert.Contains(labels, label => label.Text.Contains("{Key DrainStatus}", StringComparison.Ordinal));
     }
 
     [Theory]

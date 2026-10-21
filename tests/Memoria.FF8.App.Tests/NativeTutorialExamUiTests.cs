@@ -75,11 +75,11 @@ public sealed class NativeTutorialExamUiTests
     [Fact]
     public void InformationDocumentsUseTheCurrentNativeIconContractInsideColoredText()
     {
-        NativeTutorialDocumentElement document = new("{Color Green}{Key CharacterAbility} Ability{Color White}{Line}{Key FireElement}Fire{Line}{Key DefaultKey} Boost", 25, SystemFontCatalog.DefaultFamily);
+        NativeTutorialDocumentElement document = new("{Color Green}{Key CharacterAbility} Ability{Color White}{Line}{Key FireElement}Fire{Line}{Key DefaultKey} Boost{Line}{Key DeathStatus} Death {Key 113} Drain", 25, SystemFontCatalog.DefaultFamily);
         document.Arrange(new UiRect(0, 0, 400, 200));
         BoundsCanvas canvas = new();
         document.Draw(canvas, new UiTheme());
-        Assert.Equal(new[] { 219, 288, 136 }, canvas.Images.Select(image => image.Id));
+        Assert.Equal(new[] { 219, 288, 136, 272, 284 }, canvas.Images.Select(image => image.Id));
         Assert.DoesNotContain(canvas.Texts, item => item.Text.Contains("{Key", StringComparison.Ordinal));
         Assert.Contains(canvas.Texts, item => item.Text == " Ability" && item.Color.G > item.Color.R);
         Assert.Equal("binding:8", DialogueTextFormatter.Format("{Key 35}", buttonBindingHint: buttons => $"binding:{buttons}"));
