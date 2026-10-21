@@ -5,6 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleCuragaResources(NativeBattleEffectHeapAllocation Animation, uint Sound)
 {
+    public ushort Effect { get; init; } = 28;
     public NativeBattleCuragaExecutableSource? Executable { get; init; }
     public ImmutableArray<uint> FlashProgram { get; init; } = [];
 }
@@ -36,33 +37,37 @@ public static class NativeBattleCuragaController
     {
         effect.Validate();
         packets.Validate();
+        NativeBattleCuragaFamilyProfile profile = NativeBattleCuragaFamilyProfile.ForEffect(effect.Binding.Effect);
+        RequireResources(profile, resources);
         NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native87DB10 requires50AFC0 parameters.");
-        if (effect.Binding.Entry != 0x87DB10)
+        if (effect.Binding.Entry != profile.Entry)
         {
             throw new InvalidDataException("Native Curaga requires the actual87DB10 entry.");
         }
-        NativeBattleEffectHierarchy hierarchy = new([
-            NativeBattleEffectTaskPool.Initialize(0x26D76B0, 0x26D75E8, 100, 2),
-            NativeBattleEffectTaskPool.Initialize(0x26D8160, 0x26D8170, 88, 4),
-            NativeBattleEffectTaskPool.Initialize(0x26D74F8, 0x26D7508, 60, 3),
-            NativeBattleEffectTaskPool.Initialize(0x26D7EC0, 0x26D76D0, 676, 3),
-            NativeBattleEffectTaskPool.Initialize(0x26D8150, 0x26D7ED0, 64, 10)
-        ]);
-        NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 0x87DC50, 100);
+        NativeBattleEffectHierarchy hierarchy = new(profile.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
+        NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, profile.Callback(0x87DC50), 100);
         hierarchy = root.Hierarchy;
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
-        int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native87DB10 requires its header's actual contact pointer.");
-        byte target = packets.ReadContact(firstContact).Primary.ActorIndex;
-        byte targets = header.ReadByte(16);
-        byte groups = header.ReadByte(17);
-        byte maximum = unchecked((byte)(targets - 1));
-        if (maximum < groups)
+        NativeBattleModulePoolTask task;
+        if (profile.RootMode == NativeBattleCuragaRootMode.XPotion)
         {
-            maximum = groups;
+            task = InitializeXPotionRoot817410(hierarchy.Read(root.Address), parameters, packets);
         }
-        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0).WriteByte(0x2C, header.ReadByte(0)).WriteByte(0x2D, target).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
+        else
+        {
+            NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+            int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native87DB10 requires its header's actual contact pointer.");
+            byte target = packets.ReadContact(firstContact).Primary.ActorIndex;
+            byte targets = header.ReadByte(16);
+            byte groups = header.ReadByte(17);
+            byte maximum = unchecked((byte)(targets - 1));
+            if (maximum < groups)
+            {
+                maximum = groups;
+            }
+            task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0).WriteByte(0x2C, header.ReadByte(0)).WriteByte(0x2D, target).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
+        }
         hierarchy = hierarchy.Write(root.Address, task);
-        int source = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x26D75BC)?.ArenaOffset ?? throw new NotSupportedException("Native87DB10 requires the actual26D75BC initializer pointer, including texture-skip entries.");
+        int source = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == profile.InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Native87DB10 requires the actual26D75BC initializer pointer, including texture-skip entries.");
         if (source > NativeBattleEffectArena.Length - 0xC000)
         {
             throw new InvalidDataException("Native87DB10 draw/auxiliary banks leave the571870 arena.");
@@ -74,7 +79,7 @@ public static class NativeBattleCuragaController
             (textures, _) = textures.EnqueueArenaTim505E30(memory.Arena ?? throw new NotSupportedException("Native87DB10 requires its loaded571870 arena."), source);
             memory = memory with { Textures = textures };
         }
-        return new(memory, effect with { Pools = hierarchy.Pools, ReturnedDescriptor = 0x26D76B0 }, new(source, null, null, checked(source + 0xC000), null));
+        return new(memory, effect with { Pools = hierarchy.Pools, ReturnedDescriptor = profile.Pools[0].Descriptor }, new(source, null, null, checked(source + 0xC000), null));
     }
 
     public static NativeBattleCuragaControllerStep Advance87DC50(NativeBattleCuragaFrame frame, NativeBattleCuragaControllerInputs inputs, NativeBattleCuragaResources resources, Func<NativeBattleCuragaFrame, uint, NativeBattleCuragaLeafStep> advanceLeaf)
@@ -84,6 +89,8 @@ public static class NativeBattleCuragaController
             return new(frame, [], []);
         }
         RequireController(frame.Effect);
+        NativeBattleCuragaFamilyProfile profile = NativeBattleCuragaFamilyProfile.ForEffect(frame.Effect.Binding.Effect);
+        RequireResources(profile, resources);
         NativeBattleEffectParameters parameters = frame.Effect.Parameters!;
         inputs.Camera.Validate();
         NativeBattleCuragaFrame current = frame with { State = frame.State with { CopiedCamera = inputs.Camera } };
@@ -94,7 +101,7 @@ public static class NativeBattleCuragaController
         NativeBattleEffectHierarchyStep main = hierarchy.Advance(0, (state, address) =>
         {
             NativeBattleModulePoolTask task = state.Read(address);
-            if (task.Callback != 0x87DC50)
+            if (task.Callback != profile.Callback(0x87DC50))
             {
                 throw new NotSupportedException("Native Curaga main pool has an unsupported callback.");
             }
@@ -120,13 +127,16 @@ public static class NativeBattleCuragaController
                         arena = arena.Write(first, new byte[0x25F8]);
                         arena = arena.Write(second, new byte[0x16F80]);
                         current = current with { Memory = current.Memory with { Arena = arena }, State = current.State with { Auxiliary25F8 = first, Auxiliary16F80 = second, AuxiliaryCursor = end, Counter26D76C0 = 0, Counter26D82E8 = 0, Counter26D82D8 = 0, Counter26D75C4 = 0 } };
-                        state = state.Append8DC540(4, 0x87DE50, 64, address, Select).Hierarchy;
+                        if (profile.RootMode == NativeBattleCuragaRootMode.CuragaFade)
+                        {
+                            state = state.Append8DC540(4, profile.Callback(0x87DE50), 64, address, Select).Hierarchy;
+                        }
                         state = Next(state, address);
                     }
                     break;
                 case 3:
                     state = state.Write(address, task.WriteByte(0x63, 1));
-                    state = state.Append8DC540(1, 0x87DF70, 88, address, Select).Hierarchy;
+                    state = state.Append8DC540(1, profile.Callback(0x87DF70), 88, address, Select).Hierarchy;
                     state = Next(state, address);
                     break;
                 case 4:
@@ -138,17 +148,26 @@ public static class NativeBattleCuragaController
                         }
                         else
                         {
-                            task = task.WriteWord(0x60, 10).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1)));
+                            if (profile.RootMode == NativeBattleCuragaRootMode.CuragaFade)
+                            {
+                                task = task.WriteWord(0x60, 10);
+                            }
+                            task = task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1)));
                         }
                         state = state.Write(address, task);
                     }
                     break;
                 case 5:
+                    if (profile.RootMode == NativeBattleCuragaRootMode.XPotion)
+                    {
+                        state = Next(state, address);
+                        break;
+                    }
                     task = task.WriteWord(0x60, unchecked((ushort)(task.ReadWord(0x60) - 1)));
                     state = state.Write(address, task);
                     if (unchecked((short)task.ReadWord(0x60)) <= 0)
                     {
-                        state = state.Append8DC540(4, 0x882FC0, 64, address, Select).Hierarchy;
+                        state = state.Append8DC540(4, profile.Callback(0x882FC0), 64, address, Select).Hierarchy;
                         state = Next(state, address);
                     }
                     break;
@@ -170,7 +189,7 @@ public static class NativeBattleCuragaController
             state = state.Write(address, state.Read(address).WriteWord(0x5E, 0));
             current = current with { State = current.State with { PassCount26D82EA = 0, PassCount26D82DA = 0 } };
             int survivors = 0;
-            for (int pool = 1; pool < 5; pool++)
+            for (int pool = 1; pool < profile.Pools.Length; pool++)
             {
                 int selected = pool;
                 NativeBattleEffectHierarchyStep children = state.Advance(pool, (childState, childAddress) =>
@@ -194,13 +213,13 @@ public static class NativeBattleCuragaController
             bool complete = (task.ReadByte(0x26) & 1) != 0 && task.ReadByte(0x28) == 0;
             return new(complete ? state.Complete8DC530(address) : state, complete ? 2 : 0);
         });
-        NativeBattleOriginalEffectState effect = current.Effect with { Pools = main.Hierarchy.Pools, ReturnedDescriptor = main.Survivors == 0 ? 0u : 0x26D76B0u };
+        NativeBattleOriginalEffectState effect = current.Effect with { Pools = main.Hierarchy.Pools, ReturnedDescriptor = main.Survivors == 0 ? 0u : profile.Pools[0].Descriptor };
         return new(current with { Effect = effect }, contacts.ToImmutable(), sounds.ToImmutable());
 
         NativeBattleEffectHierarchyCallback AdvanceChild(NativeBattleEffectHierarchy state, uint address)
         {
             NativeBattleModulePoolTask task = state.Read(address);
-            if (task.Callback != 0x87DF70)
+            if (task.Callback != profile.Callback(0x87DF70))
             {
                 throw new NotSupportedException("Native Curaga child pool has an unsupported callback.");
             }
@@ -213,13 +232,13 @@ public static class NativeBattleCuragaController
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
                 case 0:
-                    NativeBattleEffectHierarchyAppend append = state.Append8DC540(3, 0x87E1A0, 676, address, Select);
+                    NativeBattleEffectHierarchyAppend append = state.Append8DC540(3, profile.Callback(0x87E1A0), 676, address, Select);
                     state = append.Hierarchy;
                     if (append.Address == 0)
                     {
                         throw new NotSupportedException("Native87E150 returned null before its original field writes.");
                     }
-                    state = state.Write(append.Address, state.Read(append.Address).WriteDword(0x30, 0x17D5F4C).WriteWord(0x298, 0).WriteWord(0x29C, 0).WriteWord(0x29E, 45));
+                    state = state.Write(append.Address, state.Read(append.Address).WriteDword(0x30, profile.ExecutableAddress).WriteWord(0x298, 0).WriteWord(0x29C, 0).WriteWord(0x29E, 45));
                     state = Next(state, address);
                     break;
                 case 1:
@@ -257,13 +276,13 @@ public static class NativeBattleCuragaController
             }
             if (task.ReadWord(0x24) == 20)
             {
-                NativeBattleEffectHierarchyAppend flash = state.Append8DC540(2, 0x87E020, 60, address, Select);
+                NativeBattleEffectHierarchyAppend flash = state.Append8DC540(2, profile.Callback(0x87E020), 60, address, Select);
                 state = flash.Hierarchy;
                 if (flash.Address == 0)
                 {
                     throw new NotSupportedException("Native87DF70 returned null before its flash resource write.");
                 }
-                state = state.Write(flash.Address, state.Read(flash.Address).WriteDword(0x30, 0x160E0A0));
+                state = state.Write(flash.Address, state.Read(flash.Address).WriteDword(0x30, profile.FlashAddress));
             }
             task = state.Read(address).WriteWord(0x24, unchecked((ushort)(task.ReadWord(0x24) + 1)));
             state = state.Write(address, task);
@@ -278,21 +297,41 @@ public static class NativeBattleCuragaController
         return hierarchy.Write(address, task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1))));
     }
 
+    internal static NativeBattleModulePoolTask InitializeXPotionRoot817410(NativeBattleModulePoolTask task, NativeBattleEffectParameters parameters, NativeBattleActionPacketsState packets)
+    {
+        task = task.WriteDword(0x0C, 0x1D99A78);
+        NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, task.ReadDword(0x0C), unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
+        NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
+        byte targets = header.ReadByte(16);
+        byte groups = header.ReadByte(17);
+        byte maximum = unchecked((byte)(targets - 1));
+        if (maximum < groups)
+        {
+            maximum = groups;
+        }
+        return task.WriteByte(0x2C, actors.Actor).WriteByte(0x29, 0).WriteByte(0x2D, actors.Target).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
+    }
+
+    private static void RequireResources(NativeBattleCuragaFamilyProfile profile, NativeBattleCuragaResources resources)
+    {
+        if (resources.Effect != profile.Effect || resources.Executable is { } source && source.ResourceAddress != profile.ExecutableAddress)
+        {
+            throw new InvalidDataException("Native Curaga family resources belong to another module.");
+        }
+    }
+
     private static void RequireController(NativeBattleOriginalEffectState effect)
     {
         effect.Validate();
-        if (effect.Binding.Entry != 0x87DB10 || effect.Parameters is null || effect.ReturnedDescriptor != 0x26D76B0 || effect.Pools.Length != 5)
+        NativeBattleCuragaFamilyProfile profile = NativeBattleCuragaFamilyProfile.ForEffect(effect.Binding.Effect);
+        if (effect.Binding.Entry != profile.Entry || effect.Parameters is null || effect.ReturnedDescriptor != profile.Pools[0].Descriptor || effect.Pools.Length != profile.Pools.Length)
         {
             throw new InvalidDataException("Native87DC50 requires its executed87DB10 physical controller.");
         }
-        uint[] descriptors = [0x26D76B0, 0x26D8160, 0x26D74F8, 0x26D7EC0, 0x26D8150];
-        uint[] banks = [0x26D75E8, 0x26D8170, 0x26D7508, 0x26D76D0, 0x26D7ED0];
-        int[] strides = [100, 88, 60, 676, 64];
-        int[] counts = [2, 4, 3, 3, 10];
-        for (int index = 0; index < 5; index++)
+        for (int index = 0; index < profile.Pools.Length; index++)
         {
             NativeBattleEffectTaskPool pool = effect.Pools[index];
-            if (pool.DescriptorAddress != descriptors[index] || pool.BankAddress != banks[index] || pool.Stride != strides[index] || pool.Slots.Length != counts[index])
+            if (pool.DescriptorAddress != profile.Pools[index].Descriptor || pool.BankAddress != profile.Pools[index].Bank || pool.Stride != profile.Pools[index].Stride || pool.Slots.Length != profile.Pools[index].Capacity)
             {
                 throw new InvalidDataException("Native Curaga physical hierarchy contradicts its original descriptor.");
             }

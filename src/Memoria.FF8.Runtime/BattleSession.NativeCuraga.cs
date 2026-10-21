@@ -30,7 +30,7 @@ public sealed partial class BattleSession
         {
             NativeEffectMemory = current.Memory;
             NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(current.Effect.Pools).Read(address);
-            NativeBattleCuragaLeafStep leaf = task.Callback == 0x87E1A0
+            NativeBattleCuragaLeafStep leaf = task.Callback == NativeBattleCuragaFamilyProfile.ForEffect(effect.Binding.Effect).Callback(0x87E1A0)
                 ? NativeBattleCuragaNodeEngine.AdvanceGeneric87E1A0(current, address, resources, inputs, new(AdvanceNodes))
                 : NativeBattleCuragaParticles.AdvanceSimple(current, address, resources, Execute);
             NativeEffectMemory = leaf.Frame.Memory;

@@ -3,7 +3,7 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8;
 
 /// <summary>Transient audio follows committed battle events without becoming saved simulation state.</summary>
-internal sealed class BattleAudioPresentation(Action<int> playImpact, Action<BattleCombatant, BattleSequenceSoundCue>? playSequence = null, Action<NativeBattleModuleSound>? playModule = null, Action? stopSounds = null, Action<NativeBattleMusicCommandReceipt>? playMusicCommand = null, Action<int>? playUiSound = null)
+internal sealed class BattleAudioPresentation(Action<int> playImpact, Action<BattleCombatant, BattleSequenceSoundCue>? playSequence = null, Action<NativeBattleModuleSound>? playModule = null, Action? stopSounds = null, Action<NativeBattleMusicCommandReceipt>? playMusicCommand = null, Action<int>? playUiSound = null, Action<byte>? stopSoundVoice = null)
 {
     private BattleSession? battle;
     private int consumedEvents;
@@ -35,6 +35,14 @@ internal sealed class BattleAudioPresentation(Action<int> playImpact, Action<Bat
             if (entry.NativeMusicCommand is { } musicCommand)
             {
                 (playMusicCommand ?? throw new NotSupportedException("Native501B60 requires its committed battle music output handler."))(musicCommand);
+            }
+            if (entry.NativeStopSoundVoice is byte voice)
+            {
+                if (voice >= 32)
+                {
+                    throw new InvalidDataException("Native sound stop requires a physical voice below32.");
+                }
+                (stopSoundVoice ?? throw new NotSupportedException("Native46B450 requires its selected sound voice output handler."))(voice);
             }
             if (entry.NativeStopAllSounds)
             {

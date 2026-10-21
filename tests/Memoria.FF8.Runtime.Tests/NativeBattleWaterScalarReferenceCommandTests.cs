@@ -235,6 +235,7 @@ public sealed partial class NativeBattleWaterScalarReferenceCommandTests
     {
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create().WriteTemporaryWord(0x14A, instruction);
         frame = WaterSchedulerFixture.CoreDword(frame, 0x2797450, Pc);
+        frame = WaterSchedulerFixture.CoreDword(frame, 0x27973B8, frame.TemporaryFrame.Address + 0x100);
         frame = WaterSchedulerFixture.CoreDword(frame, Manager + 0xC0, 0x76543210);
         byte[] bytes = new byte[6];
         BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(2), first);

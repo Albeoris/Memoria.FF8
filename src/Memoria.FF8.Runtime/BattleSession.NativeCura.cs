@@ -31,7 +31,7 @@ public sealed partial class BattleSession
             current = current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Cura lost its canonical process memory.") };
             NativeBattleCuraParticleInputs particleInputs = new(inputs, nativeCrtRandom ?? throw new NotSupportedException("Native Cura requires its55CBD2 CRT random owner."), Execute) { Projection = projection };
             NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(current.Effect.Pools).Read(address);
-            NativeBattleCuraParticleStep leaf = task.Callback is 0x88A070 or 0x88A2D0 or 0x88A4E0 or 0x88B950 or 0x88CDA0 ? NativeBattleCuraParticles.AdvanceSprite(current, address, resources, particleInputs) : NativeBattleCuraParticles.AdvanceLarge(current, address, resources, particleInputs);
+            NativeBattleCuraParticleStep leaf = NativeBattleCuraFamilyProfile.ForEffect(effect.Binding.Effect).IsSpriteCallback(task.Callback) ? NativeBattleCuraParticles.AdvanceSprite(current, address, resources, particleInputs) : NativeBattleCuraParticles.AdvanceLarge(current, address, resources, particleInputs);
             nativeCrtRandom = leaf.CrtRandomAfter;
             NativeEffectMemory = leaf.Frame.Memory;
             return new(leaf.Frame, leaf.Result);
@@ -79,7 +79,7 @@ public sealed partial class BattleSession
                     NativeBattleCureActorContext context = current.State.ActorContext ?? throw new NotSupportedException("Native88BDA0 requires its executed88CA90 shared actor context.");
                     NativeBattleGraphicsModel target = graphics.Models[context.Target];
                     graphics = SubmitNativeShadowPackets5088A0(graphics, target, projection, 4112, false);
-                    NativeBattleCureActorPacketBatch batch = NativeBattleCureActorAssembly.Emit88BDA0(target, NativeGraphicsPoseResource(graphics, context.Target), view, projection, actor.Center, actor.VerticalOffset, NativeEffectMemory!.CuraContextF4);
+                    NativeBattleCureActorPacketBatch batch = NativeBattleCureActorAssembly.Emit88BDA0(target, NativeGraphicsPoseResource(graphics, context.Target), view, projection, actor.Center, actor.VerticalOffset, NativeBattleCuraFamilyProfile.ForEffect(effect.Binding.Effect).ReadContextF4(NativeEffectMemory!));
                     foreach (NativeBattleCureAllocatedPrimitive allocation in batch.Primitives)
                     {
                         if (allocation.Bank == NativeBattleCurePacketBank.Process)

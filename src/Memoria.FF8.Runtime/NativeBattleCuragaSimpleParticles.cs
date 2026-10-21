@@ -9,9 +9,14 @@ public static partial class NativeBattleCuragaParticles
 {
     public static NativeBattleCuragaLeafStep AdvanceSimple(NativeBattleCuragaFrame frame, uint address, NativeBattleCuragaResources resources, Func<NativeBattleCuragaFrame, NativeBattleCuragaOperation, NativeBattleCuragaFrame> execute)
     {
+        NativeBattleCuragaFamilyProfile profile = NativeBattleCuragaFamilyProfile.ForEffect(frame.Effect.Binding.Effect);
+        if (resources.Effect != profile.Effect)
+        {
+            throw new InvalidDataException("Native Curaga family resources belong to another module.");
+        }
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address);
-        switch (task.Callback)
+        switch (profile.CanonicalSimpleCallback(task.Callback))
         {
             case 0x87DE50:
                 FadeIn();
@@ -54,7 +59,7 @@ public static partial class NativeBattleCuragaParticles
         }
         void Flash()
         {
-            if (task.ReadDword(0x30) != 0x160E0A0 || resources.FlashProgram.IsDefault)
+            if (task.ReadDword(0x30) != profile.FlashAddress || resources.FlashProgram.IsDefault)
             {
                 throw new NotSupportedException("Native87E020 requires its selected original160E0A0 color program.");
             }

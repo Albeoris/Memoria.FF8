@@ -13,10 +13,15 @@ public static partial class NativeBattleCuraParticles
 {
     public static NativeBattleCuraParticleStep AdvanceLarge(NativeBattleCuraFrame frame, uint address, NativeBattleCuraResources resources, NativeBattleCuraParticleInputs inputs)
     {
+        NativeBattleCuraFamilyProfile profile = NativeBattleCuraFamilyProfile.ForEffect(frame.Effect.Binding.Effect);
+        if (resources.Effect != profile.Effect)
+        {
+            throw new InvalidDataException("Native Cura family resources belong to another module.");
+        }
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address);
         NativeCrtRandomState random = inputs.CrtRandom;
-        switch (task.Callback)
+        switch (profile.CanonicalParticleCallback(task.Callback))
         {
             case 0x88A740:
                 SceneParticle(0x1611C20, 100, true);
@@ -92,7 +97,7 @@ public static partial class NativeBattleCuraParticles
         {
             Put();
             NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new InvalidDataException("Native Cura append requires50AFC0 parameters.");
-            NativeBattleEffectHierarchyAppend append = hierarchy.Append8DC540(pool, callback, bytes, address, (pointer, group, target) => NativeBattleCureController.SelectActors(parameters, inputs.Controller.Packets, pointer, group, target));
+            NativeBattleEffectHierarchyAppend append = hierarchy.Append8DC540(pool, profile.Callback(callback), bytes, address, (pointer, group, target) => NativeBattleCureController.SelectActors(parameters, inputs.Controller.Packets, pointer, group, target));
             hierarchy = append.Hierarchy;
             task = hierarchy.Read(address);
             if (append.Address == 0)
@@ -235,7 +240,7 @@ public static partial class NativeBattleCuraParticles
         }
         void SceneParticle(uint sourceAddress, int clearBytes, bool wide)
         {
-            NativeBattleCuraSceneResource scene = resources.Scenes.Single(source => source.Address == sourceAddress);
+            NativeBattleCuraSceneResource scene = resources.Scenes.Single(source => source.Address == profile.Resource(sourceAddress));
             NativeBattleGfAnimationSource source = new(scene.Address, scene.Data);
             NativeBattleGfAnimationWorkspace workspace = new(task.Payload.AsSpan().Slice(0x60 - 12).ToArray().ToImmutableArray());
             switch (Phase())
@@ -256,7 +261,7 @@ public static partial class NativeBattleCuraParticles
                     NativeBattleGfAnimationAdvance step = workspace.Advance88A980(source, (current, node) =>
                     {
                         WriteWorkspace(current);
-                        NativeBattleModulePacketBatch batch = NativeBattleCuraScenePackets.Emit88AF90(scene, node, parent, projection, wide ? 0x40000030u : 0x30u, frame.Memory.CuraSceneFade);
+                        NativeBattleModulePacketBatch batch = NativeBattleCuraScenePackets.Emit88AF90(scene, node, parent, projection, wide ? 0x40000030u : 0x30u, profile.ReadSceneFade(frame.Memory));
                         Execute(new NativeBattleCuraMeshOperation(batch));
                         return new(task.Payload.AsSpan().Slice(0x60 - 12).ToArray().ToImmutableArray());
                     });

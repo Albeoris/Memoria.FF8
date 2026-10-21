@@ -15,10 +15,15 @@ public static partial class NativeBattleCuraParticles
 {
     public static NativeBattleCuraParticleStep AdvanceSprite(NativeBattleCuraFrame frame, uint address, NativeBattleCuraResources resources, NativeBattleCuraParticleInputs inputs)
     {
+        NativeBattleCuraFamilyProfile profile = NativeBattleCuraFamilyProfile.ForEffect(frame.Effect.Binding.Effect);
+        if (resources.Effect != profile.Effect)
+        {
+            throw new InvalidDataException("Native Cura family resources belong to another module.");
+        }
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address);
         NativeCrtRandomState random = inputs.CrtRandom;
-        switch (task.Callback)
+        switch (profile.CanonicalParticleCallback(task.Callback))
         {
             case 0x88A070:
                 AdvanceBurst();
@@ -71,7 +76,7 @@ public static partial class NativeBattleCuraParticles
             switch (Phase())
             {
                 case 0:
-                    task = FirstAnchor(task).WriteDword(0x4C, 0x1610948).WriteWord(0x52, 3);
+                    task = FirstAnchor(task).WriteDword(0x4C, profile.Resource(0x1610948)).WriteWord(0x52, 3);
                     task = Add(task, 0x1E, -1536);
                     int angle = Rand() & 0xFFF;
                     for (int index = 0; index < 8; index++)
@@ -102,7 +107,7 @@ public static partial class NativeBattleCuraParticles
             switch (Phase())
             {
                 case 0:
-                    task = task.WriteWord(0x78, (ushort)(Rand() & 0xFFF)).WriteDword(0x68, task.ReadDword(0x1C)).WriteDword(0x6C, task.ReadDword(0x20)).WriteDword(0x4C, 0x16109BC).WriteWord(0x52, 1);
+                    task = task.WriteWord(0x78, (ushort)(Rand() & 0xFFF)).WriteDword(0x68, task.ReadDword(0x1C)).WriteDword(0x6C, task.ReadDword(0x20)).WriteDword(0x4C, profile.Resource(0x16109BC)).WriteWord(0x52, 1);
                     task = task.WriteWord(0x5A, unchecked((ushort)((Rand() & 63) - 48)));
                     short speed = (short)((Rand() & 31) + 80);
                     task = task.WriteWord(0x7C, unchecked((ushort)speed)).WriteWord(0x7E, unchecked((ushort)(-speed / 16)));
@@ -116,7 +121,7 @@ public static partial class NativeBattleCuraParticles
                     }
                     if (Word(task, 0x24) >= 16)
                     {
-                        task = task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 16)).WriteDword(0x4C, 0x1610A10).WriteWord(0x50, 0).WriteWord(0x52, 6);
+                        task = task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 16)).WriteDword(0x4C, profile.Resource(0x1610A10)).WriteWord(0x50, 0).WriteWord(0x52, 6);
                         IncrementPhase();
                     }
                     break;
@@ -155,7 +160,7 @@ public static partial class NativeBattleCuraParticles
             switch (Phase())
             {
                 case 0:
-                    task = task.WriteDword(0x4C, 0x1610AD4).WriteWord(0x50, 0).WriteWord(0x52, 10).WriteWord(0x62, unchecked((ushort)-3)).WriteWord(0x5A, (ushort)((Rand() & 7) + 32));
+                    task = task.WriteDword(0x4C, profile.Resource(0x1610AD4)).WriteWord(0x50, 0).WriteWord(0x52, 10).WriteWord(0x62, unchecked((ushort)-3)).WriteWord(0x5A, (ushort)((Rand() & 7) + 32));
                     IncrementPhase();
                     break;
                 case 1:
@@ -184,7 +189,7 @@ public static partial class NativeBattleCuraParticles
             {
                 case 0:
                     bool first = (Rand() & 1) != 0;
-                    task = task.WriteDword(0x4C, first ? 0x161079Cu : 0x1610C00u).WriteDword(0x70, first ? 0x1610DACu : 0x1610F58u).WriteWord(0x7A, (ushort)(Rand() & 0xFFF)).WriteWord(0x52, 15).WriteWord(0x54, unchecked((ushort)-512));
+                    task = task.WriteDword(0x4C, first ? profile.Resource(0x161079C) : profile.Resource(0x1610C00)).WriteDword(0x70, first ? profile.Resource(0x1610DAC) : profile.Resource(0x1610F58)).WriteWord(0x7A, (ushort)(Rand() & 0xFFF)).WriteWord(0x52, 15).WriteWord(0x54, unchecked((ushort)-512));
                     IncrementPhase();
                     break;
                 case 1:
@@ -206,7 +211,7 @@ public static partial class NativeBattleCuraParticles
             switch (Phase())
             {
                 case 0:
-                    task = task.WriteDword(0x4C, 0x1610AD4).WriteWord(0x52, 10).WriteWord(0x54, unchecked((ushort)-1024)).WriteWord(0x5A, (ushort)((Rand() & 7) + 4));
+                    task = task.WriteDword(0x4C, profile.Resource(0x1610AD4)).WriteWord(0x52, 10).WriteWord(0x54, unchecked((ushort)-1024)).WriteWord(0x5A, (ushort)((Rand() & 7) + 4));
                     IncrementPhase();
                     break;
                 case 1:
@@ -234,7 +239,7 @@ public static partial class NativeBattleCuraParticles
         {
             hierarchy = hierarchy.Write(address, task);
             NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new InvalidDataException("Native Cura child append requires its50AFC0 parameters.");
-            NativeBattleEffectHierarchyAppend append = hierarchy.Append8DC540(3, callback, 132, address, (pointer, group, target) => NativeBattleCureController.SelectActors(parameters, inputs.Controller.Packets, pointer, group, target));
+            NativeBattleEffectHierarchyAppend append = hierarchy.Append8DC540(3, profile.Callback(callback), 132, address, (pointer, group, target) => NativeBattleCureController.SelectActors(parameters, inputs.Controller.Packets, pointer, group, target));
             hierarchy = append.Hierarchy;
             task = hierarchy.Read(address);
             if (append.Address == 0)

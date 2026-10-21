@@ -43,8 +43,9 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
             string fixture = Path.Combine(output!, "fixture");
             boundary = "export-controlled-component";
             byte caster = effectId is 77 or 219 ? (byte)3 : (byte)0;
+            byte contactActor = effectId == 77 ? caster : (byte)0;
             int encounter = effectId switch { 77 => 981, 219 => 462, _ => 94 };
-            NativeEffectFixtureRequest request = new($"cinematic{effectId}", effectId, action.Command, action.ActionId, 0, 800, 240) { ControlledShellEffect = originalAction is null ? action.MagicId : null, EncounterId = encounter, CasterActorIndex = caster };
+            NativeEffectFixtureRequest request = new($"cinematic{effectId}", effectId, action.Command, action.ActionId, contactActor, 800, 240) { ControlledShellEffect = originalAction is null ? action.MagicId : null, EncounterId = encounter, CasterActorIndex = caster };
             NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, directory!, fixture);
             File.WriteAllText(Path.Combine(output!, "fixture-result.json"), JsonSerializer.Serialize(exported));
             Assert.True(exported.Status != "blocked", exported.FirstBlocker);
@@ -63,11 +64,11 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
             Assert.Equal(action.MagicId, exported.Selection.ShellEffect);
             NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value);
             Assert.Equal((byte)1, source.NativeActionPackets.ContactCount);
-            Assert.Equal((byte)0, contact.Primary.ActorIndex);
+            Assert.Equal(contactActor, contact.Primary.ActorIndex);
             Assert.Equal((ushort)7, contact.Primary.Amount6);
             Assert.Equal((byte)255, contact.Secondary.ActorIndex);
-            NativeBattleEffectTask expectedText = Assert.Single(NativeBattleEffectsState.Clear().PrependDamageText(contact.Primary.ActorIndex, contact.Primary.ContactFlags, contact.Primary.Amount6).Slots, task => (task.Flags0 & 1) != 0);
-            string target = source.NativeGraphics!.ActorIds[0]!;
+            NativeBattleEffectTask? expectedText = NativeBattleEffectsState.Clear().PrependDamageText(contact.Primary.ActorIndex, contact.Primary.ContactFlags, contact.Primary.Amount6).Slots.SingleOrDefault(task => (task.Flags0 & 1) != 0);
+            string target = source.NativeGraphics!.ActorIds[contactActor]!;
             int logicalHp = source.Combatants.Single(actor => actor.Id == target).CurrentHp;
             int initialSounds = source.Events.Count(item => item.NativeModuleSound is not null);
             string initialCamera = JsonSerializer.Serialize(source.NativeCamera);
@@ -97,10 +98,11 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
                 for (int slot = 0; slot < current.NativeGraphics!.Effects.Slots.Length; slot++)
                 {
                     NativeBattleEffectTask text = current.NativeGraphics.Effects.Slots[slot];
-                    if ((text.Flags0 & 1) == 0 || text.Kind != NativeBattleEffectKind.DamageText5069B0 || text.ModelIndex != 0 || (prior.NativeGraphics!.Effects.Slots[slot].Flags0 & 1) != 0)
+                    if ((text.Flags0 & 1) == 0 || text.Kind != NativeBattleEffectKind.DamageText5069B0 || text.ModelIndex != contactActor || (prior.NativeGraphics!.Effects.Slots[slot].Flags0 & 1) != 0)
                     {
                         continue;
                     }
+                    Assert.NotNull(expectedText);
                     Assert.Equal(expectedText.Glyphs.ToArray(), text.Glyphs.ToArray());
                     Assert.Equal(expectedText.Color, text.Color);
                     Assert.Equal(expectedText.HalfWidth, text.HalfWidth);
@@ -143,7 +145,7 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
             Assert.True(initialized, "The original cinematic never initialized its selected controller.");
             Assert.True(liveRestored, "No significant original effect packet contribution reached cold continuation.");
             Assert.True(visibleChangedRgb > 0);
-            Assert.Equal(1, contacts);
+            Assert.Equal(expectedText is null ? 0 : 1, contacts);
             Assert.Equal(1, completions);
             Assert.True(completed.Events.Count(item => item.NativeModuleSound is not null) > initialSounds, "The selected component published no original module sound.");
             Assert.True(Released(completed), "The original returned task, active effect and action104 descriptor must release through native execution.");
@@ -186,6 +188,80 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
             }
             File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "blocked", Scenario = "Controlled post-formula component", Effect = effectId, boundary, callbacks, contacts, completions, visibleChangedRgb, initialized, liveRestored, RestoredBoundaries = restoredBoundaries, Error = error.ToString() }));
             throw;
+        }
+    }
+
+    [Fact]
+    public void Resume_the_selected_cinematic_standalone_through_native_completion()
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        string? input = Environment.GetEnvironmentVariable("MEMORIA_FF8_CINEMATIC_SNAPSHOT");
+        string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_CINEMATIC_EVIDENCE");
+        Assert.SkipUnless(directory is not null && input is not null && output is not null, "Select installed resources, a concrete cinematic standalone and a distinct output directory.");
+        Assert.False(Directory.Exists(output));
+        Directory.CreateDirectory(output!);
+        using GameAssets game = new(directory!);
+        using BattleAssets assets = new(directory!);
+        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(input!);
+        ushort effect = source.NativeGraphics!.OriginalEffect!.Binding.Effect;
+        Assert.True(NativeBattleCinematicProfile.IsSupported(effect));
+        Assert.True(source.NativeGraphics.OriginalEffect.ReturnedDescriptor > 0);
+        BattleSession battle = Restore(source);
+        Dictionary<string, int> hitPoints = source.Combatants.ToDictionary(actor => actor.Id, actor => actor.CurrentHp);
+        int completions = 0;
+        int callbacks = 0;
+        BattleSnapshot current = source;
+        try
+        {
+            CompareNext("before", source);
+            for (; callbacks < 1024 && !Released(current); callbacks++)
+            {
+                bool active = current.NativeGraphics!.OriginalEffect!.ReturnedDescriptor > 0;
+                battle.Tick();
+                current = battle.Capture();
+                Assert.Equal(effect, current.NativeGraphics!.OriginalEffect!.Binding.Effect);
+                foreach (BattleCombatantSnapshot actor in current.Combatants)
+                {
+                    Assert.Equal(hitPoints[actor.Id], actor.CurrentHp);
+                }
+                if (active && current.NativeGraphics.OriginalEffect.ReturnedDescriptor == 0)
+                {
+                    completions++;
+                }
+            }
+            Assert.Equal(1, completions);
+            Assert.True(Released(current), "The retained cinematic task and action104 descriptor must complete through native execution.");
+            CompareNext("completed", current);
+            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect = effect, Scenario = "Continuation of a concrete controlled cinematic standalone; no replay or formula admission", SourceFrame = source.Frame, SourceCallback = source.NativeGraphics!.Callback, callbacks, completions, current.Frame, NativeCallback = current.NativeGraphics!.Callback }));
+        }
+        catch (Exception error)
+        {
+            NativeBattleRestorationPresentationTests.Publish(output!, "before-boundary", current, null);
+            NativeBattleRestorationPresentationTests.Publish(output!, "failed-live", battle.Capture(), null);
+            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "blocked", Effect = effect, callbacks, completions, Error = error.ToString() }));
+            throw;
+        }
+
+        BattleSession Restore(BattleSnapshot snapshot)
+        {
+            BattleSession restored = BattleSession.Restore(snapshot);
+            restored.AttachNativeEffectResourceResolver(id => game.ReadNativeEffectCatalogForEffects([id])[id - 1]);
+            return restored;
+        }
+
+        void CompareNext(string name, BattleSnapshot snapshot)
+        {
+            byte[] originalPixels = new BattleScenePresentation(assets, snapshot.Definition, true).Render(Restore(snapshot), 320, 224).ToArray();
+            NativeBattleRestorationPresentationTests.Publish(output!, name, snapshot, originalPixels);
+            BattleSession direct = Restore(snapshot);
+            BattleSession cold = Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, name + ".battle.json")));
+            Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
+            direct.Tick();
+            cold.Tick();
+            Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
+            byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition, true).Render(cold, 320, 224).ToArray();
+            Assert.Equal(new BattleScenePresentation(assets, snapshot.Definition, true).Render(direct, 320, 224).ToArray(), pixels);
+            NativeBattleRestorationPresentationTests.Publish(output!, name + "-next", cold.Capture(), pixels);
         }
     }
 

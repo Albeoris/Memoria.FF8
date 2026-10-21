@@ -493,11 +493,11 @@ public sealed partial class BattleSession
         {
             return AdvanceNativeBio22_89A7B0(graphics);
         }
-        if (effect.Binding.Entry == 0x889D60)
+        if (effect.Binding.Entry is 0x889D60 or 0x81C800)
         {
             return AdvanceNativeCura889E40(graphics);
         }
-        if (effect.Binding.Entry == 0x87DB10)
+        if (effect.Binding.Entry is 0x87DB10 or 0x817410)
         {
             return AdvanceNativeCuraga87DC50(graphics);
         }

@@ -8,7 +8,7 @@ public static partial class NativeBattleCuragaNodeKinematics
     public static NativeBattleCuragaNodePresentationStep AdvanceAndDraw87EC80(NativeBattleCuragaFrame frame, uint contextTask, NativeCrtRandomState random, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors? colors = null)
     {
         NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
-        NativeBattleEffectNodeBank bank = CurrentBank(frame.Memory.CuragaExecutable);
+        NativeBattleEffectNodeBank bank = CurrentBank(NativeBattleCuragaFamilyProfile.ForEffect(frame.Effect.Binding.Effect).RequireExecutable(frame.Memory));
         NativeBattleEffectNodeLifecycle core = CreateLifecycle(memory, bank, readModel);
         NativeBattleGfGeometryBatch batch = core.AdvanceAndDraw(ref random, projection, cameraRoll, PrepareMeshes(memory, projection, colors));
         NativeBattleCuragaNodeDrawStep drawn = CommitDraws(memory, bank, ordering, batch);
@@ -18,7 +18,7 @@ public static partial class NativeBattleCuragaNodeKinematics
     public static NativeBattleCuragaNodeDrawStep DrawNodes880390And87ED10(NativeBattleCuragaFrame frame, uint contextTask, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors? colors = null)
     {
         NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
-        NativeBattleEffectNodeBank bank = CurrentBank(frame.Memory.CuragaExecutable);
+        NativeBattleEffectNodeBank bank = CurrentBank(NativeBattleCuragaFamilyProfile.ForEffect(frame.Effect.Binding.Effect).RequireExecutable(frame.Memory));
         NativeBattleGfGeometryBatch batch = CreateLifecycle(memory, bank).DrawNodes(projection, cameraRoll, PrepareMeshes(memory, projection, colors));
         return CommitDraws(memory, bank, ordering, batch);
     }

@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
@@ -591,6 +591,12 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
                 failed.Dispose();
             }
         }
+    }
+
+    public void StopBattleSoundVoice(byte voice)
+    {
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(voice, 32);
+        TryOutput(() => StopVoice(voice));
     }
 
     public void StopSounds()

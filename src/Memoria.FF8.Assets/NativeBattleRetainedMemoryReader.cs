@@ -106,7 +106,10 @@ public static class NativeBattleRetainedMemoryReader
             Potion50ContextF4 = BinaryPrimitives.ReadInt16LittleEndian(ReadLoaderBytes(0x26464D4, 2)),
             CuraContextF4 = BinaryPrimitives.ReadInt16LittleEndian(ReadLoaderBytes(0x270046C, 2)),
             CuraSceneFade = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x2700360, 4)),
+            Potion51ContextF4 = BinaryPrimitives.ReadInt16LittleEndian(ReadLoaderBytes(0x2634AB4, 2)),
+            Potion51SceneFade = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x26349A8, 4)),
             CuragaExecutable = new(BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(NativeBattleCuragaExecutableState.Address, 4)), null),
+            Potion52Executable = ReadPotion52Executable(),
             EsunaExecutable = new(24, BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(NativeBattleRestorationProfile.Esuna.ExecutableAddress, 4)), null),
             FullLifeExecutable = new(27, BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(NativeBattleRestorationProfile.FullLife.ExecutableAddress, 4)), null),
             Effect57Executable = new(57, BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(NativeBattleRestorationProfile.Effect57.ExecutableAddress, 4)), null),
@@ -125,6 +128,15 @@ public static class NativeBattleRetainedMemoryReader
             }).ToImmutableArray()),
             PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess() with { DrawMode2795BD0 = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x2795BD0, 4)), TexturePage = BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(0x1C48818, 2)), Buffer80 = ReadLoaderBytes(0x1D96A80, 1)[0], TextureWindowBits = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1CA8848, 4)) }
         };
+        NativeBattleCuragaExecutableState ReadPotion52Executable()
+        {
+            const uint address = 0x17AB0E8;
+            uint flag = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(address, 4));
+            NativeBattleCuragaExecutableState retained = new(flag, flag == 0 ? null : ReadLoaderBytes(address, NativeBattleCuragaExecutableState.Length).ToImmutableArray()) { ResourceAddress = address };
+            retained.Validate();
+            return retained;
+        }
+
         if (effectMemory.SharedEffectRandom!.State != 0)
         {
             throw new InvalidDataException("Authenticated cold7059E0 shared random DWORD2557098 contradicts its zero-filled loader storage.");

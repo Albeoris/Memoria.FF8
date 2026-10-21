@@ -10,7 +10,7 @@ internal sealed class NativeBattleCuragaNodeMemory : NativeBattleEffectNodeMemor
     {
         this.frame = frame;
         State = frame.State;
-        if (new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(taskAddress).Callback != 0x87E1A0)
+        if (new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(taskAddress).Callback != NativeBattleCuragaFamilyProfile.ForEffect(frame.Effect.Binding.Effect).Callback(0x87E1A0))
         {
             throw new InvalidDataException("Native Curaga node context requires its own87E1A0 callback.");
         }

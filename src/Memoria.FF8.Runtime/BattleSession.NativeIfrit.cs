@@ -227,6 +227,8 @@ public sealed partial class BattleSession
             int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank);
             switch (opcode)
             {
+                case 0x87 when selectedHandler == 0xB2D2B0:
+                    return NativeBattleCinematicScale87.Execute(current, program);
                 case 0xAF when selectedHandler == 0xB52F20:
                     return NativeBattleCinematicContextCommandAF.Execute(current, program);
                 case 0xB3 when selectedHandler == 0xAC7800:
@@ -260,6 +262,8 @@ public sealed partial class BattleSession
                 case 0xBB when profile.Effect == 223:
                 case 0xBD when profile.Effect == 223:
                     return ExecuteNativeMeteor223Texture(current, program, resources);
+                case 0x2C when selectedHandler == 0xB25CD0:
+                    return NativeBattleCinematicSoundStop2C.Execute(current, NativeGlobalSoundProcess ?? throw new NotSupportedException("Native46B450 requires its actual retained original sound IDs."), voice => events.Add(new(Frame, "NativeSoundStopVoice", null, null, voice, "Native46B450 stops the selected sound-effect voice.") { NativeStopSoundVoice = voice }));
                 case 0x2D:
                     return NativeBattleCinematicPresentationCommands.SetGraphicsFlag2D(current, graphics.Flags, value => graphics = graphics with { Flags = value });
                 case 0x53:
@@ -348,7 +352,7 @@ public sealed partial class BattleSession
                     return NativeBattleCinematicCopyPose91.Execute(current, program, ResolveCurrentNode, UpdateSlot);
                 case 0xAE when selectedHandler == 0xB2FBE0:
                     return NativeBattleCinematicNextActionAE.Execute(current, program, value => NativeBattleCinematicNextActionAE.CaptureCurrent(value, assets[1].Data.Length, context.ReadActionBytes, graphics.Models));
-                case 0xB7 when profile.Effect == 206:
+                case 0xB7 when profile.Effect == 206 || selectedHandler == 0xAE3350:
                     return NativeBattleCinematicControlCommands.DebugParametersB7(current, program);
                 case 0xB6 when profile.Effect == 206:
                     return NativeBattleCinematicBlitB8.ExecuteRelativeB6(current, program, QueueTextureCopy);

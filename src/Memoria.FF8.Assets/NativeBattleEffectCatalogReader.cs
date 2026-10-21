@@ -789,10 +789,18 @@ public sealed partial class GameAssets
                 binding = binding with { Bio22Resources = ReadNativeBio22Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Entry == 0x81C800)
+            {
+                binding = binding with { CuraResources = ReadNativePotion51Resources() };
+            }
             if (binding.Entry == 0x889D60)
             {
                 binding = binding with { CuraResources = ReadNativeCuraResources() };
                 catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Entry == 0x817410)
+            {
+                binding = binding with { CuragaResources = ReadNativePotion52Resources() };
             }
             if (binding.Entry == 0x87DB10)
             {

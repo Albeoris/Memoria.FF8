@@ -6,6 +6,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleCuraSceneResource(uint Address, ImmutableArray<byte> Data);
 public sealed record NativeBattleCuraResources(NativeBattleEffectHeapAllocation Animation, ImmutableArray<NativeBattleModuleResource> Sprites, uint Sound)
 {
+    public ushort Effect { get; init; } = 25;
     public ImmutableArray<NativeBattleCuraSceneResource> Scenes { get; init; } = [];
     public ImmutableArray<ImmutableArray<short>> EmissionSchedules { get; init; } = [];
 }
@@ -28,18 +29,18 @@ public static class NativeBattleCuraController
     {
         effect.Validate();
         packets.Validate();
+        NativeBattleCuraFamilyProfile profile = NativeBattleCuraFamilyProfile.ForEffect(effect.Binding.Effect);
+        if (resources.Effect != profile.Effect)
+        {
+            throw new InvalidDataException("Native Cura family resources belong to another module.");
+        }
         NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native889D60 requires50AFC0 parameters.");
-        if (effect.Binding.Entry != 0x889D60)
+        if (effect.Binding.Entry != profile.Entry)
         {
             throw new InvalidDataException("Native Cura requires the actual889D60 entry.");
         }
-        NativeBattleEffectHierarchy hierarchy = new([
-            NativeBattleEffectTaskPool.Initialize(0x26E5A00, 0x26E5938, 100, 2),
-            NativeBattleEffectTaskPool.Initialize(0x26FCFA0, 0x26FCFB0, 88, 4),
-            NativeBattleEffectTaskPool.Initialize(0x26FD118, 0x26FD128, 200, 64),
-            NativeBattleEffectTaskPool.Initialize(0x26F6B80, 0x26E69B0, 132, 500)
-        ]);
-        NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 0x889E40, 100);
+        NativeBattleEffectHierarchy hierarchy = new(profile.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
+        NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, profile.Callback(0x889E40), 100);
         hierarchy = root.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
         int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native889D60 requires its header's original contact pointer.");
@@ -48,14 +49,14 @@ public static class NativeBattleCuraController
         hierarchy = hierarchy.Write(root.Address, task);
         if ((parameters.Flags79 & 1) == 0)
         {
-            int textureOffset = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x26E5908)?.ArenaOffset ?? throw new NotSupportedException("Native889D60 requires the actual26E5908 initializer resource pointer.");
+            int textureOffset = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == profile.InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Native889D60 requires the actual26E5908 initializer resource pointer.");
             NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native889D60 requires the retained5099A0/505E30 texture owner.");
             textures = textures.Register5099A0(resources.Animation);
             (textures, _) = textures.EnqueueArenaTim505E30(memory.Arena ?? throw new NotSupportedException("Native889D60 requires the loaded571870 arena."), textureOffset);
             memory = memory with { Textures = textures };
         }
         //571B50 is literally MOV EAX,20DFAB8;RET. These are arena offsets, independent of the allocator cursor.
-        return new(memory, effect with { Pools = hierarchy.Pools, ReturnedDescriptor = 0x26E5A00 }, new(null, 0, 0x12000));
+        return new(memory, effect with { Pools = hierarchy.Pools, ReturnedDescriptor = profile.Pools[0].Descriptor }, new(null, 0, 0x12000));
     }
 
     public static NativeBattleCuraControllerStep Advance889E40(NativeBattleCuraFrame frame, NativeBattleCuraControllerInputs inputs, NativeBattleCuraResources resources, Func<NativeBattleCuraFrame, uint, NativeBattleCuraLeafStep> advanceLeaf)
@@ -65,6 +66,11 @@ public static class NativeBattleCuraController
             return new(frame, [], []);
         }
         RequireController(frame.Effect);
+        NativeBattleCuraFamilyProfile profile = NativeBattleCuraFamilyProfile.ForEffect(frame.Effect.Binding.Effect);
+        if (resources.Effect != profile.Effect)
+        {
+            throw new InvalidDataException("Native Cura family resources belong to another module.");
+        }
         NativeBattleEffectParameters parameters = frame.Effect.Parameters!;
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         NativeBattleCuraFrame current = frame;
@@ -74,7 +80,7 @@ public static class NativeBattleCuraController
         NativeBattleEffectHierarchyStep main = hierarchy.Advance(0, (state, address) =>
         {
             NativeBattleModulePoolTask task = state.Read(address);
-            if (task.Callback != 0x889E40)
+            if (task.Callback != profile.Callback(0x889E40))
             {
                 throw new NotSupportedException("Native Cura main task has an unsupported original callback.");
             }
@@ -88,7 +94,7 @@ public static class NativeBattleCuraController
                     break;
                 case 1:
                     state = state.Write(address, task.WriteByte(0x63, 1));
-                    state = state.Append8DC540(1, 0x889F40, 88, address, Select).Hierarchy;
+                    state = state.Append8DC540(1, profile.Callback(0x889F40), 88, address, Select).Hierarchy;
                     state = IncrementPhase(state, address);
                     break;
                 case 2:
@@ -134,13 +140,13 @@ public static class NativeBattleCuraController
             bool complete = (task.ReadByte(0x26) & 1) != 0 && task.ReadByte(0x28) == 0;
             return new(complete ? state.Complete8DC530(address) : state, complete ? 2 : 0);
         });
-        NativeBattleOriginalEffectState effect = current.Effect with { Pools = main.Hierarchy.Pools, ReturnedDescriptor = main.Survivors == 0 ? 0u : 0x26E5A00u };
+        NativeBattleOriginalEffectState effect = current.Effect with { Pools = main.Hierarchy.Pools, ReturnedDescriptor = main.Survivors == 0 ? 0u : profile.Pools[0].Descriptor };
         return new(current with { Effect = effect }, contacts.ToImmutable(), sounds.ToImmutable());
 
         NativeBattleEffectHierarchyCallback AdvanceChild(NativeBattleEffectHierarchy state, uint address)
         {
             NativeBattleModulePoolTask task = state.Read(address);
-            if (task.Callback != 0x889F40)
+            if (task.Callback != profile.Callback(0x889F40))
             {
                 throw new NotSupportedException("Native Cura child task has an unsupported original callback.");
             }
@@ -210,7 +216,7 @@ public static class NativeBattleCuraController
 
             void Spawn(int pool, uint callback, int bytes, ushort? rotation = null)
             {
-                NativeBattleEffectHierarchyAppend append = state.Append8DC540(pool, callback, bytes, address, Select);
+                NativeBattleEffectHierarchyAppend append = state.Append8DC540(pool, profile.Callback(callback), bytes, address, Select);
                 state = append.Hierarchy;
                 if (rotation is ushort value)
                 {
@@ -232,16 +238,17 @@ public static class NativeBattleCuraController
 
     private static void RequireController(NativeBattleOriginalEffectState effect)
     {
-        if (effect.Binding.Entry != 0x889D60 || effect.Parameters is null || effect.ReturnedDescriptor != 0x26E5A00 || effect.Pools.IsDefault || effect.Pools.Length != 4 || effect.Pools[0].DescriptorAddress != 0x26E5A00 || effect.Pools[1].DescriptorAddress != 0x26FCFA0 || effect.Pools[2].DescriptorAddress != 0x26FD118 || effect.Pools[3].DescriptorAddress != 0x26F6B80)
+        NativeBattleCuraFamilyProfile profile = NativeBattleCuraFamilyProfile.ForEffect(effect.Binding.Effect);
+        if (effect.Binding.Entry != profile.Entry || effect.Parameters is null || effect.ReturnedDescriptor != profile.Pools[0].Descriptor || effect.Pools.IsDefault || effect.Pools.Length != 4)
         {
-            throw new InvalidDataException("Native Cura requires its executed889D60 pool owners.");
+            throw new InvalidDataException("Native Cura family requires its executed original pool owners.");
         }
         new NativeBattleEffectHierarchy(effect.Pools).Validate();
-        (uint Bank, ushort Stride, int Capacity)[] banks = [(0x26E5938, 100, 2), (0x26FCFB0, 88, 4), (0x26FD128, 200, 64), (0x26E69B0, 132, 500)];
+        ImmutableArray<NativeBattleCureFamilyPool> banks = profile.Pools;
         for (int index = 0; index < banks.Length; index++)
         {
             NativeBattleEffectTaskPool pool = effect.Pools[index];
-            if (pool.BankAddress != banks[index].Bank || pool.Stride != banks[index].Stride || pool.Slots.Length != banks[index].Capacity)
+            if (pool.DescriptorAddress != banks[index].Descriptor || pool.BankAddress != banks[index].Bank || pool.Stride != banks[index].Stride || pool.Slots.Length != banks[index].Capacity)
             {
                 throw new InvalidDataException("Native Cura task bank differs from its889D60 initialization.");
             }

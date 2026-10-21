@@ -8,7 +8,7 @@ public static partial class NativeBattleCuragaNodeKinematics
     {
         NativeBattleCuragaExecutableState retained = source ?? throw new NotSupportedException("Native Curaga node requires its retained current executable bank.");
         retained.Validate();
-        return new(NativeBattleCuragaExecutableState.Address, retained.Data ?? throw new NotSupportedException("Native Curaga node requires its materialized executable bytes."));
+        return new(retained.ResourceAddress, retained.Data ?? throw new NotSupportedException("Native Curaga node requires its materialized executable bytes."));
     }
 
     internal static NativeBattleEffectNodeLifecycle CreateLifecycle(NativeBattleCuragaNodeMemory memory, NativeBattleEffectNodeBank bank, Func<int, NativeBattleGraphicsModel>? readModel = null)
@@ -19,8 +19,9 @@ public static partial class NativeBattleCuragaNodeKinematics
     internal static NativeBattleCuragaFrame FlushCurrent(NativeBattleCuragaNodeMemory memory, NativeBattleEffectNodeBank bank)
     {
         NativeBattleCuragaFrame result = memory.Flush();
-        NativeBattleCuragaExecutableState retained = result.Memory.CuragaExecutable ?? throw new NotSupportedException("Native Curaga node cannot publish its current bytes without the same retained bank owner.");
-        return result with { Memory = result.Memory with { CuragaExecutable = retained with { Data = bank.Data } } };
+        NativeBattleCuragaFamilyProfile profile = NativeBattleCuragaFamilyProfile.ForEffect(result.Effect.Binding.Effect);
+        NativeBattleCuragaExecutableState retained = profile.RequireExecutable(result.Memory);
+        return result with { Memory = profile.WithExecutable(result.Memory, retained with { Data = bank.Data }) };
     }
 
     private static NativeBattleEffectNodePrepareMesh PrepareMeshes(NativeBattleCuragaNodeMemory memory, NativeBattleCameraProjection projection, NativeBattleSummonColors? colors)

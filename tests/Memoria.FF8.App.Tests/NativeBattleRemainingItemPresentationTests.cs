@@ -25,6 +25,11 @@ public sealed class NativeBattleRemainingItemPresentationTests
         BattleNativeAction native = action.NativeAction!;
         Assert.Equal((byte)4, native.Command);
         Assert.Contains(native.MagicId, new ushort[] { 7, 50, 51, 52, 292, 293, 294, 295, 296 });
+        string? expectedEffect = Environment.GetEnvironmentVariable("MEMORIA_FF8_ITEM_EFFECT");
+        if (expectedEffect is not null)
+        {
+            Assert.Equal(ushort.Parse(expectedEffect, System.Globalization.CultureInfo.InvariantCulture), native.MagicId);
+        }
         bool revival = native.MagicId == 7;
         bool statusCure = native.MagicId is >= 292 and <= 296;
         ushort initialSavedStatus = statusCure ? checked((ushort)(native.Statuses0 & 0x7E)) : (ushort)0;
@@ -34,7 +39,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
             Assert.Equal((byte)0, native.Power);
             Assert.True(initialSavedStatus != 0 || initialBattleStatus != 0, "The original removal mask must include a supported non-KO saved status or untimed battle status for this fresh fixture.");
         }
-        Assert.Equal(revival ? (byte)5 : (byte)4, native.AttackType);
+        Assert.Equal(revival ? (byte)5 : native.MagicId == 52 ? (byte)32 : (byte)4, native.AttackType);
         if (revival)
         {
             Assert.True(action.AllTargets, "Mega Phoenix must retain its original group target selection.");
@@ -120,7 +125,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
         BattleSnapshot? peakWithoutEffect = null;
         byte[]? peakPixels = null;
         byte[]? peakWithoutPixels = null;
-        int formulaAmount = statusCure ? 0 : revival ? 30000 / (((casterRules.NativeStatusPassiveFlags ?? throw new InvalidDataException("Installed caster rules lack item-revival passive flags.")) & 2) != 0 ? 4 : 8) : Math.Min((native.AttackFlags & 8) != 0 ? 60000 : 9999, 50 * native.Power);
+        int formulaAmount = statusCure ? 0 : revival ? 30000 / (((casterRules.NativeStatusPassiveFlags ?? throw new InvalidDataException("Installed caster rules lack item-revival passive flags.")) & 2) != 0 ? 4 : 8) : Math.Min((native.AttackFlags & 8) != 0 ? 60000 : 9999, native.AttackType == 32 ? native.Power * 30000 / 16 : 50 * native.Power);
         int initialHp = revival ? 0 : 1000;
         int expectedHp = Math.Min(30000, initialHp + formulaAmount);
         ushort displayedHp = checked((ushort)initialHp);
@@ -177,7 +182,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
                 }
                 // Recovery geometry and status-cure ACT packets use the current effect arena's canonical20DFAB8 bank.
                 // Require the selected typed owner as well; unrelated packet banks never establish visibility.
-                if ((native.MagicId is 7 or 50 || statusCure) && graphics.OriginalEffect is { ReturnedDescriptor: > 0 } effect && (native.MagicId == 7 && effect.Recovery is not null || native.MagicId == 50 && effect.Cure is not null || statusCure && effect.StatusCureItem is not null) && effect.RequestedEffect == native.MagicId && graphics.PrimitiveFrame is { } frame && frame.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
+                if ((native.MagicId is 7 or 50 or 51 or 52 || statusCure) && graphics.OriginalEffect is { ReturnedDescriptor: > 0 } effect && (native.MagicId == 7 && effect.Recovery is not null || native.MagicId == 50 && effect.Cure is not null || native.MagicId == 51 && effect.Cura is not null || native.MagicId == 52 && effect.Curaga is not null || statusCure && effect.StatusCureItem is not null) && effect.RequestedEffect == native.MagicId && graphics.PrimitiveFrame is { } frame && frame.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
                 {
                     byte[] rendered = scene.Render(battle, 320, 224).ToArray();
                     NativeBattlePrimitiveFrame withoutFrame = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
@@ -199,7 +204,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
                         restoredLive = true;
                     }
                 }
-                else if (native.MagicId is not (7 or 50) && !statusCure && !restoredLive && graphics.OriginalEffect is { ReturnedDescriptor: > 0 } otherEffect && otherEffect.RequestedEffect == native.MagicId && graphics.PrimitiveFrame is { LastCommands.IsEmpty: false })
+                else if (native.MagicId is not (7 or 50 or 51 or 52) && !statusCure && !restoredLive && graphics.OriginalEffect is { ReturnedDescriptor: > 0 } otherEffect && otherEffect.RequestedEffect == native.MagicId && graphics.PrimitiveFrame is { LastCommands.IsEmpty: false })
                 {
                     battle = VerifyContinuation("live", current);
                     restoredLive = true;
@@ -235,7 +240,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
             BattleSnapshot completed = battle.Capture();
             Assert.True(selected, "The actual item command never selected its original effect.");
             Assert.True(restoredLive, "No live effect task with primitive commands reached disk restoration.");
-            if (native.MagicId is 7 or 50 || statusCure)
+            if (native.MagicId is 7 or 50 or 51 or 52 || statusCure)
             {
                 Assert.True(peakChangedRgb > 0, "The original item effect arena packets changed no RGB pixels.");
                 PublishPeak();

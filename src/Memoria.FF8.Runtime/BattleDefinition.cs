@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -293,6 +293,8 @@ public sealed record BattleEvent(long Frame, string Kind, string? ActorId, strin
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleMusicCommandReceipt? NativeMusicCommand { get; init; }
     public bool NativeStopAllSounds { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public byte? NativeStopSoundVoice { get; init; }
     public byte? NativeGraphicMagicId { get; init; }
     public byte? NativeSequence { get; init; }
     public int? NativeMessageMode { get; init; }

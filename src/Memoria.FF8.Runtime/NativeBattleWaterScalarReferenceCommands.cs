@@ -77,22 +77,7 @@ public static class NativeBattleWaterScalarReferenceCommands
                 frame = services.CachePosition(frame);
                 return Advance(4);
             case 0x87:
-                int factor = unchecked((short)Operand(2));
-                int divisor = unchecked((short)Operand(4));
-                for (int lane = 0; lane < 6; lane++)
-                {
-                    if (Selected(lane))
-                    {
-                        int value = unchecked((int)BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0x50 + lane * 4, 4))) >> 16;
-                        int numerator = unchecked(unchecked((factor - 0x100) * value) << 8);
-                        if (divisor == 0 || numerator == int.MinValue && divisor == -1)
-                        {
-                            throw new NotSupportedException("Native selected scalar division would fault on its actual signed operands.");
-                        }
-                        frame = WriteSlotDword(frame, 0x68 + lane * 4, unchecked((uint)(numerator / divisor)));
-                    }
-                }
-                return Advance(6);
+                return NativeBattleCinematicScale87.Execute(frame, program);
             case 0x4C:
                 return ChangeUpdate(frame, program, services.UpdateSelected);
             case 0xD2:
