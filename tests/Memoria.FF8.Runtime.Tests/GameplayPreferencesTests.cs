@@ -13,7 +13,7 @@ public sealed class GameplayPreferencesTests
         {
             GameSession first = GameSession.CreateColdProcess();
             first.StartNewGame();
-            first.SetGameplayPreferences(new GameplayPreferences { AtbMode = BattleAtbMode.Normal, GunbladeMode = BattleGunbladeMode.Manual, GuardianFormsEnabled = true });
+            first.SetGameplayPreferences(new GameplayPreferences { Difficulty = BattleDifficulty.Hard, AtbMode = BattleAtbMode.Normal, GunbladeMode = BattleGunbladeMode.Manual, GuardianFormsEnabled = true });
             first.Save(path);
             GameSession second = GameSession.CreateColdProcess();
             second.StartNewGame();
@@ -45,6 +45,7 @@ public sealed class GameplayPreferencesTests
             original.Remove(nameof(GameState.GameplayPreferences));
             File.WriteAllText(path, original.ToJsonString());
             GameState loaded = GameSession.Load(path);
+            Assert.Equal(BattleDifficulty.Normal, loaded.GameplayPreferences.Difficulty);
             Assert.Equal(BattleAtbMode.TurnBased, loaded.GameplayPreferences.AtbMode);
             Assert.Equal(BattleGunbladeMode.Automatic, loaded.GameplayPreferences.GunbladeMode);
             Assert.False(loaded.GameplayPreferences.GuardianFormsEnabled);

@@ -194,7 +194,7 @@ public sealed partial class BattleSession
             {
                 case BattleActionEffect.Damage:
                     // Original491AD0/48FE20 magic and GF damage over current native statistic inputs.
-                    int damage = command.Ability == BattleAbility.GuardianForce ? NativeBattleDamage.GuardianForce(recipient.Spirit, action.Power, action.Level, action.LevelPowerCoefficient, action.ConstantPower, action.DamagePercent, NextRandomByte()) : NativeBattleDamage.Magic(actor.Magic, recipient.Spirit, action.Power, NextRandomByte(), !actor.IsPlayer);
+                    int damage = command.Ability == BattleAbility.GuardianForce ? NativeBattleDamage.GuardianForce(recipient.Spirit, action.Power, action.Level, action.LevelPowerCoefficient, action.ConstantPower, action.DamagePercent, NextRandomByte()) : NativeBattleDamage.Magic(actor.Magic, recipient.Spirit, action.Power, NextRandomByte(), !actor.IsPlayer, Difficulty);
                     if (HasStatus(recipient, BattleStatusKind.Shell))
                     {
                         damage >>= 1;

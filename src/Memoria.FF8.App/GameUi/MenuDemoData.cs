@@ -183,6 +183,7 @@ public static class MenuSettings
         new("Quick saves", "Number of rotating quick saves to retain. Shared by every save on this installation.", Enumerable.Range(1, 999).Select(value => value.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray()),
         new("Cursor", "Initial resets the cursor when entering a menu. Memory remembers the last selection.", ["Initial", "Memory"]),
         new("ATB", "Original battle timing mode.", ["Active", "Wait"]),
+        new("Difficulty", "Normal keeps reduced enemy magic damage and hidden random idle turns. Hard removes both aids; explicit do-not-attack actions remain. Saved with this game; Title sets the new-game default.", ["Normal", "Hard"]),
         new("Battle ATB mode", "Classic uses continuous ATB. Turn Based advances idle gauges when a turn is requested. Saved with the game; Title sets the new-game default.", ["Classic", "Turn Based"]),
         new("Shared magic stock", MagicUiText.Get("SharedDescription"), ["Off", "On"]),
         new("Infinite magic", MagicUiText.Get("InfiniteDescription"), ["Off", "On"]),

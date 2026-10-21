@@ -391,6 +391,7 @@ internal sealed partial class RecreateGame
             GuardianFormResources = ReadCurrentUiPreferences().GuardianFormsEnabled ? [PresentationBattleResources.ReadIfritGuardianFormResources()] : []
         };
         BattleSession next = new(definition, mode);
+        next.SetDifficulty(ReadCurrentUiPreferences().Difficulty);
         next.SetGunbladeMode(ReadCurrentUiPreferences().GunbladeMode);
         _ = PresentationBattleResources.LoadStage(definition.StageId ?? throw new ArgumentException("A debug battle needs a stage ID."));
         _ = new BattleScenePresentation(PresentationBattleResources, definition, false);

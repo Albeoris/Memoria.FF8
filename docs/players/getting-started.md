@@ -50,6 +50,15 @@ dotnet run --project src/Memoria.FF8.App -c Release -- --game-dir "$env:MEMORIA_
 
 The direct engine has additional launch and diagnostic modes documented in the [command-line reference](../reference/command-line.md).
 
+## Difficulty
+
+Choose **Difficulty** before pressing **Begin** in New Game, or change it later under **Config → Gameplay**. The choice belongs to the current save; changing it at the title screen sets the default for future games.
+
+- **Normal** preserves reduced enemy magic damage and hidden random idle turns.
+- **Hard** removes the enemy magic damage reduction and hidden random idle turns. Explicit scripted do-not-attack actions and state-dependent waits remain.
+
+Both difficulties use the same initial ATB calculation for party members and enemies, including each participant's current Speed. Status restrictions and equipped initiative abilities still apply. Hard requires a Memoria save slot so the choice survives loading.
+
 ## If startup fails
 
 | Symptom | Check |

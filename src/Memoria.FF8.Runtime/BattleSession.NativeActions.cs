@@ -306,7 +306,7 @@ public sealed partial class BattleSession
                     return;
                 }
                 int spirit = (statuses & 0x1000000) != 0 ? 0 : recipient.Spirit;
-                damage = ModifyNativeMagicDamage(recipient, native, NativeBattleDamage.Magic(actor.Magic, spirit, native.Power, NextRandomByte(), !actor.IsPlayer));
+                damage = ModifyNativeMagicDamage(recipient, native, NativeBattleDamage.Magic(actor.Magic, spirit, native.Power, NextRandomByte(), !actor.IsPlayer, Difficulty));
             }
             else if ((saved & 1) != 0 || recipient.CurrentHp == 0)
             {
@@ -453,7 +453,7 @@ public sealed partial class BattleSession
                         Log("Miss", actor.Id, recipient.Id, 0, $"{action.Name}: level condition failed.");
                         return;
                     }
-                    damage = NativeBattleDamage.Magic(actor.Magic, spirit, native.Power, NextRandomByte(), !actor.IsPlayer);
+                    damage = NativeBattleDamage.Magic(actor.Magic, spirit, native.Power, NextRandomByte(), !actor.IsPlayer, Difficulty);
                     break;
                 case 27:
                     applyStatuses = false;
@@ -476,7 +476,7 @@ public sealed partial class BattleSession
                     damage = unchecked((int)(native.Power * (counter / 1000)));
                     break;
                 default:
-                    damage = NativeBattleDamage.Magic(actor.Magic, spirit, native.Power, NextRandomByte(), !actor.IsPlayer);
+                    damage = NativeBattleDamage.Magic(actor.Magic, spirit, native.Power, NextRandomByte(), !actor.IsPlayer, Difficulty);
                     break;
             }
             if (curative)

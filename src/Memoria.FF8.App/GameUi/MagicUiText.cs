@@ -14,7 +14,7 @@ internal static class MagicUiText
         "MissingCommand" => "Magic command missing",
         "StatusRestricted" => "Caster status prevents magic",
         "Caster" => "Caster: {0}",
-        "MemoriaDestination" => "Magic rules, personal Attack choices or usage history require a Memoria save. Choose a Memoria slot; original FF8 files remain intact.",
+        "MemoriaDestination" => "Custom difficulty, magic rules, personal Attack choices or usage history require a Memoria save. Choose a Memoria slot; original FF8 files remain intact.",
         "AttackSlotHelp" => "The first slot remains Attack. Smart Attack unlocks a personal physical or magic preference.",
         "PhysicalOnly" => "Physical only",
         "SmartMagic" => "Smart magic",

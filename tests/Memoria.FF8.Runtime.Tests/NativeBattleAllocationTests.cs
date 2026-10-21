@@ -44,6 +44,23 @@ public sealed class NativeBattleAllocationTests
     }
 
     [Fact]
+    public void Dynamic_allocation_uses_current_speed_entry_policy_and_preserves_the_single_draw()
+    {
+        BattleSession battle = Create([31, 6, 0]);
+        NativeBattleRandomState expected = NativeBattleRandomState.Initialize(0).Draw(out byte entryRoll);
+        BattleCombatant spawned = battle.Combatants.Single(actor => actor.Id == "native-allocation-1");
+        // DispatchFrame advances existing gauges before DispatchAction drains the queued INIT callback and allocates this actor.
+        int initialAtb = BattleInitialAtb.Calculate(spawned.Speed, entryRoll);
+        Assert.Equal(initialAtb, spawned.Atb);
+        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(battle.Capture().Random));
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        battle.Tick();
+        restored.Tick();
+        Assert.Equal(Math.Min(BattleSession.AtbMaximum, initialAtb + spawned.Speed), spawned.Atb);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
+    [Fact]
     public void ExplicitReplacementRetainsOldAllocationFactsAndUsesNewGeneration()
     {
         BattleSession battle = Create([52, 6, 59, 6, 4, 0]);

@@ -50,10 +50,10 @@ public static class NativeBattleDamage
         return (randomByte % 33 + 240) * (power * ((265 - vitality) * (strength + strength * strength / 16) / 256) / 16) / 256;
     }
 
-    public static int Magic(int magic, int spirit, int power, int randomByte, bool enemy)
+    public static int Magic(int magic, int spirit, int power, int randomByte, bool enemy, BattleDifficulty difficulty = BattleDifficulty.Normal)
     {
         int value = (randomByte % 33 + 240) * (power * ((265 - spirit) * (power + magic) / 4) / 256) / 256;
-        return enemy ? value >> 1 : value;
+        return enemy && difficulty == BattleDifficulty.Normal ? value >> 1 : value;
     }
 
     public static int GuardianForce(int spirit, int power, int level, int levelCoefficient, int constantPower, int damagePercent, int randomByte, int boostPercent = 100)

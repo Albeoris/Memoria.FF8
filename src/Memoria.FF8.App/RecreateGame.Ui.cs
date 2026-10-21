@@ -116,6 +116,8 @@ internal sealed partial class RecreateGame
         data.Settings["Infinite magic"] = magicPreferences.InfiniteMagic ? "On" : "Off";
         data.Settings["Smart Attack"] = magicPreferences.SmartAttack ? "On" : "Off";
         data.SupportedActions.UnionWith(["config:Shared magic stock", "config:Infinite magic", "config:Smart Attack", "attack-mode"]);
+        data.Settings["Difficulty"] = ReadCurrentUiPreferences().Difficulty.ToString();
+        data.SupportedActions.Add("config:Difficulty");
         data.Settings["Battle ATB mode"] = ReadCurrentUiPreferences().AtbMode == BattleAtbMode.Normal ? "Classic" : "Turn Based";
         data.Settings["Gunblade trigger"] = ReadCurrentUiPreferences().GunbladeMode.ToString();
         data.Settings["GF Transformations"] = ReadCurrentUiPreferences().GuardianFormsEnabled ? "On" : "Off";
@@ -349,7 +351,8 @@ internal sealed partial class RecreateGame
             BattlePolicy = session.State.FullBattlePlaythrough == true ? "NewGameFullCombat" : "ResearchInstantVictory",
             RandomEncounters = session.State.RandomEncounters?.Enabled == true
         };
-        return current with { AtbMode = session.State.Scene == SceneKind.Title ? uiPreferences.AtbMode : session.State.GameplayPreferences.AtbMode, GunbladeMode = session.State.Scene == SceneKind.Title ? uiPreferences.GunbladeMode : session.State.GameplayPreferences.GunbladeMode, GuardianFormsEnabled = session.State.Scene == SceneKind.Title ? uiPreferences.GuardianFormsEnabled : session.State.GameplayPreferences.GuardianFormsEnabled };
+        GameplayPreferences gameplay = session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences;
+        return current with { Difficulty = session.State.Scene == SceneKind.Title ? uiPreferences.Difficulty : gameplay.Difficulty, AtbMode = session.State.Scene == SceneKind.Title ? uiPreferences.AtbMode : gameplay.AtbMode, GunbladeMode = session.State.Scene == SceneKind.Title ? uiPreferences.GunbladeMode : gameplay.GunbladeMode, GuardianFormsEnabled = session.State.Scene == SceneKind.Title ? uiPreferences.GuardianFormsEnabled : gameplay.GuardianFormsEnabled };
     }
 
     private void ApplyCurrentBattleSettings(UiPreferences preferences, string key)
@@ -370,10 +373,14 @@ internal sealed partial class RecreateGame
                 world.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigureEncounters, RandomEncounters: preferences.RandomEncounters));
             }
         }
-        if (session.State.Scene != SceneKind.Title && key is "Battle ATB mode" or "Gunblade trigger" or "GF Transformations")
+        if (session.State.Scene != SceneKind.Title && key is "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "GF Transformations")
         {
             world ??= CreateWorld();
-            world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { AtbMode = preferences.AtbMode, GunbladeMode = preferences.GunbladeMode, GuardianFormsEnabled = preferences.GuardianFormsEnabled });
+            world.ConfigureGameplayPreferences((session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences) with { Difficulty = preferences.Difficulty, AtbMode = preferences.AtbMode, GunbladeMode = preferences.GunbladeMode, GuardianFormsEnabled = preferences.GuardianFormsEnabled });
+        }
+        if (key == "Difficulty" && debugBattle is not null)
+        {
+            debugBattle.SetDifficulty(preferences.Difficulty);
         }
         if (key == "Battle ATB mode" && ActiveBattle is not null && ActiveBattle.Mode != preferences.AtbMode)
         {

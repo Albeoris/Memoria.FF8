@@ -174,7 +174,7 @@ public sealed partial class BattleSession
             int total = 0;
             for (int cast = 0; cast < casts && total < target.CurrentHp; cast++)
             {
-                int damage = immune ? 0 : NativeBattleDamage.Magic(powers[cast], spirit, native.Power, draw(), !actor.IsPlayer);
+                int damage = immune ? 0 : NativeBattleDamage.Magic(powers[cast], spirit, native.Power, draw(), !actor.IsPlayer, Difficulty);
                 damage = NativeBattleDamage.MagicMitigation(damage, native.AttackFlags, statuses);
                 damage = ForecastElement(target, native, damage, false);
                 total += Math.Clamp(damage, (native.AttackFlags & 8) != 0 ? -60_000 : -9_999, (native.AttackFlags & 8) != 0 ? 60_000 : 9_999);

@@ -116,6 +116,7 @@ public sealed partial class BattleSession
         }
     }
 
+    public BattleDifficulty Difficulty { get; private set; } = BattleDifficulty.Normal;
     public BattleAtbMode Mode { get; private set; }
     public long Frame { get; private set; }
     public BattleOutcome Outcome { get; private set; }
@@ -129,6 +130,15 @@ public sealed partial class BattleSession
     public int? EncounterId => definition.EncounterId;
     public IReadOnlyList<BattleStock> Items => nativeItems.Where(stock => stock.ItemId != 0 && stock.Count > 0).Select(stock => new BattleStock(stock.ItemId, stock.Count)).ToArray();
     public IReadOnlyList<BattleActionDefinition> ActionDefinitions => definition.ActionDefinitions.Select(action => action with { Statuses = action.Statuses?.ToArray() }).ToArray();
+
+    public void SetDifficulty(BattleDifficulty difficulty)
+    {
+        if (!Enum.IsDefined(difficulty))
+        {
+            throw new ArgumentOutOfRangeException(nameof(difficulty));
+        }
+        Difficulty = difficulty;
+    }
 
     public void SetMode(BattleAtbMode mode)
     {
@@ -325,6 +335,7 @@ public sealed partial class BattleSession
             NativeBattleUiRandom = nativeBattleUiRandom,
             NativeGlobalRandom = nativeGlobalRandom,
             NativeGlobalRandomCalls = nativeGlobalRandomCalls,
+            Difficulty = Difficulty,
             Mode = Mode,
             GunbladeMode = GunbladeMode,
             Frame = Frame,
@@ -1060,7 +1071,7 @@ public sealed partial class BattleSession
 
     private void RestoreValidated(BattleSnapshot snapshot)
     {
-        if (snapshot.Version != 1 || snapshot.Frame < 0 || !Enum.IsDefined(snapshot.Outcome) || snapshot.Combatants is null || snapshot.Combatants.Length != combatants.Count || snapshot.QueuedActions is null || snapshot.Events is null)
+        if (snapshot.Version != 1 || snapshot.Frame < 0 || !Enum.IsDefined(snapshot.Difficulty) || !Enum.IsDefined(snapshot.Outcome) || snapshot.Combatants is null || snapshot.Combatants.Length != combatants.Count || snapshot.QueuedActions is null || snapshot.Events is null)
         {
             throw new InvalidDataException("Invalid battle snapshot envelope.");
         }
@@ -1246,6 +1257,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native host callback ledger cannot be negative.");
         }
+        SetDifficulty(snapshot.Difficulty);
         SetGunbladeMode(snapshot.GunbladeMode);
         Outcome = snapshot.Outcome;
         events.AddRange(snapshot.Events);
@@ -1390,6 +1402,7 @@ public sealed partial class BattleSession
         Frame = candidate.Frame;
         NativeHostCallbacks = candidate.NativeHostCallbacks;
         NativeExamTimer = candidate.NativeExamTimer;
+        Difficulty = candidate.Difficulty;
         GunbladeMode = candidate.GunbladeMode;
         Outcome = candidate.Outcome;
         DebugOutcome = candidate.DebugOutcome;

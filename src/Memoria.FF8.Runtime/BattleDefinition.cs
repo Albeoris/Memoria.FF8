@@ -370,6 +370,7 @@ public sealed record BattleSnapshot
     public NativeBattleUiRandomState? NativeBattleUiRandom { get; init; }
     public int Version { get; init; } = 1;
     public BattleDefinition Definition { get; init; } = new();
+    public BattleDifficulty Difficulty { get; init; } = BattleDifficulty.Normal;
     public BattleAtbMode Mode { get; init; }
     public BattleGunbladeMode GunbladeMode { get; init; }
     public long Frame { get; init; }

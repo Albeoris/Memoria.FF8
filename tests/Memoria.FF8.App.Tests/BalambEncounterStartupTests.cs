@@ -84,11 +84,14 @@ public sealed class BalambEncounterStartupTests
         }
         foreach (BattleEnemyPlacement enemy in world.BattleResources.LoadEncounter(definition.EncounterId!.Value).Slots.Where(slot => slot.Enabled))
         {
-            int draws = BattleEnemyNativeStats.LevelRandomByteCount((byte)enemy.Level) + 1;
-            for (int draw = 0; draw < draws; draw++)
+            int levelDraws = BattleEnemyNativeStats.LevelRandomByteCount((byte)enemy.Level);
+            for (int draw = 0; draw < levelDraws; draw++)
             {
                 expected = expected.Draw(out _);
             }
+            expected = expected.Draw(out byte entryRoll);
+            BattleCombatantDefinition actor = definition.Combatants.Single(actor => !actor.IsPlayer && actor.SceneSlot == enemy.Slot);
+            Assert.Equal(BattleInitialAtb.Calculate(actor.Speed, entryRoll), actor.InitialAtb);
         }
         Assert.Equal(expected.Indexes.ToArray(), definition.InitialRandom!.Indexes.ToArray());
         Assert.Equal(expected.Lane, definition.InitialRandom.Lane);

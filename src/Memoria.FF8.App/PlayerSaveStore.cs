@@ -98,7 +98,7 @@ internal sealed partial class PlayerSaveStore
 
     public static bool RequiresMemoriaFormat(GameState state)
     {
-        return state.CharacterVitals?.MagicSystem.RequiresMemoriaFormat == true || state.GameplayPreferences.SharedMagicStock || state.GameplayPreferences.InfiniteMagic || state.GameplayPreferences.SmartAttack || state.GameplayPreferences.GuardianFormsEnabled || state.PendingGameplayPreferences is not null;
+        return state.GameplayPreferences.Difficulty != BattleDifficulty.Normal || state.CharacterVitals?.MagicSystem.RequiresMemoriaFormat == true || state.GameplayPreferences.SharedMagicStock || state.GameplayPreferences.InfiniteMagic || state.GameplayPreferences.SmartAttack || state.GameplayPreferences.GuardianFormsEnabled || state.PendingGameplayPreferences is not null;
     }
 
     public void Save(int slot, GameSession session, Action<GameState>? validateContinuation = null)

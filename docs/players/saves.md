@@ -2,6 +2,8 @@
 
 Memoria saves its current state as a standalone snapshot. Player saves use a compact compressed format and retain their `.json` filenames; the loader detects the format and also reads older plain JSON snapshots. Loading restores that state and its supported engine owners. It does not replay inputs, revisit earlier locations or reconstruct the session from New Game. Installed game resources are still required; a save is not a resource package.
 
+Difficulty is stored in each Memoria save and standalone battle snapshot. Saves without a difficulty setting load as **Normal**. **Hard** requires a Memoria destination because original FF8 save files cannot retain this choice.
+
 ## Player saves
 
 The default player directory is `%LOCALAPPDATA%\Memoria.FF8\player-saves`. It contains a rotating set of quick saves (including the compatible `quick.json`) and one Memoria bank of 100 manual slots, `slot-01.json` through `slot-100.json`. Existing slots from both former Memoria banks appear in this bank with their filenames and contents preserved.

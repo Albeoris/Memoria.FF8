@@ -18,7 +18,7 @@ public sealed partial class MenuController
     internal IReadOnlyList<MenuEntry> BattleSettingsEntries()
     {
         bool active = _hasActiveBattle?.Invoke() == true;
-        return [.. HostSettingsEntries("Battle policy", "Random encounters", "Battle ATB mode", "Gunblade trigger"),
+        return [.. HostSettingsEntries("Difficulty", "Battle policy", "Random encounters", "Battle ATB mode", "Gunblade trigger"),
             new MenuEntry("instant-victory", "Instant victory", "Immediately defeat all enemies in the current game battle or laboratory battle.", Action: new MenuAction("battle-debug-outcome", Value: "Victory"), Enabled: active),
             new MenuEntry("instant-defeat", "Instant defeat", "Immediately defeat the party in the current game battle or laboratory battle.", Action: new MenuAction("battle-debug-outcome", Value: "Defeat"), Enabled: active)];
     }
@@ -57,6 +57,7 @@ public sealed partial class MenuController
             "Cursor" => preferences.CursorMemory ? "Memory" : "Initial",
             "Field message" => preferences.FieldMessageSpeed.ToString(),
             "Vibration" => CurrentControls.VibrationEnabled ? "On" : "Off",
+            "Difficulty" => preferences.Difficulty.ToString(),
             "Battle ATB mode" => preferences.AtbMode == Memoria.FF8.Runtime.BattleAtbMode.Normal ? "Classic" : "Turn Based",
             "Gunblade trigger" => preferences.GunbladeMode.ToString(),
             "Battle policy" => preferences.BattlePolicyLabel,

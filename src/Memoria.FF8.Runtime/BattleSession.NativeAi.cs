@@ -94,10 +94,19 @@ public sealed partial class BattleSession
                         int comparison = ReadAiByte(code, ref pc);
                         int value = ReadAiWord(code, ref pc);
                         int skip = ReadAiWord(code, ref pc);
-                        if (!EvaluateNativeAiCondition(actor, subject, selector, comparison, value))
+                        bool passed = EvaluateNativeAiCondition(actor, subject, selector, comparison, value);
+                        int falsePc = checked(pc + skip);
+                        if (callback == 1 && Difficulty == BattleDifficulty.Hard && subject == 2)
                         {
-                            pc = checked(pc + skip);
+                            // Only side-effect-free random exits are omitted; state guards and reaction callbacks retain their authored control flow.
+                            bool trueReturns = NativeAiPathOnlyReturns(code, pc);
+                            bool falseReturns = NativeAiPathOnlyReturns(code, falsePc);
+                            if (trueReturns != falseReturns)
+                            {
+                                passed = !trueReturns;
+                            }
                         }
+                        pc = passed ? pc : falsePc;
                         break;
                     case 3:
                         preparedCommand = 2;
@@ -409,6 +418,25 @@ public sealed partial class BattleSession
             return;
         }
         QueueNativeCommand(actor, command, id, sequence, targetMask);
+    }
+
+    private static bool NativeAiPathOnlyReturns(byte[] code, int pc)
+    {
+        HashSet<int> visited = [];
+        while ((uint)pc < code.Length && visited.Add(pc))
+        {
+            if (code[pc] == 0)
+            {
+                return true;
+            }
+            if (code[pc] != 35 || pc > code.Length - 3)
+            {
+                return false;
+            }
+            short displacement = BinaryPrimitives.ReadInt16LittleEndian(code.AsSpan(pc + 1, 2));
+            pc = checked(pc + 3 + displacement);
+        }
+        return false;
     }
 
     private static void PrepareNativeAiAbility(BattleCombatant actor, int index, ref byte command, ref ushort id, ref byte sequence)

@@ -86,9 +86,8 @@ public sealed partial class BattleSession
         spawned.AiTurnCount = 0;
         Array.Fill(spawned.NativeStatMultipliers, (byte)10);
         Array.Clear(spawned.AiVariables);
-        //48BBD0 always invokes4844D0, even for a fixed scene level.
-        // TODO(TD-009): Gauge projection still requires the retained physical-slot speedBYTE193; preserve its unconditional RNG draw.
-        _ = NextRandomByte();
+        // Keep the allocation draw after its level rolls, using the shared current-speed policy.
+        spawned.Atb = BattleInitialAtb.Calculate(spawned.Speed, checked((byte)NextRandomByte()));
         spawned.NativeAllocationPendingStatistics = false;
     }
 

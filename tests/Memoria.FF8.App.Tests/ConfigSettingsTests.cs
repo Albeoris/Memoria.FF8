@@ -157,27 +157,34 @@ public sealed class ConfigSettingsTests
     [Theory]
     [InlineData("100%", 640, 448)]
     [InlineData("150%", 1920, 1080)]
-    public void New_game_shows_all_settings_and_begin_together(string scale, int width, int height)
+    public void New_game_pages_keep_every_setting_and_begin_accessible(string scale, int width, int height)
     {
         MenuController controller = new();
         controller.Open("new-game-options", demo: true);
         controller.Data.Settings["Text scale"] = scale;
-        UiView view = controller.BuildView();
-        view.Resize(width, height);
-        UiChoiceRow[] rows = Descendants(view.Root).OfType<UiChoiceRow>().ToArray();
-        Assert.Equal(["Battle ATB mode", "Shared magic stock", "Infinite magic", "Smart Attack", "GF Transformations", "Rare card markers"], rows.Select(row => row.Id));
-        UiButton begin = Assert.Single(Descendants(view.Root).OfType<UiButton>(), button => button.Id == "begin");
-        foreach (UiElement row in rows.Cast<UiElement>().Append(begin))
+        HashSet<string> seen = [];
+        for (int index = 0; index < controller.Entries.Count; index++)
         {
-            Assert.True(row.Bounds.Height >= 24 * controller.TextScale);
-            Assert.True(row.Bounds.Y >= view.Root.Bounds.Y);
-            Assert.True(row.Bounds.Bottom <= view.Root.Bounds.Bottom);
+            UiView view = controller.BuildView();
+            view.Resize(width, height);
+            UiChoiceRow[] rows = Descendants(view.Root).OfType<UiChoiceRow>().ToArray();
+            foreach (UiChoiceRow row in rows)
+            {
+                seen.Add(row.Id!);
+                Assert.True(row.Bounds.Height >= 24 * controller.TextScale);
+                Assert.True(row.Bounds.Y >= view.Root.Bounds.Y);
+                Assert.True(row.Bounds.Bottom <= view.Root.Bounds.Bottom);
+            }
+            for (int row = 1; row < rows.Length; row++)
+            {
+                Assert.True(rows[row - 1].Bounds.Bottom <= rows[row].Bounds.Y + 0.01f);
+            }
+            UiElement selected = Assert.Single(Descendants(view.Root), element => element.Id == controller.SelectedEntry!.Id);
+            Assert.True(selected.Bounds.Bottom <= view.Root.Bounds.Bottom);
+            controller.Navigate(MenuInput.Down);
         }
-        for (int index = 1; index < rows.Length; index++)
-        {
-            Assert.True(rows[index - 1].Bounds.Bottom <= rows[index].Bounds.Y + 0.01f, $"{rows[index - 1].Id} ends at {rows[index - 1].Bounds.Bottom}; {rows[index].Id} starts at {rows[index].Bounds.Y}.");
-        }
-        Assert.True(rows[^1].Bounds.Bottom <= begin.Bounds.Y + 0.01f);
+        Assert.Equal(new[] { "Difficulty", "Battle ATB mode", "Shared magic stock", "Infinite magic", "Smart Attack", "GF Transformations", "Rare card markers" }.Order(), seen.Order());
+        Assert.Contains(controller.Entries, entry => entry.Id == "begin");
     }
 
     [Fact]

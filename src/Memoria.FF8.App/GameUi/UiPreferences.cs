@@ -23,6 +23,7 @@ internal sealed record UiPreferences
     public int UiFontSize { get; init; } = 24;
     public string DialogueFontFamily { get; init; } = SystemFontCatalog.DefaultFamily;
     public int DialogueFontSize { get; init; } = 10;
+    public BattleDifficulty Difficulty { get; init; } = BattleDifficulty.Normal;
     public BattleAtbMode AtbMode { get; init; } = BattleAtbMode.TurnBased;
     public BattleGunbladeMode GunbladeMode { get; init; } = BattleGunbladeMode.Automatic;
     public string BattlePolicy { get; init; } = "ResearchInstantVictory";
@@ -179,6 +180,15 @@ internal sealed record UiPreferences
                 _ => throw new ArgumentException("GF Transformations requires On or Off.")
             };
         }
+        if (key == "Difficulty")
+        {
+            return value switch
+            {
+                "Normal" => this with { Difficulty = BattleDifficulty.Normal },
+                "Hard" => this with { Difficulty = BattleDifficulty.Hard },
+                _ => throw new ArgumentException("Difficulty requires Normal or Hard.")
+            };
+        }
         if (key == "Battle ATB mode")
         {
             return value switch
@@ -222,7 +232,7 @@ internal sealed record UiPreferences
 
     public UiPreferences WithInstallationSetting(string key, string value, bool activeGame)
     {
-        if (activeGame && key is "Battle ATB mode" or "Gunblade trigger" or "Battle policy" or "Random encounters" or "GF Transformations")
+        if (activeGame && key is "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "Battle policy" or "Random encounters" or "GF Transformations")
         {
             return this;
         }
@@ -251,7 +261,7 @@ internal sealed record UiPreferences
         {
             throw new InvalidDataException("Window dimensions must be positive.");
         }
-        if (QuickSaveCount < 1 || FieldFps is not (30 or 60) || WorldFps is not (30 or 60) || !ValidFps(BattleFps) || !ValidFps(MenuFps) || MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100 || TextScale is not (100 or 125 or 150) || FieldMessageSpeed is < 1 or > 5 || UiFontSize is < 6 or > 48 || DialogueFontSize is < 6 or > 48 || string.IsNullOrWhiteSpace(UiFontFamily) || string.IsNullOrWhiteSpace(DialogueFontFamily) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode) || BattlePolicy is not ("ResearchInstantVictory" or "NewGameFullCombat"))
+        if (QuickSaveCount < 1 || FieldFps is not (30 or 60) || WorldFps is not (30 or 60) || !ValidFps(BattleFps) || !ValidFps(MenuFps) || MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100 || TextScale is not (100 or 125 or 150) || FieldMessageSpeed is < 1 or > 5 || UiFontSize is < 6 or > 48 || DialogueFontSize is < 6 or > 48 || string.IsNullOrWhiteSpace(UiFontFamily) || string.IsNullOrWhiteSpace(DialogueFontFamily) || !Enum.IsDefined(Difficulty) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode) || BattlePolicy is not ("ResearchInstantVictory" or "NewGameFullCombat"))
         {
             throw new InvalidDataException("UI presentation preferences are outside their supported ranges.");
         }

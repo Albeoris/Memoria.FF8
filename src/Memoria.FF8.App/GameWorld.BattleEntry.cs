@@ -21,9 +21,7 @@ internal sealed partial class GameWorld
                 else
                 {
                     random = random.Draw(out byte roll);
-                    //4844D0: maximum is divisible by100, so this percentage is exact in the HUD gauge scale.
-                    int percent = (actor.Speed >> 2) + (roll & 0x7F) + 1 - 35;
-                    gauge = Math.Clamp(percent, 0, 100) * (BattleSession.AtbMaximum / 100);
+                    gauge = BattleInitialAtb.Calculate(actor.Speed, roll);
                 }
             }
             combatants[slot] = actor with { InitialAtb = gauge };

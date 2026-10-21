@@ -14,6 +14,7 @@ internal sealed partial class GameWorld
         session.SetGameplayPreferences(preferences);
         if (battle is not null)
         {
+            battle.SetDifficulty(preferences.Difficulty);
             battle.SetMode(preferences.AtbMode);
             battle.SetGunbladeMode(preferences.GunbladeMode);
             session.SetBattle(battle.Capture());
@@ -24,6 +25,7 @@ internal sealed partial class GameWorld
     {
         preferences.Validate();
         BattleSession active = CreateLiveBattleSession(definition with { GuardianFormsEnabled = preferences.GuardianFormsEnabled, GuardianFormResources = preferences.GuardianFormsEnabled ? definition.GuardianFormResources : [] }, preferences.AtbMode);
+        active.SetDifficulty(preferences.Difficulty);
         active.SetGunbladeMode(preferences.GunbladeMode);
         return active;
     }

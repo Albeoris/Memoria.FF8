@@ -6,6 +6,111 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativeAiInstalledInvocationTests
 {
     [Theory]
+    [InlineData(BattleDifficulty.Normal)]
+    [InlineData(BattleDifficulty.Hard)]
+    public void OriginalCavernEncounterTablesInitializeAndRunEachParticipantAfterJsonRestore(BattleDifficulty difficulty)
+    {
+        using GameAssets fields = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(TestResources.GameDirectory);
+        int[] formations = Enumerable.Range(131, 5).SelectMany(field => fields.LoadField(field).RandomEncounters!.Formations).Select(formation => (int)formation).Distinct().Order().ToArray();
+        Assert.Equal(Enumerable.Range(87, 7), formations);
+        foreach (int formation in formations)
+        {
+            List<BattleCombatantDefinition> actors = [new() { Id = "party", Name = "Party", IsPlayer = true, ModelId = 0, Level = 7, MaximumHp = 1_000_000, CurrentHp = 1_000_000, Speed = 1, NativeStatusResistances = Enumerable.Repeat((byte)100, 40).ToArray() }];
+            foreach (BattleEnemyPlacement placement in assets.LoadEncounter(formation).Enemies)
+            {
+                int level = NativeBattleEnemyLevelRules.Resolve((byte)placement.Level, [7], 0, 0);
+                BattleEnemyNativeProjection stats = assets.ReadEnemyNativeStats(placement.ModelId).Project(level);
+                actors.Add(new() { Id = $"enemy-{placement.Slot}", Name = assets.ReadEnemyName(placement.ModelId), SceneSlot = placement.Slot, ModelId = placement.ModelId, Level = level, MaximumHp = stats.MaximumHp, CurrentHp = stats.MaximumHp, Attack = stats.Strength, Defense = stats.Vitality, Magic = stats.Magic, Spirit = stats.Spirit, Speed = 1, InitialAtb = 0, ElementDefenses = stats.ElementDefenses.Select(value => (int)value).ToArray(), NativeAi = assets.ReadEnemyAi(placement.ModelId, level), NativeTemplate = assets.ReadEnemyTemplate(placement.ModelId, (byte)placement.Level) });
+            }
+            BattleSession initialized = new(new()
+            {
+                EncounterId = formation,
+                PersistentAiVariables = new uint[8],
+                Combatants = actors.ToArray(),
+                NativeActions = assets.NativeActions.ToArray(),
+                ActionDefinitions = assets.ActionDefinitions.ToArray(),
+                NativeStatusRules = assets.ReadNativeStatusRules(0),
+                NativeMessageSpeed = 1,
+                NativeGlobalMessages = assets.ReadNativeGlobalBattleMessages()
+            }, BattleAtbMode.Normal);
+            initialized.SetDifficulty(difficulty);
+            for (int admission = 1; admission < actors.Count; admission++)
+            {
+                initialized.Tick();
+            }
+            BattleSnapshot initial = initialized.Capture();
+            Assert.Empty(initialized.QueuedActions);
+            for (int index = 1; index < actors.Count; index++)
+            {
+                BattleCombatantSnapshot[] combatants = initial.Combatants.ToArray();
+                combatants[index] = combatants[index] with { Atb = BattleSession.AtbMaximum };
+                BattleSnapshot ready = initial with { Combatants = combatants };
+                BattleSession original = BattleSession.Restore(ready);
+                BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(ready))!);
+                original.Tick();
+                restored.Tick();
+                Assert.Equal((byte)1, original.Capture().Combatants[index].NativeParticipant!.TurnCount);
+                Assert.Equal(JsonSerializer.Serialize(original.Capture()), JsonSerializer.Serialize(restored.Capture()));
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(39, BattleDifficulty.Normal)]
+    [InlineData(88, BattleDifficulty.Normal)]
+    [InlineData(91, BattleDifficulty.Normal)]
+    [InlineData(92, BattleDifficulty.Normal)]
+    [InlineData(39, BattleDifficulty.Hard)]
+    [InlineData(88, BattleDifficulty.Hard)]
+    [InlineData(91, BattleDifficulty.Hard)]
+    [InlineData(92, BattleDifficulty.Hard)]
+    public void InstalledRandomTurnProgramsRespectDifficultyAndContinueAfterJsonRestore(int encounter, BattleDifficulty difficulty)
+    {
+        using BattleAssets assets = new(TestResources.GameDirectory);
+        foreach (BattleEnemyPlacement placement in assets.LoadEncounter(encounter).Enemies.Where(enemy => enemy.ModelId == 43))
+        {
+            for (byte seed = 0; seed < 12; seed++)
+            {
+                BattleDefinition definition = Definition(assets, placement.ModelId, assets.ReadEnemyAi(placement.ModelId, 7)) with
+                {
+                    EncounterId = encounter,
+                    NativeSeed = seed,
+                    PersistentAiVariables = new uint[8],
+                    NativeStatusRules = assets.ReadNativeStatusRules(0)
+                };
+                definition = definition with { Combatants = [definition.Combatants[0] with { MaximumHp = 1_000_000, CurrentHp = 1_000_000 }, definition.Combatants[1] with { InitialAtb = BattleSession.AtbMaximum }] };
+                BattleSession original = new(definition, BattleAtbMode.Normal);
+                original.Tick();
+                original.SetDifficulty(difficulty);
+                string json = JsonSerializer.Serialize(original.Capture());
+                BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
+                original.Tick();
+                restored.Tick();
+                if (difficulty == BattleDifficulty.Hard)
+                {
+                    // Keep the original random condition and its draw, but route both edges past its hidden return.
+                    NativeBattleAiDefinition ai = definition.Combatants[1].NativeAi!;
+                    byte[][] scripts = ai.Scripts.Select(script => script.ToArray()).ToArray();
+                    Assert.Equal((byte)2, scripts[1][0]);
+                    Assert.Equal((byte)2, scripts[1][1]);
+                    Assert.Equal((byte)0, scripts[1][8]);
+                    int falsePc = 8 + System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(scripts[1].AsSpan(6, 2));
+                    scripts[1][8] = 35;
+                    System.Buffers.Binary.BinaryPrimitives.WriteInt16LittleEndian(scripts[1].AsSpan(9, 2), checked((short)(falsePc - 11)));
+                    BattleDefinition controlDefinition = definition with { Combatants = [definition.Combatants[0], definition.Combatants[1] with { NativeAi = ai with { Scripts = scripts } }] };
+                    BattleSession control = new(controlDefinition, BattleAtbMode.Normal);
+                    control.Tick();
+                    control.Tick();
+                    AssertRandomEqual(control.Capture().Random!, original.Capture().Random!);
+                    Assert.Equal(JsonSerializer.Serialize(control.QueuedActions), JsonSerializer.Serialize(original.QueuedActions));
+                }
+                Assert.Equal(JsonSerializer.Serialize(original.Capture()), JsonSerializer.Serialize(restored.Capture()));
+            }
+        }
+    }
+
+    [Theory]
     [InlineData(0, 0, 4)]
     [InlineData(61, 1, 6)]
     [InlineData(61, 2, 6)]

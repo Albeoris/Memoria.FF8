@@ -37,7 +37,7 @@ public sealed partial class MenuController
         List<MenuEntry> entries = [];
         foreach (MenuSetting setting in MenuSettings.Definitions)
         {
-            if (ScreenId == "new-game-options" ? setting.Id is not ("Battle ATB mode" or "Rare card markers" or "Shared magic stock" or "Infinite magic" or "Smart Attack" or "GF Transformations") : ConfigCategory(setting.Id) != ScreenId["config-".Length..])
+            if (ScreenId == "new-game-options" ? setting.Id is not ("Difficulty" or "Battle ATB mode" or "Rare card markers" or "Shared magic stock" or "Infinite magic" or "Smart Attack" or "GF Transformations") : ConfigCategory(setting.Id) != ScreenId["config-".Length..])
             {
                 continue;
             }
