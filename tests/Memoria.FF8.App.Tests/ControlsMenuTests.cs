@@ -23,7 +23,7 @@ public sealed class ControlsMenuTests
         int confirm = menus.Entries.ToList().FindIndex(entry => entry.Id == nameof(ControlAction.Confirm));
         Assert.Contains(screen == "config-keyboard" ? "Enter" : "South button", commands.SecondaryItems[confirm]);
         Assert.Equal(screen == "config-keyboard" ? 2 : 1, ButtonPromptText.Runs(commands.SecondaryItems[confirm]).Count(run => run.IsButton));
-        Assert.False(commands.AutoSecondaryWidth);
+        Assert.True(commands.AutoSecondaryWidth);
         Assert.True(commands.SecondaryWidth <= 0.5f);
         menus.SelectEntry(screen, nameof(ControlAction.QuickSave));
         menus.Navigate(MenuInput.Alternate);

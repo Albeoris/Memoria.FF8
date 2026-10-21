@@ -98,7 +98,7 @@ internal static class MenuPreview
         mods.CommitPending();
         if (screen.StartsWith("player-save", StringComparison.Ordinal))
         {
-            view = BuildPlayerSavePreview(screen, statePath);
+            view = BuildPlayerSavePreview(screen, statePath, fontSize / 24f * textScale / 100f);
         }
         else if (screen == "party-selection")
         {
@@ -133,7 +133,7 @@ internal static class MenuPreview
                     candidate = PartySelectionView.Navigate(menu, candidate, direction == MenuInput.Left ? -1 : direction == MenuInput.Right ? 1 : 0, direction == MenuInput.Up ? -1 : direction == MenuInput.Down ? 1 : 0);
                 }
             }
-            view = PartySelectionView.Build(menu, data, candidate);
+            view = PartySelectionView.Build(menu, data, candidate, textScale: fontSize / 24f * textScale / 100f);
         }
         else if (screen == "native-tutorial")
         {
@@ -251,7 +251,7 @@ internal static class MenuPreview
         return 0;
     }
 
-    private static UiView BuildPlayerSavePreview(string screen, string? statePath)
+    private static UiView BuildPlayerSavePreview(string screen, string? statePath, float textScale)
     {
         string directory = Path.Combine(Path.GetTempPath(), "Memoria.FF8-save-preview-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -301,7 +301,7 @@ internal static class MenuPreview
                     throw new ArgumentException($"Unknown player save preview '{screen}'.");
             }
             KeyboardInput controls = new();
-            return PlayerSaveView.Build(menu, $"{controls.BindingPrompt(ControlAction.Card)}: Transfer", $"{controls.BindingPrompt(ControlAction.MoveLeft)} / {controls.BindingPrompt(ControlAction.MoveRight)}: Bank    {controls.BindingPrompt(ControlAction.UiPageUp)} / {controls.BindingPrompt(ControlAction.UiPageDown)}: Page");
+            return PlayerSaveView.Build(menu, $"{controls.BindingPrompt(ControlAction.Card)}: Transfer", $"{controls.BindingPrompt(ControlAction.MoveLeft)} / {controls.BindingPrompt(ControlAction.MoveRight)}: Bank    {controls.BindingPrompt(ControlAction.UiPageUp)} / {controls.BindingPrompt(ControlAction.UiPageDown)}: Page", textScale: textScale);
         }
         finally
         {

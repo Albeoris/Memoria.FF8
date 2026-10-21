@@ -128,8 +128,8 @@ This host advances through queue commands rather than a timed simulation loop. I
 | `--state JSON` | Use a standalone snapshot where supported; otherwise preview data is a fixture. `native-tutorial` and `triple-triad` require a snapshot containing the corresponding active interface. |
 | `--resolution WIDTHxHEIGHT` | Default `960x672`; width `320..4096`, height `240..4096`. |
 | `--character MENU_ID` | Select a menu character. |
-| `--text-scale PERCENT` | Text scale for menu-controller screens: `100`, `125` or `150`; default `100`. |
-| `--font-size 6..48` | UI font size for menu-controller screens; default `24`. |
+| `--text-scale PERCENT` | Text scale for menu-controller, player-save and party-selection screens: `100`, `125` or `150`; default `100`. |
+| `--font-size 6..48` | UI font size for menu-controller, player-save and party-selection screens; default `24`. |
 | `--time SECONDS` | Capture text overflow animation after `0..86400` seconds; default `0`. |
 | `--expanded` | Expand supported fixture views. |
 | `--name-subject NUMBER` | Naming subject; default `0`. |

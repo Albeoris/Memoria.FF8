@@ -20,6 +20,14 @@ internal sealed class PlayerSaveMenu
     private bool confirmRequested;
     private bool cancelRequested;
     public const int EntriesPerPage = 5;
+    public int PageCapacity { get; private set; } = EntriesPerPage;
+
+    internal void SetPageCapacity(int capacity)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(capacity, 1);
+        PageCapacity = capacity;
+        Page = Selection / PageCapacity;
+    }
 
     public PlayerSaveMenu(PlayerSaveStore store)
     {
@@ -32,12 +40,12 @@ internal sealed class PlayerSaveMenu
     public int Bank { get; private set; }
     public int Page { get; private set; }
     public int BankSlotCount => PlayerSaveStore.GetBankSlotCount(Bank);
-    public int PageCount => Math.Max(1, (Entries.Count + EntriesPerPage - 1) / EntriesPerPage);
+    public int PageCount => Math.Max(1, (Entries.Count + PageCapacity - 1) / PageCapacity);
     public int SelectedSlot => Entries.Count == 0 ? 0 : Entries[Selection].Slot;
     public bool IsQuick => Mode is PlayerSaveMenuMode.QuickSave or PlayerSaveMenuMode.QuickLoad;
     public bool IsSaving => Mode is PlayerSaveMenuMode.Save or PlayerSaveMenuMode.QuickSave;
     public bool CanTransfer => !IsQuick && !IsTransferring && Entries.Count > 0 && Entries[Selection].CanLoad;
-    public IReadOnlyList<PlayerSaveEntry> VisibleEntries => Entries.Skip(Page * EntriesPerPage).Take(EntriesPerPage).ToArray();
+    public IReadOnlyList<PlayerSaveEntry> VisibleEntries => Entries.Skip(Page * PageCapacity).Take(PageCapacity).ToArray();
     public bool ConfirmOverwrite { get; private set; }
     public bool IsTransferring => transferSource is not null;
     public int? TransferSource => transferSource?.Slot;
@@ -333,13 +341,13 @@ internal sealed class PlayerSaveMenu
         if (input.MenuPage != 0)
         {
             int nextPage = Math.Clamp(Page + Math.Sign(input.MenuPage), 0, PageCount - 1);
-            Selection = Math.Min(nextPage * EntriesPerPage + Selection % EntriesPerPage, Math.Max(0, Entries.Count - 1));
+            Selection = Math.Min(nextPage * PageCapacity + Selection % PageCapacity, Math.Max(0, Entries.Count - 1));
         }
         else
         {
             Selection = Math.Clamp(Selection + Math.Sign(input.MenuVertical), 0, Math.Max(0, Entries.Count - 1));
         }
-        Page = Selection / EntriesPerPage;
+        Page = Selection / PageCapacity;
         ConfirmOverwrite = false;
         Message = IsTransferring ? TransferPrompt() : null;
         if (previous != (Page, Selection))
@@ -382,9 +390,9 @@ internal sealed class PlayerSaveMenu
                 SoundRequested?.Invoke(MenuSound.Cancel);
                 return false;
             }
-            int row = Selection % EntriesPerPage;
-            int page = Math.Min(Page, (PlayerSaveStore.GetBankSlotCount(bank) - 1) / EntriesPerPage);
-            int slot = rememberedSlots.GetValueOrDefault((Mode, bank), PlayerSaveStore.GetFirstSlot(bank) + page * EntriesPerPage + row);
+            int row = Selection % PageCapacity;
+            int page = Math.Min(Page, (PlayerSaveStore.GetBankSlotCount(bank) - 1) / PageCapacity);
+            int slot = rememberedSlots.GetValueOrDefault((Mode, bank), PlayerSaveStore.GetFirstSlot(bank) + page * PageCapacity + row);
             IReadOnlyList<PlayerSaveEntry> nextEntries = store.ReadEntries(bank, Mode == PlayerSaveMenuMode.Load && !IsTransferring);
             RememberCursor();
             Bank = bank;
@@ -438,7 +446,7 @@ internal sealed class PlayerSaveMenu
             _ => store.ReadEntries(Bank, Mode == PlayerSaveMenuMode.Load && !IsTransferring)
         };
         Selection = Math.Clamp(Selection, 0, Math.Max(0, Entries.Count - 1));
-        Page = Selection / EntriesPerPage;
+        Page = Selection / PageCapacity;
     }
 
     private void SetSelectedSlot(int slot)
@@ -452,7 +460,7 @@ internal sealed class PlayerSaveMenu
                 break;
             }
         }
-        Page = Selection / EntriesPerPage;
+        Page = Selection / PageCapacity;
     }
 
     private void RememberCursor()

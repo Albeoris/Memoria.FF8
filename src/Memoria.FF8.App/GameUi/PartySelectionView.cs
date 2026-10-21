@@ -7,10 +7,14 @@ namespace Memoria.FF8.GameUi;
 /// <summary>Three combat cells and the retained four-by-two reserve pane.</summary>
 public static class PartySelectionView
 {
-    public static UiView Build(NativePartyMenuState menu, MenuData data, int candidate, string? cancelHint = null)
+    public static UiView Build(NativePartyMenuState menu, MenuData data, int candidate, string? cancelHint = null, float textScale = 1)
     {
+        if (!float.IsFinite(textScale) || textScale <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(textScale));
+        }
         // TODO(TD-011): Retain native window transitions and cursor animation timing.
-        return new UiView(new PartyPane(menu, data, candidate, cancelHint ?? new KeyboardInput().BindingPrompt(ControlAction.Cancel))) { DesignWidth = 960, DesignHeight = 672 };
+        return new UiView(new PartyPane(menu, data, candidate, cancelHint ?? new KeyboardInput().BindingPrompt(ControlAction.Cancel), textScale)) { DesignWidth = 960, DesignHeight = 672 };
     }
 
     public static int Navigate(NativePartyMenuState menu, int candidate, int horizontal, int vertical)
@@ -57,7 +61,7 @@ public static class PartySelectionView
         return (0, 3);
     }
 
-    private sealed class PartyPane(NativePartyMenuState menu, MenuData data, int candidate, string cancelHint) : UiElement
+    private sealed class PartyPane(NativePartyMenuState menu, MenuData data, int candidate, string cancelHint, float textScale) : UiElement
     {
         protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
         {
@@ -66,9 +70,9 @@ public static class PartySelectionView
             bool pending = menu.SelectedPartySlot is not null;
             byte source = pending ? menu.TemporaryCombatParty![menu.SelectedPartySlot!.Value] : (byte)255;
             bool lockedSource = source != 255 && (menu.LockedMask & 1 << source) != 0;
-            theme.Panel(canvas, new UiRect(18, 18, 924, 78), "HELP", 18);
+            theme.Panel(canvas, new UiRect(18, 18, 924, 78), "HELP", Math.Min(20, 18 * textScale));
             string help = menu.Phase != NativePartyMenuPhase.Active ? "Returning to field" : lockedSource ? "Select a party member to reorder." : pending ? "Select a character to exchange." : "Select a party member.";
-            canvas.Text(help, 25, new UiRect(34, 34, 890, 44), theme.Foreground, UiAlignment.Center);
+            Text(canvas, help, 25, new UiRect(34, 34, 890, 44), theme.Foreground, UiAlignment.Center);
 
             for (int slot = 0; slot < 3; slot++)
             {
@@ -80,7 +84,7 @@ public static class PartySelectionView
                 Status(canvas, theme, character, new UiRect(174, bounds.Y + 18, 328, 124));
                 if (row != 255 && (menu.LockedMask & 1 << row) != 0)
                 {
-                    canvas.Text("LOCK", 15, new UiRect(446, bounds.Y + 10, 65, 24), theme.Muted);
+                    Text(canvas, "LOCK", 15, new UiRect(62, bounds.Y + 116, 88, 24), theme.Muted);
                 }
                 bool active = focused is { Kind: PlayerActionKind.SelectPartySlot } action && action.Value == slot;
                 if (menu.SelectedPartySlot == slot)
@@ -101,17 +105,17 @@ public static class PartySelectionView
                 MenuCharacter? character = Character(row);
                 Portrait(canvas, character, new UiRect(cell.X + 12, cell.Y + 4, 64, 96));
                 bool locked = row != 255 && (menu.LockedMask & 1 << row) != 0;
-                canvas.Text(character?.Name ?? "", 18, new UiRect(cell.X, cell.Y + 104, cell.Width, 30), locked || lockedSource ? theme.Muted : theme.Foreground);
+                Text(canvas, character?.Name ?? "", 18, new UiRect(cell.X, cell.Y + 104, cell.Width, 30), locked || lockedSource ? theme.Muted : theme.Foreground);
                 if (locked)
                 {
-                    canvas.Text("LOCK", 13, new UiRect(cell.X + 20, cell.Y + 84, 62, 22), theme.Muted);
+                    Text(canvas, "LOCK", 13, new UiRect(cell.X + 20, cell.Y + 78, 62, 22), theme.Muted);
                 }
                 if (focused is { Kind: PlayerActionKind.SelectPartyMember } action && action.Value == row && Array.IndexOf(menu.TemporaryReserveParty, row) == index)
                 {
                     theme.Pointer(canvas, cell.X - 8, cell.Y + 42, 16);
                     if (row == 255)
                     {
-                        canvas.Text("Empty", 18, new UiRect(cell.X, cell.Y + 104, cell.Width, 30), theme.Foreground);
+                        Text(canvas, "Empty", 18, new UiRect(cell.X, cell.Y + 104, cell.Width, 30), theme.Foreground);
                     }
                 }
             }
@@ -120,9 +124,9 @@ public static class PartySelectionView
             int selectedRow = focused is { Kind: PlayerActionKind.SelectPartyMember } reserve ? reserve.Value : focused is { Kind: PlayerActionKind.SelectPartySlot } combat ? menu.TemporaryCombatParty![combat.Value] : 255;
             Status(canvas, theme, Character(selectedRow), new UiRect(558, 450, 360, 126));
             theme.Panel(canvas, new UiRect(18, 600, 924, 54));
-            canvas.Text(pending ? $"{cancelHint}: clear selection" : "Choose three members, then confirm.", 19, new UiRect(250, 612, 670, 32), theme.Muted);
+            Text(canvas, pending ? $"{cancelHint}: clear selection" : "Choose three members, then confirm.", 19, new UiRect(250, 612, 670, 32), theme.Muted);
             bool canConfirm = !pending && inputs.Any(input => input.Kind == PlayerActionKind.Confirm);
-            canvas.Text("Confirm", 24, new UiRect(62, 610, 142, 36), canConfirm ? theme.Foreground : theme.Muted);
+            Text(canvas, "Confirm", 24, new UiRect(62, 610, 142, 36), canConfirm ? theme.Foreground : theme.Muted);
             if (focused is { Kind: PlayerActionKind.Confirm })
             {
                 theme.Pointer(canvas, 30, 620, 18);
@@ -142,15 +146,20 @@ public static class PartySelectionView
             }
         }
 
-        private static void Status(IUiCanvas canvas, UiTheme theme, MenuCharacter? character, UiRect bounds)
+        private void Text(IUiCanvas canvas, string value, float size, UiRect bounds, UiColor color, UiAlignment alignment = UiAlignment.Start)
         {
-            canvas.Text(character?.Name ?? "Empty", 28, new UiRect(bounds.X, bounds.Y, bounds.Width, 40), theme.Foreground);
+            canvas.Text(value, size * textScale, bounds, color, alignment, UiTextFlow.SingleLine);
+        }
+
+        private void Status(IUiCanvas canvas, UiTheme theme, MenuCharacter? character, UiRect bounds)
+        {
+            Text(canvas, character?.Name ?? "Empty", 28, new UiRect(bounds.X, bounds.Y, bounds.Width, 40), theme.Foreground);
             if (character is null)
             {
                 return;
             }
-            canvas.Text($"Lv  {MenuController.Number(character.Level)}", 23, new UiRect(bounds.X, bounds.Y + 43, bounds.Width, 34), theme.Foreground);
-            canvas.Text($"HP  {MenuController.Hp(character)}", 23, new UiRect(bounds.X, bounds.Y + 81, bounds.Width, 38), theme.Foreground);
+            Text(canvas, $"Lv  {MenuController.Number(character.Level)}", 23, new UiRect(bounds.X, bounds.Y + 43, bounds.Width, 34), theme.Foreground);
+            Text(canvas, $"HP  {MenuController.Hp(character)}", 23, new UiRect(bounds.X, bounds.Y + 81, bounds.Width, 38), theme.Foreground);
         }
     }
 }
