@@ -7,6 +7,62 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class BattleUiTests
 {
+    [Theory]
+    [InlineData(0, 32)]
+    [InlineData(3, 80)]
+    [InlineData(7, 144)]
+    [InlineData(8, 144)]
+    [InlineData(12, 80)]
+    [InlineData(15, 32)]
+    [InlineData(16, 32)]
+    public void Selected_ready_actor_name_and_hp_pulse_together_without_a_party_pointer(int frame, int shade)
+    {
+        BattleDefinition definition = Definition();
+        definition = definition with { Combatants = [.. definition.Combatants, new() { Id = "party-1", Name = "Quistis", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum }] };
+        BattleSession session = new(definition, BattleAtbMode.TurnBased);
+        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => session.AdvanceTurn());
+        UiTheme theme = new();
+        UiView view = hud.BuildView();
+        view.Resize(960, 672);
+        hud.AdvancePresentation(TimeSpan.FromSeconds((frame + 0.125) / BattleSession.FramesPerSecond));
+        TestCanvas canvas = new();
+        view.Draw(canvas, theme);
+        UiColor expected = new((byte)Math.Min(255, theme.Foreground.R * shade / 128), (byte)Math.Min(255, theme.Foreground.G * shade / 128), (byte)Math.Min(255, theme.Foreground.B * shade / 128));
+        Assert.Equal(expected, Assert.Single(canvas.TextDraws, draw => draw.Text == "Squall").Color);
+        Assert.Equal(expected, Assert.Single(canvas.TextDraws, draw => draw.Bounds.X == 674 && draw.Bounds.Y == 528).Color);
+        Assert.Equal(theme.Foreground, Assert.Single(canvas.TextDraws, draw => draw.Text == "Quistis").Color);
+        Assert.Equal(theme.Foreground, Assert.Single(canvas.TextDraws, draw => draw.Bounds.X == 674 && draw.Bounds.Y == 566).Color);
+        Assert.DoesNotContain(canvas.Pointers, bounds => bounds.X == 496);
+        Assert.Contains(canvas.Pointers, bounds => bounds.X == 38);
+        Assert.Equal(0, session.Frame);
+    }
+
+    [Fact]
+    public void Vitals_pulse_follows_actor_selection_and_persists_during_target_selection()
+    {
+        BattleDefinition definition = Definition();
+        definition = definition with { Combatants = [.. definition.Combatants, new() { Id = "party-1", Name = "Quistis", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum }] };
+        BattleSession session = new(definition, BattleAtbMode.TurnBased);
+        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => session.AdvanceTurn());
+        hud.SelectParty("party-1");
+        hud.Navigate(MenuInput.Confirm);
+        Assert.True(hud.SelectingTarget);
+        UiView view = hud.BuildView();
+        view.Resize(960, 672);
+        TestCanvas canvas = new();
+        UiTheme theme = new();
+        view.Draw(canvas, theme);
+        Assert.Equal(theme.Foreground, Assert.Single(canvas.TextDraws, draw => draw.Text == "Squall").Color);
+        Assert.NotEqual(theme.Foreground, Assert.Single(canvas.TextDraws, draw => draw.Text == "Quistis").Color);
+        Assert.Equal(Assert.Single(canvas.TextDraws, draw => draw.Text == "Quistis").Color, Assert.Single(canvas.TextDraws, draw => draw.Bounds.X == 674 && draw.Bounds.Y == 566).Color);
+        hud.Navigate(MenuInput.Confirm);
+        Assert.Equal("party-0", hud.SelectedActor!.Id);
+        canvas = new();
+        hud.BuildView().Draw(canvas, theme);
+        Assert.NotEqual(theme.Foreground, Assert.Single(canvas.TextDraws, draw => draw.Text == "Squall").Color);
+        Assert.Equal(theme.Foreground, Assert.Single(canvas.TextDraws, draw => draw.Text == "Quistis").Color);
+    }
+
     [Fact]
     public void Attack_requires_target_confirmation_and_uses_host_command_callback()
     {
@@ -444,6 +500,8 @@ public sealed class BattleUiTests
     private sealed class TestCanvas : IUiCanvas
     {
         public List<string> Texts { get; } = [];
+        public List<(string Text, UiRect Bounds, UiColor Color)> TextDraws { get; } = [];
+        public List<UiRect> Pointers { get; } = [];
         public List<(UiRect Bounds, UiColor Color)> Fills { get; } = [];
         public List<UiRect> Clips { get; } = [];
         public UiSize MeasureText(string text, float fontSize, float maximumWidth)
@@ -458,6 +516,7 @@ public sealed class BattleUiTests
         public void Text(string text, float fontSize, UiRect bounds, UiColor color)
         {
             Texts.Add(text);
+            TextDraws.Add((text, bounds, color));
         }
 
         public void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment)
@@ -471,6 +530,7 @@ public sealed class BattleUiTests
 
         public void MenuPointer(UiRect bounds)
         {
+            Pointers.Add(bounds);
         }
 
         public void Line(float x1, float y1, float x2, float y2, UiColor color, float thickness)

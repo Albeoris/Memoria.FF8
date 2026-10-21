@@ -25,9 +25,9 @@ internal sealed partial class BattleHudElement : UiElement
         return new UiRect(Left + x * Scale, Top + y * Scale, width * Scale, height * Scale);
     }
 
-    private void Text(IUiCanvas canvas, UiTheme theme, string value, float x, float y, float width, float height, float size = 18, bool muted = false)
+    private void Text(IUiCanvas canvas, UiTheme theme, string value, float x, float y, float width, float height, float size = 18, bool muted = false, UiColor? color = null)
     {
-        canvas.Text(value, size * Scale * controller.TextScale, Rect(x, y, width, height), muted ? theme.Muted : theme.Foreground);
+        canvas.Text(value, size * Scale * controller.TextScale, Rect(x, y, width, height), color ?? (muted ? theme.Muted : theme.Foreground));
     }
 
     private void ChoiceText(IUiCanvas canvas, UiTheme theme, string value, float x, float y, float width, float size, bool muted)
@@ -140,10 +140,6 @@ internal sealed partial class BattleHudElement : UiElement
         {
             BattleCombatant actor = party[index];
             float y = 528 + index * 38;
-            if (controller.SelectedActor?.Id == actor.Id)
-            {
-                theme.Pointer(canvas, Left + 496 * Scale, Top + (y + 8) * Scale, 10 * Scale);
-            }
             BattleGuardianForceCast? cast = session.GuardianForceCasts.FirstOrDefault(cast => cast.ActorId == actor.Id);
             BattleGuardianForceVital? gf = cast is null ? null : session.GuardianForces.Single(gf => gf.Id == cast.Command.ActionId);
             BattleGuardianFormState? form = session.GetGuardianForm(actor.Id);
@@ -153,8 +149,16 @@ internal sealed partial class BattleHudElement : UiElement
             int maximumHp = presented.MaximumHitPoints;
             bool shownAlive = hp > 0;
             float gauge = cast is null ? actor.Atb / (float)BattleSession.AtbMaximum : cast.InitialTicks == 0 ? 1 : 1 - cast.RemainingTicks / (float)cast.InitialTicks;
-            Text(canvas, theme, label, 520, y, 150, 30, 22, !shownAlive);
-            Text(canvas, theme, $"{hp,4} / {maximumHp,4}", 674, y, 150, 30, 22, !shownAlive);
+            UiColor vitalColor = shownAlive ? theme.Foreground : theme.Muted;
+            if (canAttack && controller.SelectedActor?.Id == actor.Id)
+            {
+                int phase = (int)(controller.BattlePresentationSeconds * BattleSession.FramesPerSecond % 16);
+                int shade = ((phase < 8 ? phase : 15 - phase) + 2) << 4;
+                // Native name/HP glyphs share a 16-frame triangle; 128 is neutral texture modulation.
+                vitalColor = new UiColor((byte)Math.Min(255, vitalColor.R * shade / 128), (byte)Math.Min(255, vitalColor.G * shade / 128), (byte)Math.Min(255, vitalColor.B * shade / 128), vitalColor.A);
+            }
+            Text(canvas, theme, label, 520, y, 150, 30, 22, color: vitalColor);
+            Text(canvas, theme, $"{hp,4} / {maximumHp,4}", 674, y, 150, 30, 22, color: vitalColor);
             DrawGauge(canvas, Rect(830, y + 11, 104, 12), gauge, cast is null && actor.IsReady, shownAlive, cast is not null);
             if (form is { Phase: BattleGuardianFormPhase.Active })
             {
