@@ -74,7 +74,7 @@ public sealed class DialogueLayoutTests
     [InlineData("\u00a0", "\u00a0")]
     public void Quoted_authored_lines_ignore_exactly_one_leading_space(string prefix, string expectedPrefix)
     {
-        string text = "Instructor{Line}“First{Page}" + prefix + "{Color BlueBlink}[Place]{Color White} last.”{Line}  After";
+        string text = "Instructor{Line}“First{Page}" + prefix + "{Color BlueBlink}[Place]{Color White} last.”";
         DialogueDocument document = DialogueTextFormatter.Parse(text);
         var pages = DialogueLayout.Create(document, new DialogueState(0, 1, text, 20, 20), null, 10, Width);
         DialogueVisualLine continued = pages[1].Lines[0];
@@ -83,14 +83,13 @@ public sealed class DialogueLayoutTests
         DialoguePlacedRun colored = Assert.Single(continued.Runs, run => run.Run.Color == Microsoft.Xna.Framework.Color.CornflowerBlue);
         Assert.True(colored.Run.Blink);
         Assert.Equal("[Place]", colored.Run.Text);
-        Assert.Equal("  After", string.Concat(pages[1].Lines[1].Runs.Select(run => run.Run.Text)));
         Assert.Equal(prefix + "[Place] last.”", document.Pages[1].Lines[0].Text);
     }
 
     [Fact]
     public void Ignored_alignment_space_does_not_change_natural_width_or_wrap_other_lines()
     {
-        string source = "“First{Line}short line wraps{Line}";
+        string source = "Instructor{Line}“First{Line}short line wraps{Line}";
         var expected = Layout(source + "aligned.”");
         string text = source + " {Color BlueBlink}aligned.”";
         var actual = DialogueLayout.Create(DialogueTextFormatter.Parse(text), new DialogueState(0, 1, text, 20, 20), null, 10, value =>

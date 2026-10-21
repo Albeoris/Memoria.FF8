@@ -143,7 +143,7 @@ public sealed class DialogueRichTextTests
     [InlineData("＇", "＇")]
     public void Named_speech_recognizes_codepage_and_unicode_quotes_and_hanging_indent(string opening, string closing)
     {
-        DialogueDocument document = DialogueTextFormatter.Parse($"Instructor{{Line}}{opening}First{{Line}}second{{Page}}third{closing}{{Line}}After");
+        DialogueDocument document = DialogueTextFormatter.Parse($"Instructor{{Line}}{opening}First{{Line}}second{{Page}}third{closing}");
         Assert.Equal("Instructor", document.Pages[0].Speaker);
         Assert.Equal("Instructor", document.Pages[1].Speaker);
         Assert.True(document.Pages[0].Lines[0].IsSpeaker);
@@ -153,8 +153,39 @@ public sealed class DialogueRichTextTests
         Assert.False(document.Pages[0].Lines[2].IsQuoteStart);
         Assert.Equal(opening, document.Pages[0].Lines[2].HangingIndent);
         Assert.Equal(opening, document.Pages[1].Lines[0].HangingIndent);
-        Assert.Empty(document.Pages[1].Lines[1].HangingIndent);
         Assert.False(document.Pages[1].Lines[0].IsSpeaker);
+    }
+
+    [Theory]
+    [InlineData("Term{Line}Definition{Line}”Quoted phrase“ and{Line}plain explanation.")]
+    [InlineData("A ”quoted“ title{Line}”Body“")]
+    [InlineData("Instructor{Line}”Unclosed body")]
+    [InlineData("Instructor{Line}”Quoted phrase“ and more text")]
+    [InlineData("Instructor{Line}”Body“{Line}After")]
+    [InlineData("Instructor{Line}{Line}”Body“")]
+    [InlineData("”Body{Line}continuation“")]
+    public void Ordinary_quotes_do_not_create_speaker_headings_or_hanging_indents(string text)
+    {
+        DialogueDocument document = DialogueTextFormatter.Parse(text);
+        Assert.All(document.Pages, page => Assert.Null(page.Speaker));
+        Assert.All(document.Pages.SelectMany(page => page.Lines), line =>
+        {
+            Assert.False(line.IsSpeaker);
+            Assert.False(line.IsQuoteStart);
+            Assert.Empty(line.HangingIndent);
+        });
+    }
+
+    [Theory]
+    [InlineData("“Body.”")]
+    [InlineData("“Body”.")]
+    [InlineData("”Body“!?…")]
+    [InlineData("「Body」）")]
+    public void Named_dialogue_accepts_closing_quotes_with_associated_punctuation(string body)
+    {
+        DialoguePage page = Assert.Single(DialogueTextFormatter.Parse($"Instructor{{Line}}{body}").Pages);
+        Assert.Equal("Instructor", page.Speaker);
+        Assert.True(page.Lines[1].IsQuoteStart);
     }
 
     [Fact]
@@ -188,11 +219,12 @@ public sealed class DialogueRichTextTests
     }
 
     [Fact]
-    public void Unnamed_quoted_text_and_thoughts_do_not_require_a_speaker()
+    public void Unnamed_quotes_remain_body_text_and_thoughts_do_not_require_a_speaker()
     {
         DialoguePage speech = Assert.Single(DialogueTextFormatter.Parse("「First{Line}second」").Pages);
         Assert.Null(speech.Speaker);
-        Assert.True(speech.Lines[0].IsQuoteStart);
+        Assert.False(speech.Lines[0].IsQuoteStart);
+        Assert.Empty(speech.Lines[0].HangingIndent);
         DialoguePage thought = Assert.Single(DialogueTextFormatter.Parse("{Color Red}(Thinking.)").Pages);
         Assert.Null(thought.Speaker);
         Assert.True(thought.Lines[0].IsThought);

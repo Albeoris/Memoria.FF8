@@ -262,12 +262,15 @@ internal static partial class DialogueTextFormatter
         string openingQuote = "";
         string closingQuotes = "";
         int thoughtDepth = 0;
-        foreach (DialoguePage page in pages)
+        for (int pageIndex = 0; pageIndex < pages.Count; pageIndex++)
         {
+            DialoguePage page = pages[pageIndex];
             DialogueLine[] lines = page.Lines.ToArray();
             int first = Array.FindIndex(lines, line => line.Text.Trim().Length > 0);
             int next = first < 0 ? -1 : Array.FindIndex(lines, first + 1, line => line.Text.Trim().Length > 0);
-            if (first >= 0 && (lines[first].IsSpeaker || openingQuote.Length == 0 && thoughtDepth == 0 && next >= 0 && IsBlockStart(lines[next].Text) && !IsBlockStart(lines[first].Text)))
+            bool quotedDialogue = openingQuote.Length == 0 && thoughtDepth == 0 && IsQuotedDialogue(pages, pageIndex);
+            bool namedThought = openingQuote.Length == 0 && thoughtDepth == 0 && next >= 0 && StartsThought(lines[next].Text) && !IsBlockStart(lines[first].Text);
+            if (first >= 0 && (lines[first].IsSpeaker || quotedDialogue || namedThought))
             {
                 lines[first] = lines[first] with { IsSpeaker = true };
                 speaker = lines[first].Text.Trim();
@@ -282,14 +285,14 @@ internal static partial class DialogueTextFormatter
                 string trimmed = line.Text.Trim();
                 string opening = "";
                 string closing = "";
-                bool quoteStart = openingQuote.Length == 0 && TryOpeningQuote(trimmed, out opening, out closing);
+                bool quoteStart = quotedDialogue && index == 1 && TryOpeningQuote(trimmed, out opening, out closing);
                 if (quoteStart)
                 {
                     openingQuote = opening;
                     closingQuotes = closing;
                 }
                 line = line with { HangingIndent = openingQuote, IsQuoteStart = quoteStart };
-                if (openingQuote.Length > 0 && trimmed.Length > (quoteStart ? openingQuote.Length : 0) && closingQuotes.Contains(trimmed[^1]))
+                if (openingQuote.Length > 0 && trimmed.Length > (quoteStart ? openingQuote.Length : 0) && EndsQuotedDialogue(trimmed, closingQuotes))
                 {
                     openingQuote = "";
                     closingQuotes = "";
@@ -325,6 +328,54 @@ internal static partial class DialogueTextFormatter
             result.Add(page with { Lines = lines, Speaker = speaker });
         }
         return new DialogueDocument(result);
+    }
+
+    private static bool IsQuotedDialogue(IReadOnlyList<DialoguePage> pages, int pageIndex)
+    {
+        IReadOnlyList<DialogueLine> lines = pages[pageIndex].Lines;
+        if (!HasSpeechHeading(lines) || !TryOpeningQuote(lines[1].Text.TrimStart(), out _, out string closing))
+        {
+            return false;
+        }
+        string last = "";
+        for (int index = pageIndex; index < pages.Count; index++)
+        {
+            if (index > pageIndex && EndsQuotedDialogue(last, closing) && HasSpeechHeading(pages[index].Lines))
+            {
+                break;
+            }
+            foreach (DialogueLine line in pages[index].Lines)
+            {
+                if (!string.IsNullOrWhiteSpace(line.Text))
+                {
+                    last = line.Text.TrimEnd();
+                }
+            }
+        }
+        return EndsQuotedDialogue(last, closing);
+    }
+
+    private static bool HasSpeechHeading(IReadOnlyList<DialogueLine> lines)
+    {
+        return lines.Count >= 2 && !string.IsNullOrWhiteSpace(lines[0].Text) && !IsBlockStart(lines[0].Text)
+            && !lines[0].Text.Any(character => TryOpeningQuote(character.ToString(), out _, out _) || "’»›」』｣〞〟".Contains(character))
+            && TryOpeningQuote(lines[1].Text.TrimStart(), out _, out _);
+    }
+
+    private static bool EndsQuotedDialogue(string text, string closing)
+    {
+        int end = text.Length - 1;
+        while (end >= 0 && (char.IsWhiteSpace(text[end]) || ".,!?;:…)]}）】".Contains(text[end])))
+        {
+            end--;
+        }
+        return end >= 0 && closing.Contains(text[end]);
+    }
+
+    private static bool StartsThought(string text)
+    {
+        string trimmed = text.TrimStart();
+        return trimmed.Length > 0 && trimmed[0] is '(' or '（';
     }
 
     private static bool IsBlockStart(string text)

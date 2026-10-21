@@ -90,7 +90,15 @@ internal static class SystemTextLayout
                 bottom = Math.Max(bottom, y);
             }
         }
-        return right < left ? new Bitmap(1, 1, PixelFormat.Format32bppArgb) : bitmap.Clone(new Rectangle(left, top, right - left + 1, bottom - top + 1), PixelFormat.Format32bppArgb);
+        if (right < left)
+        {
+            return new Bitmap(1, 1, PixelFormat.Format32bppArgb);
+        }
+        // Cropping glyph bearings must retain authored indentation, including a space
+        // at the start of a separately colored run.
+        float leadingAdvance = lines.Where(line => !string.IsNullOrWhiteSpace(line)).Min(line => measurer.Measure(line[..(line.Length - line.TrimStart().Length)]));
+        left = Math.Max(0, left - (int)MathF.Round(leadingAdvance * RasterScale));
+        return bitmap.Clone(new Rectangle(left, top, right - left + 1, bottom - top + 1), PixelFormat.Format32bppArgb);
     }
 
     internal static List<string> Wrap(string text, Func<string, float> measure, float maximumWidth)
@@ -99,13 +107,16 @@ internal static class SystemTextLayout
         foreach (string paragraph in text.Replace("\r", "").Split('\n'))
         {
             string line = "";
+            bool needsSeparator = false;
             foreach (string word in paragraph.Split(' '))
             {
-                string candidate = line.Length == 0 ? word : line + " " + word;
+                string candidate = needsSeparator ? line + " " + word : word;
+                needsSeparator = true;
                 if (line.Length != 0 && measure(candidate) > maximumWidth)
                 {
                     lines.Add(line);
                     line = "";
+                    needsSeparator = false;
                 }
                 else if (measure(candidate) <= maximumWidth)
                 {
@@ -122,6 +133,7 @@ internal static class SystemTextLayout
                         line = "";
                     }
                     line += character;
+                    needsSeparator = true;
                 }
             }
             lines.Add(line);
