@@ -12,6 +12,7 @@ internal sealed class VisualFrameRate : IDisposable
     private readonly Effect difference;
     private readonly BlendState queryBlend = new() { ColorWriteChannels = ColorWriteChannels.None };
     private readonly PresentationFrameRate counter = new();
+    private readonly PresentationFrameRate presentationCounter = new();
     private readonly Queue<PendingPresentation> pending = new();
     private readonly Stack<OcclusionQuery> availableQueries = new();
     private RenderTarget2D? current;
@@ -35,6 +36,7 @@ internal sealed class VisualFrameRate : IDisposable
     }
 
     public double? FramesPerSecond => counter.FramesPerSecond;
+    public double? PresentationsPerSecond => presentationCounter.PresentationsPerSecond;
 
     public void BeginFrame()
     {
@@ -107,6 +109,7 @@ internal sealed class VisualFrameRate : IDisposable
         {
             throw new InvalidOperationException("CompleteFrame must precede Presented.");
         }
+        presentationCounter.Presented(timestamp, true);
         awaitingPresentation.Timestamp = timestamp;
         pending.Enqueue(awaitingPresentation);
         awaitingPresentation = null;
@@ -156,6 +159,7 @@ internal sealed class VisualFrameRate : IDisposable
     private void ResetResources()
     {
         ResetMeasurement();
+        presentationCounter.Reset();
         while (availableQueries.TryPop(out OcclusionQuery? query))
         {
             query.Dispose();

@@ -7,6 +7,7 @@ internal sealed class PresentationFrameRate
     private TimeSpan? started;
     private int changedFrames;
     public double? FramesPerSecond { get; private set; }
+    public double? PresentationsPerSecond { get; private set; }
 
     public void Presented(TimeSpan timestamp, bool changed)
     {
@@ -23,7 +24,9 @@ internal sealed class PresentationFrameRate
         Trim(timestamp);
         if (timestamp > started.Value)
         {
-            FramesPerSecond = changedFrames / (timestamp - started.Value).TotalSeconds;
+            double seconds = (timestamp - started.Value).TotalSeconds;
+            FramesPerSecond = changedFrames / seconds;
+            PresentationsPerSecond = presentations.Count / seconds;
         }
     }
 
@@ -33,6 +36,7 @@ internal sealed class PresentationFrameRate
         started = null;
         changedFrames = 0;
         FramesPerSecond = null;
+        PresentationsPerSecond = null;
     }
 
     private void Trim(TimeSpan timestamp)

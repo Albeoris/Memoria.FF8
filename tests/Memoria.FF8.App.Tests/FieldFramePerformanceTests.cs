@@ -14,6 +14,43 @@ namespace Memoria.FF8.App.Tests;
 [Collection("GPU rendering")]
 public sealed class FieldFramePerformanceTests
 {
+    [Fact]
+    public void Cold_new_game_saves_the_first_confirmable_infirmary_dialogue()
+    {
+        string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_FIELD_PERFORMANCE_OUTPUT");
+        Assert.SkipUnless(output is not null, "An optional diagnostic output directory is required.");
+        string directory = TestResources.GameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Installed original field corpus is required.");
+        Directory.CreateDirectory(output!);
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
+        using GameWorld world = new(session, directory);
+        for (int input = 0; input < 3000; input++)
+        {
+            world.EnsureField();
+            Assert.Null(world.Events.LastFault);
+            DialogueState? dialogue = world.Events.CurrentDialogue;
+            if (session.State.Scene == SceneKind.Field && world.Field!.Id == 180 && dialogue is { CanConfirm: true } && world.CanPresentCurrentField && !FieldPresentationReadiness.HasPendingInitialization(world.Events.Scene.NativeFieldInitialization))
+            {
+                string snapshot = Path.Combine(output!, "opening-infirmary.json");
+                session.SetEventState(world.Events.Capture());
+                session.Save(snapshot, compact: true);
+                using GameWorld restored = new(new GameSession(GameSession.Load(snapshot)), directory);
+                restored.EnsureField();
+                Assert.Equal(180, restored.Field!.Id);
+                Assert.Equal(world.Events.Frame, restored.Events.Frame);
+                Assert.True(restored.Events.CurrentDialogue?.CanConfirm);
+                Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
+                return;
+            }
+            PlayerAction action = session.IsMoviePlaying ? new PlayerAction(PlayerActionKind.SkipMovie) : dialogue is { CanConfirm: true, IsNamePrompt: true } ? new PlayerAction(PlayerActionKind.EnterName, Text: "Cecilia") : dialogue is { CanConfirm: true, FirstChoice: int choice } ? new PlayerAction(PlayerActionKind.Choose, choice) : dialogue is { CanConfirm: true } ? new PlayerAction(PlayerActionKind.Confirm) : new PlayerAction(PlayerActionKind.Wait);
+            PlayerActionResult result = world.Apply(action);
+            Assert.True(result.Accepted, $"Opening input {action} at field{world.Events.FieldId}/frame{world.Events.Frame}: {result.Detail}");
+            world.CommitFieldPresentation();
+        }
+        Assert.Fail($"Fresh opening infirmary exceeded its bounded action budget: field{world.Events.FieldId}/frame{world.Events.Frame}, trigger {world.Events.NextTrigger}, dialogue {world.Events.CurrentDialogue}, fault {world.Events.LastFault}.");
+    }
+
     [Theory]
     [InlineData(1)]
     [InlineData(3)]
@@ -31,11 +68,18 @@ public sealed class FieldFramePerformanceTests
         int initialField = initial.Field!.Id;
         string directory = TestResources.ArtifactFile("field-host");
         Directory.CreateDirectory(directory);
+        (int width, int height) = PerformanceResolution();
         bool audio = Environment.GetEnvironmentVariable("MEMORIA_FF8_FIELD_PERFORMANCE_AUDIO") == "1";
-        LaunchOptions options = new() { GameDirectory = TestResources.GameDirectory, MediaToolsDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_MEDIA_TOOLS"), InitialState = session.State, StatePath = source, SavePath = Path.Combine(directory, "unused.json"), MuteAudio = !audio, ExitAfterSeconds = 12, ResolutionSpecified = true, Width = 960, Height = 720 };
+        LaunchOptions options = new() { GameDirectory = TestResources.GameDirectory, MediaToolsDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_MEDIA_TOOLS"), InitialState = session.State, StatePath = source, SavePath = Path.Combine(directory, "unused.json"), MuteAudio = !audio, ExitAfterSeconds = 12, ResolutionSpecified = true, Width = width, Height = height, CaptureFramePath = Path.Combine(output, "host.png"), CaptureAfterSeconds = 8 };
         using RecreateGame game = new(options, session);
+        // Keep the diagnostic GPU workload at the requested size even on a smaller desktop.
+        Get<Microsoft.Xna.Framework.GraphicsDeviceManager>(game, "graphics").PreparingDeviceSettings += (_, settings) =>
+        {
+            settings.GraphicsDeviceInformation.PresentationParameters.BackBufferWidth = width;
+            settings.GraphicsDeviceInformation.PresentationParameters.BackBufferHeight = height;
+        };
         Set(game, "globalSettings", new GlobalSettingsPaths(directory));
-        Set(game, "uiPreferences", new UiPreferences { WindowWidth = 960, WindowHeight = 720, VSync = false });
+        Set(game, "uiPreferences", new UiPreferences { WindowWidth = width, WindowHeight = height, FieldFps = 60, ShowFps = true, VSync = Environment.GetEnvironmentVariable("MEMORIA_FF8_FIELD_PERFORMANCE_VSYNC") == "1", TextScale = 125, UiFontSize = 24, DialogueFontFamily = "Arial", DialogueFontSize = 8 });
         if (speed == 3)
         {
             Get<GameplayClock>(game, "gameplayClock").ToggleSpeed();
@@ -43,10 +87,17 @@ public sealed class FieldFramePerformanceTests
         game.Run();
         GameWorld world = Get<GameWorld>(game, "world");
         GameLoopSample? sample = Get<GameLoopMetrics>(game, "metrics").Latest;
+        VisualFrameRate? rate = Get<VisualFrameRate?>(game, "visualFrameRate");
+        rate?.ResolveCompletedPresentations();
+        var presentation = game.GraphicsDevice.PresentationParameters;
         session.SetEventState(world.Events.Capture());
         session.Save(Path.Combine(output!, "host-after.json"));
-        File.WriteAllText(Path.Combine(output!, "host-measurement.json"), JsonSerializer.Serialize(new { Field = initialField, Speed = speed, Audio = audio, InitialFrame = initialFrame, FinalFrame = world.Events.Frame, Sample = sample }, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(Path.Combine(output!, "host-measurement.json"), JsonSerializer.Serialize(new { Field = initialField, Width = width, Height = height, FieldFps = 60, Speed = speed, Audio = audio, InitialFrame = initialFrame, FinalFrame = world.Events.Frame, Sample = sample, ActualWidth = presentation.BackBufferWidth, ActualHeight = presentation.BackBufferHeight, presentation.MultiSampleCount, game.GraphicsDevice.Adapter.Description, PresentationFps = rate?.PresentationsPerSecond, VisualChangesPerSecond = rate?.FramesPerSecond }, new JsonSerializerOptions { WriteIndented = true }));
         Assert.NotNull(sample);
+        Assert.Equal(width, presentation.BackBufferWidth);
+        Assert.Equal(height, presentation.BackBufferHeight);
+        Assert.True(rate!.PresentationsPerSecond is > 0);
+        Assert.InRange(Math.Abs(rate.PresentationsPerSecond.Value - sample.DrawsPerSecond), 0, 5);
         Assert.False(Get<bool>(game, "fieldFaulted"), Get<string?>(game, "error"));
         if (audio)
         {
@@ -54,6 +105,18 @@ public sealed class FieldFramePerformanceTests
         }
         Assert.Equal(initialField, world.Field!.Id);
         Assert.True(world.Events.Frame > initialFrame + 100 * speed);
+    }
+
+    private static (int Width, int Height) PerformanceResolution()
+    {
+        string? resolution = Environment.GetEnvironmentVariable("MEMORIA_FF8_FIELD_PERFORMANCE_RESOLUTION");
+        if (string.IsNullOrWhiteSpace(resolution))
+        {
+            return (960, 720);
+        }
+        string[] dimensions = resolution.Split('x', 'X');
+        Assert.True(dimensions.Length == 2 && int.TryParse(dimensions[0], out int parsedWidth) && parsedWidth > 0 && int.TryParse(dimensions[1], out int parsedHeight) && parsedHeight > 0, "MEMORIA_FF8_FIELD_PERFORMANCE_RESOLUTION must be positive dimensions in WxH form.");
+        return (int.Parse(dimensions[0]), int.Parse(dimensions[1]));
     }
 
     private static T Get<T>(RecreateGame game, string name)
@@ -126,6 +189,8 @@ public sealed class FieldFramePerformanceTests
         {
             double update = 0;
             double render = 0;
+            int draws = 0;
+            int uploads = 0;
             long allocated = GC.GetAllocatedBytesForCurrentThread();
             for (int tick = 0; tick < 30; tick++)
             {
@@ -136,8 +201,10 @@ public sealed class FieldFramePerformanceTests
                 start = Stopwatch.GetTimestamp();
                 world.Render(TimeSpan.FromSeconds(1d / 30), triangleRenderer: gpu);
                 render += Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+                draws += gpu.FrameDrawCalls;
+                uploads += gpu.FrameTextureUploads;
             }
-            samples.Add(new { Block = block, UpdateMilliseconds = update / 30, RenderMilliseconds = render / 30, AllocatedBytesPerFrame = (GC.GetAllocatedBytesForCurrentThread() - allocated) / 30 });
+            samples.Add(new { Block = block, UpdateMilliseconds = update / 30, RenderMilliseconds = render / 30, DrawsPerFrame = draws / 30d, UploadsPerFrame = uploads / 30d, AllocatedBytesPerFrame = (GC.GetAllocatedBytesForCurrentThread() - allocated) / 30 });
         }
         Microsoft.Xna.Framework.Color[] hardware = GpuTestDevice.Read(gpu.Target);
         string pixelHash = Convert.ToHexString(SHA256.HashData(MemoryMarshal.AsBytes(hardware.AsSpan())));

@@ -50,7 +50,7 @@ Quick saves use `%LOCALAPPDATA%/Memoria.FF8/player-saves/`. In the Save or Load 
 
 Open **Config → Display** to choose **Field FPS: 30 or 60** (default 60). At 60 FPS, field movement and animation interpolate between the original simulation frames. Scripts, movement rules and gameplay timing retain their original rate. Movies retain their own playback timing. **V-Sync** can limit presentation further when the display cannot reach the selected rate.
 
-**Show FPS**, also available under **Debug Room → UI**, measures visible frame changes per real second. Repeated identical frames and the FPS overlay itself do not count, so a still scene may show 0 FPS. This measures visible output rather than the configured limit or simulation speed.
+**Show FPS**, also available under **Debug Room → UI**, displays completed presentations per real second as **FPS** and visible RGB changes as **Changes/s**. A still scene can show 60 FPS and 0 Changes/s. Repeated identical frames and the overlay itself do not count as changes. Both measurements include rendering, pacing and V-Sync waits; neither is the configured limit or simulation speed.
 
 ## Movies and naming
 

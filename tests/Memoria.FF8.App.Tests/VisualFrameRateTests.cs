@@ -7,20 +7,22 @@ namespace Memoria.FF8.App.Tests;
 public sealed class VisualFrameRateTests
 {
     [Theory]
-    [InlineData(0)]
-    [InlineData(15)]
-    [InlineData(30)]
-    [InlineData(60)]
-    public void MeasuresChangedOutputInsteadOfPresentationOrTextureUploadCadence(int visualFps)
+    [InlineData(0, 60)]
+    [InlineData(15, 60)]
+    [InlineData(30, 60)]
+    [InlineData(15, 120)]
+    [InlineData(30, 120)]
+    [InlineData(60, 60)]
+    public void MeasuresChangedOutputInsteadOfPresentationOrTextureUploadCadence(int visualFps, int presentationFps)
     {
         using GpuTestDevice gpu = new();
         using VisualFrameRate meter = new(gpu.Device);
         using RenderTarget2D destination = gpu.CreateTarget(64, 64);
         using SpriteBatch batch = new(gpu.Device);
         using Texture2D texture = new(gpu.Device, 1, 1);
-        for (int frame = 0; frame <= 120; frame++)
+        for (int frame = 0; frame <= presentationFps * 2; frame++)
         {
-            int visualFrame = visualFps == 0 ? 0 : frame / (60 / visualFps);
+            int visualFrame = visualFps == 0 ? 0 : frame / (presentationFps / visualFps);
             Color color = new(visualFrame, 28, 50);
             // Decoding or uploading another identical movie/scene texture must not create a visual frame.
             texture.SetData([color]);
@@ -32,10 +34,67 @@ public sealed class VisualFrameRateTests
             batch.End();
             meter.CompleteFrame();
             Assert.Equal(color, GpuTestDevice.Read(destination)[32 * 64 + 32]);
-            meter.Presented(TimeSpan.FromSeconds(frame / 60d));
+            meter.Presented(TimeSpan.FromSeconds(frame / (double)presentationFps));
+            if (frame > 0)
+            {
+                Assert.Equal(presentationFps, meter.PresentationsPerSecond!.Value, 3);
+            }
         }
         meter.ResolveCompletedPresentations();
         Assert.Equal(visualFps, meter.FramesPerSecond!.Value, 3);
+        Assert.Equal(presentationFps, meter.PresentationsPerSecond!.Value, 3);
+    }
+
+    [Fact]
+    public void PresentationCadenceIsImmediateWithoutReadbackAndSurvivesComparisonInvalidation()
+    {
+        using GpuTestDevice gpu = new();
+        using VisualFrameRate meter = new(gpu.Device);
+        using RenderTarget2D destination = gpu.CreateTarget(64, 64);
+        Assert.Null(meter.PresentationsPerSecond);
+        for (int frame = 0; frame <= 120; frame++)
+        {
+            gpu.Device.SetRenderTarget(destination);
+            meter.BeginFrame();
+            gpu.Device.Clear(Color.Blue);
+            meter.CompleteFrame();
+            meter.Presented(TimeSpan.FromSeconds(frame / 60d));
+            if (frame == 0)
+            {
+                Assert.Null(meter.PresentationsPerSecond);
+                continue;
+            }
+            // No GetData or explicit query resolution: actual presentations are already observable.
+            Assert.Equal(60, meter.PresentationsPerSecond!.Value, 3);
+            if (frame == 60)
+            {
+                typeof(VisualFrameRate).GetMethod("ResetMeasurement", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(meter, null);
+                Assert.Null(meter.FramesPerSecond);
+                Assert.Equal(60, meter.PresentationsPerSecond!.Value, 3);
+            }
+        }
+    }
+
+    [Fact]
+    public void PresentationCadenceIncludesAStallAndRecoversWithStillOutput()
+    {
+        using GpuTestDevice gpu = new();
+        using VisualFrameRate meter = new(gpu.Device);
+        using RenderTarget2D destination = gpu.CreateTarget(64, 64);
+        for (int frame = 0; frame <= 60; frame++)
+        {
+            PresentSolid(gpu, meter, destination, Color.Blue, frame / 60d);
+        }
+        Assert.Equal(0, meter.FramesPerSecond!.Value);
+        Assert.Equal(60, meter.PresentationsPerSecond!.Value, 3);
+        PresentSolid(gpu, meter, destination, Color.Blue, 4);
+        Assert.Equal(1d / 3, meter.PresentationsPerSecond!.Value, 6);
+        for (int frame = 1; frame <= 60; frame++)
+        {
+            PresentSolid(gpu, meter, destination, Color.Blue, 4 + frame / 60d);
+        }
+        Assert.Equal(0, meter.FramesPerSecond!.Value);
+        Assert.Equal(60, meter.PresentationsPerSecond!.Value, 3);
     }
 
     [Theory]
@@ -106,6 +165,7 @@ public sealed class VisualFrameRateTests
         gpu.Device.SetRenderTarget(resized);
         meter.BeginFrame();
         Assert.Null(meter.FramesPerSecond);
+        Assert.Null(meter.PresentationsPerSecond);
         Assert.Equal(new Rectangle(0, 0, 32, 24), gpu.Device.Viewport.Bounds);
         gpu.Device.Clear(Color.Green);
         meter.CompleteFrame();
@@ -113,8 +173,10 @@ public sealed class VisualFrameRateTests
         Assert.All(GpuTestDevice.Read(resized), pixel => Assert.Equal(Color.Green, pixel));
         meter.Presented(TimeSpan.FromSeconds(10));
         Assert.Null(meter.FramesPerSecond);
+        Assert.Null(meter.PresentationsPerSecond);
         PresentSolid(gpu, meter, resized, Color.Green, 10.5);
         Assert.Equal(0, meter.FramesPerSecond!.Value);
+        Assert.Equal(2, meter.PresentationsPerSecond!.Value);
     }
 
     [Fact]
@@ -153,11 +215,14 @@ public sealed class VisualFrameRateTests
         PresentSolid(gpu, meter, original, Color.Blue, 1);
         gpu.Device.Reset(gpu.Device.PresentationParameters);
         Assert.Null(meter.FramesPerSecond);
+        Assert.Null(meter.PresentationsPerSecond);
         using RenderTarget2D restored = gpu.CreateTarget(64, 64);
         PresentSolid(gpu, meter, restored, Color.Green, 10);
         Assert.Null(meter.FramesPerSecond);
+        Assert.Null(meter.PresentationsPerSecond);
         PresentSolid(gpu, meter, restored, Color.Green, 10.5);
         Assert.Equal(0, meter.FramesPerSecond!.Value);
+        Assert.Equal(2, meter.PresentationsPerSecond!.Value);
     }
 
     private static void PresentSolid(GpuTestDevice gpu, VisualFrameRate meter, RenderTarget2D destination, Color color, double seconds)

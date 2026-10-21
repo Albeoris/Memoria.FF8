@@ -30,8 +30,10 @@ internal sealed partial class RecreateGame
         visualFrameRate?.Presented(now);
         if (now >= nextFpsLabelUpdate)
         {
-            double? fps = visualFrameRate?.FramesPerSecond;
-            fpsLabel = fps is double value ? FormattableString.Invariant($"FPS: {value:F1}") : "FPS: --";
+            double? fps = visualFrameRate?.PresentationsPerSecond;
+            double? changes = visualFrameRate?.FramesPerSecond;
+            string changesLabel = changes is double visual ? FormattableString.Invariant($"Changes/s: {visual:F1}") : "Changes/s: --";
+            fpsLabel = fps is double value ? FormattableString.Invariant($"FPS: {value:F1} | {changesLabel}") : $"FPS: -- | {changesLabel}";
             nextFpsLabelUpdate = now + TimeSpan.FromSeconds(0.25);
         }
     }
