@@ -12,7 +12,7 @@ public static class NativeBattleCuragaContext
         {
             throw new NotSupportedException("Native87E230 requires its actual676-byte callback and17D5F4C executable resource.");
         }
-        if ((profile.Effect is 16 or 61) && unchecked((short)task.ReadWord(0x29C)) != 0)
+        if ((profile.Effect is 16 or 61 or 81 or 82) && unchecked((short)task.ReadWord(0x29C)) != 0)
         {
             throw new NotSupportedException("The actor director generic producer supports only its original mode0 anchors.");
         }

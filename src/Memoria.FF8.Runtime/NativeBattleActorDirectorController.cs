@@ -137,15 +137,15 @@ public static class NativeBattleActorDirectorController
                     throw new InvalidDataException("The actor director root leaves its original phase table.");
             }
             current = current.WithState(current.State with { Generic = current.State.Generic with { PassCount26D82EA = 0, PassCount26D82DA = 0 } });
-            ushort survivors = 0;
+            state = state.Write(address, state.Read(address).WriteWord(0x5E, 0));
             for (int pool = 1; pool < 6; pool++)
             {
                 NativeBattleEffectHierarchyStep children = state.Advance(pool, Child);
                 state = children.Hierarchy;
-                survivors = unchecked((ushort)(survivors + children.Survivors));
+                state = state.Write(address, state.Read(address).WriteWord(0x5E, unchecked((ushort)(state.Read(address).ReadWord(0x5E) + children.Survivors))));
             }
             task = state.Read(address);
-            state = state.Write(address, task.WriteWord(0x5E, survivors).WriteWord(0x5C, unchecked((ushort)(task.ReadWord(0x5C) + 1))));
+            state = state.Write(address, task.WriteWord(0x5C, unchecked((ushort)(task.ReadWord(0x5C) + 1))));
             return Finish(state, address);
         });
         return current with { Effect = current.Effect with { Pools = roots.Hierarchy.Pools, ReturnedDescriptor = roots.Survivors == 0 ? 0u : profile.Pools[0].Descriptor } };
@@ -153,6 +153,12 @@ public static class NativeBattleActorDirectorController
         NativeBattleEffectHierarchyCallback Child(NativeBattleEffectHierarchy state, uint address)
         {
             NativeBattleModulePoolTask task = state.Read(address);
+            if (task.Callback == 0x8DDC30 && profile.OverlayAddress is not null)
+            {
+                NativeBattleActorDirectorLeafStep overlay = (inputs.AdvanceOverlay ?? throw new NotSupportedException("The actor director requires its original fullscreen overlay callback."))(current with { Effect = current.Effect with { Pools = state.Pools } }, address);
+                current = overlay.Frame;
+                return new(new(current.Effect.Pools), overlay.Result);
+            }
             switch (profile.CanonicalCallback(task.Callback))
             {
                 case 0x8AB4C0:
@@ -203,8 +209,17 @@ public static class NativeBattleActorDirectorController
                         if (current.State.Word(0x40) == 1)
                         {
                             NativeBattleEffectHierarchyAppend generic = Add(state, 3, 0x8AB890, 676, address);
-                            state = generic.Hierarchy.Write(generic.Address, generic.Hierarchy.Read(generic.Address).WriteDword(0x30, profile.SourceAddress).WriteWord(0x298, 4).WriteWord(0x29C, 0).WriteWord(0x29E, 15));
+                            state = generic.Hierarchy.Write(generic.Address, generic.Hierarchy.Read(generic.Address).WriteDword(0x30, profile.SourceAddress).WriteWord(0x298, profile.GenericDelay).WriteWord(0x29C, 0).WriteWord(0x29E, 15));
                             state = Add(state, 4, 0x8B0660, 140, address).Hierarchy;
+                            if (profile.OverlayAddress is { } programme)
+                            {
+                                NativeBattleEffectHierarchyAppend overlay = state.Append8DC540(5, 0x8DDC30, 64, address, (pointer, group, target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target));
+                                if (overlay.Address == 0)
+                                {
+                                    throw new NotSupportedException("The actor director requires its original mandatory overlay allocation.");
+                                }
+                                state = overlay.Hierarchy.Write(overlay.Address, overlay.Hierarchy.Read(overlay.Address).WriteDword(0x34, programme).WriteWord(0x38, profile.OverlayDelay ?? throw new InvalidDataException("The actor director overlay lost its original delay.")));
+                            }
                             Emit(ref state, new NativeBattleActorDirectorGenericTask(generic.Address));
                         }
                     }
@@ -224,12 +239,18 @@ public static class NativeBattleActorDirectorController
                         case 1:
                             if (current.State.Word(0x40) >= 1)
                             {
+                                if (profile.VibrationAddress is not null)
+                                {
+                                    NativeBattleActorDirectorVibrationStep vibration = (inputs.StartVibration ?? throw new NotSupportedException("The actor director requires its original vibration queue."))(current with { Effect = current.Effect with { Pools = state.Pools } });
+                                    current = vibration.Frame.WithState(vibration.Frame.State.WithWord(0x52, vibration.Handle));
+                                    state = new(current.Effect.Pools);
+                                }
                                 Emit(ref state, new NativeBattleActorDirectorSound(new(resources.Sound, 0, null) { Pan = 128 }));
                                 state = Next(state, address);
                             }
                             break;
                         case 2:
-                            if (current.State.Word(0x46) >= 40)
+                            if (current.State.Word(0x46) >= profile.ContactAge)
                             {
                                 current = current.WithState(current.State.WithWord(0x48, 1));
                                 state = Next(state, address);
@@ -238,6 +259,10 @@ public static class NativeBattleActorDirectorController
                         case 3:
                             if (RequestPhase(2))
                             {
+                                if (profile.VibrationAddress is not null)
+                                {
+                                    Emit(ref state, new NativeBattleActorDirectorStopVibration(current.State.Word(0x52)));
+                                }
                                 state = Next(state, address);
                             }
                             break;
@@ -258,22 +283,25 @@ public static class NativeBattleActorDirectorController
                     switch (Phase(task))
                     {
                         case 0:
-                            state = state.Write(address, task.WriteWord(0x1C, 0));
-                            Emit(ref state, new NativeBattleActorDirectorStage(0, true));
-                            state = Next(state, address);
+                            if (Word(task, 0x24) >= profile.StageInitialAge)
+                            {
+                                state = state.Write(address, task.WriteWord(0x1C, 0));
+                                Emit(ref state, new NativeBattleActorDirectorStage(0, true));
+                                state = Next(state, address);
+                            }
                             break;
                         case 1:
-                            short up = unchecked((short)(Word(task, 0x1C) + 512));
-                            if (up >= 2048)
+                            short up = unchecked((short)(Word(task, 0x1C) + profile.StageRamp));
+                            if (up >= profile.StageMaximum)
                             {
-                                up = 2048;
+                                up = profile.StageMaximum;
                                 state = Next(state, address);
                             }
                             state = state.Write(address, state.Read(address).WriteWord(0x1C, unchecked((ushort)up)));
                             Emit(ref state, new NativeBattleActorDirectorStage(up, false));
                             break;
                         case 2:
-                            if (Word(task, 0x24) >= 40)
+                            if (Word(task, 0x24) >= profile.StageHoldAge)
                             {
                                 state = Next(state, address);
                             }

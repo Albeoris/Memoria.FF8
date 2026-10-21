@@ -10,7 +10,7 @@ internal class NativeBattleEffectNodeMemory
 {
     internal const uint ArenaAddress = 0x20DFAB8;
     internal const int ContextOffset = 0x34;
-    private readonly NativeBattleEffectMemory memory;
+    private NativeBattleEffectMemory memory;
     private readonly NativeBattleOriginalEffectState effect;
     private readonly uint taskAddress;
     private readonly NativeBattleModulePoolTask originalTask;
@@ -65,6 +65,14 @@ internal class NativeBattleEffectNodeMemory
     }
 
     internal byte Byte(int offset) => Read(offset, 1)[0];
+    internal NativeBattleEffectMemory CaptureProcessMemory() => memory with { NodeScratch2793E30 = scratch };
+
+    internal void PublishProcessMemory(NativeBattleEffectMemory updated)
+    {
+        memory = updated;
+        scratch = updated.NodeScratch2793E30;
+    }
+
     internal ushort Word(int offset) => BinaryPrimitives.ReadUInt16LittleEndian(Read(offset, 2));
     internal uint Dword(int offset) => BinaryPrimitives.ReadUInt32LittleEndian(Read(offset, 4));
     internal ushort ContextWord(int offset) => BinaryPrimitives.ReadUInt16LittleEndian(taskBytes.AsSpan(ContextOffset + offset - 12));

@@ -497,7 +497,7 @@ public sealed partial class BattleSession
         {
             return AdvanceNativeCura889E40(graphics);
         }
-        if (effect.Binding.Entry is 0x8AB140 or 0x7E58C0)
+        if (effect.Binding.Entry is 0x8AB140 or 0x7E58C0 or 0x7A51B0 or 0x79EE30)
         {
             return RunNativeActorDirector(graphics, false);
         }

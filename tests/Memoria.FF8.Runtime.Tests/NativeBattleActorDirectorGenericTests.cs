@@ -9,6 +9,8 @@ public sealed class NativeBattleActorDirectorGenericTests
     [Theory]
     [InlineData(16, 0x17F7F1C, 0x4770, 90, 0x8AB890)]
     [InlineData(61, 0x1795000, 0x2CC0, 100, 0x7E6010)]
+    [InlineData(81, 0x1744A1C, 0x5138, 60, 0x7A5940)]
+    [InlineData(82, 0x1741028, 0x39F4, 60, 0x79F590)]
     public void Profiles_keep_dedicated_roots_and_exact_generic_storage(ushort effect, uint address, int length, int geometry, uint callback)
     {
         NativeBattleCuragaFamilyProfile profile = NativeBattleCuragaFamilyProfile.ForGenericNodes(effect);
@@ -29,6 +31,8 @@ public sealed class NativeBattleActorDirectorGenericTests
     [Theory]
     [InlineData(16)]
     [InlineData(61)]
+    [InlineData(81)]
+    [InlineData(82)]
     public void Banks_relocate_once_and_retain_independent_original_extents(ushort effect)
     {
         NativeBattleCuragaFamilyProfile profile = NativeBattleCuragaFamilyProfile.ForGenericNodes(effect);
@@ -57,6 +61,8 @@ public sealed class NativeBattleActorDirectorGenericTests
     [Theory]
     [InlineData(16)]
     [InlineData(61)]
+    [InlineData(81)]
+    [InlineData(82)]
     public void Mode_zero_uses_actual_source_target_anchors_and_rejects_mode_two_before_materialization(ushort effect)
     {
         var fixture = Fixture(effect);
@@ -79,6 +85,8 @@ public sealed class NativeBattleActorDirectorGenericTests
     [Theory]
     [InlineData(16)]
     [InlineData(61)]
+    [InlineData(81)]
+    [InlineData(82)]
     public void Allocation_uses_last_physical_slots_then_wraps_and_checks_actual_capacities(ushort effect)
     {
         var fixture = Fixture(effect);
@@ -96,6 +104,8 @@ public sealed class NativeBattleActorDirectorGenericTests
     [Theory]
     [InlineData(16)]
     [InlineData(61)]
+    [InlineData(81)]
+    [InlineData(82)]
     public void Common_packet_commit_preserves_private_cursors_and_rejected_partial_stores(ushort effect)
     {
         var fixture = Fixture(effect);
@@ -119,6 +129,31 @@ public sealed class NativeBattleActorDirectorGenericTests
         Assert.Throws<NotSupportedException>(() => NativeBattleCuragaNodeKinematics.CommitBatch(frame with { Memory = frame.Memory with { PrimitiveProcess = null } }, NativeBattleLogicalOrdering.Clear(), batch));
     }
 
+    [Theory]
+    [InlineData(16)]
+    [InlineData(61)]
+    [InlineData(81)]
+    [InlineData(82)]
+    public void Actual_sprite_and_rejected_mesh_writes_alias_the_retained_selector_one_Euler_words(ushort effect)
+    {
+        var fixture = Fixture(effect);
+        NativeBattleCuragaNodeMemory memory = new(fixture.Frame, fixture.Address);
+        Assert.True(memory.UseSharedScratch);
+        NativeBattleActionMatrix rolled = new([100, 200, 300, 400, 500, 600, 700, 800, 900], 0, 0, 0, 4096);
+        memory.WriteSpriteMatrix(rolled);
+        Assert.Equal(new NativeBattleVector(500, 600, 700), memory.ReadPlacementEuler());
+        memory.WriteProjectionFlags(0xFE34ABCD);
+        NativeBattleCuragaFrame written = memory.Flush();
+        Assert.Equal(new byte[] { 0xCD, 0xAB, 0x34, 0xFE, 0xBC, 2, 0x20, 3 }, written.Memory.NodeScratch2793E30!.Bytes);
+        NativeBattleEffectArena view = NativeBattleEffectNodeContextMemory.Capture(memory.CaptureProcessMemory());
+        view = view.Write(144, [0x78, 0x56, 0x34, 0x12]);
+        memory.PublishProcessMemory(NativeBattleEffectNodeContextMemory.Publish(memory.CaptureProcessMemory(), view));
+        written = memory.Flush();
+        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(written.Memory))!;
+        Assert.Equal(new byte[] { 0xCD, 0xAB, 0x34, 0xFE, 0x78, 0x56, 0x34, 0x12 }, restored.NodeScratch2793E30!.Bytes);
+        Assert.Equal(unchecked((short)0x5678), memory.ReadPlacementEuler().Z);
+    }
+
     private static (NativeBattleCuragaFrame Frame, uint Address, NativeBattleCuragaResources Resources, NativeBattleCuragaControllerInputs Inputs) Fixture(ushort effect)
     {
         NativeBattleActorDirectorProfile profile = NativeBattleActorDirectorProfile.ForEffect(effect);
@@ -140,7 +175,11 @@ public sealed class NativeBattleActorDirectorGenericTests
         byte[] camera = new byte[profile.CameraLength];
         BinaryPrimitives.WriteUInt16LittleEndian(camera, 2);
         BinaryPrimitives.WriteUInt16LittleEndian(camera.AsSpan(6), (ushort)camera.Length);
-        NativeBattleActorDirectorResources resources = new(effect, new("camera", camera.ToImmutableArray()), profile.Sound, new(new byte[profile.SourceLength].ToImmutableArray()) { ResourceAddress = profile.SourceAddress });
+        NativeBattleActorDirectorResources resources = new(effect, new("camera", camera.ToImmutableArray()), profile.Sound, new(new byte[profile.SourceLength].ToImmutableArray()) { ResourceAddress = profile.SourceAddress })
+        {
+            Overlay = profile.OverlayAddress is { } overlay ? new(overlay, [0xFF000000]) : null,
+            Vibration = profile.VibrationAddress is not null ? new(new string('0', 64), [0, 8], new byte[12].ToImmutableArray()) : null
+        };
         byte[] skeleton = new byte[64];
         skeleton[0] = 1;
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 4096);

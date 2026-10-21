@@ -9,6 +9,8 @@ public sealed class NativeBattleActorDirectorTests
     [Theory]
     [InlineData(16, 0x8AB140u, 0x2730680u, 90, 0xEC40)]
     [InlineData(61, 0x7E58C0u, 0x2601B00u, 100, 0x10680)]
+    [InlineData(81, 0x7A51B0u, 0x25D23C0u, 60, 0x9D80)]
+    [InlineData(82, 0x79EE30u, 0x25CFC68u, 60, 0x9D80)]
     public void Original_profiles_initialize_real_pools_and_only_allocate_arrays_after_root_wait(ushort effect, uint entry, uint descriptor, int geometryCount, int geometryBytes)
     {
         var fixture = Fixture(effect);
@@ -59,7 +61,11 @@ public sealed class NativeBattleActorDirectorTests
         List<string> calls = [];
         NativeBattleActorDirectorInputs inputs = fixture.Inputs with
         {
-            Execute = (current, operation) => { calls.Add(operation.GetType().Name); return current; },
+            Execute = (current, operation) =>
+            {
+                calls.Add(operation.GetType().Name);
+                return current;
+            },
             AdvanceGeneric = (current, address) =>
             {
                 calls.Add("generic");
@@ -119,7 +125,14 @@ public sealed class NativeBattleActorDirectorTests
         NativeBattleEffectHierarchyAppend stage = hierarchy.Append8DC540(4, fixture.Frame.Profile.Callback(0x8B0660), 140, root, (_, _, _) => new(0, 3));
         NativeBattleActorDirectorFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = stage.Hierarchy.Pools } };
         List<NativeBattleActorDirectorOperation> operations = [];
-        NativeBattleActorDirectorInputs inputs = fixture.Inputs with { Execute = (current, operation) => { operations.Add(operation); return current; } };
+        NativeBattleActorDirectorInputs inputs = fixture.Inputs with
+        {
+            Execute = (current, operation) =>
+            {
+                operations.Add(operation);
+                return current;
+            }
+        };
         for (int pass = 0; pass < 5; pass++)
         {
             frame = NativeBattleActorDirectorController.Advance(frame, fixture.Resources, inputs);
@@ -173,6 +186,143 @@ public sealed class NativeBattleActorDirectorTests
         Assert.Equal(JsonSerializer.Serialize(fixture.Inputs.Camera), JsonSerializer.Serialize(frame.State.Generic.CopiedCamera));
     }
 
+    [Theory]
+    [InlineData(81, 4, 7)]
+    [InlineData(82, 0, 24)]
+    public void Actor_wave_transition_creates_original_delayed_generic_stage_and_overlay(ushort effect, ushort delay, ushort overlayDelay)
+    {
+        var fixture = DirectorFixture(effect, 0);
+        NativeBattleActorDirectorFrame frame = fixture.Frame.WithState(fixture.Frame.State.WithWord(0x40, 0).WithWord(0x42, 1).WithWord(0x44, 1));
+        NativeBattleActorDirectorInputs inputs = fixture.Inputs with { AdvanceOverlay = (current, _) => new(current, 0) };
+        frame = NativeBattleActorDirectorController.Advance(frame, fixture.Resources, inputs);
+        NativeBattleModulePoolTask generic = frame.Effect.Pools[3].Slots.Single(slot => slot.Callback != 0);
+        NativeBattleModulePoolTask overlay = frame.Effect.Pools[5].Slots.Single(slot => slot.Callback != 0);
+        Assert.Equal(delay, generic.ReadWord(0x298));
+        Assert.Equal((ushort)15, generic.ReadWord(0x29E));
+        Assert.Equal((ushort)0, generic.ReadWord(0x29C));
+        Assert.Equal(0x8DDC30u, overlay.Callback);
+        Assert.Equal(frame.Profile.OverlayAddress!.Value, overlay.ReadDword(0x34));
+        Assert.Equal(overlayDelay, overlay.ReadWord(0x38));
+        Assert.Equal((byte)3, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(fixture.Task).ReadByte(0x28));
+        Assert.Equal((byte)0, frame.Effect.Pools[4].Slots.Single(slot => slot.Callback != 0).ReadByte(0x29));
+    }
+
+    [Theory]
+    [InlineData(81, 26, 0)]
+    [InlineData(81, 27, 1)]
+    [InlineData(82, 38, 0)]
+    [InlineData(82, 39, 1)]
+    public void Actor_wave_contact_uses_its_own_inclusive_shared_age(ushort effect, short age, short contact)
+    {
+        var fixture = DirectorFixture(effect, 2);
+        NativeBattleActorDirectorFrame frame = fixture.Frame.WithState(fixture.Frame.State.WithWord(0x40, 1).WithWord(0x42, 1).WithWord(0x44, 1).WithWord(0x46, age));
+        frame = NativeBattleActorDirectorController.Advance(frame, fixture.Resources, fixture.Inputs);
+        Assert.Equal(contact, frame.State.Word(0x48));
+    }
+
+    [Fact]
+    public void Root_publishes_the_progressive_survivor_word_before_each_later_pool_callback()
+    {
+        var fixture = DirectorFixture(81, 0);
+        NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
+        uint root = hierarchy.Address(0, 0);
+        NativeBattleActorDirectorFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Write(root, hierarchy.Read(root).WriteWord(0x5E, 99)).Pools } };
+        frame = frame.WithState(frame.State.WithWord(0x40, 0).WithWord(0x42, 1).WithWord(0x44, 1));
+        List<ushort> observed = [];
+        NativeBattleActorDirectorInputs inputs = fixture.Inputs with
+        {
+            AdvanceGeneric = (current, _) =>
+            {
+                observed.Add(new NativeBattleEffectHierarchy(current.Effect.Pools).Read(root).ReadWord(0x5E));
+                return new(current, 0);
+            },
+            AdvanceOverlay = (current, _) =>
+            {
+                observed.Add(new NativeBattleEffectHierarchy(current.Effect.Pools).Read(root).ReadWord(0x5E));
+                return new(current, 0);
+            }
+        };
+        frame = NativeBattleActorDirectorController.Advance(frame, fixture.Resources, inputs);
+        Assert.Equal(new ushort[] { 1, 3 }, observed);
+        Assert.Equal((ushort)4, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(root).ReadWord(0x5E));
+    }
+
+    [Theory]
+    [InlineData(81, 512, 2048, 35)]
+    [InlineData(82, 256, 1536, 40)]
+    public void Actor_wave_stage_waits_five_callbacks_then_uses_its_original_ramp_and_hold(ushort effect, short ramp, short maximum, short hold)
+    {
+        var fixture = Fixture(effect);
+        NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
+        uint root = hierarchy.Address(0, 0);
+        hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(0x29, 10));
+        NativeBattleEffectHierarchyAppend stage = hierarchy.Append8DC540(4, fixture.Frame.Profile.Callback(0x8B0660), 140, root, (_, _, _) => new(0, 3));
+        NativeBattleActorDirectorFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = stage.Hierarchy.Pools } };
+        List<NativeBattleActorDirectorStage> operations = [];
+        NativeBattleActorDirectorInputs inputs = fixture.Inputs with
+        {
+            Execute = (current, operation) =>
+            {
+                operations.Add(Assert.IsType<NativeBattleActorDirectorStage>(operation));
+                return current;
+            }
+        };
+        for (int index = 0; index < 5; index++)
+        {
+            frame = NativeBattleActorDirectorController.Advance(frame, fixture.Resources, inputs);
+        }
+        Assert.Empty(operations);
+        frame = NativeBattleActorDirectorController.Advance(frame, fixture.Resources, inputs);
+        Assert.Equal(new NativeBattleActorDirectorStage(0, true), Assert.Single(operations));
+        for (int depth = ramp; depth <= maximum; depth += ramp)
+        {
+            frame = NativeBattleActorDirectorController.Advance(frame, fixture.Resources, inputs);
+            Assert.Equal(new NativeBattleActorDirectorStage((short)depth, false), operations[^1]);
+        }
+        hierarchy = new(frame.Effect.Pools);
+        frame = frame with { Effect = frame.Effect with { Pools = hierarchy.Write(stage.Address, hierarchy.Read(stage.Address).WriteWord(0x24, unchecked((ushort)(hold - 1)))).Pools } };
+        frame = NativeBattleActorDirectorController.Advance(frame, fixture.Resources, inputs);
+        Assert.Equal((byte)2, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(stage.Address).ReadByte(0x29));
+        frame = NativeBattleActorDirectorController.Advance(frame, fixture.Resources, inputs);
+        Assert.Equal((byte)3, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(stage.Address).ReadByte(0x29));
+        frame = NativeBattleActorDirectorController.Advance(frame, fixture.Resources, inputs);
+        Assert.Equal(new NativeBattleActorDirectorStage((short)(maximum - 256), false), operations[^1]);
+    }
+
+    [Fact]
+    public void Actor81_stores_the_real_vibration_handle_and_stops_only_after_request_two_succeeds()
+    {
+        var fixture = DirectorFixture(81, 1);
+        NativeBattleActorDirectorFrame frame = fixture.Frame.WithState(fixture.Frame.State.WithWord(0x40, 1).WithWord(0x42, 1).WithWord(0x44, 1));
+        List<NativeBattleActorDirectorOperation> operations = [];
+        int starts = 0;
+        NativeBattleActorDirectorInputs inputs = fixture.Inputs with
+        {
+            StartVibration = current =>
+            {
+                starts++;
+                return new(current, -123);
+            },
+            Execute = (current, operation) =>
+            {
+                operations.Add(operation);
+                return current;
+            }
+        };
+        frame = NativeBattleActorDirectorController.Advance(frame, fixture.Resources, inputs);
+        Assert.Equal(1, starts);
+        Assert.Equal((short)-123, frame.State.Word(0x52));
+        Assert.Single(operations.OfType<NativeBattleActorDirectorSound>());
+        NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
+        frame = frame with { Effect = frame.Effect with { Pools = hierarchy.Write(fixture.Task, hierarchy.Read(fixture.Task).WriteByte(0x29, 3)).Pools } };
+        frame = frame.WithState(frame.State.WithWord(0x44, 2));
+        frame = NativeBattleActorDirectorController.Advance(frame, fixture.Resources, inputs);
+        Assert.Empty(operations.OfType<NativeBattleActorDirectorStopVibration>());
+        frame = frame.WithState(frame.State.WithWord(0x40, 1).WithWord(0x42, 1).WithWord(0x44, 1));
+        frame = NativeBattleActorDirectorController.Advance(frame, fixture.Resources, inputs);
+        Assert.Equal((short)-123, Assert.Single(operations.OfType<NativeBattleActorDirectorStopVibration>()).Handle);
+    }
+
     private static (NativeBattleActorDirectorFrame Frame, NativeBattleActorDirectorResources Resources, NativeBattleActorDirectorInputs Inputs, uint Task) DirectorFixture(ushort effect, byte phase)
     {
         var fixture = Fixture(effect);
@@ -212,6 +362,10 @@ public sealed class NativeBattleActorDirectorTests
         byte[] camera = new byte[profile.CameraLength];
         BinaryPrimitives.WriteUInt16LittleEndian(camera, 2);
         BinaryPrimitives.WriteUInt16LittleEndian(camera.AsSpan(6), (ushort)camera.Length);
-        return new(effect, new("camera", camera.ToImmutableArray()), profile.Sound, new(new byte[profile.SourceLength].ToImmutableArray()) { ResourceAddress = profile.SourceAddress });
+        return new(effect, new("camera", camera.ToImmutableArray()), profile.Sound, new(new byte[profile.SourceLength].ToImmutableArray()) { ResourceAddress = profile.SourceAddress })
+        {
+            Overlay = profile.OverlayAddress is { } address ? new(address, [0xFF000000]) : null,
+            Vibration = profile.VibrationAddress is not null ? new(new string('0', 64), [0, 8], new byte[12].ToImmutableArray()) : null
+        };
     }
 }

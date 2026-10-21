@@ -5,6 +5,8 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
+internal sealed record NativeBattleModelPrefixDiagnostic(int Start, int BodyPrimitives, int ExpectedPrimitives, int? MismatchOffset, NativeBattleGeometryPrimitive? Expected, ImmutableArray<NativeBattleLogicalCommand> Actual);
+
 public sealed class NativeBattleAquaPresentationTests
 {
     [Fact]
@@ -255,10 +257,10 @@ public sealed class NativeBattleAquaPresentationTests
         }
         throw new InvalidDataException("No original single-enemy Aqua action binding with its required caster skeleton was found.");
     }
-    internal static ImmutableHashSet<NativeBattlePrimitiveReference> AquaPacketReferences(BattleSnapshot prior, BattleSnapshot current)
+    internal static ImmutableHashSet<NativeBattlePrimitiveReference> AquaPacketReferences(BattleSnapshot prior, BattleSnapshot current, Action<NativeBattleModelPrefixDiagnostic>? diagnostic = null)
     {
         NativeBattleGraphicsState graphics = current.NativeGraphics!;
-        if (prior.NativeGraphics!.Auxiliary.Slots.Any(task => (task.Flags & 1) != 0) || prior.NativeGraphics.ModuleEffects.Slots.Any(task => (task.Flags & 1) != 0) || graphics.ModuleEffects.Slots.Any(task => (task.Flags & 1) != 0))
+        if (prior.NativeGraphics!.Auxiliary.Slots.Any(task => (task.Flags & 1) != 0 && task.Kind != NativeBattleAuxiliaryKind.TextureAnimation5057D0) || prior.NativeGraphics.ModuleEffects.Slots.Any(task => (task.Flags & 1) != 0) || graphics.ModuleEffects.Slots.Any(task => (task.Flags & 1) != 0))
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
@@ -273,16 +275,25 @@ public sealed class NativeBattleAquaPresentationTests
         {
             resource = NativeBattleVictoryResources.Resolve(current.NativeFileStaging!, current.NativeModelCpuResources!, actor, resource);
         }
-        if (resource.Geometry is not { } geometry || resource.PoseSource is not { } pose || actor.CurrentBodyBoneMatrices is null || actor.GeometryBounds52 is not { } bounds || actor.Color40 is not { } color || actor.Color44 is not { } shadowColor || actor.SequenceState?.MeshMask124 is not { } mask || current.NativeCamera?.Projection is not { } projection || prior.NativeCamera?.Projection?.View is not { } view)
+        if (resource.Geometry is not { } geometry || resource.PoseSource is not { } pose || actor.CurrentBodyBoneMatrices is null || actor.GeometryBounds52 is not { } bounds || actor.Color40 is not { } color || actor.Color44 is not { } shadowColor || actor.SequenceState?.MeshMask124 is not { } mask || prior.NativeCamera?.Projection is not { } projection || projection.View is not { } view)
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
+        NativeBattleGraphicsModel beforeActor = prior.NativeGraphics!.Models[actor.Index];
+        if (beforeActor.CurrentBodyBoneMatrices is null || beforeActor.GeometryWorldMatrix is null)
+        {
+            return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
+        }
+        NativeBattleGraphicsModel drawActor = actor with { CurrentBodyBoneMatrices = beforeActor.CurrentBodyBoneMatrices, GeometryWorldMatrix = beforeActor.GeometryWorldMatrix, Transform = beforeActor.Transform };
+        drawActor = NativeBattlePoseMatrices.ComposeGeometryMatrices5095B0(drawActor, pose, view);
+        ImmutableArray<NativeBattleActionMatrix> drawMatrices = NativeBattleBodyBoneMatrices.Require(drawActor, pose);
+        mask = beforeActor.SequenceState?.MeshMask124 ?? throw new InvalidDataException("The model prefix requires the actual pre-submission object mask.");
         List<(int Offset, NativeBattleGeometryPrimitive Primitive)> expected = [];
         int cursor = 0;
         if ((actor.Flags0 & 0x20) == 0 && (actor.Flags2!.Value & 0x20) == 0 && shadowColor != 0x32000000)
         {
             bool gouraud = definition.PrimitiveCapabilities!.GouraudAlpha;
-            NativeBattleShadowGeometry shadow = NativeBattlePoseMatrices.ShadowGeometry5088A0(actor, bounds, view, definition.Rules.ShadowSource!, gouraud);
+            NativeBattleShadowGeometry shadow = NativeBattlePoseMatrices.ShadowGeometry5088A0(drawActor, bounds, view, definition.Rules.ShadowSource!, gouraud);
             NativeBattleCameraProjection shadowProjection = projection with { View = view };
             NativeBattleModuleProjectedVertex[] vertices = shadow.Vertices.Select(vertex => NativeBattleModuleProjection.Project45FE10(shadow.CameraMatrix, vertex, shadowProjection)).ToArray();
             NativeBattleGfGeometryBatch batch = NativeBattleShadowPackets.EmitBatch5088A0(vertices, shadowColor, gouraud, 4121, 16);
@@ -307,14 +318,14 @@ public sealed class NativeBattleAquaPresentationTests
             {
                 if ((mask & (1u << (index & 31))) != 0)
                 {
-                    parts.AddRange(NativeBattleRawGeometryPackets.Emit5099D0([index == 1 ? linked[0] : geometry[index]], NativeBattleBodyBoneMatrices.Require(actor, pose), projection, color, 1, null, 17, 4, index == 1 ? actor.LinkedTextureSlots : actor.BodyTextureSlots));
+                    parts.AddRange(NativeBattleRawGeometryPackets.Emit5099D0([index == 1 ? linked[0] : geometry[index]], drawMatrices, projection, color, 1, null, 17, 4, index == 1 ? actor.LinkedTextureSlots : actor.BodyTextureSlots));
                 }
             }
             body = parts.ToImmutable();
         }
         else
         {
-            body = NativeBattleRawGeometryPackets.Emit5099D0(geometry, NativeBattleBodyBoneMatrices.Require(actor, pose), projection, color, mask, null, 17, 4, resource.GeometryRelocated507550 ? null : actor.BodyTextureSlots);
+            body = NativeBattleRawGeometryPackets.Emit5099D0(geometry, drawMatrices, projection, color, mask, null, 17, 4, resource.GeometryRelocated507550 ? null : actor.BodyTextureSlots);
         }
         foreach (NativeBattleGeometryPrimitive primitive in body)
         {
@@ -329,11 +340,15 @@ public sealed class NativeBattleAquaPresentationTests
         foreach (NativeBattleLogicalCommand candidate in commands.Where(command => Matches(command, expected[0].Primitive)))
         {
             int start = candidate.Packet.ByteOffset - expected[0].Offset;
-            if (start <= 0 || !expected.All(item => commands.Any(command => command.Packet.Bank == candidate.Packet.Bank && command.Packet.Buffer == candidate.Packet.Buffer && command.Packet.ByteOffset == start + item.Offset && Matches(command, item.Primitive))))
+            (int Offset, NativeBattleGeometryPrimitive Primitive)[] missing = expected.Where(item => !commands.Any(command => command.Packet.Bank == candidate.Packet.Bank && command.Packet.Buffer == candidate.Packet.Buffer && command.Packet.ByteOffset == start + item.Offset && Matches(command, item.Primitive))).Take(1).ToArray();
+            int? mismatch = missing.Length == 0 ? null : missing[0].Offset;
+            diagnostic?.Invoke(new(start, body.Length, expected.Count, mismatch, missing.Length == 0 ? null : missing[0].Primitive, mismatch is int relative ? commands.Where(command => command.Packet.Bank == candidate.Packet.Bank && command.Packet.Buffer == candidate.Packet.Buffer && command.Packet.ByteOffset == start + relative).ToImmutableArray() : []));
+            if (start < 0 || missing.Length != 0)
             {
                 continue;
             }
-            // The original effect runs before ordinary model submission. Match that complete renderer allocation before admitting its preceding effect packets.
+            // Submission uses the retained prior pose/world matrices; the later sequence step republishes the snapshot's new local pose.
+            // Match the complete first model allocation before admitting its preceding effect packets.
             return commands.Where(command => command.Packet.Bank == candidate.Packet.Bank && command.Packet.Buffer == candidate.Packet.Buffer && command.Packet.ByteOffset < start && command.Opcode is >= 0x20 and < 0x80).Select(command => command.Packet).ToImmutableHashSet();
         }
         return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;

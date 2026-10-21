@@ -9,7 +9,7 @@ public sealed partial class BattleSession
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("The actor director requires its selected original effect.");
         NativeBattleActorDirectorResources resources = effect.Binding.ActorDirectorResources ?? throw new NotSupportedException("The actor director requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("The actor director requires its retained process owners.");
-        NativeBattleActorDirectorState state = (effect.Binding.Effect == 16 ? memory.ActorDirector16 : memory.ActorDirector61) ?? throw new NotSupportedException("The actor director requires its retained module state.");
+        NativeBattleActorDirectorState state = memory.RequireActorDirector(effect.Binding.Effect);
         NativeBattleActorDirectorFrame frame = new(memory, effect, state);
         if (initialize)
         {
@@ -25,7 +25,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("The actor director requires its published projection.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("The actor director requires its current view matrix.");
         Func<int, NativeBattleGraphicsModel> readModel = index => graphics.Models[index];
-        NativeBattleActorDirectorInputs inputs = new(nativeActionPackets, view, readModel, PoseSource, Execute, AdvanceGeneric) { PackedCamera = camera.CapturePackedView1D97778(), CopiedCameraPadding = camera.CanonicalViewPadding };
+        NativeBattleActorDirectorInputs inputs = new(nativeActionPackets, view, readModel, PoseSource, Execute, AdvanceGeneric) { PackedCamera = camera.CapturePackedView1D97778(), CopiedCameraPadding = camera.CanonicalViewPadding, AdvanceOverlay = AdvanceOverlay, StartVibration = StartVibration };
         frame = NativeBattleActorDirectorController.Advance(frame, resources, inputs);
         Publish(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -34,13 +34,16 @@ public sealed partial class BattleSession
 
         void Publish(NativeBattleActorDirectorFrame current)
         {
-            NativeEffectMemory = current.Profile.Effect == 16 ? current.Memory with { ActorDirector16 = current.State } : current.Memory with { ActorDirector61 = current.State };
+            NativeEffectMemory = current.Memory.WithActorDirector(current.State);
         }
 
         NativeBattleActorDirectorFrame Execute(NativeBattleActorDirectorFrame current, NativeBattleActorDirectorOperation operation)
         {
             switch (operation)
             {
+                case NativeBattleActorDirectorStopVibration stop:
+                    NativeVibrationProcess = (NativeVibrationProcess ?? throw new NotSupportedException("The actor director requires its retained vibration queue.")).Stop4A2940(stop.Handle);
+                    return current;
                 case NativeBattleActorDirectorSound sound:
                     NativeEffectMemory = current.Memory;
                     PublishNativeModuleSound(sound.Sound);
@@ -64,6 +67,21 @@ public sealed partial class BattleSession
                 default:
                     throw new NotSupportedException("The actor director operation requires its original immediate owner.");
             }
+        }
+
+        NativeBattleActorDirectorVibrationStep StartVibration(NativeBattleActorDirectorFrame current)
+        {
+            NativeVibrationEnqueue queued = (NativeVibrationProcess ?? throw new NotSupportedException("The actor director requires its retained vibration queue.")).Enqueue(resources.Vibration ?? throw new NotSupportedException("The actor director requires its original vibration resource."), 1, 128);
+            NativeVibrationProcess = queued.State;
+            return new(current, unchecked((short)queued.Handle));
+        }
+
+        NativeBattleActorDirectorLeafStep AdvanceOverlay(NativeBattleActorDirectorFrame current, uint address)
+        {
+            NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("The actor director overlay requires its current ordering table.");
+            NativeBattleFullscreenOverlayStep advanced = NativeBattleFullscreenOverlay.Advance8DDC30(new(current.Memory, current.Effect.Pools, primitive.Pending), address, current.Memory.FullscreenOverlayPause2795914 ?? throw new NotSupportedException("The actor director overlay pause owner is unknown."), resources.Overlay ?? throw new NotSupportedException("The actor director requires its original fullscreen programme."));
+            graphics = graphics with { PrimitiveFrame = primitive with { Pending = advanced.Frame.Ordering } };
+            return new(current with { Memory = advanced.Frame.Memory, Effect = current.Effect with { Pools = advanced.Frame.Pools } }, advanced.Result);
         }
 
         NativeBattleActorDirectorLeafStep AdvanceGeneric(NativeBattleActorDirectorFrame current, uint address)

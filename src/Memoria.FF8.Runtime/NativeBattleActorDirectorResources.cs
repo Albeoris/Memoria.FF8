@@ -4,6 +4,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleActorDirectorResources(ushort Effect, NativeBattleEffectHeapAllocation Animation, uint Sound, NativeBattleCuragaExecutableSource NodeSource)
 {
+    public NativeBattleFullscreenOverlayProgram? Overlay { get; init; }
+    public NativeVibrationBank? Vibration { get; init; }
+
     public void Validate()
     {
         NativeBattleActorDirectorProfile profile = NativeBattleActorDirectorProfile.ForEffect(Effect);
@@ -11,6 +14,11 @@ public sealed record NativeBattleActorDirectorResources(ushort Effect, NativeBat
         {
             throw new InvalidDataException("The actor director resources must retain their original module, camera, sound and uninitialized source bank.");
         }
+        if ((profile.OverlayAddress is { } overlay && (Overlay is null || Overlay.Address != overlay || Overlay.Commands.IsDefaultOrEmpty)) || (profile.OverlayAddress is null && Overlay is not null) || (profile.VibrationAddress is not null && Vibration is null) || (profile.VibrationAddress is null && Vibration is not null))
+        {
+            throw new InvalidDataException("The actor director requires its own optional overlay and vibration resources.");
+        }
+        Vibration?.Validate();
     }
 }
 
@@ -33,9 +41,13 @@ public sealed record NativeBattleActorDirectorContact(int Index) : NativeBattleA
 public sealed record NativeBattleActorDirectorSound(NativeBattleModuleSound Sound) : NativeBattleActorDirectorOperation;
 public sealed record NativeBattleActorDirectorStage(short Depth, bool ClearRgb) : NativeBattleActorDirectorOperation;
 public sealed record NativeBattleActorDirectorGenericTask(uint Address) : NativeBattleActorDirectorOperation;
+public sealed record NativeBattleActorDirectorStopVibration(short Handle) : NativeBattleActorDirectorOperation;
 public sealed record NativeBattleActorDirectorLeafStep(NativeBattleActorDirectorFrame Frame, int Result);
+public sealed record NativeBattleActorDirectorVibrationStep(NativeBattleActorDirectorFrame Frame, short Handle);
 public sealed record NativeBattleActorDirectorInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleActorDirectorFrame, NativeBattleActorDirectorOperation, NativeBattleActorDirectorFrame> Execute, Func<NativeBattleActorDirectorFrame, uint, NativeBattleActorDirectorLeafStep> AdvanceGeneric)
 {
     public ushort? CopiedCameraPadding { get; init; }
     public NativeBattlePackedMatrix32? PackedCamera { get; init; }
+    public Func<NativeBattleActorDirectorFrame, uint, NativeBattleActorDirectorLeafStep>? AdvanceOverlay { get; init; }
+    public Func<NativeBattleActorDirectorFrame, NativeBattleActorDirectorVibrationStep>? StartVibration { get; init; }
 }

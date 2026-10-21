@@ -25,4 +25,3 @@ public sealed class NativeBattleDrawStock15ParticleResourcesTests
         Assert.Throws<InvalidDataException>(() => resources.Resource(0x162B730).ProjectedFrame571C80(6));
     }
 }
-

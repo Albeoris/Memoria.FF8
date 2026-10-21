@@ -799,7 +799,7 @@ public sealed partial class GameAssets
                 binding = binding with { CuraResources = ReadNativeCuraResources() };
                 catalog = catalog.SetItem(index, binding);
             }
-            if (binding.Entry is 0x8AB140 or 0x7E58C0)
+            if (binding.Entry is 0x8AB140 or 0x7E58C0 or 0x7A51B0 or 0x79EE30)
             {
                 binding = binding with { ActorDirectorResources = ReadNativeActorDirectorResources(binding.Effect) };
                 catalog = catalog.SetItem(index, binding);

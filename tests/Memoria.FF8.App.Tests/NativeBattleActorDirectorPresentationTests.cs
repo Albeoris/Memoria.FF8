@@ -15,7 +15,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_ACTOR_DIRECTOR_EVIDENCE");
         Assert.SkipUnless(directory is not null && selection is not null && output is not null, "Select installed original resources, one actor-director effect and a distinct evidence directory.");
         ushort effectId = ushort.Parse(selection!, System.Globalization.CultureInfo.InvariantCulture);
-        Assert.Contains(effectId, new ushort[] { 16, 61 });
+        Assert.Contains(effectId, new ushort[] { 16, 61, 81, 82 });
         Assert.True(Directory.Exists(directory));
         Assert.False(Directory.Exists(output));
         Directory.CreateDirectory(output!);
@@ -38,6 +38,11 @@ public sealed class NativeBattleActorDirectorPresentationTests
             using GameAssets game = new(directory!);
             using BattleAssets assets = new(directory!);
             BattleNativeAction? originalAction = assets.NativeActions.Where(row => row.MagicId == effectId).OrderBy(row => row.Command).ThenBy(row => row.ActionId).ThenBy(row => row.CrisisLevel).FirstOrDefault();
+            if (effectId is 81 or 82)
+            {
+                ushort kernelIndex = effectId == 81 ? (ushort)335 : (ushort)337;
+                originalAction = Assert.Single(assets.NativeActions, row => row.MagicId == effectId && row.Command == 8 && row.KernelSection == 3 && row.KernelIndex == kernelIndex);
+            }
             BattleNativeAction action = originalAction ?? Assert.Single(assets.NativeActions, row => row.Command == 2 && row.ActionId == 1);
             BattleEncounter formation = assets.LoadEncounter(94);
             BattleEnemyPlacement enemy = NativeBattleEffectFixtureExporter.SelectEnemy(formation);
@@ -207,7 +212,58 @@ public sealed class NativeBattleActorDirectorPresentationTests
     }
 
 
-    private static NativeBattleActorDirectorState Director(BattleSnapshot snapshot) => snapshot.NativeGraphics!.OriginalEffect!.Binding.Effect == 16 ? snapshot.NativeEffectMemory!.ActorDirector16! : snapshot.NativeEffectMemory!.ActorDirector61!;
+    [Fact]
+    public void Concrete_actor_director_standalone_matches_its_actual_pre_submission_model_prefix()
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        string? sourcePath = Environment.GetEnvironmentVariable("MEMORIA_FF8_ACTOR_DIRECTOR_SNAPSHOT");
+        string? expectedPath = Environment.GetEnvironmentVariable("MEMORIA_FF8_ACTOR_DIRECTOR_NEXT_SNAPSHOT");
+        string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_ACTOR_DIRECTOR_EVIDENCE");
+        Assert.SkipUnless(directory is not null && sourcePath is not null && expectedPath is not null && output is not null, "Select original resources, a concrete standalone/next pair and a distinct output directory.");
+        Assert.False(Directory.Exists(output));
+        Directory.CreateDirectory(output!);
+        using GameAssets game = new(directory!);
+        using BattleAssets assets = new(directory!);
+        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
+        BattleSnapshot expected = NativeBattleEffectFamilyRunner.LoadSnapshot(expectedPath!);
+        ushort effect = source.NativeGraphics!.OriginalEffect!.Binding.Effect;
+        Assert.Contains(effect, new ushort[] { 16, 61, 81, 82 });
+        BattleSession battle = BattleSession.Restore(source);
+        battle.AttachNativeEffectResourceResolver(selected => game.ReadNativeEffectCatalogForEffects([selected])[selected - 1]);
+        battle.Tick();
+        BattleSnapshot current = battle.Capture();
+        NativeBattleRestorationPresentationTests.Publish(output!, "actual-next", current, null);
+        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(current));
+        BattleSnapshot prior = source;
+        ImmutableHashSet<NativeBattlePrimitiveReference> owned = [];
+        List<object> progression = [];
+        for (int callback = 1; callback <= 8; callback++)
+        {
+            List<NativeBattleModelPrefixDiagnostic> matches = [];
+            owned = NativeBattleAquaPresentationTests.AquaPacketReferences(prior, current, matches.Add);
+            Assert.Contains(matches, match => match.Start >= 0 && match.BodyPrimitives > 0 && match.MismatchOffset is null);
+            progression.Add(new { Callback = callback, current.Frame, NativeCallback = current.NativeGraphics!.Callback, OwnedPackets = owned.Count, Matches = matches });
+            if (!owned.IsEmpty || callback == 8)
+            {
+                break;
+            }
+            prior = current;
+            battle.Tick();
+            current = battle.Capture();
+        }
+        File.WriteAllText(Path.Combine(output!, "prefix-diagnostics.json"), JsonSerializer.Serialize(progression));
+        NativeBattleRestorationPresentationTests.Publish(output!, "selected", current, null);
+        NativeBattlePrimitiveFrame frame = current.NativeGraphics!.PrimitiveFrame!;
+        BattleSnapshot without = current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } };
+        byte[] pixels = new BattleScenePresentation(assets, source.Definition, true).Render(battle, 320, 224).ToArray();
+        byte[] plain = new BattleScenePresentation(assets, source.Definition, true).Render(BattleSession.Restore(without), 320, 224).ToArray();
+        int changed = CountRgbChanges(pixels, plain);
+        NativeBattleRestorationPresentationTests.Publish(output!, "with-effect", current, pixels);
+        NativeBattleRestorationPresentationTests.Publish(output!, "without-effect", without, plain);
+        File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "selector-matched", Scope = "Exact standalone next plus bounded at-most-eight callback search with complete model match; a zero effect prefix is recorded as zero and does not satisfy the whole-component RGB gate", Effect = effect, Source = sourcePath, ExpectedNext = expectedPath, current.Frame, NativeCallback = current.NativeGraphics.Callback, changed, Progression = progression, Packets = owned.OrderBy(packet => packet.ByteOffset).ToArray() }));
+    }
+
+    private static NativeBattleActorDirectorState Director(BattleSnapshot snapshot) => snapshot.NativeEffectMemory!.RequireActorDirector(snapshot.NativeGraphics!.OriginalEffect!.Binding.Effect);
 
     private static string StageColors(BattleSnapshot snapshot) => JsonSerializer.Serialize(snapshot.NativeStage!.Groups.Select(group => new { group.ColorFlags, group.ColorDepth }));
 

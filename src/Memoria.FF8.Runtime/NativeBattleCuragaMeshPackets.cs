@@ -9,7 +9,7 @@ public static partial class NativeBattleCuragaMeshPackets
 {
     private static readonly string[] Leaves = ["87EFF0", "87F200", "87F480", "87F6C0", "87F960", "87FB90", "87FE50", "8800B0"];
 
-    public static NativeBattleGfGeometryBatch EmitBatch87EEB0(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleCuragaMeshContext context, Func<int, NativeBattleVector>? readSelectedVertex = null, NativeBattleSummonColors? colors = null)
+    public static NativeBattleGfGeometryBatch EmitBatch87EEB0(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleCuragaMeshContext context, Func<int, NativeBattleVector>? readSelectedVertex = null, NativeBattleSummonColors? colors = null, Action<uint>? observeFirstThreeFlags = null)
     {
         if (context.DepthShift > 31)
         {
@@ -22,7 +22,7 @@ public static partial class NativeBattleCuragaMeshPackets
             3 or 7 => EmitQuad(face, project, group == 7, context, colors, offset),
             4 or 5 => EmitGouraud(face, project, group == 5, context, colors, offset),
             _ => throw new NotSupportedException($"Native87EEB0 reached original{Leaves[group]} group{group}; its exact packet leaf is not implemented.")
-        });
+        }, observeFirstThreeFlags);
     }
 
     public static NativeBattleGfGeometryBatch EmitFt4_87F6C0(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, NativeBattleCuragaMeshContext context, NativeBattleSummonColors? colors = null, int byteOffset = 0)

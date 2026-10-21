@@ -8,6 +8,8 @@ public sealed class NativeBattleActorDirectorNodeResourcesTests
     [Theory]
     [InlineData(16, 8)]
     [InlineData(61, 6)]
+    [InlineData(81, 7)]
+    [InlineData(82, 7)]
     public void Original_node_adapter_fixes_all_channels_with_independent_retained_bank(ushort effect, int expectedNodes)
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
