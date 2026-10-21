@@ -57,11 +57,7 @@ internal sealed partial class GameWorld
             session.CommitPreparedWorldBattleReturn(occurrence, departure.World!, saved, temporary.State, candidate.ValidatePreparedSession);
             candidate.RebindPreparedSession(session);
             worldScene = candidate;
-            candidate.PrepareFieldEntry = PrepareNativeWorldFieldEntry;
-            candidate.ReadFieldMagicStatRules = (vitals, row) => BattleResources.ReadPlayerNativeStatRules(vitals, row);
-            candidate.ResolveNativeAutoJunction = (vitals, row, priority) => assets.ReadNativeTutorialCatalog().AutoJunction(vitals, row, priority);
-            candidate.ResolveNativeAutoJunctionParty = (vitals, row, priority) => assets.ReadNativeTutorialCatalog().AutoJunction(vitals, row, priority, true);
-            ConfigureWorldSalaryEffects(candidate);
+            ConfigureWorldScene(candidate);
             publishMusic();
             session.PublishNativeWorldBattleMusic(Events.Scene.MusicProcess!);
             previous.Dispose();

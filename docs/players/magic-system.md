@@ -16,7 +16,7 @@ Enabling Shared merges stock into the first physical character record, including
 
 Each spell can have one Junction owner across all saved characters, including reserves. A bound spell may be cast only by its owner. An unbound spell is available to otherwise eligible characters. Field magic resolves the actual caster separately: the available owner casts a bound spell; an unbound shared spell uses the eligible active-party member with the highest Magic, breaking ties by party order. The menu names that caster.
 
-Conservative **Auto Junction** preserves other characters' owners. **Entire party** Auto and manual reassignment offer a preview of removed bindings and affected maximum HP before applying a change. Losing an HP Junction clamps current HP when necessary. Manual magic transfers are disabled while Shared is active.
+Conservative **Auto Junction** preserves other characters' owners. **Junction → Off → Entire party magic** removes every magic binding from all characters, including reserve and unavailable characters, while retaining GF, commands, abilities and spell stock. Party removal and manual reassignment offer a preview of removed bindings and affected maximum HP before applying a change. Losing an HP Junction clamps current HP when necessary. Manual magic transfers are disabled while Shared is active.
 
 Changing Shared mode displays quantities moved, overflow retained, removed Junctions and affected maximum HP. **Apply** commits the whole change; **Cancel** or Escape changes nothing. Disabling Shared leaves quantities in their current banks and removes bindings without local stock. It does not redistribute stock or restore earlier bindings. Extra spell types already stored in the first record remain usable after Shared is disabled.
 

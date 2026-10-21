@@ -69,11 +69,14 @@ public sealed partial class MenuController
         return page;
     }
 
-    private UiElement NativeMenuHeader(string title, UiElement? commands = null)
+    private UiElement NativeMenuHeader(string title, UiElement? commands = null, bool fullWidthCommands = false)
     {
         var header = Grid([0.85f, 1.15f], [3, 1.1f], 3);
-        Place(header, Panel(null, commands ?? new UiElement()), 0);
-        Place(header, Panel(null, Label(title, 27)), 0, 1);
+        Place(header, Panel(null, commands ?? new UiElement()), 0, 0, 1, fullWidthCommands ? 2 : 1);
+        if (!fullWidthCommands)
+        {
+            Place(header, Panel(null, Label(title, 27)), 0, 1);
+        }
         UiElement help = Help();
         Place(header, help, 1, 0, 1, 2);
         return header;
@@ -123,7 +126,7 @@ public sealed partial class MenuController
             }
             tabs = strip;
         }
-        Place(page, NativeMenuHeader("Junction", tabs), 0);
+        Place(page, NativeMenuHeader("Junction", tabs, choosingCategory), 0);
         var body = Grid([1], [3, 1.1f], 4);
         Place(page, body, 1);
         var character = Grid([2.1f, 0.7f], [1], 4);

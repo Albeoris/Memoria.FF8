@@ -5,7 +5,7 @@ namespace Memoria.FF8.Events;
 
 public static class NativeJunctionMenuInput
 {
-    public static bool IsMenuAction(PlayerActionKind kind) => kind is PlayerActionKind.JunctionGuardianForce or PlayerActionKind.SetJunctionCommand or PlayerActionKind.SetJunctionAbility or PlayerActionKind.SelectGuardianForceLearning or PlayerActionKind.SetJunctionMagic or PlayerActionKind.RemoveJunctions or PlayerActionKind.AutoJunction or PlayerActionKind.AutoJunctionParty or PlayerActionKind.ReassignJunctionMagic;
+    public static bool IsMenuAction(PlayerActionKind kind) => kind is PlayerActionKind.JunctionGuardianForce or PlayerActionKind.SetJunctionCommand or PlayerActionKind.SetJunctionAbility or PlayerActionKind.SelectGuardianForceLearning or PlayerActionKind.SetJunctionMagic or PlayerActionKind.RemoveJunctions or PlayerActionKind.AutoJunction or PlayerActionKind.RemoveAllMagicJunctions or PlayerActionKind.ReassignJunctionMagic;
 
     public static void Validate(PlayerAction action)
     {
@@ -13,10 +13,18 @@ public static class NativeJunctionMenuInput
         {
             throw new ArgumentException("Expected a junction or GF learning action.", nameof(action));
         }
-        bool learning = action.Kind == PlayerActionKind.SelectGuardianForceLearning;
-        if (action.Kind is PlayerActionKind.RemoveJunctions or PlayerActionKind.AutoJunction or PlayerActionKind.AutoJunctionParty)
+        if (action.Kind == PlayerActionKind.RemoveAllMagicJunctions)
         {
-            bool validChoice = action.Text is "0" or "1" || action.Kind is PlayerActionKind.AutoJunction or PlayerActionKind.AutoJunctionParty && action.Text == "2";
+            if (action.Value != 0 || action.Text is not null || action.Quantity is not null || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0 || action.CameraHorizontal != 0 || action.WorldButtons != 0 || action.WaitWhilePlayable)
+            {
+                throw new ArgumentException("Party magic removal requires one ordinary menu action without character or category operands.", nameof(action));
+            }
+            return;
+        }
+        bool learning = action.Kind == PlayerActionKind.SelectGuardianForceLearning;
+        if (action.Kind is PlayerActionKind.RemoveJunctions or PlayerActionKind.AutoJunction)
+        {
+            bool validChoice = action.Text is "0" or "1" || action.Kind == PlayerActionKind.AutoJunction && action.Text == "2";
             if ((uint)action.Value >= 8u || !validChoice || action.Quantity is not null || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0 || action.CameraHorizontal != 0)
             {
                 throw new ArgumentException("Junction input requires an explicit character row, a valid category or Auto priority and one ordinary menu action.", nameof(action));
@@ -29,9 +37,13 @@ public static class NativeJunctionMenuInput
         }
     }
 
-    public static NativeCharacterVitals Apply(NativeCharacterVitals vitals, PlayerAction action, Func<NativeCharacterVitals, int, int, NativeCharacterVitals>? autoJunction = null, Func<NativeCharacterVitals, int, int, NativeCharacterVitals>? autoJunctionParty = null)
+    public static NativeCharacterVitals Apply(NativeCharacterVitals vitals, PlayerAction action, Func<NativeCharacterVitals, int, int, NativeCharacterVitals>? autoJunction = null)
     {
         Validate(action);
+        if (action.Kind == PlayerActionKind.RemoveAllMagicJunctions)
+        {
+            return vitals.RemoveAllMagicJunctions();
+        }
         int choice = int.Parse(action.Text!, CultureInfo.InvariantCulture);
         return action.Kind switch
         {
@@ -42,7 +54,6 @@ public static class NativeJunctionMenuInput
             PlayerActionKind.ReassignJunctionMagic => vitals.SetJunctionMagic(action.Value, action.Quantity!.Value, choice, true),
             PlayerActionKind.SetJunctionMagic => vitals.SetJunctionMagic(action.Value, action.Quantity!.Value, choice),
             PlayerActionKind.RemoveJunctions => vitals.RemoveJunctions(action.Value, choice == 1),
-            PlayerActionKind.AutoJunctionParty => (autoJunctionParty ?? throw new NotSupportedException("Party Auto junction requires its authenticated candidate preview."))(vitals, action.Value, choice),
             PlayerActionKind.AutoJunction => (autoJunction ?? throw new NotSupportedException("Auto junction requires its authenticated original priority tables and magic kernel records."))(vitals, action.Value, choice),
             _ => throw new ArgumentOutOfRangeException(nameof(action))
         };
@@ -53,8 +64,6 @@ public sealed partial class EventEngine
 {
     public Func<NativeCharacterVitals, int, int, NativeCharacterVitals>? ResolveNativeAutoJunction { get; set; }
 
-    public Func<NativeCharacterVitals, int, int, NativeCharacterVitals>? ResolveNativeAutoJunctionParty { get; set; }
-
     private bool ApplyJunctionMenuAction(PlayerAction action)
     {
         bool activeMenu = partyMenu is { Kind: NativeFieldMenuKind.Normal, Phase: NativePartyMenuPhase.Active };
@@ -63,7 +72,7 @@ public sealed partial class EventEngine
             return false;
         }
         NativeCharacterVitals source = services.CharacterVitals ?? throw new NotSupportedException("Menu input requires authentic saved characters.");
-        NativeCharacterVitals next = NativeJunctionMenuInput.Apply(source, action, ResolveNativeAutoJunction, ResolveNativeAutoJunctionParty);
+        NativeCharacterVitals next = NativeJunctionMenuInput.Apply(source, action, ResolveNativeAutoJunction);
         if (activeMenu)
         {
             PublishPartyMenuCallback(next, services.Economy!, services.ShotAvailability!, services.SalaryPresentation!.Advance(1), advanceVibration: true);

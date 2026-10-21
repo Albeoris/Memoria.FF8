@@ -40,8 +40,7 @@ internal sealed partial class GameWorld
             ValidateWorldDeparture(request);
             session.CommitPreparedWorldEntry(request.Transition, ticket.InitialState, request.ControlsAtDeparture, ticket.ValidateAdoption, ticket.InitialSavedWorld, ticket.InitialEventMemory);
             worldScene = ticket.Adopt(session);
-            worldScene.PrepareFieldEntry = PrepareNativeWorldFieldEntry;
-            ConfigureWorldSalaryEffects(worldScene);
+            ConfigureWorldScene(worldScene);
             committed = true;
             preparedWorldEntry = null;
             ticket.Dispose();
@@ -49,8 +48,11 @@ internal sealed partial class GameWorld
         };
     }
 
-    private void ConfigureWorldSalaryEffects(WorldMapScene scene)
+    private void ConfigureWorldScene(WorldMapScene scene)
     {
+        scene.PrepareFieldEntry = PrepareNativeWorldFieldEntry;
+        scene.ReadFieldMagicStatRules = (vitals, row) => BattleResources.ReadPlayerNativeStatRules(vitals, row);
+        scene.ResolveNativeAutoJunction = Events.ResolveNativeAutoJunction;
         scene.PrepareSalaryEffects = Events.PrepareSalaryEffects;
         scene.PublishSalaryEffects = Events.PublishSalaryEffects;
         ConfigureWorldRandomEncounters(scene);

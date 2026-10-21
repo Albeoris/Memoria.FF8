@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Memoria.FF8.Events;
-using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 
@@ -10,7 +9,7 @@ internal sealed partial class RecreateGame
 {
     private bool ApplyMagicRulesMenuAction(MenuAction action)
     {
-        if (action.Kind is "junction-magic-reassign" or "junction-auto-party")
+        if (action.Kind is "junction-magic-reassign" or "junction-magic-off-all")
         {
             NativeCharacterVitals source = session.State.CharacterVitals ?? throw new InvalidOperationException("A Junction preview requires an initialized party.");
             PlayerAction command = NativeJunctionMenuProjection.PlayerAction(action);
@@ -21,8 +20,7 @@ internal sealed partial class RecreateGame
             }
             else
             {
-                using GameAssets assets = new(options.GameDirectory);
-                candidate = assets.ReadNativeTutorialCatalog().AutoJunction(source, command.Value, int.Parse(command.Text!, System.Globalization.CultureInfo.InvariantCulture), true);
+                candidate = source.RemoveAllMagicJunctions();
             }
             List<MagicJunctionChange> removed = [];
             List<MagicHitPointChange> hp = [];

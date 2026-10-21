@@ -699,7 +699,6 @@ public sealed partial class MenuController
                 "junction-command" => action with { TargetId = Character?.Id ?? "", Value = (_commandSlot - 1).ToString(System.Globalization.CultureInfo.InvariantCulture) },
                 "junction-ability" => action with { TargetId = Character?.Id ?? "", Value = _abilitySlot.ToString(System.Globalization.CultureInfo.InvariantCulture) },
                 "junction-magic-reassign" => action with { TargetId = Character?.Id ?? "", Value = _junctionSlot },
-                "junction-auto-party" => action with { TargetId = Character?.Id ?? "" },
                 "junction-magic" => action with { TargetId = Character?.Id ?? "", Value = _junctionSlot },
                 "gf-learn" => action with { TargetId = GuardianForce?.Id ?? "" },
                 _ => action

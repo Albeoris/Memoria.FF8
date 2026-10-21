@@ -38,9 +38,9 @@ public enum PlayerActionKind
     UseFieldMagic,
     TransferMagic,
     AutoJunction,
-    AutoJunctionParty,
-    ReassignJunctionMagic,
-    SwitchPartyMembers
+    ReassignJunctionMagic = 34,
+    SwitchPartyMembers,
+    RemoveAllMagicJunctions
 }
 
 public enum PlayerTriggerKind

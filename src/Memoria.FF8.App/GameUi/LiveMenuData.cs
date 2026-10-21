@@ -222,7 +222,7 @@ public static class LiveMenuData
             }
             if (state.Scene is SceneKind.Field or SceneKind.WorldMap)
             {
-                result.SupportedActions.UnionWith(["attack-mode", "junction-gf", "junction-command", "junction-ability", "junction-magic", "junction-magic-reassign", "junction-off", "junction-auto", "junction-auto-party", "gf-learn"]);
+                result.SupportedActions.UnionWith(["attack-mode", "junction-gf", "junction-command", "junction-ability", "junction-magic", "junction-magic-reassign", "junction-off", "junction-auto", "junction-magic-off-all", "gf-learn"]);
                 if (!vitals.MagicSystem.SharedMagicStock)
                 {
                     result.SupportedActions.Add("magic-transfer");

@@ -43,6 +43,34 @@ public sealed class MenuViewTests
     [InlineData(640, 448)]
     [InlineData(1280, 896)]
     [InlineData(1920, 1080)]
+    public void JunctionCategoryLabelsFitTheirHeaderCellsAtEveryTextScale(int width, int height)
+    {
+        foreach (string textScale in new[] { "100%", "125%", "150%" })
+        {
+            foreach (string screen in new[] { "junction-options", "junction-off", "junction-auto" })
+            {
+                MenuController menus = new();
+                menus.Open(screen, true);
+                menus.Data.Settings["Text scale"] = textScale;
+                UiView view = menus.BuildView();
+                view.Resize(width, height);
+                UiList commands = Assert.Single(Descendants(view.Root).OfType<UiList>(), list => list.Id == "commands");
+                float textWidth = commands.Bounds.Width / commands.Items.Count - commands.TextInset - 4;
+                foreach (string label in commands.Items)
+                {
+                    float advance = SystemTextLayout.MeasureAdvance(label, commands.FontSize);
+                    var measured = SystemTextLayout.MeasureWrapped(label, commands.FontSize, textWidth);
+                    Assert.True(advance <= textWidth, $"{screen} at {textScale}: '{label}' exceeds its header cell width ({advance} > {textWidth}).");
+                    Assert.True(measured.Y <= commands.Bounds.Height, $"{screen} at {textScale}: '{label}' exceeds its header cell height ({measured.Y} > {commands.Bounds.Height}).");
+                }
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(640, 448)]
+    [InlineData(1280, 896)]
+    [InlineData(1920, 1080)]
     public void JunctionSubmenusKeepStatsVisibleWithCategoriesAboveAndEntitiesOnRight(int width, int height)
     {
         string[] categories = ["junction-options", "junction-off", "junction-auto"];

@@ -65,6 +65,27 @@ public sealed class NativeTutorialAutoTests
         Assert.Throws<InvalidDataException>(() => catalog.AutoJunction(malformed, 0, 0));
     }
 
+    [Fact]
+    public void Shared_auto_preserves_other_characters_ownership_and_uses_unbound_stock()
+    {
+        using GameAssets assets = InstalledAssets();
+        NativeTutorialCatalog catalog = assets.ReadNativeTutorialCatalog();
+        NativeCharacterVitals party = Fixture(catalog, 2, new NativeMagicStock(1, 10), new NativeMagicStock(4, 10));
+        party = MagicModeCoordinator.Preview(party, new GameplayPreferences { SharedMagicStock = true }).Vitals;
+        party.GuardianForces[1] = party.GuardianForces[0];
+        byte[] junctions = new byte[20];
+        junctions[1] = 1;
+        party.Records[7] = party.Records[7] with { Junction = party.Records[7].Junction with { GuardianForces = 2, MagicJunctions = junctions } };
+        string original = JsonSerializer.Serialize(party);
+
+        NativeCharacterVitals result = catalog.AutoJunction(party, 0, 0);
+
+        Assert.Equal((byte)4, result.Records[0].Junction.MagicJunctions[1]);
+        Assert.Equal(party.Records[7].Junction, result.Records[7].Junction);
+        Assert.Equal(7, MagicJunctionPolicy.GetOwner(result, 1));
+        Assert.Equal(original, JsonSerializer.Serialize(party));
+    }
+
     private static NativeCharacterVitals Fixture(NativeTutorialCatalog catalog, int learnedAbility, params NativeMagicStock[] stocks)
     {
         NativeCharacterVitals party = catalog.CreateIsolatedParty(1);

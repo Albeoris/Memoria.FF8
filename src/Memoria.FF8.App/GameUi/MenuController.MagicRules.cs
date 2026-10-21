@@ -35,10 +35,6 @@ public sealed partial class MenuController
         foreach (string priority in new[] { "Attack", "Magic", "Defense" })
         {
             entries.Add(new MenuEntry(priority, priority, MagicUiText.Get("ConservativeHelp"), Action: new MenuAction("junction-auto", Value: priority)));
-            if (Data.SharedMagicStock)
-            {
-                entries.Add(new MenuEntry("party-" + priority, MagicUiText.Format("PartyLabel", priority), MagicUiText.Get("PartyHelp"), Action: new MenuAction("junction-auto-party", Value: priority)));
-            }
         }
         return entries;
     }
