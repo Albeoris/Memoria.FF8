@@ -187,6 +187,48 @@ public sealed class MenuColumnTests
         }
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void BattleMagicHidesOtherSharedJunctionOwnersButKeepsAccessibleStock(bool shared, bool infinite)
+    {
+        NativeCharacterVitals vitals = BattleVitals();
+        vitals = vitals.ChangeMagicStock(3, 1, 100, MagicOperationReason.ScriptReward, out _);
+        vitals = vitals.ChangeMagicStock(3, 2, 6, MagicOperationReason.ScriptReward, out _);
+        vitals = vitals.ChangeMagicStock(3, 3, 6, MagicOperationReason.ScriptReward, out _);
+        vitals = vitals.ChangeMagicStock(0, 2, 6, MagicOperationReason.ScriptReward, out _);
+        vitals = MagicJunctionPolicy.Assign(vitals, 3, 0, 1);
+        vitals = MagicJunctionPolicy.Assign(vitals, 0, 0, 2);
+        vitals = MagicModeCoordinator.Preview(vitals, new GameplayPreferences { SharedMagicStock = shared, InfiniteMagic = infinite }).Vitals;
+        BattleSession battle = new(new BattleDefinition
+        {
+            MagicVitals = vitals,
+            Combatants =
+            [
+                new() { Id = "quistis", Name = "Quistis", IsPlayer = true, ModelId = 3, MagicRecordId = 3, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.Magic] },
+                new() { Id = "target", Name = "Target" }
+            ],
+            ActionDefinitions =
+            [
+                new(BattleAbility.Magic, 1, "Own magic", BattleActionEffect.Damage, 10, false),
+                new(BattleAbility.Magic, 2, "Squall magic", BattleActionEffect.Damage, 10, false),
+                new(BattleAbility.Magic, 3, "Unbound magic", BattleActionEffect.Damage, 10, false)
+            ]
+        }, BattleAtbMode.TurnBased);
+        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { });
+        hud.Navigate(MenuInput.Confirm);
+
+        Assert.True(hud.SelectingAction);
+        Assert.Equal(shared ? new[] { 1, 3 } : new[] { 1, 2, 3 }, hud.ActionChoices.Select(action => action.Id));
+        Assert.Equal(shared ? (int?)0 : null, battle.GetMagicJunctionOwner("quistis", 2));
+        RecordingCanvas canvas = new();
+        hud.BuildView().Draw(canvas, new UiTheme());
+        Assert.Equal(!shared, canvas.Texts.Any(draw => draw.Text == "Squall magic"));
+        Assert.DoesNotContain(canvas.Texts, draw => draw.Text == "0/0");
+    }
+
     private static NativeCharacterVitals BattleVitals()
     {
         NativeStatCurve curve = new(1, 0, 1, 10, 10);
