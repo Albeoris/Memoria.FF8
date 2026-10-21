@@ -10,6 +10,11 @@ public static partial class NativeBattleCuragaNodeKinematics
         NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
         NativeBattleEffectNodeBank bank = CurrentBank(NativeBattleCuragaFamilyProfile.ForGenericNodes(frame.Effect.Binding.Effect).RequireExecutable(frame.Memory));
         NativeBattleEffectNodeLifecycle core = CreateLifecycle(memory, bank, readModel);
+        if (memory.Profile.UsesSplitPacketCursors)
+        {
+            NativeBattleGfGeometryBatch streamed = core.AdvanceAndDraw(ref random, projection, cameraRoll, PrepareMeshes(memory, projection, colors), (meshes, packetBatch) => ordering = StreamBatch(memory, frame, ordering, packetBatch, meshes));
+            return new(FlushCurrent(memory, bank), random, ordering, streamed);
+        }
         NativeBattleGfGeometryBatch batch = core.AdvanceAndDraw(ref random, projection, cameraRoll, PrepareMeshes(memory, projection, colors));
         NativeBattleCuragaNodeDrawStep drawn = CommitDraws(memory, bank, ordering, batch);
         return new(drawn.Frame, random, drawn.Ordering, batch);
@@ -19,6 +24,11 @@ public static partial class NativeBattleCuragaNodeKinematics
     {
         NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
         NativeBattleEffectNodeBank bank = CurrentBank(NativeBattleCuragaFamilyProfile.ForGenericNodes(frame.Effect.Binding.Effect).RequireExecutable(frame.Memory));
+        if (memory.Profile.UsesSplitPacketCursors)
+        {
+            NativeBattleGfGeometryBatch streamed = CreateLifecycle(memory, bank).DrawNodes(projection, cameraRoll, PrepareMeshes(memory, projection, colors), (meshes, packetBatch) => ordering = StreamBatch(memory, frame, ordering, packetBatch, meshes));
+            return new(FlushCurrent(memory, bank), ordering, streamed);
+        }
         NativeBattleGfGeometryBatch batch = CreateLifecycle(memory, bank).DrawNodes(projection, cameraRoll, PrepareMeshes(memory, projection, colors));
         return CommitDraws(memory, bank, ordering, batch);
     }
@@ -30,9 +40,18 @@ public static partial class NativeBattleCuragaNodeKinematics
 
     public static NativeBattleCuragaNodeDrawStep CommitBatch(NativeBattleCuragaFrame result, NativeBattleLogicalOrdering ordering, NativeBattleGfGeometryBatch batch)
     {
+        if (NativeBattleCuragaFamilyProfile.ForGenericNodes(result.Effect.Binding.Effect).UsesSplitPacketCursors)
+        {
+            throw new NotSupportedException("The generic node module requires its actual sprite or mesh packet producer.");
+        }
+        return CommitBatch(result, ordering, batch, false);
+    }
+
+    public static NativeBattleCuragaNodeDrawStep CommitBatch(NativeBattleCuragaFrame result, NativeBattleLogicalOrdering ordering, NativeBattleGfGeometryBatch batch, bool meshes)
+    {
         if (batch.Attempts.Length != 0)
         {
-            if (NativeBattleCuragaFamilyProfile.ForGenericNodes(result.Effect.Binding.Effect).UsesCommonPacketCursor)
+            if (meshes && NativeBattleCuragaFamilyProfile.ForGenericNodes(result.Effect.Binding.Effect).UsesSplitPacketCursors)
             {
                 NativeBattleCommonPacketWrite common = NativeBattleCommonPacketArena.Append(result.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native generic node packets require their allocated common packet owner."), ordering, batch);
                 return new(result with { Memory = result.Memory with { PrimitiveProcess = common.Process } }, common.Ordering, batch);
@@ -43,5 +62,13 @@ public static partial class NativeBattleCuragaNodeKinematics
             ordering = written.Ordering;
         }
         return new(result, ordering, batch);
+    }
+
+    private static NativeBattleLogicalOrdering StreamBatch(NativeBattleCuragaNodeMemory memory, NativeBattleCuragaFrame frame, NativeBattleLogicalOrdering ordering, NativeBattleGfGeometryBatch batch, bool meshes)
+    {
+        NativeBattleCuragaNodeDrawStep written = CommitBatch(frame with { Memory = memory.CaptureProcessMemory(), State = memory.State }, ordering, batch, meshes);
+        memory.PublishProcessMemory(written.Frame.Memory);
+        memory.State = written.Frame.State;
+        return written.Ordering;
     }
 }

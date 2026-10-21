@@ -36,7 +36,7 @@ public sealed partial class BattleSession
     {
         (NativeBattleStackBytes current, int offset) = ReadNativeCurrentStackOperand();
         stack.Validate();
-        if (stack.FrameOwner != current.FrameOwner || stack.FirstOffset != offset || stack.Bytes.Length != 4)
+        if (stack.FrameOwner != current.FrameOwner || stack.FirstOffset != offset || stack.Bytes.Length != NativeBattlePreRootStackObserver.CommonIntervalLength)
         {
             throw new InvalidDataException("Native callback attempted to replace a different physical execution-frame owner.");
         }

@@ -10,11 +10,13 @@ public enum NativeBattleUiStackContext
 public static class NativeBattlePreRootStackObserver
 {
     public const int CommonWordOffset = -0x8C;
+    public const int HeroScaleWordOffset = -0x88;
+    public const int CommonIntervalLength = 8;
 
     public static NativeBattleStackBytes BeginHostFrame(long callback)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(callback);
-        return NativeBattleStackBytes.Unknown($"common47CF60:{callback}", CommonWordOffset, 4);
+        return NativeBattleStackBytes.Unknown($"common47CF60:{callback}", CommonWordOffset, CommonIntervalLength);
     }
 
     public static NativeBattleStackBytes ObserveUiWindowUpdate(NativeBattleStackBytes stack, uint selectedCallback, NativeBattleUiStackContext context, string phase)
@@ -26,8 +28,8 @@ public static class NativeBattlePreRootStackObserver
         }
         if (context == NativeBattleUiStackContext.NormalPreCore47CF60 && selectedCallback == 0x4B0500)
         {
-            //The selected window callback ends with4B0450's mandatory CALL4B04DE at this physical word.
-            return stack.StoreUInt32(CommonWordOffset, 0x4B04E3, 0x4B04DE, phase);
+            //The selected footer pushes the actual rectangle pointer before its mandatory CALL.
+            return stack.StoreUInt32(HeroScaleWordOffset, 0x1A7904C, 0x4B04C6, phase).StoreUInt32(CommonWordOffset, 0x4B04E3, 0x4B04DE, phase);
         }
         return ObserveUnknownCall(stack, selectedCallback, phase);
     }
@@ -51,8 +53,8 @@ public static class NativeBattlePreRootStackObserver
                 return ObserveUnknownCall(stack, 0x500CC0, phase);
             }
         }
-        //Only already-pending or priority-blocked commands: list counting/rotation has a proved shallow frame.
-        return stack;
+        //Nonempty list counting reaches the adjacent word, while rotation preserves both lanes.
+        return before.Queue.IsEmpty ? stack : stack.StoreUInt32(HeroScaleWordOffset, 0x50CFB1, 0x50CFAC, phase);
     }
 
     public static NativeBattleStackBytes ObserveCasting50A9A0(NativeBattleStackBytes stack, byte phaseBefore, bool returnedDescriptorLive, string phase)
@@ -97,7 +99,7 @@ public static class NativeBattlePreRootStackObserver
         RequireInterval(stack);
         if (task.Kind == NativeBattleModuleKind.CriticalFlash571300 && task.Callback is null)
         {
-            //Its full rendering path reaches only R-30, above the current tracked physical word R-38.
+            //Its full rendering path reaches only R-30, above the tracked R-38/R-34 words.
             return stack;
         }
         return ObserveUnknownCall(stack, task.Callback ?? 0x508434, phase);
@@ -105,16 +107,16 @@ public static class NativeBattlePreRootStackObserver
     public static NativeBattleStackBytes ObserveUnknownCall(NativeBattleStackBytes stack, uint selectedCallback, string phase)
     {
         RequireInterval(stack);
-        return stack.Invalidate(CommonWordOffset, 4, selectedCallback, phase);
+        return stack.Invalidate(CommonWordOffset, CommonIntervalLength, selectedCallback, phase);
     }
 
     private static void RequireInterval(NativeBattleStackBytes stack)
     {
         ArgumentNullException.ThrowIfNull(stack);
         stack.Validate();
-        if (stack.FirstOffset != CommonWordOffset || stack.Bytes.Length != 4)
+        if (stack.FirstOffset != CommonWordOffset || stack.Bytes.Length != CommonIntervalLength)
         {
-            throw new InvalidDataException("The common-frame observer requires its actual C-8C physical DWORD interval.");
+            throw new InvalidDataException("The common-frame observer requires its actual adjacent C-8C and C-88 DWORD interval.");
         }
     }
 }

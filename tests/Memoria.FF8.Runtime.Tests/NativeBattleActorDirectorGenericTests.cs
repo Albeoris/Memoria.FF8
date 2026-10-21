@@ -21,7 +21,7 @@ public sealed class NativeBattleActorDirectorGenericTests
         Assert.Equal(0x870, profile.EmitterStorageLength);
         Assert.Equal(geometry * 672, profile.GeometryStorageLength);
         Assert.Equal(callback, profile.Callback(0x87E1A0));
-        Assert.True(profile.UsesCommonPacketCursor);
+        Assert.True(profile.UsesSplitPacketCursors);
         Assert.Throws<NotSupportedException>(() => NativeBattleCuragaFamilyProfile.ForEffect(effect));
         Assert.Throws<NotSupportedException>(() => profile.RootMode);
         Assert.Throws<NotSupportedException>(() => profile.Pools);
@@ -109,24 +109,30 @@ public sealed class NativeBattleActorDirectorGenericTests
     public void Common_packet_commit_preserves_private_cursors_and_rejected_partial_stores(ushort effect)
     {
         var fixture = Fixture(effect);
-        NativeBattleCuragaFrame frame = fixture.Frame with { State = fixture.Frame.State with { PrimaryDrawCursor = 1234, SecondaryDrawCursor = 5678 }, Memory = fixture.Frame.Memory with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() } };
+        NativeBattleCuragaFrame frame = fixture.Frame with { State = fixture.Frame.State with { PrimaryDrawCursor = 1232, SecondaryDrawCursor = 5678 }, Memory = fixture.Frame.Memory with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() } };
         NativeBattleGeometryPrimitive primitive = new(17, [0x01000000, 0xE1000220], []);
         byte[] bytes = new byte[8];
         BinaryPrimitives.WriteUInt32LittleEndian(bytes, primitive.Words[0]);
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4), primitive.Words[1]);
         NativeBattleGfGeometryBatch batch = new([new(0, bytes.ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 8).ToImmutableArray(), primitive)], 8);
-        NativeBattleCuragaNodeDrawStep committed = NativeBattleCuragaNodeKinematics.CommitBatch(frame, NativeBattleLogicalOrdering.Clear(), batch);
+        NativeBattleCuragaNodeDrawStep committed = NativeBattleCuragaNodeKinematics.CommitBatch(frame, NativeBattleLogicalOrdering.Clear(), batch, true);
+        Assert.Throws<NotSupportedException>(() => NativeBattleCuragaNodeKinematics.CommitBatch(frame, NativeBattleLogicalOrdering.Clear(), batch));
+        NativeBattleCuragaNodeDrawStep sprite = NativeBattleCuragaNodeKinematics.CommitBatch(frame, NativeBattleLogicalOrdering.Clear(), batch, false);
+        Assert.Equal(1240, sprite.Frame.State.PrimaryDrawCursor);
+        Assert.Equal(0, sprite.Frame.Memory.PrimitiveProcess!.ByteCursor);
+        Assert.Equal(bytes.AsSpan(4).ToArray(), sprite.Frame.Memory.Arena!.Read(1236, 4));
+        Assert.Equal(5678, sprite.Frame.State.SecondaryDrawCursor);
         Assert.Equal(8, committed.Frame.Memory.PrimitiveProcess!.ByteCursor);
-        Assert.Equal(1234, committed.Frame.State.PrimaryDrawCursor);
+        Assert.Equal(1232, committed.Frame.State.PrimaryDrawCursor);
         Assert.Equal(5678, committed.Frame.State.SecondaryDrawCursor);
         Assert.Equal(bytes.AsSpan(4).ToArray(), committed.Frame.Memory.PrimitiveProcess.ReadCommonPacket(4, 4));
         NativeBattleGfGeometryBatch rejected = new([new(0, ImmutableArray.Create<byte>(9, 8, 7, 6), [NativeBattleGfPacketByteState.Untouched, NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Untouched, NativeBattleGfPacketByteState.Known], null)], 0);
-        NativeBattleCuragaNodeDrawStep partial = NativeBattleCuragaNodeKinematics.CommitBatch(committed.Frame, committed.Ordering, rejected);
+        NativeBattleCuragaNodeDrawStep partial = NativeBattleCuragaNodeKinematics.CommitBatch(committed.Frame, committed.Ordering, rejected, true);
         Assert.Equal(8, partial.Frame.Memory.PrimitiveProcess!.ByteCursor);
         Assert.Equal(new byte[] { 8 }, partial.Frame.Memory.PrimitiveProcess.ReadCommonPacket(9, 1));
         Assert.Equal(new byte[] { 6 }, partial.Frame.Memory.PrimitiveProcess.ReadCommonPacket(11, 1));
         Assert.Throws<NotSupportedException>(() => partial.Frame.Memory.PrimitiveProcess.ReadCommonPacket(8, 1));
-        Assert.Throws<NotSupportedException>(() => NativeBattleCuragaNodeKinematics.CommitBatch(frame with { Memory = frame.Memory with { PrimitiveProcess = null } }, NativeBattleLogicalOrdering.Clear(), batch));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCuragaNodeKinematics.CommitBatch(frame with { Memory = frame.Memory with { PrimitiveProcess = null } }, NativeBattleLogicalOrdering.Clear(), batch, true));
     }
 
     [Theory]

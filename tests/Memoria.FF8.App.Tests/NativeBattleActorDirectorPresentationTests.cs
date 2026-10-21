@@ -128,7 +128,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 }
                 if (visibleChangedRgb == 0 && after?.ReturnedDescriptor is > 0 && Director(current).Effect == effectId)
                 {
-                    ImmutableHashSet<NativeBattlePrimitiveReference> owned = NativeBattleAquaPresentationTests.AquaPacketReferences(prior, current);
+                    ImmutableHashSet<NativeBattlePrimitiveReference> owned = ActorDirectorPacketReferences(prior, current);
                     if (!owned.IsEmpty)
                     {
                         NativeBattlePrimitiveFrame frame = current.NativeGraphics.PrimitiveFrame!;
@@ -139,6 +139,8 @@ public sealed class NativeBattleActorDirectorPresentationTests
                         visibleChangedRgb = CountRgbChanges(pixels, plain);
                         if (visibleChangedRgb > 0)
                         {
+                            NativeBattleActorDirectorState packetState = Director(current);
+                            File.WriteAllText(Path.Combine(output!, "visible-packet-ownership.json"), JsonSerializer.Serialize(new { Effect = effectId, current.Frame, NativeCallback = current.NativeGraphics.Callback, PrivateBank = "20DFAB8", PrivateStart = packetState.SecondaryDrawCursor!.Value - 0x8000, PrivateEnd = packetState.PrimaryDrawCursor!.Value, Packets = owned.OrderBy(packet => packet.Bank).ThenBy(packet => packet.Buffer).ThenBy(packet => packet.ByteOffset).ToArray() }));
                             NativeBattleRestorationPresentationTests.Publish(output!, "visible", current, pixels);
                             NativeBattleRestorationPresentationTests.Publish(output!, "without-effect", without, plain);
                             ColdNext("live", current);
@@ -261,6 +263,24 @@ public sealed class NativeBattleActorDirectorPresentationTests
         NativeBattleRestorationPresentationTests.Publish(output!, "with-effect", current, pixels);
         NativeBattleRestorationPresentationTests.Publish(output!, "without-effect", without, plain);
         File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "selector-matched", Scope = "Exact standalone next plus bounded at-most-eight callback search with complete model match; a zero effect prefix is recorded as zero and does not satisfy the whole-component RGB gate", Effect = effect, Source = sourcePath, ExpectedNext = expectedPath, current.Frame, NativeCallback = current.NativeGraphics.Callback, changed, Progression = progression, Packets = owned.OrderBy(packet => packet.ByteOffset).ToArray() }));
+    }
+
+    private static ImmutableHashSet<NativeBattlePrimitiveReference> ActorDirectorPacketReferences(BattleSnapshot prior, BattleSnapshot current)
+    {
+        NativeBattleGraphicsState graphics = current.NativeGraphics!;
+        if (prior.NativeGraphics!.Auxiliary.Slots.Any(task => (task.Flags & 1) != 0 && task.Kind != NativeBattleAuxiliaryKind.TextureAnimation5057D0) || prior.NativeGraphics.ModuleEffects.Slots.Any(task => (task.Flags & 1) != 0) || graphics.ModuleEffects.Slots.Any(task => (task.Flags & 1) != 0))
+        {
+            return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
+        }
+        ImmutableHashSet<NativeBattlePrimitiveReference> common = NativeBattleAquaPresentationTests.AquaPacketReferences(prior, current);
+        NativeBattleActorDirectorState state = Director(current);
+        int secondary = state.SecondaryDrawCursor ?? throw new InvalidDataException("The actor director sprite span requires its current secondary cursor.");
+        int start = checked(secondary - 0x8000);
+        int end = state.PrimaryDrawCursor ?? throw new InvalidDataException("The actor director sprite span requires its actual current primary end.");
+        Assert.InRange(start, state.Generic.SourceArenaOffset, state.Generic.SourceArenaOffset + 0x8000);
+        Assert.InRange(end, start, secondary);
+        IEnumerable<NativeBattlePrimitiveReference> sprites = graphics.PrimitiveFrame!.LastCommands.Select(resolved => resolved.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start && command.Packet.ByteOffset < end && command.Opcode is >= 0x20 and < 0x80).Select(command => command.Packet);
+        return common.Union(sprites);
     }
 
     private static NativeBattleActorDirectorState Director(BattleSnapshot snapshot) => snapshot.NativeEffectMemory!.RequireActorDirector(snapshot.NativeGraphics!.OriginalEffect!.Binding.Effect);

@@ -11,7 +11,7 @@ public static class NativeBattleActorDirectorGeneric
     public static NativeBattleCuragaFrame ToGeneric(this NativeBattleActorDirectorFrame frame)
     {
         RequireFrame(frame);
-        return new(frame.Memory, frame.Effect, frame.State.Generic);
+        return new(frame.Memory, frame.Effect, frame.State.Generic with { PrimaryDrawCursor = frame.State.PrimaryDrawCursor, SecondaryDrawCursor = frame.State.SecondaryDrawCursor });
     }
 
     public static NativeBattleActorDirectorFrame WithGeneric(this NativeBattleActorDirectorFrame frame, NativeBattleCuragaFrame generic)
@@ -21,7 +21,7 @@ public static class NativeBattleActorDirectorGeneric
         {
             throw new InvalidDataException("The actor director cannot publish another module's generic frame.");
         }
-        return frame with { Memory = generic.Memory, Effect = generic.Effect, State = frame.State with { Generic = generic.State } };
+        return frame with { Memory = generic.Memory, Effect = generic.Effect, State = frame.State with { PrimaryDrawCursor = generic.State.PrimaryDrawCursor, SecondaryDrawCursor = generic.State.SecondaryDrawCursor, Generic = generic.State with { PrimaryDrawCursor = null, SecondaryDrawCursor = null } } };
     }
 
     private static void RequireFrame(NativeBattleActorDirectorFrame frame)

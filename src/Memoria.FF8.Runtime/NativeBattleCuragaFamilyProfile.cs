@@ -31,7 +31,7 @@ public sealed class NativeBattleCuragaFamilyProfile
     public int EmitterStorageLength => EmitterCapacity * 108;
     public int GeometryStorageLength => GeometryCapacity * 672;
     public int DrawBankStep => Effect is 16 or 61 or 81 or 82 ? 0x8000 : Effect == 15 ? 0x9000 : 0x6000;
-    public bool UsesCommonPacketCursor => Effect is 16 or 61 or 81 or 82;
+    public bool UsesSplitPacketCursors => Effect is 16 or 61 or 81 or 82;
     public ImmutableArray<NativeBattleCureFamilyPool> Pools => RootEffect == 28
         ? [new(0x26D76B0, 0x26D75E8, 100, 2), new(0x26D8160, 0x26D8170, 88, 4), new(0x26D74F8, 0x26D7508, 60, 3), new(0x26D7EC0, 0x26D76D0, 676, 3), new(0x26D8150, 0x26D7ED0, 64, 10)]
         : [new(0x2619588, 0x26194C0, 100, 2), new(0x2619DA8, 0x2619DB8, 88, 4), new(0x26193D0, 0x26193E0, 60, 3), new(0x2619D98, 0x26195A8, 676, 3)];
