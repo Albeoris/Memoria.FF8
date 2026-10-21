@@ -292,10 +292,10 @@ public sealed partial class MenuController
                 }
                 break;
             case MenuInput.PageLeft:
-                ChangeCharacter(-1);
+                ChangePageSubject(-1);
                 break;
             case MenuInput.PageRight:
-                ChangeCharacter(1);
+                ChangePageSubject(1);
                 break;
             case MenuInput.Alternate:
                 if (IsControlsBindingList && SelectedEntry?.Action is { Kind: "controls-select" } controlsAction)
@@ -457,8 +457,21 @@ public sealed partial class MenuController
         SoundRequested?.Invoke(MenuSound.Confirm);
     }
 
-    private void ChangeCharacter(int delta)
+    private void ChangePageSubject(int delta)
     {
+        if (ScreenId is "gf-detail" or "gf-learn" or "gf-abilities")
+        {
+            var guardianForces = Data.GuardianForces;
+            if (guardianForces.Count == 0)
+            {
+                return;
+            }
+            int guardianForceIndex = guardianForces.FindIndex(force => force.Id == GuardianForce?.Id);
+            _gfId = guardianForces[(guardianForceIndex + delta + guardianForces.Count) % guardianForces.Count].Id;
+            _selections[ScreenId] = Math.Clamp(SelectedIndex, 0, Math.Max(0, Entries.Count - 1));
+            _view = null;
+            return;
+        }
         var characters = Data.Characters;
         if (characters.Count == 0)
         {
