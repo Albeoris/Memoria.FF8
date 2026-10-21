@@ -96,12 +96,23 @@ public sealed class MenuTextScaleAuditTests
     [InlineData("gf-learn")]
     [InlineData("card")]
     [InlineData("config-keyboard")]
-    public void QuantityProgressPriceAndBindingColumnsReserveMeasuredTextWidth(string screen)
+    public void QuantityProgressPriceAndBindingColumnsReserveTextWidth(string screen)
     {
         UiView view = Create(screen, 48, 150).BuildView();
         UiList[] columns = Descendants(view.Root).OfType<UiList>().Where(list => list.SecondaryItems.Count > 0).ToArray();
         Assert.NotEmpty(columns);
-        Assert.All(columns, list => Assert.True(list.AutoSecondaryWidth, screen + ": " + list.Id));
+        Assert.All(columns, list =>
+        {
+            if (screen == "config-keyboard")
+            {
+                Assert.False(list.AutoSecondaryWidth);
+                Assert.Equal(0.7f, list.SecondaryWidth);
+            }
+            else
+            {
+                Assert.True(list.AutoSecondaryWidth, screen + ": " + list.Id);
+            }
+        });
     }
 
     [Theory]

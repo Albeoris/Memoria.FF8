@@ -238,7 +238,7 @@ public sealed class UiList : UiElement
                     UiRect secondaryBounds = new(secondaryLeft, row.Y, textFlow == UiTextFlow.Wrap ? Math.Max(secondaryClip.Width, columns.SecondaryWrapWidth) : secondaryClip.Width, row.Height);
                     if (SecondaryAlignment is UiAlignment.End or UiAlignment.Center)
                     {
-                        UiSize? measured = TryMeasureText(canvas, SecondaryItems[index], FontSize > 0 ? FontSize : theme.FontSize, secondaryBounds.Width);
+                        UiSize? measured = TryMeasureText(canvas, SecondaryItems[index], FontSize > 0 ? FontSize : theme.FontSize, textFlow == UiTextFlow.SingleLine ? float.PositiveInfinity : secondaryBounds.Width);
                         if (measured.HasValue)
                         {
                             float width = Math.Min(secondaryClip.Width, measured.Value.Width);

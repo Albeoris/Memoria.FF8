@@ -8,6 +8,41 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class ButtonPromptTests
 {
+    [Theory]
+    [InlineData("W", 24)]
+    [InlineData("N5", 24)]
+    [InlineData("Escape", 24)]
+    [InlineData("Up", 48)]
+    [InlineData("N6", 48)]
+    public void Key_label_ink_is_centered_inside_the_keycap(string label, float size)
+    {
+        float lineHeight = SystemTextLayout.LineHeight(size);
+        using var bitmap = new System.Drawing.Bitmap(320, 120);
+        using BattlePreviewCanvas canvas = new(bitmap);
+        ButtonPrompt.DrawCanvas(canvas, label, size, new UiRect(10, 10, 300, lineHeight), 1, null);
+        int first = bitmap.Height;
+        int last = -1;
+        for (int y = 0; y < bitmap.Height; y++)
+        {
+            for (int x = 0; x < bitmap.Width; x++)
+            {
+                var color = bitmap.GetPixel(x, y);
+                if (color.R > 220 && color.G > 220 && color.B > 220)
+                {
+                    first = Math.Min(first, y);
+                    last = Math.Max(last, y);
+                }
+            }
+        }
+        Assert.True(last >= first);
+        float top = 10 + lineHeight * 0.04f;
+        float bottom = top + lineHeight * 0.92f;
+        float upperPadding = first - top;
+        float lowerPadding = bottom - (last + 1);
+        Assert.True(upperPadding > 0 && lowerPadding > 0);
+        Assert.InRange(Math.Abs(upperPadding - lowerPadding), 0, 2);
+    }
+
     [Fact]
     public void Prompt_raster_has_white_label_graphite_face_and_respects_canvas_clip()
     {

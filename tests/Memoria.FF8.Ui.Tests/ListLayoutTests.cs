@@ -138,6 +138,22 @@ public sealed class ListLayoutTests
     }
 
     [Fact]
+    public void Single_line_secondary_alignment_uses_unwrapped_width_for_overflowing_values()
+    {
+        UiList list = new() { Items = ["ab", "ab"], SecondaryItems = ["abcdefgh", "x"], SecondaryWidth = 0.7f, SecondaryAlignment = UiAlignment.End, TextFlow = UiTextFlow.SingleLine, RowHeight = 20, FontSize = 20, TextInset = 0 };
+        list.Arrange(new UiRect(0, 0, 84, 100));
+        MeasuringCanvas canvas = new();
+        list.Draw(canvas, new UiTheme());
+
+        Assert.Equal(24, canvas.Texts[1].Bounds.X);
+        Assert.Equal(56, canvas.Texts[1].Bounds.Width);
+        Assert.Equal(80, canvas.Texts[1].Clip.Right);
+        Assert.Equal(70, canvas.Texts[3].Bounds.X);
+        Assert.Equal(10, canvas.Texts[3].Bounds.Width);
+        Assert.Equal(80, canvas.Texts[3].Clip.Right);
+    }
+
+    [Fact]
     public void Row_measurements_are_cached_and_refresh_when_text_or_columns_change()
     {
         UiList list = new() { Items = ["abcdefgh"], RowHeight = 20, FontSize = 20, TextInset = 0 };

@@ -36,9 +36,8 @@ internal static class ButtonPrompt
         float height = lineHeight * 0.92f;
         DrawShape(position.X, top, width, height, inset, Fill);
         float labelSize = size * 0.82f;
-        float labelWidth = textWidth * 0.82f;
-        float labelHeight = SystemTextLayout.LineHeight(labelSize, family);
-        text.DrawLineClipped(batch, label, labelSize, new Vector2(position.X + (width - labelWidth) / 2, top + (height - labelHeight) / 2 - inset * 0.25f), Color.White * opacity, clip, family);
+        Vector2 labelBounds = text.MeasureWrapped(label, labelSize, float.PositiveInfinity, family);
+        text.DrawWrappedClipped(batch, label, labelSize, new Vector2(position.X + (width - labelBounds.X) / 2, top + (height - labelBounds.Y) / 2), float.PositiveInfinity, Color.White * opacity, clip, family);
 
         void Fill(float x, float y, float w, float h, Color color)
         {
@@ -61,8 +60,9 @@ internal static class ButtonPrompt
         float height = lineHeight * 0.92f;
         DrawShape(bounds.X, top, width, height, inset, (x, y, w, h, color) => canvas.Fill(new UiRect(x, y, w, h), new UiColor(color.R, color.G, color.B, (byte)(255 * opacity))));
         float labelSize = size * 0.82f;
-        float labelHeight = SystemTextLayout.LineHeight(labelSize, family);
-        canvas.Text(label, labelSize, new UiRect(bounds.X + (width - textWidth * 0.82f) / 2, top + (height - labelHeight) / 2, width, labelHeight), new UiColor(255, 255, 255, (byte)(255 * opacity)), family);
+        using SystemTextMeasurer measurer = SystemTextLayout.CreateMeasurer(labelSize, family);
+        float labelHeight = (float)measurer.Format(label).Extent / SystemTextLayout.RasterScale;
+        canvas.Text(label, labelSize, new UiRect(bounds.X + (width - textWidth * 0.82f) / 2, top + (height - labelHeight) / 2, width, measurer.LineHeight), new UiColor(255, 255, 255, (byte)(255 * opacity)), family);
     }
 
     private static void DrawShape(float x, float top, float width, float height, float inset, Action<float, float, float, float, Color> fill)

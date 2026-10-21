@@ -50,7 +50,7 @@ public sealed partial class MenuController
         if (IsControlsBindingList)
         {
             commands.SecondaryItems = Entries.Select(entry => Enum.TryParse(entry.Id, out ControlAction action) ? ControlsBindingText(action, device) : "").ToList();
-            commands.AutoSecondaryWidth = true;
+            commands.SecondaryWidth *= 2;
             commands.SecondaryAlignment = UiAlignment.End;
         }
         Place(page, Panel(null, commands), 1);
