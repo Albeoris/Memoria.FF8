@@ -110,7 +110,7 @@ internal sealed partial class BattleHudElement
             BattleCombatant actor = controller.Party[index];
             (uint? total, int level, uint? next) = controller.DisplayedExperience(actor);
             ResultLabel(canvas, theme, actor.Name, 40, y + 7, 145, color: actor.IsAlive ? null : new UiColor(255, 96, 96));
-            canvas.Image(new UiImageSource(UiImageKind.Icon, 14), ResultRect(40, y + 18, 20, 12));
+            ResultLabel(canvas, theme, "Lv.", 40, y + 20, 20);
             ResultLabel(canvas, theme, level.ToString(CultureInfo.InvariantCulture), 92, y + 20, 30);
             ResultLabel(canvas, theme, controller.ResultText(29, "EXP received"), 196, y + 5, 74);
             ResultLabel(canvas, theme, controller.ResultText(30, "Current EXP"), 196, y + 20, 74);
@@ -118,8 +118,8 @@ internal sealed partial class BattleHudElement
             string[] numbers = [controller.RemainingExperience(actor).ToString(CultureInfo.InvariantCulture), total?.ToString(CultureInfo.InvariantCulture) ?? "--", next?.ToString(CultureInfo.InvariantCulture) ?? "--"];
             for (int row = 0; row < numbers.Length; row++)
             {
-                canvas.AlignedText(numbers[row], 20 * Scale * controller.TextScale, ResultRect(268, y + 7 + row * 15, 63, 12), theme.Foreground, UiAlignment.End);
-                canvas.Image(new UiImageSource(UiImageKind.Icon, 12), ResultRect(337, y + 7 + row * 15, 10, 12));
+                canvas.AlignedText(numbers[row], 20 * Scale * controller.TextScale, ResultRect(268, y + 7 + row * 15, 51, 12), theme.Foreground, UiAlignment.End);
+                ResultLabel(canvas, theme, "EXP", 325, y + 7 + row * 15, 24);
             }
             if (controller.ExperienceFinished && controller.CharacterResult(actor) is { } growth && growth.FinalLevel > growth.PreviousLevel)
             {
