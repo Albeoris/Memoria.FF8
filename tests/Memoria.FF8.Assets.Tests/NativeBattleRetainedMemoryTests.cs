@@ -31,11 +31,31 @@ public sealed class NativeBattleRetainedMemoryTests
         Assert.Null(generic.EffectMemory.Effect57Executable);
         Assert.Null(generic.EffectMemory.RemedyExecutable);
         Assert.Null(generic.EffectMemory.RecoveryExecutables);
-        Assert.Equal(new ushort[] { 53, 58, 59 }, actual.EffectMemory.RecoveryExecutables!.Value.Select(bank => bank.Effect));
+        Assert.Equal(new ushort[] { 7, 53, 58, 59 }, actual.EffectMemory.RecoveryExecutables!.Value.Select(bank => bank.Effect));
         Assert.Equal(NativeBattleRestorationExecutableState.FromColdProcess(57), actual.EffectMemory.Effect57Executable);
         Assert.Equal(NativeBattleRestorationExecutableState.FromColdProcess(67), actual.EffectMemory.RemedyExecutable);
         NativeBattleQuezacotlExecutableMemory executableMemory = Assert.IsType<NativeBattleQuezacotlExecutableMemory>(actual.EffectMemory!.QuezacotlExecutableMemory);
         byte[] executable = File.ReadAllBytes(Path.Combine(assets.GameDirectory, "FF8_EN.exe"));
+        Assert.Null(generic.EffectMemory.DrinkMagic37);
+        NativeBattleDrinkMagic37State drink = actual.EffectMemory.RequireDrinkMagic37();
+        Assert.Null(drink.Nodes);
+        Assert.Equal(NativeBattleEffectStaticResourcesReader.Read(executable, NativeBattleDrinkMagic37Profile.OrbAddress, NativeBattleDrinkMagic37Profile.OrbLength).ToArray(), drink.OrbMesh.Read(0, NativeBattleDrinkMagic37Profile.OrbLength));
+        Assert.All(drink.CapturedAnchor8, value => Assert.Equal((byte)0, value));
+        Assert.Equal(0u, drink.Counter26A8DA8);
+        Assert.Equal(0u, drink.Counter26A7D9C);
+        Assert.Equal(NativeBattleDrinkMagic37Profile.ExecutableAddress, actual.EffectMemory.DrinkMagic37Executable!.ResourceAddress);
+        Assert.Equal(0u, actual.EffectMemory.DrinkMagic37Executable.InitializationFlag);
+        Assert.Null(actual.EffectMemory.DrinkMagic37Executable.Data);
+        foreach (ushort effect in new ushort[] { 73, 78 })
+        {
+            NativeBattleMightyGuardState mighty = actual.EffectMemory.RequireMightyGuard(effect);
+            Assert.Equal(effect, mighty.Effect);
+            Assert.Equal(0u, mighty.InitializationFlag);
+            Assert.Null(mighty.Executable);
+            Assert.Null(mighty.SourceArenaOffset);
+            Assert.Null(mighty.Emitters);
+            Assert.Null(mighty.Geometry);
+        }
         Assert.Equal(NativeBattleEffectStaticResourcesReader.Read(executable, 0x1298C68, 0x109FC).ToArray(), executableMemory.Data.AsSpan().Slice(0, 0x109FC).ToArray());
         Assert.Equal(NativeBattleEffectStaticResourcesReader.Read(executable, 0x12A9664, 0x4D9C).ToArray(), executableMemory.Data.AsSpan().Slice(0x109FC, 0x4D9C).ToArray());
         Assert.Equal(0x1298C68u, NativeBattleQuezacotlWorkspace.Source(actual.EffectMemory).Address);
@@ -55,6 +75,12 @@ public sealed class NativeBattleRetainedMemoryTests
         Assert.Equal(uint.MaxValue, generic.EffectMemory.Shiva!.SpawnedChildD32508);
         NativeBattleEffectMemory authenticatedEffect = generic.EffectMemory with
         {
+            GeometryRegisters = generic.EffectMemory.GeometryRegisters! with { AnchorScratch8 = image.ReadLoader(0x1D97708, 8).Select(value => (byte?)value).ToImmutableArray() },
+            ModuleSpriteBillboard21DFED0 = new(image.ReadLoader(0x21DFED0, 32).ToImmutableArray(), Enumerable.Repeat(true, 32).ToImmutableArray()),
+            Aqua55 = new(55, image.ReadLoader(0x26163B0, 84).ToImmutableArray(), NativeBattleEffectStaticResourcesReader.Read(executable, 0x15A4168, 10600)),
+            Aqua72 = new(72, image.ReadLoader(0x25FA370, 84).ToImmutableArray(), NativeBattleEffectStaticResourcesReader.Read(executable, 0x158A4BC, 10600)),
+            DrinkMagic37 = new(null, NativeBattleEffectArena.Clear().Write(0, image.ReadLoader(NativeBattleDrinkMagic37Profile.OrbAddress, NativeBattleDrinkMagic37Profile.OrbLength)), image.ReadLoader(0x26A8D80, 8).ToImmutableArray()),
+            DrinkMagic37Executable = NativeBattleCuragaExecutableState.FromColdProcess(37),
             Scan = generic.EffectMemory.Scan with
             {
                 MutableMeshes = new[] { (Address: 0x15CDDECu, Length: 0x3E8), (Address: 0x15CE1D4u, Length: 0x768) }.ToImmutableDictionary(item => item.Address, item => new NativeBattleScanByteOwner(image.ReadLoader(item.Address, item.Length).ToImmutableArray(), Enumerable.Repeat(true, item.Length).ToImmutableArray()))

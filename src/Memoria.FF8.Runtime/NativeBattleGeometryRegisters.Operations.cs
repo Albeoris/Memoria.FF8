@@ -150,6 +150,19 @@ public static class NativeBattleGeometry
         return step with { Geometry = step.Geometry with { Mac0 = mac }, Colors = step.Colors with { Flags = 0 } };
     }
 
+    public static NativeBattleGeometryRegisterStep Average45E5C0(NativeBattleGeometryRegisterStep step, short zsf3)
+    {
+        Validate(step);
+        int sum = 0;
+        for (int index = 1; index < 4; index++)
+        {
+            uint value = step.Geometry.Sz[index] ?? throw new NotSupportedException("Native three-depth averaging requires its actual three SZ values.");
+            sum += unchecked((ushort)value);
+        }
+        uint result = unchecked((uint)(sum * zsf3)) >> 12;
+        return step with { Geometry = step.Geometry with { Mac0 = result, Otz = result }, Colors = step.Colors with { Flags = 0 } };
+    }
+
     public static NativeBattleGeometryRegisterStep Average45E610(NativeBattleGeometryRegisterStep step, short zsf4)
     {
         Validate(step);

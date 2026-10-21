@@ -804,6 +804,21 @@ public sealed partial class GameAssets
                 binding = binding with { ActorDirectorResources = ReadNativeActorDirectorResources(binding.Effect) };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Entry == NativeBattleDrinkMagic37Profile.Entry)
+            {
+                binding = binding with { DrinkMagic37Resources = ReadNativeDrinkMagic37Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Entry is 0x7BE2D0 or 0x7CBDB0)
+            {
+                binding = binding with { MightyGuardResources = ReadNativeMightyGuardResources(binding.Effect) };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Entry is 0x666DD0 or 0x6664A0)
+            {
+                binding = binding with { HeroResources = ReadNativeHeroResources(binding.Effect) };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Entry == NativeBattleDrawStock15Profile.Entry)
             {
                 binding = binding with { DrawStock15Resources = ReadNativeDrawStock15Resources() };

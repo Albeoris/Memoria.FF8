@@ -384,6 +384,9 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
     public NativeBattleAquaResources? AquaResources { get; init; }
     public NativeBattleDrawStock15Resources? DrawStock15Resources { get; init; }
     public NativeBattleActorDirectorResources? ActorDirectorResources { get; init; }
+    public NativeBattleHeroResources? HeroResources { get; init; }
+    public NativeBattleMightyGuardResources? MightyGuardResources { get; init; }
+    public NativeBattleDrinkMagic37Resources? DrinkMagic37Resources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleRestorationResources? RestorationResources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

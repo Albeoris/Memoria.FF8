@@ -35,7 +35,7 @@ public static class NativeBattleActorWaveMesh
         return context;
     }
 
-    public static NativeBattleActorWaveMeshStep EmitBatch(ImmutableArray<byte> mesh, uint meshAddress, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEffectArena context104, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, short dqa, int dqb, short? zsf4, NativeBattleSummonColors constants, short? matrixPadding18 = null)
+    public static NativeBattleActorWaveMeshStep EmitBatch(ImmutableArray<byte> mesh, uint meshAddress, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEffectArena context104, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, short dqa, int dqb, short? zsf4, NativeBattleSummonColors constants, short? matrixPadding18 = null, short? zsf3 = null, Func<int, short?>? readVertexW = null)
     {
         ValidateContext(context104);
         matrix.Validate();
@@ -57,7 +57,6 @@ public static class NativeBattleActorWaveMesh
         NativeBattleTextureWindow before = Window(context104, 0x1C);
         NativeBattleTextureWindow after = Window(context104, 0x24);
         int depthBias = unchecked((int)ReadDword(context104, 0x10));
-        NativeBattleEsunaMeshContext packetContext = new(flags, (flags & 0x40) != 0 ? ReadDword(context104, 8) : null, (flags & 0x40) != 0 ? unchecked((int)ReadDword(context104, 12)) : null, depthBias, ReadWord(context104, 0x18), ReadWord(context104, 0x1A), before, after, 17, 2);
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
         for (int group = 0; group < 8; group++)
@@ -69,17 +68,22 @@ public static class NativeBattleActorWaveMesh
             {
                 continue;
             }
-            if (group != 3)
+            if (group is not (3 or 4 or 5 or 7))
             {
-                throw new NotSupportedException("Native actor mesh resources require their proved FT4-only groups.");
+                throw new NotSupportedException("Native actor mesh resources require their proved FT4, G3, G4 or GT4 groups.");
             }
+            bool quad = group != 4;
+            bool gouraud = group != 3;
+            uint fadeFlag = gouraud ? 0x80u : 0x40u;
+            NativeBattleEsunaMeshContext packetContext = new(flags, (flags & fadeFlag) != 0 ? ReadDword(context104, 8) : null, (flags & fadeFlag) != 0 ? unchecked((int)ReadDword(context104, 12)) : null, depthBias, ReadWord(context104, 0x18), ReadWord(context104, 0x1A), before, after, 17, 2);
+            int faceBytes = group switch { 4 => 20, 7 => 36, _ => 24 };
             for (int faceIndex = 0; faceIndex < count; faceIndex++)
             {
-                byte[] face = Read(cursor, 24).ToArray();
+                byte[] face = Read(cursor, faceBytes).ToArray();
                 NativeBattleModuleProjectedVertex[] corners = new NativeBattleModuleProjectedVertex[4];
                 for (int corner = 0; corner < 3; corner++)
                 {
-                    (NativeBattleVector vertex, short w) = Vertex(face, corner);
+                    (NativeBattleVector vertex, short? w) = Vertex(face, corner);
                     registers = NativeBattleGeometry.LoadVector(registers, corner, vertex, w);
                 }
                 registers = NativeBattleGeometry.ProjectTriple(registers, projection, dqa, dqb);
@@ -93,6 +97,10 @@ public static class NativeBattleActorWaveMesh
                 {
                     registers = NativeBattleGeometry.Clip45EE10(registers);
                     context104 = Dword(context104, 0x30, registers.Geometry.Mac0!.Value);
+                    if (!quad && (unchecked((int)registers.Geometry.Mac0.Value) >= 0 || (flags & 0x20) != 0))
+                    {
+                        registers = NativeBattleGeometry.Average45E5C0(registers, zsf3 ?? throw new NotSupportedException("Native actor G3 mesh requires the current ZSF3 control."));
+                    }
                 }
                 NativeBattleModuleProjectedVertex ReadCorner(int corner)
                 {
@@ -100,33 +108,47 @@ public static class NativeBattleActorWaveMesh
                     {
                         return corners[corner];
                     }
-                    (NativeBattleVector vertex, short w) = Vertex(face, 3);
+                    (NativeBattleVector vertex, short? w) = Vertex(face, 3);
                     registers = NativeBattleGeometry.LoadVector(registers, 0, vertex, w);
                     registers = NativeBattleGeometry.ProjectSingle(registers, projection, dqa, dqb);
                     corners[3] = new(registers.Geometry.Sxy[2]!.Value, unchecked((ushort)registers.Geometry.Sz[3]!.Value), registers.Colors.Flags!.Value);
                     registers = NativeBattleGeometry.Average45E610(registers, zsf4 ?? throw new NotSupportedException("Native actor mesh requires the current ZSF4 control."));
                     return corners[3];
                 }
-                NativeBattleGfGeometryBatch faceBatch = NativeBattleRestorationMeshPackets.EmitFt4_88ECA0(face, ReadCorner, packetContext, constants, allocated);
+                NativeBattleGfGeometryBatch faceBatch = group switch
+                {
+                    3 => NativeBattleRestorationMeshPackets.EmitFt4_88ECA0(face, ReadCorner, packetContext, constants, allocated),
+                    4 => NativeBattleRestorationMeshPackets.EmitG3_88F220(face, ReadCorner, packetContext, constants, allocated),
+                    5 => NativeBattleRestorationMeshPackets.EmitG4_88F470(face, ReadCorner, packetContext, constants, allocated),
+                    7 => NativeBattleRestorationMeshPackets.EmitGt4_88FC50(face, ReadCorner, packetContext, constants, allocated),
+                    _ => throw new InvalidDataException("The actor mesh group was not admitted.")
+                };
                 NativeBattleGeometryPrimitive? accepted = faceBatch.Attempts.Select(attempt => attempt.Primitive).FirstOrDefault(primitive => primitive is not null);
                 if (accepted is not null)
                 {
                     int biased = Math.Max(0, unchecked((int)registers.Geometry.Otz!.Value + depthBias));
                     context104 = Dword(context104, 0x38, (uint)biased);
                     int bucket = checked(17 + (biased >> 2));
-                    if ((flags & 0x40) != 0)
+                    if ((flags & fadeFlag) != 0)
                     {
-                        uint source = BinaryPrimitives.ReadUInt32LittleEndian(face);
-                        if ((flags & 1) != 0)
+                        uint cue = ReadDword(context104, 12);
+                        if (gouraud)
                         {
-                            source |= 0x02000000;
+                            registers = NativeBattleGouraudMeshRegisters.Shade(registers, face, quad, group == 7, flags, cue, farControls, constants);
                         }
-                        if ((flags & 4) != 0)
+                        else
                         {
-                            source &= 0xFDFFFFFF;
+                            uint source = BinaryPrimitives.ReadUInt32LittleEndian(face);
+                            if ((flags & 1) != 0)
+                            {
+                                source |= 0x02000000;
+                            }
+                            if ((flags & 4) != 0)
+                            {
+                                source &= 0xFDFFFFFF;
+                            }
+                            registers = registers with { Colors = NativeBattleScriptedDpcs.Transform45F270(registers.Colors, source, cue, farControls, constants).Registers };
                         }
-                        NativeBattleScriptedDpcsResult dpcs = NativeBattleScriptedDpcs.Transform45F270(registers.Colors, source, ReadDword(context104, 12), farControls, constants);
-                        registers = registers with { Colors = dpcs.Registers };
                     }
                     foreach (NativeBattleGfGeometryAttempt attempt in faceBatch.Attempts)
                     {
@@ -138,7 +160,7 @@ public static class NativeBattleActorWaveMesh
                     attempts.AddRange(faceBatch.Attempts);
                 }
                 allocated = checked(allocated + faceBatch.AllocationBytes);
-                cursor = checked(cursor + 24);
+                cursor = checked(cursor + faceBytes);
                 context104 = Dword(context104, 0x2C, checked(meshAddress + (uint)cursor));
             }
         }
@@ -152,11 +174,11 @@ public static class NativeBattleActorWaveMesh
             }
             return mesh.AsSpan().Slice(offset, count);
         }
-        (NativeBattleVector Vertex, short W) Vertex(byte[] face, int corner)
+        (NativeBattleVector Vertex, short? W) Vertex(byte[] face, int corner)
         {
             int offset = checked(8 + BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + 2 * corner)) * 4);
             ReadOnlySpan<byte> packed = Read(offset, 8);
-            return (new(BinaryPrimitives.ReadInt16LittleEndian(packed), BinaryPrimitives.ReadInt16LittleEndian(packed[2..]), BinaryPrimitives.ReadInt16LittleEndian(packed[4..])), BinaryPrimitives.ReadInt16LittleEndian(packed[6..]));
+            return (new(BinaryPrimitives.ReadInt16LittleEndian(packed), BinaryPrimitives.ReadInt16LittleEndian(packed[2..]), BinaryPrimitives.ReadInt16LittleEndian(packed[4..])), readVertexW is null ? BinaryPrimitives.ReadInt16LittleEndian(packed[6..]) : readVertexW(offset));
         }
     }
 

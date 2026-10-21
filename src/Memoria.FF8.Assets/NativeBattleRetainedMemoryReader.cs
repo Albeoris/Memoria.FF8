@@ -112,6 +112,14 @@ public static class NativeBattleRetainedMemoryReader
             Potion51SceneFade = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x26349A8, 4)),
             CuragaExecutable = new(BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(NativeBattleCuragaExecutableState.Address, 4)), null),
             Potion52Executable = ReadPotion52Executable(),
+            DrinkMagic37 = new(null, NativeBattleEffectArena.Clear().Write(0, ReadLoaderBytes(NativeBattleDrinkMagic37Profile.OrbAddress, NativeBattleDrinkMagic37Profile.OrbLength)), ReadLoaderBytes(0x26A8D80, 8).ToImmutableArray())
+            {
+                Counter26A8DA8 = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x26A8DA8, 4)),
+                Counter26A7D9C = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x26A7D9C, 4))
+            },
+            DrinkMagic37Executable = new(BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(NativeBattleDrinkMagic37Profile.ExecutableAddress, 4)), null) { ResourceAddress = NativeBattleDrinkMagic37Profile.ExecutableAddress },
+            MightyGuard73 = NativeBattleMightyGuardState.FromColdProcess(73) with { InitializationFlag = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x178557C, 4)) },
+            MightyGuard78 = NativeBattleMightyGuardState.FromColdProcess(78) with { InitializationFlag = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x176E194, 4)) },
             DrawStock15Executable = ReadDrawStock15Executable(),
             ActorDirector16Executable = ReadActorDirectorExecutable(16),
             ActorDirector61Executable = ReadActorDirectorExecutable(61),

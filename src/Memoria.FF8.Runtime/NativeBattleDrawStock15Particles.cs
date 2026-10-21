@@ -20,31 +20,48 @@ public static partial class NativeBattleDrawStock15Particles
 {
     public static NativeBattleDrawStock15ParticleStep Advance(NativeBattleEffectHierarchy hierarchy, uint address, NativeCrtRandomState random, NativeBattleDrawStock15ParticleInputs inputs)
     {
-        NativeBattleEffectTaskPool pool = hierarchy.Pools.Single(pool => pool.DescriptorAddress == 0x2732CF8);
-        if (pool.BankAddress != 0x2732D08 || pool.Stride != 300 || pool.Slots.Length != 100)
+        return AdvanceCore(hierarchy, address, random, inputs, false, null);
+    }
+
+    public static NativeBattleDrawStock15ParticleStep AdvanceDrinkMagic37Leaf(NativeBattleEffectHierarchy hierarchy, uint address, NativeCrtRandomState random, NativeBattleDrawStock15ParticleInputs inputs, ImmutableArray<byte> capturedAnchor8)
+    {
+        return AdvanceCore(hierarchy, address, random, inputs, true, (task, state) => NativeBattleDrinkMagic37Particles.InitializeTrajectory(task, capturedAnchor8, state));
+    }
+
+    private static NativeBattleDrawStock15ParticleStep AdvanceCore(NativeBattleEffectHierarchy hierarchy, uint address, NativeCrtRandomState random, NativeBattleDrawStock15ParticleInputs inputs, bool drinkMagic, Func<NativeBattleModulePoolTask, NativeCrtRandomState, NativeBattleDrawStock15Jitter>? initializeTrajectory)
+    {
+        uint descriptor = drinkMagic ? 0x26A06C8u : 0x2732CF8u;
+        uint bank = drinkMagic ? 0x26A06D8u : 0x2732D08u;
+        int stride = drinkMagic ? 304 : 300;
+        uint trajectoryCallback = drinkMagic ? 0x85E930u : 0x8B5C70u;
+        uint sparkleCallback = drinkMagic ? 0x85F060u : 0x8B6440u;
+        NativeBattleEffectTaskPool pool = hierarchy.Pools.Single(pool => pool.DescriptorAddress == descriptor);
+        if (pool.BankAddress != bank || pool.Stride != stride || pool.Slots.Length != 100)
         {
             throw new InvalidDataException("Draw Stock particles require their original physical task bank.");
         }
         int poolIndex = hierarchy.Pools.IndexOf(pool);
         NativeBattleModulePoolTask task = hierarchy.Read(address);
-        if (address < pool.BankAddress || address - pool.BankAddress >= 300 * 100 || (address - pool.BankAddress) % 300 != 0)
+        if (address < pool.BankAddress || address - pool.BankAddress >= stride * 100 || (address - pool.BankAddress) % stride != 0)
         {
             throw new InvalidDataException("Draw Stock particle callback leaves its actual bank.");
         }
         ImmutableArray<NativeBattleDrawStock15ParticleOperation>.Builder operations = ImmutableArray.CreateBuilder<NativeBattleDrawStock15ParticleOperation>();
-        switch (task.Callback)
+        if (!drinkMagic && task.Callback == 0x8B5AE0)
         {
-            case 0x8B5AE0:
-                Scheduler();
-                break;
-            case 0x8B5C70:
-                Trajectory();
-                break;
-            case 0x8B6440:
-                Sparkle();
-                break;
-            default:
-                throw new NotSupportedException("Draw Stock particle callback has no original implementation.");
+            Scheduler();
+        }
+        else if (task.Callback == trajectoryCallback)
+        {
+            Trajectory();
+        }
+        else if (task.Callback == sparkleCallback)
+        {
+            Sparkle();
+        }
+        else
+        {
+            throw new NotSupportedException("Native particle leaf callback has no implementation for its original layout.");
         }
         task = task.WriteWord(0x24, unchecked((ushort)(task.ReadWord(0x24) + 1)));
         hierarchy = hierarchy.Write(address, task);
@@ -69,7 +86,7 @@ public static partial class NativeBattleDrawStock15Particles
         uint Append(uint callback)
         {
             hierarchy = hierarchy.Write(address, task);
-            NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(poolIndex, callback, 300, address, inputs.SelectActors);
+            NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(poolIndex, callback, checked((ushort)stride), address, inputs.SelectActors);
             hierarchy = appended.Hierarchy;
             task = hierarchy.Read(address);
             if (appended.Address == 0)
@@ -81,7 +98,7 @@ public static partial class NativeBattleDrawStock15Particles
 
         void CreateTrajectory(ushort selector, bool last)
         {
-            uint child = Append(0x8B5C70);
+            uint child = Append(trajectoryCallback);
             NativeBattleModulePoolTask created = hierarchy.Read(child);
             NativeBattleDrawStock15Jitter jitter = Offset8B5BB0(created, 128, random);
             random = jitter.Random;
@@ -143,23 +160,33 @@ public static partial class NativeBattleDrawStock15Particles
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
                 case 0:
-                    task = task.WriteDword(0x4C, 0x162B520).WriteWord(0x52, 5).WriteWord(0x54, 0).WriteWord(0x126, (ushort)(Rand() & 0xFFF)).WriteDword(0x88, task.ReadDword(0x1C)).WriteDword(0x8C, task.ReadDword(0x20));
-                    NativeBattleModuleAnchor endpoint = inputs.ReadBone241(inputs.ParameterActor);
-                    operations.Add(new NativeBattleDrawStock15Anchor(inputs.ParameterActor, endpoint));
-                    task = task.WriteWord(0x80, unchecked((ushort)endpoint.X)).WriteWord(0x82, unchecked((ushort)endpoint.Y)).WriteWord(0x84, unchecked((ushort)endpoint.Z));
-                    NativeBattleVector direction = new(unchecked((short)(Word(task, 0x80) - Word(task, 0x88))), unchecked((short)(Word(task, 0x82) - Word(task, 0x8A))), unchecked((short)(Word(task, 0x84) - Word(task, 0x8C))));
-                    NativeBattleActionMatrix basis = LookBasis8DDA50(direction);
-                    operations.Add(new NativeBattleDrawStock15LookBasis(direction, new(0, 4096, 0)));
-                    short angle = (short)((Rand() & 0x3FF) + ((task.ReadByte(0x120) & 1) != 0 ? 0x300 : 0x900));
-                    operations.Add(new NativeBattleDrawStock15Rotate(basis, 'Z', angle) { Padding18 = ReadPadding(task, 0x72) });
-                    basis = NativeBattleCuragaMatrices.RotateZ8DD960(basis, angle);
-                    task = WriteRotation(task, 0x60, basis);
+                    if (initializeTrajectory is not null)
+                    {
+                        NativeBattleDrawStock15Jitter initialized = initializeTrajectory(task, random);
+                        task = initialized.Task;
+                        random = initialized.Random;
+                        operations.AddRange(initialized.Operations);
+                    }
+                    else
+                    {
+                        task = task.WriteDword(0x4C, 0x162B520).WriteWord(0x52, 5).WriteWord(0x54, 0).WriteWord(0x126, (ushort)(Rand() & 0xFFF)).WriteDword(0x88, task.ReadDword(0x1C)).WriteDword(0x8C, task.ReadDword(0x20));
+                        NativeBattleModuleAnchor endpoint = inputs.ReadBone241(inputs.ParameterActor);
+                        operations.Add(new NativeBattleDrawStock15Anchor(inputs.ParameterActor, endpoint));
+                        task = task.WriteWord(0x80, unchecked((ushort)endpoint.X)).WriteWord(0x82, unchecked((ushort)endpoint.Y)).WriteWord(0x84, unchecked((ushort)endpoint.Z));
+                        NativeBattleVector direction = new(unchecked((short)(Word(task, 0x80) - Word(task, 0x88))), unchecked((short)(Word(task, 0x82) - Word(task, 0x8A))), unchecked((short)(Word(task, 0x84) - Word(task, 0x8C))));
+                        NativeBattleActionMatrix basis = LookBasis8DDA50(direction);
+                        operations.Add(new NativeBattleDrawStock15LookBasis(direction, new(0, 4096, 0)));
+                        short angle = (short)((Rand() & 0x3FF) + ((task.ReadByte(0x120) & 1) != 0 ? 0x300 : 0x900));
+                        operations.Add(new NativeBattleDrawStock15Rotate(basis, 'Z', angle) { Padding18 = ReadPadding(task, 0x72) });
+                        basis = NativeBattleCuragaMatrices.RotateZ8DD960(basis, angle);
+                        task = WriteRotation(task, 0x60, basis);
+                    }
                     NextPhase();
                     break;
                 case 1:
                     if (Word(task, 0x124) < 10)
                     {
-                        _ = Append(0x8B6440);
+                        _ = Append(sparkleCallback);
                     }
                     else
                     {
@@ -196,7 +223,7 @@ public static partial class NativeBattleDrawStock15Particles
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
                 case 0:
-                    task = task.WriteDword(0x4C, 0x162B730).WriteWord(0x52, 5).WriteWord(0x54, 0).WriteWord(0x42, (ushort)(Rand() & 0xFFF)).WriteWord(0x44, (ushort)(Rand() & 0xFFF));
+                    task = task.WriteDword(0x4C, drinkMagic ? 0x15D9504u : 0x162B730u).WriteWord(0x52, 5).WriteWord(0x54, 0).WriteWord(0x42, (ushort)(Rand() & 0xFFF)).WriteWord(0x44, (ushort)(Rand() & 0xFFF));
                     NextPhase();
                     break;
                 case 1:

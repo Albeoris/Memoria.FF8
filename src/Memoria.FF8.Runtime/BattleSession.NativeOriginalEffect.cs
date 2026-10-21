@@ -518,6 +518,18 @@ public sealed partial class BattleSession
         {
             return RunNativeActorDirector(graphics, true);
         }
+        if (effect.Binding.Entry == NativeBattleDrinkMagic37Profile.Entry)
+        {
+            return RunNativeDrinkMagic37(graphics, true);
+        }
+        if (effect.Binding.Entry is 0x7BE2D0 or 0x7CBDB0)
+        {
+            return RunNativeMightyGuard(graphics, true);
+        }
+        if (effect.Binding.Entry is 0x666DD0 or 0x6664A0)
+        {
+            return RunNativeHero(graphics, true);
+        }
         if (effect.Binding.Entry == NativeBattleDrawStock15Profile.Entry)
         {
             return RunNativeDrawStock15(graphics, true);
