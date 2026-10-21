@@ -97,12 +97,17 @@ public sealed partial class EventEngine
 
     private NativeFieldEyeProcess ReadCurrentNativeEyeProcess(NativeFieldEyeProcess cached)
     {
-        if (services is GameSession session && session.State.Battle is null && session.State.Scene == SceneKind.Field && session.State.FieldId == FieldId)
+        if (services is GameSession session && OwnsNativeFieldEyeProcess(session))
         {
             NativeBattleRetainedMemory memory = session.State.NativeBattleMemory ?? throw new NotSupportedException("Native eye process lost its current shared memory owner.");
             return new(1, memory, session.State.CrtRandom);
         }
         return cached;
+    }
+
+    private bool OwnsNativeFieldEyeProcess(GameSession session)
+    {
+        return session.State.Battle is null && session.State.Scene == SceneKind.Field && session.State.FieldId == FieldId;
     }
 
     private void CaptureNativeEyeProcessOwners()
