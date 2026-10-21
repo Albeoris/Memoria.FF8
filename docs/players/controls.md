@@ -28,7 +28,7 @@ In battle, **Menu** (V / North button) cycles ready characters and recalculates 
 
 ## Host shortcuts
 
-These shortcuts are keyboard-only by default. They can also be assigned to controller buttons or combinations in Controls.
+These shortcuts use the default bindings below. They can also be assigned to controller buttons or combinations in Controls.
 
 | Shortcut | Default key | Effect |
 | --- | --- | --- |
