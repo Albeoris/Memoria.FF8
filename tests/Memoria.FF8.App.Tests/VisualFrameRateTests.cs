@@ -7,6 +7,20 @@ namespace Memoria.FF8.App.Tests;
 public sealed class VisualFrameRateTests
 {
     [Theory]
+    [InlineData(false, 0)]
+    [InlineData(true, 0.5)]
+    public void RealTwoSecondStallsReducePresentationFpsIndependentlyOfVisibleChanges(bool changed, double visualFps)
+    {
+        using GpuTestDevice gpu = new();
+        using VisualFrameRate meter = new(gpu.Device);
+        using RenderTarget2D destination = gpu.CreateTarget(64, 64);
+        PresentSolid(gpu, meter, destination, Color.Red, 0);
+        PresentSolid(gpu, meter, destination, changed ? Color.Blue : Color.Red, 2);
+        Assert.Equal(0.5, meter.PresentationsPerSecond!.Value);
+        Assert.Equal(visualFps, meter.FramesPerSecond!.Value);
+    }
+
+    [Theory]
     [InlineData(0, 60)]
     [InlineData(15, 60)]
     [InlineData(30, 60)]

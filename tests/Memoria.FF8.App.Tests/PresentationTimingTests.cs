@@ -5,6 +5,74 @@ namespace Memoria.FF8.App.Tests;
 public sealed class PresentationTimingTests
 {
     [Theory]
+    [InlineData(30)]
+    [InlineData(60)]
+    [InlineData(0)]
+    public void Slow_updates_yield_each_display_without_losing_the_remaining_callbacks(int frameLimit)
+    {
+        PresentationTiming timing = new();
+        ManualTimeProvider clock = new();
+        timing.Accumulate(TimeSpan.FromMilliseconds(200));
+        TimeSpan budget = frameLimit == 0 ? PresentationTiming.SimulationStep : TimeSpan.FromSeconds(1d / frameLimit);
+        List<TimeSpan> callbacks = [];
+        for (int display = 1; display <= 12; display++)
+        {
+            int before = callbacks.Count;
+            timing.RunUpdates(budget, () => PresentationTiming.SimulationStep, step =>
+            {
+                Assert.Equal(PresentationTiming.SimulationStep, step);
+                callbacks.Add(timing.SimulationTotal);
+                clock.Advance(budget + TimeSpan.FromMilliseconds(1));
+                return true;
+            }, clock);
+            Assert.Equal(before + 1, callbacks.Count);
+            Assert.Equal(PresentationTiming.SimulationStep * display, callbacks[^1]);
+        }
+        Assert.False(timing.TryStep());
+    }
+
+    [Fact]
+    public void Capture_fences_and_callback_rate_changes_preserve_unconsumed_time()
+    {
+        PresentationTiming timing = new();
+        ManualTimeProvider clock = new();
+        timing.Accumulate(TimeSpan.FromMilliseconds(100));
+        TimeSpan next = PresentationTiming.SimulationStep;
+        int callbacks = 0;
+        timing.RunUpdates(TimeSpan.FromMilliseconds(16), () => next, step =>
+        {
+            callbacks++;
+            next = TimeSpan.FromSeconds(1d / 90);
+            return false;
+        }, clock);
+        Assert.Equal(1, callbacks);
+        timing.RunUpdates(TimeSpan.FromMilliseconds(16), () => next, step =>
+        {
+            Assert.Equal(next, step);
+            callbacks++;
+            return true;
+        }, clock);
+        Assert.Equal(8, callbacks);
+        Assert.Equal(PresentationTiming.SimulationStep + next * 7, timing.SimulationTotal);
+    }
+
+    private sealed class ManualTimeProvider : TimeProvider
+    {
+        private long timestamp;
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+        public override long GetTimestamp()
+        {
+            return timestamp;
+        }
+
+        public void Advance(TimeSpan elapsed)
+        {
+            timestamp += elapsed.Ticks;
+        }
+    }
+
+    [Theory]
     [InlineData(15, 90, 60)]
     [InlineData(30, 90, 60)]
     [InlineData(60, 90, 60)]

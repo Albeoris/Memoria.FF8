@@ -41,6 +41,27 @@ internal sealed class PresentationTiming
         return TryStep(SimulationStep);
     }
 
+    public void RunUpdates(TimeSpan workBudget, Func<TimeSpan> nextStep, Func<TimeSpan, bool> update, TimeProvider? timeProvider = null)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(workBudget, TimeSpan.Zero);
+        TimeProvider clock = timeProvider ?? TimeProvider.System;
+        long started = clock.GetTimestamp();
+        while (true)
+        {
+            TimeSpan step = nextStep();
+            if (!TryStep(step))
+            {
+                break;
+            }
+            bool keepUpdating = update(step);
+            if (!keepUpdating || clock.GetElapsedTime(started) >= workBudget)
+            {
+                // Retain outstanding simulation time while allowing presentation and fresh input.
+                break;
+            }
+        }
+    }
+
     public bool TryStep(TimeSpan step)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(step, TimeSpan.Zero);

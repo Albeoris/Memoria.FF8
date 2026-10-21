@@ -65,7 +65,7 @@ internal sealed partial class RecreateGame
     private void UpdateBattleEntry(GameTime gameTime)
     {
         long started = Stopwatch.GetTimestamp();
-        battlePresentationPacer.WaitForNextFrame(uiPreferences.FieldFps);
+        presentationPacer.WaitForNextFrame(uiPreferences.FieldFps);
         updateFrames++;
         if (options.ExitAfterFrames is int frames && updateFrames >= frames || options.ExitAfterSeconds is double duration && gameTime.TotalGameTime.TotalSeconds >= duration)
         {

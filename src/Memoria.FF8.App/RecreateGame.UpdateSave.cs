@@ -64,6 +64,6 @@ internal sealed partial class RecreateGame
     private GameState CaptureUpdateState()
     {
         // Snapshot the live VM into a separate state; validation must not mutate the running session.
-        return session.State.Scene == SceneKind.Field ? session.State with { EventState = events!.Capture(), DialogueDraft = null } : session.State;
+        return session.State.Scene == SceneKind.Field ? session.State with { EventState = events!.Capture(), DialogueDraft = null } : session.PrepareSnapshot();
     }
 }

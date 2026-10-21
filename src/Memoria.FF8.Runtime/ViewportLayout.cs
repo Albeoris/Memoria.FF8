@@ -41,7 +41,8 @@ public static class ViewportLayout
             throw new ArgumentOutOfRangeException(nameof(longestSideLimit));
         }
         PixelBounds fit = Fit(320, worldMap ? 224 : 240, viewportWidth, viewportHeight);
-        double scale = Math.Min(1, longestSideLimit / (double)Math.Max(fit.Width, fit.Height));
-        return new PixelBounds(0, 0, Math.Max(1, (int)Math.Round(fit.Width * scale)), Math.Max(1, (int)Math.Round(fit.Height * scale)));
+        int width = worldMap ? viewportWidth : fit.Width;
+        double scale = Math.Min(1, longestSideLimit / (double)Math.Max(width, fit.Height));
+        return new PixelBounds(0, 0, Math.Max(1, (int)Math.Round(width * scale)), Math.Max(1, (int)Math.Round(fit.Height * scale)));
     }
 }

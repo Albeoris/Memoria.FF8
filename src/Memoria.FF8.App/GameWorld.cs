@@ -18,6 +18,7 @@ internal sealed partial class GameWorld : IDisposable
     private readonly bool ownsAssets;
     private readonly ResourceService? resources;
     private readonly bool validateWorldPresentation;
+    private readonly IDisposable snapshotPreparation;
     private FieldRenderer? renderer;
     private WorldMapScene? worldScene;
     private SpuWaveAudioOutput? spuAudio;
@@ -149,6 +150,17 @@ internal sealed partial class GameWorld : IDisposable
         Events.ReadNativeDrawPointCatalog = assets.ReadNativeDrawPointCatalog;
         Events.ReadNativeActorInfoArena = assets.ReadNativeActorInfoArena;
         Events.ReadSteamDiscMount = selectedDisc => NativeSteamDiscMountReader.Read(assets.GameDirectory, selectedDisc);
+        snapshotPreparation = session.BindSnapshotPreparation(PrepareSnapshot);
+    }
+
+    private GameState PrepareSnapshot(GameState state)
+    {
+        if (state.Scene == SceneKind.WorldMap && Field is not null && worldScene is not null)
+        {
+            // The dormant VM remains frozen between publications; its services supply the current shared owners.
+            return state with { EventState = Events.Capture() };
+        }
+        return state;
     }
 
     public EventEngine Events { get; }
@@ -452,17 +464,9 @@ internal sealed partial class GameWorld : IDisposable
         {
             PlayerActionResult worldResult = action.Kind == PlayerActionKind.ReadMagazinePage ? worldScene!.ReadMagazinePage(action, FieldItemCatalog.MagazinePage(action.Value, action.Quantity ?? -1)) : action.Kind == PlayerActionKind.UseFieldItem ? worldScene!.UseFieldItem(action, FieldItemCatalog.FieldItem(action.Value) ?? throw new NotSupportedException("World item use requires original installed metadata."), assets.ReadFieldItemStatRules) : action.Kind == PlayerActionKind.RefineItems ? worldScene!.RefineItems(action, assets.ReadNativeRefinementDefinitions()) : worldScene!.Apply(action);
             ObservePendingBattle();
-            if (Field is not null)
+            if (Field is not null && session.State.Scene != SceneKind.WorldMap)
             {
-                // The field VM is dormant; Capture reads the current process-owned globals.
-                if (session.State.Scene == SceneKind.WorldMap)
-                {
-                    session.SetEventState(Events.Capture());
-                }
-                else
-                {
-                    session.SetDepartingFieldState(Events.Capture());
-                }
+                session.SetDepartingFieldState(Events.Capture());
             }
             if (worldResult.Accepted && action.Kind == PlayerActionKind.UseFieldItem)
             {
@@ -495,19 +499,26 @@ internal sealed partial class GameWorld : IDisposable
 
     public void Dispose()
     {
-        Events.OperationCompleted -= ObservePendingBattle;
-        spuAudio?.Dispose();
-        if (ownsMovieClock)
+        try
         {
-            movieClock.Dispose();
+            session.CompleteSnapshotPreparation(snapshotPreparation);
         }
-        if (ownsAssets)
+        finally
         {
-            assets.Dispose();
+            Events.OperationCompleted -= ObservePendingBattle;
+            spuAudio?.Dispose();
+            if (ownsMovieClock)
+            {
+                movieClock.Dispose();
+            }
+            if (ownsAssets)
+            {
+                assets.Dispose();
+            }
+            battleAssets?.Dispose();
+            preparedWorldEntry?.Dispose();
+            worldScene?.Dispose();
         }
-        battleAssets?.Dispose();
-        preparedWorldEntry?.Dispose();
-        worldScene?.Dispose();
     }
 }
 

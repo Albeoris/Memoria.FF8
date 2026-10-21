@@ -47,7 +47,11 @@ internal static class HeadlessControlHost
             {
                 throw new ArgumentException("Research checkpoints cannot target the player-saves directory.");
             }
-            if (session.State.Scene == SceneKind.WorldMap && world.WorldScene is not null || world.HasCurrentFieldAllocation)
+            if (session.State.Scene == SceneKind.WorldMap)
+            {
+                world.EnsureField();
+            }
+            else if (world.HasCurrentFieldAllocation)
             {
                 session.SetEventState(world.Events.Capture());
             }

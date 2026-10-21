@@ -20,6 +20,10 @@ Field FPS selects 30 or 60 presentations per second independently of the fixed 3
 
 Presentation history is transient. Scene replacement, restore, camera changes and explicit instant placement reset the relevant history; an unrelated actor's placement does not discard other actors' movement. Native background wrap endpoints are validated before fractional placement, and markers and shadows follow the same interpolated actor sample. Original tile/texture animation, visibility, shake and other discrete native commands retain their source cadence. Movies retain their detected media frame rate.
 
+The display host yields to drawing after a bounded batch of simulation updates in every scene. Missed display deadlines do not create presentation catch-up work; outstanding simulation time remains in its existing bounded accumulator. Ordinary world callbacks retain the dormant field VM instead of serializing it repeatedly. `GameSession.Save` prepares a current snapshot through the active allocation; callers exporting a `GameState` directly must use `PrepareSnapshot()` so shared process owners match the dormant VM checkpoint.
+
+World presentation expands horizontally to fill wide windows while retaining its original vertical camera scale and centered projection. Portrait windows retain a fitted native 320 × 224 view. The render resolution limit scales the expanded target uniformly; it does not narrow the visible camera region. Battle and movie aspect policies remain independent.
+
 ## Resource providers
 
 [ResourceContracts](../../src/Memoria.FF8.Resources/ResourceContracts.cs) separates logical identities from storage:

@@ -91,7 +91,7 @@ internal sealed partial class RecreateGame : Game
         Window.Title = "Memoria - Final Fantasy VIII";
         Window.AllowUserResizing = true;
         IsMouseVisible = true;
-        IsFixedTimeStep = true;
+        IsFixedTimeStep = false;
         TargetElapsedTime = TimeSpan.FromSeconds(1d / 60);
         InactiveSleepTime = TimeSpan.Zero;
         Window.TextInput += OnTextInput;
@@ -656,6 +656,7 @@ internal sealed partial class RecreateGame : Game
         if (session.State.Scene == SceneKind.WorldMap)
         {
             world?.EnsureField();
+            // Persistence prepares the dormant field snapshot once, after all live owners have been captured.
         }
         else if (events is not null && world?.HasCurrentFieldAllocation == true)
         {
@@ -1271,7 +1272,7 @@ internal sealed partial class RecreateGame : Game
             movie?.Dispose();
             world?.Dispose();
             movieClock.Dispose();
-            battlePresentationPacer.Dispose();
+            presentationPacer.Dispose();
             resourceHost?.Dispose();
             DisposeBattlePresentation();
             DisposeFrameRate();

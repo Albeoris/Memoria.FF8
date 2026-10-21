@@ -75,6 +75,69 @@ public sealed partial class GameSession : IEventServices
     public bool? NativeMovieClockFlag => IsMoviePlaying;
     public event Action<GameState>? StateChanged;
 
+    private SnapshotPreparationBinding? snapshotPreparation;
+    private bool preparingSnapshot;
+
+    /// <summary>Binds the live allocation's snapshot preparation; disposing an older binding cannot remove its replacement.</summary>
+    public IDisposable BindSnapshotPreparation(Func<GameState, GameState> prepare)
+    {
+        ArgumentNullException.ThrowIfNull(prepare);
+        SnapshotPreparationBinding binding = new(this, prepare);
+        snapshotPreparation = binding;
+        return binding;
+    }
+
+    /// <summary>Retains the owning allocation's final snapshot before its live resources are released.</summary>
+    public void CompleteSnapshotPreparation(IDisposable binding)
+    {
+        ArgumentNullException.ThrowIfNull(binding);
+        if (!ReferenceEquals(snapshotPreparation, binding))
+        {
+            return;
+        }
+        try
+        {
+            State = PrepareSnapshot();
+        }
+        finally
+        {
+            binding.Dispose();
+        }
+    }
+
+    /// <summary>Materializes live allocation state for persistence without publishing a gameplay change.</summary>
+    public GameState PrepareSnapshot()
+    {
+        if (preparingSnapshot)
+        {
+            throw new InvalidOperationException("Snapshot preparation cannot recursively prepare another snapshot.");
+        }
+        preparingSnapshot = true;
+        try
+        {
+            GameState snapshot = snapshotPreparation?.Prepare(State) ?? State;
+            ValidateLiveEventMemoryOwners(snapshot, snapshot.EventMemory);
+            return snapshot;
+        }
+        finally
+        {
+            preparingSnapshot = false;
+        }
+    }
+
+    private sealed class SnapshotPreparationBinding(GameSession session, Func<GameState, GameState> prepare) : IDisposable
+    {
+        public GameState Prepare(GameState state) => prepare(state);
+
+        public void Dispose()
+        {
+            if (ReferenceEquals(session.snapshotPreparation, this))
+            {
+                session.snapshotPreparation = null;
+            }
+        }
+    }
+
     public void StartNewGame()
     {
         NativeExamTimerState clock = State.ExamTimer ?? throw new NotSupportedException("New Game requires the existing native process clock; create a cold process explicitly or restore its current clock.");
@@ -444,7 +507,7 @@ public sealed partial class GameSession : IEventServices
 
     public void Save(string path, bool compact, Action<GameState>? validateContinuation = null)
     {
-        ValidateLiveEventMemoryOwners(State, State.EventMemory);
+        GameState snapshot = PrepareSnapshot();
         string fullPath = Path.GetFullPath(path);
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
         string temporary = fullPath + ".tmp";
@@ -454,11 +517,11 @@ public sealed partial class GameSession : IEventServices
             {
                 if (compact)
                 {
-                    SnapshotStorage.Write(stream, State, CompactJsonOptions);
+                    SnapshotStorage.Write(stream, snapshot, CompactJsonOptions);
                 }
                 else
                 {
-                    JsonSerializer.Serialize(stream, State, SnapshotJsonOptions);
+                    JsonSerializer.Serialize(stream, snapshot, SnapshotJsonOptions);
                 }
                 stream.Flush(true);
             }

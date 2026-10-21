@@ -116,7 +116,7 @@ internal sealed partial class PlayerSaveStore
             string target = GetPath(slot);
             if (slot > MemoriaSlotCount)
             {
-                SaveOriginal(target, NativePcSaveConverter.Export(session.State), validateContinuation);
+                SaveOriginal(target, NativePcSaveConverter.Export(session.PrepareSnapshot()), validateContinuation);
             }
             else
             {

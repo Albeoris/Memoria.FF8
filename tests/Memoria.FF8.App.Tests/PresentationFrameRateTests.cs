@@ -3,6 +3,18 @@ namespace Memoria.FF8.App.Tests;
 public sealed class PresentationFrameRateTests
 {
     [Theory]
+    [InlineData(false, 0)]
+    [InlineData(true, 0.5)]
+    public void TwoSecondPresentationStallCountsItsEntireElapsedInterval(bool changed, double visualFps)
+    {
+        PresentationFrameRate counter = new();
+        counter.Presented(TimeSpan.Zero, false);
+        counter.Presented(TimeSpan.FromSeconds(2), changed);
+        Assert.Equal(0.5, counter.PresentationsPerSecond!.Value);
+        Assert.Equal(visualFps, counter.FramesPerSecond!.Value);
+    }
+
+    [Theory]
     [InlineData(15)]
     [InlineData(30)]
     [InlineData(60)]

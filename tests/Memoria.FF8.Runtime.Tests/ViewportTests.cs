@@ -4,17 +4,52 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class ViewportTests
 {
-    [Fact]
-    public void OriginalWorldAspectUsesTenToSevenAcrossViewportAndRenderLimits()
+    [Theory]
+    [InlineData(1280, 720, 2048, 1280, 720)]
+    [InlineData(3840, 2160, 2048, 2048, 1152)]
+    [InlineData(3840, 2160, 4096, 3840, 2160)]
+    [InlineData(3440, 1440, 2048, 2048, 857)]
+    [InlineData(720, 1280, 2048, 720, 504)]
+    [InlineData(640, 480, 2048, 640, 448)]
+    [InlineData(320, 224, 2048, 320, 224)]
+    [InlineData(1237, 753, 2048, 1237, 753)]
+    [InlineData(12000, 800, 64, 64, 4)]
+    [InlineData(1, 1, 2048, 1, 1)]
+    public void WorldTargetExpandsHorizontallyAndPreservesNativeVerticalScale(int width, int height, int limit, int expectedWidth, int expectedHeight)
     {
-        Assert.Equal(new PixelBounds(0, 0, 1029, 720), ViewportLayout.WorldRenderTarget(1280, 720, worldMap: true));
+        PixelBounds target = ViewportLayout.WorldRenderTarget(width, height, limit, worldMap: true);
+        Assert.Equal(new PixelBounds(0, 0, expectedWidth, expectedHeight), target);
+        Assert.InRange(Math.Max(target.Width, target.Height), 1, limit);
+    }
+
+    [Fact]
+    public void BattleTargetRetainsItsOriginalFourToThreeAspect()
+    {
         Assert.Equal(new PixelBounds(0, 0, 960, 720), ViewportLayout.WorldRenderTarget(1280, 720));
         foreach ((int width, int height) in new[] { (640, 480), (1280, 720), (3840, 2160), (800, 1200) })
         {
-            PixelBounds world = ViewportLayout.WorldRenderTarget(width, height, 1024, true);
-            Assert.True(Math.Abs(world.Width - world.Height * 10d / 7) <= 1);
-            Assert.InRange(Math.Max(world.Width, world.Height), 1, 1024);
+            PixelBounds battle = ViewportLayout.WorldRenderTarget(width, height, 1024);
+            Assert.True(Math.Abs(battle.Width - battle.Height * 4d / 3) <= 1);
+            Assert.InRange(Math.Max(battle.Width, battle.Height), 1, 1024);
         }
+    }
+
+    [Theory]
+    [InlineData(63)]
+    [InlineData(4097)]
+    public void WorldTargetRejectsUnsupportedResolutionLimits(int limit)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => ViewportLayout.WorldRenderTarget(1280, 720, limit, worldMap: true));
+    }
+
+    [Theory]
+    [InlineData(0, 720)]
+    [InlineData(1280, 0)]
+    [InlineData(-1, 720)]
+    [InlineData(1280, -1)]
+    public void WorldTargetRejectsNonpositiveViewportDimensions(int width, int height)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => ViewportLayout.WorldRenderTarget(width, height, worldMap: true));
     }
 
     [Fact]

@@ -5,8 +5,8 @@ using Microsoft.Win32.SafeHandles;
 
 namespace Memoria.FF8;
 
-/// <summary>Paces a variable-step battle host without accumulating missed display deadlines.</summary>
-internal sealed class BattlePresentationPacer : IDisposable
+/// <summary>Paces the display host without accumulating missed presentation deadlines.</summary>
+internal sealed class PresentationPacer : IDisposable
 {
     private const uint HighResolution = 2;
     private const uint TimerAccess = 0x00100002;
@@ -33,7 +33,7 @@ internal sealed class BattlePresentationPacer : IDisposable
         }
         if (now >= nextDeadline)
         {
-            nextDeadline = now + period;
+            nextDeadline = AdvanceDeadline(nextDeadline, now, period);
             return;
         }
         SafeWaitHandle handle = Timer();
@@ -51,15 +51,18 @@ internal sealed class BattlePresentationPacer : IDisposable
             }
             if (result != 0)
             {
-                throw new InvalidOperationException($"The battle presentation timer returned unexpected wait result 0x{result:X8}.");
+                throw new InvalidOperationException($"The presentation timer returned unexpected wait result 0x{result:X8}.");
             }
             now = Stopwatch.GetTimestamp();
         }
-        nextDeadline += period;
-        if (nextDeadline <= now)
-        {
-            nextDeadline = now + period;
-        }
+        nextDeadline = AdvanceDeadline(nextDeadline, now, period);
+    }
+
+    internal static double AdvanceDeadline(double deadline, double now, double period)
+    {
+        // A small overshoot must not permanently lower the selected display rate.
+        double next = deadline + period;
+        return next > now ? next : now + period;
     }
 
     public void Reset()
