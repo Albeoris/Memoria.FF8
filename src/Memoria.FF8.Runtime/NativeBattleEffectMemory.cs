@@ -41,6 +41,7 @@ public sealed partial record NativeBattleEffectMemory([property: JsonRequired] N
         DrinkMagic37?.Validate();
         Raldo19?.Validate();
         Effect20?.Validate();
+        Devour62?.Validate();
         MeltingBubble43?.Validate();
         MeltingBubble43Executable?.Validate();
         if (MeltingBubble43Executable is { } directory43 && (directory43.ResourceAddress != 0x15C6080 || directory43.InitializationFlag != 1 || directory43.Data is null))

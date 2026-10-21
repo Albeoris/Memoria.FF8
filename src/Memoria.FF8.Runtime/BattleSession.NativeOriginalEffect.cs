@@ -522,6 +522,10 @@ public sealed partial class BattleSession
         {
             return RunNativeEffect20(graphics, true);
         }
+        if (effect.Binding.Entry == NativeBattleDevour62Profile.Entry)
+        {
+            return RunNativeDevour62(graphics, true);
+        }
         if (effect.Binding.Entry == NativeBattleMeltingBubble43Profile.Entry)
         {
             return RunNativeMeltingBubble43(graphics, true);

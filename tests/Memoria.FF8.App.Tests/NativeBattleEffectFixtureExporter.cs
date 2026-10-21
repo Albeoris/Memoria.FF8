@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -15,6 +15,7 @@ internal sealed record NativeEffectFixtureRequest(string Id, ushort Effect, byte
     public int PartyModelId { get; init; }
     public byte? CrisisLevel { get; init; }
     public bool HealingContact { get; init; }
+    public ushort? ControlledContactValue { get; init; }
     public bool RevivalContact { get; init; }
     public bool PreserveOriginalFormationEnemies { get; init; }
     public int EncounterId { get; init; } = 94;
@@ -40,6 +41,10 @@ internal static class NativeBattleEffectFixtureExporter
         if (request.TargetActorIndex is not (0 or 3) && !(request.RevivalContact && request.TargetActorIndex == 1))
         {
             throw new InvalidDataException("This two-actor component supports explicit party0 or enemy3 contact targets only.");
+        }
+        if (request.ControlledContactValue is not null && (request.OrdinaryMagicAdmission || request.DeferredGuardianFormulaAdmission || request.HealingContact || request.RevivalContact))
+        {
+            throw new InvalidDataException("An explicit contact value requires the controlled post-formula component.");
         }
         if (request.RevivalContact && (!request.HealingContact || request.TargetActorIndex != 1 || request.OrdinaryMagicAdmission))
         {
@@ -167,6 +172,10 @@ internal static class NativeBattleEffectFixtureExporter
                 actors = [actors[0], .. enemyPlacements.Select((enemy, index) => new BattleCombatantDefinition { Id = index == 0 ? "enemy" : $"enemy-{enemy.Slot}", Name = assets.ReadEnemyName(enemy.ModelId), ModelId = enemy.ModelId, SceneSlot = enemy.Slot, Speed = 1, InitialHidden = enemy.Hidden, InitialUntargetable = enemy.Untargetable, InitialSuspended = enemy.InitiallySuspended })];
                 File.WriteAllText(Path.Combine(outputDirectory, "original-formation.json"), JsonSerializer.Serialize(new { formation.Id, formation.StageId, Enemies = enemyPlacements }));
             }
+            if (request.Effect == 62)
+            {
+                actors = actors.Select(actor => actor.IsPlayer ? actor : actor with { NativeSpecial = assets.ReadNativeEnemySpecial(actor.ModelId) }).ToArray();
+            }
             if (request.RevivalContact)
             {
                 actors = [actors[0], new() { Id = "target", Name = "Target", IsPlayer = true, ModelId = 0, WeaponId = 0, MaximumHp = 1000, CurrentHp = 7, NativeDeathCount = 0 }, actors[1]];
@@ -193,6 +202,7 @@ internal static class NativeBattleEffectFixtureExporter
                 StageId = formation.StageId,
                 ActionDefinitions = BattlePartyProjection.CreateActions(game.ReadNewGameCharacterVitals(), assets.ActionDefinitions),
                 NativeActions = assets.NativeActions.ToArray(),
+                NativeDevourEffects = request.Effect == 62 ? assets.ReadNativeDevourEffects() : [],
                 NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
                 NativeClockRules = request.OrdinaryMagicAdmission || request.Effect == 77 ? assets.ReadNativeClockRules() : null,
                 NativeBattleSpeed = request.Effect == 77 ? game.ReadNewGameInputConfiguration().NativeBattleSpeedByte : null,
@@ -326,8 +336,8 @@ internal static class NativeBattleEffectFixtureExporter
             _ = before.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.CasterActorIndex);
             (packets, int header) = packets.Prepare(new(request.CasterActorIndex, native.Command, sequence, -1, native.ActionId, SelectHeaderEffect(native, request), null));
             // Deferred guardian admission replaces this placeholder through the actual Boost/formula callback.
-            // Other component scenarios supply their declared post-formula seven-HP contact.
-            (packets, _) = packets.AppendContact(new(new(request.TargetActorIndex, native.DamagePresentation, request.TargetActorIndex == 3 ? (byte)1 : (byte)0, request.HealingContact ? (byte)1 : (byte)0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
+            // Other component scenarios supply their declared post-formula contact.
+            (packets, _) = packets.AppendContact(new(new(request.TargetActorIndex, native.DamagePresentation, request.TargetActorIndex == 3 ? (byte)1 : (byte)0, request.HealingContact ? (byte)1 : (byte)0, status.Saved, request.ControlledContactValue ?? 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
             (packets, _) = packets.Publish(1);
             NativeBattleGraphicsState graphics = before.NativeGraphics ?? throw new InvalidDataException("The current entry lacks its native graphics owner.");
             (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
@@ -367,7 +377,7 @@ internal static class NativeBattleEffectFixtureExporter
             }
             return new(request.Id, request.Effect, "fixture-only", boundary, "Effect execution and termination contract were not supplied; no effect completion was attempted or accepted.", artifacts.ToArray(), selection)
             {
-                Scenario = request.ControlledShellEffect is not null ? "Explicit direct-module selection using an authenticated original command shell; controlled seven-HP contact; no original kernel reference to the requested module, formula or ordinary command admission" : request.DeferredGuardianFormulaAdmission ? "Fresh installed-resource guardian component; enemy starts at10000HP; manual action104 header contains a seven-HP placeholder, replaced by the actual deferred Boost4850A0 formula callback; ordinary command/UI producer unproved" : request.RevivalContact ? "Fresh installed-resource three-actor component; controlled post-formula seven-HP revival with prior KO display; manual action104 descriptor; no story continuation or formula admission" : request.HealingContact ? "Fresh installed-resource component; controlled post-formula seven-HP healing; manual action104 descriptor; no story continuation or formula admission" : "Fresh installed-resource component; controlled post-formula seven-HP damage; manual action104 descriptor; no story continuation or formula admission"
+                Scenario = request.ControlledContactValue is ushort contactValue ? $"Fresh installed-resource component; controlled post-formula contact value{contactValue}; manual action104 descriptor; no story continuation or formula admission" : request.ControlledShellEffect is not null ? "Explicit direct-module selection using an authenticated original command shell; controlled seven-HP contact; no original kernel reference to the requested module, formula or ordinary command admission" : request.DeferredGuardianFormulaAdmission ? "Fresh installed-resource guardian component; enemy starts at10000HP; manual action104 header contains a seven-HP placeholder, replaced by the actual deferred Boost4850A0 formula callback; ordinary command/UI producer unproved" : request.RevivalContact ? "Fresh installed-resource three-actor component; controlled post-formula seven-HP revival with prior KO display; manual action104 descriptor; no story continuation or formula admission" : request.HealingContact ? "Fresh installed-resource component; controlled post-formula seven-HP healing; manual action104 descriptor; no story continuation or formula admission" : "Fresh installed-resource component; controlled post-formula seven-HP damage; manual action104 descriptor; no story continuation or formula admission"
             };
         }
         catch (Exception error)

@@ -70,22 +70,29 @@ public static class NativeBattleEffectCatalogReader
             {
                 return [ReadResource(BinaryPrimitives.ReadUInt32LittleEndian(code[1..]), BinaryPrimitives.ReadUInt32LittleEndian(code[14..]))];
             }
-            if (code[10] != 0x68 || code[15] != 0xA3)
+            uint nameAddress = BinaryPrimitives.ReadUInt32LittleEndian(code[1..]);
+            uint cursor = address + 10;
+            ImmutableArray<NativeBattleEffectInitializerResource>.Builder resources = ImmutableArray.CreateBuilder<NativeBattleEffectInitializerResource>();
+            while (true)
             {
-                return [];
+                code = Bytes(cursor, 15);
+                if (code[0] == 0x83 && code[1] == 0xC4 && unchecked((sbyte)code[2]) == 4 * (resources.Count + 1) && code[3] == 0xA3 && code[8] == 0xC3)
+                {
+                    resources.Add(ReadResource(nameAddress, BinaryPrimitives.ReadUInt32LittleEndian(code[4..])));
+                    if (resources.Select(resource => resource.GlobalAddress).Distinct().Count() != resources.Count)
+                    {
+                        throw new InvalidDataException("Native resource initializer aliases its publication globals.");
+                    }
+                    return resources.ToImmutable();
+                }
+                if (code[0] != 0x68 || code[5] != 0xA3 || code[10] != 0xE8 || cursor + 15L + BinaryPrimitives.ReadInt32LittleEndian(code[11..]) != 0x571B80)
+                {
+                    return [];
+                }
+                resources.Add(ReadResource(nameAddress, BinaryPrimitives.ReadUInt32LittleEndian(code[6..])));
+                nameAddress = BinaryPrimitives.ReadUInt32LittleEndian(code[1..]);
+                cursor += 15;
             }
-            code = Bytes(address, 34);
-            if (code[20] != 0xE8 || address + 25L + BinaryPrimitives.ReadInt32LittleEndian(code[21..]) != 0x571B80 || code[25] != 0x83 || code[26] != 0xC4 || code[27] != 8 || code[28] != 0xA3 || code[33] != 0xC3)
-            {
-                return [];
-            }
-            NativeBattleEffectInitializerResource first = ReadResource(BinaryPrimitives.ReadUInt32LittleEndian(code[1..]), BinaryPrimitives.ReadUInt32LittleEndian(code[16..]));
-            NativeBattleEffectInitializerResource second = ReadResource(BinaryPrimitives.ReadUInt32LittleEndian(code[11..]), BinaryPrimitives.ReadUInt32LittleEndian(code[29..]));
-            if (first.GlobalAddress == second.GlobalAddress)
-            {
-                throw new InvalidDataException("Native two-load initializer aliases its publication globals.");
-            }
-            return [first, second];
         }
 
         NativeBattleEffectInitializerResource ReadResource(uint nameAddress, uint global)
@@ -817,6 +824,11 @@ public sealed partial class GameAssets
             if (binding.Entry == NativeBattleEffect20Profile.Entry)
             {
                 binding = binding with { Effect20Resources = ReadNativeEffect20Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Entry == NativeBattleDevour62Profile.Entry)
+            {
+                binding = binding with { Devour62Resources = ReadNativeDevour62Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
             if (binding.Entry == NativeBattleMeltingBubble43Profile.Entry)
