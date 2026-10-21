@@ -1,6 +1,14 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed record BattleRewardSummary(IReadOnlyDictionary<byte, ushort> CharacterExperience, IReadOnlyDictionary<byte, ushort> GuardianForceExperience, IReadOnlyDictionary<int, ushort> GuardianForceAbilityPoints, BattleStock[] Items, byte[] Cards);
+public sealed record BattleCharacterRewardPresentation(byte Row, uint PreviousExperience, uint FinalExperience, byte PreviousLevel, byte FinalLevel, uint PreviousExperienceToNextLevel, uint ExperienceToNextLevel);
+public sealed record BattleGuardianForceRewardPresentation(int Id, byte PreviousLevel, byte FinalLevel, int[] LearnedAbilityIds);
+public sealed record BattleRewardSummary(IReadOnlyDictionary<byte, ushort> CharacterExperience, IReadOnlyDictionary<byte, ushort> GuardianForceExperience, IReadOnlyDictionary<int, ushort> GuardianForceAbilityPoints, BattleStock[] Items, byte[] Cards)
+{
+    public byte? AbilityPointsNotice { get; init; }
+    public BattleRewardOffer[] LootOffers { get; init; } = [];
+    public BattleCharacterRewardPresentation[] CharacterGrowth { get; init; } = [];
+    public BattleGuardianForceRewardPresentation[] GuardianForceGrowth { get; init; } = [];
+}
 public sealed record BattleResultOwners(NativeCharacterVitals CharacterVitals, NativeEconomy Economy, NativeCardInventory? Cards, BattleRewardSummary Rewards);
 
 /// <summary>Applies observed persistent battle effects and current reward rules without constructing or dispatching combat.</summary>
@@ -130,6 +138,7 @@ public static partial class BattleResultProjection
         }
         ApplyNativeGuardianForceCounters(result, guardianForces);
         vitals = vitals with { GuardianForces = guardianForces };
+        NativeCharacterVitals rewardSourceVitals = vitals;
         BattleExperienceAwards experience = new(new Dictionary<byte, ushort>(), new Dictionary<byte, ushort>());
         BattleLootOwners loot = new(economy with { Items = items }, ApplyNativeCardChange(result, sourceCards), [], []);
         if (result.Outcome == BattleOutcome.Victory && result.RewardPolicy == BattleRewardPolicy.NativeCombat)
@@ -146,7 +155,7 @@ public static partial class BattleResultProjection
                 {
                     grantedCards.Add(id);
                 }
-                loot = loot with { Cards = next };
+                loot = loot with { Cards = next, Offers = [.. loot.Offers, new BattleRewardOffer(true, id, 1, accepted == 0)] };
             }
             loot = loot with { CardsGranted = grantedCards.ToArray() };
         }
@@ -156,6 +165,7 @@ public static partial class BattleResultProjection
             throw new InvalidDataException("Observed GF reward eligibility disagrees with the current canonical junction/HP owners.");
         }
         Dictionary<int, ushort> abilityPoints = [];
+        byte abilityPointsNotice = 0;
         if (eligible.Length > 0)
         {
             ushort points = 0;
@@ -169,6 +179,10 @@ public static partial class BattleResultProjection
             }
             foreach (int id in eligible)
             {
+                if (vitals.GuardianForceAbilities(id).Any(ability => !ability.Learned && ability.Ability == vitals.GuardianForces[id].Learning))
+                {
+                    abilityPointsNotice = unchecked((byte)points);
+                }
                 vitals = vitals.AwardGuardianForceAbilityPoints(id, points);
                 abilityPoints[id] = points;
             }
@@ -181,7 +195,7 @@ public static partial class BattleResultProjection
         {
             vitals = MagicCastingService.RecoverVictory(vitals, result.Encounter.OccurrenceId);
         }
-        return new BattleResultOwners(vitals.RebuildParty(), loot.Economy, loot.Cards, new BattleRewardSummary(experience.Characters, experience.GuardianForces, abilityPoints, loot.ItemsGranted, loot.CardsGranted));
+        return new BattleResultOwners(vitals.RebuildParty(), loot.Economy, loot.Cards, new BattleRewardSummary(experience.Characters, experience.GuardianForces, abilityPoints, loot.ItemsGranted, loot.CardsGranted) { AbilityPointsNotice = abilityPointsNotice, LootOffers = NativeBattleResultPresentation.GroupLootOffers(loot.Offers), CharacterGrowth = NativeBattleResultPresentation.BuildCharacters(rewardSourceVitals, vitals), GuardianForceGrowth = NativeBattleResultPresentation.BuildGuardianForces(rewardSourceVitals, vitals) });
     }
 
     public static int[] EligibleGuardianForces(NativeCharacterVitals vitals)

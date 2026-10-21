@@ -4,7 +4,7 @@ using Memoria.FF8.Ui;
 namespace Memoria.FF8.GameUi;
 
 /// <summary>Procedural FF8-style command panels and party ATB gauges.</summary>
-internal sealed class BattleHudElement : UiElement
+internal sealed partial class BattleHudElement : UiElement
 {
     private readonly BattleHudController controller;
     private float Scale => Math.Min(Bounds.Width / 960, Bounds.Height / 672);
@@ -33,6 +33,15 @@ internal sealed class BattleHudElement : UiElement
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
     {
         BattleSession session = controller.Session;
+        if (session.Outcome == BattleOutcome.Victory)
+        {
+            DrawResults(canvas, theme);
+            if (controller.ResultOpacity < 1)
+            {
+                canvas.Fill(Bounds, new UiColor(0, 0, 0, (byte)(255 * (1 - controller.ResultOpacity))));
+            }
+            return;
+        }
         if (!controller.CommandMenuHidden && controller.BattleMessageDocument is { } battleMessage && session.Outcome == BattleOutcome.Active)
         {
             theme.Panel(canvas, Rect(240, 12, 480, 84));
@@ -119,10 +128,6 @@ internal sealed class BattleHudElement : UiElement
             theme.Panel(canvas, Rect(748, 464, 186, 40));
             Text(canvas, theme, $"Skip · {controller.GuardianFormSkipBindingHint}", 760, 471, 162, 28, 16);
         }
-        if (session.Outcome == BattleOutcome.Victory)
-        {
-            DrawRewards(canvas, theme);
-        }
         if (session.ActiveAction is { Phase: BattleActionPhase.Recovery } action && session.Events.Any(item => item.Kind == "GunbladeTrigger" && item.ActorId == action.ActorId && session.Frame - item.Frame < BattleSession.AttackRecoveryFrames))
         {
             Text(canvas, theme, "TRIGGER!", 372, 100, 280, 48, 30);
@@ -141,21 +146,6 @@ internal sealed class BattleHudElement : UiElement
                 theme.Pointer(canvas, Left + 38 * Scale, Top + (y + 5) * Scale, 10 * Scale);
             }
             Text(canvas, theme, actor.Name, 60, y, 156, 26, 20);
-        }
-    }
-
-    private void DrawRewards(IUiCanvas canvas, UiTheme theme)
-    {
-        theme.Panel(canvas, Rect(120, 28, 720, 404));
-        Text(canvas, theme, "VICTORY · REWARDS", 144, 46, 672, 34, 24);
-        IReadOnlyList<string> lines = controller.VisibleRewardLines;
-        for (int index = 0; index < lines.Count; index++)
-        {
-            Text(canvas, theme, lines[index], 144, 98 + index * 32, 672, 30, 20);
-        }
-        if (controller.RewardPageCount > 1)
-        {
-            Text(canvas, theme, $"<     {controller.RewardPage + 1} / {controller.RewardPageCount}     >", 144, 382, 672, 28, 16);
         }
     }
 
@@ -210,11 +200,15 @@ internal sealed class BattleHudElement : UiElement
         {
             return;
         }
-        if (controller.Session.Outcome == BattleOutcome.Victory && Rect(144, 376, 672, 40).Contains(x, y))
+        if (controller.Session.Outcome == BattleOutcome.Victory)
         {
-            controller.ChangeRewardPage(x < Rect(480, 0, 0, 0).X ? -1 : 1);
+            if (ResultRect(16, 184, 352, 26).Contains(x, y))
+            {
+                controller.ConfirmResult();
+            }
+            return;
         }
-        else if (Rect(30, 516, CommandWidth, 132).Contains(x, y))
+        if (Rect(30, 516, CommandWidth, 132).Contains(x, y))
         {
             if (controller.Session.Outcome != BattleOutcome.Active)
             {

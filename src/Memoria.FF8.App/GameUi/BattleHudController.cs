@@ -19,7 +19,6 @@ public sealed partial class BattleHudController
     private readonly Func<int, string> cardName;
     private readonly IReadOnlyDictionary<int, string>? battleNames;
     private readonly bool hasGuardianForceNames;
-    private IReadOnlyList<string>? rewardLines;
     private bool completionRequested;
     private int commandIndex;
     private int actionIndex;
@@ -55,11 +54,6 @@ public sealed partial class BattleHudController
     public float TextScale { get; set; } = 1;
     public string GunbladeBindingHint { get; set; } = "G / RB";
     internal string GuardianForceDisplayName(int id) => guardianForceName(id);
-    public const int RewardLinesPerPage = 8;
-    public int RewardPage { get; private set; }
-    public IReadOnlyList<string> RewardLines => session.Outcome == BattleOutcome.Victory ? rewardLines ??= BuildRewardLines() : [];
-    public int RewardPageCount => Math.Max(1, (RewardLines.Count + RewardLinesPerPage - 1) / RewardLinesPerPage);
-    public IReadOnlyList<string> VisibleRewardLines => RewardLines.Skip(RewardPage * RewardLinesPerPage).Take(RewardLinesPerPage).ToArray();
     public IReadOnlyList<BattleCombatant> Party => session.Combatants.Where(actor => actor.IsPlayer).ToArray();
     public IReadOnlyList<BattleAbility> Commands => GetPlayerCommandChoices();
     public BattleAbility SelectedCommand
@@ -204,11 +198,14 @@ public sealed partial class BattleHudController
         {
             if (input == MenuInput.Confirm)
             {
-                Complete();
-            }
-            else if (session.Outcome == BattleOutcome.Victory && input is MenuInput.Up or MenuInput.Down or MenuInput.Left or MenuInput.Right or MenuInput.PageLeft or MenuInput.PageRight or MenuInput.PageUp or MenuInput.PageDown)
-            {
-                ChangeRewardPage(input is MenuInput.Up or MenuInput.Left or MenuInput.PageLeft or MenuInput.PageUp ? -1 : 1);
+                if (session.Outcome == BattleOutcome.Victory)
+                {
+                    ConfirmResult();
+                }
+                else
+                {
+                    Complete();
+                }
             }
             return;
         }
@@ -546,57 +543,6 @@ public sealed partial class BattleHudController
             }
             SoundRequested?.Invoke(MenuSound.Confirm);
         }
-    }
-
-    public void ChangeRewardPage(int direction)
-    {
-        if (session.Outcome != BattleOutcome.Victory || RewardPageCount <= 1 || direction == 0)
-        {
-            return;
-        }
-        RewardPage = (RewardPage + Math.Sign(direction) + RewardPageCount) % RewardPageCount;
-        SoundRequested?.Invoke(MenuSound.Move);
-    }
-
-    private IReadOnlyList<string> BuildRewardLines()
-    {
-        BattleRewardSummary? rewards = previewRewards?.Invoke();
-        if (rewards is null)
-        {
-            return ["Standalone battle: rewards are not saved."];
-        }
-        List<string> lines = [];
-        foreach ((byte row, ushort experience) in rewards.CharacterExperience.OrderBy(pair => pair.Key))
-        {
-            string name = Party.FirstOrDefault(actor => actor.Id == $"party-{row}")?.Name ?? $"Character {row}";
-            lines.Add($"{name}   EXP +{experience}");
-        }
-        if (rewards.CharacterExperience.Count == 0)
-        {
-            lines.Add("Character EXP +0");
-        }
-        int[] guardianForces = rewards.GuardianForceExperience.Keys.Select(id => (int)id).Union(rewards.GuardianForceAbilityPoints.Keys).Order().ToArray();
-        foreach (int id in guardianForces)
-        {
-            lines.Add($"{guardianForceName(id)}   EXP +{rewards.GuardianForceExperience.GetValueOrDefault(checked((byte)id))}   AP +{rewards.GuardianForceAbilityPoints.GetValueOrDefault(id)}");
-        }
-        if (guardianForces.Length == 0)
-        {
-            lines.Add("GF EXP +0   AP +0");
-        }
-        foreach (BattleStock item in rewards.Items)
-        {
-            lines.Add($"{itemName(item.Id)}   x{item.Count}");
-        }
-        if (rewards.Items.Length == 0)
-        {
-            lines.Add("Items: none");
-        }
-        foreach (IGrouping<byte, byte> card in rewards.Cards.GroupBy(id => id))
-        {
-            lines.Add($"{cardName(card.Key)}   x{card.Count()}");
-        }
-        return lines.AsReadOnly();
     }
 
     private void CancelTarget()

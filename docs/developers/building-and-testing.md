@@ -72,6 +72,8 @@ dotnet run --project tests/Memoria.FF8.App.Tests -c Release -- --filter-class '*
 | `Memoria.FF8.App.Tests` | Host integration, game UI, media and automated exploration. |
 | `Memoria.FF8.Remastered.Tests` | Optional synthetic and installed Remastered resource checks. |
 
+`BattleResultsRenderTests` renders the result pages at 640×448 and 1280×896 using installed text and artwork. Set `MEMORIA_FF8_RESULT_UI_OUTPUT` to a local directory to retain the page PNGs for inspection. These component previews do not modify a save.
+
 Some tests require a locally supplied game or a specific fixture. A skipped optional test does not establish support for its scenario. The separate [acceptance tool](../../tests/Memoria.FF8.Acceptance/Memoria.FF8.Acceptance.csproj) also requires external tooling and inputs; it is not a portable game test included in `Build.ps1 -Test`.
 
 For field animation changes, run the portable `FieldActorCaptureTests` in App.Tests and `FieldPoseInterpolationTests` / `FieldRenderInterpolationTests` in Assets.Tests. With `MEMORIA_FF8_GAME_DIR` configured, also run App.Tests with `--filter-class '*OpeningPresentationTests'`. Both opening cases must pass without skips: they start from a cold process and render through the playable corridor, including the beginning, midpoint and end of each presentation interval at 60 FPS. Hosted CI has no original game data, so its portable regression gate cannot replace this installed-resource check.

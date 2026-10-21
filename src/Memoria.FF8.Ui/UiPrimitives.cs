@@ -106,6 +106,23 @@ public interface IUiCanvas
         Fill(bounds, color);
     }
     void Text(string text, float fontSize, UiRect bounds, UiColor color);
+    /// <summary>Positions text horizontally using the canvas's own glyph measurements.</summary>
+    void AlignedText(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment horizontalAlignment)
+    {
+        if (horizontalAlignment is UiAlignment.Start or UiAlignment.Stretch)
+        {
+            Text(text, fontSize, bounds, color);
+            return;
+        }
+        UiSize measured = MeasureText(text, fontSize, bounds.Width);
+        float offset = Math.Max(0, bounds.Width - measured.Width);
+        if (horizontalAlignment == UiAlignment.Center)
+        {
+            offset /= 2;
+        }
+        Text(text, fontSize, new UiRect(bounds.X + offset, bounds.Y, bounds.Width - offset, bounds.Height), color);
+    }
+
     /// <summary>Measures the same wrapped glyph bounds used by Text, in canvas coordinates.</summary>
     UiSize MeasureText(string text, float fontSize, float maximumWidth)
     {

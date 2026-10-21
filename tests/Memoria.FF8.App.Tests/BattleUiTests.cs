@@ -93,7 +93,7 @@ public sealed class BattleUiTests
     }
 
     [Fact]
-    public void Terminal_confirm_and_pointer_use_completion_callback_without_battle_mutation()
+    public void Terminal_confirm_and_pointer_advance_results_before_single_completion()
     {
         BattleSession session = new(Definition(), BattleAtbMode.Normal);
         int completions = 0;
@@ -103,17 +103,37 @@ public sealed class BattleUiTests
         session.InstantVictory();
         long frame = session.Frame;
         hud.Navigate(MenuInput.Confirm);
-        hud.BuildView().Pointer(100, 560, true);
+        Assert.False(hud.ExperienceCounting);
+        Assert.False(hud.ExperienceFinished);
+        Assert.Equal(0, completions);
+        ConfirmSettledResult(hud);
+        Assert.True(hud.ExperienceFinished);
+        Assert.Equal(BattleResultPage.Experience, hud.ResultPage);
+        Assert.Equal(0, completions);
+        UiView view = hud.BuildView();
+        view.Resize(960, 672);
+        SettleResultFade(hud);
+        view.Pointer(100, 575, true);
+        Assert.Equal(BattleResultPage.Items, hud.ResultPage);
+        Assert.Equal(0, completions);
+        SettleResultFade(hud);
+        view.Pointer(100, 575, true);
+        ConfirmSettledResult(hud);
         Assert.Equal(1, completions);
         Assert.Equal(frame, session.Frame);
         Assert.Equal(BattleOutcome.Victory, session.Outcome);
     }
 
     [Fact]
-    public void Victory_rewards_preview_is_cached_and_paged_without_applying_until_confirm()
+    public void Victory_rewards_preview_is_cached_and_confirmed_in_native_result_order()
     {
         BattleSession session = new(Definition(), BattleAtbMode.TurnBased);
-        BattleRewardSummary rewards = new(new Dictionary<byte, ushort> { [0] = 123 }, Enumerable.Range(0, 9).ToDictionary(id => (byte)id, id => (ushort)(id + 10)), Enumerable.Range(0, 9).ToDictionary(id => id, _ => (ushort)3), [new BattleStock(7, 2)], [4]);
+        BattleRewardSummary rewards = new(new Dictionary<byte, ushort> { [0] = 123 }, Enumerable.Range(0, 9).ToDictionary(id => (byte)id, id => (ushort)(id + 10)), Enumerable.Range(0, 9).ToDictionary(id => id, _ => (ushort)3), [new BattleStock(7, 2)], [4])
+        {
+            AbilityPointsNotice = 3,
+            CharacterGrowth = [new(0, 100, 223, 1, 2, 100, 177)],
+            GuardianForceGrowth = [new(2, 1, 2, [5])]
+        };
         int previews = 0;
         int completions = 0;
         BattleHudController hud = new(session, session.QueueAttack, () => { }, () => session.AdvanceTurn(), () => completions++, previewRewards: () =>
@@ -121,44 +141,102 @@ public sealed class BattleUiTests
             previews++;
             return rewards;
         }, guardianForceName: id => $"Guardian {id}", itemName: _ => "Potion", cardName: _ => "Bite Bug");
-        Assert.Empty(hud.RewardLines);
         Assert.Equal(0, previews);
         session.InstantVictory();
         string before = JsonSerializer.Serialize(session.Capture());
-        Assert.Contains("Squall   EXP +123", hud.VisibleRewardLines);
-        Assert.Contains("Guardian 0   EXP +10   AP +3", hud.VisibleRewardLines);
-        Assert.Equal(2, hud.RewardPageCount);
-        Assert.Equal(8, hud.VisibleRewardLines.Count);
-        hud.Navigate(MenuInput.Right);
-        Assert.Equal(1, hud.RewardPage);
-        Assert.Contains("Guardian 8   EXP +18   AP +3", hud.VisibleRewardLines);
-        Assert.Contains("Potion   x2", hud.VisibleRewardLines);
-        Assert.Contains("Bite Bug   x1", hud.VisibleRewardLines);
         TestCanvas canvas = new();
-        hud.BuildView().Draw(canvas, new UiTheme());
-        Assert.Contains("VICTORY · REWARDS", canvas.Texts);
-        Assert.Contains("Potion   x2", canvas.Texts);
+        UiView view = hud.BuildView();
+        view.Resize(960, 672);
+        SettleResultFade(hud);
+        view.Draw(canvas, new UiTheme());
+        Assert.Contains("EXP received", canvas.Texts);
+        Assert.Contains("Squall", canvas.Texts);
+        Assert.DoesNotContain("Bite Bug A", canvas.Texts);
+        Assert.DoesNotContain("Attack", canvas.Texts);
+        Assert.Contains(canvas.Fills, fill => fill.Color == new UiColor(0, 0, 0) && fill.Bounds.Width == 960 && fill.Bounds.Height == 672);
+        foreach (float rowY in new[] { 102f, 252f, 402f })
+        {
+            Assert.Contains(new UiRect(75, rowY, 807.5f, 150), canvas.Clips);
+        }
         Assert.Equal(1, previews);
+        foreach (MenuInput input in new[] { MenuInput.Left, MenuInput.Right, MenuInput.Up, MenuInput.Down, MenuInput.Cancel })
+        {
+            hud.Navigate(input);
+            Assert.Equal(BattleResultPage.Experience, hud.ResultPage);
+        }
+        ConfirmSettledResult(hud);
+        Assert.True(hud.ExperienceCounting);
+        hud.AdvancePresentation(TimeSpan.FromMilliseconds(10));
+        SettleResultFade(hud);
+        view.Draw(canvas, new UiTheme());
+        ConfirmSettledResult(hud);
+        Assert.True(hud.ExperienceFinished);
+        Assert.Equal(BattleResultPage.Experience, hud.ResultPage);
+        Assert.Equal(0, completions);
+        ConfirmSettledResult(hud);
+        Assert.Equal(BattleResultPage.Items, hud.ResultPage);
+        canvas.Texts.Clear();
+        SettleResultFade(hud);
+        view.Draw(canvas, new UiTheme());
+        Assert.Contains("Potion", canvas.Texts);
+        hud.Navigate(MenuInput.Right);
+        hud.Navigate(MenuInput.Cancel);
+        Assert.Equal(BattleResultPage.Items, hud.ResultPage);
+        ConfirmSettledResult(hud);
+        canvas.Texts.Clear();
+        SettleResultFade(hud);
+        view.Draw(canvas, new UiTheme());
+        Assert.Contains("Received!", canvas.Texts);
+        Assert.Contains("Potion", canvas.Texts);
+        ConfirmSettledResult(hud);
+        canvas.Texts.Clear();
+        SettleResultFade(hud);
+        view.Draw(canvas, new UiTheme());
+        Assert.Contains("Bite Bug Card", canvas.Texts);
+        ConfirmSettledResult(hud);
+        Assert.Equal(BattleResultPage.Items, hud.ResultPage);
+        hud.AdvancePresentation(TimeSpan.FromTicks((long)Math.Ceiling(32d * TimeSpan.TicksPerSecond / BattleSession.FramesPerSecond)));
+        Assert.Equal(BattleResultPage.AbilityPoints, hud.ResultPage);
+        Assert.Equal(0, completions);
+        ConfirmSettledResult(hud);
+        Assert.Equal(BattleResultPage.GuardianForce, hud.ResultPage);
+        canvas.Texts.Clear();
+        SettleResultFade(hud);
+        view.Draw(canvas, new UiTheme());
+        Assert.Contains("G.F. Guardian 2 Level Up!", canvas.Texts);
+        Assert.DoesNotContain(canvas.Texts, text => text.Contains("Guardian 0", StringComparison.Ordinal));
         Assert.Equal(0, completions);
         Assert.Equal(before, JsonSerializer.Serialize(session.Capture()));
-        hud.Navigate(MenuInput.Left);
-        Assert.Equal(0, hud.RewardPage);
-        hud.Navigate(MenuInput.Confirm);
-        hud.Complete();
+        ConfirmSettledResult(hud);
+        ConfirmSettledResult(hud);
         Assert.Equal(1, completions);
         Assert.Equal(1, previews);
+        Assert.Equal(before, JsonSerializer.Serialize(session.Capture()));
     }
 
     [Fact]
-    public void Standalone_victory_explains_rewards_are_not_saved()
+    public void Standalone_victory_explains_unsaved_rewards_and_requires_no_items_acknowledgment()
     {
         BattleSession session = new(Definition(), BattleAtbMode.Normal);
-        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { });
+        int completions = 0;
+        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { }, () => completions++);
         session.InstantVictory();
-        Assert.Equal("Standalone battle: rewards are not saved.", Assert.Single(hud.RewardLines));
-        Assert.Equal(1, hud.RewardPageCount);
-        hud.ChangeRewardPage(1);
-        Assert.Equal(0, hud.RewardPage);
+        TestCanvas canvas = new();
+        SettleResultFade(hud);
+        hud.BuildView().Draw(canvas, new UiTheme());
+        Assert.Contains("Standalone battle: rewards are not saved.", canvas.Texts);
+        ConfirmSettledResult(hud);
+        Assert.True(hud.ExperienceFinished);
+        ConfirmSettledResult(hud);
+        Assert.Equal(BattleResultPage.Items, hud.ResultPage);
+        Assert.Equal(0, completions);
+        canvas.Texts.Clear();
+        SettleResultFade(hud);
+        hud.BuildView().Draw(canvas, new UiTheme());
+        Assert.Contains("No items found.", canvas.Texts);
+        ConfirmSettledResult(hud);
+        ConfirmSettledResult(hud);
+        Assert.Equal(1, completions);
     }
 
     [Theory]
@@ -260,6 +338,91 @@ public sealed class BattleUiTests
         }
     }
 
+    [Fact]
+    public void AcknowledgedItemsAutomaticallyAdvanceAfterTheirNativeWaits()
+    {
+        BattleSession session = new(Definition(), BattleAtbMode.Normal);
+        BattleRewardSummary rewards = new(new Dictionary<byte, ushort>(), new Dictionary<byte, ushort>(), new Dictionary<int, ushort>(), [new BattleStock(1, 2), new BattleStock(2, 1)], []);
+        int completions = 0;
+        BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, () => completions++, previewRewards: () => rewards);
+        session.InstantVictory();
+        ConfirmSettledResult(hud);
+        ConfirmSettledResult(hud);
+        ConfirmSettledResult(hud);
+        Assert.True(hud.ItemAcknowledged);
+        hud.AdvancePresentation(TimeSpan.FromTicks((long)Math.Ceiling(16d * TimeSpan.TicksPerSecond / BattleSession.FramesPerSecond)));
+        Assert.Equal(1, hud.ResultItemIndex);
+        Assert.False(hud.ItemAcknowledged);
+        Assert.Equal(0, completions);
+        ConfirmSettledResult(hud);
+        hud.AdvancePresentation(TimeSpan.FromTicks((long)Math.Ceiling(16d * TimeSpan.TicksPerSecond / BattleSession.FramesPerSecond)));
+        Assert.Equal(0, completions);
+        hud.AdvancePresentation(TimeSpan.FromTicks((long)Math.Ceiling(16d * TimeSpan.TicksPerSecond / BattleSession.FramesPerSecond)));
+        Assert.Equal(1, completions);
+    }
+
+    [Fact]
+    public void ExperienceCountdownUsesElapsedTimeAtThirtyAndSixtyUpdatesPerSecond()
+    {
+        BattleSession slowSession = new(Definition(), BattleAtbMode.Normal);
+        BattleSession fastSession = new(Definition(), BattleAtbMode.Normal);
+        BattleRewardSummary rewards = new(new Dictionary<byte, ushort> { [0] = 1000 }, new Dictionary<byte, ushort>(), new Dictionary<int, ushort>(), [], []);
+        BattleHudController slow = new(slowSession, (_, _) => { }, () => { }, () => { }, previewRewards: () => rewards);
+        BattleHudController fast = new(fastSession, (_, _) => { }, () => { }, () => { }, previewRewards: () => rewards);
+        slowSession.InstantVictory();
+        fastSession.InstantVictory();
+        ConfirmSettledResult(slow);
+        ConfirmSettledResult(fast);
+        foreach ((BattleHudController hud, int rate) in new[] { (slow, 30), (fast, 60) })
+        {
+            for (int index = 0; index < rate; index++)
+            {
+                long from = index * TimeSpan.TicksPerSecond / rate;
+                long to = (index + 1) * TimeSpan.TicksPerSecond / rate;
+                hud.AdvancePresentation(TimeSpan.FromTicks(to - from));
+            }
+        }
+        Assert.Equal(slow.RemainingExperience(slow.Party[0]), fast.RemainingExperience(fast.Party[0]));
+        Assert.True(slow.ExperienceCounting);
+        Assert.True(fast.ExperienceCounting);
+    }
+
+    [Fact]
+    public void FinalAcknowledgedItemWaitCannotBeSkippedByConfirm()
+    {
+        BattleSession session = new(Definition(), BattleAtbMode.Normal);
+        BattleRewardSummary rewards = new(new Dictionary<byte, ushort>(), new Dictionary<byte, ushort>(), new Dictionary<int, ushort>(), [new BattleStock(1, 1)], []);
+        int completions = 0;
+        BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, () => completions++, previewRewards: () => rewards);
+        session.InstantVictory();
+        ConfirmSettledResult(hud);
+        ConfirmSettledResult(hud);
+        ConfirmSettledResult(hud);
+        Assert.True(hud.ItemAcknowledged);
+        ConfirmSettledResult(hud);
+        Assert.Equal(0, completions);
+        hud.AdvancePresentation(TimeSpan.FromTicks((long)Math.Ceiling(16d * TimeSpan.TicksPerSecond / BattleSession.FramesPerSecond)));
+        ConfirmSettledResult(hud);
+        Assert.Equal(0, completions);
+        hud.AdvancePresentation(TimeSpan.FromTicks((long)Math.Ceiling(16d * TimeSpan.TicksPerSecond / BattleSession.FramesPerSecond)));
+        Assert.Equal(1, completions);
+    }
+
+    private static void SettleResultFade(BattleHudController hud)
+    {
+        double frames = (1 - hud.ResultOpacity) * 16;
+        if (frames > 0)
+        {
+            hud.AdvancePresentation(TimeSpan.FromTicks((long)Math.Ceiling(frames * TimeSpan.TicksPerSecond / BattleSession.FramesPerSecond)));
+        }
+    }
+
+    private static void ConfirmSettledResult(BattleHudController hud)
+    {
+        SettleResultFade(hud);
+        hud.Navigate(MenuInput.Confirm);
+    }
+
     private static BattleDefinition Definition()
     {
         return new BattleDefinition
@@ -281,8 +444,15 @@ public sealed class BattleUiTests
     private sealed class TestCanvas : IUiCanvas
     {
         public List<string> Texts { get; } = [];
+        public List<(UiRect Bounds, UiColor Color)> Fills { get; } = [];
+        public List<UiRect> Clips { get; } = [];
+        public UiSize MeasureText(string text, float fontSize, float maximumWidth)
+        {
+            return new UiSize(Math.Min(maximumWidth, text.Length * fontSize * 0.5f), fontSize);
+        }
         public void Fill(UiRect bounds, UiColor color)
         {
+            Fills.Add((bounds, color));
         }
 
         public void Text(string text, float fontSize, UiRect bounds, UiColor color)
@@ -309,6 +479,7 @@ public sealed class BattleUiTests
 
         public void PushClip(UiRect bounds)
         {
+            Clips.Add(bounds);
         }
 
         public void PopClip()

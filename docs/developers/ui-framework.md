@@ -8,6 +8,8 @@ The detailed element contract and control properties are in the [UI library READ
 
 ## Layout and drawing
 
+`IUiCanvas.AlignedText` places text at the start, center or end of a rectangle using the active canvas's glyph measurements. Center/end alignment requires `MeasureText`; text and measurement use the same font size and available width.
+
 Create a root container, add its children, construct `UiView` and call `Resize`. Set both `DesignWidth` and `DesignHeight` to fit and letterbox a design rectangle; drawing, clipping and pointer coordinates use the same mapping. Without a design size, layout fills the viewport. `InvalidateLayout()` requests arrangement after changes to children, sizing or track definitions. Repeated resize calls with unchanged dimensions reuse layout.
 
 `UiGrid` supports `Auto`, `Pixel(size)` and `Star(weight)` tracks. Assign `GridRow`, `GridColumn`, row/column spans and alignment on children. With no explicit track definitions or placements, `Columns` supplies equal tracks and children flow by row. Use a grid for unequal rows. `UiAnchorPanel` supplies parent-relative edges through `UiAnchors`. `UiPanel` fills its content rectangle, and `UiStack` divides available space equally among visible children.

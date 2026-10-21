@@ -64,7 +64,11 @@ public sealed record BattleEnemyRewardDefinition(ushort KillExperience, ushort S
 }
 
 public sealed record BattleExperienceAwards(IReadOnlyDictionary<byte, ushort> Characters, IReadOnlyDictionary<byte, ushort> GuardianForces);
-public sealed record BattleLootOwners(NativeEconomy Economy, NativeCardInventory? Cards, BattleStock[] ItemsGranted, byte[] CardsGranted);
+public sealed record BattleRewardOffer(bool IsCard, int Id, int Quantity, bool Accepted);
+public sealed record BattleLootOwners(NativeEconomy Economy, NativeCardInventory? Cards, BattleStock[] ItemsGranted, byte[] CardsGranted)
+{
+    public BattleRewardOffer[] Offers { get; init; } = [];
+}
 
 public static class NativeBattleRewardDistribution
 {
@@ -109,11 +113,13 @@ public static class NativeBattleRewardDistribution
                 gathered[index] = stock with { Count = unchecked((byte)(gathered[index].Count + stock.Count)) };
             }
         }
+        List<BattleRewardOffer> offers = [];
         List<BattleStock> granted = [];
         foreach (BattleStock item in gathered)
         {
             int before = nextEconomy.Items.FirstOrDefault(stock => stock.ItemId == item.Id)?.Count ?? 0;
-            nextEconomy = nextEconomy.AddItem(item.Id, item.Count, out _);
+            nextEconomy = nextEconomy.AddItem(item.Id, item.Count, out int nativeResult);
+            offers.Add(new BattleRewardOffer(false, item.Id, item.Count, nativeResult == 0));
             nextEconomy = nextEconomy.UpdateItemOrder(item.Id);
             int after = nextEconomy.Items.FirstOrDefault(stock => stock.ItemId == item.Id)?.Count ?? 0;
             if (after > before)
@@ -131,12 +137,13 @@ public static class NativeBattleRewardDistribution
             }
             NativeCardInventory owner = nextCards ?? throw new InvalidDataException("Selected battle card rewards require their actual native card inventory owner.");
             nextCards = owner.Acquire(id, out int result);
+            offers.Add(new BattleRewardOffer(true, id, 1, result == 0));
             if (result == 0)
             {
                 grantedCards.Add(id);
             }
         }
-        return new BattleLootOwners(nextEconomy, nextCards, granted.ToArray(), grantedCards.ToArray());
+        return new BattleLootOwners(nextEconomy, nextCards, granted.ToArray(), grantedCards.ToArray()) { Offers = offers.ToArray() };
     }
 
     public static BattleExperienceAwards Experience(IReadOnlyList<BattleEnemyDefeat> defeats, NativeCharacterVitals vitals, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> definitions, bool noExperience)
