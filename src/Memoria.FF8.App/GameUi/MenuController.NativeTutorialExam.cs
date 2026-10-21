@@ -17,6 +17,7 @@ public sealed partial class MenuController
     private NativeTutorialExamResult? _nativeExamResult;
     private int _nativeInformationNode;
     private readonly Stack<int> _nativeInformationHistory = [];
+    private readonly Dictionary<int, int> _nativeInformationSelections = [];
 
     public NativeTutorialExamProgress? NativeTutorialExamProgress => _nativeExamProgress;
     public NativeTutorialExamResult? NativeTutorialExamResult => _nativeExamResult;
@@ -66,6 +67,7 @@ public sealed partial class MenuController
             _nativeExamResult = null;
             _nativeInformationNode = 0;
             _nativeInformationHistory.Clear();
+            _nativeInformationSelections.Clear();
             return true;
         }
         if (_nativeExamProgress is null || !int.TryParse(action.SubjectId, NumberStyles.None, CultureInfo.InvariantCulture, out int value))
@@ -114,8 +116,7 @@ public sealed partial class MenuController
                 throw new InvalidOperationException("Selected Information link is not present in the visible original page.");
             }
             _nativeInformationHistory.Push(_nativeInformationNode);
-            _nativeInformationNode = value;
-            _selections[ScreenId] = 0;
+            OpenNativeInformationNode(value);
             _view = null;
             return true;
         }
@@ -163,17 +164,16 @@ public sealed partial class MenuController
         {
             if (_nativeInformationHistory.TryPop(out int previous))
             {
-                _nativeInformationNode = previous;
+                OpenNativeInformationNode(previous);
             }
             else if (page.Node.OriginId != ushort.MaxValue)
             {
-                _nativeInformationNode = page.Node.OriginId;
+                OpenNativeInformationNode(page.Node.OriginId);
             }
             else
             {
                 Back();
             }
-            _selections[ScreenId] = 0;
             _view = null;
             return true;
         }
@@ -185,12 +185,18 @@ public sealed partial class MenuController
         };
         if (destination != ushort.MaxValue)
         {
-            _nativeInformationNode = destination;
-            _selections[ScreenId] = 0;
+            OpenNativeInformationNode(destination);
             _view = null;
             return true;
         }
         return false;
+    }
+
+    private void OpenNativeInformationNode(int node)
+    {
+        _nativeInformationSelections[_nativeInformationNode] = SelectedIndex;
+        _nativeInformationNode = node;
+        _selections[ScreenId] = _nativeInformationSelections.GetValueOrDefault(node);
     }
 
     private IReadOnlyList<MenuEntry> NativeExamStartEntries()

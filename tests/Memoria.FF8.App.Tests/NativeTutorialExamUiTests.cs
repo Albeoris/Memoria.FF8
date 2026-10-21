@@ -205,6 +205,58 @@ public sealed class NativeTutorialExamUiTests
         Assert.Equal("tutorial", menu.ScreenId);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InformationRestoresTheSelectedTermAndListPageAfterCancel(bool secondPage)
+    {
+        using GameAssets assets = InstalledAssets();
+        MenuController menu = new();
+        menu.ConnectNativeTutorials(assets.ReadNativeTutorialCatalog(), assets.ReadNativeTutorialBrowserCatalog(), () => new HashSet<int>(), _ => { });
+        menu.ConnectNativeTutorialExam(assets.ReadNativeTutorialExamCatalog(), () => new(0, 7, 8));
+        menu.Open("tutorial");
+        menu.SelectEntry("tutorial", "category-6");
+        menu.Navigate(MenuInput.Confirm);
+        menu.SelectEntry(menu.ScreenId, "information-0");
+        menu.Navigate(MenuInput.Confirm);
+        if (secondPage)
+        {
+            menu.Navigate(MenuInput.PageRight);
+        }
+        int listNode = menu.CurrentNativeInformationPage!.Node.Id;
+        Assert.True(menu.Entries.Count > 1);
+        int selected = menu.Entries.Count - 2;
+        string entryId = menu.Entries[selected].Id;
+        menu.SelectEntry(menu.ScreenId, entryId);
+        menu.Navigate(MenuInput.Confirm);
+        menu.Navigate(MenuInput.Cancel);
+        Assert.Equal(listNode, menu.CurrentNativeInformationPage!.Node.Id);
+        Assert.Equal(selected, menu.SelectedIndex);
+        Assert.Equal(entryId, menu.SelectedEntry!.Id);
+        menu.BuildView();
+        Assert.Equal(entryId, menu.View!.FocusedElement!.Id);
+        menu.Navigate(MenuInput.Confirm);
+        menu.Navigate(MenuInput.Cancel);
+        Assert.Equal(selected, menu.SelectedIndex);
+        if (secondPage)
+        {
+            menu.Navigate(MenuInput.PageLeft);
+            Assert.Equal(0, menu.SelectedIndex);
+            menu.SelectEntry(menu.ScreenId, "information-2");
+            menu.Navigate(MenuInput.PageRight);
+            Assert.Equal(listNode, menu.CurrentNativeInformationPage!.Node.Id);
+            Assert.Equal(selected, menu.SelectedIndex);
+            menu.Navigate(MenuInput.PageLeft);
+            Assert.Equal(2, menu.SelectedIndex);
+            menu.Navigate(MenuInput.PageRight);
+        }
+        menu.Navigate(MenuInput.Cancel);
+        Assert.Equal(0, menu.CurrentNativeInformationPage!.Node.Id);
+        menu.Navigate(MenuInput.Cancel);
+        Assert.Equal("tutorial", menu.ScreenId);
+        Assert.Equal("category-6", menu.SelectedEntry!.Id);
+    }
+
     private static GameAssets InstalledAssets()
     {
         string directory = TestResources.GameDirectory;
