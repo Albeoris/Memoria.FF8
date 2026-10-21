@@ -34,6 +34,7 @@ public sealed partial class BattleSession
     private void EnqueueNativePacket(BattleCombatant actor, BattleAttackCommand command, string name, bool playerInput = false)
     {
         command = PrepareNativeEventCommand(actor, command);
+        StopTurnAdvance();
         actor.Atb = 0;
         actor.IsBusy = true;
         if (playerInput)

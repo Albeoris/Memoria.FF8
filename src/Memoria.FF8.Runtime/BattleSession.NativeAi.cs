@@ -33,6 +33,7 @@ public sealed partial class BattleSession
 
     private void ActivateNativeParticipant(BattleCombatant actor)
     {
+        StopTurnAdvance();
         // Native487670 retains the allocated statistics/resources, clears2/40/80 and queues init.
         actor.IsActive = true;
         actor.Hidden = false;
@@ -273,6 +274,7 @@ public sealed partial class BattleSession
                         DrawNativeAiSpell(actor, true);
                         break;
                     case 44:
+                        StopTurnAdvance();
                         actor.NativeStatus0 |= 1;
                         actor.IsActive = false;
                         actor.Untargetable = true;

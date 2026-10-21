@@ -9,8 +9,12 @@ public sealed partial class BattleSession
         return checked(0x1D27B10u + 208u * (uint)index);
     }
 
-    private static NativeBattleGraphicsState QueueNativeDescriptor(NativeBattleGraphicsState graphics, ushort command, uint argument, ushort? index = null, ushort? value = null, byte priority = 128)
+    private NativeBattleGraphicsState QueueNativeDescriptor(NativeBattleGraphicsState graphics, ushort command, uint argument, ushort? index = null, ushort? value = null, byte priority = 128)
     {
+        if (command != 10 || argument is not (0x47DDA0 or 0x47DE70 or 0x47E120))
+        {
+            StopTurnAdvance();
+        }
         return graphics with { Descriptors = graphics.Descriptors.Enqueue(command, priority, argument, index, value).State };
     }
 

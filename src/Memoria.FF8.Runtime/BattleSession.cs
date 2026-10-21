@@ -133,6 +133,10 @@ public sealed partial class BattleSession
     public void SetMode(BattleAtbMode mode)
     {
         ValidateMode(mode);
+        if (mode != Mode)
+        {
+            StopTurnAdvance();
+        }
         Mode = mode;
     }
 
@@ -170,8 +174,8 @@ public sealed partial class BattleSession
 
     private void DispatchTurnBasedFrame()
     {
-        bool timeAdvanced = false;
-        if (CanAutomaticallyAdvanceTurn)
+        bool timeAdvanced = ContinueTurnAdvance();
+        if (!timeAdvanced && CanAutomaticallyAdvanceTurn)
         {
             for (int count = 1; count <= MaximumAdvanceFrames; count++)
             {
@@ -218,11 +222,13 @@ public sealed partial class BattleSession
         }
         // Logical time runs on owned state so a bounded failure cannot publish partially advanced gauges or effects.
         BattleSession candidate = Restore(Capture(), handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler));
+        candidate.StopTurnAdvance();
         for (int count = 1; count <= maxFrames; count++)
         {
             HashSet<string> becameReady = candidate.AdvanceTurnBasedTime(explicitAdvance: true);
             if (!candidate.CanExplicitlyAdvanceTurn || becameReady.Overlaps(waiting) || candidate.combatants.Any(actor => waiting.Contains(actor.Id) && actor.IsReady) || candidate.HasGuardianForceTimeBoundary)
             {
+                candidate.AwaitAdvancedEnemyTurn(waiting, maxFrames - count);
                 PublishCandidate(candidate);
                 return count;
             }
@@ -286,6 +292,7 @@ public sealed partial class BattleSession
     {
         return new BattleSnapshot
         {
+            TurnAdvance = turnAdvance,
             Definition = CloneDefinition(definition),
             GuardianForms = CaptureGuardianForms(),
             MagicVitals = magicVitals?.DeepCopy(),
@@ -631,6 +638,7 @@ public sealed partial class BattleSession
 
     private void EnqueueAttack(BattleCombatant actor, BattleCombatant target)
     {
+        StopTurnAdvance();
         OnNativePlayerCommandSubmitted(actor, 1);
         nativeLimitLevels.Remove(actor.Id);
         actor.Atb = 0;
@@ -867,6 +875,7 @@ public sealed partial class BattleSession
         {
             return;
         }
+        StopTurnAdvance();
         if (DebugOutcome is null && outcome == BattleOutcome.Victory && NativeGraphics is { } graphics && graphics.NativeOutcome?.ResultByte6E7 != 4)
         {
             BeginNativeVictory486500();
@@ -1292,6 +1301,7 @@ public sealed partial class BattleSession
         RestoreNativeKnownMagic(snapshot.NativeKnownMagic);
         RestoreNativeSpecialOwners(snapshot);
         RestoreNativeGlobalRandom(snapshot);
+        RestoreTurnAdvance(snapshot.TurnAdvance);
     }
 
     private void ValidateSavedAction(string actorId, string targetId, HashSet<string> busy, BattleAbility ability, int actionId, bool allowDefeatedTarget, BattleNativeAction? nativeAction = null, ushort nativeTargetMask = 0, BattleNativeGraphicCommand? graphic = null, BattleNativeRenzokukenInvocation? renzokuken = null, BattleNativePlayerReaction? reaction = null, int? nativeHeaderIndex = null, bool allowNativeQueuedState = false, BattleNativeDuelInvocation? duel = null, BattleNativeSlotsRoll? slots = null)
@@ -1430,5 +1440,6 @@ public sealed partial class BattleSession
         RestoreGuardianForms(candidate.CaptureGuardianForms(), candidate.Outcome);
         RestoreNativeSupport(candidate.nativeSupport);
         RestoreNativeBattleClock(candidate.nativeBattleClock);
+        turnAdvance = candidate.turnAdvance;
     }
 }

@@ -195,7 +195,7 @@ These commands are windowed. They return `{Battle, DebugMenuOpen, Definition}`; 
 | `Tick` | Advances active combat by `Frames`. |
 | `Attack` | Queues an attack for explicit `ActorId` and `TargetId`. |
 | `Action` | Queues explicit actor/target, ability and `ActionId`; `DrawCast` requests casting the drawn spell. |
-| `AdvanceTurn` | Advances the active turn-based owner. |
+| `AdvanceTurn` | Advances the active turn-based owner. Empty enemy turns automatically continue the same request until combat activity, player readiness or GF charge completion. Pending requests survive save/load. |
 | `SetMode` | Sets ATB `Mode`. |
 | `SetGunbladeMode` | Sets `GunbladeMode`. |
 | `GunbladeTrigger` | Supplies the current gunblade trigger edge. |

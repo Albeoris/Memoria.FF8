@@ -315,6 +315,8 @@ public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, 
 public sealed record BattleSnapshot
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public BattleTurnAdvanceRequest? TurnAdvance { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public BattleGuardianFormsSnapshot? GuardianForms { get; init; }
     public NativeCharacterVitals? MagicVitals { get; init; }
     public NativeExamTimerState? NativeExamTimer { get; init; }

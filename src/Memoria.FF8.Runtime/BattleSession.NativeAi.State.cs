@@ -7,6 +7,7 @@ public sealed partial class BattleSession
 
     private void QueueNativeWait(int callbacks)
     {
+        StopTurnAdvance();
         nativeScriptState = nativeScriptState with { Tasks = nativeScriptState.Tasks.AppendWait(checked((ushort)callbacks)) };
     }
 

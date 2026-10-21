@@ -4,6 +4,7 @@ public sealed partial class BattleSession
 {
     private void QueueNativeDescriptorMessage(BattleEvent message, byte tag = 86, byte priority = 128)
     {
+        StopTurnAdvance();
         if (NativeGraphics is not { } graphics)
         {
             events.Add(message with { Frame = Frame });

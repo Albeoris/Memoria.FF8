@@ -4,6 +4,10 @@ public sealed partial class BattleSession
 {
     private void OnNativePlayerCommandSubmitted(BattleCombatant actor, byte command)
     {
+        if (actor.IsPlayer)
+        {
+            StopTurnAdvance();
+        }
         if (actor.IsPlayer && command is not (0 or 254))
         {
             RemoveNativeUiReady(actor);

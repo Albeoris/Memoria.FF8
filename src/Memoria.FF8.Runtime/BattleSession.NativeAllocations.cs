@@ -21,6 +21,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native enemy allocation requires one of physical slots3..6 and an available allocation.");
         }
+        StopTurnAdvance();
         BattleCombatant? previous = combatants.SingleOrDefault(candidate => !candidate.IsPlayer && candidate.NativeIndex == physicalIndex);
         foreach (BattleCombatant replaced in combatants.Where(candidate => !candidate.IsPlayer && candidate.NativeIndex == physicalIndex).ToArray())
         {
@@ -129,6 +130,7 @@ public sealed partial class BattleSession
 
     private void ReleaseNativeParticipant(BattleCombatant actor)
     {
+        StopTurnAdvance();
         //105/502ED0 -> kind5/48AE20 owns only untargetable, savedKO and active bits.
         actor.Untargetable = true;
         actor.NativeStatus0 |= 1;
