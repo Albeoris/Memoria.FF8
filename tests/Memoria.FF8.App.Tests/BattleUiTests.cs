@@ -27,14 +27,49 @@ public sealed class BattleUiTests
         hud.AdvancePresentation(TimeSpan.FromSeconds((frame + 0.125) / BattleSession.FramesPerSecond));
         TestCanvas canvas = new();
         view.Draw(canvas, theme);
-        UiColor expected = new((byte)Math.Min(255, theme.Foreground.R * shade / 128), (byte)Math.Min(255, theme.Foreground.G * shade / 128), (byte)Math.Min(255, theme.Foreground.B * shade / 128));
+        UiColor expected = new((byte)Math.Min(255, 238 * shade / 128), (byte)Math.Min(255, 238 * shade / 128), (byte)Math.Min(255, 238 * shade / 128));
+        UiColor expectedHp = new((byte)Math.Min(255, 255 * shade / 128), (byte)Math.Min(255, 255 * shade / 128), (byte)Math.Min(255, 255 * shade / 128));
         Assert.Equal(expected, Assert.Single(canvas.TextDraws, draw => draw.Text == "Squall").Color);
-        Assert.Equal(expected, Assert.Single(canvas.TextDraws, draw => draw.Bounds.X == 674 && draw.Bounds.Y == 528).Color);
-        Assert.Equal(theme.Foreground, Assert.Single(canvas.TextDraws, draw => draw.Text == "Quistis").Color);
-        Assert.Equal(theme.Foreground, Assert.Single(canvas.TextDraws, draw => draw.Bounds.X == 674 && draw.Bounds.Y == 566).Color);
+        Assert.Equal(expectedHp, Assert.Single(canvas.TextDraws, draw => draw.Bounds.X == 674 && draw.Bounds.Y == 528).Color);
+        Assert.Equal(new UiColor(238, 238, 238), Assert.Single(canvas.TextDraws, draw => draw.Text == "Quistis").Color);
+        Assert.Equal(new UiColor(255, 255, 255), Assert.Single(canvas.TextDraws, draw => draw.Bounds.X == 674 && draw.Bounds.Y == 566).Color);
         Assert.DoesNotContain(canvas.Pointers, bounds => bounds.X == 496);
         Assert.Contains(canvas.Pointers, bounds => bounds.X == 38);
         Assert.Equal(0, session.Frame);
+    }
+
+    [Theory]
+    [InlineData(0, 255, 41, 24)]
+    [InlineData(1, 255, 255, 123)]
+    [InlineData(24, 255, 255, 123)]
+    [InlineData(25, 255, 255, 255)]
+    [InlineData(26, 255, 255, 255)]
+    [InlineData(100, 255, 255, 255)]
+    public void Native_name_and_hp_palettes_keep_critical_and_ko_separate(int hp, byte red, byte green, byte blue)
+    {
+        BattleDefinition definition = Definition();
+        definition = definition with { Combatants = [definition.Combatants[0] with { CurrentHp = hp, MaximumHp = 100, InitialAtb = 0, NativeStatus0 = hp == 0 ? (ushort)1 : (ushort)0 }, new() { Id = "party-1", Name = "Quistis", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum }, .. definition.Combatants.Skip(1)] };
+        BattleSession session = new(definition, BattleAtbMode.TurnBased);
+        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { });
+        TestCanvas canvas = new();
+        hud.BuildView().Draw(canvas, new UiTheme());
+        Assert.Equal(hp == 0 ? new UiColor(148, 148, 164) : new UiColor(238, 238, 238), Assert.Single(canvas.TextDraws, draw => draw.Text == "Squall").Color);
+        Assert.Equal(new UiColor(red, green, blue), Assert.Single(canvas.TextDraws, draw => draw.Bounds.X == 674 && draw.Bounds.Y == 528).Color);
+        Assert.Equal(new UiColor(255, 255, 255), Assert.Single(canvas.TextDraws, draw => draw.Text == " /  100" && draw.Bounds.Y == 528).Color);
+    }
+
+    [Fact]
+    public void Active_actor_pulse_modulates_critical_hp_palette_without_yellowing_the_name()
+    {
+        BattleDefinition definition = Definition();
+        definition = definition with { Combatants = [definition.Combatants[0] with { CurrentHp = 24 }, .. definition.Combatants.Skip(1)] };
+        BattleSession session = new(definition, BattleAtbMode.TurnBased);
+        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { });
+        hud.AdvancePresentation(TimeSpan.FromSeconds(3.125 / BattleSession.FramesPerSecond));
+        TestCanvas canvas = new();
+        hud.BuildView().Draw(canvas, new UiTheme());
+        Assert.Equal(new UiColor(148, 148, 148), Assert.Single(canvas.TextDraws, draw => draw.Text == "Squall").Color);
+        Assert.Equal(new UiColor(159, 159, 76), Assert.Single(canvas.TextDraws, draw => draw.Bounds.X == 674 && draw.Bounds.Y == 528).Color);
     }
 
     [Fact]
@@ -52,15 +87,16 @@ public sealed class BattleUiTests
         TestCanvas canvas = new();
         UiTheme theme = new();
         view.Draw(canvas, theme);
-        Assert.Equal(theme.Foreground, Assert.Single(canvas.TextDraws, draw => draw.Text == "Squall").Color);
+        Assert.Equal(new UiColor(238, 238, 238), Assert.Single(canvas.TextDraws, draw => draw.Text == "Squall").Color);
         Assert.NotEqual(theme.Foreground, Assert.Single(canvas.TextDraws, draw => draw.Text == "Quistis").Color);
-        Assert.Equal(Assert.Single(canvas.TextDraws, draw => draw.Text == "Quistis").Color, Assert.Single(canvas.TextDraws, draw => draw.Bounds.X == 674 && draw.Bounds.Y == 566).Color);
+        Assert.Equal(new UiColor(59, 59, 59), Assert.Single(canvas.TextDraws, draw => draw.Text == "Quistis").Color);
+        Assert.Equal(new UiColor(63, 63, 63), Assert.Single(canvas.TextDraws, draw => draw.Bounds.X == 674 && draw.Bounds.Y == 566).Color);
         hud.Navigate(MenuInput.Confirm);
         Assert.Equal("party-0", hud.SelectedActor!.Id);
         canvas = new();
         hud.BuildView().Draw(canvas, theme);
         Assert.NotEqual(theme.Foreground, Assert.Single(canvas.TextDraws, draw => draw.Text == "Squall").Color);
-        Assert.Equal(theme.Foreground, Assert.Single(canvas.TextDraws, draw => draw.Text == "Quistis").Color);
+        Assert.Equal(new UiColor(238, 238, 238), Assert.Single(canvas.TextDraws, draw => draw.Text == "Quistis").Color);
     }
 
     [Fact]

@@ -136,7 +136,7 @@ public sealed class UiPanel : UiElement
     public bool DrawBackground { get; set; } = true;
     public UiThickness Padding { get; set; }
     public float CaptionHeight { get; set; } = 32;
-    public float CaptionFontSize { get; set; }
+    public float CaptionFontSize { get; set; } = UiTheme.DefaultCaptionFontSize;
 
     public override UiSize Measure(UiSize available)
     {

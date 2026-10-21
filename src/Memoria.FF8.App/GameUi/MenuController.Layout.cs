@@ -285,7 +285,7 @@ public sealed partial class MenuController
 
     private UiPanel Panel(string? caption, UiElement content)
     {
-        var panel = new UiPanel { Caption = caption, Padding = IsOriginalMenuPage ? new UiThickness(8, 4) : new UiThickness(12, 8), CaptionHeight = string.IsNullOrEmpty(caption) ? 0 : (IsOriginalMenuPage ? 15 : 24) * TextScale, CaptionFontSize = IsOriginalMenuPage ? 13 * TextScale : 0 };
+        var panel = new UiPanel { Caption = caption, Padding = IsOriginalMenuPage ? new UiThickness(8, 4) : new UiThickness(12, 8), CaptionHeight = string.IsNullOrEmpty(caption) ? 0 : (IsOriginalMenuPage ? 15 : 24) * TextScale, CaptionFontSize = UiTheme.DefaultCaptionFontSize * TextScale };
         panel.Children.Add(content);
         return panel;
     }

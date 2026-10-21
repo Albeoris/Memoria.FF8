@@ -3,6 +3,8 @@ namespace Memoria.FF8.Ui;
 /// <summary>Grayscale panels with the original game's menu pointer supplied by the canvas.</summary>
 public sealed class UiTheme
 {
+    public const float DefaultCaptionFontSize = 13;
+
     public UiColor Foreground { get; init; } = new(244, 244, 244);
     public UiColor Muted { get; init; } = new(155, 155, 155);
     public UiColor Highlight { get; init; } = new(112, 112, 112);
@@ -61,8 +63,8 @@ public sealed class UiTheme
             return;
         }
 
-        float size = captionFontSize > 0 ? captionFontSize : FontSize;
-        float inset = captionFontSize > 0 ? 8 : 10;
+        float size = captionFontSize > 0 ? captionFontSize : DefaultCaptionFontSize;
+        const float inset = 8;
         float height = size * 1.5f;
         UiRect textBounds = new(bounds.X + inset, bounds.Y - height / 2, Math.Max(0, bounds.Width - inset * 2), height);
         canvas.OutlinedText(caption, size, textBounds, Foreground, new UiColor(0, 0, 0), 1);

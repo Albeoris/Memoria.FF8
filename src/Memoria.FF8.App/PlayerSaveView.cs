@@ -26,7 +26,7 @@ internal sealed partial class PlayerSaveView : UiElement
         header.RowDefinitions.Add(UiGridLength.Star());
         header.ColumnDefinitions.Add(UiGridLength.Star(3.7f));
         header.ColumnDefinitions.Add(UiGridLength.Star(1.3f));
-        UiPanel info = new() { Caption = "INFO.", CaptionFontSize = 13 * textScale, CaptionHeight = 13 * textScale, Padding = new UiThickness(8, 0) };
+        UiPanel info = new() { Caption = "INFO.", CaptionFontSize = UiTheme.DefaultCaptionFontSize * textScale, CaptionHeight = 13 * textScale, Padding = new UiThickness(8, 0) };
         info.Children.Add(new UiLabel { Text = $"Page {menu.Page + 1} / {menu.PageCount}" + (menu.IsQuick ? "" : "    " + navigationHint), FontSize = 16 * textScale, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center });
         header.Children.Add(info);
         UiPanel title = new() { GridColumn = 1, Padding = new UiThickness(8, 0) };
@@ -46,7 +46,7 @@ internal sealed partial class PlayerSaveView : UiElement
         {
             detail = message;
         }
-        UiPanel help = new() { GridRow = 2, Caption = "HELP", CaptionFontSize = 13 * textScale, CaptionHeight = 13 * textScale, Padding = new UiThickness(8, 0) };
+        UiPanel help = new() { GridRow = 2, Caption = "HELP", CaptionFontSize = UiTheme.DefaultCaptionFontSize * textScale, CaptionHeight = 13 * textScale, Padding = new UiThickness(8, 0) };
         help.Children.Add(new UiLabel { Text = instruction + "\n" + detail, FontSize = 18 * textScale, TextFlow = UiTextFlow.Wrap, VerticalTextAlignment = UiAlignment.Center });
         content.Children.Add(help);
         UiGrid blocks = BuildBlocks(menu.VisibleEntries, !menu.IsSaving && !menu.IsTransferring, textScale, menu.PageCapacity);

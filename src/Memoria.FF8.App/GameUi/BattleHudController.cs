@@ -125,16 +125,20 @@ public sealed partial class BattleHudController
             return session.Combatants.Where(actor => actor.IsPlayer == allies && (!fixedSelf || actor.Id == actorId) && (action is not null ? BattleSession.HasValidTargetLifeState(action, actor) : actor.IsAlive)).ToArray();
         }
     }
-    public IReadOnlyList<BattleCombatant> VisibleTargets
+    public bool SelectingTargetGroup
     {
         get
         {
-            IReadOnlyList<BattleCombatant> targets = Targets;
-            int selected = targets.Select(actor => actor.Id).ToList().IndexOf(SelectedTarget?.Id ?? "");
-            int start = Math.Clamp(selected - 1, 0, Math.Max(0, targets.Count - 3));
-            return targets.Skip(start).Take(3).ToArray();
+            if (!SelectingTarget || SelectingDrawSource)
+            {
+                return false;
+            }
+            BattleActionDefinition? action = HasGuardianFormCommands && SelectedActor is { } actor ? session.GetGuardianFormActionDefinition(actor.Id, SelectedGuardianFormCommand) : SelectedCommand == BattleAbility.Attack ? null : SelectedAction;
+            return action?.NativeAction?.TargetFlags is byte flags ? (flags & 0x30) != 0x10 : action?.AllTargets == true;
         }
     }
+    public string TargetGroupDescription => Targets.All(actor => !actor.IsPlayer) ? "All enemies" : Targets.All(actor => actor.IsPlayer) ? "All allies" : "All targets";
+    public IReadOnlyList<BattleCombatant> VisibleTargets => Targets;
     public BattleCombatant? SelectedActor
     {
         get
@@ -252,8 +256,22 @@ public sealed partial class BattleHudController
             int direction = input is MenuInput.Up or MenuInput.Left or MenuInput.PageLeft ? -1 : 1;
             if (SelectingTarget)
             {
+                if (SelectingTargetGroup)
+                {
+                    return;
+                }
                 string? before = SelectedTarget?.Id;
-                selectedTargetId = Cycle(Targets, selectedTargetId, direction);
+                if (Targets.Count > 4 && input is MenuInput.Left or MenuInput.Right)
+                {
+                    int index = Targets.ToList().FindIndex(target => target.Id == selectedTargetId);
+                    int columns = (Targets.Count + 3) / 4;
+                    int column = (index / 4 + direction + columns) % columns;
+                    selectedTargetId = Targets[Math.Min(column * 4 + index % 4, Targets.Count - 1)].Id;
+                }
+                else
+                {
+                    selectedTargetId = Cycle(Targets, selectedTargetId, direction);
+                }
                 if (before != selectedTargetId)
                 {
                     SoundRequested?.Invoke(MenuSound.Move);
@@ -491,6 +509,14 @@ public sealed partial class BattleHudController
         }
         if (Targets.Any(actor => actor.Id == targetId))
         {
+            if (SelectingTargetGroup)
+            {
+                if (confirm && SelectingTarget)
+                {
+                    Attack();
+                }
+                return;
+            }
             if (SelectedTarget?.Id != targetId)
             {
                 SoundRequested?.Invoke(MenuSound.Move);

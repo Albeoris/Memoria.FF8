@@ -9,6 +9,23 @@ public sealed class PartySelectionViewTests
 {
     private static NativePartyMenuState Menu => new(0, string.Empty, string.Empty, 0, 0, 0, 0, 0, NativePartyMenuPhase.Active, 2, [0, 1, 5], 0xFF, 1, 1, false, NativeFieldMenuKind.PartySelection, 2, 0, null, null, null, [2, 255, 3, 4, 255, 6, 7, 255], 2);
 
+    [Theory]
+    [InlineData(640, 448, 1f)]
+    [InlineData(960, 672, 1.5f)]
+    [InlineData(1920, 1080, 3f)]
+    public void HelpCaptionUsesJunctionSizeWithoutCappingRequestedTextScale(int width, int height, float textScale)
+    {
+        UiView view = PartySelectionView.Build(Menu, new MenuData(), 0, textScale: textScale);
+        view.Resize(width, height);
+        Canvas canvas = new(width, height);
+        view.Draw(canvas, new UiTheme());
+
+        var caption = Assert.Single(canvas.Captions);
+        Assert.Equal("HELP", caption.Text);
+        float expected = 13 * textScale * Math.Min(width / 960f, height / 672f);
+        Assert.True(Math.Abs(caption.Size - expected) < 0.001f);
+    }
+
     [Fact]
     public void NormalSwitchKeepsClickableReservesInTheirOwnFourColumnPane()
     {
@@ -116,6 +133,12 @@ public sealed class PartySelectionViewTests
         public List<(UiImageSource Source, UiRect Bounds)> Images { get; } = [];
         public List<UiRect> Pointers { get; } = [];
         public List<string> Texts { get; } = [];
+        public List<(string Text, float Size)> Captions { get; } = [];
+
+        public void OutlinedText(string text, float fontSize, UiRect bounds, UiColor color, UiColor outline, float thickness)
+        {
+            Captions.Add((text, fontSize));
+        }
 
         public void Fill(UiRect bounds, UiColor color)
         {

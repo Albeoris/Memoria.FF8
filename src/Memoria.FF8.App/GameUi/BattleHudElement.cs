@@ -11,6 +11,9 @@ internal sealed partial class BattleHudElement : UiElement
     private float Left => Bounds.X + (Bounds.Width - 960 * Scale) / 2;
     private bool ShowingMagicList => controller.SelectingAction && !controller.SelectingGuardianFormAction && !controller.HasGuardianFormCommands && !controller.SelectingTarget && controller.SelectedCommand == BattleAbility.Magic;
     private float CommandWidth { get; set; } = 194;
+    private UiRect TargetPanel { get; set; }
+    private float TargetColumnWidth { get; set; }
+    private float TargetRowHeight { get; set; }
     private float Top => Bounds.Y + (Bounds.Height - 672 * Scale) / 2;
 
     public BattleHudElement(BattleHudController controller)
@@ -92,9 +95,9 @@ internal sealed partial class BattleHudElement : UiElement
         }
         int rows = controller.SelectingTarget ? controller.VisibleTargets.Count : choices.Count;
         float menuHeight = session.Outcome != BattleOutcome.Active ? 76 : 20 + Math.Max(1, Math.Min(4, rows)) * 28;
-        if (canAttack || session.Outcome != BattleOutcome.Active)
+        if ((canAttack && !controller.SelectingTarget) || session.Outcome != BattleOutcome.Active)
         {
-            theme.Panel(canvas, Rect(30, 516, CommandWidth, menuHeight), caption, 17 * Scale * controller.TextScale);
+            theme.Panel(canvas, Rect(30, 516, CommandWidth, menuHeight), caption, UiTheme.DefaultCaptionFontSize * Scale * controller.TextScale);
         }
         if (session.Outcome != BattleOutcome.Active)
         {
@@ -103,9 +106,6 @@ internal sealed partial class BattleHudElement : UiElement
         }
         else if (!controller.CommandMenuHidden && controller.SelectingTarget)
         {
-            theme.Panel(canvas, Rect(30, 452, 440, 58));
-            Text(canvas, theme, controller.TargetActionCaption, 44, 459, 412, 24, 20);
-            Text(canvas, theme, controller.PhysicalOverrideCaption, 44, 483, 412, 22, 15, true);
             DrawTargets(canvas, theme);
         }
         else if (canAttack)
@@ -149,16 +149,21 @@ internal sealed partial class BattleHudElement : UiElement
             int maximumHp = presented.MaximumHitPoints;
             bool shownAlive = hp > 0;
             float gauge = cast is null ? actor.Atb / (float)BattleSession.AtbMaximum : cast.InitialTicks == 0 ? 1 : 1 - cast.RemainingTicks / (float)cast.InitialTicks;
-            UiColor vitalColor = shownAlive ? theme.Foreground : theme.Muted;
+            BattleVitalAppearance appearance = session.ReadVitalAppearance(actor.Id, gf?.Id);
+            UiColor nameColor = appearance.NameKnockedOut ? new(148, 148, 164) : new(238, 238, 238);
+            UiColor hpColor = appearance.HitPointsKnockedOut ? new(255, 41, 24) : appearance.Critical ? new(255, 255, 123) : new(255, 255, 255);
             if (canAttack && controller.SelectedActor?.Id == actor.Id)
             {
                 int phase = (int)(controller.BattlePresentationSeconds * BattleSession.FramesPerSecond % 16);
                 int shade = ((phase < 8 ? phase : 15 - phase) + 2) << 4;
                 // Native name/HP glyphs share a 16-frame triangle; 128 is neutral texture modulation.
-                vitalColor = new UiColor((byte)Math.Min(255, vitalColor.R * shade / 128), (byte)Math.Min(255, vitalColor.G * shade / 128), (byte)Math.Min(255, vitalColor.B * shade / 128), vitalColor.A);
+                nameColor = Modulate(nameColor, shade);
+                hpColor = Modulate(hpColor, shade);
             }
-            Text(canvas, theme, label, 520, y, 150, 30, 22, color: vitalColor);
-            Text(canvas, theme, $"{hp,4} / {maximumHp,4}", 674, y, 150, 30, 22, color: vitalColor);
+            Text(canvas, theme, label, 520, y, 150, 30, 22, color: nameColor);
+            float hpWidth = canvas.MeasureText($"{hp,4}", 22 * Scale * controller.TextScale, 4096 * Scale).Width / Scale;
+            Text(canvas, theme, $"{hp,4}", 674, y, hpWidth, 30, 22, color: hpColor);
+            Text(canvas, theme, $" / {maximumHp,4}", 674 + hpWidth, y, Math.Max(0, 150 - hpWidth), 30, 22, color: new UiColor(255, 255, 255));
             DrawGauge(canvas, Rect(830, y + 11, 104, 12), gauge, cast is null && actor.IsReady, shownAlive, cast is not null);
             if (form is { Phase: BattleGuardianFormPhase.Active })
             {
@@ -171,19 +176,52 @@ internal sealed partial class BattleHudElement : UiElement
         }
     }
 
+    private static UiColor Modulate(UiColor color, int shade)
+    {
+        return new((byte)Math.Min(255, color.R * shade / 128), (byte)Math.Min(255, color.G * shade / 128), (byte)Math.Min(255, color.B * shade / 128), color.A);
+    }
+
     private void DrawTargets(IUiCanvas canvas, UiTheme theme)
     {
         IReadOnlyList<BattleCombatant> targets = controller.VisibleTargets;
-        for (int index = 0; index < targets.Count && index < 3; index++)
+        bool allies = targets.Count > 0 && targets.All(actor => actor.IsPlayer);
+        float nameWidth = targets.Select(actor => canvas.MeasureText(actor.Name, 24 * Scale * controller.TextScale, 4096 * Scale).Width / Scale).DefaultIfEmpty(0).Max();
+        float x = allies ? 378 : 54;
+        int columns = Math.Max(1, (targets.Count + 3) / 4);
+        TargetColumnWidth = Math.Min(Math.Max(allies ? 276 : 324, 6 * MathF.Floor((nameWidth + 54) / 6)), ((allies ? 942 : 496) - x) / columns);
+        float textInset = columns > 1 ? 54 : 30;
+        float textWidth = TargetColumnWidth - textInset - 12;
+        TargetRowHeight = Math.Max(39, canvas.MeasureText("Mg", 24 * Scale * controller.TextScale, float.PositiveInfinity).Height / Scale + 6);
+        float y = 609 - 4 * TargetRowHeight;
+        TargetPanel = new UiRect(x, y, TargetColumnWidth * columns, 4 * TargetRowHeight + 39);
+        theme.Panel(canvas, Rect(TargetPanel.X, TargetPanel.Y, TargetPanel.Width, TargetPanel.Height), "TARGET", UiTheme.DefaultCaptionFontSize * Scale * controller.TextScale);
+        for (int index = 0; index < targets.Count; index++)
         {
             BattleCombatant actor = targets[index];
-            float y = 530 + index * 28;
-            if (controller.SelectedTarget?.Id == actor.Id)
+            float rowY = y + 27 + index % 4 * TargetRowHeight;
+            float columnX = x + index / 4 * TargetColumnWidth;
+            if (controller.SelectingTargetGroup || controller.SelectedTarget?.Id == actor.Id)
             {
-                theme.Pointer(canvas, Left + 38 * Scale, Top + (y + 5) * Scale, 10 * Scale);
+                theme.Pointer(canvas, Left + (columnX + (columns > 1 ? 3 : -48)) * Scale, Top + (rowY + 5) * Scale, 24 * Scale);
             }
-            Text(canvas, theme, actor.Name, 60, y, 156, 26, 20);
+            canvas.PushClip(Rect(columnX + textInset, rowY, textWidth, TargetRowHeight));
+            try
+            {
+                canvas.Text(actor.Name, 24 * Scale * controller.TextScale, Rect(columnX + textInset, rowY, textWidth, TargetRowHeight), theme.Foreground, UiAlignment.Start, UiTextFlow.SingleLine);
+            }
+            finally
+            {
+                canvas.PopClip();
+            }
         }
+        string help = controller.SelectingTargetGroup ? controller.TargetGroupDescription : controller.PhysicalOverrideCaption;
+        float actionHeight = canvas.MeasureText("Mg", 20 * Scale * controller.TextScale, float.PositiveInfinity).Height / Scale;
+        float helpHeight = string.IsNullOrEmpty(help) ? 0 : canvas.MeasureText("Mg", 15 * Scale * controller.TextScale, float.PositiveInfinity).Height / Scale + 4;
+        float panelHeight = 14 + actionHeight + helpHeight;
+        float helpY = y - Math.Max(18, UiTheme.DefaultCaptionFontSize * controller.TextScale * 0.75f + 8) - panelHeight;
+        theme.Panel(canvas, Rect(54, helpY, 440, panelHeight));
+        Text(canvas, theme, controller.TargetActionCaption, 68, helpY + 7, 412, actionHeight, 20);
+        Text(canvas, theme, help, 68, helpY + 7 + actionHeight + 4, 412, helpHeight, 15, true);
     }
 
     private static void DrawGauge(IUiCanvas canvas, UiRect bounds, float ratio, bool ready, bool alive, bool summoning)
@@ -213,13 +251,20 @@ internal sealed partial class BattleHudElement : UiElement
         return true;
     }
 
+    private int TargetIndex(float x, float y)
+    {
+        int row = (int)Math.Floor((y - Rect(0, TargetPanel.Y + 27, 0, 0).Y) / (TargetRowHeight * Scale));
+        int column = (int)Math.Floor((x - Rect(TargetPanel.X, 0, 0, 0).X) / (TargetColumnWidth * Scale));
+        return row is >= 0 and < 4 && column >= 0 ? column * 4 + row : -1;
+    }
+
     public override void PointerHover(float x, float y)
     {
-        if (controller.CommandMenuHidden || !controller.SelectingTarget || !Rect(30, 530, 194, 84).Contains(x, y))
+        if (controller.CommandMenuHidden || !controller.SelectingTarget || !Rect(TargetPanel.X, TargetPanel.Y + 27, TargetPanel.Width, TargetPanel.Height - 27).Contains(x, y))
         {
             return;
         }
-        int index = (int)Math.Floor((y - Rect(0, 530, 0, 0).Y) / (28 * Scale));
+        int index = TargetIndex(x, y);
         if (index >= 0 && index < controller.VisibleTargets.Count)
         {
             controller.SelectTarget(controller.VisibleTargets[index].Id, false);
@@ -240,7 +285,7 @@ internal sealed partial class BattleHudElement : UiElement
             }
             return;
         }
-        if (Rect(30, 516, CommandWidth, 132).Contains(x, y))
+        if (controller.SelectingTarget && Rect(TargetPanel.X, TargetPanel.Y, TargetPanel.Width, TargetPanel.Height).Contains(x, y) || !controller.SelectingTarget && Rect(30, 516, CommandWidth, 132).Contains(x, y))
         {
             if (controller.Session.Outcome != BattleOutcome.Active)
             {
@@ -248,7 +293,7 @@ internal sealed partial class BattleHudElement : UiElement
             }
             else if (controller.SelectingTarget)
             {
-                int index = (int)Math.Floor((y - Rect(0, 530, 0, 0).Y) / (28 * Scale));
+                int index = TargetIndex(x, y);
                 if (index >= 0 && index < controller.VisibleTargets.Count)
                 {
                     controller.SelectTarget(controller.VisibleTargets[index].Id, true);

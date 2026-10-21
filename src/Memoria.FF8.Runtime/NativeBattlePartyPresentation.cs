@@ -82,6 +82,7 @@ public sealed record NativeBattlePartyPresentation([property: JsonRequired] Immu
 }
 
 public sealed record BattlePresentedVital(int HitPoints, int MaximumHitPoints);
+public sealed record BattleVitalAppearance(bool NameKnockedOut, bool HitPointsKnockedOut, bool Critical);
 
 public sealed partial class BattleSession
 {
@@ -129,6 +130,20 @@ public sealed partial class BattleSession
         NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(GetActor(actorId).NativeIndex);
         int displayed = guardianForceId is null ? row.DisplayedHitPointsQ12 : row.DisplayedGuardianForceHitPointsQ12 ?? throw new NotSupportedException("Native HUD lacks the actually started GF accumulator.");
         return cached with { HitPoints = displayed / 4096 };
+    }
+
+    public BattleVitalAppearance ReadVitalAppearance(string actorId, int? guardianForceId = null)
+    {
+        BattleCombatant actor = GetActor(actorId);
+        BattlePresentedVital cached = ReadPresentedVital(actorId, guardianForceId);
+        int displayedQ12 = cached.HitPoints << 12;
+        if (nativePartyPresentation is not null && !(guardianForceId is null && actor.GuardianFormVitals is not null))
+        {
+            NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(actor.NativeIndex);
+            displayedQ12 = guardianForceId is null ? row.DisplayedHitPointsQ12 : row.DisplayedGuardianForceHitPointsQ12 ?? throw new NotSupportedException("Native HUD lacks the actually started GF accumulator.");
+        }
+        bool knockedOut = (NativeSavedStatusBits(actor) & 1) != 0;
+        return new(knockedOut && displayedQ12 == 0, knockedOut && (displayedQ12 & unchecked((int)0xFFFFF000)) == 0, cached.HitPoints < (cached.MaximumHitPoints >> 2));
     }
 
     private void AdvanceNativePresentedVitals4B0500()

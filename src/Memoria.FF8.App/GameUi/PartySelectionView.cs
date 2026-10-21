@@ -70,7 +70,7 @@ public static class PartySelectionView
             bool pending = menu.SelectedPartySlot is not null;
             byte source = pending ? menu.TemporaryCombatParty![menu.SelectedPartySlot!.Value] : (byte)255;
             bool lockedSource = source != 255 && (menu.LockedMask & 1 << source) != 0;
-            theme.Panel(canvas, new UiRect(18, 18, 924, 78), "HELP", Math.Min(20, 18 * textScale));
+            theme.Panel(canvas, new UiRect(18, 18, 924, 78), "HELP", UiTheme.DefaultCaptionFontSize * textScale);
             string help = menu.Phase != NativePartyMenuPhase.Active ? "Returning to field" : lockedSource ? "Select a party member to reorder." : pending ? "Select a character to exchange." : "Select a party member.";
             Text(canvas, help, 25, new UiRect(34, 34, 890, 44), theme.Foreground, UiAlignment.Center);
 

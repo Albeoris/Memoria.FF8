@@ -83,20 +83,20 @@ internal sealed partial class NativeTutorialPlayer
         root.RowDefinitions.Add(UiGridLength.Pixel(82));
         root.RowDefinitions.Add(UiGridLength.Pixel(54));
         root.RowDefinitions.Add(UiGridLength.Star());
-        root.Children.Add(new UiPanel { GridRow = 0, Caption = "Status", CaptionHeight = 26, Padding = new UiThickness(10), Children = { new UiLabel { Text = $"{menu.Character?.Name}   Lv {menu.Character?.Level}   HP {menu.Character?.CurrentHp}/{menu.Character?.MaximumHp}", FontSize = 26 } } });
+        root.Children.Add(new UiPanel { GridRow = 0, Caption = "Status", CaptionFontSize = UiTheme.DefaultCaptionFontSize * menu.TextScale, CaptionHeight = 26, Padding = new UiThickness(10), Children = { new UiLabel { Text = $"{menu.Character?.Name}   Lv {menu.Character?.Level}   HP {menu.Character?.CurrentHp}/{menu.Character?.MaximumHp}", FontSize = 26 } } });
         UiList commands = new() { Id = "commands", GridRow = 1, Items = menu.Entries.Select(entry => entry.Label).ToList(), SelectedIndex = menu.SelectedIndex, RowHeight = 42, FontSize = 24, HighlightSelection = false, PointerSize = 20, TextInset = 35, SelectionChanged = index => menu.SelectEntry(menu.ScreenId, menu.Entries[index].Id), Confirmed = index => ConfirmTutorialStatusEntry(menu, index) };
         root.Children.Add(commands);
         var details = menu.CurrentScreen.Details(menu);
         UiGrid body = new() { GridRow = 2, Columns = section == "elements" ? 2 : 1, Gap = 16 };
         if (section == "elements")
         {
-            body.Children.Add(StatusPanel("Element Atk / Def", details.Take(8).ToArray(), 0));
-            body.Children.Add(StatusPanel("Status Atk / Def", details.Skip(8).ToArray(), 1));
+            body.Children.Add(StatusPanel("Element Atk / Def", details.Take(8).ToArray(), 0, menu.TextScale));
+            body.Children.Add(StatusPanel("Status Atk / Def", details.Skip(8).ToArray(), 1, menu.TextScale));
         }
         else
         {
             string caption = section switch { "gf" => Menu.FormatNativeTutorialText(catalog.StatusLabels[29].Value, names), "duel" => "Duel", "angelo" => "Angelo", _ => section };
-            body.Children.Add(StatusPanel(caption, details, 0));
+            body.Children.Add(StatusPanel(caption, details, 0, menu.TextScale));
         }
         root.Children.Add(body);
         return root;
@@ -115,9 +115,9 @@ internal sealed partial class NativeTutorialPlayer
         }
     }
 
-    private static UiPanel StatusPanel(string caption, IReadOnlyList<string> details, int column)
+    private static UiPanel StatusPanel(string caption, IReadOnlyList<string> details, int column, float textScale)
     {
-        UiPanel panel = new() { Caption = caption, CaptionHeight = 30, Padding = new UiThickness(12), GridColumn = column };
+        UiPanel panel = new() { Caption = caption, CaptionFontSize = UiTheme.DefaultCaptionFontSize * textScale, CaptionHeight = 30, Padding = new UiThickness(12), GridColumn = column };
         UiGrid lines = new() { Columns = 1, Gap = 4 };
         foreach (string detail in details)
         {
