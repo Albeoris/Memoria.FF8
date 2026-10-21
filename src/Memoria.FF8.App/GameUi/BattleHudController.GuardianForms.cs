@@ -98,6 +98,7 @@ public sealed partial class BattleHudController
             if (!SelectingTarget)
             {
                 SelectingTarget = true;
+                RestoreTargetCursor();
                 session.OpenNativeActionMenu();
                 Message = "Select a target.";
                 SoundRequested?.Invoke(MenuSound.Confirm);
@@ -121,9 +122,11 @@ public sealed partial class BattleHudController
 
     private bool SubmitGuardianFormInput(BattleInput input)
     {
+        CursorSelection cursor = CaptureCursorSelection(SelectedActor!);
         try
         {
             (execute ?? throw new NotSupportedException("Battle action dispatcher is unavailable."))(input);
+            RememberCursorSelection(cursor);
             return true;
         }
         catch (Exception error) when (error is InvalidOperationException or NotSupportedException)
@@ -152,7 +155,7 @@ public sealed partial class BattleHudController
             SelectingAction = false;
             SelectingTarget = false;
             selectedTargetId = null;
-            commandIndex = 0;
+            RestoreCommandCursor(SelectedActor);
             session.CloseNativeActionMenu();
         }
         guardianFormSelectionActorId = actorId;

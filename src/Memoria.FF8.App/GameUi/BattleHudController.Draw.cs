@@ -51,7 +51,7 @@ public sealed partial class BattleHudController
         selectedTargetId = null;
         SelectingTarget = false;
         SelectingAction = true;
-        actionIndex = 0;
+        RestoreActionCursor();
         session.OpenNativeActionMenu();
         Message = "Choose magic to draw.";
         SoundRequested?.Invoke(MenuSound.Confirm);
@@ -69,6 +69,7 @@ public sealed partial class BattleHudController
             selectedDrawSourceId = null;
             SelectingTarget = true;
             DrawCast = false;
+            RestoreTargetCursor(drawSource: true);
             Message = "Choose a source to draw from.";
         }
         else if (SelectedAction is null)
@@ -78,14 +79,14 @@ public sealed partial class BattleHudController
         else if (!SelectingDrawMode)
         {
             SelectingDrawMode = true;
-            DrawCast = false;
+            RestoreDrawModeCursor();
             Message = "Stock or Cast?";
         }
         else if (CastSelectedDraw)
         {
             SelectingDrawMode = false;
             SelectingTarget = true;
-            selectedTargetId = null;
+            RestoreTargetCursor();
             Message = "Choose the spell recipient.";
         }
         else
@@ -100,6 +101,7 @@ public sealed partial class BattleHudController
     private void SubmitDrawStock()
     {
         BattleCombatant actor = SelectedActor!;
+        CursorSelection cursor = CaptureCursorSelection(actor);
         try
         {
             (execute ?? throw new NotSupportedException("Battle action dispatcher is unavailable."))(new BattleInput(BattleInputKind.Action, ActorId: actor.Id, TargetId: selectedDrawSourceId, Ability: BattleAbility.Draw, ActionId: SelectedAction!.Id));
@@ -109,13 +111,14 @@ public sealed partial class BattleHudController
             ShowCommandError(error.Message);
             return;
         }
+        RememberCursorSelection(cursor);
         SelectingDrawMode = false;
         SelectingAction = false;
         SelectingTarget = false;
         session.CloseNativeActionMenu();
         selectedDrawSourceId = null;
         selectedActorId = null;
-        commandIndex = 0;
+        RestoreCommandCursor(SelectedActor);
         SoundRequested?.Invoke(MenuSound.Confirm);
     }
 

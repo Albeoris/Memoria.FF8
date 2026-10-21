@@ -216,6 +216,7 @@ internal sealed partial class RecreateGame
             battleSeconds = 0;
         }
         battleHud!.TextScale = uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f;
+        battleHud.CursorMemory = uiPreferences.CursorMemory;
         battleHud.GunbladeBindingHint = keyboard.BindingPrompt(ControlAction.RotateRight);
         battleHud.PhysicalOverrideBindingHint = keyboard.BindingPrompt(ControlAction.CameraLeft);
     }

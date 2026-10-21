@@ -141,7 +141,7 @@ public sealed partial class BattleHudController
         }
         nativeLimitSelectionActorId = actor?.Id;
         nativeLimitCommandSelected = false;
-        commandIndex = 0;
+        RestoreCommandCursor(actor);
         if (actor?.NativeLimit is not null && !ownedSelection)
         {
             session.SelectPlayerCommandActor(actor.Id);

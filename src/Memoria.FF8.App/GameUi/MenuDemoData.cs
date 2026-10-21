@@ -181,7 +181,7 @@ public static class MenuSettings
         new("Sound", "Original stereo / mono output setting.", ["Stereo", "Mono"]),
         new("Controller", "Original normal / custom control mapping.", ["Normal", "Customize"]),
         new("Quick saves", "Number of rotating quick saves to retain. Shared by every save on this installation.", Enumerable.Range(1, 999).Select(value => value.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray()),
-        new("Cursor", "Initial resets the cursor when entering a menu. Memory remembers the last selection.", ["Initial", "Memory"]),
+        new("Cursor", "Initial resets menu cursors. Memory also remembers each battle character's accepted command, action and Draw Stock/Cast choice.", ["Initial", "Memory"]),
         new("ATB", "Original battle timing mode.", ["Active", "Wait"]),
         new("Difficulty", "Normal keeps reduced enemy magic damage and hidden random idle turns. Hard removes both aids; explicit do-not-attack actions remain. Saved with this game; Title sets the new-game default.", ["Normal", "Hard"]),
         new("Battle ATB mode", "Classic uses continuous ATB. Turn Based advances idle gauges when a turn is requested. Saved with the game; Title sets the new-game default.", ["Classic", "Turn Based"]),

@@ -172,6 +172,11 @@ public sealed class BattleSelectHudTests
             Text(text, fontSize, bounds, color);
         }
 
+        public UiSize MeasureText(string text, float fontSize, float maximumWidth)
+        {
+            return new UiSize(Math.Min(maximumWidth, text.Length * fontSize * 0.5f), fontSize);
+        }
+
         public void Image(UiImageSource source, UiRect bounds)
         {
         }

@@ -103,7 +103,7 @@ public sealed partial class BattleHudController
         }
     }
     public IReadOnlyList<string> ChoiceLabels => SelectingGuardianFormAction ? ["Summon"] : HasGuardianFormCommands ? ["Attack", "Fire", "Hell Fire"] : SelectingDrawMode ? SelectedAction?.Id >= 64 ? ["Stock"] : ["Stock", "Cast"] : NativeDuelChoiceLabels ?? (SelectingAction ? ActionChoices.Select(ChoiceLabel).ToArray() : Commands.Select(CommandLabel).ToArray());
-    public int ChoiceIndex => SelectingGuardianFormAction ? 0 : SelectingDrawMode ? DrawCast ? 1 : 0 : SelectingAction ? actionIndex : commandIndex;
+    public int ChoiceIndex => SelectingGuardianFormAction ? 0 : SelectingDrawMode ? DrawCast ? 1 : 0 : SelectingAction ? Math.Clamp(actionIndex, 0, Math.Max(0, ActionChoices.Count - 1)) : Math.Clamp(commandIndex, 0, Math.Max(0, Commands.Count - 1));
     public int ChoiceStart => Math.Clamp(ChoiceIndex - 1, 0, Math.Max(0, ChoiceLabels.Count - 4));
     public IReadOnlyList<BattleCombatant> Targets
     {
@@ -146,6 +146,7 @@ public sealed partial class BattleHudController
             BattleCombatant? selected = session.UsesNativeReadyMenu ? Party.FirstOrDefault(actor => actor.Id == session.SelectedPlayerCommandActorId && CanChooseCommand(actor)) : Party.FirstOrDefault(actor => actor.Id == selectedActorId && CanChooseCommand(actor));
             selected ??= session.ReadyPlayerCommandOrder.FirstOrDefault();
             selectedActorId = selected?.Id;
+            SynchronizeCursorActor(selected);
             return selected;
         }
     }
@@ -189,6 +190,8 @@ public sealed partial class BattleHudController
     {
         RefreshNativeLimitSelection();
         RefreshGuardianFormSelection();
+        commandIndex = Math.Clamp(commandIndex, 0, Math.Max(0, Commands.Count - 1));
+        actionIndex = Math.Clamp(actionIndex, 0, Math.Max(0, ActionChoices.Count - 1));
         if (input == MenuInput.Cancel && NativeShotActor is { } shotActor)
         {
             session.EndNativeShot(shotActor.Id);
@@ -346,7 +349,7 @@ public sealed partial class BattleHudController
             {
                 session.OpenNativeActionMenu();
             }
-            actionIndex = 0;
+            RestoreActionCursor();
             Message = ActionChoices.Count == 0 ? "No available stock or junctioned GF for this command." : SelectedCommand == BattleAbility.Magic ? "Choose magic. Page Left/Right: number of casts." : SelectedCommand == BattleAbility.GuardianForce ? "Choose a Guardian Force." : $"Choose {SelectedCommand}.";
             if (SelectedCommand == BattleAbility.LimitBreak && actor.NativeLimit?.Command == 16)
             {
@@ -355,6 +358,7 @@ public sealed partial class BattleHudController
             if (NativeLimitDirectTarget)
             {
                 SelectingTarget = true;
+                RestoreTargetCursor();
                 Message = "Select a target.";
             }
             SoundRequested?.Invoke(MenuSound.Confirm);
@@ -373,6 +377,7 @@ public sealed partial class BattleHudController
             }
             SelectingTarget = true;
             BeginMagicTargetSelection(actor);
+            RestoreTargetCursor();
             Message = "Select a target.";
             SoundRequested?.Invoke(MenuSound.Confirm);
             return;
@@ -387,6 +392,7 @@ public sealed partial class BattleHudController
         }
         BattleSmartAttackPreview? smartPreview = SelectedCommand == BattleAbility.Attack ? ConfirmedAttackPreview() : null;
         string name = smartPreview?.Name ?? (SelectedCommand == BattleAbility.Attack ? "Attack" : SelectedAction!.Name);
+        CursorSelection cursor = CaptureCursorSelection(actor);
         try
         {
             if (SelectedCommand == BattleAbility.Attack)
@@ -415,6 +421,7 @@ public sealed partial class BattleHudController
             Console.Error.WriteLine(error);
             return;
         }
+        RememberCursorSelection(cursor);
         SoundRequested?.Invoke(MenuSound.Confirm);
         SelectingTarget = false;
         SelectingAction = false;
@@ -423,13 +430,15 @@ public sealed partial class BattleHudController
         selectedDrawSourceId = null;
         Message = $"{actor.Name}: {name} → {target.Name}";
         selectedActorId = null;
-        commandIndex = 0;
+        RestoreCommandCursor(SelectedActor);
         nativeLimitCommandSelected = false;
         nativeLimitSelectionActorId = null;
     }
 
     public void Choose(int index)
     {
+        RefreshNativeLimitSelection();
+        RefreshGuardianFormSelection();
         if (CommandMenuHidden)
         {
             return;
@@ -482,7 +491,7 @@ public sealed partial class BattleHudController
             selectedActorId = actorId;
             nativeLimitSelectionActorId = actorId;
             nativeLimitCommandSelected = false;
-            commandIndex = 0;
+            RestoreCommandCursor(SelectedActor);
         }
     }
 

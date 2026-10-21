@@ -26,6 +26,8 @@ In supported battle contexts, Rotate right is also the gunblade / Shot trigger, 
 
 In battle, **Menu** (V / North button) cycles ready characters and recalculates Limit availability, including when only one character is ready. When the first command shows `>`, hold **Right** to reveal the character's Limit and confirm while holding it. Releasing Right before confirmation returns to the ordinary command. Confirming Renzokuken or Duel opens target selection directly; the other Limits open their spell, ammunition or action choices. Cancel returns from a target or choice without recalculating the crisis level.
 
+Set **Config → Interface → Cursor → Memory** to restore each character's last accepted battle command and each command's last accepted action during the current battle. For example, after **Draw → Blizzard → Stock**, the next turn starts on Draw; choosing a source restores Blizzard, and confirming it restores Stock. Stock/Cast choices are remembered separately for each drawn spell. Valid targets are also restored. If a remembered action or target is no longer available, the cursor starts at the first available entry. Cancelled selections and rejected commands do not replace the remembered action. **Initial**, the default, resets cursors. This preference is shared across saves; battle selections reset when a new battle HUD is created or a battle is loaded. Limits retain their Right-to-reveal behavior.
+
 ## Host shortcuts
 
 These shortcuts use the default bindings below. They can also be assigned to controller buttons or combinations in Controls.
