@@ -8,7 +8,7 @@ public sealed record NativeBattleStageColorInitializer(uint Source40, uint Sourc
 public static class NativeBattleStageColorsReader
 {
     // Original50E510 initializer DWORD assignments, then500EA0 replaces Color44's high BYTE with0x32.
-    // Stages37/38 require retained process globals.
+    // Stage37's color44 is its zero-filled process DWORD; stage38 requires a retained process global.
     private static readonly ImmutableArray<NativeBattleStageColorInitializer> Initializers =
     [
         new(0xB8C1B4, 0xB8C1B8, new(0x0078807D, 0x32494949)), new(0xB8C1AC, 0xB8C1B0, new(0x005D5D64, 0x32313F4E)),
@@ -29,7 +29,7 @@ public static class NativeBattleStageColorsReader
         new(0xB8C064, 0xB8C068, new(0x00505070, 0x32383838)), new(0xB8C05C, 0xB8C060, new(0x00464B6E, 0x32464646)),
         new(0xB8C054, 0xB8C058, new(0x00738082, 0x32646464)), new(0xB8C04C, 0xB8C050, new(0x008A8A80, 0x32585858)),
         new(0xB8C044, 0xB8C048, new(0x00586868, 0x32484848)), new(0xB8C03C, 0xB8C040, new(0x007D807C, 0x32717171)),
-        new(0xB8C034, 0xB8C038, new(0x009F9597, 0x32626276)), new(0xB8C020, 0x1D9C108, null),
+        new(0xB8C034, 0xB8C038, new(0x009F9597, 0x32626276)), new(0xB8C020, 0x1D9C108, new(0x00606868, 0x32000000)),
         new(0xB8C018, 0x1D9C0D4, null), new(0xB8C010, 0xB8C014, new(0x00686860, 0x32282828)),
         new(0xB8C008, 0xB8C00C, new(0x0073786E, 0x323C3C3C)), new(0xB8C000, 0xB8C004, new(0x00706880, 0x32404040)),
         new(0xB8BFF8, 0xB8BFFC, new(0x00737373, 0x323C3C3C)), new(0xB8BFF0, 0xB8BFF4, new(0x00888078, 0x32585858)),

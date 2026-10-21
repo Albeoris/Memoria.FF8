@@ -188,6 +188,9 @@ public static class NativeBattleSequenceMachine
                     case 0x84:
                         (inputs.ScheduleStageFade ?? throw new NotSupportedException("Native84 requires its shared stage fade producer."))(ReadByte());
                         break;
+                    case 0x83:
+                        (inputs.StageControl ?? throw new NotSupportedException("Native83 requires its original stage initializer service."))(ReadByte());
+                        break;
                     case 0x85:
                         model = model with { Flags0 = (ushort)(model.Flags0 & ~0x10) };
                         break;

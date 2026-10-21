@@ -38,7 +38,7 @@ public sealed partial class BattleSession
             int directory = checked((int)(0x14AF6E0 - NativeBattleRinoa89Resources.StaticAddress)) + index * 8;
             int bucket = BinaryPrimitives.ReadInt32LittleEndian(resources.StaticImage.Data.AsSpan().Slice(directory));
             byte shift = checked((byte)BinaryPrimitives.ReadInt32LittleEndian(resources.StaticImage.Data.AsSpan().Slice(directory + 4)));
-            ImmutableArray<NativeBattleRawMesh> meshes = (definition.NativeStageSource?.Geometry ?? throw new NotSupportedException("Native6FC0A0 requires its original stage geometry.")).Where(mesh => mesh.StageGroup == index).ToImmutableArray();
+            ImmutableArray<NativeBattleRawMesh> meshes = RequireNativeStageGeometry().Where(mesh => mesh.StageGroup == index).ToImmutableArray();
             NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native6FC0A0 requires its current renderer process.");
             var gate = process.Enter5099D0(definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Native6FC0A0 requires its actual renderer capability."));
             frame = frame with { Memory = frame.Memory with { PrimitiveProcess = gate.Process } };

@@ -7,6 +7,7 @@ public sealed partial record NativeBattleStageSource(short RotationSpeed, Immuta
 {
     public NativeBattleStageCallback? Callback { get; init; }
     public NativeBattleStageColors? ModelColors { get; init; }
+    public uint? SpecializedColor { get; init; }
 }
 public sealed record NativeBattleStageColors(uint Color40, uint Color44);
 public sealed record NativeBattleStageCallback(uint Address, bool? UpdateTexture0);
@@ -19,18 +20,30 @@ public sealed record NativeBattleStageState([property: JsonRequired] uint Flags,
     public NativeBattleStageTask? Task { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleFinalStage142State? FinalStage142 { get; init; }
+    public NativeBattleStageSpecializedState? Specialized { get; init; }
+    public NativeBattleStageExtendedState? Extended { get; init; }
+    public ImmutableArray<NativeBattleRawMesh>? MutableGeometry { get; init; }
     public NativeBattleStagePaletteAllocation? PaletteAllocation { get; init; }
     public ImmutableArray<byte>? TextureAnimations { get; init; }
     public NativeBattleStageColors? ModelColors { get; init; }
-    public static NativeBattleStageState FromColdProcess() => new(0, 0, 0, Enumerable.Range(0, 4).Select(_ => new NativeBattleStageGroup(0, 0, 0, 0, 0, 0, 0, null, [])).ToImmutableArray()) { ModelColors = new(0x00808080, 0x32808080), FinalStage142 = NativeBattleFinalStage142State.FromColdProcess() };
+    public static NativeBattleStageState FromColdProcess() => new(0, 0, 0, Enumerable.Range(0, 4).Select(_ => new NativeBattleStageGroup(0, 0, 0, 0, 0, 0, 0, null, [])).ToImmutableArray()) { ModelColors = new(0x00808080, 0x32808080), FinalStage142 = NativeBattleFinalStage142State.FromColdProcess(), Specialized = NativeBattleStageSpecializedState.FromColdProcess(), Extended = NativeBattleStageExtendedState.FromColdProcess() };
 
     public void Validate()
     {
-        if (TextureAnimations is { IsDefault: true } || Task is { } task && (task.Callback is null || task.Callback.Address == 0 || task.Callback.UpdateTexture0 is null && (task.Callback.Address != NativeBattleFinalStage142.CallbackAddress || FinalStage142 is null)) || Groups.IsDefault || Groups.Length != 4 || Groups.Any(group => group is null || group.Matrices.IsDefault || group.Source is null && !group.Matrices.IsEmpty || group.Source is not null && group.Matrices.Length != group.Source.BoneCount || group.Counter > group.FrameCount))
+        if (TextureAnimations is { IsDefault: true } || MutableGeometry is { IsDefault: true } || Task is { } task && (task.Callback is null || task.Callback.Address == 0 || task.Callback.UpdateTexture0 is null && !HasSpecializedService(task.Callback.Address)) || Groups.IsDefault || Groups.Length != 4 || Groups.Any(group => group is null || group.Matrices.IsDefault || group.Source is null && !group.Matrices.IsEmpty || group.Source is not null && group.Matrices.Length != group.Source.BoneCount || group.Counter > group.FrameCount))
         {
             throw new InvalidDataException("Native stage requires its four physical group rows, decoded counters and bone matrix banks.");
         }
         FinalStage142?.Validate();
+        Specialized?.Validate();
+        Extended?.Validate();
+        if (MutableGeometry is { } geometry)
+        {
+            foreach (NativeBattleRawMesh mesh in geometry)
+            {
+                mesh.Validate();
+            }
+        }
         foreach (NativeBattleStageGroup group in Groups)
         {
             group.Source?.Validate();
@@ -41,10 +54,20 @@ public sealed record NativeBattleStageState([property: JsonRequired] uint Flags,
         }
     }
 
+    private bool HasSpecializedService(uint address)
+    {
+        return address switch
+        {
+            NativeBattleFinalStage142.CallbackAddress => FinalStage142 is not null,
+            0x518F50 or 0x50DFF0 or 0x511EF0 or 0x511EB0 => Extended is not null,
+            _ => NativeBattleStageSpecialized.Supports(address) && Specialized is not null
+        };
+    }
+
     public NativeBattleStageState Reset506C50()
     {
         Validate();
-        return this with { Flags = 0, Task = null, Groups = Groups.Select(group => group with { Flags = (byte)(group.Flags & 0xF8), ColorDepth = 0, PoseFlags = 0 }).ToImmutableArray() };
+        return this with { Flags = 0, Task = null, Specialized = Specialized is { } specialized ? specialized with { PublishedColor = 0 } : null, Groups = Groups.Select(group => group with { Flags = (byte)(group.Flags & 0xF8), ColorDepth = 0, PoseFlags = 0 }).ToImmutableArray() };
     }
 
     public NativeBattleStageState Initialize500EA0(NativeBattleStageSource source)
@@ -61,7 +84,7 @@ public sealed record NativeBattleStageState([property: JsonRequired] uint Flags,
             NativeBattleStageGroup group = groups[index];
             groups[index] = source.Groups[index] is { } pose ? Select509440(group with { Flags = (byte)(group.Flags | 7), Source = pose }) : group with { Flags = (byte)(group.Flags & 0xF8) };
         }
-        NativeBattleStageState result = this with { Rotation = 0, RotationSpeed = source.RotationSpeed, Groups = groups.ToImmutable(), TextureAnimations = source.TextureAnimations.IsEmpty ? null : source.TextureAnimations, ModelColors = colors };
+        NativeBattleStageState result = this with { Rotation = 0, RotationSpeed = source.RotationSpeed, Groups = groups.ToImmutable(), TextureAnimations = source.TextureAnimations.IsEmpty ? null : source.TextureAnimations, ModelColors = colors, MutableGeometry = source.Callback?.Address == 0x50DFF0 ? source.Geometry : null };
         result.Validate();
         return result;
     }

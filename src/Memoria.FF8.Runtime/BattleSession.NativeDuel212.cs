@@ -341,7 +341,7 @@ public sealed partial class BattleSession
             {
                 return new(current with { Staging = NativeBattleTemporaryMemory.Release5082D0(current.Staging, 44) }, ordering);
             }
-            ImmutableArray<NativeBattleRawMesh> meshes = (definition.NativeStageSource?.Geometry ?? throw new NotSupportedException("Native Burning Rave capture requires its original ground geometry.")).Where(mesh => mesh.StageGroup == 1).ToImmutableArray();
+            ImmutableArray<NativeBattleRawMesh> meshes = RequireNativeStageGeometry().Where(mesh => mesh.StageGroup == 1).ToImmutableArray();
             (byte[] bytes, _) = current.Staging.ReadSnapshot(address, capacity);
             NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, group.Matrices, transform.Projection, group.ColorFlags, uint.MaxValue, bytes.ToImmutableArray(), colors, 16, new(0, 0, 320, 216), 17, group.ColorDepth);
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, current.Effect.DrawArenaOffset ?? throw new InvalidDataException("Native Burning Rave capture lost its cursor."), ordering, drawn.Packets);

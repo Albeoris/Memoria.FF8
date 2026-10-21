@@ -233,6 +233,11 @@ public sealed partial class BattleSession
                         NativeStage = stage with { Groups = stage.Groups.Select(group => group with { ColorFlags = group.ColorFlags & 0xFF000000u }).ToImmutableArray() };
                         graphics = graphics with { Auxiliary = graphics.Auxiliary.AppendStageFade501F50(duration) };
                     },
+                    StageControl = command =>
+                    {
+                        graphics = DispatchNativeStageControl(graphics with { Models = models }, command);
+                        models = graphics.Models;
+                    },
                     PlaySound = (current, cue) => PublishNativeSequenceSound(graphics with { Models = models.SetItem(index, current) }, current, GraphicsActor(graphics, index), cue),
                     ScheduleTextureAnimation = (program, sequence) => graphics = ScheduleNativeTextureAnimation(graphics, index, program, sequence),
                     ScheduleModelEffect = effect => graphics = ScheduleNativeModelEffect(graphics, index, effect),
@@ -410,7 +415,14 @@ public sealed partial class BattleSession
     {
         if (plan.StageTargetRefresh)
         {
-            UpdateNativeFinalStage142Target3(graphics);
+            if (definition.NativeStageSource?.Callback?.Address == NativeBattleStage37.CallbackAddress)
+            {
+                UpdateNativeStage37Target3(graphics);
+            }
+            else if (definition.NativeStageSource?.Callback?.Address == NativeBattleFinalStage142.CallbackAddress)
+            {
+                UpdateNativeFinalStage142Target3(graphics);
+            }
         }
         if (!plan.Loaded)
         {

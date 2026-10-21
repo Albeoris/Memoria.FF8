@@ -6,6 +6,17 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeBattleStageCallbackTests
 {
+    [Theory]
+    [InlineData(51, 0x517C30u)]
+    [InlineData(52, 0x517B40u)]
+    [InlineData(107, 0x5149A0u)]
+    [InlineData(108, 0x5148B0u)]
+    [InlineData(136, 0x513020u)]
+    public void InlineTextureCallbacksUseTheGenericTextureUpdate(int stageId, uint address)
+    {
+        Assert.Equal(new NativeBattleStageCallback(address, true), NativeBattleStageCallbackReader.Read(stageId));
+    }
+
     [Fact]
     public void AllSupportedStageCallbacksMatchTheCompleteOriginalBodyAndExactCallTargets()
     {
@@ -26,7 +37,7 @@ public sealed class NativeBattleStageCallbackTests
                 unsupported++;
                 continue;
             }
-            bool inlineTexture = callback.Address == 0x5149A0;
+            bool inlineTexture = callback.Address is 0x517C30 or 0x517B40 or 0x5149A0 or 0x5148B0 or 0x513020;
             byte[] template = inlineTexture ? inlineTextureTemplate : texture ? textureTemplate : staticTemplate;
             byte[] actual = Bytes(callback.Address, template.Length);
             (int Offset, uint Target)[] calls = inlineTexture ? [(36, 0x50CB20), (44, 0x500FD0)] : texture ? [(21, 0x51B0D0), (29, 0x500FD0)] : [(19, 0x500FD0)];
@@ -51,19 +62,20 @@ public sealed class NativeBattleStageCallbackTests
             }
         }
         Assert.Equal(140, statics);
-        Assert.Equal(10, textures);
-        Assert.Equal(13, unsupported);
+        Assert.Equal(14, textures);
+        Assert.Equal(9, unsupported);
         for (int stage = 0; stage < 163; stage++)
         {
             NativeBattleStageColorInitializer initializer = NativeBattleStageColorsReader.Read(stage);
             if (initializer.Colors is not { } colors)
             {
-                Assert.True(stage is 37 or 38);
+                Assert.Equal(38, stage);
                 Assert.True(initializer.Source44 is 0x1D9C108 or 0x1D9C0D4);
                 continue;
             }
             Assert.Equal(BinaryPrimitives.ReadUInt32LittleEndian(Bytes(initializer.Source40, 4)), colors.Color40);
-            Assert.Equal((BinaryPrimitives.ReadUInt32LittleEndian(Bytes(initializer.Source44, 4)) & 0xFFFFFF) | 0x32000000u, colors.Color44);
+            byte[] color44 = stage == 37 ? new NativeExecutableMemory(executable).ReadLoader(initializer.Source44, 4) : Bytes(initializer.Source44, 4);
+            Assert.Equal((BinaryPrimitives.ReadUInt32LittleEndian(color44) & 0xFFFFFF) | 0x32000000u, colors.Color44);
         }
         Assert.Equal(new NativeBattleStageColors(0x00464B6E, 0x32464646), NativeBattleStageColorsReader.Read(31).Colors);
         Assert.Equal(NativeBattleStageState.FromColdProcess().ModelColors!.Color40, BinaryPrimitives.ReadUInt32LittleEndian(Bytes(0xB8B7D8, 4)));

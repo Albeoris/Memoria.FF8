@@ -264,7 +264,7 @@ public sealed partial class BattleSession
                     {
                         return input;
                     }
-                    ImmutableArray<NativeBattleRawMesh> meshes = (definition.NativeStageSource?.Geometry ?? throw new NotSupportedException("Native ground capture requires its current stage geometry.")).Where(mesh => mesh.StageGroup == 1).ToImmutableArray();
+                    ImmutableArray<NativeBattleRawMesh> meshes = RequireNativeStageGeometry().Where(mesh => mesh.StageGroup == 1).ToImmutableArray();
                     NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native ground capture requires its authenticated color constants.");
                     ImmutableArray<NativeBattleGeometryPrimitive> packets = NativeBattleRawGeometryPackets.Emit5099D0(meshes, group.Matrices, capture.Projection, group.ColorFlags, uint.MaxValue, group.ColorDepth, 17, 16, null, colors);
                     ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();

@@ -181,6 +181,6 @@ public sealed partial class BattleSession
             owner.NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(staging, 200);
         }
 
-        private ImmutableArray<NativeBattleRawMesh> GroundMeshes() => (owner.definition.NativeStageSource?.Geometry ?? throw new NotSupportedException("Native Tornado requires its original ground geometry.")).Where(mesh => mesh.StageGroup == 1).ToImmutableArray();
+        private ImmutableArray<NativeBattleRawMesh> GroundMeshes() => owner.RequireNativeStageGeometry().Where(mesh => mesh.StageGroup == 1).ToImmutableArray();
     }
 }

@@ -32,6 +32,13 @@ public sealed partial class BattleSession
 
     private void WriteNativeGraphicsSequenceVariable(byte variable, int value)
     {
+        if (variable == 47)
+        {
+            NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native5048E0 write2F requires its retained stage process.");
+            NativeBattleStageExtendedState extended = stage.Extended ?? throw new NotSupportedException("Native5048E0 write2F requires its retained shake DWORD.");
+            NativeStage = stage with { Extended = extended with { Stage137 = extended.Stage137 with { ShakeAmplitude = value } } };
+            return;
+        }
         NativeEffectMemory = RequireNativeSequenceGlobals().WriteSequenceGlobal5048E0(variable, value);
     }
 

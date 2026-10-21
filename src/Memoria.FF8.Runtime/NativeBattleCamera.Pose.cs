@@ -199,13 +199,18 @@ public sealed partial record NativeBattleCameraState
 
     private NativeBattleCameraState PublishCameraPose()
     {
-        if (SelectedSlot is not int slot || RetainedPoses[slot] is not { Eye: { } eye, Target: { } target } track)
+        if (BlendProgress >= 4096)
+        {
+            NativeBattleCameraPose captured = CapturedPose ?? throw new NotSupportedException("Native504060 completed blend requires its503300 captured pose.");
+            return this with { BlendProgress = 0, CurrentPose = captured, FocalLength = captured.FocalLength, Roll = captured.Roll, EyePaddingF6 = CapturedEyePadding806, TargetPaddingFE = CapturedTargetPadding80E };
+        }
+        if (BlendProgress == 0 && (Mask & 0xDFFF) == 0)
         {
             return this;
         }
-        if (BlendProgress >= 4096)
+        if (SelectedSlot is not int slot || RetainedPoses[slot] is not { Eye: { } eye, Target: { } target } track)
         {
-            return CapturedPose is { } captured ? this with { CurrentPose = captured, FocalLength = captured.FocalLength, Roll = captured.Roll, EyePaddingF6 = CapturedEyePadding806, TargetPaddingFE = CapturedTargetPadding80E } : this;
+            throw new NotSupportedException("Native504060 requires its selected camera track for active playback or a fractional blend.");
         }
         if (BlendProgress != 0)
         {

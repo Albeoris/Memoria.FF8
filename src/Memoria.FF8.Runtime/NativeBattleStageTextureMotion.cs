@@ -37,7 +37,8 @@ public static class NativeBattleStageTextureMotion
         byte speed = source[start + 9];
         if (count == 0)
         {
-            return new(source, [new(x, y, width, height, x, unchecked((short)(y - speed))), new(x, unchecked((short)(y - speed)), width, height, x, unchecked((short)(height + y - speed)))]);
+            //50CA80 reuses its source rectangle with height replaced by the displaced strip size.
+            return new(source, [new(x, y, width, height, x, unchecked((short)(y - speed))), new(x, unchecked((short)(y - speed)), width, speed, x, unchecked((short)(height + y - speed)))]);
         }
         ushort counter = Word(start + 10);
         ushort next = (ushort)((counter + speed) % (8 * count + 8));

@@ -32,7 +32,7 @@ public sealed partial class BattleSession
             return new(frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(frame.Staging, 44) }, ordering);
         }
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native69A790 requires its authenticated model color arithmetic.");
-        ImmutableArray<NativeBattleRawMesh> meshes = (definition.NativeStageSource?.Geometry ?? throw new NotSupportedException("Native69A790 requires its original ground geometry.")).Where(mesh => mesh.StageGroup == 1).ToImmutableArray();
+        ImmutableArray<NativeBattleRawMesh> meshes = RequireNativeStageGeometry().Where(mesh => mesh.StageGroup == 1).ToImmutableArray();
         (byte[] retained, _) = frame.Staging.ReadSnapshot(workspace, capacity);
         NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, group.Matrices, transform.Projection, group.ColorFlags, uint.MaxValue, retained.ToImmutableArray(), colors, 16, new(0, 0, 320, 216), 17, group.ColorDepth);
         NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(frame.Memory, frame.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native69A790 requires its actual private cursor."), ordering, drawn.Packets);

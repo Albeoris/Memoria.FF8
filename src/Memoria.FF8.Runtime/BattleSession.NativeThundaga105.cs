@@ -67,7 +67,7 @@ public sealed partial class BattleSession
                     StageFlash(0);
                     NativeBattleThundaga105CaptureTransform transform = NativeBattleThundaga105CaptureGeometry.Transform6D5620(capture.Anchor, capture.Bounds, Projection());
                     NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Thundaga capture requires its initialized ordering table.");
-                    NativeBattleThundaga105CaptureWrite written = NativeBattleThundaga105CapturePackets.Append6D5620(current.Memory, NativeStage ?? throw new NotSupportedException("Native Thundaga capture requires its current stage."), primitive.Pending, current.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Thundaga capture requires its private draw cursor."), definition.NativeStageSource?.Geometry ?? throw new NotSupportedException("Native Thundaga capture requires its original stage geometry."), transform, colors);
+                    NativeBattleThundaga105CaptureWrite written = NativeBattleThundaga105CapturePackets.Append6D5620(current.Memory, NativeStage ?? throw new NotSupportedException("Native Thundaga capture requires its current stage."), primitive.Pending, current.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Thundaga capture requires its private draw cursor."), RequireNativeStageGeometry(), transform, colors);
                     NativeStage = written.Stage;
                     graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
                     return current with { Memory = written.Memory, Effect = current.Effect with { DrawArenaOffset = written.Cursor } };

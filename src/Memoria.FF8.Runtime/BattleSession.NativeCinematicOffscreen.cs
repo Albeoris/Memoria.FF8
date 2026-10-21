@@ -120,7 +120,7 @@ public sealed partial class BattleSession
             NativeBattleGeometryViewport viewport = new(Word(current, unchecked(context + 0x14)), Word(current, unchecked(context + 0x16)), Word(current, unchecked(context + 0x18)), Word(current, unchecked(context + 0x1A)));
             NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native cinematic capture requires its actual projection registers.");
             NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native cinematic capture requires its original color arithmetic.");
-            ImmutableArray<NativeBattleRawMesh> meshes = (definition.NativeStageSource?.Geometry ?? throw new NotSupportedException("Native cinematic capture requires its original stage geometry.")).Where(mesh => mesh.StageGroup == request.Group).ToImmutableArray();
+            ImmutableArray<NativeBattleRawMesh> meshes = RequireNativeStageGeometry().Where(mesh => mesh.StageGroup == request.Group).ToImmutableArray();
             process = process.PublishModelColor(color);
             NativeEffectMemory = Memory(current) with { PrimitiveProcess = process };
             uint output = request.OutputAddress;

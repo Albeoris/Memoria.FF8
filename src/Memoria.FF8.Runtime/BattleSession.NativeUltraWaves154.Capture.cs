@@ -15,7 +15,7 @@ public sealed partial class BattleSession
         Append(NativeBattleUltraWaves154Drawing.Environment(restore, 64, alternate[0x18] != 0 ? 36 : 24, 0x101B));
         NativeBattleCameraProjection projection = NativeCamera!.Projection!;
         ImmutableArray<NativeBattleHoly175CaptureDirectoryEntry> directory = Enumerable.Range(0, 4).Select(index => new NativeBattleHoly175CaptureDirectoryEntry(resources.StageDraw[index * 2], checked((byte)resources.StageDraw[index * 2 + 1]))).ToImmutableArray();
-        NativeBattleHoly175CaptureStage drawn = NativeBattleHoly175CaptureGeometry.Draw5D29E0(NativeStage ?? throw new NotSupportedException("Native Ultra Waves capture requires its stage."), definition.NativeStageSource?.Geometry ?? throw new NotSupportedException("Native Ultra Waves capture requires its actual stage geometry."), directory, projection.View!, projection, definition.NativeGraphics!.Rules.SummonColors!, 108, PublishNativeBodyProjectionScratch);
+        NativeBattleHoly175CaptureStage drawn = NativeBattleHoly175CaptureGeometry.Draw5D29E0(NativeStage ?? throw new NotSupportedException("Native Ultra Waves capture requires its stage."), RequireNativeStageGeometry(), directory, projection.View!, projection, definition.NativeGraphics!.Rules.SummonColors!, 108, PublishNativeBodyProjectionScratch);
         NativeStage = drawn.Stage;
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocation = 0;

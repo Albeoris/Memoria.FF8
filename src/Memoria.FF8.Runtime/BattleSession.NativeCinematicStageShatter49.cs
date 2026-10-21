@@ -35,7 +35,7 @@ public sealed partial class BattleSession
             graphics = written.Graphics;
             return written.Frame;
         });
-        NativeBattleCinematicStageShatter49Result result = NativeBattleCinematicStageShatter49.Draw(frame, NativeStage ?? throw new NotSupportedException("Native stage shatter requires its retained stage descriptors."), definition.NativeStageSource?.Geometry ?? throw new NotSupportedException("Native stage shatter requires its original stage geometry."), services);
+        NativeBattleCinematicStageShatter49Result result = NativeBattleCinematicStageShatter49.Draw(frame, NativeStage ?? throw new NotSupportedException("Native stage shatter requires its retained stage descriptors."), RequireNativeStageGeometry(), services);
         NativeStage = result.Stage;
         if (result.BackColor is uint color)
         {

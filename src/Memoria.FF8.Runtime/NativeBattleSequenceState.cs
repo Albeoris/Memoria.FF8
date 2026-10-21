@@ -75,6 +75,7 @@ public sealed record NativeBattleSequenceInputs(byte? EntryAdvantage, ushort? Ca
     public Func<NativeBattleGraphicsModel, byte, byte, byte, short, byte, NativeBattleGraphicsModel>? ScheduleModelMotion { get; init; }
     public Action<byte, byte, byte>? ScheduleCameraShake { get; init; }
     public Action<byte>? ScheduleStageFade { get; init; }
+    public Action<byte>? StageControl { get; init; }
     public Action<byte>? ScheduleModelGroupFade { get; init; }
     public Func<NativeBattleGraphicsModel, byte, NativeBattleVector, short, NativeBattleGraphicsModel>? ScheduleModelDeformation { get; init; }
     public Action<NativeBattleGraphicsModel, NativeBattleSequenceCue>? PlaySound { get; init; }

@@ -139,6 +139,10 @@ internal sealed partial class BattleHudElement : UiElement
         for (int index = 0; index < party.Count; index++)
         {
             BattleCombatant actor = party[index];
+            if (session.NativeGraphics?.UiServices is { } rowUi && !(rowUi.Windows ?? throw new NotSupportedException("Native battle HUD requires its retained UI window bank.")).IsVitalsRowVisible4B1740(session.NativeGraphics.ActorIds.IndexOf(actor.Id)))
+            {
+                continue;
+            }
             float y = 528 + index * 38;
             BattleGuardianForceCast? cast = session.GuardianForceCasts.FirstOrDefault(cast => cast.ActorId == actor.Id);
             BattleGuardianForceVital? gf = cast is null ? null : session.GuardianForces.Single(gf => gf.Id == cast.Command.ActionId);

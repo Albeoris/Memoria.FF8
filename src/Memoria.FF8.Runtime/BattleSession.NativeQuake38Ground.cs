@@ -26,7 +26,7 @@ public sealed partial class BattleSession
             }
             NativeBattleTemporaryAllocation vector = NativeBattleTemporaryMemory.Allocate5082B0(staging, 12);
             staging = vector.Staging.Write(vector.Address + 8, BitConverter.GetBytes(uint.MaxValue));
-            ImmutableArray<NativeBattleRawMesh> meshes = (session.definition.NativeStageSource?.Geometry ?? throw new NotSupportedException("Native Quake requires its original ground object directory.")).Where(mesh => mesh.StageGroup == 1).ToImmutableArray();
+            ImmutableArray<NativeBattleRawMesh> meshes = session.RequireNativeStageGeometry().Where(mesh => mesh.StageGroup == 1).ToImmutableArray();
             short primitive = 0;
             foreach (NativeBattleRawMesh mesh in meshes)
             {

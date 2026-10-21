@@ -55,7 +55,7 @@ public sealed partial class BattleSession
             {
                 case 0:
                     NativeBattleStageGroup ground = session.NativeStage!.Groups[1];
-                    bool exists = (ground.Flags & 1) != 0 && (session.definition.NativeStageSource?.Geometry ?? throw new NotSupportedException("Native Quake requires its current stage object directory.")).Any(mesh => mesh.StageGroup == 1);
+                    bool exists = (ground.Flags & 1) != 0 && session.RequireNativeStageGeometry().Any(mesh => mesh.StageGroup == 1);
                     hierarchy = hierarchy.Write(address, task);
                     if (exists)
                     {

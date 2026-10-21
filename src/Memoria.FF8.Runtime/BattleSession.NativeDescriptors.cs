@@ -182,7 +182,7 @@ public sealed partial class BattleSession
                     phase++;
                     break;
                 case NativeBattleDescriptorTaskKind.Texture506DE0:
-                    RegisterNativeStage506DE0();
+                    graphics = RegisterNativeStage506DE0(graphics);
                     completed = true;
                     phase = 1;
                     break;

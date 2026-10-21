@@ -7,6 +7,7 @@ public static class NativeBattleStageCallbackReader
 {
     // Full35/45/60-byte callback equality, with each relative CALL target verified against authenticated FF8_EN.
     // Original50E510 initializer mapping.
+    // Null selects a specialized service rather than the generic static/texture callback.
     private static readonly ImmutableArray<NativeBattleStageCallback> Callbacks =
     [
         new(0x51b0a0, false), new(0x51afc0, false), new(0x51aee0, false), new(0x51ae00, false),
@@ -21,8 +22,8 @@ public static class NativeBattleStageCallbackReader
         new(0x5190e0, false), new(0x518f50, null), new(0x518a50, false), new(0x518970, false),
         new(0x518890, false), new(0x5187b0, false), new(0x5186d0, false), new(0x5185f0, false),
         new(0x518440, null), new(0x518290, null), new(0x5180c0, null), new(0x517fc0, false),
-        new(0x517ee0, true), new(0x517e00, false), new(0x517d20, false), new(0x517c30, null),
-        new(0x517b40, null), new(0x517a60, false), new(0x517980, true), new(0x5178a0, false),
+        new(0x517ee0, true), new(0x517e00, false), new(0x517d20, false), new(0x517c30, true),
+        new(0x517b40, true), new(0x517a60, false), new(0x517980, true), new(0x5178a0, false),
         new(0x5177c0, true), new(0x5176e0, false), new(0x517600, false), new(0x517520, false),
         new(0x517440, false), new(0x517360, false), new(0x517280, false), new(0x5171a0, false),
         new(0x5170c0, false), new(0x516fe0, false), new(0x516f00, false), new(0x516e20, false),
@@ -36,14 +37,14 @@ public static class NativeBattleStageCallbackReader
         new(0x515350, false), new(0x515270, false), new(0x515190, false), new(0x5150b0, false),
         new(0x514fd0, false), new(0x514ef0, false), new(0x514e10, false), new(0x514d30, false),
         new(0x514c50, false), new(0x514b70, false), new(0x514a90, false), new(0x5149a0, true),
-        new(0x5148b0, null), new(0x5147d0, false), new(0x5146f0, false), new(0x514610, false),
+        new(0x5148b0, true), new(0x5147d0, false), new(0x5146f0, false), new(0x514610, false),
         new(0x514530, false), new(0x514450, false), new(0x514370, false), new(0x514290, false),
         new(0x5141b0, false), new(0x5140d0, false), new(0x513ff0, false), new(0x513f10, false),
         new(0x513e30, false), new(0x513d50, false), new(0x513c70, false), new(0x513b90, false),
         new(0x513ab0, false), new(0x5139d0, false), new(0x5138f0, false), new(0x513810, false),
         new(0x513730, false), new(0x513650, false), new(0x513570, false), new(0x513490, false),
         new(0x5133b0, false), new(0x5132d0, false), new(0x5131f0, false), new(0x513110, false),
-        new(0x513020, null), new(0x50dff0, null), new(0x512f40, false), new(0x512e60, false),
+        new(0x513020, true), new(0x50dff0, null), new(0x512f40, false), new(0x512e60, false),
         new(0x512d80, false), new(0x512ca0, false), new(0x512980, null), new(0x5124d0, false),
         new(0x5123f0, false), new(0x512310, false), new(0x512230, false), new(0x511ef0, null),
         new(0x511d80, false), new(0x511ca0, false), new(0x511bc0, false), new(0x511ae0, false),

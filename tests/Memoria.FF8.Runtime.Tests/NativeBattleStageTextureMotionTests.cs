@@ -50,11 +50,28 @@ public sealed class NativeBattleStageTextureMotionTests
         Word(10, 8);
         table[13] = 2;
         NativeBattleStageTextureStep step = NativeBattleStageTextureMotion.Advance50CB20(table.ToImmutableArray(), 0);
-        Assert.Equal(new NativeBattleTextureCopy[] { new(64, 356, 16, 8, 64, 354), new(64, 354, 16, 8, 64, 362) }, step.Copies.ToArray());
+        Assert.Equal(new NativeBattleTextureCopy[] { new(64, 356, 16, 8, 64, 354), new(64, 354, 16, 2, 64, 362) }, step.Copies.ToArray());
         Assert.Equal(table, step.Source.ToArray());
         Assert.Empty(NativeBattleStageTextureMotion.Advance50CB20(table.ToImmutableArray(), 1).Copies);
         Assert.Throws<NotSupportedException>(() => NativeBattleStageTextureMotion.Advance50CB20(null, 0));
 
         void Word(int offset, ushort value) => BinaryPrimitives.WriteUInt16LittleEndian(table.AsSpan(offset), value);
+    }
+
+    [Fact]
+    public void ScrollWrapCopiesOnlyTheDisplacedStripAtTheLastVramRowsAndResumesAfterJsonRestore()
+    {
+        byte[] table = new byte[20];
+        BinaryPrimitives.WriteUInt16LittleEndian(table, 2);
+        BinaryPrimitives.WriteInt16LittleEndian(table.AsSpan(4), 128);
+        BinaryPrimitives.WriteInt16LittleEndian(table.AsSpan(6), 16);
+        BinaryPrimitives.WriteInt16LittleEndian(table.AsSpan(8), 128);
+        BinaryPrimitives.WriteInt16LittleEndian(table.AsSpan(10), 240);
+        table[13] = 16;
+        ImmutableArray<byte> restored = JsonSerializer.Deserialize<ImmutableArray<byte>>(JsonSerializer.Serialize(table.ToImmutableArray()));
+        NativeBattleStageTextureStep step = NativeBattleStageTextureMotion.Advance50CB20(restored, 0);
+        Assert.Equal(new NativeBattleTextureCopy[] { new(128, 272, 128, 240, 128, 256), new(128, 256, 128, 16, 128, 496) }, step.Copies.ToArray());
+        Assert.Equal(512, step.Copies[1].DestinationY + step.Copies[1].Height);
+        Assert.Equal(table, step.Source.ToArray());
     }
 }

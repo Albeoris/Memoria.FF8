@@ -7,6 +7,9 @@ public sealed record NativeBattleUiWindowBounds(short Left, short Top, short Rig
 
 public sealed record NativeBattleUiWindows(ImmutableArray<NativeBattleUiWindow> Rows, int VitalsState6868, short VitalsProgress686C, NativeBattleUiWindowBounds? VitalsDirtyBounds)
 {
+    public byte? RequestedVitalsMask { get; init; }
+    public byte? CurrentVitalsMask { get; init; }
+
     public static NativeBattleUiWindows Initialize4A94D0()
     {
         //4BA060 resets nine physical rows; DWORD4 and BYTE19 retain unknown prior contents.
@@ -17,12 +20,12 @@ public sealed record NativeBattleUiWindows(ImmutableArray<NativeBattleUiWindow> 
         rows = rows.SetItem(1, rows[1] with { Update0 = 0x4BB030 });
         rows = rows.SetItem(7, rows[7] with { Update0 = 0x4B0500, Draw8 = 0x4B1740, Current16 = 2, Requested17 = 2, Dirty18 = 1 });
         //4B1B00 initializes state0/progress0 and immediately invokes4B0450.
-        return new(rows, 1, 0, new(122, 171, 312, 216));
+        return new(rows, 1, 0, new(122, 171, 312, 216)) { RequestedVitalsMask = 7, CurrentVitalsMask = 0 };
     }
 
     public void Validate()
     {
-        if (Rows.IsDefault || Rows.Length != 9 || Rows.Any(row => row is null))
+        if (Rows.IsDefault || Rows.Length != 9 || Rows.Any(row => row is null) || RequestedVitalsMask > 7 || CurrentVitalsMask > 7)
         {
             throw new InvalidDataException("Native UI window bank requires its nine physical twenty-byte rows.");
         }
@@ -81,6 +84,7 @@ public sealed record NativeBattleUiWindows(ImmutableArray<NativeBattleUiWindow> 
     {
         Validate();
         ImmutableArray<NativeBattleUiWindow> rows = Rows;
+        byte? currentVitalsMask = CurrentVitalsMask;
         for (int index = 0; index < rows.Length; index++)
         {
             if (((flags & 0x801) != 0 && (index < 6 || index == 7)) || ((flags & 0x800) != 0 && index == 7) || ((flags & 0x40) == 0 && index != 8))
@@ -99,8 +103,34 @@ public sealed record NativeBattleUiWindows(ImmutableArray<NativeBattleUiWindow> 
                 phase = row.Saved19 ?? throw new NotSupportedException("Native UI phase1 requires its actually retained saved phase BYTE19.");
             }
             rows = rows.SetItem(index, row with { Current16 = phase });
+            if (index == 7 && phase > 0 && row.Draw8 == 0x4B1740 && publicationFrame)
+            {
+                currentVitalsMask = RequestedVitalsMask ?? throw new NotSupportedException("Native4B1740 requires its retained requested vitals visibility bytes; migrate the named snapshot explicitly.");
+            }
         }
-        return this with { Rows = rows };
+        return this with { Rows = rows, CurrentVitalsMask = currentVitalsMask };
+    }
+
+    public NativeBattleUiWindows RequestVitalsVisibility4B1830(int row, bool visible)
+    {
+        RequireVitalsRow(row);
+        byte requested = RequestedVitalsMask ?? throw new NotSupportedException("Native4B1830 requires its retained requested vitals visibility bytes; migrate the named snapshot explicitly.");
+        return this with { RequestedVitalsMask = (byte)(visible ? requested | (1 << row) : requested & ~(1 << row)) };
+    }
+
+    public bool IsVitalsRowVisible4B1740(int row)
+    {
+        RequireVitalsRow(row);
+        byte current = CurrentVitalsMask ?? throw new NotSupportedException("Native4B1740 requires its retained current vitals visibility bytes; migrate the named snapshot explicitly.");
+        return (current & (1 << row)) != 0;
+    }
+
+    private static void RequireVitalsRow(int row)
+    {
+        if (row is < 0 or > 2)
+        {
+            throw new ArgumentOutOfRangeException(nameof(row), "Native vitals visibility requires a physical party row0 through2.");
+        }
     }
 
     public bool DrawsVitals4B1740(ushort flags)

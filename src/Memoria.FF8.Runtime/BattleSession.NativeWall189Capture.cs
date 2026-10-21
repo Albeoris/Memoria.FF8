@@ -36,7 +36,7 @@ public sealed partial class BattleSession
             {
                 continue;
             }
-            ImmutableArray<NativeBattleRawMesh> geometry = (definition.NativeStageSource?.Geometry ?? throw new NotSupportedException("Native Wall capture requires its installed stage geometry.")).Where(mesh => mesh.StageGroup == index).ToImmutableArray();
+            ImmutableArray<NativeBattleRawMesh> geometry = RequireNativeStageGeometry().Where(mesh => mesh.StageGroup == index).ToImmutableArray();
             int capacity = checked(NativeModelCpuResources!.ScratchMaximum!.Value * 8);
             uint workspace = checked(0x196B018u - (uint)capacity);
             (byte[] retained, _) = staging.ReadSnapshot(workspace, capacity);

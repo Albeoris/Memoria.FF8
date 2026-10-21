@@ -70,7 +70,7 @@ public sealed partial class BattleSession
         {
             return graphics;
         }
-        ImmutableArray<NativeBattleRawMesh> geometry = definition.NativeStageSource?.Geometry ?? throw new NotSupportedException("Native500FD0 requires its original four-group geometry DTOs.");
+        ImmutableArray<NativeBattleRawMesh> geometry = RequireNativeStageGeometry();
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native500FD0 packet submission requires its prior camera/register owner.");
         int[] bases = [4126, 4122, 17, 4382];
         byte[] shifts = [8, 14, 4, 16];

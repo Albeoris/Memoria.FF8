@@ -18,7 +18,7 @@ public sealed record NativeSoftwarePrimitiveTable([property: JsonRequired] Immut
 public sealed record NativeSoftwarePolygonPacketResult(NativeSoftwareTextureState Texture, NativeSoftwareClippedPolygon? Polygon, bool Depth3Diagnostic);
 public sealed record NativeSoftwarePolygonPacketDraw(NativeSoftwarePolygonRasterState Raster, NativeSoftwareTextureState Texture, NativeSoftwareClippedPolygon? Polygon, bool Depth3Diagnostic);
 
-/// <summary>The six reached software polygon producers; source offsets include the physical packet tag.</summary>
+/// <summary>Original software polygon and rectangle dispatch; source offsets include the physical packet tag.</summary>
 public static class NativeSoftwarePolygonPackets
 {
     public static int CoordinateShift45D080(ushort proxyFlags20) => (proxyFlags20 & 1) != 0 ? 16 : 13;
@@ -36,13 +36,15 @@ public static class NativeSoftwarePolygonPackets
             0x34 => 0x466C70,
             0x38 => 0x4669E0,
             0x3C => 0x466D90,
+            0x60 => 0x467010,
+            0x64 => 0x467050,
             _ => throw new NotSupportedException("Native software polygon opcode has no closed producer.")
         };
         if (table.Handler(opcode) != expected)
         {
             throw new NotSupportedException("Native software opcode selected a different actual producer.");
         }
-        if (expected is 0x4669D0 or 0x4669E0)
+        if (expected is 0x4669D0 or 0x4669E0 or 0x467010 or 0x467050)
         {
             return new(texture, null, false);
         }

@@ -177,7 +177,7 @@ public sealed partial class BattleSession
             {
                 return new(current, ordering);
             }
-            ImmutableArray<NativeBattleRawMesh> meshes = (definition.NativeStageSource?.Geometry ?? throw new NotSupportedException("Native5FC5E0 requires its original stage geometry.")).Where(mesh => mesh.StageGroup == 1).ToImmutableArray();
+            ImmutableArray<NativeBattleRawMesh> meshes = RequireNativeStageGeometry().Where(mesh => mesh.StageGroup == 1).ToImmutableArray();
             int length = meshes.IsEmpty ? 0 : meshes.Max(mesh => checked(mesh.Vertices.Length * 8));
             NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, group.Matrices, capture.Projection, group.ColorFlags, uint.MaxValue, new byte[length].ToImmutableArray(), colors, 16, new(0, 0, 320, 216), 17, group.ColorDepth);
             if (drawn.ProjectedBytesWritten != length)
