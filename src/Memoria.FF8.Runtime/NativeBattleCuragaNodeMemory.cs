@@ -7,7 +7,7 @@ internal sealed class NativeBattleCuragaNodeMemory : NativeBattleEffectNodeMemor
     internal NativeBattleCuragaState State { get; set; }
     internal NativeBattleCuragaFamilyProfile Profile => NativeBattleCuragaFamilyProfile.ForGenericNodes(frame.Effect.Binding.Effect);
 
-    internal NativeBattleCuragaNodeMemory(NativeBattleCuragaFrame frame, uint taskAddress) : base(frame.Memory, frame.Effect, taskAddress, frame.State.Auxiliary25F8 ?? throw new NotSupportedException("Native Curaga emitter storage requires the executed87DE10 allocation/clear."), NativeBattleCuragaFamilyProfile.ForGenericNodes(frame.Effect.Binding.Effect).EmitterStorageLength, frame.State.Auxiliary16F80 ?? throw new NotSupportedException("Native Curaga geometry storage requires the executed87DE10 allocation/clear."), NativeBattleCuragaFamilyProfile.ForGenericNodes(frame.Effect.Binding.Effect).GeometryStorageLength, frame.Effect.Binding.Effect is 16 or 19 or 37 or 61 or 73 or 78 or 81 or 82)
+    internal NativeBattleCuragaNodeMemory(NativeBattleCuragaFrame frame, uint taskAddress) : base(frame.Memory, frame.Effect, taskAddress, frame.State.Auxiliary25F8 ?? throw new NotSupportedException("Native Curaga emitter storage requires the executed87DE10 allocation/clear."), NativeBattleCuragaFamilyProfile.ForGenericNodes(frame.Effect.Binding.Effect).EmitterStorageLength, frame.State.Auxiliary16F80 ?? throw new NotSupportedException("Native Curaga geometry storage requires the executed87DE10 allocation/clear."), NativeBattleCuragaFamilyProfile.ForGenericNodes(frame.Effect.Binding.Effect).GeometryStorageLength, frame.Effect.Binding.Effect is 16 or 19 or 23 or 37 or 61 or 73 or 78 or 81 or 82)
     {
         this.frame = frame;
         State = frame.State;

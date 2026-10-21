@@ -41,6 +41,12 @@ public sealed partial record NativeBattleEffectMemory([property: JsonRequired] N
         DrinkMagic37?.Validate();
         Raldo19?.Validate();
         Effect20?.Validate();
+        PsychoBlast23?.Validate();
+        PsychoBlast23Executable?.Validate();
+        if (PsychoBlast23Executable is { ResourceAddress: not 0x17EA4F0 })
+        {
+            throw new InvalidDataException("The Psycho Blast node bank belongs to another module.");
+        }
         Raldo19Executable?.Validate();
         if (Raldo19Executable is { ResourceAddress: not NativeBattleRaldo19Profile.ExecutableAddress })
         {

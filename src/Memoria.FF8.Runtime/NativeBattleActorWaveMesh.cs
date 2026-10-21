@@ -35,7 +35,7 @@ public static class NativeBattleActorWaveMesh
         return context;
     }
 
-    public static NativeBattleActorWaveMeshStep EmitBatch(ImmutableArray<byte> mesh, uint meshAddress, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEffectArena context104, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, short dqa, int dqb, short? zsf4, NativeBattleSummonColors constants, short? matrixPadding18 = null, short? zsf3 = null, Func<int, short?>? readVertexW = null)
+    public static NativeBattleActorWaveMeshStep EmitBatch(ImmutableArray<byte> mesh, uint meshAddress, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEffectArena context104, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, short dqa, int dqb, short? zsf4, NativeBattleSummonColors constants, short? matrixPadding18 = null, short? zsf3 = null, Func<int, short?>? readVertexW = null, uint? selectedVerticesAddress = null, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null)
     {
         ValidateContext(context104);
         matrix.Validate();
@@ -44,11 +44,12 @@ public static class NativeBattleActorWaveMesh
             throw new InvalidDataException("Native actor mesh requires its actual addressed geometry and retained context.");
         }
         uint flags = ReadDword(context104, 0x14);
-        if ((flags & 0x2000) != 0)
+        bool preservedVertices = (flags & 0x2000) != 0;
+        if (preservedVertices && (selectedVerticesAddress is null || readSelectedVertex is null))
         {
             throw new NotSupportedException("Native actor mesh preserved vertex pointers require their selected original owner.");
         }
-        context104 = Dword(context104, 4, checked(meshAddress + 8));
+        context104 = Dword(context104, 4, preservedVertices ? selectedVerticesAddress!.Value : checked(meshAddress + 8));
         int cursor = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(mesh.AsSpan()));
         registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, matrix, true, true, matrixPadding18) };
         (byte[] farBytes, bool[] farKnown) = context104.ReadSnapshot(8, 3);
@@ -68,15 +69,15 @@ public static class NativeBattleActorWaveMesh
             {
                 continue;
             }
-            if (group is not (2 or 3 or 4 or 5 or 7))
+            if (group is not (0 or 2 or 3 or 4 or 5 or 7))
             {
-                throw new NotSupportedException("Native actor mesh resources require their proved FT3, FT4, G3, G4 or GT4 groups.");
+                throw new NotSupportedException("Native actor mesh resources require their proved F3, FT3, FT4, G3, G4 or GT4 groups.");
             }
             bool quad = group is 3 or 5 or 7;
             bool gouraud = group is 4 or 5 or 7;
             uint fadeFlag = gouraud ? 0x80u : 0x40u;
             NativeBattleEsunaMeshContext packetContext = new(flags, (flags & fadeFlag) != 0 ? ReadDword(context104, 8) : null, (flags & fadeFlag) != 0 ? unchecked((int)ReadDword(context104, 12)) : null, depthBias, ReadWord(context104, 0x18), ReadWord(context104, 0x1A), before, after, 17, 2);
-            int faceBytes = group switch { 2 or 4 => 20, 7 => 36, _ => 24 };
+            int faceBytes = group switch { 0 => 12, 2 or 4 => 20, 7 => 36, _ => 24 };
             for (int faceIndex = 0; faceIndex < count; faceIndex++)
             {
                 byte[] face = Read(cursor, faceBytes).ToArray();
@@ -117,6 +118,7 @@ public static class NativeBattleActorWaveMesh
                 }
                 NativeBattleGfGeometryBatch faceBatch = group switch
                 {
+                    0 => NativeBattleRestorationMeshPackets.EmitF3_88E370(face, ReadCorner, packetContext, constants, allocated),
                     2 => NativeBattleRestorationMeshPackets.EmitFt3_88E820(face, ReadCorner, packetContext, constants, allocated),
                     3 => NativeBattleRestorationMeshPackets.EmitFt4_88ECA0(face, ReadCorner, packetContext, constants, allocated),
                     4 => NativeBattleRestorationMeshPackets.EmitG3_88F220(face, ReadCorner, packetContext, constants, allocated),
@@ -177,7 +179,12 @@ public static class NativeBattleActorWaveMesh
         }
         (NativeBattleVector Vertex, short? W) Vertex(byte[] face, int corner)
         {
-            int offset = checked(8 + BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + 2 * corner)) * 4);
+            int sourceOffset = checked(BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + 2 * corner)) * 4);
+            if (preservedVertices)
+            {
+                return readSelectedVertex!(sourceOffset);
+            }
+            int offset = checked(8 + sourceOffset);
             ReadOnlySpan<byte> packed = Read(offset, 8);
             return (new(BinaryPrimitives.ReadInt16LittleEndian(packed), BinaryPrimitives.ReadInt16LittleEndian(packed[2..]), BinaryPrimitives.ReadInt16LittleEndian(packed[4..])), readVertexW is null ? BinaryPrimitives.ReadInt16LittleEndian(packed[6..]) : readVertexW(offset));
         }

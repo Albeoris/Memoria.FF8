@@ -37,6 +37,8 @@ public sealed class NativeBattleRetainedMemoryTests
         NativeBattleQuezacotlExecutableMemory executableMemory = Assert.IsType<NativeBattleQuezacotlExecutableMemory>(actual.EffectMemory!.QuezacotlExecutableMemory);
         byte[] executable = File.ReadAllBytes(Path.Combine(assets.GameDirectory, "FF8_EN.exe"));
         Assert.Null(generic.EffectMemory.DrinkMagic37);
+        Assert.Null(generic.EffectMemory.PsychoBlast23);
+        Assert.Null(generic.EffectMemory.PsychoBlast23Executable);
         Assert.Null(generic.EffectMemory.Raldo19);
         Assert.Null(generic.EffectMemory.Effect20);
         Assert.Null(generic.EffectMemory.Raldo19Executable);
@@ -91,6 +93,8 @@ public sealed class NativeBattleRetainedMemoryTests
             },
             Raldo19Executable = NativeBattleCuragaExecutableState.FromColdProcess(19),
             Effect20 = NativeBattleEffect20State.FromColdProcess(System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(image.ReadLoader(0x27268F8, 4)), System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(image.ReadLoader(0x2722960, 4))),
+            PsychoBlast23 = NativeBattlePsychoBlast23State.FromColdProcess(image.ReadLoader(NativeBattlePsychoBlast23Profile.SharedAddress, 84).ToImmutableArray(), image.ReadLoader(NativeBattlePsychoBlast23Profile.BasisAddress, 56).ToImmutableArray(), image.ReadLoader(NativeBattlePsychoBlast23Profile.MorphScratchAddress, NativeBattlePsychoBlast23Profile.MorphScratchLength).ToImmutableArray(), System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(image.ReadLoader(0x27044D0, 4)), System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(image.ReadLoader(0x2703654, 4))),
+            PsychoBlast23Executable = NativeBattleCuragaExecutableState.FromColdProcess(23),
             Scan = generic.EffectMemory.Scan with
             {
                 MutableMeshes = new[] { (Address: 0x15CDDECu, Length: 0x3E8), (Address: 0x15CE1D4u, Length: 0x768) }.ToImmutableDictionary(item => item.Address, item => new NativeBattleScanByteOwner(image.ReadLoader(item.Address, item.Length).ToImmutableArray(), Enumerable.Repeat(true, item.Length).ToImmutableArray()))

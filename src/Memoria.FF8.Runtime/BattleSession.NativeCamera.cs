@@ -240,6 +240,10 @@ public sealed partial class BattleSession
                 {
                     graphics = roughDivide163Completed;
                 }
+                else if (TryWriteNativePsychoBlast23Completion(graphics, address, value, out NativeBattleGraphicsState psychoBlast23Completed))
+                {
+                    graphics = psychoBlast23Completed;
+                }
                 else if (TryWriteNativeAngelWing84Completion(graphics, address, value, out NativeBattleGraphicsState angelWing84Completed))
                 {
                     graphics = angelWing84Completed;

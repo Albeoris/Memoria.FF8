@@ -505,6 +505,10 @@ public sealed partial class BattleSession
         {
             return RunNativeEffect20(graphics, false);
         }
+        if (effect.Binding.Entry == NativeBattlePsychoBlast23Profile.Entry)
+        {
+            return RunNativePsychoBlast23(graphics, false);
+        }
         if (effect.Binding.Entry == NativeBattleRaldo19Profile.Entry)
         {
             return RunNativeRaldo19(graphics, false);

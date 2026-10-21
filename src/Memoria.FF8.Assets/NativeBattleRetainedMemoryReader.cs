@@ -125,6 +125,8 @@ public static class NativeBattleRetainedMemoryReader
             },
             Raldo19Executable = new(BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(NativeBattleRaldo19Profile.ExecutableAddress, 4)), null) { ResourceAddress = NativeBattleRaldo19Profile.ExecutableAddress },
             Effect20 = NativeBattleEffect20State.FromColdProcess(BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x27268F8, 4)), BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x2722960, 4))),
+            PsychoBlast23 = NativeBattlePsychoBlast23State.FromColdProcess(ReadLoaderBytes(NativeBattlePsychoBlast23Profile.SharedAddress, 84).ToImmutableArray(), ReadLoaderBytes(NativeBattlePsychoBlast23Profile.BasisAddress, 56).ToImmutableArray(), ReadLoaderBytes(NativeBattlePsychoBlast23Profile.MorphScratchAddress, NativeBattlePsychoBlast23Profile.MorphScratchLength).ToImmutableArray(), BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x27044D0, 4)), BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x2703654, 4))),
+            PsychoBlast23Executable = new(BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x17EA4F0, 4)), null) { ResourceAddress = 0x17EA4F0 },
             MightyGuard73 = NativeBattleMightyGuardState.FromColdProcess(73) with { InitializationFlag = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x178557C, 4)) },
             MightyGuard78 = NativeBattleMightyGuardState.FromColdProcess(78) with { InitializationFlag = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x176E194, 4)) },
             DrawStock15Executable = ReadDrawStock15Executable(),
