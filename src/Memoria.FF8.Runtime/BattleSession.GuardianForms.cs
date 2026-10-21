@@ -145,7 +145,12 @@ public sealed partial class BattleSession
 
     private BattleGuardianFormResources GuardianFormResources(int id)
     {
-        return definition.GuardianFormResources.SingleOrDefault(resource => resource.GuardianForceId == id) ?? throw new NotSupportedException("GF form requires its prepared original resources.");
+        BattleGuardianFormResources resources = definition.GuardianFormResources.SingleOrDefault(resource => resource.GuardianForceId == id) ?? throw new NotSupportedException("GF form requires its prepared original resources.");
+        if (resources.ElementDefenses.IsDefault || resources.ElementDefenses.Length != 8 || resources.ElementDefenses.Any(value => value is < 0 or > 2550) || resources.StatusResistances.IsDefault || resources.StatusResistances.Length != 40)
+        {
+            throw new NotSupportedException("GF form requires its prototype's eight elemental defenses and forty status resistances.");
+        }
+        return resources;
     }
 
     private bool BeginCompletedGuardianFormCharge(BattleCombatant actor, BattleGuardianForceCast cast)
@@ -208,7 +213,7 @@ public sealed partial class BattleSession
         {
             BattleGuardianForceVital gf = guardianForces[id];
             guardianForces[id] = NativeGuardianForceShieldResult(gf, checked((ushort)Math.Clamp(hp, 0, gf.MaximumHitPoints)));
-        }, BattleGuardianFormProfiles.Find(id)!.Adjustments);
+        }, BattleGuardianFormProfiles.Find(id)!.Adjustments, GuardianFormResources(id));
         actor.RefreshNativeHpStatusFlags();
     }
 

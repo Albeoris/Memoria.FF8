@@ -18,7 +18,7 @@ public enum BattleGuardianFormAction
     HellFire
 }
 
-/// <summary>Small, typed profile adjustments. The initial profile preserves the actor's statistics and resistances.</summary>
+/// <summary>Small, typed profile adjustments applied to the actor's statistics.</summary>
 public sealed record BattleGuardianFormAdjustments(int StrengthPercent = 100, int MagicPercent = 100);
 
 public enum BattleGuardianFormActionSource
@@ -64,8 +64,12 @@ public static class BattleGuardianFormProfiles
     }
 }
 
-/// <summary>Installed resources prepared only for an enabled battle; no enemy combatant definition or AI is imported.</summary>
-public sealed record BattleGuardianFormResources(int GuardianForceId, BattleNativeAction PhysicalAction, byte PhysicalSequence, NativeBattleGraphicsResource VisualResource);
+/// <summary>Installed actions, presentation and prototype defenses prepared only for an enabled battle.</summary>
+public sealed record BattleGuardianFormResources(int GuardianForceId, BattleNativeAction PhysicalAction, byte PhysicalSequence, NativeBattleGraphicsResource VisualResource)
+{
+    public ImmutableArray<int> ElementDefenses { get; init; } = [];
+    public ImmutableArray<byte> StatusResistances { get; init; } = [];
+}
 
 public sealed record BattleGuardianFormInvocation(long Id, int GuardianForceId, GuardianFormInvocationMode Mode);
 
@@ -78,7 +82,7 @@ public sealed record BattleGuardianFormState(string ActorId, int GuardianForceId
 public sealed record BattleGuardianFormsSnapshot(bool Enabled, long LastInvocationId, ImmutableArray<BattleGuardianFormState> Forms);
 
 /// <summary>A view of the canonical GF row, never an independently writable HP copy.</summary>
-internal sealed class BattleGuardianFormVitalOwner(Func<BattleGuardianForceVital> read, Action<int> write, BattleGuardianFormAdjustments adjustments)
+internal sealed class BattleGuardianFormVitalOwner(Func<BattleGuardianForceVital> read, Action<int> write, BattleGuardianFormAdjustments adjustments, BattleGuardianFormResources resources)
 {
     public int HitPoints
     {
@@ -88,4 +92,6 @@ internal sealed class BattleGuardianFormVitalOwner(Func<BattleGuardianForceVital
 
     public int MaximumHitPoints => read().MaximumHitPoints;
     public BattleGuardianFormAdjustments Adjustments => adjustments;
+    public ImmutableArray<int> ElementDefenses => resources.ElementDefenses;
+    public ImmutableArray<byte> StatusResistances => resources.StatusResistances;
 }

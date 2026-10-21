@@ -1,4 +1,5 @@
-﻿using Memoria.FF8.Runtime;
+﻿using System.Collections.Immutable;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
 
@@ -20,6 +21,10 @@ public sealed partial class BattleAssets
         {
             throw new NotSupportedException("Ifrit's original physical action does not match its supported form binding.");
         }
-        return new(profile.GuardianForceId, physical, ability.Sequence, ReadEnemyNativeGraphicsResource(profile.ModelId));
+        return new(profile.GuardianForceId, physical, ability.Sequence, ReadEnemyNativeGraphicsResource(profile.ModelId))
+        {
+            ElementDefenses = ReadEnemyNativeStats(profile.ModelId).ElementDefenses.Select(value => (int)value).ToImmutableArray(),
+            StatusResistances = ReadEnemyNativeStatusData(profile.ModelId).Resistances
+        };
     }
 }

@@ -138,7 +138,7 @@ public sealed class BattleHudGuardianFormTests
         return new(new BattleDefinition
         {
             GuardianFormsEnabled = enabled,
-            GuardianFormResources = enabled ? [new(2, physical, 12, new([0, 0]) { AnimationFrames = [] })] : [],
+            GuardianFormResources = enabled ? [new(2, physical, 12, new([0, 0]) { AnimationFrames = [] }) { ElementDefenses = [1000, 700, 800, 800, 800, 800, 800, 800], StatusResistances = [.. Enumerable.Repeat((byte)100, 40)] }] : [],
             GuardianForces = [new(2, 1000, 1000, true)],
             ActionDefinitions = [new(BattleAbility.GuardianForce, 2, "Renamed GF", BattleActionEffect.Damage, 10, false), new(BattleAbility.Magic, 1, "Fire", BattleActionEffect.Damage, 10, false)],
             Combatants =

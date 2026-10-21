@@ -604,7 +604,7 @@ public sealed partial class BattleCombatant
     public ushort NativeRetainedStatusBits => definition.NativeRetainedStatusBits;
     //4868C0/486C70 clear Berserk, then copy the complete native WORD to the saved character record.
     public ushort PersistentStatus => (ushort)(BattleSession.NativeSavedStatusBits(this) & ~0x20);
-    internal IReadOnlyList<byte> NativeStatusResistances => MutableNativeStatusResistances;
+    internal IReadOnlyList<byte> NativeStatusResistances => GuardianFormVitals is { } form ? form.StatusResistances : MutableNativeStatusResistances;
 
     private byte[] InitialNativeStatusResistances()
     {
@@ -639,7 +639,8 @@ public sealed partial class BattleCombatant
     public int DrainPercent => definition.DrainPercent;
     public int ElementAttack => definition.ElementAttack;
     public int ElementAttackPercent => definition.ElementAttackPercent;
-    public IReadOnlyList<int> ElementDefenses => Array.AsReadOnly(definition.ElementDefenses);
+    internal IReadOnlyList<int> HumanElementDefenses => Array.AsReadOnly(definition.ElementDefenses);
+    public IReadOnlyList<int> ElementDefenses => GuardianFormVitals is { } form ? form.ElementDefenses : HumanElementDefenses;
     private readonly NativeMagicStock[] nativeMagicInventory = Enumerable.Repeat(new NativeMagicStock(0, 0), 32).ToArray();
     internal Func<NativeCharacterVitals>? MagicOwner { get; set; }
     internal Action<NativeCharacterVitals>? SetMagicOwner { get; set; }
