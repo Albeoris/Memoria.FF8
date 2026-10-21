@@ -24,13 +24,15 @@ public sealed class NativeBattleCuragaFamilyProfile
     public uint AnimationAddress => RootEffect == 28 ? 0x160E0B0u : 0x15A9218u;
     public uint SoundAddress => RootEffect == 28 ? 0x160E0ACu : 0x15A9214u;
     public uint FlashAddress => RootEffect == 28 ? 0x160E0A0u : 0x15A9208u;
-    public uint ExecutableAddress => Effect switch { 37 => 0x17C8420, 73 => 0x178557C, 78 => 0x176E194, 81 => 0x1744A1C, 82 => 0x1741028, 16 => 0x17F7F1C, 61 => 0x1795000, 15 => 0x17FC68C, 28 => 0x17D5F4C, _ => 0x17AB0E8 };
-    public int ExecutableLength => Effect switch { 37 => 0x430C, 73 or 78 => 0x3DC8, 81 => 0x5138, 82 => 0x39F4, 16 => 0x4770, 61 => 0x2CC0, 15 => 0x5944, _ => NativeBattleCuragaExecutableState.Length };
-    public int EmitterCapacity => Effect is 73 or 78 ? 35 : Effect is 16 or 61 or 81 or 82 ? 20 : Effect is 15 or 37 ? 10 : 90;
-    public int GeometryCapacity => Effect is 73 or 78 ? 100 : Effect is 81 or 82 ? 60 : Effect == 16 ? 90 : Effect == 61 ? 100 : Effect is 15 or 37 ? 40 : 140;
+    public uint ExecutableAddress => Effect switch { 19 => 0x17F37BC, 37 => 0x17C8420, 73 => 0x178557C, 78 => 0x176E194, 81 => 0x1744A1C, 82 => 0x1741028, 16 => 0x17F7F1C, 61 => 0x1795000, 15 => 0x17FC68C, 28 => 0x17D5F4C, _ => 0x17AB0E8 };
+    public int ExecutableLength => Effect switch { 19 => 0x4760, 37 => 0x430C, 73 or 78 => 0x3DC8, 81 => 0x5138, 82 => 0x39F4, 16 => 0x4770, 61 => 0x2CC0, 15 => 0x5944, _ => NativeBattleCuragaExecutableState.Length };
+    public int EmitterCapacity => Effect is 73 or 78 ? 35 : Effect is 16 or 61 or 81 or 82 ? 20 : Effect is 15 or 19 or 37 ? 10 : 90;
+    public int GeometryCapacity => Effect is 73 or 78 ? 100 : Effect is 81 or 82 ? 60 : Effect == 16 ? 90 : Effect == 61 ? 100 : Effect == 19 ? 70 : Effect is 15 or 37 ? 40 : 140;
     public int EmitterStorageLength => EmitterCapacity * 108;
     public int GeometryStorageLength => GeometryCapacity * 672;
-    public int DrawBankStep => Effect is 16 or 61 or 81 or 82 ? 0x8000 : Effect is 15 or 37 or 73 or 78 ? 0x9000 : 0x6000;
+    public int DrawBankStep => Effect == 19 ? 0x4000 : Effect is 16 or 61 or 81 or 82 ? 0x8000 : Effect is 15 or 37 or 73 or 78 ? 0x9000 : 0x6000;
+    public bool UsesCommonPacketCursor => Effect == 19;
+    public bool StreamsPacketProducers => UsesCommonPacketCursor || UsesSplitPacketCursors;
     public bool UsesSplitPacketCursors => Effect is 16 or 37 or 61 or 81 or 82;
     public ImmutableArray<NativeBattleCureFamilyPool> Pools => RootEffect == 28
         ? [new(0x26D76B0, 0x26D75E8, 100, 2), new(0x26D8160, 0x26D8170, 88, 4), new(0x26D74F8, 0x26D7508, 60, 3), new(0x26D7EC0, 0x26D76D0, 676, 3), new(0x26D8150, 0x26D7ED0, 64, 10)]
@@ -43,14 +45,14 @@ public sealed class NativeBattleCuragaFamilyProfile
 
     public static NativeBattleCuragaFamilyProfile ForGenericNodes(ushort effect)
     {
-        return effect is 15 or 16 or 28 or 37 or 52 or 61 or 73 or 78 or 81 or 82 ? new(effect) : throw new NotSupportedException("The generic node family requires an implemented original module.");
+        return effect is 15 or 16 or 19 or 28 or 37 or 52 or 61 or 73 or 78 or 81 or 82 ? new(effect) : throw new NotSupportedException("The generic node family requires an implemented original module.");
     }
 
     public uint Callback(uint canonical)
     {
-        if (Effect is 15 or 16 or 37 or 61 or 73 or 78 or 81 or 82)
+        if (Effect is 15 or 16 or 19 or 37 or 61 or 73 or 78 or 81 or 82)
         {
-            uint callback = Effect == 37 ? 0x856E90u : Effect == 73 ? 0x7CC330u : Effect == 78 ? 0x7BE820u : Effect == 81 ? 0x7A5940u : Effect == 82 ? 0x79F590u : Effect == 15 ? 0x8B0DA0u : Effect == 16 ? 0x8AB890u : 0x7E6010u;
+            uint callback = Effect == 19 ? NativeBattleRaldo19Profile.GenericCallback : Effect == 37 ? 0x856E90u : Effect == 73 ? 0x7CC330u : Effect == 78 ? 0x7BE820u : Effect == 81 ? 0x7A5940u : Effect == 82 ? 0x79F590u : Effect == 15 ? 0x8B0DA0u : Effect == 16 ? 0x8AB890u : 0x7E6010u;
             return canonical == 0x87E1A0 ? callback : throw new NotSupportedException("This node module requires its dedicated nongeneric callbacks.");
         }
         uint potion = canonical switch
@@ -87,7 +89,7 @@ public sealed class NativeBattleCuragaFamilyProfile
         {
             return NativeBattleMightyGuardGeneric.CaptureExecutable(memory.RequireMightyGuard(Effect));
         }
-        NativeBattleCuragaExecutableState retained = (Effect switch { 37 => memory.DrinkMagic37Executable, 81 => memory.ActorDirector81Executable, 82 => memory.ActorDirector82Executable, 16 => memory.ActorDirector16Executable, 61 => memory.ActorDirector61Executable, 15 => memory.DrawStock15Executable, 28 => memory.CuragaExecutable, _ => memory.Potion52Executable }) ?? throw new NotSupportedException("The Curaga family requires its own retained executable bank.");
+        NativeBattleCuragaExecutableState retained = (Effect switch { 19 => memory.Raldo19Executable, 37 => memory.DrinkMagic37Executable, 81 => memory.ActorDirector81Executable, 82 => memory.ActorDirector82Executable, 16 => memory.ActorDirector16Executable, 61 => memory.ActorDirector61Executable, 15 => memory.DrawStock15Executable, 28 => memory.CuragaExecutable, _ => memory.Potion52Executable }) ?? throw new NotSupportedException("The Curaga family requires its own retained executable bank.");
         retained.Validate();
         if (retained.ResourceAddress != ExecutableAddress)
         {
@@ -108,6 +110,6 @@ public sealed class NativeBattleCuragaFamilyProfile
             NativeBattleMightyGuardState state = memory.RequireMightyGuard(Effect);
             return memory.WithMightyGuard(state with { InitializationFlag = retained.InitializationFlag, Executable = retained.Data });
         }
-        return Effect == 37 ? memory with { DrinkMagic37Executable = retained } : Effect == 81 ? memory with { ActorDirector81Executable = retained } : Effect == 82 ? memory with { ActorDirector82Executable = retained } : Effect == 16 ? memory with { ActorDirector16Executable = retained } : Effect == 61 ? memory with { ActorDirector61Executable = retained } : Effect == 15 ? memory with { DrawStock15Executable = retained } : Effect == 28 ? memory with { CuragaExecutable = retained } : memory with { Potion52Executable = retained };
+        return Effect == 19 ? memory with { Raldo19Executable = retained } : Effect == 37 ? memory with { DrinkMagic37Executable = retained } : Effect == 81 ? memory with { ActorDirector81Executable = retained } : Effect == 82 ? memory with { ActorDirector82Executable = retained } : Effect == 16 ? memory with { ActorDirector16Executable = retained } : Effect == 61 ? memory with { ActorDirector61Executable = retained } : Effect == 15 ? memory with { DrawStock15Executable = retained } : Effect == 28 ? memory with { CuragaExecutable = retained } : memory with { Potion52Executable = retained };
     }
 }

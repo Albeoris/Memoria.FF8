@@ -59,7 +59,7 @@ public static partial class NativeBattleCuragaNodeKinematics
                     return emitted.Batch;
                 };
             }
-            if (memory.Profile.Effect is 73 or 78 or 81 or 82)
+            if (memory.Profile.Effect is 19 or 73 or 78 or 81 or 82)
             {
                 uint meshAddress = memory.Dword(node + 0x170);
                 short waveFade = unchecked((short)memory.Word(node + 0x1CE));

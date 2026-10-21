@@ -809,6 +809,11 @@ public sealed partial class GameAssets
                 binding = binding with { DrinkMagic37Resources = ReadNativeDrinkMagic37Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Entry == NativeBattleRaldo19Profile.Entry)
+            {
+                binding = binding with { Raldo19Resources = ReadNativeRaldo19Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Entry is 0x7BE2D0 or 0x7CBDB0)
             {
                 binding = binding with { MightyGuardResources = ReadNativeMightyGuardResources(binding.Effect) };

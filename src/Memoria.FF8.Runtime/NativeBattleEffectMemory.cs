@@ -39,6 +39,12 @@ public sealed partial record NativeBattleEffectMemory([property: JsonRequired] N
         ExecutionStack?.Validate();
         GeometryRegisters?.Validate();
         DrinkMagic37?.Validate();
+        Raldo19?.Validate();
+        Raldo19Executable?.Validate();
+        if (Raldo19Executable is { ResourceAddress: not NativeBattleRaldo19Profile.ExecutableAddress })
+        {
+            throw new InvalidDataException("The Raldo node bank belongs to another module.");
+        }
         DrinkMagic37Executable?.Validate();
         if (DrinkMagic37Executable is { ResourceAddress: not 0x17C8420 })
         {

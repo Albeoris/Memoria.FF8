@@ -12,6 +12,7 @@ public sealed class NativeBattleActorWaveMeshExtendedTests
     private static NativeBattleSummonColors Constants => new(0, 0, 1f / 4096f, BitConverter.Int64BitsToDouble(0x4330000080000000L));
 
     [Theory]
+    [InlineData(2)]
     [InlineData(3)]
     [InlineData(4)]
     [InlineData(5)]
@@ -22,7 +23,7 @@ public sealed class NativeBattleActorWaveMeshExtendedTests
         NativeBattleActorWaveMeshStep result = Emit(mesh);
         NativeBattleEsunaMeshContext context = new(0xF0, 0xC08040, 2048, 0, 0, 0, new(0, 0, 256, 256), new(0, 0, 256, 256), 17, 2);
         NativeBattleGfGeometryBatch expected = NativeBattleRestorationMeshPackets.EmitBatch88E240(mesh, Matrix, Projection, context, Constants);
-        uint depth = group == 4 ? 499u : 500u;
+        uint depth = group is 2 or 4 ? 499u : 500u;
         expected = expected with { Attempts = expected.Attempts.Select(attempt => attempt.Primitive is null ? attempt : attempt with { Primitive = attempt.Primitive with { Bucket = 17 + ((int)depth >> 2) } }).ToImmutableArray() };
         Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(result.Batch));
         Assert.NotNull(Assert.Single(result.Batch.Attempts).Primitive);
@@ -124,6 +125,23 @@ public sealed class NativeBattleActorWaveMeshExtendedTests
         Assert.Null(rejected.Registers.Colors.Material);
     }
 
+    [Theory]
+    [InlineData(0x10u, true)]
+    [InlineData(0x20u, false)]
+    public void FT3_backface_override_uses_flat_flag10_and_never_loads_fourth(uint flag, bool accepted)
+    {
+        List<int> reads = [];
+        NativeBattleEffectArena context = Dword(Context(), 0x14, flag);
+        NativeBattleActorWaveMeshStep result = Emit(Mesh(2, true), context, zsf3: accepted ? (short)0x100 : null, zsf4: null, readVertexW: offset =>
+        {
+            reads.Add(offset);
+            return (short)0x4321;
+        });
+        Assert.Equal(accepted, Assert.Single(result.Batch.Attempts).Primitive is not null);
+        Assert.Equal(new[] { 8, 24, 16 }, reads);
+        Assert.Equal(accepted ? (uint?)375u : null, result.Registers.Geometry.Otz);
+    }
+
     private static NativeBattleActorWaveMeshStep Emit(ImmutableArray<byte> mesh, NativeBattleEffectArena? context = null, NativeBattleCameraProjection? projection = null, short? zsf3 = 0x155, short? zsf4 = 0x100, Func<int, short?>? readVertexW = null)
     {
         NativeBattleScriptedColorRegisters colors = NativeBattleScriptedColorRegisters.Unknown() with { Rgb = [null, 0x12345678, 0xABCDEF01] };
@@ -141,7 +159,7 @@ public sealed class NativeBattleActorWaveMeshExtendedTests
 
     private static ImmutableArray<byte> Mesh(int group, bool reverse = false)
     {
-        int stride = group switch { 4 => 20, 7 => 36, _ => 24 };
+        int stride = group switch { 2 or 4 => 20, 7 => 36, _ => 24 };
         byte[] mesh = new byte[72 + stride];
         BinaryPrimitives.WriteUInt32LittleEndian(mesh, 40);
         BinaryPrimitives.WriteUInt32LittleEndian(mesh.AsSpan(4), 4);
@@ -153,12 +171,18 @@ public sealed class NativeBattleActorWaveMeshExtendedTests
         int at = 40 + group * 4;
         BinaryPrimitives.WriteUInt32LittleEndian(mesh.AsSpan(at), 1);
         at += 4;
-        uint code = group switch { 3 => 0x2C000000u, 4 => 0x30000000u, 5 => 0x38000000u, _ => 0x3C000000u };
+        uint code = group switch { 2 => 0x24000000u, 3 => 0x2C000000u, 4 => 0x30000000u, 5 => 0x38000000u, _ => 0x3C000000u };
         BinaryPrimitives.WriteUInt32LittleEndian(mesh.AsSpan(at), code | 0x332211);
         ushort[] offsets = reverse ? [0, 4, 2, 6] : [0, 2, 4, 6];
-        for (int index = 0; index < (group == 4 ? 3 : 4); index++)
+        for (int index = 0; index < (group is 2 or 4 ? 3 : 4); index++)
         {
             BinaryPrimitives.WriteUInt16LittleEndian(mesh.AsSpan(at + 4 + index * 2), offsets[index]);
+        }
+        if (group == 2)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(mesh.AsSpan(at + 10), 0x0807);
+            BinaryPrimitives.WriteUInt32LittleEndian(mesh.AsSpan(at + 12), 0x12340302);
+            BinaryPrimitives.WriteUInt32LittleEndian(mesh.AsSpan(at + 16), 0x56780605);
         }
         if (group is 3 or 7)
         {
@@ -166,7 +190,7 @@ public sealed class NativeBattleActorWaveMeshExtendedTests
             BinaryPrimitives.WriteUInt32LittleEndian(mesh.AsSpan(at + 16), 0x56780605);
             BinaryPrimitives.WriteUInt32LittleEndian(mesh.AsSpan(at + 20), 0x0A090807);
         }
-        if (group != 3)
+        if (group is 4 or 5 or 7)
         {
             int color = at + (group == 7 ? 24 : 12);
             BinaryPrimitives.WriteUInt32LittleEndian(mesh.AsSpan(color), 0xA0554422);

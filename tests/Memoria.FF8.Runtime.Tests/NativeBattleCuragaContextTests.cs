@@ -7,6 +7,36 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleCuragaContextTests
 {
     [Fact]
+    public void Raldo_mode4_preserves_ordered_anchor_observer_memory_before_replacing_caster_vectors()
+    {
+        var fixture = Fixture();
+        NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
+        NativeBattleModulePoolTask task = hierarchy.Read(fixture.Address) with { Callback = NativeBattleRaldo19Profile.GenericCallback };
+        task = task.WriteDword(0x30, NativeBattleRaldo19Profile.ExecutableAddress).WriteWord(0x29C, 4).WriteWord(0x290, 7).WriteWord(0x292, unchecked((ushort)-768)).WriteWord(0x294, 9);
+        hierarchy = hierarchy.Write(fixture.Address, task);
+        NativeBattleCuragaFrame frame = fixture.Frame with { Memory = fixture.Frame.Memory with { Raldo19Executable = NativeBattleCuragaExecutableState.FromColdProcess(19), Parameter80 = 0 }, Effect = fixture.Frame.Effect with { RequestedEffect = 19, Binding = new(19, NativeBattleRaldo19Profile.Entry, NativeBattleRaldo19Profile.Initializer), Pools = hierarchy.Pools } };
+        List<(int Actor, byte Selector)> calls = [];
+        NativeBattleCuragaControllerInputs inputs = fixture.Inputs with
+        {
+            ObserveBoneAnchor = (current, actor, selector) =>
+            {
+                calls.Add((actor, selector));
+                return current with { Memory = current.Memory with { Parameter80 = checked((byte)(current.Memory.Parameter80!.Value + 1)) } };
+            }
+        };
+        NativeBattleCuragaResources resources = Resources() with { Effect = 19, Executable = new(new byte[NativeBattleRaldo19Profile.ExecutableLength].ToImmutableArray()) { ResourceAddress = NativeBattleRaldo19Profile.ExecutableAddress } };
+        NativeBattleCuragaFrame result = NativeBattleCuragaContext.Initialize87E230(frame, fixture.Address, resources, inputs);
+        Assert.Equal(new (int, byte)[] { (2, 241), (2, 241), (2, 240), (3, 241), (3, 241), (3, 240), (4, 241), (4, 241), (4, 240) }, calls);
+        Assert.Equal((byte)9, result.Memory.Parameter80);
+        Assert.Equal(1u, result.Memory.Raldo19Executable!.InitializationFlag);
+        task = new NativeBattleEffectHierarchy(result.Effect.Pools).Read(fixture.Address);
+        foreach (int offset in new[] { 0x1C4, 0x1D4, 0x1E4, 0x1F4, 0x204 })
+        {
+            AssertVector(task, offset, 7, -768, 9);
+        }
+    }
+
+    [Fact]
     public void Initial_context_uses_actual_model_WORD36_signed_MaximumY_WORD60_and_Q16_anchors_without_consuming_random_state()
     {
         var fixture = Fixture();

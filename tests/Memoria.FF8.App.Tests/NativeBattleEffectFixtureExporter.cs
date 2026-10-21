@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -16,6 +16,7 @@ internal sealed record NativeEffectFixtureRequest(string Id, ushort Effect, byte
     public byte? CrisisLevel { get; init; }
     public bool HealingContact { get; init; }
     public bool RevivalContact { get; init; }
+    public bool PreserveOriginalFormationEnemies { get; init; }
     public int EncounterId { get; init; } = 94;
     public byte CasterActorIndex { get; init; }
 }
@@ -52,6 +53,10 @@ internal static class NativeBattleEffectFixtureExporter
         {
             throw new InvalidDataException("Explicit module selection requires a valid original shell effect and a controlled post-formula damage component; ordinary, deferred, healing and revival admission cannot use it.");
         }
+        if (request.PreserveOriginalFormationEnemies && (request.OrdinaryMagicAdmission || request.DeferredGuardianFormulaAdmission || request.RevivalContact))
+        {
+            throw new InvalidDataException("Preserving original formation enemies requires the controlled component producer without an ordinary, guardian or revival override.");
+        }
         if (request.PartyModelId is < 0 or > 10)
         {
             throw new InvalidDataException("The fresh component requires an explicit original party model index.");
@@ -62,10 +67,23 @@ internal static class NativeBattleEffectFixtureExporter
         }
     }
 
-    internal static BattleEnemyPlacement SelectEnemy(BattleEncounter formation)
+    internal static BattleEnemyPlacement[] SelectEnemies(BattleEncounter formation, bool preserveOriginalFormationEnemies)
     {
         BattleEnemyPlacement[] enemies = formation.Enemies.Where(enemy => enemy.Enabled && enemy.IsEnemyModel).ToArray();
-        return enemies.Length == 1 ? enemies[0] : throw new InvalidDataException("The two-actor component requires exactly one enabled original enemy placement.");
+        if (preserveOriginalFormationEnemies)
+        {
+            if (enemies.Length is < 1 or > 4 || enemies.Select(enemy => enemy.Slot).Distinct().Count() != enemies.Length)
+            {
+                throw new InvalidDataException("The preserved formation requires one to four distinct original enemy placements.");
+            }
+            return enemies.OrderBy(enemy => enemy.Slot).ToArray();
+        }
+        return enemies.Length == 1 ? enemies : throw new InvalidDataException("The two-actor component requires exactly one enabled original enemy placement.");
+    }
+
+    internal static BattleEnemyPlacement SelectEnemy(BattleEncounter formation, bool preserveOriginalFormationEnemies = false)
+    {
+        return SelectEnemies(formation, preserveOriginalFormationEnemies)[0];
     }
 
     internal static byte SelectEnemySequence(NativeBattleAiDefinition ai, BattleNativeAction action)
@@ -136,13 +154,19 @@ internal static class NativeBattleEffectFixtureExporter
             selection = new(request.ControlledShellEffect is null, native.Command, native.ActionId, native.MagicId, native.KernelSection, native.KernelIndex, request.Effect);
             boundary = "original-resources";
             BattleEncounter formation = assets.LoadEncounter(request.EncounterId);
-            BattleEnemyPlacement enemyPlacement = SelectEnemy(formation);
+            BattleEnemyPlacement[] enemyPlacements = SelectEnemies(formation, request.PreserveOriginalFormationEnemies);
+            BattleEnemyPlacement enemyPlacement = enemyPlacements[0];
             BattleStage stage = assets.LoadStage(formation.StageId);
             BattleCombatantDefinition[] actors =
             [
                 new() { Id = "party", Name = request.PartyModelId == 0 ? "Squall" : "Party", IsPlayer = true, ModelId = request.PartyModelId, WeaponId = assets.WeaponDefinitions.First(weapon => weapon.CharacterId == request.PartyModelId).Id, MaximumHp = 1000, CurrentHp = 100, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 },
                 new() { Id = "enemy", Name = assets.ReadEnemyName(enemyPlacement.ModelId), ModelId = enemyPlacement.ModelId, SceneSlot = enemyPlacement.Slot, Speed = 1, InitialHidden = enemyPlacement.Hidden, InitialUntargetable = enemyPlacement.Untargetable, InitialSuspended = enemyPlacement.InitiallySuspended }
             ];
+            if (request.PreserveOriginalFormationEnemies)
+            {
+                actors = [actors[0], .. enemyPlacements.Select((enemy, index) => new BattleCombatantDefinition { Id = index == 0 ? "enemy" : $"enemy-{enemy.Slot}", Name = assets.ReadEnemyName(enemy.ModelId), ModelId = enemy.ModelId, SceneSlot = enemy.Slot, Speed = 1, InitialHidden = enemy.Hidden, InitialUntargetable = enemy.Untargetable, InitialSuspended = enemy.InitiallySuspended })];
+                File.WriteAllText(Path.Combine(outputDirectory, "original-formation.json"), JsonSerializer.Serialize(new { formation.Id, formation.StageId, Enemies = enemyPlacements }));
+            }
             if (request.RevivalContact)
             {
                 actors = [actors[0], new() { Id = "target", Name = "Target", IsPlayer = true, ModelId = 0, WeaponId = 0, MaximumHp = 1000, CurrentHp = 7, NativeDeathCount = 0 }, actors[1]];

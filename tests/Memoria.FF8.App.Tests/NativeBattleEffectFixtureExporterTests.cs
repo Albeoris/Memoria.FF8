@@ -1,6 +1,8 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Assets;
+using System.Numerics;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -73,6 +75,23 @@ public sealed class NativeBattleEffectFixtureExporterTests
         Assert.Throws<InvalidDataException>(() => NativeBattleEffectFixtureExporter.Validate(request with { ProcessTimeoutSeconds = 0 }));
         Assert.Throws<InvalidDataException>(() => NativeBattleEffectFixtureExporter.Validate(request with { TargetActorIndex = 1 }));
         Assert.Throws<InvalidDataException>(() => NativeBattleEffectFixtureExporter.Validate(request with { AdmissionProbeMaximumCallbacks = -1 }));
+    }
+
+    [Fact]
+    public void Preserved_formation_is_explicit_and_keeps_original_placements_without_relocating_actors()
+    {
+        BattleEnemyPlacement[] enemies = Enumerable.Range(0, 4).Select(index => new BattleEnemyPlacement(index, index == 0 ? 95 : 96, new Vector3(index * 37, index * -11, index * 53), 10, false, false) { NativePosition = new((short)(index * 37), (short)(index * -11), (short)(index * 53)) }).ToArray();
+        BattleEncounter formation = new(62, 12, 0, 0, 0, enemies);
+        Assert.False(Request().PreserveOriginalFormationEnemies);
+        Assert.Throws<InvalidDataException>(() => NativeBattleEffectFixtureExporter.SelectEnemy(formation));
+        BattleEnemyPlacement[] preserved = NativeBattleEffectFixtureExporter.SelectEnemies(formation, true);
+        Assert.Equal(enemies, preserved);
+        Assert.All(enemies.Select((enemy, index) => (enemy, index)), item => Assert.Same(item.enemy, preserved[item.index]));
+        Assert.Same(enemies[0], NativeBattleEffectFixtureExporter.SelectEnemy(formation, true));
+        NativeEffectFixtureRequest request = Request() with { PreserveOriginalFormationEnemies = true };
+        NativeBattleEffectFixtureExporter.Validate(request);
+        Assert.Throws<InvalidDataException>(() => NativeBattleEffectFixtureExporter.Validate(request with { OrdinaryMagicAdmission = true }));
+        Assert.Throws<InvalidDataException>(() => NativeBattleEffectFixtureExporter.Validate(request with { DeferredGuardianFormulaAdmission = true }));
     }
 
     private static NativeEffectFixtureRequest Request()

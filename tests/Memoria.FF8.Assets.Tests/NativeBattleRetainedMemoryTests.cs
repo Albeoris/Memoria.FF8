@@ -37,6 +37,8 @@ public sealed class NativeBattleRetainedMemoryTests
         NativeBattleQuezacotlExecutableMemory executableMemory = Assert.IsType<NativeBattleQuezacotlExecutableMemory>(actual.EffectMemory!.QuezacotlExecutableMemory);
         byte[] executable = File.ReadAllBytes(Path.Combine(assets.GameDirectory, "FF8_EN.exe"));
         Assert.Null(generic.EffectMemory.DrinkMagic37);
+        Assert.Null(generic.EffectMemory.Raldo19);
+        Assert.Null(generic.EffectMemory.Raldo19Executable);
         NativeBattleDrinkMagic37State drink = actual.EffectMemory.RequireDrinkMagic37();
         Assert.Null(drink.Nodes);
         Assert.Equal(NativeBattleEffectStaticResourcesReader.Read(executable, NativeBattleDrinkMagic37Profile.OrbAddress, NativeBattleDrinkMagic37Profile.OrbLength).ToArray(), drink.OrbMesh.Read(0, NativeBattleDrinkMagic37Profile.OrbLength));
@@ -81,6 +83,12 @@ public sealed class NativeBattleRetainedMemoryTests
             Aqua72 = new(72, image.ReadLoader(0x25FA370, 84).ToImmutableArray(), NativeBattleEffectStaticResourcesReader.Read(executable, 0x158A4BC, 10600)),
             DrinkMagic37 = new(null, NativeBattleEffectArena.Clear().Write(0, image.ReadLoader(NativeBattleDrinkMagic37Profile.OrbAddress, NativeBattleDrinkMagic37Profile.OrbLength)), image.ReadLoader(0x26A8D80, 8).ToImmutableArray()),
             DrinkMagic37Executable = NativeBattleCuragaExecutableState.FromColdProcess(37),
+            Raldo19 = new(null, image.ReadLoader(NativeBattleRaldo19Profile.SharedAddress, 84).ToImmutableArray(), NativeBattleEffectArena.Clear().Write(0, image.ReadLoader(NativeBattleRaldo19Profile.BallAddress, 0xC4)), NativeBattleEffectArena.Clear().Write(0, image.ReadLoader(NativeBattleRaldo19Profile.BodyScratchAddress, NativeBattleRaldo19Profile.BodyScratchLength)), NativeBattleEffectArena.Clear().Write(0, image.ReadLoader(NativeBattleRaldo19Profile.DescriptorAddress, 48)), NativeBattleEffectArena.Clear().Write(0, image.ReadLoader(NativeBattleRaldo19Profile.VertexScratchAddress, NativeBattleRaldo19Profile.VertexScratchLength)))
+            {
+                Counter273048C = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(image.ReadLoader(0x273048C, 4)),
+                Counter272DDDC = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(image.ReadLoader(0x272DDDC, 4))
+            },
+            Raldo19Executable = NativeBattleCuragaExecutableState.FromColdProcess(19),
             Scan = generic.EffectMemory.Scan with
             {
                 MutableMeshes = new[] { (Address: 0x15CDDECu, Length: 0x3E8), (Address: 0x15CE1D4u, Length: 0x768) }.ToImmutableDictionary(item => item.Address, item => new NativeBattleScanByteOwner(image.ReadLoader(item.Address, item.Length).ToImmutableArray(), Enumerable.Repeat(true, item.Length).ToImmutableArray()))
@@ -93,11 +101,14 @@ public sealed class NativeBattleRetainedMemoryTests
         };
         byte[] temporary = image.ReadLoader(NativeBattleTemporaryMemory.Address, NativeBattleTemporaryMemory.ReachedLength);
         byte[] cursor = image.ReadLoader(NativeBattleTemporaryMemory.Cursor, 4);
+        byte[] shadow = image.ReadLoader(0x1D999D0, 80);
+        Assert.Equal(shadow, actual.FileStaging!.Read(0x1D999D0, shadow.Length));
+        Assert.Throws<NotSupportedException>(() => generic.FileStaging!.Read(0x1D999D0, shadow.Length));
         Assert.Equal(temporary, actual.FileStaging!.Read(NativeBattleTemporaryMemory.Address, temporary.Length));
         Assert.Equal(cursor, actual.FileStaging.Read(NativeBattleTemporaryMemory.Cursor, cursor.Length));
         Assert.Throws<NotSupportedException>(() => generic.FileStaging!.Read(NativeBattleTemporaryMemory.Address, temporary.Length));
         Assert.Throws<NotSupportedException>(() => generic.FileStaging!.Read(NativeBattleTemporaryMemory.Cursor, cursor.Length));
-        NativeBattleRetainedMemory authenticated = generic with { EffectMemory = authenticatedEffect, FileStaging = generic.FileStaging!.Write(NativeBattleTemporaryMemory.Address, temporary).Write(NativeBattleTemporaryMemory.Cursor, cursor) };
+        NativeBattleRetainedMemory authenticated = generic with { EffectMemory = authenticatedEffect, FileStaging = generic.FileStaging!.Write(NativeBattleTemporaryMemory.Address, temporary).Write(NativeBattleTemporaryMemory.Cursor, cursor).Write(0x1D999D0, shadow) };
         Assert.Equal(JsonSerializer.Serialize(authenticated), JsonSerializer.Serialize(actual with { EffectMemory = actual.EffectMemory with { QuezacotlExecutableMemory = null, DoubleMorph = null, TripleMorph = null, Effect57Executable = null, RemedyExecutable = null, RecoveryExecutables = null } }));
         Assert.Same(actual, assets.ReadColdProcessNativeBattleMemory());
         Assert.Equal(0, actual.ActionPackets.Headers[31].ReadByte(19));

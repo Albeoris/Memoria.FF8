@@ -26,6 +26,7 @@ public sealed record NativeBattleCuragaFrame(NativeBattleEffectMemory Memory, Na
 public sealed record NativeBattleCuragaControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource)
 {
     public Func<NativeBattleCuragaFrame, int, NativeBattleCuragaFrame>? ApplyContact { get; init; }
+    public Func<NativeBattleCuragaFrame, int, byte, NativeBattleCuragaFrame>? ObserveBoneAnchor { get; init; }
 }
 public sealed record NativeBattleCuragaLeafStep(NativeBattleCuragaFrame Frame, int Result);
 public sealed record NativeBattleCuragaControllerStep(NativeBattleCuragaFrame Frame, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);

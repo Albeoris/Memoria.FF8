@@ -21,6 +21,7 @@ public sealed record NativeBattleCuragaExecutableState([property: JsonRequired] 
     [JsonIgnore]
     public int ByteLength => ResourceAddress switch
     {
+        0x17F37BC => 0x4760,
         0x17C8420 => 0x430C,
         0x178557C or 0x176E194 => 0x3DC8,
         0x17FC68C => 0x5944,
@@ -36,7 +37,7 @@ public sealed record NativeBattleCuragaExecutableState([property: JsonRequired] 
 
     public void Validate()
     {
-        if (ResourceAddress is not (0x17D5F4C or 0x17AB0E8 or 0x17FC68C or 0x17F7F1C or 0x1795000 or 0x1744A1C or 0x1741028 or 0x178557C or 0x176E194 or 0x17C8420))
+        if (ResourceAddress is not (0x17D5F4C or 0x17AB0E8 or 0x17FC68C or 0x17F7F1C or 0x1795000 or 0x1744A1C or 0x1741028 or 0x178557C or 0x176E194 or 0x17C8420 or 0x17F37BC))
         {
             throw new InvalidDataException("Native Curaga family executable bank has no original module identity.");
         }

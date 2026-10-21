@@ -68,15 +68,15 @@ public static class NativeBattleActorWaveMesh
             {
                 continue;
             }
-            if (group is not (3 or 4 or 5 or 7))
+            if (group is not (2 or 3 or 4 or 5 or 7))
             {
-                throw new NotSupportedException("Native actor mesh resources require their proved FT4, G3, G4 or GT4 groups.");
+                throw new NotSupportedException("Native actor mesh resources require their proved FT3, FT4, G3, G4 or GT4 groups.");
             }
-            bool quad = group != 4;
-            bool gouraud = group != 3;
+            bool quad = group is 3 or 5 or 7;
+            bool gouraud = group is 4 or 5 or 7;
             uint fadeFlag = gouraud ? 0x80u : 0x40u;
             NativeBattleEsunaMeshContext packetContext = new(flags, (flags & fadeFlag) != 0 ? ReadDword(context104, 8) : null, (flags & fadeFlag) != 0 ? unchecked((int)ReadDword(context104, 12)) : null, depthBias, ReadWord(context104, 0x18), ReadWord(context104, 0x1A), before, after, 17, 2);
-            int faceBytes = group switch { 4 => 20, 7 => 36, _ => 24 };
+            int faceBytes = group switch { 2 or 4 => 20, 7 => 36, _ => 24 };
             for (int faceIndex = 0; faceIndex < count; faceIndex++)
             {
                 byte[] face = Read(cursor, faceBytes).ToArray();
@@ -97,9 +97,9 @@ public static class NativeBattleActorWaveMesh
                 {
                     registers = NativeBattleGeometry.Clip45EE10(registers);
                     context104 = Dword(context104, 0x30, registers.Geometry.Mac0!.Value);
-                    if (!quad && (unchecked((int)registers.Geometry.Mac0.Value) >= 0 || (flags & 0x20) != 0))
+                    if (!quad && (unchecked((int)registers.Geometry.Mac0.Value) >= 0 || (flags & (gouraud ? 0x20u : 0x10u)) != 0))
                     {
-                        registers = NativeBattleGeometry.Average45E5C0(registers, zsf3 ?? throw new NotSupportedException("Native actor G3 mesh requires the current ZSF3 control."));
+                        registers = NativeBattleGeometry.Average45E5C0(registers, zsf3 ?? throw new NotSupportedException("Native actor triangle mesh requires the current ZSF3 control."));
                     }
                 }
                 NativeBattleModuleProjectedVertex ReadCorner(int corner)
@@ -117,6 +117,7 @@ public static class NativeBattleActorWaveMesh
                 }
                 NativeBattleGfGeometryBatch faceBatch = group switch
                 {
+                    2 => NativeBattleRestorationMeshPackets.EmitFt3_88E820(face, ReadCorner, packetContext, constants, allocated),
                     3 => NativeBattleRestorationMeshPackets.EmitFt4_88ECA0(face, ReadCorner, packetContext, constants, allocated),
                     4 => NativeBattleRestorationMeshPackets.EmitG3_88F220(face, ReadCorner, packetContext, constants, allocated),
                     5 => NativeBattleRestorationMeshPackets.EmitG4_88F470(face, ReadCorner, packetContext, constants, allocated),

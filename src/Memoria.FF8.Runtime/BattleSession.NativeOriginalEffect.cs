@@ -518,6 +518,10 @@ public sealed partial class BattleSession
         {
             return RunNativeActorDirector(graphics, true);
         }
+        if (effect.Binding.Entry == NativeBattleRaldo19Profile.Entry)
+        {
+            return RunNativeRaldo19(graphics, true);
+        }
         if (effect.Binding.Entry == NativeBattleDrinkMagic37Profile.Entry)
         {
             return RunNativeDrinkMagic37(graphics, true);

@@ -17,7 +17,7 @@ public static class NativeBattleCuragaContext
             throw new NotSupportedException("The actor director generic producer supports only its original mode0 anchors.");
         }
         NativeBattleCuragaExecutableState executable = profile.RequireExecutable(frame.Memory).Initialize87EA20(resources.Executable ?? throw new NotSupportedException("Native87EA20 requires the authenticated executable source."));
-        task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Native87E230 requires its50AFC0 header base."), inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, profile.ExecutableAddress);
+        task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Native87E230 requires its50AFC0 header base."), inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, profile.ExecutableAddress, observeBone: (actor, selector) => frame = inputs.ObserveBoneAnchor?.Invoke(frame, actor, selector) ?? frame);
         hierarchy = hierarchy.Write(address, task);
         return frame with { Memory = profile.WithExecutable(frame.Memory, executable), Effect = frame.Effect with { Pools = hierarchy.Pools } };
     }

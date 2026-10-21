@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -13,7 +13,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
         RunSelected([16, 61, 81, 82], "MEMORIA_FF8_ACTOR_DIRECTOR");
     }
 
-    internal static void RunSelected(ushort[] supportedEffects, string variablePrefix)
+    internal static void RunSelected(ushort[] supportedEffects, string variablePrefix, Func<BattleAssets, ushort, NativeEffectFixtureRequest>? fixtureFactory = null)
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         string? selection = Environment.GetEnvironmentVariable(variablePrefix + "_EFFECT");
@@ -62,6 +62,19 @@ public sealed class NativeBattleActorDirectorPresentationTests
             byte caster = 0;
             byte contactActor = 3;
             NativeEffectFixtureRequest request = new($"actor-director{effectId}", effectId, action.Command, action.ActionId, contactActor, 800, 240) { EncounterId = formation.Id, CasterActorIndex = caster, PartyModelId = 0, CrisisLevel = action.CrisisLevel, ControlledShellEffect = originalAction is null ? action.MagicId : null };
+            if (fixtureFactory is not null)
+            {
+                request = fixtureFactory(assets, effectId);
+                Assert.Equal(effectId, request.Effect);
+                action = NativeBattleEffectFixtureExporter.SelectAction(assets.NativeActions, request);
+                Assert.Equal(effectId, action.MagicId);
+                Assert.Null(request.ControlledShellEffect);
+                originalAction = action;
+                formation = assets.LoadEncounter(request.EncounterId);
+                enemy = NativeBattleEffectFixtureExporter.SelectEnemy(formation, request.PreserveOriginalFormationEnemies);
+                caster = request.CasterActorIndex;
+                contactActor = request.TargetActorIndex;
+            }
             NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, directory!, fixture);
             File.WriteAllText(Path.Combine(output!, "fixture-result.json"), JsonSerializer.Serialize(exported));
             Assert.True(exported.Status != "blocked", exported.FirstBlocker);
@@ -76,6 +89,16 @@ public sealed class NativeBattleActorDirectorPresentationTests
             Assert.Equal(action.Command, header.ReadByte(1));
             Assert.Equal(action.ActionId, NativeBattleActionGraphics.Word(header, 4));
             Assert.Equal(effectId, NativeBattleActionGraphics.Word(header, 6));
+            if (effectId == 19)
+            {
+                Assert.Equal((byte)3, caster);
+                Assert.Equal((byte)0, contactActor);
+                Assert.Equal((byte)8, header.ReadByte(1));
+                Assert.True(request.PreserveOriginalFormationEnemies);
+                Assert.Equal((byte)0x6F, source.NativeGraphics.Models[caster].ModelId4);
+                Assert.Equal(new byte?[] { 0x70, 0x70, 0x70 }, source.NativeGraphics.Models.Skip(4).Take(3).Select(model => model.ModelId4).ToArray());
+                Assert.Equal((ushort)2, (ushort)(source.NativeGraphics.Models[caster].Flags0 & 6));
+            }
             Assert.Equal(originalAction is not null, exported.Selection!.OriginalKernelEffectReference);
             Assert.Equal(action.MagicId, exported.Selection.ShellEffect);
             NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value);
@@ -119,7 +142,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 {
                     Assert.Equal(effectId, Director(current).Effect);
                     Assert.InRange(Director(current).SourceArenaOffset, 0, NativeBattleEffectArena.Length - 2 * Director(current).DrawStep);
-                    Assert.Equal(JsonSerializer.Serialize(original.DrinkMagic37Resources?.Animation ?? original.MightyGuardResources?.Animation ?? original.ActorDirectorResources!.Animation), JsonSerializer.Serialize(current.NativeEffectMemory!.Textures!.Animation!.Source));
+                    Assert.Equal(JsonSerializer.Serialize(original.Raldo19Resources?.Animation ?? original.DrinkMagic37Resources?.Animation ?? original.MightyGuardResources?.Animation ?? original.ActorDirectorResources!.Animation), JsonSerializer.Serialize(current.NativeEffectMemory!.Textures!.Animation!.Source));
                     initialized = true;
                     ColdNext("initialized", current);
                 }
@@ -136,7 +159,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                     Assert.Equal(expectedText.HalfWidth, text.HalfWidth);
                     contactGlyphs++;
                 }
-                if ((visibleChangedRgb == 0 || effectId is 37 or 73 or 78) && after?.ReturnedDescriptor is > 0 && Director(current).Effect == effectId)
+                if ((visibleChangedRgb == 0 || effectId is 19 or 37 or 73 or 78) && after?.ReturnedDescriptor is > 0 && Director(current).Effect == effectId)
                 {
                     ImmutableHashSet<NativeBattlePrimitiveReference> owned = ActorDirectorPacketReferences(prior, current);
                     if (!owned.IsEmpty)
@@ -155,8 +178,10 @@ public sealed class NativeBattleActorDirectorPresentationTests
                             peakWithout = without;
                             peakPixels = pixels;
                             peakPlain = plain;
-                            peakOwnership = JsonSerializer.Serialize(new { Effect = effectId, current.Frame, NativeCallback = current.NativeGraphics.Callback, PrivateBank = "20DFAB8", PrivateStart = packetState.SecondaryDrawCursor!.Value - packetState.DrawStep, PrivateEnd = packetState.PrimaryDrawCursor!.Value, Packets = owned.OrderBy(packet => packet.Bank).ThenBy(packet => packet.Buffer).ThenBy(packet => packet.ByteOffset).ToArray() });
-                            if (effectId is not (37 or 73 or 78))
+                            peakOwnership = effectId == 19
+                                ? JsonSerializer.Serialize(new { Effect = effectId, current.Frame, NativeCallback = current.NativeGraphics.Callback, Ownership = "Matched common packets before the complete first actor allocation", Packets = owned.OrderBy(packet => packet.Bank).ThenBy(packet => packet.Buffer).ThenBy(packet => packet.ByteOffset).ToArray() })
+                                : JsonSerializer.Serialize(new { Effect = effectId, current.Frame, NativeCallback = current.NativeGraphics.Callback, PrivateBank = "20DFAB8", PrivateStart = packetState.SecondaryDrawCursor!.Value - packetState.DrawStep, PrivateEnd = packetState.PrimaryDrawCursor!.Value, Packets = owned.OrderBy(packet => packet.Bank).ThenBy(packet => packet.Buffer).ThenBy(packet => packet.ByteOffset).ToArray() });
+                            if (effectId is not (19 or 37 or 73 or 78))
                             {
                                 File.WriteAllText(Path.Combine(output!, "visible-packet-ownership.json"), peakOwnership);
                                 NativeBattleRestorationPresentationTests.Publish(output!, "visible", current, pixels);
@@ -187,14 +212,18 @@ public sealed class NativeBattleActorDirectorPresentationTests
             Assert.Equal(1, contacts);
             Assert.Equal(expectedText is null ? 0 : 1, contactGlyphs);
             Assert.True(cameraChanged, "The original actor-director camera control never changed its retained camera.");
-            if (effectId != 37)
+            if (effectId is not (19 or 37))
             {
                 Assert.True(stageChanged, "The original actor-director stage fade never changed the retained four-group color/depth owner.");
+            }
+            if (effectId == 19)
+            {
+                Assert.False(stageChanged);
             }
             Assert.Equal(1, completions);
             Assert.True(completed.Events.Count(item => item.NativeModuleSound is not null) > initialSounds, "The selected component published no original module sound.");
             Assert.True(Released(completed), "The original returned task, active effect and action104 descriptor must release through native execution.");
-            if (effectId is 37 or 73 or 78 && peakSnapshot is not null)
+            if (effectId is 19 or 37 or 73 or 78 && peakSnapshot is not null)
             {
                 File.WriteAllText(Path.Combine(output!, "visible-packet-ownership.json"), peakOwnership ?? throw new InvalidDataException("The peak node packet ownership was not retained."));
                 NativeBattleRestorationPresentationTests.Publish(output!, "visible", peakSnapshot, peakPixels ?? throw new InvalidDataException("The peak node pixels were not retained."));
@@ -304,6 +333,10 @@ public sealed class NativeBattleActorDirectorPresentationTests
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
+        if (graphics.OriginalEffect!.Binding.Effect == 19)
+        {
+            return NativeBattleAquaPresentationTests.AquaPacketReferences(prior, current);
+        }
         DirectedNodePacketState state = Director(current);
         ImmutableHashSet<NativeBattlePrimitiveReference> common = state.CommonMeshes ? NativeBattleAquaPresentationTests.AquaPacketReferences(prior, current) : ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         int secondary = state.SecondaryDrawCursor ?? throw new InvalidDataException("The actor director sprite span requires its current secondary cursor.");
@@ -320,6 +353,11 @@ public sealed class NativeBattleActorDirectorPresentationTests
     private static DirectedNodePacketState Director(BattleSnapshot snapshot)
     {
         ushort effect = snapshot.NativeGraphics!.OriginalEffect!.Binding.Effect;
+        if (effect == 19)
+        {
+            NativeBattleCuragaState nodes = snapshot.NativeEffectMemory!.RequireRaldo19().Nodes ?? throw new InvalidDataException("Raldo requires its initialized node cursors.");
+            return new(effect, nodes.SourceArenaOffset, nodes.PrimaryDrawCursor, nodes.SecondaryDrawCursor, NativeBattleRaldo19Profile.DrawStep, true);
+        }
         if (effect == 37)
         {
             NativeBattleCuragaState nodes = snapshot.NativeEffectMemory!.RequireDrinkMagic37().Nodes ?? throw new InvalidDataException("Drink Magic requires its initialized node cursors.");
@@ -342,9 +380,14 @@ public sealed class NativeBattleActorDirectorPresentationTests
         {
             return false;
         }
-        uint callback = effect == 37 ? NativeBattleDrinkMagic37Profile.TargetCallback : effect is 73 or 78 ? NativeBattleMightyGuardProfile.ForEffect(effect).TargetCallback : NativeBattleActorDirectorProfile.ForEffect(effect).Callback(0x8AB4C0);
+        uint callback = effect == 19 ? NativeBattleRaldo19Profile.TargetCallback : effect == 37 ? NativeBattleDrinkMagic37Profile.TargetCallback : effect is 73 or 78 ? NativeBattleMightyGuardProfile.ForEffect(effect).TargetCallback : NativeBattleActorDirectorProfile.ForEffect(effect).Callback(0x8AB4C0);
         byte phase = effect is 37 or 73 or 78 ? (byte)2 : (byte)1;
-        return before.Pools[1].Slots.Select((task, index) => (task, index)).Any(item => (item.task.Flags & 1) != 0 && item.task.Callback == callback && item.task.ReadByte(0x29) == phase && after.Pools[1].Slots[item.index].ReadByte(0x29) == phase + 1);
+        bool crossed = before.Pools[1].Slots.Select((task, index) => (task, index)).Any(item => (item.task.Flags & 1) != 0 && item.task.Callback == callback && item.task.ReadByte(0x29) == phase && after.Pools[1].Slots[item.index].ReadByte(0x29) == phase + 1);
+        if (effect == 19 && crossed)
+        {
+            Assert.Equal((short)1, prior.NativeEffectMemory!.RequireRaldo19().Word(0x48));
+        }
+        return crossed;
     }
 
     private static bool Released(BattleSnapshot snapshot)
