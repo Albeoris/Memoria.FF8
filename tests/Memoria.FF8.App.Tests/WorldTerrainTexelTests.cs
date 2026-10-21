@@ -32,17 +32,25 @@ public sealed class WorldTerrainTexelTests
     }
 
     [Theory]
-    [InlineData(96, false, false)]
-    [InlineData(96, false, true)]
-    [InlineData(96, true, false)]
-    [InlineData(96, true, true)]
-    [InlineData(160, false, false)]
-    [InlineData(160, false, true)]
-    [InlineData(160, true, false)]
-    [InlineData(160, true, true)]
-    public void Constant_native_texture_row_survives_perspective_and_camera_motion(int size, bool retained, bool water)
+    [InlineData(96, false, false, 0)]
+    [InlineData(96, false, false, 8)]
+    [InlineData(96, false, true, 0)]
+    [InlineData(96, false, true, 8)]
+    [InlineData(96, true, false, 0)]
+    [InlineData(96, true, false, 8)]
+    [InlineData(96, true, true, 0)]
+    [InlineData(96, true, true, 8)]
+    [InlineData(160, false, false, 0)]
+    [InlineData(160, false, false, 8)]
+    [InlineData(160, false, true, 0)]
+    [InlineData(160, false, true, 8)]
+    [InlineData(160, true, false, 0)]
+    [InlineData(160, true, false, 8)]
+    [InlineData(160, true, true, 0)]
+    [InlineData(160, true, true, 8)]
+    public void Constant_native_texture_row_survives_perspective_and_camera_motion(int size, bool retained, bool water, int samples)
     {
-        using GpuTestDevice device = new();
+        using GpuTestDevice device = new(samples);
         using GpuTriangleRenderer renderer = new(device.Device);
         WorldTriangle triangle = Decode([96, 96, 96], water);
         Vector3 origin = new(-131072, 0, -98304);
@@ -82,7 +90,12 @@ public sealed class WorldTerrainTexelTests
             renderer.End();
             Color[] actual = GpuTestDevice.Read(renderer.Target);
             Assert.True(actual.Count(pixel => pixel == Color.Lime) > 100, "The varying-depth triangle must cover a meaningful image area.");
-            Assert.DoesNotContain(actual, pixel => pixel != Color.Black && pixel != Color.Lime);
+            Assert.All(actual, pixel =>
+            {
+                Assert.Equal(0, pixel.R);
+                Assert.Equal(0, pixel.B);
+                Assert.Equal(255, pixel.A);
+            });
         }
     }
 
