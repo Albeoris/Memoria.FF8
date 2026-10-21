@@ -2492,9 +2492,11 @@ public static partial class NativeBattleCinematicDispatch
             (211, "vm_table", 0xAF) => 0xAD29D0,
             (219, "vm_table", 0xB3) => 0xAC7800,
             (208, "draw_table", 47) => 0xAD9BF0,
+            (208, "draw_table", 52) => 0xAD9160,
             (211, "draw_table", 47) => 0xACE7B0,
             (219, "draw_table", 49) => 0xAC26B0,
             (219, "draw_table", 67) => 0xAC2230,
+            (75, "draw_table", 66) => 0xB429A0,
             _ => 0
         };
         if (exact != 0)

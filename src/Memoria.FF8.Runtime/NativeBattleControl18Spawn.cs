@@ -4,11 +4,12 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleControl18Face(uint Address, bool Quad, ImmutableArray<NativeBattleVector> Vertices);
-public sealed record NativeBattleControl18SpawnStep(ImmutableArray<byte> Records, ImmutableArray<byte> PolygonStates, ushort LiveCount, NativeCrtRandomState Random, int? LastDistance, ImmutableArray<NativeBattleVector> LastVertices);
+public sealed record NativeBattleControl18SpawnStep(ImmutableArray<byte> Records, ImmutableArray<byte> PolygonStates, ushort LiveCount, NativeCrtRandomState Random, int? LastDistance, ImmutableArray<NativeBattleVector> LastVertices, int? FallbackCountdown = null);
+public sealed record NativeBattleControl18SpawnServices(int Interval, Func<NativeCrtRandomState, int, int, int, int, NativeCrtRandomState> EmitAuxiliary);
 
 public static class NativeBattleControl18Spawn
 {
-    public static NativeBattleControl18SpawnStep Advance(ReadOnlySpan<byte> source, ReadOnlySpan<byte> polygonStates, ushort liveCount, ReadOnlySpan<byte> payload, IReadOnlyList<NativeBattleControl18Face> faces, short threshold, NativeCrtRandomState random)
+    public static NativeBattleControl18SpawnStep Advance(ReadOnlySpan<byte> source, ReadOnlySpan<byte> polygonStates, ushort liveCount, ReadOnlySpan<byte> payload, IReadOnlyList<NativeBattleControl18Face> faces, short threshold, NativeCrtRandomState random, NativeBattleControl18SpawnServices? services = null)
     {
         if (source.Length % 68 != 0 || payload.Length < 0x32 || faces.Count > polygonStates.Length)
         {
@@ -17,10 +18,12 @@ public static class NativeBattleControl18Spawn
         byte[] records = source.ToArray();
         byte[] states = polygonStates.ToArray();
         byte[] controls = payload.ToArray();
-        if (U16(8) != 2 || U16(0xE) != 0 || U16(0x2E) != 0 || U16(0x30) != 0)
+        ushort mode = U16(8);
+        if (mode is not (2 or 7) || U16(0xE) != 0 || (mode == 7 || U16(0x2E) != 0 || U16(0x30) != 0) && services is null)
         {
-            throw new NotSupportedException("Native breakup spawning requires its implemented threshold mode without auxiliary or preadvanced particles.");
+            throw new NotSupportedException("Native breakup spawning requires its selected threshold mode and auxiliary services.");
         }
+        int countdown = services?.Interval ?? 0;
         int? lastDistance = null;
         ImmutableArray<NativeBattleVector> lastVertices = default;
         int cursor = 0;
@@ -30,6 +33,10 @@ public static class NativeBattleControl18Spawn
             {
                 continue;
             }
+            if (services is not null && liveCount >= records.Length / 68)
+            {
+                break;
+            }
             NativeBattleControl18Face face = faces[polygon];
             int count = face.Quad ? 4 : 3;
             if (face.Vertices.Length != count)
@@ -37,9 +44,20 @@ public static class NativeBattleControl18Spawn
                 throw new InvalidDataException("Native breakup polygon has an incomplete corner directory.");
             }
             int y = face.Vertices.Sum(value => value.Y);
-            if (y >= threshold * count)
+            bool fallback = false;
+            if (mode == 2 ? y >= threshold * count : y <= threshold * count)
             {
-                continue;
+                if (U16(0x2E) == 0)
+                {
+                    continue;
+                }
+                countdown = unchecked(countdown - 1);
+                if (countdown > 0)
+                {
+                    continue;
+                }
+                countdown = services!.Interval;
+                fallback = true;
             }
             if (liveCount >= records.Length / 68)
             {
@@ -84,11 +102,16 @@ public static class NativeBattleControl18Spawn
             NativeBattleWaterVectorRandom spin = NativeBattleWaterVectorCommands.RandomB65740(S16(0x2C), random);
             random = spin.Random;
             Write16(0x34, unchecked(S16(0x2A) + spin.Value));
+            if (services is not null)
+            {
+                int emissions = U16(0x30) * (fallback ? 2 : 1);
+                random = services!.EmitAuxiliary(random, unchecked(center[0] << 8), unchecked(center[1] << 8), unchecked(center[2] << 8), emissions);
+            }
             lastVertices = face.Vertices;
             liveCount = unchecked((ushort)(liveCount + 1));
             cursor += 68;
         }
-        return new(records.ToImmutableArray(), states.ToImmutableArray(), liveCount, random, lastDistance, lastVertices);
+        return new(records.ToImmutableArray(), states.ToImmutableArray(), liveCount, random, lastDistance, lastVertices, services is not null ? countdown : null);
 
         ushort U16(int offset) => BinaryPrimitives.ReadUInt16LittleEndian(controls.AsSpan(offset));
         short S16(int offset) => BinaryPrimitives.ReadInt16LittleEndian(controls.AsSpan(offset));

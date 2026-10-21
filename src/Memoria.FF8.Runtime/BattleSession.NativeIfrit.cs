@@ -567,7 +567,11 @@ public sealed partial class BattleSession
                     }));
                 case 0x31:
                 case 0x34:
-                    NativeBattleScriptedStreamStep streamed = NativeBattleScriptedStreamCommands.Execute(current, RequireWaterMemory().SummonStream ?? throw new NotSupportedException("Native cinematic requires its retained summon-stream owner."), (_, address, length) => resources.ReadStatic(address, length).ToArray(), _ => throw new NotSupportedException("Native cinematic stream transfer requires its retained external clearing flag."));
+                    NativeBattleScriptedStreamStep streamed = NativeBattleScriptedStreamCommands.Execute(current, RequireWaterMemory().SummonStream ?? throw new NotSupportedException("Native cinematic requires its retained summon-stream owner."), (_, address, length) => resources.ReadStatic(address, length).ToArray(), frame =>
+                    {
+                        NativeEffectMemory = RequireWaterMemory() with { GuardianCasterBank = 0 };
+                        return frame;
+                    });
                     NativeEffectMemory = RequireWaterMemory() with { SummonStream = streamed.Stream };
                     return streamed.Frame;
                 case 0x27:
@@ -804,6 +808,18 @@ public sealed partial class BattleSession
             return NativeBattleCinematicDraw.Run(profile, current, PrepareLighting, (frame, kind) =>
             {
                 uint selectedDrawHandler = NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "draw_table", kind, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.DrawTable + 4u * kind), 4)));
+                if (selectedDrawHandler == 0xAD9160)
+                {
+                    var dissolve = DrawNativeCinematicActorDissolve52(frame, assets[1].Data.Length, graphics);
+                    graphics = dissolve.Graphics;
+                    return dissolve.Frame;
+                }
+                if (selectedDrawHandler == 0xB429A0)
+                {
+                    var detached = DrawNativeCinematicDetached66(frame, assets[1].Data.Length, resources, assets, graphics);
+                    graphics = detached.Graphics;
+                    return detached.Frame;
+                }
                 if (selectedDrawHandler is 0xAD9BF0 or 0xACE7B0)
                 {
                     var palette = DrawNativeCinematicPalette47(frame, graphics);

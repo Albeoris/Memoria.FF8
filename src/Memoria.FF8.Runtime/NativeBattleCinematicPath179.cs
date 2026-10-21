@@ -16,7 +16,11 @@ public static class NativeBattleCinematicPath179
         short targetY = Word(target + 0x96);
         short targetZ = Word(target + 0x98);
         uint owner = CoreDword(frame, 0x27973B8);
-        if ((frame.Arena.Read(ArenaOffset(owner + 0x4B, 1), 1)[0] & 0x80) != 0)
+        if (owner != frame.TemporaryFrame.Address + 0x100)
+        {
+            throw new NotSupportedException("Native cinematic path requires its current callback control binding.");
+        }
+        if ((frame.ReadTemporaryByte(0x14B) & 0x80) != 0)
         {
             frame = WriteSlotWord(frame, 0xA0, unchecked((ushort)x));
             frame = WriteSlotWord(frame, 0xA2, unchecked((ushort)y));

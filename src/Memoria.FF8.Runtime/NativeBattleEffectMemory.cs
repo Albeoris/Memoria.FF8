@@ -24,6 +24,10 @@ public sealed partial record NativeBattleEffectMemory([property: JsonRequired] N
 
     public void Validate()
     {
+        if (CinematicBreakupPayload4?.Any(pair => !NativeBattleCinematicProfile.IsSupported(pair.Key) || pair.Value.IsDefault || pair.Value.Length != 4) == true)
+        {
+            throw new InvalidDataException("Native cinematic breakup requires four retained corner depths for each published module owner.");
+        }
         if (DetachedReturnedTask is { } returnedTask)
         {
             returnedTask.Validate();

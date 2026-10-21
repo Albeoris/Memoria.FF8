@@ -136,8 +136,9 @@ public sealed class NativeBattleCinematicRemainingCommandTests
     private static NativeBattleWaterExecutionFrame PathFrame(bool initialize, short limit)
     {
         NativeBattleWaterExecutionFrame frame = Frame(0xB3);
-        frame = WaterSchedulerFixture.CoreDword(frame, 0x27973B8, NativeBattleEffectNodeMemory.ArenaAddress + 0x2300);
-        frame = frame with { Arena = frame.Arena.Write(0x234B, new byte[] { initialize ? (byte)0x80 : (byte)0 }).Write(0x1002, BitConverter.GetBytes(short.MinValue)).Write(0x204A, new byte[] { 0xA1, 0x12 }) };
+        frame = WaterSchedulerFixture.CoreDword(frame, 0x27973B8, frame.TemporaryFrame.Address + 0x100);
+        frame = frame.WriteTemporaryByte(0x14B, initialize ? (byte)0x80 : (byte)0);
+        frame = frame with { Arena = frame.Arena.Write(0x1002, BitConverter.GetBytes(short.MinValue)).Write(0x204A, new byte[] { 0xA1, 0x12 }) };
         short[] scratch = [100, 200, -300, 4000, 1024];
         short[] target = [500, -100, 800];
         short[] controls = [-7, 64, limit];

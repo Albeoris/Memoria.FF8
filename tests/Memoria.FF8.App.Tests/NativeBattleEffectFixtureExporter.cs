@@ -15,6 +15,8 @@ internal sealed record NativeEffectFixtureRequest(string Id, ushort Effect, byte
     public int PartyModelId { get; init; }
     public bool HealingContact { get; init; }
     public bool RevivalContact { get; init; }
+    public int EncounterId { get; init; } = 94;
+    public byte CasterActorIndex { get; init; }
 }
 internal sealed record NativeEffectFixtureRequests(NativeEffectFixtureRequest[] Cases);
 internal sealed record NativeEffectFixtureArtifact(string Boundary, string File, string Sha256, long Bytes, long Frame, long NativeCallback);
@@ -53,6 +55,22 @@ internal static class NativeBattleEffectFixtureExporter
         {
             throw new InvalidDataException("The fresh component requires an explicit original party model index.");
         }
+        if (request.EncounterId is < 0 or >= 1024 || request.CasterActorIndex is not (0 or 3) || request.CasterActorIndex != 0 && (request.OrdinaryMagicAdmission || request.DeferredGuardianFormulaAdmission || request.RevivalContact))
+        {
+            throw new InvalidDataException("The fresh component requires an original formation and party0/enemy3 caster; ordinary, guardian and revival producers retain their party caster.");
+        }
+    }
+
+    internal static BattleEnemyPlacement SelectEnemy(BattleEncounter formation)
+    {
+        BattleEnemyPlacement[] enemies = formation.Enemies.Where(enemy => enemy.Enabled && enemy.IsEnemyModel).ToArray();
+        return enemies.Length == 1 ? enemies[0] : throw new InvalidDataException("The two-actor component requires exactly one enabled original enemy placement.");
+    }
+
+    internal static byte SelectEnemySequence(NativeBattleAiDefinition ai, BattleNativeAction action)
+    {
+        byte[] sequences = ai.Abilities.Where(ability => ability.Command == action.Command && ability.Id == action.ActionId).Select(ability => ability.Sequence).Distinct().ToArray();
+        return sequences.Length == 1 ? sequences[0] : throw new InvalidDataException("The enemy component requires one original AI sequence for its selected kernel command/action row.");
     }
 
     internal static BattleNativeAction SelectAction(IEnumerable<BattleNativeAction> actions, NativeEffectFixtureRequest request)
@@ -116,12 +134,13 @@ internal static class NativeBattleEffectFixtureExporter
             BattleNativeAction native = SelectComponentAction(assets.NativeActions, request);
             selection = new(request.ControlledShellEffect is null, native.Command, native.ActionId, native.MagicId, native.KernelSection, native.KernelIndex, request.Effect);
             boundary = "original-resources";
-            BattleEncounter formation = assets.LoadEncounter(94);
+            BattleEncounter formation = assets.LoadEncounter(request.EncounterId);
+            BattleEnemyPlacement enemyPlacement = SelectEnemy(formation);
             BattleStage stage = assets.LoadStage(formation.StageId);
             BattleCombatantDefinition[] actors =
             [
                 new() { Id = "party", Name = request.PartyModelId == 0 ? "Squall" : "Party", IsPlayer = true, ModelId = request.PartyModelId, WeaponId = assets.WeaponDefinitions.First(weapon => weapon.CharacterId == request.PartyModelId).Id, MaximumHp = 1000, CurrentHp = 100, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 },
-                new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = formation.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
+                new() { Id = "enemy", Name = assets.ReadEnemyName(enemyPlacement.ModelId), ModelId = enemyPlacement.ModelId, SceneSlot = enemyPlacement.Slot, Speed = 1, InitialHidden = enemyPlacement.Hidden, InitialUntargetable = enemyPlacement.Untargetable, InitialSuspended = enemyPlacement.InitiallySuspended }
             ];
             if (request.RevivalContact)
             {
@@ -150,7 +169,8 @@ internal static class NativeBattleEffectFixtureExporter
                 ActionDefinitions = BattlePartyProjection.CreateActions(game.ReadNewGameCharacterVitals(), assets.ActionDefinitions),
                 NativeActions = assets.NativeActions.ToArray(),
                 NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
-                NativeClockRules = request.OrdinaryMagicAdmission ? assets.ReadNativeClockRules() : null,
+                NativeClockRules = request.OrdinaryMagicAdmission || request.Effect == 77 ? assets.ReadNativeClockRules() : null,
+                NativeBattleSpeed = request.Effect == 77 ? game.ReadNewGameInputConfiguration().NativeBattleSpeedByte : null,
                 NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5),
                 NativeVibrationProcess = NativeVibrationProcessState.FromColdProcess(),
                 NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(),
@@ -183,6 +203,11 @@ internal static class NativeBattleEffectFixtureExporter
             definition = NativeBattleComponentInputs.PrepareMusic(definition, game.GameDirectory, 0, 5, -1);
             boundary = "before-entry";
             BattleSession battle = new(definition, request.OrdinaryMagicAdmission ? BattleAtbMode.Normal : BattleAtbMode.TurnBased);
+            BattleSnapshot fresh = battle.Capture();
+            NativeBattleGraphicsState freshGraphics = fresh.NativeGraphics ?? throw new InvalidDataException("The fresh component requires its native graphics owner.");
+            // Establish the fresh typed outcome owner without inventing values for its unknown nullable bytes.
+            // Native entry and outcome callbacks publish their own reached fields.
+            battle = BattleSession.Restore(fresh with { NativeGraphics = freshGraphics with { NativeOutcome = new NativeBattleOutcomeState() } });
             Save(boundary, battle.Capture());
             // Continue this component's actual entry producer; never replay travel or restore a partial owner.
             boundary = "battle-entry";
@@ -272,8 +297,9 @@ internal static class NativeBattleEffectFixtureExporter
             }
             before = before with { Combatants = before.Combatants.Select(actor => actor.Id == target.Id ? target : actor).ToArray() };
             NativeBattleActionPacketsState packets = battle.NativeActionPackets;
-            byte sequence = SelectSequence(definition.NativeCommandSequences, native.Command, native.ActionId);
-            (packets, int header) = packets.Prepare(new(0, native.Command, sequence, -1, native.ActionId, SelectHeaderEffect(native, request), null));
+            byte sequence = request.CasterActorIndex == 3 ? SelectEnemySequence(assets.ReadEnemyAi(enemyPlacement.ModelId, enemyPlacement.Level), native) : SelectSequence(definition.NativeCommandSequences, native.Command, native.ActionId);
+            _ = before.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.CasterActorIndex);
+            (packets, int header) = packets.Prepare(new(request.CasterActorIndex, native.Command, sequence, -1, native.ActionId, SelectHeaderEffect(native, request), null));
             // Deferred guardian admission replaces this placeholder through the actual Boost/formula callback.
             // Other component scenarios supply their declared post-formula seven-HP contact.
             (packets, _) = packets.AppendContact(new(new(request.TargetActorIndex, native.DamagePresentation, request.TargetActorIndex == 3 ? (byte)1 : (byte)0, request.HealingContact ? (byte)1 : (byte)0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));

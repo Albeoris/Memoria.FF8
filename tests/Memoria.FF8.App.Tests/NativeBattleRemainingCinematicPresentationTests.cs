@@ -42,7 +42,9 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
             NativeBattleEffectBinding original = game.ReadNativeEffectCatalogForEffects([effectId])[effectId - 1];
             string fixture = Path.Combine(output!, "fixture");
             boundary = "export-controlled-component";
-            NativeEffectFixtureRequest request = new($"cinematic{effectId}", effectId, action.Command, action.ActionId, 0, 800, 240) { ControlledShellEffect = originalAction is null ? action.MagicId : null };
+            byte caster = effectId is 77 or 219 ? (byte)3 : (byte)0;
+            int encounter = effectId switch { 77 => 981, 219 => 462, _ => 94 };
+            NativeEffectFixtureRequest request = new($"cinematic{effectId}", effectId, action.Command, action.ActionId, 0, 800, 240) { ControlledShellEffect = originalAction is null ? action.MagicId : null, EncounterId = encounter, CasterActorIndex = caster };
             NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, directory!, fixture);
             File.WriteAllText(Path.Combine(output!, "fixture-result.json"), JsonSerializer.Serialize(exported));
             Assert.True(exported.Status != "blocked", exported.FirstBlocker);
@@ -53,7 +55,7 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
             uint headerOffset = checked(source.NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
             Assert.Equal(0u, headerOffset % 20);
             NativeBattleActionHeaderSlot header = source.NativeActionPackets!.Headers[checked((int)(headerOffset / 20))];
-            Assert.Equal((byte)0, header.ReadByte(0));
+            Assert.Equal(caster, header.ReadByte(0));
             Assert.Equal(action.Command, header.ReadByte(1));
             Assert.Equal(action.ActionId, NativeBattleActionGraphics.Word(header, 4));
             Assert.Equal(effectId, NativeBattleActionGraphics.Word(header, 6));
