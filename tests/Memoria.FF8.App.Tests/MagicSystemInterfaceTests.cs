@@ -133,6 +133,7 @@ public sealed class MagicSystemInterfaceTests
         Assert.True(menu.SelectBank(1));
         Assert.Equal(1, menu.Bank);
         Assert.True(PlayerSaveStore.RequiresMemoriaFormat(new GameState { GameplayPreferences = new() { SmartAttack = true } }));
+        Assert.True(PlayerSaveStore.RequiresMemoriaFormat(new GameState { GameplayPreferences = new() { GuardianFormsEnabled = true } }));
         Assert.False(PlayerSaveStore.RequiresMemoriaFormat(new GameState()));
     }
 }

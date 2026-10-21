@@ -1,4 +1,4 @@
-namespace Memoria.FF8.Runtime;
+﻿namespace Memoria.FF8.Runtime;
 
 /// <summary>
 /// Playable battle owner with original formation/AI contracts and declared scaffold
@@ -232,6 +232,7 @@ public sealed partial class BattleSession
     public void QueueAttack(string actorId, string targetId)
     {
         RequireNativeEntryReady();
+        RequireNormalGuardianFormCommands(actorId);
         BattleCombatant actor = GetActor(actorId);
         BattleCombatant target = GetActor(targetId);
         if (Outcome != BattleOutcome.Active || !actor.IsReady || !CanNativeBattleActorAct(actor) || !target.IsAlive || target.Untargetable || actor.IsPlayer == target.IsPlayer || !actor.Abilities.Contains(BattleAbility.Attack))
@@ -285,6 +286,7 @@ public sealed partial class BattleSession
         return new BattleSnapshot
         {
             Definition = CloneDefinition(definition),
+            GuardianForms = CaptureGuardianForms(),
             MagicVitals = magicVitals?.DeepCopy(),
             NativeEntryAdvantage = NativeEntryAdvantage,
             NativeCamera = NativeCamera,
@@ -322,7 +324,7 @@ public sealed partial class BattleSession
             NativeExamTimer = NativeExamTimer,
             Outcome = Outcome,
             DebugOutcome = DebugOutcome,
-            Combatants = combatants.Select(actor => new BattleCombatantSnapshot(actor.Id, actor.CurrentHp, actor.Atb, actor.StatusEffects.ToArray()) { NativeAtb = actor.NativeAtb, GuardianForceCompatibility = actor.GuardianForceCompatibility?.ToArray(), NativeMagicInventory = actor.NativeMagicInventory.ToArray(), NativeDrawSlots = actor.NativeDrawSlots.ToArray(), NativeParticipant = CaptureNativeParticipant(actor), NativeStatus = CaptureNativeStatus(actor) }).ToArray(),
+            Combatants = combatants.Select(actor => new BattleCombatantSnapshot(actor.Id, actor.HumanHitPoints, actor.Atb, actor.StatusEffects.ToArray()) { NativeAtb = actor.NativeAtb, GuardianForceCompatibility = actor.GuardianForceCompatibility?.ToArray(), NativeMagicInventory = actor.NativeMagicInventory.ToArray(), NativeDrawSlots = actor.NativeDrawSlots.ToArray(), NativeParticipant = CaptureNativeParticipant(actor), NativeStatus = CaptureNativeStatus(actor) }).ToArray(),
             NativeAllocations = nativeAllocations.ToArray(),
             QueuedActions = actions.ToArray(),
             ActiveAction = ActiveAction,
@@ -420,6 +422,7 @@ public sealed partial class BattleSession
         {
             return becameReady;
         }
+        DispatchGuardianFormTransitions();
         DispatchNativeCompelledActors();
         foreach (BattleCombatant enemy in combatants.Where(actor => !actor.IsPlayer && actor.IsReady && CanNativeBattleActorAct(actor)).ToArray())
         {
@@ -483,6 +486,12 @@ public sealed partial class BattleSession
                     {
                         ValidateCurrentNativeQueuedHeader(command);
                     }
+                    if (command.NativeHeaderIndex is null && (command.GuardianFormAction is not null || command.GuardianFormInvocation is not null) && GetGuardianForm(actor.Id) is null)
+                    {
+                        actor.IsBusy = false;
+                        Log("Cancelled", actor.Id, command.TargetId, 0, "GF form invocation was cancelled.");
+                        continue;
+                    }
                     if (command.NativeHeaderIndex is null)
                     {
                         command = PrepareNativeQueuedCommand(actor, command);
@@ -526,7 +535,7 @@ public sealed partial class BattleSession
                     DispatchNativeSecondaryBankCommand();
                     command = PrepareNativeGraphicsAction(actor, command);
                     BeginNativeBattleActionPause();
-                    ActiveAction = new BattleActionPresentation(actor.Id, target.Id, BattleActionPhase.Windup, NativeActionWindupFrames(actor, command.NativeSequence), command.Ability, command.ActionId, command.DrawCast, command.NativeTargetSelector) { MagicReservationId = command.MagicReservationId, SmartAttack = command.SmartAttack, NativeHeaderIndex = command.NativeHeaderIndex, NativeDuel = command.NativeDuel, NativeSlots = command.NativeSlots, NativeAiCallbackStage = command.NativeAiCallbackStage, NativePlayerReaction = command.NativePlayerReaction, NativeDraw = command.NativeDraw, DrawCastTargetId = command.DrawCastTargetId, NativeLimitCallback = command.NativeLimitCallback, NativeMagicTargets = command.NativeMagicTargets, NativeSequenceFrame = NativeGraphics is not null || NativeControlTrack(actor, command.NativeSequence) is null ? null : 0, NativeGraphic = command.NativeGraphic, IndependentGuardian = command.IndependentGuardian, NativeSpecial = command.NativeSpecial, NativeQueuedCommand = command.NativeQueuedCommand, NativeAction = command.NativeAction, NativeSequence = command.NativeSequence, NativeTargetMask = command.NativeTargetMask, FreeNativeMagic = command.FreeNativeMagic, ReservedNativeItemSlot = command.ReservedNativeItemSlot };
+                    ActiveAction = new BattleActionPresentation(actor.Id, target.Id, BattleActionPhase.Windup, NativeActionWindupFrames(actor, command.NativeSequence), command.Ability, command.ActionId, command.DrawCast, command.NativeTargetSelector) { MagicReservationId = command.MagicReservationId, SmartAttack = command.SmartAttack, NativeHeaderIndex = command.NativeHeaderIndex, NativeDuel = command.NativeDuel, NativeSlots = command.NativeSlots, NativeAiCallbackStage = command.NativeAiCallbackStage, NativePlayerReaction = command.NativePlayerReaction, NativeDraw = command.NativeDraw, DrawCastTargetId = command.DrawCastTargetId, NativeLimitCallback = command.NativeLimitCallback, NativeMagicTargets = command.NativeMagicTargets, NativeSequenceFrame = NativeGraphics is not null || NativeControlTrack(actor, command.NativeSequence) is null ? null : 0, NativeGraphic = command.NativeGraphic, IndependentGuardian = command.IndependentGuardian, NativeSpecial = command.NativeSpecial, NativeQueuedCommand = command.NativeQueuedCommand, NativeAction = command.NativeAction, NativeSequence = command.NativeSequence, NativeTargetMask = command.NativeTargetMask, GuardianFormAction = command.GuardianFormAction, GuardianFormInvocation = command.GuardianFormInvocation, FreeNativeMagic = command.FreeNativeMagic, ReservedNativeItemSlot = command.ReservedNativeItemSlot };
                     BeginComponentGuardianBoost(ActiveAction);
                     Log("Windup", actor.Id, target.Id, 0, $"{actor.Name}: {command.NativeAction?.Name ?? ActionName(command.Ability, command.ActionId)} → {target.Name}.");
                     if (command.NativeHeaderIndex is not null && command.NativeQueuedCommand is not (0 or 247) && command.NativeAiCallbackStage is null && command.NativePlayerReaction is null && nativeActionScratch.ComponentCompletion is null)
@@ -608,6 +617,14 @@ public sealed partial class BattleSession
             ActiveAction = null;
             CompleteNativeGraphicsAction();
         }
+        if (action.GuardianFormInvocation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry } invocation && GetGuardianForm(action.ActorId) is { Phase: BattleGuardianFormPhase.Finishing } form && form.InvocationId == invocation.Id)
+        {
+            ReturnGuardianForm(byId[action.ActorId], false);
+        }
+        if (GetGuardianForm(action.ActorId) is { Phase: BattleGuardianFormPhase.Returning })
+        {
+            ReturnGuardianForm(byId[action.ActorId], (NativeSavedStatusBits(byId[action.ActorId]) & 1) != 0);
+        }
         Log("ActionComplete", action.ActorId, action.TargetId, 0, message);
     }
 
@@ -678,6 +695,10 @@ public sealed partial class BattleSession
         BattleCombatant? nativeSource = nativeContactWorking?.Actor ?? actor;
         int nativeMagnitude = nativeContactWorking is { CommittingSecondary: false } contact ? contact.Magnitude : amount;
         AccumulateNativeReturnDamage(target, nativeSource, nativeMagnitude);
+        if (ApplyGuardianFormDamage(actor, target, amount, source, publishDamage))
+        {
+            return;
+        }
         int applied = (int)Math.Min(unchecked((uint)target.CurrentHp), checked((uint)amount));
         bool nativeDeath = (NativeSavedStatusBits(target) & 1) != 0 || (NativeBattleStatusBits(target) & 0x10000) != 0 || applied == target.CurrentHp;
         bool finalizeDeath = nativeDeath && NativeDeathContactAllowed(target);
@@ -749,6 +770,10 @@ public sealed partial class BattleSession
         if (!actor.IsAlive)
         {
             return;
+        }
+        if (actor.GuardianFormVitals is not null)
+        {
+            MarkGuardianFormContact(actor);
         }
         int applied = Math.Min(actor.MaximumHp - actor.CurrentHp, amount);
         actor.CurrentHp += applied;
@@ -860,6 +885,13 @@ public sealed partial class BattleSession
             {
                 BeginNativeDefeat486450();
                 return;
+            }
+        }
+        if (guardianForms is not null)
+        {
+            foreach (string actorId in guardianForms.Keys.ToArray())
+            {
+                ReturnGuardianForm(GetActor(actorId), !GetActor(actorId).IsAlive);
             }
         }
         Outcome = outcome;
@@ -1099,6 +1131,7 @@ public sealed partial class BattleSession
         RestoreNativeElementAttack(snapshot.NativeElementAttack);
         (snapshot.NativeScriptState ?? throw new InvalidDataException("Native battle script state is missing.")).Validate();
         RestoreGuardianForces(snapshot);
+        RestoreGuardianForms(snapshot.GuardianForms, snapshot.Outcome);
         RestoreNativeSupport(snapshot.NativeSupport);
         RestoreNativeBattleClock(snapshot.NativeClock);
         RestoreNativeGraphics(snapshot.NativeGraphics);
@@ -1111,6 +1144,7 @@ public sealed partial class BattleSession
         ValidateNativeCommandBindings(busy);
         foreach (BattleAttackCommand command in snapshot.QueuedActions)
         {
+            ValidateGuardianFormCommand(command);
             if (command.NativeCallback is not null)
             {
                 ValidateSavedNativeCallback(command);
@@ -1130,6 +1164,7 @@ public sealed partial class BattleSession
         }
         if (snapshot.ActiveAction is { } action)
         {
+            ValidateGuardianFormPresentation(action);
             ValidateNativeAiCommandStage(GetActor(action.ActorId), action.Ability, action.NativeAiCallbackStage);
             ValidateNativeMagicTargets(action.Ability, action.ActionId, action.NativeMagicTargets);
             ValidateNativeDrawPacket(action.Ability, action.ActionId, action.DrawCast, action.DrawCastTargetId, action.NativeDraw, true, action.NativeAction, action.NativeTargetMask);
@@ -1242,6 +1277,7 @@ public sealed partial class BattleSession
         ValidateNativeDuelControlOwners();
         RestoreNativeBattleUiRandom(snapshot.NativeBattleUiRandom);
         RestoreNativeGuardianBoost(snapshot.NativeGuardianBoost);
+        ValidateGuardianFormOwners();
         RestoreNativeScannedModels(snapshot.NativeScannedModels);
         RestoreNativeKnownMagic(snapshot.NativeKnownMagic);
         RestoreNativeSpecialOwners(snapshot);
@@ -1280,7 +1316,8 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Queued native action differs from its installed kernel contract.");
             }
         }
-        bool allies = !native && ability != BattleAbility.Attack && ability != BattleAbility.Draw && FindAction(ability, actionId).Allies;
+        bool formEntry = ability == BattleAbility.GuardianForce && actorId == targetId && GetGuardianForm(actorId) is { Phase: BattleGuardianFormPhase.Charging };
+        bool allies = formEntry || !native && ability != BattleAbility.Attack && ability != BattleAbility.Draw && FindAction(ability, actionId).Allies;
         bool unique = busy.Add(actorId);
         bool validTarget = renzokuken is not null || graphic is not null || allowDefeatedTarget || (native ? ActionHasValidTarget(targetId, ability, actionId, nativeAction, nativeTargetMask) : target.IsAlive || IsRevive(ability, actionId));
         //4842B0 grows DWORD20 despite pending flags4/8; only the native clock/status/80 gates stop it.
@@ -1308,7 +1345,8 @@ public sealed partial class BattleSession
             BattleCombatant replacement = candidate.byId[actor.Id];
             RestoreNativeParticipant(actor, CaptureNativeParticipant(replacement));
             actor.MutableGuardianForceCompatibility = replacement.GuardianForceCompatibility?.ToArray();
-            actor.CurrentHp = replacement.CurrentHp;
+            actor.GuardianFormVitals = null;
+            actor.HumanHitPoints = replacement.HumanHitPoints;
             RestoreNativeStatus(actor, CaptureNativeStatus(replacement));
             actor.NativeAtb = replacement.NativeAtb;
             if (replacement.NativeAtb is null)
@@ -1379,6 +1417,7 @@ public sealed partial class BattleSession
         NativeGraphics = candidate.NativeGraphics;
         RestoreNativeGuardianBoost(candidate.nativeGuardianBoost);
         RestoreGuardianForces(candidate.Capture());
+        RestoreGuardianForms(candidate.CaptureGuardianForms(), candidate.Outcome);
         RestoreNativeSupport(candidate.nativeSupport);
         RestoreNativeBattleClock(candidate.nativeBattleClock);
     }

@@ -75,6 +75,10 @@ public sealed partial class BattleHudController
         get
         {
             BattleAbility command = SelectedCommand;
+            if (HasGuardianFormCommands)
+            {
+                return [];
+            }
             if (command == BattleAbility.Attack || SelectedActor is not { } actor)
             {
                 return [];
@@ -104,14 +108,18 @@ public sealed partial class BattleHudController
             return actions.ElementAtOrDefault(Math.Clamp(actionIndex, 0, Math.Max(0, actions.Count - 1)));
         }
     }
-    public IReadOnlyList<string> ChoiceLabels => SelectingDrawMode ? SelectedAction?.Id >= 64 ? ["Stock"] : ["Stock", "Cast"] : NativeDuelChoiceLabels ?? (SelectingAction ? ActionChoices.Select(ChoiceLabel).ToArray() : Commands.Select(CommandLabel).ToArray());
-    public int ChoiceIndex => SelectingDrawMode ? DrawCast ? 1 : 0 : SelectingAction ? actionIndex : commandIndex;
+    public IReadOnlyList<string> ChoiceLabels => SelectingGuardianFormAction ? ["Summon"] : HasGuardianFormCommands ? ["Attack", "Fire", "Hell Fire"] : SelectingDrawMode ? SelectedAction?.Id >= 64 ? ["Stock"] : ["Stock", "Cast"] : NativeDuelChoiceLabels ?? (SelectingAction ? ActionChoices.Select(ChoiceLabel).ToArray() : Commands.Select(CommandLabel).ToArray());
+    public int ChoiceIndex => SelectingGuardianFormAction ? 0 : SelectingDrawMode ? DrawCast ? 1 : 0 : SelectingAction ? actionIndex : commandIndex;
     public int ChoiceStart => Math.Clamp(ChoiceIndex - 1, 0, Math.Max(0, ChoiceLabels.Count - 4));
     public IReadOnlyList<BattleCombatant> Targets
     {
         get
         {
             BattleAbility command = SelectedCommand;
+            if (HasGuardianFormCommands)
+            {
+                return GuardianFormTargets();
+            }
             if (command == BattleAbility.Draw)
             {
                 return DrawTargets();
@@ -158,6 +166,7 @@ public sealed partial class BattleHudController
     public UiView BuildView()
     {
         RefreshNativeLimitSelection();
+        RefreshGuardianFormSelection();
         PresentNativeShot();
         CollectBattleMessages();
         BattleEvent? notification = session.Events.LastOrDefault(item => item.Kind is "Scan" or "GunbladeTrigger");
@@ -181,6 +190,7 @@ public sealed partial class BattleHudController
     public void Navigate(MenuInput input)
     {
         RefreshNativeLimitSelection();
+        RefreshGuardianFormSelection();
         if (input == MenuInput.Cancel && NativeShotActor is { } shotActor)
         {
             session.EndNativeShot(shotActor.Id);
@@ -200,6 +210,10 @@ public sealed partial class BattleHudController
             {
                 ChangeRewardPage(input is MenuInput.Up or MenuInput.Left or MenuInput.PageLeft or MenuInput.PageUp ? -1 : 1);
             }
+            return;
+        }
+        if (NavigateGuardianFormActions(input))
+        {
             return;
         }
         if (input == MenuInput.Cancel)
@@ -288,6 +302,7 @@ public sealed partial class BattleHudController
     public void Attack()
     {
         RefreshNativeLimitSelection();
+        RefreshGuardianFormSelection();
         if (NativeTimedLimitActive || session.NativeGuardianBoost is not null)
         {
             return;
@@ -295,6 +310,10 @@ public sealed partial class BattleHudController
         if (session.Outcome != BattleOutcome.Active || SelectedActor is not BattleCombatant actor)
         {
             Message = "Waiting for a character's ATB gauge.";
+            return;
+        }
+        if (ConfirmGuardianFormCommand(actor))
+        {
             return;
         }
         if (ConfirmDrawSelection())
@@ -396,6 +415,11 @@ public sealed partial class BattleHudController
 
     public void Choose(int index)
     {
+        if (SelectingGuardianFormAction)
+        {
+            Attack();
+            return;
+        }
         if (SelectingDrawMode)
         {
             DrawCast = index == 1 && SelectedAction?.Id < 64;
@@ -423,13 +447,15 @@ public sealed partial class BattleHudController
             BattleAbility.Draw => label,
             BattleAbility.Magic => MagicChoiceLabel(action, label),
             BattleAbility.Item => label + "  " + session.Items.Single(stock => stock.Id == action.Id).Count,
-            _ => label
+            _ => label + (CanOpenGuardianFormActions(action) ? "  >" : "")
         };
     }
     public void SelectParty(string actorId)
     {
         if (!NativeTimedLimitActive && session.NativeGuardianBoost is null && Party.Any(actor => actor.Id == actorId && CanChooseCommand(actor)))
         {
+            SelectingGuardianFormAction = false;
+            guardianFormMenuActorId = null;
             selectedMagicTargets.Clear();
             magicCastCount = 1;
             SelectingAction = false;
@@ -453,7 +479,7 @@ public sealed partial class BattleHudController
     public void CycleCommandActor()
     {
         RefreshNativeLimitSelection();
-        if (NativeTimedLimitActive || session.NativeGuardianBoost is not null || session.Outcome != BattleOutcome.Active)
+        if (SelectingGuardianFormAction || NativeTimedLimitActive || session.NativeGuardianBoost is not null || session.Outcome != BattleOutcome.Active)
         {
             return;
         }
@@ -567,6 +593,10 @@ public sealed partial class BattleHudController
 
     private void CancelTarget()
     {
+        if (CancelGuardianFormSelection())
+        {
+            return;
+        }
         if (SelectingDrawCastRecipient)
         {
             SelectingTarget = false;

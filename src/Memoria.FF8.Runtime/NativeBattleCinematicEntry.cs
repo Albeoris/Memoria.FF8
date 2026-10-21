@@ -7,10 +7,24 @@ public static class NativeBattleCinematicEntry
 {
     public static NativeBattleCinematicEntryStep Initialize(NativeBattleCinematicProfile profile, NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleScriptedInitializationDirectories directories, NativeBattleWaterInitializationInputs inputs)
     {
+        return InitializeCore(profile, memory, effect, directories, inputs, false);
+    }
+
+    public static NativeBattleCinematicEntryStep InitializeIfritPresentation(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleScriptedInitializationDirectories directories, NativeBattleWaterInitializationInputs inputs)
+    {
+        return InitializeCore(NativeBattleCinematicProfile.ForEffect(201), memory, effect, directories, inputs, true);
+    }
+
+    private static NativeBattleCinematicEntryStep InitializeCore(NativeBattleCinematicProfile profile, NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleScriptedInitializationDirectories directories, NativeBattleWaterInitializationInputs inputs, bool presentationOnly)
+    {
         RequireBinding(profile, effect);
         effect.Validate();
         directories.Validate();
-        if (effect.Parameters is not { } parameters || inputs.ActionParametersAddress != 0x1D99A78 || inputs.InitializationDirectoryAddress != profile.InitializationAddress || inputs.Caster != parameters.Actor78 || inputs.CurrentHeaderIndex != parameters.HeaderIndex7C)
+        if (presentationOnly ? effect.Parameters is not null || inputs.Caster >= 3 || inputs.Contacts.Length != 1 || inputs.Contacts[0] != inputs.Caster : effect.Parameters is not { } parameters || inputs.Caster != parameters.Actor78 || inputs.CurrentHeaderIndex != parameters.HeaderIndex7C)
+        {
+            throw new InvalidDataException("Native cinematic entry requires its actual invocation positioning owner.");
+        }
+        if (inputs.ActionParametersAddress != 0x1D99A78 || inputs.InitializationDirectoryAddress != profile.InitializationAddress)
         {
             throw new InvalidDataException("Native cinematic entry requires its actual action, header and selected initialization-directory bindings.");
         }

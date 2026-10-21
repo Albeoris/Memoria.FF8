@@ -28,6 +28,7 @@ public sealed partial class BattleSession
         for (long count = subticks / TimeSpan.TicksPerSecond; count > 0; count--)
         {
             DispatchTurnBasedFrame();
+            AdvanceSkippedGuardianFormPresentation();
         }
     }
 
@@ -83,6 +84,7 @@ public sealed partial class BattleSession
         graphics = AdvanceNativeAuxiliary(graphics);
         graphics = AdvanceNativeModuleEffects(graphics);
         graphics = AdvanceNativeOriginalEffect(graphics);
+        graphics = AdvanceGuardianFormPresentation(graphics);
         flags = graphics.Flags;
         graphics = SubmitNativeModulePackets(graphics);
         graphics = ConsumeNativeGraphicsContacts(graphics);

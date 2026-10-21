@@ -6,6 +6,7 @@ public sealed record GameplayPreferences
     public BattleAtbMode AtbMode { get; init; } = BattleAtbMode.TurnBased;
     public BattleGunbladeMode GunbladeMode { get; init; } = BattleGunbladeMode.Automatic;
 
+    public bool GuardianFormsEnabled { get; init; }
     public bool SharedMagicStock { get; init; }
     public bool InfiniteMagic { get; init; }
     public bool SmartAttack { get; init; }

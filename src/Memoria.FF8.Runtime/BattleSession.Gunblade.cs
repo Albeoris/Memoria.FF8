@@ -1,4 +1,4 @@
-namespace Memoria.FF8.Runtime;
+﻿namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
@@ -53,7 +53,7 @@ public sealed partial class BattleSession
 
     private static bool IsGunbladeAction(BattleCombatant actor, BattleActionPresentation action)
     {
-        return actor.IsPlayer && actor.ModelId is 0 or 6 && actor.WeaponId is not null && (action.Ability == BattleAbility.Attack || action.NativeAction?.Command is 1 or 12 or 28 or 243 or 248 or 253);
+        return actor.GuardianFormVitals is null && actor.IsPlayer && actor.ModelId is 0 or 6 && actor.WeaponId is not null && (action.Ability == BattleAbility.Attack || action.NativeAction?.Command is 1 or 12 or 28 or 243 or 248 or 253);
     }
 
     private static short ProjectGunbladeTiming(int remainingFrames)

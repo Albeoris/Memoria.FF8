@@ -1,4 +1,4 @@
-namespace Memoria.FF8.Runtime;
+﻿namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
@@ -10,6 +10,7 @@ public sealed partial class BattleSession
     public void QueueAction(string actorId, string targetId, BattleAbility ability, int actionId, bool drawCast = false, IReadOnlyList<string>? magicTargets = null, string? drawCastTargetId = null)
     {
         RequireNativeEntryReady();
+        RequireNormalGuardianFormCommands(actorId);
         if (magicTargets is not null && ability != BattleAbility.Magic)
         {
             throw new InvalidOperationException("Only a native Magic command can retain several cast targets.");
@@ -60,7 +61,7 @@ public sealed partial class BattleSession
                 reservedItemSlot = ConsumeNativeItem(actionId);
                 break;
             case BattleAbility.GuardianForce:
-                if ((!actor.EquipmentIds.Contains(actionId) || !action.Available))
+                if ((!actor.EquipmentIds.Contains(actionId) || !action.Available) || guardianForms?.Values.Any(form => form.GuardianForceId == actionId) == true)
                 {
                     throw new InvalidOperationException("Summoning requires a living junctioned GF.");
                 }

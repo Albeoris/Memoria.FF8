@@ -5,6 +5,10 @@ public sealed partial class BattleSession
     /// <summary>50B2A0: the descriptor owns the phase; this context retains only the original action globals.</summary>
     private (NativeBattleGraphicsState Graphics, byte Phase, bool Complete) PollNativeGuardianGraphics(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context, byte phase)
     {
+        if (ActiveAction?.GuardianFormInvocation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry })
+        {
+            return PollGuardianFormFinisherGraphics(graphics, context, phase);
+        }
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.HeaderIndex];
         byte caster = context.ActorIndex;
         if (caster >= 3)

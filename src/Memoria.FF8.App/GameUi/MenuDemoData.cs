@@ -185,6 +185,7 @@ public static class MenuSettings
         new("Shared magic stock", MagicUiText.Get("SharedDescription"), ["Off", "On"]),
         new("Infinite magic", MagicUiText.Get("InfiniteDescription"), ["Off", "On"]),
         new("Smart Attack", MagicUiText.Get("SmartDescription"), ["Off", "On"]),
+        new("GF Transformations", "Allow supported Guardian Forces to transform their user. Saved with the game; Title sets the new-game default. Changes are available between battles.", ["Off", "On"]),
         new("Gunblade trigger", "Automatic assists Squall/Seifer gunblade hits. Manual uses the Gunblade / Rotate right binding at contact (default G / RB).", ["Automatic", "Manual"]),
         new("Battle policy", "Apply immediately: instant victory wins encounters automatically; full combat enables playable battles.", ["Instant victory", "Full combat"]),
         new("Rare card markers", "Show a rotating card above opponents who can currently offer a rare Triple Triad card. On by default; shared by all saves.", ["On", "Off"]),

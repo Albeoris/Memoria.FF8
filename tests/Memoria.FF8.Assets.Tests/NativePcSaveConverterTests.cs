@@ -8,6 +8,23 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativePcSaveConverterTests
 {
     [Fact]
+    public void Original_export_rejects_guardian_forms_preference_instead_of_losing_it()
+    {
+        GameState source = Defaults() with { GameplayPreferences = new GameplayPreferences { GuardianFormsEnabled = true } };
+        NotSupportedException exception = Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(source));
+        Assert.Contains("Choose a Memoria save slot", exception.Message);
+    }
+
+    [Fact]
+    public void Original_import_defaults_guardian_forms_to_off_even_with_enabled_installation_defaults()
+    {
+        byte[] original = NativePcSaveConverter.Export(Defaults());
+        GameState enabledDefaults = Defaults() with { GameplayPreferences = new GameplayPreferences { GuardianFormsEnabled = true } };
+        GameState imported = NativePcSaveConverter.Import(original, enabledDefaults, _ => "fixture");
+        Assert.False(imported.GameplayPreferences.GuardianFormsEnabled);
+    }
+
+    [Fact]
     public void Transfer_uses_saved_progress_and_native_pose_instead_of_new_game_progress()
     {
         GameState source = Defaults() with { FieldId = 165, FieldName = "fixture", PreviousFieldId = 177, FieldArrival = new FieldTransition(165, -723, -8555, 12, 96), EventMemory = NativeEventMemory.Empty.Write(401, 1, NativeScalarValue.Exact(91)) };

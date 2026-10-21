@@ -19,7 +19,7 @@ internal sealed partial class BattleScenePresentation
             {
                 definitions.Add(actorId, session.GetCombatantDefinition(actorId));
             }
-            EnsureActorResources(actorId);
+            EnsureActorResources(actorId, session.GetGuardianFormVisual(actorId));
             Add(models[actorId], bodyBinding, false);
             if (weapons[actorId] is { } weapon && graphics.Models[index].LinkedTextureSlots is { } weaponBinding)
             {

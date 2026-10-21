@@ -9,7 +9,7 @@ public sealed partial class BattleHudController
     private bool nativeLimitCommandSelected;
     private ushort nativeCommandHeldButtons;
 
-    public bool NativeLimitAvailable => SelectedActor is { } actor && session.GetNativeLimitLevel(actor.Id) > 0;
+    public bool NativeLimitAvailable => !HasGuardianFormCommands && SelectedActor is { } actor && session.GetNativeLimitLevel(actor.Id) > 0;
     private bool NativeLimitDirectTarget => SelectedCommand == BattleAbility.LimitBreak && SelectedActor?.NativeLimit?.Command is 5 or 11;
 
     public void SetNativeCommandButtons(ushort buttons)
@@ -100,6 +100,10 @@ public sealed partial class BattleHudController
         if (SelectedActor is not { } actor)
         {
             return [];
+        }
+        if (HasGuardianFormCommands)
+        {
+            return [BattleAbility.Attack, BattleAbility.Magic, BattleAbility.GuardianForce];
         }
         if (nativeLimitCommandSelected && NativeLimitAvailable && actor.Abilities.Count > 0)
         {

@@ -141,7 +141,7 @@ public sealed class ConfigSettingsTests
         UiView view = controller.BuildView();
         view.Resize(width, height);
         UiChoiceRow[] rows = Descendants(view.Root).OfType<UiChoiceRow>().ToArray();
-        Assert.Equal(["Battle ATB mode", "Shared magic stock", "Infinite magic", "Smart Attack", "Rare card markers"], rows.Select(row => row.Id));
+        Assert.Equal(["Battle ATB mode", "Shared magic stock", "Infinite magic", "Smart Attack", "GF Transformations", "Rare card markers"], rows.Select(row => row.Id));
         UiButton begin = Assert.Single(Descendants(view.Root).OfType<UiButton>(), button => button.Id == "begin");
         foreach (UiElement row in rows.Cast<UiElement>().Append(begin))
         {
@@ -246,11 +246,59 @@ public sealed class ConfigSettingsTests
         UiPreferences defaults = new();
         Assert.Equal(Memoria.FF8.Runtime.BattleAtbMode.TurnBased, defaults.AtbMode);
         Assert.True(defaults.VSync);
+        Assert.False(defaults.GuardianFormsEnabled);
+        Assert.Equal(defaults, defaults.WithInstallationSetting("GF Transformations", "On", activeGame: true));
+        Assert.True(defaults.WithInstallationSetting("GF Transformations", "On", activeGame: false).GuardianFormsEnabled);
+        Assert.Throws<ArgumentException>(() => defaults.WithSetting("GF Transformations", "Invalid"));
         Assert.Equal(defaults, defaults.WithInstallationSetting("Battle ATB mode", "Classic", activeGame: true));
         Assert.Equal(Memoria.FF8.Runtime.BattleAtbMode.Normal, defaults.WithInstallationSetting("Battle ATB mode", "Classic", activeGame: false).AtbMode);
         UiPreferences volume = defaults.WithInstallationSetting("Music volume", "25%", activeGame: true);
         Assert.Equal(25, volume.MusicVolume);
         Assert.Equal(defaults.AtbMode, volume.AtbMode);
+    }
+
+    [Theory]
+    [InlineData("config-gameplay")]
+    [InlineData("new-game-options")]
+    public void Guardian_forms_option_is_visible_and_unavailable_during_battle(string screen)
+    {
+        MenuData data = new() { GuardianFormsPreferenceLocked = true };
+        data.Settings["GF Transformations"] = "On";
+        data.SupportedActions.Add("config:GF Transformations");
+        List<MenuAction> actions = [];
+        MenuController controller = new(() => data, actions.Add);
+        controller.Open(screen);
+        MenuEntry entry = Assert.Single(controller.Entries, entry => entry.Id == "GF Transformations");
+        Assert.False(entry.Enabled);
+        Assert.Contains("until the battle ends", entry.Help);
+        controller.Navigate(MenuInput.Right);
+        controller.Navigate(MenuInput.Left);
+        controller.Navigate(MenuInput.Confirm);
+        Assert.Empty(actions);
+        UiView view = controller.BuildView();
+        UiChoiceRow choice = Assert.Single(Descendants(view.Root).OfType<UiChoiceRow>());
+        Assert.False(choice.Enabled);
+        view.Pointer(choice.ValueBounds.Right - 5, choice.Bounds.Y + choice.Bounds.Height / 2, true);
+        Assert.Empty(actions);
+    }
+
+    [Fact]
+    public void Guardian_forms_title_default_round_trips_and_is_off_for_legacy_installations()
+    {
+        string path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+        try
+        {
+            File.WriteAllText(path, "{}");
+            Assert.False(UiPreferences.Load(path).GuardianFormsEnabled);
+            UiPreferences enabled = new UiPreferences().WithSetting("GF Transformations", "On");
+            enabled.Save(path);
+            Assert.True(UiPreferences.Load(path).GuardianFormsEnabled);
+            Assert.False(enabled.WithSetting("GF Transformations", "Off").GuardianFormsEnabled);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 
     private static IEnumerable<UiElement> Descendants(UiElement root)

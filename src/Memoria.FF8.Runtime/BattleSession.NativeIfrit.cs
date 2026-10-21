@@ -11,20 +11,21 @@ public sealed partial class BattleSession
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new InvalidDataException("Native cinematic entry requires its selected effect.");
         NativeBattleCinematicProfile profile = NativeBattleCinematicProfile.ForEffect(effect.Binding.Effect);
         NativeBattleScriptedInitializationDirectories directories = effect.Binding.ScriptedInitializationDirectories ?? throw new NotSupportedException("Native cinematic requires its original initialization and owner directories.");
-        NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native cinematic requires its actual action parameters.");
+        NativeBattleGuardianFormPresentation? presentation = graphics.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.EntryOnly } formPresentation ? formPresentation : null;
+        NativeBattleEffectParameters parameters = effect.Parameters ?? (presentation is null ? throw new InvalidDataException("Native cinematic requires its actual action parameters.") : GuardianFormPositioningParameters(presentation));
         ImmutableArray<NativeBattleEffectInitializerAsset> assets = NativeBattleEffectInitializerPolicy.Assets(effect.Binding);
         if (assets.Length != 2)
         {
             throw new NotSupportedException("Native cinematic requires both complete executed initializer resources.");
         }
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.HeaderIndex7C];
-        ImmutableArray<byte> contacts = WaterContacts(header);
+        NativeBattleActionHeaderSlot? header = presentation is null ? nativeActionPackets.Headers[parameters.HeaderIndex7C] : null;
+        ImmutableArray<byte> contacts = presentation is null ? WaterContacts(header!) : [presentation.ActorIndex];
         if (contacts.IsEmpty)
         {
             throw new NotSupportedException("Native cinematic entry requires its first actual contact actor.");
         }
-        NativeBattleWaterInitializationInputs inputs = new(Resource(0, profile.File0Publication), Resource(1, profile.File1Publication), NativeBattleWater222Controller.CreateTemporaryFrame(WaterTemporaryAddress), WaterParametersAddress, WaterHeadersAddress + checked((uint)(20 * parameters.HeaderIndex7C)), profile.InitializationAddress, parameters.Actor78, parameters.HeaderIndex7C, contacts[0], contacts, header.ReadByte(0x10), header.ReadByte(0x11), graphics.Models);
-        NativeBattleCinematicEntryStep initialized = NativeBattleCinematicEntry.Initialize(profile, RequireWaterMemory(), effect, directories, inputs);
+        NativeBattleWaterInitializationInputs inputs = new(Resource(0, profile.File0Publication), Resource(1, profile.File1Publication), NativeBattleWater222Controller.CreateTemporaryFrame(WaterTemporaryAddress), WaterParametersAddress, WaterHeadersAddress + checked((uint)(20 * parameters.HeaderIndex7C)), profile.InitializationAddress, parameters.Actor78, parameters.HeaderIndex7C, contacts[0], contacts, header?.ReadByte(0x10) ?? 1, header?.ReadByte(0x11) ?? 1, graphics.Models);
+        NativeBattleCinematicEntryStep initialized = presentation is null ? NativeBattleCinematicEntry.Initialize(profile, RequireWaterMemory(), effect, directories, inputs) : NativeBattleCinematicEntry.InitializeIfritPresentation(RequireWaterMemory(), effect, directories, inputs);
         NativeEffectMemory = initialized.Memory;
         return graphics with { OriginalEffect = initialized.Effect };
 
@@ -39,6 +40,7 @@ public sealed partial class BattleSession
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect!;
         NativeBattleEffectParameters? outputParameters = effect.Parameters;
+        NativeBattleGuardianFormPresentation? presentation = graphics.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.EntryOnly } formPresentation ? formPresentation : null;
         NativeBattleCinematicResources resources = effect.Binding.CinematicResources ?? throw new NotSupportedException("Native cinematic requires its authenticated cinematic tables and resources.");
         NativeBattleCinematicProfile profile = NativeBattleCinematicProfile.ForEffect(effect.Binding.Effect);
         ImmutableArray<NativeBattleEffectInitializerAsset> assets = NativeBattleEffectInitializerPolicy.Assets(effect.Binding);
@@ -56,6 +58,10 @@ public sealed partial class BattleSession
             return linked is int row ? ActorPointer(row) : 0;
         }, (_, pointer) => ActorPointer(NativeBattleModelRings.Walk(graphics.Models, PhysicalActor(pointer)).Min()), (_, address, length) => ReadAction(address, length), (current, address) =>
         {
+            if (presentation is not null)
+            {
+                throw new InvalidDataException("Presentation-only Ifrit entrance reached an offensive contact before its landing handoff.");
+            }
             NativeEffectMemory = RequireWaterMemory() with { Arena = current.Arena, ScriptedEffects = current.Core };
             ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
             graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(ContactIndex(address))] });
@@ -79,6 +85,10 @@ public sealed partial class BattleSession
 
         byte[] ReadAction(uint address, int length)
         {
+            if (presentation is not null)
+            {
+                return ReadGuardianFormPositioning(presentation, address, length);
+            }
             if (address >= WaterParametersAddress && (long)address - WaterParametersAddress <= 12L - length)
             {
                 NativeBattleEffectParameters parameters = outputParameters ?? throw new NotSupportedException("Native cinematic parameter read requires its current action owner.");

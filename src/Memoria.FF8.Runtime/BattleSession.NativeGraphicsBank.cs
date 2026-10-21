@@ -95,6 +95,10 @@ public sealed partial class BattleSession
             return null;
         }
         NativeBattleGraphicsBinding? direct = graphics.Bindings.SingleOrDefault(binding => binding.ActorId == actorId);
+        if (GuardianFormGraphicsBinding(actorId, direct) is { } formBinding)
+        {
+            return formBinding;
+        }
         if (direct is not null || actor.SceneSlot is not int sceneSlot)
         {
             return direct;

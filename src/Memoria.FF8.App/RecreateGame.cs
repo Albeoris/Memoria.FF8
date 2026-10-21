@@ -814,7 +814,7 @@ internal sealed partial class RecreateGame : Game
         world?.Dispose();
         world = null;
         session.StartNewGame();
-        session.SetGameplayPreferences(newGameMagicPreferences with { AtbMode = uiPreferences.AtbMode, GunbladeMode = uiPreferences.GunbladeMode });
+        session.SetGameplayPreferences(newGameMagicPreferences with { AtbMode = uiPreferences.AtbMode, GunbladeMode = uiPreferences.GunbladeMode, GuardianFormsEnabled = uiPreferences.GuardianFormsEnabled });
         BattleInput[] battleSettingsInputs = uiPreferences.CreateBattleSettingsInputs();
         if (battleSettingsInputs.Length > 0)
         {

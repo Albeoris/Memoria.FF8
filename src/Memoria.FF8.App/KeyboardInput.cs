@@ -63,6 +63,7 @@ internal sealed class KeyboardInput
     public bool BattleAdvanceTurnRequested { get; private set; }
     public bool GunbladeTriggerRequested { get; private set; }
     public bool GuardianBoostRequested { get; private set; }
+    public bool GuardianFormSkipRequested { get; private set; }
     public ushort HeldFieldButtons { get; private set; }
     public ushort HeldControlButtons { get; private set; }
 
@@ -183,6 +184,7 @@ internal sealed class KeyboardInput
         BattleAdvanceTurnRequested = Pressed(ControlAction.BattleAdvanceTurn);
         GunbladeTriggerRequested = Pressed(ControlAction.RotateRight);
         GuardianBoostRequested = Pressed(ControlAction.Card);
+        GuardianFormSkipRequested = Pressed(ControlAction.GuardianFormSkip);
         GameMenuRequested = Pressed(ControlAction.Menu);
         PauseRequested = Pressed(ControlAction.Pause);
         UiTabRequested = Pressed(ControlAction.UiTab) || RecoveryPressed(Keys.Tab);

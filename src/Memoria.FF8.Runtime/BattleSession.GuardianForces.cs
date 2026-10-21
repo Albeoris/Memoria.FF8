@@ -27,7 +27,7 @@ public sealed partial class BattleSession
     private void QueueGuardianForce(BattleCombatant actor, BattleAttackCommand command)
     {
         BattleGuardianForceVital gf = guardianForces.GetValueOrDefault(command.ActionId) ?? throw new NotSupportedException("Native GF summoning requires its canonical saved HP owner.");
-        if (!gf.Acquired || gf.HitPoints == 0 || guardianForceCasts.Values.Any(cast => cast.Command.ActionId == gf.Id))
+        if (!gf.Acquired || gf.HitPoints == 0 || guardianForceCasts.Values.Any(cast => cast.Command.ActionId == gf.Id) || guardianForms?.Values.Any(form => form.GuardianForceId == gf.Id && form.ActorId != actor.Id) == true)
         {
             throw new InvalidOperationException("A defeated or already summoning GF cannot be summoned.");
         }
@@ -89,8 +89,19 @@ public sealed partial class BattleSession
         {
             return false;
         }
+        if (summoning && cast.Command.GuardianFormInvocation is { Mode: GuardianFormInvocationMode.EntryOnly } && (ActiveAction is not null || nativeTimedAction is not null || QueuedActions.Any(command => command.NativeHeaderIndex is not null) || NativeGraphics is { } activeGraphics && NativeOriginalEffectBusy(activeGraphics)))
+        {
+            return false;
+        }
         if (summoning)
         {
+            if (BeginCompletedGuardianFormCharge(actor, cast))
+            {
+                guardianForceCasts.Remove(actor.Id);
+                actor.NativeStatus1 &= 0x7FFFFFFF;
+                actor.NativeCombatantFlags &= ~0x400u;
+                return true;
+            }
             byte targetFlags = FindAction(BattleAbility.GuardianForce, cast.Command.ActionId).NativeAction?.TargetFlags ?? throw new NotSupportedException("Native48F2C0 GF completion requires its original target flags BYTE.");
             ushort mask = NativeAutomaticActionTargetMask(targetFlags);
             EnqueueNativeInputCommand(cast.Command with { NativeTargetMask = mask });
@@ -108,6 +119,10 @@ public sealed partial class BattleSession
                 }
             }
             actor.IsBusy = false;
+            if (cast.Command.GuardianFormInvocation is not null)
+            {
+                ReturnGuardianForm(actor, !actor.IsAlive);
+            }
             Log("GuardianForceCancelled", actor.Id, actor.Id, cast.Command.ActionId, "GF summoning interrupted.");
         }
         guardianForceCasts.Remove(actor.Id);
@@ -156,7 +171,7 @@ public sealed partial class BattleSession
 
     private void CompleteGuardianForceAffinity(BattleCombatant actor, BattleActionPresentation command)
     {
-        if (!actor.IsPlayer || !guardianForces.Values.Any(gf => gf.Acquired))
+        if (command.GuardianFormInvocation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry } || !actor.IsPlayer || !guardianForces.Values.Any(gf => gf.Acquired))
         {
             return;
         }

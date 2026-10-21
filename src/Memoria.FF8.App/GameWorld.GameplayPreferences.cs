@@ -6,6 +6,11 @@ internal sealed partial class GameWorld
 {
     public void ConfigureGameplayPreferences(GameplayPreferences preferences)
     {
+        ArgumentNullException.ThrowIfNull(preferences);
+        if (battle is not null && preferences.GuardianFormsEnabled != session.State.GameplayPreferences.GuardianFormsEnabled)
+        {
+            throw new InvalidOperationException("GF Transformations cannot change until the battle ends.");
+        }
         session.SetGameplayPreferences(preferences);
         if (battle is not null)
         {
@@ -18,7 +23,7 @@ internal sealed partial class GameWorld
     internal static BattleSession CreateLiveBattleSession(BattleDefinition definition, GameplayPreferences preferences)
     {
         preferences.Validate();
-        BattleSession active = CreateLiveBattleSession(definition, preferences.AtbMode);
+        BattleSession active = CreateLiveBattleSession(definition with { GuardianFormsEnabled = preferences.GuardianFormsEnabled, GuardianFormResources = preferences.GuardianFormsEnabled ? definition.GuardianFormResources : [] }, preferences.AtbMode);
         active.SetGunbladeMode(preferences.GunbladeMode);
         return active;
     }

@@ -118,6 +118,9 @@ internal sealed partial class RecreateGame
         data.SupportedActions.UnionWith(["config:Shared magic stock", "config:Infinite magic", "config:Smart Attack", "attack-mode"]);
         data.Settings["Battle ATB mode"] = ReadCurrentUiPreferences().AtbMode == BattleAtbMode.Normal ? "Classic" : "Turn Based";
         data.Settings["Gunblade trigger"] = ReadCurrentUiPreferences().GunbladeMode.ToString();
+        data.Settings["GF Transformations"] = ReadCurrentUiPreferences().GuardianFormsEnabled ? "On" : "Off";
+        data.GuardianFormsPreferenceLocked = ActiveBattle is not null || session.State.Battle is not null || session.State.PendingBattleEncounter is not null;
+        data.SupportedActions.Add("config:GF Transformations");
         data.Settings["Battle policy"] = ReadCurrentUiPreferences().BattlePolicyLabel;
         data.Settings["Rare card markers"] = uiPreferences.RareCardMarkers ? "On" : "Off";
         data.Settings["Random encounters"] = ReadCurrentUiPreferences().RandomEncounters ? "On" : "Off";
@@ -344,11 +347,15 @@ internal sealed partial class RecreateGame
             BattlePolicy = session.State.FullBattlePlaythrough == true ? "NewGameFullCombat" : "ResearchInstantVictory",
             RandomEncounters = session.State.RandomEncounters?.Enabled == true
         };
-        return current with { AtbMode = session.State.Scene == SceneKind.Title ? uiPreferences.AtbMode : session.State.GameplayPreferences.AtbMode, GunbladeMode = session.State.Scene == SceneKind.Title ? uiPreferences.GunbladeMode : session.State.GameplayPreferences.GunbladeMode };
+        return current with { AtbMode = session.State.Scene == SceneKind.Title ? uiPreferences.AtbMode : session.State.GameplayPreferences.AtbMode, GunbladeMode = session.State.Scene == SceneKind.Title ? uiPreferences.GunbladeMode : session.State.GameplayPreferences.GunbladeMode, GuardianFormsEnabled = session.State.Scene == SceneKind.Title ? uiPreferences.GuardianFormsEnabled : session.State.GameplayPreferences.GuardianFormsEnabled };
     }
 
     private void ApplyCurrentBattleSettings(UiPreferences preferences, string key)
     {
+        if (key == "GF Transformations" && ActiveBattle is { } active && preferences.GuardianFormsEnabled != active.GuardianFormsEnabled)
+        {
+            throw new InvalidOperationException("GF Transformations cannot change until the battle ends.");
+        }
         if (session.State.Scene != SceneKind.Title && key is "Battle policy" or "Random encounters")
         {
             world ??= CreateWorld();
@@ -361,10 +368,10 @@ internal sealed partial class RecreateGame
                 world.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigureEncounters, RandomEncounters: preferences.RandomEncounters));
             }
         }
-        if (session.State.Scene != SceneKind.Title && key is "Battle ATB mode" or "Gunblade trigger")
+        if (session.State.Scene != SceneKind.Title && key is "Battle ATB mode" or "Gunblade trigger" or "GF Transformations")
         {
             world ??= CreateWorld();
-            world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { AtbMode = preferences.AtbMode, GunbladeMode = preferences.GunbladeMode });
+            world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { AtbMode = preferences.AtbMode, GunbladeMode = preferences.GunbladeMode, GuardianFormsEnabled = preferences.GuardianFormsEnabled });
         }
         if (key == "Battle ATB mode" && ActiveBattle is not null && ActiveBattle.Mode != preferences.AtbMode)
         {

@@ -35,7 +35,7 @@ public sealed partial class MenuController
         List<MenuEntry> entries = [];
         foreach (MenuSetting setting in MenuSettings.Definitions)
         {
-            if (ScreenId == "new-game-options" ? setting.Id is not ("Battle ATB mode" or "Rare card markers" or "Shared magic stock" or "Infinite magic" or "Smart Attack") : ConfigCategory(setting.Id) != ScreenId["config-".Length..])
+            if (ScreenId == "new-game-options" ? setting.Id is not ("Battle ATB mode" or "Rare card markers" or "Shared magic stock" or "Infinite magic" or "Smart Attack" or "GF Transformations") : ConfigCategory(setting.Id) != ScreenId["config-".Length..])
             {
                 continue;
             }
@@ -49,7 +49,9 @@ public sealed partial class MenuController
             }
             string value = Data.Settings.GetValueOrDefault(setting.Id, setting.Values[0]);
             int next = (Array.IndexOf(setting.Values, value) + 1) % setting.Values.Length;
-            entries.Add(new MenuEntry(setting.Id, MagicUiText.SettingLabel(setting.Id), setting.Description, Action: new MenuAction("config", setting.Id, Value: setting.Values[next])));
+            bool enabled = setting.Id != "GF Transformations" || !Data.GuardianFormsPreferenceLocked;
+            string help = enabled ? setting.Description : "GF Transformations is unavailable until the battle ends.";
+            entries.Add(new MenuEntry(setting.Id, MagicUiText.SettingLabel(setting.Id), help, Action: new MenuAction("config", setting.Id, Value: setting.Values[next]), Enabled: enabled));
         }
         if (ScreenId == "config-controls")
         {
@@ -137,6 +139,7 @@ public sealed partial class MenuController
                 SelectionChanged = selected => Execute(new MenuAction("config", setting.Id, Value: setting.Values[selected]))
             };
         }
+        row.Enabled = entry.Enabled;
         row.Id = entry.Id;
         row.FocusChanged = focused => SelectConfigRow(focused, index);
         return row;

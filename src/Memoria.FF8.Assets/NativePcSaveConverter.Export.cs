@@ -13,9 +13,9 @@ public static partial class NativePcSaveConverter
         {
             throw new NotSupportedException("Original PC export requires an active game with initialized characters and inventory.");
         }
-        if (state.CharacterVitals.MagicSystem.RequiresMemoriaFormat || state.GameplayPreferences.SharedMagicStock || state.GameplayPreferences.InfiniteMagic || state.GameplayPreferences.SmartAttack || state.PendingGameplayPreferences is not null)
+        if (state.CharacterVitals.MagicSystem.RequiresMemoriaFormat || state.GameplayPreferences.SharedMagicStock || state.GameplayPreferences.InfiniteMagic || state.GameplayPreferences.SmartAttack || state.GameplayPreferences.GuardianFormsEnabled || state.PendingGameplayPreferences is not null)
         {
-            throw new NotSupportedException("This game contains magic rules or usage history that original FF8 saves cannot preserve. Choose a Memoria save slot.");
+            throw new NotSupportedException("This game contains gameplay rules or usage history that original FF8 saves cannot preserve. Choose a Memoria save slot.");
         }
         byte[] block = state.OriginalSave?.Block.ToArray() ?? CreateDefaultBlock();
         void W(int offset, ushort value) => WriteWord(block, Main + offset, value);

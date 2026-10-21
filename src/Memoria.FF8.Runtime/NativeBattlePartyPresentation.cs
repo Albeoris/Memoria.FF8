@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -89,6 +89,10 @@ public sealed partial class BattleSession
 
     private int ReadNativeRecoverSourceHp(BattleCombatant actor)
     {
+        if (actor.GuardianFormVitals is not null)
+        {
+            return actor.CurrentHp;
+        }
         //493450 case9 reads WORD1CFF172, before any later493D80 contact updates that cache.
         if (nativePartyPresentation is not null)
         {
@@ -102,6 +106,10 @@ public sealed partial class BattleSession
     {
         BattleCombatant actor = GetActor(actorId);
         BattleGuardianForceVital? gf = guardianForceId is int id ? guardianForces[id] : null;
+        if (guardianForceId is null && actor.GuardianFormVitals is not null)
+        {
+            return new(actor.CurrentHp, actor.MaximumHp);
+        }
         if (nativePartyPresentation is null)
         {
             //TODO(TD-009): Declared graphicsless components retain their existing HUD projection.
@@ -114,7 +122,7 @@ public sealed partial class BattleSession
     public BattlePresentedVital ReadDisplayedVital(string actorId, int? guardianForceId = null)
     {
         BattlePresentedVital cached = ReadPresentedVital(actorId, guardianForceId);
-        if (nativePartyPresentation is null)
+        if (nativePartyPresentation is null || guardianForceId is null && GetActor(actorId).GuardianFormVitals is not null)
         {
             return cached;
         }
@@ -171,7 +179,16 @@ public sealed partial class BattleSession
         }
         NativeBattlePartyPresentation state = nativePartyPresentation ?? throw new InvalidDataException("Native493D80 lacks the current party presentation cache.");
         NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(half.ActorIndex);
-        nativePartyPresentation = state with { Rows = state.Rows.SetItem(half.ActorIndex, row.Apply(half)) };
+        BattleCombatant actor = combatants.Single(actor => actor.NativeIndex == half.ActorIndex);
+        if (actor.GuardianFormVitals is not null && (half.HitFlags3 & 0x20) != 0)
+        {
+            row = row with { GuardianForceHitPoints = checked((ushort)actor.CurrentHp), GuardianForceMaximumHitPoints = checked((ushort)actor.MaximumHp), DisplayedGuardianForceHitPointsQ12 = actor.CurrentHp << 12 };
+        }
+        else
+        {
+            row = row.Apply(half);
+        }
+        nativePartyPresentation = state with { Rows = state.Rows.SetItem(half.ActorIndex, row) };
     }
 
     private NativeBattlePartyPresentedVital RequireNativePartyPresentedRow(int index)

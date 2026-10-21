@@ -13,11 +13,12 @@ public sealed class GameplayPreferencesTests
         {
             GameSession first = GameSession.CreateColdProcess();
             first.StartNewGame();
-            first.SetGameplayPreferences(new GameplayPreferences { AtbMode = BattleAtbMode.Normal, GunbladeMode = BattleGunbladeMode.Manual });
+            first.SetGameplayPreferences(new GameplayPreferences { AtbMode = BattleAtbMode.Normal, GunbladeMode = BattleGunbladeMode.Manual, GuardianFormsEnabled = true });
             first.Save(path);
             GameSession second = GameSession.CreateColdProcess();
             second.StartNewGame();
             Assert.Equal(BattleAtbMode.TurnBased, second.State.GameplayPreferences.AtbMode);
+            Assert.False(second.State.GameplayPreferences.GuardianFormsEnabled);
             second.Restore(GameSession.Load(path));
             Assert.Equal(first.State.GameplayPreferences, second.State.GameplayPreferences);
             second.SetGameplayPreferences(new GameplayPreferences());
@@ -46,6 +47,7 @@ public sealed class GameplayPreferencesTests
             GameState loaded = GameSession.Load(path);
             Assert.Equal(BattleAtbMode.TurnBased, loaded.GameplayPreferences.AtbMode);
             Assert.Equal(BattleGunbladeMode.Automatic, loaded.GameplayPreferences.GunbladeMode);
+            Assert.False(loaded.GameplayPreferences.GuardianFormsEnabled);
             Assert.Equal(session.State.InputConfiguration, loaded.InputConfiguration);
             Assert.Equal(session.State.LimitProgress, loaded.LimitProgress);
         }
@@ -53,6 +55,40 @@ public sealed class GameplayPreferencesTests
         {
             File.Delete(path);
         }
+    }
+
+    [Fact]
+    public void Legacy_preferences_without_guardian_forms_default_to_off()
+    {
+        GameplayPreferences preferences = System.Text.Json.JsonSerializer.Deserialize<GameplayPreferences>("{\"SmartAttack\":true}")!;
+        Assert.True(preferences.SmartAttack);
+        Assert.False(preferences.GuardianFormsEnabled);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Guardian_forms_changes_are_rejected_during_battle_without_deferral(bool enabled)
+    {
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
+        session.SetGameplayPreferences(new GameplayPreferences { GuardianFormsEnabled = enabled });
+        BattleSession battle = new(new BattleDefinition
+        {
+            GuardianFormsEnabled = enabled,
+            Combatants = [new() { Id = "party", Name = "Squall", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
+        }, BattleAtbMode.TurnBased);
+        session.SetBattle(battle.Capture());
+        GameState before = session.State;
+        GameplayPreferences changed = before.GameplayPreferences with { GuardianFormsEnabled = !enabled };
+        Assert.Throws<InvalidOperationException>(() => session.SetGameplayPreferences(changed));
+        MagicModePreview preview = new(MagicSystemFixture.Create(), changed, [], [], [], []);
+        Assert.Throws<InvalidOperationException>(() => session.ApplyGameplayPreferences(preview));
+        Assert.Same(before, session.State);
+        Assert.Null(session.State.PendingGameplayPreferences);
+        session.SetBattle(null);
+        session.SetGameplayPreferences(changed);
+        Assert.Equal(!enabled, session.State.GameplayPreferences.GuardianFormsEnabled);
     }
 
     [Fact]

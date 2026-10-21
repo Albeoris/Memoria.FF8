@@ -49,7 +49,8 @@ public enum ControlAction
     SkipMovie, // Retired profile identifier; movie skipping follows Cancel.
     UiTab,
     UiPageUp,
-    UiPageDown
+    UiPageDown,
+    GuardianFormSkip
 }
 
 public sealed record ControlActionDefinition(ControlAction Action, string Label, string Category);
@@ -245,6 +246,7 @@ public sealed class ControlsProfile
         Key(ControlAction.UiTab, Keys.Tab);
         Key(ControlAction.UiPageUp, Keys.PageUp);
         Key(ControlAction.UiPageDown, Keys.PageDown);
+        Key(ControlAction.GuardianFormSkip, Keys.F8);
         Pad(ControlAction.MoveUp, Buttons.DPadUp);
         Pad(ControlAction.MoveDown, Buttons.DPadDown);
         Pad(ControlAction.MoveLeft, Buttons.DPadLeft);
@@ -259,6 +261,7 @@ public sealed class ControlsProfile
         Pad(ControlAction.CameraRight, Buttons.RightTrigger);
         Pad(ControlAction.RotateLeft, Buttons.LeftShoulder);
         Pad(ControlAction.RotateRight, Buttons.RightShoulder);
+        Pad(ControlAction.GuardianFormSkip, Buttons.RightStick);
         return new ControlsProfile(result);
     }
 
@@ -333,6 +336,7 @@ public sealed class ControlsProfile
         ControlAction.CameraRight => "Camera mode / Escape battle (right)",
         ControlAction.RotateLeft => "Rotate world left / Previous character",
         ControlAction.RotateRight => "Rotate world right / Gunblade / Next character",
+        ControlAction.GuardianFormSkip => "Skip Ifrit finisher",
         ControlAction.SpeedToggle => "Event speed",
         ControlAction.DebugRoom => "Debug room",
         ControlAction.BattleInstantVictory => "Battle victory",

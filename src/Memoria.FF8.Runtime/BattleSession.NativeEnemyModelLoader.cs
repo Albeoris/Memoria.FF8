@@ -20,7 +20,7 @@ public sealed partial class BattleSession
             if (existing >= 0)
             {
                 NativeBattleModelTextureCacheLoad clone = cache.LoadEnemy(task.ModelId, new("unused-shared-pack", []));
-                NativeBattleModelDatSource source = definition.NativeGraphics!.Bindings.SelectMany(binding => binding.Resource.ModelLoadSources ?? []).First(item => item.ModelId == task.ModelId && !item.Linked);
+                NativeBattleModelDatSource source = NativeModelResourceSources().First(item => item.ModelId == task.ModelId && !item.Linked);
                 (cpu, staging) = NativeBattleModelEnemyHeap.Load(cpu, staging, source, clone.ResourceIndex, existing, false);
                 NativeModelCpuResources = cpu;
                 NativeFileStaging = staging;

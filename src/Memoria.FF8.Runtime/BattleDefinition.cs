@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -145,6 +145,8 @@ public sealed record BattleCombatantDefinition
 
 public sealed record BattleDefinition
 {
+    public bool GuardianFormsEnabled { get; init; }
+    public ImmutableArray<BattleGuardianFormResources> GuardianFormResources { get; init; } = [];
     public NativeCharacterVitals? MagicVitals { get; init; }
     public NativeBattleClockRules? NativeClockRules { get; init; }
     public NativeBattleSupportRules? NativeSupportRules { get; init; }
@@ -225,6 +227,8 @@ public enum BattleActionPhase
 
 public sealed record BattleAttackCommand(string ActorId, string TargetId, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false, int NativeTargetSelector = 0)
 {
+    public BattleGuardianFormAction? GuardianFormAction { get; init; }
+    public BattleGuardianFormInvocation? GuardianFormInvocation { get; init; }
     public string? MagicReservationId { get; init; }
     public BattleSmartAttackPreview? SmartAttack { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
@@ -252,6 +256,8 @@ public sealed record BattleAttackCommand(string ActorId, string TargetId, Battle
 }
 public sealed record BattleActionPresentation(string ActorId, string TargetId, BattleActionPhase Phase, int RemainingFrames, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false, int NativeTargetSelector = 0)
 {
+    public BattleGuardianFormAction? GuardianFormAction { get; init; }
+    public BattleGuardianFormInvocation? GuardianFormInvocation { get; init; }
     public string? MagicReservationId { get; init; }
     public BattleSmartAttackPreview? SmartAttack { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
@@ -306,6 +312,8 @@ public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, 
 
 public sealed record BattleSnapshot
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public BattleGuardianFormsSnapshot? GuardianForms { get; init; }
     public NativeCharacterVitals? MagicVitals { get; init; }
     public NativeExamTimerState? NativeExamTimer { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
@@ -531,13 +539,26 @@ public sealed partial class BattleCombatant
         Effects.Clear();
         Effects.AddRange(definition.StatusEffects.Select(effect => new BattleStatusState(effect, effect.DurationFrames, effect.TickIntervalFrames)));
     }
-    public int MaximumHp => definition.MaximumHp;
-    public int CurrentHp
+    public int MaximumHp => GuardianFormVitals?.MaximumHitPoints ?? definition.MaximumHp;
+    internal BattleGuardianFormVitalOwner? GuardianFormVitals { get; set; }
+    internal int HumanHitPoints
     {
         get => currentHp;
+        set => currentHp = value;
+    }
+    public int CurrentHp
+    {
+        get => GuardianFormVitals?.HitPoints ?? currentHp;
         internal set
         {
-            currentHp = value;
+            if (GuardianFormVitals is { } form)
+            {
+                form.HitPoints = value;
+            }
+            else
+            {
+                currentHp = value;
+            }
             RefreshNativeHpStatusFlags();
         }
     }
@@ -545,17 +566,24 @@ public sealed partial class BattleCombatant
     internal void AddNativeHitPointWord(short amount)
     {
         //487DF0 opcode60 directly adds a sign-extended WORD to the DWORD; no clamp, status refresh or hit callback.
-        currentHp = unchecked(currentHp + amount);
+        if (GuardianFormVitals is { } form)
+        {
+            form.HitPoints = unchecked(form.HitPoints + amount);
+        }
+        else
+        {
+            currentHp = unchecked(currentHp + amount);
+        }
     }
 
-    private void RefreshNativeHpStatusFlags()
+    internal void RefreshNativeHpStatusFlags()
     {
         //494360 updates the HP flags at the HP commit boundary, not when AI queries the saved WORD.
         NativeStatus0 &= 0xFCFF;
-        if (currentHp != 0 && currentHp < MaximumHp >> 1)
+        if (CurrentHp != 0 && CurrentHp < MaximumHp >> 1)
         {
             NativeStatus0 |= 0x200;
-            if (currentHp < MaximumHp >> 2)
+            if (CurrentHp < MaximumHp >> 2)
             {
                 NativeStatus0 |= 0x100;
             }

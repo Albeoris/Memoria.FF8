@@ -510,6 +510,10 @@ public sealed partial class MenuController
 
     private void ChangeSetting(int direction)
     {
+        if (SelectedEntry?.Enabled != true)
+        {
+            return;
+        }
         var setting = MenuSettings.Definitions.FirstOrDefault(s => s.Id == SelectedEntry?.Id);
         if (setting == null)
         {

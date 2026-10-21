@@ -1,4 +1,4 @@
-namespace Memoria.FF8.Runtime;
+﻿namespace Memoria.FF8.Runtime;
 
 public sealed record BattleNativeLimitState(string ActorId, byte CrisisLevel)
 {
@@ -113,6 +113,7 @@ public sealed partial class BattleSession
     public void QueueNativePlayerCommand(string actorId, string targetId, byte command, ushort actionId, byte sequence = 0, byte? crisis = null)
     {
         RequireNativeEntryReady();
+        RequireNormalGuardianFormCommands(actorId);
         BattleCombatant actor = GetActor(actorId);
         BattleCombatant target = GetActor(targetId);
         if (Outcome != BattleOutcome.Active || !CanChoosePlayerCommand(actorId))

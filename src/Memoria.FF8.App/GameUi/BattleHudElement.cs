@@ -9,7 +9,7 @@ internal sealed class BattleHudElement : UiElement
     private readonly BattleHudController controller;
     private float Scale => Math.Min(Bounds.Width / 960, Bounds.Height / 672);
     private float Left => Bounds.X + (Bounds.Width - 960 * Scale) / 2;
-    private bool ShowingMagicList => controller.SelectingAction && !controller.SelectingTarget && controller.SelectedCommand == BattleAbility.Magic;
+    private bool ShowingMagicList => controller.SelectingAction && !controller.SelectingGuardianFormAction && !controller.HasGuardianFormCommands && !controller.SelectingTarget && controller.SelectedCommand == BattleAbility.Magic;
     private float CommandWidth => ShowingMagicList ? 440 : 194;
     private float Top => Bounds.Y + (Bounds.Height - 672 * Scale) / 2;
 
@@ -47,7 +47,7 @@ internal sealed class BattleHudElement : UiElement
         }
         bool canAttack = controller.SelectedActor is not null && session.Outcome == BattleOutcome.Active;
         IReadOnlyList<string> choices = controller.ChoiceLabels;
-        string caption = session.Outcome != BattleOutcome.Active ? "RESULT" : controller.SelectingTarget ? "TARGET" : controller.SelectingDrawMode ? "DRAW" : controller.SelectingAction ? controller.SelectedCommand.ToString().ToUpperInvariant() : "COMMAND";
+        string caption = session.Outcome != BattleOutcome.Active ? "RESULT" : controller.SelectingTarget ? "TARGET" : controller.SelectingGuardianFormAction ? "GF ACTION" : controller.SelectingDrawMode ? "DRAW" : controller.SelectingAction ? controller.SelectedCommand.ToString().ToUpperInvariant() : "COMMAND";
         int rows = controller.SelectingTarget ? controller.VisibleTargets.Count : choices.Count;
         float menuHeight = session.Outcome != BattleOutcome.Active ? 76 : 20 + Math.Max(1, Math.Min(4, rows)) * 28;
         if (canAttack || session.Outcome != BattleOutcome.Active)
@@ -69,7 +69,7 @@ internal sealed class BattleHudElement : UiElement
         else if (canAttack)
         {
             int start = Math.Clamp(controller.ChoiceIndex - 1, 0, Math.Max(0, choices.Count - 4));
-            IReadOnlyList<BattleActionDefinition> actions = controller.SelectingAction && !controller.SelectingDrawMode ? controller.ActionChoices : [];
+            IReadOnlyList<BattleActionDefinition> actions = controller.SelectingAction && !controller.SelectingDrawMode && !controller.SelectingGuardianFormAction ? controller.ActionChoices : [];
             for (int row = 0; row < 4 && start + row < choices.Count; row++)
             {
                 float y = 530 + row * 28;
@@ -93,7 +93,8 @@ internal sealed class BattleHudElement : UiElement
             }
             BattleGuardianForceCast? cast = session.GuardianForceCasts.FirstOrDefault(cast => cast.ActorId == actor.Id);
             BattleGuardianForceVital? gf = cast is null ? null : session.GuardianForces.Single(gf => gf.Id == cast.Command.ActionId);
-            string label = gf is null ? actor.Name : controller.GuardianForceDisplayName(gf.Id);
+            BattleGuardianFormState? form = session.GetGuardianForm(actor.Id);
+            string label = gf is not null ? controller.GuardianForceDisplayName(gf.Id) : form is not null ? controller.GuardianForceDisplayName(form.GuardianForceId) : actor.Name;
             BattlePresentedVital presented = session.ReadDisplayedVital(actor.Id, gf?.Id);
             int hp = presented.HitPoints;
             int maximumHp = presented.MaximumHitPoints;
@@ -102,6 +103,15 @@ internal sealed class BattleHudElement : UiElement
             Text(canvas, theme, label, 520, y, 150, 30, 22, !shownAlive);
             Text(canvas, theme, $"{hp,4} / {maximumHp,4}", 674, y, 150, 30, 22, !shownAlive);
             DrawGauge(canvas, Rect(830, y + 11, 104, 12), gauge, cast is null && actor.IsReady, shownAlive, cast is not null);
+            if (form is { Phase: BattleGuardianFormPhase.Active })
+            {
+                Text(canvas, theme, $"{(form.RemainingTicks + BattleSession.FramesPerSecond - 1) / BattleSession.FramesPerSecond}s", 906, y - 5, 42, 18, 12);
+            }
+        }
+        if (controller.CanSkipGuardianFormFinisher)
+        {
+            theme.Panel(canvas, Rect(748, 464, 186, 40));
+            Text(canvas, theme, $"Skip · {controller.GuardianFormSkipBindingHint}", 760, 471, 162, 28, 16);
         }
         if (session.Outcome == BattleOutcome.Victory)
         {
@@ -185,7 +195,11 @@ internal sealed class BattleHudElement : UiElement
 
     public override void Pointer(float x, float y)
     {
-        if (controller.Session.Outcome == BattleOutcome.Victory && Rect(144, 376, 672, 40).Contains(x, y))
+        if (controller.CanSkipGuardianFormFinisher && Rect(748, 464, 186, 40).Contains(x, y))
+        {
+            controller.SkipGuardianFormFinisher();
+        }
+        else if (controller.Session.Outcome == BattleOutcome.Victory && Rect(144, 376, 672, 40).Contains(x, y))
         {
             controller.ChangeRewardPage(x < Rect(480, 0, 0, 0).X ? -1 : 1);
         }
@@ -208,7 +222,14 @@ internal sealed class BattleHudElement : UiElement
                 int index = (int)Math.Floor((y - Rect(0, 530, 0, 0).Y) / (28 * Scale)) + controller.ChoiceStart;
                 if (index >= 0 && index < controller.ChoiceLabels.Count)
                 {
-                    controller.Choose(index);
+                    if (x >= Rect(194, 0, 0, 0).X && controller.SelectingAction && !controller.SelectingGuardianFormAction && controller.ActionChoices.ElementAtOrDefault(index) is { } action && controller.CanOpenGuardianFormActions(action))
+                    {
+                        controller.OpenGuardianFormActions(index);
+                    }
+                    else
+                    {
+                        controller.Choose(index);
+                    }
                 }
             }
         }

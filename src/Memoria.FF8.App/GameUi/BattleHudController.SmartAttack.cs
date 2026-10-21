@@ -7,12 +7,12 @@ public sealed partial class BattleHudController
     private BattleSmartAttackPreview? displayedSmartPreview;
 
     public string PhysicalOverrideBindingHint { get; set; } = "Camera left";
-    public bool ForcePhysical => SelectingTarget && SelectedCommand == BattleAbility.Attack && (nativeCommandHeldButtons & 0x03) == 0x01;
+    public bool ForcePhysical => !HasGuardianFormCommands && SelectingTarget && SelectedCommand == BattleAbility.Attack && (nativeCommandHeldButtons & 0x03) == 0x01;
     public BattleSmartAttackPreview? TargetActionPreview
     {
         get
         {
-            if (!SelectingTarget || SelectedCommand != BattleAbility.Attack || SelectedActor is not { } actor || SelectedTarget is not { } target)
+            if (HasGuardianFormCommands || !SelectingTarget || SelectedCommand != BattleAbility.Attack || SelectedActor is not { } actor || SelectedTarget is not { } target)
             {
                 return null;
             }
@@ -29,9 +29,13 @@ public sealed partial class BattleHudController
     {
         get
         {
+            if (HasGuardianFormCommands)
+            {
+                return GuardianFormCommandLabel;
+            }
             BattleSmartAttackPreview? preview = TargetActionPreview;
             return preview is not null ? preview.Name + (preview.CastCount > 1 ? $" ×{preview.CastCount}" : "") : SelectedAction?.Name ?? CommandLabel(SelectedCommand);
         }
     }
-    public string PhysicalOverrideCaption => SelectedCommand == BattleAbility.Attack ? MagicUiText.Format("PhysicalOverride", PhysicalOverrideBindingHint) : "";
+    public string PhysicalOverrideCaption => HasGuardianFormCommands ? "" : SelectedCommand == BattleAbility.Attack ? MagicUiText.Format("PhysicalOverride", PhysicalOverrideBindingHint) : "";
 }

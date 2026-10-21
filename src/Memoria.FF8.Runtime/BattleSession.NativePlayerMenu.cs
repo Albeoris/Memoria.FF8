@@ -1,4 +1,4 @@
-namespace Memoria.FF8.Runtime;
+﻿namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
@@ -7,7 +7,7 @@ public sealed partial class BattleSession
     public bool CanChoosePlayerCommand(string actorId)
     {
         BattleCombatant actor = GetActor(actorId);
-        if (Outcome != BattleOutcome.Active || !NativeEntryReady || !actor.IsPlayer)
+        if (Outcome != BattleOutcome.Active || !NativeEntryReady || !actor.IsPlayer || GetGuardianForm(actorId) is { } form && (form.Phase != BattleGuardianFormPhase.Active || form.RemainingTicks == 0))
         {
             return false;
         }

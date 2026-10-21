@@ -1,8 +1,11 @@
-namespace Memoria.FF8.Runtime;
+﻿namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private sealed record NativeCompelledCommand(byte Command, ushort ActionId, ushort TargetMask, bool FreeMagic);
+    private sealed record NativeCompelledCommand(byte Command, ushort ActionId, ushort TargetMask, bool FreeMagic)
+    {
+        public BattleGuardianFormActionBinding? GuardianFormBinding { get; init; }
+    }
 
     private static bool RequiresNativeCompelledCommand(BattleCombatant actor)
     {
@@ -47,9 +50,11 @@ public sealed partial class BattleSession
         }
         BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.NativeIndex is >= 0 and < 7 && (prepared.TargetMask & (1 << candidate.NativeIndex)) != 0) ?? actor;
         BattleNativeAction? native = prepared.Command == 1 ? actor.NativeAttack : FindNativeCommandAction(actor, prepared.Command, prepared.ActionId);
-        BattleAbility ability = prepared.Command is 1 or 12 ? BattleAbility.Attack : BattleAbility.EnemyAbility;
+        BattleAbility ability = prepared.GuardianFormBinding?.Source == BattleGuardianFormActionSource.Magic ? BattleAbility.Magic : prepared.Command is 1 or 12 ? BattleAbility.Attack : BattleAbility.EnemyAbility;
         return new BattleAttackCommand(actor.Id, target.Id, ability, prepared.ActionId)
         {
+            GuardianFormAction = prepared.GuardianFormBinding?.Action,
+            NativeSequence = prepared.GuardianFormBinding?.Sequence,
             NativeLimitCallback = original.NativeLimitCallback,
             NativeAction = native,
             NativeQueuedCommand = prepared.Command,
@@ -66,6 +71,14 @@ public sealed partial class BattleSession
             return null;
         }
         uint battleStatus = NativeBattleStatusBits(actor);
+        if (GetGuardianForm(actor.Id) is { Phase: BattleGuardianFormPhase.Active, RemainingTicks: > 0 } form && RequiresNativeCompelledCommand(actor))
+        {
+            BattleGuardianFormDefinition profile = BattleGuardianFormProfiles.Find(form.GuardianForceId)!;
+            BattleGuardianFormActionBinding binding = (battleStatus & 0x2000000) != 0 ? profile.Actions.First(action => action.Source == BattleGuardianFormActionSource.Magic) : profile.Actions.First(action => action.Source == BattleGuardianFormActionSource.Physical);
+            BattleNativeAction native = GetGuardianFormActionDefinition(actor.Id, binding.Action).NativeAction!;
+            ushort mask = binding.Source == BattleGuardianFormActionSource.Physical ? ResolveNativeAiTargetMask(actor, (battleStatus & 0x4000) != 0 ? (byte)201 : (byte)202) : NativeCompelledTargetMask(actor, native.TargetFlags ?? throw new InvalidDataException("GF compelled spell lacks its installed targeting flags."), true);
+            return new(native.Command, native.ActionId, mask, binding.Cost == BattleGuardianFormActionCost.Innate) { GuardianFormBinding = binding };
+        }
         if ((battleStatus & 0x2000000) != 0)
         {
             // Angel Wing keeps its native free-cast source; stock and ownership still select its candidates.

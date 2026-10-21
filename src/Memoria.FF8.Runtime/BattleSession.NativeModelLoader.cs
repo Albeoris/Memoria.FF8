@@ -24,7 +24,7 @@ public sealed partial class BattleSession
         {
             return enemyRemaining;
         }
-        ImmutableArray<NativeBattleModelDatSource> sources = definition.NativeGraphics!.Bindings.SelectMany(binding => binding.Resource.ModelLoadSources ?? []).ToImmutableArray();
+        ImmutableArray<NativeBattleModelDatSource> sources = NativeModelResourceSources();
         if (NativeFileStaging is null && loader.Task is { Phase: > 0 })
         {
             throw new NotSupportedException("Native model callback requires its retained shared199B018 staging bytes; migrate an older active load explicitly.");

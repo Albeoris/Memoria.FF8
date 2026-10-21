@@ -1,4 +1,4 @@
-namespace Memoria.FF8.Runtime;
+﻿namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
@@ -184,6 +184,7 @@ public sealed partial class BattleSession
                 {
                     ValidateNativeGuardianInputBinding(command, physical, bankIndex);
                 }
+                ValidateGuardianFormCommand(command);
                 ValidateSavedAction(command.ActorId, command.TargetId, busy, command.Ability, command.ActionId, true, command.NativeAction, command.NativeTargetMask, command.NativeGraphic, command.NativeRenzokuken, command.NativePlayerReaction, allowNativeQueuedState: true, duel: command.NativeDuel, slots: command.NativeSlots);
                 ValidateNativeMagicTargets(command.Ability, command.ActionId, command.NativeMagicTargets);
                 ValidateNativeDrawPacket(command.Ability, command.ActionId, command.DrawCast, command.DrawCastTargetId, command.NativeDraw, false, command.NativeAction, command.NativeTargetMask);

@@ -15,6 +15,7 @@ internal sealed partial class BattleScenePresentation
     private readonly NativeBattlePrimitiveCapabilities? primitiveCapabilities;
     private readonly Dictionary<string, BattleCombatantDefinition> definitions;
     private readonly Dictionary<string, BattleModel> models = [];
+    private readonly Dictionary<string, int?> activeVisualModels = [];
     private readonly Dictionary<string, BattleModel?> weapons = [];
     private readonly Dictionary<string, float> groundOffsets = [];
     private readonly Dictionary<string, Vector3> positions = [];
@@ -73,24 +74,32 @@ internal sealed partial class BattleScenePresentation
 
     internal BattleCamera Camera => renderedCamera ?? camera ?? throw new InvalidOperationException("The original camera has not published its first pose.");
 
-    private void EnsureActorResources(string actorId)
+    private void EnsureActorResources(string actorId, int? visualModelId = null)
     {
-        if (models.ContainsKey(actorId))
+        if (models.ContainsKey(actorId) && activeVisualModels.GetValueOrDefault(actorId) == visualModelId)
         {
             return;
         }
+        models.Remove(actorId);
+        animations.Remove(actorId);
+        groundOffsets.Remove(actorId);
+        heights.Remove(actorId);
+        weapons.Remove(actorId);
+        activeVisualModels[actorId] = visualModelId;
         BattleCombatantDefinition actor = definitions[actorId];
-        BattleModel model = actor.IsPlayer ? assets.LoadPlayer(actor.ModelId, actor.Costume) : actor.ModelId == -1 ? BattleDebugModels.CreateDummy() : assets.LoadEnemy(actor.ModelId);
-        BattleSequenceSet? sequences = actor.IsPlayer ? assets.LoadPlayerSequences(actor.ModelId, actor.WeaponId, model) : model.Sequences;
-        BattleWeaponDefinition? equipped = actor.IsPlayer ? actor.WeaponId is int equippedId ? assets.WeaponDefinitions.Single(weapon => weapon.Id == equippedId) : assets.WeaponDefinitions.FirstOrDefault(weapon => weapon.CharacterId == actor.ModelId) : null;
+        bool playerResource = actor.IsPlayer && visualModelId is null;
+        int modelId = visualModelId ?? actor.ModelId;
+        BattleModel model = visualModelId is int formModel ? assets.LoadEnemy(formModel) : actor.IsPlayer ? assets.LoadPlayer(actor.ModelId, actor.Costume) : actor.ModelId == -1 ? BattleDebugModels.CreateDummy() : assets.LoadEnemy(actor.ModelId);
+        BattleSequenceSet? sequences = playerResource ? assets.LoadPlayerSequences(actor.ModelId, actor.WeaponId, model) : model.Sequences;
+        BattleWeaponDefinition? equipped = playerResource ? actor.WeaponId is int equippedId ? assets.WeaponDefinitions.Single(weapon => weapon.Id == equippedId) : assets.WeaponDefinitions.FirstOrDefault(weapon => weapon.CharacterId == actor.ModelId) : null;
         if (!actor.IsPlayer && actor.WeaponId is not null)
         {
             throw new NotSupportedException("Enemy weapon replacement requires its own battle model attachment contract.");
         }
-        BattleModel? weapon = actor.IsPlayer && actor.WeaponId is int weaponId ? assets.ResolveWeaponModel(actor.ModelId, weaponId, model) : null;
+        BattleModel? weapon = playerResource && actor.WeaponId is int weaponId ? assets.ResolveWeaponModel(actor.ModelId, weaponId, model) : null;
         float ground = model.Pose(0, 0).SelectMany(mesh => mesh).Min(vertex => vertex.Y);
         float height = model.Pose(0, 0).SelectMany(mesh => mesh).Max(vertex => vertex.Y) - ground;
-        BattleAnimationPresentation animation = new(model, sequences, actor) { Melee = equipped?.Melee == true, AttackSequence = actor.IsPlayer ? 13 : actor.ModelId == -1 ? 0 : assets.ReadEnemyAttackSequence(actor.ModelId) };
+        BattleAnimationPresentation animation = new(model, sequences, actor) { Melee = equipped?.Melee == true, AttackSequence = playerResource ? 13 : modelId == -1 ? 0 : assets.ReadEnemyAttackSequence(modelId) };
         models.Add(actor.Id, model);
         animations.Add(actor.Id, animation);
         groundOffsets.Add(actor.Id, ground);
@@ -167,14 +176,14 @@ internal sealed partial class BattleScenePresentation
             {
                 continue;
             }
-            EnsureActorResources(actor.Id);
+            EnsureActorResources(actor.Id, session.GetGuardianFormVisual(actor.Id));
             BattleEvent? action = session.Events.LastOrDefault(item => item.Kind == "Windup" && item.ActorId == actor.Id);
             Vector3 target = action?.TargetId is string targetId ? positions[targetId] : positions[actor.Id];
             BattleModel shownModel = models[actor.Id];
             BattleModel? shownWeapon = weapons[actor.Id];
             BattleAnimationPresentation animation = animations[actor.Id];
             BattleAnimationSample pose;
-            if (session.GetNativeRenzokuken(actor.Id) is { } renzokuken)
+            if (session.GetGuardianFormVisual(actor.Id) is null && session.GetNativeRenzokuken(actor.Id) is { } renzokuken)
             {
                 var key = (actor.Id, renzokuken.MagicId);
                 if (!renzokukenModels.TryGetValue(key, out var replacement))

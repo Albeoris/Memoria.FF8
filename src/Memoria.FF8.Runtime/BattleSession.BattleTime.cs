@@ -1,4 +1,4 @@
-namespace Memoria.FF8.Runtime;
+﻿namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
@@ -42,6 +42,7 @@ public sealed partial class BattleSession
 
     private void AdvanceBattleTime(HashSet<string> becameReady, bool advanceNativeGauge)
     {
+        AdvanceGuardianFormTime();
         foreach (BattleCombatant actor in combatants.ToArray())
         {
             if (advanceNativeGauge)

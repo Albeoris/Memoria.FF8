@@ -10,6 +10,10 @@ public sealed partial class BattleSession
         //The declared bufferless process owns allocation; host device availability is not simulation state.
         (NativeGlobalSoundProcess process, NativeBattleModuleSound committed) = sound.Commit46B2A0(NativeGlobalSoundProcess);
         NativeGlobalSoundProcess = process;
+        if (SkippingGuardianFormPresentation)
+        {
+            return;
+        }
         events.Add(new BattleEvent(Frame, sequence is null ? "NativeModuleSound" : "NativeSequenceSound", actorId, null, 0, string.Empty) { NativeModuleSound = committed, NativeSound = sequence });
     }
 

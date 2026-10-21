@@ -83,10 +83,15 @@ internal sealed partial class RecreateGame
             return false;
         }
         EnsureBattleHud(active);
+        bool skipInput = keyboard.GuardianFormSkipRequested && active.CanSkipGuardianFormFinisher;
         bool boostInput = keyboard.GuardianBoostRequested && active.NativeGuardianBoost is not null;
         if (boostInput)
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.GuardianBoost));
+        }
+        if (skipInput)
+        {
+            ApplyBattleCommand(new BattleInput(BattleInputKind.GuardianFormSkip));
         }
         active.PublishNativeScanMappedButtons(keyboard.HeldFieldButtons);
         active.AdvanceNativeGraphicsPresentation(elapsed);
@@ -131,7 +136,7 @@ internal sealed partial class RecreateGame
             {
                 battleHud!.CycleCommandActor();
             }
-            NavigateBattleView(battleHud!.Navigate, input, gunbladeInput || shotInput || boostInput);
+            NavigateBattleView(battleHud!.Navigate, input, gunbladeInput || shotInput || boostInput || skipInput);
             if (ActiveBattle is null || battleHud is null)
             {
                 return true;
@@ -207,6 +212,7 @@ internal sealed partial class RecreateGame
         }
         battleHud!.TextScale = uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f;
         battleHud.GunbladeBindingHint = keyboard.BindingHint(ControlAction.RotateRight);
+        battleHud.GuardianFormSkipBindingHint = keyboard.BindingHint(ControlAction.GuardianFormSkip);
         battleHud.PhysicalOverrideBindingHint = keyboard.BindingHint(ControlAction.CameraLeft);
     }
 
@@ -269,6 +275,15 @@ internal sealed partial class RecreateGame
                 break;
             case BattleInputKind.GunbladeTrigger:
                 debugBattle.TriggerGunblade();
+                break;
+            case BattleInputKind.GuardianFormActivate:
+                debugBattle.RequestGuardianForm(input.ActorId!, input.ActionId);
+                break;
+            case BattleInputKind.GuardianFormAction:
+                debugBattle.QueueGuardianFormAction(input.ActorId!, input.TargetId!, (BattleGuardianFormAction)input.ActionId);
+                break;
+            case BattleInputKind.GuardianFormSkip:
+                debugBattle.SkipGuardianFormFinisher();
                 break;
             case BattleInputKind.GuardianBoost:
                 debugBattle.PressNativeGuardianBoost();
@@ -366,6 +381,11 @@ internal sealed partial class RecreateGame
 
     private void StartDebugBattle(BattleDefinition definition, BattleAtbMode mode)
     {
+        definition = definition with
+        {
+            GuardianFormsEnabled = ReadCurrentUiPreferences().GuardianFormsEnabled,
+            GuardianFormResources = ReadCurrentUiPreferences().GuardianFormsEnabled ? [PresentationBattleResources.ReadIfritGuardianFormResources()] : []
+        };
         BattleSession next = new(definition, mode);
         next.SetGunbladeMode(ReadCurrentUiPreferences().GunbladeMode);
         _ = PresentationBattleResources.LoadStage(definition.StageId ?? throw new ArgumentException("A debug battle needs a stage ID."));

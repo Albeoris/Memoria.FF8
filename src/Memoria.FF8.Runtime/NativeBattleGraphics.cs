@@ -74,6 +74,7 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
 
     public void Validate()
     {
+        GuardianFormPresentation?.Validate();
         ActionContext?.Validate();
         OriginalEffect?.Validate();
         UiServices?.Validate();

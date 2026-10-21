@@ -27,6 +27,7 @@ internal sealed record UiPreferences
     public string BattlePolicy { get; init; } = "ResearchInstantVictory";
     [System.Text.Json.Serialization.JsonIgnore]
     public string BattlePolicyLabel => BattlePolicy == "NewGameFullCombat" ? "Full combat" : "Instant victory";
+    public bool GuardianFormsEnabled { get; init; }
     public bool RandomEncounters { get; init; } = true;
     public bool RareCardMarkers { get; init; } = true;
     public bool CursorMemory { get; init; }
@@ -156,6 +157,15 @@ internal sealed record UiPreferences
                 _ => throw new ArgumentException("Random encounters requires On or Off.")
             };
         }
+        if (key == "GF Transformations")
+        {
+            return value switch
+            {
+                "On" => this with { GuardianFormsEnabled = true },
+                "Off" => this with { GuardianFormsEnabled = false },
+                _ => throw new ArgumentException("GF Transformations requires On or Off.")
+            };
+        }
         if (key == "Battle ATB mode")
         {
             return value switch
@@ -199,7 +209,7 @@ internal sealed record UiPreferences
 
     public UiPreferences WithInstallationSetting(string key, string value, bool activeGame)
     {
-        if (activeGame && key is "Battle ATB mode" or "Gunblade trigger" or "Battle policy" or "Random encounters")
+        if (activeGame && key is "Battle ATB mode" or "Gunblade trigger" or "Battle policy" or "Random encounters" or "GF Transformations")
         {
             return this;
         }
