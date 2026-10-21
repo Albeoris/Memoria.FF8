@@ -53,10 +53,11 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         {
             throw new ArgumentOutOfRangeException(nameof(width));
         }
-        if (workingTarget is null || workingTarget.Width != width || workingTarget.Height != height)
+        device.Adapter.QueryRenderTargetFormat(device.GraphicsProfile, SurfaceFormat.Color, DepthFormat.Depth24, device.PresentationParameters.MultiSampleCount, out _, out _, out int multiSampleCount);
+        if (workingTarget is null || workingTarget.Width != width || workingTarget.Height != height || workingTarget.MultiSampleCount != multiSampleCount)
         {
             workingTarget?.Dispose();
-            workingTarget = new RenderTarget2D(device, width, height, false, SurfaceFormat.Color, DepthFormat.Depth24, 0, RenderTargetUsage.PreserveContents);
+            workingTarget = new RenderTarget2D(device, width, height, false, SurfaceFormat.Color, DepthFormat.Depth24, multiSampleCount, RenderTargetUsage.PreserveContents);
         }
         this.width = width;
         this.height = height;
@@ -126,14 +127,22 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         }
         Flush();
         Color[] colors = new Color[width * height];
+        Viewport viewport = device.Viewport;
         try
         {
+            // Unbinding resolves multisampled color before readback. PreserveContents keeps the scene available for subsequent draws.
+            device.SetRenderTarget(null);
             workingTarget.GetData(colors);
         }
         catch (InvalidOperationException)
         {
             pixels = [];
             return false;
+        }
+        finally
+        {
+            device.SetRenderTarget(workingTarget);
+            device.Viewport = viewport;
         }
         pixels = new uint[colors.Length];
         for (int index = 0; index < colors.Length; index++)

@@ -11,7 +11,7 @@ internal sealed class GpuTestDevice : IDisposable
 {
     private readonly nint window;
 
-    public GpuTestDevice()
+    public GpuTestDevice(int multiSampleCount = 0)
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "The GPU rendering checks require Windows and a graphics device.");
         RequirePresentationOutput();
@@ -27,6 +27,7 @@ internal sealed class GpuTestDevice : IDisposable
                 BackBufferHeight = 64,
                 BackBufferFormat = SurfaceFormat.Color,
                 DepthStencilFormat = DepthFormat.Depth24,
+                MultiSampleCount = multiSampleCount,
                 IsFullScreen = false,
                 PresentationInterval = PresentInterval.Immediate
             });
