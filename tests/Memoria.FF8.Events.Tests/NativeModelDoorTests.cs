@@ -13,7 +13,8 @@ internal static partial class Program
     private static void NativeModelDoorContract(string gameDirectory)
     {
         using GameAssets assets = new(gameDirectory);
-        FieldModel model = assets.LoadField(919).Models[13];
+        FieldAssets field = assets.LoadField(919);
+        FieldModel model = field.Models[13];
         NativeModelPartsDefinition definition = model.NativeParts!;
         EventEngine Create((Jsm.Opcode, int)[] main, bool provider = true, bool peer = false, NativeModelPartsDefinition? originalParts = null)
         {
@@ -24,7 +25,14 @@ internal static partial class Program
                 scripts.Add([(Jsm.Opcode.LBL, 9), (Jsm.Opcode.UNUSE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]);
             }
             GameSession session = GameSession.CreateColdProcess();
-            EventEngine engine = new(session) { ReadNativeModelParts = provider ? id => id == 13 ? originalParts ?? definition : null : null };
+            session.StartNewGame();
+            session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
+            session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
+            EventEngine engine = new(session)
+            {
+                AnimationFrameCount = field.GetAnimationFrameCount,
+                ReadNativeModelParts = provider ? id => id == 13 ? originalParts ?? definition : null : null
+            };
             engine.LoadField(600, SyntheticObjects(peer ? [1, (8 << 7) | 1] : [1], scripts), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;
         }
