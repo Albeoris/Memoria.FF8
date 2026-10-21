@@ -5,7 +5,7 @@ namespace Memoria.FF8.Events;
 
 public static class NativeJunctionMenuInput
 {
-    public static bool IsMenuAction(PlayerActionKind kind) => kind is PlayerActionKind.JunctionGuardianForce or PlayerActionKind.SetJunctionCommand or PlayerActionKind.SetJunctionAbility or PlayerActionKind.SelectGuardianForceLearning or PlayerActionKind.SetJunctionMagic or PlayerActionKind.RemoveJunctions or PlayerActionKind.AutoJunction or PlayerActionKind.RemoveAllMagicJunctions or PlayerActionKind.ReassignJunctionMagic;
+    public static bool IsMenuAction(PlayerActionKind kind) => kind is PlayerActionKind.JunctionGuardianForce or PlayerActionKind.ReassignGuardianForce or PlayerActionKind.SetJunctionCommand or PlayerActionKind.SetJunctionAbility or PlayerActionKind.SelectGuardianForceLearning or PlayerActionKind.SetJunctionMagic or PlayerActionKind.RemoveJunctions or PlayerActionKind.AutoJunction or PlayerActionKind.RemoveAllMagicJunctions or PlayerActionKind.ReassignJunctionMagic;
 
     public static void Validate(PlayerAction action)
     {
@@ -18,6 +18,14 @@ public static class NativeJunctionMenuInput
             if (action.Value != 0 || action.Text is not null || action.Quantity is not null || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0 || action.CameraHorizontal != 0 || action.WorldButtons != 0 || action.WaitWhilePlayable)
             {
                 throw new ArgumentException("Party magic removal requires one ordinary menu action without character or category operands.", nameof(action));
+            }
+            return;
+        }
+        if (action.Kind == PlayerActionKind.ReassignGuardianForce)
+        {
+            if ((uint)action.Value >= 8u || action.Quantity is not (>= 0 and < 8) || action.Quantity == action.Value || !int.TryParse(action.Text, NumberStyles.None, CultureInfo.InvariantCulture, out int guardianForce) || (uint)guardianForce >= 16u || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0 || action.CameraHorizontal != 0 || action.WorldButtons != 0 || action.WaitWhilePlayable)
+            {
+                throw new ArgumentException("GF reassignment requires a destination character, a different confirmed owner, a GF and one ordinary menu action.", nameof(action));
             }
             return;
         }
@@ -48,6 +56,7 @@ public static class NativeJunctionMenuInput
         return action.Kind switch
         {
             PlayerActionKind.JunctionGuardianForce => vitals.ToggleGuardianForceJunction(action.Value, choice),
+            PlayerActionKind.ReassignGuardianForce => vitals.ReassignGuardianForceJunction(action.Value, choice, action.Quantity!.Value),
             PlayerActionKind.SetJunctionCommand => vitals.SetJunctionAbility(action.Value, action.Quantity!.Value, choice, true),
             PlayerActionKind.SetJunctionAbility => vitals.SetJunctionAbility(action.Value, action.Quantity!.Value, choice, false),
             PlayerActionKind.SelectGuardianForceLearning => vitals.SelectGuardianForceLearning(action.Value, choice),

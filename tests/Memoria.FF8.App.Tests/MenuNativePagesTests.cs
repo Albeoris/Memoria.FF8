@@ -55,7 +55,7 @@ public sealed class MenuNativePagesTests
         Assert.Equal(new[] { "Complete!", "7 / 40" }, list.SecondaryItems);
         Assert.True(list.Paginated);
         Assert.Equal(10, list.PageSize);
-        Assert.Contains(Descendants(view.Root).OfType<UiLabel>(), label => label.Text == "7 / 40 AP");
+        Assert.Contains(Descendants(view.Root).OfType<UiLabel>(), label => label.Text.Split('\n').Contains("7 / 40 AP"));
     }
 
     [Fact]

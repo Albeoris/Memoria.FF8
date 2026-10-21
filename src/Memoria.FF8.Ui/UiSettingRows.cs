@@ -17,6 +17,7 @@ public abstract class UiSettingRow : UiElement
     public float PointerSize { get; set; } = 10;
     public float TextInset { get; set; } = 24;
     public float RightInset { get; set; } = 8;
+    public float ColumnGap { get; set; }
     public float LabelWidthRatio
     {
         get => _labelWidthRatio;
@@ -36,11 +37,20 @@ public abstract class UiSettingRow : UiElement
         get
         {
             float inset = Math.Clamp(TextInset, 0, Bounds.Width * LabelWidthRatio);
-            return new UiRect(Bounds.X + inset, Bounds.Y, Math.Max(0, Bounds.Width * LabelWidthRatio - inset), Bounds.Height);
+            float gap = Math.Clamp(ColumnGap, 0, Bounds.Width) / 2;
+            return new UiRect(Bounds.X + inset, Bounds.Y, Math.Max(0, Bounds.Width * LabelWidthRatio - inset - gap), Bounds.Height);
         }
     }
 
-    public UiRect ValueBounds => new(Bounds.X + Bounds.Width * LabelWidthRatio, Bounds.Y, Math.Max(0, Bounds.Width * (1 - LabelWidthRatio) - Math.Max(0, RightInset)), Bounds.Height);
+    public UiRect ValueBounds
+    {
+        get
+        {
+            float gap = Math.Clamp(ColumnGap, 0, Bounds.Width) / 2;
+            float left = Math.Min(Bounds.Right, Bounds.X + Bounds.Width * LabelWidthRatio + gap);
+            return new UiRect(left, Bounds.Y, Math.Max(0, Bounds.Right - left - Math.Max(0, RightInset)), Bounds.Height);
+        }
+    }
 
     public override UiSize Measure(UiSize available)
     {
@@ -50,7 +60,7 @@ public abstract class UiSettingRow : UiElement
 
     protected void DrawLabel(IUiCanvas canvas, UiTheme theme)
     {
-        canvas.Text(Text, FontSize > 0 ? FontSize : theme.FontSize, LabelBounds, Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center);
+        canvas.Text(Text, FontSize > 0 ? FontSize : theme.FontSize, LabelBounds, Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
     }
 
     protected override void DrawPointer(IUiCanvas canvas, UiTheme theme)
@@ -64,8 +74,10 @@ public sealed class UiChoiceRow : UiSettingRow
 {
     private int _selectedIndex;
     private int _maxVisibleItems = 3;
+    private bool _showSingleChoice;
 
     public IList<string> Items { get; set; } = new List<string>();
+    public float OptionGap { get; set; } = 8;
     public int MaxVisibleItems
     {
         get => _maxVisibleItems;
@@ -97,21 +109,42 @@ public sealed class UiChoiceRow : UiSettingRow
             return;
         }
 
-        if (Items.Count > MaxVisibleItems)
+        float gap = Math.Clamp(OptionGap, 0, values.Width / Math.Max(1, Items.Count - 1));
+        float width = Math.Max(0, values.Width - gap * (Items.Count - 1)) / Items.Count;
+        _showSingleChoice = Items.Count > MaxVisibleItems;
+        if (!_showSingleChoice && Items.Count > 1)
+        {
+            try
+            {
+                float fontSize = FontSize > 0 ? FontSize : theme.FontSize;
+                foreach (string item in Items)
+                {
+                    if (canvas.MeasureText(item, fontSize, float.PositiveInfinity).Width > width)
+                    {
+                        _showSingleChoice = true;
+                        break;
+                    }
+                }
+            }
+            catch (NotSupportedException)
+            {
+                // Measurement is optional for renderer-neutral canvases.
+            }
+        }
+        if (_showSingleChoice)
         {
             float inset = Math.Min(20, values.Width / 4);
             UiRect option = new(values.X + inset, values.Y, Math.Max(0, values.Width - inset * 2), values.Height);
-            canvas.Text(Items[SelectedIndex], FontSize > 0 ? FontSize : theme.FontSize, option, Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center);
+            canvas.Text(Items[SelectedIndex], FontSize > 0 ? FontSize : theme.FontSize, option, Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
             DrawArrow(canvas, values.X + inset / 2, values.Y + values.Height / 2, -1, Enabled && SelectedIndex > 0 ? theme.Foreground : theme.Muted);
             DrawArrow(canvas, values.Right - inset / 2, values.Y + values.Height / 2, 1, Enabled && SelectedIndex < Items.Count - 1 ? theme.Foreground : theme.Muted);
             return;
         }
 
-        float width = values.Width / Items.Count;
         for (int index = 0; index < Items.Count; index++)
         {
-            UiRect option = new(values.X + index * width, values.Y, width, values.Height);
-            canvas.Text(Items[index], FontSize > 0 ? FontSize : theme.FontSize, option, Enabled && index == SelectedIndex ? theme.Foreground : theme.Muted, UiAlignment.Center);
+            UiRect option = new(values.X + index * (width + gap), values.Y, width, values.Height);
+            canvas.Text(Items[index], FontSize > 0 ? FontSize : theme.FontSize, option, Enabled && index == SelectedIndex ? theme.Foreground : theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
         }
     }
 
@@ -135,7 +168,7 @@ public sealed class UiChoiceRow : UiSettingRow
             return;
         }
 
-        if (Items.Count > MaxVisibleItems)
+        if (Items.Count > MaxVisibleItems || _showSingleChoice)
         {
             SetSelection(SelectedIndex + (x < values.X + values.Width / 2 ? -1 : 1));
         }
@@ -199,7 +232,7 @@ public sealed class UiNumericSlider : UiSlider
             DrawBar(canvas, track, theme);
         }
 
-        canvas.Text(Value.ToString(ValueFormat, CultureInfo.InvariantCulture), FontSize > 0 ? FontSize : theme.FontSize, NumberBounds, Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center);
+        canvas.Text(Value.ToString(ValueFormat, CultureInfo.InvariantCulture), FontSize > 0 ? FontSize : theme.FontSize, NumberBounds, Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
     }
 
     protected override void DrawPointer(IUiCanvas canvas, UiTheme theme)

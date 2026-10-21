@@ -5,6 +5,66 @@ namespace Memoria.FF8.Ui.Tests;
 public sealed class ListLayoutTests
 {
     [Fact]
+    public void MeasuredValueColumnsKeepAFontScaledGapFromPrimaryNames()
+    {
+        UiList list = new() { Items = ["Geezard"], SecondaryItems = ["3"], TextFlow = UiTextFlow.SingleLine, FontSize = 72, RowHeight = 93, AutoSecondaryWidth = true, TextInset = 0 };
+        list.Arrange(new UiRect(0, 0, 600, 120));
+        MeasuringCanvas canvas = new();
+
+        list.Draw(canvas, new UiTheme());
+
+        Assert.Equal(14.4f, canvas.Texts[1].Clip.X - canvas.Texts[0].Bounds.Right, 3);
+    }
+
+    [Fact]
+    public void SingleLineRowsPreserveOneLineAndUseMeasuredLineHeightForPagination()
+    {
+        UiList list = new() { Items = ["abcdefghijklmnop", "abcdefghijklmnop", "abcdefghijklmnop"], TextFlow = UiTextFlow.SingleLine, RowHeight = 20, FontSize = 48, TextInset = 0, Paginated = true };
+        list.Arrange(new UiRect(0, 0, 104, 120));
+        MeasuringCanvas canvas = new();
+        list.Draw(canvas, new UiTheme());
+
+        Assert.Equal(2, list.PageCount);
+        Assert.Equal(2, list.EffectivePageSize);
+        Assert.All(canvas.Texts.Where(text => !text.Text.StartsWith("P.")), text => Assert.Equal(48, text.Bounds.Height));
+        Assert.Equal(new[] { UiTextFlow.SingleLine, UiTextFlow.SingleLine }, canvas.Flows);
+        list.Pointer(20, 60);
+        Assert.Equal(1, list.SelectedIndex);
+        list.Key(UiKey.PageDown);
+        Assert.Equal(2, list.SelectedIndex);
+    }
+
+    [Fact]
+    public void OversizedArtworkAndPointerGuttersLeavePrimaryNamesReadable()
+    {
+        UiList list = new()
+        {
+            Items = ["A readable name"],
+            SecondaryItems = ["100"],
+            Images = [new UiImageSource(UiImageKind.Icon, 1)],
+            TrailingImages = [new UiImageSource(UiImageKind.Icon, 2)],
+            TextFlow = UiTextFlow.SingleLine,
+            RowHeight = 93,
+            FontSize = 72,
+            TextInset = 105,
+            PointerSize = 60
+        };
+        UiView view = new(list);
+        view.Resize(228, 300);
+        MeasuringCanvas canvas = new();
+        view.Draw(canvas, new UiTheme());
+
+        Assert.True(canvas.Texts[0].Bounds.Width >= 228 * 0.4f - 0.001f);
+        Assert.All(canvas.Images, image => Assert.True(image.Bounds.Width <= 228 * 0.16f));
+        float effectiveInset = canvas.Images[0].Bounds.X - 2;
+        Assert.True(effectiveInset <= 228 * 0.12f);
+        Assert.Equal(effectiveInset - 4, Assert.Single(canvas.Pointers).Right, 3);
+        Assert.True(canvas.Pointers[0].X >= -0.001f);
+        Assert.True(canvas.Pointers[0].Height <= canvas.Texts[0].Bounds.Height);
+        Assert.True(canvas.Texts[0].Bounds.Right <= canvas.Texts[1].Bounds.X);
+    }
+
+    [Fact]
     public void Wrapped_rows_share_geometry_for_drawing_scrolling_and_pointer_selection()
     {
         UiList list = new() { Items = ["abcdefgh", "ab", "abcdefghijkl", "ab"], RowHeight = 20, FontSize = 20, TextInset = 0, ShowScrollbar = false };
@@ -295,6 +355,7 @@ public sealed class ListLayoutTests
         public List<(string Text, UiRect Bounds, UiRect Clip, float WrappedHeight)> Texts { get; } = [];
         public List<UiRect> Pointers { get; } = [];
         public List<(UiImageSource Source, UiRect Bounds)> Images { get; } = [];
+        public List<UiTextFlow> Flows { get; } = [];
 
         public UiSize MeasureText(string text, float fontSize, float maximumWidth)
         {
@@ -304,6 +365,10 @@ public sealed class ListLayoutTests
 
         private UiSize Layout(string text, float fontSize, float maximumWidth)
         {
+            if (float.IsPositiveInfinity(maximumWidth))
+            {
+                return new UiSize(Math.Max(0, text.Length * fontSize / 2 - GlyphInset), fontSize);
+            }
             int columns = Math.Max(1, (int)(maximumWidth / (fontSize / 2)));
             int lines = Math.Max(1, (text.Length + columns - 1) / columns);
             return new UiSize(Math.Max(0, Math.Min(text.Length, columns) * fontSize / 2 - GlyphInset), lines * fontSize);
@@ -316,6 +381,12 @@ public sealed class ListLayoutTests
 
         public void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment)
         {
+            Text(text, fontSize, bounds, color);
+        }
+
+        public void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment, UiTextFlow flow)
+        {
+            Flows.Add(flow);
             Text(text, fontSize, bounds, color);
         }
 

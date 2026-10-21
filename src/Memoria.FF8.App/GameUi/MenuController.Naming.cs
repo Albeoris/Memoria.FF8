@@ -177,7 +177,7 @@ public sealed partial class MenuController
             }
             int selected = index;
             UiButton button = new() { Id = entries[index].Id, DrawBackground = false, HighlightSelection = false, PointerSize = index < NameCells ? 12 : 18, Enabled = entries[index].Enabled, Click = () => Activate(selected) };
-            button.Children.Add(new UiLabel { Text = entries[index].Label, Muted = !entries[index].Enabled, FontSize = (index < NameCells ? 24 : 22) * TextScale, HorizontalAlignment = index < NameCells ? UiAlignment.Center : UiAlignment.Start, VerticalAlignment = UiAlignment.Center });
+            button.Children.Add(new UiLabel { Text = entries[index].Label, TextFlow = UiTextFlow.SingleLine, Muted = !entries[index].Enabled, FontSize = (index < NameCells ? 24 : 22) * TextScale, HorizontalAlignment = index < NameCells ? UiAlignment.Center : UiAlignment.Start, VerticalAlignment = UiAlignment.Center });
             if (index < NameCells)
             {
                 Place(keys, button, index / NameColumns, index % NameColumns);

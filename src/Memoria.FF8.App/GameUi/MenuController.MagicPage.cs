@@ -53,7 +53,7 @@ public sealed partial class MenuController
         var identity = Grid([1], [1, 2.8f], 10);
         identity.Margin = new UiThickness(16, 8);
         Place(identity, Portrait(character), 0);
-        Place(identity, Lines([character?.Name ?? "--", $"Lv  {Number(character?.Level)}", "HP  " + (character is null ? "--" : Hp(character))], 26), 0, 1);
+        Place(identity, Readouts([character?.Name ?? "--", $"Lv  {Number(character?.Level)}", "HP  " + (character is null ? "--" : Hp(character))], 26), 0, 1);
         Place(summary, identity, 0);
         return compact ? identity : summary;
     }
@@ -61,7 +61,7 @@ public sealed partial class MenuController
     private UiElement MagicStockPreview(MenuCharacter? character)
     {
         MenuMagic[] spells = Data.Magic.Where(value => value.CharacterId == character?.Id).ToArray();
-        var list = new UiList { Id = "magic-preview-" + character?.Id, RowHeight = 38 * TextScale, FontSize = 25 * TextScale, ShowSelection = false, Focusable = true };
+        var list = new UiList { TextFlow = UiTextFlow.SingleLine, Id = "magic-preview-" + character?.Id, RowHeight = 38 * TextScale, FontSize = 25 * TextScale, ShowSelection = false, Focusable = true };
         ConfigureMagicColumns(list, spells);
         return InventoryQuantities(list, spells.Select(value => value.Name).ToList(), spells.Select(value => value.StockPresentation).ToList());
     }

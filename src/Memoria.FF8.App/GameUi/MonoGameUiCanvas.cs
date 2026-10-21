@@ -14,6 +14,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
     private readonly Dictionary<UiImageSource, Texture2D> images = [];
     private string? cardFontFamily;
     private readonly UiTextOverflow textOverflow = new();
+    private readonly Dictionary<(string Text, float Size, float Width, string Family), UiSize> textMeasurements = [];
 
     public void BeginFrame(TimeSpan time)
     {
@@ -158,12 +159,26 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
 
     public UiSize MeasureText(string value, float size, float maximumWidth)
     {
+        var key = (value, size, maximumWidth, text.FontFamily);
+        if (textMeasurements.TryGetValue(key, out UiSize result))
+        {
+            return result;
+        }
         if (ButtonPromptText.Contains(value))
         {
-            return ButtonPromptText.Measure(value, size, maximumWidth, text.FontFamily);
+            result = ButtonPromptText.Measure(value, size, maximumWidth, text.FontFamily);
         }
-        Vector2 measured = SystemTextLayout.MeasureWrapped(value, size, maximumWidth, text.FontFamily);
-        return new UiSize(measured.X, measured.Y);
+        else
+        {
+            Vector2 measured = SystemTextLayout.MeasureWrapped(value, size, maximumWidth, text.FontFamily);
+            result = new UiSize(measured.X, measured.Y);
+        }
+        if (textMeasurements.Count >= 1024)
+        {
+            textMeasurements.Clear();
+        }
+        textMeasurements[key] = result;
+        return result;
     }
 
     public void OutlinedText(string value, float size, UiRect bounds, UiColor color, UiColor outline, float thickness)
@@ -173,8 +188,14 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
             return;
         }
 
+        size = UiTextOverflow.FitFontSize(size, bounds.Height, MeasureText("Mg", size, float.PositiveInfinity).Height);
+        UiTextViewport layout = textOverflow.Layout(value, size, bounds, text.FontFamily, width =>
+        {
+            Vector2 measured = text.MeasureWrapped(value, size, width);
+            return new UiSize(measured.X, measured.Y);
+        }, UiTextFlow.SingleLine);
         Rectangle clip = Rectangle.Intersect(RectangleFor(new UiRect(bounds.X - thickness, bounds.Y - thickness, bounds.Width + thickness * 2, bounds.Height + thickness * 2)), CurrentClip);
-        text.DrawOutlinedClipped(batch, value, size, new Vector2(bounds.X, bounds.Y + bounds.Height / 2), bounds.Width, ColorFor(color), ColorFor(outline), thickness, clip);
+        text.DrawOutlinedClipped(batch, value, size, new Vector2(bounds.X - layout.OffsetX, bounds.Y + bounds.Height / 2), layout.WrapWidth, ColorFor(color), ColorFor(outline), thickness, clip);
     }
 
     public void Text(string value, float size, UiRect bounds, UiColor color, string? fontFamily)
@@ -187,22 +208,29 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
         Text(value, size, bounds, color, null, verticalAlignment);
     }
 
-    private void Text(string value, float size, UiRect bounds, UiColor color, string? fontFamily, UiAlignment verticalAlignment)
+    public void Text(string value, float size, UiRect bounds, UiColor color, UiAlignment verticalAlignment, UiTextFlow flow)
+    {
+        Text(value, size, bounds, color, null, verticalAlignment, flow);
+    }
+
+    private void Text(string value, float size, UiRect bounds, UiColor color, string? fontFamily, UiAlignment verticalAlignment, UiTextFlow flow = UiTextFlow.Auto)
     {
         if (bounds.Width <= 0 || bounds.Height <= 0 || size <= 0 || string.IsNullOrEmpty(value))
         {
             return;
         }
+        float lineHeight = fontFamily == null || fontFamily == text.FontFamily ? MeasureText("Mg", size, float.PositiveInfinity).Height : SystemTextLayout.LineHeight(size, fontFamily);
+        size = UiTextOverflow.FitFontSize(size, bounds.Height, lineHeight);
         if (ButtonPromptText.Contains(value))
         {
-            ButtonPromptText.Draw(this, value, size, bounds, color, fontFamily ?? text.FontFamily, verticalAlignment, textOverflow);
+            ButtonPromptText.Draw(this, value, size, bounds, color, fontFamily ?? text.FontFamily, verticalAlignment, textOverflow, flow);
             return;
         }
         UiTextViewport layout = textOverflow.Layout(value, size, bounds, fontFamily ?? text.FontFamily, width =>
         {
             Vector2 measured = text.MeasureWrapped(value, size, width, fontFamily);
             return new UiSize(measured.X, measured.Y);
-        });
+        }, flow);
         Vector2 position = new(bounds.X - layout.OffsetX, bounds.Y - layout.OffsetY);
         if (verticalAlignment is UiAlignment.Center or UiAlignment.End)
         {

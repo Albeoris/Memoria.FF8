@@ -21,7 +21,7 @@ public sealed class MenuViewTests
         menus.Open();
 
         Assert.Equal(TimeSpan.FromSeconds(seconds), menus.Data.PlayTime);
-        Assert.Contains(Descendants(menus.BuildView().Root).OfType<UiLabel>(), label => label.Text == $"PLAY  {expected}");
+        Assert.Contains(Descendants(menus.BuildView().Root).OfType<UiLabel>(), label => label.Text.Split('\n').Contains($"PLAY  {expected}"));
         Assert.Equal(new NativePlaytimeState(seconds, 1234, 0), state.Playtime);
     }
 
@@ -31,12 +31,12 @@ public sealed class MenuViewTests
         GameState state = new() { Playtime = new NativePlaytimeState(3599, 0, 0) };
         MenuController menus = new(() => LiveMenuData.Build(state));
         menus.Open();
-        Assert.Contains(Descendants(menus.BuildView().Root).OfType<UiLabel>(), label => label.Text == "PLAY  00:59");
+        Assert.Contains(Descendants(menus.BuildView().Root).OfType<UiLabel>(), label => label.Text.Split('\n').Contains("PLAY  00:59"));
 
         state = state with { Playtime = state.Playtime.AdvanceTo(60) };
         menus.InvalidateLiveData();
 
-        Assert.Contains(Descendants(menus.BuildView().Root).OfType<UiLabel>(), label => label.Text == "PLAY  01:00");
+        Assert.Contains(Descendants(menus.BuildView().Root).OfType<UiLabel>(), label => label.Text.Split('\n').Contains("PLAY  01:00"));
     }
 
     [Theory]

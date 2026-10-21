@@ -3,6 +3,92 @@ namespace Memoria.FF8.Ui.Tests;
 public sealed class TextOverflowTests
 {
     [Fact]
+    public void TextLayersSharingBoundsKeepIndependentAnimationAndMeasurements()
+    {
+        UiTextOverflow overflow = new();
+        UiRect bounds = new(0, 0, 100, 30);
+        overflow.BeginFrame(TimeSpan.Zero);
+        overflow.Layout("First layer", 20, bounds, "Font A", _ => new UiSize(220, 20), UiTextFlow.SingleLine);
+        overflow.Layout("Second layer", 20, bounds, "Font B", _ => new UiSize(300, 20), UiTextFlow.SingleLine);
+        overflow.BeginFrame(TimeSpan.FromSeconds(3.5));
+
+        UiTextViewport first = overflow.Layout("First layer", 20, bounds, "Font A", _ => throw new InvalidOperationException(), UiTextFlow.SingleLine);
+        UiTextViewport second = overflow.Layout("Second layer", 20, bounds, "Font B", _ => throw new InvalidOperationException(), UiTextFlow.SingleLine);
+
+        Assert.Equal(60, first.OffsetX);
+        Assert.Equal(60, second.OffsetX);
+        Assert.Equal(220, first.Content.Width);
+        Assert.Equal(300, second.Content.Width);
+    }
+
+    [Theory]
+    [InlineData(72, 24, 90, 19.2f)]
+    [InlineData(24, 48, 30, 24)]
+    [InlineData(6, 8, 7.5f, 6)]
+    [InlineData(48, 0, 60, 0)]
+    public void HeightFittingPreservesSizeWhenPossibleAndScalesProportionallyWhenConstrained(float size, float height, float lineHeight, float expected)
+    {
+        Assert.Equal(expected, UiTextOverflow.FitFontSize(size, height, lineHeight), 3);
+    }
+
+    [Theory]
+    [InlineData(6)]
+    [InlineData(24)]
+    [InlineData(48)]
+    [InlineData(72)]
+    public void WrappedProseWithoutExplicitBreaksScrollsVerticallyAtTheRequestedFontSize(float size)
+    {
+        UiTextOverflow overflow = new();
+        UiRect bounds = new(0, 0, size * 5, size * 2);
+        UiSize Measure(float width)
+        {
+            Assert.Equal(bounds.Width, width);
+            return new UiSize(width, size * 5);
+        }
+        overflow.BeginFrame(TimeSpan.Zero);
+        UiTextViewport first = overflow.Layout("A complete paragraph with several wrapped lines", size, bounds, null, Measure, UiTextFlow.Wrap);
+        overflow.BeginFrame(TimeSpan.FromSeconds(3));
+        UiTextViewport moving = overflow.Layout("A complete paragraph with several wrapped lines", size, bounds, null, Measure, UiTextFlow.Wrap);
+        Assert.Equal(0, first.OffsetY);
+        Assert.Equal(0, moving.OffsetX);
+        Assert.True(moving.OffsetY > 0);
+        Assert.Equal(bounds.Width, moving.WrapWidth);
+    }
+
+    [Fact]
+    public void SingleLineRowsNeverWrapEvenWhenTwoLinesWouldFit()
+    {
+        UiTextOverflow overflow = new();
+        UiRect bounds = new(0, 0, 100, 60);
+        overflow.BeginFrame(TimeSpan.Zero);
+        UiTextViewport layout = overflow.Layout("Long row label", 20, bounds, null, width =>
+        {
+            Assert.True(float.IsPositiveInfinity(width));
+            return new UiSize(220, 20);
+        }, UiTextFlow.SingleLine);
+        overflow.BeginFrame(TimeSpan.FromSeconds(3.5));
+        UiTextViewport moving = overflow.Layout("Long row label", 20, bounds, null, _ => throw new InvalidOperationException(), UiTextFlow.SingleLine);
+        Assert.Equal(0, layout.OffsetX);
+        Assert.Equal(60, moving.OffsetX);
+        Assert.Equal(0, moving.OffsetY);
+    }
+
+    [Theory]
+    [InlineData(UiTextFlow.Wrap)]
+    [InlineData(UiTextFlow.SingleLine)]
+    public void ExplicitFlowKeepsFittingTextStationary(UiTextFlow flow)
+    {
+        UiTextOverflow overflow = new();
+        UiRect bounds = new(0, 0, 100, 40);
+        overflow.BeginFrame(TimeSpan.Zero);
+        overflow.Layout("Fits", 20, bounds, null, _ => new UiSize(60, 20), flow);
+        overflow.BeginFrame(TimeSpan.FromSeconds(60));
+        UiTextViewport layout = overflow.Layout("Fits", 20, bounds, null, _ => throw new InvalidOperationException(), flow);
+        Assert.Equal(0, layout.OffsetX);
+        Assert.Equal(0, layout.OffsetY);
+    }
+
+    [Fact]
     public void ScrollPausesAtBothEndsAndRestartsAfterShowingTheLastCharacter()
     {
         Assert.Equal(0, UiTextOverflow.Offset(0, 120, 20));

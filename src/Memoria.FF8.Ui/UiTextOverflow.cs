@@ -3,7 +3,7 @@ namespace Memoria.FF8.Ui;
 /// <summary>Retains overflow animation across rebuilt views, using the presentation clock.</summary>
 public sealed class UiTextOverflow
 {
-    private readonly Dictionary<(UiRect Bounds, float Size), Entry> entries = [];
+    private readonly Dictionary<(UiRect Bounds, float Size, UiTextFlow Flow, string Text, string? FontFamily), Entry> entries = [];
     private long frame;
     private double seconds;
 
@@ -17,15 +17,15 @@ public sealed class UiTextOverflow
         seconds = time.TotalSeconds;
     }
 
-    public UiTextViewport Layout(string text, float size, UiRect bounds, string? fontFamily, Func<float, UiSize> measure)
+    public UiTextViewport Layout(string text, float size, UiRect bounds, string? fontFamily, Func<float, UiSize> measure, UiTextFlow flow = UiTextFlow.Auto)
     {
-        var key = (bounds, size);
-        if (!entries.TryGetValue(key, out Entry? entry) || entry.Text != text || entry.FontFamily != fontFamily)
+        var key = (bounds, size, flow, text, fontFamily);
+        if (!entries.TryGetValue(key, out Entry? entry))
         {
-            UiSize content = measure(bounds.Width);
-            float wrapWidth = bounds.Width;
-            bool horizontal = false;
-            if (content.Height > bounds.Height && !text.Contains('\n') && !text.Contains('\r'))
+            float wrapWidth = flow == UiTextFlow.SingleLine ? float.PositiveInfinity : bounds.Width;
+            UiSize content = measure(wrapWidth);
+            bool horizontal = flow == UiTextFlow.SingleLine;
+            if (flow == UiTextFlow.Auto && content.Height > bounds.Height && !text.Contains('\n') && !text.Contains('\r'))
             {
                 UiSize line = measure(float.PositiveInfinity);
                 if (line.Width > bounds.Width)
@@ -35,7 +35,7 @@ public sealed class UiTextOverflow
                     horizontal = true;
                 }
             }
-            entry = new Entry(text, fontFamily, content, wrapWidth, horizontal, seconds);
+            entry = new Entry(content, wrapWidth, horizontal, seconds);
             entries[key] = entry;
         }
         entry.Frame = frame;
@@ -44,12 +44,22 @@ public sealed class UiTextOverflow
         {
             distance = entry.Content.Width - bounds.Width;
         }
-        else if (text.Contains('\n') || text.Contains('\r'))
+        else
         {
             distance = entry.Content.Height - bounds.Height;
         }
         float offset = Offset(seconds - entry.Start, distance, size);
         return new UiTextViewport(entry.Horizontal ? offset : 0, entry.Horizontal ? 0 : offset, entry.WrapWidth, entry.Content);
+    }
+
+    /// <summary>Fits at least one complete line in a constrained viewport without changing glyph proportions.</summary>
+    public static float FitFontSize(float fontSize, float availableHeight, float lineHeight)
+    {
+        if (fontSize <= 0 || availableHeight <= 0 || lineHeight <= 0)
+        {
+            return 0;
+        }
+        return fontSize * Math.Min(1, availableHeight / lineHeight);
     }
 
     /// <summary>Pause at both ends, then restart; speed scales with the text rather than the output resolution.</summary>
@@ -67,10 +77,8 @@ public sealed class UiTextOverflow
         return (float)Math.Clamp((phase - startPause) * speed, 0, distance);
     }
 
-    private sealed class Entry(string text, string? fontFamily, UiSize content, float wrapWidth, bool horizontal, double start)
+    private sealed class Entry(UiSize content, float wrapWidth, bool horizontal, double start)
     {
-        public string Text { get; } = text;
-        public string? FontFamily { get; } = fontFamily;
         public UiSize Content { get; } = content;
         public float WrapWidth { get; } = wrapWidth;
         public bool Horizontal { get; } = horizontal;

@@ -32,7 +32,7 @@ public sealed partial class MenuController
         var header = Grid([1, 1.2f], [3.7f, 1.3f], 5);
         Place(header, Panel("INFO.", Label(info, 24)), 0);
         Place(header, Panel(null, Label(title, 27)), 0, 1);
-        Place(header, Panel("HELP", Label(Message.Length > 0 ? Message : help, 23)), 1, 0, 1, 2);
+        Place(header, Panel("HELP", Label(Message.Length > 0 ? Message : help, 23, UiTextFlow.Wrap)), 1, 0, 1, 2);
         return header;
     }
 
@@ -40,6 +40,7 @@ public sealed partial class MenuController
     {
         return new UiList
         {
+            TextFlow = UiTextFlow.SingleLine,
             Id = "commands",
             Paginated = true,
             Items = Entries.Select(entry => entry.Label).ToList(),
@@ -61,12 +62,13 @@ public sealed partial class MenuController
         var page = Grid([1.4f * TextScale, newGame ? 3.5f : 6.85f], [1], 8);
         var header = Grid([1], [3.7f, 1.3f], 5);
         string help = Message.Length > 0 ? Message : SelectedEntry?.Help ?? CurrentScreen.Help;
-        Place(header, Panel("HELP", new UiLabel { Text = help, FontSize = 18 * TextScale }), 0);
+        Place(header, Panel("HELP", new UiLabel { Text = help, FontSize = 18 * TextScale, TextFlow = UiTextFlow.Wrap }), 0);
         Place(header, Panel(null, Label(ScreenId == "new-game-options" ? "New Game" : "Config", 27)), 0, 1);
         Place(page, header, 0);
-        int count = newGame ? Entries.Count : ConfigRowsPerPage;
+        int count = Math.Min(Math.Max(1, Entries.Count), ConfigRowsPerPage);
         int first = SelectedIndex / count * count;
-        var content = Grid(newGame ? [1] : [1, 0.055f], [1], 4);
+        var content = Grid([1, 0.055f], [1], 4);
+        content.RowDefinitions[1] = UiGridLength.Pixel(22 * TextScale);
         var rows = new UiGrid { Columns = 1, Gap = 0 };
         for (int index = 0; index < count; index++)
         {
@@ -78,10 +80,7 @@ public sealed partial class MenuController
         }
         Place(content, rows, 0);
         int pages = Math.Max(1, (Entries.Count + count - 1) / count);
-        if (!newGame)
-        {
-            Place(content, Label($"{(ScreenId == "config" ? "Categories" : CurrentScreen.Title)}     {first / count + 1} / {pages}", 15), 1);
-        }
+        Place(content, Label($"{(ScreenId == "config" ? "Categories" : CurrentScreen.Title)}     {first / count + 1} / {pages}", 15), 1);
         Place(page, Panel(null, content), 1);
         if (newGame)
         {
@@ -97,7 +96,7 @@ public sealed partial class MenuController
     {
         bool confirmation = ScreenId.EndsWith("-confirm", StringComparison.Ordinal);
         bool loading = ScreenId.StartsWith("load", StringComparison.Ordinal);
-        var page = Grid([1.9f, 6], [1], 5);
+        var page = Grid([1.9f * Math.Max(1, TextScale), 6], [1], 5);
         Place(page, SecondaryHeader(loading ? "Load" : "Save", confirmation ? SaveSlot?.Name ?? "Slot unavailable" : "Select a save block", confirmation ? loading ? "Load the selected slot?" : "Save to the selected slot?" : loading ? "Choose block to load" : "Choose block to save"), 0);
         if (confirmation)
         {
@@ -123,7 +122,7 @@ public sealed partial class MenuController
             var content = Grid([0.7f, 1.3f], [1], 2);
             content.Margin = new UiThickness(35, 6, 12, 6);
             Place(content, Label(slot?.Name ?? entry.Label, 23), 0);
-            Place(content, Label(slot?.Summary ?? "Slot metadata unavailable.", 26), 1);
+            Place(content, Label(slot?.Summary ?? "Slot metadata unavailable.", 26, UiTextFlow.Wrap), 1);
             card.Children.Add(content);
             Place(cards, card, index - first);
         }
@@ -138,7 +137,7 @@ public sealed partial class MenuController
             return BuildWeaponShop();
         }
         MenuItem? selected = Data.Items.FirstOrDefault(item => item.Id == SelectedEntry?.Id);
-        var page = Grid([1.8f, 5.8f, 0.65f], [3, 1.7f], 5);
+        var page = Grid([1.8f * Math.Max(1, TextScale), 5.8f, 0.65f], [3, 1.7f], 5);
         string help = ScreenId == "shop-buy" ? "Choose an item to purchase." : ScreenId == "shop-sell" ? "Choose an item to sell." : ScreenId == "shop-junk" ? "Select a weapon to remodel." : "Select a shop command.";
         Place(page, SecondaryHeader("Shop", ScreenId == "shop-buy" ? "Buy" : ScreenId == "shop-sell" ? "Sell" : "Shop", selected?.Description ?? help), 0, 0, 1, 2);
         UiList commands = SecondaryCommands();
@@ -147,14 +146,14 @@ public sealed partial class MenuController
             commands.Items = Entries.Select(entry => Data.Items.FirstOrDefault(item => item.Id == entry.Id)?.Name ?? entry.Label).ToList();
             commands.SecondaryItems = Entries.Select(entry => Data.Items.FirstOrDefault(item => item.Id == entry.Id) is { } item ? Number(ScreenId == "shop-sell" ? item.SalePrice ?? item.Price / 2 : item.Price) + " G" : "--").ToList();
             commands.Images = Entries.Select(entry => Data.Items.FirstOrDefault(item => item.Id == entry.Id)?.Icon).ToList();
-            commands.SecondaryWidth = 0.33f;
+            commands.AutoSecondaryWidth = true;
             Place(page, Panel("ITEM", commands), 1);
         }
         else
         {
             Place(page, Panel(null, commands), 1);
         }
-        Place(page, Panel(null, Lines([selected?.Name ?? "", "Owned", selected?.Quantity.ToString() ?? "--"], 25)), 1, 1);
+        Place(page, Panel(null, Readouts([selected?.Name ?? "", "Owned", selected?.Quantity.ToString() ?? "--"], 25)), 1, 1);
         Place(page, Panel(null, Label(Number(Data.Currency) + " G", 24)), 2, 1);
         return page;
     }
@@ -163,7 +162,7 @@ public sealed partial class MenuController
     {
         MenuItem? selected = Data.Items.FirstOrDefault(item => item.Id == SelectedEntry?.Id);
         MenuCharacter? character = Data.Characters.FirstOrDefault(value => value.InParty);
-        var page = Grid([1.8f, 5.8f, 0.65f], [3, 2.4f], 5);
+        var page = Grid([1.8f * Math.Max(1, TextScale), 5.8f, 0.65f], [3, 2.4f], 5);
         Place(page, SecondaryHeader("Junk Shop", character?.Name ?? "Select a character", selected?.Description ?? "Select a character or a weapon to remodel."), 0, 0, 1, 2);
         var choices = Grid([2, 3], [1], 5);
         int characterCount = Data.Characters.Count;
@@ -178,7 +177,7 @@ public sealed partial class MenuController
         weapons.Items = Data.Items.Select(item => item.Name).ToList();
         weapons.EnabledItems = Entries.Skip(characterCount).Select(entry => entry.Enabled).ToList();
         weapons.SecondaryItems = Data.Items.Select(item => Number(item.Price) + " G").ToList();
-        weapons.SecondaryWidth = 0.3f;
+        weapons.AutoSecondaryWidth = true;
         weapons.SelectedIndex = Math.Max(0, SelectedIndex - characterCount);
         weapons.ShowSelection = SelectedIndex >= characterCount;
         weapons.SelectionChanged = index => Select(index + characterCount, Entries.Count);
@@ -192,7 +191,7 @@ public sealed partial class MenuController
             Items = selected?.Materials.Select(material => material.Name).ToList() ?? [],
             Images = selected?.Materials.Select(material => material.Icon).ToList() ?? [],
             SecondaryItems = selected?.Materials.Select(material => $"{material.Owned} / {material.Required}").ToList() ?? [],
-            SecondaryWidth = 0.3f,
+            AutoSecondaryWidth = true,
             ShowSelection = false,
             RowHeight = 42 * TextScale,
             FontSize = 23 * TextScale
@@ -208,7 +207,7 @@ public sealed partial class MenuController
 
     private UiElement BuildSecondaryAbility()
     {
-        var page = Grid([1.8f, 5.8f], [1.1f, 1], 5);
+        var page = Grid([1.8f * Math.Max(1, TextScale), 5.8f], [1.1f, 1], 5);
         Place(page, SecondaryHeader("Ability", ScreenId == "ability" ? "Select an ability" : Recipe?.Ability ?? "Select an item", ScreenId == "ability" ? "Select a menu ability." : "Select an item to refine."), 0, 0, 1, 2);
         UiList commands = SecondaryCommands();
         Place(page, Panel(ScreenId == "ability" ? null : "ITEM", commands), 1);
@@ -233,7 +232,7 @@ public sealed partial class MenuController
     {
         bool controls = ScreenId.StartsWith("config-", StringComparison.Ordinal);
         bool practice = ScreenId is "tutorial-seed" or "seed-test";
-        var page = Grid([1.8f, 5.8f], [2, 3], 5);
+        var page = Grid([1.8f * Math.Max(1, TextScale), 5.8f], [2, 3], 5);
         string help = controls ? SelectedEntry?.Help ?? CurrentScreen.Help : practice ? "Practice questions. Results do not change your SeeD rank." : ScreenId == "tutorial" ? SelectedEntry?.Id switch
         {
             "tutorial-junction" => "Junction explanation",

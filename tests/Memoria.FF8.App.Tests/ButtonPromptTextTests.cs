@@ -120,6 +120,38 @@ public sealed class ButtonPromptTextTests
         Assert.True(keycapPixels > plainFacePixels + 100, "Marked bindings must draw a solid keycap face, beyond antialiased text pixels.");
     }
 
+    [Fact]
+    public void MixedPromptProsePreservesExplicitWrappedFlowInsteadOfBecomingOneScrollingRow()
+    {
+        string value = $"Confirm {ButtonPromptText.Mark("Enter")} then " + string.Join(" ", Enumerable.Repeat("read the destination instructions before continuing", 8));
+        UiRect bounds = new(10, 10, 220, 100);
+        using Bitmap wrapped = new(240, 120);
+        using Bitmap singleLine = new(240, 120);
+        using (BattlePreviewCanvas canvas = new(wrapped, gameDirectory: ""))
+        {
+            canvas.BeginFrame(TimeSpan.Zero);
+            canvas.Text(value, 20, bounds, new UiColor(244, 244, 244), UiAlignment.Start, UiTextFlow.Wrap);
+        }
+        using (BattlePreviewCanvas canvas = new(singleLine, gameDirectory: ""))
+        {
+            canvas.BeginFrame(TimeSpan.Zero);
+            canvas.Text(value, 20, bounds, new UiColor(244, 244, 244), UiAlignment.Start, UiTextFlow.SingleLine);
+        }
+
+        int wrappedLowerPixels = 0;
+        int singleLowerPixels = 0;
+        for (int y = 60; y < 110; y++)
+        {
+            for (int x = 10; x < 230; x++)
+            {
+                wrappedLowerPixels += wrapped.GetPixel(x, y).ToArgb() != Color.Black.ToArgb() ? 1 : 0;
+                singleLowerPixels += singleLine.GetPixel(x, y).ToArgb() != Color.Black.ToArgb() ? 1 : 0;
+            }
+        }
+        Assert.True(wrappedLowerPixels > 100);
+        Assert.Equal(0, singleLowerPixels);
+    }
+
     [Theory]
     [InlineData(640)]
     [InlineData(1280)]

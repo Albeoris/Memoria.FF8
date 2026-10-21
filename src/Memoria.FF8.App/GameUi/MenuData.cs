@@ -80,11 +80,14 @@ public sealed class MenuLimitMove
     public string Description { get; set; } = "";
 }
 
+public sealed record MenuGuardianForceOwner(string Id, int? NativeId, string Name);
+
 public sealed class MenuGuardianForce
 {
     public string Id { get; set; } = "";
     public int? NativeId { get; set; }
     public string Name { get; set; } = "";
+    public MenuGuardianForceOwner? Owner { get; set; }
     public int? Level { get; set; }
     public int? CurrentHp { get; set; }
     public int? MaximumHp { get; set; }

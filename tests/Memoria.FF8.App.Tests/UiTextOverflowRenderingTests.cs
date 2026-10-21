@@ -11,11 +11,15 @@ public sealed class UiTextOverflowRenderingTests
     private static readonly UiColor Black = new(0, 0, 0);
     private static readonly UiRect Surface = new(0, 0, 340, 240);
 
-    [Fact]
-    public void ControlsKeyboardMappingHelpScrollsInsideItsActualMenuPanel()
+    [Theory]
+    [InlineData(24, 100, false)]
+    [InlineData(48, 150, true)]
+    public void ControlsKeyboardMappingHelpOnlyScrollsWhenItExceedsItsActualMenuPanel(int fontSize, int scale, bool overflows)
     {
         MenuController menus = new();
+        menus.ConnectPreferences(() => new UiPreferences { UiFontSize = fontSize, TextScale = scale }, _ => { });
         menus.Open("config-controls", true);
+        menus.Data.Settings["Text scale"] = scale + "%";
         while (menus.SelectedEntry!.Id != "config-keyboard")
         {
             menus.Navigate(MenuInput.Down);
@@ -26,7 +30,7 @@ public sealed class UiTextOverflowRenderingTests
         UiLabel label = Assert.Single(help.Children.OfType<UiLabel>());
         Assert.Equal("Assign keyboard actions and combinations. Bindings are saved globally for every game save.", label.Text);
         using Bitmap wrapped = SystemTextLayout.Rasterize(label.Text, label.FontSize, label.Bounds.Width);
-        Assert.True(wrapped.Height / (float)SystemTextLayout.RasterScale > label.Bounds.Height);
+        Assert.Equal(overflows, wrapped.Height / (float)SystemTextLayout.RasterScale > label.Bounds.Height);
         using Bitmap bitmap = new(960, 672);
         using BattlePreviewCanvas canvas = new(bitmap, "");
         UiTheme theme = new();
@@ -42,7 +46,7 @@ public sealed class UiTextOverflowRenderingTests
         int[] beginning = Render(0);
         Save(bitmap, "controls-keyboard-help-start");
         int[] moving = Render(3);
-        Assert.False(beginning.SequenceEqual(moving));
+        Assert.Equal(!overflows, beginning.SequenceEqual(moving));
         Save(bitmap, "controls-keyboard-help-moving");
     }
 

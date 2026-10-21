@@ -74,13 +74,13 @@ internal static class ButtonPromptText
         return new UiSize(lines.Select(line => line.Width).DefaultIfEmpty(0).Max(), lines.Length * SystemTextLayout.LineHeight(size, family));
     }
 
-    internal static void Draw(IUiCanvas canvas, string value, float size, UiRect bounds, UiColor color, string? family, UiAlignment alignment, UiTextOverflow overflow)
+    internal static void Draw(IUiCanvas canvas, string value, float size, UiRect bounds, UiColor color, string? family, UiAlignment alignment, UiTextOverflow overflow, UiTextFlow flow = UiTextFlow.Auto)
     {
         if (value.Length == 0 || size <= 0 || bounds.IsEmpty)
         {
             return;
         }
-        UiTextViewport viewport = overflow.Layout(value, size, bounds, family, width => Measure(value, size, width, family));
+        UiTextViewport viewport = overflow.Layout(value, size, bounds, family, width => Measure(value, size, width, family), flow);
         DialogueVisualLine[] lines = Lines(value, size, viewport.WrapWidth, family);
         using SystemTextMeasurer measurer = SystemTextLayout.CreateMeasurer(size, family);
         float y = bounds.Y - viewport.OffsetY;

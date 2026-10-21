@@ -32,22 +32,22 @@ public sealed partial class MenuController
         var summary = Grid([2.1f, 1.5f, 1.5f], [1], 8);
         var identity = Grid([1], [1, 1.9f], 8);
         Place(identity, Artwork(UiImageKind.GuardianForcePortrait, GuardianForce?.NativeId), 0, 0);
-        Place(identity, Lines([GuardianForce?.Name ?? "--", $"Lv    {Number(GuardianForce?.Level)}", $"HP    {Number(GuardianForce?.CurrentHp)}/{Number(GuardianForce?.MaximumHp)}"], 25), 0, 1);
+        Place(identity, Readouts([GuardianForce?.Name ?? "--", $"Lv    {Number(GuardianForce?.Level)}", $"HP    {Number(GuardianForce?.CurrentHp)}/{Number(GuardianForce?.MaximumHp)}"], 25), 0, 1);
         Place(summary, identity, 0);
-        Place(summary, Lines([$"Current EXP    {Number(GuardianForce?.Experience)}", $"Next LEVEL    {Number(GuardianForce?.NextLevelExperience)}"], 24), 1);
+        Place(summary, Readouts([$"Current EXP    {Number(GuardianForce?.Experience)}", $"Next LEVEL    {Number(GuardianForce?.NextLevelExperience)}"], 24), 1);
         MenuAbilityChoice? learning = GuardianForce?.LearningChoices.FirstOrDefault(choice => choice.Name == GuardianForce.Learning);
-        Place(summary, Lines(["Learning", GuardianForce?.Learning ?? "--", learning is null ? $"AP    {Number(GuardianForce?.AbilityPoints)}" : $"{learning.Progress} / {learning.RequiredPoints} AP"], 25), 2);
+        Place(summary, Readouts(["Learning", GuardianForce?.Learning ?? "--", learning is null ? $"AP    {Number(GuardianForce?.AbilityPoints)}" : $"{learning.Progress} / {learning.RequiredPoints} AP"], 25), 2);
         Place(body, summary, 0, 0);
         bool summaryOnly = ScreenId == "gf-detail";
         MenuAbilityChoice[] choices = GuardianForce?.LearningChoices.ToArray() ?? [];
         UiList abilities = summaryOnly
-            ? new UiList { Id = "gf-ability-summary", Items = choices.Select(choice => choice.Name).ToList(), FontSize = 25 * TextScale, RowHeight = 39 * TextScale, ShowSelection = false }
+            ? new UiList { TextFlow = UiTextFlow.SingleLine, Id = "gf-ability-summary", Items = choices.Select(choice => choice.Name).ToList(), FontSize = 25 * TextScale, RowHeight = 39 * TextScale, ShowSelection = false }
             : NativePageCommands(false, 39, 25);
         abilities.EnabledItems = [];
         abilities.Paginated = true;
         abilities.PageSize = 10;
         abilities.FitPageRows = true;
-        abilities.SecondaryWidth = 0.35f;
+        abilities.AutoSecondaryWidth = true;
         abilities.SecondaryItems = choices.Select(choice => choice.Learned ? "Complete!" : $"{choice.Progress} / {choice.RequiredPoints}").ToList();
         abilities.Images = choices.Select(choice => choice.Icon).ToList();
         if (summaryOnly && choices.Length == 0)
@@ -64,9 +64,9 @@ public sealed partial class MenuController
     private UiElement BuildNativeCard()
     {
         MenuCard? card = ScreenId == "card" ? Data.Cards.FirstOrDefault(value => value.Id == SelectedEntry?.Id) : Card;
-        var page = Grid([0.85f, 6.4f, 0.75f], [1], 3);
+        var page = Grid([0.85f * Math.Max(1, TextScale), 6.4f, 0.75f], [1], 3);
         var header = Grid([1], [2.9f, 1], 3);
-        Place(header, Panel("HELP", Label(Message.Length > 0 ? Message : SelectedEntry?.Help ?? CurrentScreen.Help, 23)), 0);
+        Place(header, Panel("HELP", Label(Message.Length > 0 ? Message : SelectedEntry?.Help ?? CurrentScreen.Help, 23, UiTextFlow.Wrap)), 0);
         Place(header, Panel(null, Label(Data.CardCollectionComplete == true ? "Card ★" : "Card", 31)), 0, 1);
         Place(page, header, 0);
         var body = Grid([1], [1, 1], 3);
@@ -75,12 +75,12 @@ public sealed partial class MenuController
             var list = NativePageCommands(false, 42, 28);
             list.Items = Entries.Select(entry => Data.Cards.FirstOrDefault(value => value.Id == entry.Id)?.Name ?? entry.Label).ToList();
             list.SecondaryItems = Entries.Select(entry => Data.Cards.FirstOrDefault(value => value.Id == entry.Id)?.Quantity.ToString() ?? "--").ToList();
-            list.SecondaryWidth = 0.14f;
+            list.AutoSecondaryWidth = true;
             Place(body, Panel("CARDS", list), 0);
         }
         else
         {
-            Place(body, Panel("CARDS", Lines([card?.Name ?? "--", $"NUM.    {card?.Quantity.ToString() ?? "--"}", $"Level    {Number(card?.Level)}", $"Ranks    {card?.Ranks ?? "--"}", $"Element    {card?.Element ?? "--"}"], 26)), 0);
+            Place(body, Panel("CARDS", Readouts([card?.Name ?? "--", $"NUM.    {card?.Quantity.ToString() ?? "--"}", $"Level    {Number(card?.Level)}", $"Ranks    {card?.Ranks ?? "--"}", $"Element    {card?.Element ?? "--"}"], 26)), 0);
         }
         var preview = Grid([1, 1.05f], [1], 3);
         Place(preview, Panel(null, Artwork(UiImageKind.Card, card?.NativeId)), 0);
@@ -101,7 +101,7 @@ public sealed partial class MenuController
         Place(preview, Panel(null, totals), 1);
         Place(body, preview, 0, 1);
         Place(page, body, 1);
-        Place(page, Panel(null, Label(ScreenId == "card-detail" ? card?.Description ?? "" : "", 21)), 2);
+        Place(page, Panel(null, Label(ScreenId == "card-detail" ? card?.Description ?? "" : "", 21, UiTextFlow.Wrap)), 2);
         return page;
     }
 
@@ -112,12 +112,12 @@ public sealed partial class MenuController
         var body = Grid([2.6f, 1.05f, 2.4f], [1.1f, 0.9f], 3);
         var identity = Grid([1], [1, 2.3f], 12);
         Place(identity, Portrait(Character), 0, 0);
-        Place(identity, Lines([Character?.Name ?? "--", $"Lv    {Number(Character?.Level)}", $"HP    {(Character is null ? "--" : Hp(Character))}"], 28), 0, 1);
+        Place(identity, Readouts([Character?.Name ?? "--", $"Lv    {Number(Character?.Level)}", $"HP    {(Character is null ? "--" : Hp(Character))}"], 28), 0, 1);
         Place(body, identity, 0, 0);
         var commandArea = Grid([1], [0.45f, 1], 0);
-        Place(commandArea, Panel("COMMAND", Lines(Character?.Commands.Take(4).ToArray() ?? ["--"], 27)), 0, 1);
+        Place(commandArea, Panel("COMMAND", Readouts(Character?.Commands.Take(4).ToArray() ?? ["--"], 27)), 0, 1);
         Place(body, commandArea, 0, 1);
-        Place(body, Lines([$"Current EXP    {Number(Character?.Experience)}", $"Next LEVEL    {Number(Character?.NextLevelExperience)}"], 25), 1, 0);
+        Place(body, Readouts([$"Current EXP    {Number(Character?.Experience)}", $"Next LEVEL    {Number(Character?.NextLevelExperience)}"], 25), 1, 0);
         if (primary)
         {
             string[] keys = ["Str", "Vit", "Mag", "Spr", "Spd", "Luck", "Eva", "Hit"];
@@ -131,7 +131,7 @@ public sealed partial class MenuController
             var weapon = Panel(null, Label(Character?.Weapon ?? "--", 27));
             weapon.Id = "status-weapon";
             Place(body, weapon, 1, 1);
-            Place(body, Panel("ABILITY", Lines(Character?.Abilities.ToArray() ?? ["--"], 25)), 2, 1);
+            Place(body, Panel("ABILITY", Readouts(Character?.Abilities.ToArray() ?? ["--"], 25)), 2, 1);
         }
         else
         {
@@ -143,12 +143,12 @@ public sealed partial class MenuController
 
     private UiGrid NativeCollectionPage(string title, UiElement? commands = null)
     {
-        var page = Grid([0.55f, 0.75f, 6.7f], [1], 3);
+        var page = Grid([0.55f * Math.Max(1, TextScale), 0.75f * Math.Max(1, TextScale), 6.7f], [1], 3);
         var header = Grid([1], [3, 1], 3);
         Place(header, Panel(null, commands ?? Label("", 24)), 0);
         Place(header, Panel(null, Label(title, 29)), 0, 1);
         Place(page, header, 0);
-        Place(page, Panel("HELP", Label(Message.Length > 0 ? Message : SelectedEntry?.Help ?? CurrentScreen.Help, 23)), 1);
+        Place(page, Panel("HELP", Label(Message.Length > 0 ? Message : SelectedEntry?.Help ?? CurrentScreen.Help, 23, UiTextFlow.Wrap)), 1);
         return page;
     }
 
@@ -156,6 +156,7 @@ public sealed partial class MenuController
     {
         return new UiList
         {
+            TextFlow = UiTextFlow.SingleLine,
             Id = "commands",
             Items = Entries.Select(entry => entry.Label).ToList(),
             EnabledItems = Entries.Select(entry => entry.Enabled).ToList(),

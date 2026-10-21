@@ -5,7 +5,7 @@ namespace Memoria.FF8.GameUi;
 
 public static class NativeJunctionMenuProjection
 {
-    public static bool IsAction(MenuAction action) => action.Kind is "junction-gf" or "junction-command" or "junction-ability" or "junction-magic" or "gf-learn" or "junction-off" or "junction-auto" or "junction-magic-off-all" or "junction-magic-reassign";
+    public static bool IsAction(MenuAction action) => action.Kind is "junction-gf" or "junction-gf-reassign" or "junction-command" or "junction-ability" or "junction-magic" or "gf-learn" or "junction-off" or "junction-auto" or "junction-magic-off-all" or "junction-magic-reassign";
 
     public static PlayerAction PlayerAction(MenuAction action)
     {
@@ -20,6 +20,7 @@ public static class NativeJunctionMenuProjection
         PlayerAction result = action.Kind switch
         {
             "junction-gf" => new PlayerAction(PlayerActionKind.JunctionGuardianForce, Id(action.TargetId, "character-"), Id(action.SubjectId, "gf-").ToString(CultureInfo.InvariantCulture)),
+            "junction-gf-reassign" => new PlayerAction(PlayerActionKind.ReassignGuardianForce, Id(action.TargetId, "character-"), Id(action.SubjectId, "gf-").ToString(CultureInfo.InvariantCulture), Quantity: Id(action.Value, "character-")),
             "junction-off" => new PlayerAction(PlayerActionKind.RemoveJunctions, Id(action.TargetId, "character-"), action.Value switch { "Magic" => "0", "All" => "1", _ => throw new ArgumentException("Unknown junction removal category.", nameof(action)) }),
             "junction-auto" => new PlayerAction(PlayerActionKind.AutoJunction, Id(action.TargetId, "character-"), action.Value switch { "Attack" => "0", "Magic" => "1", "Defense" => "2", _ => throw new ArgumentException("Unknown Auto junction priority.", nameof(action)) }),
             "junction-magic-off-all" => new PlayerAction(PlayerActionKind.RemoveAllMagicJunctions),

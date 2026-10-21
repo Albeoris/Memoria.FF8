@@ -89,6 +89,10 @@ public sealed class UiView
         EnsureFocus();
         GetTransform(out float scale, out float offsetX, out float offsetY);
         IUiCanvas transformed = scale == 1 && offsetX == 0 && offsetY == 0 ? canvas : new ScaledCanvas(canvas, scale, offsetX, offsetY);
+        if (BindTextMeasurements(Root, transformed) && _viewportWidth > 0 && _viewportHeight > 0)
+        {
+            Root.Arrange(new UiRect(0, 0, DesignWidth > 0 ? DesignWidth : _viewportWidth, DesignHeight > 0 ? DesignHeight : _viewportHeight));
+        }
         Root.Draw(transformed, theme);
         // Frame captions and selection pointers can extend beyond the panels' content clips.
         canvas.PushClip(new UiRect(0, 0, _viewportWidth, _viewportHeight));
@@ -100,6 +104,21 @@ public sealed class UiView
         {
             canvas.PopClip();
         }
+    }
+
+    private static bool BindTextMeasurements(UiElement element, IUiCanvas canvas)
+    {
+        bool measured = false;
+        if (element is UiLabel label)
+        {
+            label.MeasurementCanvas = canvas;
+            measured = true;
+        }
+        foreach (UiElement child in element.Children)
+        {
+            measured |= BindTextMeasurements(child, canvas);
+        }
+        return measured;
     }
 
     public bool Focus(UiElement? element)
@@ -319,6 +338,11 @@ public sealed class UiView
         public void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment)
         {
             canvas.Text(text, fontSize * scale, Map(bounds), color, verticalAlignment);
+        }
+
+        public void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment, UiTextFlow flow)
+        {
+            canvas.Text(text, fontSize * scale, Map(bounds), color, verticalAlignment, flow);
         }
 
         public void MenuPointer(UiRect bounds)

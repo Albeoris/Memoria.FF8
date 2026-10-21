@@ -173,7 +173,13 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IBattleMessageCanvas, IDi
             return;
         }
 
-        using Bitmap glyphs = SystemTextLayout.Rasterize(text, fontSize, bounds.Width);
+        fontSize = UiTextOverflow.FitFontSize(fontSize, bounds.Height, SystemTextLayout.LineHeight(fontSize));
+        UiTextViewport layout = textOverflow.Layout(text, fontSize, bounds, null, width =>
+        {
+            using Bitmap measured = SystemTextLayout.Rasterize(text, fontSize, width);
+            return new UiSize(measured.Width / (float)SystemTextLayout.RasterScale, measured.Height / (float)SystemTextLayout.RasterScale);
+        }, UiTextFlow.SingleLine);
+        using Bitmap glyphs = SystemTextLayout.Rasterize(text, fontSize, layout.WrapWidth);
         float y = bounds.Y + (bounds.Height - glyphs.Height / (float)SystemTextLayout.RasterScale) / 2;
         PushClip(new UiRect(bounds.X - thickness, bounds.Y - thickness, bounds.Width + thickness * 2, bounds.Height + thickness * 2));
         try
@@ -184,11 +190,11 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IBattleMessageCanvas, IDi
                 {
                     if (offsetX != 0 || offsetY != 0)
                     {
-                        DrawTinted(glyphs, bounds.X + offsetX * thickness, y + offsetY * thickness, outline);
+                        DrawTinted(glyphs, bounds.X - layout.OffsetX + offsetX * thickness, y + offsetY * thickness, outline);
                     }
                 }
             }
-            DrawTinted(glyphs, bounds.X, y, color);
+            DrawTinted(glyphs, bounds.X - layout.OffsetX, y, color);
         }
         finally
         {
@@ -206,22 +212,28 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IBattleMessageCanvas, IDi
         Text(text, fontSize, bounds, color, fontFamily, UiAlignment.Start);
     }
 
-    private void Text(string text, float fontSize, UiRect bounds, UiColor color, string? fontFamily, UiAlignment verticalAlignment)
+    public void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment, UiTextFlow flow)
+    {
+        Text(text, fontSize, bounds, color, null, verticalAlignment, flow);
+    }
+
+    private void Text(string text, float fontSize, UiRect bounds, UiColor color, string? fontFamily, UiAlignment verticalAlignment, UiTextFlow flow = UiTextFlow.Auto)
     {
         if (bounds.IsEmpty || fontSize <= 0 || string.IsNullOrEmpty(text))
         {
             return;
         }
+        fontSize = UiTextOverflow.FitFontSize(fontSize, bounds.Height, SystemTextLayout.LineHeight(fontSize, fontFamily));
         if (ButtonPromptText.Contains(text))
         {
-            ButtonPromptText.Draw(this, text, fontSize, bounds, color, fontFamily, verticalAlignment, textOverflow);
+            ButtonPromptText.Draw(this, text, fontSize, bounds, color, fontFamily, verticalAlignment, textOverflow, flow);
             return;
         }
         UiTextViewport layout = textOverflow.Layout(text, fontSize, bounds, fontFamily, width =>
         {
             using Bitmap measured = SystemTextLayout.Rasterize(text, fontSize, width, fontFamily);
             return new UiSize(measured.Width / (float)SystemTextLayout.RasterScale, measured.Height / (float)SystemTextLayout.RasterScale);
-        });
+        }, flow);
         using Bitmap glyphs = SystemTextLayout.Rasterize(text, fontSize, layout.WrapWidth, fontFamily);
         float y = bounds.Y - layout.OffsetY;
         if (verticalAlignment is UiAlignment.Center or UiAlignment.End)

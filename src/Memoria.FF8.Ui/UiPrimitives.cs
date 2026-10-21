@@ -56,6 +56,14 @@ public enum UiAlignment
     End
 }
 
+/// <summary>Single rows scroll horizontally; prose wraps and scrolls vertically when needed.</summary>
+public enum UiTextFlow
+{
+    Auto,
+    SingleLine,
+    Wrap
+}
+
 public readonly record struct UiAnchors(float Left, float Top, float Right, float Bottom)
 {
     public static UiAnchors Full => new(0, 0, 1, 1);
@@ -129,6 +137,10 @@ public interface IUiCanvas
         throw new NotSupportedException("This canvas does not support text measurement.");
     }
     void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment);
+    void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment, UiTextFlow flow)
+    {
+        Text(text, fontSize, bounds, color, verticalAlignment);
+    }
     /// <summary>Vertically centers the visible glyphs and outlines them with the given radius.</summary>
     void OutlinedText(string text, float fontSize, UiRect bounds, UiColor color, UiColor outline, float thickness)
     {

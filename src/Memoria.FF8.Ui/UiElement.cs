@@ -183,22 +183,47 @@ public sealed class UiPanel : UiElement
 
 public sealed class UiLabel : UiElement
 {
+    internal IUiCanvas? MeasurementCanvas { get; set; }
     public string Text { get; set; } = string.Empty;
     public float FontSize { get; set; } = 16;
     public bool Muted { get; set; }
     public UiColor? Color { get; set; }
     public UiAlignment VerticalTextAlignment { get; set; } = UiAlignment.Start;
+    public UiTextFlow TextFlow { get; set; } = UiTextFlow.Auto;
 
     public override UiSize Measure(UiSize available)
     {
+        float width = TextFlow == UiTextFlow.SingleLine ? float.PositiveInfinity : Math.Min(Width ?? available.Width, available.Width);
+        if (MeasurementCanvas != null)
+        {
+            try
+            {
+                UiSize measured = MeasurementCanvas.MeasureText(Text, FontSize, width);
+                return ResolveDesiredSize(measured.Width, measured.Height, available);
+            }
+            catch (NotSupportedException)
+            {
+                // Renderer-neutral canvases may omit glyph measurement.
+            }
+        }
         string[] lines = Text.Split('\n');
-        return ResolveDesiredSize(lines.Max(line => line.Length) * FontSize * 0.6f, lines.Length * FontSize * 1.5f, available);
+        float lineWidth = lines.Max(line => line.Length) * FontSize * 0.6f;
+        float lineCount = lines.Length;
+        if (TextFlow == UiTextFlow.Wrap && width > 0)
+        {
+            lineCount = lines.Sum(line => Math.Max(1, MathF.Ceiling(line.Length * FontSize * 0.6f / width)));
+        }
+        return ResolveDesiredSize(lineWidth, lineCount * FontSize * 1.5f, available);
     }
 
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
     {
         UiColor color = Muted || !Enabled ? theme.Muted : Color ?? theme.Foreground;
-        if (VerticalTextAlignment == UiAlignment.Start)
+        if (TextFlow != UiTextFlow.Auto)
+        {
+            canvas.Text(Text, FontSize, Bounds, color, VerticalTextAlignment, TextFlow);
+        }
+        else if (VerticalTextAlignment == UiAlignment.Start)
         {
             canvas.Text(Text, FontSize, Bounds, color);
         }
@@ -239,7 +264,7 @@ public sealed class UiButton : UiElement
             canvas.Fill(Bounds.Inset(3), theme.Highlight);
         }
 
-        canvas.Text(Text, FontSize > 0 ? FontSize : theme.FontSize, new UiRect(Bounds.X + 24, Bounds.Y, Math.Max(0, Bounds.Width - 32), Bounds.Height), Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center);
+        canvas.Text(Text, FontSize > 0 ? FontSize : theme.FontSize, new UiRect(Bounds.X + 24, Bounds.Y, Math.Max(0, Bounds.Width - 32), Bounds.Height), Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
     }
 
     protected override void DrawPointer(IUiCanvas canvas, UiTheme theme)

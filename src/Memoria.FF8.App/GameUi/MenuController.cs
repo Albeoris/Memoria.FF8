@@ -104,6 +104,7 @@ public sealed partial class MenuController
     public void Open(string screenId = "main", bool demo = false)
     {
         exitGame = null;
+        pendingGuardianForceTransfer = null;
         CancelControlsCapture();
         _nameTarget = null;
         _acceptName = null;
@@ -215,6 +216,10 @@ public sealed partial class MenuController
         if (IsSelectingCharacter)
         {
             NavigateCharacterSelection(input);
+            return;
+        }
+        if (ScreenId == "junction-gf-confirm" && input is MenuInput.PageLeft or MenuInput.PageRight)
+        {
             return;
         }
         if (NavigateAbilityJunction(input))
@@ -333,6 +338,10 @@ public sealed partial class MenuController
 
     public void Back()
     {
+        if (ScreenId == "junction-gf-confirm")
+        {
+            pendingGuardianForceTransfer = null;
+        }
         if (ScreenId == "mode-review")
         {
             cancelMagicRules?.Invoke();
@@ -538,6 +547,10 @@ public sealed partial class MenuController
     public void Execute(MenuAction action)
     {
         _view = null;
+        if (ExecuteGuardianForceTransfer(action))
+        {
+            return;
+        }
         if (ExecuteTitleExitAction(action))
         {
             return;
@@ -689,7 +702,7 @@ public sealed partial class MenuController
                 Message = $"Unsupported native contract: {action.Kind}. This view remains read-only.";
                 return;
             }
-            if (action.Kind is "junction-gf" or "junction-command" or "junction-ability" or "junction-magic" or "junction-off" or "junction-auto" && Character is null)
+            if (action.Kind is "junction-gf" or "junction-gf-reassign" or "junction-command" or "junction-ability" or "junction-magic" or "junction-off" or "junction-auto" && Character is null)
             {
                 Message = "Selected character data is unavailable.";
                 return;
@@ -735,7 +748,7 @@ public sealed partial class MenuController
                 ScreenOpened?.Invoke(ScreenId);
                 _view = null;
             }
-            Message = action.Kind is "config" or "junction-magic" or "junction-gf" or "junction-off" or "junction-auto" or "weapon-character" or "weapon-remodel" ? "" : "Request sent to the live owner.";
+            Message = action.Kind is "config" or "junction-magic" or "junction-gf" or "junction-gf-reassign" or "junction-off" or "junction-auto" or "weapon-character" or "weapon-remodel" ? "" : "Request sent to the live owner.";
             return;
         }
         ApplyDemo(action);
@@ -867,6 +880,7 @@ public sealed partial class MenuController
                 data.Magic.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.Ordinal));
                 Message = "Fixture magic stocks sorted by name.";
                 break;
+            case "junction-gf-reassign":
             case "junction-gf":
                 if (character != null)
                 {

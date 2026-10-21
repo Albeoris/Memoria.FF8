@@ -5,6 +5,32 @@ namespace Memoria.FF8.Ui.Tests;
 public sealed class SettingRowTests
 {
     [Fact]
+    public void ConstrainedChoicesReserveColumnGapAndShowOneMeasuredOptionWithWorkingNavigation()
+    {
+        UiChoiceRow choices = new() { Text = "Smart Attack", Items = ["Manual attack", "Automatic attack"], FontSize = 72, ColumnGap = 36 };
+        choices.Arrange(new UiRect(0, 0, 400, 80));
+        RecordingCanvas canvas = new() { SupportsMeasurement = true };
+
+        choices.Draw(canvas, new UiTheme());
+
+        Assert.Equal(36, choices.ValueBounds.X - choices.LabelBounds.Right);
+        Assert.Equal(new[] { "Smart Attack", "Manual attack" }, canvas.Texts.Select(text => text.Text));
+        Assert.Equal(4, canvas.Lines);
+        choices.Pointer(choices.ValueBounds.Right - 1, 40);
+        Assert.Equal(1, choices.SelectedIndex);
+        choices.Key(UiKey.Left);
+        Assert.Equal(0, choices.SelectedIndex);
+
+        choices.FontSize = 6;
+        canvas.Texts.Clear();
+        choices.Draw(canvas, new UiTheme());
+        Assert.Equal(new[] { "Smart Attack", "Manual attack", "Automatic attack" }, canvas.Texts.Select(text => text.Text));
+        Assert.Equal(choices.OptionGap, canvas.Texts[2].Bounds.X - canvas.Texts[1].Bounds.Right);
+        choices.Pointer(choices.ValueBounds.Right - 1, 40);
+        Assert.Equal(1, choices.SelectedIndex);
+    }
+
+    [Fact]
     public void Choice_rows_align_with_slider_columns_and_keep_unselected_options_muted()
     {
         UiChoiceRow choices = new() { Text = "Sound", Items = new List<string> { "Stereo", "Mono" }, SelectedIndex = 1, FontSize = 20 };
@@ -23,7 +49,7 @@ public sealed class SettingRowTests
         Assert.Equal(theme.Muted, canvas.Texts[1].Color);
         Assert.Equal(theme.Foreground, canvas.Texts[2].Color);
         Assert.Equal(canvas.Texts[1].Bounds.Width, canvas.Texts[2].Bounds.Width);
-        Assert.Equal(canvas.Texts[1].Bounds.Right, canvas.Texts[2].Bounds.X);
+        Assert.Equal(canvas.Texts[1].Bounds.Right + choices.OptionGap, canvas.Texts[2].Bounds.X);
         Assert.All(canvas.Texts, text => Assert.Equal(20, text.FontSize));
         Assert.Empty(canvas.Fills);
     }
@@ -147,10 +173,20 @@ public sealed class SettingRowTests
 
     private sealed class RecordingCanvas : IUiCanvas
     {
+        public bool SupportsMeasurement { get; init; }
         public List<(string Text, float FontSize, UiRect Bounds, UiColor Color)> Texts { get; } = new();
         public List<(UiRect Bounds, UiColor Color)> Fills { get; } = new();
         public List<UiRect> Pointers { get; } = new();
         public int Lines { get; private set; }
+
+        public UiSize MeasureText(string text, float fontSize, float maximumWidth)
+        {
+            if (!SupportsMeasurement)
+            {
+                throw new NotSupportedException();
+            }
+            return new UiSize(text.Length * fontSize * 0.5f, fontSize);
+        }
 
         public void Fill(UiRect bounds, UiColor color)
         {

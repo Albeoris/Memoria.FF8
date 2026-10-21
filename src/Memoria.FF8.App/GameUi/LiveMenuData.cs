@@ -195,10 +195,12 @@ public static class LiveMenuData
                 {
                     continue;
                 }
+                int ownerRow = Enumerable.Range(0, vitals.Records.Length).FirstOrDefault(row => (vitals.Records[row].Junction.GuardianForces & (1 << id)) != 0, -1);
                 MenuGuardianForce guardianForce = new()
                 {
                     Id = $"gf-{id}",
                     NativeId = id,
+                    Owner = ownerRow < 0 ? null : new MenuGuardianForceOwner($"character-{ownerRow}", vitals.Records[ownerRow].CharacterId, CharacterName(state, vitals.Records[ownerRow].CharacterId, names, catalog)),
                     Name = Nonempty(names?.GetValueOrDefault(GameNames.GuardianForceSubject(id))) ?? SavedName(state, GameNames.GuardianForceSubject(id)) ?? catalog?.GuardianForceName(id) ?? GameNames.DefaultName(GameNames.GuardianForceSubject(id)),
                     Level = NativeStatDefinitions.Level(native.Experience, vitals.Definitions.GuardianForces[id]),
                     CurrentHp = native.HitPoints,
@@ -223,7 +225,7 @@ public static class LiveMenuData
             }
             if (state.Scene is SceneKind.Field or SceneKind.WorldMap)
             {
-                result.SupportedActions.UnionWith(["attack-mode", "junction-gf", "junction-command", "junction-ability", "junction-magic", "junction-magic-reassign", "junction-off", "junction-auto", "junction-magic-off-all", "gf-learn"]);
+                result.SupportedActions.UnionWith(["attack-mode", "junction-gf", "junction-gf-reassign", "junction-command", "junction-ability", "junction-magic", "junction-magic-reassign", "junction-off", "junction-auto", "junction-magic-off-all", "gf-learn"]);
                 if (!vitals.MagicSystem.SharedMagicStock)
                 {
                     result.SupportedActions.Add("magic-transfer");

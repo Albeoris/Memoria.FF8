@@ -81,7 +81,7 @@ public sealed partial class MenuController
         else
         {
             IReadOnlyList<MenuEntry> entries = _screens[command ? "junction-command-choice" : "junction-ability-choice"].Entries(this);
-            candidates = new UiList { Items = entries.Select(entry => entry.Label).ToList(), Images = entries.Select(EntryImage).ToList(), EnabledItems = entries.Select(entry => entry.Enabled).ToList(), RowHeight = 31 * TextScale, FontSize = 25 * TextScale, TextInset = 35 * TextScale, Paginated = true, ShowSelection = false, Focusable = false };
+            candidates = new UiList { TextFlow = UiTextFlow.SingleLine, Items = entries.Select(entry => entry.Label).ToList(), Images = entries.Select(EntryImage).ToList(), EnabledItems = entries.Select(entry => entry.Enabled).ToList(), RowHeight = 31 * TextScale, FontSize = 25 * TextScale, TextInset = 35 * TextScale, Paginated = true, ShowSelection = false, Focusable = false };
         }
         UiPanel choices = Panel("ABILITY", candidates);
         choices.Id = "junction-ability-choices";
@@ -98,6 +98,7 @@ public sealed partial class MenuController
         IReadOnlyList<MenuEntry> entries = _screens[screen].Entries(this);
         return new UiList
         {
+            TextFlow = UiTextFlow.SingleLine,
             Id = screen + "-preview",
             Items = entries.Select(entry => entry.Label).ToList(),
             Images = entries.Select(EntryImage).ToList(),

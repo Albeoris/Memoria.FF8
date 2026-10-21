@@ -169,6 +169,20 @@ public sealed partial record NativeCharacterVitals
         return result.RebuildMenuRow(row);
     }
 
+    public NativeCharacterVitals ReassignGuardianForceJunction(int row, int id, int expectedOwner)
+    {
+        Validate();
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)row, 8u);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)id, 16u);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)expectedOwner, 8u);
+        ushort mask = (ushort)(1 << id);
+        if (row == expectedOwner || (Records[expectedOwner].Junction.GuardianForces & mask) == 0 || Records.Where((record, index) => index != expectedOwner).Any(record => (record.Junction.GuardianForces & mask) != 0))
+        {
+            throw new InvalidOperationException("GF reassignment requires the confirmed current owner and a different destination character.");
+        }
+        return ToggleGuardianForceJunction(expectedOwner, id).ToggleGuardianForceJunction(row, id);
+    }
+
     public NativeCharacterVitals ToggleGuardianForceJunction(int row, int id)
     {
         Validate();

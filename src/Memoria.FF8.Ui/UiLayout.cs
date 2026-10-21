@@ -116,7 +116,7 @@ public sealed class UiGrid : UiElement
         GetDimensions(out int rows, out int columns, out bool flow);
         UiSize inner = new(Math.Max(0, available.Width - Padding.Horizontal), Math.Max(0, available.Height - Padding.Vertical));
         float[] widths = SizeTracks(columns, columns, ColumnDefinitions, inner, true, flow, true);
-        float[] heights = SizeTracks(rows, columns, RowDefinitions, inner, false, flow, true);
+        float[] heights = SizeTracks(rows, columns, RowDefinitions, inner, false, flow, true, SizeTracks(columns, columns, ColumnDefinitions, inner, true, flow, false));
         return ResolveDesiredSize(widths.Sum() + Math.Max(0, Gap) * (columns - 1) + Padding.Horizontal, heights.Sum() + Math.Max(0, Gap) * (rows - 1) + Padding.Vertical, available);
     }
 
@@ -127,7 +127,7 @@ public sealed class UiGrid : UiElement
         UiRect content = UiLayout.Inset(bounds, Padding);
         UiSize available = new(content.Width, content.Height);
         float[] widths = SizeTracks(columns, columns, ColumnDefinitions, available, true, flow, false);
-        float[] heights = SizeTracks(rows, columns, RowDefinitions, available, false, flow, false);
+        float[] heights = SizeTracks(rows, columns, RowDefinitions, available, false, flow, false, widths);
         float gap = Math.Max(0, Gap);
         for (int index = 0; index < Children.Count; index++)
         {
@@ -150,7 +150,7 @@ public sealed class UiGrid : UiElement
         rows = RowDefinitions.Count > 0 ? RowDefinitions.Count : Rows > 0 ? Rows : flow ? Math.Max(1, (Children.Count + columns - 1) / columns) : Math.Max(1, Children.Select(child => child.GridRow + child.GridRowSpan).DefaultIfEmpty(1).Max());
     }
 
-    private float[] SizeTracks(int count, int columns, IList<UiGridLength> definitions, UiSize available, bool horizontal, bool flow, bool measuring)
+    private float[] SizeTracks(int count, int columns, IList<UiGridLength> definitions, UiSize available, bool horizontal, bool flow, bool measuring, float[]? columnWidths = null)
     {
         float[] sizes = new float[count];
         UiGridLength[] tracks = Enumerable.Range(0, count).Select(index => definitions.Count == 0 ? UiGridLength.Star() : definitions[index]).ToArray();
@@ -177,7 +177,8 @@ public sealed class UiGrid : UiElement
                 continue;
             }
 
-            UiSize desired = UiLayout.MeasureOuter(child, available);
+            UiSize childAvailable = columnWidths == null ? available : new UiSize(columnWidths.Skip(column).Take(columnSpan).Sum() + Math.Max(0, Gap) * (columnSpan - 1), available.Height);
+            UiSize desired = UiLayout.MeasureOuter(child, childAvailable);
             float wanted = horizontal ? desired.Width : desired.Height;
             float existing = sizes.Skip(start).Take(span).Sum() + Math.Max(0, Gap) * (span - 1);
             if (wanted > existing && flexible > 0)

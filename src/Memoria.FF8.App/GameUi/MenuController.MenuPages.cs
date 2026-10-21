@@ -65,7 +65,7 @@ public sealed partial class MenuController
         Place(sidebar, Panel(null, Commands(40, 29)), 0);
         Place(page, Panel(null, Label(Data.Location, 29)), 2);
         string time = Data.PlayTime.HasValue ? $"{(int)Data.PlayTime.Value.TotalHours:00}:{Data.PlayTime.Value.Minutes:00}" : "--:--";
-        Place(sidebar, Panel(null, Lines([$"PLAY  {time}", $"SeeD  {Number(Data.SeeDRank)}", $"{Number(Data.Currency)}G"], 23)), 2);
+        Place(sidebar, Panel(null, Readouts([$"PLAY  {time}", $"SeeD  {Number(Data.SeeDRank)}", $"{Number(Data.Currency)}G"], 23)), 2);
         return page;
     }
 
@@ -156,7 +156,7 @@ public sealed partial class MenuController
         }
         else
         {
-            Place(body, Panel("COMMAND", Lines(Character?.Commands.Take(4).ToArray() ?? ["--"], 25)), 0, 1);
+            Place(body, Panel("COMMAND", Readouts(Character?.Commands.Take(4).ToArray() ?? ["--"], 25)), 0, 1);
         }
         var footer = Grid([1], choosingEntity ? [3, 1.1f] : [1], 4);
         var stats = Grid([1], [1, 1], 12);
@@ -221,7 +221,15 @@ public sealed partial class MenuController
         if (ScreenId == "junction-gf")
         {
             MenuGuardianForce? force = Data.GuardianForces.FirstOrDefault(value => value.Id == SelectedEntry?.Id);
-            return Lines(force is null ? ["--"] : [force.Name, $"Lv {Number(force.Level)}    HP {Number(force.CurrentHp)} / {Number(force.MaximumHp)}", "Learning  " + force.Learning], 18);
+            var details = Grid([1, 1, 1, 1], [1], 0);
+            details.Id = "junction-gf-details";
+            Place(details, Label(force?.Name ?? "--", 18), 0);
+            Place(details, Label(force is null ? "--" : $"Lv {Number(force.Level)}    HP {Number(force.CurrentHp)} / {Number(force.MaximumHp)}", 18), 1);
+            Place(details, Label("Learning", 18), 2);
+            UiLabel learning = Label(force?.Learning ?? "--", 18);
+            learning.Id = "junction-gf-learning";
+            Place(details, learning, 3);
+            return details;
         }
         return Lines([Character?.Name ?? "--", "HP  " + (Character is null ? "--" : Hp(Character)), "" + (SelectedEntry?.Help ?? CurrentScreen.Help)], 18);
     }

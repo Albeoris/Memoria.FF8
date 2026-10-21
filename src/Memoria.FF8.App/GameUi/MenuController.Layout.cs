@@ -82,7 +82,7 @@ public sealed partial class MenuController
         }
         else
         {
-            var page = Grid([1, 8, 0.7f], [1]);
+            var page = Grid([Math.Max(1, TextScale), 8, 0.7f * Math.Max(1, TextScale)], [1]);
             anchored.Children.Add(page);
             Place(page, Header(), 0);
             UiElement content = CurrentScreen.Layout switch
@@ -224,7 +224,7 @@ public sealed partial class MenuController
     private UiElement Help()
     {
         string help = ScreenId == "main" && !IsSelectingCharacter ? (SelectedEntry?.Label ?? "Main") + " Menu" : SelectedEntry?.Help ?? CurrentScreen.Help;
-        return Panel("HELP", Label(Message.Length > 0 ? Message : help, IsOriginalMenuPage ? 22 : 18));
+        return Panel("HELP", Label(Message.Length > 0 ? Message : help, IsOriginalMenuPage ? 22 : 18, UiTextFlow.Wrap));
     }
 
     private UiElement Footer()
@@ -241,6 +241,7 @@ public sealed partial class MenuController
     {
         UiList list = new()
         {
+            TextFlow = UiTextFlow.SingleLine,
             Id = "commands",
             Paginated = true,
             Focusable = Entries.Count > 0,
@@ -264,19 +265,22 @@ public sealed partial class MenuController
 
     private UiElement Details()
     {
-        return new UiList { Id = "details", Paginated = true, Items = CurrentScreen.Details(this).ToList(), FontSize = 17 * TextScale, RowHeight = 29 * TextScale, ShowSelection = false };
+        return new UiList { TextFlow = UiTextFlow.Wrap, Id = "details", Paginated = true, Items = CurrentScreen.Details(this).ToList(), FontSize = 17 * TextScale, RowHeight = 29 * TextScale, ShowSelection = false };
     }
 
     private UiElement Lines(IReadOnlyList<string> values, float fontSize)
     {
-        var lines = new UiGrid { Columns = 1, Gap = 3 };
-        foreach (string value in values)
+        return Label(string.Join("\n", values), fontSize, UiTextFlow.Wrap);
+    }
+
+    private UiElement Readouts(IReadOnlyList<string> values, float fontSize)
+    {
+        var rows = Grid(Enumerable.Repeat(1f, Math.Max(1, values.Count)).ToArray(), [1], 3);
+        for (int index = 0; index < values.Count; index++)
         {
-            lines.RowDefinitions.Add(UiGridLength.Pixel(fontSize * TextScale * 1.5f));
-            Place(lines, Label(value, fontSize), lines.Children.Count);
+            Place(rows, Label(values[index], fontSize), index);
         }
-        lines.RowDefinitions.Add(UiGridLength.Star());
-        return lines;
+        return rows;
     }
 
     private UiPanel Panel(string? caption, UiElement content)
@@ -286,9 +290,9 @@ public sealed partial class MenuController
         return panel;
     }
 
-    private UiLabel Label(string value, float fontSize)
+    private UiLabel Label(string value, float fontSize, UiTextFlow flow = UiTextFlow.SingleLine)
     {
-        return new UiLabel { Text = value, FontSize = fontSize * TextScale, VerticalAlignment = UiAlignment.Center, Height = fontSize * TextScale * 1.4f };
+        return new UiLabel { Text = value, FontSize = fontSize * TextScale, TextFlow = flow, VerticalAlignment = flow == UiTextFlow.Wrap ? UiAlignment.Stretch : UiAlignment.Center };
     }
 
     private UiImageSource? EntryImage(MenuEntry entry)

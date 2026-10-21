@@ -36,7 +36,8 @@ public sealed partial class MenuController
         else if (ScreenId == "junction-gf")
         {
             list.Items = entries.Select(entry => Data.GuardianForces.FirstOrDefault(force => force.Id == entry.Action?.SubjectId)?.Name ?? entry.Label).ToList();
-            list.SecondaryItems = entries.Select(entry => Character?.GuardianForceIds.Contains(entry.Action?.SubjectId ?? "") == true ? "J" : "").ToList();
+            list.SecondaryItems = [];
+            list.TrailingImages = entries.Select(entry => GuardianForceOwner(entry.Action?.SubjectId ?? "")?.NativeId is { } owner ? (UiImageSource?)new UiImageSource(UiImageKind.CharacterPortrait, owner) : null).ToList();
         }
         else if (ScreenId == "ability-card-mod")
         {

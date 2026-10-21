@@ -26,7 +26,7 @@ public sealed partial class MenuController
         _ => "gameplay"
     };
 
-    private int ConfigRowsPerPage => Math.Max(5, (int)(495 / (44 * TextScale)));
+    private int ConfigRowsPerPage => Math.Max(1, (int)((ScreenId == "new-game-options" ? 315 : 495) / (44 * TextScale)));
 
     internal IReadOnlyList<MenuEntry> ConfigEntries()
     {
@@ -119,7 +119,8 @@ public sealed partial class MenuController
                 Value = float.TryParse(value.TrimEnd('%'), CultureInfo.InvariantCulture, out float number) ? number : numbers[0],
                 ValueFormat = setting.Values[0].EndsWith('%') ? "0'%'" : "0",
                 ValueWidth = 66 * TextScale,
-                LabelWidthRatio = 0.45f,
+                LabelWidthRatio = 0.52f,
+                ColumnGap = 12 * TextScale,
                 FontSize = 24 * TextScale,
                 PointerSize = 20 * TextScale,
                 TextInset = 35 * TextScale,
@@ -133,8 +134,10 @@ public sealed partial class MenuController
             {
                 Text = setting.Id == "Battle ATB mode" ? "ATB mode" : MagicUiText.SettingLabel(setting.Id),
                 Items = setting.Values,
+                OptionGap = 12 * TextScale,
                 SelectedIndex = Math.Max(0, Array.IndexOf(setting.Values, value)),
-                LabelWidthRatio = 0.45f,
+                LabelWidthRatio = 0.52f,
+                ColumnGap = 12 * TextScale,
                 FontSize = 24 * TextScale,
                 PointerSize = 20 * TextScale,
                 TextInset = 35 * TextScale,

@@ -39,7 +39,7 @@ public sealed partial class MenuController
 
     private UiElement BuildControlsPage()
     {
-        var page = Grid([1.8f, 5.8f], [1], 5);
+        var page = Grid([1.8f * Math.Max(1, TextScale), 5.8f], [1], 5);
         ControlDevice device = ScreenId == "config-controller" ? ControlDevice.Controller : ControlDevice.Keyboard;
         string advancedBinding = ControlsBindingText(ControlAction.Card, device);
         string advancedHelp = advancedBinding == "Unbound" ? "Card / Details is unbound. Assign it to open advanced options." : $"Press {advancedBinding} for advanced options.";
@@ -50,7 +50,7 @@ public sealed partial class MenuController
         if (IsControlsBindingList)
         {
             commands.SecondaryItems = Entries.Select(entry => Enum.TryParse(entry.Id, out ControlAction action) ? ControlsBindingText(action, device) : "").ToList();
-            commands.SecondaryWidth = 0.5f;
+            commands.AutoSecondaryWidth = true;
             commands.SecondaryAlignment = UiAlignment.End;
         }
         Place(page, Panel(null, commands), 1);
