@@ -41,8 +41,10 @@ public sealed partial class MenuController
     {
         var page = Grid([1.8f, 5.8f], [1], 5);
         ControlDevice device = ScreenId == "config-controller" ? ControlDevice.Controller : ControlDevice.Keyboard;
-        string help = IsControlsBindingList ? $"Press {CurrentBindingText(ControlAction.Card)} for advanced options." : ScreenId == "config-controls-conflict" && _pendingChord is not null ? $"{_pendingChord.FormatDisplayName(CurrentControllerPresentation)} is assigned to {string.Join(", ", CurrentControls.FindConflicts(_controlsAction, _controlsDevice, _pendingChord).Select(ControlsLabel))}." : SelectedEntry?.Help ?? CurrentScreen.Help;
-        string title = ScreenId.EndsWith("-choice", StringComparison.Ordinal) || ScreenId == "config-controls-conflict" ? ControlsActionName : CurrentScreen.Title;
+        string advancedBinding = ControlsBindingText(ControlAction.Card, device);
+        string advancedHelp = advancedBinding == "Unbound" ? "Card / Details is unbound. Assign it to open advanced options." : $"Press {advancedBinding} for advanced options.";
+        string help = IsControlsBindingList ? advancedHelp : ScreenId == "config-controls-conflict" && _pendingChord is not null ? $"{_pendingChord.FormatDisplayName(CurrentControllerPresentation)} is assigned to {string.Join(", ", CurrentControls.FindConflicts(_controlsAction, _controlsDevice, _pendingChord).Select(ControlsLabel))}." : SelectedEntry?.Help ?? CurrentScreen.Help;
+        string title = ScreenId.EndsWith("-choice", StringComparison.Ordinal) || ScreenId == "config-controls-conflict" ? $"{ControlsActionName} ({ControlsDeviceName})" : CurrentScreen.Title;
         Place(page, SecondaryHeader("Config", title, help), 0);
         UiList commands = SecondaryCommands();
         if (IsControlsBindingList)
@@ -375,7 +377,7 @@ public sealed partial class MenuController
         }
         Keys[] heldKeys = keys.GetPressedKeys();
         Buttons[] heldButtons = ControlsProfile.BindableButtons.Where(pad.IsButtonDown).ToArray();
-        bool released = heldKeys.Length == 0 && heldButtons.Length == 0;
+        bool released = (_controlsDevice == ControlDevice.Keyboard ? heldKeys.Length == 0 : heldButtons.Length == 0) && keys.IsKeyUp(Keys.Escape);
         if (_drainControls)
         {
             _drainControls = !released;
@@ -388,16 +390,16 @@ public sealed partial class MenuController
             return true;
         }
         _captureControllerConnected |= pad.IsConnected;
+        if (keys.IsKeyDown(Keys.Escape))
+        {
+            CancelControlsCapture();
+            return true;
+        }
         if (!_captureArmed)
         {
             _captureArmed = released;
             Message = released ? "Press a key or combination, then release all to apply." : "Release all keys and buttons first.";
             _view = null;
-            return true;
-        }
-        if (keys.IsKeyDown(Keys.Escape))
-        {
-            CancelControlsCapture();
             return true;
         }
         InputChord held = _controlsDevice == ControlDevice.Keyboard ? new(heldKeys, []) : new([], heldButtons);
