@@ -555,22 +555,42 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
 
     private void StopMusicSlot(int slot)
     {
-        // Native46C060 chooses the process-wide MIDI or WAV backend by this slot's type.
-        if (musicKinds[slot] == MusicKind.Midi)
+        MusicKind kind = musicKinds[slot];
+        try
         {
-            music?.Stop();
-            nativeMidiPaused = false;
-            midiRamp = null;
+            // Native46C060 chooses the process-wide MIDI or WAV backend by this slot's type.
+            if (kind == MusicKind.Midi)
+            {
+                music?.Stop();
+            }
+            else if (kind == MusicKind.Stream)
+            {
+                streamedMusic?.Dispose();
+            }
         }
-        else if (musicKinds[slot] == MusicKind.Stream)
+        finally
         {
-            streamedMusic?.Dispose();
-            streamedMusic = null;
-            streamedMusicPaused = false;
-            streamRamp = null;
+            musicKinds[slot] = MusicKind.None;
+            musicIds[slot] = -1;
+            if (kind == MusicKind.Midi)
+            {
+                nativeMidiPaused = false;
+                midiRamp = null;
+            }
+            else if (kind == MusicKind.Stream)
+            {
+                streamedMusic = null;
+                streamedMusicPaused = false;
+                streamRamp = null;
+            }
+            if (music is { Error: not null } failed)
+            {
+                music = null;
+                nativeMidiPaused = false;
+                midiRamp = null;
+                failed.Dispose();
+            }
         }
-        musicKinds[slot] = MusicKind.None;
-        musicIds[slot] = -1;
     }
 
     public void StopSounds()

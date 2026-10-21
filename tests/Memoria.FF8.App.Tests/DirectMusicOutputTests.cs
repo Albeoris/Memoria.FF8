@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -26,6 +27,58 @@ public sealed class DirectMusicOutputTests
         Assert.True(music.IsPlaying);
         string[] commands = File.ReadAllLines(fixture.Commands).Select(line => JsonSerializer.Deserialize<JsonElement>(line).GetProperty("Command").GetString()!).ToArray();
         Assert.Equal(nativePaused ? ["Pause", "Pause", "Playing"] : new[] { "Pause", "Resume", "Playing" }, commands);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task FailedBattleMusicCannotEscapePresentationAndStoppingReleasesTheBackend(bool selectedSlot, bool battleStop)
+    {
+        using HelperFixture failedFixture = new("error");
+        using DirectMusicOutput failed = new(failedFixture.StartInfo(), TimeSpan.FromSeconds(5));
+        failed.Play("segment.sgt", -10000);
+        await WaitUntil(() => failed.Error is not null);
+        using FieldAudioPresentation presentation = new(0, "", "");
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        var musicField = typeof(FieldAudioPresentation).GetField("music", flags)!;
+        var pausedField = typeof(FieldAudioPresentation).GetField("nativeMidiPaused", flags)!;
+        var rampField = typeof(FieldAudioPresentation).GetField("midiRamp", flags)!;
+        musicField.SetValue(presentation, failed);
+        pausedField.SetValue(presentation, true);
+        rampField.SetValue(presentation, new FieldAudioPresentation.Ramp(127, 0, 1000));
+        int[] ids = (int[])typeof(FieldAudioPresentation).GetField("musicIds", flags)!.GetValue(presentation)!;
+        Array kinds = (Array)typeof(FieldAudioPresentation).GetField("musicKinds", flags)!.GetValue(presentation)!;
+        if (selectedSlot)
+        {
+            kinds.SetValue(Enum.Parse(kinds.GetType().GetElementType()!, "Midi"), 0);
+            ids[0] = 26;
+        }
+        NativeBattleMusicCommandReceipt resume = new(3, GainChannel: 1, Gain: 127, ResumeOutput: true);
+
+        Assert.Null(Record.Exception(() => presentation.PlayBattleMusicCommand(resume)));
+        Assert.Equal(failed.Error!.Message, presentation.Error);
+        if (battleStop)
+        {
+            Assert.Null(Record.Exception(() => presentation.PlayBattleMusicCommand(new(1))));
+        }
+        Assert.Null(Record.Exception(presentation.StopAll));
+        Assert.Null(musicField.GetValue(presentation));
+        Assert.False((bool)pausedField.GetValue(presentation)!);
+        Assert.Null(rampField.GetValue(presentation));
+        Assert.Equal(new[] { -1, -1 }, ids);
+        Assert.All(kinds.Cast<object>(), kind => Assert.Equal("None", kind.ToString()));
+        Assert.Throws<ObjectDisposedException>(failed.Resume);
+        Assert.Null(Record.Exception(() => presentation.PlayBattleMusicCommand(new(1))));
+        await failedFixture.WaitExited();
+
+        using HelperFixture healthyFixture = new("normal");
+        using DirectMusicOutput healthy = new(healthyFixture.StartInfo(), TimeSpan.FromSeconds(5));
+        musicField.SetValue(presentation, healthy);
+        presentation.PlayBattleMusicCommand(resume);
+        Assert.True(healthy.IsPlaying);
+        string[] commands = File.ReadAllLines(healthyFixture.Commands).Select(line => JsonSerializer.Deserialize<JsonElement>(line).GetProperty("Command").GetString()!).ToArray();
+        Assert.Equal(new[] { "Resume", "Playing" }, commands);
     }
 
     [Fact]

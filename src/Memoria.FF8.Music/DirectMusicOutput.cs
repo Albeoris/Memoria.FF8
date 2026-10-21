@@ -58,18 +58,35 @@ internal sealed class DirectMusicOutput : IDisposable
         {
             return;
         }
-        if (segmentState == 0)
-        {
-            throw new InvalidOperationException("DirectMusic pause requires the current segment state.");
-        }
-        //46F300 retains the musical cursor on the segment before releasing its current state.
-        WindowsAudioCom.Check(WindowsAudioCom.Method<ReadMusicTime>(segmentState, 5)(segmentState, out int startTime));
-        WindowsAudioCom.Check(WindowsAudioCom.Method<ReadMusicTime>(segmentState, 7)(segmentState, out int startPoint));
-        WindowsAudioCom.Check(WindowsAudioCom.Method<StopSegment>(performance, 5)(performance, 0, 0, 0, 0));
+        //46F250 queries the current performance state; an ended segment has no state to pause.
         WindowsAudioCom.Check(WindowsAudioCom.Method<GetTime>(performance, 15)(performance, 0, out int currentTime));
-        WindowsAudioCom.Check(WindowsAudioCom.Method<IntegerArgument>(segment, 21)(segment, unchecked(currentTime - startTime + startPoint)));
-        WindowsAudioCom.Release(ref segmentState);
-        paused = true;
+        int result = WindowsAudioCom.Method<GetSegmentState>(performance, 6)(performance, out nint currentState, currentTime);
+        try
+        {
+            if (result == unchecked((int)0x88781161)) // DMUS_E_NOT_FOUND
+            {
+                return;
+            }
+            WindowsAudioCom.Check(result);
+            //46F300 retains the musical cursor on the segment before releasing its current state.
+            WindowsAudioCom.Check(WindowsAudioCom.Method<ReadMusicTime>(currentState, 5)(currentState, out int startTime));
+            WindowsAudioCom.Check(WindowsAudioCom.Method<ReadMusicTime>(currentState, 7)(currentState, out int startPoint));
+            WindowsAudioCom.Check(WindowsAudioCom.Method<StopSegment>(performance, 5)(performance, 0, 0, 0, 0));
+            WindowsAudioCom.Check(WindowsAudioCom.Method<GetTime>(performance, 15)(performance, 0, out currentTime));
+            result = WindowsAudioCom.Method<IntegerArgument>(segment, 21)(segment, unchecked(currentTime - startTime + startPoint));
+            // After a loop the elapsed cursor can exceed the segment length. Native46F300
+            // continues with the prior valid start point when DirectMusic rejects that cursor.
+            if (result != unchecked((int)0x88781202)) // DMUS_E_OUT_OF_RANGE
+            {
+                WindowsAudioCom.Check(result);
+            }
+            WindowsAudioCom.Release(ref segmentState);
+            paused = true;
+        }
+        finally
+        {
+            WindowsAudioCom.Release(ref currentState);
+        }
     }
 
     public void Resume()
@@ -128,6 +145,7 @@ internal sealed class DirectMusicOutput : IDisposable
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int Playing(nint self, nint segment, nint state);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int ReadMusicTime(nint self, out int time);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int GetTime(nint self, nint referenceTime, out int musicTime);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int GetSegmentState(nint self, out nint state, int musicTime);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int GlobalParameter(nint self, ref Guid type, ref int value, uint bytes);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int NoArguments(nint self);
 

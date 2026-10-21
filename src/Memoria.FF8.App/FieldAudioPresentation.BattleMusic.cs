@@ -28,7 +28,7 @@ internal sealed partial class FieldAudioPresentation
 
     public void PlayBattleMusicCommand(NativeBattleMusicCommandReceipt command)
     {
-        DispatchNativeBattleMusicCommand(command, PauseMusicOutput, ResumeMusicOutput, StopMusicSlot, decision => ExecuteMusicPlayback(decision, -1), (channel, initial, gain, duration) => DispatchNativeMusicChannel(channel, slot => SetMusicGain(slot, initial, gain, duration)));
+        TryOutput(() => DispatchNativeBattleMusicCommand(command, PauseMusicOutput, ResumeMusicOutput, StopMusicSlot, decision => ExecuteMusicPlayback(decision, -1), (channel, initial, gain, duration) => DispatchNativeMusicChannel(channel, slot => SetMusicGain(slot, initial, gain, duration))));
     }
 
     internal static void DispatchNativeBattleMusicCommand(NativeBattleMusicCommandReceipt command, Action pause, Action resume, Action<int> stop, Action<NativeMusicPlaybackDecision> playback, Action<ushort, int?, int, int> gain)
