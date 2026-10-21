@@ -35,7 +35,7 @@ public static partial class NativeBattleCuragaNodeKinematics
     {
         return (node, source) =>
         {
-            if (memory.Profile.Effect == 37)
+            if (memory.Profile.Effect is 29 or 37)
             {
                 uint meshAddress = memory.Dword(node + 0x170);
                 short curagaFade = unchecked((short)memory.Word(node + 0x1CE));

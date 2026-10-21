@@ -41,6 +41,12 @@ public sealed partial record NativeBattleEffectMemory([property: JsonRequired] N
         DrinkMagic37?.Validate();
         Raldo19?.Validate();
         Effect20?.Validate();
+        WindBlast29?.Validate();
+        WindBlast29Executable?.Validate();
+        if (WindBlast29Executable is { ResourceAddress: not 0x17D27DC })
+        {
+            throw new InvalidDataException("The Wind Blast node bank belongs to another original module.");
+        }
         Effect60?.Validate();
         Effect60PrimaryExecutable?.Validate();
         Effect60SecondaryExecutable?.Validate();

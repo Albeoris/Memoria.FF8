@@ -125,6 +125,8 @@ public static class NativeBattleRetainedMemoryReader
             },
             Raldo19Executable = new(BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(NativeBattleRaldo19Profile.ExecutableAddress, 4)), null) { ResourceAddress = NativeBattleRaldo19Profile.ExecutableAddress },
             Effect20 = NativeBattleEffect20State.FromColdProcess(BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x27268F8, 4)), BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x2722960, 4))),
+            WindBlast29 = NativeBattleWindBlast29State.FromColdProcess(BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x26D74E8, 4)), BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x26D6B44, 4))),
+            WindBlast29Executable = new(BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x17D27DC, 4)), null) { ResourceAddress = 0x17D27DC },
             Effect60 = NativeBattleEffect60State.FromColdProcess(ReadLoaderBytes(NativeBattleEffect60Profile.SharedAddress, 84).ToImmutableArray(), ReadLoaderBytes(NativeBattleEffect60Profile.SavedRotationAddress, 8).ToImmutableArray(), ReadLoaderBytes(NativeBattleEffect60Profile.MorphScratchAddress, NativeBattleEffect60Profile.MorphScratchLength).ToImmutableArray(), BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x2607050, 4)), BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x2605DD4, 4))),
             Effect60PrimaryExecutable = new(BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1797CC0, 4)), null) { ResourceAddress = 0x1797CC0 },
             Effect60SecondaryExecutable = new(BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x179C998, 4)), null) { ResourceAddress = 0x179C998 },

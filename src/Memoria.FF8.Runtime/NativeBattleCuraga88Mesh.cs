@@ -60,13 +60,14 @@ public static class NativeBattleCuraga88Mesh
             {
                 continue;
             }
-            if (group is not (4 or 5 or 7))
+            if (group is not (3 or 4 or 5 or 7))
             {
-                throw new NotSupportedException("Native Curaga mesh resources require their proved G3, G4 or GT4 groups.");
+                throw new NotSupportedException("Native Curaga mesh resources require their proved FT4, G3, G4 or GT4 groups.");
             }
             bool quad = group != 4;
-            const uint fadeFlag = 0x80;
-            NativeBattleCuragaMeshContext packetContext = new(flags, (flags & fadeFlag) != 0 ? ReadDword(context88, 8) : null, (flags & fadeFlag) != 0 ? unchecked((int)ReadDword(context88, 12)) : null, group == 7 && (flags & 0x500) != 0 ? ReadWord(context88, 0x10) : null, group == 7 && (flags & 0xA00) != 0 ? ReadWord(context88, 0x14) : null, group == 7 && (flags & 0x1000) != 0 ? ReadDword(context88, 0x18) : null, 17, 2);
+            uint fadeFlag = group == 3 ? 0x40u : 0x80u;
+            bool textured = group is 3 or 7;
+            NativeBattleCuragaMeshContext packetContext = new(flags, (flags & fadeFlag) != 0 ? ReadDword(context88, 8) : null, (flags & fadeFlag) != 0 ? unchecked((int)ReadDword(context88, 12)) : null, textured && (flags & 0x500) != 0 ? ReadWord(context88, 0x10) : null, textured && (flags & 0xA00) != 0 ? ReadWord(context88, 0x14) : null, textured && (flags & 0x1000) != 0 ? ReadDword(context88, 0x18) : null, 17, 2);
             int faceBytes = group switch { 4 => 20, 7 => 36, _ => 24 };
             for (int faceIndex = 0; faceIndex < count; faceIndex++)
             {
@@ -108,6 +109,7 @@ public static class NativeBattleCuraga88Mesh
                 }
                 NativeBattleGfGeometryBatch faceBatch = group switch
                 {
+                    3 => NativeBattleCuragaMeshPackets.EmitFt4_87F6C0(face, ReadCorner, packetContext, constants, allocated),
                     4 => NativeBattleCuragaMeshPackets.EmitG3_87F960(face, ReadCorner, packetContext, constants, allocated),
                     5 => NativeBattleCuragaMeshPackets.EmitG4_87FB90(face, ReadCorner, packetContext, constants, allocated),
                     7 => NativeBattleCuragaMeshPackets.EmitGt4_8800B0(face, ReadCorner, packetContext, constants, allocated),
@@ -121,7 +123,23 @@ public static class NativeBattleCuraga88Mesh
                     int bucket = checked(17 + (unchecked((int)depth) >> 2));
                     if ((flags & fadeFlag) != 0)
                     {
-                        registers = NativeBattleGouraudMeshRegisters.Shade(registers, face, quad, group == 7, flags, ReadDword(context88, 12), farControls, constants);
+                        if (group == 3)
+                        {
+                            uint material = BinaryPrimitives.ReadUInt32LittleEndian(face);
+                            if ((flags & 1) != 0)
+                            {
+                                material |= 0x02000000;
+                            }
+                            if ((flags & 4) != 0)
+                            {
+                                material &= 0xFDFFFFFF;
+                            }
+                            registers = registers with { Colors = NativeBattleScriptedDpcs.Transform45F270(registers.Colors, material, ReadDword(context88, 12), farControls, constants).Registers };
+                        }
+                        else
+                        {
+                            registers = NativeBattleGouraudMeshRegisters.Shade(registers, face, quad, group == 7, flags, ReadDword(context88, 12), farControls, constants);
+                        }
                     }
                     foreach (NativeBattleGfGeometryAttempt attempt in faceBatch.Attempts)
                     {
