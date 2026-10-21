@@ -83,9 +83,16 @@ public sealed partial class BattleSession
         {
             return;
         }
-        //4A84E0 calls49E9C0 before its pause-gated UI/ATB consumers.
-        PublishNativeScanInputFrame();
         services = services.AdvancePublication();
+        services = services.ApplySelect4A8C50();
+        //4A84E0 calls4A8C50 before49E9C0 replaces its mapped input WORD16.
+        PublishNativeScanInputFrame();
+        if (NativeEffectMemory?.Scan is { } scan)
+        {
+            uint options = definition.NativeSavedOptions ?? throw new NotSupportedException("Native4A84E0 input requires its saved mapping options.");
+            ushort held = NativeInputConfiguration.Project(scan.Input.Input.Read49ED30(0, 0), options, definition.NativeInputButtonMap);
+            services = services with { HeldButtons16 = held };
+        }
         NativeGraphics = graphics with { UiServices = services };
         if (services.PauseDE9)
         {

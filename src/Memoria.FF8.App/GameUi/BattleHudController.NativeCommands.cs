@@ -9,6 +9,8 @@ public sealed partial class BattleHudController
     private bool nativeLimitCommandSelected;
     private ushort nativeCommandHeldButtons;
 
+    public bool CommandMenuHidden => session.Outcome == BattleOutcome.Active && (session.NativeGraphics?.UiServices is { } ui ? (ui.Flags942 & 0x841) != 0x40 : (nativeCommandHeldButtons & 0x100) != 0);
+
     public bool NativeLimitAvailable => !HasGuardianFormCommands && SelectedActor is { } actor && session.GetNativeLimitLevel(actor.Id) > 0;
     private bool NativeLimitDirectTarget => SelectedCommand == BattleAbility.LimitBreak && SelectedActor?.NativeLimit?.Command is 5 or 11;
 
@@ -16,7 +18,7 @@ public sealed partial class BattleHudController
     {
         nativeCommandHeldButtons = buttons;
         RefreshNativeLimitSelection();
-        if (!SelectingAction && !SelectingTarget)
+        if (!CommandMenuHidden && !SelectingAction && !SelectingTarget)
         {
             SelectNativeLimit((buttons & 0x2000) != 0 && (buttons & 0x5000) == 0);
         }
@@ -52,7 +54,7 @@ public sealed partial class BattleHudController
 
     private void PresentNativeShot()
     {
-        if (session.NativeGuardianBoost is { } boost)
+        if (CommandMenuHidden && session.NativeGuardianBoost is { Enabled: true } boost)
         {
             string window = boost.Phase == 4 ? boost.Window == 0 ? "STOP" : $"{NativeButtonBindingHint(0x80)}: PRESS" : "WAIT";
             Message = $"GF Boost {boost.DisplayPercent}% · {window}";
@@ -93,7 +95,7 @@ public sealed partial class BattleHudController
 
     private IReadOnlyList<BattleAbility> GetPlayerCommandChoices()
     {
-        if (NativeTimedLimitActive || session.NativeGuardianBoost is not null)
+        if (NativeTimedLimitActive)
         {
             return [];
         }
@@ -116,7 +118,7 @@ public sealed partial class BattleHudController
 
     private void RefreshNativeLimitSelection()
     {
-        if (session.Outcome != BattleOutcome.Active || NativeTimedLimitActive || session.NativeGuardianBoost is not null)
+        if (session.Outcome != BattleOutcome.Active || NativeTimedLimitActive || CommandMenuHidden)
         {
             return;
         }

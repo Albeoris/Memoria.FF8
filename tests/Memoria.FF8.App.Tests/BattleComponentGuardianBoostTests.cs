@@ -33,7 +33,7 @@ public sealed class BattleComponentGuardianBoostTests
         long frameBeforePress = battle.Frame;
 
         GameWorld.ExecuteBattleCommand(battle, new(BattleInputKind.GuardianBoost));
-        battle.AdvanceComponentGuardianBoostPresentation(Callback);
+        battle.AdvanceComponentGuardianBoostPresentation(Callback, 0x100);
         baseline.AdvanceComponentGuardianBoostPresentation(Callback);
 
         Assert.Equal((ushort)76, battle.NativeGuardianBoost!.Percent);
@@ -82,7 +82,7 @@ public sealed class BattleComponentGuardianBoostTests
     }
 
     [Fact]
-    public void Boost_uses_the_remapped_original_square_edge_and_modal_HUD_reads_the_actual_window()
+    public void Boost_uses_the_remapped_original_square_edge_and_Select_hidden_HUD_reads_the_actual_window()
     {
         KeyboardInput keyboard = new();
         keyboard.Profile = keyboard.Profile.WithBinding(ControlAction.Card, ControlDevice.Keyboard, new InputChord([Keys.T], []));
@@ -98,12 +98,14 @@ public sealed class BattleComponentGuardianBoostTests
         StartGuardian(battle);
         UntilPresentation(battle, () => battle.NativeGuardianBoost?.Phase == 4);
         BattleHudController hud = new(battle, battle.QueueAttack, () => { }, () => { }) { NativeButtonBindingHint = keyboard.NativeButtonBindingHint };
+        hud.SetNativeCommandButtons(0x100);
         string before = JsonSerializer.Serialize(battle.Capture());
 
         hud.BuildView();
         hud.Navigate(MenuInput.Confirm);
 
         Assert.Empty(hud.Commands);
+        Assert.True(hud.CommandMenuHidden);
         Assert.Contains("GF Boost 0%", hud.Message);
         Assert.Contains("T: PRESS", hud.Message);
         Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
@@ -124,13 +126,54 @@ public sealed class BattleComponentGuardianBoostTests
         int hp = battle.Combatants[1].CurrentHp;
 
         GameWorld.ExecuteBattleCommand(battle, new(BattleInputKind.GuardianBoost));
-        battle.AdvanceComponentGuardianBoostPresentation(Callback);
+        battle.AdvanceComponentGuardianBoostPresentation(Callback, 0x100);
 
         Assert.Equal((ushort)76, battle.NativeGuardianBoost!.Percent);
         Assert.Equal((sbyte)0, battle.NativeGuardianBoost.Window);
         Assert.False(battle.NativeGuardianBoost.PendingPress);
         Assert.False(battle.Capture().NativeActionScratch!.GuardianFormulaE1E);
         Assert.Equal(hp, battle.Combatants[1].CurrentHp);
+    }
+
+    [Fact]
+    public void A_second_ready_actor_can_select_commands_during_an_active_guardian_presentation()
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        BattleSession battle = CreateBattle(assets, true, true);
+        StartGuardian(battle);
+        UntilPresentation(battle, () => battle.NativeGuardianBoost?.Phase == 4);
+        List<BattleAttackCommand> commands = [];
+        BattleHudController hud = new(battle, (actor, target) => commands.Add(new(actor, target)), () => { }, () => { });
+
+        hud.BuildView();
+
+        Assert.NotNull(battle.NativeGuardianBoost);
+        Assert.False(hud.CommandMenuHidden);
+        Assert.Equal(1, hud.SelectedActor!.ModelId);
+        Assert.Contains(BattleAbility.Attack, hud.Commands);
+        hud.Navigate(MenuInput.Confirm);
+        Assert.True(hud.SelectingTarget);
+        hud.Navigate(MenuInput.Confirm);
+        Assert.Equal(new BattleAttackCommand(battle.Combatants[2].Id, battle.Combatants[1].Id), Assert.Single(commands));
+        Assert.NotNull(battle.NativeGuardianBoost);
+    }
+
+    [Fact]
+    public void A_component_boost_press_without_Select_is_discarded()
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        BattleSession battle = CreateBattle(assets, true);
+        StartGuardian(battle);
+        UntilPresentation(battle, () => battle.NativeGuardianBoost?.Phase == 4);
+        ushort percent = battle.NativeGuardianBoost!.Percent;
+
+        GameWorld.ExecuteBattleCommand(battle, new(BattleInputKind.GuardianBoost));
+        battle.AdvanceComponentGuardianBoostPresentation(Callback);
+
+        Assert.Equal(percent, battle.NativeGuardianBoost!.Percent);
+        Assert.False(battle.NativeGuardianBoost.PendingPress);
+        battle.AdvanceComponentGuardianBoostPresentation(Callback, 0x100);
+        Assert.Equal(percent, battle.NativeGuardianBoost!.Percent);
     }
 
     [Fact]
@@ -180,10 +223,10 @@ public sealed class BattleComponentGuardianBoostTests
         Assert.True(complete());
     }
 
-    private static BattleSession CreateBattle(GameAssets assets, bool learned)
+    private static BattleSession CreateBattle(GameAssets assets, bool learned, bool secondReadyActor = false)
     {
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).ToggleGuardianForceJunction(0, 0).RebuildParty().Rest();
-        vitals = vitals with { CombatParty = [0, 255, 255] };
+        vitals = vitals with { CombatParty = secondReadyActor ? [0, 1, 255] : [0, 255, 255] };
         int bit = Assert.Single(Enumerable.Range(19, 9), index => (vitals.Definitions.GuardianForceModifiers[index - 19].Flags & 1) != 0);
         NativeGuardianForceVital gf = vitals.GuardianForces[0];
         vitals.GuardianForces[0] = gf with { LearnedBank = gf.LearnedBank with { High = learned ? gf.LearnedBank.High | (1UL << bit) : gf.LearnedBank.High & ~(1UL << bit) } };
@@ -196,6 +239,11 @@ public sealed class BattleComponentGuardianBoostTests
         BattleCombatantDefinition enemy = original.Combatants.First(actor => !actor.IsPlayer && actor.InitialActive);
         // This independent formation512 component owns one original enabled enemy and one authentic caster.
         BattleDefinition definition = original with { NativeGraphics = null, NativeClockRules = null, NativeEntry = null, Combatants = [caster with { InitialAtb = BattleSession.AtbMaximum, GuardianForceCompatibility = new ushort[16] }, enemy with { InitialAtb = 0, Speed = 1, MaximumHp = 10000, CurrentHp = 10000, NativeAi = enemy.NativeAi! with { Scripts = [[0], [0], [0], [0], [0]] } }] };
+        if (secondReadyActor)
+        {
+            BattleCombatantDefinition teammate = original.Combatants.Single(actor => actor.IsPlayer && actor.ModelId == 1);
+            definition = definition with { Combatants = [.. definition.Combatants, teammate with { InitialAtb = BattleSession.AtbMaximum }] };
+        }
         return GameWorld.CreateLiveBattleSession(definition, BattleAtbMode.TurnBased);
     }
 }

@@ -9,11 +9,12 @@ public sealed record NativeBattleUiServices([property: JsonRequired] uint Counte
     public NativeBattleUiCommands Commands { get; init; } = NativeBattleUiCommands.Clear();
 
     public sbyte? Menu955 { get; init; }
+    public ushort? HeldButtons16 { get; init; }
     public NativeBattleUiWindows? Windows { get; init; }
     public static NativeBattleUiServices Initialize()
     {
         //506CF0 phase1→47D890→4A94D0;4AD670 sets942bit40 and clears1D75410.
-        return new(0, 0, 1, false, null, 0x40, -1, 0, false) { Windows = NativeBattleUiWindows.Initialize4A94D0() };
+        return new(0, 0, 1, false, null, 0x40, -1, 0, false) { HeldButtons16 = 0, Windows = NativeBattleUiWindows.Initialize4A94D0() };
     }
 
     public NativeBattleUiServices AdvancePublication()
@@ -27,6 +28,17 @@ public sealed record NativeBattleUiServices([property: JsonRequired] uint Counte
     {
         //4A9220 normalizes a zero duration to1; publication remains pending until4A8E30 observes it.
         return this with { Duration = duration == 0 ? 1u : duration, PendingPublication = true };
+    }
+
+    public NativeBattleUiServices ApplySelect4A8C50()
+    {
+        if (Frame33 != true || PauseDE9)
+        {
+            return this;
+        }
+        //4A84E0 calls4A8C50 before replacing its retained mapped input WORD16.
+        ushort held = HeldButtons16 ?? throw new NotSupportedException("Native4A8C50 Select publication requires its retained mapped input WORD16; migrate the named snapshot explicitly.");
+        return (held & 0x100) != 0 ? SetFlags(1) : SetFlags(0, 1);
     }
 
     public NativeBattleUiServices SetFlags(ushort set, ushort clear = 0)

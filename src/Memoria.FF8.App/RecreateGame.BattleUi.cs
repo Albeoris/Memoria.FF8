@@ -84,7 +84,7 @@ internal sealed partial class RecreateGame
         }
         EnsureBattleHud(active);
         bool skipInput = keyboard.GuardianFormSkipRequested && active.CanSkipGuardianFormFinisher;
-        bool boostInput = keyboard.GuardianBoostRequested && active.NativeGuardianBoost is not null;
+        bool boostInput = keyboard.GuardianBoostRequested && active.NativeGuardianBoost is not null && (active.NativeGraphics?.UiServices is { } boostUi ? (boostUi.Flags942 & 1) != 0 : (keyboard.HeldFieldButtons & 0x100) != 0);
         if (boostInput)
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.GuardianBoost));
@@ -103,7 +103,7 @@ internal sealed partial class RecreateGame
                 return true;
             }
         }
-        active.AdvanceComponentGuardianBoostPresentation(elapsed);
+        active.AdvanceComponentGuardianBoostPresentation(elapsed, keyboard.HeldFieldButtons);
         battleScene!.AdvancePresentation(elapsed);
         battleHud!.AdvancePresentation(elapsed);
         battleHud.SetNativeCommandButtons(keyboard.HeldFieldButtons);

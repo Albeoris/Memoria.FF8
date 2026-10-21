@@ -196,7 +196,7 @@ public sealed partial class BattleHudController
             session.EndNativeShot(shotActor.Id);
             return;
         }
-        if (NativeTimedLimitActive || session.NativeGuardianBoost is not null)
+        if (NativeTimedLimitActive || CommandMenuHidden)
         {
             return;
         }
@@ -303,7 +303,7 @@ public sealed partial class BattleHudController
     {
         RefreshNativeLimitSelection();
         RefreshGuardianFormSelection();
-        if (NativeTimedLimitActive || session.NativeGuardianBoost is not null)
+        if (NativeTimedLimitActive || CommandMenuHidden)
         {
             return;
         }
@@ -415,6 +415,10 @@ public sealed partial class BattleHudController
 
     public void Choose(int index)
     {
+        if (CommandMenuHidden)
+        {
+            return;
+        }
         if (SelectingGuardianFormAction)
         {
             Attack();
@@ -452,7 +456,7 @@ public sealed partial class BattleHudController
     }
     public void SelectParty(string actorId)
     {
-        if (!NativeTimedLimitActive && session.NativeGuardianBoost is null && Party.Any(actor => actor.Id == actorId && CanChooseCommand(actor)))
+        if (!NativeTimedLimitActive && !CommandMenuHidden && Party.Any(actor => actor.Id == actorId && CanChooseCommand(actor)))
         {
             SelectingGuardianFormAction = false;
             guardianFormMenuActorId = null;
@@ -479,7 +483,7 @@ public sealed partial class BattleHudController
     public void CycleCommandActor()
     {
         RefreshNativeLimitSelection();
-        if (SelectingGuardianFormAction || NativeTimedLimitActive || session.NativeGuardianBoost is not null || session.Outcome != BattleOutcome.Active)
+        if (SelectingGuardianFormAction || NativeTimedLimitActive || CommandMenuHidden || session.Outcome != BattleOutcome.Active)
         {
             return;
         }
@@ -493,6 +497,10 @@ public sealed partial class BattleHudController
 
     public void SelectTarget(string targetId, bool confirm)
     {
+        if (CommandMenuHidden)
+        {
+            return;
+        }
         if (Targets.Any(actor => actor.Id == targetId))
         {
             if (SelectedTarget?.Id != targetId)
@@ -593,6 +601,10 @@ public sealed partial class BattleHudController
 
     private void CancelTarget()
     {
+        if (CommandMenuHidden)
+        {
+            return;
+        }
         if (CancelGuardianFormSelection())
         {
             return;

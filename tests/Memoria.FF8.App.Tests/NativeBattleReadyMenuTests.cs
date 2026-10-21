@@ -9,6 +9,46 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleReadyMenuTests
 {
     [Fact]
+    public void Raw_select_input_hides_the_registered_menu_and_JSON_restore_releases_it_on_the_same_callback()
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession battle = Create(game, assets);
+        battle.Tick();
+        BattleHudController hud = Hud(battle);
+        string actor = hud.SelectedActor!.Id;
+        Assert.False(hud.CommandMenuHidden);
+        battle.PublishNativeScanMappedButtons(0x100);
+        for (int callback = 0; callback < 16 && !hud.CommandMenuHidden; callback++)
+        {
+            battle.Tick();
+        }
+        Assert.True(hud.CommandMenuHidden);
+        Assert.Equal((ushort?)0x100, battle.NativeGraphics!.UiServices!.HeldButtons16);
+        hud.Navigate(MenuInput.Confirm);
+        hud.CycleCommandActor();
+        Assert.False(hud.SelectingTarget);
+        Assert.Equal(actor, hud.SelectedActor!.Id);
+
+        string saved = JsonSerializer.Serialize(battle.Capture());
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(saved)!);
+        Assert.True(Hud(restored).CommandMenuHidden);
+        battle.PublishNativeScanMappedButtons(0);
+        restored.PublishNativeScanMappedButtons(0);
+        for (int callback = 0; callback < 16 && hud.CommandMenuHidden; callback++)
+        {
+            battle.Tick();
+            restored.Tick();
+            Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        }
+        Assert.False(hud.CommandMenuHidden);
+        Assert.False(Hud(restored).CommandMenuHidden);
+        Assert.Equal(actor, hud.SelectedActor!.Id);
+        hud.Navigate(MenuInput.Confirm);
+        Assert.True(hud.SelectingTarget);
+    }
+
+    [Fact]
     public void Native_Limit_selection_waits_for_UI_registration_and_survives_HUD_recreation()
     {
         using GameAssets game = new(TestResources.GameDirectory);

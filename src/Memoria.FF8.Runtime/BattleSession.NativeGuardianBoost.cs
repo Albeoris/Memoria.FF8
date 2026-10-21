@@ -104,7 +104,7 @@ public sealed partial class BattleSession
         return (id, selected);
     }
 
-    public void AdvanceComponentGuardianBoostPresentation(TimeSpan elapsed)
+    public void AdvanceComponentGuardianBoostPresentation(TimeSpan elapsed, ushort heldButtons = 0)
     {
         if (elapsed < TimeSpan.Zero || elapsed > TimeSpan.FromSeconds(1000))
         {
@@ -120,7 +120,7 @@ public sealed partial class BattleSession
         nativeGuardianBoost = widget with { ComponentSubframeTicks = ticks % TimeSpan.TicksPerSecond };
         for (int callback = 0; callback < callbacks && nativeGuardianBoost is not null; callback++)
         {
-            AdvanceNativeGuardianBoostWidget(true, true);
+            AdvanceNativeGuardianBoostWidget(true, (heldButtons & 0x100) != 0);
         }
     }
 

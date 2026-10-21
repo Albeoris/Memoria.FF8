@@ -33,7 +33,7 @@ internal sealed class BattleHudElement : UiElement
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
     {
         BattleSession session = controller.Session;
-        if (controller.BattleMessageDocument is { } battleMessage && session.Outcome == BattleOutcome.Active)
+        if (!controller.CommandMenuHidden && controller.BattleMessageDocument is { } battleMessage && session.Outcome == BattleOutcome.Active)
         {
             theme.Panel(canvas, Rect(240, 12, 480, 84));
             if (canvas is IBattleMessageCanvas rich)
@@ -45,7 +45,7 @@ internal sealed class BattleHudElement : UiElement
                 Text(canvas, theme, battleMessage.Text, 256, 24, 448, 60, 20);
             }
         }
-        bool canAttack = controller.SelectedActor is not null && session.Outcome == BattleOutcome.Active;
+        bool canAttack = !controller.CommandMenuHidden && controller.SelectedActor is not null && session.Outcome == BattleOutcome.Active;
         IReadOnlyList<string> choices = controller.ChoiceLabels;
         string caption = session.Outcome != BattleOutcome.Active ? "RESULT" : controller.SelectingTarget ? "TARGET" : controller.SelectingGuardianFormAction ? "GF ACTION" : controller.SelectingDrawMode ? "DRAW" : controller.SelectingAction ? controller.SelectedCommand.ToString().ToUpperInvariant() : "COMMAND";
         int rows = controller.SelectingTarget ? controller.VisibleTargets.Count : choices.Count;
@@ -59,7 +59,7 @@ internal sealed class BattleHudElement : UiElement
             theme.Pointer(canvas, Left + 38 * Scale, Top + 540 * Scale, 12 * Scale);
             Text(canvas, theme, session.CanReturnToField ? "Continue" : "Load / Retry", 60, 532, 156, 30, 21);
         }
-        else if (controller.SelectingTarget)
+        else if (!controller.CommandMenuHidden && controller.SelectingTarget)
         {
             theme.Panel(canvas, Rect(30, 452, 440, 58));
             Text(canvas, theme, controller.TargetActionCaption, 44, 459, 412, 24, 20);
@@ -82,7 +82,7 @@ internal sealed class BattleHudElement : UiElement
             }
         }
 
-        IReadOnlyList<BattleCombatant> party = session.NativeGraphics?.UiServices is { } nativeUi && !(nativeUi.Windows ?? throw new NotSupportedException("Native battle HUD requires its retained UI window bank; migrate the named snapshot explicitly.")).DrawsVitals4B1740(nativeUi.Flags942) ? [] : controller.Party;
+        IReadOnlyList<BattleCombatant> party = controller.CommandMenuHidden || session.NativeGraphics?.UiServices is { } nativeUi && !(nativeUi.Windows ?? throw new NotSupportedException("Native battle HUD requires its retained UI window bank; migrate the named snapshot explicitly.")).DrawsVitals4B1740(nativeUi.Flags942) ? [] : controller.Party;
         for (int index = 0; index < party.Count; index++)
         {
             BattleCombatant actor = party[index];
@@ -182,7 +182,7 @@ internal sealed class BattleHudElement : UiElement
 
     public override void PointerHover(float x, float y)
     {
-        if (!controller.SelectingTarget || !Rect(30, 530, 194, 84).Contains(x, y))
+        if (controller.CommandMenuHidden || !controller.SelectingTarget || !Rect(30, 530, 194, 84).Contains(x, y))
         {
             return;
         }
@@ -198,8 +198,13 @@ internal sealed class BattleHudElement : UiElement
         if (controller.CanSkipGuardianFormFinisher && Rect(748, 464, 186, 40).Contains(x, y))
         {
             controller.SkipGuardianFormFinisher();
+            return;
         }
-        else if (controller.Session.Outcome == BattleOutcome.Victory && Rect(144, 376, 672, 40).Contains(x, y))
+        if (controller.CommandMenuHidden)
+        {
+            return;
+        }
+        if (controller.Session.Outcome == BattleOutcome.Victory && Rect(144, 376, 672, 40).Contains(x, y))
         {
             controller.ChangeRewardPage(x < Rect(480, 0, 0, 0).X ? -1 : 1);
         }
