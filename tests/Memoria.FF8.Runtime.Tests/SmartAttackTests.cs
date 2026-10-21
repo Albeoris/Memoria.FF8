@@ -7,6 +7,24 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class SmartAttackTests
 {
     [Fact]
+    public void OpeningPlayerCommandMenuDoesNotDisableSmartMagicWhenLimitIsUnavailable()
+    {
+        BattleSession battle = Create([Spell(4, 20)], [new(4, 6)], infinite: true, nativeLimit: true);
+        BattleSmartAttackPreview before = battle.PreviewSmartAttack("party", "enemy");
+        Assert.Equal(BattleAbility.Magic, before.Ability);
+        battle.SelectPlayerCommandActor("party");
+        Assert.True(battle.HasNativeLimitSelection("party"));
+        Assert.Equal(0, battle.GetNativeLimitLevel("party"));
+        BattleSmartAttackPreview preview = battle.PreviewSmartAttack("party", "enemy");
+        Assert.Equal(BattleAbility.Magic, preview.Ability);
+        Assert.Equal(4, preview.ActionId);
+        Assert.Equal(1, preview.CastCount);
+        Assert.Equal(BattleAbility.Attack, battle.PreviewSmartAttack("party", "enemy", true).Ability);
+        battle.QueueSmartAttack(preview);
+        Assert.Equal(BattleAbility.Magic, Assert.Single(battle.QueuedActions).Ability);
+    }
+
+    [Fact]
     public void ElementFamilyUsesAggregateAvailabilityThenWeakestReliableSpell()
     {
         BattleSession battle = Create([Spell(1, 20, 1), Spell(2, 40, 1), Spell(4, 80, 2)], [new(1, 40), new(2, 40), new(4, 50)], enemyHp: 100);
@@ -109,7 +127,7 @@ public sealed class SmartAttackTests
         Assert.Equal(1, correlated.Distribution.Values.Sum(), 12);
     }
 
-    private static BattleSession Create(BattleNativeAction[] spells, BattleStock[] stocks, int enemyHp = 100, bool infinite = false, uint actorStatus = 0, int[]? defenses = null, bool mug = false, uint enemyFlags = 0)
+    private static BattleSession Create(BattleNativeAction[] spells, BattleStock[] stocks, int enemyHp = 100, bool infinite = false, uint actorStatus = 0, int[]? defenses = null, bool mug = false, uint enemyFlags = 0, bool nativeLimit = false)
     {
         NativeCharacterVitals vitals = MagicSystemFixture.Create();
         foreach (BattleStock stock in stocks)
@@ -123,13 +141,14 @@ public sealed class SmartAttackTests
         return new(new BattleDefinition
         {
             MagicVitals = vitals,
+            NativeLimitsDisabled = false,
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             NativeActions = spells,
             ActionDefinitions = spells.Select(spell => new BattleActionDefinition(BattleAbility.Magic, spell.ActionId, spell.Name!, BattleActionEffect.Native, 0, false) { NativeAction = spell }).ToArray(),
             Combatants =
             [
-                new() { Id = "party", Name = "Party", IsPlayer = true, ModelId = 1, MagicRecordId = 1, InitialAtb = BattleSession.AtbMaximum, Attack = 1, Magic = 100, Abilities = [BattleAbility.Attack, BattleAbility.Magic], NativeAttack = attack, NativePlayerStatRules = (actorStatus & 0x60000) != 0 ? Rules(vitals) : null, NativeGrowth = new(0, new byte[6].ToImmutableArray()), NativeCommandSlots = [(byte)(mug ? 12 : 1), 2, 0, 0], NativeStatus1 = actorStatus },
+                new() { Id = "party", Name = "Party", IsPlayer = true, ModelId = 1, MagicRecordId = 1, InitialAtb = BattleSession.AtbMaximum, Attack = 1, Magic = 100, Abilities = [BattleAbility.Attack, BattleAbility.Magic], NativeLimit = nativeLimit ? new(1, 11, 0, 255, new byte[32].ToImmutableArray()) : null, NativeAttack = attack, NativePlayerStatRules = (actorStatus & 0x60000) != 0 ? Rules(vitals) : null, NativeGrowth = new(0, new byte[6].ToImmutableArray()), NativeCommandSlots = [(byte)(mug ? 12 : 1), 2, 0, 0], NativeStatus1 = actorStatus },
                 new() { Id = "enemy", Name = "Enemy", ModelId = 2, MaximumHp = enemyHp, CurrentHp = enemyHp, ElementDefenses = defenses ?? [800, 800, 800, 800, 800, 800, 800, 800], NativeCombatantFlags = enemyFlags, NativeMug = mug ? new(255, 20, 30, Enumerable.Repeat(new BattleStock(1, 1), 12).ToImmutableArray()) : null }
             ]
         }, BattleAtbMode.TurnBased);
