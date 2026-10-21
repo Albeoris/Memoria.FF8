@@ -4,7 +4,10 @@ using Memoria.FF8.Events;
 
 namespace Memoria.FF8;
 
-public sealed record BackgroundScrollFrame(IReadOnlyDictionary<int, Vector2> LayerOffsets, Vector2 ActorOffset, FieldNativeBackgroundWrapFrame? NativeWrap = null);
+public sealed record BackgroundScrollFrame(IReadOnlyDictionary<int, Vector2> LayerOffsets, Vector2 ActorOffset, FieldNativeBackgroundWrapFrame? NativeWrap = null)
+{
+    public IReadOnlyDictionary<int, short>? LayerScales { get; init; }
+}
 
 /// <summary>Certifies background parallax and delegates scripted camera placement to shared native contracts.</summary>
 public static class BackgroundScrollCertificate

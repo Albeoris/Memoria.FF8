@@ -32,8 +32,8 @@ public sealed partial class FieldRenderer
             {
                 // Keep the visible camera inside the image, centering images
                 // narrower than the target instead of following past either edge.
-                float clampedLeft = imageWidth >= OutputWidth ? Math.Clamp(imageLeft, OutputWidth - imageWidth, 0) : (OutputWidth - imageWidth) / 2;
-                horizontalPresentationOffset = clampedLeft - imageLeft;
+                horizontalPresentationOffset = viewportCameraShift * scale;
+                float clampedLeft = imageLeft + horizontalPresentationOffset;
                 left = Math.Clamp((int)MathF.Ceiling(imageLeft + horizontalPresentationOffset - 0.5f), 0, OutputWidth);
                 right = Math.Clamp((int)MathF.Ceiling(clampedLeft + imageWidth - 0.5f), left, OutputWidth);
             }

@@ -11,7 +11,7 @@ using Color = Microsoft.Xna.Framework.Color;
 namespace Memoria.FF8.App.Tests;
 
 [Collection("GPU rendering")]
-public sealed class FieldWidescreenTests
+public sealed partial class FieldWidescreenTests
 {
     private static readonly Rgba32 Ground = new(64, 128, 192, 255);
     private static readonly Rgba32 Parallax = new(192, 64, 128, 255);
@@ -505,12 +505,12 @@ public sealed class FieldWidescreenTests
         }
     }
 
-    private static void AssertGpuMatches(FieldAssets field, int width, int height, byte[] expected, IReadOnlyDictionary<int, Vector2>? offsets = null, Vector2 actorOffset = default, int cameraIndex = 0, FieldNativeBackgroundWrapFrame? nativeWrapFrame = null)
+    private static void AssertGpuMatches(FieldAssets field, int width, int height, byte[] expected, IReadOnlyDictionary<int, Vector2>? offsets = null, Vector2 actorOffset = default, int cameraIndex = 0, FieldNativeBackgroundWrapFrame? nativeWrapFrame = null, IReadOnlyDictionary<int, short>? layerScales = null, sbyte jitterX = 0, FieldBackgroundBlend? blend = null)
     {
         using GpuTestDevice device = new();
         using GpuTriangleRenderer gpu = new(device.Device);
         FieldRenderer renderer = new(field, width, height) { TriangleRenderer = gpu };
-        renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero, cameraIndex: cameraIndex, backgroundScrollOffsets: offsets, actorScrollOffset: actorOffset, nativeWrapFrame: nativeWrapFrame);
+        renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero, cameraIndex: cameraIndex, backgroundScrollOffsets: offsets, actorScrollOffset: actorOffset, nativeWrapFrame: nativeWrapFrame, backgroundLayerScales: layerScales, drawingJitterX: jitterX, backgroundBlend: blend);
         Color[] actual = GpuTestDevice.Read(gpu.Target);
         Assert.Equal(width * height, actual.Length);
         for (int index = 0; index < actual.Length; index++)

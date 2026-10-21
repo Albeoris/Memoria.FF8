@@ -68,7 +68,7 @@ internal sealed class FieldPresentation
         return new FieldPresentationSample(actors, background);
     }
 
-    private static FieldBackgroundSample ToBackground(BackgroundScrollFrame frame) => new(frame.LayerOffsets, frame.ActorOffset, frame.NativeWrap);
+    private static FieldBackgroundSample ToBackground(BackgroundScrollFrame frame) => new(frame.LayerOffsets, frame.ActorOffset, frame.NativeWrap, frame.LayerScales);
 
     private static bool HasPlacementChange(FieldPresentationFrame before, FieldPresentationFrame after)
     {
@@ -78,7 +78,7 @@ internal sealed class FieldPresentation
 
     private static bool SameSnapshot(FieldPresentationFrame first, FieldPresentationFrame second)
     {
-        if (!ReferenceEquals(first.Owner, second.Owner) || first.Frame != second.Frame || first.CameraIndex != second.CameraIndex || first.CameraRevision != second.CameraRevision || first.CameraActorId != second.CameraActorId || first.Actors.Count != second.Actors.Count || first.Scroll.ActorOffset != second.Scroll.ActorOffset || !SameDictionary(first.Scroll.LayerOffsets, second.Scroll.LayerOffsets) || !SameWrap(first.Scroll.NativeWrap, second.Scroll.NativeWrap))
+        if (!ReferenceEquals(first.Owner, second.Owner) || first.Frame != second.Frame || first.CameraIndex != second.CameraIndex || first.CameraRevision != second.CameraRevision || first.CameraActorId != second.CameraActorId || first.Actors.Count != second.Actors.Count || first.Scroll.ActorOffset != second.Scroll.ActorOffset || !SameDictionary(first.Scroll.LayerOffsets, second.Scroll.LayerOffsets) || !SameDictionary(first.Scroll.LayerScales, second.Scroll.LayerScales) || !SameWrap(first.Scroll.NativeWrap, second.Scroll.NativeWrap))
         {
             return false;
         }

@@ -98,7 +98,7 @@ public sealed partial class FieldRenderer
     public int OutputHeight { get; }
 
     /// <summary>The returned reusable framebuffer is valid until the next Render call.</summary>
-    public byte[] Render(IReadOnlyDictionary<int, int> backgroundStates, IEnumerable<ActorVisual> actors, TimeSpan elapsed, Vector3? backgroundShade = null, int cameraIndex = 0, IReadOnlyDictionary<int, Vector3>? backgroundModuleShades = null, bool backgroundVisible = true, IReadOnlySet<int>? hiddenBackgroundModules = null, IReadOnlyDictionary<int, Vector2>? backgroundScrollOffsets = null, Vector2 actorScrollOffset = default, FieldNativeBackgroundWrapFrame? nativeWrapFrame = null, sbyte drawingJitterX = 0, sbyte drawingJitterY = 0, IReadOnlyList<CardMarkerVisual>? cardMarkers = null, NativeDrawPointParticles? drawPointParticles = null, NativeDrawPointParticleTables? drawPointParticleTables = null, ushort? drawPointDisplayMask = null, NativeFadeDraw? fade = null, IReadOnlyDictionary<FieldBackgroundKey, bool>? backgroundVisibility = null, FieldBackgroundBlend? backgroundBlend = null)
+    public byte[] Render(IReadOnlyDictionary<int, int> backgroundStates, IEnumerable<ActorVisual> actors, TimeSpan elapsed, Vector3? backgroundShade = null, int cameraIndex = 0, IReadOnlyDictionary<int, Vector3>? backgroundModuleShades = null, bool backgroundVisible = true, IReadOnlySet<int>? hiddenBackgroundModules = null, IReadOnlyDictionary<int, Vector2>? backgroundScrollOffsets = null, Vector2 actorScrollOffset = default, FieldNativeBackgroundWrapFrame? nativeWrapFrame = null, sbyte drawingJitterX = 0, sbyte drawingJitterY = 0, IReadOnlyList<CardMarkerVisual>? cardMarkers = null, NativeDrawPointParticles? drawPointParticles = null, NativeDrawPointParticleTables? drawPointParticleTables = null, ushort? drawPointDisplayMask = null, NativeFadeDraw? fade = null, IReadOnlyDictionary<FieldBackgroundKey, bool>? backgroundVisibility = null, FieldBackgroundBlend? backgroundBlend = null, IReadOnlyDictionary<int, short>? backgroundLayerScales = null)
     {
         ActorVisual[] preparedActors = actors.ToArray();
         foreach (ActorVisual actor in preparedActors.Where(actor => actor.Visible && (uint)actor.ModelId < field.Models.Count && field.Models[actor.ModelId].Bones.Count > 0 && field.Models[actor.ModelId].Faces.Count > 0))
@@ -124,13 +124,20 @@ public sealed partial class FieldRenderer
             // 476450 adds shake only to DRAWENV.475480 relocation/culling retains the unshaken camera window.
             nextOffsets = field.Background.Select(tile => tile.Layer).Distinct().ToDictionary(layer => layer, layer => nextOffsets.GetValueOrDefault(layer) + jitter);
         }
+        PrepareViewportSamples(new FieldBackgroundSample(backgroundScrollOffsets ?? EmptyScrollOffsets, actorScrollOffset, nativeWrapFrame, backgroundLayerScales), backgroundBlend, cameraIndex);
         ApplyBackgroundBlend(backgroundBlend, ref nextOffsets, ref actorScrollOffset, ref nativeWrapFrame, jitter);
+        Dictionary<int, Vector2> correctedOffsets = new(nextOffsets);
+        foreach (int layer in field.Background.Select(tile => tile.Layer).Distinct())
+        {
+            correctedOffsets[layer] = correctedOffsets.GetValueOrDefault(layer) + new Vector2(viewportLayerCorrections.GetValueOrDefault(layer), 0);
+        }
+        nextOffsets = correctedOffsets;
         presentationBackgroundBlend = nextPresentationBlend;
         camera = field.GetCamera(cameraIndex);
         backgroundColor = backgroundShade ?? new Vector3(128);
         moduleColors = backgroundModuleShades;
         this.actorScrollOffset = actorScrollOffset + jitter;
-        bool layoutChanged = UpdateHorizontalViewport(cameraIndex, this.actorScrollOffset) || backgroundHardwareLayout != (TriangleRenderer is not null);
+        bool layoutChanged = UpdateHorizontalViewport(cameraIndex, actorScrollOffset) || backgroundHardwareLayout != (TriangleRenderer is not null);
         if (backgroundPublication is not null && backgroundPublication.Generation != backgroundTextureGeneration)
         {
             for (int index = 0; index < background.Length; index++)

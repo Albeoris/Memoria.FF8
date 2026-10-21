@@ -36,6 +36,7 @@ internal sealed partial class GameWorld
         {
             throw new NotSupportedException("Field rendering requires a supported current native camera contract.");
         }
+        scroll = scroll with { LayerScales = Field!.Background.Select(tile => tile.Layer).Distinct().ToDictionary(layer => layer, layer => layer <= Events.Scene.CameraIndex ? (short)256 : Events.Scene.BackgroundScrollLayers.GetValueOrDefault(layer)?.ScaleX ?? (short)256) };
         FieldActorSample[] actors = Events.Actors.Select(CaptureFieldActor).ToArray();
         return new FieldPresentationFrame(Events.Scene, Events.Frame, Events.Scene.CameraIndex, actors, scroll, Events.Scene.PresentationCameraRevision, cameraActorId);
     }
