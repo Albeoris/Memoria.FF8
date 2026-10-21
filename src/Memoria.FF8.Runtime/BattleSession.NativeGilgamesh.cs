@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState RunNativeGilgamesh330(NativeBattleGraphicsState graphics, bool initialize)
+    private NativeBattleGraphicsState RunNativeGilgamesh(NativeBattleGraphicsState graphics, bool initialize)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Native Gilgamesh requires its selected original effect.");
         NativeBattleGilgameshEffectResources resources = effect.Binding.GilgameshResources ?? throw new NotSupportedException("Native Gilgamesh requires its selected original resource profile.");
@@ -86,11 +86,11 @@ public sealed partial class BattleSession
                     }
                     else
                     {
-                        if (operation.First != 0xE84BE0)
+                        if (operation.First != NativeBattleGilgameshProfile.ForEffect(effect.Binding.Effect).InitialStreamAddress)
                         {
                             throw new NotSupportedException("Native Gilgamesh initial stream requires its selected original source.");
                         }
-                        source = 0xE84BE0;
+                        source = NativeBattleGilgameshProfile.ForEffect(effect.Binding.Effect).InitialStreamAddress;
                         number = resources.InitialStreamNumber;
                     }
                     return current with { Memory = current.Memory with { SummonStream = stream.Publish501860(source, number) } };
@@ -113,7 +113,7 @@ public sealed partial class BattleSession
                         0xCD0378 => resources.Director.SoundInitial,
                         0xCD037C => resources.Director.SoundMiddle,
                         0xCD0380 => resources.Director.SoundLate,
-                        0xCD0390 => resources.Director.SoundClosing,
+                        0xCD038C or 0xCD0390 => resources.Director.SoundClosing,
                         _ => throw new NotSupportedException("Native Gilgamesh sound requires its original selected DWORD source.")
                     };
                     PublishNativeModuleSound(new(descriptor, unchecked((uint)operation.Second), null) { RawPan = unchecked((uint)operation.Third) });
@@ -162,7 +162,7 @@ public sealed partial class BattleSession
     private static NativeBattleOriginalEffectState WriteNativeGilgameshCompletionByte(NativeBattleOriginalEffectState effect, uint address, byte value)
     {
         uint delta = unchecked(address - 0x21FFD68);
-        if (effect.Binding.Entry != 0x58DCF0 || delta >= 100 * 0x24 || delta % 0x24 != 0x0E)
+        if (effect.Binding.Entry is not (0x58DB10 or 0x58DCF0) || delta >= 100 * 0x24 || delta % 0x24 != 0x0E)
         {
             throw new NotSupportedException("Native Gilgamesh texture completion requires its actual child-task BYTE owner.");
         }
@@ -198,13 +198,13 @@ public sealed partial class BattleSession
         {
             return false;
         }
-        if (NativeEffectMemory?.DetachedReturnedTask is { Binding.Entry: 0x58DCF0 } detached)
+        if (NativeEffectMemory?.DetachedReturnedTask is { Binding.Entry: 0x58DB10 or 0x58DCF0 } detached)
         {
             NativeEffectMemory = NativeEffectMemory with { DetachedReturnedTask = WriteNativeGilgameshCompletionByte(detached, address, value) };
         }
         else
         {
-            NativeBattleOriginalEffectState current = graphics.OriginalEffect is { Binding.Entry: 0x58DCF0 } selected ? selected : throw new NotSupportedException("Native Gilgamesh completion lost its current raw task owner.");
+            NativeBattleOriginalEffectState current = graphics.OriginalEffect is { Binding.Entry: 0x58DB10 or 0x58DCF0 } selected ? selected : throw new NotSupportedException("Native Gilgamesh completion lost its current raw task owner.");
             updated = graphics with { OriginalEffect = WriteNativeGilgameshCompletionByte(current, address, value) };
         }
         return true;

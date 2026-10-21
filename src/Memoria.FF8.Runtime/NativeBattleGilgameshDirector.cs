@@ -20,7 +20,10 @@ public enum NativeBattleGilgameshDirectorService
 }
 
 public sealed record NativeBattleGilgameshDirectorOperation(NativeBattleGilgameshDirectorService Service, int First = 0, int Second = 0, int Third = 0, int Fourth = 0, bool UseWorkBuffer = false);
-public sealed record NativeBattleGilgameshDirectorInputs(uint GraphicsFlags, Action PublishWorldView, Func<int> Pending508500, Action<NativeBattleGilgameshDirectorOperation> Execute);
+public sealed record NativeBattleGilgameshDirectorInputs(uint GraphicsFlags, Action PublishWorldView, Func<int> Pending508500, Action<NativeBattleGilgameshDirectorOperation> Execute)
+{
+    public ushort Effect { get; init; } = 330;
+}
 public sealed record NativeBattleGilgameshDirectorStep(NativeBattleModulePoolTask Task, int Result);
 
 /// <summary>592300's exact Excalipoor timeline and asynchronous admission boundaries.</summary>
@@ -32,6 +35,7 @@ public static class NativeBattleGilgameshDirector
         {
             throw new InvalidDataException("Native Gilgamesh director requires its original raw24h task.");
         }
+        NativeBattleGilgameshProfile profile = NativeBattleGilgameshProfile.ForEffect(inputs.Effect);
         inputs.PublishWorldView();
         if ((inputs.GraphicsFlags & 0x201) != 0 && ((inputs.GraphicsFlags & 1) != 0 || inputs.Pending508500() < 0))
         {
@@ -46,7 +50,7 @@ public static class NativeBattleGilgameshDirector
         {
             case 0:
                 Emit(NativeBattleGilgameshDirectorService.Camera);
-                Emit(NativeBattleGilgameshDirectorService.BeginWave, 0xE84BE0);
+                Emit(NativeBattleGilgameshDirectorService.BeginWave, checked((int)profile.InitialStreamAddress));
                 Emit(NativeBattleGilgameshDirectorService.StartVibration, 1, 128);
                 Child(0x592BC0);
                 break;
@@ -139,7 +143,7 @@ public static class NativeBattleGilgameshDirector
                 Upload(0xE000);
                 break;
             case 238:
-                File(757, 0xE000);
+                File(profile.AttackFile, 0xE000);
                 break;
             case 253:
                 File(753, 0, true);
@@ -148,10 +152,10 @@ public static class NativeBattleGilgameshDirector
                 Initialize(0x5943A0);
                 break;
             case 273:
-                Sound(0xCD0390);
+                Sound(checked((int)profile.ClosingSoundAddress));
                 Volume();
                 Upload(0xE000);
-                Child(0x5920E0);
+                Child(checked((int)profile.AttackCallback));
                 break;
             case 279:
                 Emit(NativeBattleGilgameshDirectorService.QueueColor, 2, 2, 12, 255);

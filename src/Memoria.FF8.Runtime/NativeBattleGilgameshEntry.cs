@@ -11,9 +11,10 @@ public static class NativeBattleGilgameshEntry
 {
     public static NativeBattleGilgameshEntryStep Initialize58DCF0(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleActionPacketsState packets, ImmutableArray<NativeBattleGraphicsModel> models)
     {
+        NativeBattleGilgameshProfile profile = NativeBattleGilgameshProfile.ForEffect(effect.Binding.Effect);
         effect.Validate();
         packets.Validate();
-        if (effect.Binding is not { Effect: 330, Entry: 0x58DCF0, Initializer: 0x58D740 } || effect.Parameters is not { } parameters || models.IsDefault || models.Length != 7)
+        if (effect.Binding.Entry != profile.Entry || effect.Binding.Initializer != profile.Initializer || effect.Parameters is not { } parameters || models.IsDefault || models.Length != 7)
         {
             throw new InvalidDataException("Native Excalipoor entry requires its selected330 initializer, parameters and seven physical graphics rows.");
         }
@@ -37,7 +38,7 @@ public static class NativeBattleGilgameshEntry
             arena = arena.Write(0x2E000 + index * 0x18, new byte[4]);
             arena = arena.Write(0x2F800 + index * 0x20, new byte[4]);
         }
-        int timOffset = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x2200EC0)?.ArenaOffset ?? throw new NotSupportedException("Native Gilgamesh requires its executed initializer TIM publication.");
+        int timOffset = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == profile.TextureGlobal)?.ArenaOffset ?? throw new NotSupportedException("Native Gilgamesh requires its executed initializer TIM publication.");
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native Gilgamesh requires its current texture queue.");
         (textures, _) = textures.EnqueueArenaTim505E30(arena, timOffset);
         NativeBattleGuardianEffectPools pools = NativeBattleGuardianEffectPools.Gilgamesh();

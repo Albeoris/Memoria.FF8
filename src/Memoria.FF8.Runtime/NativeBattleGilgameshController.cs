@@ -22,11 +22,15 @@ public static partial class NativeBattleGilgameshController
         NativeBattleGilgameshProcess retained = frame.Memory.Gilgamesh ?? throw new NotSupportedException("Native Gilgamesh requires its retained process model owners; explicitly migrate a needed snapshot.");
         retained.Validate();
         NativeBattleGilgameshEntryStep initialized = NativeBattleGilgameshEntry.Initialize58DCF0(frame.Memory, frame.Effect, packets, models);
-        return frame with { Memory = initialized.Memory with { Gilgamesh = retained with { Entry = initialized.State, Variant = 3 } }, Effect = initialized.Effect };
+        return frame with { Memory = initialized.Memory with { Gilgamesh = retained with { Entry = initialized.State, Variant = NativeBattleGilgameshProfile.ForEffect(frame.Effect.Binding.Effect).Variant } }, Effect = initialized.Effect };
     }
 
     public static NativeBattleGilgameshFrame Advance596B70(NativeBattleGilgameshFrame frame, NativeBattleGilgameshEffectResources resources, NativeBattleGilgameshInputs inputs)
     {
+        if (resources.Files.Effect != frame.Effect.Binding.Effect || resources.Director.Effect != frame.Effect.Binding.Effect)
+        {
+            throw new InvalidDataException("Native Gilgamesh resources belong to another sword attack.");
+        }
         Execution execution = new(frame, resources, inputs);
         NativeBattleGuardianPoolStep step = NativeBattleGilgameshScheduler.Advance(Pools(frame.Effect), (pools, descriptor, slot) =>
         {
@@ -40,7 +44,7 @@ public static partial class NativeBattleGilgameshController
 
     private static NativeBattleGuardianEffectPools Pools(NativeBattleOriginalEffectState effect)
     {
-        if (effect.Binding.Entry != 0x58DCF0 || effect.Pools.IsDefault || effect.Pools.Length != 3)
+        if (effect.Binding.Entry != NativeBattleGilgameshProfile.ForEffect(effect.Binding.Effect).Entry || effect.Pools.IsDefault || effect.Pools.Length != 3)
         {
             throw new InvalidDataException("Native Gilgamesh requires its executed Excalipoor entry and three raw task banks.");
         }
@@ -107,14 +111,14 @@ public static partial class NativeBattleGilgameshController
             switch (task.Callback)
             {
                 case 0x592300:
-                    NativeBattleGilgameshDirectorStep director = NativeBattleGilgameshDirector.Advance592300(task, new(inputs.GraphicsFlags, () => SetShared(Shared with { WorldView = NativeBattleGfMatrices.Compose56C2F0(inputs.Projection.View ?? throw new NotSupportedException("Native Gilgamesh requires its current camera view."), World) }), inputs.Pending508500, Director));
+                    NativeBattleGilgameshDirectorStep director = NativeBattleGilgameshDirector.Advance592300(task, new(inputs.GraphicsFlags, () => SetShared(Shared with { WorldView = NativeBattleGfMatrices.Compose56C2F0(inputs.Projection.View ?? throw new NotSupportedException("Native Gilgamesh requires its current camera view."), World) }), inputs.Pending508500, Director) { Effect = Frame.Effect.Binding.Effect });
                     Write(address, director.Task);
                     return director.Result;
                 case 0x63E9C0:
                     NativeBattleGuardianCameraTask camera = Shared.CameraTask ?? throw new NotSupportedException("Native Gilgamesh requires its current camera task.");
                     NativeBattleGuardianCameraStep cameraStep = NativeBattleGuardianCameraProgram.Advance63E9C0(camera, World, inputs.ReadCameraPose(), (inputs.GraphicsFlags & 1) != 0);
                     SetShared(Shared with { CameraTask = cameraStep.Task });
-                    Write(address, task.WriteWord(12, cameraStep.Task.Frame).WriteDword(20, checked(0xCD0874u + (uint)cameraStep.Task.Offset)));
+                    Write(address, task.WriteWord(12, cameraStep.Task.Frame).WriteDword(20, checked(NativeBattleGilgameshProfile.ForEffect(Frame.Effect.Binding.Effect).CameraAddress + (uint)cameraStep.Task.Offset)));
                     Emit(new NativeBattleGilgameshCameraPublish(cameraStep));
                     return cameraStep.Result;
                 case 0x592BC0:
@@ -139,11 +143,12 @@ public static partial class NativeBattleGilgameshController
                     Write(address, ring.UpdatedTask);
                     Emit(new NativeBattleGilgameshPackets(ring.Batch));
                     return ring.Result;
+                case 0x591250:
                 case 0x5920E0:
                     int first = Header.FirstContactIndex ?? throw new NotSupportedException("Native Excalipoor requires its physical contact pointer.");
                     int count = Header.ReadByte(16);
                     ImmutableArray<byte> actors = Enumerable.Range(first, count).Select(index => inputs.Packets.ReadContact(index).Primary.ActorIndex).ToImmutableArray();
-                    NativeBattleGilgameshAttackStep attack = NativeBattleGilgameshExcalipoorAttack.Advance5920E0(task, Children, Frame.Random, inputs.GraphicsFlags, actors, inputs.ReadAnchor571400);
+                    NativeBattleGilgameshAttackStep attack = NativeBattleGilgameshExcalipoorAttack.Advance(NativeBattleGilgameshAttackProfile.ForEffect(Frame.Effect.Binding.Effect), task, Children, Frame.Random, inputs.GraphicsFlags, actors, inputs.ReadAnchor571400);
                     SetChildren(attack.Children);
                     Write(address, attack.Task);
                     Frame = Frame with { Random = attack.Random };
@@ -301,7 +306,7 @@ public static partial class NativeBattleGilgameshController
                     NativeBattleGuardianCameraProcess camera = Frame.Memory.GuardianCameraProcess ?? throw new NotSupportedException("Native Gilgamesh requires its retained camera banks.");
                     SetShared(Shared with { CameraTask = NativeBattleGuardianCameraProgram.Begin63E960(camera, resources.Director.CameraProgram.Data, 0) });
                     uint address = Append(0x63E9C0);
-                    Write(address, Read(address).WriteDword(20, 0xCD0874).WriteDword(24, 0x21FF3A0).WriteDword(28, 0x2200FC0));
+                    Write(address, Read(address).WriteDword(20, NativeBattleGilgameshProfile.ForEffect(Frame.Effect.Binding.Effect).CameraAddress).WriteDword(24, 0x21FF3A0).WriteDword(28, 0x2200FC0));
                     break;
                 case NativeBattleGilgameshDirectorService.AppendChild:
                 case NativeBattleGilgameshDirectorService.AppendParticle:

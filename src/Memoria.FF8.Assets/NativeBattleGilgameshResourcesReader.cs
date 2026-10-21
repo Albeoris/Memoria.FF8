@@ -8,21 +8,22 @@ namespace Memoria.FF8.Assets;
 
 public static class NativeBattleGilgameshResourcesReader
 {
-    public static NativeBattleGilgameshDirectorResources ReadDirector(byte[] executable)
+    public static NativeBattleGilgameshDirectorResources ReadDirector(byte[] executable, ushort effect = 330)
     {
         NativeExecutableMemory memory = new(executable);
-        NativeBattleGilgameshDirectorResources result = new(new("FF8_EN:CD0874", memory.Read(0xCD0874, 0xEA).ToImmutableArray()), new(memory.SourceHash, [0, 0x100], memory.Read(0xCD0230, 0x14A).ToImmutableArray()), U32(0xCD0378), U32(0xCD037C), U32(0xCD0380), U32(0xCD0390));
+        NativeBattleGilgameshProfile profile = NativeBattleGilgameshProfile.ForEffect(effect);
+        NativeBattleGilgameshDirectorResources result = new(new($"FF8_EN:{profile.CameraAddress:X}", memory.Read(profile.CameraAddress, 0xEA).ToImmutableArray()), new(memory.SourceHash, [0, 0x100], memory.Read(profile.VibrationAddress, profile.VibrationLength).ToImmutableArray()), U32(0xCD0378), U32(0xCD037C), U32(0xCD0380), U32(profile.ClosingSoundAddress)) { Effect = effect };
         result.Validate();
         return result;
 
         uint U32(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(address, 4));
     }
 
-    public static ImmutableArray<NativeBattleArchiveFile> ReadFileNames(byte[] executable)
+    public static ImmutableArray<NativeBattleArchiveFile> ReadFileNames(byte[] executable, ushort effect = 330)
     {
         NativeExecutableMemory memory = new(executable);
         ImmutableArray<NativeBattleArchiveFile>.Builder files = ImmutableArray.CreateBuilder<NativeBattleArchiveFile>(NativeBattleGilgameshResources.FileIds.Length);
-        foreach (ushort id in NativeBattleGilgameshResources.FileIds)
+        foreach (ushort id in NativeBattleGilgameshResources.FileIdsForEffect(effect))
         {
             uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(checked(0xB84CCCu + id * 4u), 4));
             byte[] bytes = memory.Read(pointer, 128);
@@ -36,10 +37,10 @@ public static class NativeBattleGilgameshResourcesReader
         return files.MoveToImmutable();
     }
 
-    public static NativeBattleGilgameshResources Read(byte[] executable, ImmutableArray<NativeBattleArchiveFile> files)
+    public static NativeBattleGilgameshResources Read(byte[] executable, ImmutableArray<NativeBattleArchiveFile> files, ushort effect = 330)
     {
-        ImmutableArray<NativeBattleArchiveFile> names = ReadFileNames(executable);
-        NativeBattleGilgameshResources result = new(files);
+        ImmutableArray<NativeBattleArchiveFile> names = ReadFileNames(executable, effect);
+        NativeBattleGilgameshResources result = new(files) { Effect = effect };
         result.Validate();
         for (int index = 0; index < names.Length; index++)
         {
@@ -54,20 +55,29 @@ public static class NativeBattleGilgameshResourcesReader
 
 public sealed partial class GameAssets
 {
-    private NativeBattleGilgameshResources? nativeGilgameshResources;
-    private NativeBattleGilgameshDirectorResources? nativeGilgameshDirectorResources;
+    private readonly Dictionary<ushort, NativeBattleGilgameshResources> nativeGilgameshResourcesByEffect = [];
+    private readonly Dictionary<ushort, NativeBattleGilgameshDirectorResources> nativeGilgameshDirectorResourcesByEffect = [];
 
-    public NativeBattleGilgameshDirectorResources ReadNativeGilgameshDirectorResources() => nativeGilgameshDirectorResources ??= NativeBattleGilgameshResourcesReader.ReadDirector(GameDataResources.ReadNativeExecutable(this.resources));
-
-    public NativeBattleGilgameshResources ReadNativeGilgameshResources()
+    public NativeBattleGilgameshDirectorResources ReadNativeGilgameshDirectorResources(ushort effect = 330)
     {
-        if (nativeGilgameshResources is null)
+        if (!nativeGilgameshDirectorResourcesByEffect.TryGetValue(effect, out NativeBattleGilgameshDirectorResources? selected))
         {
-            byte[] executable = GameDataResources.ReadNativeExecutable(this.resources);
-            using IFlArchive battle = OpenArchive("battle");
-            ImmutableArray<NativeBattleArchiveFile> files = NativeBattleGilgameshResourcesReader.ReadFileNames(executable).Select(file => file with { Bytes = Read(battle, file.Name).ToImmutableArray() }).ToImmutableArray();
-            nativeGilgameshResources = NativeBattleGilgameshResourcesReader.Read(executable, files);
+            selected = NativeBattleGilgameshResourcesReader.ReadDirector(GameDataResources.ReadNativeExecutable(resources), effect);
+            nativeGilgameshDirectorResourcesByEffect.Add(effect, selected);
         }
-        return nativeGilgameshResources;
+        return selected;
+    }
+
+    public NativeBattleGilgameshResources ReadNativeGilgameshResources(ushort effect = 330)
+    {
+        if (!nativeGilgameshResourcesByEffect.TryGetValue(effect, out NativeBattleGilgameshResources? selected))
+        {
+            byte[] executable = GameDataResources.ReadNativeExecutable(resources);
+            using IFlArchive battle = OpenArchive("battle");
+            ImmutableArray<NativeBattleArchiveFile> files = NativeBattleGilgameshResourcesReader.ReadFileNames(executable, effect).Select(file => file with { Bytes = Read(battle, file.Name).ToImmutableArray() }).ToImmutableArray();
+            selected = NativeBattleGilgameshResourcesReader.Read(executable, files, effect);
+            nativeGilgameshResourcesByEffect.Add(effect, selected);
+        }
+        return selected;
     }
 }

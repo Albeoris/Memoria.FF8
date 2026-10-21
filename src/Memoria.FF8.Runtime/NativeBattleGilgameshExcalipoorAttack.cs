@@ -4,14 +4,20 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleGilgameshAttackStep(NativeBattleModulePoolTask Task, NativeBattleEffectTaskPool Children, NativeCrtRandomState Random, bool Contact, int Result);
 
-/// <summary>5920E0's finite Excalipoor attack producer over the original raw child bank.</summary>
+/// <summary>591250/5920E0's finite attack producer over the original raw child bank.</summary>
 public static class NativeBattleGilgameshExcalipoorAttack
 {
     public static NativeBattleGilgameshAttackStep Advance5920E0(NativeBattleModulePoolTask task, NativeBattleEffectTaskPool children, NativeCrtRandomState random, uint graphicsFlags, ImmutableArray<byte> contactActors, Func<byte, NativeBattleModuleAnchor> readAnchor571400)
     {
-        if (task.Callback != 0x5920E0 || task.Payload.IsDefault || task.Payload.Length != 24 || children.DescriptorAddress != 0x21FFD58 || children.BankAddress != 0x21FFD68 || children.Stride != 36 || children.Slots.Length != 100 || contactActors.IsDefault || contactActors.Length > byte.MaxValue)
+        return Advance(NativeBattleGilgameshAttackProfile.ForEffect(330), task, children, random, graphicsFlags, contactActors, readAnchor571400);
+    }
+
+    public static NativeBattleGilgameshAttackStep Advance(NativeBattleGilgameshAttackProfile profile, NativeBattleModulePoolTask task, NativeBattleEffectTaskPool children, NativeCrtRandomState random, uint graphicsFlags, ImmutableArray<byte> contactActors, Func<byte, NativeBattleModuleAnchor> readAnchor571400)
+    {
+        profile.Validate();
+        if (task.Callback != profile.Callback || task.Payload.IsDefault || task.Payload.Length != 24 || children.DescriptorAddress != 0x21FFD58 || children.BankAddress != 0x21FFD68 || children.Stride != 36 || children.Slots.Length != 100 || contactActors.IsDefault || contactActors.Length > byte.MaxValue)
         {
-            throw new InvalidDataException("Native Excalipoor requires its actual raw task, child bank and physical header contacts.");
+            throw new InvalidDataException("Native Gilgamesh attack requires its actual raw task, child bank and physical header contacts.");
         }
         children.Validate();
         if ((graphicsFlags & 0x201) != 0)
@@ -22,7 +28,7 @@ public static class NativeBattleGilgameshExcalipoorAttack
         if (counter == 0)
         {
             int slot = Append(0x591470);
-            Publish(slot, children.Slots[slot].WriteWord(12, 0).WriteWord(14, 1).WriteWord(16, 0xFF56).WriteWord(18, 0xFF9C).WriteWord(24, 0x968).WriteWord(30, 0x555).WriteWord(28, 0x555).WriteWord(32, 0x1000));
+            Publish(slot, children.Slots[slot].WriteWord(12, 0).WriteWord(14, profile.MaterialVariant).WriteWord(16, 0xFF56).WriteWord(18, 0xFF9C).WriteWord(24, 0x968).WriteWord(30, 0x555).WriteWord(28, 0x555).WriteWord(32, 0x1000));
         }
         if (counter == 18)
         {
@@ -31,11 +37,11 @@ public static class NativeBattleGilgameshExcalipoorAttack
                 int first = Append(0x5915C0);
                 NativeBattleModuleAnchor anchor = readAnchor571400(contactActors[index]);
                 ushort mask = unchecked((ushort)(1u << index));
-                NativeBattleModulePoolTask positioned = Position(children.Slots[first].WriteWord(12, 0).WriteWord(14, 1), anchor).WriteWord(22, mask);
+                NativeBattleModulePoolTask positioned = Position(children.Slots[first].WriteWord(12, 0).WriteWord(14, profile.MaterialVariant), anchor).WriteWord(22, mask);
                 Publish(first, positioned);
 
                 int second = Append(0x591850);
-                Publish(second, CopyPosition(children.Slots[second], positioned).WriteWord(12, 0).WriteWord(14, 1).WriteWord(22, unchecked((ushort)(0x100u << index))));
+                Publish(second, CopyPosition(children.Slots[second], positioned).WriteWord(12, 0).WriteWord(14, profile.MaterialVariant).WriteWord(22, unchecked((ushort)(0x100u << index))));
 
                 int third = Append(0x591B80);
                 Publish(third, CopyPosition(children.Slots[third], positioned).WriteWord(12, 0).WriteWord(22, mask));

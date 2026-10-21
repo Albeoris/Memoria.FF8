@@ -699,13 +699,14 @@ public sealed partial class GameAssets
                 binding = binding with { Water222Resources = ReadNativeWater222Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
-            if (binding.Effect == 330)
+            if (binding.Effect is 329 or 330)
             {
-                if (binding.Entry != 0x58DCF0 || binding.Initializer != 0x58D740)
+                NativeBattleGilgameshProfile profile = NativeBattleGilgameshProfile.ForEffect(binding.Effect);
+                if (binding.Entry != profile.Entry || binding.Initializer != profile.Initializer)
                 {
                     throw new InvalidDataException("Native Excalipoor330 differs from its original module identity.");
                 }
-                binding = binding with { GilgameshResources = ReadNativeGilgameshEffectResources() };
+                binding = binding with { GilgameshResources = ReadNativeGilgameshEffectResources(binding.Effect) };
                 catalog = catalog.SetItem(index, binding);
             }
             if (binding.Effect == 199)
