@@ -33,8 +33,10 @@ internal sealed partial class RecreateGame
             }
         }
 
-        string hint = $"Confirm: {keyboard.BindingHint(ControlAction.Confirm)}    Menu: {keyboard.BindingHint(ControlAction.Menu)}    Load: {keyboard.BindingHint(ControlAction.LoadMenu)}";
-        text.DrawCentered(batch, hint, Math.Min(bounds.Height * 0.02f, bounds.Width * 0.024f), new Vector2(bounds.Center.X, bounds.Y + bounds.Height * 0.89f), new Color(155, 155, 155), "Times New Roman");
+        string hint = $"Confirm: {keyboard.BindingPrompt(ControlAction.Confirm)}    Menu: {keyboard.BindingPrompt(ControlAction.Menu)}    Load: {keyboard.BindingPrompt(ControlAction.LoadMenu)}";
+        float hintSize = Math.Min(bounds.Height * 0.02f, bounds.Width * 0.024f);
+        UiSize hintMeasure = ButtonPromptText.Measure(hint, hintSize, bounds.Width, "Times New Roman");
+        uiCanvas?.Text(hint, hintSize, new UiRect(bounds.Center.X - hintMeasure.Width / 2, bounds.Y + bounds.Height * 0.89f, hintMeasure.Width + 2, hintMeasure.Height), new UiColor(155, 155, 155), "Times New Roman");
     }
 
     private void DrawPlayerSavesUi(Rectangle bounds)
@@ -44,9 +46,9 @@ internal sealed partial class RecreateGame
         string key = string.Join("|", saveMenu.Mode, saveMenu.Bank, saveMenu.Page, saveMenu.SelectedSlot, saveMenu.ConfirmOverwrite, saveMenu.TransferSource, saveMenu.Message, string.Join(";", displayedEntries.Select(entry => $"{entry}:{string.Join(",", entry.PartyPortraits)}")), keyboard.Profile.GetHashCode(), keyboard.ControllerPresentation, keyboard.LastInputDevice);
         if (savesWindowUi is null || savesWindowKey != key)
         {
-            string transferHint = $"{keyboard.BindingHint(ControlAction.Card)}: Transfer";
-            string navigationHint = "Left / Right: Bank    Page Up / Down: Page";
-            savesWindowUi = PlayerSaveView.Build(saveMenu, transferHint, navigationHint);
+            string transferHint = $"{keyboard.BindingPrompt(ControlAction.Card)}: Transfer";
+            string navigationHint = $"{keyboard.BindingPrompt(ControlAction.MoveLeft)} / {keyboard.BindingPrompt(ControlAction.MoveRight)}: Bank    {keyboard.BindingPrompt(ControlAction.UiPageUp)} / {keyboard.BindingPrompt(ControlAction.UiPageDown)}: Page";
+            savesWindowUi = PlayerSaveView.Build(saveMenu, transferHint, navigationHint, keyboard.BindingPrompt(ControlAction.Confirm), keyboard.BindingPrompt(ControlAction.Cancel));
             savesWindowKey = key;
         }
         DrawWindowView(savesWindowUi, bounds);
@@ -59,11 +61,11 @@ internal sealed partial class RecreateGame
         if (menu is { Kind: NativeFieldMenuKind.PartySelection, TemporaryCombatParty.Length: 3, TemporaryReserveParty.Length: 8 })
         {
             IReadOnlySet<int> visible = menu.TemporaryCombatParty.Concat(menu.TemporaryReserveParty).Where(row => row != 255).Select(row => (int)row).ToHashSet();
-            string key = string.Join("|", menu.Phase, menu.SelectedPartySlot, menu.LockedMask, partyMenuCandidate, string.Join(",", menu.TemporaryCombatParty), string.Join(",", menu.TemporaryReserveParty), string.Join(";", visible.Select(row => session.State.CharacterVitals?.Records.ElementAtOrDefault(row)).Where(character => character is not null).Select(character => $"{character!.CharacterId}:{character.Experience}:{character.HitPoints}:{GameUi.LiveMenuData.CharacterName(session.State, character.CharacterId, events.Scene.Names, liveMenuCatalog)}")));
+            string key = string.Join("|", menu.Phase, menu.SelectedPartySlot, menu.LockedMask, partyMenuCandidate, string.Join(",", menu.TemporaryCombatParty), string.Join(",", menu.TemporaryReserveParty), keyboard.Profile.GetHashCode(), keyboard.ControllerPresentation, keyboard.LastInputDevice, string.Join(";", visible.Select(row => session.State.CharacterVitals?.Records.ElementAtOrDefault(row)).Where(character => character is not null).Select(character => $"{character!.CharacterId}:{character.Experience}:{character.HitPoints}:{GameUi.LiveMenuData.CharacterName(session.State, character.CharacterId, events.Scene.Names, liveMenuCatalog)}")));
             if (nativePartyWindowUi is null || nativePartyWindowKey != key)
             {
                 GameUi.MenuData data = GameUi.LiveMenuData.Build(session.State, events.Scene.Names, liveMenuCatalog, visible);
-                nativePartyWindowUi = GameUi.PartySelectionView.Build(menu, data, partyMenuCandidate);
+                nativePartyWindowUi = GameUi.PartySelectionView.Build(menu, data, partyMenuCandidate, keyboard.BindingPrompt(ControlAction.Cancel));
                 nativePartyWindowKey = key;
             }
             DrawWindowView(nativePartyWindowUi, bounds);

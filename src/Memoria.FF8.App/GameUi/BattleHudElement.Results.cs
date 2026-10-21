@@ -38,7 +38,7 @@ internal sealed partial class BattleHudElement
         };
         ResultLabel(canvas, theme, title, 26, 17, 332);
         theme.Panel(canvas, ResultRect(16, 184, 352, 26));
-        ResultLabel(canvas, theme, controller.NativeButtonBindingHint(0x40) + "  " + controller.ResultText(22, "Confirm"), 26, 192, 332, true);
+        ResultLabel(canvas, theme, ButtonPromptText.Mark(controller.NativeButtonBindingHint(0x40)) + "  " + controller.ResultText(22, "Confirm"), 26, 192, 332, true);
         if (controller.ResultPage == BattleResultPage.Experience)
         {
             DrawResultExperience(canvas, theme);

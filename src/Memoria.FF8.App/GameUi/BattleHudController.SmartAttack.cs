@@ -6,7 +6,7 @@ public sealed partial class BattleHudController
 {
     private BattleSmartAttackPreview? displayedSmartPreview;
 
-    public string PhysicalOverrideBindingHint { get; set; } = "Camera left";
+    public string PhysicalOverrideBindingHint { get; set; } = new KeyboardInput().BindingPrompt(ControlAction.CameraLeft);
     public bool ForcePhysical => !HasGuardianFormCommands && SelectingTarget && SelectedCommand == BattleAbility.Attack && (nativeCommandHeldButtons & 0x03) == 0x01;
     public BattleSmartAttackPreview? TargetActionPreview
     {

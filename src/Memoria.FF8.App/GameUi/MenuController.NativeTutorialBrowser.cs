@@ -181,7 +181,7 @@ public sealed partial class MenuController
 
     internal string FormatNativeTutorialText(string text, IReadOnlyDictionary<int, string>? names = null)
     {
-        return DialogueTextFormatter.Format(text, names, buttonBindingHint: buttons => CurrentBindingText(KeyboardInput.NativeButtonAction(buttons)));
+        return DialogueTextFormatter.FormatWithPrompts(text, names, buttonBindingHint: buttons => CurrentBindingText(KeyboardInput.NativeButtonAction(buttons)));
     }
 
     private static string NativePageScreen(int category) => $"tutorial-native-pages-{category}";

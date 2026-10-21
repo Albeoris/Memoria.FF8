@@ -126,6 +126,10 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IBattleMessageCanvas, IDi
 
     public UiSize MeasureText(string text, float fontSize, float maximumWidth)
     {
+        if (ButtonPromptText.Contains(text))
+        {
+            return ButtonPromptText.Measure(text, fontSize, maximumWidth, null);
+        }
         Microsoft.Xna.Framework.Vector2 measured = SystemTextLayout.MeasureWrapped(text, fontSize, maximumWidth);
         return new UiSize(measured.X, measured.Y);
     }
@@ -194,16 +198,31 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IBattleMessageCanvas, IDi
 
     public void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment)
     {
+        Text(text, fontSize, bounds, color, null, verticalAlignment);
+    }
+
+    public void Text(string text, float fontSize, UiRect bounds, UiColor color, string? fontFamily)
+    {
+        Text(text, fontSize, bounds, color, fontFamily, UiAlignment.Start);
+    }
+
+    private void Text(string text, float fontSize, UiRect bounds, UiColor color, string? fontFamily, UiAlignment verticalAlignment)
+    {
         if (bounds.IsEmpty || fontSize <= 0 || string.IsNullOrEmpty(text))
         {
             return;
         }
-        UiTextViewport layout = textOverflow.Layout(text, fontSize, bounds, null, width =>
+        if (ButtonPromptText.Contains(text))
         {
-            using Bitmap measured = SystemTextLayout.Rasterize(text, fontSize, width);
+            ButtonPromptText.Draw(this, text, fontSize, bounds, color, fontFamily, verticalAlignment, textOverflow);
+            return;
+        }
+        UiTextViewport layout = textOverflow.Layout(text, fontSize, bounds, fontFamily, width =>
+        {
+            using Bitmap measured = SystemTextLayout.Rasterize(text, fontSize, width, fontFamily);
             return new UiSize(measured.Width / (float)SystemTextLayout.RasterScale, measured.Height / (float)SystemTextLayout.RasterScale);
         });
-        using Bitmap glyphs = SystemTextLayout.Rasterize(text, fontSize, layout.WrapWidth);
+        using Bitmap glyphs = SystemTextLayout.Rasterize(text, fontSize, layout.WrapWidth, fontFamily);
         float y = bounds.Y - layout.OffsetY;
         if (verticalAlignment is UiAlignment.Center or UiAlignment.End)
         {

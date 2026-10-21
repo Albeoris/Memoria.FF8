@@ -52,7 +52,7 @@ public sealed partial class BattleHudController
     public bool SelectingTarget { get; private set; }
     public string Message { get; private set; } = "Choose a command when a character is ready.";
     public float TextScale { get; set; } = 1;
-    public string GunbladeBindingHint { get; set; } = "G / RB";
+    public string GunbladeBindingHint { get; set; } = new KeyboardInput().BindingPrompt(ControlAction.RotateRight);
     internal string GuardianForceDisplayName(int id) => guardianForceName(id);
     public IReadOnlyList<BattleCombatant> Party => session.Combatants.Where(actor => actor.IsPlayer).ToArray();
     public IReadOnlyList<BattleAbility> Commands => GetPlayerCommandChoices();

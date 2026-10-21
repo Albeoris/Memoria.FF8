@@ -158,6 +158,10 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
 
     public UiSize MeasureText(string value, float size, float maximumWidth)
     {
+        if (ButtonPromptText.Contains(value))
+        {
+            return ButtonPromptText.Measure(value, size, maximumWidth, text.FontFamily);
+        }
         Vector2 measured = SystemTextLayout.MeasureWrapped(value, size, maximumWidth, text.FontFamily);
         return new UiSize(measured.X, measured.Y);
     }
@@ -187,6 +191,11 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
     {
         if (bounds.Width <= 0 || bounds.Height <= 0 || size <= 0 || string.IsNullOrEmpty(value))
         {
+            return;
+        }
+        if (ButtonPromptText.Contains(value))
+        {
+            ButtonPromptText.Draw(this, value, size, bounds, color, fontFamily ?? text.FontFamily, verticalAlignment, textOverflow);
             return;
         }
         UiTextViewport layout = textOverflow.Layout(value, size, bounds, fontFamily ?? text.FontFamily, width =>

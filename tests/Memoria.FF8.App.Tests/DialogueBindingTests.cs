@@ -35,7 +35,7 @@ public sealed class DialogueBindingTests
         input.Read(default, neutral, true);
         input.Read(default, confirm, true);
         Assert.Equal("\u25CB4\n\u25A13 \u25B31\n\u00D72", Format(input));
-        input.Profile = input.Profile.WithBinding(ControlAction.Confirm, ControlDevice.Controller, new([], [Buttons.RightStick]));
+        input.Profile = input.Profile.WithBinding(ControlAction.Confirm, ControlDevice.Controller, new([], [Buttons.RightStick]), replaceConflicts: true);
         Assert.EndsWith("R32", Format(input));
         input.Profile = input.Profile.WithControllerSettings(0.2f, 0.2f, 0.5f, ControllerPresentation.Xbox);
         Assert.Equal("[B]4\n[X]3 [Y]1\nRS2", Format(input));
@@ -50,8 +50,9 @@ public sealed class DialogueBindingTests
         ControlsProfile profile = ControlsProfile.CreateDefault().WithBinding(ControlAction.Cancel, ControlDevice.Keyboard, new([Keys.K], []));
         MenuController menu = new();
         menu.ConnectControls(() => profile, value => profile = value);
-        Assert.Equal("K4\nS3 V1\nX2", menu.FormatNativeTutorialText(Template));
-        Assert.Equal("K/V/X/S/A", menu.FormatNativeTutorialText("{Key Menu}/{Key Cancel}/{Key Confirm}/{Key Cards}/{Key EndKey}"));
+        Assert.True(ButtonPromptText.Contains(menu.FormatNativeTutorialText(Template)));
+        Assert.Equal("K4\nS3 V1\nX2", ButtonPromptText.PlainText(menu.FormatNativeTutorialText(Template)));
+        Assert.Equal("K/V/X/S/A", ButtonPromptText.PlainText(menu.FormatNativeTutorialText("{Key Menu}/{Key Cancel}/{Key Confirm}/{Key Cards}/{Key EndKey}")));
     }
 
     [Theory]

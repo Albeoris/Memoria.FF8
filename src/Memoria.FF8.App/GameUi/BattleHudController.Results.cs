@@ -175,7 +175,7 @@ public sealed partial class BattleHudController
         encoded = Regex.Replace(encoded, @"\{(?:Var|Dialog)\s*(35|37|38)\}", _ => subject ?? "");
         encoded = encoded.Replace("{Dialog CardLevel}", number.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal).Replace("{Dialog 32}", number.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
         NativeMessageVariables variables = NativeMessageVariables.FromColdProcess().WithWrite(0, number);
-        return DialogueTextFormatter.Format(encoded, battleNames, variables, NativeButtonBindingHint);
+        return DialogueTextFormatter.FormatWithPrompts(encoded, battleNames, variables, NativeButtonBindingHint);
     }
 
     internal string ResultItemName(int index)

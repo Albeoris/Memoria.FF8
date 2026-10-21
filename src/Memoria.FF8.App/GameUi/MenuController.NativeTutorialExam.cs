@@ -283,7 +283,7 @@ public sealed partial class MenuController
 
     private NativeTutorialDocumentElement NativeTutorialDocument(string text, float fontSize)
     {
-        string expanded = DialogueTextFormatter.ExpandButtonBindings(text, buttons => CurrentBindingText(KeyboardInput.NativeButtonAction(buttons)));
+        string expanded = DialogueTextFormatter.ExpandButtonBindings(text, buttons => ButtonPromptText.Mark(CurrentBindingText(KeyboardInput.NativeButtonAction(buttons))));
         return new NativeTutorialDocumentElement(expanded, fontSize * TextScale, (_readPreferences?.Invoke() ?? new UiPreferences()).UiFontFamily);
     }
 }

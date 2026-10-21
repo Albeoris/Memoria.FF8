@@ -77,7 +77,11 @@ internal sealed class KeyboardInput
         return NativeButtons.Single(binding => binding.Mask == button).Action;
     }
     public ControlDevice LastInputDevice { get; private set; }
-    public string BindingHint(ControlAction action)
+    internal string BindingPrompt(ControlAction action) => BindingHint(action, true);
+
+    public string BindingHint(ControlAction action) => BindingHint(action, false);
+
+    private string BindingHint(ControlAction action, bool prompt)
     {
         IReadOnlyList<InputChord> bindings = Profile.GetBindings(action, LastInputDevice);
         if (bindings.Count == 0)
@@ -92,7 +96,7 @@ internal sealed class KeyboardInput
         {
             bindings = ControlsProfile.GetPermanentBindings(action, LastInputDevice == ControlDevice.Keyboard ? ControlDevice.Controller : ControlDevice.Keyboard);
         }
-        return bindings.Count == 0 ? "Unbound" : string.Join(" / ", bindings.Select(chord => chord.FormatDisplayName(ControllerPresentation)));
+        return bindings.Count == 0 ? "Unbound" : string.Join(" / ", bindings.Select(chord => prompt ? chord.FormatPrompt(ControllerPresentation) : chord.FormatDisplayName(ControllerPresentation)));
     }
 
     internal InputFrame Read(KeyboardState current, bool active) => Read(current, default, active);

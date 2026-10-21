@@ -7,10 +7,10 @@ namespace Memoria.FF8.GameUi;
 /// <summary>Three combat cells and the retained four-by-two reserve pane.</summary>
 public static class PartySelectionView
 {
-    public static UiView Build(NativePartyMenuState menu, MenuData data, int candidate)
+    public static UiView Build(NativePartyMenuState menu, MenuData data, int candidate, string? cancelHint = null)
     {
         // TODO(TD-011): Retain native window transitions and cursor animation timing.
-        return new UiView(new PartyPane(menu, data, candidate)) { DesignWidth = 960, DesignHeight = 672 };
+        return new UiView(new PartyPane(menu, data, candidate, cancelHint ?? new KeyboardInput().BindingPrompt(ControlAction.Cancel))) { DesignWidth = 960, DesignHeight = 672 };
     }
 
     public static int Navigate(NativePartyMenuState menu, int candidate, int horizontal, int vertical)
@@ -57,7 +57,7 @@ public static class PartySelectionView
         return (0, 3);
     }
 
-    private sealed class PartyPane(NativePartyMenuState menu, MenuData data, int candidate) : UiElement
+    private sealed class PartyPane(NativePartyMenuState menu, MenuData data, int candidate, string cancelHint) : UiElement
     {
         protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
         {
@@ -120,7 +120,7 @@ public static class PartySelectionView
             int selectedRow = focused is { Kind: PlayerActionKind.SelectPartyMember } reserve ? reserve.Value : focused is { Kind: PlayerActionKind.SelectPartySlot } combat ? menu.TemporaryCombatParty![combat.Value] : 255;
             Status(canvas, theme, Character(selectedRow), new UiRect(558, 450, 360, 126));
             theme.Panel(canvas, new UiRect(18, 600, 924, 54));
-            canvas.Text(pending ? "Cancel: clear selection" : "Choose three members, then confirm.", 19, new UiRect(250, 612, 670, 32), theme.Muted);
+            canvas.Text(pending ? $"{cancelHint}: clear selection" : "Choose three members, then confirm.", 19, new UiRect(250, 612, 670, 32), theme.Muted);
             bool canConfirm = !pending && inputs.Any(input => input.Kind == PlayerActionKind.Confirm);
             canvas.Text("Confirm", 24, new UiRect(62, 610, 142, 36), canConfirm ? theme.Foreground : theme.Muted);
             if (focused is { Kind: PlayerActionKind.Confirm })

@@ -216,9 +216,9 @@ internal sealed partial class RecreateGame
             battleSeconds = 0;
         }
         battleHud!.TextScale = uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f;
-        battleHud.GunbladeBindingHint = keyboard.BindingHint(ControlAction.RotateRight);
-        battleHud.GuardianFormSkipBindingHint = keyboard.BindingHint(ControlAction.GuardianFormSkip);
-        battleHud.PhysicalOverrideBindingHint = keyboard.BindingHint(ControlAction.CameraLeft);
+        battleHud.GunbladeBindingHint = keyboard.BindingPrompt(ControlAction.RotateRight);
+        battleHud.GuardianFormSkipBindingHint = keyboard.BindingPrompt(ControlAction.GuardianFormSkip);
+        battleHud.PhysicalOverrideBindingHint = keyboard.BindingPrompt(ControlAction.CameraLeft);
     }
 
     private void CompleteBattleResult()

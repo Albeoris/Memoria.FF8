@@ -15,6 +15,12 @@ internal static partial class DialogueTextFormatter
         return Parse(encoded, names, messageVariables, buttonBindingHint).Text;
     }
 
+    internal static string FormatWithPrompts(string encoded, IReadOnlyDictionary<int, string>? names = null, NativeMessageVariables? messageVariables = null, Func<ushort, string>? buttonBindingHint = null)
+    {
+        DialogueDocument document = Parse(encoded, names, messageVariables, buttonBindingHint);
+        return string.Join('\n', document.Pages.SelectMany(page => page.Lines).Select(line => string.Concat(line.Runs.Select(run => run.IsButton ? ButtonPromptText.Mark(run.Text) : run.Text))));
+    }
+
     public static DialogueDocument Parse(string encoded, IReadOnlyDictionary<int, string>? names = null, NativeMessageVariables? messageVariables = null, Func<ushort, string>? buttonBindingHint = null)
     {
         string expanded = NativeMessageVariables.Expand(encoded, messageVariables);
@@ -34,7 +40,17 @@ internal static partial class DialogueTextFormatter
             string[] pieces = normalized.Split('\n');
             for (int index = 0; index < pieces.Length; index++)
             {
-                AddRun(runs, pieces[index], color, blink);
+                foreach (DialogueRun run in ButtonPromptText.Runs(pieces[index]))
+                {
+                    if (run.IsButton)
+                    {
+                        runs.Add(run with { Color = color, Blink = blink });
+                    }
+                    else
+                    {
+                        AddRun(runs, run.Text, color, blink);
+                    }
+                }
                 if (index < pieces.Length - 1)
                 {
                     FinishLine();

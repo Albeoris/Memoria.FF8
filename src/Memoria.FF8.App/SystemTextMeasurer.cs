@@ -35,7 +35,9 @@ internal sealed class SystemTextMeasurer : IDisposable
     {
         if (!advances.TryGetValue(value, out float width))
         {
-            width = (float)Format(value).WidthIncludingTrailingWhitespace / SystemTextLayout.RasterScale;
+            width = ButtonPromptText.Contains(value)
+                ? ButtonPromptText.Runs(value).Sum(run => run.IsButton ? ButtonPrompt.Advance(Measure(run.Text), LineHeight) : Measure(run.Text))
+                : (float)Format(value).WidthIncludingTrailingWhitespace / SystemTextLayout.RasterScale;
             advances.Add(value, width);
         }
         return width;

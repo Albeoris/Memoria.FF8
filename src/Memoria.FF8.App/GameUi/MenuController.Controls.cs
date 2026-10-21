@@ -43,14 +43,14 @@ public sealed partial class MenuController
         ControlDevice device = ScreenId == "config-controller" ? ControlDevice.Controller : ControlDevice.Keyboard;
         string advancedBinding = ControlsBindingText(ControlAction.Card, device);
         string advancedHelp = advancedBinding == "Unbound" ? "Card / Details is unbound. Assign it to open advanced options." : $"Press {advancedBinding} for advanced options.";
-        string help = IsControlsBindingList ? advancedHelp : ScreenId == "config-controls-conflict" && _pendingChord is not null ? $"{_pendingChord.FormatDisplayName(CurrentControllerPresentation)} is assigned to {string.Join(", ", CurrentControls.FindConflicts(_controlsAction, _controlsDevice, _pendingChord).Select(ControlsLabel))}." : SelectedEntry?.Help ?? CurrentScreen.Help;
+        string help = IsControlsBindingList ? advancedHelp : ScreenId == "config-controls-conflict" && _pendingChord is not null ? $"{_pendingChord.FormatPrompt(CurrentControllerPresentation)} is assigned to {string.Join(", ", CurrentControls.FindConflicts(_controlsAction, _controlsDevice, _pendingChord).Select(ControlsLabel))}." : SelectedEntry?.Help ?? CurrentScreen.Help;
         string title = ScreenId.EndsWith("-choice", StringComparison.Ordinal) || ScreenId == "config-controls-conflict" ? $"{ControlsActionName} ({ControlsDeviceName})" : CurrentScreen.Title;
         Place(page, SecondaryHeader("Config", title, help), 0);
         UiList commands = SecondaryCommands();
         if (IsControlsBindingList)
         {
             commands.SecondaryItems = Entries.Select(entry => Enum.TryParse(entry.Id, out ControlAction action) ? ControlsBindingText(action, device) : "").ToList();
-            commands.SecondaryWidth = 0.36f;
+            commands.SecondaryWidth = 0.5f;
             commands.SecondaryAlignment = UiAlignment.End;
         }
         Place(page, Panel(null, commands), 1);
@@ -161,32 +161,32 @@ public sealed partial class MenuController
     {
         if (_captureControls)
         {
-            return [ControlsActionName, _captureArmed ? "Press the new key / buttons." : "Release all keys and buttons first.", "Hold combination buttons together.", "Release all to finish capture.", _capturedChord?.FormatDisplayName(CurrentControllerPresentation) ?? "Waiting for input...", "Gameplay input is paused."];
+            return [ControlsActionName, _captureArmed ? "Press the new key / buttons." : "Release all keys and buttons first.", "Hold combination buttons together.", "Release all to finish capture.", _capturedChord?.FormatPrompt(CurrentControllerPresentation) ?? "Waiting for input...", "Gameplay input is paused."];
         }
         return [ControlsActionName, $"Device: {ControlsDeviceName}", $"Current: {ControlsMapping}", "Capture replaces this action's bindings.", "Hold combination buttons together.", "Confirm and Cancel must stay bound.", IsDemoControls ? "Changes stay in this menu demo." : "Changes save automatically."];
     }
 
     private IReadOnlyList<string> ControlsConflictDetails()
     {
-        return [ControlsActionName, $"New: {_pendingChord?.FormatDisplayName(CurrentControllerPresentation)}", "Already assigned to:", .. _pendingChord is null ? [] : CurrentControls.FindConflicts(_controlsAction, _controlsDevice, _pendingChord).Select(action => ControlsProfile.Definitions.Single(definition => definition.Action == action).Label), "Keep current bindings to cancel."];
+        return [ControlsActionName, $"New: {_pendingChord?.FormatPrompt(CurrentControllerPresentation)}", "Already assigned to:", .. _pendingChord is null ? [] : CurrentControls.FindConflicts(_controlsAction, _controlsDevice, _pendingChord).Select(action => ControlsProfile.Definitions.Single(definition => definition.Action == action).Label), "Keep current bindings to cancel."];
     }
 
     private string BindingText(ControlAction action, ControlDevice device)
     {
         IReadOnlyList<InputChord> bindings = CurrentControls.GetBindings(action, device);
-        return bindings.Count == 0 ? "Unbound" : string.Join(" / ", bindings.Select(binding => binding.FormatDisplayName(CurrentControllerPresentation)));
+        return bindings.Count == 0 ? "Unbound" : string.Join(" / ", bindings.Select(binding => binding.FormatPrompt(CurrentControllerPresentation)));
     }
 
     private string ControlsBindingText(ControlAction action, ControlDevice device)
     {
-        string[] bindings = CurrentControls.GetBindings(action, device).Concat(ControlsProfile.GetPermanentBindings(action, device)).Select(binding => binding.FormatDisplayName(CurrentControllerPresentation)).Distinct().ToArray();
+        string[] bindings = CurrentControls.GetBindings(action, device).Concat(ControlsProfile.GetPermanentBindings(action, device)).Select(binding => binding.FormatPrompt(CurrentControllerPresentation)).Distinct().ToArray();
         return bindings.Length == 0 ? "Unbound" : string.Join(" / ", bindings);
     }
 
     private string CurrentBindingText(ControlAction action)
     {
         ControlDevice device = CurrentControls.GetBindings(action, CurrentControlDevice).Count != 0 ? CurrentControlDevice : CurrentControlDevice == ControlDevice.Keyboard ? ControlDevice.Controller : ControlDevice.Keyboard;
-        return BindingText(action, device);
+        return ButtonPromptText.PlainText(BindingText(action, device));
     }
 
     private static string ControlsLabel(ControlAction action)

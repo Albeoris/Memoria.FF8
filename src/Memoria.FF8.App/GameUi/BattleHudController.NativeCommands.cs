@@ -50,18 +50,18 @@ public sealed partial class BattleHudController
     private BattleCombatant? NativeRenzokukenActor => session.Combatants.FirstOrDefault(actor => session.GetNativeRenzokuken(actor.Id) is not null);
     private bool NativeTimedLimitActive => NativeShotActor is not null || NativeDuelActor is not null || NativeRenzokukenActor is not null;
     public Func<ushort, string> NativeButtonBindingHint { get; set; } = new KeyboardInput().NativeButtonBindingHint;
-    private IReadOnlyList<string>? NativeDuelChoiceLabels => NativeDuelActor is { } actor ? session.GetNativeDuelChoices(actor.Id).Where(choice => choice.Learned).Select(choice => choice.Name + "  " + string.Join(" ", choice.Buttons.Select(NativeButtonBindingHint))).ToArray() : null;
+    private IReadOnlyList<string>? NativeDuelChoiceLabels => NativeDuelActor is { } actor ? session.GetNativeDuelChoices(actor.Id).Where(choice => choice.Learned).Select(choice => choice.Name + "  " + string.Join(" ", choice.Buttons.Select(button => ButtonPromptText.Mark(NativeButtonBindingHint(button))))).ToArray() : null;
 
     private void PresentNativeShot()
     {
         if (CommandMenuHidden && session.NativeGuardianBoost is { Enabled: true } boost)
         {
-            string window = boost.Phase == 4 ? boost.Window == 0 ? "STOP" : $"{NativeButtonBindingHint(0x80)}: PRESS" : "WAIT";
+            string window = boost.Phase == 4 ? boost.Window == 0 ? "STOP" : $"{ButtonPromptText.Mark(NativeButtonBindingHint(0x80))}: PRESS" : "WAIT";
             Message = $"GF Boost {boost.DisplayPercent}% · {window}";
         }
         else if (NativeShotActor is { } actor && session.GetNativeShot(actor.Id) is { } shot)
         {
-            Message = shot.Phase == BattleNativeShotPhase.Ready ? $"Shot · {GunbladeBindingHint}: Fire · Cancel: Finish · {shot.RemainingAmmo} ammo" : "Shot";
+            Message = shot.Phase == BattleNativeShotPhase.Ready ? $"Shot · {GunbladeBindingHint}: Fire · {ButtonPromptText.Mark(NativeButtonBindingHint(0x10))}: Finish · {shot.RemainingAmmo} ammo" : "Shot";
         }
         else if (NativeDuelActor is { } duelist)
         {

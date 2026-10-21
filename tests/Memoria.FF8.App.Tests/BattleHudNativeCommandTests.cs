@@ -34,7 +34,7 @@ public sealed class BattleHudNativeCommandTests
 
         Assert.Equal(before, JsonSerializer.Serialize(session.Capture()));
         Assert.Empty(hud.Commands);
-        Assert.Contains(choice.Name + "  " + string.Join(" ", choice.Buttons.Select(button => $"Key{button:X4}")), hud.ChoiceLabels);
+        Assert.Contains(choice.Name + "  " + string.Join(" ", choice.Buttons.Select(button => ButtonPromptText.Mark($"Key{button:X4}"))), hud.ChoiceLabels);
         long gameplayFrame = session.Frame;
         foreach (ushort button in choice.Buttons)
         {

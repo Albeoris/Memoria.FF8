@@ -10,7 +10,7 @@ public sealed partial class BattleHudController
     private bool guardianFormWasActive;
 
     public bool SelectingGuardianFormAction { get; private set; }
-    public string GuardianFormSkipBindingHint { get; set; } = "F8 / RS";
+    public string GuardianFormSkipBindingHint { get; set; } = new KeyboardInput().BindingPrompt(ControlAction.GuardianFormSkip);
     public bool CanSkipGuardianFormFinisher => session.CanSkipGuardianFormFinisher;
 
     public void SkipGuardianFormFinisher()

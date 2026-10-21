@@ -280,7 +280,8 @@ internal static class MenuPreview
                 default:
                     throw new ArgumentException($"Unknown player save preview '{screen}'.");
             }
-            return PlayerSaveView.Build(menu, "Card / Details: Transfer", "Left / Right: Bank    Page Up / Down: Page");
+            KeyboardInput controls = new();
+            return PlayerSaveView.Build(menu, $"{controls.BindingPrompt(ControlAction.Card)}: Transfer", $"{controls.BindingPrompt(ControlAction.MoveLeft)} / {controls.BindingPrompt(ControlAction.MoveRight)}: Bank    {controls.BindingPrompt(ControlAction.UiPageUp)} / {controls.BindingPrompt(ControlAction.UiPageDown)}: Page");
         }
         finally
         {

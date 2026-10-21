@@ -5,7 +5,7 @@ namespace Memoria.FF8;
 /// <summary>One save browser for manual saving, loading, Continue and quick actions.</summary>
 internal sealed partial class PlayerSaveView : UiElement
 {
-    private PlayerSaveView(PlayerSaveMenu menu, string transferHint, string navigationHint)
+    private PlayerSaveView(PlayerSaveMenu menu, string transferHint, string navigationHint, string confirmHint, string cancelHint)
     {
         UiAnchorPanel root = new();
         UiGrid content = new() { Anchors = new UiAnchors(0.02f, 0.02f, 0.98f, 0.98f), Gap = 5 };
@@ -41,7 +41,7 @@ internal sealed partial class PlayerSaveView : UiElement
         header.Children.Add(title);
         content.Children.Add(header);
         string instruction = menu.IsTransferring ? menu.ConfirmOverwrite ? "Confirm transfer overwrite" : "Choose destination block" : menu.ConfirmOverwrite ? "Confirm overwrite" : menu.IsSaving ? "Choose block to save" : "Choose block to load";
-        string detail = menu.TransferSource is int source ? $"{PlayerSaveStore.GetLabel(source)}  →  {PlayerSaveStore.GetLabel(menu.SelectedSlot)}" : menu.ConfirmOverwrite ? "Confirm again to overwrite the selected save." : menu.IsQuick ? menu.IsSaving ? "Create a new quick save." : "Choose a quick save to load." : transferHint + "    Confirm: Select    Cancel: Back";
+        string detail = menu.TransferSource is int source ? $"{PlayerSaveStore.GetLabel(source)}  →  {PlayerSaveStore.GetLabel(menu.SelectedSlot)}" : menu.ConfirmOverwrite ? "Confirm again to overwrite the selected save." : menu.IsQuick ? menu.IsSaving ? "Create a new quick save." : "Choose a quick save to load." : $"{transferHint}    {confirmHint}: Select    {cancelHint}: Back";
         if (menu.Message is string message)
         {
             detail = message;
@@ -87,9 +87,9 @@ internal sealed partial class PlayerSaveView : UiElement
         }
     }
 
-    internal static UiView Build(PlayerSaveMenu menu, string transferHint, string navigationHint)
+    internal static UiView Build(PlayerSaveMenu menu, string transferHint, string navigationHint, string? confirmHint = null, string? cancelHint = null)
     {
-        UiView view = new(new PlayerSaveView(menu, transferHint, navigationHint)) { DesignWidth = 960, DesignHeight = 672 };
+        UiView view = new(new PlayerSaveView(menu, transferHint, navigationHint, confirmHint ?? new KeyboardInput().BindingPrompt(ControlAction.Confirm), cancelHint ?? new KeyboardInput().BindingPrompt(ControlAction.Cancel))) { DesignWidth = 960, DesignHeight = 672 };
         view.Resize(960, 672);
         foreach (UiButton bank in FindButtons(view.Root).Where(button => button.Id?.StartsWith("save-bank-", StringComparison.Ordinal) == true))
         {
