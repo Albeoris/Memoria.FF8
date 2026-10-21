@@ -6,19 +6,21 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeBattleStageLifecycleTests
 {
-    [Fact]
-    public void OriginalStageDescriptorLoadsTextureThenRegistersAndYieldsBeforeFirstPreCameraDraw()
+    [Theory]
+    [InlineData(31)]
+    [InlineData(107)]
+    public void OriginalStageDescriptorLoadsTextureThenRegistersAndYieldsBeforeFirstPreCameraDraw(int stageId)
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleEncounter formation = assets.LoadEncounter(94);
-        BattleStage source = assets.LoadStage(formation.StageId);
+        BattleStage source = assets.LoadStage(stageId);
         BattleCombatantDefinition[] actors = [new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0 }, new() { Id = "enemy", Name = "Ifrit", Information246 = assets.ReadEnemyNativeInformation246(61), ModelId = 61, SceneSlot = formation.Enemies.Single(enemy => enemy.ModelId == 61).Slot }];
         NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicFixture.Prepare(game, formation.Id);
         BattleDefinition definition = new()
         {
             EncounterId = formation.Id,
-            StageId = formation.StageId,
+            StageId = stageId,
             NativeFlags = 0x80,
             NativeEntry = new(0, 0),
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
@@ -26,6 +28,8 @@ public sealed class NativeBattleStageLifecycleTests
             NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5),
             NativeGlobalSoundProcess = musicEntry.SoundProcess,
             NativeGlobalRandom = new(0),
+            NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
+            NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap,
             NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation),
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeStageSource = source.NativeSource,
@@ -65,9 +69,21 @@ public sealed class NativeBattleStageLifecycleTests
         Assert.False(battle.NativeEffectMemory!.Textures!.VramRegions.IsEmpty);
         BattleSnapshot boundary = battle.Capture();
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(boundary))!);
+        if (source.NativeSource!.Callback!.UpdateTexture0 == true)
+        {
+            Assert.Equal(source.NativeSource.TextureAnimations.ToArray(), battle.NativeStage.TextureAnimations!.Value.ToArray());
+        }
         battle.Tick();
         restored.Tick();
-        Assert.Equal(16, battle.NativeStage.Rotation);
+        Assert.Equal(source.NativeSource!.RotationSpeed, battle.NativeStage.Rotation);
+        if (source.NativeSource.Callback!.UpdateTexture0 == true)
+        {
+            Assert.Equal(NativeBattleStageTextureMotion.Advance50CB20(source.NativeSource.TextureAnimations, 0).Source.ToArray(), battle.NativeStage.TextureAnimations!.Value.ToArray());
+            BattleSession frozenTexture = BattleSession.Restore(boundary with { NativeStage = boundary.NativeStage! with { Flags = boundary.NativeStage.Flags | 2 } });
+            frozenTexture.Tick();
+            Assert.Equal(source.NativeSource.TextureAnimations.ToArray(), frozenTexture.NativeStage!.TextureAnimations!.Value.ToArray());
+            Assert.Equal(source.NativeSource.RotationSpeed, frozenTexture.NativeStage.Rotation);
+        }
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
         for (int callback = 0; callback < 300 && !battle.NativeEntryReady; callback++)
         {
@@ -76,8 +92,8 @@ public sealed class NativeBattleStageLifecycleTests
         Assert.True(battle.NativeEntryReady);
         Assert.All(battle.NativeGraphics!.Models.Where(model => (model.Flags0 & 2) != 0), model =>
         {
-            Assert.Equal((uint?)0x00464B6E, model.Color40);
-            Assert.Equal((uint?)0x32464646, model.Color44);
+            Assert.Equal(source.NativeSource!.ModelColors!.Color40, model.Color40);
+            Assert.Equal(source.NativeSource.ModelColors.Color44, model.Color44);
         });
         NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.Capture(battle.Capture(), NativeFieldRuntimeProfile.FF8EnExecutableHash);
         Assert.Same(battle.NativeStage, retained.Stage);

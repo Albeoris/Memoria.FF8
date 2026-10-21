@@ -13,6 +13,8 @@ public sealed class NativeBattleStageCallbackTests
         using PEReader reader = new(new MemoryStream(executable));
         byte[] staticTemplate = Bytes(0x51B0A0, 35);
         byte[] textureTemplate = Bytes(0x519540, 45);
+        byte[] inlineTextureTemplate = Convert.FromHexString("8B542404668B4A0C0FBFC183E8007424487526F6058C89D901027510A1508AD9016A0050E85781FFFF83C408E8FFC5FEFF33C0C34166894A0C33C0C3");
+        Assert.Equal(new NativeBattleStageCallback(0x5149A0, true), NativeBattleStageCallbackReader.Read(107));
         int statics = 0;
         int textures = 0;
         int unsupported = 0;
@@ -24,9 +26,10 @@ public sealed class NativeBattleStageCallbackTests
                 unsupported++;
                 continue;
             }
-            byte[] template = texture ? textureTemplate : staticTemplate;
+            bool inlineTexture = callback.Address == 0x5149A0;
+            byte[] template = inlineTexture ? inlineTextureTemplate : texture ? textureTemplate : staticTemplate;
             byte[] actual = Bytes(callback.Address, template.Length);
-            (int Offset, uint Target)[] calls = texture ? [(21, 0x51B0D0), (29, 0x500FD0)] : [(19, 0x500FD0)];
+            (int Offset, uint Target)[] calls = inlineTexture ? [(36, 0x50CB20), (44, 0x500FD0)] : texture ? [(21, 0x51B0D0), (29, 0x500FD0)] : [(19, 0x500FD0)];
             for (int index = 0; index < template.Length; index++)
             {
                 if (!calls.Any(call => index > call.Offset && index < call.Offset + 5))
@@ -48,8 +51,8 @@ public sealed class NativeBattleStageCallbackTests
             }
         }
         Assert.Equal(140, statics);
-        Assert.Equal(9, textures);
-        Assert.Equal(14, unsupported);
+        Assert.Equal(10, textures);
+        Assert.Equal(13, unsupported);
         for (int stage = 0; stage < 163; stage++)
         {
             NativeBattleStageColorInitializer initializer = NativeBattleStageColorsReader.Read(stage);
