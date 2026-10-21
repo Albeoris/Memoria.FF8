@@ -20,16 +20,19 @@ public static class NativeBattleIfritContinuation
         [0x24A] = 0x0027,
         [0x24E] = 0x0029,
         [0x252] = 0x0029,
+        [0x256] = 0x0209,
         [0x258] = 0x0027,
         [0x25C] = 0x0028,
         [0x260] = 0x0028,
         [0x264] = 0x0028,
+        [0x268] = 0x0209,
         [0x26A] = 0x0028,
         [0x26E] = 0x0028,
         [0x272] = 0x0028,
         [0x276] = 0x0028,
         [0x27A] = 0x0028,
         [0x27E] = 0x0028,
+        [0x282] = 0x0209,
         [0x286] = 0x8406,
         [0x288] = 0x8029,
         [0x28E] = 0x8606,
@@ -38,6 +41,10 @@ public static class NativeBattleIfritContinuation
         [0x2A4] = 0x8806,
         [0x2A6] = 0x8029,
         [0x2AE] = 0x8A06,
+        [0x8F6] = 0x0058,
+        [0x8FA] = 0x0052,
+        [0x8FE] = 0x0223,
+        [0x900] = 0x0068,
         [0x19B6] = 0x0039
     };
 
@@ -67,16 +74,26 @@ public static class NativeBattleIfritContinuation
         uint command = CoreDword(frame, 0x27973C0);
         ushort tick = CoreWord(frame, command + 0xC);
         frame = frame with { Core = frame.Core.Write(0x2797454, Enumerable.Repeat((byte)0xFF, 128).ToArray()).Write(0x2797554, Enumerable.Repeat((byte)0xFF, 128).ToArray()) };
-        byte[] order = [0x80, 0x81, 2, 3, 4, 5, 6, 7, 8, 14, 15, 17, 18];
+        byte[] order = [0x80, 0x81, 2, 3, 4, 5, 6, 7, 8, 14, 15, 17, 18, 19];
         frame = frame with { Core = frame.Core.Write(0x2797454, order) };
         frame = WriteCoreWord(frame, header + 0x18, checked((ushort)order.Length));
-        frame = WriteCoreWord(frame, header, 0x8010);
+        frame = WriteCoreWord(frame, header, 0x8011);
         frame = WriteCoreWord(frame, header + 2, (ushort)(ReadWord(0x136) | ReadWord(0x148)));
         Select(0);
         frame = WriteSlotDword(frame, 0, checked(resource0.Address + LandingInstructionOffset));
         frame = WriteSlotWord(frame, 0xC, checked((ushort)(((ReadWord(0x152) >> 9) - 1) * tick)));
         frame = InitializeModelDependency(frame, resource0, resource1, modelServices);
         frame = WriteSlotWord(frame, 0x16, 0x8001);
+        Select(19);
+        frame = WriteCoreDword(frame, 0x2797450, checked(resource0.Address + 0x8F6));
+        frame = frame.WriteTemporaryWord(0x14A, ReadWord(0x8F6));
+        frame = NativeBattleWaterParticleCommands.Execute(frame, new(resource0.ArenaOffset, resource0.Length, resource0.Address));
+        PrepareResource(0x8FA);
+        frame = WriteCoreDword(frame, 0x2797450, checked(resource0.Address + 0x8FE));
+        frame = frame.WriteTemporaryWord(0x14A, ReadWord(0x8FE));
+        frame = NativeBattleWaterFieldControl.Execute(frame, new(resource0.ArenaOffset, resource0.Length, resource0.Address), bank, 19);
+        frame = WriteSlotWord(frame, 0x9C, ReadWord(0x902));
+        Select(17);
         byte caster = frame.Arena.Read(bank.SlotOffset(frame.Arena, 0) + 0x1B, 1)[0];
         frame = frame with { Arena = frame.Arena.Write(SlotOffset(frame, 0x1B, 1), [caster]) };
         frame = frame with { Arena = NativeBattleWaterSlots.InitializeB65160(frame.Arena, bank, 18, tick, CoreWord(frame, command + 0xE), CoreWord(frame, header + 0x1C)) };
@@ -114,6 +131,12 @@ public static class NativeBattleIfritContinuation
         void PrepareResource(int offset)
         {
             RequireResourceInstruction(offset);
+            if (offset is 0x258 or 0x26A or 0x286)
+            {
+                // Source yields separate the texture preparation batches and renew their admission budget.
+                uint manager = CoreDword(frame, 0x27973EC);
+                frame = frame with { Core = frame.Core.Write(manager + 0xD2, [0]) };
+            }
             frame = WriteCoreDword(frame, 0x2797450, checked(resource0.Address + (uint)offset));
             frame = frame.WriteTemporaryWord(0x14A, ReadWord(offset));
             frame = initializeResourceInstruction(frame, offset);
@@ -188,6 +211,7 @@ public static class NativeBattleIfritContinuation
         Angles(0, 0, ReadSigned(0x7F8));
         Create(15, 0x800E, 0x8001, 0, 0x8D6, 0, 0x1B0E);
         Angles(ReadSigned(0x8C2), ReadSigned(0x8C4) + ReadSigned(0x8D0) * Wait(ReadWord(0x8D2)), ReadSigned(0x8C6));
+        Create(19, 0x8010, 0x800E, 0x8001, 0x90C, 0, 0x92E);
         return frame;
 
         void Create(int index, ushort id, ushort parent, ushort ancestor, int pc, int wait = 0, int secondary = 0)

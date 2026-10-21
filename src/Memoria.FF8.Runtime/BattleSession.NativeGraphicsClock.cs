@@ -345,22 +345,27 @@ public sealed partial class BattleSession
             effectMemory = effectMemory.PublishSound();
             if ((graphics.Flags & 8) != 0 && effectMemory.Textures is { } textures)
             {
-                NativeBattleEffectTextureDrain drain = textures.Drain505D20(effectMemory.Arena, NativeFileStaging, address => NativeBattleProcessTim.Resolve(effectMemory, address), effectMemory.ScriptedEffects);
-                NativeBattlePrimitiveProcess? process = effectMemory.PrimitiveProcess;
-                if (process?.TextureWindowCache is { } cache)
-                {
-                    foreach (NativeBattleEffectVramUpload upload in drain.Uploads)
-                    {
-                        cache = cache.Invalidate464850(upload.X, upload.Y, upload.X + upload.Width - 1, upload.Y + upload.Height - 1, textures);
-                    }
-                    process = process with { TextureWindowCache = cache };
-                }
-                effectMemory = effectMemory with { Textures = drain.State, PrimitiveProcess = process, Arena = drain.Arena ?? effectMemory.Arena };
+                effectMemory = DrainNativeTextureUploads(effectMemory, textures);
             }
             NativeEffectMemory = effectMemory;
         }
         NativeGraphics = FinishNativePrimitiveFrame500900(NativeGraphics!);
         NativeGraphics = PublishNativePcRenderTail47CF60(NativeGraphics);
+    }
+
+    private NativeBattleEffectMemory DrainNativeTextureUploads(NativeBattleEffectMemory memory, NativeBattleEffectTextureState textures)
+    {
+        NativeBattleEffectTextureDrain drain = textures.Drain505D20(memory.Arena, NativeFileStaging, address => NativeBattleProcessTim.Resolve(memory, address), memory.ScriptedEffects);
+        NativeBattlePrimitiveProcess? process = memory.PrimitiveProcess;
+        if (process?.TextureWindowCache is { } cache)
+        {
+            foreach (NativeBattleEffectVramUpload upload in drain.Uploads)
+            {
+                cache = cache.Invalidate464850(upload.X, upload.Y, upload.X + upload.Width - 1, upload.Y + upload.Height - 1, textures);
+            }
+            process = process with { TextureWindowCache = cache };
+        }
+        return memory with { Textures = drain.State, PrimitiveProcess = process, Arena = drain.Arena ?? memory.Arena };
     }
 
     private NativeBattleGraphicsState AdvanceNativeGraphicsRequests(NativeBattleGraphicsState graphics)

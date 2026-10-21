@@ -107,6 +107,13 @@ public sealed partial class BattleSession
         NativeBattleWaterExecutionFrame InitializeResourceInstruction(NativeBattleWaterExecutionFrame current, int offset)
         {
             ushort opcode = (ushort)(current.ReadTemporaryWord(0x14A) & 0x1FF);
+            if (opcode == 6)
+            {
+                // Synchronous dependency loads reuse the work buffer after preceding uploads have consumed it.
+                NativeBattleEffectMemory pending = RequireWaterMemory() with { Arena = current.Arena, ScriptedEffects = current.Core };
+                NativeEffectMemory = DrainNativeTextureUploads(pending, pending.Textures ?? throw new NotSupportedException("Ifrit continuation requires its pending texture uploads."));
+                current = current with { Arena = NativeEffectMemory.Arena!, Core = NativeEffectMemory.ScriptedEffects! };
+            }
             if (opcode != 6 || offset == 0x2AE)
             {
                 return ExecuteInstruction(current, opcode);

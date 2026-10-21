@@ -125,11 +125,7 @@ public sealed partial class BattleSession
         ImmutableArray<NativeBattleGraphicsModel> models = graphics.Models;
         if (ownsCinematic)
         {
-            for (int index = 0; index < models.Length; index++)
-            {
-                ushort flags = (ushort)((models[index].Flags0 & ~8) | (presentation.ModelVisibility[index] & 8));
-                models = models.SetItem(index, models[index] with { Flags0 = flags, Flags2 = models[index].Flags2 is ushort current ? (ushort)((current & ~4) | (presentation.ModelVisibilityFlags2[index]!.Value & 4)) : null });
-            }
+            models = RestoreGuardianFormVisibility(models, presentation);
         }
         NativeBattleGraphicsModel body = models[presentation.ActorIndex];
         if (body.ModelId4 == 77 && body.TextureResourceIndex is int row && NativeModelTextureCache is { } cache && cache.Rows[row].Kind == 3)
@@ -137,7 +133,7 @@ public sealed partial class BattleSession
             (NativeModelCpuResources, NativeFileStaging) = NativeBattleModelEnemyHeap.Release(NativeModelCpuResources!, NativeFileStaging!, cache, row);
             NativeModelTextureCache = cache.Release5080D0(row);
         }
-        models = models.SetItem(presentation.ActorIndex, presentation.HumanModel with { Flags0 = (ushort)(presentation.HumanModel.Flags0 & ~0xC), Flags8 = models[presentation.ActorIndex].Flags8, StatusTimers = models[presentation.ActorIndex].StatusTimers });
+        models = models.SetItem(presentation.ActorIndex, presentation.HumanModel with { Flags8 = models[presentation.ActorIndex].Flags8, StatusTimers = models[presentation.ActorIndex].StatusTimers });
         graphics = graphics with { Models = models, Flags = ownsCinematic ? presentation.GraphicsFlags : graphics.Flags, GuardianFormPresentation = null, GuardianFormHumanFocalToRestore = ownsCinematic ? null : presentation.HumanFocalLength };
         graphics = FrameGuardianFormIdleCamera(graphics);
         NativeGraphics = ownsCinematic ? StopGuardianFormCinematic(graphics) : graphics;
@@ -145,6 +141,18 @@ public sealed partial class BattleSession
         {
             SetNativeBattleActionPause(false);
         }
+    }
+
+    private static ImmutableArray<NativeBattleGraphicsModel> RestoreGuardianFormVisibility(ImmutableArray<NativeBattleGraphicsModel> models, NativeBattleGuardianFormPresentation presentation)
+    {
+        for (int index = 0; index < models.Length; index++)
+        {
+            NativeBattleGraphicsModel model = models[index];
+            ushort flags = (ushort)((model.Flags0 & ~0xC) | (presentation.ModelVisibility[index] & 0xC));
+            ushort? flags2 = model.Flags2 is ushort current ? (ushort)((current & ~4) | ((presentation.ModelVisibilityFlags2[index] ?? 0) & 4)) : null;
+            models = models.SetItem(index, model with { Flags0 = flags, Flags2 = flags2 });
+        }
+        return models;
     }
 
     public bool CanSkipGuardianFormFinisher => NativeGraphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5, SkipRequested: false };
@@ -245,7 +253,10 @@ public sealed partial class BattleSession
         }
         if (NativeEffectMemory is { } memory)
         {
-            NativeEffectMemory = memory with { ReturnedTaskPointer1D96AAC = 0, DetachedReturnedTask = null, Active = 0, Cinematic = null };
+            NativeBattleEffectInitializerAsset common = definition.NativeCommonEffectTexture ?? throw new NotSupportedException("GF presentation cleanup requires the common battle texture resource.");
+            NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("GF presentation cleanup requires the retained texture upload owner.");
+            (textures, _) = textures.EnqueueTim505E30(new(common.Name, common.Data));
+            NativeEffectMemory = memory with { ReturnedTaskPointer1D96AAC = 0, DetachedReturnedTask = null, Active = 0, Cinematic = null, Textures = textures };
         }
         events.Add(new(Frame, "NativeSoundStopAll", null, null, 0, "GF presentation releases its sound voices.") { NativeStopAllSounds = true });
         return graphics with { OriginalEffect = graphics.OriginalEffect is { Binding.Effect: 201 } effect ? effect with { ReturnedDescriptor = 0, Pools = [] } : graphics.OriginalEffect, PrimitiveFrame = graphics.PrimitiveFrame is { } primitive ? primitive with { Pending = NativeBattleLogicalOrdering.Clear(), LastCommands = [] } : null };
@@ -340,13 +351,7 @@ public sealed partial class BattleSession
             model = initializedPose.Model;
             model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, pose, ReadNativeModelScaleVector502AB0(graphics, model)) };
             graphics = graphics with { Models = graphics.Models.SetItem(loading.ActorIndex, model), GuardianFormPresentation = loading with { Phase = 3 }, Flags = loading.GraphicsFlags };
-            for (int index = 0; index < 3; index++)
-            {
-                if (index != loading.ActorIndex && (graphics.Models[index].Flags0 & 2) != 0)
-                {
-                    graphics = graphics with { Models = graphics.Models.SetItem(index, graphics.Models[index] with { Flags0 = (ushort)((graphics.Models[index].Flags0 & ~8) | (loading.ModelVisibility[index] & 8)), Flags2 = (ushort)((graphics.Models[index].Flags2!.Value & ~4) | (loading.ModelVisibilityFlags2[index]!.Value & 4)) }) };
-                }
-            }
+            graphics = graphics with { Models = RestoreGuardianFormVisibility(graphics.Models, loading) };
             NativeGraphics = graphics;
             CompleteGuardianFormEntry(loading.ActorId, loading.InvocationId);
             graphics = NativeGraphics!;

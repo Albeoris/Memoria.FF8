@@ -23,19 +23,24 @@ public sealed class NativeBattleIfritContinuationTests
         Assert.Equal(48 << 16, unchecked((int)WaterSchedulerFixture.ReadSlotDword(result, 15, 0x60)));
         Assert.Equal((ushort)(7 * 128), WaterSchedulerFixture.ReadSlotWord(result, 4, 0xC));
         Assert.Equal((ushort)6, (ushort)(WaterSchedulerFixture.ReadSlotDword(result, 5, 0x18) >> 24));
+        Assert.Equal(first.Address + 0x90Cu, WaterSchedulerFixture.ReadSlotDword(result, 19, 0));
+        Assert.Equal(first.Address + 0x92Eu, WaterSchedulerFixture.ReadSlotDword(result, 19, 4));
+        Assert.Equal((ushort)0x800E, WaterSchedulerFixture.ReadSlotWord(result, 19, 0x14));
         Assert.Equal(input.Random, result.Random);
         Assert.Equal(input.ReadTemporaryByte(0x145), result.ReadTemporaryByte(0x145));
         Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(input))!)));
     }
 
     [Theory]
-    [InlineData(0x0022)]
-    [InlineData(0x002B)]
-    [InlineData(0x1C12)]
-    public void Unsupported_late_initialization_opcode_is_rejected_before_any_external_service(ushort instruction)
+    [InlineData(0x19B6, 0x0022)]
+    [InlineData(0x19B6, 0x002B)]
+    [InlineData(0x19B6, 0x1C12)]
+    [InlineData(0x8F6, 0x0059)]
+    [InlineData(0x8FA, 0x002B)]
+    public void Unsupported_late_initialization_opcode_is_rejected_before_any_external_service(int sourceOffset, ushort instruction)
     {
         NativeBattleWaterExecutionFrame frame = InitializationFixture();
-        frame = frame with { Arena = frame.Arena.Write(0x10000 + 0x19B6, BitConverter.GetBytes(instruction)) };
+        frame = frame with { Arena = frame.Arena.Write(0x10000 + sourceOffset, BitConverter.GetBytes(instruction)) };
         int calls = 0;
         NativeBattleCinematicModelServices model = new((_, _) => throw new Xunit.Sdk.XunitException("Unexpected model preparation."), (_, _) => throw new Xunit.Sdk.XunitException("Unexpected animation read."));
         Assert.Contains("initialization instruction", Assert.Throws<InvalidDataException>(() => NativeBattleIfritContinuation.Initialize(frame, new(0x10000, 0x2000, NativeBattleEffectNodeMemory.ArenaAddress + 0x10000), new(0x2000, 0x10000, NativeBattleEffectNodeMemory.ArenaAddress + 0x2000), NativeBattleEffectNodeMemory.ArenaAddress + 0x70000, model, (current, offset) =>
@@ -68,11 +73,11 @@ public sealed class NativeBattleIfritContinuationTests
         foreach ((int offset, ushort instruction) in new (int, ushort)[]
         {
             (0x112, 0x006D), (0x114, 0x013D), (0x118, 0x0031), (0x3EC, 0x013D),
-            (0x246, 0x0027), (0x24A, 0x0027), (0x24E, 0x0029), (0x252, 0x0029), (0x258, 0x0027),
-            (0x25C, 0x0028), (0x260, 0x0028), (0x264, 0x0028), (0x26A, 0x0028), (0x26E, 0x0028),
-            (0x272, 0x0028), (0x276, 0x0028), (0x27A, 0x0028), (0x27E, 0x0028),
+            (0x246, 0x0027), (0x24A, 0x0027), (0x24E, 0x0029), (0x252, 0x0029), (0x256, 0x0209), (0x258, 0x0027),
+            (0x25C, 0x0028), (0x260, 0x0028), (0x264, 0x0028), (0x268, 0x0209), (0x26A, 0x0028), (0x26E, 0x0028),
+            (0x272, 0x0028), (0x276, 0x0028), (0x27A, 0x0028), (0x27E, 0x0028), (0x282, 0x0209),
             (0x286, 0x8406), (0x288, 0x8029), (0x28E, 0x8606), (0x290, 0x0029), (0x298, 0x0231),
-            (0x2A4, 0x8806), (0x2A6, 0x8029), (0x2AE, 0x8A06), (0x19B6, 0x0039)
+            (0x2A4, 0x8806), (0x2A6, 0x8029), (0x2AE, 0x8A06), (0x8F6, 0x0058), (0x8FA, 0x0052), (0x8FE, 0x0223), (0x900, 0x0068), (0x19B6, 0x0039)
         })
         {
             BinaryPrimitives.WriteUInt16LittleEndian(source.AsSpan(offset), instruction);
