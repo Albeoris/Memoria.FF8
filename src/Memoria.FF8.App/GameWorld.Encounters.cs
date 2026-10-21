@@ -125,11 +125,6 @@ internal sealed partial class GameWorld
             PublishBattleSnapshot(battle);
             CompleteNativeDefeatIfReady();
         }
-        if (request.Scene == SceneKind.WorldMap && Field is not null)
-        {
-            // The field VM is dormant, but its checkpoint projects the current process-owned globals.
-            session.SetEventState(Events.Capture());
-        }
         return true;
     }
 
