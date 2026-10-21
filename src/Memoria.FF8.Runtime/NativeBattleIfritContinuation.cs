@@ -10,6 +10,14 @@ public static class NativeBattleIfritContinuation
     public const int LandingInstructionOffset = 0x154;
     public const int LandingAnimationFrame = 49;
 
+    public static bool HasReachedFinale(NativeBattleScriptedEffectMemory core)
+    {
+        uint header = BinaryPrimitives.ReadUInt32LittleEndian(core.Read(0x279744C, 4));
+        ushort flags = BinaryPrimitives.ReadUInt16LittleEndian(core.Read(checked(header + 2), 2));
+        // The main script releases the falling meteor task with header flag 0x10.
+        return (flags & 0x10) != 0;
+    }
+
     private static readonly IReadOnlyDictionary<int, ushort> ResourceInitializationInstructions = new Dictionary<int, ushort>
     {
         [0x112] = 0x006D,

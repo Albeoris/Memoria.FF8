@@ -1,6 +1,7 @@
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 
 namespace Memoria.FF8.App.Tests;
@@ -8,20 +9,46 @@ namespace Memoria.FF8.App.Tests;
 public sealed class BattleHudGuardianFormTests
 {
     [Fact]
-    public void FinisherSkipHasItsOwnRemappableInputAndDoesNotToggleSpeedOrBoost()
+    public void FinisherSkipUsesRemappableEscapeLeftWithoutDedicatedShortcut()
     {
         KeyboardInput keyboard = new();
-        Assert.Equal(Keys.F8, Assert.Single(Assert.Single(keyboard.Profile.GetBindings(ControlAction.GuardianFormSkip, ControlDevice.Keyboard)).Keys));
-        Assert.Equal(Buttons.RightStick, Assert.Single(Assert.Single(keyboard.Profile.GetBindings(ControlAction.GuardianFormSkip, ControlDevice.Controller)).Buttons));
-        keyboard.Profile = keyboard.Profile.WithBinding(ControlAction.GuardianFormSkip, ControlDevice.Keyboard, new([Keys.P], []));
+        Assert.DoesNotContain(ControlsProfile.Definitions, definition => definition.Action == ControlAction.GuardianFormSkip);
+        Assert.Empty(keyboard.Profile.GetBindings(ControlAction.GuardianFormSkip, ControlDevice.Keyboard));
+        Assert.Empty(keyboard.Profile.GetBindings(ControlAction.GuardianFormSkip, ControlDevice.Controller));
         keyboard.Read(default, true);
-        keyboard.Read(new KeyboardState(Keys.P), true);
+        keyboard.Read(new KeyboardState(Keys.D), true);
         Assert.True(keyboard.GuardianFormSkipRequested);
         Assert.False(keyboard.SpeedToggleRequested);
         Assert.False(keyboard.GuardianBoostRequested);
+        keyboard.Read(new KeyboardState(Keys.D), true);
+        Assert.False(keyboard.GuardianFormSkipRequested);
+        keyboard.Profile = keyboard.Profile.WithBinding(ControlAction.CameraLeft, ControlDevice.Keyboard, new([Keys.P], []));
+        keyboard.Read(default, true);
         keyboard.Read(new KeyboardState(Keys.P), true);
+        Assert.True(keyboard.GuardianFormSkipRequested);
+        keyboard.Read(default, true);
+        keyboard.Read(new KeyboardState(Keys.F8), true);
         Assert.False(keyboard.GuardianFormSkipRequested);
     }
+
+    [Fact]
+    public void FinisherSkipUsesControllerEscapeLeftAndIgnoresOldProfileShortcut()
+    {
+        string path = TestResources.ArtifactFile("old-finisher-controls.json");
+        ControlsProfile.CreateDefault().Save(path);
+        string json = File.ReadAllText(path);
+        json = json.Replace("\"Bindings\": [", "\"Bindings\": [{\"Action\":\"GuardianFormSkip\",\"Device\":\"Keyboard\",\"Chord\":{\"Keys\":[\"F8\"],\"Buttons\":[]}},");
+        File.WriteAllText(path, json);
+        KeyboardInput keyboard = new() { Profile = ControlsProfile.Load(path) };
+        Assert.Empty(keyboard.Profile.GetBindings(ControlAction.GuardianFormSkip, ControlDevice.Keyboard));
+        keyboard.Read(default, new GamePadState(Vector2.Zero, Vector2.Zero, 0, 0, []), true);
+        keyboard.Read(default, new GamePadState(Vector2.Zero, Vector2.Zero, 1, 0, Buttons.LeftTrigger), true);
+        Assert.True(keyboard.GuardianFormSkipRequested);
+        Assert.Equal((ushort)1, (ushort)(keyboard.HeldFieldButtons & 1));
+        keyboard.Read(default, new GamePadState(Vector2.Zero, Vector2.Zero, 1, 0, Buttons.LeftTrigger), true);
+        Assert.False(keyboard.GuardianFormSkipRequested);
+    }
+
     [Theory]
     [InlineData(MenuInput.Left)]
     [InlineData(MenuInput.Cancel)]

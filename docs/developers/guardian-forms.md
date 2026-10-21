@@ -28,7 +28,7 @@ Entry uses original effect 201 with a restricted positioning context, without ad
 
 The finisher creates a fresh effect invocation. `NativeBattleIfritContinuation` validates its expected source instructions and reconstructs the required task hierarchy, transforms, model pose, texture publications and camera inputs from the current resources. Initialization excludes contact, sound, battle-clock advancement and gameplay RNG. It does not retain pointers from entry or replay the opening invisibly. Subsequent native callbacks execute the remaining roar, attack and completion normally.
 
-Skip settles an already admitted Boost press, preserves the earned native multiplier and locks further input. It advances the same owned invocation in bounded callback batches through ordinary contact and cleanup, suppressing skipped sound publication. Snapshot state preserves the invocation and skip request. Errors tear down the owned presentation and restore the actor before propagating the unsupported contract.
+Skip settles an already admitted Boost press, preserves the earned native multiplier and locks further input. It advances the same owned invocation through ordinary callbacks until the original main script sets header flag 0x10, then plays the meteor finale, contact and cleanup at normal speed. Only skipped callbacks suppress sound publication. The existing Escape battle (left) input requests Skip; there is no separate shortcut or HUD hint. Snapshot state preserves the invocation, skip request and original header flag; that flag remains the authority for resuming normal finale playback. Errors tear down the owned presentation and restore the actor before propagating the unsupported contract.
 
 ## Adding another GF
 

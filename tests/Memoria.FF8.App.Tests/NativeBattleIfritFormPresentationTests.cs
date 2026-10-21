@@ -97,8 +97,11 @@ public sealed class NativeBattleIfritFormPresentationTests
             bool restoredAfterContact = false;
             using StreamWriter? trace = output is null ? null : new(Path.Combine(output, "continuation-trace.jsonl"));
             int continuationCallback = 0;
+            int finaleCallbacks = 0;
             for (int callback = 0; callback < 1200 && battle.GetGuardianForm("party") is not null; callback++)
             {
+                bool finalePlaying = battle.NativeGraphics?.GuardianFormPresentation is { SkipRequested: true } && NativeBattleIfritContinuation.HasReachedFinale(battle.NativeEffectMemory!.ScriptedEffects!);
+                long previousGraphicsCallback = battle.NativeGraphics!.Callback;
                 if (skip)
                 {
                     battle.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30));
@@ -106,6 +109,18 @@ public sealed class NativeBattleIfritFormPresentationTests
                 else
                 {
                     battle.Tick();
+                }
+                if (finalePlaying)
+                {
+                    Assert.Equal(previousGraphicsCallback + 1, battle.NativeGraphics!.Callback);
+                }
+                if (skip && battle.NativeGraphics?.GuardianFormPresentation is { SkipRequested: true } && NativeBattleIfritContinuation.HasReachedFinale(battle.NativeEffectMemory!.ScriptedEffects!))
+                {
+                    if (finaleCallbacks is 0 or 6 or 12 or 24)
+                    {
+                        NativeBattleRestorationPresentationTests.Publish(output, "meteor-" + finaleCallbacks.ToString("D3"), battle.Capture(), output is null ? null : scene.Render(battle, 320, 224).ToArray());
+                    }
+                    finaleCallbacks++;
                 }
                 if (battle.NativeGraphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5 } && output is not null)
                 {
@@ -122,6 +137,7 @@ public sealed class NativeBattleIfritFormPresentationTests
                         Assert.True(battle.SkipGuardianFormFinisher());
                         Assert.False(battle.SkipGuardianFormFinisher());
                         RoundTripNext();
+                        Assert.True(NativeBattleIfritContinuation.HasReachedFinale(battle.NativeEffectMemory!.ScriptedEffects!));
                     }
                 }
                 if (!restoredAfterContact && battle.Events.Count(item => item.Kind == "Damage" && item.ActorId == "party") > priorPartyDamage)
@@ -137,6 +153,10 @@ public sealed class NativeBattleIfritFormPresentationTests
             }
             Assert.True(visible);
             Assert.True(restoredAfterContact);
+            if (skip)
+            {
+                Assert.True(finaleCallbacks > 1);
+            }
             Assert.Null(battle.GetGuardianForm("party"));
             AssertVisibility();
             AssertCommonTexture();

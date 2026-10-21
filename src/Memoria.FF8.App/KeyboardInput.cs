@@ -188,7 +188,7 @@ internal sealed class KeyboardInput
         BattleAdvanceTurnRequested = Pressed(ControlAction.BattleAdvanceTurn);
         GunbladeTriggerRequested = Pressed(ControlAction.RotateRight);
         GuardianBoostRequested = Pressed(ControlAction.Card);
-        GuardianFormSkipRequested = Pressed(ControlAction.GuardianFormSkip);
+        GuardianFormSkipRequested = Pressed(ControlAction.CameraLeft);
         GameMenuRequested = Pressed(ControlAction.Menu);
         PauseRequested = Pressed(ControlAction.Pause);
         UiTabRequested = Pressed(ControlAction.UiTab) || RecoveryPressed(Keys.Tab);

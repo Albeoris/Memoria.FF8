@@ -217,7 +217,6 @@ internal sealed partial class RecreateGame
         }
         battleHud!.TextScale = uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f;
         battleHud.GunbladeBindingHint = keyboard.BindingPrompt(ControlAction.RotateRight);
-        battleHud.GuardianFormSkipBindingHint = keyboard.BindingPrompt(ControlAction.GuardianFormSkip);
         battleHud.PhysicalOverrideBindingHint = keyboard.BindingPrompt(ControlAction.CameraLeft);
     }
 

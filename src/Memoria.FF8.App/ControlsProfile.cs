@@ -50,6 +50,7 @@ public enum ControlAction
     UiTab,
     UiPageUp,
     UiPageDown,
+    // Retained for reading older controls profiles; no longer a separate binding.
     GuardianFormSkip
 }
 
@@ -154,13 +155,13 @@ public sealed class ControlsProfile
         new(ControlAction.MoveRight, ControlDevice.Keyboard, new InputChord([Keys.Right], []))
     ];
 
-    public static IReadOnlyList<ControlActionDefinition> Definitions { get; } = Enum.GetValues<ControlAction>().Where(action => action != ControlAction.SkipMovie).Select(action => new ControlActionDefinition(action, Label(action), action <= ControlAction.MoveRight ? "Movement" : action <= ControlAction.RotateRight ? "Original game" : "Memoria shortcuts")).ToArray();
+    public static IReadOnlyList<ControlActionDefinition> Definitions { get; } = Enum.GetValues<ControlAction>().Where(action => action is not (ControlAction.SkipMovie or ControlAction.GuardianFormSkip)).Select(action => new ControlActionDefinition(action, Label(action), action <= ControlAction.MoveRight ? "Movement" : action <= ControlAction.RotateRight ? "Original game" : "Memoria shortcuts")).ToArray();
     public static IReadOnlyList<Buttons> BindableButtons { get; } = [Buttons.A, Buttons.B, Buttons.X, Buttons.Y, Buttons.LeftShoulder, Buttons.RightShoulder, Buttons.LeftTrigger, Buttons.RightTrigger, Buttons.Back, Buttons.Start, Buttons.LeftStick, Buttons.RightStick, Buttons.DPadUp, Buttons.DPadDown, Buttons.DPadLeft, Buttons.DPadRight];
 
     private ControlsProfile(IEnumerable<Binding> bindings, ControllerSettings? controller = null)
     {
         Controller = controller ?? new ControllerSettings();
-        this.bindings = bindings.Where(binding => binding.Action != ControlAction.SkipMovie).Select(binding => binding with { Chord = Normalize(binding.Chord, binding.Device) }).ToArray();
+        this.bindings = bindings.Where(binding => binding.Action is not (ControlAction.SkipMovie or ControlAction.GuardianFormSkip)).Select(binding => binding with { Chord = Normalize(binding.Chord, binding.Device) }).ToArray();
         Validate();
     }
 
@@ -248,7 +249,6 @@ public sealed class ControlsProfile
         Key(ControlAction.UiTab, Keys.Tab);
         Key(ControlAction.UiPageUp, Keys.PageUp);
         Key(ControlAction.UiPageDown, Keys.PageDown);
-        Key(ControlAction.GuardianFormSkip, Keys.F8);
         Pad(ControlAction.MoveUp, Buttons.DPadUp);
         Pad(ControlAction.MoveDown, Buttons.DPadDown);
         Pad(ControlAction.MoveLeft, Buttons.DPadLeft);
@@ -263,7 +263,6 @@ public sealed class ControlsProfile
         Pad(ControlAction.CameraRight, Buttons.RightTrigger);
         Pad(ControlAction.RotateLeft, Buttons.LeftShoulder);
         Pad(ControlAction.RotateRight, Buttons.RightShoulder);
-        Pad(ControlAction.GuardianFormSkip, Buttons.RightStick);
         return new ControlsProfile(result);
     }
 
@@ -284,7 +283,7 @@ public sealed class ControlsProfile
         {
             throw new InvalidDataException("Unsupported controls profile.");
         }
-        Binding[] loaded = document.Bindings.Where(binding => binding.Action != ControlAction.SkipMovie).Select(binding => binding with { Chord = Normalize(binding.Chord, binding.Device) }).Where(binding => !UsesReservedKeyForAnotherAction(binding.Action, binding.Device, binding.Chord)).ToArray();
+        Binding[] loaded = document.Bindings.Where(binding => binding.Action is not (ControlAction.SkipMovie or ControlAction.GuardianFormSkip)).Select(binding => binding with { Chord = Normalize(binding.Chord, binding.Device) }).Where(binding => !UsesReservedKeyForAnotherAction(binding.Action, binding.Device, binding.Chord)).ToArray();
         return new ControlsProfile(loaded, document.Controller);
     }
 
@@ -338,7 +337,6 @@ public sealed class ControlsProfile
         ControlAction.CameraRight => "Camera mode / Escape battle (right)",
         ControlAction.RotateLeft => "Rotate world left / Previous character",
         ControlAction.RotateRight => "Rotate world right / Gunblade / Next character",
-        ControlAction.GuardianFormSkip => "Skip Ifrit finisher",
         ControlAction.SpeedToggle => "Event speed",
         ControlAction.DebugRoom => "Debug room",
         ControlAction.BattleInstantVictory => "Battle victory",

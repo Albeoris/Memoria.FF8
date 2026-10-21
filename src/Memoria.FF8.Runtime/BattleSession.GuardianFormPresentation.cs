@@ -157,11 +157,11 @@ public sealed partial class BattleSession
 
     public bool CanSkipGuardianFormFinisher => NativeGraphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5, SkipRequested: false };
 
-    private bool SkippingGuardianFormPresentation => NativeGraphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5, SkipRequested: true };
+    private bool SkippingGuardianFormPresentation => NativeGraphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5, SkipRequested: true } && !NativeBattleIfritContinuation.HasReachedFinale(RequireWaterMemory().ScriptedEffects!);
 
     private void AdvanceSkippedGuardianFormPresentation()
     {
-        for (int callback = 0; callback < 32 && SkippingGuardianFormPresentation; callback++)
+        for (int callback = 0; callback < 1200 && SkippingGuardianFormPresentation; callback++)
         {
             DispatchTurnBasedFrame();
         }

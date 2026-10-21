@@ -161,11 +161,6 @@ internal sealed partial class BattleHudElement : UiElement
                 Text(canvas, theme, $"{(form.RemainingTicks + BattleSession.FramesPerSecond - 1) / BattleSession.FramesPerSecond}s", 906, y - 5, 42, 18, 12);
             }
         }
-        if (controller.CanSkipGuardianFormFinisher)
-        {
-            theme.Panel(canvas, Rect(748, 464, 186, 40));
-            Text(canvas, theme, $"Skip · {controller.GuardianFormSkipBindingHint}", 760, 471, 162, 28, 16);
-        }
         if (session.ActiveAction is { Phase: BattleActionPhase.Recovery } action && session.Events.Any(item => item.Kind == "GunbladeTrigger" && item.ActorId == action.ActorId && session.Frame - item.Frame < BattleSession.AttackRecoveryFrames))
         {
             Text(canvas, theme, "TRIGGER!", 372, 100, 280, 48, 30);
@@ -229,11 +224,6 @@ internal sealed partial class BattleHudElement : UiElement
 
     public override void Pointer(float x, float y)
     {
-        if (controller.CanSkipGuardianFormFinisher && Rect(748, 464, 186, 40).Contains(x, y))
-        {
-            controller.SkipGuardianFormFinisher();
-            return;
-        }
         if (controller.CommandMenuHidden)
         {
             return;

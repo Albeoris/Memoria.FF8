@@ -10,16 +10,6 @@ public sealed partial class BattleHudController
     private bool guardianFormWasActive;
 
     public bool SelectingGuardianFormAction { get; private set; }
-    public string GuardianFormSkipBindingHint { get; set; } = new KeyboardInput().BindingPrompt(ControlAction.GuardianFormSkip);
-    public bool CanSkipGuardianFormFinisher => session.CanSkipGuardianFormFinisher;
-
-    public void SkipGuardianFormFinisher()
-    {
-        if (CanSkipGuardianFormFinisher)
-        {
-            SubmitGuardianFormInput(new(BattleInputKind.GuardianFormSkip));
-        }
-    }
     public bool HasGuardianFormCommands => SelectedActor is { } actor && session.GetGuardianForm(actor.Id) is { Phase: BattleGuardianFormPhase.Active, RemainingTicks: > 0 };
     public string GuardianFormCommandLabel => commandIndex switch { 1 => "Fire", 2 => "Hell Fire", _ => "Attack" };
     private BattleGuardianFormAction SelectedGuardianFormCommand => (BattleGuardianFormAction)Math.Clamp(commandIndex, 0, 2);
@@ -117,7 +107,7 @@ public sealed partial class BattleHudController
             {
                 return true;
             }
-            Message = $"{actor.Name}: {GuardianFormCommandLabel} → {target.Name}";
+            Message = $"{actor.Name}: {GuardianFormCommandLabel} â†’ {target.Name}";
         }
         SelectingGuardianFormAction = false;
         guardianFormMenuActorId = null;
