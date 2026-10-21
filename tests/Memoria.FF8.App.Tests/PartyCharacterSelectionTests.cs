@@ -46,18 +46,36 @@ public sealed class PartyCharacterSelectionTests
     }
 
     [Theory]
-    [InlineData("junction")]
-    [InlineData("magic")]
-    [InlineData("status")]
-    public void MainCharacterCommandsRequireAnExplicitCharacterChoice(string destination)
+    [InlineData("junction", false)]
+    [InlineData("magic", false)]
+    [InlineData("status", false)]
+    [InlineData("junction", true)]
+    [InlineData("magic", true)]
+    [InlineData("status", true)]
+    public void MainCharacterCommandsSelectACharacterUnlessMagicStockIsShared(string destination, bool sharedMagic)
     {
         MenuData data = ReorderedLiveData();
+        data.SharedMagicStock = sharedMagic;
         List<MenuAction> requests = [];
         MenuController controller = new(() => data, requests.Add);
         controller.Open();
         SelectMainCommand(controller, destination);
         int commandIndex = controller.SelectedIndex;
         controller.Navigate(MenuInput.Confirm);
+
+        if (destination == "magic" && sharedMagic)
+        {
+            Assert.Equal("magic", controller.ScreenId);
+            Assert.False(controller.IsSelectingCharacter);
+            Assert.Equal("7", controller.Character!.Id);
+            Assert.Empty(requests);
+            controller.BuildView();
+            controller.Navigate(MenuInput.Cancel);
+            Assert.Equal("main", controller.ScreenId);
+            Assert.True(controller.IsOpen);
+            Assert.Equal(commandIndex, controller.SelectedIndex);
+            return;
+        }
 
         Assert.Equal("main", controller.ScreenId);
         Assert.True(controller.IsSelectingCharacter);

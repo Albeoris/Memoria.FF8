@@ -507,7 +507,7 @@ public sealed partial class MenuController
             Message = entry.Help;
             return;
         }
-        if (ScreenId == "main" && entry.Destination is "junction" or "magic" or "status")
+        if (ScreenId == "main" && (entry.Destination is "junction" or "status" || entry.Destination == "magic" && !Data.SharedMagicStock))
         {
             BeginCharacterSelection(entry.Destination);
             SoundRequested?.Invoke(MenuSound.Confirm);
