@@ -5,16 +5,16 @@ namespace Memoria.FF8.App.Tests;
 public sealed class RareCardMarkerSettingsTests
 {
     [Fact]
-    public void MarkersDefaultOnAndExistingPreferencesWithoutTheSettingRetainThatDefault()
+    public void MarkersDefaultOffAndExistingPreferencesWithoutTheSettingRetainThatDefault()
     {
         string path = Path.GetTempFileName();
         try
         {
-            Assert.True(new UiPreferences().RareCardMarkers);
+            Assert.False(new UiPreferences().RareCardMarkers);
             File.WriteAllText(path, "{}");
-            Assert.True(UiPreferences.Load(path).RareCardMarkers);
+            Assert.False(UiPreferences.Load(path).RareCardMarkers);
             File.Delete(path);
-            Assert.True(UiPreferences.Load(path).RareCardMarkers);
+            Assert.False(UiPreferences.Load(path).RareCardMarkers);
         }
         finally
         {
@@ -43,16 +43,17 @@ public sealed class RareCardMarkerSettingsTests
     [Fact]
     public void DebugUiMenuShowsThePersistedValueAndAppliesTheToggleToItsHost()
     {
+        Assert.Equal(new[] { "Off", "On" }, MenuSettings.Definitions.Single(setting => setting.Id == "Rare card markers").Values);
         UiPreferences preferences = new();
         MenuController menus = new();
         menus.ConnectPreferences(() => preferences, action => preferences = preferences.WithSetting(action.SubjectId, action.Value));
         menus.Open("debug-ui", true);
         MenuEntry marker = menus.Entries.Single(entry => entry.Id == "Rare card markers");
-        Assert.Contains("On", marker.Label);
+        Assert.Contains("Off", marker.Label);
         menus.Execute(marker.Action!);
-        Assert.False(preferences.RareCardMarkers);
-        Assert.Contains("Off", menus.Entries.Single(entry => entry.Id == marker.Id).Label);
-        menus.Execute(menus.Entries.Single(entry => entry.Id == marker.Id).Action!);
         Assert.True(preferences.RareCardMarkers);
+        Assert.Contains("On", menus.Entries.Single(entry => entry.Id == marker.Id).Label);
+        menus.Execute(menus.Entries.Single(entry => entry.Id == marker.Id).Action!);
+        Assert.False(preferences.RareCardMarkers);
     }
 }

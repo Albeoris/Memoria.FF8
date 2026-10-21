@@ -31,7 +31,7 @@ internal sealed record UiPreferences
     public string BattlePolicyLabel => BattlePolicy == "NewGameFullCombat" ? "Full combat" : "Instant victory";
     public bool GuardianFormsEnabled { get; init; }
     public bool RandomEncounters { get; init; } = true;
-    public bool RareCardMarkers { get; init; } = true;
+    public bool RareCardMarkers { get; init; }
     public bool CursorMemory { get; init; }
     public int FieldMessageSpeed { get; init; } = 3;
 
