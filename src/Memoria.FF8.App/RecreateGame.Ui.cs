@@ -630,7 +630,7 @@ internal sealed partial class RecreateGame
         {
             if (ActiveBattle is null)
             {
-                batch.Draw(pixel, bounds, gameMenus.ScreenId == "new-game-options" ? Color.Black * 0.65f : Color.Black);
+                batch.Draw(pixel, bounds, gameMenus.ScreenId is "new-game-options" or "title-exit" ? Color.Black * 0.65f : Color.Black);
             }
             UiView view = gameMenus.BuildView();
             view.Resize(bounds.Width, bounds.Height);

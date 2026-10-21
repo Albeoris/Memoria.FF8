@@ -337,7 +337,7 @@ internal sealed partial class RecreateGame : Game
             if (input.Cancel)
             {
                 fieldAudio?.PlayUiSound(GameUi.MenuSound.Cancel);
-                Exit();
+                gameMenus!.ShowTitleExitConfirmation(Exit);
             }
         }
         else if (session.State.Scene == SceneKind.Movie)

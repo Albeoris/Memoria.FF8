@@ -103,6 +103,7 @@ public sealed partial class MenuController
 
     public void Open(string screenId = "main", bool demo = false)
     {
+        exitGame = null;
         CancelControlsCapture();
         _nameTarget = null;
         _acceptName = null;
@@ -171,6 +172,7 @@ public sealed partial class MenuController
 
     public void Close()
     {
+        exitGame = null;
         if (ScreenId == "mode-review")
         {
             cancelMagicRules?.Invoke();
@@ -536,6 +538,10 @@ public sealed partial class MenuController
     public void Execute(MenuAction action)
     {
         _view = null;
+        if (ExecuteTitleExitAction(action))
+        {
+            return;
+        }
         if (ExecuteMagicRulesAction(action))
         {
             return;
