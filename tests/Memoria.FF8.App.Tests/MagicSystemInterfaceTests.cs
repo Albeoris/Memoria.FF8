@@ -81,7 +81,7 @@ public sealed class MagicSystemInterfaceTests
     {
         MenuData data = new() { SharedMagicStock = true };
         data.Characters.Add(new MenuCharacter { Id = "character-0", InParty = true });
-        data.Magic.Add(new MenuMagic { Id = "magic-0-1", CharacterId = "character-0", Name = "Cure", Quantity = 100, RemainingUses = 0, Capacity = 4, Owner = "Owner: Caster", Availability = "Exhausted" });
+        data.Magic.Add(new MenuMagic { Id = "magic-0-1", CharacterId = "character-0", Name = "Cure", Quantity = 100, RemainingUses = 0, Capacity = 4, OwnerIcon = new UiImageSource(UiImageKind.CharacterPortrait, 3), Availability = "Exhausted" });
         MenuController menu = new(() => data);
         menu.Open("magic");
         Assert.False(menu.Entries.Single(entry => entry.Id == "magic-exchange").Enabled);

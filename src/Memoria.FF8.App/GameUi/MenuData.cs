@@ -140,6 +140,7 @@ public sealed class MenuMagic
     public int? RemainingUses { get; set; }
     public int? Capacity { get; set; }
     public string Owner { get; set; } = "";
+    public UiImageSource? OwnerIcon { get; set; }
     public string Availability { get; set; } = "";
     public string Caster { get; set; } = "";
     public bool JunctionAvailable { get; set; } = true;

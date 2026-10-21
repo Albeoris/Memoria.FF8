@@ -296,6 +296,10 @@ public sealed partial class MenuController
         {
             return null;
         }
+        if (action.Kind is "select-magic" or "junction-magic" or "junction-magic-reassign")
+        {
+            return Data.Magic.FirstOrDefault(magic => magic.Id == action.SubjectId && magic.CharacterId == Character?.Id)?.OwnerIcon;
+        }
         if (action.Kind is "junction-command" or "junction-ability")
         {
             IReadOnlyList<MenuAbilityChoice> choices = action.Kind == "junction-command" ? Character?.AvailableCommands ?? [] : Character?.AvailableAbilities ?? [];

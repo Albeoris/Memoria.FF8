@@ -23,6 +23,7 @@ public sealed partial class MenuController
         {
             UiList list = Commands(38, 25);
             MenuMagic[] spells = Data.Magic.Where(value => value.CharacterId == Character?.Id).ToArray();
+            list.Images = spells.Select(value => value.OwnerIcon).ToList();
             stock = InventoryQuantities(list, spells.Select(value => value.Name + (value.AccessPresentation.Length > 0 ? " · " + value.AccessPresentation : "")).ToList(), spells.Select(value => value.StockPresentation).ToList());
         }
         Place(body, Panel("MAGIC", stock), 0, 1);
@@ -60,7 +61,7 @@ public sealed partial class MenuController
     private UiElement MagicStockPreview(MenuCharacter? character)
     {
         MenuMagic[] spells = Data.Magic.Where(value => value.CharacterId == character?.Id).ToArray();
-        var list = new UiList { Id = "magic-preview-" + character?.Id, RowHeight = 38 * TextScale, FontSize = 25 * TextScale, ShowSelection = false, Focusable = true, TrailingImages = spells.Select(value => value.Icon).ToList() };
+        var list = new UiList { Id = "magic-preview-" + character?.Id, RowHeight = 38 * TextScale, FontSize = 25 * TextScale, ShowSelection = false, Focusable = true, Images = spells.Select(value => value.OwnerIcon).ToList(), TrailingImages = spells.Select(value => value.Icon).ToList() };
         return InventoryQuantities(list, spells.Select(value => value.Name + (value.AccessPresentation.Length > 0 ? " · " + value.AccessPresentation : "")).ToList(), spells.Select(value => value.StockPresentation).ToList());
     }
 

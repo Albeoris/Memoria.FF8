@@ -78,7 +78,13 @@ internal sealed class BattleHudElement : UiElement
                     theme.Pointer(canvas, Left + 38 * Scale, Top + (y + 5) * Scale, 10 * Scale);
                 }
                 bool unavailable = actions.Count > start + row && (!actions[start + row].Available || controller.SelectedCommand == BattleAbility.Magic && controller.SelectedActor is { } caster && !session.QuoteMagic(caster.Id, actions[start + row].Id).Allowed);
-                Text(canvas, theme, choices[start + row], 60, y, CommandWidth - 38, 26, ShowingMagicList ? 18 : 20, unavailable);
+                UiImageSource? ownerIcon = ShowingMagicList && actions.Count > start + row ? controller.MagicOwnerIcon(actions[start + row]) : null;
+                if (ownerIcon is { } portrait)
+                {
+                    canvas.Image(portrait, Rect(60, y, 26, 26));
+                }
+                float imageWidth = ownerIcon.HasValue ? 30 : 0;
+                Text(canvas, theme, choices[start + row], 60 + imageWidth, y, CommandWidth - 38 - imageWidth, 26, ShowingMagicList ? 18 : 20, unavailable);
             }
         }
 

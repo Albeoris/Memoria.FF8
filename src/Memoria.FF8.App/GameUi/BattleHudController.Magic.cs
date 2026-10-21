@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
@@ -16,10 +17,14 @@ public sealed partial class BattleHudController
         MagicCastQuote quote = session.QuoteMagic(actor.Id, action.Id);
         int stock = actor.MagicStocks.FirstOrDefault(stock => stock.Id == action.Id)?.Count ?? 0;
         string uses = session.InfiniteMagic ? $" · {MagicUiText.Get("Battle")} {quote.Available}/{quote.Capacity}" : "";
-        int? owner = session.GetMagicJunctionOwner(actor.Id, action.Id);
-        string ownerText = owner is int row ? " · " + MagicUiText.Format("Owner", session.Combatants.FirstOrDefault(candidate => candidate.MagicRecordId == row)?.Name ?? $"{row}") : "";
         string unavailable = !quote.Allowed ? " · " + MagicUiText.Get("Exhausted") : "";
-        return label + (magicCastCount > 1 ? $" ×{magicCastCount}" : "") + $" ×{stock}" + uses + ownerText + unavailable;
+        return label + (magicCastCount > 1 ? $" ×{magicCastCount}" : "") + $" ×{stock}" + uses + unavailable;
+    }
+
+    internal UiImageSource? MagicOwnerIcon(BattleActionDefinition action)
+    {
+        int? owner = session.GetMagicJunctionOwner(SelectedActor!.Id, action.Id);
+        return owner is int row && session.MagicVitals is { } vitals ? new UiImageSource(UiImageKind.CharacterPortrait, vitals.Records[row].CharacterId) : null;
     }
 
     private void ChangeMagicCastCount(int direction)

@@ -173,7 +173,8 @@ public static class LiveMenuData
                         Description = catalog?.MagicDescription(stock.SpellId) ?? "Magic description unavailable.",
                         RemainingUses = vitals.MagicSystem.InfiniteMagic ? quote.Available : null,
                         Capacity = vitals.MagicSystem.InfiniteMagic ? quote.Capacity : null,
-                        Owner = owner is int ownerRow ? MagicUiText.Format("Owner", CharacterName(state, vitals.Records[ownerRow].CharacterId, names, catalog)) : vitals.MagicSystem.SharedMagicStock ? MagicUiText.Get("Unbound") : "",
+                        Owner = owner is null && vitals.MagicSystem.SharedMagicStock ? MagicUiText.Get("Unbound") : "",
+                        OwnerIcon = owner is int ownerRow ? new UiImageSource(UiImageKind.CharacterPortrait, vitals.Records[ownerRow].CharacterId) : null,
                         Availability = availability,
                         Caster = caster is int casterRow && vitals.MagicSystem.SharedMagicStock ? MagicUiText.Format("Caster", CharacterName(state, vitals.Records[casterRow].CharacterId, names, catalog)) : "",
                         JunctionAvailable = owner is null || owner == row

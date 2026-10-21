@@ -8,7 +8,6 @@ internal static class MagicUiText
     {
         "Field" => "Field",
         "Battle" => "Battle",
-        "Owner" => "Owner: {0}",
         "Unbound" => "Unbound",
         "Exhausted" => "Exhausted",
         "UnavailableOwner" => "Owner unavailable",
