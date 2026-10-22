@@ -238,6 +238,15 @@ public sealed partial class GameAssets
                 }
                 binding = binding with { Electrocute275Resources = ReadNativeElectrocute275Resources() };
             }
+            if (binding.Effect is 177 or 178)
+            {
+                NativeBattleNeedlesFamilyProfile profile = NativeBattleNeedlesFamilyProfile.ForEffect(binding.Effect);
+                if (binding.Entry != profile.Entry || binding.Initializer != profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag176.tim", profile.InitializerGlobal) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Needles requires its original entry and initializer resource identity.");
+                }
+                binding = binding with { NeedlesFamilyResources = ReadNativeNeedlesFamilyResources(binding.Effect) };
+            }
             if (binding.Effect == 71)
             {
                 if (binding.Entry != 0x7D6150 || binding.Initializer != 0x7D6130 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag070.tim", 0x25FA408) || binding.InitializerResources is not null)

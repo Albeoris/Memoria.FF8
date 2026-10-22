@@ -86,6 +86,10 @@ public sealed partial class BattleSession
         {
             return EnterNativeElectrocute275(graphics);
         }
+        if (effect.Binding.Entry is 0x5CF760 or 0x5CEDD0)
+        {
+            return RunNativeNeedlesFamily(graphics, true);
+        }
         if (effect.Binding.Entry == NativeBattleLaserEye71Profile.Entry)
         {
             return RunNativeLaserEye71(graphics, true);

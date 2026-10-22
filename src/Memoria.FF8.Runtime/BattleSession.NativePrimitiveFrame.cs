@@ -109,11 +109,8 @@ public sealed partial class BattleSession
         uint color = model.Color40 ?? throw new NotSupportedException("Native502D40 requires its color DWORD40.");
         uint mask = model.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native502D40 requires its object mask DWORD124.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native502D40 requires its actual previously published camera matrix.");
-        if ((model.Flags2!.Value & 1) != 0)
-        {
-            throw new NotSupportedException("Native502D40 billboard geometry requires its original50CDC0 angle owner.");
-        }
-        model = NativeBattlePoseMatrices.ComposeGeometryMatrices5095B0(model, source, view);
+        NativeBattleVector? actualCameraEye = NativeCamera?.CurrentPose?.Eye is { } eye ? new(eye.X, eye.Y, eye.Z) : null;
+        model = NativeBattlePoseMatrices.ComposeGeometryMatrices502D40(model, source, view, actualCameraEye);
         graphics = graphics with { Models = graphics.Models.SetItem(model.Index, model) };
         ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(model, source);
         ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Native502D40 requires its observed linked geometry presence.");
@@ -149,7 +146,7 @@ public sealed partial class BattleSession
         }
         if (!shared && !linked.IsEmpty && (model.Flags0 & 0x200) == 0)
         {
-            ImmutableArray<NativeBattleActionMatrix> linkedMatrices = NativeBattlePoseMatrices.LinkedGeometryMatrices502D40(model, resource.LinkedPoseSource ?? throw new NotSupportedException("Native linked geometry requires its original independent skeleton."), view);
+            ImmutableArray<NativeBattleActionMatrix> linkedMatrices = NativeBattlePoseMatrices.LinkedDrawGeometryMatrices502D40(model, resource.LinkedPoseSource ?? throw new NotSupportedException("Native linked geometry requires its original independent skeleton."), view, actualCameraEye);
             if (ResetAndEnterNativeModelRenderer5099D0(color))
             {
                 ImmutableArray<NativeBattleGeometryPrimitive> linkedPrimitives = NativeBattleRawGeometryPackets.Emit5099D0(linked, linkedMatrices, projection, color, uint.MaxValue, null, 17, 4, model.LinkedTextureSlots ?? throw new NotSupportedException("Native linked geometry requires its executed507400 material relocation."), publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport);
@@ -351,6 +348,14 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Native Sticky Web packet banks share one contiguous physical owner.");
             }
             return (memory.StickyWeb153 ?? throw new NotSupportedException("Native Sticky Web packet alias requires its retained executable banks.")).Packets.Read(reference.ByteOffset, count);
+        }
+        if (reference.Bank == NativeBattleNeedlesFamilyPacketArena.Bank(177))
+        {
+            return NativeBattleNeedlesFamilyPacketArena.Read(memory.ThousandNeedles177 ?? throw new NotSupportedException("Needles packets require their retained native banks."), reference, count);
+        }
+        if (reference.Bank == NativeBattleNeedlesFamilyPacketArena.Bank(178))
+        {
+            return NativeBattleNeedlesFamilyPacketArena.Read(memory.TenThousandNeedles178 ?? throw new NotSupportedException("Needles packets require their retained native banks."), reference, count);
         }
         if (reference.Bank == NativeBattleGatlingGun305PacketArena.PacketBank)
         {
