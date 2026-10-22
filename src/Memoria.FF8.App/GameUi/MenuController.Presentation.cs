@@ -58,6 +58,10 @@ public sealed partial class MenuController
         {
             return BuildVectorMain();
         }
+        if (ScreenId == "magic-target")
+        {
+            return BuildVectorMagicTarget();
+        }
         if (UsesAbilityJunctionComposition)
         {
             return BuildClassicContent();
@@ -67,6 +71,20 @@ public sealed partial class MenuController
             return BuildVectorJunction();
         }
         return BuildClassicContent();
+    }
+
+    private UiElement BuildVectorMagicTarget()
+    {
+        var page = Grid([1.2f, 5], [1], 4);
+        Place(page, NativeMenuHeader("Magic", InventoryNavigation(true)), 0);
+        var body = Grid([1], [1.05f, 1], 12);
+        var characterAndTargets = Grid([2, 3], [1], 10);
+        Place(characterAndTargets, MagicCharacterSummary(Character, true), 0);
+        Place(characterAndTargets, Panel("NAME", Commands(48, 25)), 1);
+        Place(body, characterAndTargets, 0);
+        Place(body, Panel("MAGIC", MagicStockPreview(Character)), 0, 1);
+        Place(page, body, 1);
+        return page;
     }
 
     private UiElement BuildVectorMain()
@@ -199,7 +217,7 @@ public sealed partial class MenuController
             var commands = (UiList)NativeCommandStrip();
             commands.Paginated = false;
             commands.FontSize = fontSize;
-            commands.TextInset = 35 * TextScale;
+            commands.TextInset = 16 * TextScale;
             commands.PointerSize = 20 * TextScale;
             tabs = commands;
         }
@@ -212,7 +230,7 @@ public sealed partial class MenuController
             for (int index = 0; index < names.Length; index++)
             {
                 string destination = destinations[index];
-                var tab = new UiButton { Text = names[index], FontSize = fontSize, TextInset = 35 * TextScale, DrawBackground = false, PointerSize = 20 * TextScale, Click = () => Push(destination) };
+                var tab = new UiButton { Text = names[index], FontSize = fontSize, TextInset = 16 * TextScale, DrawBackground = false, PointerSize = 20 * TextScale, Click = () => Push(destination) };
                 Place(strip, index == activeIndex ? new VectorActiveTab(tab) : tab, 0, index);
             }
             tabs = strip;

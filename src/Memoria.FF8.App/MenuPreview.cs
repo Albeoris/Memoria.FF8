@@ -220,6 +220,10 @@ internal static class MenuPreview
             menus.BattleDebugRequested += () => { };
             menus.Open(screen, liveData is null);
             menus.Data.Settings["UI presentation"] = presentation.ToString();
+            menus.Data.Settings["UI font"] = preferences.UiFontFamily;
+            menus.Data.Settings["UI font size"] = fontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            menus.Data.Settings["Dialogue font"] = preferences.DialogueFontFamily;
+            menus.Data.Settings["Dialogue font size"] = preferences.DialogueFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
             menus.Data.Settings["Text scale"] = textScale.ToString(System.Globalization.CultureInfo.InvariantCulture) + "%";
             if (characterId is not null)
             {

@@ -31,12 +31,18 @@ public sealed class JunctionTypographyTests
         UiView view = menu.BuildView();
         view.Resize(1920, 1080);
         view.Draw(canvas, menu.CreateTheme());
-        return Assert.Single(canvas.Texts, text => text.Text == "Off").Size;
+        float size = Assert.Single(canvas.Texts, text => text.Text == "Off").Size;
+        if (menu.TextScale <= 1.1f)
+        {
+            var junction = Assert.Single(canvas.Texts, text => text.Text == "Junction" && text.Size == size);
+            Assert.True(canvas.MeasureText(junction.Text, junction.Size, float.PositiveInfinity).Width <= junction.Bounds.Width);
+        }
+        return size;
     }
 
     private sealed class RecordingCanvas : IUiCanvas
     {
-        public List<(string Text, float Size)> Texts { get; } = [];
+        public List<(string Text, float Size, UiRect Bounds)> Texts { get; } = [];
 
         public void Fill(UiRect bounds, UiColor color)
         {
@@ -64,7 +70,7 @@ public sealed class JunctionTypographyTests
 
         public void Text(string text, float fontSize, UiRect bounds, UiColor color)
         {
-            Texts.Add((text, fontSize));
+            Texts.Add((text, fontSize, bounds));
         }
 
         public void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment)
