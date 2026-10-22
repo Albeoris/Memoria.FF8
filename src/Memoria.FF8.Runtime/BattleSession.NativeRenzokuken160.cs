@@ -40,7 +40,7 @@ public sealed partial class BattleSession
         {
             return pool.Slots[slot].Callback switch
             {
-                0x5FF180 => NativeBattleRenzokuken160Controller.Advance5FF180(current, pool, slot, Inputs(current), resources),
+                0x5FF180 => NativeBattleRenzokuken160Controller.Advance5FF180(current, pool, slot, Inputs(current), resources with { DefaultModelColor = NativeStage?.ModelColors?.Color40 ?? throw new NotSupportedException("Native Renzokuken requires its current stage transition color.") }),
                 0x5FFAA0 => NativeBattleRenzokuken160Controller.Advance5FFAA0(current, pool, slot, Inputs(current), view, projection, current.Memory.ScriptedGraphics, colors),
                 0x5FFFE0 => NativeBattleRenzokuken160Controller.Advance5FFFE0(current, pool, slot, Inputs(current)),
                 0x600110 => NativeBattleRenzokuken160Controller.Advance600110(current, pool, slot, Inputs(current), resources),
@@ -72,7 +72,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Flags0 = flags.Flags }) };
                     return current;
                 case NativeBattleRenzokuken160ActorColor color:
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Color44 = color.Color }) };
+                    graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Color40 = color.Color }) };
                     return current;
                 case NativeBattleRenzokuken160ActorResource binding:
                     NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[actor], NativeGraphicsPoseResource(graphics, actor));

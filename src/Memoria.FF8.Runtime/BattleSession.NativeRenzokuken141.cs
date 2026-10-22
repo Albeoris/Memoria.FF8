@@ -49,7 +49,7 @@ public sealed partial class BattleSession
         {
             return pool.Slots[slot].Callback switch
             {
-                uint callback when callback == profile.ControllerCallback => NativeBattleRenzokukenVariantController.AdvanceController(current, pool, slot, Inputs(current), resources, profile),
+                uint callback when callback == profile.ControllerCallback => NativeBattleRenzokukenVariantController.AdvanceController(current, pool, slot, Inputs(current), resources with { DefaultModelColor = NativeStage?.ModelColors?.Color40 ?? throw new NotSupportedException("Native Renzokuken requires its current stage transition color.") }, profile),
                 uint callback when callback == profile.TrailCallback => NativeBattleRenzokuken160Controller.Advance5FFAA0(current, pool, slot, Inputs(current), view, projection, current.Memory.ScriptedGraphics, colors),
                 uint callback when callback == profile.SpiralCallback => NativeBattleRenzokuken160Controller.Advance5FFFE0(current, pool, slot, Inputs(current)),
                 uint callback when callback == profile.ContactCallback => NativeBattleRenzokuken160Controller.Advance600110(current, pool, slot, Inputs(current), resources, profile.ImpactCallback, profile.HasContactOffsets ? contact => ContactOrigin(current, contact) : null),
@@ -99,7 +99,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Flags0 = flags.Flags }) };
                     return current;
                 case NativeBattleRenzokuken160ActorColor color:
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Color44 = color.Color }) };
+                    graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Color40 = color.Color }) };
                     return current;
                 case NativeBattleRenzokuken160ActorResource binding:
                     NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[actor], NativeGraphicsPoseResource(graphics, actor));

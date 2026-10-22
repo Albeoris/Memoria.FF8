@@ -40,7 +40,14 @@ public sealed class NativeBattleRenzokukenCastTests
                 candidate = candidate.Draw(out byte resource).Draw(out byte finisher);
                 return definition.Combatants[1].NativeRenzokukenMagicIds[crisis + 1 + resource % 2] == effectId && !NativeBattleRenzokukenRules.HasFinisher(crisis, finisher);
             });
-            battle = BattleSession.Restore(battle.Capture() with { NativeLimits = [new("party", crisis)], Random = random });
+            BattleSnapshot ready = battle.Capture();
+            const uint transitionColor = 0x00312617;
+            battle = BattleSession.Restore(ready with { NativeLimits = [new("party", crisis)], Random = random, NativeStage = ready.NativeStage! with { ModelColors = ready.NativeStage.ModelColors! with { Color40 = transitionColor } } });
+            const int actorIndex = 0;
+            uint? shadowColor = battle.NativeGraphics!.Models[actorIndex].Color44;
+            Assert.NotNull(shadowColor);
+            uint interpolatedColor = NativeBattleGteColorInterpolation.CodeConstants45F270.Interpolate(transitionColor, 1 << 9, 0x4060F0);
+            bool interpolatedCurrentStageColor = false;
             Publish("before-command");
             battle.QueueNativePlayerCommand("party", "enemy", 5, 0);
             CompareNext("queued");
@@ -52,6 +59,8 @@ public sealed class NativeBattleRenzokukenCastTests
             {
                 before = battle.Capture();
                 battle.Tick();
+                Assert.Equal(shadowColor, battle.NativeGraphics!.Models[actorIndex].Color44);
+                interpolatedCurrentStageColor |= battle.NativeGraphics.Models[actorIndex].Color40 == interpolatedColor;
                 selected |= battle.NativeGraphics!.OriginalEffect?.Binding.Effect == effectId;
                 if (battle.NativeGraphics.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == effectId)
                 {
@@ -69,6 +78,7 @@ public sealed class NativeBattleRenzokukenCastTests
                 {
                     Assert.True(capturedMidpoint);
                     Assert.True(registeredCamera);
+                    Assert.True(interpolatedCurrentStageColor, "Renzokuken must interpolate the current stage transition color into model DWORD40 without changing the shadow command in DWORD44.");
                     Assert.Equal(contacts, battle.Events.Count(entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy"));
                     Assert.Null(battle.Capture().NativeTimedAction);
                     Assert.Equal((byte)0, battle.Capture().NativeClock!.ActionPause);
