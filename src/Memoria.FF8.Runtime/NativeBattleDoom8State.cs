@@ -6,6 +6,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleDoom8State([property: JsonRequired] NativeBattleEffectArena Globals, [property: JsonRequired] ImmutableArray<byte>? IoScript)
 {
+    [JsonRequired]
+    public NativeBattleCuragaExecutableState? NodeProgram { get; init; }
+
     public const uint BaseAddress = 0x2758500;
     public const int GlobalLength = 0x767C;
     public const uint SharedAddress = 0x275F240;
@@ -27,7 +30,7 @@ public sealed record NativeBattleDoom8State([property: JsonRequired] NativeBattl
 
     public static NativeBattleDoom8State FromColdProcess(ImmutableArray<byte> script)
     {
-        NativeBattleDoom8State state = new(NativeBattleEffectArena.Clear(), script);
+        NativeBattleDoom8State state = new(NativeBattleEffectArena.Clear(), script) { NodeProgram = new(0, null) { ResourceAddress = 0x1818B78 } };
         state.Validate();
         return state;
     }
@@ -44,6 +47,14 @@ public sealed record NativeBattleDoom8State([property: JsonRequired] NativeBattl
         if (IoScript is { } script && (script.IsDefault || script.Length != NativeBattleDoom8Io.ScriptLength))
         {
             throw new InvalidDataException("Doom requires its complete retained IO script.");
+        }
+        if (NodeProgram is { } program)
+        {
+            program.Validate();
+            if (program.ResourceAddress != 0x1818B78)
+            {
+                throw new InvalidDataException("Doom requires its actual retained node source identity.");
+            }
         }
         foreach (NativeBattleEffectMemoryRegion region in Globals.Regions)
         {

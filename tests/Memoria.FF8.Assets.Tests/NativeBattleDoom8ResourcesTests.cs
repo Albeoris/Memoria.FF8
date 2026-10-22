@@ -130,6 +130,27 @@ public sealed class NativeBattleDoom8ResourcesTests
         Assert.Throws<ArgumentOutOfRangeException>(() => resources.ActSource(386, 0x19F0324));
     }
 
+    [Fact]
+    public void Original_node_bank_materializes_once_and_preserves_live_pointer_fixups_across_JSON()
+    {
+        using GameAssets game = OpenGame();
+        NativeBattleDoom8Resources resources = game.ReadNativeDoom8Resources();
+        NativeBattleDoom8State state = NativeBattleDoom8State.FromColdProcess(resources.InitialIoScript.Data);
+        NativeBattleCuragaExecutableState materialized = state.NodeProgram!.Initialize87EA20(resources.NodeSource);
+        Assert.Equal(1u, materialized.InitializationFlag);
+        Assert.Equal(0x181CA4Cu, BinaryPrimitives.ReadUInt32LittleEndian(materialized.Read(0x1818B7C, 4)));
+        Assert.Equal(1u, BinaryPrimitives.ReadUInt32LittleEndian(materialized.Read(0x1818B78, 4)));
+        Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(resources.NodeSource.Data.AsSpan()));
+        Assert.Same(materialized, materialized.Initialize87EA20(resources.NodeSource));
+        state = state with { NodeProgram = materialized };
+        NativeBattleDoom8State restored = JsonSerializer.Deserialize<NativeBattleDoom8State>(JsonSerializer.Serialize(state))!;
+        restored.Validate();
+        NativeBattleCuragaExecutableState continued = restored.NodeProgram!.Initialize87EA20(resources.NodeSource);
+        Assert.Equal(JsonSerializer.Serialize(materialized), JsonSerializer.Serialize(continued));
+        Assert.Null(NativeBattleDoom8State.FromUnknown().NodeProgram);
+        Assert.Throws<InvalidDataException>(() => (state with { NodeProgram = NativeBattleCuragaExecutableState.FromColdProcess() }).Validate());
+    }
+
     private static GameAssets OpenGame()
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");

@@ -10,8 +10,12 @@ public sealed class NativeBattleDoom8StateTests
     {
         NativeBattleDoom8State cold = NativeBattleDoom8State.FromColdProcess(new byte[112].ToImmutableArray());
         Assert.Equal(0u, cold.ReadDword(0x2758500));
+        Assert.Equal(0x1818B78u, cold.NodeProgram!.ResourceAddress);
+        Assert.Equal(0u, cold.NodeProgram.InitializationFlag);
+        Assert.Null(cold.NodeProgram.Data);
         Assert.Equal((ushort)0, cold.SharedWord(0x40));
         NativeBattleDoom8State unknown = NativeBattleDoom8State.FromUnknown();
+        Assert.Null(unknown.NodeProgram);
         Assert.Throws<NotSupportedException>(() => unknown.SharedWord(0x40));
         unknown = unknown.WithSharedWord(0x40, 2);
         Assert.Equal((ushort)2, unknown.SharedWord(0x40));

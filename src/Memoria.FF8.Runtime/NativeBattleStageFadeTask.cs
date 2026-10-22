@@ -8,11 +8,18 @@ public static class NativeBattleStageFadeTask
 {
     public static NativeBattleStageFadeStep Advance(NativeBattleModulePoolTask task, bool fadeIn)
     {
+        return Advance(task, fadeIn, 256, 1024);
+    }
+
+    public static NativeBattleStageFadeStep Advance(NativeBattleModulePoolTask task, bool fadeIn, short step, short maximum)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(step);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximum);
         NativeBattleStageFadeWrite? write = null;
         switch (unchecked((sbyte)task.ReadByte(0x29)))
         {
             case 0:
-                task = task.WriteWord(0x1C, fadeIn ? (ushort)0 : (ushort)1024);
+                task = task.WriteWord(0x1C, fadeIn ? (ushort)0 : unchecked((ushort)maximum));
                 Next();
                 if (fadeIn)
                 {
@@ -20,10 +27,10 @@ public static class NativeBattleStageFadeTask
                 }
                 break;
             case 1:
-                short fade = unchecked((short)(task.ReadWord(0x1C) + (fadeIn ? 256 : -256)));
-                if (fadeIn ? fade >= 1024 : fade <= 0)
+                short fade = unchecked((short)(task.ReadWord(0x1C) + (fadeIn ? step : -step)));
+                if (fadeIn ? fade >= maximum : fade <= 0)
                 {
-                    fade = fadeIn ? (short)1024 : (short)0;
+                    fade = fadeIn ? maximum : (short)0;
                     task = task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 1));
                     Next();
                 }
