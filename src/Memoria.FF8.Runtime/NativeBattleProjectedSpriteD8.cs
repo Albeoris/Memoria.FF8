@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -56,15 +56,15 @@ public static class NativeBattleProjectedSpriteD8
 
     public static NativeBattleProjectedSpriteDraw Draw(NativeBattleProjectedSpriteHead head, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket)
     {
-        return DrawCore(head, readResource, projection, cameraRoll, tableBaseBucket, true);
+        return DrawCore(head, readResource, projection, cameraRoll, tableBaseBucket, true, 2);
     }
 
-    internal static NativeBattleProjectedSpriteDraw DrawUnbiased571C80(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary180, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket)
+    internal static NativeBattleProjectedSpriteDraw DrawUnbiased571C80(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary180, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift)
     {
-        return DrawCore(new(memory, temporary180), readResource, projection, cameraRoll, tableBaseBucket, false);
+        return DrawCore(new(memory, temporary180), readResource, projection, cameraRoll, tableBaseBucket, false, depthShift);
     }
 
-    private static NativeBattleProjectedSpriteDraw DrawCore(NativeBattleProjectedSpriteHead head, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, bool readD8DepthBias)
+    private static NativeBattleProjectedSpriteDraw DrawCore(NativeBattleProjectedSpriteHead head, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, bool readD8DepthBias, byte depthShift)
     {
         NativeBattleEffectArena temporary = head.TemporaryD8;
         if (ReadWord(temporary, 0x24) != 0)
@@ -101,7 +101,7 @@ public static class NativeBattleProjectedSpriteD8
         temporary = temporary.Write(0x20, resource.Bytes.AsSpan().Slice(4, 4));
         temporary = Dword(Dword(Dword(Dword(Dword(temporary, 0xB0, 0), 0xAC, 0), 0xA4, 4096), 0xA8, 0), 0x3C, uint.MaxValue);
         NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 255) { Resource = resource, SpriteFrame = selected, Phase = phase, SpriteFlags = flags };
-        NativeBattleModulePacketBatch encoded = NativeBattleModulePackets.EmitSprite571DC0(draw, projection, cameraRoll, tableBaseBucket, 2, main);
+        NativeBattleModulePacketBatch encoded = NativeBattleModulePackets.EmitSprite571DC0(draw, projection, cameraRoll, tableBaseBucket, depthShift, main);
         NativeBattleAllocatedPrimitive[] quads = encoded.Primitives.Where(packet => packet.Primitive.Words.Length == 10).ToArray();
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int accepted = 0;
@@ -200,7 +200,7 @@ public static class NativeBattleProjectedSpriteD8
                 depth = Math.Max(0, unchecked(depth + unchecked((short)ReadWord(temporary, 0xB4))));
             }
             temporary = Dword(temporary, 0x3C, unchecked((uint)depth));
-            int bucket = checked(tableBaseBucket + (depth >> 2));
+            int bucket = unchecked(tableBaseBucket + (depth >> depthShift));
             if (accepted >= quads.Length)
             {
                 throw new InvalidDataException("Projected sprite GTE acceptance differs from the shared packet geometry.");

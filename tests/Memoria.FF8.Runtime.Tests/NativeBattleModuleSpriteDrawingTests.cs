@@ -9,6 +9,23 @@ public sealed class NativeBattleModuleSpriteDrawingTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void Native_caller_shift14_changes_all_links_but_preserves_cached_depth_GTE_and_packet_words(bool extended)
+    {
+        var fixture = Fixture(2000, extended);
+        NativeBattleModuleSpriteDraw ordinary = Draw(fixture.Memory, fixture.Temporary, fixture.Resource);
+        NativeBattleModuleSpriteDraw shifted = NativeBattleModuleSpriteDrawing.Draw571C80(fixture.Memory, fixture.Temporary, _ => fixture.Resource, Projection, 0, 17, 14);
+        Assert.Equal(JsonSerializer.Serialize(ordinary.Memory), JsonSerializer.Serialize(shifted.Memory));
+        Assert.Equal(JsonSerializer.Serialize(ordinary.Temporary180), JsonSerializer.Serialize(shifted.Temporary180));
+        Assert.Equal(ordinary.Batch.AllocationBytes, shifted.Batch.AllocationBytes);
+        Assert.Equal(500, I32(shifted.Temporary180, 0x3C));
+        Assert.All(shifted.Batch.Attempts.Where(attempt => attempt.Primitive is not null), attempt => Assert.Equal(17, attempt.Primitive!.Bucket));
+        Assert.Equal(JsonSerializer.Serialize(ordinary.Batch.Attempts.Select(attempt => attempt.Data)), JsonSerializer.Serialize(shifted.Batch.Attempts.Select(attempt => attempt.Data)));
+        Assert.Throws<InvalidDataException>(() => NativeBattleModuleSpriteDrawing.Draw571C80(fixture.Memory, fixture.Temporary, _ => fixture.Resource, Projection, 0, 17, 32));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void Flags_zero_180_uses_loaded_GTE_and_cached_depth_without_any_D8_bias_owner(bool extended)
     {
         var fixture = Fixture(2000, extended);

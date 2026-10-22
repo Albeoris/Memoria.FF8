@@ -8,14 +8,14 @@ public sealed record NativeBattleStaticMeshContext88Step(NativeBattleEffectMemor
 
 public static class NativeBattleStaticMeshContext88
 {
-    public static NativeBattleStaticMeshContext88Step Draw(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, short? matrixPadding18 = null)
+    public static NativeBattleStaticMeshContext88Step Draw(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, short? matrixPadding18 = null, int tableBaseBucket = 17, byte depthShift = 2)
     {
         NativeBattleGeometryRegisterStep registers = new(memory.GeometryRegisters ?? NativeBattleGeometryRegisters.Unknown(), memory.ScriptedColorRegisters ?? NativeBattleScriptedColorRegisters.Unknown());
         NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics ?? throw new NotSupportedException("Masamune requires its current projection controls.");
         NativeBattlePrimitiveProcess primitive = memory.PrimitiveProcess ?? throw new NotSupportedException("Masamune requires its current far-color controls.");
         NativeBattleModelRendererRegisters far = primitive.ModelRendererRegisters ?? throw new NotSupportedException("Masamune requires its current renderer registers.");
         uint flags = Dword(context, 0x1C);
-        if (Dword(context, 0) != mesh.Address || flags is not (0x33 or 0xF3 or 0xF0))
+        if (Dword(context, 0) != mesh.Address || flags is not (0x33 or 0xF3 or 0xF0) || depthShift > 31)
         {
             throw new InvalidDataException("Masamune mesh requires its actual addressed caller context.");
         }
@@ -37,7 +37,7 @@ public static class NativeBattleStaticMeshContext88
             {
                 continue;
             }
-            if (flags == 0xF0 ? group != 7 : group is not (2 or 3 or 4 or 5))
+            if (flags == 0xF0 ? group != 7 : group is not (0 or 2 or 3 or 4 or 5 or 7))
             {
                 throw new NotSupportedException("Masamune mesh requires an unproved primitive group.");
             }
@@ -80,7 +80,9 @@ public static class NativeBattleStaticMeshContext88
                     }
                     return projected[corner];
                 }
-                NativeBattleModuleMeshContext packetContext = new(flags, rgb, flags is 0xF3 or 0xF0 ? unchecked((int)Dword(context, 12)) : null, null, null, 0, 17, 2);
+                (byte[] cueBytes, bool[] cueKnown) = context.ReadSnapshot(12, 4);
+                int? packetCue = (flags is 0xF3 or 0xF0) && cueKnown.All(value => value) ? BinaryPrimitives.ReadInt32LittleEndian(cueBytes) : null;
+                NativeBattleModuleMeshContext packetContext = new(flags, rgb, packetCue, null, null, 0, tableBaseBucket, depthShift);
                 NativeBattleGfGeometryAttempt attempt = NativeBattleModulePackets.EmitFace572200(face, new Corners(projected.Length, ReadCorner), group, packetContext, constants, allocated);
                 if (attempt.Primitive is not null)
                 {
@@ -99,7 +101,7 @@ public static class NativeBattleStaticMeshContext88
                             registers = registers with { Colors = NativeBattleScriptedDpcs.Transform45F270(registers.Colors, material, cue, far, constants).Registers };
                         }
                     }
-                    attempt = attempt with { Primitive = attempt.Primitive with { Bucket = checked(17 + (unchecked((int)depth) >> 2)) } };
+                    attempt = attempt with { Primitive = attempt.Primitive with { Bucket = unchecked(tableBaseBucket + (unchecked((int)depth) >> depthShift)) } };
                     allocated = checked(allocated + attempt.PacketLength);
                 }
                 attempts.Add(attempt);

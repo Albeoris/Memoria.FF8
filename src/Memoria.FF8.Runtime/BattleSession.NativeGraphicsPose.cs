@@ -22,6 +22,10 @@ public sealed partial class BattleSession
                 {
                     return pointer;
                 }
+                if (address >= NativeBattleDegenerator306Profile.BindingSave && address < NativeBattleDegenerator306Profile.BindingSave + 32)
+                {
+                    return (NativeEffectMemory?.Degenerator306 ?? throw new NotSupportedException("Native bound graphics requires its retained binding row.")).ReadResourcePointer(address);
+                }
                 return IsNativeEffectArenaAddress(address) ? RequireWaterMemory().Arena!.ReadResourcePointer(NativeBattleWaterExecutionFields.ArenaOffset(address, 4)) : staging.ReadResourcePointer(address);
             }
 

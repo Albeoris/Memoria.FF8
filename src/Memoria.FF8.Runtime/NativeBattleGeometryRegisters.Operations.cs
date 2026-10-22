@@ -235,6 +235,8 @@ public static class NativeBattleGeometry
         return new(ReadWord(bytes, 0), ReadWord(bytes, 2), ReadWord(bytes, 4));
     }
 
+    public static NativeBattleActionMatrix CaptureMatrix(NativeBattleGeometryRegisters geometry) => ReadMatrix(geometry, true);
+
     private static NativeBattleActionMatrix ReadMatrix(NativeBattleGeometryRegisters geometry, bool translation)
     {
         ImmutableArray<short> rotation = Enumerable.Range(0, 9).Select(index => ReadWord(geometry.Rotation20, index * 2)).ToImmutableArray();

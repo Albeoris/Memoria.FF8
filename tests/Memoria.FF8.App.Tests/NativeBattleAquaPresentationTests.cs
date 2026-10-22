@@ -257,7 +257,7 @@ public sealed class NativeBattleAquaPresentationTests
         }
         throw new InvalidDataException("No original single-enemy Aqua action binding with its required caster skeleton was found.");
     }
-    internal static ImmutableHashSet<NativeBattlePrimitiveReference> AquaPacketReferences(BattleSnapshot prior, BattleSnapshot current, Action<NativeBattleModelPrefixDiagnostic>? diagnostic = null)
+    internal static ImmutableHashSet<NativeBattlePrimitiveReference> AquaPacketReferences(BattleSnapshot prior, BattleSnapshot current, Action<NativeBattleModelPrefixDiagnostic>? diagnostic = null, Func<NativeBattleGraphicsModel, NativeBattleGraphicsResource, NativeBattleGraphicsResource>? resolveResource = null)
     {
         NativeBattleGraphicsState graphics = current.NativeGraphics!;
         if (prior.NativeGraphics!.Auxiliary.Slots.Any(task => (task.Flags & 1) != 0 && task.Kind != NativeBattleAuxiliaryKind.TextureAnimation5057D0) || prior.NativeGraphics.ModuleEffects.Slots.Any(task => (task.Flags & 1) != 0) || graphics.ModuleEffects.Slots.Any(task => (task.Flags & 1) != 0))
@@ -273,7 +273,7 @@ public sealed class NativeBattleAquaPresentationTests
         NativeBattleGraphicsResource resource = definition.Bindings.Single(binding => binding.ActorId == graphics.ActorIds[actor.Index]).Resource;
         if (actor.ActiveStagedResourceRow100 is not null)
         {
-            resource = NativeBattleVictoryResources.Resolve(current.NativeFileStaging!, current.NativeModelCpuResources!, actor, resource);
+            resource = resolveResource is null ? NativeBattleVictoryResources.Resolve(current.NativeFileStaging!, current.NativeModelCpuResources!, actor, resource) : resolveResource(actor, resource);
         }
         if (resource.Geometry is not { } geometry || resource.PoseSource is not { } pose || actor.CurrentBodyBoneMatrices is null || actor.GeometryBounds52 is not { } bounds || actor.Color40 is not { } color || actor.Color44 is not { } shadowColor || actor.SequenceState?.MeshMask124 is not { } mask || prior.NativeCamera?.Projection is not { } projection || projection.View is not { } view)
         {

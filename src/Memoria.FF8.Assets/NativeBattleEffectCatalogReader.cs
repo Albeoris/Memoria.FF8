@@ -206,6 +206,14 @@ public sealed partial class GameAssets
                 binding = binding with { Doom8Resources = doom, InitializerAsset = doom.MainTim };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 306)
+            {
+                if (binding.Entry != 0x5A2C90 || binding.Initializer != 0x5A2C70 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag173.tim", 0x2244220) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Degenerator requires its original entry and initializer resource identity.");
+                }
+                binding = binding with { Degenerator306Resources = ReadNativeDegenerator306Resources() };
+            }
             if (binding.Effect == 300)
             {
                 if (binding.Entry != 0x66EF00 || binding.Initializer != 0x66EF10 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag130-299.tim", 0x25077A0) || binding.InitializerResources is not null)
