@@ -113,8 +113,8 @@ internal static class NativeBattleEffectFixtureExporter
         {
             return enemies[0];
         }
-        BattleEnemyPlacement[] matches = enemies.Where(enemy => enemy.Slot == request.CasterActorIndex - 3).ToArray();
-        return matches.Length == 1 ? matches[0] : throw new InvalidDataException("The selected physical caster row has no enabled original formation placement.");
+        int index = request.CasterActorIndex - 3;
+        return index < enemies.Length ? enemies[index] : throw new InvalidDataException("The selected physical caster row has no enabled original formation placement.");
     }
 
     internal static byte SelectEnemySequence(NativeBattleAiDefinition ai, BattleNativeAction action)

@@ -20,6 +20,27 @@ public static class NativeBattleStaticMeshContext88
             throw new InvalidDataException("Masamune mesh requires its actual addressed caller context.");
         }
         registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, matrix, true, true, matrixPadding18) };
+        return DrawCore(memory, mesh, projection, context, constants, registers, far, flags, tableBaseBucket, depthShift);
+    }
+
+    public static NativeBattleStaticMeshContext88Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket = 17, byte depthShift = 2)
+    {
+        NativeBattleGeometryRegisterStep registers = new(memory.GeometryRegisters ?? throw new NotSupportedException("Static mesh requires its actual loaded geometry registers."), memory.ScriptedColorRegisters ?? NativeBattleScriptedColorRegisters.Unknown());
+        NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics ?? throw new NotSupportedException("Masamune requires its current projection controls.");
+        NativeBattlePrimitiveProcess primitive = memory.PrimitiveProcess ?? throw new NotSupportedException("Masamune requires its current far-color controls.");
+        NativeBattleModelRendererRegisters far = primitive.ModelRendererRegisters ?? throw new NotSupportedException("Masamune requires its current renderer registers.");
+        uint flags = Dword(context, 0x1C);
+        if (Dword(context, 0) != mesh.Address || flags is not (0 or 0x30 or 0x33 or 0xC0 or 0xC3 or 0xF3 or 0xF0) || depthShift > 31)
+        {
+            throw new InvalidDataException("Masamune mesh requires its actual addressed caller context.");
+        }
+        return DrawCore(memory, mesh, projection, context, constants, registers, far, flags, tableBaseBucket, depthShift);
+    }
+
+    private static NativeBattleStaticMeshContext88Step DrawCore(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters far, uint flags, int tableBaseBucket, byte depthShift)
+    {
+        NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics!;
+        NativeBattlePrimitiveProcess primitive = memory.PrimitiveProcess!;
         context = Put(context, 4, checked(mesh.Address + 8));
         context = Put(context, 0x18, 0);
         (byte[] rgbBytes, bool[] rgbKnown) = context.ReadSnapshot(8, 3);

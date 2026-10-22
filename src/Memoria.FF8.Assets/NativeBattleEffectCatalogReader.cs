@@ -238,6 +238,22 @@ public sealed partial class GameAssets
                 }
                 binding = binding with { Electrocute275Resources = ReadNativeElectrocute275Resources() };
             }
+            if (binding.Effect == 101)
+            {
+                if (binding.Entry != NativeBattleEffect101Profile.Entry || binding.Initializer != NativeBattleEffect101Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag100.tim", NativeBattleEffect101Profile.InitializerGlobal) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Effect101 requires its original entry and initializer resource identity.");
+                }
+                binding = binding with { Effect101Resources = ReadNativeEffect101Resources() };
+            }
+            if (binding.Effect == 217)
+            {
+                if (binding.Entry != NativeBattleEnergyBomber217Profile.Entry || binding.Initializer != NativeBattleEnergyBomber217Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag216.tim", NativeBattleEnergyBomber217Profile.InitializerGlobal) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Energy Bomber requires its original entry and initializer resource identity.");
+                }
+                binding = binding with { EnergyBomber217Resources = ReadNativeEnergyBomber217Resources() };
+            }
             if (binding.Effect == 133)
             {
                 if (binding.Entry != NativeBattleHypnotize133Profile.Entry || binding.Initializer != NativeBattleHypnotize133Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag132.tim", NativeBattleHypnotize133Profile.InitializerGlobal) || binding.InitializerResources is not null)

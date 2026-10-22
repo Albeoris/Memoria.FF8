@@ -10,6 +10,11 @@ public sealed partial class BattleSession
             return null;
         }
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Native502AB0 scale pointer has no live effect owner.");
+        if (effect.Binding.Effect == NativeBattleEffect101Profile.Effect && pointer == NativeBattleEffect101Profile.ScaleAddress)
+        {
+            NativeBattleEffect101State state = NativeEffectMemory?.Effect101 ?? throw new NotSupportedException("Native502AB0 requires effect101's retained scale vector owner; migrate the selected older snapshot explicitly.");
+            return new NativeBattleModelScaleVector(unchecked((int)state.ReadDword(pointer)), unchecked((int)state.ReadDword(pointer + 4)), unchecked((int)state.ReadDword(pointer + 8)));
+        }
         if (effect.Binding.Effect != 40 || pointer < 0x30)
         {
             throw new NotSupportedException("Native502AB0 scale pointer requires its implemented live vector owner.");
