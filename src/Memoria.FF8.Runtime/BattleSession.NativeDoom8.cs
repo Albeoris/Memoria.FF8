@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -61,6 +61,13 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("Doom strips require their actual retained target allocation.");
             }
+        }
+
+        NativeBattleDoom8Frame ObserveAnchor(NativeBattleDoom8Frame current, NativeBattleBoneAnchorProducer producer)
+        {
+            NativeFileStaging = RequireDoom8Staging(current);
+            NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
+            return current with { Memory = observed, Staging = NativeFileStaging };
         }
 
         NativeBattleDoom8Frame Deliver(NativeBattleDoom8Frame current, NativeBattleGfGeometryBatch batch, bool common)
@@ -168,10 +175,11 @@ public sealed partial class BattleSession
                 case NativeBattleDoom8ModeChanged mode:
                     return NativeBattleDoom8Fronts.SpawnObservedMode(current, mode.DirectorAddress, nativeActionPackets, Colors().Normal, Execute);
                 case NativeBattleDoom8UpdateCaster caster:
-                    return NativeBattleDoom8Controller.Write(current, caster.Address, NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleDoom8Controller.Read(current, caster.Address), current.Effect.Parameters!, graphics.Models, PoseSource));
+                    NativeBattleModulePoolTask casterTask = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleDoom8Controller.Read(current, caster.Address), current.Effect.Parameters!, graphics.Models, PoseSource, producer => current = ObserveAnchor(current, producer));
+                    return NativeBattleDoom8Controller.Write(current, caster.Address, casterTask);
                 case NativeBattleDoom8UpdateTargetBounds target:
                     NativeBattleModulePoolTask targetTask = NativeBattleDoom8Controller.Read(current, target.Address);
-                    targetTask = NativeBattleEffectModelHelpers.UpdateTarget8DC610(targetTask, graphics.Models, PoseSource);
+                    targetTask = NativeBattleEffectModelHelpers.UpdateTarget8DC610(targetTask, graphics.Models, PoseSource, producer => current = ObserveAnchor(current, producer));
                     int actor = targetTask.ReadByte(0x2D);
                     NativeBattlePoseSource source = PoseSource(actor);
                     targetTask = NativeBattleEffectModelHelpers.UpdateBounds8DC870(targetTask, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.Models[actor].SequenceState ?? throw new NotSupportedException("Doom requires its target pose."), source));

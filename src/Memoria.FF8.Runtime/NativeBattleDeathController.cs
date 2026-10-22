@@ -10,11 +10,12 @@ public static partial class NativeBattleDeathController
 
     public static NativeBattleDeathFrame Initialize(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleActionPacketsState packets, NativeBattleDeathResources resources, NativeCrtRandomState random)
     {
-        if (effect.Binding is not { Effect: 14, Entry: 0x8B68C0 } || effect.Parameters is not { } parameters)
+        NativeBattleDeathFamilyProfile profile = NativeBattleDeathFamilyProfile.ForEffect(effect.Binding.Effect);
+        if (effect.Binding.Entry != profile.Entry || resources.Effect != profile.Effect || effect.Parameters is not { } parameters)
         {
             throw new InvalidDataException("Native Death requires its selected original entry and action context.");
         }
-        NativeBattleDeathState state = memory.Death14 ?? throw new NotSupportedException("Native Death requires its explicit retained process owner.");
+        NativeBattleDeathState state = profile.RequireState(memory);
         if (state.PendingColdSources)
         {
             if (state.AuraActors is not null || state.DarkActors is not null)
@@ -23,22 +24,13 @@ public static partial class NativeBattleDeathController
             }
             state = state with { AuraActors = resources.AuraActors, DarkActors = resources.DarkActors, PendingColdSources = false };
         }
-        int source = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x273AE80)?.ArenaOffset ?? throw new NotSupportedException("Native Death requires its executed initializer allocation.");
+        int source = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == profile.ModuleBase)?.ArenaOffset ?? throw new NotSupportedException("Native Death requires its executed initializer allocation.");
         if (source < 0 || source > NativeBattleEffectArena.Length - 0x265F0)
         {
             throw new InvalidDataException("Native Death auxiliary allocations exceed the selected file arena.");
         }
-        NativeBattleEffectHierarchy hierarchy = new([
-            NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 0x64, 2),
-            NativeBattleEffectTaskPool.Initialize(0x2741878, 0x2741888, 0x58, 4),
-            NativeBattleEffectTaskPool.Initialize(0x273AFC0, 0x273AEE8, 0x48, 3),
-            NativeBattleEffectTaskPool.Initialize(0x2742810, 0x2742450, 0x140, 3),
-            NativeBattleEffectTaskPool.Initialize(0x27415D8, 0x2740B48, 0x2A4, 4),
-            NativeBattleEffectTaskPool.Initialize(0x273B0C8, 0x273B0D8, 0x70, 10),
-            NativeBattleEffectTaskPool.Initialize(0x273B540, 0x273D490, 0x118, 50),
-            NativeBattleEffectTaskPool.Initialize(0x2741868, 0x27415E8, 0x40, 10)
-        ]);
-        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(0, 0x8B6A40, 0x64);
+        NativeBattleEffectHierarchy hierarchy = new(profile.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
+        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(0, profile.Callback(0x8B6A40), 0x64);
         hierarchy = appended.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Death requires its actual first contact.");
@@ -52,8 +44,8 @@ public static partial class NativeBattleDeathController
             memory = memory with { Textures = textures.Register5099A0(resources.Animation) };
         }
         state = state with { Source = source };
-        state = state with { Module = state.Module.Write(checked((int)(0x274286Cu - ModuleBase)), new byte[4]).Write(checked((int)(0x273B53Cu - ModuleBase)), new byte[4]) };
-        return new(memory with { Death14 = state }, effect with { Pools = hierarchy.Pools, ReturnedDescriptor = RootDescriptor }, random);
+        state = state with { Module = state.Module.Write(profile.ModuleOffset(0x274286C), new byte[4]).Write(profile.ModuleOffset(0x273B53C), new byte[4]) };
+        return new(profile.WithState(memory, state), effect with { Pools = hierarchy.Pools, ReturnedDescriptor = profile.RootDescriptor }, random);
     }
 
     public static NativeBattleDeathFrame Advance(NativeBattleDeathFrame frame, NativeBattleDeathResources resources, NativeBattleDeathInputs inputs)
@@ -66,11 +58,47 @@ public static partial class NativeBattleDeathController
         NativeBattleEffectHierarchy hierarchy = new(effect.Pools);
         uint address = checked(pointer - 0x62);
         NativeBattleModulePoolTask root = hierarchy.Read(address);
-        if (root.Callback != 0x8B6A40)
+        NativeBattleDeathFamilyProfile profile = NativeBattleDeathFamilyProfile.ForEffect(effect.Binding.Effect);
+        if (root.Callback != profile.Callback(0x8B6A40))
         {
             throw new InvalidDataException("Native Death completion is not its physical root BYTE62.");
         }
         return effect with { Pools = hierarchy.Write(address, root.WriteByte(0x62, value)).Pools };
+    }
+
+    internal static NativeBattleDeathFrame InitializeDirector(NativeBattleDeathFrame frame, uint address, NativeBattleDeathResources resources, Func<NativeBattleDeathFrame, NativeBattleDeathOperation, NativeBattleDeathFrame> execute)
+    {
+        NativeBattleDeathFamilyProfile profile = resources.Profile;
+        NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
+        NativeBattleModulePoolTask task = hierarchy.Read(address);
+        if (frame.Effect.Binding.Effect != profile.Effect || frame.Effect.Binding.Entry != profile.Entry || task.Callback != profile.Callback(0x8B6E30))
+        {
+            throw new InvalidDataException("Native Death director setup requires its actual module and callback.");
+        }
+        ushort delay = 1;
+        if (task.ReadByte(0x2E) == 0)
+        {
+            NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Native Death requires its reaper TIM queue.");
+            (textures, _) = textures.EnqueueTim505E30(resources.FirstTim);
+            (textures, _) = textures.EnqueueTim505E30(resources.SecondTim);
+            frame = frame with { Memory = frame.Memory with { Textures = textures } };
+            if (profile.SingleSelectedTarget)
+            {
+                NativeBattleModuleResource caster = resources.CasterResource ?? throw new NotSupportedException("LV?Death requires its original caster resource.");
+                if (caster.Address != profile.CasterDirectory)
+                {
+                    throw new InvalidDataException("LV?Death caster binding selected another original resource.");
+                }
+                byte actor = task.ReadByte(0x2C);
+                frame = execute(frame, new NativeBattleDeathBindCaster(actor, profile.SavedCasterRow!.Value, caster.Address));
+                frame = execute(frame, new NativeBattleDeathRingSequence(actor, 1));
+                delay = 12;
+            }
+        }
+        hierarchy = new(frame.Effect.Pools);
+        task = hierarchy.Read(address);
+        task = task.WriteWord(0x44, delay).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1)));
+        return frame with { Effect = frame.Effect with { Pools = hierarchy.Write(address, task).Pools } };
     }
 
     internal const uint ModuleBase = 0x273AE80;
@@ -79,6 +107,7 @@ public static partial class NativeBattleDeathController
     {
         private NativeBattleDeathFrame current;
         private readonly NativeBattleDeathResources resources;
+        private readonly NativeBattleDeathFamilyProfile profile;
         private readonly NativeBattleDeathInputs inputs;
         private NativeBattleEffectHierarchy hierarchy;
 
@@ -86,6 +115,11 @@ public static partial class NativeBattleDeathController
         {
             current = frame;
             this.resources = resources;
+            profile = NativeBattleDeathFamilyProfile.ForEffect(frame.Effect.Binding.Effect);
+            if (resources.Effect != profile.Effect || frame.Effect.Binding.Entry != profile.Entry)
+            {
+                throw new InvalidDataException("Native Death family resources do not match the selected original module.");
+            }
             this.inputs = inputs;
             hierarchy = new(frame.Effect.Pools);
         }
@@ -96,9 +130,11 @@ public static partial class NativeBattleDeathController
             {
                 hierarchy = active;
                 NativeBattleModulePoolTask root = Read(address);
+                NativeBattlePackedMatrix32 camera = inputs.ReadPackedCamera?.Invoke() ?? throw new NotSupportedException("Native Death requires its actual packed camera producer.");
+                current = NativeBattleDeathNodeDrawing.PublishCamera(current, camera);
                 int source = State.Source ?? throw new NotSupportedException("Native Death lost its initialized file pointer.");
                 SetState(State with { Cursor = source + ((root.ReadWord(0x5C) & 1) != 0 ? 0 : 0xE000), PassEmitters = 0, PassGeometry = 0 });
-                root = NativeBattleEffectModelHelpers.UpdateCaster8DC740(root, current.Effect.Parameters!, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource);
+                root = NativeBattleEffectModelHelpers.UpdateCaster8DC740(root, current.Effect.Parameters!, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource, producer => Emit(new NativeBattleDeathObserveAnchor(producer)));
                 Store(address, root);
                 switch (Stage(root))
                 {
@@ -125,7 +161,7 @@ public static partial class NativeBattleDeathController
                     case 4:
                         if (root.ReadByte(0x63) == 0)
                         {
-                            Store(address, unchecked((sbyte)root.ReadByte(0x2A)) < S(root, 0x58) ? root.WriteByte(0x2A, unchecked((byte)(root.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(root.ReadByte(0x2E) + 1))).WriteByte(0x29, 3) : Next(root));
+                            Store(address, profile.AdvanceTargetLoop(root));
                         }
                         break;
                     case 6:
@@ -172,11 +208,11 @@ public static partial class NativeBattleDeathController
                 return new(hierarchy, result);
             });
             hierarchy = step.Hierarchy;
-            return current with { Effect = current.Effect with { Pools = hierarchy.Pools, ReturnedDescriptor = step.Survivors == 0 ? 0u : RootDescriptor } };
+            return current with { Effect = current.Effect with { Pools = hierarchy.Pools, ReturnedDescriptor = step.Survivors == 0 ? 0u : profile.RootDescriptor } };
         }
 
-        private NativeBattleDeathState State => current.Memory.Death14 ?? throw new NotSupportedException("Native Death lost its retained process owner.");
-        private void SetState(NativeBattleDeathState value) => current = current with { Memory = current.Memory with { Death14 = value } };
+        private NativeBattleDeathState State => profile.RequireState(current.Memory);
+        private void SetState(NativeBattleDeathState value) => current = current with { Memory = profile.WithState(current.Memory, value) };
         private NativeBattleModulePoolTask Read(uint address) => hierarchy.Read(address);
         private void Store(uint address, NativeBattleModulePoolTask task) => hierarchy = hierarchy.Write(address, task.WriteByte(0x28, hierarchy.Read(address).ReadByte(0x28)) with { Next = hierarchy.Read(address).Next });
         private static int Stage(NativeBattleModulePoolTask task) => unchecked((sbyte)task.ReadByte(0x29));
@@ -184,7 +220,7 @@ public static partial class NativeBattleDeathController
         private static NativeBattleModulePoolTask Next(NativeBattleModulePoolTask task) => task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1)));
         private uint Append(int pool, uint callback, ushort size, uint parent)
         {
-            NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(pool, callback, size, parent, Select);
+            NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(pool, profile.Callback(callback), size, parent, Select);
             hierarchy = appended.Hierarchy;
             return appended.Address;
         }
@@ -205,10 +241,10 @@ public static partial class NativeBattleDeathController
             hierarchy = hierarchy.Complete8DC530(address);
             return 2;
         }
-        private ushort Word(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(State.Module.Read(checked((int)(address - ModuleBase)), 2));
-        private void Word(uint address, int value) => SetState(State with { Module = State.Module.Write(checked((int)(address - ModuleBase)), BitConverter.GetBytes(unchecked((ushort)value))) });
-        private uint Dword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(State.Module.Read(checked((int)(address - ModuleBase)), 4));
-        private void Dword(uint address, uint value) => SetState(State with { Module = State.Module.Write(checked((int)(address - ModuleBase)), BitConverter.GetBytes(value)) });
+        private ushort Word(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(State.Module.Read(profile.ModuleOffset(address), 2));
+        private void Word(uint address, int value) => SetState(State with { Module = State.Module.Write(profile.ModuleOffset(address), BitConverter.GetBytes(unchecked((ushort)value))) });
+        private uint Dword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(State.Module.Read(profile.ModuleOffset(address), 4));
+        private void Dword(uint address, uint value) => SetState(State with { Module = State.Module.Write(profile.ModuleOffset(address), BitConverter.GetBytes(value)) });
         private ushort Roll()
         {
             NativeCrtRandomState random = current.Random.Draw(out ushort value);

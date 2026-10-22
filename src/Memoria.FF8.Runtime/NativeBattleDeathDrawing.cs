@@ -9,14 +9,15 @@ public static class NativeBattleDeathDrawing
 {
     public static NativeBattleDeathDraw Normal(NativeBattleDeathFrame frame, NativeBattleModulePoolTask task, NativeBattleEffectOwnedModelState model, NativeBattleDeathResources resources, NativeBattleCameraProjection projection, NativeBattleShadowSource shadow, NativeBattlePrimitiveCapabilities capabilities, NativeBattleSummonColors colors)
     {
-        NativeBattleDeathState state = frame.Memory.Death14 ?? throw new NotSupportedException("Native Death lost its model projection byte owner.");
+        NativeBattleDeathFamilyProfile profile = RequireProfile(frame, resources);
+        NativeBattleDeathState state = profile.RequireState(frame.Memory);
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Death requires its current camera matrix.");
         int size = checked(resources.Model.Geometry.Max(mesh => mesh.Vertices.Length) * 8);
         if (size > 0xA08)
         {
             throw new InvalidDataException("Native Death projected vertices leave their original static buffer.");
         }
-        int offset = checked((int)(0x27419F0u - NativeBattleDeathController.ModuleBase));
+        int offset = profile.ModuleOffset(0x27419F0);
         ImmutableArray<byte> scratch = state.Module.Read(offset, size).ToImmutableArray();
         NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Death requires its current primitive process.");
         NativeBattlePrimitiveTemporaryLanes lanes = process.Temporary5082B0Lanes ?? throw new NotSupportedException("Native Death requires its retained shared temporary lanes.");
@@ -54,14 +55,15 @@ public static class NativeBattleDeathDrawing
                 process = process.Publish50FDF0(checked((uint)(cursor + draw.BodyAllocationBytes)), null);
             }
         }
-        frame = frame with { Memory = frame.Memory with { Death14 = state, PrimitiveProcess = process with { Temporary5082B0Lanes = lanes } } };
+        frame = frame with { Memory = profile.WithState(frame.Memory, state) with { PrimitiveProcess = process with { Temporary5082B0Lanes = lanes } } };
         return new(frame, draw.Task, draw.Packets);
     }
 
     public static NativeBattleDeathDraw Dark(NativeBattleDeathFrame frame, NativeBattleModulePoolTask task, NativeBattleEffectOwnedModelState model, NativeBattleDeathResources resources, NativeBattleCameraProjection projection, NativeBattleShadowSource shadowSource, NativeBattlePrimitiveCapabilities capabilities)
     {
         NativeBattleEffectOwnedModel.Validate(task, model, resources.Model);
-        NativeBattleDeathState state = frame.Memory.Death14 ?? throw new NotSupportedException("Native Death requires its current module bytes.");
+        NativeBattleDeathFamilyProfile profile = RequireProfile(frame, resources);
+        NativeBattleDeathState state = profile.RequireState(frame.Memory);
         NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Death requires its current primitive process.");
         NativeBattlePrimitiveTemporaryLanes lanes = process.Temporary5082B0Lanes ?? throw new NotSupportedException("Native Death dark drawing requires its retained shared temporary lanes.");
         NativeBattleDecodedPose pose = model.DecodedPose ?? throw new NotSupportedException("Native Death dark drawing requires its actual selected reaper pose.");
@@ -106,7 +108,7 @@ public static class NativeBattleDeathDrawing
                     BinaryPrimitives.WriteUInt16LittleEndian(vertices.AsSpan(index * 8 + 6), padding);
                 }
             }
-            int offset = checked((int)(0x273B550u - NativeBattleDeathController.ModuleBase));
+            int offset = profile.ModuleOffset(0x273B550);
             state = state with { Module = state.Module.Write(offset, vertices) };
             if (lanes.Word2E is null)
             {
@@ -188,11 +190,11 @@ public static class NativeBattleDeathDrawing
             }
         }
         process = process with { Temporary5082B0Lanes = lanes };
-        return new(frame with { Memory = frame.Memory with { Death14 = state, PrimitiveProcess = process } }, task, new(attempts.ToImmutable(), allocated));
+        return new(frame with { Memory = profile.WithState(frame.Memory, state) with { PrimitiveProcess = process } }, task, new(attempts.ToImmutable(), allocated));
 
         short ReadVertexY(uint index)
         {
-            uint address = checked(0x273B550u + index * 8 + 2);
+            uint address = checked(profile.ModuleAddress(0x273B550) + index * 8 + 2);
             foreach (NativeBattleEffectTaskPool pool in frame.Effect.Pools)
             {
                 long delta = (long)address - pool.BankAddress;
@@ -215,12 +217,22 @@ public static class NativeBattleDeathDrawing
                 };
                 return unchecked((short)value);
             }
-            if (address < NativeBattleDeathController.ModuleBase || address > 0x274289E)
+            if (address < profile.ModuleBase || (ulong)address + 2 > (ulong)profile.ModuleBase + (uint)profile.ModuleLength)
             {
                 throw new NotSupportedException("Native Death previous-quad ground test leaves its retained executable owner.");
             }
-            return BinaryPrimitives.ReadInt16LittleEndian(state.Module.Read(checked((int)(address - NativeBattleDeathController.ModuleBase)), 2));
+            return BinaryPrimitives.ReadInt16LittleEndian(state.Module.Read(checked((int)(address - profile.ModuleBase)), 2));
         }
+    }
+
+    private static NativeBattleDeathFamilyProfile RequireProfile(NativeBattleDeathFrame frame, NativeBattleDeathResources resources)
+    {
+        NativeBattleDeathFamilyProfile profile = resources.Profile;
+        if (frame.Effect.Binding.Effect != profile.Effect || frame.Effect.Binding.Entry != profile.Entry)
+        {
+            throw new InvalidDataException("Native Death drawing requires matching original module and resource identities.");
+        }
+        return profile;
     }
 
     private static short S(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));

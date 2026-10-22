@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -8,7 +8,7 @@ public static partial class NativeBattleDeathController
     {
         private void Run(uint address)
         {
-            switch (Read(address).Callback)
+            switch (profile.ReferenceCallback(Read(address).Callback))
             {
                 case 0x8B6C90:
                     Emitter(address);
@@ -39,7 +39,7 @@ public static partial class NativeBattleDeathController
 
         private void Emitter(uint address)
         {
-            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(Read(address), Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource);
+            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(Read(address), Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource, producer => Emit(new NativeBattleDeathObserveAnchor(producer)));
             int actor = task.ReadByte(0x2D);
             NativeBattleGraphicsModel model = inputs.ReadModel(actor);
             NativeBattlePoseSource source = inputs.ReadPoseSource(actor);
@@ -83,7 +83,7 @@ public static partial class NativeBattleDeathController
 
         private void Place(int actor)
         {
-            SetState(State with { Module = State.Module.Write(checked((int)(0x27423F8u - ModuleBase)), new byte[0x54]) });
+            SetState(State with { Module = State.Module.Write(profile.ModuleOffset(0x27423F8), new byte[0x54]) });
             NativeBattleGraphicsModel model = inputs.ReadModel(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Death requires target position and size WORDs.");
             NativeBattleVector bone = NativeBattlePoseMatrices.ReadBone(model, inputs.ReadPoseSource(actor), 0xF1, 0);
@@ -113,14 +113,8 @@ public static partial class NativeBattleDeathController
             switch (Stage(task))
             {
                 case 0:
-                    if (task.ReadByte(0x2E) == 0)
-                    {
-                        NativeBattleEffectTextureState textures = current.Memory.Textures ?? throw new NotSupportedException("Native Death requires its reaper TIM queue.");
-                        (textures, _) = textures.EnqueueTim505E30(resources.FirstTim);
-                        (textures, _) = textures.EnqueueTim505E30(resources.SecondTim);
-                        current = current with { Memory = current.Memory with { Textures = textures } };
-                    }
-                    Store(address, Next(task.WriteWord(0x44, 1)));
+                    current = InitializeDirector(current with { Effect = current.Effect with { Pools = hierarchy.Pools } }, address, resources, inputs.Execute);
+                    hierarchy = new(current.Effect.Pools);
                     break;
                 case 1:
                     task = task.WriteWord(0x44, unchecked((ushort)(task.ReadWord(0x44) - 1)));
@@ -147,7 +141,7 @@ public static partial class NativeBattleDeathController
         private void StageFade(uint address)
         {
             NativeBattleModulePoolTask task = Read(address);
-            bool outgoing = task.Callback == 0x8BDF40;
+            bool outgoing = profile.ReferenceCallback(task.Callback) == 0x8BDF40;
             if (Stage(task) == 0)
             {
                 if (S(task, 0x24) >= (outgoing ? 0 : 28))

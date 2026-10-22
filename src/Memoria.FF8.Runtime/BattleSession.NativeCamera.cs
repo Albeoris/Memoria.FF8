@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -115,6 +115,10 @@ public sealed partial class BattleSession
                 if (relative < 80 && relative % 20 == 0)
                 {
                     graphics = graphics with { Descriptors = graphics.Descriptors.WriteCompletion501A70(address, value) };
+                }
+                else if (TryWriteNativeCurse47Completion(graphics, address, value, out NativeBattleGraphicsState completedCurse47))
+                {
+                    graphics = completedCurse47;
                 }
                 else if (TryWriteNativeDoom8Completion(graphics, address, value, out NativeBattleGraphicsState completedDoom8))
                 {

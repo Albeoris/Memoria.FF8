@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -24,6 +24,14 @@ public sealed partial class BattleSession
             {
                 case 0x508470:
                     NativeEffectIoResult = completion.Result;
+                    break;
+                case 0x82AF90:
+                case 0x82AFF0:
+                case 0x82B000:
+                case 0x82B010:
+                case 0x82B020:
+                case 0x82AFC0:
+                    CompleteNativeCurse47File(completion.Callback);
                     break;
                 case 0x8C5160:
                 case 0x8C5190:

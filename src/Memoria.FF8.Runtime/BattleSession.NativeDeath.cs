@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -28,7 +28,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = rules.Rules.SummonColors ?? throw new NotSupportedException("Native Death requires its original interpolation constants.");
         NativeBattleStageColors stageColors = NativeStage?.ModelColors ?? throw new NotSupportedException("Native Death requires its current model colors.");
         NativeBattleDeathFrame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Death requires retained memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Death requires its CRT random owner."));
-        NativeBattleDeathInputs inputs = new(nativeActionPackets, projection, camera.Roll, colors, stageColors.Color44, stageColors.Color40, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Death requires its current target pose."), DrawModel, Execute);
+        NativeBattleDeathInputs inputs = new(nativeActionPackets, projection, camera.Roll, colors, stageColors.Color44, stageColors.Color40, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Death requires its current target pose."), DrawModel, Execute) { ReadPackedCamera = camera.CapturePackedView1D97778 };
         NativeBattleDeathFrame advanced = NativeBattleDeathController.Advance(frame, resources, inputs);
         NativeEffectMemory = advanced.Memory;
         nativeCrtRandom = advanced.Random;
@@ -50,17 +50,34 @@ public sealed partial class BattleSession
         NativeBattleDeathFrame Append(NativeBattleDeathFrame current, NativeBattleGfGeometryBatch batch)
         {
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Death requires its actual pending ordering table.");
-            NativeBattleDeathState state = current.Memory.Death14 ?? throw new NotSupportedException("Native Death lost its packet cursor owner.");
+            NativeBattleDeathState state = resources.Profile.RequireState(current.Memory);
             int cursor = state.Cursor ?? throw new NotSupportedException("Native Death lost its executed packet arena selection.");
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, cursor, primitive.Pending, batch);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
-            return current with { Memory = written.Memory with { Death14 = state with { Cursor = written.Cursor } } };
+            return current with { Memory = resources.Profile.WithState(written.Memory, state with { Cursor = written.Cursor }) };
         }
 
         NativeBattleDeathFrame Execute(NativeBattleDeathFrame current, NativeBattleDeathOperation operation)
         {
             switch (operation)
             {
+                case NativeBattleDeathObserveAnchor anchor:
+                    return current with { Memory = ObserveNativeBoneAnchor(current.Memory, anchor.Producer) };
+                case NativeBattleDeathBindCaster bind:
+                    NativeBattleModuleResource caster = resources.CasterResource ?? throw new NotSupportedException("Native Death family caster binding requires its selected resource directory.");
+                    if (caster.Address != bind.Directory)
+                    {
+                        throw new InvalidDataException("Native Death family caster binding disagrees with its original resource directory.");
+                    }
+                    NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[bind.Actor], NativeGraphicsPoseResource(graphics, bind.Actor));
+                    NativeBattleFileStaging staging = (NativeFileStaging ?? throw new NotSupportedException("Native Death family caster binding requires its addressed source memory.")).Write(caster.Address, caster.Bytes.AsSpan());
+                    NativeBattleVictoryResourceBinding bound = NativeBattleVictoryResources.Bind5022C0(staging, NativeModelCpuResources ?? throw new NotSupportedException("Native Death family caster binding requires its CPU resource rows."), actor, bind.SavedRow, bind.Directory);
+                    NativeFileStaging = bound.Staging;
+                    graphics = graphics with { Models = graphics.Models.SetItem(bind.Actor, bound.Model) };
+                    return current;
+                case NativeBattleDeathRingSequence sequence:
+                    graphics = ScheduleNativeRingSequence505C00(graphics, sequence.Actor, sequence.Sequence);
+                    return current;
                 case NativeBattleDeathPackets packets:
                     return Append(current, packets.Batch);
                 case NativeBattleDeathSound sound:
@@ -90,19 +107,25 @@ public sealed partial class BattleSession
     private bool TryWriteNativeDeathCompletion(NativeBattleGraphicsState graphics, uint address, byte value, out NativeBattleGraphicsState updated)
     {
         updated = graphics;
-        uint delta = unchecked(address - NativeBattleDeathController.RootBank);
+        NativeBattleOriginalEffectState? owner = NativeEffectMemory?.DetachedReturnedTask is { Binding.Effect: 14 or 74 } detached ? detached : graphics.OriginalEffect is { Binding.Effect: 14 or 74 } active ? active : null;
+        if (owner is null)
+        {
+            return false;
+        }
+        NativeBattleDeathFamilyProfile profile = NativeBattleDeathFamilyProfile.ForEffect(owner.Binding.Effect);
+        uint delta = unchecked(address - profile.RootBank);
         if (delta >= 0xC8 || delta % 0x64 != 0x62)
         {
             return false;
         }
-        if (NativeEffectMemory?.DetachedReturnedTask is { Binding.Entry: 0x8B68C0 } detached)
+        NativeBattleOriginalEffectState written = NativeBattleDeathController.WriteCompletionByte(owner, address, value);
+        if (ReferenceEquals(owner, NativeEffectMemory?.DetachedReturnedTask))
         {
-            NativeEffectMemory = NativeEffectMemory with { DetachedReturnedTask = NativeBattleDeathController.WriteCompletionByte(detached, address, value) };
+            NativeEffectMemory = NativeEffectMemory! with { DetachedReturnedTask = written };
         }
         else
         {
-            NativeBattleOriginalEffectState effect = graphics.OriginalEffect is { Binding.Entry: 0x8B68C0 } current ? current : throw new NotSupportedException("Native Death completion lost its physical task owner.");
-            updated = graphics with { OriginalEffect = NativeBattleDeathController.WriteCompletionByte(effect, address, value) };
+            updated = graphics with { OriginalEffect = written };
         }
         return true;
     }

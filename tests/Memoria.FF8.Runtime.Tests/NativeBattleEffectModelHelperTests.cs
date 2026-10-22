@@ -1,10 +1,60 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffectModelHelperTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Observer_receives_actual_F0_then_F1_producers_from_selected_target_or_caster(bool caster)
+    {
+        NativeBattlePoseSource source = Source();
+        NativeBattleGraphicsModel[] models = [Model(0, new(100, 200, 300), -333), Model(1, new(-100, -200, -300), 777)];
+        models = models.Select(model => NativeBattleBodyBoneMatrices.Publish508C90(model, source)).Select(model => model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, source) }).ToArray();
+        List<int> sources = [];
+        List<NativeBattleBoneAnchorProducer> observed = [];
+        NativeBattlePoseSource ReadSource(int actor)
+        {
+            sources.Add(actor);
+            return source;
+        }
+        NativeBattleModulePoolTask task = Task().WriteByte(0x2D, 0);
+        NativeBattleModulePoolTask updated = caster
+            ? NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, new(1, 0, 0, 0, 0, 0), models, ReadSource, observed.Add)
+            : NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, models, ReadSource, observed.Add);
+        int selected = caster ? 1 : 0;
+        Assert.Equal(selected, Assert.Single(sources));
+        Assert.Equal(2, observed.Count);
+        Assert.Equal((short)0, observed[0].Distance);
+        Assert.Equal((short)200, observed[1].Distance);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattlePoseMatrices.ResolveBoneAnchor502170(models[selected], source, 240, 0)), JsonSerializer.Serialize(observed[0]));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattlePoseMatrices.ResolveBoneAnchor502170(models[selected], source, 241, 0)), JsonSerializer.Serialize(observed[1]));
+        Assert.Equal(models[selected].Transform!.Angle36, unchecked((short)updated.ReadWord(0x32)));
+    }
+
+    [Fact]
+    public void Current_model_geometry_aliases_override_source_selectors_and_adjacent_WORDs_remain_retained()
+    {
+        NativeBattlePoseSource source = Source();
+        NativeBattleGraphicsModel model = Model(0, new(100, 200, 300), -333);
+        model = NativeBattleBodyBoneMatrices.Publish508C90(model, source);
+        model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, source), SequenceState = model.SequenceState! with { Geometry4 = 0x81, Geometry5 = 0 } };
+        NativeBattleModulePoolTask task = Task().WriteByte(0x2D, 0).WriteWord(0x36, 0xA55A).WriteWord(0x3E, 0xB66B).WriteWord(0x46, 0xC77C);
+        List<NativeBattleBoneAnchorProducer> observed = [];
+        NativeBattleModulePoolTask updated = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, [model], _ => source, observed.Add);
+        Assert.Equal((short)200, observed[0].Distance);
+        Assert.Equal((short)0, observed[1].Distance);
+        Assert.Equal(new short[] { 100, -333, 300 }, Words(updated, 0x30));
+        Assert.Equal(new short[] { 100, 200, 600 }, Words(updated, 0x40));
+        Assert.Equal((ushort)0xA55A, updated.ReadWord(0x36));
+        Assert.Equal((ushort)0xB66B, updated.ReadWord(0x3E));
+        Assert.Equal((ushort)0xC77C, updated.ReadWord(0x46));
+        Assert.Equal(task.ReadByte(0x2D), updated.ReadByte(0x2D));
+    }
+
     [Fact]
     public void Target_and_caster_select_different_original_models_and_keep_angle_separate_from_anchor_Y()
     {
@@ -13,14 +63,14 @@ public sealed class NativeBattleEffectModelHelperTests
         models = models.Select(model => NativeBattleBodyBoneMatrices.Publish508C90(model, source)).Select(model => model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, source) }).ToArray();
         NativeBattleModulePoolTask task = Task().WriteByte(0x2D, 0);
         NativeBattleModulePoolTask target = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, models, _ => source);
-        Assert.Equal(new short[] { 116, -333, 332 }, Words(target, 0x30));
+        Assert.Equal(new short[] { 116, -333, 632 }, Words(target, 0x30));
         Assert.Equal(new short[] { 116, 152, 482 }, Words(target, 0x38));
-        Assert.Equal(new short[] { 116, 152, 632 }, Words(target, 0x40));
+        Assert.Equal(new short[] { 116, 152, 332 }, Words(target, 0x40));
         NativeBattleEffectParameters parameters = new(1, 0, 0, 0, 0, 0);
         NativeBattleModulePoolTask caster = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, models, _ => source);
-        Assert.Equal(new short[] { -84, 777, -268 }, Words(caster, 0x30));
+        Assert.Equal(new short[] { -84, 777, 32 }, Words(caster, 0x30));
         Assert.Equal(new short[] { -84, -248, -118 }, Words(caster, 0x38));
-        Assert.Equal(new short[] { -84, -248, 32 }, Words(caster, 0x40));
+        Assert.Equal(new short[] { -84, -248, -268 }, Words(caster, 0x40));
     }
 
     [Fact]
@@ -32,10 +82,10 @@ public sealed class NativeBattleEffectModelHelperTests
         model = NativeBattleBodyBoneMatrices.Publish508C90(model, source);
         model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, source) };
         NativeBattleModulePoolTask loaded = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, [model], _ => source);
-        Assert.Equal((short)-16, unchecked((short)loaded.ReadWord(0x34)));
-        Assert.Equal((short)-17, unchecked((short)loaded.ReadWord(0x44)));
+        Assert.Equal((short)-17, unchecked((short)loaded.ReadWord(0x34)));
+        Assert.Equal((short)-16, unchecked((short)loaded.ReadWord(0x44)));
         Assert.Equal((short)-16, unchecked((short)loaded.ReadWord(0x3C)));
-        NativeBattleModulePoolTask unchanged = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, [model with { Flags0 = 0, Transform = null, SequenceState = null }], _ => throw new InvalidOperationException("Unloaded model must not read a resource."));
+        NativeBattleModulePoolTask unchanged = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, [model with { Flags0 = 0, Transform = null, SequenceState = null }], _ => throw new InvalidOperationException("Unloaded model must not read a resource."), _ => throw new InvalidOperationException("Unloaded model must not observe a bone producer."));
         Assert.Same(task, unchanged);
         Assert.Throws<InvalidDataException>(() => NativeBattleEffectModelHelpers.UpdateTarget8DC610(task.WriteByte(0x2D, 7), [model], _ => Source()));
     }

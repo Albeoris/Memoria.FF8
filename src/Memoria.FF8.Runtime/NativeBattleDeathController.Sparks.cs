@@ -67,7 +67,7 @@ public static partial class NativeBattleDeathController
             int age = S(task, 0x24);
             if (Stage(task) == 0)
             {
-                task = Next(task.WriteDword(0x30, 4096).WriteDword(0x34, 4096).WriteDword(0x38, 4096).WriteDword(0x4C, 0x162B86C).WriteByte(0x40, 40).WriteByte(0x41, 0).WriteByte(0x42, 10));
+                task = Next(task.WriteDword(0x30, 4096).WriteDword(0x34, 4096).WriteDword(0x38, 4096).WriteDword(0x4C, resources.Spark.Address).WriteByte(0x40, 40).WriteByte(0x41, 0).WriteByte(0x42, 10));
             }
             else if (Stage(task) == 1 && age >= 14)
             {

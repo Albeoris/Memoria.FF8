@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Reflection.PortableExecutable;
 using System.Security.Cryptography;
@@ -186,6 +186,16 @@ public sealed partial class GameAssets
             {
                 binding = binding with { Sleep145Resources = ReadNativeSleep145Resources() };
             }
+            if (binding.Effect == 47)
+            {
+                if (binding.Entry != 0x82A7F0 || binding.Initializer != 0x82A7D0 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag046.tim", 0x264B3C8) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Curse requires its original entry and initializer resource identity.");
+                }
+                NativeBattleCurse47Resources curse = ReadNativeCurse47Resources();
+                binding = binding with { Curse47Resources = curse, InitializerAsset = curse.MainTim };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 8)
             {
                 if (binding.Entry != 0x8C4980 || binding.Initializer != 0x8C4960 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag007.tim", 0x2758500) || binding.InitializerResources is not null)
@@ -195,6 +205,14 @@ public sealed partial class GameAssets
                 NativeBattleDoom8Resources doom = ReadNativeDoom8Resources();
                 binding = binding with { Doom8Resources = doom, InitializerAsset = doom.MainTim };
                 catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 74)
+            {
+                if (binding.Entry != 0x7C4460 || binding.Initializer != 0x7C4440 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag013-073-344.tim", 0x25EC518) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("LV?Death requires its original entry and initializer resource identity.");
+                }
+                binding = binding with { DeathResources = ReadNativeLevelDeath74Resources().FamilyResources() };
             }
             if (binding.Effect == 14)
             {

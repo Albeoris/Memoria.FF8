@@ -52,6 +52,10 @@ public sealed class NativeBattleActorDirectorPresentationTests
         bool meltingResourcesRestored = false;
         bool doomReaperRestored = false;
         bool doomBankRestored = false;
+        bool curseIoRestored = false;
+        bool curseBankRestored = false;
+        bool levelDeathAuraRestored = false;
+        bool levelDeathDarkRestored = false;
         int meltingAnchorChecks = 0;
         NativeBattlePoseSource? meltingPoseSource = null;
         List<object> meltingAnchorObservations = [];
@@ -100,7 +104,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
             if (preparedSourceFactory is not null)
             {
                 source = preparedSourceFactory(game, assets, request);
-                exported = new(request.Id, effectId, "fixture-only", "external-standalone-controlled-packet", null, [], new(true, action.Command, action.ActionId, action.MagicId, action.KernelSection, action.KernelIndex, effectId)) { Scenario = "Explicit standalone continuation; controlled seven-HP post-formula contact; no ordinary command or formula admission" };
+                exported = new(request.Id, effectId, "fixture-only", "external-standalone-controlled-packet", null, [], new(true, action.Command, action.ActionId, action.MagicId, action.KernelSection, action.KernelIndex, effectId)) { Scenario = effectId == 74 ? "Original Level Death action with explicitly declared immune MISS post-formula input; no ordinary formula or command admission" : "Explicit standalone continuation; controlled seven-HP post-formula contact; no ordinary command or formula admission" };
                 NativeBattleRestorationPresentationTests.Publish(output!, "prepared-source", source, null);
             }
             else
@@ -131,6 +135,27 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.True(source.NativeEffectMemory!.Doom8ColdSourcesPending);
                 Assert.Null(source.NativeEffectMemory.Doom8);
                 Assert.NotNull(original.Doom8Resources);
+            }
+            if (effectId == 47)
+            {
+                Assert.Equal((byte)3, caster);
+                Assert.Equal((byte)0, contactActor);
+                Assert.Equal((byte)15, header.ReadByte(2));
+                Assert.Equal((byte?)0x46, source.NativeGraphics.Models[caster].ModelId4);
+                Assert.True(source.NativeEffectMemory!.Curse47ColdSourcesPending);
+                Assert.Null(source.NativeEffectMemory.Curse47);
+                Assert.NotNull(original.Curse47Resources);
+            }
+            if (effectId == 74)
+            {
+                Assert.Equal((byte)0, caster);
+                Assert.Equal((byte)3, contactActor);
+                Assert.Equal((byte)21, header.ReadByte(2));
+                Assert.Equal(3, request.PartyModelId);
+                Assert.Equal((ushort?)0, request.ControlledContactValue);
+                Assert.True(source.NativeEffectMemory!.LevelDeath74!.PendingColdSources);
+                Assert.NotSame(source.NativeEffectMemory.Death14, source.NativeEffectMemory.LevelDeath74);
+                Assert.Equal((ushort)74, original.DeathResources!.Effect);
             }
             if (effectId == 19)
             {
@@ -209,6 +234,11 @@ public sealed class NativeBattleActorDirectorPresentationTests
             Assert.Equal((byte)1, source.NativeActionPackets.ContactCount);
             Assert.Equal(contactActor, contact.Primary.ActorIndex);
             Assert.Equal(request.ControlledContactValue ?? (ushort)7, contact.Primary.Amount6);
+            if (effectId == 74)
+            {
+                Assert.Equal((byte)4, contact.Primary.HitFlags3);
+                Assert.Equal((ushort)0, contact.Primary.Amount6);
+            }
             if (request.ControlledDrainContact)
             {
                 Assert.Equal((byte)0, contact.Secondary.ActorIndex);
@@ -258,6 +288,25 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 {
                     ColdNext("music-muted", current);
                     devourMuted = true;
+                }
+                if (effectId == 47 && after?.ReturnedDescriptor is > 0)
+                {
+                    Assert.False(current.NativeEffectMemory!.Curse47ColdSourcesPending);
+                    NativeBattleCurse47State curse = current.NativeEffectMemory.Curse47 ?? throw new InvalidDataException("Curse requires its reached cold-source preparation.");
+                    if (!curseBankRestored && curse.NodeProgram is { InitializationFlag: 1, Data: not null } program)
+                    {
+                        Assert.Equal(0x17B97A4u, program.ResourceAddress);
+                        Assert.Equal(6544, program.Data.Value.Length);
+                        Assert.Equal(1u, BinaryPrimitives.ReadUInt32LittleEndian(program.Data.Value.AsSpan()));
+                        ColdNext("node-bank-initialized", current);
+                        curseBankRestored = true;
+                    }
+                    if (!curseIoRestored && curse.ReadDword(NativeBattleCurse47Io.ControlPointerGlobal) == NativeBattleCurse47Io.ControlAddress)
+                    {
+                        Assert.Equal(80, curse.IoScript!.Value.Length);
+                        ColdNext("io-initialized", current);
+                        curseIoRestored = true;
+                    }
                 }
                 if (effectId == 8 && after?.ReturnedDescriptor is > 0)
                 {
@@ -310,18 +359,33 @@ public sealed class NativeBattleActorDirectorPresentationTests
                     ColdNext("node-bank-initialized", current);
                     windBlastBankRestored = true;
                 }
-                if (effectId is 8 or 23 or 60 && !textureLoadPendingRestored)
+                if (effectId == 74 && after?.ReturnedDescriptor is > 0)
+                {
+                    NativeBattleDeathState state = current.NativeEffectMemory!.LevelDeath74!;
+                    Assert.False(state.PendingColdSources);
+                    if (!levelDeathAuraRestored && state.AuraActors is { } aura && BinaryPrimitives.ReadUInt32LittleEndian(aura.AsSpan()) == 1)
+                    {
+                        ColdNext("aura-bank-initialized", current);
+                        levelDeathAuraRestored = true;
+                    }
+                    if (!levelDeathDarkRestored && state.DarkActors is { } dark && BinaryPrimitives.ReadUInt32LittleEndian(dark.AsSpan()) == 1)
+                    {
+                        ColdNext("dark-bank-initialized", current);
+                        levelDeathDarkRestored = true;
+                    }
+                }
+                if (effectId is 8 or 23 or 47 or 60 or 74 && !textureLoadPendingRestored)
                 {
                     NativeBattleAuxiliaryTask? pending = current.NativeGraphics!.Auxiliary.Slots.SingleOrDefault(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.CommonTextureLoad508660 && task.Payload[0] == 2);
                     if (pending is not null)
                     {
-                        NativeBattleCureFamilyPool pool = effectId == 8 ? NativeBattleDoom8State.Pools[0] : effectId == 23 ? NativeBattlePsychoBlast23Profile.Pools[0] : NativeBattleEffect60Profile.Pools[0];
+                        NativeBattleCureFamilyPool pool = effectId == 74 ? NativeBattleDeathFamilyProfile.ForEffect(74).Pools[0] : effectId == 47 ? NativeBattleCurse47State.Pools[0] : effectId == 8 ? NativeBattleDoom8State.Pools[0] : effectId == 23 ? NativeBattlePsychoBlast23Profile.Pools[0] : NativeBattleEffect60Profile.Pools[0];
                         uint completion = BinaryPrimitives.ReadUInt32LittleEndian(pending.Payload.AsSpan().Slice(8));
                         int rootIndex = checked((int)((completion - pool.Bank - 0x62) / pool.Stride));
                         Assert.InRange(rootIndex, 0, pool.Capacity - 1);
                         Assert.Equal(checked(pool.Bank + (uint)rootIndex * pool.Stride + 0x62u), completion);
                         NativeBattleModulePoolTask root = after!.Pools[0].Slots[rootIndex];
-                        Assert.Equal(effectId == 8 ? NativeBattleDoom8Controller.RootCallback : effectId == 23 ? NativeBattlePsychoBlast23Profile.RootCallback : NativeBattleEffect60Profile.RootCallback, root.Callback);
+                        Assert.Equal(effectId == 74 ? NativeBattleDeathFamilyProfile.ForEffect(74).Callback(0x8B6A40) : effectId == 47 ? NativeBattleCurse47Controller.RootCallback : effectId == 8 ? NativeBattleDoom8Controller.RootCallback : effectId == 23 ? NativeBattlePsychoBlast23Profile.RootCallback : NativeBattleEffect60Profile.RootCallback, root.Callback);
                         Assert.Equal(1, root.Flags & 1);
                         Assert.Equal((byte)8, root.ReadByte(0x29));
                         Assert.Equal((byte)0, root.ReadByte(0x62));
@@ -397,7 +461,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 {
                     Assert.Equal(effectId, Director(current).Effect);
                     Assert.InRange(Director(current).SourceArenaOffset, 0, NativeBattleEffectArena.Length - 2 * Director(current).DrawStep);
-                    Assert.Equal(JsonSerializer.Serialize(original.Doom8Resources?.Camera ?? original.Absorb56Resources?.Animation ?? original.Devour62Resources?.Animation ?? original.MeltingBubble43Resources?.Animation ?? original.WindBlast29Resources?.Animation ?? original.Effect60Resources?.Animation ?? original.PsychoBlast23Resources?.Animation ?? original.Effect20Resources?.Animation ?? original.Raldo19Resources?.Animation ?? original.DrinkMagic37Resources?.Animation ?? original.MightyGuardResources?.Animation ?? original.ActorDirectorResources!.Animation), JsonSerializer.Serialize(current.NativeEffectMemory!.Textures!.Animation!.Source));
+                    Assert.Equal(JsonSerializer.Serialize(original.DeathResources?.Animation ?? original.Curse47Resources?.Animation ?? original.Doom8Resources?.Camera ?? original.Absorb56Resources?.Animation ?? original.Devour62Resources?.Animation ?? original.MeltingBubble43Resources?.Animation ?? original.WindBlast29Resources?.Animation ?? original.Effect60Resources?.Animation ?? original.PsychoBlast23Resources?.Animation ?? original.Effect20Resources?.Animation ?? original.Raldo19Resources?.Animation ?? original.DrinkMagic37Resources?.Animation ?? original.MightyGuardResources?.Animation ?? original.ActorDirectorResources!.Animation), JsonSerializer.Serialize(current.NativeEffectMemory!.Textures!.Animation!.Source));
                     initialized = true;
                     ColdNext("initialized", current);
                 }
@@ -433,7 +497,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                         ColdNext("secondary-contact", current);
                     }
                 }
-                if ((visibleChangedRgb == 0 || effectId is 8 or 19 or 20 or 23 or 29 or 37 or 43 or 56 or 60 or 62 or 73 or 78) && after?.ReturnedDescriptor is > 0 && Director(current).Effect == effectId)
+                if ((visibleChangedRgb == 0 || effectId is 8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 73 or 74 or 78) && after?.ReturnedDescriptor is > 0 && Director(current).Effect == effectId)
                 {
                     ImmutableHashSet<NativeBattlePrimitiveReference> owned = ActorDirectorPacketReferences(prior, current);
                     if (!owned.IsEmpty)
@@ -455,7 +519,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                             peakOwnership = effectId == 19
                                 ? JsonSerializer.Serialize(new { Effect = effectId, current.Frame, NativeCallback = current.NativeGraphics.Callback, Ownership = "Matched common packets before the complete first actor allocation", Packets = owned.OrderBy(packet => packet.Bank).ThenBy(packet => packet.Buffer).ThenBy(packet => packet.ByteOffset).ToArray() })
                                 : JsonSerializer.Serialize(new { Effect = effectId, current.Frame, NativeCallback = current.NativeGraphics.Callback, PrivateBank = "20DFAB8", PrivateStart = packetState.SecondaryDrawCursor!.Value - packetState.DrawStep, PrivateEnd = packetState.PrimaryDrawCursor!.Value, Packets = owned.OrderBy(packet => packet.Bank).ThenBy(packet => packet.Buffer).ThenBy(packet => packet.ByteOffset).ToArray() });
-                            if (effectId is not (8 or 19 or 20 or 23 or 29 or 37 or 43 or 56 or 60 or 62 or 73 or 78))
+                            if (effectId is not (8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 73 or 74 or 78))
                             {
                                 File.WriteAllText(Path.Combine(output!, "visible-packet-ownership.json"), peakOwnership);
                                 NativeBattleRestorationPresentationTests.Publish(output!, "visible", current, pixels);
@@ -505,6 +569,29 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.True(doomBankRestored, "Doom never materialized its actual addressed node source.");
                 Assert.True(doomReaperRestored, "Doom never reached its actual embedded reaper model producer.");
             }
+            if (effectId == 47)
+            {
+                Assert.True(curseIoRestored, "Curse never reached its actual retained IO initialization for cold continuation.");
+                Assert.True(curseBankRestored, "Curse never materialized its actual addressed node source for cold continuation.");
+                Assert.Equal(4, completed.NativeStage!.Groups.Length);
+                for (int group = 0; group < 4; group++)
+                {
+                    Assert.Equal((short)0, completed.NativeStage.Groups[group].ColorDepth);
+                    Assert.Equal(0u, completed.NativeStage.Groups[group].ColorFlags & 0xFFFFFFu);
+                    Assert.Equal(source.NativeStage!.Groups[group].ColorFlags & 0xFF000000u, completed.NativeStage.Groups[group].ColorFlags & 0xFF000000u);
+                }
+            }
+            if (effectId == 74)
+            {
+                Assert.True(levelDeathAuraRestored);
+                Assert.True(levelDeathDarkRestored);
+                for (int group = 0; group < completed.NativeStage!.Groups.Length; group++)
+                {
+                    Assert.Equal((short)0, completed.NativeStage.Groups[group].ColorDepth);
+                    Assert.Equal(0u, completed.NativeStage.Groups[group].ColorFlags & 0xFFFFFFu);
+                    Assert.Equal(source.NativeStage!.Groups[group].ColorFlags & 0xFF000000u, completed.NativeStage.Groups[group].ColorFlags & 0xFF000000u);
+                }
+            }
             if (effectId == 29)
             {
                 Assert.True(windBlastBankRestored, "Wind Blast never materialized its actual node bank for cold continuation.");
@@ -515,7 +602,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.True(meltingAnchorChecks > 1, "Melting Bubble never exercised its per-callback caster anchor producer.");
                 File.WriteAllText(Path.Combine(output!, "anchor-observations.json"), JsonSerializer.Serialize(meltingAnchorObservations));
             }
-            if (effectId is 8 or 23 or 60)
+            if (effectId is 8 or 23 or 47 or 60 or 74)
             {
                 Assert.True(textureLoadPendingRestored, "The selected module never exposed its actual pending texture-load completion callback for cold continuation.");
             }
@@ -559,7 +646,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
             }
             Assert.True(completed.Events.Count(item => item.NativeModuleSound is not null) > initialSounds, "The selected component published no original module sound.");
             Assert.True(Released(completed), "The original returned task, active effect and action104 descriptor must release through native execution.");
-            if (effectId is 8 or 19 or 20 or 23 or 29 or 37 or 43 or 56 or 60 or 62 or 73 or 78 && peakSnapshot is not null)
+            if (effectId is 8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 73 or 74 or 78 && peakSnapshot is not null)
             {
                 File.WriteAllText(Path.Combine(output!, "visible-packet-ownership.json"), peakOwnership ?? throw new InvalidDataException("The peak node packet ownership was not retained."));
                 NativeBattleRestorationPresentationTests.Publish(output!, "visible", peakSnapshot, peakPixels ?? throw new InvalidDataException("The peak node pixels were not retained."));
@@ -567,7 +654,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 ColdNext("peak", peakSnapshot);
             }
             ColdNext("completed", completed);
-            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Scenario = request.ControlledDrainContact ? "Controlled original Absorb presentation with paired declared drain halves and original target resistance; no ordinary formula or inventory admission" : effectId == 62 ? "Controlled original Devour action104 with actual target outcome; no ordinary formula or inventory admission" : "Controlled actor-director action104 and seven-HP contact; no ordinary action or formula admission", Effect = effectId, exported.Selection, action.Command, action.ActionId, callbacks, DiagnosticMaximumCallbacks = 4096, contacts, contactGlyphs, secondaryContactGlyphs, completions, visibleChangedRgb, cameraChanged, stageChanged, actor6Activated, effect20VibrationHandle, RestoredBoundaries = restoredBoundaries, completed.Frame, NativeCallback = completed.NativeGraphics!.Callback }));
+            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Scenario = effectId == 74 ? "Original Level Death command15/action3/sequence21 with declared immune MISS post-formula input; no level comparison, ordinary command, AI or formula admission" : request.ControlledDrainContact ? "Controlled original Absorb presentation with paired declared drain halves and original target resistance; no ordinary formula or inventory admission" : effectId == 62 ? "Controlled original Devour action104 with actual target outcome; no ordinary formula or inventory admission" : "Controlled actor-director action104 and seven-HP contact; no ordinary action or formula admission", Effect = effectId, exported.Selection, action.Command, action.ActionId, callbacks, DiagnosticMaximumCallbacks = 4096, contacts, contactGlyphs, secondaryContactGlyphs, completions, visibleChangedRgb, cameraChanged, stageChanged, actor6Activated, effect20VibrationHandle, RestoredBoundaries = restoredBoundaries, completed.Frame, NativeCallback = completed.NativeGraphics!.Callback }));
 
             NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot)
             {
@@ -714,7 +801,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
             return NativeBattleAquaPresentationTests.AquaPacketReferences(prior, current);
         }
         DirectedNodePacketState state = Director(current);
-        if (state.Effect is 8 or 20 or 23 or 29 or 43 or 56 or 60 or 62 && (state.PrimaryDrawCursor is null || state.SecondaryDrawCursor is null))
+        if (state.Effect is 8 or 20 or 23 or 29 or 43 or 47 or 56 or 60 or 62 && (state.PrimaryDrawCursor is null || state.SecondaryDrawCursor is null))
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
@@ -733,6 +820,14 @@ public sealed class NativeBattleActorDirectorPresentationTests
     private static DirectedNodePacketState Director(BattleSnapshot snapshot)
     {
         ushort effect = snapshot.NativeGraphics!.OriginalEffect!.Binding.Effect;
+        if (effect == 74)
+        {
+            NativeBattleDeathState state = snapshot.NativeEffectMemory!.LevelDeath74 ?? throw new InvalidDataException("Level Death requires its independent module owner.");
+            NativeBattleModulePoolTask root = snapshot.NativeGraphics.OriginalEffect.Pools[0].Slots.Single(task => task.Callback == NativeBattleDeathFamilyProfile.ForEffect(74).Callback(0x8B6A40));
+            int source = state.Source ?? throw new InvalidDataException("Level Death requires its actual initialized source.");
+            int start = checked(source + ((root.ReadWord(0x5C) & 1) == 0 ? 0 : 0xE000));
+            return new(effect, source, state.Cursor, checked(start + 0xE000), 0xE000, false);
+        }
         if (effect == 8)
         {
             NativeBattleDoom8State state = snapshot.NativeEffectMemory!.Doom8 ?? throw new InvalidDataException("Doom requires its initialized module owner.");
@@ -750,6 +845,17 @@ public sealed class NativeBattleActorDirectorPresentationTests
             uint selected = odd ? first : second;
             Assert.InRange(cursor, selected, checked(selected + 0x8000u));
             return new(effect, source, checked((int)(cursor - 0x20DFAB8u)), checked((int)(selected + 0x8000u - 0x20DFAB8u)), 0x8000, true);
+        }
+        if (effect == 47)
+        {
+            NativeBattleCurse47State state = snapshot.NativeEffectMemory!.Curse47 ?? throw new InvalidDataException("Curse requires its initialized module owner.");
+            uint source = state.ReadDword(0x264B3C8);
+            uint primary = state.ReadDword(0x264B3CC);
+            uint secondary = state.ReadDword(0x264B4D4);
+            int offset = checked((int)(source - 0x20DFAB8u));
+            return primary == 0 || secondary == 0
+                ? new(effect, offset, null, null, 0x4000, true)
+                : new(effect, offset, checked((int)(primary - 0x20DFAB8u)), checked((int)(secondary - 0x20DFAB8u)), 0x4000, true);
         }
         if (effect == 56)
         {
@@ -813,12 +919,21 @@ public sealed class NativeBattleActorDirectorPresentationTests
         {
             return false;
         }
-        uint callback = effect == 8 ? NativeBattleDoom8Controller.TargetCallback : effect == 56 ? NativeBattleDrainFamilyProfile.ForEffect(56).TargetCallback : effect == 62 ? NativeBattleDevour62Profile.TargetCallback : effect == 43 ? NativeBattleMeltingBubble43Profile.TargetCallback : effect == 29 ? NativeBattleWindBlast29Profile.TargetCallback : effect == 60 ? NativeBattleEffect60Profile.TargetCallback : effect == 23 ? NativeBattlePsychoBlast23Profile.TargetCallback : effect == 20 ? NativeBattleEffect20Profile.TargetCallback : effect == 19 ? NativeBattleRaldo19Profile.TargetCallback : effect == 37 ? NativeBattleDrinkMagic37Profile.TargetCallback : effect is 73 or 78 ? NativeBattleMightyGuardProfile.ForEffect(effect).TargetCallback : NativeBattleActorDirectorProfile.ForEffect(effect).Callback(0x8AB4C0);
+        uint callback = effect == 74 ? NativeBattleDeathFamilyProfile.ForEffect(74).Callback(0x8B6C90) : effect == 47 ? NativeBattleCurse47Controller.TargetCallback : effect == 8 ? NativeBattleDoom8Controller.TargetCallback : effect == 56 ? NativeBattleDrainFamilyProfile.ForEffect(56).TargetCallback : effect == 62 ? NativeBattleDevour62Profile.TargetCallback : effect == 43 ? NativeBattleMeltingBubble43Profile.TargetCallback : effect == 29 ? NativeBattleWindBlast29Profile.TargetCallback : effect == 60 ? NativeBattleEffect60Profile.TargetCallback : effect == 23 ? NativeBattlePsychoBlast23Profile.TargetCallback : effect == 20 ? NativeBattleEffect20Profile.TargetCallback : effect == 19 ? NativeBattleRaldo19Profile.TargetCallback : effect == 37 ? NativeBattleDrinkMagic37Profile.TargetCallback : effect is 73 or 78 ? NativeBattleMightyGuardProfile.ForEffect(effect).TargetCallback : NativeBattleActorDirectorProfile.ForEffect(effect).Callback(0x8AB4C0);
         byte phase = effect is 20 or 29 or 37 or 43 or 56 or 62 or 73 or 78 ? (byte)2 : (byte)1;
         bool crossed = before.Pools[1].Slots.Select((task, index) => (task, index)).Any(item => (item.task.Flags & 1) != 0 && item.task.Callback == callback && item.task.ReadByte(0x29) == phase && after.Pools[1].Slots[item.index].ReadByte(0x29) == phase + 1);
+        if (effect == 74 && crossed)
+        {
+            NativeBattleDeathFamilyProfile profile = NativeBattleDeathFamilyProfile.ForEffect(74);
+            Assert.Equal((ushort)1, BinaryPrimitives.ReadUInt16LittleEndian(prior.NativeEffectMemory!.LevelDeath74!.Module.Read(profile.ModuleOffset(0x2742440), 2)));
+        }
         if (effect == 8 && crossed)
         {
             Assert.Equal((ushort)1, prior.NativeEffectMemory!.Doom8!.SharedWord(0x48));
+        }
+        if (effect == 47 && crossed)
+        {
+            Assert.Equal((ushort)1, prior.NativeEffectMemory!.Curse47!.SharedWord(0x48));
         }
         if (effect == 19 && crossed)
         {

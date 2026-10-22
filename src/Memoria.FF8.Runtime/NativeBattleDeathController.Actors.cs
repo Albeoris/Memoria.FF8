@@ -26,7 +26,7 @@ public static partial class NativeBattleDeathController
                 }
                 NativeBattleVector actorOrigin = new(unchecked((short)Word(0x27423F8)), unchecked((short)Word(0x27423FA)), unchecked((short)Word(0x27423FC)));
                 NativeBattleVector targetOrigin = new(unchecked((short)Word(0x2742400)), unchecked((short)Word(0x2742402)), unchecked((short)Word(0x2742404)));
-                task = NativeBattleEffectNodeContext.Initialize(task, Read(task.ReadDword(0x10)), current.Effect.Parameters!, inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, source, dogOrigins: new(actorOrigin, targetOrigin));
+                task = NativeBattleEffectNodeContext.Initialize(task, Read(task.ReadDword(0x10)), current.Effect.Parameters!, inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, source, singleSelectedTarget: profile.SingleSelectedTarget, dogOrigins: new(actorOrigin, targetOrigin));
                 Store(address, task);
                 _ = AdvanceActorContext(address);
                 Store(address, Next(Read(address)));
@@ -57,50 +57,95 @@ public static partial class NativeBattleDeathController
                 NativeBattleEffectNodeBank bank = new(source, ActorBank(source), ReadExternal);
                 ushort emitterScan = State.EmitterScan;
                 ushort geometryScan = State.GeometryScan;
-                NativeBattleEffectNodeInputs nodeInputs = new(inputs.Projection.View ?? throw new NotSupportedException("Native Death requires its current camera copy."), inputs.ReadModel, (parent, actor, target) => NativeBattleEffectNodeAllocation.AllocateEmitter(memory, State.Emitters!.Value, 20, ref emitterScan, parent, actor, target), (emitter, actor) => NativeBattleEffectNodeAllocation.AllocateGeometry(memory, State.Geometry!.Value, 60, ref geometryScan, emitter, actor));
+                NativeBattleEffectNodeInputs nodeInputs = new((current.Memory.SharedEffectView2793E58 ?? throw new NotSupportedException("Native Death requires its actual copied camera.")).ReadMatrix(), inputs.ReadModel, (parent, actor, target) => NativeBattleEffectNodeAllocation.AllocateEmitter(memory, State.Emitters!.Value, 20, ref emitterScan, parent, actor, target), (emitter, actor) => NativeBattleEffectNodeAllocation.AllocateGeometry(memory, State.Geometry!.Value, 60, ref geometryScan, emitter, actor));
                 NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, nodeInputs);
                 NativeCrtRandomState random = current.Random;
-                NativeBattleGfGeometryBatch batch = lifecycle.AdvanceAndDraw(ref random, inputs.Projection, inputs.CameraRoll, PrepareMesh);
+                bool releaseMesh = false;
+                _ = lifecycle.AdvanceAndDraw(ref random, inputs.Projection, inputs.CameraRoll, PrepareMesh, Deliver);
                 NativeBattleEffectNodeMemoryWrite flushed = memory.FlushStorage();
                 current = current with { Memory = flushed.Memory, Effect = flushed.Effect, Random = random };
                 hierarchy = new(current.Effect.Pools);
                 SetActorBank(source, bank.Data);
                 SetState(State with { EmitterScan = emitterScan, GeometryScan = geometryScan });
-                Emit(new NativeBattleDeathPackets(batch));
 
                 NativeBattleEffectNodeMeshInstance PrepareMesh(int node, byte[] descriptor)
                 {
+                    current = current with { Memory = memory.CaptureProcessMemory() };
                     short fade = unchecked((short)memory.Word(node + 0x1CE));
-                    uint flags = BinaryPrimitives.ReadInt16LittleEndian(descriptor.AsSpan(0x3A)) == 0 ? 0x30u : 0;
-                    if (fade != 0)
+                    uint meshAddress = memory.Dword(node + 0x170);
+                    current = NativeBattleDeathNodeDrawing.Begin(current, meshAddress, BinaryPrimitives.ReadInt16LittleEndian(descriptor.AsSpan(0x3A)), fade, fade == 0 ? null : memory.Dword(node + 0x16C));
+                    memory.PublishProcessMemory(current.Memory);
+                    int count = unchecked((sbyte)memory.Byte(node + 0x1D8));
+                    int instance = 0;
+                    if (count <= 0)
                     {
-                        flags |= 0xC0;
+                        current = NativeBattleDeathNodeDrawing.End(current);
+                        memory.PublishProcessMemory(current.Memory);
                     }
-                    NativeBattleEsunaMeshContext context = new(flags, fade == 0 ? null : memory.Dword(node + 0x16C), fade == 0 ? null : fade, 0, 0, 0, new(0, 0, 256, 256), new(0, 0, 256, 256), 17, 2);
-                    return (bytes, matrix) => NativeBattleRestorationMeshPackets.EmitBatch88E240(bytes, matrix, inputs.Projection, context, inputs.Colors, observeFirstThreeFlags: memory.WriteProjectionFlags);
+                    return (bytes, matrix) =>
+                    {
+                        NativeBattleEffectNodeMemoryWrite live = memory.FlushStorage();
+                        (byte[] padding, bool[] known) = live.Memory.Arena!.ReadSnapshot(node + 0xAC + 18, 2);
+                        short? matrixPadding = known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(padding) : null;
+                        NativeBattleDeathNodeMeshStep emitted = NativeBattleDeathNodeDrawing.Emit(current with { Memory = memory.CaptureProcessMemory() }, bytes, meshAddress, matrix, inputs.Projection, inputs.Colors, matrixPadding);
+                        current = emitted.Frame;
+                        releaseMesh = ++instance == count;
+                        memory.PublishProcessMemory(current.Memory);
+                        return emitted.Batch;
+                    };
+                }
+
+                void Deliver(bool meshes, NativeBattleGfGeometryBatch batch)
+                {
+                    current = current with { Memory = memory.CaptureProcessMemory() };
+                    SetActorBank(source, bank.Data);
+                    Emit(new NativeBattleDeathPackets(batch));
+                    if (releaseMesh)
+                    {
+                        current = NativeBattleDeathNodeDrawing.End(current);
+                        releaseMesh = false;
+                    }
+                    memory.PublishProcessMemory(current.Memory);
                 }
             }
         }
 
-        private ImmutableArray<byte> ActorBank(uint source) => source switch
+        private ImmutableArray<byte> ActorBank(uint source)
         {
-            0x1801FD0 => State.AuraActors ?? throw new NotSupportedException("Native Death requires its retained aura source."),
-            0x18069C4 => State.DarkActors ?? throw new NotSupportedException("Native Death requires its retained dark source."),
-            _ => throw new NotSupportedException("Native Death actor source leaves its original addressed banks.")
-        };
+            if (source == profile.AuraAddress)
+            {
+                return State.AuraActors ?? throw new NotSupportedException("Native Death family requires its retained aura source.");
+            }
+            if (source == profile.DarkAddress)
+            {
+                return State.DarkActors ?? throw new NotSupportedException("Native Death family requires its retained dark source.");
+            }
+            throw new NotSupportedException("Native Death family source leaves its addressed node banks.");
+        }
 
         private void SetActorBank(uint source, ImmutableArray<byte> bytes)
         {
-            SetState(source == 0x1801FD0 ? State with { AuraActors = bytes } : source == 0x18069C4 ? State with { DarkActors = bytes } : throw new NotSupportedException("Native Death actor store leaves its original addressed banks."));
+            if (source == profile.AuraAddress)
+            {
+                SetState(State with { AuraActors = bytes });
+            }
+            else if (source == profile.DarkAddress)
+            {
+                SetState(State with { DarkActors = bytes });
+            }
+            else
+            {
+                throw new NotSupportedException("Native Death family store leaves its addressed node banks.");
+            }
         }
 
         private byte[] ReadExternal(uint address, int count)
         {
-            if (address < ModuleBase || count < 0 || (ulong)address + (uint)count > 0x27428A0)
+            if (address < profile.ModuleBase || count < 0 || (ulong)address + (uint)count > (ulong)profile.ModuleBase + (uint)profile.ModuleLength)
             {
                 throw new NotSupportedException("Native Death curve leaves its retained executable module owner.");
             }
-            return State.Module.Read(checked((int)(address - ModuleBase)), count);
+            return State.Module.Read(checked((int)(address - profile.ModuleBase)), count);
         }
     }
 }

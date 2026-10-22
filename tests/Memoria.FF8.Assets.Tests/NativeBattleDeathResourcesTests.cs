@@ -30,6 +30,7 @@ public sealed class NativeBattleDeathResourcesTests
         NativeBattleOriginalEffectState effect = new(14, 13, new(14, 0x8B68C0, 0x8B68A0), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(0x273AE80, 0)] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(13) with { EffectLight1D99AB0 = new byte[32].ToImmutableArray(), EffectLightKnown1D99AB0 = new bool[32].ToImmutableArray() };
         Assert.Throws<NotSupportedException>(() => NativeBattleDeathController.Initialize(memory with { Death14 = null }, effect, packets, resources, new(1)));
+        memory = memory with { ScriptedGraphics = memory.ScriptedGraphics!.InitializeGeom56BAA0() };
         NativeBattleDeathFrame frame = NativeBattleDeathController.Initialize(memory, effect, packets, resources, new(1));
         NativeBattleCameraProjection projection = new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 4096, 4096), 216, 160, 108);
         byte[] skeleton = new byte[64];
@@ -69,7 +70,7 @@ public sealed class NativeBattleDeathResourcesTests
                 default:
                     throw new InvalidOperationException();
             }
-        });
+        }) { ReadPackedCamera = () => NativeBattlePackedMatrix32.FromMatrix(projection.View!, null) };
         for (now = 1; now <= 600 && frame.Effect.ReturnedDescriptor != 0; now++)
         {
             ordering = NativeBattleLogicalOrdering.Clear();

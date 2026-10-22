@@ -5,14 +5,14 @@ public sealed record NativeBattleEffectLocalBounds(NativeBattleVector Minimum, N
 /// <summary>The shared8DC610/8DC740 anchors and8DC870 local posed-skeleton bounds.</summary>
 public static class NativeBattleEffectModelHelpers
 {
-    public static NativeBattleModulePoolTask UpdateTarget8DC610(NativeBattleModulePoolTask task, IReadOnlyList<NativeBattleGraphicsModel> models, Func<int, NativeBattlePoseSource> readSource)
+    public static NativeBattleModulePoolTask UpdateTarget8DC610(NativeBattleModulePoolTask task, IReadOnlyList<NativeBattleGraphicsModel> models, Func<int, NativeBattlePoseSource> readSource, Action<NativeBattleBoneAnchorProducer>? observeAnchor = null)
     {
-        return WriteAnchors(task, models, task.ReadByte(0x2D), readSource);
+        return WriteAnchors(task, models, task.ReadByte(0x2D), readSource, observeAnchor);
     }
 
-    public static NativeBattleModulePoolTask UpdateCaster8DC740(NativeBattleModulePoolTask task, NativeBattleEffectParameters parameters, IReadOnlyList<NativeBattleGraphicsModel> models, Func<int, NativeBattlePoseSource> readSource)
+    public static NativeBattleModulePoolTask UpdateCaster8DC740(NativeBattleModulePoolTask task, NativeBattleEffectParameters parameters, IReadOnlyList<NativeBattleGraphicsModel> models, Func<int, NativeBattlePoseSource> readSource, Action<NativeBattleBoneAnchorProducer>? observeAnchor = null)
     {
-        return WriteAnchors(task, models, parameters.Actor78, readSource);
+        return WriteAnchors(task, models, parameters.Actor78, readSource, observeAnchor);
     }
 
     public static NativeBattleModulePoolTask UpdateBounds8DC870(NativeBattleModulePoolTask task, NativeBattlePoseSource source, NativeBattleDecodedPose pose)
@@ -22,7 +22,7 @@ public static class NativeBattleEffectModelHelpers
         return task.WriteWord(0x48, unchecked((ushort)bounds.Minimum.X)).WriteWord(0x4A, unchecked((ushort)bounds.Minimum.Y)).WriteWord(0x4C, unchecked((ushort)bounds.Minimum.Z)).WriteWord(0x50, unchecked((ushort)bounds.Maximum.X)).WriteWord(0x52, unchecked((ushort)bounds.Maximum.Y)).WriteWord(0x54, unchecked((ushort)bounds.Maximum.Z));
     }
 
-    private static NativeBattleModulePoolTask WriteAnchors(NativeBattleModulePoolTask task, IReadOnlyList<NativeBattleGraphicsModel> models, int index, Func<int, NativeBattlePoseSource> readSource)
+    private static NativeBattleModulePoolTask WriteAnchors(NativeBattleModulePoolTask task, IReadOnlyList<NativeBattleGraphicsModel> models, int index, Func<int, NativeBattlePoseSource> readSource, Action<NativeBattleBoneAnchorProducer>? observeAnchor)
     {
         if ((uint)index >= models.Count)
         {
@@ -34,10 +34,20 @@ public static class NativeBattleEffectModelHelpers
             return task;
         }
         NativeBattlePoseSource source = readSource(index);
-        NativeBattleVector first = NativeBattlePoseMatrices.ReadBone(model, source, 240, 0);
-        NativeBattleVector second = NativeBattlePoseMatrices.ReadBone(model, source, 241, 0);
+        NativeBattleVector first = ReadAnchor(240);
+        NativeBattleVector second = ReadAnchor(241);
         short angle = (model.Transform ?? throw new NotSupportedException("Native8DC610/740 requires modelWORD36.")).Angle36;
-        return task.WriteWord(0x30, unchecked((ushort)first.X)).WriteWord(0x32, unchecked((ushort)angle)).WriteWord(0x34, unchecked((ushort)first.Z)).WriteWord(0x38, unchecked((ushort)((first.X + second.X) / 2))).WriteWord(0x3A, unchecked((ushort)((first.Y + second.Y) / 2))).WriteWord(0x3C, unchecked((ushort)((first.Z + second.Z) / 2))).WriteWord(0x40, unchecked((ushort)second.X)).WriteWord(0x42, unchecked((ushort)second.Y)).WriteWord(0x44, unchecked((ushort)second.Z));
+        return task.WriteWord(0x30, unchecked((ushort)second.X)).WriteWord(0x32, unchecked((ushort)angle)).WriteWord(0x34, unchecked((ushort)second.Z)).WriteWord(0x38, unchecked((ushort)((first.X + second.X) / 2))).WriteWord(0x3A, unchecked((ushort)((first.Y + second.Y) / 2))).WriteWord(0x3C, unchecked((ushort)((first.Z + second.Z) / 2))).WriteWord(0x40, unchecked((ushort)first.X)).WriteWord(0x42, unchecked((ushort)first.Y)).WriteWord(0x44, unchecked((ushort)first.Z));
+
+        NativeBattleVector ReadAnchor(byte selector)
+        {
+            NativeBattleVector result = NativeBattlePoseMatrices.ReadBone(model, source, selector, 0);
+            if (observeAnchor is not null)
+            {
+                observeAnchor(NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source, selector, 0));
+            }
+            return result;
+        }
     }
 }
 

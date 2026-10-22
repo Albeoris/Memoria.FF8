@@ -142,7 +142,7 @@ public static partial class NativeBattleDeathController
         private void SpawnActors(uint parent, uint source, ushort mode)
         {
             uint actor = Append(4, 0x8B78C0, 0x2A4, parent);
-            Store(actor, Read(actor).WriteDword(0x30, source).WriteWord(0x298, 0).WriteWord(0x29C, mode).WriteWord(0x29E, 20));
+            Store(actor, Read(actor).WriteDword(0x30, source == 0x1801FD0 ? profile.AuraAddress : source == 0x18069C4 ? profile.DarkAddress : throw new NotSupportedException("Native Death family source has no original counterpart.")).WriteWord(0x298, 0).WriteWord(0x29C, mode).WriteWord(0x29E, 20));
         }
     }
 }
