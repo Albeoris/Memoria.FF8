@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -137,6 +137,8 @@ public sealed partial class BattleSession
                 case 0xAEFAE0:
                 case 0xA4D9C0:
                 case 0xA44370:
+                case 0xA80F60:
+                case 0xA76420:
                 case 0xA8B230:
                 case 0xA96AF0:
                 case 0xAAEA40:

@@ -1318,6 +1318,10 @@ public static partial class NativeBattleCinematicDispatch
 
     public static uint RequireSlot(int effect, string table, int index, uint handler)
     {
+        if (BlueNonCallableSlots.Contains((effect, table, index)))
+        {
+            throw new NotSupportedException("Native cinematic dispatch selected a noncallable original table slot.");
+        }
         if (TryRequireEnemySlot(effect, table, index, handler, out uint enemyCanonical))
         {
             return enemyCanonical;
@@ -1338,7 +1342,7 @@ public static partial class NativeBattleCinematicDispatch
             }
             return handler;
         }
-        if (VariantSlots.TryGetValue((effect, table, index), out uint variant) || GuestNoOps.TryGetValue((effect, table, index), out variant) || GuestVariants.TryGetValue((effect, table, index), out variant) || MeteorNoOps.TryGetValue((effect, table, index), out variant) || MeteorVariants.TryGetValue((effect, table, index), out variant) || ApocalypseNoOps.TryGetValue((effect, table, index), out variant) || ApocalypseVariants.TryGetValue((effect, table, index), out variant))
+        if (VariantSlots.TryGetValue((effect, table, index), out uint variant) || BlueNoOps.TryGetValue((effect, table, index), out variant) || BlueVariants.TryGetValue((effect, table, index), out variant) || GuestNoOps.TryGetValue((effect, table, index), out variant) || GuestVariants.TryGetValue((effect, table, index), out variant) || MeteorNoOps.TryGetValue((effect, table, index), out variant) || MeteorVariants.TryGetValue((effect, table, index), out variant) || ApocalypseNoOps.TryGetValue((effect, table, index), out variant) || ApocalypseVariants.TryGetValue((effect, table, index), out variant))
         {
             if (handler != variant)
             {
@@ -1346,7 +1350,7 @@ public static partial class NativeBattleCinematicDispatch
             }
             return handler;
         }
-        if (GuestAliasSlots.TryGetValue((effect, table, index), out uint selectedAlias) || MeteorAliasSlots.TryGetValue((effect, table, index), out selectedAlias) || ApocalypseAliasSlots.TryGetValue((effect, table, index), out selectedAlias))
+        if (GuestAliasSlots.TryGetValue((effect, table, index), out uint selectedAlias) || BlueAliasSlots.TryGetValue((effect, table, index), out selectedAlias) || MeteorAliasSlots.TryGetValue((effect, table, index), out selectedAlias) || ApocalypseAliasSlots.TryGetValue((effect, table, index), out selectedAlias))
         {
             if (handler != selectedAlias)
             {
@@ -1384,6 +1388,6 @@ public static partial class NativeBattleCinematicDispatch
         {
             return regionalCanonical;
         }
-        return (Aliases.TryGetValue((effect, handler), out uint canonical) || GuestAliases.TryGetValue((effect, handler), out canonical) || MeteorAliases.TryGetValue((effect, handler), out canonical) || ApocalypseAliases.TryGetValue((effect, handler), out canonical)) ? canonical : throw new NotSupportedException($"Native cinematic effect {effect} handler {handler:X8} requires its selected implementation contract.");
+        return (Aliases.TryGetValue((effect, handler), out uint canonical) || BlueAliases.TryGetValue((effect, handler), out canonical) || GuestAliases.TryGetValue((effect, handler), out canonical) || MeteorAliases.TryGetValue((effect, handler), out canonical) || ApocalypseAliases.TryGetValue((effect, handler), out canonical)) ? canonical : throw new NotSupportedException($"Native cinematic effect {effect} handler {handler:X8} requires its selected implementation contract.");
     }
 }

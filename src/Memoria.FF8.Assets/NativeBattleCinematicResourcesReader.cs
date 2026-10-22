@@ -111,6 +111,8 @@ public static class NativeBattleCinematicResourcesReader
         uint actorDirectory = profile.Effect switch
         {
             228 => 0x18821A0,
+            229 => 0x188062C,
+            230 => 0x187EAB8,
             261 => 0x187C20C,
             262 => 0x187A2A4,
             263 => 0x1877DAC,

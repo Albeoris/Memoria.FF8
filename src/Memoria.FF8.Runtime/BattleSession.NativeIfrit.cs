@@ -227,6 +227,8 @@ public sealed partial class BattleSession
             int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank);
             switch (opcode)
             {
+                case 0x94 when profile.Effect == 230 && selectedHandler == 0xA77C10:
+                    return NativeBattleCinematicRangeBranch94.Execute(current, bank, program);
                 case 0x87 when selectedHandler == 0xB2D2B0:
                     return NativeBattleCinematicScale87.Execute(current, program);
                 case 0xAF when selectedHandler == 0xB52F20:
@@ -278,11 +280,11 @@ public sealed partial class BattleSession
                         NativeMusicPlaybackState playback = soundOwner.MusicPlayback ?? throw new NotSupportedException("Native cinematic music fade requires its actual playback owner.");
                         NativeGlobalSoundProcess = soundOwner with { MusicPlayback = playback.FadeGain46BBC0(channel, unchecked((byte)duration), 0) };
                     });
-                case 0xAB when profile.Effect is 228 or 261 or 262 or 263:
+                case 0xAB when profile.Effect is 228 or 229 or 230 or 261 or 262 or 263:
                     return NativeBattleCinematicActorResourceAB.Execute(current, program, (resourceFrame, actorPointer, row) =>
                     {
                         int actorIndex = PhysicalActorIndex(actorPointer);
-                        uint directory = profile.Effect switch { 228 => 0x18821A0, 261 => 0x187C20C, 262 => 0x187A2A4, 263 => 0x1877DAC, _ => throw new InvalidOperationException() };
+                        uint directory = profile.Effect switch { 228 => 0x18821A0, 229 => 0x188062C, 230 => 0x187EAB8, 261 => 0x187C20C, 262 => 0x187A2A4, 263 => 0x1877DAC, _ => throw new InvalidOperationException() };
                         if (!resources.AdditionalStaticData.TryGetValue(directory, out ImmutableArray<byte> bytes))
                         {
                             throw new NotSupportedException("Native cinematic actor resource requires its original static DAT; migrate the selected older snapshot explicitly.");

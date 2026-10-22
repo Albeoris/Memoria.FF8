@@ -765,6 +765,6 @@ public static partial class NativeBattleCinematicDispatch
 
     public static bool IsNoOp(int effect, string table, int index, uint handler)
     {
-        return (EnemyNoOps.TryGetValue((effect, table, index), out uint expected) || GuestNoOps.TryGetValue((effect, table, index), out expected) || MeteorNoOps.TryGetValue((effect, table, index), out expected) || ApocalypseNoOps.TryGetValue((effect, table, index), out expected)) && handler == expected;
+        return (EnemyNoOps.TryGetValue((effect, table, index), out uint expected) || BlueNoOps.TryGetValue((effect, table, index), out expected) || GuestNoOps.TryGetValue((effect, table, index), out expected) || MeteorNoOps.TryGetValue((effect, table, index), out expected) || ApocalypseNoOps.TryGetValue((effect, table, index), out expected)) && handler == expected;
     }
 }
