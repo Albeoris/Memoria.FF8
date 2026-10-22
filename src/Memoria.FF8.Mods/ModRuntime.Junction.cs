@@ -61,13 +61,18 @@ public sealed partial class ModRuntime
                             replacement.CopyTo(destination);
                             ValidateJunctionVersion(root, physical, stamp);
                         }
+                        ModFileSegment? ResolveSegment()
+                        {
+                            ValidateJunctionVersion(root, physical, stamp);
+                            return replacement.FileSegment;
+                        }
                         byte[] Read()
                         {
                             using MemoryStream destination = new();
                             Copy(destination);
                             return destination.ToArray();
                         }
-                        previous = new(stamp, new ModFile(id, ModFormat.Junction, replacement.RelativePath, ++fileRevision, Read, Copy));
+                        previous = new(stamp, new ModFile(id, ModFormat.Junction, replacement.RelativePath, ++fileRevision, Read, Copy, ResolveSegment));
                         fileEntries[key] = previous;
                     }
                     identities.Add($"{key}\0{previous.File.Revision}");

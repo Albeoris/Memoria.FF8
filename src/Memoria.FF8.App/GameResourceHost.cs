@@ -46,6 +46,22 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             }
             throw new NotImplementedException("The selected resource provider does not implement file resolution.");
         }
+        if (relative.EndsWith(".avi", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                if (replacement.ResolveFileSegment() is ModFileSegment segment)
+                {
+                    // FFmpeg's subfile protocol retains random access to the selected payload.
+                    return FormattableString.Invariant($"subfile,,start,{segment.Offset},end,{checked(segment.Offset + segment.Length)},,:file:{segment.Path}");
+                }
+            }
+            catch (Exception exception) when (exception is IOException or InvalidDataException or NotSupportedException or UnauthorizedAccessException)
+            {
+                Mods.ReportFailure(new("junction-replacement-failed", exception.Message, replacement.PackageId, replacement.RelativePath));
+                throw;
+            }
+        }
         if (materializedFiles.TryGetValue(replacement, out string? cached))
         {
             return cached;

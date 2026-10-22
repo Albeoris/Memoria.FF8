@@ -4,7 +4,7 @@ using SharpCompress.Compressors.LZMA;
 
 namespace Memoria.FF8.Mods;
 
-/// <summary>Reads the normal IROS 1.0–1.2 container used by Junction VIII without loading movie payloads into memory.</summary>
+/// <summary>Reads the normal IROS 1.0-1.2 container used by Junction VIII without loading movie payloads into memory.</summary>
 public sealed class JunctionArchive
 {
     private const int Signature = 0x534f5249;
@@ -124,6 +124,8 @@ public sealed class JunctionArchiveEntry
     public string RelativePath { get; }
     internal long Offset { get; }
     internal int StoredLength { get; }
+
+    public ModFileSegment? FileSegment => compression == 0 ? new(archivePath, Offset, StoredLength) : null;
 
     public long? Length
     {

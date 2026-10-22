@@ -21,6 +21,7 @@ internal sealed partial class MovieClock : IDisposable
     private NativeMovieSource? pinnedSource;
     private bool bindingHasPlayback;
     private string? pinnedMoviePath;
+    private MovieFileVersion? pinnedMovieVersion;
     private string? pinnedCameraPath;
 
     public MovieClock(GameSession session, string gameDirectory, string? toolsDirectory = null, Func<string, string>? resolveGameFile = null)
@@ -41,6 +42,7 @@ internal sealed partial class MovieClock : IDisposable
         get
         {
             PinPresentationSource();
+            pinnedMovieVersion?.Validate();
             return pinnedMoviePath!;
         }
     }
@@ -61,12 +63,16 @@ internal sealed partial class MovieClock : IDisposable
         {
             return;
         }
+        string moviePath = ResolveMovieFile(GetMovieRelativePath(source.DiscIndex, source.MovieIndex));
+        MovieFileVersion? movieVersion = MovieFileVersion.Capture(moviePath);
+        string cameraPath = ResolveMovieFile($"movies/disc{source.DiscIndex:00}_{source.MovieIndex:00}.cam");
         pinnedSource = source;
         bindingHasPlayback = false;
         presentationFrame = null;
         presentationSource = null;
-        pinnedMoviePath = ResolveMovieFile(GetMovieRelativePath(source.DiscIndex, source.MovieIndex));
-        pinnedCameraPath = ResolveMovieFile($"movies/disc{source.DiscIndex:00}_{source.MovieIndex:00}.cam");
+        pinnedMoviePath = moviePath;
+        pinnedMovieVersion = movieVersion;
+        pinnedCameraPath = cameraPath;
     }
 
     public string ResolveMovieFile(string relativePath) => ResolveGameFile?.Invoke(relativePath) ?? NativeFiles.ResolveFile(relativePath);
@@ -86,10 +92,15 @@ internal sealed partial class MovieClock : IDisposable
         {
             return Prepare();
         }
-        if (!presentationMovies.TryGetValue(path, out MovieInformation? information))
+        return GetPresentationInformation(path);
+    }
+
+    private MovieInformation GetPresentationInformation(string path)
+    {
+        if (!presentationMovies.TryGetValue(path, out MovieInformation? information) || information.SourceVersion != pinnedMovieVersion)
         {
-            information = FfmpegMovieDecoder.Probe(toolsDirectory, path);
-            presentationMovies.Add(path, information);
+            information = FfmpegMovieDecoder.ProbePresentation(toolsDirectory, path);
+            presentationMovies[path] = information;
         }
         return information;
     }
@@ -254,7 +265,8 @@ internal sealed partial class MovieClock : IDisposable
 
     public static int AbsoluteFrame(double startSeconds, MovieInformation information)
     {
-        return Math.Clamp((int)Math.Ceiling(startSeconds * information.FramesPerSecond - 1e-9), 0, information.FrameCount - 1);
+        int frame = Math.Max(0, checked((int)Math.Ceiling(startSeconds * information.FramesPerSecond - 1e-9)));
+        return information.FrameCount > 0 ? Math.Min(frame, information.FrameCount - 1) : frame;
     }
 
 }

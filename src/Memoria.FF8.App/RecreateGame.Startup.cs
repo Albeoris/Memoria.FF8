@@ -39,7 +39,7 @@ internal sealed partial class RecreateGame
             if (startup.Stage is StartupStage.SquareEnixMovie or StartupStage.PublisherMovie)
             {
                 string path = movieClock.ResolveMovieFile("movies/disc04_00h.avi");
-                startupMovieInformation ??= Task.Run(() => FfmpegMovieDecoder.Probe(movieClock.ToolsDirectory, path));
+                startupMovieInformation ??= Task.Run(() => FfmpegMovieDecoder.ProbePresentation(movieClock.ToolsDirectory, path));
                 if (!startupMovieInformation.IsCompleted)
                 {
                     return true;

@@ -10,6 +10,10 @@ internal sealed class MovieFrameTimeline
 
     public MovieFrameTimeline(MovieInformation information, int frame)
     {
+        if (information.FrameCount < 1)
+        {
+            throw new InvalidDataException("Native movie callbacks require an exact decoded frame count.");
+        }
         this.information = information;
         Frame = Math.Clamp(frame, 0, information.FrameCount - 1);
     }
@@ -30,11 +34,12 @@ internal sealed class MovieFrameTimeline
 
     public static int FrameAt(double seconds, MovieInformation information)
     {
-        if (!double.IsFinite(seconds) || !double.IsFinite(information.FramesPerSecond) || information.FramesPerSecond <= 0 || information.FrameCount < 1)
+        if (!double.IsFinite(seconds) || !double.IsFinite(information.FramesPerSecond) || information.FramesPerSecond <= 0 || information.FrameCount < 0)
         {
-            throw new InvalidDataException("Movie timing requires finite timestamps, positive detected FPS and an actual frame count.");
+            throw new InvalidDataException("Movie timing requires finite timestamps, positive detected FPS and a nonnegative frame count.");
         }
-        return Math.Clamp((int)Math.Floor(seconds * information.FramesPerSecond + 1e-9), 0, information.FrameCount - 1);
+        int frame = Math.Max(0, checked((int)Math.Floor(seconds * information.FramesPerSecond + 1e-9)));
+        return information.FrameCount > 0 ? Math.Min(frame, information.FrameCount - 1) : frame;
     }
 
 }

@@ -11,17 +11,19 @@ public sealed class JunctionReplacement
 {
     private readonly Func<Stream> openRead;
 
-    internal JunctionReplacement(string relativePath, string sourcePath, long? length, Func<Stream> openRead)
+    internal JunctionReplacement(string relativePath, string sourcePath, long? length, Func<Stream> openRead, ModFileSegment? fileSegment = null)
     {
         RelativePath = relativePath;
         SourcePath = sourcePath;
         Length = length;
         this.openRead = openRead;
+        FileSegment = fileSegment;
     }
 
     public string RelativePath { get; }
     public string SourcePath { get; }
     public long? Length { get; }
+    public ModFileSegment? FileSegment { get; }
 
     public Stream OpenRead()
     {
@@ -170,7 +172,7 @@ public static partial class JunctionModImporter
                     continue;
                 }
                 // Junction keeps the first selected folder candidate for a logical path.
-                replacements.TryAdd(relativePath, new JunctionReplacement(relativePath, file.SourcePath, file.Length, file.OpenRead));
+                replacements.TryAdd(relativePath, new JunctionReplacement(relativePath, file.SourcePath, file.Length, file.OpenRead, file.FileSegment));
             }
         }
         return new JunctionModPackage(name, sourcePath, Array.AsReadOnly(replacements.Values.ToArray()), diagnostics.AsReadOnly());
@@ -190,7 +192,7 @@ public static partial class JunctionModImporter
     private static IReadOnlyList<JunctionReplacement> ReadArchive(string path)
     {
         JunctionArchive archive = new(path);
-        return archive.Entries.Select(entry => new JunctionReplacement(entry.RelativePath, entry.RelativePath, entry.Length, entry.OpenRead)).ToArray();
+        return archive.Entries.Select(entry => new JunctionReplacement(entry.RelativePath, entry.RelativePath, entry.Length, entry.OpenRead, entry.FileSegment)).ToArray();
     }
 
     private static IReadOnlyList<JunctionReplacement> ReadFolder(string path)

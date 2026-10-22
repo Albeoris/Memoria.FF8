@@ -14,11 +14,13 @@ Only `FFNxConfig/enable_ffmpeg_videos` is ignored, with a diagnostic, because Me
 
 ## Movie lifetime and timing
 
-Selected videos stream to a temporary cache when needed. Playback pins its AVI and CAM together; toggles and refreshed revisions apply to the next playback. Cached files remain available for the host's lifetime so active decoders can finish. The decoder detects the actual container, codec, dimensions and frame rate instead of trusting the extension.
+Uncompressed archive videos are read directly from their bounded byte range through FFmpeg's seekable `subfile` input, without extracting the movie or copying it into memory. Compressed entries, folder replacements and small CAM files are materialized only when selected. Playback pins its video and CAM together; package toggles apply to the next playback. Cached files remain available for the host's lifetime. Archive versions are checked before reopening a bound movie; changing its underlying archive requires preparing playback again.
+
+Replacement video preparation reads container metadata without scanning or decoding the entire clip to count frames. The decoder detects the actual container, dimensions and frame rate instead of trusting the extension, and presentation follows actual decoded images and end of stream. The original installed movie retains exact decoded-frame counting for script callbacks.
 
 Presentation frames and original movie callbacks use separate clocks. Replacement video and interpolated cameras follow detected replacement-media timing. Scripts, timers, original CAM receipts, saved frame indices and skip retain the original installed movie's timing. Replacement CAM flags must preserve the original script contract. Actor poses retain their existing update cadence. Additional actor interpolation, arbitrarily retimed videos and variable-frame-rate authoring remain outside the implemented contract.
 
-See the [importer](../../src/Memoria.FF8.Mods/JunctionModImporter.cs), [catalog integration](../../src/Memoria.FF8.Mods/ModRuntime.Junction.cs) and [file materialization boundary](../../src/Memoria.FF8.App/GameResourceHost.cs). From the product directory, run the focused package tests:
+See the [importer](../../src/Memoria.FF8.Mods/JunctionModImporter.cs), [catalog integration](../../src/Memoria.FF8.Mods/ModRuntime.Junction.cs) and [application resource boundary](../../src/Memoria.FF8.App/GameResourceHost.cs). From the product directory, run the focused package tests:
 
 ```powershell
 dotnet run --project tests/Memoria.FF8.Mods.Tests

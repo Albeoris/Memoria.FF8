@@ -125,10 +125,10 @@ public sealed class MovieReplacementTimingTests
         IGameFileSource movieFiles = Assert.IsAssignableFrom<IGameFileSource>(movieSource);
 
         string game = TestResources.GameDirectory;
-        string package = Path.Combine(game, "Mods", "Junction", "cinema-rf.iroj");
+        string package = Environment.GetEnvironmentVariable("MEMORIA_FF8_JUNCTION_CINEMA_ARCHIVE") ?? Path.Combine(game, "Mods", "Junction", "cinema-rf.iroj");
         Assert.SkipUnless(File.Exists(package), "The actual installed cinema-rf Junction package is required.");
         string applicationBase = Path.Combine(Path.GetTempPath(), "Memoria.FF8.MovieTimingTests", Guid.NewGuid().ToString("N"));
-        using GameResourceHost host = new(game, applicationBaseDirectory: applicationBase, watch: false);
+        using GameResourceHost host = new(game, applicationBaseDirectory: applicationBase, watch: false, modsDirectory: Path.GetDirectoryName(Path.GetDirectoryName(Path.GetFullPath(package))));
         // This is a resource-only decoder fixture, not a reconstructed gameplay checkpoint.
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
@@ -161,7 +161,7 @@ public sealed class MovieReplacementTimingTests
         Assert.Null(decoder.Error);
         MovieFrameTimeline nativeTimeline = new(native, 0);
         List<int> callbacks = [];
-        for (int mediaFrame = 0; mediaFrame < media.FrameCount; mediaFrame++)
+        for (int mediaFrame = 0; mediaFrame < camera.Flags.Flags.Length; mediaFrame++)
         {
             callbacks.AddRange(nativeTimeline.AdvanceTo(mediaFrame / media.FramesPerSecond));
         }
