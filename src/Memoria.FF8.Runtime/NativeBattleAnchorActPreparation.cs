@@ -3,14 +3,16 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleAnchorActContextPolicy(int MorphPointerOffset, int? DepthBiasOffset, bool RequireDirectMorphCapacity)
+public sealed record NativeBattleAnchorActContextPolicy(int MorphPointerOffset, int? DepthBiasOffset, bool RequireDirectMorphCapacity, bool Header100Scaling = false)
 {
     public static NativeBattleAnchorActContextPolicy Electrocute275 { get; } = new(8, null, true);
     public static NativeBattleAnchorActContextPolicy AnchorDepth16 { get; } = new(12, 8, false);
 
+    public static NativeBattleAnchorActContextPolicy ReflectBeam135 { get; } = new(12, 8, false, true);
+
     public void Validate()
     {
-        if (this != Electrocute275 && this != AnchorDepth16)
+        if (this != Electrocute275 && this != AnchorDepth16 && this != ReflectBeam135)
         {
             throw new NotSupportedException("Anchor ACT requires a supported context layout and vertex-bound policy.");
         }
@@ -95,7 +97,15 @@ public static class NativeBattleAnchorActPreparation
         NativeBattleVector scale = node.Vector24;
         if (scale is not { X: 4096, Y: 4096, Z: 4096 })
         {
-            matrix = NativeBattlePoseMatrices.Scale56BEF0(matrix, scale.X, scale.Y, scale.Z);
+            if (policy.Header100Scaling && (node.Header & 0x100) != 0)
+            {
+                NativeBattleActionMatrix diagonal = new([scale.X, 0, 0, 0, scale.Y, 0, 0, 0, scale.Z], 0, 0, 0, 4096);
+                matrix = matrix with { Rotation = NativeBattleGfMatrices.Multiply56C090(matrix, diagonal).Rotation };
+            }
+            else
+            {
+                matrix = NativeBattlePoseMatrices.Scale56BEF0(matrix, scale.X, scale.Y, scale.Z);
+            }
         }
         registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, matrix, true, true, null) };
         uint shapeAddress = checked(source.Address + (uint)geometry);

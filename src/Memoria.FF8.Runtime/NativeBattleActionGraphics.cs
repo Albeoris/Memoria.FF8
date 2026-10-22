@@ -272,6 +272,7 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
     public NativeBattleMeltEye158Resources? MeltEye158Resources { get; init; }
     public NativeBattleOilBlast137Resources? OilBlast137Resources { get; init; }
     public NativeBattleBadBreath131Resources? BadBreath131Resources { get; init; }
+    public NativeBattleReflectBeam135Resources? ReflectBeam135Resources { get; init; }
     public NativeBattleElectricDischarge126Resources? ElectricDischarge126Resources { get; init; }
     public NativeBattleElectrocute275Resources? Electrocute275Resources { get; init; }
     public NativeBattleUltraWaves184Resources? UltraWaves184Resources { get; init; }
