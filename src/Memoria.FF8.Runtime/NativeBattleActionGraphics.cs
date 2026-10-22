@@ -260,6 +260,7 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
     public NativeBattleBadBreath300Resources? BadBreath300Resources { get; init; }
     public NativeBattleDegenerator306Resources? Degenerator306Resources { get; init; }
     public NativeBattleGatlingGun305Resources? GatlingGun305Resources { get; init; }
+    public NativeBattleAcid317Resources? Acid317Resources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleSleepingGas168Resources? SleepingGas168Resources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
