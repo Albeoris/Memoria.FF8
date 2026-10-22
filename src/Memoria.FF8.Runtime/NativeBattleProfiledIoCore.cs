@@ -7,6 +7,7 @@ internal sealed record NativeBattleIoProfile(uint ScriptAddress, int ScriptLengt
 {
     public static NativeBattleIoProfile Moogle96 { get; } = new(0x152BBA0, 0x60, 0x732390, 0x732590, 0, 0, 0x1D9B018, false);
     public static NativeBattleIoProfile Choco97 { get; } = new(0x152B930, 0x100, 0x729FF0, 0x72A1F0, 0x72A250, 0x72A260, 0x19DB018, true);
+    public static NativeBattleIoProfile Doom8 { get; } = new(0x1636C78, 0x70, 0x8C4F60, 0x8C5160, 0x8C51C0, 0x8C51D0, 0x19EB018, true, 0x8C51E0, 0x8C51F0, false, 0x8C5190);
 }
 internal sealed record NativeBattleProfiledIoState(ImmutableArray<byte> Control, ImmutableArray<byte> Script, uint CursorAddress);
 internal sealed record NativeBattleProfiledIoRequest(ushort Opcode, ushort FileId, ushort Index, uint DestinationAddress, int DeclaredLength, uint CompletionCallback);
