@@ -8,6 +8,43 @@ namespace Memoria.FF8.App.Tests;
 public sealed class BattleUiTests
 {
     [Theory]
+    [InlineData(0)]
+    [InlineData(99)]
+    [InlineData(100)]
+    public void DrawListReservesRightAlignedStockColumnWithoutReducingNameSpace(int count)
+    {
+        BattleSession battle = new(new BattleDefinition
+        {
+            Combatants =
+            [
+                new() { Id = "caster", Name = "Caster", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.Draw], MagicStocks = count == 0 ? [] : [new(2, count)] },
+                new() { Id = "source", Name = "Source", NativeDrawSlots = [new(2, 0), new(3, 0), new(0, 0), new(0, 0)] }
+            ],
+            ActionDefinitions = [new(BattleAbility.Magic, 2, "Blizzard", BattleActionEffect.Damage, 10, false), new(BattleAbility.Magic, 3, "Sleep", BattleActionEffect.Damage, 10, false)]
+        }, BattleAtbMode.TurnBased);
+        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { });
+        hud.Choose(0);
+        hud.Navigate(MenuInput.Confirm);
+        TestCanvas canvas = new();
+        UiTheme theme = new();
+        UiView view = hud.BuildView();
+        view.Resize(960, 672);
+        view.Draw(canvas, theme);
+
+        var name = Assert.Single(canvas.TextDraws, draw => draw.Text == "Blizzard");
+        var quantity = Assert.Single(canvas.TextDraws, draw => draw.Text == count.ToString() && draw.Bounds.Y == name.Bounds.Y);
+        var emptyQuantity = Assert.Single(canvas.TextDraws, draw => draw.Text == "0" && draw.Bounds.Y == name.Bounds.Y + 28);
+        Assert.Equal(count == 100 ? theme.Muted : theme.Foreground, name.Color);
+        Assert.Equal(name.Color, quantity.Color);
+        Assert.Equal(theme.Foreground, emptyQuantity.Color);
+        UiRect quantityClip = Assert.Single(canvas.Clips, clip => clip.Y == name.Bounds.Y && clip.X > 216);
+        UiRect emptyQuantityClip = Assert.Single(canvas.Clips, clip => clip.Y == name.Bounds.Y + 28 && clip.X > 216);
+        Assert.Equal(quantityClip.Right, emptyQuantityClip.Right);
+        Assert.Contains(canvas.Clips, clip => clip.X == 60 && clip.Y == name.Bounds.Y && clip.Width == 156);
+        Assert.Equal(266, canvas.Fills.Where(fill => fill.Bounds.Y == 516).Max(fill => fill.Bounds.Right));
+    }
+
+    [Theory]
     [InlineData(0, 32)]
     [InlineData(3, 80)]
     [InlineData(7, 144)]

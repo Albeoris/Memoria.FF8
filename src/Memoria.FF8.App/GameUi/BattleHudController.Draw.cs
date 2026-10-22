@@ -24,7 +24,16 @@ public sealed partial class BattleHudController
         {
             throw new NotSupportedException("Native Draw menu requires its saved known magic bank; migrate the unknown owner explicitly.");
         }
-        return known is not null && !known.Contains(id) ? action with { DisplayName = "????" } : action;
+        return action with
+        {
+            DisplayName = known is not null && !known.Contains(id) ? "????" : action.DisplayName,
+            Available = action.Available && DrawStockCount(id) < 100
+        };
+    }
+
+    private int DrawStockCount(int id)
+    {
+        return SelectedActor?.MagicStocks.FirstOrDefault(stock => stock.Id == id)?.Count ?? 0;
     }
 
     private IReadOnlyList<BattleCombatant> DrawTargets()
@@ -74,6 +83,11 @@ public sealed partial class BattleHudController
         }
         else if (SelectedAction is null)
         {
+            return true;
+        }
+        else if (SelectedAction is { Available: false } && (!SelectingDrawMode || !CastSelectedDraw))
+        {
+            SoundRequested?.Invoke(MenuSound.Error);
             return true;
         }
         else if (!SelectingDrawMode)

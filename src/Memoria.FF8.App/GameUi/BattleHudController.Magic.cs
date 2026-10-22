@@ -13,6 +13,10 @@ public sealed partial class BattleHudController
 
     internal string ChoiceValue(BattleActionDefinition action)
     {
+        if (SelectedCommand == BattleAbility.Draw && action.Id < 64)
+        {
+            return DrawStockCount(action.Id).ToString();
+        }
         if (SelectedCommand == BattleAbility.Magic)
         {
             MagicCastQuote quote = session.QuoteMagic(SelectedActor!.Id, action.Id);

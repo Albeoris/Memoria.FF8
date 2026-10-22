@@ -82,12 +82,22 @@ internal sealed partial class BattleHudElement : UiElement
         {
             float nameWidth = choices.Select(value => canvas.MeasureText(value, fontSize * Scale, 4096 * Scale).Width / Scale).DefaultIfEmpty(0).Max();
             valueWidth = values.Select(value => canvas.MeasureText(value, fontSize * Scale, 4096 * Scale).Width / Scale).DefaultIfEmpty(0).Max();
-            float fixedWidth = 38 + ownerWidth + (valueWidth > 0 ? 12 : 0);
-            float textWidth = nameWidth + valueWidth;
-            float fit = Math.Min(1, Math.Min(24 / fontSize, (440 - fixedWidth) / Math.Max(1, textWidth)));
-            fontSize *= fit;
-            valueWidth *= fit;
-            CommandWidth = Math.Clamp(fixedWidth + textWidth * fit, 194, 440);
+            if (controller.SelectedCommand == BattleAbility.Draw && valueWidth > 0)
+            {
+                float fit = Math.Min(1, Math.Min(24 / fontSize, (440 - 38) / Math.Max(1, nameWidth)));
+                valueWidth = canvas.MeasureText("100", fontSize * Scale, 4096 * Scale).Width / Scale * fit;
+                fontSize *= fit;
+                CommandWidth = Math.Clamp(38 + nameWidth * fit, 194, 440) + 12 + valueWidth;
+            }
+            else
+            {
+                float fixedWidth = 38 + ownerWidth + (valueWidth > 0 ? 12 : 0);
+                float textWidth = nameWidth + valueWidth;
+                float fit = Math.Min(1, Math.Min(24 / fontSize, (440 - fixedWidth) / Math.Max(1, textWidth)));
+                fontSize *= fit;
+                valueWidth *= fit;
+                CommandWidth = Math.Clamp(fixedWidth + textWidth * fit, 194, 440);
+            }
         }
         else
         {

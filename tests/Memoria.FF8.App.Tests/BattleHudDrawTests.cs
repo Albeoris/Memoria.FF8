@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using System.Globalization;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
@@ -6,6 +8,62 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class BattleHudDrawTests
 {
+    [Theory]
+    [InlineData(0, false, false)]
+    [InlineData(99, false, false)]
+    [InlineData(100, false, false)]
+    [InlineData(0, true, false)]
+    [InlineData(99, true, false)]
+    [InlineData(100, true, false)]
+    [InlineData(0, false, true)]
+    [InlineData(99, false, true)]
+    [InlineData(100, false, true)]
+    [InlineData(0, true, true)]
+    [InlineData(99, true, true)]
+    [InlineData(100, true, true)]
+    public void SpellListShowsPoolCountAndRejectsFullStockRegardlessOfMagicMode(int stock, bool infinite, bool shared)
+    {
+        BattleSession battle = CreateWithMagicPool(stock, infinite, shared);
+        List<BattleInput> inputs = [];
+        List<MenuSound> sounds = [];
+        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: inputs.Add);
+        hud.SoundRequested += sounds.Add;
+        hud.Choose(0);
+        hud.Navigate(MenuInput.Confirm);
+
+        Assert.Equal(infinite, battle.InfiniteMagic);
+        Assert.Equal(shared, battle.MagicVitals!.MagicSystem.SharedMagicStock);
+        if (shared)
+        {
+            Assert.Equal(1, hud.SelectedActor!.MagicRecordId);
+            Assert.All(battle.MagicVitals.Records[1].MagicInventory, entry => Assert.Equal(0, entry.Count));
+        }
+        BattleActionDefinition action = Assert.Single(hud.ActionChoices);
+        Assert.Equal(stock.ToString(CultureInfo.InvariantCulture), hud.ChoiceValue(action));
+        Assert.Equal(stock < 100, action.Available);
+        sounds.Clear();
+        hud.Navigate(MenuInput.Confirm);
+
+        Assert.True(hud.SelectingAction);
+        Assert.False(hud.SelectingTarget);
+        Assert.Equal(stock < 100, hud.SelectingDrawMode);
+        Assert.Empty(inputs);
+        Assert.Equal(stock < 100 ? MenuSound.Confirm : MenuSound.Error, Assert.Single(sounds));
+        if (stock < 100)
+        {
+            hud.Navigate(MenuInput.Confirm);
+            BattleInput input = Assert.Single(inputs);
+            Assert.Equal(2, input.ActionId);
+            Assert.Equal("source", input.TargetId);
+            Assert.False(input.DrawCast);
+        }
+        else
+        {
+            Assert.Equal("Cure", Assert.Single(hud.ChoiceLabels));
+            Assert.Equal(2, hud.SelectedAction!.Id);
+        }
+    }
+
     [Theory]
     [InlineData(false, "ally")]
     [InlineData(true, "fallen")]
@@ -71,6 +129,8 @@ public sealed class BattleHudDrawTests
         hud.Choose(0);
         hud.Navigate(MenuInput.Confirm);
         Assert.Contains("Custom Shiva", hud.ChoiceLabels);
+        Assert.True(hud.SelectedAction!.Available);
+        Assert.Equal("", hud.ChoiceValue(hud.SelectedAction));
         hud.Navigate(MenuInput.Confirm);
         Assert.Equal("Stock", Assert.Single(hud.ChoiceLabels));
         hud.Navigate(MenuInput.Right);
@@ -118,6 +178,32 @@ public sealed class BattleHudDrawTests
         hud.Navigate(MenuInput.Confirm);
         Assert.Equal("????", Assert.Single(hud.ChoiceLabels));
         Assert.Equal(2, hud.SelectedAction!.Id);
+    }
+
+    private static BattleSession CreateWithMagicPool(int stock, bool infinite, bool shared)
+    {
+        NativeStatCurve curve = new(1, 0, 1, 10, 10);
+        NativeStatModifier modifier = new(0, 0, 0);
+        NativeCharacterVitals vitals = new()
+        {
+            Version = 1,
+            Rule = NativeCharacterVitals.InitializationRule,
+            InitOutSha256 = new string('0', 64),
+            KernelSha256 = new string('0', 64),
+            Records = Enumerable.Range(0, 8).Select(id => new NativeCharacterVital((byte)id, new NativeHpWord(10, 10), 0, new NativeCharacterJunction((ushort)(1 << id), 0, 0, new byte[20]), 0, 0, 0, new byte[6], Enumerable.Repeat(new NativeMagicStock(0, 0), 32).ToArray(), 1, 0)).ToArray(),
+            CombatParty = [0, 1, 2],
+            DreamEnabled = false,
+            GuardianForces = Enumerable.Range(0, 16).Select(_ => new NativeGuardianForceVital(0, 1, 10, new NativeGuardianForceLearnedBank(0x3FFFF, 0), 10, new byte[21].ToImmutableArray(), 0, 0)).ToArray(),
+            Definitions = new NativeStatDefinitions(Enumerable.Repeat(curve, 11).ToImmutableArray(), Enumerable.Repeat((byte)1, 57).ToImmutableArray(), Enumerable.Repeat(modifier, 19).ToImmutableArray(), Enumerable.Repeat(curve, 16).ToImmutableArray(), Enumerable.Repeat(modifier, 9).ToImmutableArray()),
+            MenuDefinitions = new NativeGuardianForceMenuDefinitions(Enumerable.Range(0, 16).Select(_ => Enumerable.Repeat(new NativeGuardianForceLearningRule(0, 255, 0), 21).ToImmutableArray()).ToImmutableArray(), new byte[116].ToImmutableArray(), new byte[19].ToImmutableArray(), new byte[5].ToImmutableArray()),
+            DreamWeapons = new byte[3],
+            JunctionPartyBackup = new byte[6]
+        };
+        vitals = vitals.ChangeMagicStock(0, 2, stock, MagicOperationReason.ScriptReward, out _);
+        vitals = MagicModeCoordinator.Preview(vitals, new GameplayPreferences { InfiniteMagic = infinite, SharedMagicStock = shared }).Vitals;
+        BattleDefinition definition = Create(false).Capture().Definition;
+        definition.Combatants[0] = definition.Combatants[0] with { MagicRecordId = shared ? 1 : 0 };
+        return new(definition with { MagicVitals = vitals }, BattleAtbMode.TurnBased);
     }
 
     private static BattleSession Create(bool revive, bool gf = false)

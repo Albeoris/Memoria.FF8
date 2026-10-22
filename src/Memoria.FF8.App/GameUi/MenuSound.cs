@@ -5,5 +5,6 @@ public enum MenuSound
 {
     Move = 1,
     Confirm = 2,
-    Cancel = 3
+    Cancel = 3,
+    Error = 5
 }
