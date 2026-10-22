@@ -73,6 +73,10 @@ public sealed partial class BattleSession
         {
             return AdvanceNativeSleep145(graphics);
         }
+        if (effect.Binding.Entry == NativeBattleElectrocute275Profile.Entry)
+        {
+            return AdvanceNativeElectrocute275(graphics);
+        }
         if (effect.Binding.Entry == NativeBattleAcid317Profile.Entry)
         {
             return AdvanceNativeAcid317(graphics);

@@ -206,6 +206,14 @@ public sealed partial class GameAssets
                 binding = binding with { Doom8Resources = doom, InitializerAsset = doom.MainTim };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 275)
+            {
+                if (binding.Entry != 0x687B40 || binding.Initializer != 0x687B50 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag125.tim", 0x2508350) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Electrocute requires its original entry and initializer resource identity.");
+                }
+                binding = binding with { Electrocute275Resources = ReadNativeElectrocute275Resources() };
+            }
             if (binding.Effect == 317)
             {
                 if (binding.Entry != 0x65F840 || binding.Initializer != 0x65F850 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag127.tim", 0x2505494) || binding.InitializerResources is not null)
