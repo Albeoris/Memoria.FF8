@@ -125,6 +125,7 @@ public static class NativeBattleRetainedMemoryReader
             },
             Raldo19Executable = new(BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(NativeBattleRaldo19Profile.ExecutableAddress, 4)), null) { ResourceAddress = NativeBattleRaldo19Profile.ExecutableAddress },
             Effect20 = NativeBattleEffect20State.FromColdProcess(BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x27268F8, 4)), BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x2722960, 4))),
+            Absorb56Bank = NativeBattleDrain39BankState.FromColdProcess(),
             Devour62 = NativeBattleDevour62State.FromColdProcess(BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x2601918, 4)), BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x2601770, 4))),
             MeltingBubble43 = NativeBattleMeltingBubble43State.FromColdProcess(BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x2656220, 4)), BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x265587C, 4)), NativeBattleMeltingBubble43Profile.ChannelRegions.SelectMany(region => ReadLoaderBytes(region.Address, region.Length)).ToImmutableArray()),
             MeltingBubble43Executable = new(BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x15C6080, 4)), ReadLoaderBytes(0x15C6080, 260).ToImmutableArray()) { ResourceAddress = 0x15C6080 },

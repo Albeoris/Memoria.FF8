@@ -278,6 +278,11 @@ public sealed partial class GameAssets
             {
                 binding = binding with { Tornado146Resources = ReadNativeTornado146Resources() };
             }
+            if (binding.Effect == 56)
+            {
+                binding = binding with { Absorb56Resources = ReadNativeAbsorb56Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 39)
             {
                 binding = binding with { Drain39Resources = ReadNativeDrain39Resources() };

@@ -4,6 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleDrain39ControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource)
 {
+    public NativeBattlePackedMatrix32? PackedCamera { get; init; }
     public Func<NativeBattleDrain39Frame, int, NativeBattleDrain39Frame>? ApplyContact { get; init; }
 }
 public sealed record NativeBattleDrain39LeafStep(NativeBattleDrain39Frame Frame, int Result);
@@ -14,21 +15,16 @@ public static class NativeBattleDrain39Controller
 {
     public static NativeBattleDrain39Frame Initialize8513D0(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleActionPacketsState packets, NativeBattleDrain39Resources resources)
     {
+        NativeBattleDrainFamilyProfile profile = resources.Profile;
         effect.Validate();
         packets.Validate();
         NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native8513D0 requires50AFC0 parameters.");
-        if (effect.Binding.Entry != 0x8513D0)
+        if (effect.Binding.Entry != profile.Entry || effect.Binding.Effect != profile.Effect)
         {
             throw new InvalidDataException("Native Drain requires the actual8513D0 entry.");
         }
-        NativeBattleEffectHierarchy hierarchy = new([
-            NativeBattleEffectTaskPool.Initialize(0x269DB10, 0x269DA48, 100, 2),
-            NativeBattleEffectTaskPool.Initialize(0x269E5C0, 0x269E5D0, 88, 4),
-            NativeBattleEffectTaskPool.Initialize(0x269D958, 0x269D968, 60, 3),
-            NativeBattleEffectTaskPool.Initialize(0x269E320, 0x269DB30, 676, 3),
-            NativeBattleEffectTaskPool.Initialize(0x269E5B0, 0x269E330, 64, 10)
-        ]);
-        NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 0x851510, 100);
+        NativeBattleEffectHierarchy hierarchy = new(profile.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
+        NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, profile.RootCallback, 100);
         hierarchy = root.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
         int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native8513D0 requires its header's actual contact pointer.");
@@ -42,7 +38,7 @@ public static class NativeBattleDrain39Controller
         }
         NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0).WriteByte(0x2C, header.ReadByte(0)).WriteByte(0x2D, target).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
         hierarchy = hierarchy.Write(root.Address, task);
-        int source = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x269DA1C)?.ArenaOffset ?? throw new NotSupportedException("Native8513D0 requires the actual269DA1C initializer pointer, including texture-skip entries.");
+        int source = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == profile.InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Native8513D0 requires the actual269DA1C initializer pointer, including texture-skip entries.");
         if (source > NativeBattleEffectArena.Length - 0xC000)
         {
             throw new InvalidDataException("Native8513D0 draw/auxiliary banks leave the571870 arena.");
@@ -54,7 +50,7 @@ public static class NativeBattleDrain39Controller
             (textures, _) = textures.EnqueueArenaTim505E30(memory.Arena ?? throw new NotSupportedException("Native8513D0 requires its loaded571870 arena."), source);
             memory = memory with { Textures = textures };
         }
-        return new(memory, effect with { Pools = hierarchy.Pools, ReturnedDescriptor = 0x269DB10 }, new(source, null, null, checked(source + 0xC000), null));
+        return new(memory, effect with { Pools = hierarchy.Pools, ReturnedDescriptor = profile.Pools[0].Descriptor }, new(source, null, null, checked(source + 0xC000), null));
     }
 
     public static NativeBattleDrain39ControllerStep Advance851510(NativeBattleDrain39Frame frame, NativeBattleDrain39ControllerInputs inputs, NativeBattleDrain39Resources resources, Func<NativeBattleDrain39Frame, uint, NativeBattleDrain39LeafStep> advanceLeaf)
@@ -63,10 +59,12 @@ public static class NativeBattleDrain39Controller
         {
             return new(frame, [], []);
         }
-        RequireController(frame.Effect);
+        NativeBattleDrainFamilyProfile profile = resources.Profile;
+        RequireController(frame.Effect, profile);
         NativeBattleEffectParameters parameters = frame.Effect.Parameters!;
         inputs.Camera.Validate();
-        NativeBattleDrain39Frame current = frame with { State = frame.State with { CopiedCamera = inputs.Camera } };
+        NativeBattlePackedMatrix32 packedCamera = inputs.PackedCamera ?? throw new NotSupportedException("The siphon family requires its actual packed current camera.");
+        NativeBattleDrain39Frame current = frame with { Memory = frame.Memory with { SharedEffectView2793E58 = packedCamera }, State = frame.State with { CopiedCamera = packedCamera.ReadMatrix() } };
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         ImmutableArray<int>.Builder contacts = ImmutableArray.CreateBuilder<int>();
         ImmutableArray<NativeBattleModuleSound>.Builder sounds = ImmutableArray.CreateBuilder<NativeBattleModuleSound>();
@@ -74,7 +72,7 @@ public static class NativeBattleDrain39Controller
         NativeBattleEffectHierarchyStep main = hierarchy.Advance(0, (state, address) =>
         {
             NativeBattleModulePoolTask task = state.Read(address);
-            if (task.Callback != 0x851510)
+            if (task.Callback != profile.RootCallback)
             {
                 throw new NotSupportedException("Native Drain main pool has an unsupported callback.");
             }
@@ -100,13 +98,13 @@ public static class NativeBattleDrain39Controller
                         arena = arena.Write(first, new byte[0x10E0]);
                         arena = arena.Write(second, new byte[0x16F80]);
                         current = current with { Memory = current.Memory with { Arena = arena }, State = current.State with { Emitters = first, Geometry = second, AuxiliaryCursor = end, EmitterCursor = 0, GeometryCursor = 0, UnusedGeometryCounter = 0, UnusedEmitterCounter = 0 } };
-                        state = state.Append8DC540(4, 0x851710, 64, address, Select).Hierarchy;
+                        state = state.Append8DC540(4, profile.StageInCallback, 64, address, Select).Hierarchy;
                         state = Next(state, address);
                     }
                     break;
                 case 3:
                     state = state.Write(address, task.WriteByte(0x63, 1));
-                    state = state.Append8DC540(1, 0x851830, 88, address, Select).Hierarchy;
+                    state = state.Append8DC540(1, profile.TargetCallback, 88, address, Select).Hierarchy;
                     state = Next(state, address);
                     break;
                 case 4:
@@ -128,7 +126,7 @@ public static class NativeBattleDrain39Controller
                     state = state.Write(address, task);
                     if (unchecked((short)task.ReadWord(0x60)) <= 0)
                     {
-                        state = state.Append8DC540(4, 0x8568A0, 64, address, Select).Hierarchy;
+                        state = state.Append8DC540(4, profile.StageOutCallback, 64, address, Select).Hierarchy;
                         state = Next(state, address);
                     }
                     break;
@@ -174,13 +172,13 @@ public static class NativeBattleDrain39Controller
             bool complete = (task.ReadByte(0x26) & 1) != 0 && task.ReadByte(0x28) == 0;
             return new(complete ? state.Complete8DC530(address) : state, complete ? 2 : 0);
         });
-        NativeBattleOriginalEffectState effect = current.Effect with { Pools = main.Hierarchy.Pools, ReturnedDescriptor = main.Survivors == 0 ? 0u : 0x269DB10u };
+        NativeBattleOriginalEffectState effect = current.Effect with { Pools = main.Hierarchy.Pools, ReturnedDescriptor = main.Survivors == 0 ? 0u : profile.Pools[0].Descriptor };
         return new(current with { Effect = effect }, contacts.ToImmutable(), sounds.ToImmutable());
 
         NativeBattleEffectHierarchyCallback AdvanceChild(NativeBattleEffectHierarchy state, uint address)
         {
             NativeBattleModulePoolTask task = state.Read(address);
-            if (task.Callback != 0x851830)
+            if (task.Callback != profile.TargetCallback)
             {
                 throw new NotSupportedException("Native Drain child pool has an unsupported callback.");
             }
@@ -193,13 +191,13 @@ public static class NativeBattleDrain39Controller
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
                 case 0:
-                    NativeBattleEffectHierarchyAppend append = state.Append8DC540(3, 0x851A80, 676, address, Select);
+                    NativeBattleEffectHierarchyAppend append = state.Append8DC540(3, profile.GenericCallback, 676, address, Select);
                     state = append.Hierarchy;
                     if (append.Address == 0)
                     {
                         throw new NotSupportedException("Native851A00 returned null before its original field writes.");
                     }
-                    state = state.Write(append.Address, state.Read(append.Address).WriteDword(0x30, 0x15D5A90).WriteWord(0x298, 0).WriteWord(0x29C, 0).WriteWord(0x29E, 45));
+                    state = state.Write(append.Address, state.Read(append.Address).WriteDword(0x30, profile.DirectoryAddress).WriteWord(0x298, 0).WriteWord(0x29C, 0).WriteWord(0x29E, 45));
                     state = Next(state, address);
                     break;
                 case 1:
@@ -237,23 +235,23 @@ public static class NativeBattleDrain39Controller
             }
             if (task.ReadWord(0x24) == 4)
             {
-                NativeBattleEffectHierarchyAppend flash = state.Append8DC540(2, 0x851900, 60, address, Select);
+                NativeBattleEffectHierarchyAppend flash = state.Append8DC540(2, profile.FlashCallback, 60, address, Select);
                 state = flash.Hierarchy;
                 if (flash.Address == 0)
                 {
                     throw new NotSupportedException("Native Drain returned NULL before its first flash resource store.");
                 }
-                state = state.Write(flash.Address, state.Read(flash.Address).WriteDword(0x30, 0x15D190C));
+                state = state.Write(flash.Address, state.Read(flash.Address).WriteDword(0x30, profile.FirstFlashAddress));
             }
             if (task.ReadWord(0x24) == 20)
             {
-                NativeBattleEffectHierarchyAppend flash = state.Append8DC540(2, 0x851900, 60, address, Select);
+                NativeBattleEffectHierarchyAppend flash = state.Append8DC540(2, profile.FlashCallback, 60, address, Select);
                 state = flash.Hierarchy;
                 if (flash.Address == 0)
                 {
                     throw new NotSupportedException("Native851830 returned null before its flash resource write.");
                 }
-                state = state.Write(flash.Address, state.Read(flash.Address).WriteDword(0x30, 0x15D1918));
+                state = state.Write(flash.Address, state.Read(flash.Address).WriteDword(0x30, profile.SecondFlashAddress));
             }
             task = state.Read(address).WriteWord(0x24, unchecked((ushort)(task.ReadWord(0x24) + 1)));
             state = state.Write(address, task);
@@ -268,21 +266,19 @@ public static class NativeBattleDrain39Controller
         return hierarchy.Write(address, task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1))));
     }
 
-    private static void RequireController(NativeBattleOriginalEffectState effect)
+    private static void RequireController(NativeBattleOriginalEffectState effect, NativeBattleDrainFamilyProfile profile)
     {
         effect.Validate();
-        if (effect.Binding.Entry != 0x8513D0 || effect.Parameters is null || effect.ReturnedDescriptor != 0x269DB10 || effect.Pools.Length != 5)
+        if (effect.Binding.Entry != profile.Entry || effect.Binding.Effect != profile.Effect || effect.Parameters is null || effect.ReturnedDescriptor != profile.Pools[0].Descriptor || effect.Pools.Length != 5)
         {
             throw new InvalidDataException("Native851510 requires its executed8513D0 physical controller.");
         }
-        uint[] descriptors = [0x269DB10, 0x269E5C0, 0x269D958, 0x269E320, 0x269E5B0];
-        uint[] banks = [0x269DA48, 0x269E5D0, 0x269D968, 0x269DB30, 0x269E330];
         int[] strides = [100, 88, 60, 676, 64];
         int[] counts = [2, 4, 3, 3, 10];
         for (int index = 0; index < 5; index++)
         {
             NativeBattleEffectTaskPool pool = effect.Pools[index];
-            if (pool.DescriptorAddress != descriptors[index] || pool.BankAddress != banks[index] || pool.Stride != strides[index] || pool.Slots.Length != counts[index])
+            if (pool.DescriptorAddress != profile.Pools[index].Descriptor || pool.BankAddress != profile.Pools[index].Bank || pool.Stride != strides[index] || pool.Slots.Length != counts[index])
             {
                 throw new InvalidDataException("Native Drain physical hierarchy contradicts its original descriptor.");
             }

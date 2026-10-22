@@ -97,29 +97,30 @@ public sealed class NativeBattleDrain39NodeTests
 
     private static NativeBattleDrain39NodeStep Advance(NativeBattleDrain39Frame frame, uint address, NativeBattleDrain39Resources resources, NativeBattleDrain39ControllerInputs inputs) => NativeBattleDrain39Nodes.Advance(frame, address, resources, inputs, new(123), new(inputs.Camera, 320, 160, 112), 0, NativeBattleLogicalOrdering.Clear(), new(0, 0xFFFFFF, 4096, 0));
 
-    private static NativeBattleDrain39Resources Resources()
+    internal static NativeBattleDrain39Resources Resources(ushort effect = 39)
     {
         byte[] bytes = new byte[NativeBattleDrain39Nodes.BankLength];
         BinaryPrimitives.WriteUInt32LittleEndian(bytes, 0x12345678);
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan((int)(NativeBattleDrain39Nodes.DirectoryAddress - NativeBattleDrain39Nodes.BankAddress)), 1);
-        return new(new("unused", []), 0x49433, bytes.ToImmutableArray(), [], []);
+        return new(new("unused", []), 0x49433, bytes.ToImmutableArray(), [], []) { Effect = effect };
     }
 
-    private static (NativeBattleDrain39Frame Frame, uint Address, NativeBattleDrain39ControllerInputs Inputs) Fixture()
+    internal static (NativeBattleDrain39Frame Frame, uint Address, NativeBattleDrain39ControllerInputs Inputs) Fixture(ushort effect = 39)
     {
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(2, 2, 11, 0, 23, 39, null));
+        (packets, _) = packets.Prepare(new(2, 2, 11, 0, 23, effect, null));
         (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
         (packets, _) = packets.AppendContact(new(new(4, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
         packets = packets.WritePlayerRepeatMode(0, 1);
         (packets, _) = packets.Publish(2);
-        NativeBattleOriginalEffectState selected = new(39, 38, new(39, 0x8513D0, 0x8513B0), new(2, 1, 24, 0, 0, 0), null) { ResourcePointers = [new(0x269DA1C, 256)] };
-        NativeBattleDrain39Frame frame = NativeBattleDrain39Controller.Initialize8513D0((NativeBattleEffectMemory.FromColdProcess() with { Drain39Bank = NativeBattleDrain39BankState.FromColdProcess() }).BeginLoad(38), selected, packets, Resources());
+        NativeBattleDrainFamilyProfile profile = NativeBattleDrainFamilyProfile.ForEffect(effect);
+        NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(2, 1, 24, 0, 0, 0), null) { ResourcePointers = [new(profile.InitializerGlobal, 256)] };
+        NativeBattleDrain39Frame frame = NativeBattleDrain39Controller.Initialize8513D0(profile.WithBank(NativeBattleEffectMemory.FromColdProcess(), NativeBattleDrain39BankState.FromColdProcess()).BeginLoad(effect - 1), selected, packets, Resources(effect));
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
-        NativeBattleEffectHierarchyAppend first = hierarchy.Append8DC540(1, 0x851830, 88, hierarchy.Address(0, 0), (_, _, _) => new(2, 3));
-        NativeBattleEffectHierarchyAppend child = first.Hierarchy.Append8DC540(3, 0x851A80, 676, first.Address, (_, _, _) => new(2, 3));
+        NativeBattleEffectHierarchyAppend first = hierarchy.Append8DC540(1, profile.TargetCallback, 88, hierarchy.Address(0, 0), (_, _, _) => new(2, 3));
+        NativeBattleEffectHierarchyAppend child = first.Hierarchy.Append8DC540(3, profile.GenericCallback, 676, first.Address, (_, _, _) => new(2, 3));
         hierarchy = child.Hierarchy;
-        hierarchy = hierarchy.Write(child.Address, hierarchy.Read(child.Address).WriteDword(0x30, NativeBattleDrain39Nodes.DirectoryAddress).WriteWord(0x29E, 45));
+        hierarchy = hierarchy.Write(child.Address, hierarchy.Read(child.Address).WriteDword(0x30, profile.DirectoryAddress).WriteWord(0x29E, 45));
         frame = frame with { Effect = frame.Effect with { Pools = hierarchy.Pools }, State = frame.State with { PassEmitterCount = 0, PassGeometryCount = 0 } };
         byte[] skeleton = new byte[64];
         skeleton[0] = 1;
@@ -133,6 +134,6 @@ public sealed class NativeBattleDrain39NodeTests
             return new(index, 0) { Transform = new(new(0, 0, 0), position, 0, angle36, 4096), GeometryBounds52 = new(new(-100, -200, -300), new((short)(600 + index * 100), (short)(-700 - index * 10), (short)(900 + index * 5))) };
         }
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 30000, 4096);
-        return (frame, child.Address, new(packets, camera, Model, _ => source));
+        return (frame with { Memory = frame.Memory with { SharedEffectView2793E58 = NativeBattlePackedMatrix32.FromMatrix(camera, null) } }, child.Address, new(packets, camera, Model, _ => source) { PackedCamera = NativeBattlePackedMatrix32.FromMatrix(camera, null) });
     }
 }

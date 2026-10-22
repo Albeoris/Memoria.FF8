@@ -161,7 +161,7 @@ public sealed partial class BattleSession
         {
             return AdvanceNativeTornado146(graphics);
         }
-        if (effect.Binding.Entry == 0x8513D0)
+        if (effect.Binding.Entry is 0x8513D0 or 0x803200)
         {
             return AdvanceNativeDrain39(graphics);
         }

@@ -161,7 +161,7 @@ public sealed class NativeBattleDrain39ControllerTests
         Assert.Contains(frame.Effect.Pools[4].Slots, task => task.Callback == 0x8568A0);
     }
 
-    private static NativeBattleDrain39Resources Resources() => new(new("skipped-camera-registration", []), 0x49433, [], [], []);
+    internal static NativeBattleDrain39Resources Resources(ushort effect = 39) => new(new("skipped-camera-registration", []), 0x49433, [], [], []) { Effect = effect };
 
     [Fact]
     public void Entry_skip_flag_preserves_unknown_texture_owner_and_non_skip_requires_the_actual_registration_owner()
@@ -175,23 +175,24 @@ public sealed class NativeBattleDrain39ControllerTests
         Assert.Throws<NotSupportedException>(() => NativeBattleDrain39Controller.Initialize8513D0(memory, selected, fixture.Inputs.Packets, Resources()));
     }
 
-    private static (NativeBattleDrain39Frame Frame, NativeBattleDrain39ControllerInputs Inputs) Fixture(byte targets = 1)
+    internal static (NativeBattleDrain39Frame Frame, NativeBattleDrain39ControllerInputs Inputs) Fixture(byte targets = 1, ushort effect = 39)
     {
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(2, 2, 11, 0, 23, 39, null));
+        (packets, _) = packets.Prepare(new(2, 2, 11, 0, 23, effect, null));
         (packets, _) = packets.AppendContact(new(new(3, 1, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0)));
         packets = packets.WritePlayerRepeatMode(0, 1);
         (packets, _) = packets.Publish(targets);
-        NativeBattleOriginalEffectState selected = new(39, 38, new(39, 0x8513D0, 0x8513B0), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(0x269DA1C, 256)] };
-        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(38);
+        NativeBattleDrainFamilyProfile profile = NativeBattleDrainFamilyProfile.ForEffect(effect);
+        NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(profile.InitializerGlobal, 256)] };
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(effect - 1);
         memory = memory with { Arena = memory.Arena!.Write(256 + 0xC000, Enumerable.Repeat((byte)0xA5, 0x10E0 + 0x16F80).ToArray()) };
-        NativeBattleDrain39Frame frame = NativeBattleDrain39Controller.Initialize8513D0(memory, selected, packets, Resources());
+        NativeBattleDrain39Frame frame = NativeBattleDrain39Controller.Initialize8513D0(memory, selected, packets, Resources(effect));
         byte[] skeleton = new byte[64];
         skeleton[0] = 1;
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 4096);
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), [1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0]);
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 30000, 4096);
-        return (frame, new(packets, camera, index => new(index, 0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => source));
+        return (frame, new(packets, camera, index => new(index, 0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => source) { PackedCamera = NativeBattlePackedMatrix32.FromMatrix(camera, null) });
     }
 }

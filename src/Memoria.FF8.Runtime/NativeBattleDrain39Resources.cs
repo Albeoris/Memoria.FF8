@@ -6,6 +6,10 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleDrain39Resources(NativeBattleEffectHeapAllocation Animation, uint Sound, ImmutableArray<byte> NodeBank, ImmutableArray<uint> FirstFlash, ImmutableArray<uint> SecondFlash)
 {
+    public ushort Effect { get; init; } = 39;
+    [JsonIgnore]
+    public NativeBattleDrainFamilyProfile Profile => NativeBattleDrainFamilyProfile.ForEffect(Effect);
+
     public const uint ChannelsAddress = 0x269E764;
     public const int ChannelsLength = 0x1E60;
     public ImmutableArray<byte>? Channels { get; init; }
@@ -13,11 +17,11 @@ public sealed record NativeBattleDrain39Resources(NativeBattleEffectHeapAllocati
     public byte[] ReadChannels(uint address, int count)
     {
         ImmutableArray<byte> bytes = Channels ?? throw new NotSupportedException("Native Drain requires its authenticated absolute channel tables.");
-        if (bytes.IsDefault || bytes.Length != ChannelsLength || address < ChannelsAddress || count < 0 || address - ChannelsAddress > ChannelsLength || count > ChannelsLength - (address - ChannelsAddress))
+        if (bytes.IsDefault || bytes.Length != ChannelsLength || address < Profile.ChannelsAddress || count < 0 || address - Profile.ChannelsAddress > ChannelsLength || count > ChannelsLength - (address - Profile.ChannelsAddress))
         {
             throw new InvalidDataException("Native Drain channel lookup leaves its actual addressed zero-table source.");
         }
-        return bytes.AsSpan().Slice(checked((int)(address - ChannelsAddress)), count).ToArray();
+        return bytes.AsSpan().Slice(checked((int)(address - Profile.ChannelsAddress)), count).ToArray();
     }
 }
 public sealed record NativeBattleDrain39State([property: JsonRequired] int SourceArenaOffset, [property: JsonRequired] int? PrimaryDrawCursor, [property: JsonRequired] int? SecondaryDrawCursor, [property: JsonRequired] int AuxiliaryCursor, [property: JsonRequired] NativeBattleActionMatrix? CopiedCamera)

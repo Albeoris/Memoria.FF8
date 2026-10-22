@@ -149,6 +149,7 @@ public sealed partial record NativeBattleEffectMemory([property: JsonRequired] N
         Ultima149?.Validate();
         Wall189?.Validate();
         Drain39Bank?.Validate();
+        Absorb56Bank?.Validate();
         Tornado146?.Validate();
         Quake38?.Validate();
         TheEnd85?.Validate();

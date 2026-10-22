@@ -8,18 +8,19 @@ public static class NativeBattleDrain39Simple
 {
     public static NativeBattleDrain39LeafStep Advance(NativeBattleDrain39Frame frame, uint address, NativeBattleDrain39Resources resources, Func<NativeBattleDrain39Frame, NativeBattleDrain39Operation, NativeBattleDrain39Frame> execute)
     {
+        NativeBattleDrainFamilyProfile profile = resources.Profile;
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address);
-        if (task.Callback is 0x851710 or 0x8568A0)
+        if (task.Callback == profile.StageInCallback || task.Callback == profile.StageOutCallback)
         {
-            NativeBattleStageFadeStep step = NativeBattleStageFadeTask.Advance(task, task.Callback == 0x851710);
+            NativeBattleStageFadeStep step = NativeBattleStageFadeTask.Advance(task, task.Callback == profile.StageInCallback);
             task = step.Task;
             if (step.Write is { } write)
             {
                 Execute(new NativeBattleDrain39StageFadeOperation(write.Fade, write.ClearRgb));
             }
         }
-        else if (task.Callback == 0x851900)
+        else if (task.Callback == profile.FlashCallback)
         {
             Flash();
         }
@@ -45,12 +46,8 @@ public static class NativeBattleDrain39Simple
         }
         void Flash()
         {
-            var program = task.ReadDword(0x30) switch
-            {
-                0x15D190C => resources.FirstFlash,
-                0x15D1918 => resources.SecondFlash,
-                _ => throw new NotSupportedException("Native Drain requires its selected original flash script.")
-            };
+            uint source = task.ReadDword(0x30);
+            var program = source == profile.FirstFlashAddress ? resources.FirstFlash : source == profile.SecondFlashAddress ? resources.SecondFlash : throw new NotSupportedException("The siphon family requires its selected original flash script.");
             int index = unchecked((short)task.ReadWord(0x38));
             uint entry = Read(index);
             byte command = (byte)(entry >> 24);
