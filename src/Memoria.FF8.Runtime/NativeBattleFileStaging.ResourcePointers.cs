@@ -3,7 +3,13 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleResourcePointer(NativeBattleModelCpuReference? Cpu, uint? StagingAddress, int? Length = null);
+public sealed record NativeBattleResourcePointer(NativeBattleModelCpuReference? Cpu, uint? StagingAddress, int? Length = null)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? CpuRow { get; init; }
+
+    internal bool HasValidOwner() => Length is not < 0 && (Cpu is not null ? 1 : 0) + (StagingAddress is not null ? 1 : 0) + (CpuRow is not null ? 1 : 0) == 1 && CpuRow is not (< 0 or >= 11) && (Cpu is not { } cpu || cpu.Bank <= 4 && cpu.Offset >= 0 && (cpu.Bank >= 3 || cpu.Offset <= NativeBattleModelCpuBank.Length));
+}
 public sealed record NativeBattleResourceRowReference(int? CpuRow, uint? StagingAddress);
 
 public sealed partial record NativeBattleFileStaging
@@ -18,7 +24,7 @@ public sealed partial record NativeBattleFileStaging
         }
         foreach ((uint address, NativeBattleResourcePointer? pointer) in ResourcePointers)
         {
-            if (address < BaseAddress || (ulong)address + 4 > (ulong)BaseAddress + int.MaxValue || pointer is { Length: < 0 } || pointer is not null && (pointer.Cpu is not null) == (pointer.StagingAddress is not null) || pointer?.Cpu is { } cpu && (cpu.Bank > 4 || cpu.Offset < 0 || cpu.Bank < 3 && cpu.Offset > NativeBattleModelCpuBank.Length))
+            if (address < BaseAddress || (ulong)address + 4 > (ulong)BaseAddress + int.MaxValue || pointer is not null && !pointer.HasValidOwner())
             {
                 throw new InvalidDataException("Native resource pointer field has an invalid physical address or source reference.");
             }

@@ -19,7 +19,7 @@ public sealed partial record NativeBattleEffectArena
         {
             RequireRange(entry.Key, 4);
             NativeBattleResourcePointer? pointer = entry.Value;
-            if (pointer is { Length: < 0 } || pointer is not null && (pointer.Cpu is not null) == (pointer.StagingAddress is not null) || pointer?.Cpu is { } cpu && (cpu.Bank > 4 || cpu.Offset < 0 || cpu.Bank < 3 && cpu.Offset > NativeBattleModelCpuBank.Length))
+            if (pointer is not null && !pointer.HasValidOwner())
             {
                 throw new InvalidDataException("Native arena resource pointer has an invalid source owner.");
             }

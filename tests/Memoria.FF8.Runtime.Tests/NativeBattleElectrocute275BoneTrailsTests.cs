@@ -197,6 +197,21 @@ public sealed class NativeBattleElectrocute275BoneTrailsTests
         Assert.Throws<InvalidDataException>(() => NativeBattleElectrocute275Controller.CreateBoneTrail(fixture.Frame, 1, BonePathsAddress, 0, 1, 4096, missing));
     }
 
+    [Fact]
+    public void Frame_returning_draw_preserves_module_state_CRT_and_staging_alongside_trail_owners()
+    {
+        Fixture fixture = new();
+        var created = NativeBattleElectrocute275Controller.CreateBoneTrail(fixture.Frame, 0x1234, BonePathsAddress, 0, 1, 4096, fixture.Resources);
+        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
+        fixture.AfterDraw = current => current with { State = current.State.WriteDword(CursorGlobal, 0x12345678), Random = new(987), Staging = staging };
+        var actual = NativeBattleElectrocute275Controller.AdvanceBoneTrail(created.Frame, created.Address, fixture.Resources, fixture.Inputs());
+        Assert.Equal(0x12345678u, actual.Frame.State.ReadDword(CursorGlobal));
+        Assert.Equal(new NativeCrtRandomState(987), actual.Frame.Random);
+        Assert.Same(staging, actual.Frame.Staging);
+        Assert.Equal((ushort)2, NativeBattleElectrocute275Controller.Read(actual.Frame, created.Address).ReadWord(14));
+        Assert.Single(fixture.Draws);
+    }
+
     private static short ReadWord(NativeBattleElectrocute275Frame frame, uint address) => BinaryPrimitives.ReadInt16LittleEndian(frame.Memory.Arena!.Read(checked((int)(address - ArenaAddress)), 2));
     private static uint ReadDword(NativeBattleElectrocute275Frame frame, uint address) => BinaryPrimitives.ReadUInt32LittleEndian(frame.Memory.Arena!.Read(checked((int)(address - ArenaAddress)), 4));
     private static NativeBattleSharedEffectRandomState Advance(NativeBattleSharedEffectRandomState state, int count)

@@ -128,9 +128,9 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleElectrocute275BlendActorColor blend:
                     NativeBattleGraphicsModel tinted = graphics.Models[blend.Actor];
-                    uint color = NativeBattleDuelSharedPackets.InterpolateColor56CC00(blend.FirstColor, blend.SecondColor, blend.FirstFactor, blend.SecondFactor, tinted.Color40 ?? throw new NotSupportedException("Electrocute requires its current actor color DWORD."));
-                    graphics = graphics with { Models = graphics.Models.SetItem(blend.Actor, tinted with { Color40 = color }) };
-                    return current;
+                    NativeBattleWeightedColorStep color = NativeBattleWeightedColor56CC00.Blend(current.Memory, blend.FirstColor, blend.SecondColor, blend.FirstFactor, blend.SecondFactor, tinted.Color40 ?? throw new NotSupportedException("Electrocute requires its current actor color DWORD."), colors);
+                    graphics = graphics with { Models = graphics.Models.SetItem(blend.Actor, tinted with { Color40 = color.Color }) };
+                    return current with { Memory = color.Memory };
                 case NativeBattleElectrocute275LoadView:
                     NativeBattlePackedMatrix32 view = Camera().CapturePackedView1D97778();
                     short? padding = view.Known[18] && view.Known[19] ? BinaryPrimitives.ReadInt16LittleEndian(view.Bytes.AsSpan().Slice(18)) : null;

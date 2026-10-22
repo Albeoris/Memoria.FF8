@@ -7,64 +7,14 @@ public static partial class NativeBattleElectrocute275Controller
 {
     private static (NativeBattleElectrocute275Frame Frame, uint Head) StartWorld(NativeBattleElectrocute275Frame frame, NativeBattleVector velocity, NativeBattleVector source, NativeBattleVector target, NativeBattleVector? drift, short actor, short progress, short increment, short scale, short textureV, short branches)
     {
-        (frame, uint head) = AllocateWorldPoint(frame, source, scale);
-        if (head == 0)
-        {
-            return (frame, 0);
-        }
-        (frame, uint address) = Append(frame, 2, 0x6887B0);
-        if (address == 0)
-        {
-            return (PointWord(frame, head + 6, -1), 0);
-        }
-        NativeBattleModulePoolTask task = Read(frame, address).WriteBytes(12, new byte[48]).WriteWord(12, 0).WriteWord(14, 1).WriteDword(0x10, head).WriteDword(0x14, head);
-        task = Vector(task, 0x18, source).WriteWord(0x1E, unchecked((ushort)progress));
-        task = Vector(task, 0x20, target).WriteWord(0x26, unchecked((ushort)increment));
-        task = Vector(task, 0x28, velocity).WriteWord(0x2E, unchecked((ushort)branches));
-        if (drift is NativeBattleVector known)
-        {
-            task = Vector(task, 0x30, known);
-        }
-        else
-        {
-            for (int axis = 0; axis < 3; axis++)
-            {
-                frame = DrawRandom(frame, out ushort random);
-                task = task.WriteWord(0x30 + axis * 2, unchecked((ushort)((random & 255) - 128)));
-            }
-        }
-        task = task.WriteWord(0x36, unchecked((ushort)actor)).WriteWord(0x38, unchecked((ushort)scale)).WriteWord(0x3A, unchecked((ushort)textureV));
-        return (Write(frame, address, task), head);
+        NativeBattleCpuTrailAddressStep step = NativeBattleCpuTrails.StartWorld(CpuTrailFrame(frame), CpuTrailLayout(frame), velocity, source, target, drift, actor, progress, increment, scale, textureV, branches);
+        return (WithCpuTrail(frame, step.Frame), step.Address);
     }
 
     private static (NativeBattleElectrocute275Frame Frame, uint Address) AllocateWorldPoint(NativeBattleElectrocute275Frame frame, NativeBattleVector position, short scale)
     {
-        uint free = PointDword(frame, Working(frame) + WorldFreePointerOffset);
-        if (free != 0)
-        {
-            RequireWorldPoint(frame, free, 0);
-            frame = WriteArena(frame, Working(frame) + WorldFreePointerOffset, BitConverter.GetBytes(0u));
-        }
-        else
-        {
-            for (int index = 0; index < PointCount; index++)
-            {
-                uint row = Working(frame) + WorldPointsOffset + (uint)(index * PointStride);
-                if (PointSigned(frame, row + 6) == -1)
-                {
-                    free = row;
-                    break;
-                }
-            }
-        }
-        if (free == 0)
-        {
-            return (frame, 0);
-        }
-        frame = PointVector(frame, free, position);
-        frame = PointWord(PointWord(PointWord(PointWord(frame, free + 6, scale), free + 14, 2), free + 0x20, 512), free + 0x22, 768);
-        frame = WriteArena(frame, free + 0x24, BitConverter.GetBytes(0u));
-        return (frame, free);
+        NativeBattleCpuTrailAddressStep step = NativeBattleCpuTrails.AllocateWorldPoint(CpuTrailFrame(frame), CpuTrailLayout(frame), position, scale);
+        return (WithCpuTrail(frame, step.Frame), step.Address);
     }
 
     private static NativeBattleElectrocute275Frame ClearHeadVelocity(NativeBattleElectrocute275Frame frame, uint head)

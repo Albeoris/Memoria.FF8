@@ -20,6 +20,7 @@ public sealed partial record NativeBattleModulePoolTask
 
     internal void ValidateResourcePointers()
     {
+        ValidateUnknownPayloadRanges();
         if (ResourcePointers is null)
         {
             return;
@@ -27,14 +28,20 @@ public sealed partial record NativeBattleModulePoolTask
         foreach ((int offset, NativeBattleResourcePointer pointer) in ResourcePointers)
         {
             RequirePointerRange(offset);
-            if (pointer is null || pointer.Length is < 0 || (pointer.Cpu is null) == (pointer.StagingAddress is null) || pointer.Cpu is { } cpu && (cpu.Bank > 4 || cpu.Offset < 0 || cpu.Bank < 3 && cpu.Offset > NativeBattleModelCpuBank.Length))
+            if (pointer is null || !pointer.HasValidOwner())
             {
                 throw new InvalidDataException("Native task resource pointer requires its actual physical source.");
             }
-            uint numeric = pointer.StagingAddress ?? pointer.Cpu!.PhysicalAddress;
-            if (this.ReadDword(offset) != numeric)
+            if ((pointer.StagingAddress ?? pointer.Cpu?.PhysicalAddress) is uint numeric)
             {
-                throw new InvalidDataException("Native task resource pointer differs from its physical DWORD.");
+                if (this.ReadDword(offset) != numeric)
+                {
+                    throw new InvalidDataException("Native task resource pointer differs from its physical DWORD.");
+                }
+            }
+            else if (UnknownPayloadRanges is not { } ranges || !ranges.Any(range => range.Offset <= offset && range.Offset + (long)range.Length >= offset + 4L))
+            {
+                throw new InvalidDataException("Native task symbolic resource row must retain unknown numeric bytes.");
             }
         }
     }
@@ -49,15 +56,29 @@ public sealed partial record NativeBattleModulePoolTask
     public NativeBattleModulePoolTask WriteResourcePointer(int offset, NativeBattleResourcePointer? pointer)
     {
         RequirePointerRange(offset);
-        if (pointer is null || (pointer.Cpu is null) == (pointer.StagingAddress is null))
+        if (pointer is null || !pointer.HasValidOwner())
         {
-            throw new NotSupportedException("Native task pointer write requires its actual numeric address.");
+            throw new NotSupportedException("Native task pointer write requires its actual source owner.");
         }
-        uint numeric = pointer.StagingAddress ?? pointer.Cpu!.PhysicalAddress;
-        NativeBattleModulePoolTask current = this.WriteDword(offset, numeric);
+        NativeBattleModulePoolTask current = (pointer.StagingAddress ?? pointer.Cpu?.PhysicalAddress) is uint numeric ? this.WriteDword(offset, numeric) : MarkPayloadUnknown(offset, 4);
         current = current with { ResourcePointers = (current.ResourcePointers ?? ImmutableDictionary<int, NativeBattleResourcePointer>.Empty).SetItem(offset, pointer) };
         current.ValidateResourcePointers();
         return current;
+    }
+
+    public NativeBattleResourceRowReference ReadResourceRowReference(int offset)
+    {
+        NativeBattleResourcePointer pointer = ReadResourcePointer(offset);
+        if (pointer.Cpu is not null || pointer.CpuRow is null && pointer.StagingAddress is null)
+        {
+            throw new NotSupportedException("Native task field does not identify a model resource row.");
+        }
+        return new(pointer.CpuRow, pointer.StagingAddress);
+    }
+
+    public NativeBattleModulePoolTask WriteResourceRowReference(int offset, NativeBattleResourceRowReference row)
+    {
+        return WriteResourcePointer(offset, new(null, row.StagingAddress) { CpuRow = row.CpuRow });
     }
 
     private void RequirePointerRange(int offset)

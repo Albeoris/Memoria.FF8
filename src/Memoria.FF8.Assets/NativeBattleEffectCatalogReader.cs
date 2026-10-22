@@ -238,6 +238,14 @@ public sealed partial class GameAssets
                 }
                 binding = binding with { Electrocute275Resources = ReadNativeElectrocute275Resources() };
             }
+            if (binding.Effect == 126)
+            {
+                if (binding.Entry != NativeBattleElectricDischarge126Profile.Entry || binding.Initializer != NativeBattleElectricDischarge126Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag125.tim", NativeBattleElectricDischarge126Profile.InitializerGlobal) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Electric Discharge requires its original entry and initializer resource identity.");
+                }
+                binding = binding with { ElectricDischarge126Resources = ReadNativeElectricDischarge126Resources() };
+            }
             if (binding.Effect == 137)
             {
                 if (binding.Entry != NativeBattleOilBlast137Profile.Entry || binding.Initializer != NativeBattleOilBlast137Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag136.tim", NativeBattleOilBlast137Profile.InitializerGlobal) || binding.InitializerResources is not null)
