@@ -1,4 +1,6 @@
+using System.Collections.Immutable;
 using System.Numerics;
+using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
@@ -82,6 +84,75 @@ public sealed class BattleExpandedViewportTests
             Assert.Equal(expanded[pixel * 4 + 1], actual.G);
             Assert.Equal(expanded[pixel * 4 + 2], actual.B);
         }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Full_projected_coordinates_keep_wrapped_offscreen_geometry_outside_the_cpu_and_gpu_raster(bool normalViewport)
+    {
+        ImmutableArray<BattleSceneScreenPoint> points = [new(8272 * 8, 54 * 8), new(8292 * 8, 54 * 8), new(8272 * 8, 72 * 8)];
+        NativeBattlePrimitiveFrame frame = ExpandedFrame(points, normalViewport);
+        NativeBattlePrimitiveFrame wrapped = frame with { LastCommands = [frame.LastCommands[0] with { Command = frame.LastCommands[0].Command with { ProjectedCoordinates = null } }] };
+        byte[] wrappedPixels = new BattleRenderer(320, 240).RenderNativePrimitiveFrame(wrapped, null);
+        Assert.Contains(Enumerable.Range(0, 320 * 240), index => wrappedPixels[index * 4] > 0);
+        byte[] cpu = new BattleRenderer(320, 240).RenderNativePrimitiveFrame(frame, null);
+        Assert.DoesNotContain(Enumerable.Range(0, cpu.Length / 4), index => cpu[index * 4] != 0 || cpu[index * 4 + 1] != 0 || cpu[index * 4 + 2] != 0);
+        CaptureBackend capture = new();
+        new BattleRenderer(320, 240) { TriangleRenderer = capture }.RenderNativePrimitiveFrame(frame, null);
+        var triangle = Assert.Single(capture.Triangles);
+        Assert.Equal(new Vector2(8272, 60), triangle.A.Position);
+        Assert.Equal(new Vector2(8292, 60), triangle.B.Position);
+        Assert.Equal(new Vector2(8272, 80), triangle.C.Position);
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer gpu = new(device.Device);
+        new BattleRenderer(320, 240) { TriangleRenderer = gpu }.RenderNativePrimitiveFrame(frame, null);
+        Assert.DoesNotContain(GpuTestDevice.Read(gpu.Target), pixel => pixel.R != 0 || pixel.G != 0 || pixel.B != 0);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Full_projected_coordinates_preserve_visible_parts_of_a_triangle_crossing_the_word_boundary(bool normalViewport)
+    {
+        ImmutableArray<BattleSceneScreenPoint> points = [new(-8100 * 8, 54 * 8), new(100 * 8, 54 * 8), new(100 * 8, 90 * 8)];
+        NativeBattlePrimitiveFrame frame = ExpandedFrame(points, normalViewport);
+        NativeBattleLogicalCommand original = frame.LastCommands[0].Command;
+        NativeBattleLogicalCommand restored = JsonSerializer.Deserialize<NativeBattleLogicalCommand>(JsonSerializer.Serialize(original))!;
+        Assert.Equal(points, restored.ProjectedCoordinates!.Value);
+        Assert.Equal(original.Words, restored.Words);
+        frame = frame with { LastCommands = [frame.LastCommands[0] with { Command = restored }] };
+        byte[] cpu = new BattleRenderer(320, 240).RenderNativePrimitiveFrame(frame, null);
+        int visible = 80 * 320 + 40;
+        int outside = 80 * 320 + 140;
+        Assert.True(cpu[visible * 4] > 0);
+        Assert.Equal(0, cpu[outside * 4]);
+        CaptureBackend capture = new();
+        new BattleRenderer(320, 240) { TriangleRenderer = capture }.RenderNativePrimitiveFrame(frame, null);
+        var triangle = Assert.Single(capture.Triangles);
+        Assert.Equal(new Vector2(-8100, 60), triangle.A.Position);
+        Assert.Equal(new Vector2(100, 60), triangle.B.Position);
+        Assert.Equal(new Vector2(100, 100), triangle.C.Position);
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer gpu = new(device.Device);
+        new BattleRenderer(320, 240) { TriangleRenderer = gpu }.RenderNativePrimitiveFrame(frame, null);
+        Microsoft.Xna.Framework.Color[] actual = GpuTestDevice.Read(gpu.Target);
+        Assert.Equal(cpu[visible * 4], actual[visible].R);
+        Assert.Equal(cpu[visible * 4 + 1], actual[visible].G);
+        Assert.Equal(cpu[visible * 4 + 2], actual[visible].B);
+        Assert.Equal(0, actual[outside].R);
+    }
+
+    private static NativeBattlePrimitiveFrame ExpandedFrame(ImmutableArray<BattleSceneScreenPoint> points, bool normalViewport)
+    {
+        NativeBattlePrimitiveFrame frame = Frame(0, 0, normalViewport, 0);
+        uint Pack(BattleSceneScreenPoint point) => unchecked((ushort)point.X) | unchecked((uint)point.Y << 16);
+        NativeBattleLogicalCommand command = frame.LastCommands[0].Command with
+        {
+            Words = [0x200000A0, Pack(points[0]), Pack(points[1]), Pack(points[2])],
+            ProjectedCoordinates = points
+        };
+        return frame with { LastCommands = [frame.LastCommands[0] with { Command = command }] };
     }
 
     [Fact]

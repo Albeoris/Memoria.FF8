@@ -76,6 +76,10 @@ public sealed partial class BattleRenderer
                 continue;
             }
             int corners = quad ? 4 : 3;
+            if (command.ProjectedCoordinates is { } projectedPoints && (projectedPoints.IsDefault || projectedPoints.Length != corners))
+            {
+                throw new InvalidDataException("Expanded polygon coordinates require one point per original corner.");
+            }
             int stride = (gouraud ? 1 : 0) + 1 + (textured ? 1 : 0);
             int expectedWords = corners * stride + (gouraud ? 0 : 1);
             if (command.Words.Length != expectedWords)
@@ -148,7 +152,9 @@ public sealed partial class BattleRenderer
                     NativeBattlePcTextureWindowSelection window = resolved.DrawMode.TextureSelection!;
                     coordinates *= new Vector2(window.ScaleU, window.ScaleV);
                 }
-                Vector2 position = NativePrimitivePosition(coordinate, command.Flags20, resolved.DrawMode);
+                Vector2 position = command.ProjectedCoordinates is { } points
+                    ? NativePrimitivePosition(points[corner].X, points[corner].Y, command.Flags20, resolved.DrawMode)
+                    : NativePrimitivePosition(coordinate, command.Flags20, resolved.DrawMode);
                 if (fullViewport)
                 {
                     position = new((corner & 1) == 0 ? 0 : Width, corner < 2 ? 0 : Height);

@@ -61,6 +61,41 @@ public sealed class BattleSceneExpandedGeometryTests
         Assert.Equal(native.Bucket, expanded.Bucket);
     }
 
+    [Fact]
+    public void Expanded_scene_uses_full_coordinates_when_winding_exceeds_signed_DWORD_area()
+    {
+        NativeBattleRawMesh mesh = Triangle(new(-3900, -3900, 1000), new(3900, -3900, 1000), new(-3900, 3900, 1000));
+        NativeBattleGeometryPrimitive primitive = Assert.Single(Emit(mesh, ExpandedViewport));
+        Assert.Equal(new BattleSceneScreenPoint(-29920, -30336), primitive.ProjectedCoordinates!.Value[0]);
+        Assert.Empty(Emit(Triangle(mesh.Vertices[0].Position, mesh.Vertices[2].Position, mesh.Vertices[1].Position), ExpandedViewport));
+        Assert.False(NativeBattleGeometryPackets.Accept510680(primitive.Words[2], primitive.Words[4], primitive.Words[6]));
+    }
+
+    [Fact]
+    public void Expanded_scene_keeps_unwrapped_coordinates_without_accepting_the_wrapped_reverse_face()
+    {
+        NativeBattleRawMesh mesh = Triangle(new(3000, -10, 1000), new(5000, -10, 1000), new(3000, 10, 1000));
+        NativeBattleGeometryPrimitive primitive = Assert.Single(Emit(mesh, ExpandedViewport));
+        Assert.Equal(41280, primitive.ProjectedCoordinates!.Value[1].X);
+        Assert.Equal(-24256, unchecked((short)primitive.Words[4]));
+        Assert.Empty(Emit(Triangle(mesh.Vertices[0].Position, mesh.Vertices[2].Position, mesh.Vertices[1].Position), ExpandedViewport));
+    }
+
+    [Fact]
+    public void Expanded_scene_keeps_a_face_crossing_opposite_clip_edges()
+    {
+        Assert.Single(Emit(Triangle(new(-5000, -10, 1000), new(5000, -10, 1000), new(-5000, 10, 1000)), ExpandedViewport));
+    }
+
+    private static NativeBattleRawMesh Triangle(NativeBattleVector a, NativeBattleVector b, NativeBattleVector c)
+    {
+        byte[] polygon = new byte[16];
+        BinaryPrimitives.WriteUInt16LittleEndian(polygon, 0x8000);
+        BinaryPrimitives.WriteUInt16LittleEndian(polygon.AsSpan(2), 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(polygon.AsSpan(4), 2);
+        return new([new(a, 0), new(b, 0), new(c, 0)], [new(false, polygon.ToImmutableArray())]);
+    }
+
     private static ImmutableArray<NativeBattleGeometryPrimitive> Emit(NativeBattleRawMesh mesh, NativeBattleGeometryViewport? viewport = null, Action<IReadOnlyList<NativeBattleProjectedVertex>>? publish = null)
     {
         return NativeBattleRawGeometryPackets.Emit5099D0([mesh], [Identity], Projection, 0x808080, 1, null, 17, 4, null, publishProjectedScratch: publish, viewport: viewport);

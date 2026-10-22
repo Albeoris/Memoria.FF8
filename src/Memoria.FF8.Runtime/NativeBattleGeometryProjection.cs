@@ -7,10 +7,17 @@ public readonly record struct NativeBattleProjectedVertex(uint Screen, uint Dept
 }
 
 public readonly record struct NativeBattleGeometryViewport(short X, short Y, short Width, short Height);
+public readonly record struct BattleSceneScreenPoint(int X, int Y);
 
 public static class NativeBattleGeometryProjection
 {
     public static NativeBattleProjectedVertex Project50F900(NativeBattleActionMatrix matrix, NativeBattleVector vertex, NativeBattleCameraProjection projection, NativeBattleGeometryViewport viewport)
+    {
+        var projected = ProjectUnpacked50F900(matrix, vertex, projection, viewport);
+        return new(unchecked((ushort)projected.Position.X) | unchecked((uint)projected.Position.Y << 16), projected.DepthAndClip);
+    }
+
+    public static (BattleSceneScreenPoint Position, uint DepthAndClip) ProjectUnpacked50F900(NativeBattleActionMatrix matrix, NativeBattleVector vertex, NativeBattleCameraProjection projection, NativeBattleGeometryViewport viewport)
     {
         matrix.Validate();
         ushort h = projection.FocalLength ?? throw new NotSupportedException("Native50F900 requires the actual projection H WORD.");
@@ -65,6 +72,6 @@ public static class NativeBattleGeometryProjection
                 clip |= 0x2800000;
             }
         }
-        return new(unchecked((ushort)x) | unchecked((uint)y << 16), clip | unchecked((ushort)roundedDepth));
+        return (new(x, y), clip | unchecked((ushort)roundedDepth));
     }
 }
