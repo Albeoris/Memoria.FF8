@@ -238,6 +238,14 @@ public sealed partial class GameAssets
                 }
                 binding = binding with { Electrocute275Resources = ReadNativeElectrocute275Resources() };
             }
+            if (binding.Effect == 127)
+            {
+                if (binding.Entry != 0x6B93A0 || binding.Initializer != 0x6B93B0 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag126.tim", 0x2521278) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Petrify Stare requires its original entry and initializer resource identity.");
+                }
+                binding = binding with { PetrifyStare127Resources = ReadNativePetrifyStare127Resources() };
+            }
             if (binding.Effect == 317)
             {
                 if (binding.Entry != 0x65F840 || binding.Initializer != 0x65F850 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag127.tim", 0x2505494) || binding.InitializerResources is not null)

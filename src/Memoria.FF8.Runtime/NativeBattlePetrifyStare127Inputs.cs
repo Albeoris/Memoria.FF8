@@ -1,0 +1,11 @@
+namespace Memoria.FF8.Runtime;
+
+public abstract record NativeBattlePetrifyStare127Operation;
+public sealed record NativeBattlePetrifyStare127AdvanceAct(uint TaskAddress, byte Act, NativeBattleEffectArena Context16) : NativeBattlePetrifyStare127Operation;
+public sealed record NativeBattlePetrifyStare127Flash : NativeBattlePetrifyStare127Operation;
+public sealed record NativeBattlePetrifyStare127Sound(uint Packed, NativeBattleModuleAnchor Anchor) : NativeBattlePetrifyStare127Operation;
+public sealed record NativeBattlePetrifyStare127Contact(int Index) : NativeBattlePetrifyStare127Operation;
+public sealed record NativeBattlePetrifyStare127StageClear : NativeBattlePetrifyStare127Operation;
+public sealed record NativeBattlePetrifyStare127PointStep(NativeBattlePetrifyStare127Frame Frame, NativeBattleVector Point);
+public sealed record NativeBattlePetrifyStare127AnchorStep(NativeBattlePetrifyStare127Frame Frame, NativeBattleModuleAnchor Anchor);
+public sealed record NativeBattlePetrifyStare127Inputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattlePetrifyStare127Frame, int, NativeBattlePetrifyStare127PointStep> ReadBoneF0, Func<NativeBattlePetrifyStare127Frame, int, NativeBattlePetrifyStare127AnchorStep> ReadAnchor, Func<NativeBattlePetrifyStare127Frame, NativeBattlePetrifyStare127Operation, NativeBattlePetrifyStare127Frame> Execute);
