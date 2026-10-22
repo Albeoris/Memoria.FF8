@@ -361,7 +361,7 @@ public sealed partial class BattleSession
         {
             return RunNativeThundaga105(graphics, false);
         }
-        if (effect.Binding.Entry is 0x58DB10 or 0x58DCF0)
+        if (effect.Binding.Entry is 0x58D930 or 0x58DB10 or 0x58DCF0)
         {
             return RunNativeGilgamesh(graphics, false);
         }

@@ -13,10 +13,15 @@ public sealed partial class BattleSession
         NativeBattleScriptedGraphicsMemory scripted = memory.ScriptedGraphics ?? throw new NotSupportedException("Native Gilgamesh requires its current depth-cue registers.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Gilgamesh requires its current geometry color registers.");
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Gilgamesh requires its current camera projection.");
-        NativeBattleGilgameshFrame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Native Gilgamesh requires its retained CRT random owner."));
-        NativeBattleGilgameshInputs inputs = new(graphics.Flags, nativeActionPackets, projection, scripted.Dqa, scripted.Dqb, colors, ReadAnchor571400, () => NativeEffectIoResult ?? throw new NotSupportedException("Native Gilgamesh requires its actual signed IO result."), () => NativeCamera?.CurrentPose ?? throw new NotSupportedException("Native Gilgamesh requires its current camera globals."), Execute);
+        NativeBattleGilgameshFrame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Native Gilgamesh requires its retained CRT random owner.")) { Staging = NativeFileStaging };
+        NativeBattleGilgameshInputs inputs = new(graphics.Flags, nativeActionPackets, projection, scripted.Dqa, scripted.Dqb, colors, ReadAnchor571400, () => NativeEffectIoResult ?? throw new NotSupportedException("Native Gilgamesh requires its actual signed IO result."), () => NativeCamera?.CurrentPose ?? throw new NotSupportedException("Native Gilgamesh requires its current camera globals."), Execute)
+        {
+            ReadProjection = () => NativeCamera?.Projection ?? throw new NotSupportedException("Gilgamesh requires its current native projection."),
+            ReadFocalShadow = () => NativeCamera?.FocalLength ?? throw new NotSupportedException("Gilgamesh requires its retained signed focal shadow.")
+        };
         frame = initialize ? NativeBattleGilgameshController.Initialize58DCF0(frame, nativeActionPackets, graphics.Models) : NativeBattleGilgameshController.Advance596B70(frame, resources, inputs);
         NativeEffectMemory = frame.Memory;
+        NativeFileStaging = frame.Staging;
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
 
@@ -30,8 +35,30 @@ public sealed partial class BattleSession
         NativeBattleGilgameshFrame Execute(NativeBattleGilgameshFrame current, NativeBattleGilgameshOperation operation)
         {
             NativeEffectMemory = current.Memory;
+            if (current.Staging is { } staging)
+            {
+                NativeFileStaging = staging;
+            }
+            NativeBattleGilgameshFrame executed = ExecuteCore(current, operation);
+            return executed with { Staging = NativeFileStaging };
+        }
+
+        NativeBattleGilgameshFrame ExecuteCore(NativeBattleGilgameshFrame current, NativeBattleGilgameshOperation operation)
+        {
             switch (operation)
             {
+                case NativeBattleGilgameshMasamuneAnchor anchor:
+                    NativeBattleModuleAnchor packed = ReadAnchor571400(anchor.Actor);
+                    return UpdateNativeMasamuneChild(current, anchor.Address, task => task.WriteWord(0x10, unchecked((ushort)packed.X)).WriteWord(0x12, unchecked((ushort)packed.Y)).WriteWord(0x14, unchecked((ushort)packed.Z)).WriteWord(0x16, unchecked((ushort)packed.W)));
+                case NativeBattleGilgameshMasamuneProjectFlare projectedFlare:
+                    NativeBattleModulePoolTask child = ReadNativeMasamuneChild(current, projectedFlare.Address);
+                    NativeBattleCameraState currentCamera = NativeCamera ?? throw new NotSupportedException("Masamune requires its current camera owner.");
+                    NativeBattleGilgameshMasamuneProjectionStep projected = NativeBattleGilgameshMasamuneProjection.Project(current.Memory, child, currentCamera.Projection ?? throw new NotSupportedException("Masamune requires its actual inherited projection."), currentCamera.CanonicalViewPadding is ushort padding ? unchecked((short)padding) : null);
+                    return UpdateNativeMasamuneChild(current with { Memory = projected.Memory }, projectedFlare.Address, _ => projected.Task);
+                case NativeBattleGilgameshMasamuneProjectionH focal:
+                    NativeBattleCameraState focalCamera = NativeCamera ?? throw new NotSupportedException("Masamune requires its current projection owner.");
+                    NativeCamera = focalCamera with { Projection = (focalCamera.Projection ?? throw new NotSupportedException("Masamune requires its actual GTE projection H.")) with { FocalLength = focal.Value } };
+                    return current;
                 case NativeBattleGilgameshPackets packets:
                     NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Gilgamesh requires its initialized ordering table.");
                     NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Gilgamesh requires its current common packet owner."), primitive.Pending, packets.Batch);
@@ -113,7 +140,7 @@ public sealed partial class BattleSession
                         0xCD0378 => resources.Director.SoundInitial,
                         0xCD037C => resources.Director.SoundMiddle,
                         0xCD0380 => resources.Director.SoundLate,
-                        0xCD038C or 0xCD0390 => resources.Director.SoundClosing,
+                        0xCD0388 or 0xCD038C or 0xCD0390 => resources.Director.SoundClosing,
                         _ => throw new NotSupportedException("Native Gilgamesh sound requires its original selected DWORD source.")
                     };
                     PublishNativeModuleSound(new(descriptor, unchecked((uint)operation.Second), null) { RawPan = unchecked((uint)operation.Third) });
@@ -162,7 +189,7 @@ public sealed partial class BattleSession
     private static NativeBattleOriginalEffectState WriteNativeGilgameshCompletionByte(NativeBattleOriginalEffectState effect, uint address, byte value)
     {
         uint delta = unchecked(address - 0x21FFD68);
-        if (effect.Binding.Entry is not (0x58DB10 or 0x58DCF0) || delta >= 100 * 0x24 || delta % 0x24 != 0x0E)
+        if (effect.Binding.Entry is not (0x58D930 or 0x58DB10 or 0x58DCF0) || delta >= 100 * 0x24 || delta % 0x24 != 0x0E)
         {
             throw new NotSupportedException("Native Gilgamesh texture completion requires its actual child-task BYTE owner.");
         }
@@ -198,13 +225,13 @@ public sealed partial class BattleSession
         {
             return false;
         }
-        if (NativeEffectMemory?.DetachedReturnedTask is { Binding.Entry: 0x58DB10 or 0x58DCF0 } detached)
+        if (NativeEffectMemory?.DetachedReturnedTask is { Binding.Entry: 0x58D930 or 0x58DB10 or 0x58DCF0 } detached)
         {
             NativeEffectMemory = NativeEffectMemory with { DetachedReturnedTask = WriteNativeGilgameshCompletionByte(detached, address, value) };
         }
         else
         {
-            NativeBattleOriginalEffectState current = graphics.OriginalEffect is { Binding.Entry: 0x58DB10 or 0x58DCF0 } selected ? selected : throw new NotSupportedException("Native Gilgamesh completion lost its current raw task owner.");
+            NativeBattleOriginalEffectState current = graphics.OriginalEffect is { Binding.Entry: 0x58D930 or 0x58DB10 or 0x58DCF0 } selected ? selected : throw new NotSupportedException("Native Gilgamesh completion lost its current raw task owner.");
             updated = graphics with { OriginalEffect = WriteNativeGilgameshCompletionByte(current, address, value) };
         }
         return true;
