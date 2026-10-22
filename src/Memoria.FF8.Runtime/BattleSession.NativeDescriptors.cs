@@ -79,6 +79,8 @@ public sealed partial class BattleSession
                     graphics = BeginNativeOutcomeFade501E10(graphics);
                     return new(graphics.Descriptors, 15);
                 case 1:
+                    NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native500520 requires its camera owner.")).Initialize500520();
+                    NativeEffectMemory = NativeBattleGraphicsInitialization.Initialize500520(NativeEffectMemory ?? throw new NotSupportedException("Native500520 requires its retained geometry owners."));
                     graphics = graphics with { Flags = graphics.Flags | 4 };
                     return new(graphics.Descriptors, 15);
                 case 9:

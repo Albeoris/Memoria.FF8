@@ -58,6 +58,31 @@ public sealed class NativeBattleEnemyCasterFixtureTests
         Assert.Equal((byte)11, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action));
     }
 
+    [Theory]
+    [InlineData(" ", "Original enemy model 123")]
+    [InlineData("", "Original enemy model 123")]
+    [InlineData("Original name", "Original name")]
+    public void Component_label_preserves_named_resources_and_identifies_anonymous_host_rows(string original, string expected)
+    {
+        Assert.Equal(expected, NativeBattleEffectFixtureExporter.ComponentEnemyName(original, 123));
+    }
+
+    [Fact]
+    public void Original_formation509_hidden_model_has_a_space_name_without_becoming_a_fabricated_native_name()
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(directory is not null, "Select installed original resources to check the anonymous formation row.");
+        using BattleAssets assets = new(directory!);
+        BattleEnemyPlacement enemy = Assert.Single(NativeBattleEffectFixtureExporter.SelectEnemies(assets.LoadEncounter(509), true), enemy => enemy.Slot == 0);
+        Assert.Equal(123, enemy.ModelId);
+        Assert.Equal(251, enemy.Level);
+        Assert.True(enemy.Hidden);
+        string original = assets.ReadEnemyName(enemy.ModelId);
+        Assert.Equal(" ", original);
+        Assert.Equal("Original enemy model 123", NativeBattleEffectFixtureExporter.ComponentEnemyName(original, enemy.ModelId));
+        Assert.Equal(" ", assets.ReadEnemyName(enemy.ModelId));
+    }
+
     private static NativeEffectFixtureRequest Request(byte caster, bool preserve)
     {
         return new("enemy-caster", 8, 8, 263, 0, 800, 240) { EncounterId = 509, CasterActorIndex = caster, PreserveOriginalFormationEnemies = preserve };

@@ -21,4 +21,6 @@ public sealed partial record NativeBattleCameraState
 
     /// <summary>500400 calls56CD00(216) twice. It does not write screen offsets or the prior camera matrix.</summary>
     public NativeBattleCameraState Initialize500400() => this with { Projection = Projection is { } projection ? projection with { FocalLength = 216 } : new(null, 216, null, null) };
+
+    public NativeBattleCameraState Initialize500520() => this with { FocalLength = 512, ScreenOffsetScratchX = 0, ScreenOffsetScratchY = 0, Projection = new(Projection?.View, 512, 160, 108), ProjectionOffsetsCleared = true };
 }

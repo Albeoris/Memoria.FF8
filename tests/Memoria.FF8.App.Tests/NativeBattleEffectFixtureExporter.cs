@@ -96,6 +96,12 @@ internal static class NativeBattleEffectFixtureExporter
         return SelectEnemies(formation, preserveOriginalFormationEnemies)[0];
     }
 
+    internal static string ComponentEnemyName(string originalName, int modelId)
+    {
+        // An anonymous original DAT keeps its native name; this label identifies only the controlled host fixture row.
+        return string.IsNullOrWhiteSpace(originalName) ? $"Original enemy model {modelId}" : originalName;
+    }
+
     internal static BattleEnemyPlacement SelectCasterEnemy(BattleEncounter formation, NativeEffectFixtureRequest request)
     {
         if (request.CasterActorIndex is < 3 or > 6 || request.CasterActorIndex >= 4 && !request.PreserveOriginalFormationEnemies)
@@ -185,13 +191,14 @@ internal static class NativeBattleEffectFixtureExporter
             BattleCombatantDefinition[] actors =
             [
                 new() { Id = "party", Name = request.PartyModelId == 0 ? "Squall" : "Party", IsPlayer = true, ModelId = request.PartyModelId, WeaponId = assets.WeaponDefinitions.First(weapon => weapon.CharacterId == request.PartyModelId).Id, MaximumHp = 1000, CurrentHp = 100, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 },
-                new() { Id = "enemy", Name = assets.ReadEnemyName(enemyPlacement.ModelId), ModelId = enemyPlacement.ModelId, SceneSlot = enemyPlacement.Slot, Speed = 1, InitialHidden = enemyPlacement.Hidden, InitialUntargetable = enemyPlacement.Untargetable, InitialSuspended = enemyPlacement.InitiallySuspended }
+                new() { Id = "enemy", Name = ComponentEnemyName(assets.ReadEnemyName(enemyPlacement.ModelId), enemyPlacement.ModelId), ModelId = enemyPlacement.ModelId, SceneSlot = enemyPlacement.Slot, Speed = 1, InitialHidden = enemyPlacement.Hidden, InitialUntargetable = enemyPlacement.Untargetable, InitialSuspended = enemyPlacement.InitiallySuspended }
             ];
             if (request.PreserveOriginalFormationEnemies)
             {
-                actors = [actors[0], .. enemyPlacements.Select((enemy, index) => new BattleCombatantDefinition { Id = index == 0 ? "enemy" : $"enemy-{enemy.Slot}", Name = assets.ReadEnemyName(enemy.ModelId), ModelId = enemy.ModelId, SceneSlot = enemy.Slot, Speed = 1, InitialHidden = enemy.Hidden, InitialUntargetable = enemy.Untargetable, InitialSuspended = enemy.InitiallySuspended })];
+                actors = [actors[0], .. enemyPlacements.Select((enemy, index) => new BattleCombatantDefinition { Id = index == 0 ? "enemy" : $"enemy-{enemy.Slot}", Name = ComponentEnemyName(assets.ReadEnemyName(enemy.ModelId), enemy.ModelId), ModelId = enemy.ModelId, SceneSlot = enemy.Slot, Speed = 1, InitialHidden = enemy.Hidden, InitialUntargetable = enemy.Untargetable, InitialSuspended = enemy.InitiallySuspended })];
                 File.WriteAllText(Path.Combine(outputDirectory, "original-formation.json"), JsonSerializer.Serialize(new { formation.Id, formation.StageId, Enemies = enemyPlacements }));
             }
+            File.WriteAllText(Path.Combine(outputDirectory, "original-enemy-names.json"), JsonSerializer.Serialize(enemyPlacements.Select(enemy => new { enemy.Slot, enemy.ModelId, RawSceneLevel = enemy.Level, OriginalName = assets.ReadEnemyName(enemy.ModelId), ComponentName = ComponentEnemyName(assets.ReadEnemyName(enemy.ModelId), enemy.ModelId) })));
             if (request.ControlledDrainContact)
             {
                 actors = actors.Select(actor => actor.IsPlayer ? actor : actor with { NativeStatusResistances = assets.ReadEnemyNativeStatusData(actor.ModelId).Resistances.ToArray() }).ToArray();
@@ -260,6 +267,7 @@ internal static class NativeBattleEffectFixtureExporter
                 definition = definition with { NativeStatusRules = assets.ReadNativeStatusRules(0), NativeBattleSpeed = 0 };
             }
             definition = NativeBattleComponentInputs.PrepareMusic(definition, game.GameDirectory, 0, 5, -1);
+            File.WriteAllText(Path.Combine(outputDirectory, "combatant-inputs.json"), JsonSerializer.Serialize(definition.Combatants.Select(actor => new { actor.Id, actor.Name, actor.IsPlayer, actor.ModelId, actor.SceneSlot, actor.Level, actor.InitialActive, actor.InitialHidden, actor.InitialSuspended, actor.InitialUntargetable, actor.MaximumHp, actor.CurrentHp, actor.Speed, actor.Attack, actor.Defense, actor.Magic, actor.Spirit, actor.PhysicalPower, actor.Hit, actor.Luck, actor.Evasion, actor.Costume, actor.WeaponId, actor.EquipmentIds, actor.InitialAtb, actor.ElementAttack, actor.ElementAttackPercent, actor.DrainPercent, actor.ElementDefenses, actor.DrawSpells })));
             boundary = "before-entry";
             BattleSession battle = new(definition, request.OrdinaryMagicAdmission ? BattleAtbMode.Normal : BattleAtbMode.TurnBased);
             BattleSnapshot fresh = battle.Capture();

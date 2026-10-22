@@ -16,7 +16,7 @@ public sealed partial record NativeBattleCameraState
     {
         return this with
         {
-            CapturedPose = CurrentPose,
+            CapturedPose = CurrentPose is { } pose ? pose with { FocalLength = FocalLength, Roll = Roll } : null,
             PoseCaptureCount = checked(PoseCaptureCount + 1),
             CapturedEyePadding806 = EyePaddingF6,
             CapturedTargetPadding80E = TargetPaddingFE
