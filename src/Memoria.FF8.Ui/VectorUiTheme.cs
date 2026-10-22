@@ -128,7 +128,7 @@ public sealed class VectorUiTheme : UiTheme
             float amount = index / 80f;
             float x = startX + bounds.Width * 0.77f * amount;
             float y = startY - height * amount;
-            float spread = MathF.Pow(MathF.Sin(amount * MathF.PI), 1.4f) * bounds.Width * 0.3f;
+            float spread = MathF.Pow(Math.Max(0, MathF.Sin(amount * MathF.PI)), 1.4f) * bounds.Width * 0.3f;
             float leftX = x - spread;
             float rightX = x + spread * 0.5f;
             float tipY = y - height * 0.085f * MathF.Sin(amount * MathF.PI);

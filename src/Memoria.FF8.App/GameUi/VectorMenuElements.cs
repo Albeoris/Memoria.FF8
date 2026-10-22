@@ -36,11 +36,17 @@ internal sealed class VectorActiveTab : UiElement
     }
 }
 
-internal sealed class VectorText(string text, float fontSize, bool muted = false) : UiElement
+internal sealed class VectorText(string text, float fontSize, bool muted = false, UiAlignment horizontalAlignment = UiAlignment.Start) : UiElement
 {
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
     {
-        canvas.Text(text, fontSize, Bounds, muted ? new UiColor(174, 202, 230) : theme.Foreground, UiAlignment.Center, UiTextFlow.SingleLine);
+        UiRect textBounds = Bounds;
+        if (horizontalAlignment == UiAlignment.End)
+        {
+            float width = Math.Min(Bounds.Width, canvas.MeasureText(text, fontSize, float.PositiveInfinity).Width);
+            textBounds = new UiRect(Bounds.Right - width, Bounds.Y, width, Bounds.Height);
+        }
+        canvas.Text(text, fontSize, textBounds, muted ? new UiColor(174, 202, 230) : theme.Foreground, UiAlignment.Center, UiTextFlow.SingleLine);
     }
 }
 

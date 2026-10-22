@@ -1,6 +1,13 @@
 namespace Memoria.FF8.Ui;
 
-/// <summary>Owns focus, input routing and an optional letterboxed design coordinate space.</summary>
+/// <summary>Controls whether a design space is letterboxed or expanded to the viewport with uniform scaling.</summary>
+public enum UiViewportMode
+{
+    Fit,
+    Expand
+}
+
+/// <summary>Owns focus, input routing and a uniformly scaled design coordinate space.</summary>
 public sealed class UiView
 {
     private bool _pointerPressed;
@@ -12,6 +19,7 @@ public sealed class UiView
     private float _designWidth;
     private float _designHeight;
     private bool _layoutDirty = true;
+    private UiViewportMode _viewportMode;
     private UiElement? _focusedElement;
 
     public UiView(UiElement root)
@@ -39,6 +47,23 @@ public sealed class UiView
             InvalidateLayout();
         }
     }
+    public UiViewportMode ViewportMode
+    {
+        get => _viewportMode;
+        set
+        {
+            if (!Enum.IsDefined(value))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value));
+            }
+            if (_viewportMode != value)
+            {
+                _viewportMode = value;
+                InvalidateLayout();
+            }
+        }
+    }
+
     public Action? Cancel { get; set; }
     public UiElement? FocusedElement
     {
@@ -79,7 +104,7 @@ public sealed class UiView
             return;
         }
 
-        Root.Arrange(new UiRect(0, 0, DesignWidth > 0 ? DesignWidth : _viewportWidth, DesignHeight > 0 ? DesignHeight : _viewportHeight));
+        Root.Arrange(LayoutBounds());
         _layoutDirty = false;
     }
 
@@ -95,7 +120,7 @@ public sealed class UiView
         }
         if (BindTextMeasurements(Root, transformed) && _viewportWidth > 0 && _viewportHeight > 0)
         {
-            Root.Arrange(new UiRect(0, 0, DesignWidth > 0 ? DesignWidth : _viewportWidth, DesignHeight > 0 ? DesignHeight : _viewportHeight));
+            Root.Arrange(LayoutBounds());
         }
         Root.Draw(transformed, theme);
         // Frame captions and selection pointers can extend beyond the panels' content clips.
@@ -293,6 +318,16 @@ public sealed class UiView
         element?.FocusChanged?.Invoke(true);
     }
 
+    private UiRect LayoutBounds()
+    {
+        if (ViewportMode == UiViewportMode.Expand)
+        {
+            GetTransform(out float scale, out _, out _);
+            return new UiRect(0, 0, _viewportWidth / scale, _viewportHeight / scale);
+        }
+        return new UiRect(0, 0, DesignWidth > 0 ? DesignWidth : _viewportWidth, DesignHeight > 0 ? DesignHeight : _viewportHeight);
+    }
+
     private void GetTransform(out float scale, out float offsetX, out float offsetY)
     {
         scale = 1;
@@ -301,8 +336,11 @@ public sealed class UiView
         if (DesignWidth > 0 && DesignHeight > 0 && _viewportWidth > 0 && _viewportHeight > 0)
         {
             scale = Math.Min(_viewportWidth / DesignWidth, _viewportHeight / DesignHeight);
-            offsetX = (_viewportWidth - DesignWidth * scale) / 2;
-            offsetY = (_viewportHeight - DesignHeight * scale) / 2;
+            if (ViewportMode == UiViewportMode.Fit)
+            {
+                offsetX = (_viewportWidth - DesignWidth * scale) / 2;
+                offsetY = (_viewportHeight - DesignHeight * scale) / 2;
+            }
         }
     }
 

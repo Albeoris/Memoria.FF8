@@ -54,6 +54,14 @@ public sealed class UiPresentationTests
     }
 
     [Fact]
+    public void Tall_vector_panel_ornament_has_finite_endpoints()
+    {
+        RecordingCanvas canvas = new();
+        new VectorUiTheme().Panel(canvas, new UiRect(0, 0, 200, 400));
+        Assert.NotEmpty(canvas.Lines);
+    }
+
+    [Fact]
     public void Vector_horizontal_selection_uses_only_a_red_bottom_underline()
     {
         RecordingCanvas canvas = new();
@@ -187,6 +195,7 @@ public sealed class UiPresentationTests
 
         public void Line(float x1, float y1, float x2, float y2, UiColor color, float thickness)
         {
+            Assert.True(float.IsFinite(x1) && float.IsFinite(y1) && float.IsFinite(x2) && float.IsFinite(y2));
             Lines.Add(color);
         }
 

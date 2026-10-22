@@ -36,7 +36,7 @@ public sealed partial class MenuController
         root.Children.Add(anchored);
         anchored.Children.Add(PresentationProvider.Compose(this));
         AddTutorialMessage(anchored);
-        _view = new UiView(root) { DesignWidth = PresentationProvider.DesignWidth(this), DesignHeight = PresentationProvider.DesignHeight(this), Cancel = Back };
+        _view = new UiView(root) { ViewportMode = PresentationProvider.ViewportMode, DesignWidth = PresentationProvider.DesignWidth(this), DesignHeight = PresentationProvider.DesignHeight(this), Cancel = Back };
         _view.Resize(_view.DesignWidth, _view.DesignHeight);
         var focusables = FocusableDescendants(root).ToArray();
         string? selectedCharacterId = CharacterChoices.ElementAtOrDefault(CharacterSelectionIndex)?.Id;

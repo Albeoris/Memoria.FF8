@@ -54,6 +54,49 @@ public sealed class MenuPresentationTests
         Assert.IsType<UiTheme>(menu.CreateTheme());
     }
 
+    public static IEnumerable<object[]> ResponsiveScreens()
+    {
+        foreach (string screen in new[] { "main", "junction-magic", "config-interface", "item", "status", "junction-command" })
+        {
+            foreach (int width in new[] { 1920, 2560 })
+            {
+                yield return new object[] { screen, width, 1080 };
+            }
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(ResponsiveScreens))]
+    public void Vector_content_reaches_screen_edges_with_uniform_safe_margins(string screen, int width, int height)
+    {
+        MenuController menu = new();
+        menu.Open(screen, demo: true);
+        UiView view = menu.BuildView();
+        view.Resize(width, height);
+
+        Assert.Equal(UiViewportMode.Expand, view.ViewportMode);
+        UiPanel root = Assert.IsType<UiPanel>(view.Root);
+        Assert.Equal(new UiThickness(26), root.Padding);
+        float scale = Math.Min(width / view.DesignWidth, height / view.DesignHeight);
+        Assert.Equal(width, root.Bounds.Width * scale, 3);
+        Assert.Equal(height, root.Bounds.Height * scale, 3);
+        UiAnchorPanel anchored = Assert.IsType<UiAnchorPanel>(Assert.Single(root.Children));
+        UiElement content = anchored.Children[0];
+        Assert.Equal(26 * scale, content.Bounds.X * scale, 3);
+        Assert.Equal(26 * scale, content.Bounds.Y * scale, 3);
+        Assert.Equal(width - 26 * scale, content.Bounds.Right * scale, 3);
+        Assert.Equal(height - 26 * scale, content.Bounds.Bottom * scale, 3);
+
+        menu.Presentation = MenuPresentation.Classic;
+        UiView classic = menu.BuildView();
+        classic.Resize(width, height);
+        Assert.Equal(UiViewportMode.Fit, classic.ViewportMode);
+        Assert.Equal(classic.DesignWidth, classic.Root.Bounds.Width);
+        Assert.Equal(classic.DesignHeight, classic.Root.Bounds.Height);
+        float classicScale = Math.Min(width / classic.DesignWidth, height / classic.DesignHeight);
+        Assert.True(classic.Root.Bounds.Width * classicScale < width);
+    }
+
     [Fact]
     public void Both_presentations_build_registered_screens_with_the_same_command_contracts()
     {
@@ -74,6 +117,11 @@ public sealed class MenuPresentationTests
                 view.Resize(1280, 720);
                 Assert.Equal(entries, menu.Entries.ToArray());
                 Assert.Equal(navigation, JsonSerializer.Serialize(menu.CaptureNavigation()));
+                Assert.Equal(presentation == MenuPresentation.Vector ? UiViewportMode.Expand : UiViewportMode.Fit, view.ViewportMode);
+                if (presentation == MenuPresentation.Vector)
+                {
+                    Assert.Equal(new UiThickness(screen == "magazine" ? 0 : 26), Assert.IsType<UiPanel>(view.Root).Padding);
+                }
                 Assert.Equal(960f, view.DesignWidth);
                 Assert.Equal(screen == "magazine" ? 720f : presentation == MenuPresentation.Vector && (screen == "main" || screen.StartsWith("junction", StringComparison.Ordinal) && screen is not ("junction-command" or "junction-ability" or "junction-command-choice" or "junction-ability-choice")) ? 540f : 672f, view.DesignHeight);
             }
@@ -92,6 +140,7 @@ public sealed class MenuPresentationTests
         Assert.NotSame(original, custom);
         Assert.Contains(Descendants(custom.Root), element => ReferenceEquals(element, provider.Content));
         Assert.Equal(600f, custom.DesignHeight);
+        Assert.Equal(UiViewportMode.Fit, custom.ViewportMode);
         Assert.Same(provider.Theme, menu.CreateTheme());
         Assert.Equal(navigation, JsonSerializer.Serialize(menu.CaptureNavigation()));
         Assert.Same(custom, menu.BuildView());
