@@ -238,6 +238,14 @@ public sealed partial class GameAssets
                 }
                 binding = binding with { Electrocute275Resources = ReadNativeElectrocute275Resources() };
             }
+            if (binding.Effect == 71)
+            {
+                if (binding.Entry != 0x7D6150 || binding.Initializer != 0x7D6130 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag070.tim", 0x25FA408) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Laser Eye requires its original entry and initializer resource identity.");
+                }
+                binding = binding with { LaserEye71Resources = ReadNativeLaserEye71Resources() };
+            }
             if (binding.Effect == 130)
             {
                 if (binding.Entry != 0x6B4240 || binding.Initializer != 0x6B4250 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag129.tim", 0x25210AC) || binding.InitializerResources is not null)

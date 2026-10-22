@@ -18,6 +18,13 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
                 break;
             case 1:
             case 2:
+                if (orientation == 2 && inputs.Orientation2Policy == NativeBattleEffectNodeOrientation2Policy.TargetF1MinusCasterF0Look3D)
+                {
+                    short Component(int offset) => unchecked((short)(unchecked((int)(memory.ContextDword(0xD4 + target * 16 + offset) - memory.ContextDword(0x1F4 + offset))) / 65536));
+                    NativeBattleVector direction = new(Component(0), Component(4), Component(8));
+                    (inputs.LookBasis8DDA50 ?? throw new NotSupportedException("Native emitter orientation2 requires its reached stateful look-basis service."))(memory, node + 0x2C, direction, new(0, 4096, 0));
+                    break;
+                }
                 int dx = unchecked((int)(memory.ContextDword(0x1C4) - memory.ContextDword(0x54 + target * 16)));
                 int dz = unchecked((int)(memory.ContextDword(0x1CC) - memory.ContextDword(0x5C + target * 16)));
                 if (orientation == 2)

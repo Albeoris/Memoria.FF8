@@ -22,6 +22,10 @@ public sealed partial class BattleSession
                 {
                     return pointer;
                 }
+                if (address >= NativeBattleLaserEye71Profile.SavedBindingAddress && address < NativeBattleLaserEye71Profile.SavedBindingAddress + 32)
+                {
+                    return (NativeEffectMemory?.LaserEye71 ?? throw new NotSupportedException("Native bound graphics requires its retained binding row.")).ReadResourcePointer(address);
+                }
                 if (address >= NativeBattleRayBomb307Profile.SavedBindingAddress && address < NativeBattleRayBomb307Profile.SavedBindingAddress + 32)
                 {
                     return (NativeEffectMemory?.RayBomb307 ?? throw new NotSupportedException("Native bound graphics requires its retained binding row.")).ReadResourcePointer(address);

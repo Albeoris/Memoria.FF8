@@ -71,10 +71,18 @@ internal sealed class NativeBattleEffectNodeBank
     }
 }
 
+internal enum NativeBattleEffectNodeOrientation2Policy
+{
+    ReverseHorizontal,
+    TargetF1MinusCasterF0Look3D
+}
+
 internal sealed record NativeBattleEffectNodeInputs(NativeBattleActionMatrix? CopiedCamera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<uint, sbyte, sbyte, int?> AllocateEmitter, Func<int, sbyte, int?> AllocateGeometry)
 {
     public Func<NativeBattleEffectNodeBank, uint, int, byte, ImmutableArray<byte>>? ResourceUpdate { get; init; }
     public NativeBattleModelScaleVector? ActorScale { get; init; }
+    public NativeBattleEffectNodeOrientation2Policy Orientation2Policy { get; init; }
+    public Action<NativeBattleEffectNodeMemory, int, NativeBattleVector, NativeBattleVector>? LookBasis8DDA50 { get; init; }
     public NativeBattleEffectNodeSpawnOrigin? SpawnOrigin { get; init; }
 }
 internal delegate NativeBattleGfGeometryBatch NativeBattleEffectNodeMeshInstance(ImmutableArray<byte> resource, NativeBattleActionMatrix matrix);

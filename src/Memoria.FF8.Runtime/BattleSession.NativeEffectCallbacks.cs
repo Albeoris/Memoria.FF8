@@ -89,6 +89,10 @@ public sealed partial class BattleSession
         {
             return AdvanceNativeElectrocute275(graphics);
         }
+        if (effect.Binding.Entry == NativeBattleLaserEye71Profile.Entry)
+        {
+            return RunNativeLaserEye71(graphics, false);
+        }
         if (effect.Binding.Entry == NativeBattleEerieSoundWave130Profile.Entry)
         {
             return AdvanceNativeEerieSoundWave130(graphics);
