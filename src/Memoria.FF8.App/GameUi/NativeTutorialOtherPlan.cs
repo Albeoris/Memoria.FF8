@@ -25,7 +25,8 @@ internal static class NativeTutorialOtherPlan
                 Bind(79, 0x100F, "gf", "gf-0");
                 Bind(88, 0x100D, "gf", "gf-1");
                 Bind(90, 0x1006, "gf", "gf-1", NativeTutorialPress.Confirm);
-                Bind(114, 0x1006, "gf-detail", "gf-learn", NativeTutorialPress.Confirm);
+                // The ability list is already focused; retain the original input without confirming a learning target.
+                Bind(114, 0x1006, "gf-learn");
                 //4ACB70 sorts native ability IDs.4D2A00 uses11 rows per column, copying and clamping the row on horizontal selection.
                 (int Pc, ushort Word, int Ability)[] abilities = [(123, 0x100E, 3), (125, 0x100E, 5), (127, 0x100E, 10), (129, 0x100E, 20), (131, 0x100E, 21), (133, 0x100D, 98), (135, 0x100C, 91), (137, 0x100C, 98), (139, 0x100C, 91), (141, 0x100D, 91), (143, 0x100F, 2), (152, 0x100E, 3), (202, 0x100E, 5), (204, 0x100E, 10)];
                 IReadOnlySet<int> available = party.GuardianForceAbilities(1).Select(ability => ability.Ability).ToHashSet();
@@ -38,8 +39,8 @@ internal static class NativeTutorialOtherPlan
                     Bind(position, word, "gf-learn", ability.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 }
                 Bind(213, 0x1006, "gf-learn", "10", NativeTutorialPress.Confirm);
-                Bind(279, 0x1004, "gf-learn", press: NativeTutorialPress.Cancel, destination: "gf-detail");
-                Bind(290, 0x1004, "gf-detail", press: NativeTutorialPress.Cancel, destination: "gf");
+                Bind(279, 0x1004, "gf-learn", press: NativeTutorialPress.Cancel, destination: "gf");
+                Bind(290, 0x1004, "gf");
                 Bind(292, 0x1004, "gf", press: NativeTutorialPress.Cancel, destination: "main");
                 Bind(294, 0x1004, "main", press: NativeTutorialPress.Cancel, destination: "main");
                 break;

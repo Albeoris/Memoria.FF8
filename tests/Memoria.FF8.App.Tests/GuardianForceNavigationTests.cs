@@ -1,11 +1,34 @@
 using Memoria.FF8.GameUi;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class GuardianForceNavigationTests
 {
+    [Fact]
+    public void SelectingGuardianForceFocusesAbilitiesAndCancelReturnsToRoster()
+    {
+        MenuController menu = new();
+        menu.Open("gf", demo: true);
+        menu.Navigate(MenuInput.Right);
+        string forceId = menu.SelectedEntry!.Id;
+
+        menu.Navigate(MenuInput.Confirm);
+
+        Assert.Equal("gf-learn", menu.ScreenId);
+        Assert.Equal(forceId, menu.GuardianForce?.Id);
+        UiList abilities = Assert.IsType<UiList>(menu.BuildView().FocusedElement);
+        Assert.Equal("commands", abilities.Id);
+        Assert.Equal(menu.GuardianForce!.LearningChoices.Select(choice => choice.Name), abilities.Items);
+        Assert.DoesNotContain(menu.Entries, entry => entry.Id is "gf-learn" or "gf-abilities");
+
+        menu.Navigate(MenuInput.Cancel);
+
+        Assert.Equal("gf", menu.ScreenId);
+        Assert.Equal(forceId, menu.SelectedEntry?.Id);
+    }
+
     [Theory]
-    [InlineData("gf-detail")]
     [InlineData("gf-learn")]
     [InlineData("gf-abilities")]
     public void PageButtonsCycleAvailableGuardianForcesWithoutChangingCharacter(string screen)

@@ -459,7 +459,7 @@ public sealed partial class MenuController
 
     private void ChangePageSubject(int delta)
     {
-        if (ScreenId is "gf-detail" or "gf-learn" or "gf-abilities")
+        if (ScreenId is "gf-learn" or "gf-abilities")
         {
             var guardianForces = Data.GuardianForces;
             if (guardianForces.Count == 0)

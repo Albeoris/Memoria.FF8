@@ -132,7 +132,7 @@ public sealed class MenuViewTests
     [InlineData("status", UiImageKind.CharacterPortrait)]
     [InlineData("magic", UiImageKind.CharacterPortrait)]
     [InlineData("gf", UiImageKind.GuardianForcePortrait)]
-    [InlineData("gf-detail", UiImageKind.GuardianForcePortrait)]
+    [InlineData("gf-learn", UiImageKind.GuardianForcePortrait)]
     [InlineData("card", UiImageKind.Card)]
     [InlineData("card-detail", UiImageKind.Card)]
     public void Menu_views_draw_native_foreground_artwork(string screen, UiImageKind kind)
@@ -181,7 +181,7 @@ public sealed class MenuViewTests
         first.Resize(960, 672);
         var tile = first.Root.Children.SelectMany(Descendants).OfType<UiButton>().First();
         first.Pointer(tile.Bounds.X + tile.Bounds.Width / 2, tile.Bounds.Y + tile.Bounds.Height / 2, true);
-        Assert.Equal("gf-detail", menus.ScreenId);
+        Assert.Equal("gf-learn", menus.ScreenId);
         menus.Open("gf", true);
         menus.Navigate(MenuInput.Right);
         UiView second = menus.BuildView();

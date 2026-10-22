@@ -72,8 +72,7 @@ public static class MenuCatalog
         Add("status-blue-magic", "Limit · Blue Magic", "Inspect the explicit learned-skill list.", c => LimitEntries(c, "Blue Magic"), c => LimitDetails(c, "Blue Magic"), MenuLayout.Character);
         Add("status-shot", "Limit · Shot", "Inspect ammo stocks and shot controls.", c => LimitEntries(c, "Shot"), c => LimitDetails(c, "Shot"), MenuLayout.Character);
 
-        Add("gf", "GF", "Choose a Guardian Force.", c => c.Data.GuardianForces.Select(g => new MenuEntry(g.Id, g.Name, $"Inspect {g.Name}.", "gf-detail", new MenuAction("select-gf", g.Id))).ToArray(), SelectedGfDetails, MenuLayout.GuardianForceGrid, true, 8);
-        Add("gf-detail", "GF · Details", "GF stats, junction owner and learned abilities.", _ => [Link("gf-learn", "Learn", "Choose the GF ability learning target."), Link("gf-abilities", "Abilities", "Browse ability catalogue.")], GfDetails);
+        Add("gf", "GF", "Choose a Guardian Force.", c => c.Data.GuardianForces.Select(g => new MenuEntry(g.Id, g.Name, $"Choose an ability for {g.Name} to learn.", "gf-learn", new MenuAction("select-gf", g.Id))).ToArray(), SelectedGfDetails, MenuLayout.GuardianForceGrid, true, 8);
         Add("gf-learn", "GF · Learn", "Choose an available unlearned ability. AP progress is retained when changing targets.", c => (c.GuardianForce?.LearningChoices ?? []).Select(a => new MenuEntry(a.Id, a.Name, a.Description, Action: new MenuAction("gf-learn", a.Id, Value: c.IsDemo ? a.Name : ""), Enabled: !a.Learned)).ToArray(), GfDetails);
         Add("gf-abilities", "GF · Abilities", "Learned and available abilities.", c => (c.GuardianForce?.LearningChoices ?? []).Select(a => new MenuEntry(a.Id, a.Name, a.Description)).ToArray(), GfDetails);
 

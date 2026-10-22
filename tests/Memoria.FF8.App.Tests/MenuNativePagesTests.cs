@@ -6,7 +6,6 @@ namespace Memoria.FF8.App.Tests;
 public sealed class MenuNativePagesTests
 {
     [Theory]
-    [InlineData("gf-detail")]
     [InlineData("gf-learn")]
     [InlineData("gf-abilities")]
     public void LearningMarkerTracksTheSavedAbilityIndependentlyOfCursorAndDisplayName(string screen)
@@ -20,20 +19,17 @@ public sealed class MenuNativePagesTests
         data.GuardianForces.Add(force);
         MenuController menus = new(() => data);
         menus.Open(screen);
-        UiList Abilities() => Assert.Single(Descendants(menus.BuildView().Root).OfType<UiList>(), list => list.Id == (screen == "gf-detail" ? "gf-ability-summary" : "commands"));
+        UiList Abilities() => Assert.Single(Descendants(menus.BuildView().Root).OfType<UiList>(), list => list.Id == "commands");
 
         UiList list = Abilities();
         Assert.Equal(new UiImageSource(UiImageKind.Icon, 207), list.LeadingImages[11]);
         Assert.Equal(1, list.LeadingImages.Count(image => image.HasValue));
         Assert.All(list.Images, image => Assert.Equal(new UiImageSource(UiImageKind.Icon, 216), image));
-        if (screen != "gf-detail")
-        {
-            menus.Navigate(MenuInput.Right);
-            menus.Navigate(MenuInput.Down);
-            menus.Navigate(MenuInput.Up);
-            Assert.Equal(10, menus.SelectedIndex);
-            Assert.Equal(new UiImageSource(UiImageKind.Icon, 207), Abilities().LeadingImages[11]);
-        }
+        menus.Navigate(MenuInput.Right);
+        menus.Navigate(MenuInput.Down);
+        menus.Navigate(MenuInput.Up);
+        Assert.Equal(10, menus.SelectedIndex);
+        Assert.Equal(new UiImageSource(UiImageKind.Icon, 207), Abilities().LeadingImages[11]);
 
         force.LearningAbilityId = "2";
         menus.Open(screen);
@@ -57,7 +53,7 @@ public sealed class MenuNativePagesTests
         Assert.DoesNotContain(Descendants(view.Root).OfType<UiLabel>(), label => label.Text == menus.Entries[0].Label);
         UiButton second = buttons[1];
         view.Pointer(second.Bounds.X + second.Bounds.Width / 2, second.Bounds.Y + second.Bounds.Height / 2, true);
-        Assert.Equal("gf-detail", menus.ScreenId);
+        Assert.Equal("gf-learn", menus.ScreenId);
         Assert.Equal(menus.Data.GuardianForces[1].Id, menus.GuardianForce?.Id);
     }
 

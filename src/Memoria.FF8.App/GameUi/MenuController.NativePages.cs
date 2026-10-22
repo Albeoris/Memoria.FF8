@@ -6,7 +6,7 @@ public sealed partial class MenuController
 {
     private UiElement BuildNativeGuardianForce()
     {
-        var page = NativeCollectionPage("GF", ScreenId == "gf-detail" ? NativePageCommands(true) : ScreenId is "gf-learn" or "gf-abilities" ? Label(ScreenId == "gf-learn" ? "Learn" : "Abilities", 28) : null);
+        var page = NativeCollectionPage("GF", ScreenId is "gf-learn" or "gf-abilities" ? Label(ScreenId == "gf-learn" ? "Learn" : "Abilities", 28) : null);
         if (ScreenId == "gf")
         {
             var tiles = new UiGrid { Columns = 8, Rows = 2, Gap = 8 };
@@ -38,11 +38,8 @@ public sealed partial class MenuController
         MenuAbilityChoice? learning = GuardianForce?.LearningChoices.FirstOrDefault(choice => GuardianForce.LearningAbilityId is { } id ? choice.Id == id : choice.Name == GuardianForce.Learning);
         Place(summary, Readouts(["Learning", GuardianForce?.Learning ?? "--", learning is null ? $"AP    {Number(GuardianForce?.AbilityPoints)}" : $"{learning.Progress} / {learning.RequiredPoints} AP"], 25), 2);
         Place(body, summary, 0, 0);
-        bool summaryOnly = ScreenId == "gf-detail";
         MenuAbilityChoice[] choices = GuardianForce?.LearningChoices.ToArray() ?? [];
-        UiList abilities = summaryOnly
-            ? new UiList { TextFlow = UiTextFlow.SingleLine, Id = "gf-ability-summary", Items = choices.Select(choice => choice.Name).ToList(), FontSize = 25 * TextScale, RowHeight = 39 * TextScale, ShowSelection = false }
-            : NativePageCommands(false, 39, 25);
+        UiList abilities = NativePageCommands(false, 39, 25);
         abilities.EnabledItems = [];
         abilities.Paginated = true;
         abilities.PageSize = 10;
@@ -51,10 +48,6 @@ public sealed partial class MenuController
         abilities.SecondaryItems = choices.Select(choice => choice.Learned ? "Complete!" : $"{choice.Progress} / {choice.RequiredPoints}").ToList();
         abilities.Images = choices.Select(choice => choice.Icon).ToList();
         abilities.LeadingImages = choices.Select(choice => choice == learning && !choice.Learned ? (UiImageSource?)new UiImageSource(UiImageKind.Icon, 207) : null).ToList();
-        if (summaryOnly && choices.Length == 0)
-        {
-            abilities.Items = GuardianForce?.Abilities.ToList() ?? [];
-        }
         var abilityPanel = Panel("ABILITY", abilities);
         abilityPanel.Id = "gf-abilities-panel";
         Place(body, abilityPanel, 0, 1);

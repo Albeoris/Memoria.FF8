@@ -42,6 +42,7 @@ public sealed class NativeTutorialBindingsTests
         for (int tick = 0; tick < 10000 && !player.IsComplete; tick++)
         {
             JsonElement state = player.Capture();
+            Assert.Equal((byte)83, player.Party.GuardianForces[1].Learning);
             if (state.GetProperty("ProgramCounter").GetInt32() == 213 && state.GetProperty("InputPrepared").GetBoolean())
             {
                 reached = true;
