@@ -97,7 +97,8 @@ public static class NativeBattleOutcomeCallbacks
     {
         uint shade = unchecked((byte)(128 - fade));
         uint color = 0x2A000000u | shade | shade << 8 | shade << 16;
-        NativeBattleGeometryPrimitive quad = new(1, [0x05000000, color, 0, 320, 216u << 16, (216u << 16) | 320], [0, 0, 0, 0]);
+        // 45C8E0 submits full screen coordinates without projected vertex depths.
+        NativeBattleGeometryPrimitive quad = new(1, [0x05000000, color, 0, 320, 216u << 16, (216u << 16) | 320], []);
         NativeBattleGeometryPrimitive mode = new(1, [0x01000000, 0xE1000040], [0, 0, 0, 0]);
         return [quad, mode];
     }

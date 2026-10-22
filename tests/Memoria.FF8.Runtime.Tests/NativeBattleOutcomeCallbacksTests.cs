@@ -57,6 +57,8 @@ public sealed class NativeBattleOutcomeCallbacksTests
         Assert.All(packets, packet => Assert.Equal(1, packet.Bucket));
         Assert.Equal(new uint[] { 0x05000000, 0x2A808080, 0, 320, 216u << 16, (216u << 16) | 320 }, packets[0].Words);
         Assert.Equal(new uint[] { 0x01000000, 0xE1000040 }, packets[1].Words);
+        Assert.Empty(packets[0].VertexPayload4);
+        Assert.Equal(new int[] { 0, 0, 0, 0 }, packets[1].VertexPayload4);
         Assert.Equal(32, packets.Sum(packet => packet.Words.Length * 4));
         Assert.Equal(0x2A000000u, NativeBattleOutcomeCallbacks.FadePackets501D10(128)[0].Words[1]);
     }
