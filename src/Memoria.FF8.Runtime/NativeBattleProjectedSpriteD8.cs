@@ -67,15 +67,17 @@ public static class NativeBattleProjectedSpriteD8
     private static NativeBattleProjectedSpriteDraw DrawCore(NativeBattleProjectedSpriteHead head, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, bool readD8DepthBias, byte depthShift)
     {
         NativeBattleEffectArena temporary = head.TemporaryD8;
-        if (ReadWord(temporary, 0x24) != 0)
+        ushort callerFlags = ReadWord(temporary, 0x24);
+        int supportedFlags = readD8DepthBias ? 0x100 : 0x105;
+        if ((callerFlags & ~supportedFlags) != 0)
         {
-            throw new InvalidDataException("Projected sprite dispatcher requires its actual flags-zero caller.");
+            throw new InvalidDataException("Projected sprite dispatcher requires its supported actual caller flags.");
         }
         NativeBattleModuleResource resource = readResource(unchecked((uint)ReadInt(temporary, 0)));
         ushort phase = ReadWord(temporary, 4);
         NativeBattleModuleSpriteFrame selected = resource.ProjectedFrame571C80(phase);
         int entry = BinaryPrimitives.ReadUInt16LittleEndian(resource.Bytes.AsSpan().Slice(10 + phase * 2, 2));
-        ushort flags = selected.ExtendedPacket ? (ushort)0x100 : (ushort)0;
+        ushort flags = (ushort)(callerFlags | (selected.ExtendedPacket ? 0x100 : 0));
         temporary = Word(Word(Word(temporary, 0x24, flags), 0x26, BinaryPrimitives.ReadUInt16LittleEndian(resource.Bytes.AsSpan().Slice(8, 2))), 0x28, unchecked((ushort)selected.NextOffset));
         temporary = Dword(Dword(temporary, 0x2C, checked(resource.Address + (uint)entry + 4)), 0x30, checked((uint)(selected.Quads.Length / 20)));
         foreach (int offset in new[] { 0x48, 0x50, 0x58, 0x60 })
@@ -92,15 +94,29 @@ public static class NativeBattleProjectedSpriteD8
                 temporary = temporary.MarkUnknown(0x84 + index, 1);
             }
         }
-        NativeBattleActionMatrix main = NativeBattleGfMatrices.RotateZ56D090(ReadMatrix(temporary, 0x84), -(int)cameraRoll);
+        int callerAngle = (flags & 1) != 0 ? unchecked(ReadInt(temporary, 8) - cameraRoll) : -(int)cameraRoll;
+        NativeBattleActionMatrix main = NativeBattleGfMatrices.RotateZ56D090(ReadMatrix(temporary, 0x84), callerAngle);
         for (int index = 0; index < 9; index++)
         {
             temporary = Word(temporary, 0x84 + index * 2, unchecked((ushort)main.Rotation[index]));
         }
-        temporary = Dword(temporary, 0x1C, 0x808080);
+        if ((flags & 4) == 0)
+        {
+            temporary = Dword(temporary, 0x1C, 0x808080);
+        }
+        uint? tint = null;
+        if (!selected.Quads.IsEmpty)
+        {
+            byte[] rgb = temporary.Read(0x1C, 3);
+            tint = (uint)(rgb[0] | rgb[1] << 8 | rgb[2] << 16);
+        }
         temporary = temporary.Write(0x20, resource.Bytes.AsSpan().Slice(4, 4));
         temporary = Dword(Dword(Dword(Dword(Dword(temporary, 0xB0, 0), 0xAC, 0), 0xA4, 4096), 0xA8, 0), 0x3C, uint.MaxValue);
         NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 255) { Resource = resource, SpriteFrame = selected, Phase = phase, SpriteFlags = flags };
+        if (tint is uint actualTint)
+        {
+            draw = draw with { SpriteColor = actualTint };
+        }
         NativeBattleModulePacketBatch encoded = NativeBattleModulePackets.EmitSprite571DC0(draw, projection, cameraRoll, tableBaseBucket, depthShift, main);
         NativeBattleAllocatedPrimitive[] quads = encoded.Primitives.Where(packet => packet.Primitive.Words.Length == 10).ToArray();
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
@@ -166,9 +182,10 @@ public static class NativeBattleProjectedSpriteD8
             byte[] candidate = new byte[40];
             NativeBattleGfPacketByteState[] mask = Enumerable.Repeat(NativeBattleGfPacketByteState.Untouched, 40).ToArray();
             BinaryPrimitives.WriteUInt32LittleEndian(candidate, 0x9000000);
-            candidate[4] = quad[1];
-            candidate[5] = quad[1];
-            candidate[6] = quad[1];
+            for (int channel = 0; channel < 3; channel++)
+            {
+                candidate[4 + channel] = unchecked((byte)((quad[1] * ((tint!.Value >> (channel * 8)) & 255)) >> 7));
+            }
             candidate[7] = quad[3];
             quad.Slice(4, 4).CopyTo(candidate.AsSpan(12));
             int palette = unchecked((sbyte)resource.Bytes[4 + (quadFlags >> 12)]);
@@ -218,7 +235,7 @@ public static class NativeBattleProjectedSpriteD8
                 }
             }
             attempts.Add(new(cursor, candidate.ToImmutableArray(), mask.ToImmutableArray(), null));
-            bool extended = first && selected.ExtendedPacket;
+            bool extended = first && (flags & 0x100) != 0;
             if (extended)
             {
                 byte[] environment = new byte[12];

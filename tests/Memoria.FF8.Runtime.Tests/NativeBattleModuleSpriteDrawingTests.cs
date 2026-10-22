@@ -6,6 +6,79 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleModuleSpriteDrawingTests
 {
+    [Fact]
+    public void Caller_color_uses_three_actual_BYTES_and_leaves_unknown_high_BYTE_and_GTE_color_owners_untouched()
+    {
+        var fixture = Fixture(2000, false);
+        NativeBattleModuleSpriteDraw ordinary = Draw(fixture.Memory, fixture.Temporary, fixture.Resource);
+        NativeBattleEffectArena temporary = fixture.Temporary.Write(0x24, [4, 0]).Write(0x1C, [64, 64, 64]);
+        NativeBattleModuleSpriteDraw result = Draw(fixture.Memory, temporary, fixture.Resource);
+        NativeBattleGeometryPrimitive[] quads = result.Batch.Attempts.Where(attempt => attempt.Primitive is not null).Select(attempt => attempt.Primitive!).ToArray();
+        Assert.All(quads, quad => Assert.Equal(0x2C323232u, quad.Words[1]));
+        Assert.Throws<NotSupportedException>(() => result.Temporary180.Read(0x1F, 1));
+        Assert.Equal(JsonSerializer.Serialize(ordinary.Memory), JsonSerializer.Serialize(result.Memory));
+        Assert.Null(result.Memory.ScriptedColorRegisters!.Material);
+        byte[] bright = fixture.Resource.Bytes.ToArray();
+        bright[19] = 255;
+        NativeBattleModuleSpriteDraw wrapped = Draw(fixture.Memory, temporary.Write(0x1C, [255, 0, 255]), fixture.Resource with { Bytes = bright.ToImmutableArray() });
+        Assert.Equal(0x2CFC00FCu, wrapped.Batch.Attempts.First(attempt => attempt.Primitive is not null).Primitive!.Words[1]);
+    }
+
+    [Fact]
+    public void Caller_color_is_required_before_near_rejection_but_not_for_an_empty_frame()
+    {
+        var fixture = Fixture(0, false);
+        NativeBattleEffectArena flags = fixture.Temporary.Write(0x24, [4, 0]);
+        Assert.Throws<NotSupportedException>(() => Draw(fixture.Memory, flags, fixture.Resource));
+        NativeBattleModuleSpriteDraw rejected = Draw(fixture.Memory, flags.Write(0x1C, [64, 64, 64]), fixture.Resource);
+        Assert.All(rejected.Batch.Attempts, attempt => Assert.Equal(new byte[] { 50, 50, 50 }, attempt.Data.Skip(4).Take(3)));
+        byte[] empty = fixture.Resource.Bytes.AsSpan(0, 18).ToArray();
+        BinaryPrimitives.WriteUInt32LittleEndian(empty.AsSpan(14), 0);
+        NativeBattleModuleSpriteDraw result = Draw(fixture.Memory, flags, fixture.Resource with { Bytes = empty.ToImmutableArray() });
+        Assert.Empty(result.Batch.Attempts);
+        Assert.Throws<NotSupportedException>(() => result.Temporary180.Read(0x1C, 4));
+    }
+
+    [Fact]
+    public void Caller_angle_requires_full_DWORD_and_native_wrapped_subtraction_even_for_empty_frames()
+    {
+        var fixture = Fixture(2000, false);
+        int angle = int.MinValue;
+        short roll = 1234;
+        NativeBattleEffectArena temporary = fixture.Temporary.Write(0x24, [1, 0]).Write(8, BitConverter.GetBytes(angle));
+        NativeBattleModuleSpriteDraw result = NativeBattleModuleSpriteDrawing.Draw571C80(fixture.Memory, temporary, _ => fixture.Resource, Projection, roll);
+        NativeBattleActionMatrix expected = NativeBattleGfMatrices.RotateZ56D090(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, unchecked(angle - roll));
+        for (int index = 0; index < 9; index++)
+        {
+            Assert.Equal(expected.Rotation[index], BinaryPrimitives.ReadInt16LittleEndian(result.Temporary180.Read(0x84 + index * 2, 2)));
+        }
+        byte[] empty = fixture.Resource.Bytes.AsSpan(0, 18).ToArray();
+        BinaryPrimitives.WriteUInt32LittleEndian(empty.AsSpan(14), 0);
+        Assert.Throws<NotSupportedException>(() => Draw(fixture.Memory, temporary.MarkUnknown(10, 2), fixture.Resource with { Bytes = empty.ToImmutableArray() }));
+        NativeBattleEffectArena d8 = NativeBattleEffectNodeContextMemory.Copy(temporary, 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 216), 0, 180);
+        Assert.Throws<InvalidDataException>(() => NativeBattleProjectedSpriteD8.Draw(new(fixture.Memory, d8), _ => fixture.Resource, Projection, roll, 17));
+    }
+
+    [Fact]
+    public void Extended_bit_persists_on_the_same_physical_temporary_across_positive_frame_headers_and_JSON()
+    {
+        var fixture = Fixture(2000, true);
+        NativeBattleModuleSpriteDraw first = Draw(fixture.Memory, fixture.Temporary, fixture.Resource);
+        NativeBattleModuleSpriteDraw restored = JsonSerializer.Deserialize<NativeBattleModuleSpriteDraw>(JsonSerializer.Serialize(first))!;
+        byte[] positive = fixture.Resource.Bytes.ToArray();
+        BinaryPrimitives.WriteUInt32LittleEndian(positive.AsSpan(14), 2);
+        NativeBattleModuleResource resource = fixture.Resource with { Bytes = positive.ToImmutableArray() };
+        NativeBattleModuleSpriteDraw Next(NativeBattleModuleSpriteDraw current) => Draw(current.Memory, current.Temporary180, resource);
+        NativeBattleModuleSpriteDraw next = Next(first);
+        Assert.Equal(92, next.Batch.AllocationBytes);
+        Assert.Equal((ushort)0x100, BinaryPrimitives.ReadUInt16LittleEndian(next.Temporary180.Read(0x24, 2)));
+        Assert.Single(next.Batch.Attempts.Where(attempt => attempt.Primitive?.Words.Length == 2));
+        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(Next(restored)));
+        NativeBattleEffectArena d8 = NativeBattleEffectNodeContextMemory.Copy(first.Temporary180, 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 216), 0, 180).Write(0xB4, [0, 0]);
+        NativeBattleProjectedSpriteDraw biased = NativeBattleProjectedSpriteD8.Draw(new(first.Memory, d8), _ => resource, Projection, 0, 17);
+        Assert.Equal(JsonSerializer.Serialize(next.Batch), JsonSerializer.Serialize(biased.Batch));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

@@ -337,6 +337,10 @@ public sealed partial class BattleSession
             }
             return (memory.StickyWeb153 ?? throw new NotSupportedException("Native Sticky Web packet alias requires its retained executable banks.")).Packets.Read(reference.ByteOffset, count);
         }
+        if (reference.Bank == NativeBattleGatlingGun305PacketArena.PacketBank)
+        {
+            return NativeBattleGatlingGun305PacketArena.Read(memory.GatlingGun305 ?? throw new NotSupportedException("Gatling Gun packets require their retained native banks."), reference, count);
+        }
         if (reference.Bank == "2466638")
         {
             if (reference.Buffer != 0)

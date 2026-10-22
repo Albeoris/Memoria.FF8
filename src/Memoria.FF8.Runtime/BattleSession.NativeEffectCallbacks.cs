@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -72,6 +72,10 @@ public sealed partial class BattleSession
         if (effect.Binding.Entry == 0x6185D0)
         {
             return AdvanceNativeSleep145(graphics);
+        }
+        if (effect.Binding.Entry == NativeBattleGatlingGun305Profile.Entry)
+        {
+            return AdvanceNativeGatlingGun305(graphics);
         }
         if (effect.Binding.Entry == NativeBattleDegenerator306Profile.Entry)
         {

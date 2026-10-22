@@ -7,6 +7,27 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleModuleSpriteSetupTests
 {
     [Fact]
+    public void Unknown_source_W_is_retained_in_loaded_input_without_changing_MAC_IR_or_billboard_stores()
+    {
+        NativeBattlePackedMatrix32 camera = NativeBattlePackedMatrix32.FromMatrix(Identity() with { X = 500, Y = -200, Z = 1000 }, null);
+        NativeBattleEffectMemory initial = Memory(NativeBattlePackedMatrix32.FromMatrix(Identity(), 0xABCD));
+        NativeBattleEffectMemory known = NativeBattleModuleSpriteSetup.Setup571BC0(initial, camera, new NativeBattleVector(10, -20, 30), unchecked((short)0xCAFE), 512, -32);
+        NativeBattleEffectMemory unknown = NativeBattleModuleSpriteSetup.Setup571BC0(initial, camera, new NativeBattleVector(10, -20, 30), null, 512, -32);
+        Assert.Equal(JsonSerializer.Serialize(known.GeometryRegisters), JsonSerializer.Serialize(unknown.GeometryRegisters));
+        Assert.Equal(JsonSerializer.Serialize(known.ModuleSpriteBillboard21DFED0), JsonSerializer.Serialize(unknown.ModuleSpriteBillboard21DFED0));
+        Assert.Equal(known.ScriptedColorRegisters!.Mac, unknown.ScriptedColorRegisters!.Mac);
+        Assert.Equal(known.ScriptedColorRegisters.Ir, unknown.ScriptedColorRegisters.Ir);
+        Assert.Equal(known.ScriptedColorRegisters.Flags, unknown.ScriptedColorRegisters.Flags);
+        Assert.Equal(known.ScriptedColorRegisters.Rgb, unknown.ScriptedColorRegisters.Rgb);
+        Assert.Equal(known.ScriptedColorRegisters.NormalInput!.Value.Take(6), unknown.ScriptedColorRegisters.NormalInput!.Value.Take(6));
+        Assert.All(known.ScriptedColorRegisters.NormalInputKnown!.Value, value => Assert.True(value));
+        Assert.All(unknown.ScriptedColorRegisters.NormalInputKnown!.Value.Skip(6), value => Assert.False(value));
+        Assert.Equal(new byte[] { 0xFE, 0xCA }, known.ScriptedColorRegisters.NormalInput.Value.Skip(6));
+        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(unknown))!;
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleModuleSpriteSetup.Setup571BC0(unknown, camera, new NativeBattleVector(10, -20, 30), null, 512, -32)), JsonSerializer.Serialize(NativeBattleModuleSpriteSetup.Setup571BC0(restored, camera, new NativeBattleVector(10, -20, 30), null, 512, -32)));
+    }
+
+    [Fact]
     public void Billboard_writes_only_three_diagonal_words_and_translation_while_retaining_padding_knownness()
     {
         NativeBattleActionMatrix retained = new([1, 2, 3, 4, 5, 6, 7, 8, 9], 100, 200, 300, 4096);

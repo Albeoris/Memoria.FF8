@@ -8,6 +8,11 @@ public static class NativeBattleModuleSpriteSetup
 {
     public static NativeBattleEffectMemory Setup571BC0(NativeBattleEffectMemory memory, NativeBattlePackedMatrix32 camera, NativeBattleModuleAnchor anchor, short scale, short depth)
     {
+        return Setup571BC0(memory, camera, new NativeBattleVector(anchor.X, anchor.Y, anchor.Z), anchor.W, scale, depth);
+    }
+
+    public static NativeBattleEffectMemory Setup571BC0(NativeBattleEffectMemory memory, NativeBattlePackedMatrix32 camera, NativeBattleVector position, short? sourceW, short scale, short depth)
+    {
         NativeBattlePackedMatrix32 billboard = memory.ModuleSpriteBillboard21DFED0 ?? throw new NotSupportedException("The sprite billboard requires its actual retained packed matrix.");
         billboard.Validate();
         camera.Validate();
@@ -18,7 +23,7 @@ public static class NativeBattleModuleSpriteSetup
         WriteWord(16, scale);
         NativeBattleGeometryRegisterStep step = new(memory.GeometryRegisters ?? throw new NotSupportedException("The sprite billboard requires its retained geometry controls."), memory.ScriptedColorRegisters ?? throw new NotSupportedException("The sprite billboard requires its retained geometry data registers."));
         step = step with { Geometry = LoadPackedMatrix(step.Geometry, camera) };
-        step = NativeBattleGeometry.LoadVector(step, 0, new(anchor.X, anchor.Y, anchor.Z), anchor.W);
+        step = NativeBattleGeometry.LoadVector(step, 0, position, sourceW);
         step = NativeBattleGeometry.Transform(step);
         int x = step.Colors.Mac[0] ?? throw new InvalidDataException("The sprite billboard requires its transformed X MAC.");
         int y = step.Colors.Mac[1] ?? throw new InvalidDataException("The sprite billboard requires its transformed Y MAC.");

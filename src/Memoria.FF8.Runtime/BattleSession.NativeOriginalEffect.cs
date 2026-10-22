@@ -1,4 +1,4 @@
-﻿namespace Memoria.FF8.Runtime;
+namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
@@ -69,6 +69,10 @@ public sealed partial class BattleSession
         if (effect.Binding.Entry == 0x6185D0)
         {
             return EnterNativeSleep145(graphics);
+        }
+        if (effect.Binding.Entry == NativeBattleGatlingGun305Profile.Entry)
+        {
+            return EnterNativeGatlingGun305(graphics);
         }
         if (effect.Binding.Entry == NativeBattleDegenerator306Profile.Entry)
         {

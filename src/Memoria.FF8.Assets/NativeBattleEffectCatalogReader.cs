@@ -206,6 +206,14 @@ public sealed partial class GameAssets
                 binding = binding with { Doom8Resources = doom, InitializerAsset = doom.MainTim };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 305)
+            {
+                if (binding.Entry != 0x5A57D0 || binding.Initializer != 0x5A57B0 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag149.tim", 0x2247780) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Gatling Gun requires its original entry and initializer resource identity.");
+                }
+                binding = binding with { GatlingGun305Resources = ReadNativeGatlingGun305Resources() };
+            }
             if (binding.Effect == 306)
             {
                 if (binding.Entry != 0x5A2C90 || binding.Initializer != 0x5A2C70 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag173.tim", 0x2244220) || binding.InitializerResources is not null)
