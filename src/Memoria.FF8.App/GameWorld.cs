@@ -28,8 +28,14 @@ internal sealed partial class GameWorld : IDisposable
 
     internal static GameSession CreateColdProcess(string gameDirectory)
     {
+        return CreateColdProcess(gameDirectory, NativeExecutionStackSelection.ConfiguredPath);
+    }
+
+    internal static GameSession CreateColdProcess(string gameDirectory, string? selectedExecutionStackPath)
+    {
         using GameAssets assets = new(gameDirectory);
-        return GameSession.CreateColdProcess(assets.ReadColdProcessNativeBattleMemory());
+        NativeBattleRetainedMemory memory = assets.ReadColdProcessNativeBattleMemory();
+        return GameSession.CreateColdProcess(NativeExecutionStackSelection.Apply(memory, NativeExecutionStackSelection.Read(selectedExecutionStackPath)));
     }
 
     public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, nint audioWindow = default, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null, Func<FieldSceneMods>? readSceneMods = null, IModelOverrideSource? modelOverrides = null)

@@ -84,6 +84,8 @@ Choose filters for the contract being changed; the examples are not a mandatory 
 
 ## Optional local inputs
 
+An explicitly selected native execution-stack profile can be stored in `Memoria.FF8/native-execution-stack.json` under the user's local application-data directory, or selected with `MEMORIA_FF8_EXECUTION_STACK_PROFILE`. Its JSON follows [NativeBattleExecutionStack](../../src/Memoria.FF8.Runtime/NativeBattleExecutionStack.cs), including the observed common-frame ESP, return site, executable/capture identities and process/thread lineage. Select these values from an authenticated observation; the executable image does not supply a process stack address. Fresh processes apply the selected profile before New Game and retain it in subsequent saves. An absent selection remains unknown; an invalid or explicitly missing selection fails. Loading an existing save preserves that save's owners and does not implicitly migrate it.
+
 | Variable | Purpose |
 | --- | --- |
 | `MEMORIA_FF8_GAME_DIR` | Supported original game installation for resource-dependent tests. |

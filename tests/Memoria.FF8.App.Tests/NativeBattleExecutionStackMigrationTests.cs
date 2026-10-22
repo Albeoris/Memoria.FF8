@@ -2,12 +2,143 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattleExecutionStackMigrationTests
 {
+    [Fact]
+    public void Continue_named_Quezacotl_with_the_desktop_presentation_clock_and_saved_battle_mode()
+    {
+        string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_GF_SNAPSHOT");
+        string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_STACK_EVIDENCE");
+        Assert.SkipUnless(source is not null && File.Exists(source) && !string.IsNullOrWhiteSpace(evidence), "A concrete GF standalone and distinct evidence directory are required.");
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
+        GameSession session = new(GameSession.Load(source!));
+        using GameWorld world = NativeBattleProductionEffectAdmissionTests.RestoreWorld(session, directory);
+        BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+        BattleAtbMode mode = battle.Mode;
+        TimeSpan elapsed = TimeSpan.FromTicks(TimeSpan.TicksPerSecond / BattleSession.FramesPerSecond + 1);
+        battle.AdvanceNativeGraphicsPresentation(TimeSpan.Zero);
+        for (int frame = 0; frame < 2000 && (!battle.NativeEntryReady || !battle.Combatants.Any(actor => actor.IsPlayer && actor.IsReady && actor.Abilities.Contains(BattleAbility.GuardianForce) && actor.EquipmentIds.Contains(0))); frame++)
+        {
+            battle.AdvanceNativeGraphicsPresentation(elapsed);
+            world.SynchronizeBattlePresentation();
+            world.ApplyBattleInput(new(BattleInputKind.Tick));
+            if (battle.Mode == BattleAtbMode.TurnBased)
+            {
+                world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
+            }
+        }
+        int completed = battle.Events.Count(item => item.Kind == "ActionComplete");
+        BattleCombatant caster = battle.Combatants.First(actor => actor.IsPlayer && actor.IsReady && actor.Abilities.Contains(BattleAbility.GuardianForce) && actor.EquipmentIds.Contains(0));
+        BattleCombatant target = battle.Combatants.First(actor => !actor.IsPlayer && actor.IsActive && actor.IsAlive);
+        world.ApplyBattleInput(new(BattleInputKind.Action, ActorId: caster.Id, TargetId: target.Id, Ability: BattleAbility.GuardianForce, ActionId: 0));
+        bool materialized = false;
+        bool restored = false;
+        try
+        {
+            for (int frame = 0; frame < 4096; frame++)
+            {
+                battle.AdvanceNativeGraphicsPresentation(elapsed);
+                world.SynchronizeBattlePresentation();
+                world.ApplyBattleInput(new(BattleInputKind.Tick));
+                Assert.Equal(mode, battle.Mode);
+                if (mode == BattleAtbMode.TurnBased && battle.Capture().GuardianForceCasts.Length != 0)
+                {
+                    world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
+                }
+                if (battle.NativeGraphics!.OriginalEffect is { Binding.Effect: 116, ReturnedDescriptor: > 0 })
+                {
+                    materialized = true;
+                    if (!restored && battle.NativeGraphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
+                    {
+                        string mid = Path.Combine(evidence!, "desktop-midcast.json");
+                        session.Save(mid, compact: true);
+                        GameSession independent = new(GameSession.Load(mid));
+                        using GameWorld clone = NativeBattleProductionEffectAdmissionTests.RestoreWorld(independent, directory);
+                        clone.Battle!.AdvanceNativeGraphicsPresentation(elapsed);
+                        clone.SynchronizeBattlePresentation();
+                        clone.ApplyBattleInput(new(BattleInputKind.Tick));
+                        battle.AdvanceNativeGraphicsPresentation(elapsed);
+                        world.SynchronizeBattlePresentation();
+                        world.ApplyBattleInput(new(BattleInputKind.Tick));
+                        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Battle.Capture()));
+                        Assert.Equal(NativeBattleProductionEffectAdmissionTests.RenderBattle(world), NativeBattleProductionEffectAdmissionTests.RenderBattle(clone));
+                        restored = true;
+                    }
+                }
+                if (materialized && battle.NativeGraphics.OriginalEffect is { Binding.Effect: 116, ReturnedDescriptor: 0 } && battle.NativeEffectMemory!.Active == 0 && battle.Capture().GuardianForceCasts.Length == 0 && battle.Events.Count(item => item.Kind == "ActionComplete") > completed)
+                {
+                    Assert.True(restored);
+                    session.Save(Path.Combine(evidence!, "desktop-after-summon.json"), compact: true);
+                    NativeBattleProductionEffectAdmissionTests.Publish(evidence, "desktop-proof", new { Source = source, Mode = mode, Frame = battle.Frame, Callback = battle.NativeGraphics.Callback, Materialized = materialized, IndependentRestore = restored, ActionCompleted = true });
+                    return;
+                }
+            }
+            Assert.Fail("Quezacotl did not complete within the bounded desktop continuation.");
+        }
+        catch (Exception exception)
+        {
+            NativeBattleProductionEffectAdmissionTests.Publish(evidence, "desktop-failure", new { Error = exception.ToString(), Frame = battle.Frame, Callback = battle.NativeGraphics!.Callback });
+            throw;
+        }
+    }
+
+    [Fact]
+    public void Selected_stack_survives_rotating_compressed_quick_save_and_independent_host_continuation()
+    {
+        string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_STACK_SNAPSHOT");
+        string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_STACK_EVIDENCE");
+        Assert.SkipUnless(source is not null && File.Exists(source) && !string.IsNullOrWhiteSpace(evidence), "An explicitly selected stack standalone and a distinct evidence directory are required.");
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
+        GameSession session = new(GameSession.Load(source!));
+        NativeBattleExecutionStack profile = Assert.IsType<NativeBattleExecutionStack>(session.State.NativeBattleMemory?.EffectMemory?.ExecutionStack);
+        if (session.State.Battle is { } active)
+        {
+            Assert.Equal(profile, active.NativeEffectMemory!.ExecutionStack);
+        }
+        using GameWorld world = NativeBattleProductionEffectAdmissionTests.RestoreWorld(session, directory);
+        string quickDirectory = Path.Combine(evidence!, "quick-roundtrip-" + Guid.NewGuid().ToString("N"));
+        PlayerSaveStore saves = new(source!, quickDirectory);
+        saves.Save(0, session);
+        string quickPath = saves.GetPath(0);
+        Assert.Equal("MFF8SAVE"u8.ToArray(), File.ReadAllBytes(quickPath).Take(8).ToArray());
+        GameSession independent = new(saves.Load(0));
+        if (independent.State.Battle is { } restoredBattle)
+        {
+            Assert.Equal(profile, restoredBattle.NativeEffectMemory!.ExecutionStack);
+        }
+        Assert.Equal(profile, independent.State.NativeBattleMemory!.EffectMemory!.ExecutionStack);
+        using GameWorld clone = NativeBattleProductionEffectAdmissionTests.RestoreWorld(independent, directory);
+        if (world.Battle is null)
+        {
+            Assert.Null(clone.Battle);
+            Assert.Equal(JsonSerializer.Serialize(session.PrepareSnapshot()), JsonSerializer.Serialize(independent.PrepareSnapshot()));
+            Assert.Equal(world.Apply(new(PlayerActionKind.Wait)), clone.Apply(new(PlayerActionKind.Wait)));
+            Assert.Equal(JsonSerializer.Serialize(session.PrepareSnapshot()), JsonSerializer.Serialize(independent.PrepareSnapshot()));
+            Assert.Equal(profile, session.State.NativeBattleMemory!.EffectMemory!.ExecutionStack);
+            saves.Save(0, session);
+            Assert.NotEqual(quickPath, saves.GetPath(0));
+            Assert.True(File.Exists(quickPath));
+            Assert.Equal(profile, saves.Load(0).NativeBattleMemory!.EffectMemory!.ExecutionStack);
+            NativeBattleProductionEffectAdmissionTests.Publish(evidence, "selected-stack-quick-roundtrip-proof", new { Source = source, QuickPath = quickPath, NextQuickPath = saves.GetPath(0), Profile = profile, Frame = session.State.World?.Frame });
+            return;
+        }
+        Assert.Equal(JsonSerializer.Serialize(world.Battle!.Capture()), JsonSerializer.Serialize(clone.Battle!.Capture()));
+        world.ApplyBattleInput(new(BattleInputKind.Tick));
+        clone.ApplyBattleInput(new(BattleInputKind.Tick));
+        Assert.Equal(JsonSerializer.Serialize(world.Battle.Capture()), JsonSerializer.Serialize(clone.Battle.Capture()));
+        Assert.Equal(NativeBattleProductionEffectAdmissionTests.RenderBattle(world), NativeBattleProductionEffectAdmissionTests.RenderBattle(clone));
+        saves.Save(0, session);
+        Assert.NotEqual(quickPath, saves.GetPath(0));
+        Assert.True(File.Exists(quickPath));
+        Assert.Equal(profile, saves.Load(0).Battle!.NativeEffectMemory!.ExecutionStack);
+        NativeBattleProductionEffectAdmissionTests.Publish(evidence, "selected-stack-quick-roundtrip-proof", new { Source = source, QuickPath = quickPath, NextQuickPath = saves.GetPath(0), Profile = profile, Frame = world.Battle.Frame, Callback = world.Battle.NativeGraphics!.Callback });
+    }
+
     [Fact]
     public void Select_a_captured_execution_stack_for_the_named_before_ribbon_checkpoint_and_check_its_next_callback()
     {
