@@ -8,9 +8,13 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleVictoryFadeRenderingTests
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Victory_fade_darkens_the_whole_published_viewport_and_continues_after_compact_restore(bool hardware)
+    [InlineData(false, 320, 240)]
+    [InlineData(true, 320, 240)]
+    [InlineData(false, 480, 240)]
+    [InlineData(true, 480, 240)]
+    [InlineData(false, 320, 400)]
+    [InlineData(true, 320, 400)]
+    public void Victory_fade_darkens_the_whole_published_viewport_and_continues_after_compact_restore(bool hardware, int width, int height)
     {
         string source = TestResources.FixturePath("battle-victory-fade");
         string directory = TestResources.GameDirectory;
@@ -34,10 +38,10 @@ public sealed class NativeBattleVictoryFadeRenderingTests
             {
                 continue;
             }
-            byte[] faded = Render(battle, frame, hardware);
-            byte[] unfaded = Render(battle, frame with { LastCommands = frame.LastCommands.Where(command => command != fade).ToImmutableArray() }, hardware);
+            byte[] faded = Render(battle, frame, hardware, width, height);
+            byte[] unfaded = Render(battle, frame with { LastCommands = frame.LastCommands.Where(command => command != fade).ToImmutableArray() }, hardware, width, height);
             int distantChannels = 0;
-            for (int pixel = 0; pixel < 320 * 216; pixel++)
+            for (int pixel = 0; pixel < width * height; pixel++)
             {
                 for (int channel = 0; channel < 3; channel++)
                 {
@@ -46,8 +50,8 @@ public sealed class NativeBattleVictoryFadeRenderingTests
                     {
                         continue;
                     }
-                    Assert.True(faded[offset] < unfaded[offset], $"Fade did not darken pixel ({pixel % 320}, {pixel / 320}), channel {channel}.");
-                    if (pixel % 320 >= 160 && pixel / 320 >= 108)
+                    Assert.True(faded[offset] < unfaded[offset], $"Fade did not darken pixel ({pixel % width}, {pixel / width}), channel {channel}.");
+                    if (pixel % width >= width / 2 && pixel / width >= height / 2)
                     {
                         distantChannels++;
                     }
@@ -73,7 +77,7 @@ public sealed class NativeBattleVictoryFadeRenderingTests
         Assert.Equal(battle.NativeGraphics.Callback, restored.Battle.NativeGraphics.Callback);
         Assert.Equal(ReadFade(next).Command.Words.ToArray(), ReadFade(restoredNext).Command.Words.ToArray());
         Assert.Equal(ReadFade(next).Command.Flags20, ReadFade(restoredNext).Command.Flags20);
-        Assert.Equal(Render(battle, next, hardware), Render(restored.Battle, restoredNext, hardware));
+        Assert.Equal(Render(battle, next, hardware, width, height), Render(restored.Battle, restoredNext, hardware, width, height));
     }
 
     private static NativeBattleLogicalResolvedCommand ReadFade(NativeBattlePrimitiveFrame frame)
@@ -81,12 +85,12 @@ public sealed class NativeBattleVictoryFadeRenderingTests
         return Assert.Single(frame.LastCommands, command => command.Command.Opcode == 0x2A && command.Command.OrderingBucket == 1 && command.Pass != 0);
     }
 
-    private static byte[] Render(BattleSession battle, NativeBattlePrimitiveFrame frame, bool hardware)
+    private static byte[] Render(BattleSession battle, NativeBattlePrimitiveFrame frame, bool hardware, int width, int height)
     {
         NativeBattleEffectMemory memory = battle.NativeEffectMemory!;
         using GpuTestDevice? device = hardware ? new() : null;
         using GpuTriangleRenderer? gpu = device is null ? null : new(device.Device);
-        BattleRenderer renderer = new(320, 216) { TriangleRenderer = gpu };
+        BattleRenderer renderer = new(width, height, ViewportLayout.Fit(320, 240, width, height)) { TriangleRenderer = gpu };
         byte[] pixels = renderer.RenderNativePrimitiveFrame(frame, memory.Textures, capabilities: battle.Capture().Definition.NativeGraphics!.PrimitiveCapabilities, textureWindowCache: memory.PrimitiveProcess!.TextureWindowCache);
         return gpu is null ? pixels : GpuTestDevice.Read(gpu.Target).SelectMany(color => new byte[] { color.R, color.G, color.B, color.A }).ToArray();
     }

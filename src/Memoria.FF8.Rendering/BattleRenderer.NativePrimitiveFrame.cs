@@ -83,6 +83,7 @@ public sealed partial class BattleRenderer
                 throw new InvalidDataException("Native polygon command does not contain its original packed corner fields.");
             }
             bool perspective = !command.VertexPayload4.IsEmpty && command.VertexPayload4[0] != 0 && (frame.LastDescriptorPerspective ?? throw new NotSupportedException("Native polygon rendering requires the executed OT descriptor DWORD8; migrate the named snapshot explicitly."));
+            bool fullViewport = quad && !textured && !gouraud && (command.Flags20 & 1) != 0 && command.VertexPayload4.All(value => value == 0) && NativeScreenQuadCoversProjection(command, resolved.DrawMode);
             NativeBattlePrimitiveDepthState state = frame.LastDepthState ?? throw new NotSupportedException("Native polygon rendering requires its retained460B60 depth owner.");
             NativeBattlePrimitiveColorState colorState = frame.LastColorState ?? throw new NotSupportedException("Native polygon rendering requires its retained PC diffuse-color dispatch owner.");
             ImmutableArray<NativeBattlePrimitiveDepthVertex> projected = state.Project461220(command.OrderingBucket ?? throw new InvalidDataException("Native polygon lacks its original OT bucket."), perspective, command.Flags20, command.VertexPayload4);
@@ -148,6 +149,10 @@ public sealed partial class BattleRenderer
                     coordinates *= new Vector2(window.ScaleU, window.ScaleV);
                 }
                 Vector2 position = NativePrimitivePosition(coordinate, command.Flags20, resolved.DrawMode);
+                if (fullViewport)
+                {
+                    position = new((corner & 1) == 0 ? 0 : Width, corner < 2 ? 0 : Height);
+                }
                 return new(position.X, position.Y, projected[corner].Depth, projected[corner].ReciprocalW, coordinates, diffuse.Rgb, diffuse.Alpha);
             }
             int blend = semi && resolved.Pass == 2 ? resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native semi-transparent polygon requires its inherited ABR.") : -1;
@@ -195,6 +200,22 @@ public sealed partial class BattleRenderer
                 }
             }
         }
+    }
+
+    private bool NativeScreenQuadCoversProjection(NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode)
+    {
+        Vector2 origin = new(ProjectionBounds.X, ProjectionBounds.Y);
+        Vector2 extent = new(ProjectionBounds.Width, ProjectionBounds.Height);
+        Vector2 At(int word)
+        {
+            Vector2 position = NativePrimitivePosition(command.Words[word], command.Flags20, mode);
+            // Stored viewport scales can put an integer screen boundary a fraction of a pixel away from its edge.
+            return new(MathF.Round(position.X), MathF.Round(position.Y));
+        }
+        return At(1) == origin
+            && At(2) == origin + new Vector2(extent.X, 0)
+            && At(3) == origin + new Vector2(0, extent.Y)
+            && At(4) == origin + extent;
     }
 
     private void DrawNativePrimitiveTile(NativeBattlePrimitiveFrame frame, NativeBattleLogicalResolvedCommand resolved)
