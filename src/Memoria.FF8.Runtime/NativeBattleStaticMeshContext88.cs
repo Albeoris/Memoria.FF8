@@ -15,7 +15,7 @@ public static class NativeBattleStaticMeshContext88
         NativeBattlePrimitiveProcess primitive = memory.PrimitiveProcess ?? throw new NotSupportedException("Masamune requires its current far-color controls.");
         NativeBattleModelRendererRegisters far = primitive.ModelRendererRegisters ?? throw new NotSupportedException("Masamune requires its current renderer registers.");
         uint flags = Dword(context, 0x1C);
-        if (Dword(context, 0) != mesh.Address || flags is not (0x33 or 0xF3))
+        if (Dword(context, 0) != mesh.Address || flags is not (0x33 or 0xF3 or 0xF0))
         {
             throw new InvalidDataException("Masamune mesh requires its actual addressed caller context.");
         }
@@ -37,7 +37,7 @@ public static class NativeBattleStaticMeshContext88
             {
                 continue;
             }
-            if (group is not (2 or 3 or 4 or 5))
+            if (flags == 0xF0 ? group != 7 : group is not (2 or 3 or 4 or 5))
             {
                 throw new NotSupportedException("Masamune mesh requires an unproved primitive group.");
             }
@@ -80,18 +80,18 @@ public static class NativeBattleStaticMeshContext88
                     }
                     return projected[corner];
                 }
-                NativeBattleModuleMeshContext packetContext = new(flags, rgb, flags == 0xF3 ? unchecked((int)Dword(context, 12)) : null, null, null, 0, 17, 2);
+                NativeBattleModuleMeshContext packetContext = new(flags, rgb, flags is 0xF3 or 0xF0 ? unchecked((int)Dword(context, 12)) : null, null, null, 0, 17, 2);
                 NativeBattleGfGeometryAttempt attempt = NativeBattleModulePackets.EmitFace572200(face, new Corners(projected.Length, ReadCorner), group, packetContext, constants, allocated);
                 if (attempt.Primitive is not null)
                 {
                     uint depth = registers.Geometry.Otz!.Value;
                     context = Put(context, 0x2C, depth);
-                    if (flags == 0xF3)
+                    if (flags is 0xF3 or 0xF0)
                     {
                         uint cue = Dword(context, 12);
                         if (gouraud)
                         {
-                            registers = NativeBattleGouraudMeshRegisters.Shade(registers, face, quad, false, flags, cue, far, constants);
+                            registers = NativeBattleGouraudMeshRegisters.Shade(registers, face, quad, group >= 6, flags, cue, far, constants);
                         }
                         else
                         {

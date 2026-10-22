@@ -55,8 +55,14 @@ public static class NativeBattleDoom8ResourcesReader
         NativeBattleEffectOwnedModelResource model = new(0x1636CE8, modelBytes, pose, geometry);
         NativeBattleDoom8Resources result = new(mainTim, new("FF8_EN:16358D8", memory.Read(0x16358D8, 4908).ToImmutableArray()), files,
             [new("FF8_EN:181CFAC", memory.Read(0x181CFAC, 33824).ToImmutableArray()), new("FF8_EN:18253CC", memory.Read(0x18253CC, 16928).ToImmutableArray())],
-            new("FF8_EN:1636C78", memory.Read(0x1636C78, 112).ToImmutableArray()), BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0x1634F24, 4)), new(memory.Read(0x1818B78, 17460).ToImmutableArray()) { ResourceAddress = 0x1818B78 }, model);
+            new("FF8_EN:1636C78", memory.Read(0x1636C78, 112).ToImmutableArray()), BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0x1634F24, 4)), new(memory.Read(0x1818B78, 17460).ToImmutableArray()) { ResourceAddress = 0x1818B78 }, model)
+        {
+            DustSprite = new(0, 0x1634F28, 0x8CD770, 0x8CD890, NativeBattleEffectStaticResourcesReader.ReadProjectedSprite(memory, 0x1634F28)),
+            SmokeMesh = NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0x16350F0)
+        };
         result.Validate();
+        _ = result.RequireDustSprite();
+        _ = result.RequireSmokeMesh();
         ValidateNodeResources(memory, result.NodeSource);
         ValidateTim(result.MainTim.Data, 320, 240, 256, 8, 384, 256, 320, 256);
         ValidateTim(result.DirectorTims[0].Data, 320, 224, 256, 2, 832, 256, 64, 256);

@@ -1,6 +1,9 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDoom8Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random, NativeBattleDoom8State State);
+public sealed record NativeBattleDoom8Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random, NativeBattleDoom8State State)
+{
+    public NativeBattleFileStaging? Staging { get; init; }
+}
 public sealed record NativeBattleDoom8Step(NativeBattleDoom8Frame Frame, int Result);
 public abstract record NativeBattleDoom8Operation;
 public sealed record NativeBattleDoom8UploadTim(uint Address) : NativeBattleDoom8Operation;

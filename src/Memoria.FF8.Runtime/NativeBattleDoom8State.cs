@@ -9,6 +9,12 @@ public sealed record NativeBattleDoom8State([property: JsonRequired] NativeBattl
     [JsonRequired]
     public NativeBattleCuragaExecutableState? NodeProgram { get; init; }
 
+    [JsonRequired]
+    public ImmutableArray<NativeBattleEffectOwnedModelState>? Models { get; init; }
+
+    [JsonRequired]
+    public bool? ReaperSourceLoaded { get; init; }
+
     public const uint BaseAddress = 0x2758500;
     public const int GlobalLength = 0x767C;
     public const uint SharedAddress = 0x275F240;
@@ -30,7 +36,7 @@ public sealed record NativeBattleDoom8State([property: JsonRequired] NativeBattl
 
     public static NativeBattleDoom8State FromColdProcess(ImmutableArray<byte> script)
     {
-        NativeBattleDoom8State state = new(NativeBattleEffectArena.Clear(), script) { NodeProgram = new(0, null) { ResourceAddress = 0x1818B78 } };
+        NativeBattleDoom8State state = new(NativeBattleEffectArena.Clear(), script) { NodeProgram = new(0, null) { ResourceAddress = 0x1818B78 }, Models = [], ReaperSourceLoaded = false };
         state.Validate();
         return state;
     }
@@ -44,6 +50,10 @@ public sealed record NativeBattleDoom8State([property: JsonRequired] NativeBattl
     {
         ArgumentNullException.ThrowIfNull(Globals);
         Globals.Validate();
+        if (Models is { } models && (models.IsDefault || models.Any(model => model is null || model.TaskAddress == 0 || model.ResourceAddress == 0) || models.Select(model => model.TaskAddress).Distinct().Count() != models.Length))
+        {
+            throw new InvalidDataException("Doom requires distinct addressed effect model owners.");
+        }
         if (IoScript is { } script && (script.IsDefault || script.Length != NativeBattleDoom8Io.ScriptLength))
         {
             throw new InvalidDataException("Doom requires its complete retained IO script.");

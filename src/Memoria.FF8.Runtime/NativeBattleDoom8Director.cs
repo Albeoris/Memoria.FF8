@@ -113,9 +113,9 @@ public static class NativeBattleDoom8Director
         return frame with { State = state };
     }
 
-    private static bool Reached(NativeBattleDoom8Frame frame, short mode) => unchecked((short)frame.State.SharedWord(0x40)) >= mode;
+    internal static bool Reached(NativeBattleDoom8Frame frame, short mode) => unchecked((short)frame.State.SharedWord(0x40)) >= mode;
 
-    private static bool TryRequest(NativeBattleDoom8State state, short mode, out NativeBattleDoom8State result)
+    internal static bool TryRequest(NativeBattleDoom8State state, short mode, out NativeBattleDoom8State result)
     {
         ushort requested = state.SharedWord(0x44);
         bool success = requested == state.SharedWord(0x40) && unchecked((short)requested) == mode - 1;

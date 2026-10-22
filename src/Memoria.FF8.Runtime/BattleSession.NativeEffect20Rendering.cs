@@ -101,10 +101,6 @@ public sealed partial class BattleSession
             {
                 return;
             }
-            if (inputs.Fade7 != 0)
-            {
-                throw new NotSupportedException("Effect20 body requires the native secondary-color packet branch for a nonzero retained secondary color.");
-            }
             var cpu = NativeModelCpuResources ?? throw new NotSupportedException("Effect20 body requires its actual CPU resource bank.");
             NativeBattleResourcePointer pointer = GeometryPointer();
             uint physical = pointer.Cpu is { } cpuPointer ? cpuPointer.PhysicalAddress : pointer.StagingAddress ?? throw new NotSupportedException("Effect20 body requires its physical model source.");

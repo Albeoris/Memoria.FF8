@@ -173,6 +173,7 @@ public sealed partial record NativeBattleEffectMemory([property: JsonRequired] N
         ScriptedEffects?.Validate();
         ScriptedGraphics?.Validate();
         ScriptedLighting?.Validate();
+        ValidateEffectLight1D99AB0();
         ScriptedColorRegisters?.Validate();
         Bio22Geometry?.ValidateForAddress(0x1615CE4);
         Bio22SecondaryGeometry?.ValidateForAddress(0x1617E3C);

@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
@@ -28,7 +28,7 @@ public sealed class NativeBattleDeathResourcesTests
         packets = packets.WritePlayerRepeatMode(0, 1);
         (packets, _) = packets.Publish(1);
         NativeBattleOriginalEffectState effect = new(14, 13, new(14, 0x8B68C0, 0x8B68A0), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(0x273AE80, 0)] };
-        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(13);
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(13) with { EffectLight1D99AB0 = new byte[32].ToImmutableArray(), EffectLightKnown1D99AB0 = new bool[32].ToImmutableArray() };
         Assert.Throws<NotSupportedException>(() => NativeBattleDeathController.Initialize(memory with { Death14 = null }, effect, packets, resources, new(1)));
         NativeBattleDeathFrame frame = NativeBattleDeathController.Initialize(memory, effect, packets, resources, new(1));
         NativeBattleCameraProjection projection = new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 4096, 4096), 216, 160, 108);
@@ -98,6 +98,8 @@ public sealed class NativeBattleDeathResourcesTests
         Assert.Equal(0u, frame.Effect.ReturnedDescriptor);
         Assert.All(frame.Effect.Pools, pool => Assert.Null(pool.Head));
         Assert.Equal(32, frame.Memory.EffectLight1D99AB0!.Value.Length);
+        Assert.Null(frame.Memory.EffectLightKnown1D99AB0);
+        Assert.All(frame.Memory.CaptureEffectLight1D99AB0().Known, known => Assert.True(known));
         Assert.Equal(!immune, frame.Effect.Pools[6].Slots.Any(task => task.Callback == 0x8BDBD0));
 
         NativeBattleDeathModelStep Draw(NativeBattleDeathFrame current, NativeBattleModulePoolTask task, NativeBattleEffectOwnedModelState model)

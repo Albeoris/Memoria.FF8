@@ -22,6 +22,19 @@ public sealed class NativeBattleDoom8ResourcesTests
         Assert.Equal(new[] { 33824, 16928 }, resources.DirectorTims.Select(tim => tim.Data.Length));
         Assert.Equal(0x494A2u, resources.DirectorSound);
         Assert.Equal(112, resources.InitialIoScript.Data.Length);
+        NativeBattleModuleResource dust = resources.RequireDustSprite();
+        Assert.Equal(456, dust.Bytes.Length);
+        Assert.Equal((ushort)17, BinaryPrimitives.ReadUInt16LittleEndian(dust.Bytes.AsSpan().Slice(8)));
+        for (int frame = 0; frame < 17; frame++)
+        {
+            int offset = BinaryPrimitives.ReadUInt16LittleEndian(dust.Bytes.AsSpan().Slice(10 + frame * 2));
+            Assert.Equal(48 + frame * 24, offset);
+            Assert.Equal(1u, BinaryPrimitives.ReadUInt32LittleEndian(dust.Bytes.AsSpan().Slice(offset)));
+            _ = dust.ProjectedFrame571C80(frame);
+        }
+        NativeBattleStaticMeshResource smoke = resources.RequireSmokeMesh();
+        Assert.Equal(2024, smoke.Bytes.Length);
+        Assert.Equal(0x16350F0u, smoke.Address);
         for (int index = 0; index < 7; index++)
         {
             Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(resources.InitialIoScript.Data.AsSpan().Slice(index * 16 + 12)));
@@ -149,6 +162,43 @@ public sealed class NativeBattleDoom8ResourcesTests
         Assert.Equal(JsonSerializer.Serialize(materialized), JsonSerializer.Serialize(continued));
         Assert.Null(NativeBattleDoom8State.FromUnknown().NodeProgram);
         Assert.Throws<InvalidDataException>(() => (state with { NodeProgram = NativeBattleCuragaExecutableState.FromColdProcess() }).Validate());
+    }
+
+    [Fact]
+    public void Reaper_model_owner_keeps_every_original_animation_identical_across_cold_continuation()
+    {
+        using GameAssets game = OpenGame();
+        NativeBattleDoom8Resources resources = game.ReadNativeDoom8Resources();
+        NativeBattleEffectHierarchy hierarchy = new(NativeBattleDoom8State.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
+        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(8, NativeBattleDoom8Reaper.Callback, 320);
+        NativeBattleOriginalEffectState effect = new(8, 8, new(8, NativeBattleDoom8Controller.Entry, 0x8C4960), null, null) { Pools = appended.Hierarchy.Pools };
+        NativeBattleDoom8Frame initial = new(NativeBattleEffectMemory.FromColdProcess(), effect, new(1), NativeBattleDoom8State.FromColdProcess(resources.InitialIoScript.Data)) { Staging = NativeBattleFileStaging.Unknown() };
+        Assert.Throws<NotSupportedException>(() => NativeBattleDoom8Models.Read(initial, appended.Address));
+        NativeBattleDoom8Frame initialized = NativeBattleDoom8Models.Initialize(initial, appended.Address, resources.ReaperModel, 3, 0x123456);
+        Assert.Null(NativeBattleDoom8Models.Read(initialized, appended.Address).DecodedPose);
+        Assert.Equal(resources.ReaperModel.Bytes.ToArray(), initialized.Staging!.Read(resources.ReaperModel.Address, resources.ReaperModel.Bytes.Length));
+        Assert.Equal(0x123456u, NativeBattleDoom8Controller.Read(initialized, appended.Address).ReadDword(0x5C));
+        ImmutableArray<byte> counts = NativeBattlePoseDecoder.ReadFrameCounts(resources.ReaperModel.PoseSource.Animations.AsSpan());
+        for (short animation = 0; animation < counts.Length; animation++)
+        {
+            NativeBattleDoom8Frame frame = NativeBattleDoom8Models.Select(initialized, appended.Address, resources.ReaperModel, animation);
+            for (int tick = 0; tick < counts[animation] + 1; tick++)
+            {
+                NativeBattleDoom8Frame cold = JsonSerializer.Deserialize<NativeBattleDoom8Frame>(JsonSerializer.Serialize(frame))!;
+                cold.State.Validate();
+                NativeBattleDoom8Step warm = NativeBattleDoom8Models.Advance(frame, appended.Address, resources.ReaperModel, true);
+                NativeBattleDoom8Step resumed = NativeBattleDoom8Models.Advance(cold, appended.Address, resources.ReaperModel, true);
+                Assert.Equal(JsonSerializer.Serialize(warm), JsonSerializer.Serialize(resumed));
+                Assert.Single(warm.Frame.State.Models!.Value);
+                frame = warm.Frame;
+            }
+        }
+        NativeBattleDoom8Frame mutated = initialized with { Staging = initialized.Staging!.Write(resources.ReaperModel.Address + 0x18, new byte[] { 0xAB, 0xCD }) };
+        NativeBattleDoom8Frame replaced = NativeBattleDoom8Models.Initialize(mutated, appended.Address, resources.ReaperModel, 3, 0x654321);
+        Assert.Equal(new byte[] { 0xAB, 0xCD }, replaced.Staging!.Read(resources.ReaperModel.Address + 0x18, 2));
+        Assert.Single(replaced.State.Models!.Value);
+        Assert.Throws<NotSupportedException>(() => NativeBattleDoom8Models.Initialize(initial with { State = NativeBattleDoom8State.FromUnknown() }, appended.Address, resources.ReaperModel, 3, 0));
+        Assert.Throws<InvalidDataException>(() => (initialized.State with { Models = [NativeBattleDoom8Models.Read(initialized, appended.Address), NativeBattleDoom8Models.Read(initialized, appended.Address)] }).Validate());
     }
 
     private static GameAssets OpenGame()

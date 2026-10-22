@@ -5,6 +5,39 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleDoom8Resources(NativeBattleEffectInitializerAsset MainTim, NativeBattleEffectHeapAllocation Camera, ImmutableArray<NativeBattleEffectFileAsset> Files, ImmutableArray<NativeBattleEffectHeapAllocation> DirectorTims, NativeBattleEffectHeapAllocation InitialIoScript, uint DirectorSound, NativeBattleCuragaExecutableSource NodeSource, NativeBattleEffectOwnedModelResource ReaperModel)
 {
+    public NativeBattleModuleResource? DustSprite { get; init; }
+    public NativeBattleStaticMeshResource? SmokeMesh { get; init; }
+
+    public NativeBattleModuleResource RequireDustSprite()
+    {
+        NativeBattleModuleResource sprite = DustSprite ?? throw new NotSupportedException("Doom dust requires its original sprite resource.");
+        if (sprite.Address != 0x1634F28 || sprite.Bytes.IsDefault || sprite.Bytes.Length != 456 || BinaryPrimitives.ReadUInt16LittleEndian(sprite.Bytes.AsSpan().Slice(8)) != 17)
+        {
+            throw new InvalidDataException("Doom dust requires all seventeen original sprite frames.");
+        }
+        return sprite;
+    }
+
+    public NativeBattleStaticMeshResource RequireSmokeMesh()
+    {
+        NativeBattleStaticMeshResource mesh = SmokeMesh ?? throw new NotSupportedException("Doom smoke requires its original mesh resource.");
+        if (mesh.Address != 0x16350F0 || mesh.Bytes.IsDefault || mesh.Bytes.Length != 2024 || BinaryPrimitives.ReadUInt32LittleEndian(mesh.Bytes.AsSpan()) != 480 || BinaryPrimitives.ReadUInt32LittleEndian(mesh.Bytes.AsSpan().Slice(4)) != 59)
+        {
+            throw new InvalidDataException("Doom smoke requires its complete original mesh.");
+        }
+        int cursor = 480;
+        for (int group = 0; group < 8; group++)
+        {
+            int count = BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan().Slice(cursor));
+            if (count != (group == 7 ? 42 : 0))
+            {
+                throw new InvalidDataException("Doom smoke requires its forty-two original textured Gouraud quads.");
+            }
+            cursor = checked(cursor + 4 + count * 36);
+        }
+        return mesh;
+    }
+
     public NativeBattleEffectFileAsset File(short id)
     {
         return Files.Single(file => file.FileId == id);

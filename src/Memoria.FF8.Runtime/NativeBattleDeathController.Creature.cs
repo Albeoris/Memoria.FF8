@@ -99,7 +99,7 @@ public static partial class NativeBattleDeathController
                     throw new NotSupportedException("Native Death reaper reached an unproved state.");
             }
             byte[] light = task.Payload.AsSpan().Slice(0x70 - 12, 32).ToArray();
-            current = current with { Memory = current.Memory with { EffectLight1D99AB0 = light.ToImmutableArray() } };
+            current = current with { Memory = current.Memory with { EffectLight1D99AB0 = light.ToImmutableArray(), EffectLightKnown1D99AB0 = null } };
             task = task.WriteDword(0x84, unchecked((uint)S(task, 0x4C))).WriteDword(0x88, unchecked((uint)S(task, 0x4E))).WriteDword(0x8C, unchecked((uint)S(task, 0x50)));
             Store(address, task);
             SetState(State with { Models = State.Models.Select(value => value.TaskAddress == address ? model : value).ToImmutableArray() });
