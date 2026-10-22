@@ -270,6 +270,7 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
     public NativeBattleEffect101Resources? Effect101Resources { get; init; }
     public NativeBattleEnergyBomber217Resources? EnergyBomber217Resources { get; init; }
     public NativeBattleMeltEye158Resources? MeltEye158Resources { get; init; }
+    public NativeBattleOilBlast137Resources? OilBlast137Resources { get; init; }
     public NativeBattleElectrocute275Resources? Electrocute275Resources { get; init; }
     public NativeBattleUltraWaves184Resources? UltraWaves184Resources { get; init; }
     public NativeBattleRayBomb307Resources? RayBomb307Resources { get; init; }

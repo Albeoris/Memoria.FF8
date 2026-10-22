@@ -102,6 +102,10 @@ public sealed partial class BattleSession
         {
             return RunNativeEnergyBomber217(graphics, true);
         }
+        if (effect.Binding.Entry == NativeBattleOilBlast137Profile.Entry)
+        {
+            return RunNativeOilBlast137(graphics, true);
+        }
         if (effect.Binding.Entry == NativeBattleMeltEye158Profile.Entry)
         {
             return RunNativeMeltEye158(graphics, true);

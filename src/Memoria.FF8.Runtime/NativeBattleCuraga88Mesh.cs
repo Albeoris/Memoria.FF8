@@ -50,6 +50,7 @@ public static class NativeBattleCuraga88Mesh
         registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, matrix, true, true, matrixPadding18) };
         (byte[] farBytes, bool[] farKnown) = context88.ReadSnapshot(8, 3);
         farControls = farControls with { FarRed = Lane(0), FarGreen = Lane(1), FarBlue = Lane(2) };
+        uint? packedFarColor = farKnown.All(value => value) ? (uint)(farBytes[0] | farBytes[1] << 8 | farBytes[2] << 16) : null;
         uint? Lane(int lane) => farKnown[lane] ? (uint)farBytes[lane] << 4 : null;
         if ((flags & 0x1000) == 0)
         {
@@ -66,15 +67,11 @@ public static class NativeBattleCuraga88Mesh
             {
                 continue;
             }
-            if (group == 6)
-            {
-                throw new NotSupportedException("Native Curaga mesh resources require a proved stateful polygon leaf.");
-            }
             bool quad = (group & 1) != 0;
             uint fadeFlag = group <= 3 ? 0x40u : 0x80u;
-            bool textured = group is 2 or 3 or 7;
-            NativeBattleCuragaMeshContext packetContext = new(flags, (flags & fadeFlag) != 0 ? ReadDword(context88, 8) : null, (flags & fadeFlag) != 0 ? unchecked((int)ReadDword(context88, 12)) : null, textured && (flags & 0x500) != 0 ? ReadWord(context88, 0x10) : null, textured && (flags & 0xA00) != 0 ? ReadWord(context88, 0x14) : null, textured && (flags & 0x1000) != 0 ? ReadDword(context88, 0x18) : null, 17, 2);
-            int faceBytes = group switch { 0 or 1 => 12, 2 or 4 => 20, 7 => 36, _ => 24 };
+            bool textured = group is 2 or 3 or 6 or 7;
+            NativeBattleCuragaMeshContext packetContext = new(flags, (flags & fadeFlag) != 0 ? packedFarColor : null, (flags & fadeFlag) != 0 ? unchecked((int)ReadDword(context88, 12)) : null, textured && (flags & 0x500) != 0 ? ReadWord(context88, 0x10) : null, textured && (flags & 0xA00) != 0 ? ReadWord(context88, 0x14) : null, textured && (flags & 0x1000) != 0 ? ReadDword(context88, 0x18) : null, 17, 2);
+            int faceBytes = group switch { 0 or 1 => 12, 2 or 4 => 20, 6 => 28, 7 => 36, _ => 24 };
             for (int faceIndex = 0; faceIndex < count; faceIndex++)
             {
                 byte[] face = Read(cursor, faceBytes).ToArray();
@@ -122,6 +119,7 @@ public static class NativeBattleCuraga88Mesh
                     3 => NativeBattleCuragaMeshPackets.EmitFt4_87F6C0(face, ReadCorner, packetContext, constants, allocated),
                     4 => NativeBattleCuragaMeshPackets.EmitG3_87F960(face, ReadCorner, packetContext, constants, allocated),
                     5 => NativeBattleCuragaMeshPackets.EmitG4_87FB90(face, ReadCorner, packetContext, constants, allocated),
+                    6 => NativeBattleEffectMeshPackets.EmitTextured(face, ReadCorner, false, true, new(flags, packetContext.FarColor, packetContext.Fade, packetContext.TexturePage, packetContext.Clut, packetContext.UvOffset ?? 0, true, null, packetContext.TableBaseBucket, packetContext.DepthShift), constants, allocated),
                     7 => NativeBattleCuragaMeshPackets.EmitGt4_8800B0(face, ReadCorner, packetContext, constants, allocated),
                     _ => throw new InvalidDataException("The actor mesh group was not admitted.")
                 };
@@ -148,7 +146,7 @@ public static class NativeBattleCuraga88Mesh
                         }
                         else
                         {
-                            registers = NativeBattleGouraudMeshRegisters.Shade(registers, face, quad, group == 7, flags, ReadDword(context88, 12), farControls, constants);
+                            registers = NativeBattleGouraudMeshRegisters.Shade(registers, face, quad, group is 6 or 7, flags, ReadDword(context88, 12), farControls, constants);
                         }
                     }
                     foreach (NativeBattleGfGeometryAttempt attempt in faceBatch.Attempts)
