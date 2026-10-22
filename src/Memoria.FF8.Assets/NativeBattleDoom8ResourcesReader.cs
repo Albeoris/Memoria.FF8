@@ -57,12 +57,20 @@ public static class NativeBattleDoom8ResourcesReader
             [new("FF8_EN:181CFAC", memory.Read(0x181CFAC, 33824).ToImmutableArray()), new("FF8_EN:18253CC", memory.Read(0x18253CC, 16928).ToImmutableArray())],
             new("FF8_EN:1636C78", memory.Read(0x1636C78, 112).ToImmutableArray()), BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0x1634F24, 4)), new(memory.Read(0x1818B78, 17460).ToImmutableArray()) { ResourceAddress = 0x1818B78 }, model)
         {
+            StripTables = ReadStripTables(memory),
+            PlacementSelectors = ReadWords(memory, 0x1636C34, 5),
+            OverlayColors = Enumerable.Range(0, 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0x163ACB4u + (uint)index * 4, 4))).ToImmutableArray(),
+            ColdTargetPointer = BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0x1636C04, 4)),
             DustSprite = new(0, 0x1634F28, 0x8CD770, 0x8CD890, NativeBattleEffectStaticResourcesReader.ReadProjectedSprite(memory, 0x1634F28)),
             SmokeMesh = NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0x16350F0)
         };
         result.Validate();
         _ = result.RequireDustSprite();
         _ = result.RequireSmokeMesh();
+        _ = result.RequireStripTables();
+        _ = result.RequirePlacementSelectors();
+        _ = result.RequireOverlayColors();
+        _ = result.RequireColdTargetPointer();
         ValidateNodeResources(memory, result.NodeSource);
         ValidateTim(result.MainTim.Data, 320, 240, 256, 8, 384, 256, 320, 256);
         ValidateTim(result.DirectorTims[0].Data, 320, 224, 256, 2, 832, 256, 64, 256);
@@ -73,6 +81,18 @@ public static class NativeBattleDoom8ResourcesReader
         ValidateAct(files[1], 2, 2760, 3, 10, 140);
         ValidateAct(files[2], 5, 7632, 14, 30, 944);
         return result;
+    }
+
+    private static NativeBattleDoom8StripTables ReadStripTables(NativeExecutableMemory memory)
+    {
+        ImmutableArray<short> ranges = ReadWords(memory, 0x1636C40, 28);
+        return new(ReadWords(memory, 0x1636C08, 4), ReadWords(memory, 0x1636C10, 18), Enumerable.Range(0, 14).Select(index => new NativeBattleDoom8StripRange(ranges[index * 2], ranges[index * 2 + 1])).ToImmutableArray());
+    }
+
+    private static ImmutableArray<short> ReadWords(NativeExecutableMemory memory, uint address, int count)
+    {
+        byte[] bytes = memory.Read(address, checked(count * 2));
+        return Enumerable.Range(0, count).Select(index => BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(index * 2))).ToImmutableArray();
     }
 
     private static void ValidateNodeResources(NativeExecutableMemory memory, NativeBattleCuragaExecutableSource source)

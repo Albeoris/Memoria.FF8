@@ -1,10 +1,57 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleDoom8Resources(NativeBattleEffectInitializerAsset MainTim, NativeBattleEffectHeapAllocation Camera, ImmutableArray<NativeBattleEffectFileAsset> Files, ImmutableArray<NativeBattleEffectHeapAllocation> DirectorTims, NativeBattleEffectHeapAllocation InitialIoScript, uint DirectorSound, NativeBattleCuragaExecutableSource NodeSource, NativeBattleEffectOwnedModelResource ReaperModel)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleDoom8StripTables? StripTables { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<short>? PlacementSelectors { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<uint>? OverlayColors { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public uint? ColdTargetPointer { get; init; }
+
+    public NativeBattleDoom8StripTables RequireStripTables()
+    {
+        NativeBattleDoom8StripTables tables = StripTables ?? throw new NotSupportedException("Doom strips require their original placement and drawing tables.");
+        tables.Validate();
+        return tables;
+    }
+
+    public ImmutableArray<short> RequirePlacementSelectors()
+    {
+        ImmutableArray<short> selectors = PlacementSelectors ?? throw new NotSupportedException("Doom ACT placement requires its original selector table.");
+        if (selectors.IsDefault || selectors.Length != 5 || selectors[^1] != 127 || selectors.Take(selectors.Length - 1).Any(selector => selector is < 0 or > 17))
+        {
+            throw new InvalidDataException("Doom ACT placement requires its complete terminated row selectors.");
+        }
+        return selectors;
+    }
+
+    public ImmutableArray<uint> RequireOverlayColors()
+    {
+        ImmutableArray<uint> colors = OverlayColors ?? throw new NotSupportedException("Doom overlay requires its original color programme.");
+        if (colors.IsDefault || colors.Length != 4)
+        {
+            throw new InvalidDataException("Doom overlay requires its complete four-word color programme.");
+        }
+        return colors;
+    }
+
+    public uint RequireColdTargetPointer()
+    {
+        uint pointer = ColdTargetPointer ?? throw new NotSupportedException("Doom strips require their original cold target pointer.");
+        if (pointer != NativeBattleDoom8Strips.TargetAddress)
+        {
+            throw new InvalidDataException("Doom cold target pointer does not identify its retained target allocation.");
+        }
+        return pointer;
+    }
+
     public NativeBattleModuleResource? DustSprite { get; init; }
     public NativeBattleStaticMeshResource? SmokeMesh { get; init; }
 
@@ -54,6 +101,22 @@ public sealed record NativeBattleDoom8Resources(NativeBattleEffectInitializerAss
 
     public void Validate()
     {
+        if (StripTables is not null)
+        {
+            _ = RequireStripTables();
+        }
+        if (PlacementSelectors is not null)
+        {
+            _ = RequirePlacementSelectors();
+        }
+        if (OverlayColors is not null)
+        {
+            _ = RequireOverlayColors();
+        }
+        if (ColdTargetPointer is not null)
+        {
+            _ = RequireColdTargetPointer();
+        }
         if (MainTim is null || !string.Equals(MainTim.Name, "mag007.tim", StringComparison.OrdinalIgnoreCase) || MainTim.Data.IsDefault || MainTim.Data.Length != 167968 || Camera is null || Camera.Identity != "FF8_EN:16358D8" || Camera.Data.IsDefault || Camera.Data.Length != 4908 || InitialIoScript is null || InitialIoScript.Identity != "FF8_EN:1636C78" || InitialIoScript.Data.IsDefault || InitialIoScript.Data.Length != 112)
         {
             throw new InvalidDataException("Doom requires its complete original initializer, camera and cold IO script.");

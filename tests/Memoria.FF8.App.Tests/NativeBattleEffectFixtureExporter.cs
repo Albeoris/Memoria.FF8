@@ -71,9 +71,9 @@ internal static class NativeBattleEffectFixtureExporter
         {
             throw new InvalidDataException("The fresh component requires an explicit original party model index.");
         }
-        if (request.EncounterId is < 0 or >= 1024 || request.CasterActorIndex is not (0 or 3) || request.CasterActorIndex != 0 && (request.OrdinaryMagicAdmission || request.DeferredGuardianFormulaAdmission || request.RevivalContact))
+        if (request.EncounterId is < 0 or >= 1024 || request.CasterActorIndex is not (0 or >= 3 and <= 6) || request.CasterActorIndex >= 4 && !request.PreserveOriginalFormationEnemies || request.CasterActorIndex != 0 && (request.OrdinaryMagicAdmission || request.DeferredGuardianFormulaAdmission || request.RevivalContact))
         {
-            throw new InvalidDataException("The fresh component requires an original formation and party0/enemy3 caster; ordinary, guardian and revival producers retain their party caster.");
+            throw new InvalidDataException("The fresh component requires an original formation and party0 or original enemy3..6 caster; rows4..6 require the preserved original formation, and ordinary, guardian and revival producers retain their party caster.");
         }
     }
 
@@ -94,6 +94,21 @@ internal static class NativeBattleEffectFixtureExporter
     internal static BattleEnemyPlacement SelectEnemy(BattleEncounter formation, bool preserveOriginalFormationEnemies = false)
     {
         return SelectEnemies(formation, preserveOriginalFormationEnemies)[0];
+    }
+
+    internal static BattleEnemyPlacement SelectCasterEnemy(BattleEncounter formation, NativeEffectFixtureRequest request)
+    {
+        if (request.CasterActorIndex is < 3 or > 6 || request.CasterActorIndex >= 4 && !request.PreserveOriginalFormationEnemies)
+        {
+            throw new InvalidDataException("An enemy caster requires its supported original physical formation row.");
+        }
+        BattleEnemyPlacement[] enemies = SelectEnemies(formation, request.PreserveOriginalFormationEnemies);
+        if (!request.PreserveOriginalFormationEnemies)
+        {
+            return enemies[0];
+        }
+        BattleEnemyPlacement[] matches = enemies.Where(enemy => enemy.Slot == request.CasterActorIndex - 3).ToArray();
+        return matches.Length == 1 ? matches[0] : throw new InvalidDataException("The selected physical caster row has no enabled original formation placement.");
     }
 
     internal static byte SelectEnemySequence(NativeBattleAiDefinition ai, BattleNativeAction action)
@@ -341,8 +356,22 @@ internal static class NativeBattleEffectFixtureExporter
             }
             before = before with { Combatants = before.Combatants.Select(actor => actor.Id == target.Id ? target : actor).ToArray() };
             NativeBattleActionPacketsState packets = battle.NativeActionPackets;
-            byte sequence = request.CasterActorIndex == 3 ? SelectEnemySequence(assets.ReadEnemyAi(enemyPlacement.ModelId, enemyPlacement.Level), native) : SelectSequence(definition.NativeCommandSequences, native.Command, native.ActionId);
-            _ = before.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.CasterActorIndex);
+            BattleCombatantSnapshot selectedCaster = before.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.CasterActorIndex);
+            byte sequence;
+            if (request.CasterActorIndex >= 3)
+            {
+                BattleEnemyPlacement selectedEnemy = SelectCasterEnemy(formation, request);
+                BattleCombatantDefinition selectedDefinition = definition.Combatants.Single(actor => actor.Id == selectedCaster.Id);
+                if (selectedDefinition.IsPlayer || selectedDefinition.ModelId != selectedEnemy.ModelId || selectedDefinition.SceneSlot != selectedEnemy.Slot || before.NativeGraphics!.Models[request.CasterActorIndex].ModelId4 != selectedEnemy.NativeModelId)
+                {
+                    throw new InvalidDataException("The selected enemy caster's physical row contradicts its original formation model owner.");
+                }
+                sequence = SelectEnemySequence(assets.ReadEnemyAi(selectedEnemy.ModelId, selectedEnemy.Level), native);
+            }
+            else
+            {
+                sequence = SelectSequence(definition.NativeCommandSequences, native.Command, native.ActionId);
+            }
             (packets, int header) = packets.Prepare(new(request.CasterActorIndex, native.Command, sequence, -1, native.ActionId, SelectHeaderEffect(native, request), null));
             // Deferred guardian admission replaces this placeholder through the actual Boost/formula callback.
             // Other component scenarios supply their declared post-formula contact.

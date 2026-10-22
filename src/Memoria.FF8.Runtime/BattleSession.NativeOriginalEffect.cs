@@ -70,6 +70,10 @@ public sealed partial class BattleSession
         {
             return EnterNativeSleep145(graphics);
         }
+        if (effect.Binding.Entry == NativeBattleDoom8Controller.Entry)
+        {
+            return EnterNativeDoom8(graphics);
+        }
         if (effect.Binding.Entry == 0x8B68C0)
         {
             return EnterNativeDeath(graphics);

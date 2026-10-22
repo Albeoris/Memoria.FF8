@@ -138,6 +138,18 @@ public static partial class NativeBattlePoseMatrices
 {
     public static NativeBattleVector ReadEffectOwnedBone(NativeBattlePoseSource source, NativeBattleDecodedPose pose, NativeBattleActionMatrix world, byte selector, short fraction = 0)
     {
+        (Matrix selected, int distance) = ResolveEffectOwnedBone(source, pose, world, selector, fraction);
+        return new(unchecked((short)(selected.X + ((long)selected.Rotation[2] * distance >> 12))), unchecked((short)(selected.Y + ((long)selected.Rotation[5] * distance >> 12))), unchecked((short)(selected.Z + ((long)selected.Rotation[8] * distance >> 12))));
+    }
+
+    public static NativeBattleBoneAnchorProducer ResolveEffectOwnedBoneAnchor502170(NativeBattlePoseSource source, NativeBattleDecodedPose pose, NativeBattleActionMatrix world, byte selector, short fraction = 0)
+    {
+        (Matrix selected, int distance) = ResolveEffectOwnedBone(source, pose, world, selector, fraction);
+        return new(new(selected.Rotation.ToImmutableArray(), selected.X, selected.Y, selected.Z, 4096), unchecked((short)distance), default);
+    }
+
+    private static (Matrix Matrix, int Distance) ResolveEffectOwnedBone(NativeBattlePoseSource source, NativeBattleDecodedPose pose, NativeBattleActionMatrix world, byte selector, short fraction)
+    {
         source.Validate();
         world.Validate();
         if (pose.Bones.IsDefault || pose.Bones.Length != source.BoneCount)
@@ -167,7 +179,7 @@ public static partial class NativeBattlePoseMatrices
         Matrix selected = Compose(new(world.Rotation.ToArray(), world.X, world.Y, world.Z), bones[bone]);
         short parent = ReadWord(source.Skeleton, 16 + bone * 48);
         int distance = parent < 0 ? 0 : fraction * ReadWord(source.Skeleton, 18 + bone * 48) >> 12;
-        return new(unchecked((short)(selected.X + ((long)selected.Rotation[2] * distance >> 12))), unchecked((short)(selected.Y + ((long)selected.Rotation[5] * distance >> 12))), unchecked((short)(selected.Z + ((long)selected.Rotation[8] * distance >> 12))));
+        return (selected, distance);
     }
 
     public static ImmutableArray<NativeBattleActionMatrix> EffectOwnedGeometryMatrices(NativeBattlePoseSource source, NativeBattleDecodedPose pose, NativeBattleActionMatrix world, NativeBattleActionMatrix view)

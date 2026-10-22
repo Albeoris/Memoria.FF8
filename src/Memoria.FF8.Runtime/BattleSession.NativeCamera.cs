@@ -116,6 +116,10 @@ public sealed partial class BattleSession
                 {
                     graphics = graphics with { Descriptors = graphics.Descriptors.WriteCompletion501A70(address, value) };
                 }
+                else if (TryWriteNativeDoom8Completion(graphics, address, value, out NativeBattleGraphicsState completedDoom8))
+                {
+                    graphics = completedDoom8;
+                }
                 else if (TryWriteNativeDeathCompletion(graphics, address, value, out NativeBattleGraphicsState completedDeath))
                 {
                     graphics = completedDeath;

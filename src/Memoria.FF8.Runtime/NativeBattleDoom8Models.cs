@@ -30,7 +30,7 @@ public static class NativeBattleDoom8Models
     public static NativeBattleDoom8Frame Select(NativeBattleDoom8Frame frame, uint address, NativeBattleEffectOwnedModelResource resource, short animation)
     {
         NativeBattleEffectOwnedModelStep step = NativeBattleEffectOwnedModel.Select8DD190(NativeBattleDoom8Controller.Read(frame, address), Read(frame, address), resource, animation);
-        return Publish(frame, step);
+        return Publish(frame, step, resource);
     }
 
     public static NativeBattleDoom8Step Advance(NativeBattleDoom8Frame frame, uint address, NativeBattleEffectOwnedModelResource resource, bool loop)
@@ -38,14 +38,16 @@ public static class NativeBattleDoom8Models
         NativeBattleModulePoolTask task = NativeBattleDoom8Controller.Read(frame, address);
         NativeBattleEffectOwnedModelState model = Read(frame, address);
         NativeBattleEffectOwnedModelStep step = loop ? NativeBattleEffectOwnedModel.AdvanceLoop8DD1C0(task, model, resource) : NativeBattleEffectOwnedModel.AdvanceOnce8DD220(task, model, resource);
-        return new(Publish(frame, step), step.Completed ? 1 : 0);
+        return new(Publish(frame, step, resource), step.Completed ? 1 : 0);
     }
 
-    private static NativeBattleDoom8Frame Publish(NativeBattleDoom8Frame frame, NativeBattleEffectOwnedModelStep step)
+    private static NativeBattleDoom8Frame Publish(NativeBattleDoom8Frame frame, NativeBattleEffectOwnedModelStep step, NativeBattleEffectOwnedModelResource resource)
     {
         ImmutableArray<NativeBattleEffectOwnedModelState> models = RequireModels(frame.State);
         frame = NativeBattleDoom8Controller.Write(frame, step.State.TaskAddress, step.Task);
-        return frame with { State = frame.State with { Models = models.Select(model => model.TaskAddress == step.State.TaskAddress ? step.State : model).ToImmutableArray() } };
+        NativeBattleFileStaging staging = frame.Staging ?? throw new NotSupportedException("Doom requires its addressed model source memory.");
+        staging = NativeBattleDoom8ModelDrawing.PublishDecodedPose(staging, step.State, resource);
+        return frame with { Staging = staging, State = frame.State with { Models = models.Select(model => model.TaskAddress == step.State.TaskAddress ? step.State : model).ToImmutableArray() } };
     }
 
     private static ImmutableArray<NativeBattleEffectOwnedModelState> RequireModels(NativeBattleDoom8State state)

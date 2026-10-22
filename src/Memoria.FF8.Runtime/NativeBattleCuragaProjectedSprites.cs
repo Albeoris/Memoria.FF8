@@ -3,6 +3,16 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
+public sealed record NativeBattleCuragaSpriteTriple(ImmutableArray<NativeBattleModuleProjectedVertex> Vertices, uint Flags);
+
+public interface INativeBattleCuragaSpriteGeometry
+{
+    void Begin(NativeBattleActionMatrix source, NativeBattleActionMatrix rolled);
+    NativeBattleCuragaSpriteTriple ProjectQuad(ReadOnlySpan<byte> quad);
+    NativeBattleModuleProjectedVertex ProjectFourth();
+    int AverageDepth();
+}
+
 /// <summary>880450's flags-zero call to 8DD260/8DD3A0, with its current GTE matrix and original frame directory.</summary>
 public static class NativeBattleCuragaProjectedSprites
 {
@@ -12,7 +22,7 @@ public static class NativeBattleCuragaProjectedSprites
         return new(batch.Attempts.Where(attempt => attempt.Primitive is not null).Select(attempt => new NativeBattleAllocatedPrimitive(attempt.Primitive!, attempt.ByteOffsetRelative, 0)).ToImmutableArray(), batch.AllocationBytes);
     }
 
-    public static NativeBattleGfGeometryBatch EmitBatch8DD260(ImmutableArray<byte> resource, ushort phase, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift, short depthBias = 0, Action<NativeBattleActionMatrix>? observeRolledMatrix = null, Action<NativeBattleActionMatrix>? observeQuadMatrix = null)
+    public static NativeBattleGfGeometryBatch EmitBatch8DD260(ImmutableArray<byte> resource, ushort phase, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift, short depthBias = 0, Action<NativeBattleActionMatrix>? observeRolledMatrix = null, Action<NativeBattleActionMatrix>? observeQuadMatrix = null, INativeBattleCuragaSpriteGeometry? geometry = null)
     {
         if (resource.IsDefault || depthShift > 31)
         {
@@ -25,6 +35,7 @@ public static class NativeBattleCuragaProjectedSprites
         short sine = unchecked((short)NativeBattleCameraMath.Sine(angle));
         NativeBattleActionMatrix roll = new([cosine, unchecked((short)-sine), 0, sine, cosine, 0, 0, 0, 4096], 0, 0, 0, 4096);
         NativeBattleActionMatrix main = NativeBattleGfMatrices.Multiply56C090(roll, matrix) with { X = matrix.X, Y = matrix.Y, Z = matrix.Z };
+        geometry?.Begin(matrix, main);
         observeRolledMatrix?.Invoke(main);
         int frame = BinaryPrimitives.ReadUInt16LittleEndian(Read(resource, checked(10 + phase * 2), 2));
         _ = Read(resource, checked(12 + phase * 2), 2); // Context WORD28 reads the next directory entry even though this leaf does not use it.
@@ -41,9 +52,10 @@ public static class NativeBattleCuragaProjectedSprites
             observeQuadMatrix?.Invoke(current);
             short width = (short)(8 * quad[0]);
             short height = (short)(8 * quad[2]);
-            NativeBattleModuleProjectedVertex a = NativeBattleModuleProjection.Project45FE10(current, new(unchecked((short)-width), unchecked((short)-height), 0), projection);
-            NativeBattleModuleProjectedVertex b = NativeBattleModuleProjection.Project45FE10(current, new(width, unchecked((short)-height), 0), projection);
-            NativeBattleModuleProjectedVertex c = NativeBattleModuleProjection.Project45FE10(current, new(unchecked((short)-width), height, 0), projection);
+            NativeBattleCuragaSpriteTriple? observed = geometry?.ProjectQuad(quad);
+            NativeBattleModuleProjectedVertex a = observed is null ? NativeBattleModuleProjection.Project45FE10(current, new(unchecked((short)-width), unchecked((short)-height), 0), projection) : observed.Vertices[0];
+            NativeBattleModuleProjectedVertex b = observed is null ? NativeBattleModuleProjection.Project45FE10(current, new(width, unchecked((short)-height), 0), projection) : observed.Vertices[1];
+            NativeBattleModuleProjectedVertex c = observed is null ? NativeBattleModuleProjection.Project45FE10(current, new(unchecked((short)-width), height, 0), projection) : observed.Vertices[2];
             ushort flags = BinaryPrimitives.ReadUInt16LittleEndian(quad[14..]);
             int selector = flags >> 12;
             if (selector > 3)
@@ -60,7 +72,7 @@ public static class NativeBattleCuragaProjectedSprites
             packet.Byte(28, quad[4]);
             packet.Byte(36, unchecked((byte)Math.Min(quad[0] + quad[4], 255)));
             packet.Word16(14, unchecked((ushort)(BinaryPrimitives.ReadUInt16LittleEndian(quad[6..]) + (palette << 6))));
-            if (((a.Flags | b.Flags | c.Flags) & 0x60000) != 0)
+            if (((observed?.Flags ?? (a.Flags | b.Flags | c.Flags)) & 0x60000) != 0)
             {
                 attempts.Add(packet.Attempt(null));
                 continue;
@@ -69,12 +81,12 @@ public static class NativeBattleCuragaProjectedSprites
             packet.Word(8, a.Screen);
             packet.Word(16, b.Screen);
             packet.Word(24, c.Screen);
-            NativeBattleModuleProjectedVertex d = NativeBattleModuleProjection.Project45FE10(current, new(width, height, 0), projection);
+            NativeBattleModuleProjectedVertex d = geometry is null ? NativeBattleModuleProjection.Project45FE10(current, new(width, height, 0), projection) : geometry.ProjectFourth();
             byte bottom = unchecked((byte)Math.Min(quad[2] + quad[5], 255));
             packet.Byte(29, bottom);
             packet.Byte(37, bottom);
             packet.Word(32, d.Screen);
-            int bucket = retainedBucket ?? checked(tableBaseBucket + (Math.Max(0, ((a.Depth + b.Depth + c.Depth + d.Depth) >> 4) + depthBias) >> depthShift));
+            int bucket = retainedBucket ?? checked(tableBaseBucket + (Math.Max(0, (geometry?.AverageDepth() ?? ((a.Depth + b.Depth + c.Depth + d.Depth) >> 4)) + depthBias) >> depthShift));
             uint opcode = quad[3] & 0xFCu;
             ImmutableArray<int> payload = opcode is < 0x20 or > 0x3C ? [0, 0, 0, 0] : (opcode & 8) != 0 ? [a.Depth, b.Depth, c.Depth, d.Depth] : [b.Depth, c.Depth, d.Depth, 0];
             NativeBattleGeometryPrimitive primitive = new(bucket, packet.Words(), payload);

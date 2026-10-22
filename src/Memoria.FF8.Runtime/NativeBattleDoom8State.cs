@@ -91,6 +91,19 @@ public sealed record NativeBattleDoom8State([property: JsonRequired] NativeBattl
         return this with { Globals = Globals.Write(checked((int)(address - BaseAddress)), data) };
     }
 
+    public NativeBattleEffectArena ReadView(uint address, int length)
+    {
+        RequireRange(address, length);
+        return NativeBattleEffectNodeContextMemory.Copy(Globals, checked((int)(address - BaseAddress)), NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
+    }
+
+    public NativeBattleDoom8State WriteView(uint address, NativeBattleEffectArena view, int length)
+    {
+        RequireRange(address, length);
+        view.Validate();
+        return this with { Globals = NativeBattleEffectNodeContextMemory.Copy(view, 0, Globals, checked((int)(address - BaseAddress)), length) };
+    }
+
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
 

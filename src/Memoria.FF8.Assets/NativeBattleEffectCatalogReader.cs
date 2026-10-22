@@ -186,6 +186,16 @@ public sealed partial class GameAssets
             {
                 binding = binding with { Sleep145Resources = ReadNativeSleep145Resources() };
             }
+            if (binding.Effect == 8)
+            {
+                if (binding.Entry != 0x8C4980 || binding.Initializer != 0x8C4960 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag007.tim", 0x2758500) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Native Doom differs from its original module and texture initializer identity.");
+                }
+                NativeBattleDoom8Resources doom = ReadNativeDoom8Resources();
+                binding = binding with { Doom8Resources = doom, InitializerAsset = doom.MainTim };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 14)
             {
                 binding = binding with { DeathResources = ReadNativeDeathResources() };

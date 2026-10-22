@@ -3,7 +3,11 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleActMeshRules(uint MorphScratchAddress, int MorphScratchLength, bool ScaleMatrixFromHeader, bool DrawFlagsFromHeader);
+public sealed record NativeBattleActMeshRules(uint MorphScratchAddress, int MorphScratchLength, bool ScaleMatrixFromHeader, bool DrawFlagsFromHeader)
+{
+    public bool AlternateEulerFromHeader { get; init; }
+    public bool UvFlagsFromHeader { get; init; } = true;
+}
 public sealed record NativeBattleActMeshContext(NativeBattleActionMatrix Matrix, short DepthBias);
 public sealed record NativeBattleActMeshDraw(NativeBattleGfGeometryBatch Batch, NativeBattleEffectArena Temporary104, NativeBattleEffectArena MorphScratch, NativeBattleGeometryRegisterStep Registers, NativeBattleModelRendererRegisters FarControls);
 
@@ -59,7 +63,7 @@ public static class NativeBattleActMeshRendering
             _ = Slice(source.Data, selected, checked(count * 8));
             selectedAddress = checked(source.Address + (uint)selected);
         }
-        NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Euler701310(node.Vector16);
+        NativeBattleActionMatrix matrix = rules.AlternateEulerFromHeader && (node.Header & 0x400) != 0 ? NativeBattleGfMatrices.Euler701430(node.Vector16) : NativeBattleGfMatrices.Euler701310(node.Vector16);
         int x;
         int y;
         int z;
@@ -90,7 +94,7 @@ public static class NativeBattleActMeshRendering
         temporary = Dword(temporary, 0, shapeAddress);
         temporary = Dword(temporary, 4, selectedAddress);
         uint flags = rules.DrawFlagsFromHeader && (node.Header & 0x4000) != 0 ? 0x2000u : 0x2030u;
-        if (rules.DrawFlagsFromHeader && (node.Header & 0x2000) != 0)
+        if (rules.DrawFlagsFromHeader && rules.UvFlagsFromHeader && (node.Header & 0x2000) != 0)
         {
             flags |= 0xC;
         }

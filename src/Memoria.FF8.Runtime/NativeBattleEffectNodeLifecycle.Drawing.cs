@@ -64,7 +64,7 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
                     else
                     {
                         ushort phase = unchecked((ushort)(short)(sbyte)memory.Byte(node + 0x1D0));
-                        batch = NativeBattleCuragaProjectedSprites.EmitBatch8DD260(bytes, phase, matrix, projection, cameraRoll, 17, 2, observeRolledMatrix: memory.WriteSpriteMatrix, observeQuadMatrix: memory.WriteQuadMatrix);
+                        batch = NativeBattleCuragaProjectedSprites.EmitBatch8DD260(bytes, phase, matrix, projection, cameraRoll, 17, 2, observeRolledMatrix: memory.WriteSpriteMatrix, observeQuadMatrix: memory.WriteQuadMatrix, geometry: memory.ProjectedSpriteGeometry(node, resource, bytes, phase, projection));
                     }
                     deliver?.Invoke(meshes, batch);
                     foreach (NativeBattleGfGeometryAttempt attempt in batch.Attempts)

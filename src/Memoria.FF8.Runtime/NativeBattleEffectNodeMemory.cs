@@ -134,6 +134,159 @@ internal class NativeBattleEffectNodeMemory
         }
     }
 
+    internal INativeBattleCuragaSpriteGeometry ProjectedSpriteGeometry(int node, uint resourceAddress, ImmutableArray<byte> resource, ushort phase, NativeBattleCameraProjection projection)
+    {
+        int offset = node + 0xAC + 18 - first;
+        short? padding = unknown.AsSpan(offset, 2).Contains(true) ? null : BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(offset));
+        return new ProjectedSpriteRegisters(this, resourceAddress, resource, phase, projection, padding);
+    }
+
+    private sealed class ProjectedSpriteRegisters(NativeBattleEffectNodeMemory owner, uint resourceAddress, ImmutableArray<byte> resource, ushort phase, NativeBattleCameraProjection projection, short? sourcePadding) : INativeBattleCuragaSpriteGeometry
+    {
+        private NativeBattleEffectArena context = NativeBattleEffectArena.Clear().MarkUnknown(0, 180);
+        private NativeBattleGeometryRegisterStep registers = null!;
+        private NativeBattleScriptedGraphicsMemory controls = null!;
+        private NativeBattleActionMatrix main = null!;
+
+        public void Begin(NativeBattleActionMatrix source, NativeBattleActionMatrix rolled)
+        {
+            NativeBattleEffectMemory memory = owner.CaptureProcessMemory();
+            controls = memory.ScriptedGraphics ?? throw new NotSupportedException("Native projected sprites require their actual projection controls.");
+            registers = new(memory.GeometryRegisters ?? throw new NotSupportedException("Native projected sprites require their canonical geometry controls."), memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native projected sprites require their canonical data registers."));
+            registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, source, true, true, sourcePadding) };
+            context = NativeBattleEffectNodeContextMemory.Capture(memory);
+            context = Dword(context, 0, resourceAddress);
+            context = Word(context, 4, phase);
+            context = Word(context, 0x24, 0);
+            context = Word(context, 0x26, BinaryPrimitives.ReadUInt16LittleEndian(resource.AsSpan().Slice(8)));
+            int frame = BinaryPrimitives.ReadUInt16LittleEndian(resource.AsSpan().Slice(10 + phase * 2));
+            context = Word(context, 0x28, BinaryPrimitives.ReadUInt16LittleEndian(resource.AsSpan().Slice(12 + phase * 2)));
+            uint descriptor = BinaryPrimitives.ReadUInt32LittleEndian(resource.AsSpan().Slice(frame));
+            context = Dword(context, 0x2C, checked(resourceAddress + (uint)frame + 4));
+            context = Dword(context, 0x30, descriptor & 0x7FFFFFFF);
+            context = Word(context, 0x24, (descriptor & 0x80000000) == 0 ? (ushort)0 : (ushort)0x100);
+            for (int index = 0; index < 4; index++)
+            {
+                context = Word(context, 0x48 + index * 8, 0);
+            }
+            main = rolled;
+            context = Matrix(context, 0x84, rolled).MarkUnknown(0x96, 2);
+            context = Dword(context, 0x1C, 0x808080);
+            context = context.Write(0x20, resource.AsSpan().Slice(4, 4));
+            context = Dword(Dword(Dword(Dword(Dword(context, 0xB0, 0), 0xAC, 0), 0xA4, 4096), 0xA8, 0), 0x3C, uint.MaxValue);
+            Publish();
+        }
+
+        public NativeBattleCuragaSpriteTriple ProjectQuad(ReadOnlySpan<byte> quad)
+        {
+            NativeBattleActionMatrix local = NativeBattlePoseMatrices.ModuleSpriteQuadCamera(NativeBattleCuragaMatrices.Identity8DD770(), quad);
+            for (int index = 0; index < 9; index++)
+            {
+                context = Word(context, 0x64 + index * 2, unchecked((ushort)local.Rotation[index]));
+            }
+            ushort flags = BinaryPrimitives.ReadUInt16LittleEndian(quad.Slice(14));
+            if ((flags & 0xC00) != 0)
+            {
+                short angle = BinaryPrimitives.ReadInt16LittleEndian(quad.Slice(12));
+                if (angle == 0 || unchecked((int)ReadDword(0xAC)) != angle)
+                {
+                    context = Dword(Dword(Dword(context, 0xA4, unchecked((uint)NativeBattleCameraMath.Cosine(angle))), 0xA8, unchecked((uint)NativeBattleCameraMath.Sine(angle))), 0xAC, unchecked((uint)(int)angle));
+                }
+            }
+            short width = (short)(8 * quad[0]);
+            short height = (short)(8 * quad[2]);
+            NativeBattleVector[] corners = [new(unchecked((short)-width), unchecked((short)-height), 0), new(width, unchecked((short)-height), 0), new(unchecked((short)-width), height, 0), new(width, height, 0)];
+            for (int index = 0; index < 4; index++)
+            {
+                context = Word(Word(context, 0x44 + index * 8, unchecked((ushort)corners[index].X)), 0x46 + index * 8, unchecked((ushort)corners[index].Y));
+            }
+            int dx = unchecked(8 * quad[0] + 16 * BinaryPrimitives.ReadInt16LittleEndian(quad.Slice(8)));
+            int dy = unchecked(8 * quad[2] + 16 * BinaryPrimitives.ReadInt16LittleEndian(quad.Slice(10)));
+            context = Dword(Dword(Dword(context, 0x78, unchecked((uint)dx)), 0x7C, unchecked((uint)dy)), 0x80, 0);
+            registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, main, true, false, null) };
+            for (int column = 0; column < 3; column++)
+            {
+                registers = NativeBattleGeometry.LoadIrColumn(registers, ReadWord(0x64 + column * 2), ReadWord(0x6A + column * 2), ReadWord(0x70 + column * 2));
+                registers = NativeBattleGeometry.Transform(registers, false, true);
+                for (int row = 0; row < 3; row++)
+                {
+                    context = Word(context, 0x64 + row * 6 + column * 2, unchecked((ushort)registers.Colors.Ir[row]!.Value));
+                }
+            }
+            registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, main, false, true, null) };
+            registers = NativeBattleGeometry.LoadVector(registers, 0, new(unchecked((short)dx), unchecked((short)dy), 0), 0);
+            registers = NativeBattleGeometry.Transform(registers);
+            for (int axis = 0; axis < 3; axis++)
+            {
+                context = Dword(context, 0x78 + axis * 4, unchecked((uint)registers.Colors.Mac[axis]!.Value));
+            }
+            NativeBattleActionMatrix current = new(Enumerable.Range(0, 9).Select(index => unchecked((short)ReadWord(0x64 + index * 2))).ToImmutableArray(), unchecked((int)ReadDword(0x78)), unchecked((int)ReadDword(0x7C)), unchecked((int)ReadDword(0x80)), 4096);
+            registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, current, true, true, Padding(0x76)) };
+            for (int index = 0; index < 3; index++)
+            {
+                registers = NativeBattleGeometry.LoadVector(registers, index, corners[index], Padding(0x4A + index * 8));
+            }
+            registers = NativeBattleGeometry.ProjectTriple(registers, projection, controls.Dqa, controls.Dqb);
+            uint projectedFlags = registers.Colors.Flags!.Value;
+            context = Dword(context, 0x40, projectedFlags);
+            ImmutableArray<NativeBattleModuleProjectedVertex> projected = Enumerable.Range(0, 3).Select(index => new NativeBattleModuleProjectedVertex(registers.Geometry.Sxy[index]!.Value, unchecked((ushort)registers.Geometry.Sz[index + 1]!.Value), projectedFlags)).ToImmutableArray();
+            Publish();
+            return new(projected, projectedFlags);
+        }
+
+        public NativeBattleModuleProjectedVertex ProjectFourth()
+        {
+            registers = NativeBattleGeometry.LoadVector(registers, 0, new(unchecked((short)ReadWord(0x5C)), unchecked((short)ReadWord(0x5E)), unchecked((short)ReadWord(0x60))), Padding(0x62));
+            registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
+            NativeBattleModuleProjectedVertex projected = new(registers.Geometry.Sxy[2]!.Value, unchecked((ushort)registers.Geometry.Sz[3]!.Value), registers.Colors.Flags!.Value);
+            Publish();
+            return projected;
+        }
+
+        public int AverageDepth()
+        {
+            registers = NativeBattleGeometry.Average45E610(registers, controls.Zsf4 ?? throw new NotSupportedException("Native projected sprites require their actual four-depth scale."));
+            int depth = unchecked((int)registers.Geometry.Otz!.Value);
+            context = Dword(context, 0x3C, unchecked((uint)depth));
+            Publish();
+            return depth;
+        }
+
+        private void Publish()
+        {
+            NativeBattleEffectMemory memory = owner.CaptureProcessMemory() with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors };
+            owner.PublishProcessMemory(NativeBattleEffectNodeContextMemory.Publish(memory, context));
+        }
+
+        private ushort ReadWord(int offset) => BinaryPrimitives.ReadUInt16LittleEndian(context.Read(offset, 2));
+        private uint ReadDword(int offset) => BinaryPrimitives.ReadUInt32LittleEndian(context.Read(offset, 4));
+        private short? Padding(int offset)
+        {
+            (byte[] bytes, bool[] known) = context.ReadSnapshot(offset, 2);
+            return known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(bytes) : null;
+        }
+        private static NativeBattleEffectArena Matrix(NativeBattleEffectArena view, int offset, NativeBattleActionMatrix matrix)
+        {
+            for (int index = 0; index < 9; index++)
+            {
+                view = Word(view, offset + index * 2, unchecked((ushort)matrix.Rotation[index]));
+            }
+            return Dword(Dword(Dword(view, offset + 20, unchecked((uint)matrix.X)), offset + 24, unchecked((uint)matrix.Y)), offset + 28, unchecked((uint)matrix.Z));
+        }
+        private static NativeBattleEffectArena Word(NativeBattleEffectArena view, int offset, ushort value)
+        {
+            Span<byte> bytes = stackalloc byte[2];
+            BinaryPrimitives.WriteUInt16LittleEndian(bytes, value);
+            return view.Write(offset, bytes);
+        }
+        private static NativeBattleEffectArena Dword(NativeBattleEffectArena view, int offset, uint value)
+        {
+            Span<byte> bytes = stackalloc byte[4];
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes, value);
+            return view.Write(offset, bytes);
+        }
+    }
+
     internal void MarkUnknown(int offset, int count)
     {
         Require(offset, count);
