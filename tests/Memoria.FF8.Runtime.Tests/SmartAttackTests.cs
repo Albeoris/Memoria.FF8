@@ -44,6 +44,65 @@ public sealed class SmartAttackTests
         Assert.Equal(0, preview.KillProbability);
     }
 
+    [Theory]
+    [InlineData(false, false, 6, BattleAbility.Attack)]
+    [InlineData(false, false, 80, BattleAbility.Magic)]
+    [InlineData(true, false, 6, BattleAbility.Attack)]
+    [InlineData(true, false, 80, BattleAbility.Magic)]
+    [InlineData(false, true, 6, BattleAbility.Attack)]
+    [InlineData(false, true, 80, BattleAbility.Draw)]
+    [InlineData(true, true, 6, BattleAbility.Attack)]
+    [InlineData(true, true, 80, BattleAbility.Draw)]
+    public void NoReliableKillComparesStockedAndDrawnMagicAgainstPhysicalDamage(bool gunblade, bool draw, byte spellPower, BattleAbility expected)
+    {
+        BattleDefinition definition = Create([Spell(1, spellPower)], [new(1, 100)], enemyHp: 60_000).Capture().Definition;
+        BattleCombatantDefinition actor = definition.Combatants[0] with
+        {
+            Attack = 28,
+            Magic = 8,
+            ModelId = gunblade ? 0 : 1,
+            WeaponId = gunblade ? 0 : null,
+            NativeAttack = definition.Combatants[0].NativeAttack! with { Power = 20, AttackType = (byte)(gunblade ? 10 : 1) },
+            Abilities = [BattleAbility.Attack, draw ? BattleAbility.Draw : BattleAbility.Magic]
+        };
+        BattleCombatantDefinition target = definition.Combatants[1] with { Defense = 42, Spirit = 59, NativeDrawSlots = [new(1, 0), new(0, 0), new(0, 0), new(0, 0)] };
+        NativeKnownMagic known = new(NativeInputConfiguration.OriginalInitHash, ImmutableArray.Create<uint>(0, 0));
+        BattleSession battle = new(definition with { Combatants = [actor, target], NativeKnownMagic = known.Add(1) }, BattleAtbMode.TurnBased);
+        battle.SetGunbladeMode(BattleGunbladeMode.Automatic);
+        BattleSmartAttackPreview physical = battle.PreviewSmartAttack("party", "enemy", true);
+        string before = JsonSerializer.Serialize(battle.Capture());
+        BattleSmartAttackPreview preview = battle.PreviewSmartAttack("party", "enemy");
+        Assert.Equal(expected, preview.Ability);
+        Assert.Equal(0, preview.KillProbability);
+        Assert.True(physical.ExpectedDamage > 0);
+        if (expected == BattleAbility.Attack)
+        {
+            Assert.Equal(physical.ExpectedDamage, preview.ExpectedDamage);
+        }
+        else
+        {
+            Assert.True(preview.ExpectedDamage > physical.ExpectedDamage);
+        }
+        Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
+        battle.QueueSmartAttack(preview);
+        Assert.Equal(expected, Assert.Single(battle.QueuedActions).Ability);
+    }
+
+    [Fact]
+    public void EqualPositiveExpectedDamageRetainsPhysicalAttack()
+    {
+        BattleDefinition definition = Create([Spell(1, 4)], [new(1, 100)], enemyHp: 60_000).Capture().Definition;
+        BattleCombatantDefinition actor = definition.Combatants[0] with { Magic = 0, NativeAttack = definition.Combatants[0].NativeAttack! with { Power = 64 } };
+        BattleSession battle = new(definition with { Combatants = [actor, definition.Combatants[1]] }, BattleAtbMode.TurnBased);
+        BattleSmartAttackPreview physical = battle.PreviewSmartAttack("party", "enemy", true);
+        BattleSmartAttackPreview preview = battle.PreviewSmartAttack("party", "enemy");
+        BattleDamageForecast magic = BattleActionForecaster.FromNativePhases(random => NativeBattleDamage.Magic(0, battle.Combatants[1].Spirit, 4, random(), false), battle.Combatants[1].CurrentHp);
+        Assert.True(physical.ExpectedDamage > 0);
+        Assert.Equal(physical.ExpectedDamage, magic.ExpectedDamage);
+        Assert.Equal(BattleAbility.Attack, preview.Ability);
+        Assert.Equal(physical.ExpectedDamage, preview.ExpectedDamage);
+    }
+
     [Fact]
     public void PreviewDoesNotMutateRngStocksTicketsOrQueueAndForcePhysicalIsExplicit()
     {

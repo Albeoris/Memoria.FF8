@@ -138,7 +138,7 @@ public sealed partial class BattleSession
             }
         }
         var strongest = candidates.OrderByDescending(candidate => candidate.Forecast.ExpectedDamage).ThenByDescending(candidate => candidate.Source is not null).ThenByDescending(candidate => candidate.Available).ThenBy(candidate => candidate.Action.Id).ThenBy(candidate => candidate.Source?.NativeIndex).ToArray();
-        if (strongest.Length > 0 && (strongest[0].Forecast.ExpectedDamage > 0 || strongest[0].Forecast.ExpectedDamage > physical.ExpectedDamage))
+        if (strongest.Length > 0 && strongest[0].Forecast.ExpectedDamage > 0 && strongest[0].Forecast.ExpectedDamage > physical.ExpectedDamage)
         {
             var chosen = strongest[0];
             return result with { Ability = chosen.Source is null ? BattleAbility.Magic : BattleAbility.Draw, ActionId = chosen.Action.Id, Name = (chosen.Source is null ? "" : "Draw: ") + (chosen.Action.DisplayName ?? chosen.Action.Name), CastCount = chosen.Casts, ExpectedDamage = chosen.Forecast.ExpectedDamage, KillProbability = chosen.Forecast.KillProbability, DrawSourceId = chosen.Source?.Id, DrawSourceIndex = chosen.Source?.NativeIndex };
