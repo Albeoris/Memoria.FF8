@@ -26,7 +26,7 @@ public sealed record NativeBattleGilgameshDirectorInputs(uint GraphicsFlags, Act
 }
 public sealed record NativeBattleGilgameshDirectorStep(NativeBattleModulePoolTask Task, int Result);
 
-/// <summary>592300's exact Excalipoor timeline and asynchronous admission boundaries.</summary>
+/// <summary>592300's selected sword timeline and asynchronous admission boundaries.</summary>
 public static class NativeBattleGilgameshDirector
 {
     public static NativeBattleGilgameshDirectorStep Advance592300(NativeBattleModulePoolTask task, NativeBattleGilgameshDirectorInputs inputs)
@@ -42,7 +42,8 @@ public static class NativeBattleGilgameshDirector
             return new(task, 0);
         }
         int counter = unchecked((short)task.ReadWord(12));
-        if (counter is 16 or 24 or 100 or 136 or 151 or 176 or 191 or 218 or 237 or 253 or 268 && inputs.Pending508500() < 0)
+        bool waitForFile = counter is 16 or 24 or 100 or 136 or 151 or 176 or 191 or 218 or 237 or 268 || counter == 253 && profile.HasAttackFile;
+        if (waitForFile && inputs.Pending508500() < 0)
         {
             return new(task, 0);
         }
@@ -143,7 +144,10 @@ public static class NativeBattleGilgameshDirector
                 Upload(0xE000);
                 break;
             case 238:
-                File(profile.AttackFile, 0xE000);
+                if (profile.HasAttackFile)
+                {
+                    File(profile.AttackFile, 0xE000);
+                }
                 break;
             case 253:
                 File(753, 0, true);

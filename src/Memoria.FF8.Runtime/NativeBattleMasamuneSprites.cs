@@ -13,7 +13,7 @@ public static class NativeBattleMasamuneSprites
         NativeBattleGeometryRegisterStep step = new(memory.GeometryRegisters ?? throw new NotSupportedException("Masamune requires its current geometry controls."), memory.ScriptedColorRegisters ?? throw new NotSupportedException("Masamune requires its current data registers."));
         NativeBattleScriptedLightingMemory lighting = memory.ScriptedLighting ?? throw new NotSupportedException("Masamune requires its actual lighting controls.");
         NativeBattleActionMatrix matrix = lighting.LightMatrix?.ToActionMatrix() ?? throw new NotSupportedException("Masamune requires its current light matrix.");
-        NativeBattleScriptedBackColor back = lighting.BackColor ?? throw new NotSupportedException("Masamune requires its current raw backcolor translation.");
+        NativeBattleScriptedBackColor back = (lighting.BackColor ?? throw new NotSupportedException("Masamune requires its current raw backcolor translation.")).RequireKnown();
         matrix = matrix with { X = back.Red, Y = back.Green, Z = back.Blue };
         NativeBattleVector position = new(NativeBattleMasamuneParticles.Word(particles, record + 8), NativeBattleMasamuneParticles.Word(particles, record + 10), NativeBattleMasamuneParticles.Word(particles, record + 12));
         (byte[] bytes, bool[] known) = particles.ReadSnapshot(record + 14, 2);
@@ -29,9 +29,9 @@ public static class NativeBattleMasamuneSprites
         int depth = -(size >> 3);
         for (int axis = 0; axis < 3; axis++)
         {
-            scratch72 = NativeBattleMasamuneMesh.Put(scratch72, 0x28 + axis * 4, unchecked((uint)normalized[axis]));
+            scratch72 = NativeBattleStaticMeshContext88.Put(scratch72, 0x28 + axis * 4, unchecked((uint)normalized[axis]));
             values[axis] = unchecked(values[axis] + (unchecked(normalized[axis] * depth) >> 12));
-            scratch72 = NativeBattleMasamuneMesh.Put(scratch72, 0x38 + axis * 4, unchecked((uint)values[axis]));
+            scratch72 = NativeBattleStaticMeshContext88.Put(scratch72, 0x38 + axis * 4, unchecked((uint)values[axis]));
         }
         NativeBattleActionMatrix scale = new([size, 0, 0, 0, size, 0, 0, 0, size], values[0], values[1], values[2], 4096);
         step = step with { Geometry = NativeBattleGeometry.LoadMatrix(step.Geometry, scale, true, true, 0) };

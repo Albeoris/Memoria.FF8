@@ -17,7 +17,9 @@ public sealed partial class BattleSession
         NativeBattleGilgameshInputs inputs = new(graphics.Flags, nativeActionPackets, projection, scripted.Dqa, scripted.Dqb, colors, ReadAnchor571400, () => NativeEffectIoResult ?? throw new NotSupportedException("Native Gilgamesh requires its actual signed IO result."), () => NativeCamera?.CurrentPose ?? throw new NotSupportedException("Native Gilgamesh requires its current camera globals."), Execute)
         {
             ReadProjection = () => NativeCamera?.Projection ?? throw new NotSupportedException("Gilgamesh requires its current native projection."),
-            ReadFocalShadow = () => NativeCamera?.FocalLength ?? throw new NotSupportedException("Gilgamesh requires its retained signed focal shadow.")
+            ReadFocalShadow = () => NativeCamera?.FocalLength ?? throw new NotSupportedException("Gilgamesh requires its retained signed focal shadow."),
+            ReadModelWord26 = actor => graphics.Models[actor].Transform?.Scale38 ?? throw new NotSupportedException("Zantetsuken requires its actual model height WORD."),
+            ReadModelWorld32 = actor => NativeBattlePackedMatrix32.FromMatrix(graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Zantetsuken requires its retained model world matrix."), null)
         };
         frame = initialize ? NativeBattleGilgameshController.Initialize58DCF0(frame, nativeActionPackets, graphics.Models) : NativeBattleGilgameshController.Advance596B70(frame, resources, inputs);
         NativeEffectMemory = frame.Memory;
@@ -43,10 +45,48 @@ public sealed partial class BattleSession
             return executed with { Staging = NativeFileStaging };
         }
 
+        NativeBattleGilgameshFrame PublishZantetsukenStaging(NativeBattleGilgameshFrame updated)
+        {
+            NativeFileStaging = updated.Staging ?? throw new NotSupportedException("Zantetsuken drawing lost its current physical memory.");
+            return updated;
+        }
+
         NativeBattleGilgameshFrame ExecuteCore(NativeBattleGilgameshFrame current, NativeBattleGilgameshOperation operation)
         {
             switch (operation)
             {
+                case NativeBattleGilgameshZantetsukenAnchor anchor327:
+                    return ReadNativeZantetsukenAnchor(graphics, current, anchor327.Address, anchor327.Actor);
+                case NativeBattleGilgameshZantetsukenContact contact327:
+                    NativeBattleActionHeaderSlot captured327 = nativeActionPackets.Headers[(current.Effect.Parameters ?? throw new NotSupportedException("Zantetsuken requires its captured action parameters.")).HeaderIndex7C];
+                    int first327 = captured327.FirstContactIndex ?? throw new NotSupportedException("Zantetsuken requires its captured first contact pointer.");
+                    if ((uint)contact327.Ordinal >= captured327.ReadByte(16))
+                    {
+                        throw new InvalidDataException("Zantetsuken contact leaves its captured action contacts.");
+                    }
+                    ImmutableArray<NativeBattleContactPacket> pending327 = graphics.PendingContacts;
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(first327 + contact327.Ordinal)] });
+                    graphics = graphics with { PendingContacts = pending327 };
+                    return current with { Memory = NativeEffectMemory ?? throw new NotSupportedException("Zantetsuken contact lost its current effect memory.") };
+                case NativeBattleGilgameshZantetsukenActorFlags flags327:
+                    graphics = graphics with { Models = graphics.Models.SetItem(flags327.Actor, graphics.Models[flags327.Actor] with { Flags0 = (ushort)(graphics.Models[flags327.Actor].Flags0 | flags327.OrMask) }) };
+                    return current;
+                case NativeBattleGilgameshZantetsukenFadeActor fade327:
+                    NativeBattleStageColors actualColors327 = NativeStage?.ModelColors ?? throw new NotSupportedException("Zantetsuken fade requires its current process model colors.");
+                    NativeBattleZantetsukenActorFadeStep faded327 = NativeBattleZantetsukenActorFade.Apply(graphics.Models[fade327.Actor], current.Memory, fade327.Cue, colors with { Transition = actualColors327.Color40, Normal = actualColors327.Color44 });
+                    graphics = graphics with { Models = graphics.Models.SetItem(fade327.Actor, faded327.Model) };
+                    return current with { Memory = faded327.Memory };
+                case NativeBattleGilgameshZantetsukenBeginDrawActor begin327:
+                    return PublishZantetsukenStaging(BeginNativeZantetsukenActorDraw(current, begin327.Address));
+                case NativeBattleGilgameshZantetsukenDrawActor drawActor327:
+                    return PublishZantetsukenStaging(DrawNativeZantetsukenActor(ref graphics, current, drawActor327.Address));
+                case NativeBattleGilgameshZantetsukenDrawStage drawStage327:
+                    return PublishZantetsukenStaging(DrawNativeZantetsukenStage(ref graphics, current, drawStage327.Address));
+                case NativeBattleGilgameshZantetsukenStageVisibility visibility327:
+                    NativeBattleStageState stage327 = NativeStage ?? throw new NotSupportedException("Zantetsuken requires its four actual stage flag owners.");
+                    stage327.Validate();
+                    NativeStage = stage327 with { Groups = stage327.Groups.Select(group => group with { Flags = visibility327.Visible ? (byte)(group.Flags | 2) : (byte)(group.Flags & ~2) }).ToImmutableArray() };
+                    return current;
                 case NativeBattleGilgameshMasamuneAnchor anchor:
                     NativeBattleModuleAnchor packed = ReadAnchor571400(anchor.Actor);
                     return UpdateNativeMasamuneChild(current, anchor.Address, task => task.WriteWord(0x10, unchecked((ushort)packed.X)).WriteWord(0x12, unchecked((ushort)packed.Y)).WriteWord(0x14, unchecked((ushort)packed.Z)).WriteWord(0x16, unchecked((ushort)packed.W)));
@@ -140,7 +180,7 @@ public sealed partial class BattleSession
                         0xCD0378 => resources.Director.SoundInitial,
                         0xCD037C => resources.Director.SoundMiddle,
                         0xCD0380 => resources.Director.SoundLate,
-                        0xCD0388 or 0xCD038C or 0xCD0390 => resources.Director.SoundClosing,
+                        0xCD0384 or 0xCD0388 or 0xCD038C or 0xCD0390 => resources.Director.SoundClosing,
                         _ => throw new NotSupportedException("Native Gilgamesh sound requires its original selected DWORD source.")
                     };
                     PublishNativeModuleSound(new(descriptor, unchecked((uint)operation.Second), null) { RawPan = unchecked((uint)operation.Third) });
@@ -189,7 +229,7 @@ public sealed partial class BattleSession
     private static NativeBattleOriginalEffectState WriteNativeGilgameshCompletionByte(NativeBattleOriginalEffectState effect, uint address, byte value)
     {
         uint delta = unchecked(address - 0x21FFD68);
-        if (effect.Binding.Entry is not (0x58D930 or 0x58DB10 or 0x58DCF0) || delta >= 100 * 0x24 || delta % 0x24 != 0x0E)
+        if (effect.Binding.Entry is not (0x58D760 or 0x58D930 or 0x58DB10 or 0x58DCF0) || delta >= 100 * 0x24 || delta % 0x24 != 0x0E)
         {
             throw new NotSupportedException("Native Gilgamesh texture completion requires its actual child-task BYTE owner.");
         }
@@ -225,13 +265,13 @@ public sealed partial class BattleSession
         {
             return false;
         }
-        if (NativeEffectMemory?.DetachedReturnedTask is { Binding.Entry: 0x58D930 or 0x58DB10 or 0x58DCF0 } detached)
+        if (NativeEffectMemory?.DetachedReturnedTask is { Binding.Entry: 0x58D760 or 0x58D930 or 0x58DB10 or 0x58DCF0 } detached)
         {
             NativeEffectMemory = NativeEffectMemory with { DetachedReturnedTask = WriteNativeGilgameshCompletionByte(detached, address, value) };
         }
         else
         {
-            NativeBattleOriginalEffectState current = graphics.OriginalEffect is { Binding.Entry: 0x58D930 or 0x58DB10 or 0x58DCF0 } selected ? selected : throw new NotSupportedException("Native Gilgamesh completion lost its current raw task owner.");
+            NativeBattleOriginalEffectState current = graphics.OriginalEffect is { Binding.Entry: 0x58D760 or 0x58D930 or 0x58DB10 or 0x58DCF0 } selected ? selected : throw new NotSupportedException("Native Gilgamesh completion lost its current raw task owner.");
             updated = graphics with { OriginalEffect = WriteNativeGilgameshCompletionByte(current, address, value) };
         }
         return true;

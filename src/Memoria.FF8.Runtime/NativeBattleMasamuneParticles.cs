@@ -28,7 +28,7 @@ public static class NativeBattleMasamuneParticles
                 for (int index = 0; index < Capacity; index++)
                 {
                     int current = checked(Bank(ring) + index * Stride(ring));
-                    if (NativeBattleMasamuneMesh.Dword(arena, current) == 0)
+                    if (NativeBattleStaticMeshContext88.Dword(arena, current) == 0)
                     {
                         record = current;
                         break;
@@ -38,7 +38,7 @@ public static class NativeBattleMasamuneParticles
                 {
                     break;
                 }
-                arena = NativeBattleMasamuneMesh.Put(arena, record, unchecked((uint)(int)Signed(task, 0x16)));
+                arena = NativeBattleStaticMeshContext88.Put(arena, record, unchecked((uint)(int)Signed(task, 0x16)));
                 arena = PutWord(arena, record + 4, 0);
                 int size = ring ? Draw() % 4096 + 1280 : Draw() % 2048 + 1536;
                 arena = PutWord(arena, record + 6, size);
@@ -96,7 +96,7 @@ public static class NativeBattleMasamuneParticles
     {
         if (dead)
         {
-            return NativeBattleMasamuneMesh.Put(arena, record, 0);
+            return NativeBattleStaticMeshContext88.Put(arena, record, 0);
         }
         arena = PutWord(arena, record + 4, Word(arena, record + 4) + 1);
         for (int axis = 0; axis < 3; axis++)

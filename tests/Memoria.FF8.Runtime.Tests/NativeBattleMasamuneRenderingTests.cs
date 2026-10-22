@@ -99,7 +99,7 @@ public sealed class NativeBattleMasamuneRenderingTests
         NativeBattleCameraProjection projection = new(null, 100, 160, 108);
         NativeBattleEffectMemory memory = Memory();
         NativeBattleEffectArena context = Dword(Dword(Dword(Dword(NativeBattleEffectArena.Clear().MarkUnknown(0, 88), 0, mesh.Address), 8, 0), 0x1C, 0xF3), 12, 2048);
-        NativeBattleMasamuneMeshStep result = NativeBattleMasamuneMesh.Draw(memory, mesh, matrix, projection, context, Constants, 0x4321);
+        NativeBattleStaticMeshContext88Step result = NativeBattleStaticMeshContext88.Draw(memory, mesh, matrix, projection, context, Constants, 0x4321);
         NativeBattleGfGeometryBatch expected = NativeBattleModulePackets.EmitBatch572200(mesh.Bytes, 0, default, matrix, projection, new(0xF3, 0, 2048, null, null, 0, 17, 2), Constants);
         Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(result.Batch));
         Assert.NotNull(Assert.Single(result.Batch.Attempts).Primitive);
@@ -111,9 +111,45 @@ public sealed class NativeBattleMasamuneRenderingTests
         Assert.NotNull(result.Memory.ScriptedColorRegisters!.Material);
         Assert.Equal(0u, result.Memory.PrimitiveProcess!.ModelRendererRegisters!.FarRed);
         Assert.Throws<NotSupportedException>(() => result.Context.Read(0x34, 36));
-        NativeBattleMasamuneMeshStep restored = JsonSerializer.Deserialize<NativeBattleMasamuneMeshStep>(JsonSerializer.Serialize(result))!;
-        NativeBattleMasamuneMeshStep Next(NativeBattleMasamuneMeshStep prior) => NativeBattleMasamuneMesh.Draw(prior.Memory, mesh, matrix, projection, prior.Context, Constants, 0x4321);
+        NativeBattleStaticMeshContext88Step restored = JsonSerializer.Deserialize<NativeBattleStaticMeshContext88Step>(JsonSerializer.Serialize(result))!;
+        NativeBattleStaticMeshContext88Step Next(NativeBattleStaticMeshContext88Step prior) => NativeBattleStaticMeshContext88.Draw(prior.Memory, mesh, matrix, projection, prior.Context, Constants, 0x4321);
         Assert.Equal(JsonSerializer.Serialize(Next(result)), JsonSerializer.Serialize(Next(restored)));
+    }
+
+    [Theory]
+    [InlineData(4)]
+    [InlineData(5)]
+    public void Unfaded_mesh_initializes_absent_register_containers_only_through_reached_writes(int group)
+    {
+        NativeBattleStaticMeshResource mesh = new(0, 0xCCDE04, Mesh(group));
+        NativeBattleActionMatrix matrix = NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 };
+        NativeBattleCameraProjection projection = new(null, 100, 160, 108);
+        NativeBattleEffectMemory memory = Memory() with { GeometryRegisters = null, ScriptedColorRegisters = null };
+        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        Assert.Null(restored.GeometryRegisters);
+        Assert.Null(restored.ScriptedColorRegisters);
+        NativeBattleEffectArena context = Dword(Dword(Dword(NativeBattleEffectArena.Clear().MarkUnknown(0, 88), 0, mesh.Address), 8, 0), 0x1C, 0x33);
+        NativeBattleStaticMeshContext88Step Draw(NativeBattleEffectMemory current, NativeBattleEffectArena currentContext) => NativeBattleStaticMeshContext88.Draw(current, mesh, matrix, projection, currentContext, Constants);
+        NativeBattleStaticMeshContext88Step result = Draw(memory, context);
+        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Draw(restored, context)));
+        NativeBattleGfGeometryBatch expected = NativeBattleModulePackets.EmitBatch572200(mesh.Bytes, 0, default, matrix, projection, new(0x33, 0, null, null, null, 0, 17, 2), Constants);
+        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(result.Batch));
+        Assert.NotNull(Assert.Single(result.Batch.Attempts).Primitive);
+        Assert.All(result.Memory.GeometryRegisters!.AnchorScratch8, value => Assert.Null(value));
+        Assert.All(result.Memory.GeometryRegisters.Rotation20.Skip(18), value => Assert.Null(value));
+        Assert.Equal(new int?[] { 0, 0, 2000 }, result.Memory.GeometryRegisters.Translation);
+        Assert.All(result.Memory.ScriptedColorRegisters!.Rgb, value => Assert.Null(value));
+        Assert.Null(result.Memory.ScriptedColorRegisters.Material);
+        Assert.All(result.Memory.ScriptedColorRegisters.NormalInputKnown!.Value, Assert.True);
+        Assert.Equal((short)(group == 4 ? -400 : 400), BinaryPrimitives.ReadInt16LittleEndian(result.Memory.ScriptedColorRegisters.NormalInput!.Value.AsSpan()));
+        Assert.Equal((short)(group == 4 ? 11 : 44), BinaryPrimitives.ReadInt16LittleEndian(result.Memory.ScriptedColorRegisters.NormalInput.Value.AsSpan().Slice(6, 2)));
+        if (group == 4)
+        {
+            Assert.Null(result.Memory.GeometryRegisters.Sz[0]);
+        }
+        Assert.All(result.Memory.GeometryRegisters.Sz.Skip(1), value => Assert.NotNull(value));
+        NativeBattleStaticMeshContext88Step cold = JsonSerializer.Deserialize<NativeBattleStaticMeshContext88Step>(JsonSerializer.Serialize(result))!;
+        Assert.Equal(JsonSerializer.Serialize(Draw(result.Memory, result.Context)), JsonSerializer.Serialize(Draw(cold.Memory, cold.Context)));
     }
 
     [Fact]
@@ -121,7 +157,7 @@ public sealed class NativeBattleMasamuneRenderingTests
     {
         NativeBattleStaticMeshResource mesh = new(0, 0xCCF2DC, Mesh(5));
         NativeBattleEffectArena context = Dword(Dword(Dword(NativeBattleEffectArena.Clear().MarkUnknown(0, 88), 0, mesh.Address), 8, 0), 0x1C, 0x33);
-        NativeBattleMasamuneMeshStep result = NativeBattleMasamuneMesh.Draw(Memory(), mesh, NativeBattleCuragaMatrices.Identity8DD770() with { Z = -1 }, new(null, 288, 160, 108), context, Constants);
+        NativeBattleStaticMeshContext88Step result = NativeBattleStaticMeshContext88.Draw(Memory(), mesh, NativeBattleCuragaMatrices.Identity8DD770() with { Z = -1 }, new(null, 288, 160, 108), context, Constants);
         Assert.Null(Assert.Single(result.Batch.Attempts).Primitive);
         Assert.Throws<NotSupportedException>(() => result.Context.Read(0x24, 4));
         Assert.Throws<NotSupportedException>(() => result.Context.Read(0x2C, 4));

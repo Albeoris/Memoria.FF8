@@ -194,7 +194,7 @@ public static class NativeBattleRaldo19BallRendering
         NativeBattleActionMatrix matrix = (bone ? lighting.LightMatrix : lighting.ColorMatrix)?.ToActionMatrix() ?? throw new NotSupportedException("Raldo ball requires its current selected light/color matrix.");
         if (bone)
         {
-            NativeBattleScriptedBackColor back = lighting.BackColor ?? throw new NotSupportedException("Raldo ball requires its current raw bone translation controls.");
+            NativeBattleScriptedBackColor back = (lighting.BackColor ?? throw new NotSupportedException("Raldo ball requires its current raw bone translation controls.")).RequireKnown();
             matrix = matrix with { X = back.Red, Y = back.Green, Z = back.Blue };
         }
         NativeBattleGeometryRegisterStep calculation = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, matrix, true, true, null) };

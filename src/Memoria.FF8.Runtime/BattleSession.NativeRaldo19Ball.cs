@@ -60,39 +60,11 @@ public sealed partial class BattleSession
         void Shadow()
         {
             NativeBattleGraphicsDefinition graphicsDefinition = definition.NativeGraphics!;
-            bool gouraud = graphicsDefinition.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Raldo shadow requires its actual primitive capabilities.");
-            NativeBattleEffectLocalBounds bounds = actor.GeometryBounds52 ?? throw new NotSupportedException("Raldo shadow requires its current bounds.");
-            NativeBattleShadowSource shadowSource = graphicsDefinition.Rules.ShadowSource ?? throw new NotSupportedException("Raldo shadow requires its original template.");
-            (uint address, NativeBattleEffectArena temporary) = Allocate(0x78);
-            int centerX = (bounds.Minimum.X + bounds.Maximum.X) / 2;
-            int centerZ = (bounds.Minimum.Z + bounds.Maximum.Z) / 2;
-            NativeFileStaging = NativeFileStaging!.Write(0xB8B9E4, DwordBytes(unchecked((uint)centerX))).Write(0xB8B9EC, DwordBytes(unchecked((uint)centerZ)));
-            NativeBattleShadowGeometry shape = NativeBattlePoseMatrices.ShadowGeometry5088A0(actor, bounds, view, shadowSource, gouraud);
-            temporary = Matrix(temporary, shape.CameraMatrix, null);
-            registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, shape.CameraMatrix, true, true, null) };
-            (int Vertex, int Axis)[] stores = [(1, 2), (2, 0), (2, 2), (3, 0), (4, 0), (4, 2), (5, 2), (6, 0), (6, 2), (7, 0), (8, 0), (8, 2), (9, 2)];
-            foreach ((int vertex, int axis) in stores)
-            {
-                NativeBattleVector vector = shape.Vertices[vertex];
-                short value = axis == 0 ? vector.X : vector.Z;
-                NativeFileStaging = NativeFileStaging.Write(0x1D999D0u + (uint)(vertex * 8 + axis * 2), WordBytes(unchecked((ushort)value)));
-            }
-            NativeBattleModuleProjectedVertex[] projected = new NativeBattleModuleProjectedVertex[10];
-            for (int vertex = 0; vertex < 10; vertex++)
-            {
-                (byte[] bytes, bool[] known) = NativeFileStaging.ReadSnapshot(0x1D999D0u + (uint)(vertex * 8 + 6), 2);
-                short? w = known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(bytes) : null;
-                registers = NativeBattleGeometry.LoadVector(registers, 0, shape.Vertices[vertex], w);
-                registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
-                uint screen = registers.Geometry.Sxy[2]!.Value;
-                uint depth = registers.Geometry.Sz[3]!.Value;
-                uint flags = registers.Colors.Flags!.Value;
-                temporary = temporary.Write(0x20 + vertex * 8, DwordBytes(screen)).Write(0x24 + vertex * 8, WordBytes(unchecked((ushort)(depth >> 2))));
-                temporary = temporary.Write(0x70, DwordBytes(flags)).Write(0x74, DwordBytes(registers.Colors.Ir0!.Value));
-                projected[vertex] = new(screen, unchecked((ushort)depth), flags);
-            }
-            Append(NativeBattleShadowPackets.EmitBatch5088A0(projected, actor.Color44 ?? throw new NotSupportedException("Raldo shadow requires its model shadow color."), gouraud, 4112, 16));
-            Release(address, temporary, 0x78);
+            NativeBattleShadowDrawStep drawn = NativeBattleShadowDrawing.Prepare5088A0(NativeFileStaging ?? throw new NotSupportedException("Raldo shadow requires its actual temporary memory."), registers, actor, projection, controls, graphicsDefinition.Rules.ShadowSource ?? throw new NotSupportedException("Raldo shadow requires its original template."), graphicsDefinition.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Raldo shadow requires its actual primitive capabilities."), 4112, 16);
+            NativeFileStaging = drawn.Staging;
+            registers = drawn.Registers;
+            Append(drawn.Batch);
+            Release(drawn.TemporaryAddress, drawn.Temporary78, 0x78);
         }
 
         void PublishBones()
@@ -127,26 +99,5 @@ public sealed partial class BattleSession
         }
 
         static short Parent(NativeBattlePoseSource pose, int bone) => BinaryPrimitives.ReadInt16LittleEndian(pose.Skeleton.AsSpan().Slice(16 + bone * 48));
-        static byte[] DwordBytes(uint value)
-        {
-            byte[] bytes = new byte[4];
-            BinaryPrimitives.WriteUInt32LittleEndian(bytes, value);
-            return bytes;
-        }
-        static byte[] WordBytes(ushort value)
-        {
-            byte[] bytes = new byte[2];
-            BinaryPrimitives.WriteUInt16LittleEndian(bytes, value);
-            return bytes;
-        }
-        static NativeBattleEffectArena Matrix(NativeBattleEffectArena arena, NativeBattleActionMatrix matrix, short? padding)
-        {
-            for (int lane = 0; lane < 9; lane++)
-            {
-                arena = arena.Write(lane * 2, WordBytes(unchecked((ushort)matrix.Rotation[lane])));
-            }
-            arena = padding is short value ? arena.Write(18, WordBytes(unchecked((ushort)value))) : arena.MarkUnknown(18, 2);
-            return arena.Write(20, DwordBytes(unchecked((uint)matrix.X))).Write(24, DwordBytes(unchecked((uint)matrix.Y))).Write(28, DwordBytes(unchecked((uint)matrix.Z)));
-        }
     }
 }

@@ -11,12 +11,14 @@ public static partial class NativeBattleGilgameshController
     {
         private NativeBattleMasamuneResources MasamuneResources => resources.Masamune ?? throw new NotSupportedException("Masamune requires its complete original drawing resources.");
 
-        private int MasamuneFlare(uint address)
+        private int MasamuneFlare(uint address) => GilgameshScreenFlare(address, MasamuneResources.Flare);
+
+        private int GilgameshScreenFlare(uint address, NativeBattleStaticMeshResource resource)
         {
             NativeBattleModulePoolTask task = Read(address);
             NativeBattleActionMatrix matrix = NativeBattleGilgameshFlare.Matrix(task);
             Emit(new NativeBattleGilgameshMasamuneProjectionH(0x120));
-            DrawMasamuneMesh(MasamuneResources.Flare, matrix, 0x33, null, 0);
+            DrawGilgameshMesh(resource, matrix, 0x33, null, 0);
             short shadow = inputs.ReadFocalShadow?.Invoke() ?? throw new NotSupportedException("Masamune flare requires its actual projection shadow.");
             Emit(new NativeBattleGilgameshMasamuneProjectionH(unchecked((ushort)shadow)));
             if (Paused)
@@ -44,7 +46,7 @@ public static partial class NativeBattleGilgameshController
             int age = MasamuneSigned(task, 12);
             int threshold = second ? 4 : 8;
             int? fade = age >= threshold ? second ? unchecked((age - 4) * 341) : unchecked((age - 8) << 9) : null;
-            DrawMasamuneMesh(second ? MasamuneResources.BurstB : MasamuneResources.BurstA, matrix, fade.HasValue ? 0xF3u : 0x33u, fade);
+            DrawGilgameshMesh(second ? MasamuneResources.BurstB : MasamuneResources.BurstA, matrix, fade.HasValue ? 0xF3u : 0x33u, fade);
             if (Paused)
             {
                 return 0;
@@ -55,20 +57,20 @@ public static partial class NativeBattleGilgameshController
             return MasamuneSigned(task, 12) >= 16 ? 2 : 0;
         }
 
-        private void DrawMasamuneMesh(NativeBattleStaticMeshResource resource, NativeBattleActionMatrix matrix, uint flags, int? fade, short? matrixPadding18 = null)
+        private void DrawGilgameshMesh(NativeBattleStaticMeshResource resource, NativeBattleActionMatrix matrix, uint flags, int? fade, short? matrixPadding18 = null)
         {
             NativeBattleFileStaging staging = MasamuneStaging;
             NativeBattleTemporaryAllocation temporary = NativeBattleTemporaryMemory.Allocate5082B0(staging, 88);
             NativeBattleEffectArena context = NativeBattleTemporaryMemory.ReadView(temporary.Staging, temporary.Address, 88);
-            context = NativeBattleMasamuneMesh.Put(context, 0, resource.Address);
-            context = NativeBattleMasamuneMesh.Put(context, 8, 0);
-            context = NativeBattleMasamuneMesh.Put(context, 0x1C, flags);
+            context = NativeBattleStaticMeshContext88.Put(context, 0, resource.Address);
+            context = NativeBattleStaticMeshContext88.Put(context, 8, 0);
+            context = NativeBattleStaticMeshContext88.Put(context, 0x1C, flags);
             if (fade is int cue)
             {
-                context = NativeBattleMasamuneMesh.Put(context, 12, unchecked((uint)cue));
+                context = NativeBattleStaticMeshContext88.Put(context, 12, unchecked((uint)cue));
             }
             Frame = Frame with { Staging = temporary.Staging };
-            NativeBattleMasamuneMeshStep result = NativeBattleMasamuneMesh.Draw(Frame.Memory, resource, matrix, Projection, context, inputs.Colors, matrixPadding18);
+            NativeBattleStaticMeshContext88Step result = NativeBattleStaticMeshContext88.Draw(Frame.Memory, resource, matrix, Projection, context, inputs.Colors, matrixPadding18);
             staging = NativeBattleTemporaryMemory.PublishView(MasamuneStaging, temporary.Address, result.Context, 88);
             Frame = Frame with { Memory = result.Memory, Staging = staging };
             Emit(new NativeBattleGilgameshPackets(result.Batch));
@@ -110,7 +112,7 @@ public static partial class NativeBattleGilgameshController
             for (int index = 0; index < NativeBattleMasamuneParticles.Capacity; index++)
             {
                 int record = NativeBattleMasamuneParticles.Bank(ring) + index * NativeBattleMasamuneParticles.Stride(ring);
-                if ((unchecked((int)NativeBattleMasamuneMesh.Dword(Arena, record)) & mask) == 0)
+                if ((unchecked((int)NativeBattleStaticMeshContext88.Dword(Arena, record)) & mask) == 0)
                 {
                     continue;
                 }
@@ -149,9 +151,9 @@ public static partial class NativeBattleGilgameshController
         private static short MasamuneSigned(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
         private static NativeBattleEffectArena MasamuneVector(NativeBattleEffectArena arena, int offset, int x, int y, int z)
         {
-            arena = NativeBattleMasamuneMesh.Put(arena, offset, unchecked((uint)x));
-            arena = NativeBattleMasamuneMesh.Put(arena, offset + 4, unchecked((uint)y));
-            return NativeBattleMasamuneMesh.Put(arena, offset + 8, unchecked((uint)z));
+            arena = NativeBattleStaticMeshContext88.Put(arena, offset, unchecked((uint)x));
+            arena = NativeBattleStaticMeshContext88.Put(arena, offset + 4, unchecked((uint)y));
+            return NativeBattleStaticMeshContext88.Put(arena, offset + 8, unchecked((uint)z));
         }
         private static NativeBattleEffectArena MasamuneMatrix(NativeBattleEffectArena arena, int offset, NativeBattleActionMatrix matrix)
         {

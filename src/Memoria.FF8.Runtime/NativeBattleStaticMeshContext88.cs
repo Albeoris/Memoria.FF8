@@ -4,13 +4,13 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleMasamuneMeshStep(NativeBattleEffectMemory Memory, NativeBattleEffectArena Context, NativeBattleGfGeometryBatch Batch);
+public sealed record NativeBattleStaticMeshContext88Step(NativeBattleEffectMemory Memory, NativeBattleEffectArena Context, NativeBattleGfGeometryBatch Batch);
 
-public static class NativeBattleMasamuneMesh
+public static class NativeBattleStaticMeshContext88
 {
-    public static NativeBattleMasamuneMeshStep Draw(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, short? matrixPadding18 = null)
+    public static NativeBattleStaticMeshContext88Step Draw(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, short? matrixPadding18 = null)
     {
-        NativeBattleGeometryRegisterStep registers = new(memory.GeometryRegisters ?? throw new NotSupportedException("Masamune requires its current geometry registers."), memory.ScriptedColorRegisters ?? throw new NotSupportedException("Masamune requires its current data registers."));
+        NativeBattleGeometryRegisterStep registers = new(memory.GeometryRegisters ?? NativeBattleGeometryRegisters.Unknown(), memory.ScriptedColorRegisters ?? NativeBattleScriptedColorRegisters.Unknown());
         NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics ?? throw new NotSupportedException("Masamune requires its current projection controls.");
         NativeBattlePrimitiveProcess primitive = memory.PrimitiveProcess ?? throw new NotSupportedException("Masamune requires its current far-color controls.");
         NativeBattleModelRendererRegisters far = primitive.ModelRendererRegisters ?? throw new NotSupportedException("Masamune requires its current renderer registers.");

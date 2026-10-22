@@ -23,7 +23,7 @@ public sealed class NativeBattleGilgameshMasamuneProfileTests
         Assert.Equal(33312, profile.AttackFileLength);
         Assert.Equal(0xCD0388u, profile.ClosingSoundAddress);
         Assert.Equal(0x3AA9Fu, profile.ClosingSound);
-        Assert.Throws<NotSupportedException>(() => NativeBattleGilgameshProfile.ForEffect(327));
+        Assert.Throws<NotSupportedException>(() => NativeBattleGilgameshProfile.ForEffect(326));
     }
 
     [Theory]

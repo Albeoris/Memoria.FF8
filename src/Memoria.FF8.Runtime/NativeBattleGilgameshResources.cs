@@ -4,23 +4,33 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-/// <summary>The complete external files selected by Excalipoor, independent of their live stream destinations.</summary>
+/// <summary>The complete external files selected by the Gilgamesh attack, independent of their live stream destinations.</summary>
 public sealed record NativeBattleGilgameshResources([property: JsonRequired] ImmutableArray<NativeBattleArchiveFile> Files)
 {
     public ushort Effect { get; init; } = 330;
 
     public static ImmutableArray<ushort> FileIds { get; } = [745, 746, 747, 748, 749, 750, 751, 752, 753, 755, 757];
 
-    public static ImmutableArray<ushort> FileIdsForEffect(ushort effect) => FileIds.SetItem(10, NativeBattleGilgameshProfile.ForEffect(effect).AttackFile);
+    public static ImmutableArray<ushort> FileIdsForEffect(ushort effect)
+    {
+        NativeBattleGilgameshProfile profile = NativeBattleGilgameshProfile.ForEffect(effect);
+        return profile.HasAttackFile ? FileIds.SetItem(10, profile.AttackFile) : FileIds.RemoveAt(10);
+    }
 
     public void Validate()
     {
         ImmutableArray<ushort> ids = FileIdsForEffect(Effect);
-        string[] names = ["mag326_a.dat", "mag326_b.dat", "mag326_c.dat", "mag326_d.dat", "mag326_e.dat", "mag326_f.dat", "mag326_g.dat", "mag326_h.dat", "mag326_k.dat", "mag328_i.dat", NativeBattleGilgameshProfile.ForEffect(Effect).AttackFileName];
-        int[] lengths = [103968, 30688, 132640, 33824, 31004, 4, 50592, 4, 4, 34336, NativeBattleGilgameshProfile.ForEffect(Effect).AttackFileLength];
-        if (Files.IsDefault || Files.Length != FileIds.Length)
+        NativeBattleGilgameshProfile profile = NativeBattleGilgameshProfile.ForEffect(Effect);
+        string[] names = ["mag326_a.dat", "mag326_b.dat", "mag326_c.dat", "mag326_d.dat", "mag326_e.dat", "mag326_f.dat", "mag326_g.dat", "mag326_h.dat", "mag326_k.dat", "mag328_i.dat"];
+        int[] lengths = [103968, 30688, 132640, 33824, 31004, 4, 50592, 4, 4, 34336];
+        if (profile.HasAttackFile)
         {
-            throw new InvalidDataException("Native Excalipoor external reads require their eleven complete original files.");
+            names = [.. names, profile.AttackFileName];
+            lengths = [.. lengths, profile.AttackFileLength];
+        }
+        if (Files.IsDefault || Files.Length != ids.Length)
+        {
+            throw new InvalidDataException("Native Excalipoor external reads require their complete selected original files.");
         }
         for (int index = 0; index < Files.Length; index++)
         {
@@ -40,7 +50,7 @@ public sealed record NativeBattleGilgameshDirectorResources([property: JsonRequi
     public void Validate()
     {
         NativeBattleGilgameshProfile profile = NativeBattleGilgameshProfile.ForEffect(Effect);
-        if (CameraProgram is null || CameraProgram.Identity != $"FF8_EN:{profile.CameraAddress:X}" || CameraProgram.Data.IsDefault || CameraProgram.Data.Length != 0xEA || BinaryPrimitives.ReadUInt16LittleEndian(CameraProgram.Data.AsSpan().Slice(0xE8)) != 0x8000)
+        if (CameraProgram is null || CameraProgram.Identity != $"FF8_EN:{profile.CameraAddress:X}" || CameraProgram.Data.IsDefault || CameraProgram.Data.Length != profile.CameraLength || BinaryPrimitives.ReadUInt16LittleEndian(CameraProgram.Data.AsSpan().Slice(profile.CameraLength - 2)) != 0x8000)
         {
             throw new InvalidDataException("Native Excalipoor camera requires its complete selected program and terminal WORD.");
         }

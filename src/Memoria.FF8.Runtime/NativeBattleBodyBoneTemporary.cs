@@ -12,6 +12,11 @@ public static class NativeBattleBodyBoneTemporary
         NativeBattleDecodedPose decoded = NativeBattlePoseMatrices.ReadDecodedPose(actor.SequenceState ?? throw new NotSupportedException("Native bone preparation requires its actual decoded body pose."), source);
         actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);
         ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(actor, source);
+        return new(actor, Prepare508C90(source, decoded, matrices, temporary));
+    }
+
+    public static NativeBattleEffectArena Prepare508C90(NativeBattlePoseSource source, NativeBattleDecodedPose decoded, ImmutableArray<NativeBattleActionMatrix> matrices, NativeBattleEffectArena temporary)
+    {
         short scale = BinaryPrimitives.ReadInt16LittleEndian(source.Skeleton.AsSpan().Slice(2));
         for (int bone = 0; bone < source.BoneCount; bone++)
         {
@@ -44,7 +49,7 @@ public static class NativeBattleBodyBoneTemporary
             }
             temporary = temporary.Write(18, new byte[2]);
         }
-        return new(actor, temporary);
+        return temporary;
     }
 
     private static byte[] DwordBytes(uint value)

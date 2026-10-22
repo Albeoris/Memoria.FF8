@@ -9,7 +9,10 @@ public sealed record NativeBattleGilgameshProcess([property: JsonRequired] Nativ
     [JsonRequired]
     public NativeBattleGilgameshSwordTrailState SwordTrail { get; init; } = NativeBattleGilgameshSwordTrailState.FromColdProcess();
 
-    public static NativeBattleGilgameshProcess FromColdProcess() => new(NativeBattleGilgameshModelMemory.FromColdProcess(), null, null, null, null, NativeBattleGilgameshOpeningFlareState.FromColdProcess());
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleGilgameshZantetsukenActors? ZantetsukenActors { get; init; }
+
+    public static NativeBattleGilgameshProcess FromColdProcess() => new(NativeBattleGilgameshModelMemory.FromColdProcess(), null, null, null, null, NativeBattleGilgameshOpeningFlareState.FromColdProcess()) { ZantetsukenActors = NativeBattleGilgameshZantetsukenActors.FromColdProcess() };
 
     public void Validate()
     {
@@ -22,6 +25,7 @@ public sealed record NativeBattleGilgameshProcess([property: JsonRequired] Nativ
         (OpeningFlare ?? throw new InvalidDataException("Native Gilgamesh requires its retained opening-flare matrix.")).Validate();
         Entry?.World.Validate();
         WorldView?.Validate();
+        ZantetsukenActors?.Validate();
     }
 }
 
@@ -37,4 +41,6 @@ public sealed record NativeBattleGilgameshEffectResources([property: JsonRequire
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleMasamuneResources? Masamune { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleZantetsukenResources? Zantetsuken { get; init; }
 }

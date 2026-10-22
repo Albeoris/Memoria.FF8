@@ -34,7 +34,61 @@ public sealed record NativeBattleScriptedLightingMatrix([property: JsonRequired]
 }
 
 /// <summary>The back-color control DWORDs after the native signed input multiplication by sixteen.</summary>
-public sealed record NativeBattleScriptedBackColor([property: JsonRequired] int Red, [property: JsonRequired] int Green, [property: JsonRequired] int Blue);
+public sealed record NativeBattleScriptedBackColor([property: JsonRequired] int Red, [property: JsonRequired] int Green, [property: JsonRequired] int Blue)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<bool>? Known { get; init; }
+
+    public static NativeBattleScriptedBackColor Unknown() => new(0, 0, 0) { Known = [false, false, false] };
+
+    public void Validate()
+    {
+        if (Known is { } known && (known.IsDefault || known.Length != 3))
+        {
+            throw new InvalidDataException("Native back-color controls require three lane knowledge flags.");
+        }
+    }
+
+    public int? ReadLane(int index)
+    {
+        Validate();
+        if ((uint)index >= 3)
+        {
+            throw new ArgumentOutOfRangeException(nameof(index));
+        }
+        if (Known is { } known && !known[index])
+        {
+            return null;
+        }
+        return index == 0 ? Red : index == 1 ? Green : Blue;
+    }
+
+    public NativeBattleScriptedBackColor WriteLane(int index, int value)
+    {
+        Validate();
+        if ((uint)index >= 3)
+        {
+            throw new ArgumentOutOfRangeException(nameof(index));
+        }
+        ImmutableArray<bool> known = (Known ?? [true, true, true]).SetItem(index, true);
+        return index switch
+        {
+            0 => this with { Red = value, Known = known },
+            1 => this with { Green = value, Known = known },
+            _ => this with { Blue = value, Known = known }
+        };
+    }
+
+    public NativeBattleScriptedBackColor RequireKnown()
+    {
+        Validate();
+        if (Known is { } known && known.Any(value => !value))
+        {
+            throw new NotSupportedException("Native back-color consumption requires all three actual control lanes.");
+        }
+        return this;
+    }
+}
 
 /// <summary>Process-retained cinematic lighting registers. Null fields denote unpublished, unknown registers.</summary>
 public sealed record NativeBattleScriptedLightingMemory([property: JsonRequired] NativeBattleScriptedLightingMatrix? LightMatrix, [property: JsonRequired] NativeBattleScriptedLightingMatrix? ColorMatrix, [property: JsonRequired] NativeBattleScriptedBackColor? BackColor)
@@ -45,6 +99,7 @@ public sealed record NativeBattleScriptedLightingMemory([property: JsonRequired]
     {
         LightMatrix?.Validate();
         ColorMatrix?.Validate();
+        BackColor?.Validate();
     }
 }
 

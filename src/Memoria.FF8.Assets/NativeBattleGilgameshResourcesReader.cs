@@ -12,7 +12,7 @@ public static class NativeBattleGilgameshResourcesReader
     {
         NativeExecutableMemory memory = new(executable);
         NativeBattleGilgameshProfile profile = NativeBattleGilgameshProfile.ForEffect(effect);
-        NativeBattleGilgameshDirectorResources result = new(new($"FF8_EN:{profile.CameraAddress:X}", memory.Read(profile.CameraAddress, 0xEA).ToImmutableArray()), new(memory.SourceHash, [0, 0x100], memory.Read(profile.VibrationAddress, profile.VibrationLength).ToImmutableArray()), U32(0xCD0378), U32(0xCD037C), U32(0xCD0380), U32(profile.ClosingSoundAddress)) { Effect = effect };
+        NativeBattleGilgameshDirectorResources result = new(new($"FF8_EN:{profile.CameraAddress:X}", memory.Read(profile.CameraAddress, profile.CameraLength).ToImmutableArray()), new(memory.SourceHash, [0, 0x100], memory.Read(profile.VibrationAddress, profile.VibrationLength).ToImmutableArray()), U32(0xCD0378), U32(0xCD037C), U32(0xCD0380), U32(profile.ClosingSoundAddress)) { Effect = effect };
         result.Validate();
         return result;
 
@@ -22,8 +22,9 @@ public static class NativeBattleGilgameshResourcesReader
     public static ImmutableArray<NativeBattleArchiveFile> ReadFileNames(byte[] executable, ushort effect = 330)
     {
         NativeExecutableMemory memory = new(executable);
-        ImmutableArray<NativeBattleArchiveFile>.Builder files = ImmutableArray.CreateBuilder<NativeBattleArchiveFile>(NativeBattleGilgameshResources.FileIds.Length);
-        foreach (ushort id in NativeBattleGilgameshResources.FileIdsForEffect(effect))
+        ImmutableArray<ushort> ids = NativeBattleGilgameshResources.FileIdsForEffect(effect);
+        ImmutableArray<NativeBattleArchiveFile>.Builder files = ImmutableArray.CreateBuilder<NativeBattleArchiveFile>(ids.Length);
+        foreach (ushort id in ids)
         {
             uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(checked(0xB84CCCu + id * 4u), 4));
             byte[] bytes = memory.Read(pointer, 128);

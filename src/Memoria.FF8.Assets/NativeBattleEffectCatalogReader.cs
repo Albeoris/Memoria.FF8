@@ -711,7 +711,7 @@ public sealed partial class GameAssets
                 binding = binding with { Water222Resources = ReadNativeWater222Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
-            if (binding.Effect is 328 or 329 or 330)
+            if (binding.Effect is 327 or 328 or 329 or 330)
             {
                 NativeBattleGilgameshProfile profile = NativeBattleGilgameshProfile.ForEffect(binding.Effect);
                 if (binding.Entry != profile.Entry || binding.Initializer != profile.Initializer)

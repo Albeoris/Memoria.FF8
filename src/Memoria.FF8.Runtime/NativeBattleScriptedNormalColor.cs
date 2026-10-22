@@ -9,7 +9,7 @@ public static class NativeBattleScriptedNormalColor
         registers.Validate();
         NativeBattleScriptedLightingMatrix light = lighting.LightMatrix ?? throw new NotSupportedException("Native normal color requires its current light matrix controls.");
         NativeBattleScriptedLightingMatrix color = lighting.ColorMatrix ?? throw new NotSupportedException("Native normal color requires its current color matrix controls.");
-        NativeBattleScriptedBackColor back = lighting.BackColor ?? throw new NotSupportedException("Native normal color requires its current back-color controls.");
+        NativeBattleScriptedBackColor back = (lighting.BackColor ?? throw new NotSupportedException("Native normal color requires its current back-color controls.")).RequireKnown();
         var lightWords = light.Rotation;
         var colorWords = color.Rotation;
         float[] lit = new float[3];

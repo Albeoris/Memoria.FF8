@@ -21,6 +21,8 @@ public sealed record NativeBattleGilgameshInputs(uint GraphicsFlags, NativeBattl
 {
     public Func<NativeBattleCameraProjection>? ReadProjection { get; init; }
     public Func<short>? ReadFocalShadow { get; init; }
+    public Func<byte, short>? ReadModelWord26 { get; init; }
+    public Func<byte, NativeBattlePackedMatrix32>? ReadModelWorld32 { get; init; }
 }
 
 public static partial class NativeBattleGilgameshController
@@ -71,6 +73,7 @@ public static partial class NativeBattleGilgameshController
         private NativeBattleActionHeaderSlot Header => inputs.Packets.Headers[Parameters.HeaderIndex7C];
         private NativeBattleEffectTaskPool Children => Frame.Effect.Pools[1];
         private bool Paused => (inputs.GraphicsFlags & 0x201) != 0;
+        private NativeBattleGilgameshZantetsukenInputs ZantetsukenInputs(ImmutableArray<NativeBattleGilgameshZantetsukenContactRow> contacts) => new(inputs.GraphicsFlags, contacts, actor => inputs.ReadModelWord26?.Invoke(actor) ?? throw new NotSupportedException("Zantetsuken requires its actual model height WORD."), actor => inputs.ReadModelWorld32?.Invoke(actor) ?? throw new NotSupportedException("Zantetsuken requires its retained model world matrix."), inputs.Execute);
 
         private void SetShared(NativeBattleGilgameshProcess state) => Frame = Frame with { Memory = Frame.Memory with { Gilgamesh = state } };
         private void SetChildren(NativeBattleEffectTaskPool pool) => Frame = Frame with { Effect = Frame.Effect with { Pools = Frame.Effect.Pools.SetItem(1, pool) } };
@@ -152,6 +155,34 @@ public static partial class NativeBattleGilgameshController
                     Write(address, ring.UpdatedTask);
                     Emit(new NativeBattleGilgameshPackets(ring.Batch));
                     return ring.Result;
+                case 0x58DED0:
+                    if (Paused)
+                    {
+                        return 0;
+                    }
+                    ImmutableArray<NativeBattleGilgameshZantetsukenContactRow> zantetsukenContacts = default;
+                    if (task.ReadWord(12) == 16)
+                    {
+                        int zantetsukenFirst = Header.FirstContactIndex ?? throw new NotSupportedException("Zantetsuken requires its captured first contact pointer.");
+                        zantetsukenContacts = Enumerable.Range(zantetsukenFirst, Header.ReadByte(16)).Select(index => inputs.Packets.ReadContact(index).Primary).Select(contact => new NativeBattleGilgameshZantetsukenContactRow(contact.ActorIndex, contact.HitFlags3)).ToImmutableArray();
+                    }
+                    NativeBattleGilgameshZantetsukenStep zantetsuken = NativeBattleGilgameshZantetsukenAttack.Advance(Frame, address, ZantetsukenInputs(zantetsukenContacts));
+                    Frame = zantetsuken.Frame;
+                    return zantetsuken.Result;
+                case 0x58E3E0:
+                    NativeBattleGilgameshZantetsukenStep rotation327 = NativeBattleGilgameshZantetsukenLifecycle.AdvanceRotation(Frame, address, ZantetsukenInputs(default));
+                    Frame = rotation327.Frame;
+                    return rotation327.Result;
+                case 0x58E120:
+                    return ZantetsukenFlare(address);
+                case 0x58E570:
+                    NativeBattleGilgameshZantetsukenStep actor327 = NativeBattleGilgameshZantetsukenLifecycle.AdvanceActor(Frame, address, ZantetsukenInputs(default));
+                    Frame = actor327.Frame;
+                    return actor327.Result;
+                case 0x58F940:
+                    NativeBattleGilgameshZantetsukenStep stage327 = NativeBattleGilgameshZantetsukenLifecycle.AdvanceStage(Frame, address, ZantetsukenInputs(default));
+                    Frame = stage327.Frame;
+                    return stage327.Result;
                 case 0x590510:
                     if (Paused)
                     {
