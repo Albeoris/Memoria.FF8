@@ -12,6 +12,7 @@ public sealed partial class BattleSession
         NativeBattleRenzokuken160Frame frame = NativeBattleRenzokuken160Controller.Enter5FF080(NativeEffectMemory ?? throw new NotSupportedException("Native160 requires retained effect memory."), effect, nativeActionPackets, resources, nativeCrtRandom ?? throw new NotSupportedException("Native160 requires retained CRT random state."));
         NativeEffectMemory = frame.Memory;
         nativeCrtRandom = frame.Random;
+        NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native5099A0 requires its actual camera owner.")).RegisterControlResource(frame.Memory.Textures!.Animation);
         return graphics with { OriginalEffect = frame.Effect };
     }
 

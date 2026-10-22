@@ -46,12 +46,20 @@ public sealed class NativeBattleRenzokukenCastTests
             CompareNext("queued");
             Assert.Equal(effectId, battle.GetNativeRenzokuken("party")!.MagicId);
             bool selected = false;
+            bool registeredCamera = false;
             bool capturedMidpoint = false;
             for (int callback = 0; callback < 4096; callback++)
             {
                 before = battle.Capture();
                 battle.Tick();
                 selected |= battle.NativeGraphics!.OriginalEffect?.Binding.Effect == effectId;
+                if (battle.NativeGraphics.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == effectId)
+                {
+                    Assert.NotNull(battle.NativeEffectMemory!.Textures!.Animation);
+                    Assert.Equal(JsonSerializer.Serialize(battle.NativeEffectMemory.Textures.Animation), JsonSerializer.Serialize(battle.NativeCamera!.ControlResource));
+                    Assert.Null(battle.NativeCamera.ControlStagingSource);
+                    registeredCamera = true;
+                }
                 if (!capturedMidpoint && battle.NativeGraphics.TriggerWidget?.Input.ContactIndex > 0)
                 {
                     CompareNext("midpoint");
@@ -60,6 +68,7 @@ public sealed class NativeBattleRenzokukenCastTests
                 if (selected && battle.GetNativeRenzokuken("party") is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.NativeGraphics.OriginalEffect is { ReturnedDescriptor: 0 })
                 {
                     Assert.True(capturedMidpoint);
+                    Assert.True(registeredCamera);
                     Assert.Equal(contacts, battle.Events.Count(entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy"));
                     Assert.Null(battle.Capture().NativeTimedAction);
                     Assert.Equal((byte)0, battle.Capture().NativeClock!.ActionPause);

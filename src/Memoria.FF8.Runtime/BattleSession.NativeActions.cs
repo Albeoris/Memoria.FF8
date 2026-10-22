@@ -1,4 +1,4 @@
-﻿namespace Memoria.FF8.Runtime;
+namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
@@ -516,7 +516,7 @@ public sealed partial class BattleSession
         {
             damage = damage * (NextRandomByte() + 10) / 150;
         }
-        if (native.Command is 1 or 12 or 28 or 243 or 248 or 253 && (NativeSavedStatusBits(actor) & 0x20) != 0)
+        if (native.Command is 1 or 12 or 28 or 243 or 248 or 251 or 253 && (NativeSavedStatusBits(actor) & 0x20) != 0)
         {
             damage = damage * 3 >> 1;
         }

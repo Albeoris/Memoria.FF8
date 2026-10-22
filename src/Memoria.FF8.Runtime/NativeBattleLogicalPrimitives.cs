@@ -447,7 +447,7 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
                 int count = opcode == 0 ? 1 : Math.Max((int)wordLengths[opcode], 1);
                 if (count > remaining || word + count > packet.Words.Length)
                 {
-                    throw new InvalidDataException("Native logical packet ends inside an original command.");
+                    throw new InvalidDataException($"Native logical packet ends inside an original command: bank={packet.Reference.Bank}, buffer={packet.Reference.Buffer}, offset={packet.Reference.ByteOffset:X}, physical={packet.RequiresPhysicalRead}, bucket={bucket}, word={word}, opcode={opcode:X2}, count={count}, remaining={remaining}, words={string.Join(" ", packet.Words.Select(value => value.ToString("X8")))}.");
                 }
                 if (opcode != 0)
                 {
