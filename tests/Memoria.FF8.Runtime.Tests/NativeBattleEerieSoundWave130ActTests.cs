@@ -98,6 +98,14 @@ public sealed class NativeBattleEerieSoundWave130ActTests
         Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
     }
 
+    [Fact]
+    public void Custom_morph_length_guard_remains_lazy_and_rejects_non768_only_when_interpolating()
+    {
+        NativeBattleEerieSoundWave130ActStep direct = NativeBattleEerieSoundWave130Act.Draw(Memory() with { Arena = null }, Source(96, 1), Node(), Context().MarkUnknown(36, 4), NativeBattleEffectArena.Clear().MarkUnknown(0, 88), new(null, 100, 160, 108), Colors, MorphAddress, 760);
+        Assert.Null(direct.Memory.Arena);
+        Assert.Throws<InvalidDataException>(() => NativeBattleEerieSoundWave130Act.Draw(Memory(), Source(96, 2), Node(ratio: 2048, second: 1), Context(), NativeBattleEffectArena.Clear().MarkUnknown(0, 88), new(null, 100, 160, 108), Colors, MorphAddress, 760));
+    }
+
     private static NativeBattleEerieSoundWave130ActStep Draw(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena? context = null, NativeBattleEffectMemory? memory = null) => NativeBattleEerieSoundWave130Act.Draw(memory ?? Memory(), source, node, context ?? Context(), NativeBattleEffectArena.Clear().MarkUnknown(0, 88), new(null, 100, 160, 108), Colors, MorphAddress);
     private static NativeBattleEffectMemory Memory() => NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().MarkUnknown(MorphOffset, 768), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
     private static NativeBattleEffectArena Context(NativeBattleActionMatrix? matrix = null)

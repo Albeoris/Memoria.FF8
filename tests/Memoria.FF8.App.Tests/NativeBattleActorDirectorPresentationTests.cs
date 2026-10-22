@@ -37,6 +37,10 @@ public sealed class NativeBattleActorDirectorPresentationTests
         int visibleChangedRgb = 0;
         bool initialized = false;
         bool petrifyActRestored = false;
+        bool hypnotizeMainRestored = false;
+        bool hypnotizeAnchoredRestored = false;
+        bool hypnotizeFadingRestored = false;
+        bool hypnotizeSpriteRestored = false;
         bool needleRecordsRestored = false;
         bool needleSparksRestored = false;
         bool laserBankRestored = false;
@@ -207,6 +211,17 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.NotNull(source.NativeEffectMemory!.WhiteWind297);
                 Assert.Equal(0u, source.NativeEffectMemory.WhiteWind297!.ReadDword(NativeBattleWhiteWind297Profile.WorkingGlobal));
                 Assert.NotNull(original.WhiteWind297Resources);
+            }
+            if (effectId == 133)
+            {
+                Assert.Equal((byte)3, caster);
+                Assert.Equal((byte)0, contactActor);
+                Assert.Equal((byte)11, header.ReadByte(2));
+                Assert.Equal((byte)8, action.Command);
+                Assert.Equal((ushort)76, action.ActionId);
+                Assert.Equal((ushort?)7, request.ControlledContactValue);
+                Assert.NotNull(original.Hypnotize133Resources);
+                Assert.Equal(0u, source.NativeEffectMemory!.Hypnotize133!.ReadDword(NativeBattleHypnotize133Profile.WorkingGlobal));
             }
             if (effectId is 177 or 178)
             {
@@ -576,6 +591,35 @@ public sealed class NativeBattleActorDirectorPresentationTests
                         Assert.True(doom.ReaperSourceLoaded);
                         ColdNext("reaper-initialized", current);
                         doomReaperRestored = true;
+                    }
+                }
+                if (effectId == 133 && after?.ReturnedDescriptor is > 0 && after.Pools.Length == 5)
+                {
+                    NativeBattleHypnotize133State hypnotizeState = current.NativeEffectMemory!.Hypnotize133!;
+                    uint hypnotizeWorking = hypnotizeState.ReadDword(NativeBattleHypnotize133Profile.WorkingGlobal);
+                    Assert.Equal(new uint[] { 0x2520F50, 0x2520F40, 0x2520F30, 0x2520F20, 0x2520F10 }, after.Pools.Select(pool => pool.DescriptorAddress).ToArray());
+                    Assert.Equal(new uint[] { NativeBattleHypnotize133Profile.RootBank, hypnotizeWorking + 0xD40, hypnotizeWorking + 0x7C0, hypnotizeWorking + 0x280, hypnotizeWorking }, after.Pools.Select(pool => pool.BankAddress).ToArray());
+                    Assert.Equal(new ushort[] { 20, 0xC4, 0xB0, 0x54, 0x14 }, after.Pools.Select(pool => pool.Stride).ToArray());
+                    Assert.Equal(new int[] { 1, 1, 8, 16, 32 }, after.Pools.Select(pool => pool.Slots.Length).ToArray());
+                    if (!hypnotizeMainRestored && after.Pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.Callback == NativeBattleHypnotize133Profile.MainCallback && task.ReadDword(0x1C) == 0x1207958 && task.ReadDword(0x20) > 0))
+                    {
+                        ColdNext("main-act-live", current);
+                        hypnotizeMainRestored = true;
+                    }
+                    if (!hypnotizeAnchoredRestored && after.Pools[2].Slots.Any(task => (task.Flags & 1) != 0 && task.Callback == 0x6B17C0 && task.ReadDword(0x18) > 0 && original.Hypnotize133Resources!.AnchoredActs.Any(act => act.Address == task.ReadDword(0x14))))
+                    {
+                        ColdNext("anchored-act-live", current);
+                        hypnotizeAnchoredRestored = true;
+                    }
+                    if (!hypnotizeFadingRestored && after.Pools[3].Slots.Any(task => (task.Flags & 1) != 0 && task.Callback == 0x6B1900 && task.ReadDword(0x18) > 0 && original.Hypnotize133Resources!.FadingActs.Any(act => act.Address == task.ReadDword(0x14))))
+                    {
+                        ColdNext("fading-act-live", current);
+                        hypnotizeFadingRestored = true;
+                    }
+                    if (!hypnotizeSpriteRestored && after.Pools[4].Slots.Any(task => (task.Flags & 1) != 0 && task.Callback == 0x6B1740 && task.ReadWord(0x12) > 0))
+                    {
+                        ColdNext("sprite-live", current);
+                        hypnotizeSpriteRestored = true;
                     }
                 }
                 if (effectId is 177 or 178 && after?.ReturnedDescriptor is > 0)
@@ -1233,7 +1277,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                     }
                     else
                     {
-                        Assert.Equal(JsonSerializer.Serialize(original.NeedlesFamilyResources?.Camera ?? original.LaserEye71Resources?.Camera ?? original.EerieSoundWave130Resources?.Camera ?? original.PetrifyStare127Resources?.Camera ?? original.RayBomb307Resources?.Camera ?? original.UltraWaves184Resources?.Camera ?? original.Electrocute275Resources?.Camera ?? original.Acid317Resources?.Camera ?? original.GatlingGun305Resources?.Camera ?? original.Degenerator306Resources?.Camera ?? original.BadBreath300Resources?.Camera ?? original.MicroMissiles299Resources?.Camera ?? original.WhiteWind297Resources?.Camera ?? original.DeathResources?.Animation ?? original.Curse47Resources?.Animation ?? original.Doom8Resources?.Camera ?? original.Absorb56Resources?.Animation ?? original.Devour62Resources?.Animation ?? original.MeltingBubble43Resources?.Animation ?? original.WindBlast29Resources?.Animation ?? original.Effect60Resources?.Animation ?? original.PsychoBlast23Resources?.Animation ?? original.Effect20Resources?.Animation ?? original.Raldo19Resources?.Animation ?? original.DrinkMagic37Resources?.Animation ?? original.MightyGuardResources?.Animation ?? original.ActorDirectorResources!.Animation), JsonSerializer.Serialize(current.NativeEffectMemory!.Textures!.Animation!.Source));
+                        Assert.Equal(JsonSerializer.Serialize(original.Hypnotize133Resources?.Camera ?? original.NeedlesFamilyResources?.Camera ?? original.LaserEye71Resources?.Camera ?? original.EerieSoundWave130Resources?.Camera ?? original.PetrifyStare127Resources?.Camera ?? original.RayBomb307Resources?.Camera ?? original.UltraWaves184Resources?.Camera ?? original.Electrocute275Resources?.Camera ?? original.Acid317Resources?.Camera ?? original.GatlingGun305Resources?.Camera ?? original.Degenerator306Resources?.Camera ?? original.BadBreath300Resources?.Camera ?? original.MicroMissiles299Resources?.Camera ?? original.WhiteWind297Resources?.Camera ?? original.DeathResources?.Animation ?? original.Curse47Resources?.Animation ?? original.Doom8Resources?.Camera ?? original.Absorb56Resources?.Animation ?? original.Devour62Resources?.Animation ?? original.MeltingBubble43Resources?.Animation ?? original.WindBlast29Resources?.Animation ?? original.Effect60Resources?.Animation ?? original.PsychoBlast23Resources?.Animation ?? original.Effect20Resources?.Animation ?? original.Raldo19Resources?.Animation ?? original.DrinkMagic37Resources?.Animation ?? original.MightyGuardResources?.Animation ?? original.ActorDirectorResources!.Animation), JsonSerializer.Serialize(current.NativeEffectMemory!.Textures!.Animation!.Source));
                     }
                     initialized = true;
                     ColdNext("initialized", current);
@@ -1270,7 +1314,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                         ColdNext("secondary-contact", current);
                     }
                 }
-                if ((visibleChangedRgb == 0 || effectId is 8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 71 or 73 or 74 or 78 or 127 or 130 or 177 or 178 or 297 or 299 or 300 or 305 or 306 or 317 or 275 or 184 or 307 or 260) && after?.ReturnedDescriptor is > 0 && Director(current).Effect == effectId)
+                if ((visibleChangedRgb == 0 || effectId is 8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 71 or 73 or 74 or 78 or 127 or 130 or 133 or 177 or 178 or 297 or 299 or 300 or 305 or 306 or 317 or 275 or 184 or 307 or 260) && after?.ReturnedDescriptor is > 0 && Director(current).Effect == effectId)
                 {
                     ImmutableHashSet<NativeBattlePrimitiveReference> owned = ActorDirectorPacketReferences(prior, current);
                     if (!owned.IsEmpty)
@@ -1292,7 +1336,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                             peakOwnership = effectId is 19 or 184
                                 ? JsonSerializer.Serialize(new { Effect = effectId, current.Frame, NativeCallback = current.NativeGraphics.Callback, Ownership = effectId == 184 ? "Fixed native PRIVATE packets, warp quads and capture plus matched COMMON prefix before ordinary actor submission" : "Matched common packets before the complete first actor allocation", Packets = owned.OrderBy(packet => packet.Bank).ThenBy(packet => packet.Buffer).ThenBy(packet => packet.ByteOffset).ToArray() })
                                 : JsonSerializer.Serialize(new { Effect = effectId, current.Frame, NativeCallback = current.NativeGraphics.Callback, PrivateBank = packetState.PacketBank, PrivateStart = packetState.SecondaryDrawCursor!.Value - packetState.DrawStep, PrivateEnd = packetState.PrimaryDrawCursor!.Value, Packets = owned.OrderBy(packet => packet.Bank).ThenBy(packet => packet.Buffer).ThenBy(packet => packet.ByteOffset).ToArray() });
-                            if (effectId is not (8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 71 or 73 or 74 or 78 or 127 or 130 or 177 or 178 or 297 or 299 or 300 or 305 or 306 or 317 or 275 or 184 or 307 or 260))
+                            if (effectId is not (8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 71 or 73 or 74 or 78 or 127 or 130 or 133 or 177 or 178 or 297 or 299 or 300 or 305 or 306 or 317 or 275 or 184 or 307 or 260))
                             {
                                 File.WriteAllText(Path.Combine(output!, "visible-packet-ownership.json"), peakOwnership);
                                 NativeBattleRestorationPresentationTests.Publish(output!, "visible", current, pixels);
@@ -1328,15 +1372,22 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.Equal(expectedSecondaryText is null ? 0 : 1, secondaryContactGlyphs);
             }
             Assert.True(cameraChanged, "The original actor-director camera control never changed its retained camera.");
-            if (effectId is not (19 or 23 or 29 or 37 or 43 or 127 or 130 or 177 or 178 or 297 or 299 or 300 or 317 or 184))
+            if (effectId is not (19 or 23 or 29 or 37 or 43 or 127 or 130 or 133 or 177 or 178 or 297 or 299 or 300 or 317 or 184))
             {
                 Assert.True(stageChanged, "The original actor-director stage fade never changed the retained four-group color/depth owner.");
             }
-            if (effectId is 19 or 23 or 29 or 43 or 130 or 177 or 178 or 297 or 299 or 300 or 317 or 184)
+            if (effectId is 19 or 23 or 29 or 43 or 130 or 133 or 177 or 178 or 297 or 299 or 300 or 317 or 184)
             {
                 Assert.False(stageChanged);
             }
             Assert.Equal(1, completions);
+            if (effectId == 133)
+            {
+                Assert.True(hypnotizeMainRestored, "Hypnotize never advanced its actual main ACT workspace.");
+                Assert.True(hypnotizeAnchoredRestored, "Hypnotize never advanced an actual anchored ACT workspace.");
+                Assert.True(hypnotizeFadingRestored, "Hypnotize never advanced an actual fading ACT workspace.");
+                Assert.True(hypnotizeSpriteRestored, "Hypnotize never exposed its actual projected sprite phase.");
+            }
             if (effectId is 177 or 178)
             {
                 Assert.True(needleRecordsRestored, "Needles never exposed its actual active56-byte record bank.");
@@ -1586,7 +1637,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
             }
             Assert.True(completed.Events.Count(item => item.NativeModuleSound is not null) > initialSounds, "The selected component published no original module sound.");
             Assert.True(Released(completed), "The original returned task, active effect and action104 descriptor must release through native execution.");
-            if (effectId is 8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 71 or 73 or 74 or 78 or 127 or 130 or 177 or 178 or 297 or 299 or 300 or 305 or 306 or 317 or 275 or 184 or 307 or 184 or 260 && peakSnapshot is not null)
+            if (effectId is 8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 71 or 73 or 74 or 78 or 127 or 130 or 133 or 177 or 178 or 297 or 299 or 300 or 305 or 306 or 317 or 275 or 184 or 307 or 184 or 260 && peakSnapshot is not null)
             {
                 File.WriteAllText(Path.Combine(output!, "visible-packet-ownership.json"), peakOwnership ?? throw new InvalidDataException("The peak node packet ownership was not retained."));
                 NativeBattleRestorationPresentationTests.Publish(output!, "visible", peakSnapshot, peakPixels ?? throw new InvalidDataException("The peak node pixels were not retained."));
@@ -1765,6 +1816,21 @@ public sealed class NativeBattleActorDirectorPresentationTests
     private static DirectedNodePacketState Director(BattleSnapshot snapshot)
     {
         ushort effect = snapshot.NativeGraphics!.OriginalEffect!.Binding.Effect;
+        if (effect == 133)
+        {
+            NativeBattleHypnotize133State hypnotizeState = snapshot.NativeEffectMemory!.Hypnotize133 ?? throw new InvalidDataException("Hypnotize requires its actual retained globals.");
+            uint hypnotizeWorking = hypnotizeState.ReadDword(NativeBattleHypnotize133Profile.WorkingGlobal);
+            int hypnotizeSource = checked((int)(hypnotizeWorking - NativeBattleHypnotize133Profile.ArenaAddress)) + NativeBattleHypnotize133Profile.FirstPacketOffset;
+            uint hypnotizeCursor = hypnotizeState.ReadDword(NativeBattleHypnotize133Profile.CursorGlobal);
+            NativeBattleModulePoolTask? hypnotizeRoot = snapshot.NativeGraphics.OriginalEffect.Pools[0].Slots.SingleOrDefault(task => (task.Flags & 1) != 0 && task.Callback == NativeBattleHypnotize133Profile.RootCallback);
+            if (hypnotizeRoot is null || hypnotizeCursor == 0)
+            {
+                return new(effect, hypnotizeSource, null, null, NativeBattleHypnotize133Profile.PacketStep, false);
+            }
+            uint hypnotizeStart = hypnotizeWorking + (uint)(hypnotizeRoot.ReadDword(0x10) == 0 ? NativeBattleHypnotize133Profile.FirstPacketOffset : NativeBattleHypnotize133Profile.SecondPacketOffset);
+            Assert.InRange(hypnotizeCursor, hypnotizeStart, hypnotizeStart + NativeBattleHypnotize133Profile.PacketStep);
+            return new(effect, hypnotizeSource, checked((int)(hypnotizeCursor - NativeBattleHypnotize133Profile.ArenaAddress)), checked((int)(hypnotizeStart + NativeBattleHypnotize133Profile.PacketStep - NativeBattleHypnotize133Profile.ArenaAddress)), NativeBattleHypnotize133Profile.PacketStep, false);
+        }
         if (effect is 177 or 178)
         {
             NativeBattleNeedlesFamilyState needlesState = effect == 177 ? snapshot.NativeEffectMemory!.ThousandNeedles177! : snapshot.NativeEffectMemory!.TenThousandNeedles178!;
@@ -2053,6 +2119,14 @@ public sealed class NativeBattleActorDirectorPresentationTests
 
     private static bool CrossedContactGate(BattleSnapshot prior, BattleSnapshot current, ushort effect)
     {
+        if (effect == 133)
+        {
+            if (prior.NativeGraphics!.OriginalEffect is not { ReturnedDescriptor: > 0, Pools.Length: 5 } hypnotizeBefore || current.NativeGraphics!.OriginalEffect is not { Pools.Length: 5 } hypnotizeAfter)
+            {
+                return false;
+            }
+            return hypnotizeBefore.Pools[1].Slots.Select((task, slot) => (task, slot)).Any(item => (item.task.Flags & 1) != 0 && item.task.Callback == NativeBattleHypnotize133Profile.MainCallback && item.task.ReadWord(12) == 34 && hypnotizeAfter.Pools[1].Slots[item.slot].Callback == item.task.Callback && hypnotizeAfter.Pools[1].Slots[item.slot].ReadWord(12) == 35);
+        }
         if (effect is 177 or 178)
         {
             if (prior.NativeGraphics!.OriginalEffect is not { ReturnedDescriptor: > 0, Pools.Length: 2 } needlesBefore || current.NativeGraphics!.OriginalEffect is not { Pools.Length: 2 } needlesAfter)

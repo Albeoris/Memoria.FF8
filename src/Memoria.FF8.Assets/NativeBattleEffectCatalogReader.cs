@@ -238,6 +238,22 @@ public sealed partial class GameAssets
                 }
                 binding = binding with { Electrocute275Resources = ReadNativeElectrocute275Resources() };
             }
+            if (binding.Effect == 133)
+            {
+                if (binding.Entry != NativeBattleHypnotize133Profile.Entry || binding.Initializer != NativeBattleHypnotize133Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag132.tim", NativeBattleHypnotize133Profile.InitializerGlobal) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Hypnotize requires its original entry and initializer resource identity.");
+                }
+                binding = binding with { Hypnotize133Resources = ReadNativeHypnotize133Resources() };
+            }
+            if (binding.Effect == 134)
+            {
+                if (binding.Entry != NativeBattleBeamLaser134Profile.Entry || binding.Initializer != NativeBattleBeamLaser134Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag133.tim", NativeBattleBeamLaser134Profile.InitializerGlobal) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Beam Laser requires its original entry and initializer resource identity.");
+                }
+                binding = binding with { BeamLaser134Resources = ReadNativeBeamLaser134Resources() };
+            }
             if (binding.Effect is 177 or 178)
             {
                 NativeBattleNeedlesFamilyProfile profile = NativeBattleNeedlesFamilyProfile.ForEffect(binding.Effect);

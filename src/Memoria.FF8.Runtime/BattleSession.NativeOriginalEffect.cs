@@ -86,6 +86,10 @@ public sealed partial class BattleSession
         {
             return EnterNativeElectrocute275(graphics);
         }
+        if (effect.Binding.Entry == NativeBattleHypnotize133Profile.Entry)
+        {
+            return RunNativeHypnotize133(graphics, true);
+        }
         if (effect.Binding.Entry is 0x5CF760 or 0x5CEDD0)
         {
             return RunNativeNeedlesFamily(graphics, true);
