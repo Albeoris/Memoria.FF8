@@ -126,7 +126,8 @@ This host advances through queue commands rather than a timed simulation loop. I
 | `--screen SCREEN_ID` | Default `debug-room`; examples include `main`, `party-selection`, `battle-debug`, `name-input`, `native-tutorial`, `triple-triad`. |
 | `--game-dir DIRECTORY` | Installed game directory, otherwise the configured environment value. |
 | `--state JSON` | Use a standalone snapshot where supported; otherwise preview data is a fixture. `native-tutorial` and `triple-triad` require a snapshot containing the corresponding active interface. |
-| `--resolution WIDTHxHEIGHT` | Default `960x672`; width `320..4096`, height `240..4096`. |
+| `--ui vector\|classic` | Presentation; default `vector`. |
+| `--resolution WIDTHxHEIGHT` | Default `960x540` for Vector, `960x672` for Classic; width `320..4096`, height `240..4096`. |
 | `--character MENU_ID` | Select a menu character. |
 | `--text-scale PERCENT` | Text scale for menu-controller, player-save and party-selection screens: `100`, `125` or `150`; default `100`. |
 | `--font-size 6..48` | UI font size for menu-controller, player-save and party-selection screens; default `24`. |

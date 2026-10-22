@@ -102,7 +102,7 @@ internal sealed partial class RecreateGame
             }
             cached.View.Resize(bounds.Width, bounds.Height);
             // TODO(TD-003): Match the complete native UI material and device profile.
-            cached.View.Draw(uiCanvas!, new UiTheme { FontSize = 8, PanelBackgroundAlpha = style.BackgroundAlpha });
+            cached.View.Draw(uiCanvas!, CreateUiTheme(8, style.BackgroundAlpha));
         }
         float fontSize = uiPreferences.DialogueFontSize * scale;
         string family = uiPreferences.DialogueFontFamily;
@@ -156,6 +156,6 @@ internal sealed partial class RecreateGame
             timerUi.InvalidateLayout();
         }
         timerUi.Resize(bounds.Width, bounds.Height);
-        timerUi.Draw(uiCanvas!, new UiTheme { FontSize = 10 });
+        timerUi.Draw(uiCanvas!, CreateUiTheme(10));
     }
 }

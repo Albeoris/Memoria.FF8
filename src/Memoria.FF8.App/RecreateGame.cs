@@ -176,6 +176,7 @@ internal sealed partial class RecreateGame : Game
     private void UpdateGameFrame(GameTime gameTime)
     {
         long updateStarted = Stopwatch.GetTimestamp();
+        SynchronizeMenuPresentation();
         GamePadState pad = controller!.Read();
         if (gameMenus is not null)
         {
@@ -188,7 +189,9 @@ internal sealed partial class RecreateGame : Game
         KeyboardState keys = Microsoft.Xna.Framework.Input.Keyboard.GetState();
         keyboard.ControllerPresentation = controller.Presentation;
         keyboard.ControllerGeneration = controller.Generation;
+        bool wasCapturing = gameMenus?.IsCapturingControls == true;
         bool capturing = gameMenus?.UpdateControlsCapture(keys, pad, IsActive) == true;
+        UpdateMenuPresentationHotkey(keys, wasCapturing || capturing);
         capturingControls = capturing;
         keyboard.RecoveryNavigationEnabled = gameMenus is { IsOpen: true, IsControlsScreen: true };
         bool typingName = gameMenus?.IsTypingName == true || modelBrowser?.SearchFocused == true;

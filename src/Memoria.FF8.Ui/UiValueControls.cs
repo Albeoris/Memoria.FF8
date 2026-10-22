@@ -15,7 +15,7 @@ public sealed class UiToggle : UiElement
     {
         if (IsFocused && Enabled)
         {
-            canvas.Fill(Bounds.Inset(1), theme.Highlight);
+            theme.Selection(canvas, Bounds.Inset(1));
         }
 
         UiColor color = Enabled ? theme.Foreground : theme.Muted;
@@ -191,10 +191,8 @@ public sealed class UiProgressBar : UiElement
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
     {
         UiRect track = Bounds.Inset(1);
-        canvas.Fill(Bounds, theme.BorderDark);
-        canvas.Fill(track, new UiColor(60, 60, 60));
         float ratio = float.IsFinite(Value) && float.IsFinite(Min) && float.IsFinite(Max) && Max > Min ? Math.Clamp((Value - Min) / (Max - Min), 0, 1) : 0;
-        canvas.Fill(new UiRect(track.X, track.Y, track.Width * ratio, track.Height), Enabled ? theme.Highlight : theme.Muted);
+        theme.Progress(canvas, Bounds, ratio, Enabled);
         if (!string.IsNullOrEmpty(Text))
         {
             canvas.Text(Text, theme.FontSize, track, theme.Foreground);

@@ -126,11 +126,16 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IBattleMessageCanvas, IDi
 
     public UiSize MeasureText(string text, float fontSize, float maximumWidth)
     {
+        return MeasureText(text, fontSize, maximumWidth, null);
+    }
+
+    public UiSize MeasureText(string text, float fontSize, float maximumWidth, string? fontFamily)
+    {
         if (ButtonPromptText.Contains(text))
         {
-            return ButtonPromptText.Measure(text, fontSize, maximumWidth, null);
+            return ButtonPromptText.Measure(text, fontSize, maximumWidth, fontFamily);
         }
-        Microsoft.Xna.Framework.Vector2 measured = SystemTextLayout.MeasureWrapped(text, fontSize, maximumWidth);
+        Microsoft.Xna.Framework.Vector2 measured = SystemTextLayout.MeasureWrapped(text, fontSize, maximumWidth, fontFamily);
         return new UiSize(measured.X, measured.Y);
     }
 
@@ -217,7 +222,7 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IBattleMessageCanvas, IDi
         Text(text, fontSize, bounds, color, null, verticalAlignment, flow);
     }
 
-    private void Text(string text, float fontSize, UiRect bounds, UiColor color, string? fontFamily, UiAlignment verticalAlignment, UiTextFlow flow = UiTextFlow.Auto)
+    public void Text(string text, float fontSize, UiRect bounds, UiColor color, string? fontFamily, UiAlignment verticalAlignment, UiTextFlow flow = UiTextFlow.Auto)
     {
         if (bounds.IsEmpty || fontSize <= 0 || string.IsNullOrEmpty(text))
         {

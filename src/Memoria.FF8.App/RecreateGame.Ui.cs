@@ -14,7 +14,15 @@ internal sealed partial class RecreateGame
 {
     private MenuController? gameMenus;
     private MonoGameUiCanvas? uiCanvas;
-    private readonly UiTheme uiTheme = new();
+    private UiTheme uiTheme => CreateUiTheme();
+
+    private UiTheme CreateUiTheme(float fontSize = 16, byte backgroundAlpha = 255)
+    {
+        return uiPreferences.MenuPresentation == MenuPresentation.Vector
+            ? new VectorUiTheme { FontSize = fontSize, PanelBackgroundAlpha = backgroundAlpha, FontFamily = uiPreferences.UiFontFamily == SystemFontCatalog.DefaultFamily ? "Georgia" : uiPreferences.UiFontFamily }
+            : new UiTheme { FontSize = fontSize, PanelBackgroundAlpha = backgroundAlpha };
+    }
+    private bool previousPresentationTogglePressed;
     private UiPreferences uiPreferences = new();
     private GameplayPreferences newGameMagicPreferences = new();
     private bool uiMovieSuspended;
@@ -39,7 +47,7 @@ internal sealed partial class RecreateGame
         ApplyDisplaySettings();
         text.FontFamily = uiPreferences.UiFontFamily;
         fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume);
-        gameMenus = new MenuController(ReadLiveMenuData, ApplyLiveMenuAction);
+        gameMenus = new MenuController(ReadLiveMenuData, ApplyLiveMenuAction) { Presentation = uiPreferences.MenuPresentation };
         InitializeAutoPlayUi();
         ConnectNativeTutorialUi();
         gameMenus.ScreenOpened += screen =>
@@ -107,6 +115,8 @@ internal sealed partial class RecreateGame
         data.Settings["Field message"] = uiPreferences.FieldMessageSpeed.ToString();
         data.Settings["Vibration"] = keyboard.Profile.VibrationEnabled ? "On" : "Off";
         data.Settings["Effect volume"] = uiPreferences.SoundVolume + "%";
+        data.Settings["UI presentation"] = uiPreferences.MenuPresentation.ToString();
+        data.SupportedActions.Add("config:UI presentation");
         data.Settings["Text scale"] = uiPreferences.TextScale + "%";
         data.Settings["UI font"] = uiPreferences.UiFontFamily;
         data.Settings["UI font size"] = uiPreferences.UiFontSize.ToString();
@@ -337,6 +347,8 @@ internal sealed partial class RecreateGame
             }
             installationPreferences.Save(UiPreferencesPath);
             uiPreferences = installationPreferences;
+            SynchronizeMenuPresentation();
+            gameMenus?.InvalidateLiveData();
             ApplyDisplaySettings();
             text.FontFamily = uiPreferences.UiFontFamily;
             fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume);
@@ -632,22 +644,46 @@ internal sealed partial class RecreateGame
         }
     }
 
+    private void UpdateMenuPresentationHotkey(KeyboardState keys, bool capturing)
+    {
+        bool pressed = keys.IsKeyDown(Keys.F7);
+        if (IsActive && !capturing && pressed && !previousPresentationTogglePressed)
+        {
+            MenuPresentation presentation = uiPreferences.MenuPresentation == MenuPresentation.Vector ? MenuPresentation.Classic : MenuPresentation.Vector;
+            uiPreferences = uiPreferences with { MenuPresentation = presentation };
+            uiPreferences.Save(UiPreferencesPath);
+            SynchronizeMenuPresentation();
+            gameMenus?.InvalidateLiveData();
+        }
+        previousPresentationTogglePressed = pressed;
+    }
+
+    private void SynchronizeMenuPresentation()
+    {
+        if (gameMenus is not null)
+        {
+            gameMenus.Presentation = uiPreferences.MenuPresentation;
+        }
+    }
+
     private void DrawGameUi(Rectangle bounds)
     {
+        SynchronizeMenuPresentation();
         if (gameMenus?.IsOpen == true && uiCanvas is not null)
         {
             if (ActiveBattle is null)
             {
-                batch.Draw(pixel, bounds, gameMenus.ScreenId is "new-game-options" or "title-exit" ? Color.Black * 0.65f : Color.Black);
+                batch.Draw(pixel, bounds, gameMenus.Presentation == MenuPresentation.Vector ? Color.Black * 0.3f : gameMenus.ScreenId is "new-game-options" or "title-exit" ? Color.Black * 0.65f : Color.Black);
             }
             UiView view = gameMenus.BuildView();
             view.Resize(bounds.Width, bounds.Height);
-            view.Draw(uiCanvas, new UiTheme { FontSize = 16 * gameMenus.TextScale });
+            view.Draw(uiCanvas, gameMenus.CreateTheme());
         }
     }
 
     private object DispatchUiControl(ControlRequest request)
     {
+        SynchronizeMenuPresentation();
         if (gameMenus is null)
         {
             throw new InvalidOperationException("UI is not initialized.");

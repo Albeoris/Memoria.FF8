@@ -1,6 +1,6 @@
 # Retained UI API
 
-`Memoria.FF8.Ui` is a renderer-independent .NET 10 library. It references neither MonoGame nor native game assets. The grayscale panels, bevels and cursor are drawn procedurally.
+`Memoria.FF8.Ui` is a renderer-independent .NET 10 library. It references neither MonoGame nor native game assets. The Classic theme draws grayscale panels and bevels; `VectorUiTheme` draws translucent navy panels, silver rules, red selections and cyan bars. Themes and composition can change independently.
 
 Implement `IUiCanvas` to connect a renderer. `PushClip` intersects its rectangle with the current clip; `PopClip` restores the previous clip. Text uses a font size and rectangle in the same coordinate space as fills and lines. Font selection and text measurement belong to the adapter.
 

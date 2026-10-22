@@ -136,6 +136,16 @@ public interface IUiCanvas
     {
         throw new NotSupportedException("This canvas does not support text measurement.");
     }
+    UiSize MeasureText(string text, float fontSize, float maximumWidth, string? fontFamily)
+    {
+        return MeasureText(text, fontSize, maximumWidth);
+    }
+
+    void Text(string text, float fontSize, UiRect bounds, UiColor color, string? fontFamily, UiAlignment verticalAlignment, UiTextFlow flow)
+    {
+        Text(text, fontSize, bounds, color, fontFamily);
+    }
+
     void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment);
     void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment, UiTextFlow flow)
     {

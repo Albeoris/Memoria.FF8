@@ -31,59 +31,73 @@ public sealed partial class MenuController
         {
             return _view;
         }
-        var root = new UiPanel { Id = "menu-root", DrawBackground = false, Padding = new UiThickness(ScreenId == "magazine" ? 0 : IsOriginalMenuPage ? 18 : 20), CaptionHeight = 0 };
+        var root = new UiPanel { Id = "menu-root", DrawBackground = false, Padding = new UiThickness(ScreenId == "magazine" ? 0 : Presentation == MenuPresentation.Vector && UsesVectorComposition ? 26 : IsOriginalMenuPage ? 18 : 20), CaptionHeight = 0 };
         var anchored = new UiAnchorPanel();
         root.Children.Add(anchored);
+        anchored.Children.Add(PresentationProvider.Compose(this));
+        AddTutorialMessage(anchored);
+        _view = new UiView(root) { DesignWidth = 960, DesignHeight = PresentationProvider.DesignHeight(this), Cancel = Back };
+        _view.Resize(_view.DesignWidth, _view.DesignHeight);
+        var focusables = FocusableDescendants(root).ToArray();
+        string? selectedCharacterId = CharacterChoices.ElementAtOrDefault(CharacterSelectionIndex)?.Id;
+        string commandListId = ScreenId == "shop-junk" && SelectedIndex < Data.Characters.Count ? "weapon-characters" : "commands";
+        _view.Focus(IsSelectingCharacter ? focusables.FirstOrDefault(element => element.Id == selectedCharacterId) : focusables.OfType<UiList>().FirstOrDefault(list => list.Id == commandListId) ?? focusables.FirstOrDefault(element => element.Id == SelectedEntry?.Id) ?? focusables.FirstOrDefault());
+        return _view;
+    }
+
+    internal UiElement BuildClassicContent()
+    {
+        var container = new UiElement();
         if (CurrentScreen.BuildContent is not null)
         {
             var custom = new UiPanel { DrawBackground = false, CaptionHeight = 0, Padding = new UiThickness(0) };
-            anchored.Children.Add(custom);
+            container.Children.Add(custom);
             CurrentScreen.BuildContent(this, custom);
         }
         else if (CurrentScreen.Layout == MenuLayout.Main)
         {
-            anchored.Children.Add(BuildMain());
+            container.Children.Add(BuildMain());
         }
         else if (ScreenId.StartsWith("junction", StringComparison.Ordinal))
         {
-            anchored.Children.Add(BuildJunction());
+            container.Children.Add(BuildJunction());
         }
         else if (ScreenId.StartsWith("magic", StringComparison.Ordinal))
         {
-            anchored.Children.Add(BuildMagicPage());
+            container.Children.Add(BuildMagicPage());
         }
         else if (ScreenId.StartsWith("switch", StringComparison.Ordinal))
         {
-            anchored.Children.Add(BuildNativeSwitch());
+            container.Children.Add(BuildNativeSwitch());
         }
         else if (ScreenId.StartsWith("item", StringComparison.Ordinal))
         {
-            anchored.Children.Add(BuildItemPage());
+            container.Children.Add(BuildItemPage());
         }
         else if (ScreenId.StartsWith("status", StringComparison.Ordinal))
         {
-            anchored.Children.Add(BuildNativeStatus());
+            container.Children.Add(BuildNativeStatus());
         }
         else if (ScreenId == "gf" || ScreenId.StartsWith("gf-", StringComparison.Ordinal))
         {
-            anchored.Children.Add(BuildNativeGuardianForce());
+            container.Children.Add(BuildNativeGuardianForce());
         }
         else if (ScreenId is "card" or "card-detail")
         {
-            anchored.Children.Add(BuildNativeCard());
+            container.Children.Add(BuildNativeCard());
         }
         else if (IsControlsScreen)
         {
-            anchored.Children.Add(BuildControlsPage());
+            container.Children.Add(BuildControlsPage());
         }
         else if (IsNativeSecondaryScreen)
         {
-            anchored.Children.Add(BuildNativeSecondary());
+            container.Children.Add(BuildNativeSecondary());
         }
         else
         {
             var page = Grid([Math.Max(1, TextScale), 8, 0.7f * Math.Max(1, TextScale)], [1]);
-            anchored.Children.Add(page);
+            container.Children.Add(page);
             Place(page, Header(), 0);
             UiElement content = CurrentScreen.Layout switch
             {
@@ -94,14 +108,7 @@ public sealed partial class MenuController
             Place(page, content, 1);
             Place(page, Footer(), 2);
         }
-        AddTutorialMessage(anchored);
-        _view = new UiView(root) { DesignWidth = 960, DesignHeight = ScreenId == "magazine" ? 720 : 672, Cancel = Back };
-        _view.Resize(_view.DesignWidth, _view.DesignHeight);
-        var focusables = FocusableDescendants(root).ToArray();
-        string? selectedCharacterId = CharacterChoices.ElementAtOrDefault(CharacterSelectionIndex)?.Id;
-        string commandListId = ScreenId == "shop-junk" && SelectedIndex < Data.Characters.Count ? "weapon-characters" : "commands";
-        _view.Focus(IsSelectingCharacter ? focusables.FirstOrDefault(element => element.Id == selectedCharacterId) : focusables.OfType<UiList>().FirstOrDefault(list => list.Id == commandListId) ?? focusables.FirstOrDefault(element => element.Id == SelectedEntry?.Id) ?? focusables.FirstOrDefault());
-        return _view;
+        return container;
     }
 
     private UiElement BuildStandard()

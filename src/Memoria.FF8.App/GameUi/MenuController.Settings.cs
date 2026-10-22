@@ -47,6 +47,7 @@ public sealed partial class MenuController
         {
             "Show FPS" => preferences.ShowFps ? "On" : "Off",
             "Quick saves" => preferences.QuickSaveCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            "UI presentation" => preferences.MenuPresentation.ToString(),
             "Text scale" => preferences.TextScale + "%",
             "UI font" => preferences.UiFontFamily,
             "UI font size" => preferences.UiFontSize.ToString(),

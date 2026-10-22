@@ -71,3 +71,31 @@ Host preferences such as UI scale and audio volume are separate from game-owned 
 ## Verification
 
 Run `dotnet run --project tests/Memoria.FF8.Ui.Tests` from the product root for headless layout, clipping, focus and control checks. App-level tests cover live menu behavior, input routing and host integration. Render checks should include a small viewport and pointer/focus navigation. A demonstration preview proves layout only; use a current standalone save for a live-operation check. See [building and testing](building-and-testing.md) for the supported test entry points.
+
+
+## Swappable presentation
+
+`MenuController` owns data, actions, selected identities and navigation history. `IMenuPresentation` owns `Compose`, `DesignHeight` and `CreateTheme`; assign `MenuController.PresentationProvider` to supply a presentation, or use `Presentation` to select the built-in Vector and Classic providers. Replacing the provider invalidates only the retained view. It does not open a screen, execute an action or rewrite a gameplay snapshot.
+
+Vector is the installation default, including when loading preferences written before presentation selection existed. Classic preserves the earlier layout and gray bevels. F7 and Config → Interface → UI presentation persist the choice independently of saved games. The main menu and Junction attribute/stock pages use Vector's 960×540 composition; command/ability assignment and other menu pages retain their existing 960×672 composition (magazines use 960×720) under the selected theme. The viewport uniformly scales and letterboxes each composition, including pointer mapping.
+
+The Vector design uses these procedural elements:
+
+| Element | Drawing and composition |
+| --- | --- |
+| Window edge | Thin silver top/left edges, softer bottom/right edges. |
+| Panel material | Vertical navy gradient with alpha 182–202, multiplied by requested panel opacity. The live scene remains behind the menu. |
+| Selected row | Blue gradient, narrow red leading strip and fine upper highlight. |
+| Tabs | Red underline; Junction keeps the active underline while selecting an attribute or spell. |
+| Separators | Low-alpha horizontal rules in tables, command lists and readouts; brighter header/footer rules. |
+| HP | Clamped current/max ratio, dark track, cyan gradient, bright upper edge and endpoint. Missing values produce an empty track. |
+| Typography | Georgia by default, pale foreground and blue secondary labels. A selected nondefault UI font overrides it. `UiFontCanvas` measures and draws with matching fonts. |
+| Header | Small spaced MENU label, large title, subtitle, geometric crest and vertical separator. |
+| Main menu | Three active-party cards, reserve grid, full-height right command column with play time/rank/currency, location and input hints below. Reserve space expands for additional characters. |
+| Junction | Character summary at left, nine-row stat/magic/value table at center, command pane at right. Selection pages reuse existing controller entries/actions. |
+| Ornament | Low-opacity geometric feather strokes on tall panels. |
+| Input hints | Current keyboard/controller bindings and fixed F7 shortcut. |
+
+`UiTheme` provides virtual `Panel`, `Caption`, `Pointer`, `Selection`, `RowSeparator` and `Progress` hooks. Its default implementation remains Classic; `VectorUiTheme` overrides the material and selection grammar. Optional `FontFamily` preserves explicit per-element font overrides. Renderer adapters implement family-aware measurement and alignment/flow text overloads; the scaled canvas forwards these in design coordinates. Original artwork remains supplied by the existing resource provider. The presentation contains no background illustrations or replacement portraits.
+
+Preview either presentation with `--menu-preview --ui vector` or `--ui classic`; pass `--resolution` to compare identical output sizes. A preview does not advance gameplay.

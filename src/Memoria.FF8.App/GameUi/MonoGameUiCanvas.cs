@@ -159,18 +159,24 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
 
     public UiSize MeasureText(string value, float size, float maximumWidth)
     {
-        var key = (value, size, maximumWidth, text.FontFamily);
+        return MeasureText(value, size, maximumWidth, null);
+    }
+
+    public UiSize MeasureText(string value, float size, float maximumWidth, string? fontFamily)
+    {
+        fontFamily ??= text.FontFamily;
+        var key = (value, size, maximumWidth, fontFamily);
         if (textMeasurements.TryGetValue(key, out UiSize result))
         {
             return result;
         }
         if (ButtonPromptText.Contains(value))
         {
-            result = ButtonPromptText.Measure(value, size, maximumWidth, text.FontFamily);
+            result = ButtonPromptText.Measure(value, size, maximumWidth, fontFamily);
         }
         else
         {
-            Vector2 measured = SystemTextLayout.MeasureWrapped(value, size, maximumWidth, text.FontFamily);
+            Vector2 measured = SystemTextLayout.MeasureWrapped(value, size, maximumWidth, fontFamily);
             result = new UiSize(measured.X, measured.Y);
         }
         if (textMeasurements.Count >= 1024)
@@ -213,7 +219,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
         Text(value, size, bounds, color, null, verticalAlignment, flow);
     }
 
-    private void Text(string value, float size, UiRect bounds, UiColor color, string? fontFamily, UiAlignment verticalAlignment, UiTextFlow flow = UiTextFlow.Auto)
+    public void Text(string value, float size, UiRect bounds, UiColor color, string? fontFamily, UiAlignment verticalAlignment, UiTextFlow flow = UiTextFlow.Auto)
     {
         if (bounds.Width <= 0 || bounds.Height <= 0 || size <= 0 || string.IsNullOrEmpty(value))
         {

@@ -40,7 +40,7 @@ internal sealed partial class RecreateGame
         salaryNewText!.Text = $"Rank {SalaryGlyphs(salary.NewRankGlyphs)}   {SalaryGlyphs(salary.NewPayGlyphs)} gil";
         salaryNewText.Opacity = progress * blend;
         salaryWindowUi.Resize(bounds.Width, bounds.Height);
-        salaryWindowUi.Draw(uiCanvas!, new UiTheme { FontSize = 8 });
+        salaryWindowUi.Draw(uiCanvas!, CreateUiTheme(8));
     }
 
     private static string SalaryGlyphs(System.Collections.Immutable.ImmutableArray<byte> glyphs)

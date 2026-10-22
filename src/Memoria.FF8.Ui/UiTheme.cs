@@ -1,7 +1,7 @@
 namespace Memoria.FF8.Ui;
 
 /// <summary>Grayscale panels with the original game's menu pointer supplied by the canvas.</summary>
-public sealed class UiTheme
+public class UiTheme
 {
     public const float DefaultCaptionFontSize = 13;
 
@@ -16,7 +16,27 @@ public sealed class UiTheme
     public byte PanelBackgroundAlpha { get; init; } = 255;
     public float FontSize { get; init; } = 16;
 
-    public void Panel(IUiCanvas canvas, UiRect bounds, string? caption = null, float captionFontSize = 0)
+    public virtual string? FontFamily { get; init; }
+    public virtual bool AlwaysHighlightSelection => false;
+
+    public virtual void Selection(IUiCanvas canvas, UiRect bounds, bool underline = false)
+    {
+        canvas.Fill(bounds, Highlight);
+    }
+
+    public virtual void RowSeparator(IUiCanvas canvas, UiRect bounds)
+    {
+    }
+
+    public virtual void Progress(IUiCanvas canvas, UiRect bounds, float ratio, bool enabled)
+    {
+        UiRect track = bounds.Inset(1);
+        canvas.Fill(bounds, BorderDark);
+        canvas.Fill(track, new UiColor(60, 60, 60));
+        canvas.Fill(new UiRect(track.X, track.Y, track.Width * ratio, track.Height), enabled ? Highlight : Muted);
+    }
+
+    public virtual void Panel(IUiCanvas canvas, UiRect bounds, string? caption = null, float captionFontSize = 0)
     {
         if (bounds.IsEmpty)
         {
@@ -56,7 +76,7 @@ public sealed class UiTheme
         Caption(canvas, bounds, caption, captionFontSize);
     }
 
-    public void Caption(IUiCanvas canvas, UiRect bounds, string? caption, float captionFontSize = 0)
+    public virtual void Caption(IUiCanvas canvas, UiRect bounds, string? caption, float captionFontSize = 0)
     {
         if (bounds.IsEmpty || string.IsNullOrEmpty(caption))
         {
@@ -70,7 +90,7 @@ public sealed class UiTheme
         canvas.OutlinedText(caption, size, textBounds, Foreground, new UiColor(0, 0, 0), 1);
     }
 
-    public void Pointer(IUiCanvas canvas, float x, float y, float size = 10)
+    public virtual void Pointer(IUiCanvas canvas, float x, float y, float size = 10)
     {
         canvas.MenuPointer(new UiRect(x, y, size * 1.5f, size));
     }

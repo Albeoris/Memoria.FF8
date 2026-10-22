@@ -2,6 +2,8 @@
 
 These are the default bindings. Remapping in **Config → Controls** changes the hints shown by the engine. Controls are shared across saves for the current user, rather than stored in each gameplay snapshot.
 
+Press **F7** to switch between **Vector** (default) and **Classic** presentation during play, including an open menu or paused game. **Config → Interface → UI presentation** provides the same installation-wide choice. Switching preserves the open screen, selection and navigation history. F7 is a fixed host shortcut and is suspended while capturing a control binding.
+
 ## Keyboard and controller
 
 Controller names below use physical positions. The button-label setting can display Generic, Xbox, PlayStation or Nintendo names; changing labels does not exchange button positions.

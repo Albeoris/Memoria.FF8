@@ -18,7 +18,10 @@ internal static class MenuPreview
         string? output = null;
         string gameDirectory = LaunchOptions.ConfiguredGameDirectory;
         int width = 960;
-        int height = 672;
+        int height = 540;
+        bool resolutionSpecified = false;
+        MenuPresentation presentation = MenuPresentation.Vector;
+        UiTheme theme;
         bool expanded = false;
         int textScale = 100;
         int fontSize = 24;
@@ -36,13 +39,21 @@ internal static class MenuPreview
                 expanded = true;
                 continue;
             }
-            if (argument is not ("--screen" or "--output" or "--resolution" or "--game-dir" or "--state" or "--character" or "--name-subject" or "--name-page" or "--inputs" or "--text-scale" or "--font-size" or "--time") || ++index == args.Length)
+            if (argument is not ("--ui" or "--screen" or "--output" or "--resolution" or "--game-dir" or "--state" or "--character" or "--name-subject" or "--name-page" or "--inputs" or "--text-scale" or "--font-size" or "--time") || ++index == args.Length)
             {
                 throw new ArgumentException($"Unknown or incomplete menu preview argument '{argument}'.");
             }
             string value = args[index];
             switch (argument)
             {
+                case "--ui":
+                    presentation = value.ToLowerInvariant() switch
+                    {
+                        "vector" => MenuPresentation.Vector,
+                        "classic" => MenuPresentation.Classic,
+                        _ => throw new ArgumentException("Menu preview --ui requires vector or classic.")
+                    };
+                    break;
                 case "--text-scale":
                     textScale = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
                     break;
@@ -77,6 +88,7 @@ internal static class MenuPreview
                     output = Path.GetFullPath(value);
                     break;
                 case "--resolution":
+                    resolutionSpecified = true;
                     string[] size = value.Split('x', 'X');
                     if (size.Length != 2)
                     {
@@ -87,9 +99,14 @@ internal static class MenuPreview
                     break;
             }
         }
+        if (!resolutionSpecified)
+        {
+            height = presentation == MenuPresentation.Vector ? 540 : 672;
+        }
+        theme = presentation == MenuPresentation.Vector ? new VectorUiTheme() : new UiTheme();
         if (output is null || width is < 320 or > 4096 || height is < 240 or > 4096 || textScale is not (100 or 125 or 150) || fontSize is < 6 or > 48 || !double.IsFinite(previewTime) || previewTime is < 0 or > 86400)
         {
-            throw new ArgumentException("Menu preview requires --output <PNG>, optional --screen <screen-id|battle-debug>, --state <standalone.json>, --character <menu-id>, --expanded, --resolution WxH, --text-scale <100|125|150>, --font-size <6..48> and --time <0..86400 seconds>.");
+            throw new ArgumentException("Menu preview requires --output <PNG>, optional --ui <vector|classic>, --screen <screen-id|battle-debug>, --state <standalone.json>, --character <menu-id>, --expanded, --resolution WxH, --text-scale <100|125|150>, --font-size <6..48> and --time <0..86400 seconds>.");
         }
         UiView view;
         using GameWorld? tutorialWorld = screen == "native-tutorial" && statePath is not null ? new(new GameSession(GameSession.Load(statePath)), gameDirectory) : null;
@@ -144,7 +161,9 @@ internal static class MenuPreview
             tutorialWorld.EnsureField();
             NativeTutorialPlayer tutorial = tutorialWorld.Tutorial ?? throw new InvalidOperationException("No native tutorial is active in this snapshot.");
             tutorial.RefreshPresentation();
+            tutorial.Menu.Presentation = presentation;
             view = tutorial.Menu.BuildView();
+            theme = tutorial.Menu.CreateTheme();
         }
         else if (screen == "triple-triad")
         {
@@ -172,7 +191,7 @@ internal static class MenuPreview
         }
         else
         {
-            UiPreferences preferences = new() { TextScale = textScale, UiFontSize = fontSize };
+            UiPreferences preferences = new() { TextScale = textScale, UiFontSize = fontSize, MenuPresentation = presentation };
             MenuData? liveData = null;
             GameState? previewState = null;
             if (statePath is not null)
@@ -182,6 +201,7 @@ internal static class MenuPreview
                 liveData = LiveMenuData.Build(previewState, catalog: LiveMenuCatalog.ReadInstalled(assets));
             }
             MenuController menus = liveData is null ? new() : new(() => liveData);
+            menus.Presentation = presentation;
             if (screen.StartsWith("tutorial", StringComparison.Ordinal))
             {
                 using GameAssets assets = new(gameDirectory);
@@ -199,6 +219,7 @@ internal static class MenuPreview
             menus.ConnectNaming(() => names.Select(pair => new DebugNameTarget(pair.Key, pair.Value, pair.Key is >= 16 and <= 31 ? "GF" : "Character")).ToArray(), (subject, name) => names[subject] = name);
             menus.BattleDebugRequested += () => { };
             menus.Open(screen, liveData is null);
+            menus.Data.Settings["UI presentation"] = presentation.ToString();
             menus.Data.Settings["Text scale"] = textScale.ToString(System.Globalization.CultureInfo.InvariantCulture) + "%";
             if (characterId is not null)
             {
@@ -230,19 +251,21 @@ internal static class MenuPreview
                     menus.Navigate(Enum.Parse<MenuInput>(input, ignoreCase: true));
                 }
             }
+            menus.Presentation = preferences.MenuPresentation;
             view = menus.BuildView();
+            theme = menus.CreateTheme();
         }
         using Bitmap bitmap = new(width, height, PixelFormat.Format32bppArgb);
         using (BattlePreviewCanvas canvas = new(bitmap, gameDirectory))
         {
             view.Resize(width, height);
             canvas.BeginFrame(TimeSpan.Zero);
-            view.Draw(canvas, new UiTheme());
+            view.Draw(canvas, theme);
             if (previewTime > 0)
             {
                 canvas.Fill(new UiRect(0, 0, width, height), new UiColor(0, 0, 0));
                 canvas.BeginFrame(TimeSpan.FromSeconds(previewTime));
-                view.Draw(canvas, new UiTheme());
+                view.Draw(canvas, theme);
             }
         }
         Directory.CreateDirectory(Path.GetDirectoryName(output)!);

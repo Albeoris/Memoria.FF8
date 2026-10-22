@@ -89,6 +89,10 @@ public sealed class UiView
         EnsureFocus();
         GetTransform(out float scale, out float offsetX, out float offsetY);
         IUiCanvas transformed = scale == 1 && offsetX == 0 && offsetY == 0 ? canvas : new ScaledCanvas(canvas, scale, offsetX, offsetY);
+        if (theme.FontFamily is { } fontFamily)
+        {
+            transformed = new UiFontCanvas(transformed, fontFamily);
+        }
         if (BindTextMeasurements(Root, transformed) && _viewportWidth > 0 && _viewportHeight > 0)
         {
             Root.Arrange(new UiRect(0, 0, DesignWidth > 0 ? DesignWidth : _viewportWidth, DesignHeight > 0 ? DesignHeight : _viewportHeight));
@@ -308,6 +312,17 @@ public sealed class UiView
         {
             UiSize measured = canvas.MeasureText(text, fontSize * scale, maximumWidth * scale);
             return new UiSize(measured.Width / scale, measured.Height / scale);
+        }
+
+        public UiSize MeasureText(string text, float fontSize, float maximumWidth, string? fontFamily)
+        {
+            UiSize measured = canvas.MeasureText(text, fontSize * scale, maximumWidth * scale, fontFamily);
+            return new UiSize(measured.Width / scale, measured.Height / scale);
+        }
+
+        public void Text(string text, float fontSize, UiRect bounds, UiColor color, string? fontFamily, UiAlignment verticalAlignment, UiTextFlow flow)
+        {
+            canvas.Text(text, fontSize * scale, Map(bounds), color, fontFamily, verticalAlignment, flow);
         }
 
         public void Paper(UiRect bounds, UiColor color)

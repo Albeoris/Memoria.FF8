@@ -59,6 +59,14 @@ public class UiElement
         canvas.PushClip(Bounds);
         try
         {
+            if (this is UiSettingRow)
+            {
+                theme.RowSeparator(canvas, Bounds);
+                if (theme.AlwaysHighlightSelection && IsFocused && Enabled)
+                {
+                    theme.Selection(canvas, Bounds.Inset(1));
+                }
+            }
             DrawSelf(canvas, theme);
             foreach (UiElement child in Children)
             {
@@ -259,9 +267,9 @@ public sealed class UiButton : UiElement
         {
             theme.Panel(canvas, Bounds);
         }
-        if (IsFocused && Enabled && HighlightSelection)
+        if (IsFocused && Enabled && (HighlightSelection || theme.AlwaysHighlightSelection))
         {
-            canvas.Fill(Bounds.Inset(3), theme.Highlight);
+            theme.Selection(canvas, Bounds.Inset(3));
         }
 
         canvas.Text(Text, FontSize > 0 ? FontSize : theme.FontSize, new UiRect(Bounds.X + 24, Bounds.Y, Math.Max(0, Bounds.Width - 32), Bounds.Height), Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);

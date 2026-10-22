@@ -210,11 +210,12 @@ public sealed class UiList : UiElement
             canvas.PushClip(row.Intersect(new UiRect(Bounds.X, Bounds.Y, Bounds.Width, UsesPagination ? ContentHeight : Bounds.Height)));
             try
             {
+                theme.RowSeparator(canvas, row);
                 if (ShowSelection && index == SelectedIndex)
                 {
-                    if (HighlightSelection)
+                    if (HighlightSelection || theme.AlwaysHighlightSelection)
                     {
-                        canvas.Fill(row.Inset(1), theme.Highlight);
+                        theme.Selection(canvas, row.Inset(1), Orientation == UiOrientation.Horizontal);
                     }
                 }
 

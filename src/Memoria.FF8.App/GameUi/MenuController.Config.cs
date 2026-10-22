@@ -22,7 +22,7 @@ public sealed partial class MenuController
         "Anti-aliasing" => "graphics",
         "Music volume" or "Effect volume" or "Sound" => "audio",
         "Controller" or "Vibration" => "controls",
-        "Quick saves" or "Cursor" or "Field message" or "Rare card markers" or "Text scale" or "UI font" or "UI font size" or "Dialogue font" or "Dialogue font size" => "interface",
+        "UI presentation" or "Quick saves" or "Cursor" or "Field message" or "Rare card markers" or "Text scale" or "UI font" or "UI font size" or "Dialogue font" or "Dialogue font size" => "interface",
         _ => "gameplay"
     };
 
