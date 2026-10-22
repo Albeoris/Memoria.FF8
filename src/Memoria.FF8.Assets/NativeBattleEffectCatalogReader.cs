@@ -238,6 +238,14 @@ public sealed partial class GameAssets
                 }
                 binding = binding with { Electrocute275Resources = ReadNativeElectrocute275Resources() };
             }
+            if (binding.Effect == 158)
+            {
+                if (binding.Entry != NativeBattleMeltEye158Profile.Entry || binding.Initializer != NativeBattleMeltEye158Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag157.tim", NativeBattleMeltEye158Profile.InitializerGlobal) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Melt-Eye requires its original entry and initializer resource identity.");
+                }
+                binding = binding with { MeltEye158Resources = ReadNativeMeltEye158Resources() };
+            }
             if (binding.Effect == 101)
             {
                 if (binding.Entry != NativeBattleEffect101Profile.Entry || binding.Initializer != NativeBattleEffect101Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag100.tim", NativeBattleEffect101Profile.InitializerGlobal) || binding.InitializerResources is not null)

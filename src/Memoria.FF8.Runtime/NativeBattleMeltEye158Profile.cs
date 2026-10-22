@@ -1,0 +1,50 @@
+namespace Memoria.FF8.Runtime;
+
+public static class NativeBattleMeltEye158Profile
+{
+    public const ushort Effect = 158;
+    public const uint Entry = 0x602ED0;
+    public const uint Initializer = 0x602EB0;
+    public const uint InitializerGlobal = 0x23DB5B8;
+    public const uint TargetGlobal = 0x23D7B08;
+    public const uint ParametersGlobal = 0x23DB5B0;
+    public const uint CasterGlobal = 0x23DB5B4;
+    public const uint CursorGlobal = 0x23EB5BC;
+    public const uint RootBank = 0x23D7B10;
+    public const uint RootDescriptor = 0x23D7B20;
+    public const ushort RootStride = 16;
+    public const ushort RootCount = 1;
+    public const uint ChildDescriptor = 0x23D8C10;
+    public const uint ChildBank = 0x23D8C20;
+    public const ushort ChildStride = 36;
+    public const ushort ChildCount = 100;
+    public const uint SlotBankA = 0x23D7B30;
+    public const uint SlotBankB = 0x23D82B0;
+    public const int SlotStride = 24;
+    public const int SlotCountA = 80;
+    public const int SlotCountB = 100;
+    public const uint CurveBank = 0x23D9A30;
+    public const int CurveStride = 440;
+    public const int CurveCount = 15;
+    public const uint RootCallback = 0x603E30;
+    public const uint SpawnerCallback = 0x602FA0;
+    public const uint PathCallback = 0x6030E0;
+    public const uint HeadMeshCallback = 0x6034E0;
+    public const uint StreamCallback = 0x6036F0;
+    public const uint ImpactSpriteCallback = 0x603920;
+    public const uint ImpactMeshCallback = 0x6039B0;
+    public const uint ForkEmitterCallback = 0x603B00;
+    public const uint PacketBase = 0x23DB5BC;
+    public const int PacketBankBytes = 0x8000;
+    public const int PacketBytes = 0x10000;
+    public const uint CameraAddress = 0xDAFBF8;
+    public const int CameraLength = 0xB4;
+    public const uint SpriteAAddress = 0xDAFCAC;
+    public const uint SpriteBAddress = 0xDAFED0;
+    public const uint SpriteCAddress = 0xDB007C;
+    public const uint MeshAAddress = 0xDB0158;
+    public const uint MeshBAddress = 0xDB0548;
+    public const uint VectorsAddress = 0xDB07C0;
+    public const uint SoundAddress = 0xDB07B8;
+    public const uint TextureNameAddress = 0xDB0818;
+}
