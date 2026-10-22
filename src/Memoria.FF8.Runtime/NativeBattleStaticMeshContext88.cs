@@ -15,14 +15,15 @@ public static class NativeBattleStaticMeshContext88
         NativeBattlePrimitiveProcess primitive = memory.PrimitiveProcess ?? throw new NotSupportedException("Masamune requires its current far-color controls.");
         NativeBattleModelRendererRegisters far = primitive.ModelRendererRegisters ?? throw new NotSupportedException("Masamune requires its current renderer registers.");
         uint flags = Dword(context, 0x1C);
-        if (Dword(context, 0) != mesh.Address || flags is not (0x33 or 0xF3 or 0xF0) || depthShift > 31)
+        if (Dword(context, 0) != mesh.Address || flags is not (0 or 0x30 or 0x33 or 0xC0 or 0xC3 or 0xF3 or 0xF0) || depthShift > 31)
         {
             throw new InvalidDataException("Masamune mesh requires its actual addressed caller context.");
         }
         registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, matrix, true, true, matrixPadding18) };
         context = Put(context, 4, checked(mesh.Address + 8));
         context = Put(context, 0x18, 0);
-        uint rgb = Dword(context, 8);
+        byte[] rgbBytes = context.Read(8, 3);
+        uint rgb = (uint)(rgbBytes[0] | rgbBytes[1] << 8 | rgbBytes[2] << 16);
         far = far with { FarRed = (rgb & 255) << 4, FarGreen = ((rgb >> 8) & 255) << 4, FarBlue = ((rgb >> 16) & 255) << 4 };
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
@@ -37,7 +38,7 @@ public static class NativeBattleStaticMeshContext88
             {
                 continue;
             }
-            if (flags == 0xF0 ? group != 7 : group is not (0 or 2 or 3 or 4 or 5 or 7))
+            if (flags == 0xF0 ? group != 7 : group is not (0 or 2 or 3 or 4 or 5 or 6 or 7))
             {
                 throw new NotSupportedException("Masamune mesh requires an unproved primitive group.");
             }
@@ -81,14 +82,15 @@ public static class NativeBattleStaticMeshContext88
                     return projected[corner];
                 }
                 (byte[] cueBytes, bool[] cueKnown) = context.ReadSnapshot(12, 4);
-                int? packetCue = (flags is 0xF3 or 0xF0) && cueKnown.All(value => value) ? BinaryPrimitives.ReadInt32LittleEndian(cueBytes) : null;
+                bool depthCue = (flags & (gouraud ? 0x80u : 0x40u)) != 0;
+                int? packetCue = depthCue && cueKnown.All(value => value) ? BinaryPrimitives.ReadInt32LittleEndian(cueBytes) : null;
                 NativeBattleModuleMeshContext packetContext = new(flags, rgb, packetCue, null, null, 0, tableBaseBucket, depthShift);
                 NativeBattleGfGeometryAttempt attempt = NativeBattleModulePackets.EmitFace572200(face, new Corners(projected.Length, ReadCorner), group, packetContext, constants, allocated);
                 if (attempt.Primitive is not null)
                 {
                     uint depth = registers.Geometry.Otz!.Value;
                     context = Put(context, 0x2C, depth);
-                    if (flags is 0xF3 or 0xF0)
+                    if (depthCue)
                     {
                         uint cue = Dword(context, 12);
                         if (gouraud)
@@ -97,7 +99,15 @@ public static class NativeBattleStaticMeshContext88
                         }
                         else
                         {
-                            uint material = (BinaryPrimitives.ReadUInt32LittleEndian(face) | 0x02000000u) & ~((flags & 4) != 0 ? 0x02000000u : 0);
+                            uint material = BinaryPrimitives.ReadUInt32LittleEndian(face);
+                            if ((flags & 1) != 0)
+                            {
+                                material |= 0x02000000;
+                            }
+                            if ((flags & 4) != 0)
+                            {
+                                material &= 0xFDFFFFFF;
+                            }
                             registers = registers with { Colors = NativeBattleScriptedDpcs.Transform45F270(registers.Colors, material, cue, far, constants).Registers };
                         }
                     }

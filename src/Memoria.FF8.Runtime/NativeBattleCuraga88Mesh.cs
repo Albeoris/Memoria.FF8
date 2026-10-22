@@ -225,7 +225,7 @@ internal static class NativeBattleGouraudMeshRegisters
         {
             source &= 0xFDFFFFFF;
         }
-        int colorOffset = textured ? 24 : 12;
+        int colorOffset = textured ? (quad ? 24 : 20) : 12;
         uint first = BinaryPrimitives.ReadUInt32LittleEndian(face[colorOffset..]);
         uint second = BinaryPrimitives.ReadUInt32LittleEndian(face[(colorOffset + 4)..]);
         uint third = quad ? BinaryPrimitives.ReadUInt32LittleEndian(face[(colorOffset + 8)..]) : source;

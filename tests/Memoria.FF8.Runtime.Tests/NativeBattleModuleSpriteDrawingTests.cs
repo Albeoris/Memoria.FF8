@@ -177,7 +177,7 @@ public sealed class NativeBattleModuleSpriteDrawingTests
     public void Caller_flags_and_actual_loaded_register_owners_are_required()
     {
         var fixture = Fixture(2000, false);
-        Assert.Throws<InvalidDataException>(() => Draw(fixture.Memory, fixture.Temporary.Write(0x24, [8, 0]), fixture.Resource));
+        Assert.Throws<InvalidDataException>(() => Draw(fixture.Memory, fixture.Temporary.Write(0x24, [2, 0]), fixture.Resource));
         Assert.Throws<NotSupportedException>(() => Draw(fixture.Memory with { GeometryRegisters = null }, fixture.Temporary, fixture.Resource));
         Assert.Throws<NotSupportedException>(() => Draw(fixture.Memory with { ScriptedColorRegisters = null }, fixture.Temporary, fixture.Resource));
     }

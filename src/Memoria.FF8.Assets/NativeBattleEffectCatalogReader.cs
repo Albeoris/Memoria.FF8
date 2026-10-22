@@ -206,6 +206,14 @@ public sealed partial class GameAssets
                 binding = binding with { Doom8Resources = doom, InitializerAsset = doom.MainTim };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 307)
+            {
+                if (binding.Entry != 0x5A1170 || binding.Initializer != 0x5A1150 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag009.tim", 0x2242578) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Ray-Bomb requires its original entry and initializer resource identity.");
+                }
+                binding = binding with { RayBomb307Resources = ReadNativeRayBomb307Resources() };
+            }
             if (binding.Effect == 184)
             {
                 if (binding.Entry != 0x5C7FC0 || binding.Initializer != 0x5C7FA0 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag153.tim", 0x22D7DE8) || binding.InitializerResources is not null)

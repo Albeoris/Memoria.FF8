@@ -68,7 +68,7 @@ public static class NativeBattleProjectedSpriteD8
     {
         NativeBattleEffectArena temporary = head.TemporaryD8;
         ushort callerFlags = ReadWord(temporary, 0x24);
-        int supportedFlags = readD8DepthBias ? 0x100 : 0x105;
+        int supportedFlags = readD8DepthBias ? 0x100 : 0x10D;
         if ((callerFlags & ~supportedFlags) != 0)
         {
             throw new InvalidDataException("Projected sprite dispatcher requires its supported actual caller flags.");
@@ -111,7 +111,7 @@ public static class NativeBattleProjectedSpriteD8
             tint = (uint)(rgb[0] | rgb[1] << 8 | rgb[2] << 16);
         }
         temporary = temporary.Write(0x20, resource.Bytes.AsSpan().Slice(4, 4));
-        temporary = Dword(Dword(Dword(Dword(Dword(temporary, 0xB0, 0), 0xAC, 0), 0xA4, 4096), 0xA8, 0), 0x3C, uint.MaxValue);
+        temporary = Dword(Dword(Dword(Dword(Dword(temporary, 0xB0, (flags & 8) != 0 ? 1u : 0u), 0xAC, 0), 0xA4, 4096), 0xA8, 0), 0x3C, uint.MaxValue);
         NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 255) { Resource = resource, SpriteFrame = selected, Phase = phase, SpriteFlags = flags };
         if (tint is uint actualTint)
         {
@@ -190,7 +190,7 @@ public static class NativeBattleProjectedSpriteD8
             quad.Slice(4, 4).CopyTo(candidate.AsSpan(12));
             int palette = unchecked((sbyte)resource.Bytes[4 + (quadFlags >> 12)]);
             BinaryPrimitives.WriteUInt16LittleEndian(candidate.AsSpan(14), unchecked((ushort)(BinaryPrimitives.ReadUInt16LittleEndian(quad.Slice(6)) + (palette << 6))));
-            candidate[20] = candidate[36] = (byte)Math.Min(quad[4] + quad[0], 255);
+            candidate[20] = candidate[36] = unchecked((byte)Math.Min(quad[4] + quad[0] - ((flags & 8) != 0 ? 1 : 0), 255));
             candidate[21] = quad[5];
             candidate[28] = quad[4];
             foreach (int index in new[] { 0, 1, 2, 3, 4, 5, 6, 7, 12, 13, 14, 15, 20, 21, 28, 36 })
