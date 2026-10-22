@@ -173,12 +173,15 @@ public static partial class NativeBattlePoseMatrices
     private static Matrix ModelMatrix(NativeBattleGraphicsModel model, NativeBattleModelTransform transform, Matrix root, NativeBattleModelScaleVector? pointedScale)
     {
         Matrix rotation = Rotation(new(model.Rotation12 ?? throw new NotSupportedException("Native model lacks rotationWORD12."), model.Rotation14 ?? throw new NotSupportedException("Native model lacks rotationWORD14."), model.Rotation16 ?? throw new NotSupportedException("Native model lacks rotationWORD16.")));
+        NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native502AB0 requires its resource-header displacement WORDs.");
+        //502AB0 rotates the resource-local displacement before model scaling and root-pivot correction.
+        var (offsetX, offsetY, offsetZ) = ApplyRounded(rotation, sequence.Header36, sequence.Header38, sequence.Header40);
         int[] scale = [transform.Scale154 * transform.Scale148.X >> 12, transform.Scale154 * transform.Scale148.Y >> 12, transform.Scale154 * transform.Scale148.Z >> 12];
         var (beforeX, _, beforeZ) = ApplyRounded(rotation, root.X, root.Y, root.Z);
         Matrix scaled = pointedScale is { } vector ? Scale(rotation, [vector.X, vector.Y, vector.Z]) : rotation;
         scaled = Scale(scaled, scale);
         var (afterX, _, afterZ) = ApplyRounded(scaled, root.X, root.Y, root.Z);
-        return scaled with { X = unchecked(transform.Position28.X + beforeX - afterX), Y = unchecked(transform.Position28.Y + transform.Vertical34), Z = unchecked(transform.Position28.Z + beforeZ - afterZ) };
+        return scaled with { X = unchecked(transform.Position28.X + offsetX + beforeX - afterX), Y = unchecked(transform.Position28.Y + transform.Vertical34 + offsetY), Z = unchecked(transform.Position28.Z + offsetZ + beforeZ - afterZ) };
     }
 
     private static Matrix Rotation(NativeBattleVector rotation)
