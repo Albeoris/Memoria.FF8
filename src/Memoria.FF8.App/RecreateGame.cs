@@ -191,7 +191,7 @@ internal sealed partial class RecreateGame : Game
         bool capturing = gameMenus?.UpdateControlsCapture(keys, pad, IsActive) == true;
         capturingControls = capturing;
         keyboard.RecoveryNavigationEnabled = gameMenus is { IsOpen: true, IsControlsScreen: true };
-        bool typingName = gameMenus?.IsTypingName == true;
+        bool typingName = gameMenus?.IsTypingName == true || modelBrowser?.SearchFocused == true;
         bool namingNavigation = gameMenus?.IsEditingName == true;
         if (keyboard.TextEntryEnabled != typingName || keyboard.NamingNavigationEnabled != namingNavigation)
         {
@@ -214,7 +214,7 @@ internal sealed partial class RecreateGame : Game
             metrics.Update(updateStarted);
             return;
         }
-        if (keyboard.PauseRequested && !saveMenu.IsOpen && gameMenus?.IsOpen != true && sceneInspector is null)
+        if (keyboard.PauseRequested && !saveMenu.IsOpen && gameMenus?.IsOpen != true && sceneInspector is null && modelBrowser is null)
         {
             if (autoPlay?.Running == true)
             {
@@ -275,7 +275,7 @@ internal sealed partial class RecreateGame : Game
         {
             fieldAudio?.PlayTitleMusic();
         }
-        if (gameMenus?.IsNamePrompt != true && (UpdateSceneInspectorUi(input) || UpdateBattleDebugUi(input)))
+        if (gameMenus?.IsNamePrompt != true && (UpdateModelBrowserUi(input, gameTime.ElapsedGameTime) || UpdateSceneInspectorUi(input) || UpdateBattleDebugUi(input)))
         {
             movieSkipGesture.Reset();
             fieldAudio?.Update();
@@ -375,7 +375,7 @@ internal sealed partial class RecreateGame : Game
 
     private GameWorld CreateWorld()
     {
-        var next = new GameWorld(session, options.GameDirectory, movieClock, resourceHost?.Resources, Window.Handle, options.AudioEnabled, readSceneMods: () => resourceHost?.SceneMods ?? Memoria.FF8.Mods.FieldSceneMods.Empty);
+        var next = new GameWorld(session, options.GameDirectory, movieClock, resourceHost?.Resources, Window.Handle, options.AudioEnabled, readSceneMods: () => resourceHost?.SceneMods ?? Memoria.FF8.Mods.FieldSceneMods.Empty, modelOverrides: resourceHost);
         fieldAudio?.Attach(next.Events);
         resumeFieldMusic = session.State.EventState is not null || session.State.DepartingFieldState is not null;
         return next;
@@ -574,6 +574,18 @@ internal sealed partial class RecreateGame : Game
 
     private void OnTextInput(object? sender, TextInputEventArgs args)
     {
+        if (IsActive && modelBrowser?.SearchFocused == true)
+        {
+            if (args.Character == '\b')
+            {
+                modelBrowser.Backspace();
+            }
+            else
+            {
+                modelBrowser.TextInput(args.Character);
+            }
+            return;
+        }
         if (IsActive && keyboard.AllowsNameText(args.Key))
         {
             gameMenus?.EnterNameCharacter(args.Character);
@@ -765,7 +777,7 @@ internal sealed partial class RecreateGame : Game
         if (state.Scene != SceneKind.Movie || state.EventState is not null)
         {
             using var candidateClock = new MovieClock(candidateSession, options.GameDirectory, options.MediaToolsDirectory, resourceHost is null ? null : resourceHost.ResolveGameFile);
-            using var candidate = new GameWorld(candidateSession, options.GameDirectory, candidateClock, resourceHost?.Resources, sharedAssets: world?.ValidationAssets, readSceneMods: () => resourceHost?.SceneMods ?? Memoria.FF8.Mods.FieldSceneMods.Empty);
+            using var candidate = new GameWorld(candidateSession, options.GameDirectory, candidateClock, resourceHost?.Resources, sharedAssets: world?.ValidationAssets, readSceneMods: () => resourceHost?.SceneMods ?? Memoria.FF8.Mods.FieldSceneMods.Empty, modelOverrides: resourceHost);
             candidate.EnsureField();
         }
     }
@@ -941,7 +953,7 @@ internal sealed partial class RecreateGame : Game
                 ApplyTutorialInput(tutorialAction);
                 return ControlStatus(request.Compact);
             }
-            if (gameMenus?.IsOpen == true)
+            if (gameMenus?.IsOpen == true || modelBrowser is not null || sceneInspector is not null)
             {
                 throw new InvalidOperationException("Close the UI before advancing the game-owned simulation.");
             }
@@ -1074,6 +1086,21 @@ internal sealed partial class RecreateGame : Game
     protected override void Draw(GameTime gameTime)
     {
         uiCanvas?.BeginFrame(gameTime.TotalGameTime);
+        if (modelBrowser is not null)
+        {
+            RenderModelBrowserPreview(gameTime.TotalGameTime);
+            BeginMeasuredFrame();
+            GraphicsDevice.Clear(new Color(12, 14, 20));
+            text.BeginFrame();
+            batch.Begin(samplerState: SamplerState.LinearClamp);
+            DrawModelBrowserUi(GraphicsDevice.Viewport.Bounds);
+            DrawFps(GraphicsDevice.Viewport.Bounds);
+            batch.End();
+            CapturePresentedFrame(gameTime);
+            base.Draw(gameTime);
+            metrics.Draw();
+            return;
+        }
         if (battleEntryTransition is not null)
         {
             DrawBattleEntry(gameTime);
@@ -1144,6 +1171,7 @@ internal sealed partial class RecreateGame : Game
             titleScene.Draw(bounds, gameTime.TotalGameTime.TotalSeconds);
             titleArtwork.Draw(bounds, gameTime.TotalGameTime.TotalSeconds);
         }
+        RenderModelBrowserPreview(gameTime.TotalGameTime);
         float uiScale = ViewportLayout.UiScale(bounds.Width, bounds.Height);
         text.BeginFrame();
         batch.Begin(samplerState: SamplerState.LinearClamp);
@@ -1231,6 +1259,7 @@ internal sealed partial class RecreateGame : Game
         }
         DrawBattleDebugUi(bounds);
         DrawSceneInspectorUi(bounds);
+        DrawModelBrowserUi(bounds);
         DrawFps(bounds);
         batch.End();
         CapturePresentedFrame(gameTime);
@@ -1274,6 +1303,7 @@ internal sealed partial class RecreateGame : Game
             focusDisposed = true;
             DisposeBattleEntry();
             DisposeStartup();
+            DisposeModelBrowser();
             titleArtwork?.Dispose();
             titleScene?.Dispose();
             controller?.Dispose();

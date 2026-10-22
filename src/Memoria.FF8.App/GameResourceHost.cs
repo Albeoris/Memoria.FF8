@@ -5,7 +5,7 @@ using Memoria.FF8.Resources;
 namespace Memoria.FF8;
 
 /// <summary>Application composition root. Resource consumers do not reference the mod adapters.</summary>
-internal sealed partial class GameResourceHost : IDisposable
+internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSource
 {
     private readonly IResourceSource source;
     private readonly string materializationDirectory = Path.Combine(Path.GetTempPath(), "Memoria.FF8.Junction", Guid.NewGuid().ToString("N"));
@@ -27,6 +27,12 @@ internal sealed partial class GameResourceHost : IDisposable
     public ResourceService Resources { get; }
     public ModRuntime Mods { get; }
     public FieldSceneMods SceneMods { get; private set; } = FieldSceneMods.Empty;
+    public ModelMods ModelMods { get; private set; } = ModelMods.Empty;
+
+    public FieldModel Apply(string modelId, FieldModel original) => ModelMods.Apply(modelId, original);
+    public BattleModel Apply(string modelId, BattleModel original) => ModelMods.Apply(modelId, original);
+    public BattleStage Apply(string modelId, BattleStage original) => ModelMods.Apply(modelId, original);
+    public WorldStaticModel Apply(string modelId, WorldStaticModel original) => ModelMods.Apply(modelId, original);
 
     public string ResolveGameFile(string dataRelativePath)
     {
@@ -74,6 +80,10 @@ internal sealed partial class GameResourceHost : IDisposable
 
     private ModPreparationResult Prepare(ModCatalogSnapshot catalog)
     {
+        if (!ModelMods.TryPrepare(catalog, out ModelMods modelMods, out IReadOnlyList<ModDiagnostic> modelDiagnostics))
+        {
+            return new ModPreparationResult(false, Diagnostics: modelDiagnostics);
+        }
         if (!FieldSceneMods.TryPrepare(catalog, out FieldSceneMods sceneMods, out IReadOnlyList<ModDiagnostic> sceneDiagnostics))
         {
             return new ModPreparationResult(false, Diagnostics: sceneDiagnostics);
@@ -85,6 +95,7 @@ internal sealed partial class GameResourceHost : IDisposable
         }
         List<ITextureReplacementResolver> resolvers = [];
         List<string> usable = [];
+        usable.AddRange(modelMods.Variants.Select(variant => variant.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(sceneMods.Patches.Select(patch => patch.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(catalog.Files.Where(file => file.Format == ModFormat.Junction).Select(file => file.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         DemasterInspection demaster = DemasterTextureResolver.Inspect(source.Descriptor, catalog);
@@ -120,6 +131,7 @@ internal sealed partial class GameResourceHost : IDisposable
         {
             prepared.Commit(notify: false);
             SceneMods = sceneMods;
+            ModelMods = modelMods;
         }, prepared.Notify);
     }
 

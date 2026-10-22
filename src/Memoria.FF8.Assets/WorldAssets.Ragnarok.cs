@@ -27,7 +27,7 @@ public sealed partial class WorldAssets
             FieldModel model = WorldAssetReader.ReadWorldCharacter(Read("chara.one"), 1);
             ragnarokModel = model with { Textures = textureScope.RegisterList(new ResourceKey("world/chara.one"), model.Textures, "classic-model", "model/1") };
         }
-        return ragnarokModel;
+        return modelOverrides?.Apply("world/1", ragnarokModel) ?? ragnarokModel;
     }
 
     public NativeRagnarokCameraDefaults ReadRagnarokCameraDefaults()

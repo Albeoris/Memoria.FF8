@@ -44,6 +44,7 @@ public sealed partial class WorldAssets : IDisposable
     private readonly Dictionary<(int, int), AssetHandle<TextureValue>> textureHandles = [];
     private readonly ResourceService resources;
     private readonly AssetTextureScope textureScope;
+    private readonly IModelOverrideSource? modelOverrides;
     private AssetHandle<TextureValue>? roadHandle;
     private AssetHandle<TextureValue>? waterHandle;
     private bool roadsPrepared;
@@ -55,7 +56,7 @@ public sealed partial class WorldAssets : IDisposable
     private WorldFieldEntryReader? fieldEntries;
     private WorldFieldEntryReader? worldEvents;
 
-    public WorldAssets(string gameDirectory, ResourceService? resources = null)
+    public WorldAssets(string gameDirectory, ResourceService? resources = null, IModelOverrideSource? modelOverrides = null)
     {
         if (resources is null)
         {
@@ -69,6 +70,7 @@ public sealed partial class WorldAssets : IDisposable
             archiveSource = resources.GetSource<IGameArchiveSource>() ?? throw new NotSupportedException("The world resource source does not support archive enumeration.");
         }
         this.resources = resources;
+        this.modelOverrides = modelOverrides;
         textureScope = new AssetTextureScope(resources);
         IFlArchive? openedArchive = null;
         try
@@ -131,7 +133,7 @@ public sealed partial class WorldAssets : IDisposable
             model = model with { Textures = textureScope.RegisterList(new ResourceKey("world/chara.one"), model.Textures, "classic-model", $"model/{shape}/texture") };
             footModels.Add(entityType, model);
         }
-        return model;
+        return modelOverrides?.Apply($"world/{shape}", model) ?? model;
     }
 
     public short GetNativeMapLocationId(int x, int rawZ) => mapLocations.GetPlaceId(x, rawZ);

@@ -31,7 +31,7 @@ internal sealed partial class GameWorld
         }
         GameState input = departure with { World = null, Battle = null, PendingBattleEncounter = null, DepartingWorldState = departure.World, RandomEncounters = departure.RandomEncounters is null ? null : departure.RandomEncounters with { Pending = null } };
         GameSession temporary = new(input);
-        WorldMapScene candidate = new(temporary, assets.GameDirectory, resources, receipt);
+        WorldMapScene candidate = new(temporary, assets.GameDirectory, resources, receipt, modelOverrides);
         Action publishMusic;
         try
         {

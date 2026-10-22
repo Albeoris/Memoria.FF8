@@ -480,29 +480,29 @@ public sealed partial class FieldRenderer
             {
                 continue;
             }
-            IReadOnlyList<PixelImage> selectedTextures = actor.RegisteredTextures ?? model.Textures;
+            IReadOnlyList<PixelImage> selectedTextures = model.EditableOverride is not null ? model.Textures : actor.RegisteredTextures ?? model.Textures;
             PixelImage texture = selectedTextures[face.Texture];
             Vector2 textureScale = ResourceTextureList.PhysicalScale(selectedTextures, face.Texture);
             bool transparent = face.SemiTransparent || actor.PrimitiveTransparencyEnabled;
-            DrawModelTriangle(projected[face.Vertices[0]], projected[face.Vertices[1]], projected[face.Vertices[2]], face.TextureCoordinates[0] * textureScale, face.TextureCoordinates[1] * textureScale, face.TextureCoordinates[2] * textureScale, texture, actor.PolygonColor!.Value, transparent, translucent, projected[face.Vertices[0]].Depth);
+            DrawModelTriangle(projected[face.Vertices[0]], projected[face.Vertices[1]], projected[face.Vertices[2]], face.TextureCoordinates[0] * textureScale, face.TextureCoordinates[1] * textureScale, face.TextureCoordinates[2] * textureScale, texture, actor.PolygonColor!.Value, transparent, translucent, projected[face.Vertices[0]].Depth, face.VertexColors?[0], face.VertexColors?[1], face.VertexColors?[2]);
             if (face.Quad)
             {
-                DrawModelTriangle(projected[face.Vertices[1]], projected[face.Vertices[3]], projected[face.Vertices[2]], face.TextureCoordinates[1] * textureScale, face.TextureCoordinates[3] * textureScale, face.TextureCoordinates[2] * textureScale, texture, actor.PolygonColor!.Value, transparent, translucent, projected[face.Vertices[0]].Depth);
+                DrawModelTriangle(projected[face.Vertices[1]], projected[face.Vertices[3]], projected[face.Vertices[2]], face.TextureCoordinates[1] * textureScale, face.TextureCoordinates[3] * textureScale, face.TextureCoordinates[2] * textureScale, texture, actor.PolygonColor!.Value, transparent, translucent, projected[face.Vertices[0]].Depth, face.VertexColors?[1], face.VertexColors?[3], face.VertexColors?[2]);
             }
         }
     }
 
-    private void DrawModelTriangle(ProjectedPoint a, ProjectedPoint b, ProjectedPoint c, Vector2 uvA, Vector2 uvB, Vector2 uvC, PixelImage texture, Vector3 polygonColor, bool transparent, List<(float Depth, Action Draw)> translucent, float orderingDepth)
+    private void DrawModelTriangle(ProjectedPoint a, ProjectedPoint b, ProjectedPoint c, Vector2 uvA, Vector2 uvB, Vector2 uvC, PixelImage texture, Vector3 polygonColor, bool transparent, List<(float Depth, Action Draw)> translucent, float orderingDepth, Vector4? colorA = null, Vector4? colorB = null, Vector4? colorC = null)
     {
         if (transparent)
         {
             // Native 532A40 selects ABR1 and sets STP on every nonzero model CLUT entry.
             // 45D080 traverses the shared ordering table again after all opaque drawing.
-            translucent.Add((MathF.Floor(orderingDepth / 4) * 4, () => Triangle(a, b, c, uvA, uvB, uvC, texture, polygonColor, true)));
+            translucent.Add((MathF.Floor(orderingDepth / 4) * 4, () => Triangle(a, b, c, uvA, uvB, uvC, texture, polygonColor, true, colorA, colorB, colorC)));
         }
         else
         {
-            Triangle(a, b, c, uvA, uvB, uvC, texture, polygonColor, false);
+            Triangle(a, b, c, uvA, uvB, uvC, texture, polygonColor, false, colorA, colorB, colorC);
         }
     }
 
@@ -513,7 +513,7 @@ public sealed partial class FieldRenderer
         return new ProjectedPoint(HorizontalOrigin + (point.X - 160 + drawingOrigin.X + actorScrollOffset.X) * scale, offsetY + (point.Y - 120 + drawingOrigin.Y + actorScrollOffset.Y) * verticalScale, point.Depth);
     }
 
-    private void Triangle(ProjectedPoint a, ProjectedPoint b, ProjectedPoint c, Vector2 uvA, Vector2 uvB, Vector2 uvC, PixelImage texture, Vector3 polygonColor, bool primitiveTransparencyEnabled)
+    private void Triangle(ProjectedPoint a, ProjectedPoint b, ProjectedPoint c, Vector2 uvA, Vector2 uvB, Vector2 uvC, PixelImage texture, Vector3 polygonColor, bool primitiveTransparencyEnabled, Vector4? colorA = null, Vector4? colorB = null, Vector4? colorC = null)
     {
         if (a.Depth <= 1 || b.Depth <= 1 || c.Depth <= 1)
         {
@@ -533,7 +533,7 @@ public sealed partial class FieldRenderer
                 Sampler = modelTextureSampling == ModelTextureSampling.Nearest ? TriangleSampler.PointClamp : TriangleSampler.CutoutLinearClamp
             };
             Vector4 color = new(polygonColor / 128, 1);
-            TriangleRenderer.Draw(GpuVertex(a, uvA / new Vector2(texture.Width, texture.Height), color), GpuVertex(b, uvB / new Vector2(texture.Width, texture.Height), color), GpuVertex(c, uvC / new Vector2(texture.Width, texture.Height), color), material);
+            TriangleRenderer.Draw(GpuVertex(a, uvA / new Vector2(texture.Width, texture.Height), color * (colorA ?? Vector4.One)), GpuVertex(b, uvB / new Vector2(texture.Width, texture.Height), color * (colorB ?? Vector4.One)), GpuVertex(c, uvC / new Vector2(texture.Width, texture.Height), color * (colorC ?? Vector4.One)), material);
             return;
         }
         int minX = Math.Max((int)MathF.Floor(Math.Min(a.X, Math.Min(b.X, c.X))), clipLeft);
@@ -567,6 +567,11 @@ public sealed partial class FieldRenderer
                 }
                 Vector2 uv = (uvA * depthA + uvB * depthB + uvC * depthC) / inverseDepth;
                 Rgba32 color = Shade(SampleTexture(texture, uv), polygonColor);
+                if (colorA is { } first && colorB is { } second && colorC is { } third)
+                {
+                    Vector4 tint = first * wA + second * wB + third * wC;
+                    color = new Rgba32((byte)Math.Clamp(color.R * tint.X, 0, 255), (byte)Math.Clamp(color.G * tint.Y, 0, 255), (byte)Math.Clamp(color.B * tint.Z, 0, 255), (byte)Math.Clamp(color.A * tint.W, 0, 255));
+                }
                 if (color.A == 0)
                 {
                     continue;

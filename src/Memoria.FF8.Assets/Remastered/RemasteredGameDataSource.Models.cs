@@ -33,42 +33,49 @@ public sealed partial class RemasteredGameDataSource
     public IReadOnlyList<FieldModel> ReadModels(ResourceKey owner, byte[] one, Func<string, byte[]> mainCharacter, Action<NativeFieldOneModelEntry>? retainEntry = null)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        IReadOnlyList<FieldModel> models = FieldModelReader.Read(one, mainCharacter, retainEntry).Select(NormalizeModelVertices).ToArray();
-        for (int index = 0; index < models.Count; index++)
+        return FieldModelReader.Read(one, mainCharacter, retainEntry).Select((model, index) => PrepareFieldModel(owner, model, index)).ToArray();
+    }
+
+    public FieldModel ReadModel(ResourceKey owner, byte[] one, Func<string, byte[]> mainCharacter, int index)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        return PrepareFieldModel(owner, FieldModelReader.ReadSingle(one, mainCharacter, index), index);
+    }
+
+    private FieldModel PrepareFieldModel(ResourceKey owner, FieldModel sourceModel, int index)
+    {
+        FieldModel model = NormalizeModelVertices(sourceModel);
+        if (model.Name.Length < 4)
         {
-            FieldModel model = models[index];
-            if (model.Name.Length < 4)
+            throw new InvalidDataException("A field model has no complete logical name.");
+        }
+        string name = model.Name[..4].ToLowerInvariant();
+        if (name[0] == 'c')
+        {
+            name = "n" + name[1..];
+        }
+        for (int texture = 0; texture < model.Textures.Count; texture++)
+        {
+            if (texture >= model.TextureRegions.Count)
             {
-                throw new InvalidDataException("A field model has no complete logical name.");
+                throw new NotSupportedException("A field model texture has no source rectangle metadata.");
             }
-            string name = model.Name[..4].ToLowerInvariant();
-            if (name[0] == 'c')
+            // HD suffixes identify source materials; TIM rectangles identify their VRAM allocation.
+            string stem = $"{name}_{texture}" + (name == "o006" && UsesAlphaObject(owner) ? "_alpha" : "");
+            string preferred = $"textures/field.fs/field_hd_new/{stem}.png";
+            string fallback = $"textures/field.fs/field_hd/{stem}.png";
+            string? path = Contains(preferred) ? preferred : Contains(fallback) ? fallback : null;
+            TextureKey key = new(owner, $"model/{index}/texture/{texture}");
+            if (path is not null)
             {
-                name = "n" + name[1..];
+                imageBindings[key] = new ImageBinding(path, true);
             }
-            for (int texture = 0; texture < model.Textures.Count; texture++)
+            else
             {
-                if (texture >= model.TextureRegions.Count)
-                {
-                    throw new NotSupportedException("A field model texture has no source rectangle metadata.");
-                }
-                // HD suffixes identify source materials; TIM rectangles identify their VRAM allocation.
-                string stem = $"{name}_{texture}" + (name == "o006" && UsesAlphaObject(owner) ? "_alpha" : "");
-                string preferred = $"textures/field.fs/field_hd_new/{stem}.png";
-                string fallback = $"textures/field.fs/field_hd/{stem}.png";
-                string? path = Contains(preferred) ? preferred : Contains(fallback) ? fallback : null;
-                TextureKey key = new(owner, $"model/{index}/texture/{texture}");
-                if (path is not null)
-                {
-                    imageBindings[key] = new ImageBinding(path, true);
-                }
-                else
-                {
-                    imageBindings.Remove(key);
-                }
+                imageBindings.Remove(key);
             }
         }
-        return models;
+        return model;
     }
 
     private FieldModel NormalizeModelVertices(FieldModel model)

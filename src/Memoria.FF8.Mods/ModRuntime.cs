@@ -80,6 +80,17 @@ public sealed partial class ModRuntime : IModService, IDisposable
     }
 
     public IReadOnlyList<string> ModsDirectories { get; }
+    public string PrimaryModsDirectory => modsRoot;
+
+    /// <summary>Returns discovered files for inspection, including disabled packages, without activating them.</summary>
+    public IReadOnlyList<ModFile> ReadInstalledFiles(ModFormat format)
+    {
+        lock (gate)
+        {
+            ThrowIfDisposed();
+            return fileEntries.Values.Select(entry => entry.File).Where(file => file.Format == format).OrderBy(file => file.PackageId, StringComparer.OrdinalIgnoreCase).ThenBy(file => file.RelativePath, StringComparer.OrdinalIgnoreCase).ToArray();
+        }
+    }
 
     public ModCatalogSnapshot Catalog
     {

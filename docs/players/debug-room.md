@@ -8,6 +8,7 @@ Press **F2** to open Debug Room, or change its binding in [Controls](controls.md
 
 | Section | Purpose |
 | --- | --- |
+| [Model browser](../modding/model-mods.md) | Search models, compare originals and mods, and exchange GLB files with Blender. |
 | Battle | Settings for the running game, including encounter/ATB preferences and active battle outcomes. |
 | UI | Text scale, font preferences and interface presentation. |
 | Audio | Music and effect volume preferences. |

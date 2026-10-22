@@ -28,7 +28,7 @@ internal sealed partial class RecreateGame
         {
             throw new InvalidOperationException("Start or load a game and wait for a playable field or world boundary before updating.");
         }
-        if (gameMenus?.IsOpen == true || saveMenu.IsOpen || sceneInspector is not null || capturingControls || drainUiButtons)
+        if (gameMenus?.IsOpen == true || saveMenu.IsOpen || sceneInspector is not null || modelBrowser is not null || capturingControls || drainUiButtons)
         {
             throw new InvalidOperationException("Close the current menu or editor before updating so all changes belong to the saved game.");
         }

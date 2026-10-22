@@ -600,7 +600,7 @@ public sealed partial class MenuController
         {
             return;
         }
-        if (ExecuteSceneInspectorAction(action))
+        if (ExecuteModelBrowserAction(action) || ExecuteSceneInspectorAction(action))
         {
             return;
         }

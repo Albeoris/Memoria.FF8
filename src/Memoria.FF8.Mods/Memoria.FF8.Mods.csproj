@@ -5,6 +5,7 @@
   <ItemGroup>
     <PackageReference Include="BCnEncoder.Net" />
     <PackageReference Include="SharpCompress" />
+    <ProjectReference Include="../Memoria.FF8.Assets/Memoria.FF8.Assets.csproj" />
     <ProjectReference Include="../Memoria.FF8.Resources/Memoria.FF8.Resources.csproj" />
   </ItemGroup>
 </Project>

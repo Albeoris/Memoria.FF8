@@ -44,7 +44,7 @@ public sealed partial class WorldTerrainRenderer
     {
         static TriangleVertex Convert(ScreenVertex vertex)
         {
-            return new TriangleVertex(new Vector2(vertex.X, vertex.Y), vertex.ReciprocalZ, vertex.ReciprocalZ, vertex.UvOverZ / vertex.ReciprocalZ, Vector4.One);
+            return new TriangleVertex(new Vector2(vertex.X, vertex.Y), vertex.ReciprocalZ, vertex.ReciprocalZ, vertex.UvOverZ / vertex.ReciprocalZ, vertex.ColorOverZ / vertex.ReciprocalZ ?? Vector4.One);
         }
         TriangleMaterial material = TerrainMaterial(texture, transparent);
         TriangleRenderer!.Draw(Convert(a), Convert(b), Convert(c), material);

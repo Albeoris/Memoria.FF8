@@ -19,8 +19,9 @@ public sealed partial class BattleAssets : IDisposable
     private readonly Albeoris.Games.FF8.KernelBin.KernelData battleKernel;
     private readonly ResourceService resources;
     private readonly AssetTextureScope textureScope;
+    private readonly IModelOverrideSource? modelOverrides;
 
-    public BattleAssets(string gameDirectory, ResourceService? resources = null)
+    public BattleAssets(string gameDirectory, ResourceService? resources = null, IModelOverrideSource? modelOverrides = null)
     {
         if (resources is null)
         {
@@ -28,6 +29,7 @@ public sealed partial class BattleAssets : IDisposable
             resources = new ResourceService(ownedSource);
         }
         this.resources = resources;
+        this.modelOverrides = modelOverrides;
         textureScope = new AssetTextureScope(resources);
         IFlArchive? openedArchive = null;
         try
@@ -142,7 +144,7 @@ public sealed partial class BattleAssets : IDisposable
             stage = stage with { Textures = textureScope.RegisterList(new ResourceKey($"battle/a0stg{stageId:000}.x"), stage.Textures, "classic-battle") };
             stages.Add(stageId, stage);
         }
-        return stage;
+        return modelOverrides?.Apply($"battle/a0stg{stageId:000}.x", stage) ?? stage;
     }
 
     public string ReadEnemyName(int modelId)
@@ -333,7 +335,7 @@ public sealed partial class BattleAssets : IDisposable
             model = model with { Textures = textureScope.RegisterList(new ResourceKey("battle/" + name), model.Textures, "classic-battle") };
             models.Add(key, model);
         }
-        return model;
+        return modelOverrides?.Apply("battle/" + name.ToLowerInvariant(), model) ?? model;
     }
 
     public BattleModel LoadModel(string name)
@@ -345,7 +347,7 @@ public sealed partial class BattleAssets : IDisposable
             model = model with { Textures = textureScope.RegisterList(new ResourceKey("battle/" + name), model.Textures, "classic-battle") };
             models.Add(name, model);
         }
-        return model;
+        return modelOverrides?.Apply("battle/" + name.ToLowerInvariant(), model) ?? model;
     }
 
     private byte[] Read(string name)

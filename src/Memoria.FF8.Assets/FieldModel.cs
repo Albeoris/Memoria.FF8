@@ -9,6 +9,7 @@ public readonly record struct ModelBone(int Parent, float Length);
 public readonly record struct ModelVertex(Vector3 Position, int Bone, int SkinBinding = -1);
 public sealed record ModelFace(int[] Vertices, Vector2[] TextureCoordinates, int Texture, bool Quad)
 {
+    public Vector4[]? VertexColors { get; init; }
     public bool SemiTransparent { get; init; }
 }
 public sealed record AnimationFrame(Vector3 Translation, IReadOnlyList<Vector3> Rotations);
@@ -18,6 +19,7 @@ public sealed record ModelControlBones(int First, int Second, int Additional, ui
 public readonly record struct FieldAnimationBlend(float PreviousFrame, float CurrentFrame, float Fraction, int FirstFrame = 0, int? TerminalFrame = null, bool Loop = false);
 public sealed record FieldModel(string Name, IReadOnlyList<ModelBone> Bones, IReadOnlyList<ModelVertex> Vertices, IReadOnlyList<ModelFace> Faces, IReadOnlyList<PixelImage> Textures, IReadOnlyList<ModelAnimation> Animations)
 {
+    public EditableModel? EditableOverride { get; init; }
     public IReadOnlyList<TextureSourceRegion> TextureRegions { get; init; } = [];
 
     public NativeModelPartsDefinition? NativeParts { get; init; }
@@ -44,6 +46,10 @@ public sealed record FieldModel(string Name, IReadOnlyList<ModelBone> Bones, IRe
 
     public Vector3[] Pose(int animationId, float frameNumber, Vector3? firstControlRotation = null, float rootTranslationZ = 0, IReadOnlyDictionary<int, Vector3>? skinTranslations = null)
     {
+        if (EditableOverride is { } edited)
+        {
+            return ModelExchange.Pose(edited, animationId, frameNumber / ModelExchange.FramesPerSecond).SelectMany(mesh => mesh).Select(position => ModelExchange.ToNative(position) + new Vector3(0, 0, rootTranslationZ)).ToArray();
+        }
         Matrix4x4[] transforms = BuildTransforms(animationId, frameNumber, firstControlRotation, rootTranslationZ);
         return TransformVertices(transforms, skinTranslations);
     }
@@ -59,6 +65,10 @@ public sealed record FieldModel(string Name, IReadOnlyList<ModelBone> Bones, IRe
         if (!float.IsFinite(previousFrameNumber) || !float.IsFinite(currentFrameNumber))
         {
             throw new ArgumentOutOfRangeException(nameof(previousFrameNumber));
+        }
+        if (EditableOverride is not null)
+        {
+            return Pose(animationId, float.Lerp(previousFrameNumber, currentFrameNumber, blend), firstControlRotation, rootTranslationZ, skinTranslations);
         }
         if ((uint)animationId >= Animations.Count)
         {

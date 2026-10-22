@@ -100,8 +100,8 @@ public sealed partial class WorldTerrainRenderer
     private float far;
     private Rgba32 fog;
     private bool nativeTerrain;
-    private readonly record struct Vertex(Vector3 Position, Vector2 Uv);
-    private readonly record struct ScreenVertex(float X, float Y, float ReciprocalZ, Vector2 UvOverZ);
+    private readonly record struct Vertex(Vector3 Position, Vector2 Uv, Vector4? Color = null);
+    private readonly record struct ScreenVertex(float X, float Y, float ReciprocalZ, Vector2 UvOverZ, Vector4? ColorOverZ = null);
     private readonly record struct RasterTriangle(ScreenVertex A, ScreenVertex B, ScreenVertex C, PixelImage Texture, bool Transparent);
     private readonly List<RasterTriangle> rasterTriangles = [];
 
@@ -342,13 +342,13 @@ public sealed partial class WorldTerrainRenderer
         {
             PixelImage texture = model.Textures[face.Texture];
             Vector2 size = ResourceTextureList.LogicalSize(model.Textures, face.Texture);
-            Vertex a = new(vertices[face.Vertices[0]], face.TextureCoordinates[0] / size);
-            Vertex b = new(vertices[face.Vertices[1]], face.TextureCoordinates[1] / size);
-            Vertex c = new(vertices[face.Vertices[2]], face.TextureCoordinates[2] / size);
+            Vertex a = new(vertices[face.Vertices[0]], face.TextureCoordinates[0] / size, face.VertexColors?[0]);
+            Vertex b = new(vertices[face.Vertices[1]], face.TextureCoordinates[1] / size, face.VertexColors?[1]);
+            Vertex c = new(vertices[face.Vertices[2]], face.TextureCoordinates[2] / size, face.VertexColors?[2]);
             Draw(a, b, c, texture, false);
             if (face.Quad)
             {
-                Vertex d = new(vertices[face.Vertices[3]], face.TextureCoordinates[3] / size);
+                Vertex d = new(vertices[face.Vertices[3]], face.TextureCoordinates[3] / size, face.VertexColors?[3]);
                 Draw(c, b, d, texture, false);
             }
         }
@@ -363,13 +363,13 @@ public sealed partial class WorldTerrainRenderer
         {
             PixelImage texture = model.Textures[face.Palette];
             Vector2 size = ResourceTextureList.LogicalSize(model.Textures, face.Palette);
-            Vertex a = new(vertices[face.Vertices[0]], face.TextureCoordinates[0] / size);
-            Vertex b = new(vertices[face.Vertices[1]], face.TextureCoordinates[1] / size);
-            Vertex c = new(vertices[face.Vertices[2]], face.TextureCoordinates[2] / size);
+            Vertex a = new(vertices[face.Vertices[0]], face.TextureCoordinates[0] / size, face.VertexColors?[0]);
+            Vertex b = new(vertices[face.Vertices[1]], face.TextureCoordinates[1] / size, face.VertexColors?[1]);
+            Vertex c = new(vertices[face.Vertices[2]], face.TextureCoordinates[2] / size, face.VertexColors?[2]);
             Draw(a, b, c, texture, face.Transparent);
             if (face.Vertices.Length == 4)
             {
-                Vertex d = new(vertices[face.Vertices[3]], face.TextureCoordinates[3] / size);
+                Vertex d = new(vertices[face.Vertices[3]], face.TextureCoordinates[3] / size, face.VertexColors?[3]);
                 Draw(c, b, d, texture, face.Transparent);
             }
         }
@@ -388,7 +388,8 @@ public sealed partial class WorldTerrainRenderer
             if (currentInside != previousInside)
             {
                 float fraction = (1 - previous.Position.Z) / (current.Position.Z - previous.Position.Z);
-                clipped[clippedCount++] = new Vertex(Vector3.Lerp(previous.Position, current.Position, fraction), Vector2.Lerp(previous.Uv, current.Uv, fraction));
+                Vector4? color = previous.Color is { } first && current.Color is { } second ? Vector4.Lerp(first, second, fraction) : null;
+                clipped[clippedCount++] = new Vertex(Vector3.Lerp(previous.Position, current.Position, fraction), Vector2.Lerp(previous.Uv, current.Uv, fraction), color);
             }
             if (currentInside)
             {
@@ -426,7 +427,7 @@ public sealed partial class WorldTerrainRenderer
     private ScreenVertex Project(Vertex vertex)
     {
         float reciprocal = 1 / vertex.Position.Z;
-        return new ScreenVertex(Width / 2f + vertex.Position.X * reciprocal * focal, Height / 2f - vertex.Position.Y * reciprocal * focal, reciprocal, vertex.Uv * reciprocal);
+        return new ScreenVertex(Width / 2f + vertex.Position.X * reciprocal * focal, Height / 2f - vertex.Position.Y * reciprocal * focal, reciprocal, vertex.Uv * reciprocal, vertex.Color * reciprocal);
     }
 
     private void Raster(ScreenVertex a, ScreenVertex b, ScreenVertex c, PixelImage texture, bool transparent, int stripeTop, int stripeBottom)
@@ -469,6 +470,11 @@ public sealed partial class WorldTerrainRenderer
                 int u = Math.Clamp((int)(uNumerator * distance * texture.Width), 0, texture.Width - 1);
                 int v = Math.Clamp((int)(vNumerator * distance * texture.Height), 0, texture.Height - 1);
                 Rgba32 color = texture.Pixels[v * texture.Width + u];
+                if (a.ColorOverZ is { } first && b.ColorOverZ is { } second && c.ColorOverZ is { } third)
+                {
+                    Vector4 tint = first / a.ReciprocalZ * wa + second / b.ReciprocalZ * wb + third / c.ReciprocalZ * wc;
+                    color = new Rgba32((byte)Math.Clamp(color.R * tint.X, 0, 255), (byte)Math.Clamp(color.G * tint.Y, 0, 255), (byte)Math.Clamp(color.B * tint.Z, 0, 255), (byte)Math.Clamp(color.A * tint.W, 0, 255));
+                }
                 if (color.A == 0)
                 {
                     continue;

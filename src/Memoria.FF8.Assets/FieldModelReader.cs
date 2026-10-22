@@ -10,7 +10,7 @@ namespace Memoria.FF8.Assets;
 /// <summary>Selected field ONE/MCH structures. Archive, image and text formats are handled by Albeoris.</summary>
 internal static class FieldModelReader
 {
-    public static IReadOnlyList<FieldModel> Read(byte[] one, Func<string, byte[]> mainCharacter, Action<NativeFieldOneModelEntry>? retainEntry = null)
+    internal static IReadOnlyList<NativeFieldOneModelEntry> ReadDirectory(byte[] one, long? containerLength = null)
     {
         using BinaryReader reader = Reader(one);
         int count = Count(reader.ReadUInt32(), 100, "ONE models");
@@ -52,14 +52,34 @@ internal static class FieldModelReader
             byte[] rawName = reader.ReadBytes(8);
             string name = System.Text.Encoding.ASCII.GetString(rawName).TrimEnd('\0');
             reader.ReadUInt32();
-            if (offset < 0 || size > one.Length - offset)
+            if (offset < 0 || size > (containerLength ?? one.Length) - offset)
             {
                 throw new InvalidDataException($"ONE model {name} lies outside its container.");
             }
             NativeFieldOneModelEntry entry = new(offset, size, flag, modelOffset, textures.ToImmutableArray(), name) { RawTextureWords = rawTextureWords.ToImmutableArray(), SourceWord8 = sourceWord8, RawName = rawName.ToImmutableArray() };
             headers.Add(entry);
-            retainEntry?.Invoke(entry);
         }
+        return headers;
+    }
+
+    public static IReadOnlyList<FieldModel> Read(byte[] one, Func<string, byte[]> mainCharacter, Action<NativeFieldOneModelEntry>? retainEntry = null)
+    {
+        IReadOnlyList<NativeFieldOneModelEntry> headers = ReadDirectory(one);
+        foreach (NativeFieldOneModelEntry header in headers)
+        {
+            retainEntry?.Invoke(header);
+        }
+        return ReadSelected(one, mainCharacter, headers, Enumerable.Range(0, headers.Count));
+    }
+
+    internal static FieldModel ReadSingle(byte[] one, Func<string, byte[]> mainCharacter, int index)
+    {
+        IReadOnlyList<NativeFieldOneModelEntry> headers = ReadDirectory(one);
+        return ReadSelected(one, mainCharacter, headers, [index])[0];
+    }
+
+    private static IReadOnlyList<FieldModel> ReadSelected(byte[] one, Func<string, byte[]> mainCharacter, IReadOnlyList<NativeFieldOneModelEntry> headers, IEnumerable<int> selected)
+    {
         FieldModel?[] models = new FieldModel?[headers.Count];
         HashSet<int> resolving = [];
         FieldModel Resolve(int index)
@@ -115,7 +135,7 @@ internal static class FieldModelReader
             resolving.Remove(index);
             return result;
         }
-        return Enumerable.Range(0, headers.Count).Select(Resolve).ToArray();
+        return selected.Select(Resolve).ToArray();
     }
 
     internal static FieldModel ReadModel(string name, byte[] content, int modelOffset, IEnumerable<int> textureOffsets, int textureBase, byte[]? animationContent, int animationOffset, IReadOnlyList<ModelAnimation>? animations = null, IReadOnlyList<PixelImage>? decodedTextures = null, NativeEyeTexture? nativeEyeTexture = null)

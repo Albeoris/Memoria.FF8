@@ -20,6 +20,7 @@ public sealed partial class GameAssets : IDisposable
     private readonly Dictionary<int, FieldAssets> fields = [];
     private readonly Dictionary<int, FieldSoundEffectTable> fieldSoundEffects = [];
     private readonly IAssetOverrideSource? overrides;
+    private readonly IModelOverrideSource? modelOverrides;
     private readonly ResourceService resources;
     private readonly IMusicCueResolver musicCueResolver;
     private readonly AssetTextureScope textureScope;
@@ -31,10 +32,11 @@ public sealed partial class GameAssets : IDisposable
     private NativeDrawPointCatalog? nativeDrawPointCatalog;
     private NativeEncounterTables? nativeEncounterTables;
 
-    public GameAssets(string gameDirectory, IAssetOverrideSource? overrides = null, ResourceService? resources = null, IMusicCueResolver? musicCueResolver = null)
+    public GameAssets(string gameDirectory, IAssetOverrideSource? overrides = null, ResourceService? resources = null, IMusicCueResolver? musicCueResolver = null, IModelOverrideSource? modelOverrides = null)
     {
         this.musicCueResolver = musicCueResolver ?? new ClassicMusicCueResolver();
         this.overrides = overrides;
+        this.modelOverrides = modelOverrides;
         GameDirectory = Path.GetFullPath(gameDirectory);
         if (resources is null)
         {
@@ -246,7 +248,7 @@ public sealed partial class GameAssets : IDisposable
     {
         if (fields.TryGetValue(fieldId, out FieldAssets? cached))
         {
-            return cached;
+            return ApplyModelOverrides(cached);
         }
         if ((uint)fieldId >= fieldNames.Length || string.IsNullOrWhiteSpace(fieldNames[fieldId]))
         {
@@ -289,7 +291,16 @@ public sealed partial class GameAssets : IDisposable
             result = result with { MovieMask = FieldMovieMask.Read(Read(nested, name + ".msk")) };
         }
         fields.Add(fieldId, result);
-        return result;
+        return ApplyModelOverrides(result);
+    }
+
+    private FieldAssets ApplyModelOverrides(FieldAssets original)
+    {
+        if (modelOverrides is null)
+        {
+            return original;
+        }
+        return original with { Models = original.Models.Select((model, index) => modelOverrides.Apply($"field/{original.Name}/{index}", model)).ToArray() };
     }
 
     public string GetMoviePath(int index, int disk = 1)

@@ -3,7 +3,10 @@ using Albeoris.Games.FF8.Imaging;
 
 namespace Memoria.FF8.Assets;
 
-public sealed record WorldStaticFace(int[] Vertices, Vector2[] TextureCoordinates, int Palette, bool Transparent);
+public sealed record WorldStaticFace(int[] Vertices, Vector2[] TextureCoordinates, int Palette, bool Transparent)
+{
+    public Vector4[]? VertexColors { get; init; }
+}
 public sealed record WorldStaticModel(byte ShapeId, int ModelIndex, ushort TexturePage, IReadOnlyList<Vector3> NativeVertices, IReadOnlyList<WorldStaticFace> Faces, IReadOnlyList<PixelImage> Textures);
 
 public sealed partial class WorldAssets

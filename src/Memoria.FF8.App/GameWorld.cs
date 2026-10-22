@@ -17,6 +17,7 @@ internal sealed partial class GameWorld : IDisposable
     private readonly GameAssets assets;
     private readonly bool ownsAssets;
     private readonly ResourceService? resources;
+    private readonly IModelOverrideSource? modelOverrides;
     private readonly bool validateWorldPresentation;
     private readonly IDisposable snapshotPreparation;
     private FieldRenderer? renderer;
@@ -31,14 +32,15 @@ internal sealed partial class GameWorld : IDisposable
         return GameSession.CreateColdProcess(assets.ReadColdProcessNativeBattleMemory());
     }
 
-    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, nint audioWindow = default, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null, Func<FieldSceneMods>? readSceneMods = null)
+    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, nint audioWindow = default, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null, Func<FieldSceneMods>? readSceneMods = null, IModelOverrideSource? modelOverrides = null)
     {
         this.session = session;
         this.readSceneMods = readSceneMods;
         this.resources = resources;
+        this.modelOverrides = modelOverrides;
         this.validateWorldPresentation = validateWorldPresentation;
         ownsAssets = sharedAssets is null;
-        assets = sharedAssets ?? new GameAssets(gameDirectory, resources: resources);
+        assets = sharedAssets ?? new GameAssets(gameDirectory, resources: resources, modelOverrides: modelOverrides);
         bool initializedNativeParty = false;
         if (session.State.KnownMagic is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
         {
@@ -219,7 +221,7 @@ internal sealed partial class GameWorld : IDisposable
             {
                 throw new NotSupportedException("World restoration requires its executed native music-loader receipt; migrate this save explicitly.");
             }
-            worldScene = new WorldMapScene(session, assets.GameDirectory, resources);
+            worldScene = new WorldMapScene(session, assets.GameDirectory, resources, modelOverrides: modelOverrides);
             ConfigureWorldScene(worldScene);
             if (session.State.DepartingFieldState is System.Text.Json.JsonElement frozenDeparture)
             {

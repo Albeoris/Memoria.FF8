@@ -29,7 +29,7 @@ internal sealed partial class WorldMapScene : IDisposable
     public Func<bool>? HasPendingBattle { get; set; }
     public WorldState? LastDeparture { get; private set; }
 
-    public WorldMapScene(GameSession session, string gameDirectory, ResourceService? resources = null, NativeSavedWorldFootReturn? battleReload = null)
+    public WorldMapScene(GameSession session, string gameDirectory, ResourceService? resources = null, NativeSavedWorldFootReturn? battleReload = null, IModelOverrideSource? modelOverrides = null)
     {
         this.session = session;
         if (session.State.Scene != SceneKind.WorldMap || session.State.WorldArrival is not WorldTransition arrival)
@@ -63,7 +63,7 @@ internal sealed partial class WorldMapScene : IDisposable
             throw new NotSupportedException("Native saved-world provenance is unknown; original vehicle state must be established before world use.");
         }
         WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
-        assets = new WorldAssets(gameDirectory, resources);
+        assets = new WorldAssets(gameDirectory, resources, modelOverrides);
         try
         {
             bool ordinaryFoot = !scripted && !stationFoot && !car && !garden && !ragnarok && footEntityType == 0;

@@ -42,8 +42,8 @@ public sealed partial class BattleRenderer
     private float focal;
     private float centerY;
     private bool sceneProjectionReady;
-    private readonly record struct Vertex(Vector3 Position, Vector2 Uv);
-    private readonly record struct Screen(float X, float Y, float InverseZ, Vector2 UvOverZ);
+    private readonly record struct Vertex(Vector3 Position, Vector2 Uv, Vector4 Color);
+    private readonly record struct Screen(float X, float Y, float InverseZ, Vector2 UvOverZ, Vector4 ColorOverZ);
 
     public BattleRenderer(int width, int height)
     {
@@ -126,11 +126,12 @@ public sealed partial class BattleRenderer
 
     private void DrawActor(BattleActorDraw actor)
     {
-        if (actor.NativeTextures is not null && actor.NativeTextureBinding is null)
+        bool edited = actor.Model.EditableOverride is not null;
+        if (!edited && actor.NativeTextures is not null && actor.NativeTextureBinding is null)
         {
             throw new NotSupportedException("Native actor VRAM sampling requires its original507400 allocation binding.");
         }
-        IReadOnlyList<Vector3[]> pose = actor.NativePose is { } native ? actor.Model.PoseNative(native) : actor.Model.Pose(actor.Animation, actor.Frame, actor.LoopAnimation);
+        IReadOnlyList<Vector3[]> pose = !edited && actor.NativePose is { } native ? actor.Model.PoseNative(native) : actor.Model.Pose(actor.Animation, actor.Frame, actor.LoopAnimation);
         Matrix4x4 transform = Matrix4x4.CreateRotationY(actor.Facing) * Matrix4x4.CreateTranslation(actor.Position + actor.AttackOffset - Vector3.UnitY * actor.GroundOffset);
         for (int mesh = 0; mesh < actor.Model.Meshes.Count; mesh++)
         {
@@ -138,7 +139,7 @@ public sealed partial class BattleRenderer
             {
                 continue;
             }
-            Draw(actor.Model.Meshes[mesh], pose[mesh].Select(position => Vector3.Transform(position, transform)).ToArray(), actor.Model.Textures, actor.Opacity, actor.NativeTextureBinding, actor.NativeTextures);
+            Draw(actor.Model.Meshes[mesh], pose[mesh].Select(position => Vector3.Transform(position, transform)).ToArray(), actor.Model.Textures, actor.Opacity, edited ? null : actor.NativeTextureBinding, edited ? null : actor.NativeTextures);
         }
     }
 
@@ -151,7 +152,7 @@ public sealed partial class BattleRenderer
             PixelImage texture = material is null ? textures[face.Texture] : NativeActorTexturePage(nativeTextures ?? throw new NotSupportedException("Native actor material requires its retained original VRAM owner."), material.TexturePage, material.Clut);
             Vector2 textureScale = material is null ? ResourceTextureList.PhysicalScale(textures, face.Texture) : Vector2.One;
             Vector2[] uv = material?.Uv ?? face.Uv;
-            Vertex At(int index) => new(transformed[face.Vertices[index]], uv[index] * textureScale);
+            Vertex At(int index) => new(transformed[face.Vertices[index]], uv[index] * textureScale, face.VertexColors?[index] ?? Vector4.One);
             // Native50FDF0/510680 accepts positive projected winding for both triangles and quads.
             // The camera-space plane test is equivalent before near clipping; use the original first three corners.
             Vector3 first = At(0).Position;
@@ -161,15 +162,15 @@ public sealed partial class BattleRenderer
             {
                 continue;
             }
-            Triangle(At(0), At(1), At(face.Vertices.Length == 4 ? 3 : 2), texture, face.Color, opacity);
+            Triangle(At(0), At(1), At(face.Vertices.Length == 4 ? 3 : 2), texture, face.Color, opacity, face.VertexColors is not null);
             if (face.Vertices.Length == 4)
             {
-                Triangle(At(3), At(2), At(0), texture, face.Color, opacity);
+                Triangle(At(3), At(2), At(0), texture, face.Color, opacity, face.VertexColors is not null);
             }
         }
     }
 
-    private void Triangle(Vertex a, Vertex b, Vertex c, PixelImage texture, Rgba32 color, float opacity)
+    private void Triangle(Vertex a, Vertex b, Vertex c, PixelImage texture, Rgba32 color, float opacity, bool vertexColors)
     {
         const float near = 0.25f;
         Span<Vertex> input = stackalloc Vertex[3] { a, b, c };
@@ -184,7 +185,7 @@ public sealed partial class BattleRenderer
             if (inside != previousInside)
             {
                 float amount = (-near - previous.Position.Z) / (current.Position.Z - previous.Position.Z);
-                clipped[count++] = new Vertex(Vector3.Lerp(previous.Position, current.Position, amount), Vector2.Lerp(previous.Uv, current.Uv, amount));
+                clipped[count++] = new Vertex(Vector3.Lerp(previous.Position, current.Position, amount), Vector2.Lerp(previous.Uv, current.Uv, amount), Vector4.Lerp(previous.Color, current.Color, amount));
             }
             if (inside)
             {
@@ -193,19 +194,19 @@ public sealed partial class BattleRenderer
         }
         for (int index = 1; index + 1 < count; index++)
         {
-            Raster(Project(clipped[0]), Project(clipped[index]), Project(clipped[index + 1]), texture, color, opacity);
+            Raster(Project(clipped[0]), Project(clipped[index]), Project(clipped[index + 1]), texture, color, opacity, vertexColors);
         }
     }
 
     private Screen Project(Vertex vertex)
     {
         float inverse = -1 / vertex.Position.Z;
-        return new Screen(Width * 0.5f + vertex.Position.X * focal * inverse, centerY - vertex.Position.Y * focal * inverse, inverse, vertex.Uv * inverse);
+        return new Screen(Width * 0.5f + vertex.Position.X * focal * inverse, centerY - vertex.Position.Y * focal * inverse, inverse, vertex.Uv * inverse, vertex.Color * inverse);
     }
 
     private static float Edge(Screen a, Screen b, float x, float y) => (b.X - a.X) * (y - a.Y) - (b.Y - a.Y) * (x - a.X);
 
-    private void Raster(Screen a, Screen b, Screen c, PixelImage texture, Rgba32 color, float opacity)
+    private void Raster(Screen a, Screen b, Screen c, PixelImage texture, Rgba32 color, float opacity, bool vertexColors)
     {
         float area = Edge(a, b, c.X, c.Y);
         if (Math.Abs(area) < 0.001f)
@@ -219,7 +220,7 @@ public sealed partial class BattleRenderer
                 return;
             }
             Vector4 tint = new(color.R / 128f, color.G / 128f, color.B / 128f, opacity);
-            TriangleVertex Convert(Screen vertex) => new(new Vector2(vertex.X, vertex.Y), vertex.InverseZ, vertex.InverseZ, vertex.UvOverZ / vertex.InverseZ / new Vector2(texture.Width, texture.Height), tint);
+            TriangleVertex Convert(Screen vertex) => new(new Vector2(vertex.X, vertex.Y), vertex.InverseZ, vertex.InverseZ, vertex.UvOverZ / vertex.InverseZ / new Vector2(texture.Width, texture.Height), vertexColors ? tint * vertex.ColorOverZ / vertex.InverseZ : tint);
             TriangleMaterial material = new(texture, TriangleBlend.Replace, TriangleDepthComparison.Greater, true, 1f / 255, TriangleSampler.PointClamp)
             {
                 DepthMapping = TriangleDepthMapping.Positive,
@@ -260,6 +261,16 @@ public sealed partial class BattleRenderer
                     continue;
                 }
                 int pixel = index * 4;
+                if (vertexColors)
+                {
+                    Vector4 tint = a.ColorOverZ / a.InverseZ * wa + b.ColorOverZ / b.InverseZ * wb + c.ColorOverZ / c.InverseZ * wc;
+                    pixels[pixel] = (byte)Math.Clamp(texel.R * color.R / 128f * tint.X, 0, 255);
+                    pixels[pixel + 1] = (byte)Math.Clamp(texel.G * color.G / 128f * tint.Y, 0, 255);
+                    pixels[pixel + 2] = (byte)Math.Clamp(texel.B * color.B / 128f * tint.Z, 0, 255);
+                    pixels[pixel + 3] = (byte)Math.Clamp(texel.A * opacity * tint.W, 0, 255);
+                    depth[index] = inverse;
+                    continue;
+                }
                 pixels[pixel] = (byte)Math.Clamp(texel.R * color.R / 128, 0, 255);
                 pixels[pixel + 1] = (byte)Math.Clamp(texel.G * color.G / 128, 0, 255);
                 pixels[pixel + 2] = (byte)Math.Clamp(texel.B * color.B / 128, 0, 255);

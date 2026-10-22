@@ -24,7 +24,7 @@ internal sealed partial class RecreateGame
     private BattleSession? presentedBattle;
     private BattleDebugPresets? battleDebugPresets;
     private BattleSession? ActiveBattle => debugBattle ?? world?.Battle;
-    private BattleAssets PresentationBattleResources => presentationBattleAssets ??= new BattleAssets(options.GameDirectory);
+    private BattleAssets PresentationBattleResources => presentationBattleAssets ??= new BattleAssets(options.GameDirectory, resourceHost?.Resources, modelOverrides: resourceHost);
 
     private bool UpdateBattleDebugUi(InputFrame input)
     {

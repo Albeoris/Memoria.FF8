@@ -43,7 +43,7 @@ public sealed partial class WorldAssets
             model = model with { Textures = textureScope.RegisterList(new Memoria.FF8.Resources.ResourceKey("world/wmsetus.obj"), model.Textures, "classic-model", $"static/{shape}/palette") };
             scriptedStaticModels.Add(shape, model);
         }
-        return model;
+        return modelOverrides?.Apply($"world/static/{shape}", model) ?? model;
     }
 
     private int SectionPointer(int section, int index)

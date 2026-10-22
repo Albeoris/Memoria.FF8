@@ -8,7 +8,7 @@ using Microsoft.Xna.Framework.Input;
 
 namespace Memoria.FF8;
 
-internal sealed record UiControlCommand(string? Screen = null, bool Demo = true, MenuInput? Input = null, float? X = null, float? Y = null, bool Pressed = false);
+internal sealed record UiControlCommand(string? Screen = null, bool Demo = true, MenuInput? Input = null, float? X = null, float? Y = null, bool Pressed = false, string? Search = null, int? Variant = null);
 
 internal sealed partial class RecreateGame
 {
@@ -72,6 +72,7 @@ internal sealed partial class RecreateGame
             keyboard.Profile = profile;
         }, () => keyboard.ControllerPresentation, () => controller!.Generation, () => keyboard.LastInputDevice);
         gameMenus.BattleDebugRequested += OpenBattleDebug;
+        gameMenus.ModelBrowserRequested += OpenModelBrowser;
         gameMenus.ConnectSceneInspector(() => SceneInspectorAvailable, OpenSceneInspector);
         if (options.DebugUiScreen is string screen)
         {
@@ -616,7 +617,7 @@ internal sealed partial class RecreateGame
 
     private void SynchronizeUiMoviePause()
     {
-        bool pause = focusPaused || userPaused || updateSave.Paused || gameMenus?.IsOpen == true || drainUiButtons || battleDebug is not null || debugBattle is not null || sceneInspector is not null;
+        bool pause = focusPaused || userPaused || updateSave.Paused || gameMenus?.IsOpen == true || drainUiButtons || battleDebug is not null || debugBattle is not null || sceneInspector is not null || modelBrowser is not null;
         if (pause && !uiMovieSuspended)
         {
             movie?.Suspend();
@@ -653,7 +654,7 @@ internal sealed partial class RecreateGame
         }
         SynchronizeNativeNamePrompt();
         UiControlCommand command = request.Ui ?? new UiControlCommand();
-        if (TryDispatchSceneInspectorControl(request, command))
+        if (TryDispatchModelBrowserControl(request, command) || TryDispatchSceneInspectorControl(request, command))
         {
             SynchronizeUiMoviePause();
             return GameUiStatus()!;
@@ -718,6 +719,6 @@ internal sealed partial class RecreateGame
 
     private object? GameUiStatus()
     {
-        return gameMenus is null ? null : new { gameMenus.IsOpen, gameMenus.IsDemo, gameMenus.ScreenId, gameMenus.Message, gameMenus.ScreenIds, Entries = gameMenus.Entries.Select(entry => new { entry.Id, entry.Label, entry.Enabled }).ToArray(), gameMenus.SelectedIndex, AutomaticPlay = ReadAutoPlayMenuState(), Tutorial = world?.Tutorial?.Status, SceneInspector = SceneInspectorUiStatus() };
+        return gameMenus is null ? null : new { gameMenus.IsOpen, gameMenus.IsDemo, gameMenus.ScreenId, gameMenus.Message, gameMenus.ScreenIds, Entries = gameMenus.Entries.Select(entry => new { entry.Id, entry.Label, entry.Enabled }).ToArray(), gameMenus.SelectedIndex, AutomaticPlay = ReadAutoPlayMenuState(), Tutorial = world?.Tutorial?.Status, SceneInspector = SceneInspectorUiStatus(), ModelBrowser = ModelBrowserUiStatus() };
     }
 }
