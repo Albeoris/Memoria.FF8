@@ -111,7 +111,7 @@ public sealed class NativeBattleShockwavePulsar260MeshTests
     {
         Assert.Throws<NotSupportedException>(() => Draw(4));
         Assert.Throws<NotSupportedException>(() => Draw(3, Context().MarkUnknown(4, 4)));
-        Assert.Throws<NotSupportedException>(() => Draw(3, Context(0x30)));
+        Assert.Throws<NotSupportedException>(() => Draw(3, Context(0x32)));
     }
 
     private const uint Address = 0x112015C;

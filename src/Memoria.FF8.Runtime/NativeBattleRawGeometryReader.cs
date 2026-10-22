@@ -8,7 +8,7 @@ public static class NativeBattleRawGeometryReader
 {
     public static ImmutableArray<NativeBattleRawMesh> Read(byte[] bytes, int boneCount) => Read((offset, length) => bytes.AsSpan(offset, length).ToArray(), boneCount);
 
-    public static ImmutableArray<NativeBattleRawMesh> Read(Func<int, int, byte[]> read, int boneCount, Action<int, ImmutableArray<ushort>, int, int>? observeObject = null)
+    public static ImmutableArray<NativeBattleRawMesh> Read(Func<int, int, byte[]> read, int boneCount, Action<int, ImmutableArray<ushort>, int, int>? observeObject = null, uint objectMask = uint.MaxValue)
     {
         int count = I32(0);
         if (count is < 0 or > 256)
@@ -19,6 +19,11 @@ public static class NativeBattleRawGeometryReader
         for (int mesh = 0; mesh < count; mesh++)
         {
             int cursor = I32(4 + mesh * 4);
+            if ((objectMask & (1u << (mesh & 31))) == 0)
+            {
+                meshes.Add(new([], []) { BoneGroups = [], PackedVertexGroups = [] });
+                continue;
+            }
             int groups = U16(cursor);
             cursor += 2;
             var vertices = ImmutableArray.CreateBuilder<NativeBattleRawVertex>();

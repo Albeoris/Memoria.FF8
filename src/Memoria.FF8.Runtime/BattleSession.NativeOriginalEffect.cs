@@ -70,6 +70,10 @@ public sealed partial class BattleSession
         {
             return EnterNativeSleep145(graphics);
         }
+        if (effect.Binding.Entry == NativeBattleShockwavePulsar260Profile.Entry)
+        {
+            return EnterNativeShockwavePulsar260(graphics);
+        }
         if (effect.Binding.Entry == NativeBattleRayBomb307Profile.Entry)
         {
             return EnterNativeRayBomb307(graphics);

@@ -8,7 +8,7 @@ public sealed record NativeBattleShockwavePulsar260MeshStep(NativeBattleEffectMe
 
 public static class NativeBattleShockwavePulsar260Mesh
 {
-    public static NativeBattleShockwavePulsar260MeshStep Draw(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, int geometryOffset, NativeBattleEffectArena context88, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, Func<int, NativeBattleVector> readVertex, Func<int, short?> readW, int tableBaseBucket = 17, byte depthShift = 2)
+    public static NativeBattleShockwavePulsar260MeshStep Draw(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, int geometryOffset, NativeBattleEffectArena context88, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, Func<int, NativeBattleVector>? readVertex = null, Func<int, short?>? readW = null, int tableBaseBucket = 17, byte depthShift = 2)
     {
         context88.Validate();
         if (context88.Regions.Any(region => region.Offset > 88 - region.Data.Length) || context88.UnknownRegions.Any(region => region.Offset > 88 - region.Length) || depthShift > 31)
@@ -17,11 +17,19 @@ public static class NativeBattleShockwavePulsar260Mesh
         }
         uint geometryAddress = checked(source.Address + (uint)geometryOffset);
         uint flags = U32(context88, 0x1C);
-        if (U32(context88, 0) != geometryAddress || flags is not (0x2000 or 0x2030 or 0x20C0 or 0x20F0))
+        if (U32(context88, 0) != geometryAddress || flags is not (0x30 or 0x2000 or 0x2030 or 0x20C0 or 0x20F0))
         {
             throw new NotSupportedException("Shockwave Pulsar requires its selected original ACT geometry and addressed vertex owner.");
         }
-        _ = U32(context88, 4);
+        bool selected = (flags & 0x2000) != 0;
+        if (selected)
+        {
+            _ = U32(context88, 4);
+        }
+        else
+        {
+            context88 = Put(context88, 4, checked(geometryAddress + 8));
+        }
         NativeBattleGeometryRegisterStep registers = new(memory.GeometryRegisters ?? throw new NotSupportedException("Shockwave Pulsar requires its current geometry registers."), memory.ScriptedColorRegisters ?? throw new NotSupportedException("Shockwave Pulsar requires its current color registers."));
         NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics ?? throw new NotSupportedException("Shockwave Pulsar requires its current projection controls.");
         NativeBattlePrimitiveProcess primitive = memory.PrimitiveProcess ?? throw new NotSupportedException("Shockwave Pulsar requires its primitive process.");
@@ -58,7 +66,7 @@ public static class NativeBattleShockwavePulsar260Mesh
                 for (int corner = 0; corner < 3; corner++)
                 {
                     int offset = VertexOffset(corner);
-                    registers = NativeBattleGeometry.LoadVector(registers, corner, readVertex(offset), readW(offset));
+                    registers = NativeBattleGeometry.LoadVector(registers, corner, Vertex(offset), VertexW(offset));
                 }
                 registers = NativeBattleGeometry.ProjectTriple(registers, projection, controls.Dqa, controls.Dqb);
                 uint projectedFlags = registers.Colors.Flags!.Value;
@@ -82,7 +90,7 @@ public static class NativeBattleShockwavePulsar260Mesh
                     if (corner == 3)
                     {
                         int offset = VertexOffset(corner);
-                        registers = NativeBattleGeometry.LoadVector(registers, 0, readVertex(offset), readW(offset));
+                        registers = NativeBattleGeometry.LoadVector(registers, 0, Vertex(offset), VertexW(offset));
                         registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
                         projected[3] = new(registers.Geometry.Sxy[2]!.Value, unchecked((ushort)registers.Geometry.Sz[3]!.Value), registers.Colors.Flags!.Value);
                         registers = NativeBattleGeometry.Average45E610(registers, controls.Zsf4 ?? throw new NotSupportedException("Shockwave Pulsar requires its current ZSF4 control."));
@@ -135,6 +143,24 @@ public static class NativeBattleShockwavePulsar260Mesh
         }
         memory = memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors, PrimitiveProcess = primitive with { ModelRendererRegisters = far } };
         return new(memory, context88, new(attempts.ToImmutable(), allocated));
+
+        NativeBattleVector Vertex(int offset)
+        {
+            if (selected)
+            {
+                return (readVertex ?? throw new NotSupportedException("Shockwave Pulsar requires its selected vertex owner."))(offset);
+            }
+            ReadOnlySpan<byte> bytes = Read(checked(geometryOffset + 8 + offset), 6);
+            return new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes[2..]), BinaryPrimitives.ReadInt16LittleEndian(bytes[4..]));
+        }
+        short? VertexW(int offset)
+        {
+            if (selected)
+            {
+                return (readW ?? throw new NotSupportedException("Shockwave Pulsar requires its selected packed vertex W."))(offset);
+            }
+            return BinaryPrimitives.ReadInt16LittleEndian(Read(checked(geometryOffset + 14 + offset), 2));
+        }
 
         ReadOnlySpan<byte> Read(int offset, int length)
         {

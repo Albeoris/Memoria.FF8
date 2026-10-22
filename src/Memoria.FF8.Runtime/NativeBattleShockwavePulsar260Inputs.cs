@@ -8,6 +8,7 @@ public sealed record NativeBattleShockwavePulsar260ActorWrite(byte Actor, int Of
 public sealed record NativeBattleShockwavePulsar260StageWrite(ushort GroupMask, short Depth, uint ColorFlags) : NativeBattleShockwavePulsar260Operation;
 public sealed record NativeBattleShockwavePulsar260StageFlags(ushort GroupMask, byte ClearMask, byte SetMask) : NativeBattleShockwavePulsar260Operation;
 public sealed record NativeBattleShockwavePulsar260SoundPlay(uint DescriptorAddress, uint Value, uint Flags, int Volume) : NativeBattleShockwavePulsar260Operation;
+public sealed record NativeBattleShockwavePulsar260Flash(byte Red, byte Green, byte Blue, int Factor) : NativeBattleShockwavePulsar260Operation;
 public sealed record NativeBattleShockwavePulsar260ContactAll : NativeBattleShockwavePulsar260Operation;
 public sealed record NativeBattleShockwavePulsar260CameraPose(NativeBattleCameraPose Pose) : NativeBattleShockwavePulsar260Operation;
 public sealed record NativeBattleShockwavePulsar260CameraFocal(short Value) : NativeBattleShockwavePulsar260Operation;

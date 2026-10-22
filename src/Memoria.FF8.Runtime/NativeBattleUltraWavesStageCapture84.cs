@@ -72,52 +72,13 @@ public static class NativeBattleUltraWavesStageCapture84
             {
                 projectedScratch = projectedScratch.Write(0, body.ProjectedScratch.AsSpan().Slice(0, body.ProjectedBytesWritten));
             }
-            memory = PublishAcceptedColors(memory, mesh, body.ProjectedScratch, temporary, groupColor, groupDepth, tableBaseBucket, depthShift, colors);
+            memory = NativeBattleModelContext44.PublishAcceptedColors(memory, mesh, body.ProjectedScratch, NativeBattleEffectNodeContextMemory.Copy(temporary, 0x4C, NativeBattleEffectArena.Clear().MarkUnknown(0, 44), 0x24, 4), groupColor, groupDepth, tableBaseBucket, depthShift, colors);
             attempts.AddRange(body.Packets.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(allocated + attempt.ByteOffsetRelative) }));
             allocated = checked(allocated + body.Packets.AllocationBytes);
             process = (memory.PrimitiveProcess ?? throw new NotSupportedException("Ultra Waves capture lost its model renderer process.")).Publish50FDF0(packetPhysicalStart is uint start ? checked(start + (uint)allocated) : null, checked(geometryAddress + (uint)layout.End));
             memory = memory with { PrimitiveProcess = process };
         }
         return new(memory, temporary, projectedScratch, new(attempts.ToImmutable(), allocated));
-    }
-
-    private static NativeBattleEffectMemory PublishAcceptedColors(NativeBattleEffectMemory memory, NativeBattleRawMesh mesh, ImmutableArray<byte> scratch, NativeBattleEffectArena temporary, uint color, short depth, int bucket, byte depthShift, NativeBattleSummonColors constants)
-    {
-        if (depth == 0)
-        {
-            return memory;
-        }
-        NativeBattleProjectedVertex[] projected = Enumerable.Range(0, mesh.Vertices.Length).Select(index => new NativeBattleProjectedVertex(BinaryPrimitives.ReadUInt32LittleEndian(scratch.AsSpan().Slice(index * 8, 4)), BinaryPrimitives.ReadUInt32LittleEndian(scratch.AsSpan().Slice(index * 8 + 4, 4)))).ToArray();
-        foreach (NativeBattleRawPolygon face in mesh.Polygons)
-        {
-            int plainLength = face.Quad ? 20 : 16;
-            if (face.Bytes.Length == plainLength)
-            {
-                continue;
-            }
-            NativeBattleGeometryPrimitive? primitive = NativeBattleGeometryPackets.EmitRaw50FDF0(face.Bytes.AsSpan(), projected, face.Quad, color, bucket, depthShift, depth, constants);
-            if (primitive is null)
-            {
-                continue;
-            }
-            (byte[] bytes, bool[] known) = temporary.ReadSnapshot(0x4C, 4);
-            uint cue = BinaryPrimitives.ReadUInt32LittleEndian(bytes);
-            bool completeCue = known.All(value => value);
-            if (face.Quad)
-            {
-                cue |= 0x08000000;
-            }
-            uint material = BinaryPrimitives.ReadUInt32LittleEndian(face.Bytes.AsSpan().Slice(plainLength, 4));
-            NativeBattleScriptedColorRegisters registers = memory.ScriptedColorRegisters ?? NativeBattleScriptedColorRegisters.Unknown();
-            NativeBattleModelRendererRegisters far = memory.PrimitiveProcess?.ModelRendererRegisters ?? throw new NotSupportedException("Ultra Waves capture requires its actual far color producer.");
-            NativeBattleScriptedDpcsResult shaded = NativeBattleScriptedDpcs.Transform45F270(registers, material, cue, far, constants);
-            if (shaded.PackedRgb != primitive.Words[1])
-            {
-                throw new InvalidDataException("Ultra Waves capture color publication differs from its emitted original polygon.");
-            }
-            memory = memory with { ScriptedColorRegisters = completeCue ? shaded.Registers : shaded.Registers with { Ir0 = null } };
-        }
-        return memory;
     }
 
     private static short Short(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadInt16LittleEndian(arena.Read(offset, 2));
