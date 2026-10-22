@@ -14,7 +14,26 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState ScheduleNativeRingSequence505C00(NativeBattleGraphicsState graphics, byte index, int requested)
     {
-        (NativeBattleAuxiliaryState auxiliary, bool allocated) = graphics.Auxiliary.AppendModelRing(NativeBattleAuxiliaryKind.ModelSequence505C70, index, sequence: unchecked((byte)requested));
+        if (requested == 0)
+        {
+            return graphics;
+        }
+        NativeBattleGraphicsModel source = graphics.Models[index];
+        if ((requested & 0x1000) == 0 && ((source.Flags8 ?? throw new InvalidDataException("Native505C00 requires its model DWORD8.")) & 0x18) != 0)
+        {
+            return graphics;
+        }
+        int selected = requested & ~0x1000;
+        if (source.ReadLinkedModelIndex140() is null)
+        {
+            if (source.ModelId4 == 0x8F)
+            {
+                return graphics;
+            }
+            NativeBattleGraphicsModel selectedModel = NativeBattleSequenceSelections.SelectResource505BC0(source, NativeActionResource(graphics, index), selected);
+            return graphics with { Models = graphics.Models.SetItem(index, selectedModel) };
+        }
+        (NativeBattleAuxiliaryState auxiliary, bool allocated) = graphics.Auxiliary.AppendModelRing(NativeBattleAuxiliaryKind.ModelSequence505C70, index, sequence: unchecked((byte)selected));
         if (!allocated)
         {
             return graphics;

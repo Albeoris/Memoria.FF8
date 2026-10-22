@@ -12,6 +12,12 @@ public sealed class NativeBattleLevelDeath74PresentationTests
         NativeBattleActorDirectorPresentationTests.RunSelected([74], "MEMORIA_FF8_LEVEL_DEATH74", SelectOriginalFixture, PrepareImmuneSource);
     }
 
+    [Fact]
+    public void Original_Level_Death_nonimmune_component_presents_declared_contact_and_dark_bank_cold_boundary()
+    {
+        NativeBattleActorDirectorPresentationTests.RunSelected([74], "MEMORIA_FF8_LEVEL_DEATH74_ELIGIBLE", (assets, effect) => SelectOriginalFixture(assets, effect) with { Id = "level-death74-nonimmune" }, (game, assets, request) => PrepareDeclaredSource(game, assets, request, "MEMORIA_FF8_LEVEL_DEATH74_ELIGIBLE", 0));
+    }
+
     private static NativeEffectFixtureRequest SelectOriginalFixture(BattleAssets assets, ushort effect)
     {
         Assert.Equal((ushort)74, effect);
@@ -39,10 +45,12 @@ public sealed class NativeBattleLevelDeath74PresentationTests
         return new("level-death74-immune", effect, action.Command, action.ActionId, 3, 800, 240) { EncounterId = formation.Id, PartyModelId = action.CharacterId!.Value, CasterActorIndex = 0, PreserveOriginalFormationEnemies = true, CrisisLevel = action.CrisisLevel, ControlledContactValue = 0 };
     }
 
-    private static BattleSnapshot PrepareImmuneSource(GameAssets game, BattleAssets assets, NativeEffectFixtureRequest request)
+    private static BattleSnapshot PrepareImmuneSource(GameAssets game, BattleAssets assets, NativeEffectFixtureRequest request) => PrepareDeclaredSource(game, assets, request, "MEMORIA_FF8_LEVEL_DEATH74", 4);
+
+    private static BattleSnapshot PrepareDeclaredSource(GameAssets game, BattleAssets assets, NativeEffectFixtureRequest request, string prefix, byte hitFlags)
     {
         Assert.Equal((byte)21, NativeBattleEffectFixtureExporter.SelectSequence(game.ReadNativeBattleCommandSequences(), request.Command, request.ActionId));
-        string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_LEVEL_DEATH74_EVIDENCE") ?? throw new InvalidDataException("Select an evidence directory for the Level Death component.");
+        string output = Environment.GetEnvironmentVariable(prefix + "_EVIDENCE") ?? throw new InvalidDataException("Select an evidence directory for the Level Death component.");
         string fixture = Path.Combine(output, "fixture");
         NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? throw new InvalidDataException("Select the installed original resources."), fixture);
         Assert.True(exported.Status != "blocked", exported.FirstBlocker);
@@ -50,8 +58,8 @@ public sealed class NativeBattleLevelDeath74PresentationTests
         NativeBattleActionPacketsState packets = source.NativeActionPackets!;
         NativeBattleContactPacket contact = packets.ReadContact(0);
         Assert.Equal((ushort)0, contact.Primary.Amount6);
-        NativeBattleContactPacket immune = contact with { Primary = contact.Primary with { HitFlags3 = 4 } };
-        File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Explicit immune post-formula presentation input; original command/action/sequence and physical target retained; no level comparison, formula, AI or ordinary command execution claim", Before = contact, After = immune }));
-        return source with { NativeActionPackets = packets with { Contacts = packets.Contacts.SetItem(0, immune) } };
+        NativeBattleContactPacket declared = contact with { Primary = contact.Primary with { HitFlags3 = hitFlags } };
+        File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Explicit declared post-formula presentation input; original command/action/sequence and physical target retained; no level comparison, KO/status result, formula, AI or ordinary command execution claim", DeclaredHitFlags = hitFlags, Before = contact, After = declared }));
+        return source with { NativeActionPackets = packets with { Contacts = packets.Contacts.SetItem(0, declared) } };
     }
 }

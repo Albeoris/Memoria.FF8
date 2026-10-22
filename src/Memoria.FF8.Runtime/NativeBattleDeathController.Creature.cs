@@ -18,6 +18,7 @@ public static partial class NativeBattleDeathController
                     if (task.ReadByte(0x2E) == 0)
                     {
                         Select(5);
+                        current = NativeBattleDeathModelDark.Initialize(current, address, task, resources);
                         task = task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 8));
                         Store(address, task);
                         SpawnActors(address, 0x1801FD0, 2);
@@ -98,8 +99,8 @@ public static partial class NativeBattleDeathController
                 default:
                     throw new NotSupportedException("Native Death reaper reached an unproved state.");
             }
-            byte[] light = task.Payload.AsSpan().Slice(0x70 - 12, 32).ToArray();
-            current = current with { Memory = current.Memory with { EffectLight1D99AB0 = light.ToImmutableArray(), EffectLightKnown1D99AB0 = null } };
+            NativeBattlePackedMatrix32 light = NativeBattleEffectOwnedModelRendering.CaptureTaskMatrix(task, 0x70);
+            current = current with { Memory = current.Memory.PublishEffectLight1D99AB0(light) };
             task = task.WriteDword(0x84, unchecked((uint)S(task, 0x4C))).WriteDword(0x88, unchecked((uint)S(task, 0x4E))).WriteDword(0x8C, unchecked((uint)S(task, 0x50)));
             Store(address, task);
             SetState(State with { Models = State.Models.Select(value => value.TaskAddress == address ? model : value).ToImmutableArray() });
@@ -117,12 +118,14 @@ public static partial class NativeBattleDeathController
                 NativeBattleEffectOwnedModelStep selected = NativeBattleEffectOwnedModel.Select8DD190(task, model, resources.Model, animation);
                 task = selected.Task;
                 model = selected.State;
+                Emit(new NativeBattleDeathPublishPose(model));
             }
             bool Once()
             {
                 NativeBattleEffectOwnedModelStep advanced = NativeBattleEffectOwnedModel.AdvanceOnce8DD220(task, model, resources.Model);
                 task = advanced.Task;
                 model = advanced.State;
+                Emit(new NativeBattleDeathPublishPose(model));
                 return advanced.Completed;
             }
         }

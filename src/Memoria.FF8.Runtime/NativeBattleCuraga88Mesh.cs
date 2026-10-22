@@ -26,7 +26,7 @@ public static class NativeBattleCuraga88Mesh
         return context;
     }
 
-    public static NativeBattleCuraga88MeshStep EmitBatch(ImmutableArray<byte> mesh, uint meshAddress, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEffectArena context88, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, short dqa, int dqb, short? zsf4, NativeBattleSummonColors constants, short? matrixPadding18 = null, short? zsf3 = null, Func<int, short?>? readVertexW = null)
+    public static NativeBattleCuraga88MeshStep EmitBatch(ImmutableArray<byte> mesh, uint meshAddress, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEffectArena context88, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, short dqa, int dqb, short? zsf4, NativeBattleSummonColors constants, short? matrixPadding18 = null, short? zsf3 = null, Func<int, short?>? readVertexW = null, uint? selectedVerticesAddress = null, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null)
     {
         ValidateContext(context88);
         matrix.Validate();
@@ -37,9 +37,15 @@ public static class NativeBattleCuraga88Mesh
         uint flags = ReadDword(context88, 0x1C);
         if ((flags & 0x2000) != 0)
         {
-            throw new NotSupportedException("Native Curaga mesh preserved vertex pointers require their selected original owner.");
+            if (selectedVerticesAddress is null || readSelectedVertex is null || ReadDword(context88, 4) != selectedVerticesAddress)
+            {
+                throw new NotSupportedException("Native Curaga mesh preserved vertex pointers require their selected original owner.");
+            }
         }
-        context88 = Dword(context88, 4, checked(meshAddress + 8));
+        else
+        {
+            context88 = Dword(context88, 4, checked(meshAddress + 8));
+        }
         int cursor = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(mesh.AsSpan()));
         registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, matrix, true, true, matrixPadding18) };
         (byte[] farBytes, bool[] farKnown) = context88.ReadSnapshot(8, 3);
@@ -60,15 +66,15 @@ public static class NativeBattleCuraga88Mesh
             {
                 continue;
             }
-            if (group is not (3 or 4 or 5 or 7))
+            if (group == 6)
             {
-                throw new NotSupportedException("Native Curaga mesh resources require their proved FT4, G3, G4 or GT4 groups.");
+                throw new NotSupportedException("Native Curaga mesh resources require a proved stateful polygon leaf.");
             }
-            bool quad = group != 4;
-            uint fadeFlag = group == 3 ? 0x40u : 0x80u;
-            bool textured = group is 3 or 7;
+            bool quad = (group & 1) != 0;
+            uint fadeFlag = group <= 3 ? 0x40u : 0x80u;
+            bool textured = group is 2 or 3 or 7;
             NativeBattleCuragaMeshContext packetContext = new(flags, (flags & fadeFlag) != 0 ? ReadDword(context88, 8) : null, (flags & fadeFlag) != 0 ? unchecked((int)ReadDword(context88, 12)) : null, textured && (flags & 0x500) != 0 ? ReadWord(context88, 0x10) : null, textured && (flags & 0xA00) != 0 ? ReadWord(context88, 0x14) : null, textured && (flags & 0x1000) != 0 ? ReadDword(context88, 0x18) : null, 17, 2);
-            int faceBytes = group switch { 4 => 20, 7 => 36, _ => 24 };
+            int faceBytes = group switch { 0 or 1 => 12, 2 or 4 => 20, 7 => 36, _ => 24 };
             for (int faceIndex = 0; faceIndex < count; faceIndex++)
             {
                 byte[] face = Read(cursor, faceBytes).ToArray();
@@ -89,9 +95,10 @@ public static class NativeBattleCuraga88Mesh
                 {
                     registers = NativeBattleGeometry.Clip45EE10(registers);
                     context88 = Dword(context88, 0x24, registers.Geometry.Mac0!.Value);
-                    if (!quad && (unchecked((int)registers.Geometry.Mac0.Value) >= 0 || (flags & 0x20) != 0))
+                    uint backfaceFlag = group <= 3 ? 0x10u : 0x20u;
+                    if (!quad && (unchecked((int)registers.Geometry.Mac0.Value) >= 0 || (flags & backfaceFlag) != 0))
                     {
-                        registers = NativeBattleGeometry.Average45E5C0(registers, zsf3 ?? throw new NotSupportedException("Native Curaga G3 mesh requires the current ZSF3 control."));
+                        registers = NativeBattleGeometry.Average45E5C0(registers, zsf3 ?? throw new NotSupportedException("Native Curaga triangle mesh requires the current ZSF3 control."));
                     }
                 }
                 NativeBattleModuleProjectedVertex ReadCorner(int corner)
@@ -109,6 +116,9 @@ public static class NativeBattleCuraga88Mesh
                 }
                 NativeBattleGfGeometryBatch faceBatch = group switch
                 {
+                    0 => NativeBattleEffectMeshPackets.EmitFlat(face, ReadCorner, false, new(flags, packetContext.FarColor, packetContext.Fade, null, null, 0, true, 0, packetContext.TableBaseBucket, packetContext.DepthShift), constants, allocated),
+                    1 => NativeBattleCuragaMeshPackets.EmitF4_87F200(face, ReadCorner, packetContext, constants, allocated),
+                    2 => NativeBattleCuragaMeshPackets.EmitFt3_87F480(face, ReadCorner, packetContext, constants, allocated),
                     3 => NativeBattleCuragaMeshPackets.EmitFt4_87F6C0(face, ReadCorner, packetContext, constants, allocated),
                     4 => NativeBattleCuragaMeshPackets.EmitG3_87F960(face, ReadCorner, packetContext, constants, allocated),
                     5 => NativeBattleCuragaMeshPackets.EmitG4_87FB90(face, ReadCorner, packetContext, constants, allocated),
@@ -123,7 +133,7 @@ public static class NativeBattleCuraga88Mesh
                     int bucket = checked(17 + (unchecked((int)depth) >> 2));
                     if ((flags & fadeFlag) != 0)
                     {
-                        if (group == 3)
+                        if (group <= 3)
                         {
                             uint material = BinaryPrimitives.ReadUInt32LittleEndian(face);
                             if ((flags & 1) != 0)
@@ -167,7 +177,12 @@ public static class NativeBattleCuraga88Mesh
         }
         (NativeBattleVector Vertex, short? W) Vertex(byte[] face, int corner)
         {
-            int offset = checked(8 + BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + 2 * corner)) * 4);
+            int selectedOffset = BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + 2 * corner)) * 4;
+            if ((flags & 0x2000) != 0)
+            {
+                return readSelectedVertex!(selectedOffset);
+            }
+            int offset = checked(8 + selectedOffset);
             ReadOnlySpan<byte> packed = Read(offset, 8);
             return (new(BinaryPrimitives.ReadInt16LittleEndian(packed), BinaryPrimitives.ReadInt16LittleEndian(packed[2..]), BinaryPrimitives.ReadInt16LittleEndian(packed[4..])), readVertexW is null ? BinaryPrimitives.ReadInt16LittleEndian(packed[6..]) : readVertexW(offset));
         }

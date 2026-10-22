@@ -13,17 +13,19 @@ public sealed record NativeBattleDeathResources(NativeBattleEffectHeapAllocation
 }
 public sealed record NativeBattleDeathState([property: JsonRequired] NativeBattleEffectArena Module, [property: JsonRequired] ImmutableArray<byte>? AuraActors, [property: JsonRequired] ImmutableArray<byte>? DarkActors, [property: JsonRequired] bool PendingColdSources, [property: JsonRequired] ImmutableArray<NativeBattleEffectOwnedModelState> Models, [property: JsonRequired] int? Source, [property: JsonRequired] int? Cursor, [property: JsonRequired] int? Emitters, [property: JsonRequired] int? Geometry, [property: JsonRequired] ushort EmitterScan, [property: JsonRequired] ushort GeometryScan, [property: JsonRequired] ushort PassEmitters, [property: JsonRequired] ushort PassGeometry)
 {
-    public static NativeBattleDeathState FromColdProcess() => new(NativeBattleEffectArena.Clear(), null, null, true, [], null, 0, null, null, 0, 0, 0, 0);
+    public static NativeBattleDeathState FromColdProcess() => new(NativeBattleEffectArena.Clear().MarkUnknown(4, 4), null, null, true, [], null, 0, null, null, 0, 0, 0, 0);
 }
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleDeathState? Death14 { get; init; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ImmutableArray<byte>? EffectLight1D99AB0 { get; init; }
 }
-public sealed record NativeBattleDeathFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
+public sealed record NativeBattleDeathFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random)
+{
+    public NativeBattleFileStaging? Staging { get; init; }
+}
 public abstract record NativeBattleDeathOperation;
+public sealed record NativeBattleDeathPublishPose(NativeBattleEffectOwnedModelState Model) : NativeBattleDeathOperation;
 public sealed record NativeBattleDeathObserveAnchor(NativeBattleBoneAnchorProducer Producer) : NativeBattleDeathOperation;
 public sealed record NativeBattleDeathPackets(NativeBattleGfGeometryBatch Batch) : NativeBattleDeathOperation;
 public sealed record NativeBattleDeathSound(uint Descriptor) : NativeBattleDeathOperation;

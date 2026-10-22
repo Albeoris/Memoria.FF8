@@ -73,6 +73,10 @@ public sealed partial class BattleSession
         {
             return AdvanceNativeSleep145(graphics);
         }
+        if (effect.Binding.Entry == NativeBattleWhiteWind297Profile.Entry)
+        {
+            return AdvanceNativeWhiteWind297(graphics);
+        }
         if (effect.Binding.Entry == NativeBattleCurse47Controller.Entry)
         {
             return AdvanceNativeCurse47(graphics);
@@ -81,7 +85,7 @@ public sealed partial class BattleSession
         {
             return AdvanceNativeDoom8(graphics);
         }
-        if (effect.Binding.Entry == 0x8B68C0)
+        if (effect.Binding.Entry is 0x8B68C0 or 0x7C4460)
         {
             return AdvanceNativeDeath(graphics);
         }

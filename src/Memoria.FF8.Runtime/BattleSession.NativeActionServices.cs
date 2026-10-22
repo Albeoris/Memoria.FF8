@@ -71,28 +71,7 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState SelectNativeHeaderSequence(NativeBattleGraphicsState graphics, byte index, int requestedSequence)
     {
-        if (requestedSequence == 0)
-        {
-            return graphics;
-        }
-        bool overrideStatus = (requestedSequence & 0x1000) != 0;
-        NativeBattleGraphicsModel model = graphics.Models[index];
-        if (!overrideStatus && ((model.Flags8 ?? throw new InvalidDataException("Native505C00 requires its model DWORD8.")) & 0x18) != 0)
-        {
-            return graphics;
-        }
-        if (model.ReadLinkedModelIndex140() is not null)
-        {
-            return ScheduleNativeRingSequence505C00(graphics, index, requestedSequence);
-        }
-        if (model.ModelId4 == 0x8F)
-        {
-            return graphics;
-        }
-        NativeBattleGraphicsResource resource = NativeActionResource(graphics, index);
-        int selected = requestedSequence & ~0x1000;
-        model = NativeBattleSequenceSelections.SelectResource505BC0(model, resource, selected);
-        return graphics with { Models = graphics.Models.SetItem(index, model) };
+        return ScheduleNativeRingSequence505C00(graphics, index, requestedSequence);
     }
 
     private (NativeBattleGraphicsState Graphics, byte Phase, bool Complete) PollNativeOrdinaryGraphics(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context, byte phase)

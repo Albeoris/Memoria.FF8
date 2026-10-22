@@ -32,49 +32,13 @@ public static partial class NativeBattleDoom8ReaperAppearance
 
     public static NativeBattleDoom8Frame PrepareCamera8CC6B0(NativeBattleDoom8Frame frame, NativeBattlePackedMatrix32 world, NativeBattlePackedMatrix32 camera)
     {
-        world.Validate();
-        camera.Validate();
-        NativeBattleActionMatrix worldMatrix = world.ReadMatrix();
-        NativeBattleActionMatrix view = camera.ReadMatrix();
-        NativeBattleDoom8State state = CopyPacked(frame.State, ScratchAddress, world);
-        NativeBattleGeometryRegisterStep registers = Registers(frame.Memory);
-        registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, view, true, false, Padding(camera)) };
-        for (int column = 0; column < 3; column++)
-        {
-            registers = NativeBattleGeometry.LoadIrColumn(registers, unchecked((ushort)worldMatrix.Rotation[column]), unchecked((ushort)worldMatrix.Rotation[column + 3]), unchecked((ushort)worldMatrix.Rotation[column + 6]));
-            registers = NativeBattleGeometry.Transform(registers, translation: false, irInput: true);
-            for (int row = 0; row < 3; row++)
-            {
-                state = state.WriteWord(ScratchAddress + 0x20u + (uint)(row * 6 + column * 2), unchecked((ushort)Require(registers.Colors.Ir[row])));
-            }
-        }
-        registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, view, false, true, Padding(camera)) };
-        short z = unchecked((short)worldMatrix.Z);
-        registers = NativeBattleGeometry.LoadVector(registers, 0, new(unchecked((short)worldMatrix.X), unchecked((short)worldMatrix.Y), z), z < 0 ? (short)-1 : (short)0);
-        registers = NativeBattleGeometry.Transform(registers);
-        for (int row = 0; row < 3; row++)
-        {
-            state = state.WriteDword(ScratchAddress + 0x34u + (uint)(row * 4), unchecked((uint)Require(registers.Colors.Mac[row])));
-        }
-        return frame with { State = state, Memory = Publish(frame.Memory, registers) };
+        NativeBattleEffectOwnedModelCameraStep prepared = NativeBattleEffectOwnedModelRendering.PrepareCamera84(frame.Memory, frame.State.ReadView(ScratchAddress, 84), world, camera);
+        return frame with { Memory = prepared.Memory, State = frame.State.WriteView(ScratchAddress, prepared.Scratch, 84) };
     }
 
     public static NativeBattleEffectMemory LoadBoneLight(NativeBattleEffectMemory memory, NativeBattlePackedMatrix32 bone)
     {
-        bone.Validate();
-        NativeBattleScriptedLightingMemory lighting = memory.ScriptedLighting ?? NativeBattleScriptedLightingMemory.Unknown();
-        NativeBattleScriptedBackColor back = lighting.BackColor ?? NativeBattleScriptedBackColor.Unknown();
-        for (int row = 0; row < 3; row++)
-        {
-            int offset = 20 + row * 4;
-            if (!bone.Known.AsSpan().Slice(offset, 4).ToArray().All(value => value))
-            {
-                back = back with { Known = (back.Known ?? [true, true, true]).SetItem(row, false) };
-                continue;
-            }
-            back = back.WriteLane(row, BinaryPrimitives.ReadInt32LittleEndian(bone.Bytes.AsSpan().Slice(offset, 4)));
-        }
-        return memory with { ScriptedLighting = lighting with { LightMatrix = new(bone.Bytes.Take(20).ToImmutableArray(), bone.Known.Take(20).ToImmutableArray()), BackColor = back } };
+        return NativeBattleLightBackTransform.LoadBone(memory, bone);
     }
 
     private static NativeBattleGeometryRegisterStep Registers(NativeBattleEffectMemory memory)

@@ -56,6 +56,16 @@ public static class NativeBattleProjectedSpriteD8
 
     public static NativeBattleProjectedSpriteDraw Draw(NativeBattleProjectedSpriteHead head, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket)
     {
+        return DrawCore(head, readResource, projection, cameraRoll, tableBaseBucket, true);
+    }
+
+    internal static NativeBattleProjectedSpriteDraw DrawUnbiased571C80(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary180, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket)
+    {
+        return DrawCore(new(memory, temporary180), readResource, projection, cameraRoll, tableBaseBucket, false);
+    }
+
+    private static NativeBattleProjectedSpriteDraw DrawCore(NativeBattleProjectedSpriteHead head, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, bool readD8DepthBias)
+    {
         NativeBattleEffectArena temporary = head.TemporaryD8;
         if (ReadWord(temporary, 0x24) != 0)
         {
@@ -72,7 +82,7 @@ public static class NativeBattleProjectedSpriteD8
         {
             temporary = Word(temporary, offset, 0);
         }
-        NativeBattleGeometryRegisterStep step = new(head.Memory.GeometryRegisters!, head.Memory.ScriptedColorRegisters!);
+        NativeBattleGeometryRegisterStep step = new(head.Memory.GeometryRegisters ?? throw new NotSupportedException("Projected sprite requires its actual geometry register owner."), head.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Projected sprite requires its actual data register owner."));
         NativeBattlePackedMatrix32 captured = NativeBattleModuleSpriteSetup.CaptureCurrentMatrix(step.Geometry);
         for (int index = 0; index < 32; index++)
         {
@@ -185,7 +195,10 @@ public static class NativeBattleProjectedSpriteD8
                 step = NativeBattleGeometry.Average45E610(step, zsf4);
                 depth = unchecked((int)step.Geometry.Otz!.Value);
             }
-            depth = Math.Max(0, unchecked(depth + unchecked((short)ReadWord(temporary, 0xB4))));
+            if (readD8DepthBias)
+            {
+                depth = Math.Max(0, unchecked(depth + unchecked((short)ReadWord(temporary, 0xB4))));
+            }
             temporary = Dword(temporary, 0x3C, unchecked((uint)depth));
             int bucket = checked(tableBaseBucket + (depth >> 2));
             if (accepted >= quads.Length)

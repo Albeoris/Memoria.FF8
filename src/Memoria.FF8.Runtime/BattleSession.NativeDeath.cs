@@ -8,8 +8,10 @@ public sealed partial class BattleSession
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Native Death requires its selected effect.");
         NativeBattleDeathResources resources = effect.Binding.DeathResources ?? throw new NotSupportedException("Native Death requires its original resources.");
-        NativeBattleDeathFrame frame = NativeBattleDeathController.Initialize(NativeEffectMemory ?? throw new NotSupportedException("Native Death requires retained memory."), effect, nativeActionPackets, resources, nativeCrtRandom ?? throw new NotSupportedException("Native Death requires its CRT random owner."));
+        NativeBattleFileStaging staging = NativeBattleDeathSourceMemory.Prepare(NativeEffectMemory ?? throw new NotSupportedException("Native Death requires its process memory."), NativeFileStaging ?? throw new NotSupportedException("Native Death requires its addressed model memory."), resources).Staging;
+        NativeBattleDeathFrame frame = NativeBattleDeathController.Initialize(NativeEffectMemory ?? throw new NotSupportedException("Native Death requires retained memory."), effect, nativeActionPackets, resources, nativeCrtRandom ?? throw new NotSupportedException("Native Death requires its CRT random owner.")) with { Staging = staging };
         NativeEffectMemory = frame.Memory;
+        NativeFileStaging = frame.Staging;
         if ((effect.Parameters!.Flags79 & 1) == 0)
         {
             NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native Death requires its camera owner.")).RegisterControlResource(frame.Memory.Textures!.Animation);
@@ -26,13 +28,25 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Death requires its actual camera matrix.");
         NativeBattleGraphicsDefinition rules = definition.NativeGraphics ?? throw new NotSupportedException("Native Death requires its original graphics rules.");
         NativeBattleSummonColors colors = rules.Rules.SummonColors ?? throw new NotSupportedException("Native Death requires its original interpolation constants.");
-        NativeBattleStageColors stageColors = NativeStage?.ModelColors ?? throw new NotSupportedException("Native Death requires its current model colors.");
-        NativeBattleDeathFrame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Death requires retained memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Death requires its CRT random owner."));
-        NativeBattleDeathInputs inputs = new(nativeActionPackets, projection, camera.Roll, colors, stageColors.Color44, stageColors.Color40, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Death requires its current target pose."), DrawModel, Execute) { ReadPackedCamera = camera.CapturePackedView1D97778 };
+        NativeBattleDeathFrame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Death requires retained memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Death requires its CRT random owner.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Native Death requires its addressed model memory.") };
+        NativeBattleDeathInputs inputs = new(nativeActionPackets, projection, camera.Roll, colors, colors.Normal, colors.Transition, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Death requires its current target pose."), DrawModel, Execute) { ReadPackedCamera = camera.CapturePackedView1D97778 };
         NativeBattleDeathFrame advanced = NativeBattleDeathController.Advance(frame, resources, inputs);
         NativeEffectMemory = advanced.Memory;
+        NativeFileStaging = advanced.Staging ?? throw new NotSupportedException("Native Death lost its addressed model memory.");
         nativeCrtRandom = advanced.Random;
         return graphics with { OriginalEffect = advanced.Effect };
+
+        void PublishExternal(NativeBattleDeathFrame current)
+        {
+            NativeEffectMemory = current.Memory;
+            NativeFileStaging = current.Staging ?? throw new NotSupportedException("Native Death external service requires its addressed memory.");
+            nativeCrtRandom = current.Random;
+        }
+
+        NativeBattleDeathFrame ImportExternal(NativeBattleDeathFrame current)
+        {
+            return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Death external service lost its process memory."), Staging = NativeFileStaging ?? throw new InvalidDataException("Native Death external service lost its addressed memory."), Random = nativeCrtRandom ?? throw new InvalidDataException("Native Death external service lost its CRT stream.") };
+        }
 
         NativeBattleDeathModelStep DrawModel(NativeBattleDeathFrame current, NativeBattleModulePoolTask task, NativeBattleEffectOwnedModelState model)
         {
@@ -40,10 +54,10 @@ public sealed partial class BattleSession
             NativeBattlePrimitiveCapabilities capabilities = rules.PrimitiveCapabilities ?? throw new NotSupportedException("Native Death requires its current renderer capabilities.");
             if ((task.ReadByte(0x26) & 8) != 0)
             {
-                NativeBattleDeathDraw dark = NativeBattleDeathDrawing.Dark(current, task, model, resources, projection, shadow, capabilities);
+                NativeBattleDeathDraw dark = NativeBattleDeathDrawing.Dark(current, task, model, resources, camera.CapturePackedView1D97778(), projection, shadow, capabilities);
                 return new(Append(dark.Frame, dark.Packets), dark.Task);
             }
-            NativeBattleDeathDraw normal = NativeBattleDeathDrawing.Normal(current, task, model, resources, projection, shadow, capabilities, colors);
+            NativeBattleDeathDraw normal = NativeBattleDeathDrawing.Normal(current, task, model, resources, camera.CapturePackedView1D97778(), projection, shadow, capabilities, colors);
             return new(Append(normal.Frame, normal.Packets), normal.Task);
         }
 
@@ -61,8 +75,12 @@ public sealed partial class BattleSession
         {
             switch (operation)
             {
+                case NativeBattleDeathPublishPose pose:
+                    return current with { Staging = NativeBattleEffectOwnedModelRendering.PublishDecodedPose(current.Staging ?? throw new NotSupportedException("Native Death pose publication requires its addressed model source."), pose.Model, resources.Model) };
                 case NativeBattleDeathObserveAnchor anchor:
-                    return current with { Memory = ObserveNativeBoneAnchor(current.Memory, anchor.Producer) };
+                    NativeFileStaging = current.Staging ?? throw new NotSupportedException("Native Death anchor requires its addressed temporary memory.");
+                    NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, anchor.Producer);
+                    return current with { Memory = observed, Staging = NativeFileStaging };
                 case NativeBattleDeathBindCaster bind:
                     NativeBattleModuleResource caster = resources.CasterResource ?? throw new NotSupportedException("Native Death family caster binding requires its selected resource directory.");
                     if (caster.Address != bind.Directory)
@@ -70,26 +88,27 @@ public sealed partial class BattleSession
                         throw new InvalidDataException("Native Death family caster binding disagrees with its original resource directory.");
                     }
                     NativeBattleGraphicsModel actor = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[bind.Actor], NativeGraphicsPoseResource(graphics, bind.Actor));
-                    NativeBattleFileStaging staging = (NativeFileStaging ?? throw new NotSupportedException("Native Death family caster binding requires its addressed source memory.")).Write(caster.Address, caster.Bytes.AsSpan());
+                    NativeBattleFileStaging staging = (current.Staging ?? throw new NotSupportedException("Native Death family caster binding requires its addressed source memory.")).Write(caster.Address, caster.Bytes.AsSpan());
                     NativeBattleVictoryResourceBinding bound = NativeBattleVictoryResources.Bind5022C0(staging, NativeModelCpuResources ?? throw new NotSupportedException("Native Death family caster binding requires its CPU resource rows."), actor, bind.SavedRow, bind.Directory);
                     NativeFileStaging = bound.Staging;
                     graphics = graphics with { Models = graphics.Models.SetItem(bind.Actor, bound.Model) };
-                    return current;
+                    return current with { Staging = bound.Staging };
                 case NativeBattleDeathRingSequence sequence:
+                    PublishExternal(current);
                     graphics = ScheduleNativeRingSequence505C00(graphics, sequence.Actor, sequence.Sequence);
-                    return current;
+                    return ImportExternal(current);
                 case NativeBattleDeathPackets packets:
                     return Append(current, packets.Batch);
                 case NativeBattleDeathSound sound:
-                    NativeEffectMemory = current.Memory;
+                    PublishExternal(current);
                     PublishNativeModuleSound(new(sound.Descriptor, 0, null) { Pan = 128 });
-                    return current with { Memory = NativeEffectMemory! };
+                    return ImportExternal(current);
                 case NativeBattleDeathContact contact:
-                    NativeEffectMemory = current.Memory;
+                    PublishExternal(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Index)] });
                     graphics = graphics with { PendingContacts = pending };
-                    return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Death contact lost process memory.") };
+                    return ImportExternal(current);
                 case NativeBattleDeathStage stageWrite:
                     NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native Death requires its stage color owners.");
                     NativeStage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = stageWrite.Fade, ColorFlags = stageWrite.ClearRgb ? group.ColorFlags & 0xFF000000u : group.ColorFlags }).ToImmutableArray() };

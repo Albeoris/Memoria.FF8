@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Reflection.PortableExecutable;
 using System.Security.Cryptography;
@@ -205,6 +205,22 @@ public sealed partial class GameAssets
                 NativeBattleDoom8Resources doom = ReadNativeDoom8Resources();
                 binding = binding with { Doom8Resources = doom, InitializerAsset = doom.MainTim };
                 catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 299)
+            {
+                if (binding.Entry != 0x66FCC0 || binding.Initializer != 0x66FCD0 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag283-298.tim", 0x2507810) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Micro Missiles requires its original entry and initializer resource identity.");
+                }
+                binding = binding with { MicroMissiles299Resources = ReadNativeMicroMissiles299Resources() };
+            }
+            if (binding.Effect == 297)
+            {
+                if (binding.Entry != 0x673000 || binding.Initializer != 0x673010 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag296.tim", 0x2507908) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Blue Magic White Wind requires its original entry and initializer resource identity.");
+                }
+                binding = binding with { WhiteWind297Resources = ReadNativeWhiteWind297Resources() };
             }
             if (binding.Effect == 74)
             {

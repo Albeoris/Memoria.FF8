@@ -105,6 +105,11 @@ public sealed class NativeBattleDeathFamilyProfile
 
     public NativeBattleEffectMemory WithState(NativeBattleEffectMemory memory, NativeBattleDeathState state)
     {
+        (byte[] _, bool[] known) = state.Module.ReadSnapshot(4, 4);
+        if (known.Any(value => value))
+        {
+            state = state with { Module = state.Module.MarkUnknown(4, 4) };
+        }
         return Effect == 14 ? memory with { Death14 = state } : memory with { LevelDeath74 = state };
     }
 

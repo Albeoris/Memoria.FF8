@@ -22,16 +22,18 @@ public sealed class NativeBattleDeathResourcesTests
         Assert.Equal(507, reaper.Polygons.Count(polygon => !polygon.Quad));
         Assert.Equal(19, reaper.Polygons.Count(polygon => polygon.Quad));
         Assert.Equal(0x3FCC, resources.Model.Section(3));
-        NativeBattleActionPacketsState packets = NativeBattleRetainedMemory.FromColdProcess().ActionPackets;
+        NativeBattleRetainedMemory retained = game.ReadColdProcessNativeBattleMemory();
+        NativeBattleActionPacketsState packets = retained.ActionPackets;
         (packets, _) = packets.Prepare(new(0, 2, 4, 0, 8, 14, null));
         (packets, _) = packets.AppendContact(new(new(3, 0, 0, immune ? (byte)4 : (byte)0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
         packets = packets.WritePlayerRepeatMode(0, 1);
         (packets, _) = packets.Publish(1);
         NativeBattleOriginalEffectState effect = new(14, 13, new(14, 0x8B68C0, 0x8B68A0), new(0, 1, 8, 0, 0, 0), null) { ResourcePointers = [new(0x273AE80, 0)] };
-        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(13) with { EffectLight1D99AB0 = new byte[32].ToImmutableArray(), EffectLightKnown1D99AB0 = new bool[32].ToImmutableArray() };
+        NativeBattleEffectMemory memory = retained.EffectMemory!.BeginLoad(13) with { EffectLight1D99AB0 = new byte[32].ToImmutableArray(), EffectLightKnown1D99AB0 = new bool[32].ToImmutableArray() };
         Assert.Throws<NotSupportedException>(() => NativeBattleDeathController.Initialize(memory with { Death14 = null }, effect, packets, resources, new(1)));
         memory = memory with { ScriptedGraphics = memory.ScriptedGraphics!.InitializeGeom56BAA0() };
-        NativeBattleDeathFrame frame = NativeBattleDeathController.Initialize(memory, effect, packets, resources, new(1));
+        var prepared = NativeBattleDeathSourceMemory.Prepare(memory, NativeBattleTemporaryMemory.Reset5082F0(retained.FileStaging!), resources);
+        NativeBattleDeathFrame frame = NativeBattleDeathController.Initialize(prepared.Memory, effect, packets, resources, new(1)) with { Staging = prepared.Staging };
         NativeBattleCameraProjection projection = new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 4096, 4096), 216, 160, 108);
         byte[] skeleton = new byte[64];
         skeleton[0] = 1;
@@ -49,10 +51,12 @@ public sealed class NativeBattleDeathResourcesTests
         int textureRestores = 0;
         int now = 0;
         NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();
-        NativeBattleDeathInputs inputs = new(packets, projection, 0, rules.SummonColors!, 0x808080, 0x808080, Model, _ => pose, Draw, (current, operation) =>
+        NativeBattleDeathInputs inputs = new(packets, projection, 0, rules.SummonColors!, rules.SummonColors!.Normal, rules.SummonColors.Transition, Model, _ => pose, Draw, (current, operation) =>
         {
             switch (operation)
             {
+                case NativeBattleDeathPublishPose publish:
+                    return current with { Staging = NativeBattleEffectOwnedModelRendering.PublishDecodedPose(current.Staging ?? throw new InvalidDataException("The Death fixture lost its addressed source memory."), publish.Model, resources.Model) };
                 case NativeBattleDeathContact:
                     contacts.Add(now);
                     return current;
@@ -99,8 +103,12 @@ public sealed class NativeBattleDeathResourcesTests
         Assert.Equal(0u, frame.Effect.ReturnedDescriptor);
         Assert.All(frame.Effect.Pools, pool => Assert.Null(pool.Head));
         Assert.Equal(32, frame.Memory.EffectLight1D99AB0!.Value.Length);
-        Assert.Null(frame.Memory.EffectLightKnown1D99AB0);
-        Assert.All(frame.Memory.CaptureEffectLight1D99AB0().Known, known => Assert.True(known));
+        NativeBattlePackedMatrix32 copiedWorld = frame.Memory.CaptureEffectLight1D99AB0();
+        Assert.False(copiedWorld.Known[18]);
+        Assert.False(copiedWorld.Known[19]);
+        Assert.All(copiedWorld.Known.Take(18), known => Assert.True(known));
+        Assert.All(copiedWorld.Known.Skip(20), known => Assert.True(known));
+        Assert.Equal(JsonSerializer.Serialize(copiedWorld.ReadMatrix()), JsonSerializer.Serialize(frame.Memory.SharedCustomMatrix!.ReadMatrix50D790()));
         Assert.Equal(!immune, frame.Effect.Pools[6].Slots.Any(task => task.Callback == 0x8BDBD0));
 
         NativeBattleDeathModelStep Draw(NativeBattleDeathFrame current, NativeBattleModulePoolTask task, NativeBattleEffectOwnedModelState model)
@@ -109,12 +117,12 @@ public sealed class NativeBattleDeathResourcesTests
             if ((task.ReadByte(0x26) & 8) != 0)
             {
                 darkDraws++;
-                drawn = NativeBattleDeathDrawing.Dark(current, task, model, resources, projection, rules.ShadowSource!, NativeBattlePrimitiveCapabilities.PrimaryRgba8());
+                drawn = NativeBattleDeathDrawing.Dark(current, task, model, resources, NativeBattlePackedMatrix32.FromMatrix(projection.View!, null), projection, rules.ShadowSource!, NativeBattlePrimitiveCapabilities.PrimaryRgba8());
             }
             else
             {
                 normalDraws++;
-                drawn = NativeBattleDeathDrawing.Normal(current, task, model, resources, projection, rules.ShadowSource!, NativeBattlePrimitiveCapabilities.PrimaryRgba8(), rules.SummonColors!);
+                drawn = NativeBattleDeathDrawing.Normal(current, task, model, resources, NativeBattlePackedMatrix32.FromMatrix(projection.View!, null), projection, rules.ShadowSource!, NativeBattlePrimitiveCapabilities.PrimaryRgba8(), rules.SummonColors!);
             }
             return new(Append(drawn.Frame, drawn.Packets), drawn.Task);
         }

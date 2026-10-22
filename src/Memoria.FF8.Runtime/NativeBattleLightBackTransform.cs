@@ -5,6 +5,24 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleLightBackTransform
 {
+    public static NativeBattleEffectMemory LoadBone(NativeBattleEffectMemory memory, NativeBattlePackedMatrix32 bone)
+    {
+        bone.Validate();
+        NativeBattleScriptedLightingMemory lighting = memory.ScriptedLighting ?? NativeBattleScriptedLightingMemory.Unknown();
+        NativeBattleScriptedBackColor back = lighting.BackColor ?? NativeBattleScriptedBackColor.Unknown();
+        for (int row = 0; row < 3; row++)
+        {
+            int offset = 20 + row * 4;
+            if (!bone.Known.AsSpan().Slice(offset, 4).ToArray().All(value => value))
+            {
+                back = back with { Known = (back.Known ?? [true, true, true]).SetItem(row, false) };
+                continue;
+            }
+            back = back.WriteLane(row, BinaryPrimitives.ReadInt32LittleEndian(bone.Bytes.AsSpan().Slice(offset, 4)));
+        }
+        return memory with { ScriptedLighting = lighting with { LightMatrix = new(bone.Bytes.Take(20).ToImmutableArray(), bone.Known.Take(20).ToImmutableArray()), BackColor = back } };
+    }
+
     public static NativeBattleEffectMemory Transform(NativeBattleEffectMemory memory, int slot)
     {
         if ((uint)slot >= 3)
