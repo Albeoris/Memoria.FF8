@@ -15,10 +15,10 @@ public sealed partial class BattleSession
         int scratchLength = checked((cpu.ScratchMaximum ?? throw new NotSupportedException("Degenerator target requires its loaded vertex capacity.")) * 8);
         uint scratchAddress = checked(0x196B018u - (uint)scratchLength);
         NativeBattleFileStaging staging = frame.Staging ?? throw new NotSupportedException("Degenerator target requires its addressed temporary owner.");
-        NativeBattleEffectArena primitiveFlags = NativeBattleTemporaryMemory.ReadView(staging, 0x1D969A8, 4);
+        NativeBattleEffectArena primitiveFlags = NativeDegenerator306View(staging, 0x1D969A8, 4);
         _ = resource.LinkedGeometry ?? throw new NotSupportedException("Degenerator target requires its observed linked geometry presence.");
         bool linked = graphics.Models[actor].LinkedTransform is not null;
-        NativeBattleDegenerator306ModelFrame body = new(frame.Memory, staging, graphics.Models[actor], NativeBattleTemporaryMemory.ReadView(staging, temporaryAddress, 136));
+        NativeBattleDegenerator306ModelFrame body = new(frame.Memory, staging, graphics.Models[actor], NativeDegenerator306View(staging, temporaryAddress, 136));
         NativeBattleDegenerator306ModelServices services = new(Shadow, Compose, DrawBody, Restore, DrawLinked);
         body = NativeBattleDegenerator306ModelDrawing.DrawOuter(body, packedCamera, scratchAddress, primitiveFlags, linked, services);
         graphics = graphics with { Models = graphics.Models.SetItem(actor, body.Model) };
@@ -44,7 +44,7 @@ public sealed partial class BattleSession
         NativeBattleDegenerator306ModelFrame Restore(NativeBattleDegenerator306ModelFrame current)
         {
             NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(current.Staging, 88);
-            NativeBattleBodyBonePreparation restored = NativeBattleBodyBoneTemporary.Prepare508C90(current.Model, source, NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88));
+            NativeBattleBodyBonePreparation restored = NativeBattleBodyBoneTemporary.Prepare508C90(current.Model, source, NativeDegenerator306View(allocation.Staging, allocation.Address, 88));
             NativeBattleFileStaging published = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, restored.Temporary58, 88);
             return current with { Model = restored.Model, Staging = NativeBattleTemporaryMemory.Release5082D0(published, 88) };
         }
@@ -62,7 +62,7 @@ public sealed partial class BattleSession
             NativeBattleDecodedPose decoded = NativeBattlePoseMatrices.ReadLinkedDecodedPose(sequence, linkedSource);
             ImmutableArray<NativeBattleActionMatrix> restored = NativeBattlePoseMatrices.StageBoneMatrices(linkedSource, decoded);
             NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(current.Staging, 88);
-            NativeBattleEffectArena temporary = NativeBattleBodyBoneTemporary.Prepare508C90(linkedSource, decoded, restored, NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88));
+            NativeBattleEffectArena temporary = NativeBattleBodyBoneTemporary.Prepare508C90(linkedSource, decoded, restored, NativeDegenerator306View(allocation.Staging, allocation.Address, 88));
             NativeBattleFileStaging published = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, temporary, 88);
             return current with { Model = current.Model with { CurrentLinkedBoneMatrices = local with { Matrices = restored } }, Staging = NativeBattleTemporaryMemory.Release5082D0(published, 88) };
         }
@@ -71,7 +71,7 @@ public sealed partial class BattleSession
         {
             uint sourceAddress = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Degenerator target requires its physical geometry address.");
             ImmutableArray<NativeBattlePackedMatrix32> bones = matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
-            NativeBattleEffectArena scratch = NativeBattleTemporaryMemory.ReadView(current.Staging, scratchAddress, scratchLength);
+            NativeBattleEffectArena scratch = NativeDegenerator306View(current.Staging, scratchAddress, scratchLength);
             NativeBattleDegenerator306ModelStep drawn = NativeBattleDegenerator306ModelDrawing.DrawBody(current.Memory, current.Temporary136, scratch, Read, sourceAddress, bones, packedCamera, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Degenerator target requires its current depth controls."), scratchAddress, scratchLength);
             current = current with { Memory = drawn.Memory, Temporary136 = drawn.Temporary136, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, scratchAddress, drawn.VertexScratch, scratchLength) };
             current = current with { Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, temporaryAddress, current.Temporary136, 136) };
@@ -120,4 +120,10 @@ public sealed partial class BattleSession
             return current with { Memory = current.Memory with { PrimitiveProcess = written.Process } };
         }
     }
+
+    private static NativeBattleEffectArena NativeDegenerator306View(NativeBattleFileStaging staging, uint address, int length)
+    {
+        return NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(staging, address, length), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
+    }
+
 }

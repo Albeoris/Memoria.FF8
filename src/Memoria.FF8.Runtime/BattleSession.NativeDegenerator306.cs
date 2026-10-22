@@ -193,7 +193,7 @@ public sealed partial class BattleSession
         {
             int length = custom ? 108 : 88;
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Degenerator requires its physical drawing context.");
-            NativeBattleEffectArena temporary = NativeBattleTemporaryMemory.ReadView(staging, address, length);
+            NativeBattleEffectArena temporary = NativeDegenerator306View(staging, address, length);
             NativeBattleStaticMeshResource mesh = resources.ReadMesh(sourceAddress);
             NativeBattleCameraProjection projection = Camera().Projection ?? throw new NotSupportedException("Degenerator requires its published projection.");
             NativeBattleGfGeometryBatch batch;
@@ -218,7 +218,7 @@ public sealed partial class BattleSession
         {
             NativeBattleModuleResource resource = resources.ReadSprite(sourceAddress);
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Degenerator sprite requires its physical temporary memory.");
-            NativeBattleEffectArena temporary = NativeBattleTemporaryMemory.ReadView(staging, address, 180);
+            NativeBattleEffectArena temporary = NativeDegenerator306View(staging, address, 180);
             if (BinaryPrimitives.ReadUInt32LittleEndian(temporary.Read(0, 4)) != resource.Address || BinaryPrimitives.ReadUInt16LittleEndian(temporary.Read(4, 2)) != phase)
             {
                 throw new InvalidDataException("Degenerator sprite differs from its current physical frame.");

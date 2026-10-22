@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -119,6 +119,10 @@ public sealed partial class BattleSession
                 else if (TryWriteNativeCurse47Completion(graphics, address, value, out NativeBattleGraphicsState completedCurse47))
                 {
                     graphics = completedCurse47;
+                }
+                else if (TryWriteNativeDegenerator306Completion(graphics, address, value, out NativeBattleGraphicsState completedDegenerator306))
+                {
+                    graphics = completedDegenerator306;
                 }
                 else if (TryWriteNativeDoom8Completion(graphics, address, value, out NativeBattleGraphicsState completedDoom8))
                 {
