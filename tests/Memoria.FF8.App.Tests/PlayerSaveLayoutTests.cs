@@ -30,6 +30,10 @@ public sealed class PlayerSaveLayoutTests
             UiImage[] portraits = contents.OfType<UiImage>().ToArray();
             Assert.Equal(new[] { 4, 0, 1 }, portraits.Select(image => image.Source!.Value.Id));
             Assert.All(portraits, image => Assert.Equal(UiImageKind.CharacterPortrait, image.Source!.Value.Kind));
+            Assert.Equal(slot.Bounds.Y, time.Bounds.Y);
+            Assert.Equal(slot.Bounds.Height, time.Bounds.Height);
+            Assert.Equal(location.Bounds.Y, timestamp.Bounds.Y);
+            Assert.Equal(location.Bounds.Height, timestamp.Bounds.Height);
             Assert.True(slot.Bounds.Right <= time.Bounds.X);
             Assert.True(location.Bounds.Y >= slot.Bounds.Bottom);
             Assert.True(location.Bounds.Y >= time.Bounds.Bottom);

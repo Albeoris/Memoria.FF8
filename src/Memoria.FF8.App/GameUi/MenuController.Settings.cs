@@ -3,6 +3,7 @@ namespace Memoria.FF8.GameUi;
 public sealed partial class MenuController
 {
     private Func<UiPreferences>? _readPreferences;
+    private UiPreferences demoFontPreferences = new();
     private Action<MenuAction>? _writePreferences;
     private bool IsHostSettingsScreen => ScreenId is "debug-ui" or "debug-audio" or "debug-battle";
     private bool UseHostControls => ScreenId == "debug-controls" || _history.Contains("debug-controls");
@@ -42,14 +43,14 @@ public sealed partial class MenuController
 
     private string HostSettingValue(string key)
     {
-        UiPreferences preferences = _readPreferences?.Invoke() ?? new UiPreferences();
+        UiPreferences preferences = _readPreferences?.Invoke() ?? demoFontPreferences;
         return key switch
         {
             "Show FPS" => preferences.ShowFps ? "On" : "Off",
             "Quick saves" => preferences.QuickSaveCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
             "UI presentation" => preferences.MenuPresentation.ToString(),
             "Text scale" => preferences.TextScale + "%",
-            "UI font" => preferences.UiFontFamily,
+            "UI font" => preferences.GetUiFontFamily(Presentation),
             "UI font size" => preferences.UiFontSize.ToString(),
             "Dialogue font" => preferences.DialogueFontFamily,
             "Dialogue font size" => preferences.DialogueFontSize.ToString(),
@@ -70,6 +71,28 @@ public sealed partial class MenuController
 
     private bool ExecuteHostSettingsAction(MenuAction action)
     {
+        if (IsDemo && action.Kind == "demo-reset")
+        {
+            demoFontPreferences = new UiPreferences();
+        }
+        if (IsDemo && action.Kind == "config" && action.SubjectId is "UI font" or "UI presentation")
+        {
+            if (_writePreferences is not null)
+            {
+                _writePreferences(action);
+                Presentation = _readPreferences!().MenuPresentation;
+            }
+            else
+            {
+                demoFontPreferences = (demoFontPreferences with { MenuPresentation = Presentation }).WithSetting(action.SubjectId, action.Value);
+                Presentation = demoFontPreferences.MenuPresentation;
+            }
+            Data.Settings[action.SubjectId] = action.Value;
+            Data.Settings["UI font"] = (_readPreferences?.Invoke() ?? demoFontPreferences).GetUiFontFamily(Presentation);
+            _view = null;
+            Message = $"Fixture {action.SubjectId}: {action.Value}";
+            return true;
+        }
         if (action.Kind == "battle-debug-outcome")
         {
             if (_completeActiveBattle is null || _hasActiveBattle?.Invoke() != true)

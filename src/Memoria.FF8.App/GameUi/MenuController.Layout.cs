@@ -143,10 +143,10 @@ public sealed partial class MenuController
 
     private UiElement BuildFontPreviews()
     {
-        UiPreferences preferences = _readPreferences?.Invoke() ?? new UiPreferences();
+        UiPreferences preferences = _readPreferences?.Invoke() ?? demoFontPreferences;
         var previews = Grid([0.7f, 2, 0.7f, 2, 0.7f], [1]);
-        Place(previews, Label($"UI · {preferences.UiFontFamily} · {preferences.UiFontSize}px", 17), 0);
-        Place(previews, new FontPreviewElement(preferences.UiFontFamily, preferences.UiFontSize * preferences.TextScale / 100f) { Id = "ui-font-preview" }, 1);
+        Place(previews, Label($"UI · {preferences.GetUiFontFamily(Presentation)} · {preferences.UiFontSize}px", 17), 0);
+        Place(previews, new FontPreviewElement(preferences.GetUiFontFamily(Presentation), preferences.UiFontSize * preferences.TextScale / 100f) { Id = "ui-font-preview" }, 1);
         Place(previews, Label($"Dialogue · {preferences.DialogueFontFamily} · {preferences.DialogueFontSize}px", 17), 2);
         Place(previews, new FontPreviewElement(preferences.DialogueFontFamily, preferences.DialogueFontSize * 3) { Id = "dialogue-font-preview" }, 3);
         Place(previews, Label("Unicode samples use OS shaping and fallback.", 15), 4);

@@ -5,14 +5,27 @@ namespace Memoria.FF8;
 /// <summary>One save browser for manual saving, loading, Continue and quick actions.</summary>
 internal sealed partial class PlayerSaveView : UiElement
 {
+    private readonly PlayerSaveMenu menu;
+    private readonly float textScale;
+    private readonly UiGrid content;
+    private readonly UiGrid information;
+    private readonly UiGrid header;
+    private readonly UiPanel help;
+    private readonly UiLabel pageLabel;
+    private readonly string navigationSuffix;
+    private readonly UiGrid actions;
+    private UiGrid blocks;
+
     private PlayerSaveView(PlayerSaveMenu menu, string transferHint, string navigationHint, string confirmHint, string cancelHint, float textScale)
     {
+        this.menu = menu;
+        this.textScale = textScale;
+        navigationSuffix = menu.IsQuick ? "" : "    " + navigationHint;
         UiAnchorPanel root = new();
-        UiGrid content = new() { Anchors = new UiAnchors(0.02f, 0.02f, 0.98f, 0.98f), Gap = 5 };
+        content = new() { Anchors = new UiAnchors(0.02f, 0.02f, 0.98f, 0.98f), Gap = 5 };
         content.ColumnDefinitions.Add(UiGridLength.Star());
         content.RowDefinitions.Add(UiGridLength.Pixel(BankHeight(textScale)));
-        content.RowDefinitions.Add(UiGridLength.Pixel(HeaderHeight(textScale)));
-        content.RowDefinitions.Add(UiGridLength.Pixel(HelpHeight(textScale)));
+        content.RowDefinitions.Add(UiGridLength.Auto);
         content.RowDefinitions.Add(UiGridLength.Star());
         content.RowDefinitions.Add(UiGridLength.Pixel(ActionHeight(textScale)));
         UiGrid banks = BuildBanks(menu.Bank, menu.IsQuick, textScale);
@@ -22,12 +35,17 @@ internal sealed partial class PlayerSaveView : UiElement
             tab.Click = () => menu.SelectBank(bank);
         }
         content.Children.Add(banks);
-        UiGrid header = new() { GridRow = 1, Gap = 5 };
+        information = new UiGrid { GridRow = 1, Gap = 5 };
+        information.ColumnDefinitions.Add(UiGridLength.Star());
+        information.RowDefinitions.Add(UiGridLength.Auto);
+        information.RowDefinitions.Add(UiGridLength.Auto);
+        header = new() { Gap = 5 };
         header.RowDefinitions.Add(UiGridLength.Star());
         header.ColumnDefinitions.Add(UiGridLength.Star(3.7f));
         header.ColumnDefinitions.Add(UiGridLength.Star(1.3f));
         UiPanel info = new() { Caption = "INFO.", CaptionFontSize = UiTheme.DefaultCaptionFontSize * textScale, CaptionHeight = 13 * textScale, Padding = new UiThickness(8, 0) };
-        info.Children.Add(new UiLabel { Text = $"Page {menu.Page + 1} / {menu.PageCount}" + (menu.IsQuick ? "" : "    " + navigationHint), FontSize = 16 * textScale, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center });
+        pageLabel = new UiLabel { Text = $"Page {menu.Page + 1} / {menu.PageCount}" + navigationSuffix, FontSize = 16 * textScale, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center };
+        info.Children.Add(pageLabel);
         header.Children.Add(info);
         UiPanel title = new() { GridColumn = 1, Padding = new UiThickness(8, 0) };
         string name = menu.Mode switch
@@ -39,25 +57,20 @@ internal sealed partial class PlayerSaveView : UiElement
         };
         title.Children.Add(new UiLabel { Text = menu.IsTransferring ? "Transfer" : name, FontSize = 25 * textScale, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center });
         header.Children.Add(title);
-        content.Children.Add(header);
+        information.Children.Add(header);
         string instruction = menu.IsTransferring ? menu.ConfirmOverwrite ? "Confirm transfer overwrite" : "Choose destination block" : menu.ConfirmOverwrite ? "Confirm overwrite" : menu.IsSaving ? "Choose block to save" : "Choose block to load";
         string detail = menu.TransferSource is int source ? $"{PlayerSaveStore.GetLabel(source)}  →  {PlayerSaveStore.GetLabel(menu.SelectedSlot)}" : menu.ConfirmOverwrite ? "Confirm again to overwrite the selected save." : menu.IsQuick ? menu.IsSaving ? "Create a new quick save." : "Choose a quick save to load." : $"{transferHint}    {confirmHint}: Select    {cancelHint}: Back";
         if (menu.Message is string message)
         {
             detail = message;
         }
-        UiPanel help = new() { GridRow = 2, Caption = "HELP", CaptionFontSize = UiTheme.DefaultCaptionFontSize * textScale, CaptionHeight = 13 * textScale, Padding = new UiThickness(8, 0) };
-        help.Children.Add(new UiLabel { Text = instruction + "\n" + detail, FontSize = 18 * textScale, TextFlow = UiTextFlow.Wrap, VerticalTextAlignment = UiAlignment.Center });
-        content.Children.Add(help);
-        UiGrid blocks = BuildBlocks(menu.VisibleEntries, !menu.IsSaving && !menu.IsTransferring, textScale, menu.PageCapacity);
-        blocks.GridRow = 3;
-        foreach (UiButton block in blocks.Children.OfType<UiButton>())
-        {
-            int slot = int.Parse(block.Id![10..], System.Globalization.CultureInfo.InvariantCulture);
-            block.Click = () => menu.SelectSlot(slot);
-        }
+        help = new() { GridRow = 1, Caption = "HELP", CaptionFontSize = UiTheme.DefaultCaptionFontSize * textScale, CaptionHeight = 13 * textScale, Padding = new UiThickness(8, 0) };
+        help.Children.Add(new UiLabel { Text = instruction + "\n" + detail, FontSize = 18 * textScale, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center });
+        information.Children.Add(help);
+        content.Children.Add(information);
+        blocks = CreateVisibleBlocks();
         content.Children.Add(blocks);
-        UiGrid actions = new() { GridRow = 4, Columns = menu.IsQuick ? 4 : 5, Rows = 1, Gap = 5 };
+        actions = new() { GridRow = 3, Columns = menu.IsQuick ? 4 : 5, Rows = 1, Gap = 5 };
         actions.Children.Add(new UiButton { Id = "save-confirm", GridColumn = 0, Text = menu.ConfirmOverwrite ? "Overwrite" : menu.IsTransferring ? "Copy here" : menu.IsSaving ? "Save" : "Load", FontSize = 18 * textScale, Enabled = menu.Entries.Count > 0 && (menu.IsTransferring || menu.IsSaving || menu.Entries[menu.Selection].CanLoad), Click = menu.RequestConfirm, PointerSize = 0 });
         if (!menu.IsQuick)
         {
@@ -72,6 +85,80 @@ internal sealed partial class PlayerSaveView : UiElement
         Children.Add(root);
     }
 
+    public override void Arrange(UiRect bounds)
+    {
+        float width = bounds.Width * 0.96f;
+        float height = bounds.Height * 0.96f;
+        float blockHeight = blocks.Children.OfType<UiButton>().Select(button => button.Children[0].Measure(new UiSize(width, height)).Height + button.Children[0].Margin.Vertical).DefaultIfEmpty(60 * textScale + 6).Max();
+        float controlsHeight = BankHeight(textScale) + ActionHeight(textScale) + content.Gap * 3;
+        UiSize available = new(width, height);
+        float stackedHeight = header.Measure(available).Height + help.Measure(available).Height + information.Gap;
+        bool compact = height - controlsHeight - stackedHeight < blockHeight;
+        information.ColumnDefinitions.Clear();
+        information.RowDefinitions.Clear();
+        information.ColumnDefinitions.Add(UiGridLength.Star());
+        information.RowDefinitions.Add(UiGridLength.Auto);
+        header.GridColumn = 0;
+        header.GridRow = 0;
+        help.GridColumn = compact ? 1 : 0;
+        help.GridRow = compact ? 0 : 1;
+        if (compact)
+        {
+            information.ColumnDefinitions.Add(UiGridLength.Star());
+        }
+        else
+        {
+            information.RowDefinitions.Add(UiGridLength.Auto);
+        }
+        float informationHeight = information.Measure(available).Height;
+        float remaining = Math.Max(0, height - controlsHeight - informationHeight);
+        int capacity = Math.Clamp((int)((remaining + 3) / (blockHeight + 3)), 1, PlayerSaveMenu.EntriesPerPage);
+        if (capacity != menu.PageCapacity)
+        {
+            menu.SetPageCapacity(capacity);
+            UiGrid replacement = CreateVisibleBlocks();
+            // Keep the selected button instance so measurement-driven pagination preserves focus.
+            for (int index = 0; index < replacement.Children.Count; index++)
+            {
+                UiElement next = replacement.Children[index];
+                UiElement? existing = blocks.Children.FirstOrDefault(child => child.Id == next.Id);
+                if (existing is not null)
+                {
+                    existing.GridRow = next.GridRow;
+                    replacement.Children[index] = existing;
+                }
+            }
+            int position = content.Children.IndexOf(blocks);
+            content.Children[position] = replacement;
+            blocks = replacement;
+        }
+        pageLabel.Text = $"Page {menu.Page + 1} / {menu.PageCount}" + navigationSuffix;
+        foreach (UiButton action in actions.Children.OfType<UiButton>())
+        {
+            if (action.Id == "save-previous")
+            {
+                action.Enabled = menu.Page > 0;
+            }
+            else if (action.Id == "save-next")
+            {
+                action.Enabled = menu.Page + 1 < menu.PageCount;
+            }
+        }
+        base.Arrange(bounds);
+    }
+
+    private UiGrid CreateVisibleBlocks()
+    {
+        UiGrid result = BuildBlocks(menu.VisibleEntries, !menu.IsSaving && !menu.IsTransferring, textScale, menu.PageCapacity);
+        result.GridRow = 2;
+        foreach (UiButton block in result.Children.OfType<UiButton>())
+        {
+            int slot = int.Parse(block.Id![10..], System.Globalization.CultureInfo.InvariantCulture);
+            block.Click = () => menu.SelectSlot(slot);
+        }
+        return result;
+    }
+
     private static float BankHeight(float scale) => Math.Max(72, 36 * scale);
     private static float HeaderHeight(float scale) => Math.Max(40, 37 * scale);
     private static float HelpHeight(float scale) => Math.Max(70, 46 * scale);
@@ -83,6 +170,11 @@ internal sealed partial class PlayerSaveView : UiElement
         {
             throw new ArgumentOutOfRangeException(nameof(textScale));
         }
+        if (menu.ConfiguredTextScale == textScale)
+        {
+            return;
+        }
+        menu.ConfiguredTextScale = textScale;
         float available = 672 * 0.96f - BankHeight(textScale) - HeaderHeight(textScale) - HelpHeight(textScale) - ActionHeight(textScale) - 20;
         int capacity = Math.Clamp((int)(available / (60 * textScale + 9)), 1, PlayerSaveMenu.EntriesPerPage);
         menu.SetPageCapacity(capacity);
@@ -137,26 +229,18 @@ internal sealed partial class PlayerSaveView : UiElement
         {
             PlayerSaveEntry entry = entries[index];
             UiButton block = new() { GridRow = index, Id = "save-slot-" + entry.Slot, HighlightSelection = false, PointerSize = 20 };
-            UiGrid metadata = new() { Margin = new UiThickness(35, 3, 8, 3), Gap = 6 * textScale };
-            metadata.RowDefinitions.Add(UiGridLength.Star());
+            UiGrid metadata = new() { Margin = new UiThickness(35, 3, 8, 3), VerticalAlignment = UiAlignment.Center, Gap = 0 };
+            metadata.RowDefinitions.Add(UiGridLength.Auto);
+            metadata.RowDefinitions.Add(UiGridLength.Auto);
             metadata.ColumnDefinitions.Add(UiGridLength.Star(2.1f));
             metadata.ColumnDefinitions.Add(UiGridLength.Star());
             metadata.ColumnDefinitions.Add(UiGridLength.Pixel(204));
-            UiGrid description = new() { Height = 60 * textScale, VerticalAlignment = UiAlignment.Center, Gap = 0 };
-            description.ColumnDefinitions.Add(UiGridLength.Star());
-            description.RowDefinitions.Add(UiGridLength.Pixel(30 * textScale));
-            description.RowDefinitions.Add(UiGridLength.Pixel(30 * textScale));
-            description.Children.Add(new UiLabel { Text = entry.Label, FontSize = 20 * textScale, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center, Muted = loading && !entry.CanLoad });
-            description.Children.Add(new UiLabel { GridRow = 1, Text = entry.Details, FontSize = 20 * textScale, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center, Muted = loading && !entry.CanLoad });
-            metadata.Children.Add(description);
-            UiGrid times = new() { GridColumn = 1, Height = 60 * textScale, VerticalAlignment = UiAlignment.Center, Gap = 0 };
-            times.ColumnDefinitions.Add(UiGridLength.Star());
-            times.RowDefinitions.Add(UiGridLength.Pixel(30 * textScale));
-            times.RowDefinitions.Add(UiGridLength.Pixel(30 * textScale));
-            times.Children.Add(new UiLabel { Text = entry.CanLoad ? entry.PlayTimeText : "", FontSize = 20 * textScale, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center });
-            times.Children.Add(new UiLabel { GridRow = 1, Text = entry.SavedAtText, FontSize = 16 * textScale, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center });
-            metadata.Children.Add(times);
-            UiGrid portraits = new() { GridColumn = 2, Margin = new UiThickness(4), Gap = 4 };
+            UiThickness columnGap = new(0, 0, 6 * textScale, 0);
+            metadata.Children.Add(new UiLabel { Text = entry.Label, FontSize = 20 * textScale, Margin = columnGap, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center, Muted = loading && !entry.CanLoad });
+            metadata.Children.Add(new UiLabel { GridRow = 1, Text = entry.Details, FontSize = 20 * textScale, Margin = columnGap, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center, Muted = loading && !entry.CanLoad });
+            metadata.Children.Add(new UiLabel { GridColumn = 1, Text = entry.CanLoad ? entry.PlayTimeText : "", FontSize = 20 * textScale, Margin = columnGap, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center });
+            metadata.Children.Add(new UiLabel { GridRow = 1, GridColumn = 1, Text = entry.SavedAtText, FontSize = 16 * textScale, Margin = columnGap, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center });
+            UiGrid portraits = new() { GridColumn = 2, GridRowSpan = 2, Margin = new UiThickness(4), Gap = 4 };
             portraits.RowDefinitions.Add(UiGridLength.Star());
             for (int member = 0; member < entry.PartyPortraits.Count; member++)
             {

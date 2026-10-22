@@ -89,13 +89,18 @@ The Vector design uses these procedural elements:
 | Tabs | Red underline; Junction keeps the active underline while selecting an attribute or spell. |
 | Separators | Low-alpha horizontal rules in tables, command lists and readouts; brighter header/footer rules. |
 | HP | Clamped current/max ratio, dark track, cyan gradient, bright upper edge and endpoint. Missing values produce an empty track. |
-| Typography | Georgia by default, pale foreground and blue secondary labels. A selected nondefault UI font overrides it. `UiFontCanvas` measures and draws with matching fonts. |
+| Typography | Georgia by default, pale foreground and blue secondary labels. Each skin remembers its own UI font override, including an explicit Arial choice in Vector. The UI font setting reports the effective current-skin font. `UiFontCanvas` measures and draws with matching fonts. |
 | Header | Small spaced MENU label, large title, subtitle, geometric crest and vertical separator. |
 | Main menu | Three active-party cards, reserve grid, full-height right command column with play time/rank/currency, location and input hints below. Reserve space expands for additional characters. |
 | Junction | Character summary at left, nine-row stat/magic/value table at center, command pane at right. Selection pages reuse existing controller entries/actions. |
 | Ornament | Low-opacity geometric feather strokes on tall panels. |
 | Input hints | Current keyboard/controller bindings and fixed F7 shortcut. |
 
-`UiTheme` provides virtual `Panel`, `Caption`, `Pointer`, `Selection`, `RowSeparator`, `NumericSlider` and `Progress` hooks. Its default implementation remains Classic; `VectorUiTheme` overrides the material and selection grammar. Optional `FontFamily` preserves explicit per-element font overrides. Renderer adapters implement family-aware measurement and alignment/flow text overloads; the scaled canvas forwards these in design coordinates. Original artwork remains supplied by the existing resource provider. The presentation contains no background illustrations or replacement portraits.
+`UiTheme` provides virtual `Panel`, `Caption`, `Pointer`, `Selection`, `RowSeparator`, `NumericSlider` and `Progress` hooks. `CaptionContentHeight` declares interior caption/divider space; `UiView` binds it before measuring and arranging all `UiPanel` instances, including save and gameplay windows. Directly drawn HUD panels use the same metric. Its default implementation remains Classic; `VectorUiTheme` overrides the material and selection grammar. Optional `FontFamily` preserves explicit per-element font overrides. Renderer adapters implement family-aware measurement and alignment/flow text overloads; the scaled canvas forwards these in design coordinates. Original artwork remains supplied by the existing resource provider. The presentation contains no background illustrations or replacement portraits.
 
 Preview either presentation with `--menu-preview --ui vector` or `--ui classic`; pass `--resolution` to compare identical output sizes. A preview does not advance gameplay.
+
+
+Pagination first checks whether every row fits in the full content rectangle with no footer. A page index is reserved only when that trial overflows or an explicit page-size limit requires multiple pages. Measured wrapping and fitted image gutters use a consistent width for that decision, so footer creation cannot force its own extra page.
+
+Junction tabs share one scaled font size before and after entering a section. Vector keeps its red accent and the original hand pointer. Save windows measure INFO/HELP and metadata together; when stacked information would hide the last complete save row, INFO/HELP share a band instead. Battle command/target panes reserve caption space, move upward when enlarged text needs more height, and keep ally targets clear of the party vitals column.

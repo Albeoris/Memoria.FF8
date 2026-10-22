@@ -10,9 +10,11 @@ public sealed class UiList : UiElement
     private IList<string> _items = new List<string>();
     private RowMeasurement[] _measurements = [];
     private float[] _rowHeights = [];
+    private float[] _textHeights = [];
+    private bool _hasTextMeasurements;
     private bool _hasMeasuredRows;
 
-    private readonly record struct RowMeasurement(string Text, string? Secondary, float PrimaryWidth, float SecondaryWidth, float FontSize, float MinimumHeight);
+    private readonly record struct RowMeasurement(string Text, string? Secondary, float PrimaryWidth, float SecondaryWidth, float FontSize);
 
     public UiList()
     {
@@ -119,9 +121,38 @@ public sealed class UiList : UiElement
     public bool TrailingImagesBeforeSecondary { get; set; }
     private bool HasMeasuredRows => AutoRowHeight && Orientation == UiOrientation.Vertical && _hasMeasuredRows && _rowHeights.Length == Items.Count;
     private bool UsesPagination => Paginated && Orientation == UiOrientation.Vertical;
-    private float FooterHeight => UsesPagination ? Math.Min(24, Math.Max(0, Bounds.Height)) : 0;
+    private float FooterHeight => RequiresPagination() ? Math.Min(24, Math.Max(0, Bounds.Height)) : 0;
+
+    private bool RequiresPagination()
+    {
+        if (!UsesPagination || Items.Count == 0)
+        {
+            return false;
+        }
+        if (PageSize > 0 && Items.Count > PageSize)
+        {
+            return true;
+        }
+
+        // Test the full viewport first so the footer cannot create its own extra page.
+        float available = Math.Max(0, Bounds.Height);
+        double minimumHeight = FitPageRows && PageSize > 0 ? (double)available / PageSize : RowHeight;
+        bool measured = AutoRowHeight && _hasTextMeasurements && _textHeights.Length == Items.Count;
+        double height = FitPageRows && PageSize > 0 ? (double)available * Items.Count / PageSize : (double)RowHeight * Items.Count;
+        for (int index = 0; index < Items.Count; index++)
+        {
+            height += measured ? Math.Max(0, _textHeights[index] - minimumHeight) : 0;
+            if (height > available)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private float ContentHeight => Math.Max(0, Bounds.Height - FooterHeight);
     private float RenderedRowHeight => UsesPagination && FitPageRows && PageSize > 0 ? ContentHeight / PageSize : RowHeight;
+    private float SinglePageRowHeight => UsesPagination && FitPageRows && PageSize > 0 ? Math.Max(0, Bounds.Height) / PageSize : RowHeight;
 
     public int SelectedIndex
     {
@@ -185,7 +216,7 @@ public sealed class UiList : UiElement
         float width = Items.Select((item, index) => (item.Length + (index < SecondaryItems.Count ? SecondaryItems[index].Length : 0)) * 10f + TextInset + 4 + leadingWidth + imageWidth + trailingWidth).DefaultIfEmpty(0).Max();
         return Orientation == UiOrientation.Horizontal
             ? ResolveDesiredSize(width * Items.Count, RowHeight, available)
-            : ResolveDesiredSize(width, (UsesPagination && PageSize > 0 ? Math.Min(Items.Count, PageSize) : Items.Count) * RowHeight + (UsesPagination ? 24 : 0), available);
+            : ResolveDesiredSize(width, (UsesPagination && PageSize > 0 ? Math.Min(Items.Count, PageSize) : Items.Count) * RowHeight + (UsesPagination && PageSize > 0 && Items.Count > PageSize ? 24 : 0), available);
     }
 
     public override void Arrange(UiRect bounds)
@@ -193,6 +224,7 @@ public sealed class UiList : UiElement
         if (bounds.Width != Bounds.Width || bounds.Height != Bounds.Height)
         {
             _hasMeasuredRows = false;
+            _hasTextMeasurements = false;
             _measurements = [];
         }
         base.Arrange(bounds);
@@ -530,11 +562,13 @@ public sealed class UiList : UiElement
 
     private ListColumns MeasureColumns(IUiCanvas canvas, UiTheme theme, float rowWidth)
     {
+        // Keep wrapping independent of the footer: shrinking a page must not widen its text columns.
+        float rowHeight = SinglePageRowHeight;
         float textRight = Math.Max(TextInset, rowWidth - 4);
         float available = Math.Max(0, textRight - TextInset);
-        float trailingWidth = TrailingImages.Take(Items.Count).Any(image => image.HasValue) ? Math.Min(RenderedRowHeight, available) : 0;
-        float imageWidth = Images.Take(Items.Count).Any(image => image.HasValue) ? Math.Min(RenderedRowHeight, available - trailingWidth) : 0;
-        float leadingWidth = LeadingImages.Take(Items.Count).Any(image => image.HasValue) ? Math.Min(RenderedRowHeight, Math.Max(0, available - trailingWidth - imageWidth)) : 0;
+        float trailingWidth = TrailingImages.Take(Items.Count).Any(image => image.HasValue) ? Math.Min(rowHeight, available) : 0;
+        float imageWidth = Images.Take(Items.Count).Any(image => image.HasValue) ? Math.Min(rowHeight, available - trailingWidth) : 0;
+        float leadingWidth = LeadingImages.Take(Items.Count).Any(image => image.HasValue) ? Math.Min(rowHeight, Math.Max(0, available - trailingWidth - imageWidth)) : 0;
         float inset = Math.Max(0, TextInset);
         bool constrained = inset + leadingWidth + imageWidth + trailingWidth > rowWidth * 0.5f;
         if (constrained)
@@ -605,32 +639,47 @@ public sealed class UiList : UiElement
         {
             return;
         }
-        if (_measurements.Length != Items.Count)
+        MeasureTextRows(canvas, theme, columns, ref _measurements, ref _textHeights);
+        _hasTextMeasurements = true;
+        if (_rowHeights.Length != Items.Count)
         {
-            _measurements = new RowMeasurement[Items.Count];
             _rowHeights = new float[Items.Count];
         }
+        float minimumHeight = RenderedRowHeight;
         bool expanded = false;
+        for (int index = 0; index < Items.Count; index++)
+        {
+            _rowHeights[index] = Math.Max(minimumHeight, _textHeights[index]);
+            expanded |= _rowHeights[index] > minimumHeight;
+        }
+        _hasMeasuredRows = expanded;
+    }
+
+    private void MeasureTextRows(IUiCanvas canvas, UiTheme theme, ListColumns columns, ref RowMeasurement[] measurements, ref float[] textHeights)
+    {
+        if (measurements.Length != Items.Count)
+        {
+            measurements = new RowMeasurement[Items.Count];
+            textHeights = new float[Items.Count];
+        }
         for (int index = 0; index < Items.Count; index++)
         {
             bool secondary = index < SecondaryItems.Count;
             RowColumns rowColumns = ColumnsForRow(columns, secondary);
             float primaryWidth = TextFlow == UiTextFlow.SingleLine ? float.PositiveInfinity : rowColumns.PrimaryWidth;
             float secondaryWidth = TextFlow == UiTextFlow.SingleLine ? float.PositiveInfinity : Math.Max(columns.SecondaryWrapWidth, rowColumns.SecondaryRight - rowColumns.SecondaryLeft);
-            RowMeasurement measurement = new(Items[index], secondary ? SecondaryItems[index] : null, primaryWidth, secondary ? secondaryWidth : 0, FontSize > 0 ? FontSize : theme.FontSize, RenderedRowHeight);
-            if (_measurements[index] != measurement)
+            RowMeasurement measurement = new(Items[index], secondary ? SecondaryItems[index] : null, primaryWidth, secondary ? secondaryWidth : 0, FontSize > 0 ? FontSize : theme.FontSize);
+            if (measurements[index] != measurement)
             {
                 UiSize? primary = TryMeasureText(canvas, measurement.Text, measurement.FontSize, measurement.PrimaryWidth);
                 UiSize? value = measurement.Secondary is null ? null : TryMeasureText(canvas, measurement.Secondary, measurement.FontSize, measurement.SecondaryWidth);
-                _rowHeights[index] = Math.Max(RenderedRowHeight, Math.Max(primary?.Height ?? 0, value?.Height ?? 0));
+                textHeights[index] = Math.Max(primary?.Height ?? 0, value?.Height ?? 0);
                 if (primary.HasValue && (measurement.Secondary is null || value.HasValue))
                 {
-                    _measurements[index] = measurement;
+                    measurements[index] = measurement;
                 }
             }
-            expanded |= _rowHeights[index] > RenderedRowHeight;
         }
-        _hasMeasuredRows = expanded;
     }
 
     private static UiSize? TryMeasureText(IUiCanvas canvas, string text, float fontSize, float width)

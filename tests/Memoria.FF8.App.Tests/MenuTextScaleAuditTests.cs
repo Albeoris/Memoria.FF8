@@ -11,6 +11,7 @@ public sealed class MenuTextScaleAuditTests
     [Theory]
     [InlineData(6, 100)]
     [InlineData(6, 150)]
+    [InlineData(20, 125)]
     [InlineData(24, 100)]
     [InlineData(24, 150)]
     [InlineData(48, 100)]
@@ -36,6 +37,7 @@ public sealed class MenuTextScaleAuditTests
     }
 
     [Theory]
+    [InlineData(20, 125)]
     [InlineData(24, 100)]
     [InlineData(24, 150)]
     [InlineData(48, 150)]
@@ -47,7 +49,7 @@ public sealed class MenuTextScaleAuditTests
             Assert.Skip("Configure MEMORIA_FF8_GAME_DIR for installed menu rendering.");
         }
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_MENU_UI_OUTPUT");
-        using Bitmap bitmap = new(960, 672);
+        using Bitmap bitmap = new(1280, 720);
         using BattlePreviewCanvas canvas = new(bitmap, gameDirectory);
         foreach (string screen in new MenuController().ScreenIds)
         {
@@ -57,10 +59,11 @@ public sealed class MenuTextScaleAuditTests
                 MagazineMenuFixture.AddOwnedPage(controller);
             }
             UiView view = controller.BuildView();
+            view.Resize(bitmap.Width, bitmap.Height);
             foreach (int seconds in new[] { 0, 3 })
             {
                 canvas.BeginFrame(TimeSpan.FromSeconds(seconds));
-                canvas.Fill(new UiRect(0, 0, 960, 672), new UiColor(0, 0, 0));
+                canvas.Fill(new UiRect(0, 0, bitmap.Width, bitmap.Height), new UiColor(0, 0, 0));
                 view.Draw(canvas, controller.CreateTheme());
                 if (!string.IsNullOrEmpty(output))
                 {

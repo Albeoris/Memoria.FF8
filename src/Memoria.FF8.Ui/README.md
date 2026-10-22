@@ -57,3 +57,8 @@ view.Resize(viewportWidth, viewportHeight);
 Vertical lists expand individual rows when the canvas reports wrapped text taller than the configured row height. `AutoRowHeight=false` preserves fixed row heights. The measured row geometry drives scrolling, pagination, pointer placement and hit testing; the pagination footer remains separate. Measurements are cached until row text, font size, available text width or fitted row height changes. Canvases without text measurement retain fixed rows. `SecondaryAlignment=UiAlignment.End` right-aligns secondary text within its column when measurements are available.
 
 Set `UiList.TextFlow=SingleLine` for command and item-name rows that should scroll horizontally instead of wrapping. Automatic row height then reserves one measured font line and paginates accordingly. When enlarged artwork and pointer gutters would consume more than half a row, the list reduces those gutters and preserves at least forty percent of the row for the primary name, apart from the secondary-column gap.
+
+
+A theme's `CaptionContentHeight(fontSize)` declares the space taken by an interior caption and divider. `UiView.Draw` binds that requirement before layout; `UiPanel` combines it with the declared caption height without modifying the template. Switching back to an exterior-caption theme restores the original spacing. Containers with short INFO/HELP windows should use measured Auto rows so the caption and body both remain visible.
+
+Paginated lists test full-height content before reserving the page footer. A list that fits exactly has one page with no index; measured text, explicit page-size limits and fitted icon gutters participate in the same decision.

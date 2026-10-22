@@ -543,7 +543,7 @@ public sealed partial class MenuController
         {
             return;
         }
-        var current = IsHostSettingsScreen ? HostSettingValue(setting.Id) : Data.Settings.GetValueOrDefault(setting.Id);
+        var current = IsHostSettingsScreen || setting.Id == "UI font" && (IsDemo || _readPreferences is not null) ? HostSettingValue(setting.Id) : Data.Settings.GetValueOrDefault(setting.Id);
         if (IsConfigSettingsScreen && TryConfigNumbers(setting, out float[] numbers))
         {
             float number = float.TryParse(current?.TrimEnd('%'), System.Globalization.CultureInfo.InvariantCulture, out float parsed) ? parsed : numbers[0];

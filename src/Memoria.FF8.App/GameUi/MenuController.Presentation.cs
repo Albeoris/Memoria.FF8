@@ -38,8 +38,14 @@ public sealed partial class MenuController
     public UiTheme CreateTheme()
     {
         UiTheme theme = PresentationProvider.CreateTheme(TextScale);
-        string? family = _readPreferences?.Invoke().UiFontFamily;
-        return theme is VectorUiTheme && family is not null && family != SystemFontCatalog.DefaultFamily ? new VectorUiTheme { FontSize = theme.FontSize, FontFamily = family } : theme;
+        if (_readPreferences is null && !IsDemo || PresentationProvider is not (ClassicMenuPresentation or VectorMenuPresentation))
+        {
+            return theme;
+        }
+        string family = (_readPreferences?.Invoke() ?? demoFontPreferences).GetUiFontFamily(Presentation);
+        return theme is VectorUiTheme
+            ? new VectorUiTheme { FontSize = theme.FontSize, PanelBackgroundAlpha = theme.PanelBackgroundAlpha, FontFamily = family }
+            : new UiTheme { FontSize = theme.FontSize, PanelBackgroundAlpha = theme.PanelBackgroundAlpha, FontFamily = family };
     }
     internal UiThickness ClassicRootPadding => new(ScreenId == "magazine" ? 0 : IsOriginalMenuPage ? 18 : 20);
 
@@ -147,34 +153,11 @@ public sealed partial class MenuController
 
     private UiElement BuildVectorJunction()
     {
-        var page = VectorRows([78, 0, 34], [1], 12);
+        var page = VectorRows([Math.Max(78, 24 * TextScale * 1.5f + 16), 0, 34], [1], 12);
         page.Id = "vector-junction";
         var header = Grid([1], [1, 1.3f], 12);
         Place(header, VectorHeader("Junction", "Junction magic to strengthen your attributes."), 0);
-        bool categories = ScreenId == "junction";
-        UiElement tabs;
-        if (categories)
-        {
-            tabs = NativeCommandStrip();
-            ((UiList)tabs).Paginated = false;
-        }
-        else
-        {
-            var strip = Grid([1], [1, 1, 1, 1], 2);
-            string[] names = ["Junction", "Off", "Auto", "Ability"];
-            string[] destinations = ["junction-options", "junction-off", "junction-auto", "junction-command"];
-            for (int index = 0; index < names.Length; index++)
-            {
-                string destination = destinations[index];
-                var tab = new UiButton { Text = names[index], FontSize = 18, DrawBackground = false, PointerSize = 0, Click = () => Push(destination) };
-                bool active = index == (ScreenId.StartsWith("junction-off", StringComparison.Ordinal) ? 1 : ScreenId.StartsWith("junction-auto", StringComparison.Ordinal) ? 2 : ScreenId.Contains("command", StringComparison.Ordinal) || ScreenId.Contains("ability", StringComparison.Ordinal) ? 3 : 0);
-                Place(strip, active ? new VectorActiveTab(tab) : tab, 0, index);
-            }
-            tabs = strip;
-        }
-        tabs.VerticalAlignment = UiAlignment.End;
-        tabs.Height = 42;
-        Place(header, tabs, 0, 1);
+        Place(header, BuildVectorJunctionTabs(), 0, 1);
         Place(page, new VectorRuleContainer(header, bottom: true), 0);
         var body = Grid([1], ScreenId == "junction-stock" ? [2.5f, 3.3f, 3.6f] : [2.65f, 4.8f, 1.95f], 10);
         Place(page, body, 1);
@@ -205,6 +188,38 @@ public sealed partial class MenuController
         Place(footer, VectorPrompts(), 0, 1);
         Place(page, new VectorRuleContainer(footer), 2);
         return page;
+    }
+
+    private UiElement BuildVectorJunctionTabs()
+    {
+        float fontSize = 24 * TextScale;
+        UiElement tabs;
+        if (ScreenId == "junction")
+        {
+            var commands = (UiList)NativeCommandStrip();
+            commands.Paginated = false;
+            commands.FontSize = fontSize;
+            commands.TextInset = 35 * TextScale;
+            commands.PointerSize = 20 * TextScale;
+            tabs = commands;
+        }
+        else
+        {
+            var strip = Grid([1], [1, 1, 1, 1], 0);
+            string[] names = ["Junction", "Off", "Auto", "Ability"];
+            string[] destinations = ["junction-options", "junction-off", "junction-auto", "junction-command"];
+            int activeIndex = ScreenId.StartsWith("junction-off", StringComparison.Ordinal) ? 1 : ScreenId.StartsWith("junction-auto", StringComparison.Ordinal) ? 2 : ScreenId.Contains("command", StringComparison.Ordinal) || ScreenId.Contains("ability", StringComparison.Ordinal) ? 3 : 0;
+            for (int index = 0; index < names.Length; index++)
+            {
+                string destination = destinations[index];
+                var tab = new UiButton { Text = names[index], FontSize = fontSize, TextInset = 35 * TextScale, DrawBackground = false, PointerSize = 20 * TextScale, Click = () => Push(destination) };
+                Place(strip, index == activeIndex ? new VectorActiveTab(tab) : tab, 0, index);
+            }
+            tabs = strip;
+        }
+        var host = new UiElement { Id = "junction-tabs", VerticalAlignment = UiAlignment.End, Height = Math.Max(42, fontSize * 1.5f + 8) };
+        host.Children.Add(tabs);
+        return host;
     }
 
     private UiElement VectorCharacterSummary()
@@ -248,7 +263,7 @@ public sealed partial class MenuController
             if (interactive && entryIndex >= 0)
             {
                 int selected = entryIndex;
-                var button = new UiButton { Id = Entries[entryIndex].Id, DrawBackground = false, HighlightSelection = false, PointerSize = 0, Enabled = enabled, Click = () => Activate(selected) };
+                var button = new UiButton { Id = Entries[entryIndex].Id, DrawBackground = false, HighlightSelection = false, PointerSize = 20 * TextScale, Enabled = enabled, Click = () => Activate(selected) };
                 button.Children.Add(row);
                 row = button;
             }

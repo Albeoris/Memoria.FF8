@@ -19,6 +19,7 @@ public sealed class VectorUiTheme : UiTheme
 
     public override string? FontFamily { get; init; } = "Georgia";
     public override bool AlwaysHighlightSelection => true;
+    public override float CaptionContentHeight(float captionFontSize) => captionFontSize * 1.5f + 12;
 
     public override void Panel(IUiCanvas canvas, UiRect bounds, string? caption = null, float captionFontSize = 0)
     {
@@ -56,7 +57,7 @@ public sealed class VectorUiTheme : UiTheme
 
     public override void Pointer(IUiCanvas canvas, float x, float y, float size = 10)
     {
-        // Selection adornments are drawn with their owning row and stay inside its clip.
+        base.Pointer(canvas, x, y, size);
     }
 
     public override void Selection(IUiCanvas canvas, UiRect bounds, bool underline = false)

@@ -20,7 +20,41 @@ internal sealed record UiPreferences
     public int SoundVolume { get; init; } = 100;
     public int TextScale { get; init; } = 100;
     public int QuickSaveCount { get; init; } = 9;
-    public string UiFontFamily { get; init; } = SystemFontCatalog.DefaultFamily;
+    private static readonly IMenuPresentation ClassicFontDefaults = new ClassicMenuPresentation();
+    private static readonly IMenuPresentation VectorFontDefaults = new VectorMenuPresentation();
+    private string legacyUiFontFamily = SystemFontCatalog.DefaultFamily;
+
+    // The original shared setting used Arial directly in Classic and as a placeholder for Vector's default.
+    // Preserve other shared choices for both skins until each skin receives its own override.
+    [System.Text.Json.Serialization.JsonPropertyName("UiFontFamily")]
+    public string LegacyUiFontFamily
+    {
+        get => legacyUiFontFamily;
+        init => legacyUiFontFamily = value;
+    }
+    public string? ClassicUiFontFamily { get; init; }
+    public string? VectorUiFontFamily { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string UiFontFamily
+    {
+        get => GetUiFontFamily(MenuPresentation);
+        init => legacyUiFontFamily = value;
+    }
+
+    public string GetUiFontFamily(MenuPresentation presentation)
+    {
+        string? family = presentation == MenuPresentation.Vector ? VectorUiFontFamily : ClassicUiFontFamily;
+        if (family is not null)
+        {
+            return family;
+        }
+        if (!string.Equals(legacyUiFontFamily, SystemFontCatalog.DefaultFamily, StringComparison.OrdinalIgnoreCase))
+        {
+            return legacyUiFontFamily;
+        }
+        IMenuPresentation provider = presentation == MenuPresentation.Vector ? VectorFontDefaults : ClassicFontDefaults;
+        return provider.PreferredFontFamily;
+    }
     public int UiFontSize { get; init; } = 24;
     public string DialogueFontFamily { get; init; } = SystemFontCatalog.DefaultFamily;
     public int DialogueFontSize { get; init; } = 10;
@@ -153,7 +187,11 @@ internal sealed record UiPreferences
         if (key is "UI font" or "Dialogue font")
         {
             string family = SystemFontCatalog.Families.FirstOrDefault(family => string.Equals(family, value, StringComparison.OrdinalIgnoreCase)) ?? throw new ArgumentException("Choose an installed OS font family.");
-            return key == "UI font" ? this with { UiFontFamily = family } : this with { DialogueFontFamily = family };
+            if (key == "Dialogue font")
+            {
+                return this with { DialogueFontFamily = family };
+            }
+            return MenuPresentation == MenuPresentation.Vector ? this with { VectorUiFontFamily = family } : this with { ClassicUiFontFamily = family };
         }
         if (key is "UI font size" or "Dialogue font size")
         {
@@ -271,7 +309,7 @@ internal sealed record UiPreferences
         {
             throw new InvalidDataException("Window dimensions must be positive.");
         }
-        if (!Enum.IsDefined(MenuPresentation) || QuickSaveCount < 1 || FieldFps is not (30 or 60) || WorldFps is not (30 or 60) || !ValidFps(BattleFps) || !ValidFps(MenuFps) || MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100 || TextScale is not (100 or 125 or 150) || FieldMessageSpeed is < 1 or > 5 || UiFontSize is < 6 or > 48 || DialogueFontSize is < 6 or > 48 || string.IsNullOrWhiteSpace(UiFontFamily) || string.IsNullOrWhiteSpace(DialogueFontFamily) || !Enum.IsDefined(Difficulty) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode) || BattlePolicy is not ("ResearchInstantVictory" or "NewGameFullCombat"))
+        if (!Enum.IsDefined(MenuPresentation) || QuickSaveCount < 1 || FieldFps is not (30 or 60) || WorldFps is not (30 or 60) || !ValidFps(BattleFps) || !ValidFps(MenuFps) || MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100 || TextScale is not (100 or 125 or 150) || FieldMessageSpeed is < 1 or > 5 || UiFontSize is < 6 or > 48 || DialogueFontSize is < 6 or > 48 || string.IsNullOrWhiteSpace(LegacyUiFontFamily) || ClassicUiFontFamily is not null && string.IsNullOrWhiteSpace(ClassicUiFontFamily) || VectorUiFontFamily is not null && string.IsNullOrWhiteSpace(VectorUiFontFamily) || string.IsNullOrWhiteSpace(DialogueFontFamily) || !Enum.IsDefined(Difficulty) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode) || BattlePolicy is not ("ResearchInstantVictory" or "NewGameFullCombat"))
         {
             throw new InvalidDataException("UI presentation preferences are outside their supported ranges.");
         }

@@ -19,6 +19,9 @@ public class UiTheme
     public virtual string? FontFamily { get; init; }
     public virtual bool AlwaysHighlightSelection => false;
 
+    /// <summary>Minimum interior space occupied by a caption and its divider, before panel content begins.</summary>
+    public virtual float CaptionContentHeight(float captionFontSize) => 0;
+
     public virtual void Selection(IUiCanvas canvas, UiRect bounds, bool underline = false)
     {
         canvas.Fill(bounds, Highlight);

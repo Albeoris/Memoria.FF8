@@ -110,6 +110,10 @@ public sealed class UiView
 
     public void Draw(IUiCanvas canvas, UiTheme theme)
     {
+        if (BindThemeMetrics(Root, theme))
+        {
+            InvalidateLayout();
+        }
         EnsureLayout();
         EnsureFocus();
         GetTransform(out float scale, out float offsetX, out float offsetY);
@@ -133,6 +137,25 @@ public sealed class UiView
         {
             canvas.PopClip();
         }
+    }
+
+    private static bool BindThemeMetrics(UiElement element, UiTheme theme)
+    {
+        bool changed = false;
+        if (element is UiPanel panel)
+        {
+            float required = panel.DrawBackground && !string.IsNullOrEmpty(panel.Caption) ? theme.CaptionContentHeight(panel.CaptionFontSize) : 0;
+            if (panel.ThemeCaptionHeight != required)
+            {
+                panel.ThemeCaptionHeight = required;
+                changed = true;
+            }
+        }
+        foreach (UiElement child in element.Children)
+        {
+            changed |= BindThemeMetrics(child, theme);
+        }
+        return changed;
     }
 
     private static bool BindTextMeasurements(UiElement element, IUiCanvas canvas)

@@ -155,7 +155,7 @@ public sealed class ListLayoutTests
         list.Arrange(new UiRect(0, 0, 124, 104));
         list.Draw(new MeasuringCanvas(), new UiTheme());
         Assert.Equal(2, list.SelectedIndex);
-        Assert.Equal(2, list.PageCount);
+        Assert.Equal(1, list.PageCount);
         Assert.Equal(0, list.ScrollOffset);
     }
 
@@ -319,7 +319,7 @@ public sealed class ListLayoutTests
         list.Arrange(new UiRect(0, 0, 104, 64));
         MeasuringCanvas canvas = new();
         list.Draw(canvas, new UiTheme());
-        Assert.Equal(2, list.PageCount);
+        Assert.Equal(1, list.PageCount);
         Assert.Equal(20, canvas.Texts[0].Bounds.X);
         Assert.Equal(20, canvas.Texts[1].Bounds.X);
         Assert.All(canvas.Texts.Where(text => !text.Text.StartsWith("P.")), text => Assert.Equal(20, text.Bounds.Height));
@@ -360,8 +360,8 @@ public sealed class ListLayoutTests
         list.Arrange(new UiRect(0, 0, 124, 104));
         MeasuringCanvas canvas = new();
         list.Draw(canvas, new UiTheme());
-        Assert.Equal(2, list.PageCount);
-        Assert.Equal(2, list.EffectivePageSize);
+        Assert.Equal(1, list.PageCount);
+        Assert.Equal(3, list.EffectivePageSize);
         Assert.Equal(40, canvas.Texts[0].Bounds.Height);
         Assert.Equal(40, canvas.Texts[2].Bounds.Height);
         Assert.Equal(40, canvas.Texts[2].Bounds.Y);
@@ -400,6 +400,186 @@ public sealed class ListLayoutTests
         Assert.Equal(52, canvas.Texts[1].Clip.X);
         Assert.Equal(52, canvas.Texts[3].Clip.X);
         Assert.Equal(20, canvas.Texts[3].WrappedHeight);
+    }
+
+    [Theory]
+    [InlineData(9, 180, 1, 9)]
+    [InlineData(9, 179, 2, 7)]
+    [InlineData(10, 180, 2, 7)]
+    public void FooterIsReservedOnlyWhenRowsOverflowTheFullViewport(int count, int height, int pages, int visible)
+    {
+        UiList list = new() { Paginated = true, AutoRowHeight = false, RowHeight = 20, Items = Enumerable.Range(0, count).Select(index => $"row{index}").ToList() };
+        list.Arrange(new UiRect(0, 0, 160, height));
+        MeasuringCanvas canvas = new();
+        list.Draw(canvas, new UiTheme());
+
+        Assert.Equal(pages, list.PageCount);
+        Assert.Equal(visible, list.VisibleRows);
+        Assert.Equal(visible, canvas.Texts.Count(text => text.Text.StartsWith("row")));
+        Assert.Equal(pages > 1, canvas.Texts.Any(text => text.Text.StartsWith("P.")));
+        list.Pointer(30, 175);
+        if (pages == 1)
+        {
+            Assert.Equal(8, list.SelectedIndex);
+        }
+    }
+
+    [Theory]
+    [InlineData(100, 1, 3)]
+    [InlineData(99, 2, 2)]
+    public void WrappedRowsUseTheirMeasuredHeightToDecideWhetherTheFooterIsNeeded(int height, int pages, int visible)
+    {
+        UiList list = new() { Paginated = true, RowHeight = 20, FontSize = 20, TextInset = 0, Items = ["abcdefgh", "ab", "abcdefgh"] };
+        list.Arrange(new UiRect(0, 0, 44, height));
+        MeasuringCanvas canvas = new();
+        list.Draw(canvas, new UiTheme());
+
+        Assert.Equal(pages, list.PageCount);
+        Assert.Equal(visible, list.VisibleRows);
+        Assert.Equal(40, canvas.Texts[0].Bounds.Height);
+        Assert.Equal(pages > 1, canvas.Texts.Any(text => text.Text.StartsWith("P.")));
+    }
+
+    [Fact]
+    public void ResizeFromWrappedPagesToOnePagePreservesTheLastSelectionAndRestoresBottomHitTesting()
+    {
+        UiList list = new() { Paginated = true, RowHeight = 20, FontSize = 20, TextInset = 0, Items = ["abcdefgh", "ab", "abcdefghijkl", "ab", "ab"], SelectedIndex = 4 };
+        list.Arrange(new UiRect(0, 0, 44, 104));
+        list.Draw(new MeasuringCanvas(), new UiTheme());
+        Assert.Equal(3, list.PageCount);
+        Assert.Equal(2, list.CurrentPage);
+
+        list.Arrange(new UiRect(0, 0, 124, 104));
+        MeasuringCanvas canvas = new();
+        list.Draw(canvas, new UiTheme());
+        Assert.Equal(1, list.PageCount);
+        Assert.Equal(0, list.CurrentPage);
+        Assert.Equal(0, list.ScrollOffset);
+        Assert.Equal(4, list.SelectedIndex);
+        Assert.Equal(list.Items, canvas.Texts.Select(text => text.Text));
+        list.Key(UiKey.PageUp);
+        list.Key(UiKey.PageDown);
+        Assert.Equal(4, list.SelectedIndex);
+        list.SelectedIndex = 0;
+        list.Pointer(20, 95);
+        Assert.Equal(4, list.SelectedIndex);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ExplicitPageSizeStillRequiresPagesWhenAllNaturalRowsFit(bool fitRows)
+    {
+        UiList list = new() { Paginated = true, AutoRowHeight = false, PageSize = 2, FitPageRows = fitRows, RowHeight = 20, Items = ["a", "b", "c"] };
+        list.Arrange(new UiRect(0, 0, 160, 200));
+        MeasuringCanvas canvas = new();
+        list.Draw(canvas, new UiTheme());
+
+        Assert.Equal(2, list.PageCount);
+        Assert.Equal(2, list.EffectivePageSize);
+        Assert.Contains(canvas.Texts, text => text.Text == "P.1 / 2");
+        list.Key(UiKey.PageDown);
+        Assert.Equal(2, list.SelectedIndex);
+        Assert.Equal(2, list.ScrollOffset);
+    }
+
+    [Fact]
+    public void FittedRowsRecomputeTheirMinimumHeightWhenWrappedContentNeedsOrReleasesTheFooter()
+    {
+        UiList list = new() { Paginated = true, PageSize = 3, FitPageRows = true, RowHeight = 20, FontSize = 20, TextInset = 0, Items = ["abcdefgh", "ab", "ab"] };
+        list.Arrange(new UiRect(0, 0, 44, 90));
+        list.Draw(new MeasuringCanvas(), new UiTheme());
+        Assert.Equal(2, list.PageCount);
+        Assert.Equal(2, list.EffectivePageSize);
+        list.SelectedIndex = 2;
+
+        list.Arrange(new UiRect(0, 0, 44, 120));
+        MeasuringCanvas canvas = new();
+        list.Draw(canvas, new UiTheme());
+        Assert.Equal(1, list.PageCount);
+        Assert.Equal(0, list.ScrollOffset);
+        Assert.Equal(2, list.SelectedIndex);
+        Assert.Equal(3, canvas.Texts.Count);
+        Assert.All(canvas.Texts, text => Assert.Equal(40, text.Bounds.Height));
+        Assert.Equal(120, canvas.Texts[^1].Bounds.Bottom);
+    }
+
+    [Fact]
+    public void FittedIconGuttersKeepWrappingIndependentOfTheFooter()
+    {
+        UiList list = new()
+        {
+            Paginated = true,
+            PageSize = 3,
+            FitPageRows = true,
+            RowHeight = 20,
+            FontSize = 20,
+            TextInset = 0,
+            Images = [new UiImageSource(UiImageKind.Icon, 1)],
+            Items = ["abcdefgh", "ab", "ab"]
+        };
+        list.Arrange(new UiRect(0, 0, 110, 90));
+        MeasuringCanvas canvas = new();
+        list.Draw(canvas, new UiTheme());
+        Assert.Equal(2, list.PageCount);
+        Assert.Equal(2, list.EffectivePageSize);
+        Assert.Equal(30, canvas.Texts[0].Bounds.X);
+        Assert.Equal(40, canvas.Texts[0].Bounds.Height);
+        Assert.Equal("P.1 / 2", canvas.Texts[^1].Text);
+        int measurements = canvas.Measurements;
+        canvas.Texts.Clear();
+        list.Draw(canvas, new UiTheme());
+        Assert.Equal(measurements, canvas.Measurements);
+        Assert.Equal("P.1 / 2", canvas.Texts[^1].Text);
+        list.Key(UiKey.PageDown);
+        Assert.Equal(2, list.SelectedIndex);
+
+        list.Arrange(new UiRect(0, 0, 110, 120));
+        canvas.Texts.Clear();
+        list.Draw(canvas, new UiTheme());
+        Assert.Equal(1, list.PageCount);
+        Assert.Equal(0, list.ScrollOffset);
+        Assert.Equal(2, list.SelectedIndex);
+        Assert.Equal(list.Items, canvas.Texts.Select(text => text.Text));
+        Assert.All(canvas.Texts, text => Assert.Equal(40, text.Bounds.Height));
+    }
+
+    [Fact]
+    public void FractionalFittedRowHeightDoesNotCreateItsOwnFooter()
+    {
+        UiList list = new() { Paginated = true, AutoRowHeight = false, PageSize = 9, FitPageRows = true, Items = Enumerable.Repeat("a", 9).ToList() };
+        list.Arrange(new UiRect(0, 0, 160, 181));
+        MeasuringCanvas canvas = new();
+        list.Draw(canvas, new UiTheme());
+        Assert.Equal(1, list.PageCount);
+        Assert.Equal(9, canvas.Texts.Count);
+        Assert.Equal(181, canvas.Texts[^1].Bounds.Bottom, 3);
+    }
+
+    [Fact]
+    public void ChangedTextAndRowHeightReleaseTheFooterWithoutRearranging()
+    {
+        UiList list = new() { Paginated = true, RowHeight = 20, FontSize = 20, TextInset = 0, Items = ["abcdefgh", "abcdefgh", "ab"] };
+        list.Arrange(new UiRect(0, 0, 44, 80));
+        list.Draw(new MeasuringCanvas(), new UiTheme());
+        Assert.Equal(3, list.PageCount);
+        list.SelectedIndex = 2;
+        list.Items[0] = "ab";
+        list.Items[1] = "ab";
+        MeasuringCanvas canvas = new();
+        list.Draw(canvas, new UiTheme());
+        Assert.Equal(1, list.PageCount);
+        Assert.Equal(0, list.ScrollOffset);
+        Assert.Equal(2, list.SelectedIndex);
+        Assert.Equal(3, canvas.Texts.Count);
+
+        list.RowHeight = 30;
+        list.Draw(new MeasuringCanvas(), new UiTheme());
+        Assert.Equal(3, list.PageCount);
+        list.RowHeight = 20;
+        list.Draw(new MeasuringCanvas(), new UiTheme());
+        Assert.Equal(1, list.PageCount);
+        Assert.Equal(2, list.SelectedIndex);
     }
 
     private sealed class MeasuringCanvas : IUiCanvas

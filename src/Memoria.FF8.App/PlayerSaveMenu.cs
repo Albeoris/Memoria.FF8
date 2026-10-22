@@ -21,6 +21,7 @@ internal sealed class PlayerSaveMenu
     private bool cancelRequested;
     public const int EntriesPerPage = 5;
     public int PageCapacity { get; private set; } = EntriesPerPage;
+    internal float? ConfiguredTextScale { get; set; }
 
     internal void SetPageCapacity(int capacity)
     {

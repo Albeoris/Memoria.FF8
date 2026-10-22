@@ -145,10 +145,12 @@ public sealed class UiPanel : UiElement
     public UiThickness Padding { get; set; }
     public float CaptionHeight { get; set; } = 32;
     public float CaptionFontSize { get; set; } = UiTheme.DefaultCaptionFontSize;
+    internal float ThemeCaptionHeight { get; set; }
+    private float ContentCaptionHeight => Math.Max(Math.Max(0, CaptionHeight), ThemeCaptionHeight);
 
     public override UiSize Measure(UiSize available)
     {
-        float caption = string.IsNullOrEmpty(Caption) ? 0 : Math.Max(0, CaptionHeight);
+        float caption = string.IsNullOrEmpty(Caption) ? 0 : ContentCaptionHeight;
         UiSize inner = new(Math.Max(0, available.Width - Padding.Horizontal), Math.Max(0, available.Height - Padding.Vertical - caption));
         UiSize content = base.Measure(inner);
         return ResolveDesiredSize(content.Width + Padding.Horizontal, content.Height + Padding.Vertical + caption, available);
@@ -158,7 +160,7 @@ public sealed class UiPanel : UiElement
     {
         Bounds = bounds;
         UiRect content = UiLayout.Inset(bounds, Padding);
-        float caption = string.IsNullOrEmpty(Caption) ? 0 : Math.Min(content.Height, Math.Max(0, CaptionHeight));
+        float caption = string.IsNullOrEmpty(Caption) ? 0 : Math.Min(content.Height, ContentCaptionHeight);
         content = new UiRect(content.X, content.Y + caption, content.Width, content.Height - caption);
         foreach (UiElement child in Children)
         {

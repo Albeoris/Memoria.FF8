@@ -35,7 +35,7 @@ public sealed partial class MenuController
             return ConfigCategories.Select(category => new MenuEntry("config-" + category.Id, category.Label, category.Help, "config-" + category.Id)).ToArray();
         }
         List<MenuEntry> entries = [];
-        foreach (MenuSetting setting in MenuSettings.Definitions)
+        foreach (MenuSetting setting in MenuSettings.Definitions.OrderBy(setting => setting.Id == "UI presentation" ? 0 : 1))
         {
             if (ScreenId == "new-game-options" ? setting.Id is not ("Difficulty" or "Battle ATB mode" or "Rare card markers" or "Shared magic stock" or "Infinite magic" or "Smart Attack" or "GF Transformations") : ConfigCategory(setting.Id) != ScreenId["config-".Length..])
             {
@@ -49,7 +49,7 @@ public sealed partial class MenuController
             {
                 continue;
             }
-            string value = Data.Settings.GetValueOrDefault(setting.Id, setting.Values[0]);
+            string value = setting.Id == "UI font" && (IsDemo || _readPreferences is not null) ? HostSettingValue(setting.Id) : Data.Settings.GetValueOrDefault(setting.Id, setting.Values[0]);
             int next = (Array.IndexOf(setting.Values, value) + 1) % setting.Values.Length;
             bool enabled = setting.Id != "GF Transformations" || !Data.GuardianFormsPreferenceLocked;
             string help = enabled ? setting.Description : "GF Transformations is unavailable until the battle ends.";
@@ -106,7 +106,7 @@ public sealed partial class MenuController
                 Click = () => Activate(index)
             };
         }
-        string value = Data.Settings.GetValueOrDefault(setting.Id, setting.Values[0]);
+        string value = setting.Id == "UI font" && (IsDemo || _readPreferences is not null) ? HostSettingValue(setting.Id) : Data.Settings.GetValueOrDefault(setting.Id, setting.Values[0]);
         UiElement row;
         if (TryConfigNumbers(setting, out float[] numbers))
         {

@@ -11,7 +11,11 @@ internal sealed partial class BattleHudElement : UiElement
     private float Left => Bounds.X + (Bounds.Width - 960 * Scale) / 2;
     private bool ShowingMagicList => controller.SelectingAction && !controller.SelectingGuardianFormAction && !controller.HasGuardianFormCommands && !controller.SelectingTarget && controller.SelectedCommand == BattleAbility.Magic;
     private float CommandWidth { get; set; } = 194;
+    private float CommandPanelY { get; set; } = 516;
+    private float CommandContentY { get; set; } = 530;
+    private float CommandPanelHeight { get; set; } = 132;
     private UiRect TargetPanel { get; set; }
+    private float TargetContentOffset { get; set; } = 27;
     private float TargetColumnWidth { get; set; }
     private float TargetRowHeight { get; set; }
     private float Top => Bounds.Y + (Bounds.Height - 672 * Scale) / 2;
@@ -104,15 +108,20 @@ internal sealed partial class BattleHudElement : UiElement
             CommandWidth = 194;
         }
         int rows = controller.SelectingTarget ? controller.VisibleTargets.Count : choices.Count;
-        float menuHeight = session.Outcome != BattleOutcome.Active ? 76 : 20 + Math.Max(1, Math.Min(4, rows)) * 28;
+        float captionSize = UiTheme.DefaultCaptionFontSize * Scale * controller.TextScale;
+        float captionContentHeight = Math.Max(theme.CaptionContentHeight(captionSize), captionSize * 0.75f) / Scale;
+        float commandOffset = Math.Max(14, captionContentHeight) - 14;
+        CommandPanelHeight = (session.Outcome != BattleOutcome.Active ? 76 : 20 + Math.Max(1, Math.Min(4, rows)) * 28) + commandOffset;
+        CommandPanelY = Math.Min(516, 660 - CommandPanelHeight);
+        CommandContentY = CommandPanelY + 14 + commandOffset;
         if ((canAttack && !controller.SelectingTarget) || session.Outcome != BattleOutcome.Active)
         {
-            theme.Panel(canvas, Rect(30, 516, CommandWidth, menuHeight), caption, UiTheme.DefaultCaptionFontSize * Scale * controller.TextScale);
+            theme.Panel(canvas, Rect(30, CommandPanelY, CommandWidth, CommandPanelHeight), caption, captionSize);
         }
         if (session.Outcome != BattleOutcome.Active)
         {
-            theme.Pointer(canvas, Left + 38 * Scale, Top + 540 * Scale, 12 * Scale);
-            Text(canvas, theme, session.CanReturnToField ? "Continue" : "Load / Retry", 60, 532, 156, 30, 21);
+            theme.Pointer(canvas, Left + 38 * Scale, Top + (CommandContentY + 10) * Scale, 12 * Scale);
+            Text(canvas, theme, session.CanReturnToField ? "Continue" : "Load / Retry", 60, CommandContentY + 2, 156, 30, 21);
         }
         else if (!controller.CommandMenuHidden && controller.SelectingTarget)
         {
@@ -123,7 +132,7 @@ internal sealed partial class BattleHudElement : UiElement
             int start = Math.Clamp(controller.ChoiceIndex - 1, 0, Math.Max(0, choices.Count - 4));
             for (int row = 0; row < 4 && start + row < choices.Count; row++)
             {
-                float y = 530 + row * 28;
+                float y = CommandContentY + row * 28;
                 if (start + row == controller.ChoiceIndex)
                 {
                     theme.Pointer(canvas, Left + 38 * Scale, Top + (y + 5) * Scale, 10 * Scale);
@@ -198,21 +207,23 @@ internal sealed partial class BattleHudElement : UiElement
     private void DrawTargets(IUiCanvas canvas, UiTheme theme)
     {
         IReadOnlyList<BattleCombatant> targets = controller.VisibleTargets;
-        bool allies = targets.Count > 0 && targets.All(actor => actor.IsPlayer);
         float nameWidth = targets.Select(actor => canvas.MeasureText(actor.Name, 24 * Scale * controller.TextScale, 4096 * Scale).Width / Scale).DefaultIfEmpty(0).Max();
-        float x = allies ? 378 : 54;
+        float x = 54;
         int columns = Math.Max(1, (targets.Count + 3) / 4);
-        TargetColumnWidth = Math.Min(Math.Max(allies ? 276 : 324, 6 * MathF.Floor((nameWidth + 54) / 6)), ((allies ? 942 : 496) - x) / columns);
+        TargetColumnWidth = Math.Min(Math.Max(324, 6 * MathF.Floor((nameWidth + 54) / 6)), (496 - x) / columns);
         float textInset = columns > 1 ? 54 : 30;
         float textWidth = TargetColumnWidth - textInset - 12;
         TargetRowHeight = Math.Max(39, canvas.MeasureText("Mg", 24 * Scale * controller.TextScale, float.PositiveInfinity).Height / Scale + 6);
-        float y = 609 - 4 * TargetRowHeight;
-        TargetPanel = new UiRect(x, y, TargetColumnWidth * columns, 4 * TargetRowHeight + 39);
-        theme.Panel(canvas, Rect(TargetPanel.X, TargetPanel.Y, TargetPanel.Width, TargetPanel.Height), "TARGET", UiTheme.DefaultCaptionFontSize * Scale * controller.TextScale);
+        float captionSize = UiTheme.DefaultCaptionFontSize * Scale * controller.TextScale;
+        TargetContentOffset = Math.Max(27, Math.Max(theme.CaptionContentHeight(captionSize), captionSize * 0.75f) / Scale);
+        float panelHeight = 4 * TargetRowHeight + TargetContentOffset + 12;
+        float y = Math.Min(609 - 4 * TargetRowHeight, 660 - panelHeight);
+        TargetPanel = new UiRect(x, y, TargetColumnWidth * columns, panelHeight);
+        theme.Panel(canvas, Rect(TargetPanel.X, TargetPanel.Y, TargetPanel.Width, TargetPanel.Height), "TARGET", captionSize);
         for (int index = 0; index < targets.Count; index++)
         {
             BattleCombatant actor = targets[index];
-            float rowY = y + 27 + index % 4 * TargetRowHeight;
+            float rowY = y + TargetContentOffset + index % 4 * TargetRowHeight;
             float columnX = x + index / 4 * TargetColumnWidth;
             if (controller.SelectingTargetGroup || controller.SelectedTarget?.Id == actor.Id)
             {
@@ -231,9 +242,9 @@ internal sealed partial class BattleHudElement : UiElement
         string help = controller.SelectingTargetGroup ? controller.TargetGroupDescription : controller.PhysicalOverrideCaption;
         float actionHeight = canvas.MeasureText("Mg", 20 * Scale * controller.TextScale, float.PositiveInfinity).Height / Scale;
         float helpHeight = string.IsNullOrEmpty(help) ? 0 : canvas.MeasureText("Mg", 15 * Scale * controller.TextScale, float.PositiveInfinity).Height / Scale + 4;
-        float panelHeight = 14 + actionHeight + helpHeight;
-        float helpY = y - Math.Max(18, UiTheme.DefaultCaptionFontSize * controller.TextScale * 0.75f + 8) - panelHeight;
-        theme.Panel(canvas, Rect(54, helpY, 440, panelHeight));
+        float helpPanelHeight = 14 + actionHeight + helpHeight;
+        float helpY = y - Math.Max(18, UiTheme.DefaultCaptionFontSize * controller.TextScale * 0.75f + 8) - helpPanelHeight;
+        theme.Panel(canvas, Rect(54, helpY, 440, helpPanelHeight));
         Text(canvas, theme, controller.TargetActionCaption, 68, helpY + 7, 412, actionHeight, 20);
         Text(canvas, theme, help, 68, helpY + 7 + actionHeight + 4, 412, helpHeight, 15, true);
     }
@@ -267,14 +278,14 @@ internal sealed partial class BattleHudElement : UiElement
 
     private int TargetIndex(float x, float y)
     {
-        int row = (int)Math.Floor((y - Rect(0, TargetPanel.Y + 27, 0, 0).Y) / (TargetRowHeight * Scale));
+        int row = (int)Math.Floor((y - Rect(0, TargetPanel.Y + TargetContentOffset, 0, 0).Y) / (TargetRowHeight * Scale));
         int column = (int)Math.Floor((x - Rect(TargetPanel.X, 0, 0, 0).X) / (TargetColumnWidth * Scale));
         return row is >= 0 and < 4 && column >= 0 ? column * 4 + row : -1;
     }
 
     public override void PointerHover(float x, float y)
     {
-        if (controller.CommandMenuHidden || !controller.SelectingTarget || !Rect(TargetPanel.X, TargetPanel.Y + 27, TargetPanel.Width, TargetPanel.Height - 27).Contains(x, y))
+        if (controller.CommandMenuHidden || !controller.SelectingTarget || !Rect(TargetPanel.X, TargetPanel.Y + TargetContentOffset, TargetPanel.Width, TargetPanel.Height - TargetContentOffset).Contains(x, y))
         {
             return;
         }
@@ -299,7 +310,7 @@ internal sealed partial class BattleHudElement : UiElement
             }
             return;
         }
-        if (controller.SelectingTarget && Rect(TargetPanel.X, TargetPanel.Y, TargetPanel.Width, TargetPanel.Height).Contains(x, y) || !controller.SelectingTarget && Rect(30, 516, CommandWidth, 132).Contains(x, y))
+        if (controller.SelectingTarget && Rect(TargetPanel.X, TargetPanel.Y, TargetPanel.Width, TargetPanel.Height).Contains(x, y) || !controller.SelectingTarget && Rect(30, CommandPanelY, CommandWidth, Math.Max(132, CommandPanelHeight)).Contains(x, y))
         {
             if (controller.Session.Outcome != BattleOutcome.Active)
             {
@@ -315,7 +326,7 @@ internal sealed partial class BattleHudElement : UiElement
             }
             else
             {
-                int index = (int)Math.Floor((y - Rect(0, 530, 0, 0).Y) / (28 * Scale)) + controller.ChoiceStart;
+                int index = (int)Math.Floor((y - Rect(0, CommandContentY, 0, 0).Y) / (28 * Scale)) + controller.ChoiceStart;
                 if (index >= 0 && index < controller.ChoiceLabels.Count)
                 {
                     if (x >= Rect(194, 0, 0, 0).X && controller.SelectingAction && !controller.SelectingGuardianFormAction && controller.ActionChoices.ElementAtOrDefault(index) is { } action && controller.CanOpenGuardianFormActions(action))

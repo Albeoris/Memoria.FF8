@@ -145,7 +145,7 @@ public sealed class SystemFontTests
     }
 
     [Fact]
-    public void Ordinary_config_changes_live_fonts_and_shows_their_previews()
+    public void Ordinary_config_changes_current_skin_font_and_displays_selected_family()
     {
         UiPreferences preferences = new();
         MenuData ReadData()
@@ -163,7 +163,7 @@ public sealed class SystemFontTests
         }
         MenuController menus = new(ReadData, action => preferences = preferences.WithSetting(action.SubjectId, action.Value));
         menus.ConnectPreferences(() => preferences, action => preferences = preferences.WithSetting(action.SubjectId, action.Value));
-        menus.Open("config", false);
+        menus.Open("config-interface", false);
         int fontIndex = menus.Entries.Select((entry, index) => (entry, index)).Single(pair => pair.entry.Id == "UI font").index;
         for (int index = 0; index < fontIndex; index++)
         {
@@ -172,10 +172,9 @@ public sealed class SystemFontTests
         string before = preferences.UiFontFamily;
         menus.Navigate(MenuInput.Right);
         Assert.NotEqual(before, preferences.UiFontFamily);
-        Assert.Contains(preferences.UiFontFamily, menus.SelectedEntry!.Label);
-        FontPreviewElement[] previews = Descendants(menus.BuildView().Root).OfType<FontPreviewElement>().ToArray();
-        Assert.Equal(2, previews.Length);
-        Assert.Equal(preferences.UiFontFamily, previews.Single(preview => preview.Id == "ui-font-preview").FontFamily);
+        UiChoiceRow row = Assert.Single(Descendants(menus.BuildView().Root).OfType<UiChoiceRow>(), candidate => candidate.Id == "UI font");
+        Assert.Equal(preferences.UiFontFamily, row.Items[row.SelectedIndex]);
+        Assert.Equal(preferences.UiFontFamily, menus.CreateTheme().FontFamily);
     }
 
     private sealed class FontCanvas : IUiCanvas

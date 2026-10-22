@@ -433,12 +433,14 @@ public sealed class BattleUiTests
     {
         MenuController menus = new();
         menus.Open("debug-room", true);
-        Assert.False(menus.Entries[0].Enabled);
+        string laboratoryId = menus.Entries.Single(entry => entry.Label == "Battle laboratory").Id;
+        Assert.False(menus.Entries.Single(entry => entry.Id == laboratoryId).Enabled);
         int requests = 0;
         menus.BattleDebugRequested += () => requests++;
         MenuData fixture = menus.Data;
-        Assert.Equal("Battle laboratory", menus.Entries[0].Label);
-        Assert.True(menus.Entries[0].Enabled);
+        Assert.Equal("Battle laboratory", menus.Entries.Single(entry => entry.Id == laboratoryId).Label);
+        Assert.True(menus.Entries.Single(entry => entry.Id == laboratoryId).Enabled);
+        menus.SelectEntry("debug-room", laboratoryId);
         menus.Navigate(MenuInput.Confirm);
         Assert.Equal(1, requests);
         Assert.Same(fixture, menus.Data);

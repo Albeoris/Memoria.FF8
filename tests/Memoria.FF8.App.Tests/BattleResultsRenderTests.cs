@@ -83,17 +83,20 @@ public sealed class BattleResultsRenderTests
                 {
                     controller.AdvancePresentation(TimeSpan.FromSeconds((1 - controller.ResultOpacity) * 16 / BattleSession.FramesPerSecond + 0.000001));
                 }
-                using Bitmap bitmap = new(width, height, PixelFormat.Format32bppArgb);
-                using (BattlePreviewCanvas canvas = new(bitmap, assets.GameDirectory))
+                foreach (UiTheme theme in new UiTheme[] { new UiTheme(), new VectorUiTheme() })
                 {
-                    UiView view = controller.BuildView();
-                    view.Resize(width, height);
-                    view.Draw(canvas, new UiTheme());
-                }
-                Assert.Equal(Color.FromArgb(255, 0, 0, 0).ToArgb(), bitmap.GetPixel(0, 0).ToArgb());
-                if (output is not null)
-                {
-                    bitmap.Save(Path.Combine(output, $"{name}-{width}.png"), ImageFormat.Png);
+                    using Bitmap bitmap = new(width, height, PixelFormat.Format32bppArgb);
+                    using (BattlePreviewCanvas canvas = new(bitmap, assets.GameDirectory))
+                    {
+                        UiView view = controller.BuildView();
+                        view.Resize(width, height);
+                        view.Draw(canvas, theme);
+                    }
+                    Assert.Equal(Color.FromArgb(255, 0, 0, 0).ToArgb(), bitmap.GetPixel(0, 0).ToArgb());
+                    if (output is not null)
+                    {
+                        bitmap.Save(Path.Combine(output, $"{(theme is VectorUiTheme ? "vector" : "classic")}-{name}-{width}.png"), ImageFormat.Png);
+                    }
                 }
             }
         }

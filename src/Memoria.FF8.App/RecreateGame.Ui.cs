@@ -19,8 +19,8 @@ internal sealed partial class RecreateGame
     private UiTheme CreateUiTheme(float fontSize = 16, byte backgroundAlpha = 255)
     {
         return uiPreferences.MenuPresentation == MenuPresentation.Vector
-            ? new VectorUiTheme { FontSize = fontSize, PanelBackgroundAlpha = backgroundAlpha, FontFamily = uiPreferences.UiFontFamily == SystemFontCatalog.DefaultFamily ? "Georgia" : uiPreferences.UiFontFamily }
-            : new UiTheme { FontSize = fontSize, PanelBackgroundAlpha = backgroundAlpha };
+            ? new VectorUiTheme { FontSize = fontSize, PanelBackgroundAlpha = backgroundAlpha, FontFamily = uiPreferences.UiFontFamily }
+            : new UiTheme { FontSize = fontSize, PanelBackgroundAlpha = backgroundAlpha, FontFamily = uiPreferences.UiFontFamily };
     }
     private bool previousPresentationTogglePressed;
     private UiPreferences uiPreferences = new();
@@ -651,6 +651,7 @@ internal sealed partial class RecreateGame
         {
             MenuPresentation presentation = uiPreferences.MenuPresentation == MenuPresentation.Vector ? MenuPresentation.Classic : MenuPresentation.Vector;
             uiPreferences = uiPreferences with { MenuPresentation = presentation };
+            text.FontFamily = uiPreferences.UiFontFamily;
             uiPreferences.Save(UiPreferencesPath);
             SynchronizeMenuPresentation();
             gameMenus?.InvalidateLiveData();

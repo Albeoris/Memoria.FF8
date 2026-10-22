@@ -5,6 +5,56 @@ namespace Memoria.FF8.Ui.Tests;
 public sealed class UiPresentationTests
 {
     [Fact]
+    public void Panel_content_reserves_skin_caption_space_and_restores_it_when_switching()
+    {
+        UiLabel content = new() { Text = "Choose block to load", FontSize = 20 };
+        UiPanel panel = new() { Caption = "HELP", CaptionHeight = 0, Padding = 4 };
+        panel.Children.Add(content);
+        UiView view = new(panel);
+        view.Resize(500, 100);
+        RecordingCanvas canvas = new();
+        VectorUiTheme vector = new();
+        view.Draw(canvas, vector);
+        Assert.True(content.Bounds.Y >= vector.CaptionContentHeight(panel.CaptionFontSize));
+        Assert.True(content.Bounds.Height > 20);
+        Assert.Equal(0, panel.CaptionHeight);
+        view.Draw(canvas, new UiTheme());
+        Assert.Equal(4, content.Bounds.Y);
+        view.Draw(canvas, vector);
+        Assert.True(content.Bounds.Y >= vector.CaptionContentHeight(panel.CaptionFontSize));
+    }
+
+    [Fact]
+    public void Auto_panel_row_includes_caption_and_measured_body_before_arranging_siblings()
+    {
+        UiLabel content = new() { Text = "Page 1 / 22", FontSize = 20 };
+        UiPanel info = new() { Caption = "INFO", CaptionHeight = 0, Padding = 4 };
+        info.Children.Add(content);
+        UiPanel remaining = new() { GridRow = 1 };
+        UiGrid root = new();
+        root.RowDefinitions.Add(UiGridLength.Auto);
+        root.RowDefinitions.Add(UiGridLength.Star());
+        root.Children.Add(info);
+        root.Children.Add(remaining);
+        UiView view = new(root);
+        view.Resize(500, 300);
+        view.Draw(new RecordingCanvas(), new VectorUiTheme());
+        Assert.True(info.Bounds.Height >= content.Bounds.Height + 8 + new VectorUiTheme().CaptionContentHeight(info.CaptionFontSize));
+        Assert.True(remaining.Bounds.Y >= info.Bounds.Bottom);
+    }
+
+    [Fact]
+    public void Vector_uses_the_original_hand_pointer_alongside_its_selection_accent()
+    {
+        RecordingCanvas canvas = new();
+        VectorUiTheme theme = new();
+        theme.Selection(canvas, new UiRect(10, 10, 100, 30));
+        theme.Pointer(canvas, 4, 12, 16);
+        Assert.Equal(1, canvas.Pointers);
+        Assert.Contains(canvas.Fills, fill => fill.Color.R > fill.Color.B);
+    }
+
+    [Fact]
     public void Classic_primitives_keep_original_fill_colors_and_native_pointer()
     {
         RecordingCanvas canvas = new();

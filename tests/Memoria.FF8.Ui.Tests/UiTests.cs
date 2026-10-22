@@ -179,8 +179,8 @@ public sealed class UiTests
         list.Arrange(new UiRect(0, 0, 160, 30));
         canvas = new RecordingCanvas();
         list.Draw(canvas, new UiTheme());
-        Assert.Equal(0, list.VisibleRows);
-        Assert.Empty(canvas.Texts);
+        Assert.Equal(1, list.VisibleRows);
+        Assert.Equal(new[] { "only" }, canvas.Texts);
         list.Pointer(60, 2);
         list.Arrange(new UiRect(0, 0, 160, 64));
         canvas = new RecordingCanvas();

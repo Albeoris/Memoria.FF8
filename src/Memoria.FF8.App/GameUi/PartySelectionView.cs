@@ -63,6 +63,9 @@ public static class PartySelectionView
 
     private sealed class PartyPane(NativePartyMenuState menu, MenuData data, int candidate, string cancelHint, float textScale) : UiElement
     {
+        private float bodyTop = 108;
+        private float bodyScale = 1;
+
         protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
         {
             IReadOnlyList<PlayerAction> inputs = NativePartyMenuProjection.Inputs(menu);
@@ -70,34 +73,51 @@ public static class PartySelectionView
             bool pending = menu.SelectedPartySlot is not null;
             byte source = pending ? menu.TemporaryCombatParty![menu.SelectedPartySlot!.Value] : (byte)255;
             bool lockedSource = source != 255 && (menu.LockedMask & 1 << source) != 0;
-            theme.Panel(canvas, new UiRect(18, 18, 924, 78), "HELP", UiTheme.DefaultCaptionFontSize * textScale);
+            float captionSize = UiTheme.DefaultCaptionFontSize * textScale;
+            float captionHeight = theme.CaptionContentHeight(captionSize);
+            float helpHeight = 44;
+            if (captionHeight > 0)
+            {
+                try
+                {
+                    helpHeight = Math.Max(helpHeight, canvas.MeasureText("Mg", 25 * textScale, float.PositiveInfinity).Height);
+                }
+                catch (NotSupportedException)
+                {
+                    helpHeight = Math.Max(helpHeight, 25 * textScale * 1.5f);
+                }
+            }
+            float headerHeight = Math.Max(78, captionHeight + helpHeight + 16);
+            bodyTop = 18 + headerHeight + 12;
+            bodyScale = Math.Max(0, 588 - bodyTop) / 480;
+            theme.Panel(canvas, new UiRect(18, 18, 924, headerHeight), "HELP", captionSize);
             string help = menu.Phase != NativePartyMenuPhase.Active ? "Returning to field" : lockedSource ? "Select a party member to reorder." : pending ? "Select a character to exchange." : "Select a party member.";
-            Text(canvas, help, 25, new UiRect(34, 34, 890, 44), theme.Foreground, UiAlignment.Center);
+            Text(canvas, help, 25, new UiRect(34, Math.Max(34, 18 + captionHeight), 890, helpHeight), theme.Foreground, UiAlignment.Center);
 
             for (int slot = 0; slot < 3; slot++)
             {
                 UiRect bounds = new(18, 108 + slot * 162, 510, 156);
-                theme.Panel(canvas, bounds);
+                theme.Panel(canvas, BodyRect(bounds));
                 byte row = menu.TemporaryCombatParty![slot];
                 MenuCharacter? character = Character(row);
                 Portrait(canvas, character, new UiRect(62, bounds.Y + 14, 88, 128));
                 Status(canvas, theme, character, new UiRect(174, bounds.Y + 18, 328, 124));
                 if (row != 255 && (menu.LockedMask & 1 << row) != 0)
                 {
-                    Text(canvas, "LOCK", 15, new UiRect(62, bounds.Y + 116, 88, 24), theme.Muted);
+                    Text(canvas, "LOCK", 15, BodyRect(new UiRect(62, bounds.Y + 116, 88, 24)), theme.Muted);
                 }
                 bool active = focused is { Kind: PlayerActionKind.SelectPartySlot } action && action.Value == slot;
                 if (menu.SelectedPartySlot == slot)
                 {
-                    theme.Pointer(canvas, 30, bounds.Y + 57, 18);
+                    theme.Pointer(canvas, 30, BodyY(bounds.Y + 57), 18 * bodyScale);
                 }
                 if (active)
                 {
-                    theme.Pointer(canvas, 38, bounds.Y + 65, 18);
+                    theme.Pointer(canvas, 38, BodyY(bounds.Y + 65), 18 * bodyScale);
                 }
             }
 
-            theme.Panel(canvas, new UiRect(534, 108, 408, 318));
+            theme.Panel(canvas, BodyRect(new UiRect(534, 108, 408, 318)));
             for (int index = 0; index < 8; index++)
             {
                 byte row = menu.TemporaryReserveParty![index];
@@ -105,22 +125,22 @@ public static class PartySelectionView
                 MenuCharacter? character = Character(row);
                 Portrait(canvas, character, new UiRect(cell.X + 12, cell.Y + 4, 64, 96));
                 bool locked = row != 255 && (menu.LockedMask & 1 << row) != 0;
-                Text(canvas, character?.Name ?? "", 18, new UiRect(cell.X, cell.Y + 104, cell.Width, 30), locked || lockedSource ? theme.Muted : theme.Foreground);
+                Text(canvas, character?.Name ?? "", 18, BodyRect(new UiRect(cell.X, cell.Y + 104, cell.Width, 30)), locked || lockedSource ? theme.Muted : theme.Foreground);
                 if (locked)
                 {
-                    Text(canvas, "LOCK", 13, new UiRect(cell.X + 20, cell.Y + 78, 62, 22), theme.Muted);
+                    Text(canvas, "LOCK", 13, BodyRect(new UiRect(cell.X + 20, cell.Y + 78, 62, 22)), theme.Muted);
                 }
                 if (focused is { Kind: PlayerActionKind.SelectPartyMember } action && action.Value == row && Array.IndexOf(menu.TemporaryReserveParty, row) == index)
                 {
-                    theme.Pointer(canvas, cell.X - 8, cell.Y + 42, 16);
+                    theme.Pointer(canvas, cell.X - 8, BodyY(cell.Y + 42), 16 * bodyScale);
                     if (row == 255)
                     {
-                        Text(canvas, "Empty", 18, new UiRect(cell.X, cell.Y + 104, cell.Width, 30), theme.Foreground);
+                        Text(canvas, "Empty", 18, BodyRect(new UiRect(cell.X, cell.Y + 104, cell.Width, 30)), theme.Foreground);
                     }
                 }
             }
 
-            theme.Panel(canvas, new UiRect(534, 432, 408, 156));
+            theme.Panel(canvas, BodyRect(new UiRect(534, 432, 408, 156)));
             int selectedRow = focused is { Kind: PlayerActionKind.SelectPartyMember } reserve ? reserve.Value : focused is { Kind: PlayerActionKind.SelectPartySlot } combat ? menu.TemporaryCombatParty![combat.Value] : 255;
             Status(canvas, theme, Character(selectedRow), new UiRect(558, 450, 360, 126));
             theme.Panel(canvas, new UiRect(18, 600, 924, 54));
@@ -133,16 +153,20 @@ public static class PartySelectionView
             }
         }
 
+        private float BodyY(float y) => bodyTop + (y - 108) * bodyScale;
+
+        private UiRect BodyRect(UiRect bounds) => new(bounds.X, BodyY(bounds.Y), bounds.Width, bounds.Height * bodyScale);
+
         private MenuCharacter? Character(int row)
         {
             return row == 255 ? null : data.Characters.FirstOrDefault(character => character.Id == $"character-{row}");
         }
 
-        private static void Portrait(IUiCanvas canvas, MenuCharacter? character, UiRect bounds)
+        private void Portrait(IUiCanvas canvas, MenuCharacter? character, UiRect bounds)
         {
             if (character?.NativeId is int nativeId)
             {
-                canvas.Image(new UiImageSource(UiImageKind.CharacterPortrait, nativeId), bounds);
+                canvas.Image(new UiImageSource(UiImageKind.CharacterPortrait, nativeId), BodyRect(bounds));
             }
         }
 
@@ -153,13 +177,13 @@ public static class PartySelectionView
 
         private void Status(IUiCanvas canvas, UiTheme theme, MenuCharacter? character, UiRect bounds)
         {
-            Text(canvas, character?.Name ?? "Empty", 28, new UiRect(bounds.X, bounds.Y, bounds.Width, 40), theme.Foreground);
+            Text(canvas, character?.Name ?? "Empty", 28, BodyRect(new UiRect(bounds.X, bounds.Y, bounds.Width, 40)), theme.Foreground);
             if (character is null)
             {
                 return;
             }
-            Text(canvas, $"Lv  {MenuController.Number(character.Level)}", 23, new UiRect(bounds.X, bounds.Y + 43, bounds.Width, 34), theme.Foreground);
-            Text(canvas, $"HP  {MenuController.Hp(character)}", 23, new UiRect(bounds.X, bounds.Y + 81, bounds.Width, 38), theme.Foreground);
+            Text(canvas, $"Lv  {MenuController.Number(character.Level)}", 23, BodyRect(new UiRect(bounds.X, bounds.Y + 43, bounds.Width, 34)), theme.Foreground);
+            Text(canvas, $"HP  {MenuController.Hp(character)}", 23, BodyRect(new UiRect(bounds.X, bounds.Y + 81, bounds.Width, 38)), theme.Foreground);
         }
     }
 }

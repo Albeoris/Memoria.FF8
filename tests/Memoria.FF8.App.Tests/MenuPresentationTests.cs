@@ -115,7 +115,9 @@ public sealed class MenuPresentationTests
                 menu.Presentation = presentation;
                 UiView view = menu.BuildView();
                 view.Resize(1280, 720);
-                Assert.Equal(entries, menu.Entries.ToArray());
+                Assert.Equal(entries.Select(entry => entry.Id), menu.Entries.Select(entry => entry.Id));
+                // Font configuration is skin-specific; gameplay commands retain their complete contracts.
+                Assert.Equal(entries.Where(entry => entry.Id != "UI font"), menu.Entries.Where(entry => entry.Id != "UI font"));
                 Assert.Equal(navigation, JsonSerializer.Serialize(menu.CaptureNavigation()));
                 Assert.Equal(presentation == MenuPresentation.Vector ? UiViewportMode.Expand : UiViewportMode.Fit, view.ViewportMode);
                 if (presentation == MenuPresentation.Vector)
