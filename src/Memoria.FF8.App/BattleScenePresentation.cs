@@ -111,7 +111,7 @@ internal sealed partial class BattleScenePresentation
     {
         if (renderer?.Width != width || renderer.Height != height)
         {
-            renderer = new BattleRenderer(width, height);
+            renderer = new BattleRenderer(width, height, ViewportLayout.Fit(320, 240, width, height));
             renderedPixels = null;
             renderedGpu = null;
         }
@@ -225,13 +225,15 @@ internal sealed partial class BattleScenePresentation
         {
             throw new InvalidOperationException("Render the battle scene before projecting its effects.");
         }
-        float scale = viewport.Height / 672f;
+        float scale = renderer.ProjectionBounds.Height * viewport.Height / renderer.Height / 672f;
         canvas.PushClip(viewport);
         try
         {
             if (session.NativeGraphics is { } graphics)
             {
-                BattleDamageTextPresentation.Draw(graphics.Effects.TextDraws, canvas, viewport);
+                PixelBounds native = renderer.ProjectionBounds;
+                UiRect nativeViewport = new(viewport.X + native.X * viewport.Width / renderer.Width, viewport.Y + native.Y * viewport.Height / renderer.Height, native.Width * viewport.Width / renderer.Width, native.Height * viewport.Height / renderer.Height);
+                BattleDamageTextPresentation.Draw(graphics.Effects.TextDraws, canvas, nativeViewport);
                 return;
             }
             foreach (BattleImpactCue cue in impactTimeline.Collect(session))

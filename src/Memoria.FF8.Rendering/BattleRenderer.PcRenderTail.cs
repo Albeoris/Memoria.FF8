@@ -69,10 +69,10 @@ public sealed partial class BattleRenderer
             uint[] nativeSurface = new uint[checked(profile.SurfaceWidth * profile.SurfaceHeight)];
             for (int y = 0; y < profile.SurfaceHeight; y++)
             {
-                int sourceY = Math.Min(Height - 1, (int)(((long)y * 2 + 1) * Height / (2 * profile.SurfaceHeight)));
+                int sourceY = ProjectionBounds.Y + Math.Min(ProjectionBounds.Height - 1, (int)(((long)y * 2 + 1) * ProjectionBounds.Height / (2 * profile.SurfaceHeight)));
                 for (int x = 0; x < profile.SurfaceWidth; x++)
                 {
-                    int sourceX = Math.Min(Width - 1, (int)(((long)x * 2 + 1) * Width / (2 * profile.SurfaceWidth)));
+                    int sourceX = ProjectionBounds.X + Math.Min(ProjectionBounds.Width - 1, (int)(((long)x * 2 + 1) * ProjectionBounds.Width / (2 * profile.SurfaceWidth)));
                     nativeSurface[y * profile.SurfaceWidth + x] = source[sourceY * Width + sourceX];
                 }
             }
@@ -92,7 +92,7 @@ public sealed partial class BattleRenderer
         }
         PixelImage image = new(256, 256, texels);
         ImmutableArray<NativeBattlePcRenderVertex> native = receipt.QuadVertices56D5F0();
-        TriangleVertex[] vertices = native.Select(vertex => new TriangleVertex(new((float)(((double)vertex.X + 0.5) * Width / profile.SurfaceWidth), (float)(((double)vertex.Y + 0.5) * Height / profile.SurfaceHeight)), vertex.Z, vertex.ReciprocalW, new(vertex.U, vertex.V), Vector4.One)).ToArray();
+        TriangleVertex[] vertices = native.Select(vertex => new TriangleVertex(new(ProjectionBounds.X + (float)(((double)vertex.X + 0.5) * ProjectionBounds.Width / profile.SurfaceWidth), ProjectionBounds.Y + (float)(((double)vertex.Y + 0.5) * ProjectionBounds.Height / profile.SurfaceHeight)), vertex.Z, vertex.ReciprocalW, new(vertex.U, vertex.V), Vector4.One)).ToArray();
         if (TriangleRenderer is { } renderer)
         {
             TriangleMaterial triangleMaterial = new(image, selectedBlend, TriangleDepthComparison.LessEqual, false, 0, TriangleSampler.PointClamp);

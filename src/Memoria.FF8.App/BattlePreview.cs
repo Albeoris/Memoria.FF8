@@ -114,7 +114,7 @@ internal static class BattlePreview
         using Bitmap output = new(width, height, PixelFormat.Format32bppArgb);
         using (BattlePreviewCanvas canvas = new(output, gameDirectory))
         {
-            PixelBounds viewport = ViewportLayout.Fit(320, 240, width, height);
+            PixelBounds viewport = new(0, 0, width, height);
             canvas.DrawRgba(scene.Render(session, viewport.Width, viewport.Height), viewport.Width, viewport.Height, new UiRect(viewport.X, viewport.Y, viewport.Width, viewport.Height));
             scene.DrawEffects(session, canvas, new UiRect(viewport.X, viewport.Y, viewport.Width, viewport.Height));
             BattleHudController hud = new(session, session.QueueAttack, () => { }, () => session.AdvanceTurn())

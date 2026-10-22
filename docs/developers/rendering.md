@@ -22,7 +22,9 @@ Presentation history is transient. Scene replacement, restore, camera changes an
 
 The display host yields to drawing after a bounded batch of simulation updates in every scene. Missed display deadlines do not create presentation catch-up work; outstanding simulation time remains in its existing bounded accumulator. Ordinary world callbacks retain the dormant field VM instead of serializing it repeatedly. `GameSession.Save` prepares a current snapshot through the active allocation; callers exporting a `GameState` directly must use `PrepareSnapshot()` so shared process owners match the dormant VM checkpoint.
 
-World presentation expands horizontally to fill wide windows while retaining its original vertical camera scale and centered projection. Portrait windows retain a fitted native 320 × 224 view. The render resolution limit scales the expanded target uniformly; it does not narrow the visible camera region. Battle and movie aspect policies remain independent.
+World presentation expands horizontally to fill wide windows while retaining its original vertical camera scale and centered projection. Portrait windows retain a fitted native 320 × 224 view. The render resolution limit scales the expanded target uniformly; it does not narrow the visible camera region. Movies retain their independent aspect policy.
+
+Battle presentation fills the current window, expanding horizontally in wide windows and vertically in portrait windows. The centered native 4:3 canvas fixes the camera scale, primitive coordinates, damage text and framebuffer capture region; the surrounding target reveals additional scenery without stretching the scene or HUD. Standard stage and actor submission retains geometry outside the original screen bounds up to the representable projected coordinate range. Native near-plane, depth and winding rejection still apply. Raw native raster diagnostics can continue to render directly into their supplied coordinate canvas.
 
 ## Resource providers
 

@@ -437,8 +437,8 @@ internal sealed partial class RecreateGame
     {
         BattleSession active = ActiveBattle!;
         PixelBounds viewport = ViewportLayout.Fit(320, 240, bounds.Width, bounds.Height);
-        batch.Draw(battleGpu?.Target ?? battleTexture!, new Rectangle(viewport.X, viewport.Y, viewport.Width, viewport.Height), Color.White);
-        battleScene!.DrawEffects(active, uiCanvas!, new UiRect(viewport.X, viewport.Y, viewport.Width, viewport.Height));
+        batch.Draw(battleGpu?.Target ?? battleTexture!, bounds, Color.White);
+        battleScene!.DrawEffects(active, uiCanvas!, new UiRect(bounds.X, bounds.Y, bounds.Width, bounds.Height));
         UiView view = battleHud!.BuildView();
         view.Resize(bounds.Width, bounds.Height);
         view.Draw(uiCanvas!, uiTheme);

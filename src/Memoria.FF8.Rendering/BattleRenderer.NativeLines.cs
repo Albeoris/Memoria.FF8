@@ -77,10 +77,10 @@ public sealed partial class BattleRenderer
             bool full = (flags & 1) != 0;
             float nativeX = (float)((double)signedX * (full ? viewport.ScaleX : viewport.LowCoordinateScaleX) + viewport.NormalOffsetX);
             float nativeY = (float)((double)signedY * (full ? viewport.ScaleY : viewport.LowCoordinateScaleY) + viewport.NormalOffsetY);
-            return new((float)(((double)nativeX + 0.5) * Width / inputs.Width), (float)(((double)nativeY + 0.5) * Height / inputs.Height));
+            return new(ProjectionBounds.X + (float)(((double)nativeX + 0.5) * ProjectionBounds.Width / inputs.Width), ProjectionBounds.Y + (float)(((double)nativeY + 0.5) * ProjectionBounds.Height / inputs.Height));
         }
         float unit = (flags & 1) != 0 ? 1 : 0.125f;
-        return new(signedX * unit * Width / 320, signedY * unit * Height / 216);
+        return new(ProjectionBounds.X + signedX * unit * ProjectionBounds.Width / 320, ProjectionBounds.Y + signedY * unit * ProjectionBounds.Height / 216);
     }
 
     private void RasterNativeLine(NativeRasterTriangle line, int stripeTop, int stripeBottom)

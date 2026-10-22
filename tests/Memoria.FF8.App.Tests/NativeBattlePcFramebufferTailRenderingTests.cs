@@ -39,6 +39,33 @@ public sealed class NativeBattlePcFramebufferTailRenderingTests
     }
 
     [Fact]
+    public void Expanded_target_captures_only_the_projection_crop_and_places_the_tail_in_that_same_crop()
+    {
+        uint[] source = Enumerable.Repeat(0xFF0000FFu, 16 * 12).ToArray();
+        for (int y = 2; y < 10; y++)
+        {
+            for (int x = 4; x < 12; x++)
+            {
+                source[y * 16 + x] = x < 8 ? 0xFFFF0000u : 0xFF00FF00u;
+            }
+        }
+        CaptureBackend backend = new() { Source = source };
+        BattleRenderer renderer = new(16, 12, new PixelBounds(4, 2, 8, 8)) { TriangleRenderer = backend };
+        renderer.RenderNativePrimitiveFrame(Frame(true), null, capabilities: Capabilities());
+        var tail = backend.Draws[2];
+        Assert.Equal(new Vector2(3.5f, 1.5f), tail.Vertex.Position);
+        Assert.Equal(new Vector2(10.5f, 1.5f), backend.Draws[3].Vertex.Position);
+        Assert.Equal(new Vector2(3.5f, 8.5f), tail.ThirdVertex.Position);
+        Assert.Equal(new Vector2(10.5f, 8.5f), backend.Draws[3].SecondVertex.Position);
+        Assert.Equal((ushort)0x7C00, renderer.PcFramebufferCapture.RequirePixels()[0]);
+        Assert.Equal((ushort)0x03E0, renderer.PcFramebufferCapture.RequirePixels()[255]);
+        Assert.Equal(tail.Material.Texture![0, 0], tail.Material.Texture[0, 255]);
+        Assert.Equal((byte)255, tail.Material.Texture[0, 0].R);
+        Assert.Equal((byte)255, tail.Material.Texture[255, 255].G);
+        Assert.Equal((byte)0, tail.Material.Texture[255, 255].B);
+    }
+
+    [Fact]
     public void Failed_capture_reuses_previous_texture_and_unknown_first_texture_stays_unsupported()
     {
         CaptureBackend backend = new() { Source = Enumerable.Repeat(0xFFFF0000u, 64).ToArray() };
@@ -105,7 +132,7 @@ public sealed class NativeBattlePcFramebufferTailRenderingTests
         public uint[] Source { get; init; } = [];
         public bool LocksSucceeded { get; set; } = true;
         public List<string> Events { get; } = [];
-        public List<(TriangleVertex Vertex, TriangleMaterial Material)> Draws { get; } = [];
+        public List<(TriangleVertex Vertex, TriangleVertex SecondVertex, TriangleVertex ThirdVertex, TriangleMaterial Material)> Draws { get; } = [];
 
         public void Begin(int width, int height, Vector4 clearColor, float clearDepth = 1)
         {
@@ -117,7 +144,7 @@ public sealed class NativeBattlePcFramebufferTailRenderingTests
         public void Draw(in TriangleVertex a, in TriangleVertex b, in TriangleVertex c, in TriangleMaterial material)
         {
             Events.Add("Draw");
-            Draws.Add((a, material));
+            Draws.Add((a, b, c, material));
         }
 
         public bool TryCaptureArgb(out uint[] pixels)

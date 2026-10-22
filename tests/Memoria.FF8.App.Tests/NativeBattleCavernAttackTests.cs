@@ -80,11 +80,14 @@ public sealed class NativeBattleCavernAttackTests
         BattleSession battle = GameWorld.CreateLiveBattleSession(definition, BattleAtbMode.TurnBased);
         session.SetLiveBattle(battle);
         NativeBattleProductionEffectAdmissionTests.Publish(evidence, $"cavern-{formation}-actor-{character}-initial", session.State);
+        int largestPacketEnd = 0;
+        int largestProxyCount = 0;
         try
         {
             for (int callback = 0; callback < 300 && !battle.NativeEntryReady; callback++)
             {
                 battle.Tick();
+                AuditSceneCapacity();
             }
             Assert.True(battle.NativeEntryReady);
             battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
@@ -102,6 +105,7 @@ public sealed class NativeBattleCavernAttackTests
             for (int callback = 0; callback < 300 && !completed; callback++)
             {
                 battle.Tick();
+                AuditSceneCapacity();
                 completed = battle.Events.Any(item => item.Kind == "ActionComplete" && item.ActorId == actor.Id);
             }
             Assert.True(completed, $"Player Attack did not complete in encounter {formation}.");
@@ -115,6 +119,13 @@ public sealed class NativeBattleCavernAttackTests
             restored.Tick();
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
             Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(world.BattleResources, definition, true).Render(restored, 320, 224));
+            string beforePresentation = JsonSerializer.Serialize(battle.Capture());
+            foreach ((int width, int height) in new[] { (640, 480), (1280, 720), (800, 1200) })
+            {
+                Assert.Equal(scene.Render(battle, width, height), new BattleScenePresentation(world.BattleResources, definition, true).Render(restored, width, height));
+            }
+            Assert.Equal(beforePresentation, JsonSerializer.Serialize(battle.Capture()));
+            Console.WriteLine($"Expanded scene formation {formation}, actor {character}: packet end {largestPacketEnd}, proxies {largestProxyCount}.");
         }
         catch (Exception exception)
         {
@@ -122,6 +133,21 @@ public sealed class NativeBattleCavernAttackTests
             NativeBattleProductionEffectAdmissionTests.Publish(evidence, $"cavern-{formation}-actor-{character}-failure-state", session.State);
             NativeBattleProductionEffectAdmissionTests.Publish(evidence, $"cavern-{formation}-actor-{character}-failure", new { Error = exception.ToString(), battle.Frame, Callback = battle.NativeGraphics?.Callback });
             throw;
+        }
+
+        void AuditSceneCapacity()
+        {
+            NativeBattlePrimitiveFrame frame = battle.NativeGraphics!.PrimitiveFrame!;
+            NativeBattlePrimitiveProcess process = battle.NativeEffectMemory!.PrimitiveProcess!;
+            int proxyCount = frame.LastCommands.Select(item => item.Command.Packet).Distinct().Count();
+            largestProxyCount = Math.Max(largestProxyCount, proxyCount);
+            Assert.True(proxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity);
+            foreach (NativeBattleLogicalCommand command in frame.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank is "off_B6D070" or "off_B6D094"))
+            {
+                int end = command.Packet.ByteOffset + (command.WordOffset + command.Words.Length) * 4;
+                largestPacketEnd = Math.Max(largestPacketEnd, end);
+                Assert.InRange(end, 0, (2 - command.Packet.Buffer) * process.CommonPacketNominalCapacity);
+            }
         }
     }
 }

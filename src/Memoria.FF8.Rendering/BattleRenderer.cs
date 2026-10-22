@@ -45,7 +45,7 @@ public sealed partial class BattleRenderer
     private readonly record struct Vertex(Vector3 Position, Vector2 Uv, Vector4 Color);
     private readonly record struct Screen(float X, float Y, float InverseZ, Vector2 UvOverZ, Vector4 ColorOverZ);
 
-    public BattleRenderer(int width, int height)
+    public BattleRenderer(int width, int height, PixelBounds? projectionBounds = null)
     {
         if (width < 1 || height < 1 || width > 4096 || height > 4096)
         {
@@ -53,6 +53,11 @@ public sealed partial class BattleRenderer
         }
         Width = width;
         Height = height;
+        ProjectionBounds = projectionBounds ?? new PixelBounds(0, 0, width, height);
+        if (ProjectionBounds.Width <= 0 || ProjectionBounds.Height <= 0 || ProjectionBounds.X < 0 || ProjectionBounds.Y < 0 || ProjectionBounds.Width > width - ProjectionBounds.X || ProjectionBounds.Height > height - ProjectionBounds.Y)
+        {
+            throw new ArgumentOutOfRangeException(nameof(projectionBounds));
+        }
         pixels = new byte[checked(width * height * 4)];
         depth = new float[width * height];
     }
@@ -61,6 +66,7 @@ public sealed partial class BattleRenderer
 
     public int Width { get; }
     public int Height { get; }
+    public PixelBounds ProjectionBounds { get; }
     public int DrawnTriangles { get; private set; }
 
     public bool TryProject(Vector3 position, out Vector2 screen)
@@ -76,7 +82,7 @@ public sealed partial class BattleRenderer
             screen = default;
             return false;
         }
-        screen = new Vector2(Width * 0.5f - transformed.X * focal / transformed.Z, centerY + transformed.Y * focal / transformed.Z);
+        screen = new Vector2((ProjectionBounds.X + ProjectionBounds.Width * 0.5f) - transformed.X * focal / transformed.Z, centerY + transformed.Y * focal / transformed.Z);
         return float.IsFinite(screen.X) && float.IsFinite(screen.Y);
     }
 
@@ -107,8 +113,8 @@ public sealed partial class BattleRenderer
         //The renderer's half-turn about X reverses the native Z rotation angle.
         Matrix4x4 roll = Matrix4x4.CreateRotationZ(-camera.NativeRoll * (2 * MathF.PI / 4096));
         view = roll * Matrix4x4.CreateLookAt(Vector3.Transform(camera.Eye, roll), Vector3.Transform(camera.Target, roll), Vector3.UnitY);
-        focal = Height / (2 * MathF.Tan(camera.FieldOfView / 2));
-        centerY = Height * camera.VerticalCenter;
+        focal = ProjectionBounds.Height / (2 * MathF.Tan(camera.FieldOfView / 2));
+        centerY = ProjectionBounds.Y + ProjectionBounds.Height * camera.VerticalCenter;
         if (TriangleRenderer is null)
         {
             Array.Clear(pixels);
@@ -201,7 +207,7 @@ public sealed partial class BattleRenderer
     private Screen Project(Vertex vertex)
     {
         float inverse = -1 / vertex.Position.Z;
-        return new Screen(Width * 0.5f + vertex.Position.X * focal * inverse, centerY - vertex.Position.Y * focal * inverse, inverse, vertex.Uv * inverse, vertex.Color * inverse);
+        return new Screen((ProjectionBounds.X + ProjectionBounds.Width * 0.5f) + vertex.Position.X * focal * inverse, centerY - vertex.Position.Y * focal * inverse, inverse, vertex.Uv * inverse, vertex.Color * inverse);
     }
 
     private static float Edge(Screen a, Screen b, float x, float y) => (b.X - a.X) * (y - a.Y) - (b.Y - a.Y) * (x - a.X);

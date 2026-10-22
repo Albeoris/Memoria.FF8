@@ -22,16 +22,19 @@ public sealed class ViewportTests
         Assert.InRange(Math.Max(target.Width, target.Height), 1, limit);
     }
 
-    [Fact]
-    public void BattleTargetRetainsItsOriginalFourToThreeAspect()
+    [Theory]
+    [InlineData(640, 480, 2048, 640, 480)]
+    [InlineData(1280, 720, 2048, 1280, 720)]
+    [InlineData(3840, 2160, 2048, 2048, 1152)]
+    [InlineData(3440, 1440, 2048, 2048, 857)]
+    [InlineData(800, 1200, 1024, 683, 1024)]
+    [InlineData(1237, 753, 2048, 1237, 753)]
+    [InlineData(1, 1, 2048, 1, 1)]
+    public void BattleTargetFillsTheWindowAndLimitsResolutionUniformly(int width, int height, int limit, int expectedWidth, int expectedHeight)
     {
-        Assert.Equal(new PixelBounds(0, 0, 960, 720), ViewportLayout.WorldRenderTarget(1280, 720));
-        foreach ((int width, int height) in new[] { (640, 480), (1280, 720), (3840, 2160), (800, 1200) })
-        {
-            PixelBounds battle = ViewportLayout.WorldRenderTarget(width, height, 1024);
-            Assert.True(Math.Abs(battle.Width - battle.Height * 4d / 3) <= 1);
-            Assert.InRange(Math.Max(battle.Width, battle.Height), 1, 1024);
-        }
+        PixelBounds battle = ViewportLayout.WorldRenderTarget(width, height, limit);
+        Assert.Equal(new PixelBounds(0, 0, expectedWidth, expectedHeight), battle);
+        Assert.InRange(Math.Max(battle.Width, battle.Height), 1, limit);
     }
 
     [Theory]

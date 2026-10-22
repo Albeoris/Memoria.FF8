@@ -4,6 +4,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
+    // Submit the representable eighth-pixel canvas so resizing can reveal existing scene geometry.
+    private static readonly NativeBattleGeometryViewport SceneGeometryViewport = new(short.MinValue / 8, short.MinValue / 8, ushort.MaxValue / 8, ushort.MaxValue / 8);
+
     private void InitializeNativePrimitiveDepth47CE10()
     {
         if (definition.NativeGraphics?.PrimitiveTables is null)
@@ -86,7 +89,7 @@ public sealed partial class BattleSession
                 continue;
             }
             ImmutableArray<NativeBattleRawMesh> meshes = geometry.Where(mesh => mesh.StageGroup == index).ToImmutableArray();
-            ImmutableArray<NativeBattleGeometryPrimitive> primitives = NativeBattleRawGeometryPackets.Emit5099D0(meshes, group.Matrices, projection, group.ColorFlags, uint.MaxValue, group.ColorDepth, bases[index], shifts[index], null, definition.NativeGraphics!.Rules.SummonColors);
+            ImmutableArray<NativeBattleGeometryPrimitive> primitives = NativeBattleRawGeometryPackets.Emit5099D0(meshes, group.Matrices, projection, group.ColorFlags, uint.MaxValue, group.ColorDepth, bases[index], shifts[index], null, definition.NativeGraphics!.Rules.SummonColors, viewport: SceneGeometryViewport);
             graphics = AppendNativeModelRendererPackets(graphics, primitives, !meshes.IsEmpty);
         }
         return graphics;
@@ -132,12 +135,12 @@ public sealed partial class BattleSession
                 }
                 NativeBattleRawMesh mesh = index == 1 ? linked[0] : geometry[index];
                 NativeBattleModelTextureBinding selectedBinding = index == 1 ? model.LinkedTextureSlots ?? throw new NotSupportedException("Native507E20 requires its executed weapon texture relocation.") : binding;
-                primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0([mesh], matrices, projection, color, 1, null, 17, 4, selectedBinding, publishProjectedScratch: PublishNativeBodyProjectionScratch));
+                primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0([mesh], matrices, projection, color, 1, null, 17, 4, selectedBinding, publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport));
             }
         }
         else if (bodyDraw)
         {
-            primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0(geometry, matrices, projection, color, mask, null, 17, 4, resource.GeometryRelocated507550 ? null : binding, publishProjectedScratch: PublishNativeBodyProjectionScratch));
+            primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0(geometry, matrices, projection, color, mask, null, 17, 4, resource.GeometryRelocated507550 ? null : binding, publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport));
         }
         if (bodyDraw)
         {
@@ -149,7 +152,7 @@ public sealed partial class BattleSession
             ImmutableArray<NativeBattleActionMatrix> linkedMatrices = NativeBattlePoseMatrices.LinkedGeometryMatrices502D40(model, resource.LinkedPoseSource ?? throw new NotSupportedException("Native linked geometry requires its original independent skeleton."), view);
             if (ResetAndEnterNativeModelRenderer5099D0(color))
             {
-                ImmutableArray<NativeBattleGeometryPrimitive> linkedPrimitives = NativeBattleRawGeometryPackets.Emit5099D0(linked, linkedMatrices, projection, color, uint.MaxValue, null, 17, 4, model.LinkedTextureSlots ?? throw new NotSupportedException("Native linked geometry requires its executed507400 material relocation."), publishProjectedScratch: PublishNativeBodyProjectionScratch);
+                ImmutableArray<NativeBattleGeometryPrimitive> linkedPrimitives = NativeBattleRawGeometryPackets.Emit5099D0(linked, linkedMatrices, projection, color, uint.MaxValue, null, 17, 4, model.LinkedTextureSlots ?? throw new NotSupportedException("Native linked geometry requires its executed507400 material relocation."), publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport);
                 graphics = AppendNativeModelRendererPackets(graphics, linkedPrimitives, true);
             }
         }
