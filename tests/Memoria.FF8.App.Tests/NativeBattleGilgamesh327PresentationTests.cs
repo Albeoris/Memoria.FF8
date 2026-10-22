@@ -18,7 +18,7 @@ public sealed class NativeBattleGilgamesh327PresentationTests
     }
 
     [Fact]
-    public void External_original_Zantetsuken_eligible_target_uses_actor_clipping()
+    public void External_original_Zantetsuken_controlled_post_formula_target_uses_actor_clipping()
     {
         RunSelected(false, "MEMORIA_FF8_GILGAMESH327_ELIGIBLE");
     }
@@ -83,14 +83,14 @@ public sealed class NativeBattleGilgamesh327PresentationTests
         {
             NativeGraphics = source.Definition.NativeGraphics! with { PrimitiveCapabilities = source.Definition.NativeGraphics.PrimitiveCapabilities! with { PcFramebufferCaptureProfile = NativeBattlePcFramebufferCaptureProfile.PrimaryRgba8() } },
             NativeActions = assets.NativeActions.ToArray(),
-            ActionDefinitions = assets.ActionDefinitions.Select(action => action.Ability == BattleAbility.GuardianForce && action.Id == 0 ? action with { Level = 10 } : action).ToArray(),
-            GuardianForces = guardianProfile,
+            ActionDefinitions = immune ? assets.ActionDefinitions.Select(action => action.Ability == BattleAbility.GuardianForce && action.Id == 0 ? action with { Level = 10 } : action).ToArray() : source.Definition.ActionDefinitions,
+            GuardianForces = immune ? guardianProfile : source.GuardianForces,
             NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([selectedEffect]),
-            NativeClockRules = assets.ReadNativeClockRules(),
-            NativeSupportRules = assets.ReadNativeSupportRules(),
+            NativeClockRules = immune ? assets.ReadNativeClockRules() : source.Definition.NativeClockRules,
+            NativeSupportRules = immune ? assets.ReadNativeSupportRules() : source.Definition.NativeSupportRules,
             NativeMessageSpeed = messageSpeed,
-            NativeSavedBattleFlags = 8,
-            NativeSavedBattleFlagsKnownMask = 255
+            NativeSavedBattleFlags = immune ? (byte)8 : source.Definition.NativeSavedBattleFlags,
+            NativeSavedBattleFlagsKnownMask = immune ? (byte)255 : source.Definition.NativeSavedBattleFlagsKnownMask
         };
         NativeBattleEffectMemory memory = source.NativeEffectMemory ?? throw new InvalidDataException("The fixture requires its existing effect process.");
         NativeBattleGilgameshProcess retained = Assert.IsType<NativeBattleGilgameshProcess>(memory.Gilgamesh);
@@ -98,42 +98,70 @@ public sealed class NativeBattleGilgamesh327PresentationTests
         Assert.Null(retained.Entry);
         Assert.Null(retained.Variant);
         Assert.IsType<NativeBattlePcRenderRequest>(memory.PcRenderRequest);
-        Assert.NotNull(definition.NativeBattleSpeed);
+        if (immune)
+        {
+            Assert.NotNull(definition.NativeBattleSpeed);
+        }
         BattleSnapshot prepared = source with
         {
             Definition = definition,
-            NativeSupport = new(true, 0, 0),
-            GuardianForces = guardianProfile,
-            NativeClock = source.NativeClock ?? throw new InvalidDataException("The fixture requires its actual battle clock owners."),
-            Combatants = source.Combatants.Select(combatant =>
+            NativeSupport = immune ? new(true, 0, 0) : source.NativeSupport,
+            GuardianForces = immune ? guardianProfile : source.GuardianForces,
+            NativeClock = immune ? source.NativeClock ?? throw new InvalidDataException("The fixture requires its actual battle clock owners.") : source.NativeClock,
+            Combatants = immune ? source.Combatants.Select(combatant =>
             {
                 NativeBattleAtbState gauge = combatant.NativeAtb ?? throw new InvalidDataException("The fixture requires its current physical ATB gauge.");
                 Assert.Equal(combatant.Atb, gauge.Display);
                 return combatant with { NativeAtb = gauge };
-            }).ToArray(),
-            Random = random,
+            }).ToArray() : source.Combatants,
+            Random = immune ? random : source.Random,
             NativeEffectMemory = memory
         };
-        NativeBattleRestorationPresentationTests.Publish(output, "prepared-support", prepared, null);
+        if (!immune)
+        {
+            string controlledTargetId = source.NativeGraphics.ActorIds[3] ?? throw new InvalidDataException("The post-formula component requires its existing physical target3.");
+            BattleCombatantSnapshot target = prepared.Combatants.Single(actor => actor.Id == controlledTargetId);
+            NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("The post-formula component requires its actual target status banks.");
+            Assert.Equal((ushort)0, status.Saved);
+            Assert.Equal(0u, status.Battle);
+            // Declared post-formula494410 output and subsequent47E2D0 cache, not a historical-state recovery.
+            NativeBattleStatusSnapshot postFormulaStatus = status with { Saved = 1, Battle = 0x10000, Presentation = new(1, 0x10000) };
+            NativeBattleActionPacketsState packets = prepared.NativeActionPackets ?? throw new InvalidDataException("The component requires its existing physical action arena.");
+            (packets, int header) = packets.Prepare(new(0, kernel.Command, 0, -1, kernel.ActionId, kernel.MagicId, null));
+            (packets, _) = packets.AppendContact(new(new(3, 3, 9, 0, 1, 0, 0x10000), new(255, 0, 0, 0, 0, 0, 0)));
+            (packets, _) = packets.Publish(1);
+            NativeBattleGraphicsState graphics = prepared.NativeGraphics!;
+            (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+            prepared = prepared with
+            {
+                NativeActionPackets = packets,
+                Outcome = BattleOutcome.Victory,
+                Combatants = prepared.Combatants.Select(actor => actor.Id == controlledTargetId ? actor with { CurrentHp = 0, NativeStatus = postFormulaStatus } : actor).ToArray(),
+                NativeGraphics = graphics with { Descriptors = descriptors }
+            };
+        }
+        string preparedBoundary = immune ? "prepared-support" : "prepared-post-formula";
+        NativeBattleRestorationPresentationTests.Publish(output, preparedBoundary, prepared, null);
         File.WriteAllText(Path.Combine(output, "fixture-changes.json"), JsonSerializer.Serialize(new
         {
             SourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath!))),
-            Changes = new[] { "Installed native kernel actions and action definitions", "Explicit controlled acquired GF0 HP1000/1000 and level10 profile, shared by definition and snapshot; same profile as IndependentGuardianItemTests", $"Selected original effect{selectedEffect} catalog resources", "Explicit portable RGB555/no-alpha 640x480 PC framebuffer capture device profile", "Installed kernel ATB speed and support cooldown rules", "Explicit active battle clock with original UI admission and action-pause owners", "Existing physical ATB gauges and HUD values preserved", immune ? "Existing saved message-speed BYTE required and preserved" : "Explicit controlled message-speed configuration selected from an external standalone snapshot; no historical recovery claim", "Known saved support flags8", "Explicit periodic support entry initialized, cooldown0, GilgameshUsed0", "Explicit battle RNG indexes/lane0 selected by actual chance and quartile table", "Preserved existing authenticated Gilgamesh model/flare/trail and PC request owners without replacing them" },
+            Scope = immune ? "Actual periodic support producer and formula" : "Controlled post-formula original245/action10 actor presentation; no periodic support, formula or ordinary command admission",
+            Changes = immune ? new[] { "Installed native kernel actions and action definitions", "Explicit controlled acquired GF0 HP1000/1000 and level10 profile, shared by definition and snapshot; same profile as IndependentGuardianItemTests", $"Selected original effect{selectedEffect} catalog resources", "Explicit portable RGB555/no-alpha 640x480 PC framebuffer capture device profile", "Installed kernel ATB speed and support cooldown rules", "Explicit active battle clock with original UI admission and action-pause owners", "Existing physical ATB gauges and HUD values preserved", immune ? "Existing saved message-speed BYTE required and preserved" : "Explicit controlled message-speed configuration selected from an external standalone snapshot; no historical recovery claim", "Known saved support flags8", "Explicit periodic support entry initialized, cooldown0, GilgameshUsed0", "Explicit battle RNG indexes/lane0 selected by actual chance and quartile table", "Preserved existing authenticated Gilgamesh model/flare/trail and PC request owners without replacing them" } : new[] { "Selected original327 catalog and native kernel metadata", "Explicit portable framebuffer capture profile", "Explicit separately selected saved message-speed configuration", "Declared post-formula target494410 output HP0/SavedDeath1/Battle10000 and following47E2D0 cached mirror", "Declared physical header245/action10/effect327 and target3 death contact: Sequence3, Flags2=9 (status-success1 plus enemy-death8), HitFlags3=0, Amount0, Saved1, Battle10000", "Queued original action104 through physical Prepare/AppendContact/Publish APIs", "Host OutcomeVictory follows declared sole-enemy SavedDeath1; retained native outcome container unchanged, no outcome callback or postbattle admission claim", "Existing native clock, physical gauges, RNG, support, GF and global party mirrors preserved unchanged" },
             MessageConfiguration = new { ConfigurationSha256 = configurationSha256, Value = messageSpeed, OriginalSourceValue = source.Definition.NativeMessageSpeed, ExplicitControlledSelection = !immune, HistoricalRecovery = false },
             SourceGilgameshSha256 = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(memory.Gilgamesh))),
             PreparedGilgameshSha256 = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(prepared.NativeEffectMemory!.Gilgamesh))),
             SourcePcRenderRequest = memory.PcRenderRequest,
             PreparedPcRenderRequest = prepared.NativeEffectMemory.PcRenderRequest,
             SourceGuardianForces = source.GuardianForces,
-            PreparedGuardianForces = guardianProfile,
-            AcquiredGuardianLevels = new[] { new { Id = 0, Level = 10 } },
+            PreparedGuardianForces = immune ? guardianProfile : source.GuardianForces,
+            AcquiredGuardianLevels = immune ? new[] { new { Id = 0, Level = 10 } } : [],
             SourceClock = source.NativeClock,
             PreparedClock = prepared.NativeClock,
             AtbGauges = source.Combatants.Select((combatant, index) => new { combatant.Id, Hud = combatant.Atb, Before = combatant.NativeAtb, After = prepared.Combatants[index].NativeAtb }),
-            RandomIndex = randomIndex, Chance = chance, Selector = selector,
+            RandomIndex = immune ? (byte?)randomIndex : null, Chance = immune ? (byte?)chance : null, Selector = immune ? (byte?)selector : null,
             Kernel = kernel
         }, new JsonSerializerOptions { WriteIndented = true }));
-        BattleSession battle = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "prepared-support.battle.json")));
+        BattleSession battle = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, preparedBoundary + ".battle.json")));
         BattleScenePresentation scene = new(assets, definition, true);
         int initialEventCount = battle.Events.Count;
         string targetId = source.NativeGraphics.ActorIds[3]!;
@@ -184,7 +212,7 @@ public sealed class NativeBattleGilgamesh327PresentationTests
         List<object> supportProducerTicks = [];
         try
         {
-            for (; ticks < 8 && !HasSupportProducer(); ticks++)
+            for (; immune && ticks < 8 && !HasSupportProducer(); ticks++)
             {
                 BattleSnapshot beforeProducer = battle.Capture();
                 NativeBattleRandomState prefix = beforeProducer.Random ?? throw new InvalidDataException("The support producer requires its retained battle RNG.");
@@ -213,10 +241,18 @@ public sealed class NativeBattleGilgamesh327PresentationTests
                 produced |= sawFormulaHeader;
                 supportProducerTicks.Add(new { beforeProducer.Frame, BeforeRandom = beforeProducer.Random, Chance = producerChance, Selector = producerSelector, FormulaCandidate = nextFormulaRandom, AfterRandom = afterProducer.Random, afterProducer.ActiveAction, FormulaProduced = sawFormulaHeader });
             }
-            Assert.True(HasSupportProducer(), "The original support producer may queue callback7 or immediately activate its selected native command245/action.");
-            Assert.Equal((byte)selectedAction, battle.Capture().NativeSupport!.SelectedAction);
-            Assert.Equal((byte)1, battle.Capture().NativeSupport!.GilgameshUsed);
-            NativeBattleRestorationPresentationTests.Publish(output, "callback7-produced", battle.Capture(), null);
+            if (immune)
+            {
+                Assert.True(HasSupportProducer(), "The original support producer may queue callback7 or immediately activate its selected native command245/action.");
+                Assert.Equal((byte)selectedAction, battle.Capture().NativeSupport!.SelectedAction);
+                Assert.Equal((byte)1, battle.Capture().NativeSupport!.GilgameshUsed);
+                NativeBattleRestorationPresentationTests.Publish(output, "callback7-produced", battle.Capture(), null);
+            }
+            else
+            {
+                produced = true;
+                ObserveFormula(battle.Capture());
+            }
             for (; callbacks < 2048; callbacks++)
             {
                 BattleSnapshot before = battle.Capture();
@@ -297,7 +333,7 @@ public sealed class NativeBattleGilgamesh327PresentationTests
                     if ((current.Flags0 & 1) != 0 && current.Kind == NativeBattleEffectKind.DamageText5069B0 && current.Frame == 1 && !((previous.Flags0 & 1) != 0 && previous.Kind == current.Kind && previous.Frame == 1))
                     {
                         Assert.Equal((byte)3, current.ModelIndex);
-                        Assert.True(immune, "The successful status-only contact must not create numeric damage text.");
+                        Assert.True(immune, "The successful status-only contact suppresses damage text through Flags2 bit0.");
                         Assert.Equal(new byte[] { 16, 0 }, current.Glyphs.ToArray());
                         Assert.Equal((short)8, current.HalfWidth);
                         Assert.Equal(0x808080u, current.Color);
@@ -379,7 +415,10 @@ public sealed class NativeBattleGilgamesh327PresentationTests
                     }
                     Assert.Null(battle.ActiveAction);
                     Assert.Empty(battle.QueuedActions);
-                    Assert.Equal(0u, battle.Capture().NativeClock!.ActionPause);
+                    if (immune)
+                    {
+                        Assert.Equal(0u, battle.Capture().NativeClock!.ActionPause);
+                    }
                     foreach (var player in battle.Combatants.Where(actor => source.Definition.Combatants.Single(definition => definition.Id == actor.Id).IsPlayer))
                     {
                         Assert.False(player.IsBusy);
@@ -434,9 +473,19 @@ public sealed class NativeBattleGilgamesh327PresentationTests
                 Assert.Equal((short)0, battle.NativeStage.Groups[group].ColorDepth);
                 Assert.Equal(0u, battle.NativeStage.Groups[group].ColorFlags);
             }
-            BattleEvent damage = Assert.Single(battle.Events.Skip(initialEventCount), item => item.Kind == "Damage");
-            Assert.Equal(targetId, damage.TargetId);
-            Assert.Equal(expectedDamage!.Value, damage.Amount);
+            if (immune)
+            {
+                BattleEvent damage = Assert.Single(battle.Events.Skip(initialEventCount), item => item.Kind == "Damage");
+                Assert.Equal(targetId, damage.TargetId);
+                Assert.Equal(expectedDamage!.Value, damage.Amount);
+            }
+            else
+            {
+                Assert.DoesNotContain(battle.Events.Skip(initialEventCount), item => item.Kind == "Damage");
+                Assert.Equal(JsonSerializer.Serialize(source.Random), JsonSerializer.Serialize(battle.Capture().Random));
+                Assert.Equal(JsonSerializer.Serialize(source.NativeClock), JsonSerializer.Serialize(battle.Capture().NativeClock));
+                Assert.Equal(source.Combatants.Select(actor => JsonSerializer.Serialize(actor.NativeAtb)), battle.Capture().Combatants.Select(actor => JsonSerializer.Serialize(actor.NativeAtb)));
+            }
             Assert.Equal(immune ? initialTargetHp : 0, battle.Combatants.Single(actor => actor.Id == targetId).CurrentHp);
             foreach (var original in source.Combatants.Where(actor => source.Definition.Combatants.Single(definition => definition.Id == actor.Id).IsPlayer))
             {
@@ -468,7 +517,7 @@ public sealed class NativeBattleGilgamesh327PresentationTests
         finally
         {
             NativeBattleRestorationPresentationTests.Publish(output, "last", battle.Capture(), null);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { SupportProducerTicks = supportProducerTicks, Immune = immune, EffectIsolatedRgb = peakEffectRgb, EffectPixelOwnership = "Complete matched first ordinary actor prefix; only preceding COMMON effect polygon references removed", FormulaContact = formulaHalf, ExpectedDamage = expectedDamage, FormulaRandom = formulaRandom, Kernel = kernel, Completed = completed, Produced = produced, Initialized = initialized, FormulaHeader = sawFormulaHeader, ContactPresentation = sawContactPresentation, DamageTextPublications = damageTextPublications, Contacts = contactsPresented, Audio = audioReceipts, VibrationStarted = sawVibrationStart, VibrationStopped = sawVibrationStop, StageFlagsCleared = sawStageClear, StageFlagsSet = sawStageSet, PhaseFrames = phaseFrames, Ticks = ticks, Callbacks = callbacks, HandoffCallbacks = handoffCallbacks, Observed = observed.Order(), Boundaries = boundaries, Pending = pending }, new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { SupportProducerTicks = supportProducerTicks, Immune = immune, EffectIsolatedRgb = peakEffectRgb, EffectPixelOwnership = "Complete matched first ordinary actor prefix; only preceding COMMON effect polygon references removed", FormulaContact = formulaHalf, ExpectedDamage = expectedDamage, FormulaRandom = formulaRandom, Kernel = kernel, Completed = completed, Produced = produced, Initialized = initialized, FormulaHeader = immune && sawFormulaHeader, PhysicalHeader = sawFormulaHeader, ControlledPostFormula = !immune, ContactPresentation = sawContactPresentation, DamageTextPublications = damageTextPublications, Contacts = contactsPresented, Audio = audioReceipts, VibrationStarted = sawVibrationStart, VibrationStopped = sawVibrationStop, StageFlagsCleared = sawStageClear, StageFlagsSet = sawStageSet, PhaseFrames = phaseFrames, Ticks = ticks, Callbacks = callbacks, HandoffCallbacks = handoffCallbacks, Observed = observed.Order(), Boundaries = boundaries, Pending = pending }, new JsonSerializerOptions { WriteIndented = true }));
         }
 
         bool HasSupportProducer()
@@ -482,6 +531,21 @@ public sealed class NativeBattleGilgamesh327PresentationTests
             if (producedHeader?.FirstContactIndex is int contactIndex)
             {
                 NativeBattleContactPacket contact = after.NativeActionPackets.ReadContact(contactIndex);
+                if (!immune)
+                {
+                    Assert.Equal((byte)3, contact.Primary.ActorIndex);
+                    Assert.Equal((ushort)0, contact.Primary.Amount6);
+                    Assert.Equal((byte)9, contact.Primary.Flags2);
+                    Assert.Equal((byte)0, contact.Primary.HitFlags3);
+                    Assert.Equal((ushort)1, contact.Primary.SavedStatuses4);
+                    Assert.Equal(0x10000u, contact.Primary.BattleStatuses8);
+                    Assert.Equal((byte)255, contact.Secondary.ActorIndex);
+                    Assert.Equal(0, after.Combatants.Single(actor => actor.Id == targetId).CurrentHp);
+                    formulaHalf = contact.Primary;
+                    expectedDamage = 0;
+                    sawFormulaHeader = true;
+                    return;
+                }
                 if (!sawFormulaHeader)
                 {
                     Assert.Equal(JsonSerializer.Serialize(lastTickRandomAfterOneDraw), JsonSerializer.Serialize(after.Random));
