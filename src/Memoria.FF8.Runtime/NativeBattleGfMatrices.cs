@@ -37,6 +37,12 @@ public static class NativeBattleGfMatrices
         return Multiply56C090(Multiply56C090(y, x), z);
     }
 
+    public static NativeBattleActionMatrix Euler701630(NativeBattleVector angles)
+    {
+        (NativeBattleActionMatrix x, NativeBattleActionMatrix y, NativeBattleActionMatrix z) = AxisMatrices(angles);
+        return Multiply56C090(Multiply56C090(x, y), z);
+    }
+
     /// <summary>56CE30 left-multiplies Z, then X, then Y; each56C090 product rounds before the next operation.</summary>
     public static NativeBattleActionMatrix Euler56CE30(NativeBattleVector angles)
     {

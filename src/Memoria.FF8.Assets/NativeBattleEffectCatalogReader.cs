@@ -206,6 +206,14 @@ public sealed partial class GameAssets
                 binding = binding with { Doom8Resources = doom, InitializerAsset = doom.MainTim };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 260)
+            {
+                if (binding.Entry != 0x690690 || binding.Initializer != 0x6906A0 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag069-259.tim", 0x2508610) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Shockwave Pulsar requires its original entry and initializer resource identity.");
+                }
+                binding = binding with { ShockwavePulsar260Resources = ReadNativeShockwavePulsar260Resources() };
+            }
             if (binding.Effect == 307)
             {
                 if (binding.Entry != 0x5A1170 || binding.Initializer != 0x5A1150 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag009.tim", 0x2242578) || binding.InitializerResources is not null)
