@@ -206,6 +206,14 @@ public sealed partial class GameAssets
                 binding = binding with { Doom8Resources = doom, InitializerAsset = doom.MainTim };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 300)
+            {
+                if (binding.Entry != 0x66EF00 || binding.Initializer != 0x66EF10 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag130-299.tim", 0x25077A0) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Bad Breath requires its original entry and initializer resource identity.");
+                }
+                binding = binding with { BadBreath300Resources = ReadNativeBadBreath300Resources() };
+            }
             if (binding.Effect == 299)
             {
                 if (binding.Entry != 0x66FCC0 || binding.Initializer != 0x66FCD0 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag283-298.tim", 0x2507810) || binding.InitializerResources is not null)

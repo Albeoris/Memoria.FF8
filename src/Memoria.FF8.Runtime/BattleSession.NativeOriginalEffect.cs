@@ -70,6 +70,10 @@ public sealed partial class BattleSession
         {
             return EnterNativeSleep145(graphics);
         }
+        if (effect.Binding.Entry == NativeBattleBadBreath300Profile.Entry)
+        {
+            return EnterNativeBadBreath300(graphics);
+        }
         if (effect.Binding.Entry == NativeBattleMicroMissiles299Profile.Entry)
         {
             return EnterNativeMicroMissiles299(graphics);
