@@ -5,6 +5,45 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class MenuNativePagesTests
 {
+    [Theory]
+    [InlineData("gf-detail")]
+    [InlineData("gf-learn")]
+    [InlineData("gf-abilities")]
+    public void LearningMarkerTracksTheSavedAbilityIndependentlyOfCursorAndDisplayName(string screen)
+    {
+        MenuData data = new();
+        MenuGuardianForce force = new() { Id = "gf", Name = "Quezacotl", Learning = "Same name", LearningAbilityId = "11" };
+        for (int index = 0; index < 12; index++)
+        {
+            force.LearningChoices.Add(new MenuAbilityChoice(index.ToString(), "Same name", index == 0, index, 40) { Icon = new UiImageSource(UiImageKind.Icon, 216) });
+        }
+        data.GuardianForces.Add(force);
+        MenuController menus = new(() => data);
+        menus.Open(screen);
+        UiList Abilities() => Assert.Single(Descendants(menus.BuildView().Root).OfType<UiList>(), list => list.Id == (screen == "gf-detail" ? "gf-ability-summary" : "commands"));
+
+        UiList list = Abilities();
+        Assert.Equal(new UiImageSource(UiImageKind.Icon, 207), list.LeadingImages[11]);
+        Assert.Equal(1, list.LeadingImages.Count(image => image.HasValue));
+        Assert.All(list.Images, image => Assert.Equal(new UiImageSource(UiImageKind.Icon, 216), image));
+        if (screen != "gf-detail")
+        {
+            menus.Navigate(MenuInput.Right);
+            menus.Navigate(MenuInput.Down);
+            menus.Navigate(MenuInput.Up);
+            Assert.Equal(10, menus.SelectedIndex);
+            Assert.Equal(new UiImageSource(UiImageKind.Icon, 207), Abilities().LeadingImages[11]);
+        }
+
+        force.LearningAbilityId = "2";
+        menus.Open(screen);
+        Assert.Equal(new UiImageSource(UiImageKind.Icon, 207), Abilities().LeadingImages[2]);
+        Assert.Null(Abilities().LeadingImages[11]);
+        force.LearningAbilityId = "0";
+        menus.Open(screen);
+        Assert.All(Abilities().LeadingImages, image => Assert.Null(image));
+    }
+
     [Fact]
     public void GfRosterUsesSharedPortraitPanelAndPreservesTileActivation()
     {

@@ -56,6 +56,7 @@ public static class MenuDemoData
             var gf = new MenuGuardianForce { Id = i.ToString(), NativeId = i, Name = guardianForces[i], Level = 12 + i, CurrentHp = 800 + i * 100, MaximumHp = 900 + i * 100, Experience = 5000 + i * 100, AbilityPoints = 35, Learning = "HP-J", Element = i % 3 == 0 ? "Thunder" : i % 3 == 1 ? "Ice" : "Fire" };
             gf.Abilities.AddRange(["HP-J", "Str-J", "Vit-J", "Mag-J", "Spr-J", "Elem-Atk-J", "Elem-Def-J", "ST-Atk-J", "ST-Def-J", "Ability x3", "Boost", "GFHP+10%"]);
             int[] abilityIds = [1, 2, 3, 4, 5, 10, 12, 11, 13, 18, 91, 87];
+            gf.LearningAbilityId = abilityIds[0].ToString(System.Globalization.CultureInfo.InvariantCulture);
             string[] abilityDescriptions = ["Junction magic to HP.", "Junction magic to Strength.", "Junction magic to Vitality.", "Junction magic to Magic.", "Junction magic to Spirit.", "Junction magic to elemental attack.", "Junction magic to elemental defense.", "Junction magic to status attack.", "Junction magic to status defense.", "Equip three character abilities.", "Boost GF damage during summoning.", "Increase GF maximum HP."];
             for (int ability = 0; ability < abilityIds.Length; ability++)
             {

@@ -207,7 +207,8 @@ public static class LiveMenuData
                     MaximumHp = vitals.Definitions.GuardianForceMaximum(id, native),
                     Experience = native.Experience <= int.MaxValue ? (int)native.Experience : null,
                     NextLevelExperience = ExperienceToNextLevel(native.Experience, vitals.Definitions.GuardianForces[id]),
-                    Learning = native.Learning == 0 ? "--" : catalog?.AbilityName(native.Learning) ?? $"Ability {native.Learning}"
+                    Learning = native.Learning == 0 ? "--" : catalog?.AbilityName(native.Learning) ?? $"Ability {native.Learning}",
+                    LearningAbilityId = native.Learning == 0 ? null : native.Learning.ToString(System.Globalization.CultureInfo.InvariantCulture)
                 };
                 foreach (NativeGuardianForceAbility entry in vitals.GuardianForceAbilities(id))
                 {

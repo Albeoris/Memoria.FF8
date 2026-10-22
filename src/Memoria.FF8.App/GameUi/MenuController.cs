@@ -961,6 +961,7 @@ public sealed partial class MenuController
                 if (GuardianForce != null)
                 {
                     GuardianForce.Learning = action.Value;
+                    GuardianForce.LearningAbilityId = action.SubjectId;
                     Message = $"Fixture {GuardianForce.Name} is learning {action.Value}.";
                 }
                 break;

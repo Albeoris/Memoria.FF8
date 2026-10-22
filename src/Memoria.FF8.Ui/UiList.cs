@@ -159,6 +159,7 @@ public sealed class UiList : UiElement
     public float TextInset { get; set; } = 23;
     public IList<bool> EnabledItems { get; set; } = new List<bool>();
     public IList<UiImageSource?> Images { get; set; } = new List<UiImageSource?>();
+    public IList<UiImageSource?> LeadingImages { get; set; } = new List<UiImageSource?>();
     public IList<UiImageSource?> TrailingImages { get; set; } = new List<UiImageSource?>();
     public IList<string> SecondaryItems { get; set; } = new List<string>();
     /// <summary>The fraction of the text area reserved for the secondary column.</summary>
@@ -179,8 +180,9 @@ public sealed class UiList : UiElement
     public override UiSize Measure(UiSize available)
     {
         float imageWidth = Images.Take(Items.Count).Any(image => image.HasValue) ? RowHeight : 0;
+        float leadingWidth = LeadingImages.Take(Items.Count).Any(image => image.HasValue) ? RowHeight : 0;
         float trailingWidth = TrailingImages.Take(Items.Count).Any(image => image.HasValue) ? RowHeight : 0;
-        float width = Items.Select((item, index) => (item.Length + (index < SecondaryItems.Count ? SecondaryItems[index].Length : 0)) * 10f + TextInset + 4 + imageWidth + trailingWidth).DefaultIfEmpty(0).Max();
+        float width = Items.Select((item, index) => (item.Length + (index < SecondaryItems.Count ? SecondaryItems[index].Length : 0)) * 10f + TextInset + 4 + leadingWidth + imageWidth + trailingWidth).DefaultIfEmpty(0).Max();
         return Orientation == UiOrientation.Horizontal
             ? ResolveDesiredSize(width * Items.Count, RowHeight, available)
             : ResolveDesiredSize(width, (UsesPagination && PageSize > 0 ? Math.Min(Items.Count, PageSize) : Items.Count) * RowHeight + (UsesPagination ? 24 : 0), available);
@@ -218,16 +220,20 @@ public sealed class UiList : UiElement
 
                 bool hasSecondary = index < SecondaryItems.Count;
                 RowColumns rowColumns = ColumnsForRow(columns, hasSecondary);
+                if (index < LeadingImages.Count && LeadingImages[index] is { } leading)
+                {
+                    canvas.Image(leading, new UiRect(row.X + columns.TextInset, row.Y, columns.LeadingWidth, row.Height).Inset(2));
+                }
                 if (index < Images.Count && Images[index] is { } image)
                 {
-                    canvas.Image(image, new UiRect(row.X + columns.TextInset, row.Y, columns.ImageWidth, row.Height).Inset(2));
+                    canvas.Image(image, new UiRect(row.X + columns.TextInset + columns.LeadingWidth, row.Y, columns.ImageWidth, row.Height).Inset(2));
                 }
                 if (index < TrailingImages.Count && TrailingImages[index] is { } trailing)
                 {
                     canvas.Image(trailing, new UiRect(row.X + rowColumns.TrailingLeft, row.Y, columns.TrailingWidth, row.Height).Inset(2));
                 }
                 bool enabled = Enabled && (index >= EnabledItems.Count || EnabledItems[index]);
-                float textLeft = row.X + columns.TextInset + columns.ImageWidth;
+                float textLeft = row.X + columns.TextInset + columns.LeadingWidth + columns.ImageWidth;
                 float secondaryLeft = row.X + rowColumns.SecondaryLeft;
                 float textRight = row.X + rowColumns.SecondaryRight;
                 UiTextFlow textFlow = TextFlow == UiTextFlow.Auto ? AutoRowHeight && Orientation == UiOrientation.Vertical ? UiTextFlow.Wrap : UiTextFlow.SingleLine : TextFlow;
@@ -518,7 +524,7 @@ public sealed class UiList : UiElement
         }
     }
 
-    private readonly record struct ListColumns(float TextInset, float TextRight, float ImageWidth, float TrailingWidth, float SecondaryWidth, float SecondaryWrapWidth);
+    private readonly record struct ListColumns(float TextInset, float TextRight, float LeadingWidth, float ImageWidth, float TrailingWidth, float SecondaryWidth, float SecondaryWrapWidth);
     private readonly record struct RowColumns(float PrimaryWidth, float SecondaryLeft, float SecondaryRight, float TrailingLeft);
 
     private ListColumns MeasureColumns(IUiCanvas canvas, UiTheme theme, float rowWidth)
@@ -527,12 +533,14 @@ public sealed class UiList : UiElement
         float available = Math.Max(0, textRight - TextInset);
         float trailingWidth = TrailingImages.Take(Items.Count).Any(image => image.HasValue) ? Math.Min(RenderedRowHeight, available) : 0;
         float imageWidth = Images.Take(Items.Count).Any(image => image.HasValue) ? Math.Min(RenderedRowHeight, available - trailingWidth) : 0;
+        float leadingWidth = LeadingImages.Take(Items.Count).Any(image => image.HasValue) ? Math.Min(RenderedRowHeight, Math.Max(0, available - trailingWidth - imageWidth)) : 0;
         float inset = Math.Max(0, TextInset);
-        bool constrained = inset + imageWidth + trailingWidth > rowWidth * 0.5f;
+        bool constrained = inset + leadingWidth + imageWidth + trailingWidth > rowWidth * 0.5f;
         if (constrained)
         {
             inset = Math.Min(inset, rowWidth * 0.12f);
             imageWidth = Math.Min(imageWidth, rowWidth * 0.16f);
+            leadingWidth = Math.Min(leadingWidth, rowWidth * 0.12f);
             trailingWidth = Math.Min(trailingWidth, rowWidth * 0.16f);
             textRight = Math.Max(inset, rowWidth - 4);
             available = Math.Max(0, textRight - inset);
@@ -541,7 +549,7 @@ public sealed class UiList : UiElement
         float secondaryWrapWidth = 0;
         if (AutoSecondaryWidth)
         {
-            float maximumWidth = Math.Max(0, available - trailingWidth - imageWidth);
+            float maximumWidth = Math.Max(0, available - trailingWidth - leadingWidth - imageWidth);
             float measuredWidth = 0;
             bool measuredAll = true;
             foreach (string secondary in SecondaryItems.Take(Items.Count))
@@ -562,15 +570,15 @@ public sealed class UiList : UiElement
         }
         if (constrained)
         {
-            secondaryWidth = Math.Min(secondaryWidth, Math.Max(0, available - imageWidth - trailingWidth - rowWidth * 0.4f));
+            secondaryWidth = Math.Min(secondaryWidth, Math.Max(0, available - leadingWidth - imageWidth - trailingWidth - rowWidth * 0.4f));
             secondaryWrapWidth = 0;
         }
-        return new ListColumns(inset, textRight, imageWidth, trailingWidth, secondaryWidth, secondaryWrapWidth);
+        return new ListColumns(inset, textRight, leadingWidth, imageWidth, trailingWidth, secondaryWidth, secondaryWrapWidth);
     }
 
     private RowColumns ColumnsForRow(ListColumns columns, bool hasSecondary)
     {
-        float textLeft = columns.TextInset + columns.ImageWidth;
+        float textLeft = columns.TextInset + columns.LeadingWidth + columns.ImageWidth;
         float secondaryRight = columns.TextRight - columns.TrailingWidth;
         float secondaryLeft = Math.Max(textLeft, secondaryRight - columns.SecondaryWidth);
         float trailingLeft = secondaryRight;

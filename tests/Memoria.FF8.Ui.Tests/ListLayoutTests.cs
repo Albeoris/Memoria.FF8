@@ -4,6 +4,45 @@ namespace Memoria.FF8.Ui.Tests;
 
 public sealed class ListLayoutTests
 {
+    [Theory]
+    [InlineData(300, 20)]
+    [InlineData(228, 93)]
+    public void LeadingMarkersKeepCategoryAndTextColumnsAlignedAcrossRowsAndPages(int width, int rowHeight)
+    {
+        UiImageSource marker = new(UiImageKind.Icon, 207);
+        UiImageSource category = new(UiImageKind.Icon, 216);
+        UiList list = new()
+        {
+            Items = ["First", "Learning", "Third"],
+            SecondaryItems = ["0 / 40", "7 / 40", "0 / 40"],
+            LeadingImages = [null, marker, null],
+            Images = [category, category, category],
+            Paginated = true,
+            PageSize = 2,
+            FitPageRows = true,
+            AutoRowHeight = false,
+            AutoSecondaryWidth = true,
+            TextFlow = UiTextFlow.SingleLine,
+            RowHeight = rowHeight,
+            FontSize = rowHeight / 2f
+        };
+        list.Arrange(new UiRect(0, 0, width, rowHeight * 2 + 24));
+        MeasuringCanvas canvas = new();
+        list.Draw(canvas, new UiTheme());
+
+        UiRect markerBounds = Assert.Single(canvas.Images, image => image.Source == marker).Bounds;
+        var categories = canvas.Images.Where(image => image.Source == category).ToArray();
+        Assert.Equal(categories[0].Bounds.X, categories[1].Bounds.X);
+        Assert.True(markerBounds.Right <= categories[1].Bounds.X);
+        Assert.Equal(canvas.Texts[0].Bounds.X, canvas.Texts[2].Bounds.X);
+        Assert.True(categories[1].Bounds.Right <= canvas.Texts[2].Bounds.X);
+        list.Key(UiKey.PageDown);
+        canvas.Images.Clear();
+        list.Draw(canvas, new UiTheme());
+        Assert.DoesNotContain(canvas.Images, image => image.Source == marker);
+        Assert.Equal(categories[0].Bounds.X, Assert.Single(canvas.Images).Bounds.X);
+    }
+
     [Fact]
     public void MeasuredValueColumnsKeepAFontScaledGapFromPrimaryNames()
     {

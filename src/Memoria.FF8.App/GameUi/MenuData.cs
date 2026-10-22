@@ -95,6 +95,7 @@ public sealed class MenuGuardianForce
     public int? NextLevelExperience { get; set; }
     public int? AbilityPoints { get; set; }
     public string Learning { get; set; } = "Unavailable";
+    public string? LearningAbilityId { get; set; }
     public string Element { get; set; } = "Unavailable";
     public List<string> Abilities { get; } = [];
     public List<MenuAbilityChoice> LearningChoices { get; } = [];

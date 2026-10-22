@@ -35,7 +35,7 @@ public sealed partial class MenuController
         Place(identity, Readouts([GuardianForce?.Name ?? "--", $"Lv    {Number(GuardianForce?.Level)}", $"HP    {Number(GuardianForce?.CurrentHp)}/{Number(GuardianForce?.MaximumHp)}"], 25), 0, 1);
         Place(summary, identity, 0);
         Place(summary, Readouts([$"Current EXP    {Number(GuardianForce?.Experience)}", $"Next LEVEL    {Number(GuardianForce?.NextLevelExperience)}"], 24), 1);
-        MenuAbilityChoice? learning = GuardianForce?.LearningChoices.FirstOrDefault(choice => choice.Name == GuardianForce.Learning);
+        MenuAbilityChoice? learning = GuardianForce?.LearningChoices.FirstOrDefault(choice => GuardianForce.LearningAbilityId is { } id ? choice.Id == id : choice.Name == GuardianForce.Learning);
         Place(summary, Readouts(["Learning", GuardianForce?.Learning ?? "--", learning is null ? $"AP    {Number(GuardianForce?.AbilityPoints)}" : $"{learning.Progress} / {learning.RequiredPoints} AP"], 25), 2);
         Place(body, summary, 0, 0);
         bool summaryOnly = ScreenId == "gf-detail";
@@ -50,6 +50,7 @@ public sealed partial class MenuController
         abilities.AutoSecondaryWidth = true;
         abilities.SecondaryItems = choices.Select(choice => choice.Learned ? "Complete!" : $"{choice.Progress} / {choice.RequiredPoints}").ToList();
         abilities.Images = choices.Select(choice => choice.Icon).ToList();
+        abilities.LeadingImages = choices.Select(choice => choice == learning && !choice.Learned ? (UiImageSource?)new UiImageSource(UiImageKind.Icon, 207) : null).ToList();
         if (summaryOnly && choices.Length == 0)
         {
             abilities.Items = GuardianForce?.Abilities.ToList() ?? [];
