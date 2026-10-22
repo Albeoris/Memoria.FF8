@@ -23,18 +23,7 @@ public static class NativeBattleBadBreath300Mouth
         return new(updated, model, position);
     }
 
-    public static (NativeBattleEffectMemory Memory, NativeBattleVector Position) TransformComposed(NativeBattleEffectMemory memory, NativeBattleActionMatrix matrix, ImmutableArray<byte> mouthAnchor)
-    {
-        RequireAnchor(mouthAnchor);
-        NativeBattleGeometryRegisterStep registers = new(memory.GeometryRegisters ?? throw new NotSupportedException("Bad Breath mouth requires its current geometry registers."), memory.ScriptedColorRegisters ?? throw new NotSupportedException("Bad Breath mouth requires its current arithmetic registers."));
-        registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, matrix, true, true, null) };
-        NativeBattleVector point = new(BinaryPrimitives.ReadInt16LittleEndian(mouthAnchor.AsSpan()), BinaryPrimitives.ReadInt16LittleEndian(mouthAnchor.AsSpan().Slice(2)), BinaryPrimitives.ReadInt16LittleEndian(mouthAnchor.AsSpan().Slice(4)));
-        short w = BinaryPrimitives.ReadInt16LittleEndian(mouthAnchor.AsSpan().Slice(6));
-        registers = NativeBattleGeometry.LoadVector(registers, 0, point, w);
-        registers = NativeBattleGeometry.Transform(registers);
-        NativeBattleVector output = new(unchecked((short)registers.Colors.Ir[0]!.Value), unchecked((short)registers.Colors.Ir[1]!.Value), unchecked((short)registers.Colors.Ir[2]!.Value));
-        return (memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors }, output);
-    }
+    public static (NativeBattleEffectMemory Memory, NativeBattleVector Position) TransformComposed(NativeBattleEffectMemory memory, NativeBattleActionMatrix matrix, ImmutableArray<byte> mouthAnchor) => NativeBattleComposedAnchorTransform.Transform(memory, matrix, mouthAnchor);
 
     private static void RequireAnchor(ImmutableArray<byte> anchor)
     {

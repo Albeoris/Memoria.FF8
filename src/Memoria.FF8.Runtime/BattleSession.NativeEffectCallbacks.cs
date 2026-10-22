@@ -113,6 +113,10 @@ public sealed partial class BattleSession
         {
             return RunNativeReflectBeam135(graphics, false);
         }
+        if (effect.Binding.Entry == NativeBattleSaliva138Profile.Entry)
+        {
+            return RunNativeSaliva138(graphics, false);
+        }
         if (effect.Binding.Entry == NativeBattleBadBreath131Profile.Entry)
         {
             return RunNativeBadBreath131(graphics, false);

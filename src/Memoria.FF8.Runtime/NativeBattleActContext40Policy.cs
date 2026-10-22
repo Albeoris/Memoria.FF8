@@ -18,6 +18,8 @@ public sealed record NativeBattleActContext40Policy(NativeBattleActContext40Eule
     public static NativeBattleActContext40Policy Hypnotize133 { get; } = new(NativeBattleActContext40Euler.Default701310, NativeBattleActContext40Scale.Rows56BEF0, false, 0);
     public static NativeBattleActContext40Policy BeamLaser134 { get; } = new(NativeBattleActContext40Euler.Default701310, NativeBattleActContext40Scale.Header100, true, 392);
 
+    public static NativeBattleActContext40Policy Saliva138 { get; } = new(NativeBattleActContext40Euler.Header40000, NativeBattleActContext40Scale.Header100, true, 864);
+
     public void Validate()
     {
         if (!Enum.IsDefined(Euler) || !Enum.IsDefined(Scale) || MorphScratchLength < 0 || (MorphScratchLength & 7) != 0 || InterpolationAllowed && MorphScratchLength == 0)
