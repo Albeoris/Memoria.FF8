@@ -51,7 +51,10 @@ public sealed class NativeBattleTheEnd85IoTests
         Assert.Equal(new byte[NativeBattleTheEnd85State.GlobalLength], state.Read(NativeBattleTheEnd85State.GlobalAddress, NativeBattleTheEnd85State.GlobalLength));
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleTheEnd85State>("{\"Globals\":{\"Regions\":[],\"UnknownRegions\":[]}}"));
         Assert.Throws<InvalidDataException>(() => state.Read(0x25C234B, 2));
-        Assert.Throws<NotSupportedException>(() => NativeBattleTheEnd85Io.Advance784A60(new(NativeBattleEffectMemory.FromColdProcess(), Effect(), new(1)), Task()));
+        Assert.Throws<InvalidDataException>(() => NativeBattleTheEnd85Io.Advance784A60(new(NativeBattleEffectMemory.FromColdProcess(), Effect(), new(1)), Task()));
+        NativeBattleTheEnd85Frame initialized = Initialize();
+        NativeBattleTheEnd85Frame missingScript = initialized with { Memory = initialized.Memory with { TheEnd85 = initialized.Memory.TheEnd85! with { Script = null } } };
+        Assert.Throws<NotSupportedException>(() => NativeBattleTheEnd85Io.Advance784A60(missingScript, Task()));
     }
 
     private static NativeBattleTheEnd85Frame Initialize()

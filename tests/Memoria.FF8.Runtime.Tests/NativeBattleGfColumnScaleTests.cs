@@ -20,14 +20,14 @@ public sealed class NativeBattleGfColumnScaleTests
     }
 
     [Theory]
-    [InlineData(0u)]
-    [InlineData(0x100u)]
-    public void FirstWindowCompositionScalesNativeColumnsBeforeViewProduct(uint header)
+    [InlineData(0u, 4096, -2048)]
+    [InlineData(0x100u, 2048, -4096)]
+    public void FirstWindowCompositionSelectsRowOrColumnScalingBeforeViewProduct(uint header, short xy, short yx)
     {
         NativeBattleActionMatrix view = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 20, 30, 40, 4096);
         NativeBattleActionMatrix result = NativeBattleGfMatrices.Compose6C6060(Node(header, 1024), view, null, new(0, 0, 0));
 
-        Assert.Equal(new short[] { 0, 2048, 0, -4096, 0, 0, 0, 0, 1024 }, result.Rotation);
+        Assert.Equal(new short[] { 0, xy, 0, yx, 0, 0, 0, 0, 1024 }, result.Rotation);
         Assert.Equal(20, result.X);
         Assert.Equal(30, result.Y);
         Assert.Equal(40, result.Z);
