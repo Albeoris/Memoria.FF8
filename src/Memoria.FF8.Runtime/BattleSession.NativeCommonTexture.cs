@@ -20,6 +20,15 @@ public sealed partial class BattleSession
             QueueNativeFileIo482610(resource.Data.Length, 0x508470);
             return;
         }
+        if (destination == NativeBattleUltraWaves184Profile.PacketAddress)
+        {
+            NativeBattleEffectMemory retained = NativeEffectMemory ?? throw new NotSupportedException("Native Ultra Waves texture restore requires its process memory.");
+            NativeEffectIoResult = -1;
+            NativeBattleUltraWaves184State state = retained.UltraWaves184 ?? throw new NotSupportedException("Native Ultra Waves texture restore requires its physical destination.");
+            NativeEffectMemory = retained with { UltraWaves184 = state.CopyCommonTexture(resource.Data.AsSpan()) };
+            QueueNativeFileIo482610(resource.Data.Length, 0x508470);
+            return;
+        }
         if (destination == 0x24224D4)
         {
             NativeBattleEffectMemory retained = NativeEffectMemory ?? throw new NotSupportedException("Native Ultra Waves texture restore requires its process memory.");
@@ -42,6 +51,12 @@ public sealed partial class BattleSession
         if (source == 0x2296A30)
         {
             (textures, _) = textures.EnqueueArenaTim505E30((memory.Wall189 ?? throw new NotSupportedException("Native Wall texture restore lost its actual TIM bytes.")).Packets, 0);
+            NativeEffectMemory = memory with { Textures = textures };
+            return;
+        }
+        if (source == NativeBattleUltraWaves184Profile.PacketAddress)
+        {
+            (textures, _) = textures.EnqueueArenaTim505E30((memory.UltraWaves184 ?? throw new NotSupportedException("Native Ultra Waves texture restore lost its physical TIM bytes.")).Packets, 0);
             NativeEffectMemory = memory with { Textures = textures };
             return;
         }

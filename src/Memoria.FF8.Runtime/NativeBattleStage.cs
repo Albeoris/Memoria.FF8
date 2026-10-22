@@ -5,6 +5,8 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeBattleStageSource(short RotationSpeed, ImmutableArray<NativeBattlePoseSource?> Groups, ImmutableArray<byte> TextureAnimations, NativeBattleEffectHeapAllocation Texture)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleStagePhysicalSource? PhysicalSource { get; init; }
     public NativeBattleStageCallback? Callback { get; init; }
     public NativeBattleStageColors? ModelColors { get; init; }
     public uint? SpecializedColor { get; init; }

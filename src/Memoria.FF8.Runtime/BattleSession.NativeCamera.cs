@@ -140,6 +140,10 @@ public sealed partial class BattleSession
                 {
                     graphics = rayBombCompleted;
                 }
+                else if (TryWriteNativeUltraWaves184Completion(graphics, address, value, out NativeBattleGraphicsState blueWavesCompleted))
+                {
+                    graphics = blueWavesCompleted;
+                }
                 else if (TryWriteNativeUltraWaves154Completion(graphics, address, value, out NativeBattleGraphicsState wavesCompleted))
                 {
                     graphics = wavesCompleted;

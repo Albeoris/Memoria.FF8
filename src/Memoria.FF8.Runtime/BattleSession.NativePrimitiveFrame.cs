@@ -295,6 +295,21 @@ public sealed partial class BattleSession
             };
             return packet.AsSpan().Slice(reference.ByteOffset, count).ToArray();
         }
+        if (reference.Bank is "22DB3C4" or "22BE8E8" or "D34868")
+        {
+            if (reference.Buffer != 0)
+            {
+                throw new InvalidDataException("Native Ultra Waves packet banks require their physical contiguous owner.");
+            }
+            NativeBattleUltraWaves184State state = memory.UltraWaves184 ?? throw new NotSupportedException("Native Ultra Waves requires its retained executable packet banks.");
+            int length = reference.Bank switch { "22DB3C4" => NativeBattleUltraWaves184Profile.PacketDrawingLength, "22BE8E8" => NativeBattleUltraWaves184Profile.QuadsLength, _ => 48 };
+            if (reference.ByteOffset < 0 || count < 0 || reference.ByteOffset > length - count)
+            {
+                throw new InvalidDataException("Native Ultra Waves packet read leaves its physical drawing bank.");
+            }
+            NativeBattleEffectArena packets = reference.Bank switch { "22DB3C4" => state.Packets, "22BE8E8" => state.Quads, _ => state.CapturePackets };
+            return packets.Read(reference.ByteOffset, count);
+        }
         if (reference.Bank is "24224D4" or "24059F8" or "DBAEE0")
         {
             if (reference.Buffer != 0)
