@@ -29,27 +29,7 @@ public static partial class NativeBattleBadBreath300Controller
 
     public static NativeBattleBadBreath300Frame Deform66FBB0(NativeBattleBadBreath300Frame frame, uint sourceAddress, int phase, NativeBattleBadBreath300Resources resources)
     {
-        ImmutableArray<byte> source = frame.State.ReadMesh(sourceAddress);
-        NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Bad Breath requires its current working arena.");
-        NativeBattleGeometryRegisterStep registers = Registers(frame);
-        for (int index = 0; index < 165; index++)
-        {
-            ReadOnlySpan<byte> row = source.AsSpan().Slice(8 + index * 8, 8);
-            NativeBattleVector vertex = new(BinaryPrimitives.ReadInt16LittleEndian(row), BinaryPrimitives.ReadInt16LittleEndian(row[2..]), BinaryPrimitives.ReadInt16LittleEndian(row[4..]));
-            short w = BinaryPrimitives.ReadInt16LittleEndian(row[6..]);
-            registers = NativeBattleGeometry.Transform(NativeBattleGeometry.LoadVector(registers, 0, vertex, w));
-            int amplitude = resources.TrigTable[w & 0xFFE] >> 4;
-            int angle = unchecked(phase + 2 * w) & 4095;
-            short x = unchecked((short)((registers.Colors.Ir[0] ?? throw new NotSupportedException("Bad Breath MVMVA has no IR1.")) + (resources.TrigTable[angle * 2 + 1] * amplitude >> 12)));
-            short y = unchecked((short)((registers.Colors.Ir[1] ?? throw new NotSupportedException("Bad Breath MVMVA has no IR2.")) - (resources.TrigTable[angle * 2] * amplitude >> 12)));
-            short z = unchecked((short)(registers.Colors.Ir[2] ?? throw new NotSupportedException("Bad Breath MVMVA has no IR3.")));
-            byte[] xyz = new byte[6];
-            BinaryPrimitives.WriteInt16LittleEndian(xyz, x);
-            BinaryPrimitives.WriteInt16LittleEndian(xyz.AsSpan(2), y);
-            BinaryPrimitives.WriteInt16LittleEndian(xyz.AsSpan(4), z);
-            arena = arena.Write(ScratchOffset + index * 8, xyz);
-        }
-        return frame with { Memory = frame.Memory with { Arena = arena, GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors } };
+        return frame with { Memory = NativeBattleStripDeformation.Transform(frame.Memory, frame.State.ReadMesh(sourceAddress), phase, resources.TrigTable, ScratchOffset) };
     }
 
     private static (NativeBattleBadBreath300Frame Frame, int Result) AdvanceMain(NativeBattleBadBreath300Frame frame, uint address, NativeBattleBadBreath300Resources resources, NativeBattleBadBreath300Inputs inputs)
