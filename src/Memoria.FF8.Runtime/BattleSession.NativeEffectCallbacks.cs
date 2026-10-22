@@ -93,6 +93,10 @@ public sealed partial class BattleSession
         {
             return RunNativeHypnotize133(graphics, false);
         }
+        if (effect.Binding.Entry == NativeBattleBeamLaser134Profile.Entry)
+        {
+            return RunNativeBeamLaser134(graphics, false);
+        }
         if (effect.Binding.Entry is 0x5CF760 or 0x5CEDD0)
         {
             return RunNativeNeedlesFamily(graphics, false);

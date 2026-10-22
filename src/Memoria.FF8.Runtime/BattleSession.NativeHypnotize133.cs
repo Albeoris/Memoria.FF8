@@ -69,7 +69,7 @@ public sealed partial class BattleSession
                             current = ObserveBone(current, NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[caster], PoseSource(caster), selector, 0));
                         }
                     }
-                    NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, caster);
+                    NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, caster) with { W = (graphics.Models[caster].Transform ?? throw new NotSupportedException("Hypnotize requires the actual caster heading.")).Angle36 };
                     prepared = NativeBattleHypnotize133Contexts.Screen(current.Memory, camera, new(anchor.X, anchor.Y, anchor.Z), anchor.W, Camera().FocalLength ?? throw new NotSupportedException("Hypnotize requires its actual signed focal shadow."), morph, Projection());
                     break;
                 case NativeBattleHypnotize133ContextKind.Anchored:

@@ -22,9 +22,9 @@ public static class NativeBattleStaticMeshContext88
         registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, matrix, true, true, matrixPadding18) };
         context = Put(context, 4, checked(mesh.Address + 8));
         context = Put(context, 0x18, 0);
-        byte[] rgbBytes = context.Read(8, 3);
-        uint rgb = (uint)(rgbBytes[0] | rgbBytes[1] << 8 | rgbBytes[2] << 16);
-        far = far with { FarRed = (rgb & 255) << 4, FarGreen = ((rgb >> 8) & 255) << 4, FarBlue = ((rgb >> 16) & 255) << 4 };
+        (byte[] rgbBytes, bool[] rgbKnown) = context.ReadSnapshot(8, 3);
+        uint? rgb = rgbKnown.All(value => value) ? (uint)(rgbBytes[0] | rgbBytes[1] << 8 | rgbBytes[2] << 16) : null;
+        far = far with { FarRed = rgbKnown[0] ? (uint)rgbBytes[0] << 4 : null, FarGreen = rgbKnown[1] ? (uint)rgbBytes[1] << 4 : null, FarBlue = rgbKnown[2] ? (uint)rgbBytes[2] << 4 : null };
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
         int cursor = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(mesh.Bytes.AsSpan()));
@@ -38,7 +38,7 @@ public static class NativeBattleStaticMeshContext88
             {
                 continue;
             }
-            if (flags == 0xF0 ? group is not (0 or 2 or 7) : group is not (0 or 2 or 3 or 4 or 5 or 6 or 7))
+            if (flags == 0xF0 ? group is not (0 or 2 or 3 or 5 or 7) : group is not (0 or 2 or 3 or 4 or 5 or 6 or 7))
             {
                 throw new NotSupportedException("Masamune mesh requires an unproved primitive group.");
             }
