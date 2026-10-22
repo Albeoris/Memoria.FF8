@@ -282,6 +282,11 @@ public sealed partial class BattleSession
         bool bypass = (native.Statuses1 & 0x4000000) != 0;
         bool physical = native.AttackType is 1 or 7 or 9 or 10 or 18 or 34 or 36;
         bool curative = native.AttackType is 3 or 4 or 5 or 6 or 21 or 25 or 32;
+        if (native.Command is 243 or 248 or 251 or 253 && NativeGunbladeAttack.TriggerSucceeded(ReadGunbladeTiming(actor, command)))
+        {
+            //48FE20 publishes ADEbit2 before the type10 formula, including its immunity return and separate damage critical byte.
+            MarkNativeContactFlags(0, 2);
+        }
         if (physical && !bypass && ((saved & 4) != 0 || (statuses & 0x180800) != 0))
         {
             Log("Miss", actor.Id, recipient.Id, 0, $"{action.Name}: {recipient.Name} is immune.");

@@ -49,6 +49,7 @@ public sealed class GunbladeAttackTests
         DispatchToContact(session);
         Assert.Single(session.Events, item => item.Kind == "GunbladeTrigger");
         Assert.Equal(82, Assert.Single(session.Events, item => item.Kind == "Damage").Amount);
+        Assert.Equal(2, session.NativeActionPackets.ReadContact(0).Primary.HitFlags3 & 2);
         Assert.Equal(System.Text.Json.JsonSerializer.Serialize(expected), System.Text.Json.JsonSerializer.Serialize(session.Capture().Random));
         Assert.False(session.TriggerGunblade());
         for (int frame = 0; frame < BattleSession.AttackRecoveryFrames; frame++)
@@ -74,6 +75,7 @@ public sealed class GunbladeAttackTests
         DispatchToContact(session);
         DispatchToContact(restored);
         Assert.Equal(82, Assert.Single(session.Events, item => item.Kind == "Damage").Amount);
+        Assert.Equal(2, session.NativeActionPackets.ReadContact(0).Primary.HitFlags3 & 2);
         Assert.Equal(System.Text.Json.JsonSerializer.Serialize(session.Capture()), System.Text.Json.JsonSerializer.Serialize(restored.Capture()));
     }
 
@@ -93,6 +95,7 @@ public sealed class GunbladeAttackTests
         DispatchToContact(session);
         Assert.DoesNotContain(session.Events, item => item.Kind == "GunbladeTrigger");
         Assert.Equal(54, Assert.Single(session.Events, item => item.Kind == "Damage").Amount);
+        Assert.Equal(0, session.NativeActionPackets.ReadContact(0).Primary.HitFlags3 & 2);
     }
 
     [Fact]
@@ -103,9 +106,25 @@ public sealed class GunbladeAttackTests
         NativeBattleRandomState expected = session.Capture().Random!.Draw(out _);
         DispatchToContact(session);
         Assert.Equal(54, Assert.Single(session.Events, item => item.Kind == "Damage").Amount);
+        Assert.Equal(0, session.NativeActionPackets.ReadContact(0).Primary.HitFlags3 & 2);
         Assert.DoesNotContain(session.Events, item => item.Kind == "Miss");
         Assert.DoesNotContain(session.Events, item => item.Kind == "GunbladeTrigger");
         Assert.Equal(System.Text.Json.JsonSerializer.Serialize(expected), System.Text.Json.JsonSerializer.Serialize(session.Capture().Random));
+    }
+
+    [Fact]
+    public void SuccessfulTriggerKeepsItsVisualFlagWhenPhysicalImmunitySkipsTheDamageFormula()
+    {
+        BattleSession session = Create(0, targetStatus: 0x800);
+        session.SetGunbladeMode(BattleGunbladeMode.Automatic);
+        NativeBattleRandomState before = session.Capture().Random!;
+        DispatchToContact(session);
+        NativeBattleContactHalf contact = session.NativeActionPackets.ReadContact(0).Primary;
+        Assert.Equal(2, contact.HitFlags3 & 2);
+        Assert.Equal((byte)6, contact.Sequence);
+        Assert.Equal((ushort)0, contact.Amount6);
+        Assert.Equal(before, session.Capture().Random);
+        Assert.Contains(session.Events, item => item.Kind == "Miss" && item.Message.Contains("immune"));
     }
 
     [Fact]
@@ -142,7 +161,7 @@ public sealed class GunbladeAttackTests
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(saved with { GunbladeMode = (BattleGunbladeMode)255 }));
     }
 
-    private static BattleSession Create(int model, bool blind = false, bool nativeWeapon = false)
+    private static BattleSession Create(int model, bool blind = false, bool nativeWeapon = false, uint targetStatus = 0)
     {
         BattleNativeAction attack = new(1, 0, 4, 0) { Name = "Attack", MagicId = 0, AttackType = 1, Power = 20, HitCount = 1, TargetFlags = 0x50, AttackFlags = 0, DamagePresentation = 4, Element = 0, ElementPercent = 0, StatusAttack = 100, Statuses0 = 0, Statuses1 = 0, Hit = 255, Critical = 255, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = [] };
         BattleSession session = new(new BattleDefinition
@@ -152,7 +171,7 @@ public sealed class GunbladeAttackTests
             Combatants =
             [
                 new() { Id = "party-0", Name = "Gunblade user", IsPlayer = true, ModelId = model, WeaponId = 0, Attack = 20, PhysicalPower = 20, NativeAttack = model is 0 or 6 || nativeWeapon ? attack : null, InitialAtb = BattleSession.AtbMaximum, StatusEffects = blind ? [new BattleStatusEffectDefinition { Kind = BattleStatusKind.Blind }] : [] },
-                new() { Id = "enemy", Name = "Enemy", Speed = 1, MaximumHp = 1_000, CurrentHp = 1_000, Defense = 5 }
+                new() { Id = "enemy", Name = "Enemy", Speed = 1, MaximumHp = 1_000, CurrentHp = 1_000, Defense = 5, NativeStatus1 = targetStatus }
             ]
         }, BattleAtbMode.TurnBased);
         session.QueueAttack("party-0", "enemy");
