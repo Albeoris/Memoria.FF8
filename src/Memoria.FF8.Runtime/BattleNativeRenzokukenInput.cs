@@ -16,7 +16,10 @@ public sealed record NativeBattleUiRandomState(uint State)
 
 public sealed record BattleNativeRenzokukenInputState(byte Phase = 0, short PoseClock = 0, short SubframeClock = 0, byte ContactIndex = 0, short TriggerTiming = 0);
 public sealed record BattleNativeRenzokukenContact(byte Index, byte Total, short TriggerTiming);
-public sealed record BattleNativeRenzokukenInputStep(BattleNativeRenzokukenInputState State, BattleNativeRenzokukenContact? Contact, NativeBattleUiRandomState? Random);
+public sealed record BattleNativeRenzokukenInputStep(BattleNativeRenzokukenInputState State, BattleNativeRenzokukenContact? Contact, NativeBattleUiRandomState? Random)
+{
+    public bool PlayTriggerSound { get; init; }
+}
 
 public static partial class NativeBattleRenzokukenRules
 {
@@ -53,6 +56,7 @@ public static partial class NativeBattleRenzokukenRules
             state = state with { Phase = 4, TriggerTiming = 0 };
         }
         BattleNativeRenzokukenContact? contact = null;
+        bool playTriggerSound = false;
         int threshold = timeline.InputThresholds[state.ContactIndex];
         bool before = state.Phase == 4 && clock <= threshold;
         if (before)
@@ -71,6 +75,7 @@ public static partial class NativeBattleRenzokukenRules
             {
                 random = (random ?? throw new NotSupportedException("Automatic Renzokuken requires its actual4A7080 battle UI random state.")).Draw(out ushort roll);
                 state = state with { TriggerTiming = roll <= 0x2000 ? (short)1 : (short)25 };
+                playTriggerSound = true;
             }
             else
             {
@@ -78,6 +83,7 @@ public static partial class NativeBattleRenzokukenRules
                 {
                     short timing = checked((short)(distance + 5));
                     state = state with { TriggerTiming = NativeGunbladeAttack.TriggerSucceeded(timing) ? timing : (short)1 };
+                    playTriggerSound = NativeGunbladeAttack.TriggerSucceeded(timing);
                 }
                 if (distance >= 27)
                 {
@@ -88,6 +94,6 @@ public static partial class NativeBattleRenzokukenRules
             }
         }
         state = poseAdvanced ? state with { PoseClock = unchecked((short)(state.PoseClock + 4)), SubframeClock = 0 } : state with { SubframeClock = (short)Math.Min(3, state.SubframeClock + 1) };
-        return new(state, contact, random);
+        return new(state, contact, random) { PlayTriggerSound = playTriggerSound };
     }
 }

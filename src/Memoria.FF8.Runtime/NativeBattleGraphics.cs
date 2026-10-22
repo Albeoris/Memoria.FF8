@@ -54,6 +54,7 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
     public NativeBattleTriggerWidget? TriggerWidget { get; init; }
     [JsonRequired]
     public NativeBattleTriggerReceipt? PendingTrigger { get; init; }
+    public byte? PendingTriggerSoundActorIndex { get; init; }
     [JsonIgnore]
     public bool? NativeMenuControl942Bit8 => UiServices is null ? null : (UiServices.Flags942 & 8) != 0;
     [JsonIgnore]
@@ -83,6 +84,10 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
         OriginalEffect?.Validate();
         UiServices?.Validate();
         TriggerWidget?.Validate();
+        if (PendingTriggerSoundActorIndex is >= 7)
+        {
+            throw new InvalidDataException("Native trigger sound requires its physical AB actor owner.");
+        }
         if ((Flags & 8) != 0 && UiServices is null)
         {
             throw new InvalidDataException("Native506CF0 stage has no initialized4A94D0 UI service owner; migrate the standalone snapshot explicitly.");

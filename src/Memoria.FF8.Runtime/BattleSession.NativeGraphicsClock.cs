@@ -321,6 +321,7 @@ public sealed partial class BattleSession
                         graphics = NativeGraphics;
                     }
                 }
+                graphics = PublishNativeTriggerSound(graphics with { Models = models.SetItem(index, model) });
             }
             else if ((model.Flags0 & 2) != 0 && model.ModelId4 != 0x8F)
             {

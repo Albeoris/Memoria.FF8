@@ -31,7 +31,10 @@ public sealed record NativeBattleTriggerWidget([property: JsonRequired] byte Act
     }
 }
 
-public sealed record NativeBattleTriggerWidgetStep(NativeBattleTriggerWidget Widget, BattleNativeRenzokukenContact? Contact, NativeBattleUiRandomState? Random, bool BeginClose, bool Unregistered);
+public sealed record NativeBattleTriggerWidgetStep(NativeBattleTriggerWidget Widget, BattleNativeRenzokukenContact? Contact, NativeBattleUiRandomState? Random, bool BeginClose, bool Unregistered)
+{
+    public bool PlayTriggerSound { get; init; }
+}
 public sealed record NativeBattleTriggerReceipt([property: JsonRequired] byte ActorIndex, [property: JsonRequired] short ContactIndex, [property: JsonRequired] short TotalContacts, [property: JsonRequired] short Timing, [property: JsonRequired] short WordD96)
 {
     public void Validate()
@@ -52,11 +55,13 @@ public static class NativeBattleTriggerWidgetRules
         BattleNativeRenzokukenContact? contact = null;
         bool beginClose = false;
         bool unregistered = false;
+        bool playTriggerSound = false;
         if (widget.ClosingPhase == 0)
         {
             BattleNativeRenzokukenInputStep input = NativeBattleRenzokukenRules.AdvanceInput(widget.Block.Timeline, widget.Input, frame33, widget.PendingTrigger || assistedPress, automatic, random);
             random = input.Random;
             contact = input.Contact;
+            playTriggerSound = input.PlayTriggerSound;
             widget = widget with { Input = input.State, PendingTrigger = false, ClosingPhase = input.State.Phase == 8 ? (byte)8 : (byte)0 };
         }
         else if (widget.ClosingPhase == 8)
@@ -88,6 +93,6 @@ public static class NativeBattleTriggerWidgetRules
             widget = widget with { ClosingPhase = 13 };
             unregistered = true;
         }
-        return new(widget, contact, random, beginClose, unregistered);
+        return new(widget, contact, random, beginClose, unregistered) { PlayTriggerSound = playTriggerSound };
     }
 }
