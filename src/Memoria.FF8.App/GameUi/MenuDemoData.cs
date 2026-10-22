@@ -88,7 +88,7 @@ public static class MenuDemoData
         data.Recipes.Add(new MenuRecipe("cure", "L Mag-RF", "19", 1, "3", "Cure", 10));
         for (var i = 0; i < 30; i++)
         {
-            data.SaveSlots.Add(new MenuSaveSlot { Id = i.ToString(), Name = $"Slot {i + 1:00}", Summary = i == 0 ? "DEMO Squall Lv18 Ã‚Â· Balamb Garden" : "Empty demo slot" });
+            data.SaveSlots.Add(new MenuSaveSlot { Id = i.ToString(), Name = $"Slot {i + 1:00}", Summary = i == 0 ? "DEMO Squall Lv18 · Balamb Garden" : "Empty demo slot" });
         }
         foreach (var setting in MenuSettings.Definitions)
         {
@@ -138,14 +138,14 @@ public static class MenuDemoData
         }
         var zell = data.Characters[2];
         AddMoves(zell, ["Punch Rush", "Booya", "Heel Drop", "Mach Kick", "Dolphin Blow", "Meteor Strike", "Burning Rave", "Meteor Barret", "Different Beat", "My Final Heaven"]);
-        string[] sequences = ["Circle Ã¢â€ â€™ Cross", "Right Ã¢â€ â€™ Left", "Up Ã¢â€ â€™ Down", "Left Ã¢â€ â€™ Left Ã¢â€ â€™ Circle", "L1 Ã¢â€ â€™ R1 Ã¢â€ â€™ L1 Ã¢â€ â€™ R1", "Down Ã¢â€ â€™ Circle Ã¢â€ â€™ Up Ã¢â€ â€™ Circle"];
+        string[] sequences = ["Circle → Cross", "Right → Left", "Up → Down", "Left → Left → Circle", "L1 → R1 → L1 → R1", "Down → Circle → Up → Circle"];
         for (var i = 0; i < zell.LimitMoves.Count; i++)
         {
             zell.LimitMoves[i].InputSequence = sequences[i % sequences.Length];
             zell.LimitMoves[i].Description = "Synthetic input sequence fixture; original sequence parity has not been validated.";
         }
         var selphie = data.Characters[3];
-        selphie.SlotPreview.AddRange(["Cure Ãƒâ€” 3", "Wall Ãƒâ€” 1", "Rapture Ãƒâ€” 1", "The End Ãƒâ€” 1"]);
+        selphie.SlotPreview.AddRange(["Cure × 3", "Wall × 1", "Rapture × 1", "The End × 1"]);
         selphie.LimitSettings["Preview index"] = "0";
         AddMoves(data.Characters[4], ["Laser Eye", "Ultra Waves", "Electrocute", "LV?Death", "Degenerator", "Aqua Breath", "Micro Missiles", "Acid", "Gatling Gun", "Fire Breath", "Bad Breath", "White Wind", "Homing Laser", "Mighty Guard", "Ray Bomb", "Shockwave Pulsar"]);
         var irvine = data.Characters[5];
