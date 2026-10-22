@@ -4,6 +4,21 @@ namespace Memoria.FF8;
 
 internal sealed partial class GameWorld
 {
+    private static int[] CaptureRewardEligibleGuardianForces(NativeCharacterVitals vitals, IReadOnlyList<BattlePartyResult> party, BattleSnapshot completed)
+    {
+        NativeCharacterVital[] records = vitals.Records.ToArray();
+        foreach (BattlePartyResult member in party)
+        {
+            records[member.Row] = records[member.Row] with { Status = member.StatusAfter };
+        }
+        NativeGuardianForceVital[] guardianForces = vitals.GuardianForces.ToArray();
+        foreach (BattleGuardianForceVital gf in completed.GuardianForces)
+        {
+            guardianForces[gf.Id] = guardianForces[gf.Id] with { HitPoints = gf.HitPoints };
+        }
+        return BattleResultProjection.EligibleGuardianForces(vitals with { Records = records, GuardianForces = guardianForces });
+    }
+
     private static BattleGuardianForceCompatibilityChange[] CaptureGuardianForceCompatibilityChanges(BattleSnapshot completed, IReadOnlyList<BattlePartyResult> party)
     {
         List<BattleGuardianForceCompatibilityChange> changes = [];
