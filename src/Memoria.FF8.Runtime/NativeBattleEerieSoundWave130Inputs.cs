@@ -1,0 +1,9 @@
+namespace Memoria.FF8.Runtime;
+
+public abstract record NativeBattleEerieSoundWave130Operation;
+public sealed record NativeBattleEerieSoundWave130Sound(uint Packed) : NativeBattleEerieSoundWave130Operation;
+public sealed record NativeBattleEerieSoundWave130Contact(int Index) : NativeBattleEerieSoundWave130Operation;
+public sealed record NativeBattleEerieSoundWave130ActAdvanceStep(NativeBattleEerieSoundWave130Frame Frame, int Remaining);
+public sealed record NativeBattleEerieSoundWave130PointStep(NativeBattleEerieSoundWave130Frame Frame, NativeBattleVector Point);
+public sealed record NativeBattleEerieSoundWave130AnchorStep(NativeBattleEerieSoundWave130Frame Frame, NativeBattleModuleAnchor Anchor);
+public sealed record NativeBattleEerieSoundWave130Inputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEerieSoundWave130Frame, int, byte, short, NativeBattleEerieSoundWave130PointStep> ReadBone, Func<NativeBattleEerieSoundWave130Frame, int, NativeBattleEerieSoundWave130AnchorStep> ReadAnchor, Func<NativeBattleEerieSoundWave130Frame, uint, byte, NativeBattleEffectArena, NativeBattleEerieSoundWave130ActAdvanceStep> AdvanceAct, Func<NativeBattleEerieSoundWave130Frame, NativeBattleEerieSoundWave130Operation, NativeBattleEerieSoundWave130Frame> Execute, NativeBattleSummonColors Colors);

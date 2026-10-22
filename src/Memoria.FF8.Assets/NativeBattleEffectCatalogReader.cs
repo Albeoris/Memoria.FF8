@@ -238,6 +238,14 @@ public sealed partial class GameAssets
                 }
                 binding = binding with { Electrocute275Resources = ReadNativeElectrocute275Resources() };
             }
+            if (binding.Effect == 130)
+            {
+                if (binding.Entry != 0x6B4240 || binding.Initializer != 0x6B4250 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag129.tim", 0x25210AC) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Eerie Sound Wave requires its original entry and initializer resource identity.");
+                }
+                binding = binding with { EerieSoundWave130Resources = ReadNativeEerieSoundWave130Resources() };
+            }
             if (binding.Effect == 127)
             {
                 if (binding.Entry != 0x6B93A0 || binding.Initializer != 0x6B93B0 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag126.tim", 0x2521278) || binding.InitializerResources is not null)
