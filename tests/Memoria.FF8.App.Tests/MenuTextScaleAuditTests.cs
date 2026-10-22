@@ -26,9 +26,9 @@ public sealed class MenuTextScaleAuditTests
             }
             UiView view = controller.BuildView();
             AuditCanvas canvas = new();
-            view.Draw(canvas, new UiTheme());
+            view.Draw(canvas, controller.CreateTheme());
             view.Resize(1280, 720);
-            view.Draw(canvas, new UiTheme());
+            view.Draw(canvas, controller.CreateTheme());
             Assert.Equal(0, canvas.ClipDepth);
             Assert.True(canvas.TextCount > 0, screen);
             Assert.All(Descendants(view.Root), element => Validate(element.Bounds));
@@ -61,7 +61,7 @@ public sealed class MenuTextScaleAuditTests
             {
                 canvas.BeginFrame(TimeSpan.FromSeconds(seconds));
                 canvas.Fill(new UiRect(0, 0, 960, 672), new UiColor(0, 0, 0));
-                view.Draw(canvas, new UiTheme());
+                view.Draw(canvas, controller.CreateTheme());
                 if (!string.IsNullOrEmpty(output))
                 {
                     string directory = Path.Combine(output, $"font{fontSize}-scale{textScale}-time{seconds}");
@@ -86,7 +86,7 @@ public sealed class MenuTextScaleAuditTests
             Assert.Equal(UiTextFlow.Wrap, label.TextFlow);
             Assert.Null(label.Height);
         });
-        view.Draw(new AuditCanvas(), new UiTheme());
+        view.Draw(new AuditCanvas(), controller.CreateTheme());
     }
 
     [Theory]

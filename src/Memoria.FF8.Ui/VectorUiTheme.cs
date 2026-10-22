@@ -12,6 +12,9 @@ public sealed class VectorUiTheme : UiTheme
         Highlight = new UiColor(42, 85, 130, 210);
         BorderLight = new UiColor(172, 191, 211, 160);
         BorderDark = new UiColor(8, 18, 31, 230);
+        SliderFill = new UiColor(126, 240, 250);
+        SliderLight = new UiColor(203, 255, 255);
+        SliderDark = new UiColor(24, 132, 165);
     }
 
     public override string? FontFamily { get; init; } = "Georgia";
@@ -31,7 +34,7 @@ public sealed class VectorUiTheme : UiTheme
         canvas.Line(bounds.X, bounds.Y, bounds.X, bottom, BorderLight, 1);
         canvas.Line(bounds.X, bottom, right, bottom, new UiColor(102, 125, 150, 100), 1);
         canvas.Line(right, bounds.Y, right, bottom, new UiColor(102, 125, 150, 100), 1);
-        if (bounds.Width >= 150 && bounds.Height >= 240)
+        if (bounds.Width <= 240 && bounds.Height >= 240)
         {
             DrawFeather(canvas, bounds);
         }
@@ -82,6 +85,12 @@ public sealed class VectorUiTheme : UiTheme
         }
     }
 
+    public override void NumericSlider(IUiCanvas canvas, UiRect track, float ratio, bool enabled)
+    {
+        float height = Math.Min(7, track.Height);
+        Progress(canvas, new UiRect(track.X, track.Y + (track.Height - height) / 2, track.Width, height), ratio, enabled);
+    }
+
     public override void Progress(IUiCanvas canvas, UiRect bounds, float ratio, bool enabled)
     {
         if (bounds.IsEmpty)
@@ -107,19 +116,29 @@ public sealed class VectorUiTheme : UiTheme
 
     private static void DrawFeather(IUiCanvas canvas, UiRect bounds)
     {
-        float centerX = bounds.Right - Math.Min(bounds.Width * 0.18f, 110);
-        float centerY = bounds.Y + bounds.Height * 0.5f;
-        float height = Math.Min(180, bounds.Height * 0.65f);
-        UiColor ink = new(176, 203, 222, 12);
-        canvas.Line(centerX - 25, centerY + height / 2, centerX + 20, centerY - height / 2, ink, 1);
-        for (int index = 1; index < 12; index++)
+        UiColor ink = new(158, 180, 206, 20);
+        float height = bounds.Height * 0.72f;
+        float startX = bounds.X + bounds.Width * 0.12f;
+        float startY = bounds.Bottom - bounds.Height * 0.08f;
+        float previousLeftX = startX;
+        float previousRightX = startX;
+        float previousY = startY;
+        for (int index = 1; index <= 80; index++)
         {
-            float amount = index / 12f;
-            float x = centerX - 25 + 45 * amount;
-            float y = centerY + height / 2 - height * amount;
-            float spread = MathF.Sin(amount * MathF.PI) * 40;
-            canvas.Line(x, y, x - spread, y - 18, ink, 1);
-            canvas.Line(x, y, x + spread * 0.7f, y - 24, ink, 1);
+            float amount = index / 80f;
+            float x = startX + bounds.Width * 0.77f * amount;
+            float y = startY - height * amount;
+            float spread = MathF.Pow(MathF.Sin(amount * MathF.PI), 1.4f) * bounds.Width * 0.3f;
+            float leftX = x - spread;
+            float rightX = x + spread * 0.5f;
+            float tipY = y - height * 0.085f * MathF.Sin(amount * MathF.PI);
+            canvas.Line(x, y, leftX, tipY, ink, 0.7f);
+            canvas.Line(x, y, rightX, tipY, ink, 0.7f);
+            canvas.Line(previousLeftX, previousY, leftX, tipY, ink, 0.7f);
+            canvas.Line(previousRightX, previousY, rightX, tipY, ink, 0.7f);
+            previousLeftX = leftX;
+            previousRightX = rightX;
+            previousY = tipY;
         }
     }
 

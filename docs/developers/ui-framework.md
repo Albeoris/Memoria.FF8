@@ -75,7 +75,7 @@ Run `dotnet run --project tests/Memoria.FF8.Ui.Tests` from the product root for 
 
 ## Swappable presentation
 
-`MenuController` owns data, actions, selected identities and navigation history. `IMenuPresentation` owns `Compose`, `DesignHeight` and `CreateTheme`; assign `MenuController.PresentationProvider` to supply a presentation, or use `Presentation` to select the built-in Vector and Classic providers. Replacing the provider invalidates only the retained view. It does not open a screen, execute an action or rewrite a gameplay snapshot.
+`MenuController` owns data, actions, selected identities and navigation history. `IMenuPresentation` owns `Compose`, design dimensions, root padding and `CreateTheme`; assign `MenuController.PresentationProvider` to supply a presentation, or use `Presentation` to select the built-in Vector and Classic providers. Replacing the provider invalidates only the retained view. It does not open a screen, execute an action or rewrite a gameplay snapshot.
 
 Vector is the installation default, including when loading preferences written before presentation selection existed. Classic preserves the earlier layout and gray bevels. F7 and Config → Interface → UI presentation persist the choice independently of saved games. The main menu and Junction attribute/stock pages use Vector's 960×540 composition; command/ability assignment and other menu pages retain their existing 960×672 composition (magazines use 960×720) under the selected theme. The viewport uniformly scales and letterboxes each composition, including pointer mapping.
 
@@ -96,6 +96,6 @@ The Vector design uses these procedural elements:
 | Ornament | Low-opacity geometric feather strokes on tall panels. |
 | Input hints | Current keyboard/controller bindings and fixed F7 shortcut. |
 
-`UiTheme` provides virtual `Panel`, `Caption`, `Pointer`, `Selection`, `RowSeparator` and `Progress` hooks. Its default implementation remains Classic; `VectorUiTheme` overrides the material and selection grammar. Optional `FontFamily` preserves explicit per-element font overrides. Renderer adapters implement family-aware measurement and alignment/flow text overloads; the scaled canvas forwards these in design coordinates. Original artwork remains supplied by the existing resource provider. The presentation contains no background illustrations or replacement portraits.
+`UiTheme` provides virtual `Panel`, `Caption`, `Pointer`, `Selection`, `RowSeparator`, `NumericSlider` and `Progress` hooks. Its default implementation remains Classic; `VectorUiTheme` overrides the material and selection grammar. Optional `FontFamily` preserves explicit per-element font overrides. Renderer adapters implement family-aware measurement and alignment/flow text overloads; the scaled canvas forwards these in design coordinates. Original artwork remains supplied by the existing resource provider. The presentation contains no background illustrations or replacement portraits.
 
 Preview either presentation with `--menu-preview --ui vector` or `--ui classic`; pass `--resolution` to compare identical output sizes. A preview does not advance gameplay.

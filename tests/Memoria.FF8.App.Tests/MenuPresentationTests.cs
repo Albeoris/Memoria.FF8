@@ -75,7 +75,7 @@ public sealed class MenuPresentationTests
                 Assert.Equal(entries, menu.Entries.ToArray());
                 Assert.Equal(navigation, JsonSerializer.Serialize(menu.CaptureNavigation()));
                 Assert.Equal(960f, view.DesignWidth);
-                Assert.Equal(screen == "magazine" ? 720f : presentation == MenuPresentation.Vector && (screen == "main" || screen.StartsWith("junction", StringComparison.Ordinal)) ? 540f : 672f, view.DesignHeight);
+                Assert.Equal(screen == "magazine" ? 720f : presentation == MenuPresentation.Vector && (screen == "main" || screen.StartsWith("junction", StringComparison.Ordinal) && screen is not ("junction-command" or "junction-ability" or "junction-command-choice" or "junction-ability-choice")) ? 540f : 672f, view.DesignHeight);
             }
         }
     }
@@ -97,6 +97,68 @@ public sealed class MenuPresentationTests
         Assert.Same(custom, menu.BuildView());
         Assert.Equal(1, provider.ComposeCount);
         Assert.Throws<ArgumentNullException>(() => menu.PresentationProvider = null!);
+    }
+
+    [Fact]
+    public void Active_character_identity_and_focus_survive_presentation_changes()
+    {
+        MenuController menu = new();
+        menu.Open("main", demo: true);
+        menu.SelectEntry("main", "junction");
+        menu.Navigate(MenuInput.Confirm);
+        Assert.True(menu.IsSelectingCharacter);
+        string selected = menu.CharacterChoices.First(character => character.InParty).Id;
+        menu.SelectCharacter(selected);
+        string navigation = JsonSerializer.Serialize(menu.CaptureNavigation());
+        foreach (MenuPresentation presentation in new[] { MenuPresentation.Vector, MenuPresentation.Classic, MenuPresentation.Vector })
+        {
+            menu.Presentation = presentation;
+            UiView view = menu.BuildView();
+            Assert.Equal(selected, view.FocusedElement?.Id);
+            Assert.Contains(Descendants(view.Root).OfType<UiButton>(), button => button.Id == selected);
+            Assert.Equal(navigation, JsonSerializer.Serialize(menu.CaptureNavigation()));
+        }
+        menu.Navigate(MenuInput.Confirm);
+        Assert.Equal("junction", menu.ScreenId);
+        Assert.Equal(selected, menu.Character?.Id);
+    }
+
+    [Fact]
+    public void Stock_selection_refreshes_projected_stats_without_committing_a_junction()
+    {
+        MenuController menu = new();
+        menu.Open("junction-magic", demo: true);
+        menu.SelectEntry("junction-magic", "Str");
+        menu.Navigate(MenuInput.Confirm);
+        Assert.Equal("junction-stock", menu.ScreenId);
+        MenuCharacter character = menu.Character!;
+        Dictionary<string, int> stats = new(character.Stats);
+        Dictionary<string, string> junctions = new(character.Junctions);
+        List<(string Slot, string Spell)> requests = [];
+        character.JunctionPreview = (slot, spell) =>
+        {
+            requests.Add((slot, spell));
+            return new Dictionary<string, int> { ["Str"] = 99 + requests.Count };
+        };
+        string first = menu.SelectedEntry!.Action!.SubjectId;
+        menu.BuildView();
+        Assert.Equal(("Str", first), requests[^1]);
+        menu.Navigate(MenuInput.Down);
+        string second = menu.SelectedEntry!.Action!.SubjectId;
+        Assert.NotEqual(first, second);
+        int count = requests.Count;
+        menu.BuildView();
+        Assert.True(requests.Count > count);
+        Assert.Equal(("Str", second), requests[^1]);
+        menu.Presentation = MenuPresentation.Classic;
+        menu.BuildView();
+        Assert.Equal(("Str", second), requests[^1]);
+        menu.Presentation = MenuPresentation.Vector;
+        menu.BuildView();
+        Assert.Equal(("Str", second), requests[^1]);
+        Assert.Equal(stats, character.Stats);
+        Assert.Equal(junctions, character.Junctions);
+        Assert.Equal("junction-stock", menu.ScreenId);
     }
 
     private sealed class TestPresentation : IMenuPresentation

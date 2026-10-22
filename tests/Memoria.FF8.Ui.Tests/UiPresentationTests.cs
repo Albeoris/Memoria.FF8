@@ -42,6 +42,17 @@ public sealed class UiPresentationTests
         Assert.Contains(canvas.Texts, text => text.Value == "JUNCTION");
     }
 
+    [Theory]
+    [InlineData((byte)0)]
+    [InlineData((byte)128)]
+    [InlineData((byte)255)]
+    public void Vector_panel_respects_script_background_opacity(byte opacity)
+    {
+        RecordingCanvas canvas = new();
+        new VectorUiTheme { PanelBackgroundAlpha = opacity }.Panel(canvas, new UiRect(0, 0, 100, 50));
+        Assert.All(canvas.Fills, fill => Assert.InRange((int)fill.Color.A, 0, 202 * opacity / 255));
+    }
+
     [Fact]
     public void Vector_horizontal_selection_uses_only_a_red_bottom_underline()
     {

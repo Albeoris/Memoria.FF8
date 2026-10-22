@@ -36,6 +36,45 @@ public class UiTheme
         canvas.Fill(new UiRect(track.X, track.Y, track.Width * ratio, track.Height), enabled ? Highlight : Muted);
     }
 
+    public virtual void NumericSlider(IUiCanvas canvas, UiRect track, float ratio, bool enabled)
+    {
+        canvas.Fill(track, BorderDark);
+        float bevel = Math.Min(3, Math.Min(track.Width, track.Height) / 2);
+        UiRect frame = track.Inset(Math.Min(1, bevel));
+        if (!frame.IsEmpty)
+        {
+            canvas.Fill(frame, BorderLight);
+            float edge = Math.Min(1, Math.Min(frame.Width, frame.Height) / 2);
+            canvas.Fill(new UiRect(frame.X, frame.Y, frame.Width, edge), new UiColor(248, 248, 248));
+            canvas.Fill(new UiRect(frame.X, frame.Y, edge, frame.Height), new UiColor(248, 248, 248));
+            canvas.Fill(new UiRect(frame.X, frame.Bottom - edge, frame.Width, edge), new UiColor(112, 112, 128));
+            canvas.Fill(new UiRect(frame.Right - edge, frame.Y, edge, frame.Height), new UiColor(112, 112, 128));
+        }
+
+        UiRect well = track.Inset(bevel);
+        canvas.Fill(well, BorderDark);
+        UiRect inner = well.Inset(Math.Min(1, Math.Min(well.Width, well.Height) / 2));
+        canvas.Fill(inner, new UiColor(24, 16, 48));
+        UiRect fill = new(inner.X, inner.Y, inner.Width * ratio, inner.Height);
+        if (!fill.IsEmpty)
+        {
+            const int bands = 16;
+            for (int index = 0; index < bands; index++)
+            {
+                float position = (float)index / (bands - 1);
+                UiColor color = position < 0.3f ? Blend(SliderLight, SliderFill, position / 0.3f) : position < 0.75f ? Blend(SliderFill, SliderDark, (position - 0.3f) / 0.45f) : Blend(SliderDark, SliderLight, (position - 0.75f) / 0.25f);
+                float top = fill.Y + fill.Height * index / bands;
+                float bottom = fill.Y + fill.Height * (index + 1) / bands;
+                canvas.Fill(new UiRect(fill.X, top, fill.Width, bottom - top), enabled ? color : Muted);
+            }
+        }
+    }
+
+    private static UiColor Blend(UiColor from, UiColor to, float ratio)
+    {
+        return new UiColor((byte)MathF.Round(from.R + (to.R - from.R) * ratio), (byte)MathF.Round(from.G + (to.G - from.G) * ratio), (byte)MathF.Round(from.B + (to.B - from.B) * ratio));
+    }
+
     public virtual void Panel(IUiCanvas canvas, UiRect bounds, string? caption = null, float captionFontSize = 0)
     {
         if (bounds.IsEmpty)

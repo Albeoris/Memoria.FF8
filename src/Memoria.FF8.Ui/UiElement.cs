@@ -253,6 +253,7 @@ public sealed class UiButton : UiElement
     public Action? Click { get; set; }
     public bool DrawBackground { get; set; } = true;
     public bool HighlightSelection { get; set; } = true;
+    public float TextInset { get; set; } = 24;
     public float FontSize { get; set; }
     public float PointerSize { get; set; } = 10;
 
@@ -272,15 +273,15 @@ public sealed class UiButton : UiElement
             theme.Selection(canvas, Bounds.Inset(3));
         }
 
-        canvas.Text(Text, FontSize > 0 ? FontSize : theme.FontSize, new UiRect(Bounds.X + 24, Bounds.Y, Math.Max(0, Bounds.Width - 32), Bounds.Height), Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
+        canvas.Text(Text, FontSize > 0 ? FontSize : theme.FontSize, new UiRect(Bounds.X + TextInset, Bounds.Y, Math.Max(0, Bounds.Width - TextInset - 8), Bounds.Height), Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
     }
 
     protected override void DrawPointer(IUiCanvas canvas, UiTheme theme)
     {
-        float contentLeft = Children.Where(child => child.Visible).Select(child => child.Bounds.X).DefaultIfEmpty(Bounds.X + 24).Min();
+        float contentLeft = Children.Where(child => child.Visible).Select(child => child.Bounds.X).DefaultIfEmpty(Bounds.X + TextInset).Min();
         if (!string.IsNullOrEmpty(Text))
         {
-            contentLeft = Math.Min(contentLeft, Bounds.X + 24);
+            contentLeft = Math.Min(contentLeft, Bounds.X + TextInset);
         }
         theme.PointerBefore(canvas, contentLeft, Bounds.Y + (Bounds.Height - PointerSize) / 2, PointerSize);
     }

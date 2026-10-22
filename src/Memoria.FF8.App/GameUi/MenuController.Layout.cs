@@ -31,12 +31,12 @@ public sealed partial class MenuController
         {
             return _view;
         }
-        var root = new UiPanel { Id = "menu-root", DrawBackground = false, Padding = new UiThickness(ScreenId == "magazine" ? 0 : Presentation == MenuPresentation.Vector && UsesVectorComposition ? 26 : IsOriginalMenuPage ? 18 : 20), CaptionHeight = 0 };
+        var root = new UiPanel { Id = "menu-root", DrawBackground = false, Padding = PresentationProvider.Padding(this), CaptionHeight = 0 };
         var anchored = new UiAnchorPanel();
         root.Children.Add(anchored);
         anchored.Children.Add(PresentationProvider.Compose(this));
         AddTutorialMessage(anchored);
-        _view = new UiView(root) { DesignWidth = 960, DesignHeight = PresentationProvider.DesignHeight(this), Cancel = Back };
+        _view = new UiView(root) { DesignWidth = PresentationProvider.DesignWidth(this), DesignHeight = PresentationProvider.DesignHeight(this), Cancel = Back };
         _view.Resize(_view.DesignWidth, _view.DesignHeight);
         var focusables = FocusableDescendants(root).ToArray();
         string? selectedCharacterId = CharacterChoices.ElementAtOrDefault(CharacterSelectionIndex)?.Id;

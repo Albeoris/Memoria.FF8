@@ -41,6 +41,8 @@ public sealed partial class MenuController
         string? family = _readPreferences?.Invoke().UiFontFamily;
         return theme is VectorUiTheme && family is not null && family != SystemFontCatalog.DefaultFamily ? new VectorUiTheme { FontSize = theme.FontSize, FontFamily = family } : theme;
     }
+    internal UiThickness ClassicRootPadding => new(ScreenId == "magazine" ? 0 : IsOriginalMenuPage ? 18 : 20);
+
     private bool UsesAbilityJunctionComposition => ScreenId is "junction-command" or "junction-ability" or "junction-command-choice" or "junction-ability-choice";
     internal bool UsesVectorComposition => ScreenId == "main" || ScreenId.StartsWith("junction", StringComparison.Ordinal) && !UsesAbilityJunctionComposition;
 
@@ -212,9 +214,9 @@ public sealed partial class MenuController
         var identity = Grid([1], [1, 1, 1], 0);
         identity.ColumnDefinitions[0] = UiGridLength.Pixel(18);
         identity.ColumnDefinitions[2] = UiGridLength.Pixel(18);
-        Place(identity, new UiButton { Text = "‹", DrawBackground = false, FontSize = 28, PointerSize = 0, Click = () => Navigate(MenuInput.PageLeft), Width = 32, HorizontalAlignment = UiAlignment.Center }, 0);
+        Place(identity, new UiButton { Text = "‹", TextInset = 0, DrawBackground = false, FontSize = 28, PointerSize = 0, Click = () => Navigate(MenuInput.PageLeft), Width = 32, HorizontalAlignment = UiAlignment.Center }, 0);
         Place(identity, VectorLabel(Character?.Name ?? "--", 34), 0, 1);
-        Place(identity, new UiButton { Text = "›", DrawBackground = false, FontSize = 28, PointerSize = 0, Click = () => Navigate(MenuInput.PageRight), Width = 32, HorizontalAlignment = UiAlignment.Center }, 0, 2);
+        Place(identity, new UiButton { Text = "›", TextInset = 0, DrawBackground = false, FontSize = 28, PointerSize = 0, Click = () => Navigate(MenuInput.PageRight), Width = 32, HorizontalAlignment = UiAlignment.Center }, 0, 2);
         Place(content, identity, 1);
         Place(content, VectorLabel("Lv   " + Number(Character?.Level), 22, true), 2);
         var hp = VectorRows([0, 7], [1], 1);
