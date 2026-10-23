@@ -85,6 +85,7 @@ public sealed class NativeBattleRenzokukenFinisherCameraContinuationTests
                     completed = true;
                     for (int next = 0; next < 4096 && !battle.CanChoosePlayerCommand("party-0"); next++)
                     {
+                        battle.AdvanceTurn();
                         battle.Tick();
                     }
                     Assert.True(battle.CanChoosePlayerCommand("party-0"));
@@ -98,7 +99,7 @@ public sealed class NativeBattleRenzokukenFinisherCameraContinuationTests
                         if (nextStarted && battle.ActiveAction is null && battle.QueuedActions.Count == 0)
                         {
                             nextCompleted = true;
-                            Publish("following-attack-completed");
+                            NativeBattleRestorationPresentationTests.Publish(output, "following-attack-completed", battle.Capture(), scene.Render(battle, 320, 224).ToArray());
                             break;
                         }
                     }
