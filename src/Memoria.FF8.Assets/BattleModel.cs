@@ -28,6 +28,8 @@ public sealed record BattleModel(string Name, IReadOnlyList<BattleBone> Bones, I
 {
     public EditableModel? EditableOverride { get; init; }
     public IReadOnlyList<BattleMesh>? NativeControlMeshes { get; init; }
+    public System.Collections.Immutable.ImmutableArray<byte>? NativeGeometryBytes { get; init; }
+    public System.Collections.Immutable.ImmutableArray<Memoria.FF8.Runtime.NativeBattleRawMesh>? NativeRenderGeometry { get; init; }
     public IReadOnlyList<TextureSourceRegion> TextureRegions { get; init; } = [];
 
     public BattleSequenceSet? Sequences { get; init; }

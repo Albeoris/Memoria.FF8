@@ -10,6 +10,21 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class ModelAssetExchangeTests
 {
     [Fact]
+    public void LinkedInventoryRetainsEachObjectsNativeMaterialSlot()
+    {
+        ModelAssetSelection source = Selection();
+        source = source with
+        {
+            Objects = source.Objects.Select((item, index) => item with { Model = item.Model with { Meshes = item.Model.Meshes.Select(mesh => mesh with { NativeTexture = index + 4, NativeMaterial = index + 11 }).ToArray() } }).ToArray()
+        };
+        ModelAssetImportInventory result = ModelAssetExchange.InspectGlb(ModelAssetExchange.ExportGlb(source));
+        Assert.Equal(4, Assert.Single(result.Objects[0].Model.Meshes).NativeTexture);
+        Assert.Equal(5, Assert.Single(result.Objects[1].Model.Meshes).NativeTexture);
+        Assert.Equal(11, Assert.Single(result.Objects[0].Model.Meshes).NativeMaterial);
+        Assert.Equal(12, Assert.Single(result.Objects[1].Model.Meshes).NativeMaterial);
+    }
+
+    [Fact]
     public void IndependentRigsAndUnequalComponentsRoundTripWithoutRescaling()
     {
         ModelAssetSelection selection = Selection();
@@ -162,6 +177,11 @@ public sealed class ModelAssetExchangeTests
         ModelAssetImportInventory original = ModelAssetExchange.InspectGlb(File.ReadAllBytes(source));
         ModelAssetImportInventory edited = ModelAssetExchange.InspectGlb(File.ReadAllBytes(output));
         Assert.Equal(original.Clips.Count, edited.Clips.Count);
+        foreach (ModelAssetObject owner in original.Objects)
+        {
+            ModelAssetObject retained = edited.Objects.Single(item => item.Target == owner.Target);
+            Assert.Equal(owner.Model.Meshes.Select(mesh => (mesh.NativePart, mesh.NativeTexture, mesh.NativeMaterial)), retained.Model.Meshes.Select(mesh => (mesh.NativePart, mesh.NativeTexture, mesh.NativeMaterial)));
+        }
         foreach (ModelAssetClip clip in original.Clips)
         {
             ModelAssetClip result = edited.Clips.Single(item => item.Target == clip.Target);

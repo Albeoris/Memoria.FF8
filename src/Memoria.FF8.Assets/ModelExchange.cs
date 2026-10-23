@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Buffers.Binary;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Albeoris.Games.FF8.Imaging;
@@ -23,6 +24,8 @@ public sealed record EditableMesh(string Name, IReadOnlyList<EditableVertex> Ver
 {
     public int Node { get; init; } = -1;
     public int NativePart { get; init; } = -1;
+    public int NativeTexture { get; init; } = -1;
+    public int NativeMaterial { get; init; } = -1;
     public string? ObjectTarget { get; init; }
     public string? RigId { get; init; }
     public bool Skinned { get; init; }
@@ -366,16 +369,18 @@ public static partial class ModelExchange
         for (int part = 0; part < source.Count; part++)
         {
             BattleMesh mesh = source[part];
-            foreach (IGrouping<int, BattleFace> group in mesh.Faces.GroupBy(face => face.Texture))
+            var materials = mesh.Faces.Select((face, index) => (Face: face, Index: index)).GroupBy(item => (item.Face.Texture, Page: item.Face.NativeMaterial?.TexturePage, Clut: item.Face.NativeMaterial?.Clut, Flags: !item.Face.NativePolygon.IsDefaultOrEmpty && item.Face.NativePolygon.Length >= 2 ? BinaryPrimitives.ReadUInt16LittleEndian(item.Face.NativePolygon.AsSpan()) & 0xF000 : 0));
+            foreach (var group in materials)
             {
                 List<EditableVertex> vertices = [];
                 List<int> indices = [];
-                foreach (BattleFace face in group)
+                foreach (var item in group)
                 {
+                    BattleFace face = item.Face;
                     Vector4 color = new(Math.Min(1, face.Color.R / 128f), Math.Min(1, face.Color.G / 128f), Math.Min(1, face.Color.B / 128f), face.Color.A / 255f);
                     AddFace(vertices, indices, face.Vertices.Select((index, corner) => Vertex(mesh.Vertices[index].Position * scale, skinned ? mesh.Vertices[index].Bone : -1, face.Uv[corner] / ResourceTextureList.LogicalSize(textures, face.Texture), color * (face.VertexColors?[corner] ?? Vector4.One), bind)).ToArray(), true);
                 }
-                result.Add(new EditableMesh($"mesh_{result.Count}", vertices, indices, group.Key, Matrix4x4.Identity) { Skinned = skinned, NativePart = part });
+                result.Add(new EditableMesh($"mesh_{result.Count}", vertices, indices, group.Key.Texture, Matrix4x4.Identity) { Skinned = skinned, NativePart = part, NativeTexture = group.Key.Texture, NativeMaterial = group.First().Index });
             }
         }
         return result;

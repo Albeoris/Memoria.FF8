@@ -84,30 +84,41 @@ public sealed partial class BattleAssets
             return source;
         }
         int count = BinaryPrimitives.ReadInt32LittleEndian(source.Bytes.AsSpan());
-        if (count is not (7 or 8 or 9 or 10 or 11))
+        BattleModel model = source.Linked ? LoadWeapon(source.Name, LoadPlayer(source.ModelId)) : LoadModel(source.Name);
+        Dictionary<int, byte[]> sections = [];
+        if (model.NativeGeometryBytes is { } geometry)
+        {
+            sections[count == 5 ? 0 : 1] = geometry.ToArray();
+        }
+        if (count != 5 && model.NativePoseSource is { } pose)
+        {
+            sections[2] = pose.Animations.ToArray();
+        }
+        if (sections.Count == 0)
         {
             return source;
         }
-        BattleModel model = source.Linked ? modelOverrides.Apply("battle/" + source.Name.ToLowerInvariant(), BattleResourceReader.ReadModel(source.Name, source.Bytes.ToArray(), 6)) : LoadModel(source.Name);
-        NativeBattlePoseSource pose = model.NativePoseSource ?? throw new NotSupportedException("A native model override requires its actual skeleton and animation bytes.");
-        int start = source.Section(2);
-        int end = source.Section(3);
-        if (source.Bytes.AsSpan().Slice(start, end - start).SequenceEqual(pose.Animations.AsSpan()))
+        using MemoryStream output = new();
+        using BinaryWriter writer = new(output);
+        writer.Write(count);
+        for (int section = 0; section <= count; section++)
         {
-            return source;
+            writer.Write(0);
         }
-        int change = pose.Animations.Length - (end - start);
-        byte[] bytes = new byte[checked(source.Bytes.Length + change)];
-        source.Bytes.AsSpan().Slice(0, start).CopyTo(bytes);
-        pose.Animations.AsSpan().CopyTo(bytes.AsSpan(start));
-        source.Bytes.AsSpan().Slice(end).CopyTo(bytes.AsSpan(start + pose.Animations.Length));
-        for (int section = 3; section <= count; section++)
+        for (int section = 0; section < count; section++)
         {
-            int offset = 4 + section * 4;
-            int value = BinaryPrimitives.ReadInt32LittleEndian(source.Bytes.AsSpan().Slice(offset));
-            BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(offset), checked(value + change));
+            int start = source.Section(section);
+            int end = section + 1 < count ? source.Section(section + 1) : source.Bytes.Length;
+            long position = output.Position;
+            output.Position = 4 + section * 4;
+            writer.Write(checked((int)position));
+            output.Position = position;
+            writer.Write(sections.TryGetValue(section, out byte[]? replacement) ? replacement : source.Bytes.AsSpan().Slice(start, end - start).ToArray());
         }
-        return source with { Bytes = bytes.ToImmutableArray() };
+        long length = output.Length;
+        output.Position = 4 + count * 4;
+        writer.Write(checked((int)length));
+        return source with { Bytes = output.ToArray().ToImmutableArray() };
     }
 
 }

@@ -111,7 +111,7 @@ public sealed class ModelModSelectiveTests
     private static BattleModel Battle()
     {
         BattlePose pose = new(Vector3.Zero, [Vector3.Zero], [Vector3.One]);
-        BattleMesh mesh = new([new(Vector3.Zero, 0), new(Vector3.UnitX, 0), new(Vector3.UnitY, 0)], [new([0, 1, 2], [Vector2.Zero, Vector2.Zero, Vector2.Zero], 0, new(255, 255, 255, 255))]);
+        BattleMesh mesh = new([new(Vector3.Zero, 0), new(Vector3.UnitX, 0), new(Vector3.UnitY, 0)], [new([0, 1, 2], [Vector2.Zero, Vector2.Zero, Vector2.Zero], 0, new(255, 255, 255, 255)) { NativeMaterial = new(128, 0, [Vector2.Zero, Vector2.Zero, Vector2.Zero]), NativePolygon = System.Collections.Immutable.ImmutableArray.CreateRange(new byte[16]) }]);
         return new("test.dat", [new(-1, 0)], [mesh], [new PixelImage(1, 1)], [new([pose]), new([pose, pose])], 1);
     }
 }

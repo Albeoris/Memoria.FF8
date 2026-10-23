@@ -106,6 +106,8 @@ public sealed class ModelModInstalledTests
         BattleModel original = originals.LoadPlayer(0, 0);
         EditableModel editable = ModelExchange.FromBattle(original);
         EditableModel edited = editable with { Meshes = editable.Meshes.Select(mesh => mesh with { Vertices = mesh.Vertices.Select(vertex => vertex with { Position = vertex.Position * 1.1f }).ToArray() }).ToArray() };
+        EditableMesh unsupported = edited.Meshes[0] with { Vertices = edited.Meshes[0].Vertices.Select(vertex => vertex with { Weights = new Vector4(0.5f, 0.5f, 0, 0) }).ToArray() };
+        Assert.Throws<NotSupportedException>(() => ModelMods.Preview(editable, new("battle/" + original.Name, edited with { Meshes = [unsupported] }, true, [])));
         ModelModInstallPlan plan = ModelModInstaller.Plan([new("battle/" + original.Name, edited, true, [])]);
         ModFile[] files = plan.Files.Select(file => new ModFile("sample", ModFormat.Memoria, file.RelativePath, 1, () => file.Content)).ToArray();
         Assert.True(ModelMods.TryPrepare(new(1, [], files), out ModelMods mods, out _));
@@ -117,7 +119,33 @@ public sealed class ModelModInstalledTests
         Assert.NotNull(modified.NativeControlMeshes);
         Assert.NotEqual(original.Pose(0, 0).SelectMany(mesh => mesh).First(), modified.Pose(0, 0).SelectMany(mesh => mesh).First());
         NativeBattleModelDatSource staged = assets.ReadNativeModelDatSource(0, false, 0);
-        Assert.Equal(originals.ReadNativeModelDatSource(0, false, 0).Bytes.ToArray(), staged.Bytes.ToArray());
+        Assert.NotEqual(originals.ReadNativeModelDatSource(0, false, 0).Bytes.ToArray(), staged.Bytes.ToArray());
+        ImmutableArray<NativeBattleRawMesh> stagedMeshes = NativeBattleRawGeometryReader.Read(staged.Bytes.AsSpan().Slice(staged.Section(1), staged.Section(2) - staged.Section(1)).ToArray(), original.Bones.Count);
+        Assert.Equal(resource.Geometry!.Value.SelectMany(mesh => mesh.Vertices), stagedMeshes.SelectMany(mesh => mesh.Vertices));
+        ImmutableArray<NativeBattleRawMesh> roundTrip = NativeBattleRawGeometryReader.Read(NativeBattleModelGeometryWriter.Encode(editable, editable), original.Bones.Count);
+        foreach (NativeBattleRawVertex vertex in roundTrip.SelectMany(mesh => mesh.Vertices))
+        {
+            Assert.Contains(original.Meshes.SelectMany(mesh => mesh.Vertices), source => source.Bone == vertex.Bone && source.NativePosition == vertex.Position);
+        }
+        int slot = 0;
+        int frames = original.Animations[slot].Frames.Count;
+        foreach (int frame in new[] { 1, Math.Max(1, frames / 2), frames }.Distinct())
+        {
+            NativeBattleDecodedPose pose = original.NativePoseSource.Sample(0, checked((byte)frame), 0);
+            ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattlePoseMatrices.StageBoneMatrices(original.NativePoseSource, pose);
+            NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 12000, 4096);
+            matrices = NativeBattlePoseMatrices.ComposeStageCamera(matrices, camera, 0);
+            NativeBattleCameraProjection projection = new(camera, 512, 160, 108);
+            ImmutableArray<NativeBattleGeometryPrimitive> before = NativeBattleRawGeometryPackets.Emit5099D0(roundTrip, matrices, projection, 0x808080, 1, null, 17, 4, null);
+            ImmutableArray<NativeBattleGeometryPrimitive> after = NativeBattleRawGeometryPackets.Emit5099D0(stagedMeshes, matrices, projection, 0x808080, 1, null, 17, 4, null);
+            Assert.NotEmpty(before);
+            Assert.NotEmpty(after);
+            Assert.NotEqual(before.SelectMany(value => value.Words), after.SelectMany(value => value.Words));
+        }
+        BattleModel textured = modified with { EditableOverride = modified.EditableOverride! with { Textures = modified.EditableOverride.Textures.Select(image => new Albeoris.Games.FF8.Imaging.PixelImage(image.Width, image.Height, image.Pixels.Select(pixel => new Albeoris.Games.FF8.Imaging.Rgba32(255, 0, 0, pixel.A)).ToArray())).ToArray() } };
+        IReadOnlyList<NativeBattleTextureReplacement> replacements = NativeBattleTextureReplacements.Bind(textured, NativeBattleModelTextures.Prepare507400(modified.NativeBodyTexturePack!, 0).Binding);
+        Assert.NotEmpty(replacements);
+        Assert.All(replacements, replacement => Assert.All(replacement.Image.Pixels, pixel => Assert.Equal((byte)255, pixel.R)));
     }
 
     [Theory]

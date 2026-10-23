@@ -33,7 +33,7 @@ Use the verified [Blender settings and round-trip helper](../developers/model-li
 
 ## Import as a mod
 
-**Import from Blender (as mod)** accepts a self-contained GLB up to 256 MiB. It inventories actual surviving geometry and animation channels before offering a destination. Matched targets can be checked independently; unchecked means leave unchanged. Missing metadata never recreates deleted content. A GLB without preserved identities requires explicit mapping to the selected catalog target. Unresolved items remain disabled with an explanation. Source revision and duration changes produce warnings. Native joint-count changes are reported; impossible rig mappings and unsupported native deformations remain blocked. Canceling the selection or a dialog leaves model files unchanged.
+**Import from Blender (as mod)** accepts a self-contained GLB up to 256 MiB. It inventories actual surviving geometry and animation channels before offering a destination. Matched targets can be checked independently; unchecked means leave unchanged. Missing metadata never recreates deleted content. A single-object GLB without preserved identities requires explicit confirmation of the selected catalog target. Unidentified multi-object or multi-rig files require restored identities before import; this workflow does not merge them into one replacement. Unresolved items remain disabled with an explanation. Source revision and duration changes produce warnings. Native joint-count changes are reported; impossible rig mappings and unsupported native deformations remain blocked. Canceling the selection or a dialog leaves model files unchanged.
 
 Choose or create a package folder directly inside the displayed `Mods/Memoria` directory. The folder picker starts there; paths outside it, nested package roots and directory links are rejected, and the picker offers another attempt. Existing replacements require overwrite confirmation. All dialogs use the current monitor's DPI context.
 
@@ -47,7 +47,7 @@ Mods/Memoria/<Package>/models/field/<field-name>/<entry>.geometry.glb
 Mods/Memoria/<Package>/models/field/<field-name>/<entry>.clips/embedded/<slot>.glb
 ```
 
-World targets use `models/world/<shape-id>` or `models/world/static/<shape-id>` with the same suffixes. Legacy full-model `<target>.glb` replacements remain supported. Geometry-only replacements retain the target rig and clips; per-slot replacements retain all other clips. Changing rigs, adding gameplay slots, cross-character retargeting and action/script export are outside this selection workflow.
+World targets use `models/world/<shape-id>` or `models/world/static/<shape-id>` with the same suffixes. Legacy full-model `<target>.glb` replacements remain supported. Geometry-only replacements retain the target rig and clips; per-slot replacements retain all other clips. Changing rigs, adding gameplay slots, cross-character retargeting and action/script export are outside this selection workflow. Battle stages can be exported, but stage replacement is blocked until its native stage geometry binding is supported.
 
 Installation stages and validates all selected files, shows conflicts and rolls back touched files on failure. Unselected assets, unrelated files and package enable/priority settings are retained. Original game archives are never rewritten. A field occurrence's clip affects that exact entry, including every actor using that entry; it does not replace identical clips in other fields.
 
@@ -55,3 +55,7 @@ Installation stages and validates all selected files, shows conflicts and rolls 
 The normal mod precedence and enable settings apply. Disabled packages can be previewed without activation. Reload an already loaded scene or battle to apply a changed model to existing actors.
 
 Supported GLB data includes triangle meshes, PNG/JPEG textures, up to four bone influences per vertex and translation/rotation/scale animation channels. External resource files, morph targets, unsupported required extensions, sheared node transforms and additional skin influences are rejected. Secondary material maps generate a compatibility warning; rendering uses base color textures and vertex color. Original eye, part and attachment data remains metadata: edited topology must preserve compatible bindings, and native per-vertex skin translations do not drive imported geometry. Game scripts continue to use their original animation and attachment identifiers.
+
+Older whole-model packages remain available, but ambiguous battle geometry without current native part, texture and material identities requires a fresh export before import. Existing package files are preserved. Current exports retain these identities through the supported Blender workflow.
+
+Native battle geometry additionally requires one retained joint per vertex, original part/material bindings and render flags, unchanged vertex colors, and original-size indexed eight-bit texture slots. Native coordinate, UV and index limits are validated before installation. Field/world skinning support does not expand these battle limits. Arbitrary native per-vertex control or attachment changes are unsupported.

@@ -29,6 +29,10 @@ public static class ModelModInstaller
             }
             if (replacement.ReplaceGeometry)
             {
+                if (replacement.Model.Kind == "stage")
+                {
+                    throw new NotSupportedException("Battle stage replacement requires an unsupported native stage geometry binding. Stage export remains available.");
+                }
                 System.Text.Json.Nodes.JsonObject metadata = System.Text.Json.Nodes.JsonNode.Parse(replacement.Model.NativeMetadata.GetRawText()) as System.Text.Json.Nodes.JsonObject ?? new();
                 metadata["memoria_preserve_native_parts"] = System.Text.Json.JsonSerializer.SerializeToNode(replacement.PreserveNativeParts);
                 Add($"models/{id}.geometry.glb", replacement.Model with { Animations = [], NativeMetadata = System.Text.Json.JsonSerializer.SerializeToElement(metadata) });

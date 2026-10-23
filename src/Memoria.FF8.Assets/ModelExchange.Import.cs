@@ -380,12 +380,22 @@ public static partial class ModelExchange
                         throw new InvalidDataException("A skinned mesh needs joint indices and weights.");
                     }
                     int texture = -1;
+                    int nativeMaterial = node.TryGetProperty("extras", out JsonElement nodeTemplateExtras) && nodeTemplateExtras.TryGetProperty("memoria_native_material", out JsonElement nodeNativeMaterial) ? nodeNativeMaterial.GetInt32() : -1;
+                    int nativeTexture = node.TryGetProperty("extras", out JsonElement nodeMaterialExtras) && nodeMaterialExtras.TryGetProperty("memoria_native_texture", out JsonElement nodeNativeTexture) ? nodeNativeTexture.GetInt32() : -1;
                     Vector4 factor = Vector4.One;
                     bool transparent = false;
                     bool doubleSided = false;
                     if (primitive.TryGetProperty("material", out JsonElement materialReference))
                     {
                         JsonElement material = At("materials", materialReference.GetInt32());
+                        if (material.TryGetProperty("extras", out JsonElement materialExtras) && materialExtras.TryGetProperty("memoria_native_texture", out JsonElement materialNativeTexture))
+                        {
+                            nativeTexture = materialNativeTexture.GetInt32();
+                        }
+                        if (material.TryGetProperty("extras", out JsonElement templateExtras) && templateExtras.TryGetProperty("memoria_native_material", out JsonElement materialTemplate))
+                        {
+                            nativeMaterial = materialTemplate.GetInt32();
+                        }
                         transparent = String(material, "alphaMode", "OPAQUE") != "OPAQUE";
                         doubleSided = material.TryGetProperty("doubleSided", out JsonElement sided) && sided.GetBoolean();
                         if (material.TryGetProperty("pbrMetallicRoughness", out JsonElement pbr))
@@ -450,7 +460,7 @@ public static partial class ModelExchange
                     {
                         indices = Enumerable.Range(0, positions.Length).ToArray();
                     }
-                    meshes.Add(new EditableMesh(String(mesh, "name", $"mesh_{meshes.Count}"), vertices, indices, texture, globals[nodeIndex]) { Node = skinJoints.Length == 0 ? nodeIndex : -1, Skinned = skinJoints.Length != 0, InverseBindMatrices = inverseBind, Transparent = transparent, DoubleSided = doubleSided, NativePart = node.TryGetProperty("extras", out JsonElement meshExtras) && meshExtras.TryGetProperty("memoria_native_part", out JsonElement nativePart) ? nativePart.GetInt32() : -1, ObjectTarget = Property(node, "memoria_target"), RigId = Property(node, "memoria_rig") });
+                    meshes.Add(new EditableMesh(String(mesh, "name", $"mesh_{meshes.Count}"), vertices, indices, texture, globals[nodeIndex]) { Node = skinJoints.Length == 0 ? nodeIndex : -1, Skinned = skinJoints.Length != 0, InverseBindMatrices = inverseBind, Transparent = transparent, DoubleSided = doubleSided, NativeMaterial = nativeMaterial, NativeTexture = nativeTexture, NativePart = node.TryGetProperty("extras", out JsonElement meshExtras) && meshExtras.TryGetProperty("memoria_native_part", out JsonElement nativePart) ? nativePart.GetInt32() : -1, ObjectTarget = Property(node, "memoria_target"), RigId = Property(node, "memoria_rig") });
                 }
             }
             List<EditableAnimation> animations = [];

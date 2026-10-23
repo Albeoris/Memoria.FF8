@@ -100,6 +100,7 @@ public static partial class ModelExchange
             JsonObject material = new()
             {
                 ["name"] = $"material_{materials.Count}",
+                ["extras"] = new JsonObject { ["memoria_native_material"] = mesh.NativeMaterial, ["memoria_native_texture"] = mesh.NativeTexture },
                 ["doubleSided"] = mesh.DoubleSided,
                 ["alphaMode"] = mesh.Transparent || mesh.Vertices.Any(vertex => vertex.Color.W < 1) || mesh.Texture >= 0 && model.Textures[mesh.Texture].Pixels.Any(pixel => pixel.A < 255) ? "BLEND" : "OPAQUE",
                 ["pbrMetallicRoughness"] = new JsonObject { ["metallicFactor"] = 0, ["roughnessFactor"] = 1 }
@@ -110,7 +111,7 @@ public static partial class ModelExchange
             }
             int materialIndex = materials.Count;
             materials.Add(material);
-            JsonObject node = new() { ["name"] = mesh.Name, ["mesh"] = meshes.Count, ["extras"] = new JsonObject { ["memoria_native_part"] = mesh.NativePart, ["memoria_target"] = mesh.ObjectTarget, ["memoria_rig"] = mesh.RigId } };
+            JsonObject node = new() { ["name"] = mesh.Name, ["mesh"] = meshes.Count, ["extras"] = new JsonObject { ["memoria_native_part"] = mesh.NativePart, ["memoria_native_material"] = mesh.NativeMaterial, ["memoria_native_texture"] = mesh.NativeTexture, ["memoria_target"] = mesh.ObjectTarget, ["memoria_rig"] = mesh.RigId } };
             if (mesh.Skinned)
             {
                 jointBones = Enumerable.Range(0, model.Bones.Count).Where(index => model.Bones[index].IsJoint && (mesh.RigId is null || model.Bones[index].RigId == mesh.RigId)).ToArray();

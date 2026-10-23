@@ -25,3 +25,5 @@ For reproducible synthetic verification, set `MEMORIA_MODEL_EXCHANGE_TEST_GLB` a
 Native sample rates belong to the source model: the current Battle/Field base contract uses 30 samples per second, while World avatars use 30.5. Script speed changes and preview speed do not alter this contract. The rate survives GLB metadata and per-object manifest records.
 
 The linked manifest includes only rig/control metadata and selected attachment descriptors. It never embeds original geometry, texture pixels, unselected clips, compressed animation banks, action sequences or camera resources inside provenance metadata. Clip-only outputs omit geometry attachment descriptors as well.
+
+Battle stage export is supported. Stage import is explicitly blocked because the native stage renderer has a separate geometry binding; a viewer-only replacement is not installed as a working gameplay mod.

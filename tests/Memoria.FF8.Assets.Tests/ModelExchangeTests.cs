@@ -12,6 +12,85 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class ModelExchangeTests
 {
     [Fact]
+    public void NativeBattleMaterialGroupingRetainsPageClutAndDepthFlagTemplates()
+    {
+        BattleVertex[] vertices = [new(Vector3.Zero, 0), new(Vector3.UnitX, 0), new(Vector3.UnitY, 0)];
+        BattleFace Face(ushort page, ushort clut, byte flags) => new BattleFace([0, 1, 2], [Vector2.Zero, Vector2.Zero, Vector2.Zero], 0, new Rgba32(128, 128, 128))
+        {
+            NativeMaterial = new NativeBattleFaceMaterial(page, clut, [Vector2.Zero, Vector2.Zero, Vector2.Zero]),
+            NativePolygon = [0, flags, 0, 0]
+        };
+        BattleModel native = new("materials", [], [new BattleMesh(vertices, [Face(1, 2, 0x10), Face(1, 3, 0x10), Face(2, 2, 0x10), Face(1, 2, 0x20), Face(1, 2, 0x10)])], [new PixelImage(1, 1, [new Rgba32(255, 255, 255)])], [], 1);
+        EditableModel model = ModelExchange.FromBattle(native);
+        Assert.Equal(4, model.Meshes.Count);
+        Assert.Equal(new[] { 0, 1, 2, 3 }, model.Meshes.Select(mesh => mesh.NativeMaterial));
+        Assert.All(model.Meshes, mesh => Assert.Equal(0, mesh.NativeTexture));
+        Assert.All(model.Meshes, mesh => Assert.Equal(0, mesh.NativePart));
+        Assert.Equal(6, model.Meshes[0].Vertices.Count);
+        EditableModel imported = ModelExchange.ImportGlb(ModelExchange.ExportGlb(model)).Model;
+        Assert.Equal(new[] { 0, 1, 2, 3 }, imported.Meshes.Select(mesh => mesh.NativeMaterial));
+    }
+
+    [Fact]
+    public void NativeTextureSlotsSurviveImageTextureAndMaterialReordering()
+    {
+        EditableModel source = CreateModel();
+        source = source with
+        {
+            Textures = [new PixelImage(1, 1, [new Rgba32(255, 0, 0)]), new PixelImage(1, 1, [new Rgba32(0, 255, 0)])],
+            Meshes = [source.Meshes[0] with { Name = "first", Texture = 0, NativeTexture = 7, NativeMaterial = 13 }, source.Meshes[0] with { Name = "second", Texture = 1, NativeTexture = 2, NativeMaterial = 29 }]
+        };
+        byte[] glb = ChangeJson(ModelExchange.ExportGlb(source), document =>
+        {
+            foreach (string property in new[] { "images", "textures", "materials" })
+            {
+                document[property] = new JsonArray(document[property]!.AsArray().Reverse().Select(node => node!.DeepClone()).ToArray());
+            }
+            foreach (JsonNode? texture in document["textures"]!.AsArray())
+            {
+                texture!["source"] = 1 - texture["source"]!.GetValue<int>();
+            }
+            foreach (JsonNode? material in document["materials"]!.AsArray())
+            {
+                JsonNode reference = material!["pbrMetallicRoughness"]!["baseColorTexture"]!;
+                reference["index"] = 1 - reference["index"]!.GetValue<int>();
+            }
+            foreach (JsonNode? mesh in document["meshes"]!.AsArray())
+            {
+                foreach (JsonNode? primitive in mesh!["primitives"]!.AsArray())
+                {
+                    primitive!["material"] = 1 - primitive["material"]!.GetValue<int>();
+                }
+            }
+            foreach (JsonNode? node in document["nodes"]!.AsArray())
+            {
+                node?["extras"]?.AsObject().Remove("memoria_native_texture");
+                node?["extras"]?.AsObject().Remove("memoria_native_material");
+            }
+        });
+        EditableModel imported = ModelExchange.ImportGlb(glb).Model;
+        Assert.Equal(new[] { 7, 2 }, imported.Meshes.Select(mesh => mesh.NativeTexture));
+        Assert.Equal(new[] { 13, 29 }, imported.Meshes.Select(mesh => mesh.NativeMaterial));
+        Assert.Equal(new[] { 1, 0 }, imported.Meshes.Select(mesh => mesh.Texture));
+        Assert.Equal(source.Textures[0].Pixels, imported.Textures[imported.Meshes[0].Texture].Pixels);
+        Assert.Equal(source.Textures[1].Pixels, imported.Textures[imported.Meshes[1].Texture].Pixels);
+        EditableModel repeated = ModelExchange.ImportGlb(ModelExchange.ExportGlb(imported)).Model;
+        Assert.Equal(new[] { 7, 2 }, repeated.Meshes.Select(mesh => mesh.NativeTexture));
+        Assert.Equal(new[] { 13, 29 }, repeated.Meshes.Select(mesh => mesh.NativeMaterial));
+    }
+
+    [Fact]
+    public void NativeBattleConversionCapturesOriginalTextureSlots()
+    {
+        BattleVertex[] vertices = [new(Vector3.Zero, 0), new(Vector3.UnitX, 0), new(Vector3.UnitY, 0)];
+        BattleFace Face(int texture) => new([0, 1, 2], [Vector2.Zero, Vector2.Zero, Vector2.Zero], texture, new Rgba32(128, 128, 128));
+        BattleModel original = new("slots", [], [new BattleMesh(vertices, [Face(1), Face(0)])], [new PixelImage(1, 1, [new Rgba32(255, 0, 0)]), new PixelImage(1, 1, [new Rgba32(0, 255, 0)])], [], 1);
+        EditableModel model = ModelExchange.FromBattle(original);
+        Assert.Equal(new[] { 1, 0 }, model.Meshes.Select(mesh => mesh.NativeTexture));
+        Assert.Equal(model.Meshes.Select(mesh => mesh.Texture), model.Meshes.Select(mesh => mesh.NativeTexture));
+    }
+
+    [Fact]
     public void GlbRoundTripPreservesTextureSkinAnimationAndNativeMetadata()
     {
         EditableModel original = CreateModel();

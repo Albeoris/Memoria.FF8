@@ -42,7 +42,6 @@ public sealed class ModelModIntegrationTests
         {
             [fieldEntry.Id] = Edit(ModelExchange.FromField(originalField)),
             ["battle/c0m000.dat"] = Edit(ModelExchange.FromBattle(originalBattle)),
-            ["battle/a0stg000.x"] = Edit(ModelExchange.FromStage(originalStage)),
             ["world/0"] = Edit(ModelExchange.FromField(originalWorld)),
             ["world/static/73"] = Edit(ModelExchange.FromWorld(originalStatic))
         };
@@ -81,8 +80,9 @@ public sealed class ModelModIntegrationTests
         AssertPose(edits["battle/c0m000.dat"], battleReplacement.Pose(0, 0).SelectMany(mesh => mesh).ToArray());
         AssertPose(edits["world/0"], worldReplacement.Pose(0, 0));
         AssertPose(edits["world/static/73"], staticReplacement.NativeVertices, animation: -1);
-        AssertPose(edits["battle/a0stg000.x"], stageReplacement.Meshes.SelectMany(mesh => mesh.Vertices.Select(vertex => vertex.Position)).ToArray(), animation: -1);
-        Assert.All(new[] { fieldReplacement.Textures, battleReplacement.Textures, worldReplacement.Textures, staticReplacement.Textures, stageReplacement.Textures }, textures =>
+        Assert.Equal(originalStage.Meshes.SelectMany(mesh => mesh.Vertices.Select(vertex => vertex.Position)), stageReplacement.Meshes.SelectMany(mesh => mesh.Vertices.Select(vertex => vertex.Position)));
+        Assert.Throws<NotSupportedException>(() => ModelMods.Preview(ModelExchange.FromStage(originalStage), new("battle/a0stg000.x", ModelExchange.FromStage(originalStage), true, [])));
+        Assert.All(new[] { fieldReplacement.Textures, battleReplacement.Textures, worldReplacement.Textures, staticReplacement.Textures }, textures =>
         {
             Assert.NotEmpty(textures);
             Assert.All(textures, texture => Assert.Equal(ReplacementColor, texture[0, 0]));
@@ -113,7 +113,7 @@ public sealed class ModelModIntegrationTests
 
     private static EditableModel Edit(EditableModel model)
     {
-        Vector3 offset = new(173, 29, -43);
+        Vector3 offset = new(0.01f, 0.02f, -0.015f);
         return model with
         {
             Meshes = model.Meshes.Select(mesh => mesh with { Vertices = mesh.Vertices.Select(vertex => vertex with { Position = vertex.Position + offset }).ToArray(), Texture = mesh.Texture < 0 ? 0 : mesh.Texture }).ToArray(),

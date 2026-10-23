@@ -31,6 +31,7 @@ internal sealed partial class RecreateGame
             }
             if (inventory.Objects.Count == 0)
             {
+                ValidateSingleUnidentifiedModelMapping(bytes);
                 if (!ModelBrowserDialogs.Confirm(Window.Handle, "The GLB has no preserved logical model identity. Explicitly map its single model and clip slots to " + entry.Id + "?", "Map GLB target", "Use this target?"))
                 {
                     return;
@@ -79,6 +80,27 @@ internal sealed partial class RecreateGame
         {
             keyboard.SuppressHeldNameInput();
             modelBrowserDialogInputDrain = true;
+        }
+    }
+
+    internal static void ValidateSingleUnidentifiedModelMapping(ReadOnlySpan<byte> bytes)
+    {
+        if (bytes.Length < 20 || System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(bytes) != 0x46546C67 || System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(bytes[16..]) != 0x4E4F534A)
+        {
+            throw new InvalidDataException("The GLB has no valid JSON directory for explicit mapping.");
+        }
+        int length = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes[12..]);
+        if (length < 0 || length > bytes.Length - 20)
+        {
+            throw new InvalidDataException("The GLB JSON directory exceeds its container.");
+        }
+        using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(bytes.Slice(20, length).ToArray());
+        System.Text.Json.JsonElement root = document.RootElement;
+        int objects = root.TryGetProperty("nodes", out System.Text.Json.JsonElement nodes) ? nodes.EnumerateArray().Count(node => node.TryGetProperty("mesh", out _)) : 0;
+        int skins = root.TryGetProperty("skins", out System.Text.Json.JsonElement skinArray) ? skinArray.GetArrayLength() : 0;
+        if (objects > 1 || skins > 1 || objects == 0 && skins != 1)
+        {
+            throw new NotSupportedException("Several objects or rigs have no logical model identities. Restore their Memoria identities or export one model for explicit mapping; mapping the entire assembly to the selected catalog model is unsupported.");
         }
     }
 

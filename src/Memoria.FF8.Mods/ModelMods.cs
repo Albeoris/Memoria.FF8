@@ -106,8 +106,8 @@ public sealed class ModelMods : IModelOverrideSource
 
     public FieldModel Apply(string modelId, FieldModel original) => Apply(modelId, "embedded", original, model => ModelExchange.FromField(model, modelId.StartsWith("world/", StringComparison.OrdinalIgnoreCase) ? ModelExchange.WorldFramesPerSecond : ModelExchange.FramesPerSecond), (model, source) => ModelModAnimationConverter.ToField(model, HasGeometryOverride(modelId, "embedded") ? ModelExchange.ToField(model, source) : source with { EditableOverride = model }));
     public BattleModel Apply(string modelId, BattleModel original) => ApplyBattleBank(modelId, "embedded", original);
-    public BattleModel ApplyBattleBank(string modelId, string bank, BattleModel original) => Apply(modelId, bank, original, ModelExchange.FromBattle, (model, source) => ModelModAnimationConverter.ToBattle(model, HasGeometryOverride(modelId, bank) ? ModelExchange.ToBattle(model, source) with { NativeControlMeshes = source.NativeControlMeshes ?? source.Meshes } : source with { EditableOverride = model }));
-    public BattleStage Apply(string modelId, BattleStage original) => Apply(modelId, "embedded", original, ModelExchange.FromStage, ModelExchange.ToStage);
+    public BattleModel ApplyBattleBank(string modelId, string bank, BattleModel original) => Apply(modelId, bank, original, ModelExchange.FromBattle, (model, source) => ModelModAnimationConverter.ToBattle(model, HasGeometryOverride(modelId, bank) ? ApplyBattleGeometry(model, source) : source with { EditableOverride = model }));
+    public BattleStage Apply(string modelId, BattleStage original) => Apply(modelId, "embedded", original, ModelExchange.FromStage, (model, source) => throw new NotSupportedException("Battle stage replacement requires an unsupported native stage geometry binding. Stage export remains available."));
     public WorldStaticModel Apply(string modelId, WorldStaticModel original) => Apply(modelId, "embedded", original, ModelExchange.FromWorld, ModelExchange.ToWorld);
 
     private bool HasGeometryOverride(string modelId, string bank) => files.Any(item => item.Variant.ModelId.Equals(modelId, StringComparison.OrdinalIgnoreCase) && item.Variant.Bank == bank && item.Variant.ClipSlot is null);
@@ -132,6 +132,17 @@ public sealed class ModelMods : IModelOverrideSource
         T replacement = to(model, original);
         replacements.Add(key, replacement);
         return replacement;
+    }
+
+    private static BattleModel ApplyBattleGeometry(EditableModel edited, BattleModel original)
+    {
+        byte[] bytes = NativeBattleModelGeometryWriter.Encode(edited, ModelExchange.FromBattle(original with { EditableOverride = null }));
+        return ModelExchange.ToBattle(edited, original) with
+        {
+            NativeControlMeshes = original.NativeControlMeshes ?? original.Meshes,
+            NativeGeometryBytes = System.Collections.Immutable.ImmutableArray.CreateRange(bytes),
+            NativeRenderGeometry = Memoria.FF8.Runtime.NativeBattleRawGeometryReader.Read(bytes, original.Bones.Count)
+        };
     }
 
     internal static EditableModel Merge(EditableModel original, ModelModVariant variant, EditableModel edited)
@@ -163,8 +174,16 @@ public sealed class ModelMods : IModelOverrideSource
 
     public static EditableModel Preview(EditableModel original, ModelModReplacement replacement)
     {
+        if (original.Kind == "stage" && replacement.ReplaceGeometry)
+        {
+            throw new NotSupportedException("Battle stage replacement requires an unsupported native stage geometry binding. Stage export remains available.");
+        }
         EditableModel aligned = AlignRetainedRig(original, replacement.Model);
         EditableModel result = replacement.ReplaceGeometry ? RetainParts(original, original with { Meshes = aligned.Meshes, Textures = aligned.Textures }, replacement.PreserveNativeParts) : original;
+        if (replacement.ReplaceGeometry && original.Kind == "battle")
+        {
+            _ = NativeBattleModelGeometryWriter.Encode(result, original);
+        }
         EditableAnimation[] animations = original.Animations.ToArray();
         HashSet<(string Bank, int Slot)> targets = [];
         foreach (ModelModClipReplacement clip in replacement.Clips)
