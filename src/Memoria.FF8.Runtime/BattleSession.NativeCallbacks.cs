@@ -38,7 +38,7 @@ public sealed partial class BattleSession
 
     private void QueueNativeInitialParticipants()
     {
-        foreach (BattleCombatant actor in combatants.Where(actor => actor.NativeIndex is >= 0 and < 7 && actor.IsActive && (actor.NativeCombatantFlags & 0x10) != 0 && (actor.NativeCombatantFlags & 0x80000000) == 0).OrderBy(actor => actor.NativeIndex))
+        foreach (BattleCombatant actor in combatants.Where(actor => actor.NativeIndex is >= 0 and < 7 && actor.IsActive && (actor.NativeCombatantFlags & 0x10) != 0 && !actor.Suspended).OrderBy(actor => actor.NativeIndex))
         {
             QueueNativeParticipantInitialization(actor);
         }
