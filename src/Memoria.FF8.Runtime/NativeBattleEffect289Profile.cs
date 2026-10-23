@@ -1,0 +1,61 @@
+using System.Collections.Immutable;
+
+namespace Memoria.FF8.Runtime;
+
+public static class NativeBattleEffect289Profile
+{
+    public const ushort Effect = 289;
+    public const uint Entry = 0x6777E0;
+    public const uint Initializer = 0x6777F0;
+    public const uint RootCallback = 0x677890;
+    public const uint MainCallback = 0x677A30;
+    public const uint BaseAddress = 0x2507BD0;
+    public const uint InitializerGlobal = BaseAddress;
+    public const uint ParametersGlobal = 0x2507BD4;
+    public const uint CasterGlobal = 0x2507BD8;
+    public const uint ParticleDescriptor = 0x2507BE0;
+    public const int ParticleOffset = 0;
+    public const int ParticleStride = 36;
+    public const int ParticleCount = 64;
+    public const uint ProgrammeDescriptor = 0x2507BF0;
+    public const int ProgrammeOffset = 0x900;
+    public const int ProgrammeStride = 84;
+    public const int ProgrammeCount = 32;
+    public const uint MainDescriptor = 0x2507C00;
+    public const int MainOffset = 0x1380;
+    public const int MainLength = 416;
+    public const uint RootDescriptor = 0x2507C10;
+    public const uint RootBank = 0x2507C20;
+    public const int RootBankLength = 20;
+    public const uint CursorGlobal = 0x2507C34;
+    public const uint ArenaGlobal = 0x2507C38;
+    public const uint ArenaAddress = 0x20DFAB8;
+    public const int ScratchOffset = 0x1520;
+    public const int ScratchLength = 1312;
+    public const int FirstPacketOffset = 0x1A40;
+    public const int SecondPacketOffset = 0x11A40;
+    public const int PacketBankBytes = 0x10000;
+    public const uint MainProgrammeAddress = 0x1070804;
+    public const int MainProgrammeLength = 5636;
+    public const int MainProgrammeWorkspaceOffset = 0x1C;
+    public const int MainProgrammeWorkspaceLength = 388;
+    public const uint ChildProgrammeAddress = 0x1071E08;
+    public const int ChildProgrammeLength = 1752;
+    public const int ChildProgrammeWorkspaceOffset = 0x14;
+    public const int ChildProgrammeWorkspaceLength = 64;
+    public const uint CameraAddress = 0x10724E0;
+    public const int CameraLength = 344;
+    public const uint SoundAddress = 0x1072638;
+    public const uint PointAddress = 0x1072640;
+    public const uint LookupAddress = 0x1072648;
+    public const int LookupLength = 8162;
+    public const uint TextureNameAddress = 0x1074648;
+    public const int TextureLength = 165920;
+    public const int MeshVertexCount = 164;
+    public const int MeshWStorageLength = 656;
+    public static readonly ImmutableArray<uint> MeshAddresses = [0x106EDE4, 0x106FAF4];
+    public static readonly ImmutableArray<int> MeshLengths = [3344, 3344];
+    public static readonly ImmutableArray<uint> SpriteAddresses = [0x106E9B0, 0x106EAF4, 0x106EC38];
+    public static readonly ImmutableArray<int> SpriteLengths = [324, 324, 428];
+    public static readonly ImmutableArray<NativeBattleCureFamilyPool> Pools = [new(RootDescriptor, RootBank, RootBankLength, 1), new(MainDescriptor, ArenaAddress + MainOffset, MainLength, 1), new(ParticleDescriptor, ArenaAddress + ParticleOffset, ParticleStride, ParticleCount), new(ProgrammeDescriptor, ArenaAddress + ProgrammeOffset, ProgrammeStride, ProgrammeCount)];
+}
