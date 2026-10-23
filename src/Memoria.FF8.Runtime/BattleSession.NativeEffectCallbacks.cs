@@ -117,6 +117,10 @@ public sealed partial class BattleSession
         {
             return RunNativeSaliva138(graphics, false);
         }
+        if (effect.Binding.Entry == NativeBattleMiniPulseCannon286Profile.Entry)
+        {
+            return RunNativeMiniPulseCannon286(graphics, false);
+        }
         if (effect.Binding.Entry == NativeBattleEvilEye282Profile.Entry)
         {
             return RunNativeEvilEye282(graphics, false);

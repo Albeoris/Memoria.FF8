@@ -62,13 +62,13 @@ public static class NativeBattleWindowedMesh701DD0
         }
     }
 
-    private static NativeBattleGfGeometryBatch EmitFt3_7023B0(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> project, NativeBattleEsunaMeshContext context, NativeBattleSummonColors colors, int offset)
+    internal static NativeBattleGfGeometryBatch EmitFt3_7023B0(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> project, NativeBattleEsunaMeshContext context, NativeBattleSummonColors colors, int offset)
     {
         NativeBattleGfGeometryBatch batch = NativeBattleRestorationMeshPackets.EmitFt3_88E820(face, project, context, colors, offset);
         return RetainRejectedSourceColor(batch, face);
     }
 
-    private static NativeBattleGfGeometryBatch EmitGt3_703340(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> project, NativeBattleEsunaMeshContext context, NativeBattleSummonColors colors, int offset)
+    internal static NativeBattleGfGeometryBatch EmitGt3_703340(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> project, NativeBattleEsunaMeshContext context, NativeBattleSummonColors colors, int offset)
     {
         NativeBattleGfGeometryBatch batch = NativeBattleRestorationMeshPackets.EmitGt3_88F750(face, project, context, colors, offset);
         return RetainRejectedSourceColor(batch, face);
