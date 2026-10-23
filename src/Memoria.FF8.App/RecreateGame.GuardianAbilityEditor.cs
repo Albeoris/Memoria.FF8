@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Events;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Mods;
 using Memoria.FF8.Runtime;
@@ -172,8 +173,33 @@ internal sealed partial class RecreateGame
         }, false, true, "Reactivate supported native documents over the observed opaque baseline after fresh reconciliation.");
     }
 
+    private string? GuardianMutationUnavailableReason
+    {
+        get
+        {
+            if (!session.CanApplyGuardianForceAbilities(out string? reason))
+            {
+                return reason;
+            }
+            if (session.State.Scene == SceneKind.Field && events is not null && (events.Scene.NativeTutorial is not null || events.Scene.NativeMenuTutorial is not null || events.HasPendingBattle || events.PartyMenu is not null && events.PartyMenu is not { Kind: NativeFieldMenuKind.Normal, Phase: NativePartyMenuPhase.Active } || events.PartyMenu is null && (!events.IsUserControlEnabled || events.IsDialogueBlocking || !events.Scene.MenuEnabled || events.PendingTripleTriad is not null)))
+            {
+                return "GF abilities can change only while the field or normal Config menu is idle.";
+            }
+            return null;
+        }
+    }
+
+    private void RequireGuardianMutationBoundary()
+    {
+        if (GuardianMutationUnavailableReason is { } reason)
+        {
+            throw new InvalidOperationException(reason);
+        }
+    }
+
     private string ApplyGuardianDraft(GuardianForceEditorReview review)
     {
+        RequireGuardianMutationBoundary();
         session.ApplyGuardianForceAbilities(review.Preview, guardianSourceRevision, resourceHost!.Mods.Catalog.Generation);
         guardianPendingModReview = null;
         gameMenus?.InvalidateLiveData();
@@ -211,6 +237,10 @@ internal sealed partial class RecreateGame
             }
             revision = null;
         }
+        if (exportedIndependent && session.CharacterVitals?.GuardianForceProfile?.LocalDocuments.Any(local => local.DocumentId == localOwnerId) == true)
+        {
+            RequireGuardianMutationBoundary();
+        }
         GuardianForceAbilityPreparedApply? ownership = exportedIndependent ? GuardianForceAbilityProfileCoordinator.PrepareIndependentLocalExport(session, localOwnerId, document.DocumentId, guardianSourceRevision, resourceHost.Mods.Catalog.Generation) : null;
         GuardianForceAbilityPackageDocument result = GuardianForceAbilityPackageStore.Save(primary, destination, document, revision, resourceHost.Mods.Catalog);
         if (ownership is not null)
@@ -233,6 +263,10 @@ internal sealed partial class RecreateGame
         if (session.State.Scene == SceneKind.Title || session.State.CharacterVitals is null)
         {
             return ModPreparationResult.Accepted;
+        }
+        if (GuardianMutationUnavailableReason is { } boundaryReason)
+        {
+            return new(false, Diagnostics: [new("Memoria.GuardianForceBoundary", boundaryReason)]);
         }
         EnsureGuardianSource();
         GuardianForceEditorContext context = ReadGuardianEditorContext();

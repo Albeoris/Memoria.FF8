@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Memoria.FF8.Mods;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
@@ -69,7 +70,8 @@ public sealed partial class MenuController
             Title = "Mods · Create Mods",
             Help = "Create a native gameplay mod or edit a compatible GF package.",
             Entries = _ => [new("installed", "Installed Mods", "Installed packages and enablement.", Destination: "mods"), new("gf", "GF Abilities", "Edit existing abilities for all sixteen learnable GFs. Classic only.", Destination: "gf-ability-targets", Enabled: GuardianEditorEditionSupported)],
-            Details = _ => ["GF ability templates and earned progress have separate owners.", "Classic native Memoria gameplay packages.", "Summon-only entities have no learnable ability table."]
+            Details = _ => ["GF ability templates and earned progress have separate owners.", "Classic native Memoria gameplay packages.", "Summon-only entities have no learnable ability table."],
+            BuildContent = (c, panel) => panel.Children.Add(c.BuildCreateModsPage())
         });
         Register(new()
         {
@@ -126,6 +128,18 @@ public sealed partial class MenuController
     }
 
     private Func<string>? acceptGuardianModReview;
+
+    private UiElement BuildCreateModsPage()
+    {
+        UiGrid page = Grid([1, 1.2f, 5], [1], 8);
+        UiGrid tabs = Grid([1], [1, 1], 8);
+        Place(tabs, new UiButton { Id = "installed", Text = "Installed Mods", FontSize = 22 * TextScale, Click = () => Activate(0) }, 0, 0);
+        Place(tabs, new UiButton { Id = "create-current", Text = "Create Mods", FontSize = 22 * TextScale, Click = () => { } }, 0, 1);
+        Place(page, tabs, 0);
+        Place(page, new UiButton { Id = "gf", Text = "GF Abilities", FontSize = 24 * TextScale, Enabled = GuardianEditorEditionSupported, Click = () => Activate(1) }, 1);
+        Place(page, Details(), 2);
+        return page;
+    }
 
     private IReadOnlyList<string> GuardianReviewDetails()
     {

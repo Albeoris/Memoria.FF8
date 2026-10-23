@@ -170,13 +170,10 @@ public sealed partial class GameSession
             reason = "GF changes must wait until the active or pending battle has ended.";
             return false;
         }
-        try
+        static bool Present(JsonElement checkpoint, string name) => checkpoint.TryGetProperty(name, out JsonElement value) && value.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined);
+        if (State.EventState is { ValueKind: JsonValueKind.Object } checkpoint && (checkpoint.TryGetProperty("TransitionRequested", out JsonElement transition) && transition.ValueKind == JsonValueKind.True || Present(checkpoint, "PartyJoin") || Present(checkpoint, "PartySplit") || checkpoint.TryGetProperty("Scene", out JsonElement scene) && scene.ValueKind == JsonValueKind.Object && (Present(scene, "NativeTutorial") || Present(scene, "NativeMenuTutorial"))))
         {
-            RequireMagicMutationBoundary();
-        }
-        catch (InvalidOperationException error)
-        {
-            reason = error.Message;
+            reason = "GF abilities cannot change during a tutorial or scripted field/party transition.";
             return false;
         }
         reason = null;
