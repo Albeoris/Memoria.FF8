@@ -172,8 +172,8 @@ public static class MenuSettings
 {
     public static IReadOnlyList<MenuSetting> Definitions { get; } =
     [
-        new("Show FPS", "Show measured visual frame changes per real second. Identical frames and the FPS overlay do not count; a still scene may show 0 FPS.", ["Off", "On"]),
-        new("V-Sync", "Synchronize presentation with the display refresh rate. Applies to this installation.", ["On", "Off"]),
+        new("Show FPS", "Show presentation FPS and visual Changes/s. A static scene can present frames while Changes/s is zero.", ["Off", "On"]),
+        new("V-Sync", "Synchronize presentation with display refresh; frame limits may cap it further. Shared across saves for this user.", ["On", "Off"]),
         new("Anti-aliasing", "Smooth rendered edges with multisample anti-aliasing. Applies immediately and is shared by every save on this installation. Unsupported sample counts use the highest supported count up to the selected value.", ["Off", "MSAA 2x", "MSAA 4x", "MSAA 8x"]),
         new("Field FPS", "Field and movie presentation at 30 or 60 FPS. At 60, field movement and animation interpolate between original simulation frames. Gameplay timing is unchanged. V-Sync may limit output further.", ["30", "60"]),
         new("World FPS", "World travel presentation limit. Simulation remains at its original rate; 60 FPS interpolates movement and camera between updates. V-Sync may limit output further.", ["30", "60"]),
@@ -201,10 +201,10 @@ public static class MenuSettings
         new("Camera movement", "Original battle camera movement.", ["On", "Off"]),
         new("Battle control", "Original battle control prompts.", ["On", "Off"]),
         new("Vibration", "Enable or disable controller vibration globally.", ["On", "Off"]),
-        new("Music volume", "Host music playback preference.", ["100%", "75%", "50%", "25%", "0%"]),
-        new("Effect volume", "Host sound-effect playback preference.", ["100%", "75%", "50%", "25%", "0%"]),
+        new("Music volume", "Music output volume, 0–100%. Shared across saves for this user.", ["100%", "75%", "50%", "25%", "0%"]),
+        new("Effect volume", "Sound effects output volume, 0–100%. Shared across saves for this user.", ["100%", "75%", "50%", "25%", "0%"]),
         new("UI presentation", "Vector or classic interface presentation. F7 switches immediately; shared by every save on this installation.", ["Vector", "Classic"]),
-        new("Text scale", "Host menu text scale.", ["100%", "125%", "150%"]),
+        new("Text scale", "Menu text scale, multiplied by the menu font size. Shared across saves for this user.", ["100%", "125%", "150%"]),
         new("UI font", "Installed OS font for menus and interface text in the current presentation. Each presentation remembers its own choice.", SystemFontCatalog.Families.ToArray()),
         new("UI font size", "Interface font size in design pixels; Text scale applies on top.", ["18", "20", "24", "28", "32"]),
         new("Dialogue font", "Installed OS font for field dialogue; missing scripts use OS fallback.", SystemFontCatalog.Families.ToArray()),

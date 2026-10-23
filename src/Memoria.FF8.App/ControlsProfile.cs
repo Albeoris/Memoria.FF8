@@ -199,13 +199,37 @@ public sealed class ControlsProfile
         {
             throw new InvalidOperationException("Already assigned to " + string.Join(", ", conflicts.Select(Label)) + ".");
         }
-        return new ControlsProfile(bindings.Where(binding => binding.Device != device || binding.Action != action && !conflicts.Contains(binding.Action)).Append(new Binding(action, device, chord)), Controller);
+        return new ControlsProfile(bindings.Where(binding => binding.Device != device || binding.Action != action && !binding.Chord.Same(chord)).Append(new Binding(action, device, chord)), Controller);
     }
 
     public ControlsProfile WithoutBinding(ControlAction action, ControlDevice device)
     {
         return new ControlsProfile(bindings.Where(binding => binding.Action != action || binding.Device != device), Controller);
     }
+
+    public static bool IsDeveloperAction(ControlAction action) => action is ControlAction.DebugRoom or ControlAction.BattleDebug or ControlAction.BattleInstantVictory;
+
+    public static IReadOnlyList<ControlAction> PlayerActions { get; } = Definitions.Where(definition => !IsDeveloperAction(definition.Action)).Select(definition => definition.Action).ToArray();
+    public static IReadOnlyList<ControlAction> DeveloperActions { get; } = Definitions.Where(definition => IsDeveloperAction(definition.Action)).Select(definition => definition.Action).ToArray();
+
+    public IReadOnlyList<ControlAction> FindResetConflicts(ControlDevice device, bool developer)
+    {
+        Binding[] defaults = CreateDefault().bindings.Where(binding => binding.Device == device && IsDeveloperAction(binding.Action) == developer).ToArray();
+        return bindings.Where(binding => binding.Device == device && IsDeveloperAction(binding.Action) != developer && defaults.Any(value => value.Chord.Same(binding.Chord))).Select(binding => binding.Action).Distinct().ToArray();
+    }
+
+    public ControlsProfile ResetBindings(ControlDevice device, bool developer, bool replaceConflicts = false)
+    {
+        IReadOnlyList<ControlAction> conflicts = FindResetConflicts(device, developer);
+        if (conflicts.Count != 0 && !replaceConflicts)
+        {
+            throw new InvalidOperationException("Default bindings conflict with " + string.Join(", ", conflicts.Select(Label)) + ". Review replacement before restoring.");
+        }
+        Binding[] defaults = CreateDefault().bindings.Where(binding => binding.Device == device && IsDeveloperAction(binding.Action) == developer).ToArray();
+        return new ControlsProfile(bindings.Where(binding => binding.Device != device || IsDeveloperAction(binding.Action) != developer && !defaults.Any(value => value.Chord.Same(binding.Chord))).Concat(defaults), Controller);
+    }
+
+    public ControlsProfile ResetControllerSettings() => new(bindings, new ControllerSettings());
 
     public ControlsProfile Reset(ControlDevice device) => new(bindings.Where(binding => binding.Device != device).Concat(CreateDefault().bindings.Where(binding => binding.Device == device)), device == ControlDevice.Controller ? new ControllerSettings() : Controller);
 

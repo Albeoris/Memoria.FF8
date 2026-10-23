@@ -36,7 +36,7 @@ public sealed class UiPresentationPreferencesTests
         MenuAction? applied = null;
         MenuController menus = new(() => data, action => applied = action);
         menus.Open("config-interface", false);
-        MenuEntry entry = Assert.Single(menus.Entries);
+        MenuEntry entry = Assert.Single(menus.Entries, entry => entry.Id == "UI presentation");
         Assert.Equal("UI presentation", entry.Id);
         menus.Execute(entry.Action!);
         Assert.Equal(new MenuAction("config", "UI presentation", Value: "Classic"), applied);

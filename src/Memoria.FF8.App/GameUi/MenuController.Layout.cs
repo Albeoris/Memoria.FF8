@@ -8,13 +8,13 @@ public sealed partial class MenuController
     {
         get
         {
-            if (IsHostSettingsScreen || ScreenId is "debug-room" or "debug-autoplay" || IsNamingScreen || UseHostControls)
+            if (!IsFixtureContext && (_readPreferences is not null || IsHostSettingsScreen || ScreenId is "debug-room" or "debug-autoplay" || IsNamingScreen || UseHostControls))
             {
                 UiPreferences preferences = _readPreferences?.Invoke() ?? new UiPreferences();
                 return preferences.TextScale / 100f * preferences.UiFontSize / 24f;
             }
             string value = Data.Settings.GetValueOrDefault("Text scale", "100%").TrimEnd('%');
-            float fontScale = (_readPreferences?.Invoke().UiFontSize ?? 24) / 24f;
+            float fontScale = (IsFixtureContext ? demoFontPreferences.UiFontSize : _readPreferences?.Invoke().UiFontSize ?? 24) / 24f;
             return fontScale * (float.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out float percent) ? Math.Clamp(percent / 100, 1, 1.5f) : 1);
         }
     }
@@ -136,20 +136,23 @@ public sealed partial class MenuController
         var panes = Grid([1], [0.95f, 1.05f]);
         Place(content, panes, showSummary ? 1 : 0);
         Place(panes, Panel(null, Commands(30, 19)), 0, 0);
-        bool showFontPreviews = ScreenId == "debug-ui" || ScreenId == "config" && SelectedEntry?.Id is ("UI font" or "UI font size" or "Dialogue font" or "Dialogue font size");
+        bool showFontPreviews = ScreenId is "config-text" or "font-picker";
         Place(panes, Panel(ScreenId == "debug-room" ? "Selected preview" : CurrentScreen.Title, showFontPreviews ? BuildFontPreviews() : Details()), 0, 1);
         return content;
     }
 
     private UiElement BuildFontPreviews()
     {
-        UiPreferences preferences = _readPreferences?.Invoke() ?? demoFontPreferences;
-        var previews = Grid([0.7f, 2, 0.7f, 2, 0.7f], [1]);
-        Place(previews, Label($"UI · {preferences.GetUiFontFamily(Presentation)} · {preferences.UiFontSize}px", 17), 0);
-        Place(previews, new FontPreviewElement(preferences.GetUiFontFamily(Presentation), preferences.UiFontSize * preferences.TextScale / 100f) { Id = "ui-font-preview" }, 1);
-        Place(previews, Label($"Dialogue · {preferences.DialogueFontFamily} · {preferences.DialogueFontSize}px", 17), 2);
-        Place(previews, new FontPreviewElement(preferences.DialogueFontFamily, preferences.DialogueFontSize * 3) { Id = "dialogue-font-preview" }, 3);
-        Place(previews, Label("Unicode samples use OS shaping and fallback.", 15), 4);
+        UiPreferences preferences = FontPreferences;
+        var previews = Grid([1], [1, 1], 8);
+        var menus = Grid([1, 2], [1], 4);
+        var dialogue = Grid([1, 2], [1], 4);
+        Place(menus, Label($"Menus: {preferences.UiFontSize}px / {preferences.TextScale}%", 15), 0);
+        Place(menus, new FontPreviewElement(preferences.GetUiFontFamily(Presentation), preferences.UiFontSize * preferences.TextScale / 100f) { Id = "ui-font-preview" }, 1);
+        Place(dialogue, Label($"Dialogue: {preferences.DialogueFontSize}px (field)", 15), 0);
+        Place(dialogue, new FontPreviewElement(preferences.DialogueFontFamily, preferences.DialogueFontSize * 3) { Id = "dialogue-font-preview" }, 1);
+        Place(previews, menus, 0);
+        Place(previews, dialogue, 0, 1);
         return previews;
     }
 
@@ -224,7 +227,7 @@ public sealed partial class MenuController
     {
         var header = Grid([1], [4, 1]);
         Place(header, Help(), 0, 0);
-        Place(header, Panel(null, Label(CurrentScreen.Title, CurrentScreen.Title.Length > 12 ? 18 : 26)), 0, 1);
+        Place(header, Panel(null, Label(IsFixtureContext ? "Preview / Fixture" : CurrentScreen.Title, CurrentScreen.Title.Length > 12 ? 18 : 26, UiTextFlow.Wrap)), 0, 1);
         return header;
     }
 

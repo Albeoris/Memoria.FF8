@@ -74,33 +74,89 @@ public sealed class QuickSaveSettingsTests
     }
 
     [Fact]
-    public void Interface_exposes_quick_saves_as_an_integer_slider_and_clamps_at_one()
+    public void Retention_editor_stages_changes_and_cancel_preserves_preference()
     {
         MenuData data = new();
         data.Settings["Quick saves"] = "9";
         data.SupportedActions.Add("config:Quick saves");
-        List<MenuAction> applied = [];
-        MenuController controller = new(() => data, action =>
+        int previews = 0;
+        int commits = 0;
+        MenuController controller = new(() => data, _ => throw new InvalidOperationException("Unexpected live write"));
+        controller.ConnectQuickSaveRetention(count =>
         {
-            applied.Add(action);
-            data.Settings[action.SubjectId] = action.Value;
+            previews++;
+            return 0;
+        }, (count, removals) =>
+        {
+            commits++;
+            return "Saved";
         });
-        controller.Open("config-interface");
-        Assert.Equal("Quick saves", Assert.Single(controller.Entries).Id);
+        controller.Open("config-exploration");
+        controller.Execute(new MenuAction("quick-save-open"));
         UiNumericSlider slider = Assert.Single(Descendants(controller.BuildView().Root).OfType<UiNumericSlider>());
         Assert.Equal(1, slider.Min);
         Assert.Equal(999, slider.Max);
-        Assert.Equal(1, slider.Step);
-        Assert.Equal(9, slider.Value);
+        slider.ValueChanged!(1);
         controller.Navigate(MenuInput.Right);
-        Assert.Equal("10", Assert.Single(applied).Value);
-        data.Settings["Quick saves"] = "1";
+        Assert.Equal(0, previews);
+        Assert.Equal(0, commits);
+        controller.Execute(new MenuAction("menu-back"));
+        Assert.Equal("9", data.Settings["Quick saves"]);
+        Assert.Equal(0, commits);
+    }
+
+    [Fact]
+    public void Retention_deletion_requires_exact_count_confirmation_and_reports_owner_result()
+    {
+        MenuData data = new();
+        data.Settings["Quick saves"] = "9";
+        MenuController controller = new(() => data);
+        int commits = 0;
+        controller.ConnectQuickSaveRetention(_ => 3, (count, removals) =>
+        {
+            Assert.Equal(8, count);
+            Assert.Equal(3, removals);
+            commits++;
+            data.Settings["Quick saves"] = "8";
+            return "Limit saved; cleanup incomplete.";
+        });
+        controller.Open("config-exploration");
+        controller.Execute(new MenuAction("quick-save-open"));
         controller.Navigate(MenuInput.Left);
-        Assert.Equal("1", applied.Last().Value);
-        controller.Open("config-gameplay");
-        Assert.DoesNotContain(controller.Entries, entry => entry.Id == "Quick saves");
-        controller.Open("new-game-options");
-        Assert.DoesNotContain(controller.Entries, entry => entry.Id == "Quick saves");
+        controller.Execute(new MenuAction("quick-save-review"));
+        Assert.Equal("quick-save-confirm", controller.ScreenId);
+        Assert.Contains("3 quick saves", controller.Entries[1].Label);
+        Assert.Equal(0, commits);
+        controller.Execute(new MenuAction("menu-back"));
+        Assert.Equal("9", data.Settings["Quick saves"]);
+        controller.Execute(new MenuAction("quick-save-review"));
+        controller.Execute(new MenuAction("quick-save-commit"));
+        Assert.Equal(1, commits);
+        Assert.Equal("8", data.Settings["Quick saves"]);
+        Assert.Equal("Limit saved; cleanup incomplete.", controller.Message);
+    }
+
+    [Fact]
+    public void Unchanged_out_of_preset_limit_survives_open_and_save_without_confirmation()
+    {
+        MenuData data = new();
+        data.Settings["Quick saves"] = int.MaxValue.ToString(CultureInfo.InvariantCulture);
+        MenuController controller = new(() => data);
+        int commits = 0;
+        controller.ConnectQuickSaveRetention(count => 0, (count, removals) =>
+        {
+            Assert.Equal(int.MaxValue, count);
+            Assert.Equal(0, removals);
+            commits++;
+            return "Saved";
+        });
+        controller.Open("config-exploration");
+        controller.Execute(new MenuAction("quick-save-open"));
+        UiNumericSlider slider = Assert.Single(Descendants(controller.BuildView().Root).OfType<UiNumericSlider>());
+        Assert.Equal("'2147483647'", slider.ValueFormat);
+        controller.Execute(new MenuAction("quick-save-review"));
+        Assert.Equal(1, commits);
+        Assert.Equal("config-exploration", controller.ScreenId);
     }
 
     [Fact]

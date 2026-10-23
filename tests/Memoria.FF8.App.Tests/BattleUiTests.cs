@@ -210,6 +210,7 @@ public sealed class BattleUiTests
         BattleDefinition? started = null;
         BattleDebugController debug = new(original, new BattleDebugCatalog(), BattleAtbMode.Normal, (definition, _) => started = definition, () => { });
         SelectRow(debug, "Party 1");
+        SelectRow(debug, "Actor details");
         int attackRow = debug.Rows.Select((row, index) => (row, index)).Single(pair => pair.row.Label == "Party 1 · Attack").index;
         debug.Select(attackRow, true);
         debug.Start();
@@ -421,6 +422,8 @@ public sealed class BattleUiTests
         BattleDebugController debug = new(Definition(), catalog, BattleAtbMode.Normal, (_, _) => { }, () => { });
         SelectRow(debug, "Party 1");
         Assert.DoesNotContain(debug.Rows, row => row.Label == "Enemy 1 · Weapon");
+        SelectRow(debug, "Actor details");
+        SelectRow(debug, "Actor details");
         int weaponRow = debug.Rows.Select((row, index) => (row, index)).Single(pair => pair.row.Label == "Party 1 · Weapon").index;
         debug.Select(weaponRow, true);
         Assert.Equal(7, debug.Definition.Combatants[0].WeaponId);
@@ -433,18 +436,21 @@ public sealed class BattleUiTests
     {
         MenuController menus = new();
         menus.Open("debug-room", true);
-        string laboratoryId = menus.Entries.Single(entry => entry.Label == "Battle laboratory").Id;
+        menus.SelectEntry("debug-room", "debug-battle");
+        menus.Navigate(MenuInput.Confirm);
+        Assert.Equal("debug-battle", menus.ScreenId);
+        const string laboratoryId = "battle-laboratory";
         Assert.False(menus.Entries.Single(entry => entry.Id == laboratoryId).Enabled);
         int requests = 0;
         menus.BattleDebugRequested += () => requests++;
         MenuData fixture = menus.Data;
-        Assert.Equal("Battle laboratory", menus.Entries.Single(entry => entry.Id == laboratoryId).Label);
+        Assert.StartsWith("Battle laboratory", menus.Entries.Single(entry => entry.Id == laboratoryId).Label, StringComparison.Ordinal);
         Assert.True(menus.Entries.Single(entry => entry.Id == laboratoryId).Enabled);
-        menus.SelectEntry("debug-room", laboratoryId);
+        menus.SelectEntry("debug-battle", laboratoryId);
         menus.Navigate(MenuInput.Confirm);
         Assert.Equal(1, requests);
         Assert.Same(fixture, menus.Data);
-        Assert.Equal("debug-room", menus.ScreenId);
+        Assert.Equal("debug-battle", menus.ScreenId);
     }
 
     [Fact]
@@ -569,6 +575,10 @@ public sealed class BattleUiTests
 
     private static void SelectRow(BattleDebugController debug, string label)
     {
+        if (label.StartsWith("Party ", StringComparison.Ordinal) && !debug.Rows.Any(row => row.Label == label))
+        {
+            debug.Select(debug.Rows.Select((row, index) => (row, index)).Single(pair => pair.row.Label == "Editor panel").index, true);
+        }
         debug.Select(debug.Rows.Select((row, index) => (row, index)).Single(pair => pair.row.Label == label).index, true);
     }
 

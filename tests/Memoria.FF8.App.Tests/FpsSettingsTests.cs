@@ -25,23 +25,26 @@ public sealed class FpsSettingsTests
     }
 
     [Fact]
-    public void F2UiToggleImmediatelyUpdatesHostAndDisplayConfigContainsTheSetting()
+    public void Frame_counter_is_owned_by_graphics_and_immediately_updates_the_host()
     {
         UiPreferences preferences = new();
-        MenuController menus = new();
-        menus.ConnectPreferences(() => preferences, action => preferences = preferences.WithSetting(action.SubjectId, action.Value));
-        menus.Open("debug-ui", true);
-        MenuEntry toggle = menus.Entries.Single(entry => entry.Id == "Show FPS");
-        Assert.Contains("Off", toggle.Label);
+        MenuData data = new();
+        data.Settings["Show FPS"] = "Off";
+        data.SupportedActions.Add("config:Show FPS");
+        MenuController menus = new(() => data, action =>
+        {
+            preferences = preferences.WithSetting(action.SubjectId, action.Value);
+            data.Settings[action.SubjectId] = action.Value;
+        });
+        menus.Open("config-graphics");
+        MenuEntry toggle = Assert.Single(menus.Entries, entry => entry.Id == "Show FPS");
         menus.Execute(toggle.Action!);
         Assert.True(preferences.ShowFps);
-        toggle = menus.Entries.Single(entry => entry.Id == "Show FPS");
-        Assert.Contains("On", toggle.Label);
-        menus.Execute(toggle.Action!);
+        menus.Execute(menus.Entries.Single(entry => entry.Id == "Show FPS").Action!);
         Assert.False(preferences.ShowFps);
-        menus.Open("config-display", true);
-        Assert.Contains(menus.Entries, entry => entry.Id == "Show FPS");
-        menus.Open("config-gameplay", true);
+        menus.Open("config-frame-limits");
         Assert.DoesNotContain(menus.Entries, entry => entry.Id == "Show FPS");
+        menus.Open("debug-gallery", true);
+        Assert.DoesNotContain(menus.Entries, entry => entry.Action?.SubjectId == "Show FPS");
     }
 }

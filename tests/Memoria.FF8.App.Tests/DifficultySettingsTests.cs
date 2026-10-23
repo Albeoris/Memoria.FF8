@@ -8,7 +8,7 @@ public sealed class DifficultySettingsTests
 {
     [Theory]
     [InlineData("new-game-options")]
-    [InlineData("config-gameplay")]
+    [InlineData("config-combat")]
     public void Difficulty_is_selectable_before_start_and_in_config(string screen)
     {
         MenuData data = new();

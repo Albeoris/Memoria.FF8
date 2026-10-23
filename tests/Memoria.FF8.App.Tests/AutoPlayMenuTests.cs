@@ -4,6 +4,29 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class AutoPlayMenuTests
 {
+    [Theory]
+    [InlineData("start")]
+    [InlineData("load-reproduction")]
+    public void ReplacingLiveGameRequiresExplicitConfirmationAndCancelPreservesIt(string command)
+    {
+        AutoPlayMenuState state = new(false, false, "Ready", ReproductionPath: "reproduction.json", HasLiveGame: true);
+        List<string> commands = [];
+        MenuController menus = new();
+        menus.ConnectAutoPlay(() => state, commands.Add);
+        menus.Open("debug-autoplay", true);
+        menus.Execute(new MenuAction("autoplay", Value: command));
+        Assert.Equal("autoplay-replace-confirm", menus.ScreenId);
+        Assert.Empty(commands);
+        menus.Navigate(MenuInput.Cancel);
+        Assert.Equal("debug-autoplay", menus.ScreenId);
+        Assert.Empty(commands);
+        menus.Execute(new MenuAction("autoplay-confirm", Value: command));
+        Assert.Empty(commands);
+        menus.Execute(new MenuAction("autoplay", Value: command));
+        menus.Execute(new MenuAction("autoplay-confirm", Value: command));
+        Assert.Equal(new[] { command }, commands);
+    }
+
     [Fact]
     public void AutomaticPlayActionsFollowHostStateAndCannotExecuteUnavailableCommands()
     {

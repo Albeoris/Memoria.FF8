@@ -123,14 +123,16 @@ public sealed class SystemFontTests
     public void Settings_offer_installed_families_and_both_live_unicode_previews()
     {
         UiPreferences preferences = new() { DialogueFontFamily = SystemFontCatalog.Families.First(family => family != SystemFontCatalog.DefaultFamily) };
-        MenuController menus = new();
+        MenuData data = new();
+        data.SupportedActions.Add("config");
+        MenuController menus = new(() => data, action => preferences = preferences.WithSetting(action.SubjectId, action.Value));
         menus.ConnectPreferences(() => preferences, action => preferences = preferences.WithSetting(action.SubjectId, action.Value));
-        menus.Open("debug-ui", true);
+        menus.Open("config-text", false);
         Assert.Contains(menus.Entries, entry => entry.Id == "UI font");
         Assert.Contains(menus.Entries, entry => entry.Id == "Dialogue font");
         Assert.All(MenuSettings.Definitions.Single(setting => setting.Id == "UI font").Values, family => Assert.Contains(family, SystemFontCatalog.Families));
-        menus.Execute(new MenuAction("host-config", "Dialogue font size", Value: "12"));
-        menus.Execute(new MenuAction("host-config", "UI font size", Value: "28"));
+        menus.Execute(new MenuAction("config", "Dialogue font size", Value: "12"));
+        menus.Execute(new MenuAction("config", "UI font size", Value: "28"));
         UiView view = menus.BuildView();
         FontPreviewElement[] previews = Descendants(view.Root).OfType<FontPreviewElement>().ToArray();
         Assert.Equal(2, previews.Length);
@@ -163,17 +165,20 @@ public sealed class SystemFontTests
         }
         MenuController menus = new(ReadData, action => preferences = preferences.WithSetting(action.SubjectId, action.Value));
         menus.ConnectPreferences(() => preferences, action => preferences = preferences.WithSetting(action.SubjectId, action.Value));
-        menus.Open("config-interface", false);
+        menus.Open("config-text", false);
         int fontIndex = menus.Entries.Select((entry, index) => (entry, index)).Single(pair => pair.entry.Id == "UI font").index;
         for (int index = 0; index < fontIndex; index++)
         {
             menus.Navigate(MenuInput.Down);
         }
         string before = preferences.UiFontFamily;
-        menus.Navigate(MenuInput.Right);
-        Assert.NotEqual(before, preferences.UiFontFamily);
-        UiChoiceRow row = Assert.Single(Descendants(menus.BuildView().Root).OfType<UiChoiceRow>(), candidate => candidate.Id == "UI font");
-        Assert.Equal(preferences.UiFontFamily, row.Items[row.SelectedIndex]);
+        menus.Navigate(MenuInput.Confirm);
+        Assert.Equal("font-picker", menus.ScreenId);
+        string nextFamily = SystemFontCatalog.Families.First(family => family != before);
+        menus.SelectEntry("font-picker", "family:" + nextFamily);
+        menus.Navigate(MenuInput.Confirm);
+        Assert.Equal(nextFamily, preferences.UiFontFamily);
+        Assert.Equal("config-text", menus.ScreenId);
         Assert.Equal(preferences.UiFontFamily, menus.CreateTheme().FontFamily);
     }
 

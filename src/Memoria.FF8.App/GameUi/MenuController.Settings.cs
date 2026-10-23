@@ -5,8 +5,8 @@ public sealed partial class MenuController
     private Func<UiPreferences>? _readPreferences;
     private UiPreferences demoFontPreferences = new();
     private Action<MenuAction>? _writePreferences;
-    private bool IsHostSettingsScreen => ScreenId is "debug-ui" or "debug-audio" or "debug-battle";
-    private bool UseHostControls => ScreenId == "debug-controls" || _history.Contains("debug-controls");
+    private bool IsHostSettingsScreen => ScreenId == "debug-battle";
+    private bool UseHostControls => !IsFixtureContext && IsControlsScreen;
     private Func<bool>? _hasActiveBattle;
     private Action<bool>? _completeActiveBattle;
 
@@ -19,10 +19,20 @@ public sealed partial class MenuController
     internal IReadOnlyList<MenuEntry> BattleSettingsEntries()
     {
         bool active = _hasActiveBattle?.Invoke() == true;
-        return [.. HostSettingsEntries("Difficulty", "Battle policy", "Random encounters", "Battle ATB mode", "Gunblade trigger"),
-            new MenuEntry("instant-victory", "Instant victory", "Immediately defeat all enemies in the current game battle or laboratory battle.", Action: new MenuAction("battle-debug-outcome", Value: "Victory"), Enabled: active),
-            new MenuEntry("instant-defeat", "Instant defeat", "Immediately defeat the party in the current game battle or laboratory battle.", Action: new MenuAction("battle-debug-outcome", Value: "Defeat"), Enabled: active)];
+        return [new MenuEntry("battle-laboratory", "Battle laboratory…", "Edit an isolated scenario; Start launches it explicitly.", Action: new("open-battle-debug"), Enabled: BattleDebugAvailable),
+            .. HostSettingsEntries("Battle policy"),
+            new MenuEntry("instant-victory", "Win current battle", active ? "Immediately win the displayed active battle." : "No active battle is available.", Action: new MenuAction("battle-debug-outcome", Value: "Victory"), Enabled: active),
+            new MenuEntry("instant-defeat", "Lose current battle", active ? "Immediately lose the displayed active battle." : "No active battle is available.", Action: new MenuAction("battle-debug-outcome", Value: "Defeat"), Enabled: active)];
     }
+
+    internal IReadOnlyList<string> BattleSettingsDetails() => [battleSource?.Invoke() ?? (_hasActiveBattle?.Invoke() == true ? "Active battle" : "No active battle"), "Encounter execution: " + (HostSettingValue("Battle policy") == "Instant victory" ? "Automatic victory" : "Full combat"), "Applies to the current game; at Title it is the new-game default.", "Save normally to retain current-game changes.", SelectedEntry?.Help ?? ""];
+    private Func<string>? battleSource;
+    private bool pendingEncounterPolicy;
+    private Func<bool>? hasPendingEncounter;
+    private Func<bool>? encounterPolicyHasConsequence;
+    internal void ConnectEncounterPolicyConsequence(Func<bool> read) => encounterPolicyHasConsequence = read;
+    internal void ConnectPendingEncounter(Func<bool> read) => hasPendingEncounter = read;
+    internal void ConnectBattleSource(Func<string> read) => battleSource = read;
 
     internal void ConnectPreferences(Func<UiPreferences> read, Action<MenuAction> write)
     {
@@ -37,13 +47,13 @@ public sealed partial class MenuController
             MenuSetting setting = MenuSettings.Definitions.Single(setting => setting.Id == key);
             string value = HostSettingValue(key);
             int next = (Array.IndexOf(setting.Values, value) + 1) % setting.Values.Length;
-            return new MenuEntry(key, $"{key}   {value}", setting.Description, Action: new MenuAction("host-config", key, Value: setting.Values[next]), Enabled: _writePreferences is not null);
+            return new MenuEntry(key, key == "Battle policy" ? "Encounter execution   " + (value == "Instant victory" ? "Automatic victory" : value) : $"{key}   {value}", setting.Description, Action: new MenuAction("host-config", key, Value: setting.Values[next]), Enabled: _writePreferences is not null);
         }).ToArray();
     }
 
     private string HostSettingValue(string key)
     {
-        UiPreferences preferences = _readPreferences?.Invoke() ?? demoFontPreferences;
+        UiPreferences preferences = FontPreferences;
         return key switch
         {
             "Show FPS" => preferences.ShowFps ? "On" : "Off",
@@ -75,22 +85,15 @@ public sealed partial class MenuController
         {
             demoFontPreferences = new UiPreferences();
         }
-        if (IsDemo && action.Kind == "config" && action.SubjectId is "UI font" or "UI presentation")
+        if (action.Kind == "encounter-policy-confirm")
         {
-            if (_writePreferences is not null)
+            if (ScreenId == "debug-policy-confirm" && pendingEncounterPolicy)
             {
-                _writePreferences(action);
-                Presentation = _readPreferences!().MenuPresentation;
+                pendingEncounterPolicy = false;
+                Back();
+                _writePreferences?.Invoke(new("config", "Battle policy", Value: "Instant victory"));
+                Message = "Encounter execution applied. Save normally to retain game changes.";
             }
-            else
-            {
-                demoFontPreferences = (demoFontPreferences with { MenuPresentation = Presentation }).WithSetting(action.SubjectId, action.Value);
-                Presentation = demoFontPreferences.MenuPresentation;
-            }
-            Data.Settings[action.SubjectId] = action.Value;
-            Data.Settings["UI font"] = (_readPreferences?.Invoke() ?? demoFontPreferences).GetUiFontFamily(Presentation);
-            _view = null;
-            Message = $"Fixture {action.SubjectId}: {action.Value}";
             return true;
         }
         if (action.Kind == "battle-debug-outcome")
@@ -117,8 +120,19 @@ public sealed partial class MenuController
             Message = "Local settings are not connected to this menu host.";
             return true;
         }
+        if (action.SubjectId != "Battle policy")
+        {
+            Message = "This preference has its canonical editor in Config.";
+            return true;
+        }
+        if (action.Value == "Instant victory" && (encounterPolicyHasConsequence?.Invoke() ?? (_hasActiveBattle?.Invoke() == true || hasPendingEncounter?.Invoke() == true)))
+        {
+            pendingEncounterPolicy = true;
+            Push("debug-policy-confirm");
+            return true;
+        }
         _writePreferences(action with { Kind = "config" });
-        Message = "Local setting saved.";
+        Message = "Encounter execution applied. Save normally to retain game changes.";
         return true;
     }
 }

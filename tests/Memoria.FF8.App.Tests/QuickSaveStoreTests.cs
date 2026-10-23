@@ -32,7 +32,7 @@ public sealed class QuickSaveStoreTests : IDisposable
     }
 
     [Fact]
-    public void Shrinking_removes_oldest_immediately_and_one_save_capacity_replaces_latest()
+    public void Accepted_shrinking_removes_oldest_and_one_save_capacity_replaces_latest()
     {
         PlayerSaveStore store = CreateStore();
         for (int value = 1; value <= 4; value++)
@@ -40,7 +40,7 @@ public sealed class QuickSaveStoreTests : IDisposable
             Save(store, value);
         }
         string[] paths = store.ReadQuickEntries().Select(entry => store.GetPath(entry.Slot)).ToArray();
-        store.SetQuickSaveCount(2);
+        store.CommitQuickSaveCount(2, 2, () => { });
         Assert.Equal(new[] { 4f, 3f }, store.ReadQuickEntries().Select(entry => store.Load(entry.Slot).X));
         Assert.All(paths.Take(2), path => Assert.True(File.Exists(path)));
         Assert.All(paths.Skip(2), path => Assert.False(File.Exists(path)));
@@ -83,7 +83,7 @@ public sealed class QuickSaveStoreTests : IDisposable
         Assert.Equal(legacyPath, store.GetPath(entries[1].Slot));
         Assert.Equal(7, store.Load(entries[1].Slot).X);
         Assert.Equal(original, File.ReadAllBytes(legacyPath));
-        store.SetQuickSaveCount(1);
+        store.CommitQuickSaveCount(1, 1, () => { });
         Assert.False(File.Exists(legacyPath));
         Assert.Equal(8, store.Load(0).X);
     }
@@ -148,7 +148,7 @@ public sealed class QuickSaveStoreTests : IDisposable
         Save(initial, 3);
         byte[] original = File.ReadAllBytes(checkpoint);
         var protectedStore = new PlayerSaveStore(checkpoint, Path.Combine(directory, "saves"));
-        Assert.Throws<InvalidOperationException>(() => protectedStore.SetQuickSaveCount(1));
+        Assert.Throws<InvalidOperationException>(() => protectedStore.CommitQuickSaveCount(1, 2, () => { }));
         Assert.Equal(3, protectedStore.ReadQuickEntries().Count);
         protectedStore.SetQuickSaveCount(3);
         Assert.Throws<InvalidOperationException>(() => Save(protectedStore, 4));
@@ -175,6 +175,84 @@ public sealed class QuickSaveStoreTests : IDisposable
             Assert.Equal("Protected checkpoint", File.ReadAllText(checkpoint));
             File.Delete(checkpoint);
         }
+    }
+
+    [Fact]
+    public void Preview_and_limit_adoption_do_not_delete_files()
+    {
+        PlayerSaveStore store = CreateStore();
+        Save(store, 1);
+        Save(store, 2);
+        Assert.Equal(1, store.PreviewQuickSaveCount(1));
+        Assert.Equal(2, store.ReadQuickEntries().Count);
+        store.SetQuickSaveCount(1);
+        Assert.Equal(1, store.QuickSaveCount);
+        Assert.Equal(2, store.ReadQuickEntries().Count);
+    }
+
+    [Fact]
+    public void Failed_persistence_and_stale_confirmation_preserve_limit_and_files()
+    {
+        PlayerSaveStore store = CreateStore();
+        Save(store, 1);
+        Save(store, 2);
+        bool persisted = false;
+        Assert.Throws<InvalidOperationException>(() => store.CommitQuickSaveCount(1, 0, () => persisted = true));
+        Assert.False(persisted);
+        Assert.Throws<IOException>(() => store.CommitQuickSaveCount(1, 1, () => throw new IOException("Persistence failed")));
+        Assert.Equal(9, store.QuickSaveCount);
+        Assert.Equal(2, store.ReadQuickEntries().Count);
+    }
+
+    [Fact]
+    public void Increasing_limit_with_pending_cleanup_does_not_delete_or_require_confirmation()
+    {
+        PlayerSaveStore store = CreateStore();
+        Save(store, 1);
+        Save(store, 2);
+        Save(store, 3);
+        store.SetQuickSaveCount(1);
+        Assert.Equal(0, store.PreviewQuickSaveCount(2));
+        QuickSaveCleanupResult result = store.CommitQuickSaveCount(2, 0, () => { });
+        Assert.Equal(0, result.Removed);
+        Assert.Equal(3, store.ReadQuickEntries().Count);
+        Assert.Equal(2, store.QuickSaveCount);
+    }
+
+    [Fact]
+    public void Cleanup_failure_keeps_accepted_limit_and_reports_partial_deletion()
+    {
+        PlayerSaveStore store = CreateStore();
+        for (int value = 1; value <= 4; value++)
+        {
+            Save(store, value);
+        }
+        string lockedPath = store.GetPath(store.ReadQuickEntries()[2].Slot);
+        string slot = store.GetPath(1);
+        File.WriteAllText(slot, "Ordinary save");
+        string checkpoint = Path.Combine(directory, "checkpoint.json");
+        File.WriteAllText(checkpoint, "Checkpoint");
+        bool persisted = false;
+        using (new FileStream(lockedPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            QuickSaveCleanupResult result = store.CommitQuickSaveCount(1, 3, () =>
+            {
+                Assert.Equal(4, store.ReadQuickEntries().Count);
+                Assert.Equal(9, store.QuickSaveCount);
+                persisted = true;
+            });
+            Assert.True(persisted);
+            Assert.Equal(1, store.QuickSaveCount);
+            Assert.Equal(1, result.Removed);
+            Assert.Equal(2, result.Remaining);
+            Assert.NotNull(result.Error);
+            Assert.Contains("limit saved", result.Message);
+            Assert.Equal(3, store.ReadQuickEntries().Count);
+        }
+        Assert.Equal("Ordinary save", File.ReadAllText(slot));
+        Assert.Equal("Checkpoint", File.ReadAllText(checkpoint));
+        Save(store, 5);
+        Assert.Single(store.ReadQuickEntries());
     }
 
     private PlayerSaveStore CreateStore()

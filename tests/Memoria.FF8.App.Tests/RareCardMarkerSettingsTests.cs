@@ -41,18 +41,24 @@ public sealed class RareCardMarkerSettingsTests
     }
 
     [Fact]
-    public void DebugUiMenuShowsThePersistedValueAndAppliesTheToggleToItsHost()
+    public void Exploration_page_has_the_only_live_marker_editor()
     {
         Assert.Equal(new[] { "Off", "On" }, MenuSettings.Definitions.Single(setting => setting.Id == "Rare card markers").Values);
         UiPreferences preferences = new();
-        MenuController menus = new();
-        menus.ConnectPreferences(() => preferences, action => preferences = preferences.WithSetting(action.SubjectId, action.Value));
-        menus.Open("debug-ui", true);
+        MenuData data = new();
+        data.Settings["Rare card markers"] = "Off";
+        data.SupportedActions.Add("config:Rare card markers");
+        MenuController menus = new(() => data, action =>
+        {
+            preferences = preferences.WithSetting(action.SubjectId, action.Value);
+            data.Settings[action.SubjectId] = action.Value;
+        });
+        menus.Open("config-exploration");
         MenuEntry marker = menus.Entries.Single(entry => entry.Id == "Rare card markers");
-        Assert.Contains("Off", marker.Label);
+        Assert.Equal("Off", menus.Data.Settings["Rare card markers"]);
         menus.Execute(marker.Action!);
         Assert.True(preferences.RareCardMarkers);
-        Assert.Contains("On", menus.Entries.Single(entry => entry.Id == marker.Id).Label);
+        Assert.Equal("On", menus.Data.Settings["Rare card markers"]);
         menus.Execute(menus.Entries.Single(entry => entry.Id == marker.Id).Action!);
         Assert.False(preferences.RareCardMarkers);
     }

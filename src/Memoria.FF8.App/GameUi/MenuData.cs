@@ -218,6 +218,7 @@ public sealed class MenuScreenDefinition
     public MenuLayout Layout { get; init; } = MenuLayout.List;
     public int Columns { get; init; } = 1;
     public bool MainCommand { get; init; }
+    public bool GalleryEligible { get; init; }
     public Func<MenuController, IReadOnlyList<MenuEntry>> Entries { get; init; } = _ => [];
     public Func<MenuController, IReadOnlyList<string>> Details { get; init; } = _ => [];
     public Action<MenuController, UiPanel>? BuildContent { get; init; }

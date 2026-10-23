@@ -36,6 +36,8 @@ public sealed partial class MenuController
         _liveProvider = liveProvider;
         _liveAction = liveAction;
         MenuCatalog.Register(this);
+        RegisterFontPickerScreen();
+        RegisterQuickSaveRetentionScreen();
         RegisterNamingScreens();
         RegisterMagazineScreens();
     }
@@ -46,13 +48,14 @@ public sealed partial class MenuController
     public event Action<MenuSound>? SoundRequested;
     public bool BattleDebugAvailable => BattleDebugRequested is not null;
     public bool IsDemo { get; private set; }
+    public bool IsFixtureContext { get; private set; }
     public string ScreenId { get; private set; } = "main";
     public string Message { get; private set; } = "";
     public MenuData Data
     {
         get
         {
-            MenuData data = IsDemo ? _demo! : _liveData ??= _liveProvider?.Invoke() ?? new MenuData();
+            MenuData data = IsFixtureContext || IsDemo ? _demo! : _liveData ??= _liveProvider?.Invoke() ?? new MenuData();
             if (sortMagicByName)
             {
                 data.Magic.Sort((left, right) =>
@@ -103,6 +106,8 @@ public sealed partial class MenuController
 
     public void Open(string screenId = "main", bool demo = false)
     {
+        screenId = ResolveSettingsAlias(screenId);
+        IsFixtureContext = demo && !screenId.StartsWith("debug-", StringComparison.Ordinal);
         exitGame = null;
         pendingGuardianForceTransfer = null;
         CancelControlsCapture();
@@ -136,6 +141,7 @@ public sealed partial class MenuController
         }
         IsOpen = true;
         ScreenId = screenId;
+        PrepareControlsScreen(screenId);
         ApplyCursorPreference(screenId);
         if (screenId.StartsWith("config-controller", StringComparison.Ordinal))
         {
@@ -240,6 +246,10 @@ public sealed partial class MenuController
         {
             return;
         }
+        if (input is MenuInput.Left or MenuInput.Right && ChangeControlsSetting(input == MenuInput.Left ? -1 : 1))
+        {
+            return;
+        }
         UiView view = BuildView();
         if (view.FocusedElement is UiList { Orientation: UiOrientation.Vertical, Paginated: true } list && !(ScreenId == "shop-junk" && input is MenuInput.Up or MenuInput.Down) &&
             (input is MenuInput.PageUp or MenuInput.PageDown || input is MenuInput.Left or MenuInput.Right && !IsConfigSettingsScreen && !IsHostSettingsScreen || list.Id != "commands" && input is MenuInput.Up or MenuInput.Down))
@@ -272,7 +282,10 @@ public sealed partial class MenuController
                 Select(SelectedIndex + columns, entries.Count);
                 break;
             case MenuInput.Left:
-                if (IsConfigSettingsScreen || IsHostSettingsScreen)
+                if (ChangeControlsSetting(-1))
+                {
+                }
+                else if (IsConfigSettingsScreen || IsHostSettingsScreen || ScreenId == "quick-save-editor")
                 {
                     ChangeSetting(-1);
                 }
@@ -282,7 +295,10 @@ public sealed partial class MenuController
                 }
                 break;
             case MenuInput.Right:
-                if (IsConfigSettingsScreen || IsHostSettingsScreen)
+                if (ChangeControlsSetting(1))
+                {
+                }
+                else if (IsConfigSettingsScreen || IsHostSettingsScreen || ScreenId == "quick-save-editor")
                 {
                     ChangeSetting(1);
                 }
@@ -328,8 +344,19 @@ public sealed partial class MenuController
             Message = $"Screen '{screenId}' is not registered.";
             return;
         }
+        if (ScreenId == "debug-gallery")
+        {
+            if (!_screens[screenId].GalleryEligible)
+            {
+                Message = "This tool has no isolated fixture adapter.";
+                return;
+            }
+            IsFixtureContext = true;
+            _demo ??= MenuDemoData.Create();
+        }
         _history.Push(ScreenId);
         ScreenId = screenId;
+        PrepareControlsScreen(screenId);
         ApplyCursorPreference(screenId);
         ScreenOpened?.Invoke(ScreenId);
         Message = "";
@@ -370,6 +397,11 @@ public sealed partial class MenuController
         if (_history.TryPop(out var previous))
         {
             ScreenId = previous;
+            if (ScreenId == "debug-gallery")
+            {
+                IsFixtureContext = false;
+            }
+            PrepareControlsScreen(ScreenId);
             ScreenOpened?.Invoke(ScreenId);
             Message = "";
             _view = null;
@@ -388,6 +420,15 @@ public sealed partial class MenuController
             SoundRequested?.Invoke(MenuSound.Move);
         }
         _selections[ScreenId] = next;
+        RememberControlsSelection();
+        if (ScreenId == "font-picker" && SelectedEntry?.Id.StartsWith("family:", StringComparison.Ordinal) == true)
+        {
+            selectedFontId = SelectedEntry.Id;
+        }
+        if (ScreenId == "mods" && SelectedEntry?.Action is { Kind: "mod-toggle" } modAction)
+        {
+            selectedModId = modAction.SubjectId;
+        }
         _view = null;
     }
 
@@ -534,6 +575,11 @@ public sealed partial class MenuController
 
     private void ChangeSetting(int direction)
     {
+        if (ScreenId == "quick-save-editor" && SelectedEntry?.Id == "quick-save-value")
+        {
+            ChangeQuickSaveDraft(direction);
+            return;
+        }
         if (SelectedEntry?.Enabled != true)
         {
             return;
@@ -543,10 +589,19 @@ public sealed partial class MenuController
         {
             return;
         }
+        if (setting.Id is "UI font" or "Dialogue font" or "Quick saves")
+        {
+            return;
+        }
         var current = IsHostSettingsScreen || setting.Id == "UI font" && (IsDemo || _readPreferences is not null) ? HostSettingValue(setting.Id) : Data.Settings.GetValueOrDefault(setting.Id);
         if (IsConfigSettingsScreen && TryConfigNumbers(setting, out float[] numbers))
         {
             float number = float.TryParse(current?.TrimEnd('%'), System.Globalization.CultureInfo.InvariantCulture, out float parsed) ? parsed : numbers[0];
+            if (setting.Id is "Music volume" or "Effect volume")
+            {
+                SetConfigValue(setting, number + direction);
+                return;
+            }
             float next = direction > 0 ? numbers.FirstOrDefault(candidate => candidate > number, numbers[^1]) : numbers.LastOrDefault(candidate => candidate < number, numbers[0]);
             SetConfigValue(setting, next);
             SoundRequested?.Invoke(MenuSound.Move);
@@ -560,6 +615,10 @@ public sealed partial class MenuController
     public void Execute(MenuAction action)
     {
         _view = null;
+        if (ExecuteFixtureAction(action) || ExecuteFontPickerAction(action) || ExecuteQuickSaveRetentionAction(action))
+        {
+            return;
+        }
         if (ExecuteGuardianForceTransfer(action))
         {
             return;

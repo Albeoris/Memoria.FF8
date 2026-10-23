@@ -50,9 +50,15 @@ dotnet run --project src/Memoria.FF8.App -c Release -- --game-dir "$env:MEMORIA_
 
 The direct engine has additional launch and diagnostic modes documented in the [command-line reference](../reference/command-line.md).
 
+## Config
+
+Config contains **Graphics, Audio, Controls, Interface, Gameplay and Mods**. Graphics groups the four scene frame limits; Interface groups text/fonts and cursor memory. Gameplay separates Combat, Magic and Guardian Forces, and Exploration and saving. Mods provides a searchable package list with requested enable state, effective status and validation details.
+
+Presentation, audio, bindings and controller preferences are shared across saves and saved when accepted. Game rules during play belong to the current session: save the game normally to retain them. At Title, supported rule defaults configure future games; Shared magic stock, Infinite magic and Smart Attack are choices for the next New Game. Pending magic changes wait for a safe boundary and may require review. Quick-save retention has a draft and deletion confirmation; see [saves](saves.md).
+
 ## Difficulty
 
-Choose **Difficulty** before pressing **Begin** in New Game, or change it later under **Config → Gameplay**. The choice belongs to the current save; changing it at the title screen sets the default for future games.
+Choose **Difficulty** before pressing **Begin** in New Game, or change it later under **Config → Gameplay → Combat**. The choice belongs to the current save; changing it at the title screen sets the default for future games.
 
 - **Normal** preserves reduced enemy magic damage and hidden random idle turns.
 - **Hard** removes the enemy magic damage reduction and hidden random idle turns. Explicit scripted do-not-attack actions and state-dependent waits remain.

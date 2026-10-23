@@ -30,11 +30,11 @@ In supported battle contexts, Rotate right is also the gunblade / Shot trigger, 
 
 In battle, **Menu** (V / North button) cycles ready characters and recalculates Limit availability, including when only one character is ready. When the first command shows `>`, hold **Right** to reveal the character's Limit and confirm while holding it. Releasing Right before confirmation returns to the ordinary command. Confirming Renzokuken or Duel opens target selection directly; the other Limits open their spell, ammunition or action choices. Cancel returns from a target or choice without recalculating the crisis level.
 
-Set **Config → Interface → Cursor → Memory** to restore each character's last accepted battle command and each command's last accepted action during the current battle. For example, after **Draw → Blizzard → Stock**, the next turn starts on Draw; choosing a source restores Blizzard, and confirming it restores Stock. Stock/Cast choices are remembered separately for each drawn spell. Valid targets are also restored. If a remembered action or target is no longer available, the cursor starts at the first available entry. Cancelled selections and rejected commands do not replace the remembered action. **Initial**, the default, resets cursors. This preference is shared across saves; battle selections reset when a new battle HUD is created or a battle is loaded. Limits retain their Right-to-reveal behavior.
+Set **Config → Interface → Cursor memory → Memory** to restore each character's last accepted battle command and each command's last accepted action during the current battle. For example, after **Draw → Blizzard → Stock**, the next turn starts on Draw; choosing a source restores Blizzard, and confirming it restores Stock. Stock/Cast choices are remembered separately for each drawn spell. Valid targets are also restored. If a remembered action or target is no longer available, the cursor starts at the first available entry. Cancelled selections and rejected commands do not replace the remembered action. **Initial**, the default, resets cursors. This preference is shared across saves; battle selections reset when a new battle HUD is created or a battle is loaded. Limits retain their Right-to-reveal behavior.
 
 ## Host shortcuts
 
-These shortcuts use the default bindings below. They can also be assigned to controller buttons or combinations in Controls.
+These shortcuts use the defaults below. Player shortcuts can also be assigned to controller buttons or combinations under Config → Controls. The three service shortcuts (Debug Room, battle laboratory and battle victory) are edited under Debug Room → Shortcuts.
 
 | Shortcut | Default key | Effect |
 | --- | --- | --- |
@@ -55,9 +55,9 @@ Quick saves use `%LOCALAPPDATA%/Memoria.FF8/player-saves/`. In the Save or Load 
 
 ## Display settings
 
-Open **Config → Display** to choose **Field FPS: 30 or 60** (default 60). At 60 FPS, field movement and animation interpolate between the original simulation frames. Scripts, movement rules and gameplay timing retain their original rate. Movies retain their own playback timing. **V-Sync** can limit presentation further when the display cannot reach the selected rate.
+Open **Config → Graphics → Frame rate limits** to choose **Field and movies: 30 or 60** (default 60). At 60 FPS, field movement and animation interpolate between the original simulation frames. Scripts, movement rules and gameplay timing retain their original rate. Movies retain their own playback timing. **V-Sync** can limit presentation further when the display cannot reach the selected rate.
 
-**Show FPS**, also available under **Debug Room → UI**, displays completed presentations per real second as **FPS** and visible RGB changes as **Changes/s**. A still scene can show 60 FPS and 0 Changes/s. Repeated identical frames and the overlay itself do not count as changes. Both measurements include rendering, pacing and V-Sync waits; neither is the configured limit or simulation speed.
+**Config → Graphics → Frame-rate counter** displays completed presentations per real second as **FPS** and visible RGB changes as **Changes/s**. A still scene can show 60 FPS and 0 Changes/s. Repeated identical frames and the overlay itself do not count as changes. Both measurements include rendering, pacing and V-Sync waits; neither is the configured limit or simulation speed.
 
 ## Graphics
 
@@ -79,11 +79,11 @@ When a name-entry interface accepts keyboard text, type the name and use its on-
 
 ## Remapping and device settings
 
-Open **Config → Controls** and choose Keyboard or Controller. Each row shows an action and its current bindings. Confirm or click the row to capture a new binding: release all controls, hold the desired combination together, and release it to finish. Escape cancels capture. Press the button assigned to **Card / Details**, shown in Help, to open advanced options for the selected action: capture, clear binding or back.
+Open **Config → Controls** and choose Keyboard bindings or Controller bindings. Use Navigation, Interaction, Camera and battle, or Shortcuts to select a group. Each row shows an action and its current bindings. Confirm or click the row to capture a new binding: release all controls, hold the desired combination together, and release it to finish. Escape cancels capture. Press the button assigned to **Card / Details**, shown in Help, to open advanced options for the selected action: capture, clear binding or back.
 
-If the exact combination already belongs to another action, choose whether to keep the current bindings or replace the conflicting bindings. Controller Confirm and Cancel must remain bound; permanent keyboard alternatives remain available even after clearing custom bindings. You can also restore defaults for one device. Changes save automatically; the other device keeps its bindings.
+If the exact combination already belongs to another action, choose whether to keep the current bindings or replace the conflicting bindings. Controller Confirm and Cancel must remain bound; permanent keyboard alternatives remain available even after clearing custom bindings. **Restore player bindings** affects only player actions on the selected device. **Debug Room → Shortcuts → Restore debug shortcuts** affects only its three service actions on the selected device. A conflict with the untouched group is reviewed before replacement; cancellation preserves the profile. Accepted binding changes save automatically.
 
-Controller settings include independent left/right radial dead zones, the run threshold, button labels and vibration. Defaults are 20% dead zones, 50% run threshold, automatic button labels and vibration enabled. Stick directions are used for movement/camera navigation and cannot be captured as action bindings.
+**Config → Controls → Controller settings** includes independent left/right radial dead zones, the run threshold, button labels and vibration. Defaults are 20% dead zones, 50% run threshold, automatic button labels and vibration enabled. **Restore controller settings** resets only these five fields, preserving all bindings. Stick directions are used for movement/camera navigation and cannot be captured as action bindings.
 
 The profile is stored at `%LOCALAPPDATA%/Memoria/FF8/controls.json`. A missing profile uses defaults. Settings remain independent of the installed game directory and the active save path. If a legacy settings file exists beside the configured quick-save path, it is imported only when the global destination is missing.
 

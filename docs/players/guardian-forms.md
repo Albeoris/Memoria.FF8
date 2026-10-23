@@ -2,9 +2,9 @@
 
 [Documentation](../README.md) / Play
 
-Enable **GF Transformations: On** in Gameplay Settings or New Game options. It defaults to Off. During a playthrough the choice belongs to that save and can be changed between battles. Original-game saves load with it Off; enabled saves use Memoria's format.
+Enable **GF Transformations: On** under **Config → Gameplay → Magic and Guardian Forces** or in New Game options. It defaults to Off. During a playthrough the choice belongs to that save and can be changed between battles. Original-game saves load with it Off; enabled saves use Memoria's format.
 
-To transform, choose **Commands â†’ GF â†’ Ifrit â†’ Right â†’ Summon**. Confirming Summon starts the usual GF charge for the selected character. Left or Cancel returns to the same GF selection. Ordinary Confirm directly on Ifrit still performs the complete classic Hell Fire summon. Ifrit must be alive, acquired and junctioned to that character.
+To transform, choose **Commands → GF → Ifrit → Right → Summon**. Confirming Summon starts the usual GF charge for the selected character. Left or Cancel returns to the same GF selection. Ordinary Confirm directly on Ifrit still performs the complete classic Hell Fire summon. Ifrit must be alive, acquired and junctioned to that character.
 
 After emerging and landing, Ifrit replaces the character's appearance and offers **Attack**, **Fire** and **Hell Fire**. Attack and Fire use the character's statistics; Fire needs no magic stock. The form uses the elemental and status defenses of Ifrit in the Fire Cavern: it absorbs fire and takes double ice damage. The character's own defenses return with their human form. Damage and healing use Ifrit's HP while transformed, while the character retains its previous HP and statuses. Losing all GF HP returns the character without reviving a genuinely KO'd character.
 

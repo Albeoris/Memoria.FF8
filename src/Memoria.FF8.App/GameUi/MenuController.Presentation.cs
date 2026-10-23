@@ -42,7 +42,7 @@ public sealed partial class MenuController
         {
             return theme;
         }
-        string family = (_readPreferences?.Invoke() ?? demoFontPreferences).GetUiFontFamily(Presentation);
+        string family = FontPreferences.GetUiFontFamily(Presentation);
         return theme is VectorUiTheme
             ? new VectorUiTheme { FontSize = theme.FontSize, PanelBackgroundAlpha = theme.PanelBackgroundAlpha, FontFamily = family }
             : new UiTheme { FontSize = theme.FontSize, PanelBackgroundAlpha = theme.PanelBackgroundAlpha, FontFamily = family };

@@ -12,7 +12,7 @@ Start with [installation and first launch](players/getting-started.md), then use
 | [Magic rules and Smart Attack](players/magic-system.md) | Shared stock, limited uses, automatic attacks and save compatibility. |
 | [GF transformations](players/guardian-forms.md) | Optional Ifrit form, commands, HP, lifetime and finisher Skip. |
 | [Saves](players/saves.md) | Save locations, standalone snapshots and loading limitations. |
-| [Debug Room](players/debug-room.md) | In-game settings, names, previews and the battle laboratory. |
+| [Debug Room](players/debug-room.md) | Service tools, names, fixture previews and the battle laboratory. |
 | [Automatic exploration](players/automatic-exploration.md) | Start, pause, resume and reproduce an experimental automated run. |
 
 ## Use mods
@@ -32,6 +32,7 @@ Start with [installation and first launch](players/getting-started.md), then use
 | [Architecture](developers/architecture.md) | Project responsibilities, state ownership and engine extension points. |
 | [Battle system](developers/battle-system.md) | Combat state, lifecycle, rewards, presentation and diagnostics. |
 | [GF form architecture](developers/guardian-forms.md) | Ownership, native presentation, snapshots and the extension boundary. |
+| [Settings placement](developers/settings-placement.md) | Complete setting, binding and service-tool ownership map. |
 | [UI framework](developers/ui-framework.md) | Retained views, layout, input, canvas adapters and previews. |
 | [Rendering](developers/rendering.md) | Rendering layers, shaders, presentation and component documentation. |
 | [Remastered resource providers](developers/remastered-resources.md) | Experimental resource APIs and their compatibility limits. |

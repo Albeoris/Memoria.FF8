@@ -591,7 +591,10 @@ internal sealed partial class RecreateGame : Game
         }
         if (IsActive && keyboard.AllowsNameText(args.Key))
         {
-            gameMenus?.EnterNameCharacter(args.Character);
+            if (gameMenus?.EnterFontSearchCharacter(args.Character) != true && gameMenus?.EnterModSearchCharacter(args.Character) != true)
+            {
+                gameMenus?.EnterNameCharacter(args.Character);
+            }
         }
     }
 

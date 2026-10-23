@@ -16,14 +16,17 @@ public sealed record BattleDebugCatalog
     public Dictionary<int, int[]> PlayerCostumes { get; init; } = [];
 }
 
-/// <summary>A separate editable scenario. Starting it never patches the running battle or research save.</summary>
+/// <summary>A separate editable scenario. Starting it never patches the running battle or game save.</summary>
 public sealed class BattleDebugController
 {
     private readonly BattleDebugCatalog catalog;
     private BattleDefinition initial;
     private readonly BattleDefinition defaults;
     private readonly BattleDebugPresets presets;
-    private readonly HashSet<string> expanded = [];
+    private string panel = "Scenario";
+    private string? actorKey;
+    private string actorGroup = "Identity";
+    private int participantSelection;
     private readonly Action<BattleDefinition, BattleAtbMode> start;
     private readonly Action close;
     private readonly List<BattleCombatantDefinition> party;
@@ -32,7 +35,7 @@ public sealed class BattleDebugController
     private readonly List<BattleDebugRow> rows = [];
     private int? stageId;
     private int presetSlot;
-    private bool toggleExpansion = true;
+
 
     public BattleDebugController(BattleDefinition initial, BattleDebugCatalog catalog, BattleAtbMode mode, Action<BattleDefinition, BattleAtbMode> start, Action close, BattleDebugPresets? presets = null)
     {
@@ -46,7 +49,7 @@ public sealed class BattleDebugController
         party = this.initial.Combatants.Where(actor => actor.IsPlayer).ToList();
         enemies = this.initial.Combatants.Where(actor => !actor.IsPlayer).ToList();
         Mode = mode;
-        view = new UiView(new BattleDebugElement(this)) { DesignWidth = 960, DesignHeight = 672, Cancel = Close };
+        view = new UiView(new BattleDebugElement(this)) { DesignWidth = 960, DesignHeight = 672, Cancel = () => Navigate(MenuInput.Cancel) };
         RebuildRows();
         view.Resize(960, 672);
     }
@@ -56,6 +59,7 @@ public sealed class BattleDebugController
     public int SelectedIndex { get; private set; }
     public string Message { get; private set; } = "Edit an isolated scenario. Current game settings are in Debug Room · Battle.";
     internal IReadOnlyList<BattleDebugRow> Rows => rows;
+    internal string PageTitle => actorKey is null ? panel : $"Participants · {actorKey} · {actorGroup}";
     public BattleDefinition Definition => initial with { Name = "Debug battle", StageId = stageId, Combatants = [.. party.Select((actor, index) => actor with { Id = $"party-{index}", IsPlayer = true }), .. enemies.Select((actor, index) => actor with { Id = $"enemy-{index}", IsPlayer = false })] };
 
     public static BattleDefinition InitializeParty(BattleDefinition scenario, IReadOnlyList<BattleCombatantDefinition> currentParty, BattleSession? currentBattle = null)
@@ -73,7 +77,16 @@ public sealed class BattleDebugController
     {
         if (input == MenuInput.Cancel)
         {
-            Close();
+            if (actorKey is not null)
+            {
+                actorKey = null;
+                RebuildRows();
+                SelectedIndex = Math.Clamp(participantSelection, 0, rows.Count - 1);
+            }
+            else
+            {
+                Close();
+            }
         }
         else if (input is MenuInput.Up or MenuInput.Down or MenuInput.PageUp or MenuInput.PageDown)
         {
@@ -122,8 +135,11 @@ public sealed class BattleDebugController
 
     private void Adjust(int direction, bool toggleDetails = true)
     {
-        toggleExpansion = toggleDetails;
         BattleDebugRow selected = rows[SelectedIndex];
+        if (!toggleDetails && selected.Label is "Start scenario" or "Save preset" or "Load preset" or "Current party + last enemy" or "Return")
+        {
+            return;
+        }
         try
         {
             selected.Adjust(direction);
@@ -144,55 +160,81 @@ public sealed class BattleDebugController
     private void RebuildRows()
     {
         rows.Clear();
-        rows.Add(new("Start scenario", "Start", "Create a fresh battle from this scenario. Existing research state is preserved.", _ => Start()));
-        rows.Add(new("Preset slot", $"{presetSlot + 1} · {(presets.Read(presetSlot) is null ? "Empty" : "Saved")}", "Choose one of three local scenario presets. Save and Load below are explicit actions.", direction => presetSlot = (presetSlot + direction + 3) % 3));
-        rows.Add(new("Save preset", $"Slot {presetSlot + 1}", "Store this party, enemies, stage, statistics and ATB mode. Replaces only the selected local preset.", _ =>
+        rows.Add(new("Start scenario", "Start", "Create a fresh battle from this scenario. Existing game state is preserved.", _ => Start()));
+        rows.Add(new("Editor panel", panel, "Choose Scenario, Participants or Presets. All edits belong only to this laboratory scenario.", direction =>
         {
-            presets.Save(presetSlot, Definition, Mode);
-            Message = $"Preset {presetSlot + 1} saved.";
+            string[] panels = ["Scenario", "Participants", "Presets"];
+            panel = panels[(Array.IndexOf(panels, panel) + direction + panels.Length) % panels.Length];
+            actorKey = null;
         }));
-        rows.Add(new("Load preset", $"Slot {presetSlot + 1}", "Restore the selected local preset into this editor. The running battle and game save are unchanged.", _ =>
+        if (panel == "Presets")
         {
-            BattleDebugPreset? preset = presets.Read(presetSlot);
-            if (preset is null)
+            rows.Add(new("Preset slot", $"{presetSlot + 1} · {(presets.Read(presetSlot) is null ? "Empty" : "Saved")}", "Choose one of three local scenario presets. Save and Load below are explicit actions.", direction => presetSlot = (presetSlot + direction + 3) % 3));
+            rows.Add(new("Save preset", $"Slot {presetSlot + 1}", "Store this party, enemies, stage, statistics and ATB mode. Replaces only the selected local preset.", _ =>
             {
-                Message = $"Preset {presetSlot + 1} is empty.";
-                return;
-            }
-            ReplaceScenario(preset.Definition);
-            Mode = preset.Mode;
-            Message = $"Preset {presetSlot + 1} loaded.";
-        }));
-        rows.Add(new("Current party + last enemy", "Reset", "Restore the current-party default captured when this editor opened. With no encounter history, the opponent is Dummy.", _ =>
-        {
-            ReplaceScenario(defaults);
-            Message = "Current party and last enemy restored.";
-        }));
-        rows.Add(new("ATB mode", Mode.ToString(), "Normal runs ATB continuously. TurnBased holds idle gauges until Advance Turn; actions still animate.", _ =>
-        {
-            Mode = Mode == BattleAtbMode.Normal ? BattleAtbMode.TurnBased : BattleAtbMode.Normal;
-        }));
-        rows.Add(new("Battle stage", stageId?.ToString() ?? "None", "Cycle installed battle stage identities.", direction =>
-        {
-            if (catalog.StageIds.Length == 0)
+                presets.Save(presetSlot, Definition, Mode);
+                Message = $"Preset {presetSlot + 1} saved.";
+            }));
+            rows.Add(new("Load preset", $"Slot {presetSlot + 1}", "Restore the selected local preset into this editor. The running battle and game save are unchanged.", _ =>
             {
-                Message = "No alternate installed stages in the catalog.";
-                return;
+                BattleDebugPreset? preset = presets.Read(presetSlot);
+                if (preset is null)
+                {
+                    Message = $"Preset {presetSlot + 1} is empty.";
+                    return;
+                }
+                ReplaceScenario(preset.Definition);
+                Mode = preset.Mode;
+                Message = $"Preset {presetSlot + 1} loaded.";
+            }));
+        }
+        if (panel == "Scenario")
+        {
+            rows.Add(new("Current party + last enemy", "Reset", "Restore the current-party default captured when this editor opened. With no encounter history, the opponent is Dummy.", _ =>
+            {
+                ReplaceScenario(defaults);
+                Message = "Current party and last enemy restored.";
+            }));
+            rows.Add(new("Scenario ATB mode", Mode == BattleAtbMode.Normal ? "Classic" : "Turn Based", "Scenario only. Classic runs ATB continuously. Turn Based holds idle gauges until Advance Turn; actions still animate.", _ =>
+            {
+                Mode = Mode == BattleAtbMode.Normal ? BattleAtbMode.TurnBased : BattleAtbMode.Normal;
+            }));
+            rows.Add(new("Battle stage", stageId?.ToString() ?? "None", "Cycle installed battle stage identities.", direction =>
+            {
+                if (catalog.StageIds.Length == 0)
+                {
+                    Message = "No alternate installed stages in the catalog.";
+                    return;
+                }
+                int current = Array.IndexOf(catalog.StageIds, stageId ?? -1);
+                stageId = catalog.StageIds[(Math.Max(0, current) + direction + catalog.StageIds.Length) % catalog.StageIds.Length];
+            }));
+            AddCount("Party members", party, catalog.Players, true, 3);
+            AddCount("Enemies", enemies, catalog.Enemies, false, 8);
+        }
+        if (panel == "Participants")
+        {
+            for (int index = 0; index < party.Count; index++)
+            {
+                AddActor(party, index, catalog.Players, "Party");
             }
-            int current = Array.IndexOf(catalog.StageIds, stageId ?? -1);
-            stageId = catalog.StageIds[(Math.Max(0, current) + direction + catalog.StageIds.Length) % catalog.StageIds.Length];
+            for (int index = 0; index < enemies.Count; index++)
+            {
+                AddActor(enemies, index, catalog.Enemies, "Enemy");
+            }
+        }
+        rows.Add(new("Return", "Back", actorKey is null ? "Close the scenario builder without starting a new battle." : "Return to the participants list.", _ =>
+        {
+            if (actorKey is null)
+            {
+                Close();
+            }
+            else
+            {
+                actorKey = null;
+                SelectedIndex = participantSelection;
+            }
         }));
-        AddCount("Party members", party, catalog.Players, true, 3);
-        AddCount("Enemies", enemies, catalog.Enemies, false, 8);
-        for (int index = 0; index < party.Count; index++)
-        {
-            AddActor(party, index, catalog.Players, "Party");
-        }
-        for (int index = 0; index < enemies.Count; index++)
-        {
-            AddActor(enemies, index, catalog.Enemies, "Enemy");
-        }
-        rows.Add(new("Return", "Back", "Close the scenario builder without starting a new battle.", _ => Close()));
     }
 
     private void ReplaceScenario(BattleDefinition definition)
@@ -203,7 +245,7 @@ public sealed class BattleDebugController
         party.AddRange(initial.Combatants.Where(actor => actor.IsPlayer));
         enemies.Clear();
         enemies.AddRange(initial.Combatants.Where(actor => !actor.IsPlayer));
-        expanded.Clear();
+        actorKey = null;
     }
 
     private void AddCount(string label, List<BattleCombatantDefinition> actors, BattleCombatantDefinition[] choices, bool player, int maximum)
@@ -212,7 +254,6 @@ public sealed class BattleDebugController
         {
             if (direction < 0 && actors.Count > 1)
             {
-                expanded.Remove($"{(player ? "Party" : "Enemy")} {actors.Count}");
                 actors.RemoveAt(actors.Count - 1);
             }
             else if (direction > 0 && actors.Count < maximum)
@@ -232,22 +273,26 @@ public sealed class BattleDebugController
     {
         BattleCombatantDefinition actor = actors[index];
         string key = $"{side} {index + 1}";
-        bool isExpanded = expanded.Contains(key);
-        rows.Add(new(key, $"{(isExpanded ? "−" : "+")} {actor.Name}", $"{actor.Name} · HP {actor.CurrentHp}/{actor.MaximumHp}. Confirm toggles details; Right expands and Left collapses. Edit the model, statistics, equipment and effects inside.", direction =>
+        if (actorKey is null)
         {
-            if (direction < 0 || toggleExpansion && expanded.Contains(key))
+            rows.Add(new(key, actor.Name, $"{actor.Name} · HP {actor.CurrentHp}/{actor.MaximumHp}. Open Identity, Vitals and stats, Equipment and abilities, or Status effects.", _ =>
             {
-                expanded.Remove(key);
-            }
-            else
-            {
-                expanded.Add(key);
-            }
-        }));
-        if (!isExpanded)
+                participantSelection = SelectedIndex;
+                actorKey = key;
+                actorGroup = "Identity";
+            }));
+            return;
+        }
+        if (actorKey != key)
         {
             return;
         }
+        rows.Add(new("Actor details", actorGroup, "Choose a group for this actor. Back returns to the compact participants list.", direction =>
+        {
+            string[] groups = ["Identity", "Vitals and stats", "Equipment and abilities", "Status effects"];
+            actorGroup = groups[(Array.IndexOf(groups, actorGroup) + direction + groups.Length) % groups.Length];
+        }));
+        int firstDetail = rows.Count;
         string prefix = $"{side} {index + 1} · ";
         rows.Add(new(prefix + "Character / model", actor.Name, actor.IsPlayer ? "Cycle installed model choices. The selected prototype supplies explicit scenario statistics." : "Cycle installed enemy models. Enemy weapons belong to the model. The selected prototype supplies explicit scenario statistics.", direction =>
         {
@@ -327,6 +372,21 @@ public sealed class BattleDebugController
                 }
             }
         }
+        BattleDebugRow[] details = rows.Skip(firstDetail).Where(row => InActorGroup(row.Label[prefix.Length..])).ToArray();
+        rows.RemoveRange(firstDetail, rows.Count - firstDetail);
+        rows.AddRange(details);
+
+    }
+
+    private bool InActorGroup(string label)
+    {
+        return actorGroup switch
+        {
+            "Identity" => label is "Character / model" or "Costume",
+            "Vitals and stats" => label is "Maximum HP" or "Current HP" or "Speed" or "Attack" or "Defense" or "Initial ATB",
+            "Equipment and abilities" => label is "Weapon" or "Equipment" || label.StartsWith("Ability:", StringComparison.Ordinal),
+            _ => label.StartsWith("Poison", StringComparison.Ordinal) || label.StartsWith("Regen", StringComparison.Ordinal) || label.StartsWith("Haste", StringComparison.Ordinal) || label.StartsWith("Slow", StringComparison.Ordinal)
+        };
     }
 
     private void AddNumber(string label, int value, int min, int max, int step, Action<int> apply)

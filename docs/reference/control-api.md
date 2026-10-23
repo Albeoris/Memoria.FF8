@@ -169,6 +169,17 @@ Windowed commands `debug-room`, `ui-open`, `ui-close`, `ui-input` and `ui-status
 
 `Ui.Screen` defaults to `debug-room`; `Demo` defaults to true. Use `Demo:false` for live projection, subject to that screen's supported operations. `Ui.Input` accepts `Up`, `Down`, `Left`, `Right`, `Confirm`, `Cancel`, `PageLeft`, `PageRight`, `Alternate`, `Tab`, `PageUp`, `PageDown`. Pointer `X/Y` are physical viewport coordinates and must be supplied together. Include release events; held presses do not repeatedly confirm.
 
+Canonical Config screen IDs are `config-graphics`, `config-frame-limits`, `config-audio`, `config-controls`, `config-interface`, `config-text`, `config-gameplay`, `config-combat`, `config-magic`, `config-exploration` and `mods`. Use the same page identities as player navigation:
+
+```json
+{"Id":"046-frame-limits","Command":"ui-open","Ui":{"Screen":"config-frame-limits","Demo":false}}
+{"Id":"047-fonts","Command":"ui-open","Ui":{"Screen":"config-text","Demo":false}}
+{"Id":"048-magic","Command":"ui-open","Ui":{"Screen":"config-magic","Demo":false}}
+{"Id":"049-saving","Command":"ui-open","Ui":{"Screen":"config-exploration","Demo":false}}
+```
+
+Opening projects current values without applying changes. Player preferences are edited in Config; `debug-battle` contains service encounter execution and active battle actions. Gallery previews remain fixture-owned throughout nested navigation and cannot dispatch writes to live preference, mod or game owners. `IsDemo` describes projection mode; service callbacks still require their explicit live/fixture editing context.
+
 `Ui.Screen:"model-browser"` opens the [model browser](../modding/model-mods.md). Its `ModelBrowser` status reports discovery progress, filtered count, the visible catalog page, selected model/variant, rotation, zoom and diagnostics. `ui-input` additionally accepts `Ui.Search` (substring or wildcard pattern) and zero-based `Ui.Variant`. Confirmation follows the same catalog → viewer → command menu flow as player input; export/import actions open native Windows dialogs on the game thread. `ui-close` closes the browser directly; `Cancel` unwinds one level.
 
 A required naming prompt cannot be replaced/closed through screen commands. Native tutorials own their semantic selection and restrict input to their supported confirmation/cancellation boundary. See [UI framework](../developers/ui-framework.md) and [Debug Room](../players/debug-room.md).

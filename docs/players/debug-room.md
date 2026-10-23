@@ -8,35 +8,35 @@ Press **F2** to open Debug Room, or change its binding in [Controls](controls.md
 
 | Section | Purpose |
 | --- | --- |
-| [Model browser](../modding/model-mods.md) | Search models, compare originals and mods, and exchange GLB files with Blender. |
-| Battle | Settings for the running game, including encounter/ATB preferences and active battle outcomes. |
-| UI | Text scale, font preferences and interface presentation. |
-| Audio | Music and effect volume preferences. |
-| Controls | Keyboard and controller bindings. |
-| Names | Edit names in the current session when naming is available. |
-| Automatic play | Start, pause, resume, stop or reproduce automated exploration. |
-| Menu gallery | Inspect isolated menu fixtures. |
-| Battle laboratory | Edit and run an isolated battle scenario. |
+| [Models](../modding/model-mods.md) | Open the model catalog directly; search, compare variants and exchange GLB files. |
+| Battle | Laboratory, encounter execution policy, displayed battle status and explicit Win/Lose actions. |
+| Scene | Open the inspector directly; Layers, Objects and Events remain local tabs. |
+| UI tools | Open the fixture menu gallery directly; Reset fixture data affects only previews. |
+| Session | Open the supported-name list directly. |
+| Automation | Start, pause, resume, stop or replay automated exploration. |
+| Shortcuts | Keyboard/controller bindings for Debug Room, battle laboratory and battle victory only. |
 
-Settings pages persist their supported host preferences automatically. A setting in an isolated gallery fixture does not implement the original game's corresponding option. See [saves and settings](saves.md) for storage and persistence boundaries.
+Player preferences belong in Config. Debug Room has no second editor for volume, fonts, difficulty, random encounters, player ATB mode or gunblade triggering. The gallery is labelled Preview / Fixture and its changes stay isolated from live owners. See [saves and settings](saves.md) for persistence boundaries.
 
 ## Edit names
 
-The Names page edits characters, Guardian Forces and other supported named subjects. Select a name, enter a draft using the keyboard or character grid, then Save. Cancel discards the draft; it does not revert earlier saved changes. Names support 1–20 Unicode text elements, with blank names, invalid Unicode and control characters rejected.
+The Session name list edits characters, Guardian Forces and other supported named subjects. Select a name, enter a draft using the keyboard or character grid, then Save. Cancel discards the draft; it does not revert earlier saved changes. Names support 1–20 Unicode text elements, with blank names, invalid Unicode and control characters rejected.
 
 This edits the running session without advancing simulation frames. Save the game to retain the changes in a game snapshot. Naming is available in an eligible field or world session, and is disabled during active battles, title/movie sessions and faulted fields.
 
 ## Battle settings and laboratory
 
-The Battle section applies its settings to the current game. **Instant victory** and **Instant defeat** require an active battle. When a laboratory battle is open, these actions affect that displayed laboratory battle; otherwise they affect the game-owned battle.
+The Battle section shows whether actions target a **Game battle** or **Laboratory battle**. **Win current battle** and **Lose current battle** require that displayed battle to be active. **Encounter execution** selects Full combat or Automatic victory for the current game (the new-game default at Title). Choosing Automatic victory can finish an active or pending encounter and requires confirmation of that immediate consequence. Merely opening the page changes nothing. Save the game to retain session rules.
 
 Opening the laboratory initializes its editor from the current party and a recent eligible opponent. If there is no eligible encounter, it uses the procedural practice Dummy; at the title, party defaults come from New Game data. Laboratory edits remain separate from the running game's state.
 
-Expand an actor row to edit supported fields; collapse it again to keep the scenario readable. Preset Save and Load are explicit actions. Loading a preset updates the editor and does not start a battle. The three preset slots use `battle-presets.json`, separate from ordinary game snapshots.
+Use Scenario, Participants and Presets to keep the editor compact. Select an actor to edit Identity, Vitals and stats, Equipment and abilities, or Status effects. Status timing fields appear for enabled effects. Preset Save and Load are explicit actions. Loading a preset updates the editor and does not start a battle. The three preset slots use `battle-presets.json`, separate from ordinary game snapshots.
 
 The laboratory exposes implemented battle behavior. It does not establish full original combat parity or support for every original statistic and ability.
 
 ## Previews and automation
+
+Starting a new automated game or replaying a saved reproduction replaces the running session and requires confirmation when a live game exists. Pause/Resume and Stop retain their existing run behavior.
 
 [Automatic exploration](automatic-exploration.md) uses the same controller in Debug Room and in headless mode. Its coverage and failure snapshots belong to that run.
 

@@ -52,7 +52,7 @@ internal sealed partial class RecreateGame
         ConnectNativeTutorialUi();
         gameMenus.ScreenOpened += screen =>
         {
-            if (!gameMenus.IsDemo && screen is "main" or "card")
+            if (!gameMenus.IsFixtureContext && !gameMenus.IsDemo && screen is "main" or "card")
             {
                 if (session.VisitCardMenu())
                 {
@@ -66,7 +66,10 @@ internal sealed partial class RecreateGame
         };
         gameMenus.ConnectMods(resourceHost!.Mods);
         gameMenus.ConnectPreferences(ReadCurrentUiPreferences, ApplyLiveMenuAction);
+        gameMenus.ConnectQuickSaveRetention(playerSaves.PreviewQuickSaveCount, CommitQuickSaveRetention);
         gameMenus.ConnectNaming(ReadDebugNames, (subject, name) => world!.Rename(subject, name));
+        gameMenus.ConnectEncounterPolicyConsequence(() => world?.HasPendingBattle == true || world?.Battle?.Outcome == BattleOutcome.Active);
+        gameMenus.ConnectBattleSource(() => ActiveBattle is null ? "No active battle" : debugBattle is not null ? "Laboratory battle" : "Game battle");
         gameMenus.ConnectBattleSettings(() => ActiveBattle?.Outcome == BattleOutcome.Active, victory => ApplyBattleCommand(new BattleInput(victory ? BattleInputKind.InstantVictory : BattleInputKind.InstantDefeat)));
         gameMenus.SoundRequested += sound => fieldAudio?.PlayUiSound(sound);
         keyboard.Profile = ControlsProfile.Load(ControlsPreferencesPath);
@@ -324,6 +327,10 @@ internal sealed partial class RecreateGame
         }
         if (action.Kind == "config")
         {
+            if (action.SubjectId == "Quick saves")
+            {
+                throw new InvalidOperationException("Use the quick-save retention editor to review and save this limit.");
+            }
             if (action.SubjectId == "Vibration")
             {
                 bool enabled = action.Value switch
@@ -341,10 +348,6 @@ internal sealed partial class RecreateGame
             UiPreferences nextPreferences = ReadCurrentUiPreferences().WithSetting(action.SubjectId, action.Value);
             ApplyCurrentBattleSettings(nextPreferences, action.SubjectId);
             UiPreferences installationPreferences = uiPreferences.WithInstallationSetting(action.SubjectId, action.Value, session.State.Scene != SceneKind.Title);
-            if (action.SubjectId == "Quick saves")
-            {
-                playerSaves.SetQuickSaveCount(installationPreferences.QuickSaveCount);
-            }
             installationPreferences.Save(UiPreferencesPath);
             uiPreferences = installationPreferences;
             SynchronizeMenuPresentation();
@@ -355,6 +358,18 @@ internal sealed partial class RecreateGame
             return;
         }
         throw new NotSupportedException($"Live menu action '{action.Kind}' requires a supported game-owned command.");
+    }
+
+    private string CommitQuickSaveRetention(int count, int confirmedRemovalCount)
+    {
+        UiPreferences accepted = uiPreferences.WithInstallationSetting("Quick saves", count.ToString(System.Globalization.CultureInfo.InvariantCulture), session.State.Scene != SceneKind.Title);
+        QuickSaveCleanupResult result = playerSaves.CommitQuickSaveCount(count, confirmedRemovalCount, () =>
+        {
+            accepted.Save(UiPreferencesPath);
+            uiPreferences = accepted;
+        });
+        gameMenus?.InvalidateLiveData();
+        return result.Message;
     }
 
     private UiPreferences ReadCurrentUiPreferences()

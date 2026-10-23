@@ -18,7 +18,7 @@ internal sealed partial class RecreateGame
 
     private AutoPlayMenuState ReadAutoPlayMenuState()
     {
-        return autoPlay is null ? new AutoPlayMenuState(false, false, "Ready. Start a new game with fixed seed 1.") : new AutoPlayMenuState(autoPlay.Running, autoPlay.Paused, autoPlay.Status, autoPlayHostError ?? autoPlay.Error, autoPlay.ReproductionPath, autoPlay.ResumeCommand);
+        return autoPlay is null ? new AutoPlayMenuState(false, false, "Ready. Start a new game with fixed seed 1.", HasLiveGame: world is not null) : new AutoPlayMenuState(autoPlay.Running, autoPlay.Paused, autoPlay.Status, autoPlayHostError ?? autoPlay.Error, autoPlay.ReproductionPath, autoPlay.ResumeCommand, HasLiveGame: world is not null);
     }
 
     private void ApplyAutoPlayCommand(string command)

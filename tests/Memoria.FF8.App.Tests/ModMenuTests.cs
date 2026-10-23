@@ -54,8 +54,7 @@ public sealed class ModMenuTests : IDisposable
         MenuEntry package = menu.Entries.Single(entry => entry.Id == "Tonberry/incompatible");
         Assert.False(package.Enabled);
         Assert.Equal("Incompatible edition", package.Help);
-        menu.Navigate(MenuInput.Down);
-        menu.Navigate(MenuInput.Down);
+        menu.SelectEntry("mods", "Tonberry/incompatible", allowDisabled: true);
         menu.Navigate(MenuInput.Confirm);
         Assert.Equal("Incompatible edition", menu.Message);
         Assert.Contains("enabled = 0", File.ReadAllText(Path.Combine(root, "Mods/Tonberry/incompatible/mod.ini")));
@@ -114,6 +113,37 @@ public sealed class ModMenuTests : IDisposable
         Assert.Contains("Reload failed", entry.Label);
         Assert.Same(catalog, runtime.Catalog);
         Assert.Equal(ModEffectiveStatus.Active, runtime.Catalog.Packages[0].Status);
+    }
+
+    [Fact]
+    public void SearchAndRequestedStateFilterKeepPackageIdentityAndServicePolicy()
+    {
+        Write("Demaster/alpha/test.png", "metadata only");
+        Write("Demaster/beta/test.png", "metadata only");
+        using ModRuntime runtime = Runtime();
+        Publish(runtime);
+        MenuController menu = Menu(runtime);
+        menu.Open("mods");
+        menu.SelectEntry("mods", "Demaster/beta");
+        _ = menu.CurrentScreen.Details(menu);
+        menu.SelectEntry("mods", "mod-search");
+        menu.Navigate(MenuInput.Confirm);
+        foreach (char letter in "beta")
+        {
+            Assert.True(menu.EnterModSearchCharacter(letter));
+        }
+        menu.Navigate(MenuInput.Cancel);
+        Assert.Contains(menu.Entries, entry => entry.Id == "Demaster/beta");
+        Assert.DoesNotContain(menu.Entries, entry => entry.Id == "Demaster/alpha");
+        Assert.Equal("Demaster/beta", menu.SelectedEntry!.Id);
+        menu.Execute(new MenuAction("mod-filter"));
+        Assert.Contains(menu.Entries, entry => entry.Id == "Demaster/beta");
+        menu.Execute(new MenuAction("mod-filter"));
+        Assert.DoesNotContain(menu.Entries, entry => entry.Action?.Kind == "mod-toggle");
+        Assert.True(runtime.AutoEnableNewMods);
+        Assert.False(runtime.IsReloadPending);
+        Assert.Contains(menu.Entries, entry => entry.Id == "mod-refresh");
+        Assert.NotNull(menu.BuildView());
     }
 
     public void Dispose()

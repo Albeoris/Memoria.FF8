@@ -23,18 +23,18 @@ public sealed class MagicSystemInterfaceTests
     {
         MenuData data = new();
         MenuController menu = new(() => data);
-        menu.Open("config-gameplay");
+        menu.Open("config-magic");
         int applications = 0;
         menu.ShowMagicRulesReview(["Fire ×50 moved; ×50 overflow retained", "HP 500 → 300"], () => applications++);
         Assert.Equal(0, applications);
         Assert.Contains("HP 500 → 300", menu.CurrentScreen.Details(menu));
         menu.Execute(new MenuAction("magic-rules-cancel"));
-        Assert.Equal("config-gameplay", menu.ScreenId);
+        Assert.Equal("config-magic", menu.ScreenId);
         Assert.Equal(0, applications);
         menu.ShowMagicRulesReview(["Fire ×50 moved"], () => applications++);
         menu.Execute(new MenuAction("magic-rules-apply"));
         Assert.Equal(1, applications);
-        Assert.Equal("config-gameplay", menu.ScreenId);
+        Assert.Equal("config-magic", menu.ScreenId);
     }
 
     [Fact]
@@ -47,13 +47,13 @@ public sealed class MagicSystemInterfaceTests
             reads++;
             return data;
         });
-        menu.Open("config-gameplay");
+        menu.Open("config-magic");
         _ = menu.Data;
         int cancellations = 0;
         menu.ShowMagicRulesReview(["Fire ×50 moved"], () => Assert.Fail("Unexpected migration."), () => cancellations++);
         menu.Back();
         Assert.Equal(1, cancellations);
-        Assert.Equal("config-gameplay", menu.ScreenId);
+        Assert.Equal("config-magic", menu.ScreenId);
         _ = menu.Data;
         Assert.True(reads >= 2);
     }

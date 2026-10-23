@@ -1,6 +1,6 @@
 # Magic rules and Smart Attack
 
-Choose these three independent options before **Begin** on the New Game screen, or under **Config → Gameplay** during a game. All three default to **Off**. Each save restores its own choices; loading a save does not replace its rules with installation defaults.
+Choose these three independent options before **Begin** on the New Game screen, or under **Config → Gameplay → Magic and Guardian Forces** during a game. All three default to **Off**. Each save restores its own choices; loading a save does not replace its rules with installation defaults.
 
 | Option | Behavior |
 | --- | --- |

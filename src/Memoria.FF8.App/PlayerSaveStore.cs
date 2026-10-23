@@ -14,6 +14,11 @@ internal sealed record PlayerSaveEntry(int Slot, string Label, DateTime? SavedAt
     public string PlayTimeText => PlayTime is { } time ? FormattableString.Invariant($"{(long)time.TotalHours:00}:{time.Minutes:00}:{time.Seconds:00}") : "--:--:--";
 }
 
+internal sealed record QuickSaveCleanupResult(int Removed, int Remaining, string? Error)
+{
+    public string Message => Error is not null ? $"Quick-save limit saved. Removed {Removed} quick saves; {Remaining} still need cleanup. {Error}" : Remaining > 0 ? $"Quick-save limit saved. {Remaining} older quick saves remain pending cleanup." : "Quick-save limit saved.";
+}
+
 /// <summary>Player saves have their own namespace; configured checkpoints are never menu targets.</summary>
 internal sealed partial class PlayerSaveStore
 {
@@ -47,15 +52,53 @@ internal sealed partial class PlayerSaveStore
         {
             throw new ArgumentOutOfRangeException(nameof(count));
         }
+        quickSaveCount = count;
+    }
+
+    internal int QuickSaveCount => quickSaveCount;
+
+    public int PreviewQuickSaveCount(int count)
+    {
+        if (count < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(count));
+        }
         List<QuickSaveFile> files = FindQuickSaves();
-        QuickSaveFile[] obsolete = files.Skip(count).ToArray();
+        QuickSaveFile[] obsolete = count > quickSaveCount ? [] : files.Skip(count).ToArray();
         ValidateRemoval(obsolete);
+        return obsolete.Length;
+    }
+
+    public QuickSaveCleanupResult CommitQuickSaveCount(int count, int confirmedRemovalCount, Action persist)
+    {
+        if (count < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(count));
+        }
+        List<QuickSaveFile> files = FindQuickSaves();
+        QuickSaveFile[] obsolete = count > quickSaveCount ? [] : files.Skip(count).ToArray();
+        ValidateRemoval(obsolete);
+        if (obsolete.Length != confirmedRemovalCount)
+        {
+            throw new InvalidOperationException("The quick-save list changed. Review the number to remove again.");
+        }
+        persist();
+        SetQuickSaveCount(count);
+        int removed = 0;
         foreach (QuickSaveFile file in obsolete)
         {
-            File.Delete(file.Path);
-            entries.Remove(file.Path);
+            try
+            {
+                File.Delete(file.Path);
+                entries.Remove(file.Path);
+                removed++;
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                return new QuickSaveCleanupResult(removed, obsolete.Length - removed, exception.Message);
+            }
         }
-        quickSaveCount = count;
+        return new QuickSaveCleanupResult(removed, Math.Max(0, files.Count - count - removed), null);
     }
 
     public string GetPath(int slot)

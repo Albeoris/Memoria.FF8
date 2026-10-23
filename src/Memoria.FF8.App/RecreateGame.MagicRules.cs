@@ -118,7 +118,7 @@ internal sealed partial class RecreateGame
             MagicModePreview preview = session.PreviewGameplayPreferences(pending);
             if (!gameMenus.IsOpen)
             {
-                gameMenus.Open("config-gameplay", false);
+                gameMenus.Open("config-magic", false);
             }
             gameMenus.ShowMagicRulesReview(DescribeMagicMigration(preview), () => session.ApplyGameplayPreferences(preview), session.CancelPendingGameplayPreferences);
         }

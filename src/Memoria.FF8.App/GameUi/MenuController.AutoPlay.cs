@@ -1,17 +1,30 @@
 namespace Memoria.FF8.GameUi;
 
-internal sealed record AutoPlayMenuState(bool Running, bool Paused, string Status, string? Error = null, string? ReproductionPath = null, string? ResumeCommand = null);
+internal sealed record AutoPlayMenuState(bool Running, bool Paused, string Status, string? Error = null, string? ReproductionPath = null, string? ResumeCommand = null, bool HasLiveGame = false);
 
 public sealed partial class MenuController
 {
     private Func<AutoPlayMenuState>? _readAutoPlay;
     private Action<string>? _autoPlayCommand;
     private AutoPlayMenuState? _presentedAutoPlay;
+    private string? pendingAutoPlayCommand;
 
     internal void ConnectAutoPlay(Func<AutoPlayMenuState> read, Action<string> command)
     {
         _readAutoPlay = read;
         _autoPlayCommand = command;
+        Register(new MenuScreenDefinition
+        {
+            Id = "autoplay-replace-confirm",
+            Title = "Replace the current session?",
+            Help = "Starting or replaying automatic play replaces the current game. Unsaved progress will be lost.",
+            Entries = _ =>
+            [
+                new MenuEntry("cancel", "Cancel", "Keep the current game.", Action: new MenuAction("menu-back")),
+                new MenuEntry("replace", "Replace session", "Discard unsaved progress and run the selected automation action.", Action: new MenuAction("autoplay-confirm", Value: pendingAutoPlayCommand ?? ""))
+            ],
+            Details = _ => ["The current game will be replaced.", "Save your game first to retain progress."]
+        });
         _view = null;
     }
 
@@ -60,7 +73,12 @@ public sealed partial class MenuController
 
     private bool ExecuteAutoPlayAction(MenuAction action)
     {
-        if (action.Kind != "autoplay")
+        bool confirmed = action.Kind == "autoplay-confirm";
+        if (confirmed && (ScreenId != "autoplay-replace-confirm" || pendingAutoPlayCommand != action.Value))
+        {
+            return true;
+        }
+        if (action.Kind != "autoplay" && !confirmed)
         {
             return false;
         }
@@ -69,6 +87,18 @@ public sealed partial class MenuController
         {
             Message = "This automatic play action is unavailable in the current state.";
             return true;
+        }
+        if (!confirmed && CurrentAutoPlay.HasLiveGame && action.Value is "start" or "load-reproduction")
+        {
+            pendingAutoPlayCommand = action.Value;
+            Push("autoplay-replace-confirm");
+            Select(0, Entries.Count);
+            return true;
+        }
+        if (confirmed)
+        {
+            pendingAutoPlayCommand = null;
+            Back();
         }
         _autoPlayCommand!(action.Value);
         _presentedAutoPlay = null;

@@ -14,6 +14,7 @@ public sealed class ControlsMenuTests
         ControlsProfile profile = ControlsProfile.CreateDefault().WithBinding(ControlAction.Card, ControlDevice.Keyboard, new([Keys.K], []));
         MenuController menus = Connected(() => profile, next => profile = next);
         menus.Open(screen);
+        menus.SelectEntry(screen, nameof(ControlAction.Confirm));
         UiView view = menus.BuildView();
         view.Resize(960, 672);
         UiList commands = Assert.IsType<UiList>(view.FocusedElement);
@@ -24,7 +25,9 @@ public sealed class ControlsMenuTests
         Assert.Contains(screen == "config-keyboard" ? "Enter" : "South button", commands.SecondaryItems[confirm]);
         Assert.Equal(screen == "config-keyboard" ? 2 : 1, ButtonPromptText.Runs(commands.SecondaryItems[confirm]).Count(run => run.IsButton));
         Assert.False(commands.AutoSecondaryWidth);
-        Assert.Equal(0.7f, commands.SecondaryWidth);
+        Assert.Equal(0.3f, commands.SecondaryWidth);
+        Assert.True(commands.AutoRowHeight);
+        Assert.Equal(UiTextFlow.Wrap, commands.TextFlow);
         menus.SelectEntry(screen, nameof(ControlAction.QuickSave));
         menus.Navigate(MenuInput.Alternate);
         Assert.False(menus.IsCapturingControls);
@@ -45,7 +48,7 @@ public sealed class ControlsMenuTests
         menus.Open("config-keyboard");
         UiView view = menus.BuildView();
         UiList commands = Assert.IsType<UiList>(view.FocusedElement);
-        view.Pointer(commands.Bounds.Right - 12, commands.Bounds.Y + 12, true);
+        view.Pointer(commands.Bounds.Right - 12, commands.Bounds.Y + commands.RowHeight * 2 + 12, true);
         Assert.True(menus.IsCapturingControls);
         Assert.Equal("config-keyboard-choice", menus.ScreenId);
     }
@@ -132,12 +135,13 @@ public sealed class ControlsMenuTests
     [Fact]
     public void Controls_screens_render_using_the_live_canvas_without_a_graphics_device()
     {
+        string gameDirectory = TestResources.GameDirectory;
         ControlsProfile profile = ControlsProfile.CreateDefault();
         MenuController menus = Connected(() => profile, next => profile = next);
         void Render(string name)
         {
             using System.Drawing.Bitmap bitmap = new(960, 672);
-            using BattlePreviewCanvas canvas = new(bitmap);
+            using BattlePreviewCanvas canvas = new(bitmap, gameDirectory);
             UiView view = menus.BuildView();
             view.Resize(960, 672);
             view.Draw(canvas, new UiTheme());
@@ -146,7 +150,7 @@ public sealed class ControlsMenuTests
                 Directory.CreateDirectory(directory);
                 bitmap.Save(Path.Combine(directory, name + ".png"), System.Drawing.Imaging.ImageFormat.Png);
             }
-            Assert.NotEqual(System.Drawing.Color.Black.ToArgb(), bitmap.GetPixel(22, 22).ToArgb());
+            Assert.True(Enumerable.Range(1, 9).Any(x => Enumerable.Range(1, 6).Any(y => bitmap.GetPixel(x * bitmap.Width / 10, y * bitmap.Height / 7).ToArgb() != System.Drawing.Color.Black.ToArgb())), "The anchored controls view must paint visible content.");
         }
         menus.Open("config-keyboard");
         Render("keyboard");
@@ -171,17 +175,31 @@ public sealed class ControlsMenuTests
     }
 
     [Fact]
-    public void Native_and_extended_actions_are_available_on_both_devices()
+    public void Player_and_developer_editors_partition_all_actions_on_both_devices()
     {
         MenuController menus = new();
         foreach (string screen in new[] { "config-keyboard", "config-controller" })
         {
             menus.Open(screen, true);
-            Assert.Contains(menus.Entries, entry => entry.Id == nameof(ControlAction.MoveUp));
-            Assert.Contains(menus.Entries, entry => entry.Id == nameof(ControlAction.Confirm));
-            Assert.Contains(menus.Entries, entry => entry.Id == nameof(ControlAction.QuickSave));
-            Assert.Contains(menus.Entries, entry => entry.Id == nameof(ControlAction.BattleDebug));
-            Assert.Contains(menus.Entries, entry => entry.Id == "reset");
+            HashSet<ControlAction> player = [];
+            for (int group = 0; group < 4; group++)
+            {
+                foreach (MenuEntry entry in menus.Entries)
+                {
+                    if (Enum.TryParse(entry.Id, out ControlAction action))
+                    {
+                        player.Add(action);
+                    }
+                }
+                menus.Execute(new("controls-group"));
+            }
+            Assert.Equal(23, player.Count);
+            Assert.All(player, action => Assert.False(ControlsProfile.IsDeveloperAction(action)));
+            menus.Open("debug-shortcuts", true);
+            ControlAction[] developer = menus.Entries.Where(entry => Enum.TryParse<ControlAction>(entry.Id, out _)).Select(entry => Enum.Parse<ControlAction>(entry.Id)).ToArray();
+            Assert.Equal(3, developer.Length);
+            Assert.Empty(player.Intersect(developer));
+            Assert.Equal(ControlsProfile.Definitions.Select(definition => definition.Action).Order(), player.Concat(developer).Order());
             Assert.NotNull(menus.BuildView());
         }
     }
@@ -300,7 +318,7 @@ public sealed class ControlsMenuTests
             writes++;
         });
         menus.Open("config-keyboard");
-        menus.Navigate(MenuInput.Up);
+        menus.SelectEntry("config-keyboard", "reset");
         menus.Navigate(MenuInput.Confirm);
         Assert.Equal("config-controls-reset", menus.ScreenId);
         Assert.Equal("keep", menus.SelectedEntry?.Id);
@@ -313,6 +331,63 @@ public sealed class ControlsMenuTests
         Capture(menus, new(Keys.L));
         Assert.Equal(1, writes);
         Assert.Equal(Keys.F5, profile.GetBindings(ControlAction.QuickSave, ControlDevice.Keyboard).Single().Keys.Single());
+    }
+
+    [Fact]
+    public void Device_switch_retains_group_and_action()
+    {
+        MenuController menus = Connected(ControlsProfile.CreateDefault, _ => { });
+        menus.Open("config-keyboard");
+        menus.SelectEntry("config-keyboard", nameof(ControlAction.QuickSave));
+        menus.Execute(new("controls-switch-device"));
+        Assert.Equal("config-controller", menus.ScreenId);
+        Assert.Equal(nameof(ControlAction.QuickSave), menus.SelectedEntry?.Id);
+        Assert.Contains(menus.Entries, entry => entry.Id == "group" && entry.Label.Contains("Shortcuts"));
+    }
+
+    [Fact]
+    public void Player_reset_reviews_cross_owner_conflicts_before_any_write()
+    {
+        ControlsProfile profile = ControlsProfile.CreateDefault().WithBinding(ControlAction.DebugRoom, ControlDevice.Keyboard, new([Keys.F5], []), replaceConflicts: true);
+        MenuController menus = Connected(() => profile, next => profile = next);
+        menus.Open("config-keyboard");
+        menus.SelectEntry("config-keyboard", "reset");
+        menus.Navigate(MenuInput.Confirm);
+        menus.SelectEntry("config-controls-reset", "reset");
+        menus.Navigate(MenuInput.Confirm);
+        Assert.Equal("config-controls-conflict", menus.ScreenId);
+        Assert.Empty(profile.GetBindings(ControlAction.QuickSave, ControlDevice.Keyboard));
+        Assert.Contains(menus.CurrentScreen.Details(menus), line => line.Contains("Debug Room"));
+        Assert.NotNull(menus.BuildView());
+        menus.SelectEntry("config-controls-conflict", "keep");
+        menus.Navigate(MenuInput.Confirm);
+        Assert.Single(profile.GetBindings(ControlAction.DebugRoom, ControlDevice.Keyboard));
+        menus.SelectEntry("config-controls-reset", "reset");
+        menus.Navigate(MenuInput.Confirm);
+        menus.SelectEntry("config-controls-conflict", "replace");
+        menus.Navigate(MenuInput.Confirm);
+        Assert.Equal("config-keyboard", menus.ScreenId);
+        Assert.Empty(profile.GetBindings(ControlAction.DebugRoom, ControlDevice.Keyboard));
+        Assert.Equal(Keys.F5, Assert.Single(profile.GetBindings(ControlAction.QuickSave, ControlDevice.Keyboard)).Keys.Single());
+    }
+
+    [Fact]
+    public void Controller_settings_adjust_in_both_directions_and_restore_only_preferences()
+    {
+        ControlsProfile profile = ControlsProfile.CreateDefault().WithControllerSettings(0.5f, 0.1f, 0.65f, ControllerPresentation.Xbox, false).WithBinding(ControlAction.QuickSave, ControlDevice.Controller, new([], [Buttons.LeftStick]));
+        MenuController menus = Connected(() => profile, next => profile = next);
+        menus.Open("config-controller-settings");
+        menus.Navigate(MenuInput.Right);
+        Assert.Equal(0.5f, profile.LeftStickDeadZone);
+        menus.Navigate(MenuInput.Left);
+        Assert.Equal(0.45f, profile.LeftStickDeadZone);
+        menus.SelectEntry("config-controller-settings", "reset-settings");
+        menus.Navigate(MenuInput.Confirm);
+        Assert.Equal(0.45f, profile.LeftStickDeadZone);
+        menus.SelectEntry("config-controller-settings-reset", "reset");
+        menus.Navigate(MenuInput.Confirm);
+        Assert.Equal(new ControllerSettings(), profile.Controller);
+        Assert.Equal(Buttons.LeftStick, Assert.Single(profile.GetBindings(ControlAction.QuickSave, ControlDevice.Controller)).Buttons.Single());
     }
 
     private static MenuController Connected(Func<ControlsProfile> read, Action<ControlsProfile> write)

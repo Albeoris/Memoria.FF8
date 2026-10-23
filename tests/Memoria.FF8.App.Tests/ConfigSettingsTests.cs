@@ -36,16 +36,16 @@ public sealed class ConfigSettingsTests
         List<MenuAction> applied = [];
         MenuController controller = new(() => data, applied.Add);
         controller.Open("config");
-        Assert.Equal(["config-gameplay", "config-display", "config-graphics", "config-audio", "config-interface", "config-controls"], controller.Entries.Select(entry => entry.Id));
+        Assert.Equal(["config-graphics", "config-audio", "config-controls", "config-interface", "config-gameplay", "config-mods"], controller.Entries.Select(entry => entry.Id));
         controller.Open("config-interface");
-        Assert.Equal("Cursor", Assert.Single(controller.Entries).Id);
+        Assert.Contains(controller.Entries, entry => entry.Id == "Cursor");
         UiView view = controller.BuildView();
         UiChoiceRow choice = Assert.Single(Descendants(view.Root).OfType<UiChoiceRow>());
         view.Pointer(choice.ValueBounds.Right - 5, choice.Bounds.Y + choice.Bounds.Height / 2, true);
         Assert.Equal("Memory", Assert.Single(applied).Value);
         controller.Open("config-controls");
         controller.Navigate(MenuInput.Confirm);
-        Assert.Equal("config-controller", controller.ScreenId);
+        Assert.Equal("config-keyboard", controller.ScreenId);
     }
 
     [Fact]
@@ -53,15 +53,13 @@ public sealed class ConfigSettingsTests
     {
         MenuController controller = new();
         controller.Open("config", demo: true);
-        controller.Navigate(MenuInput.Down);
-        controller.Navigate(MenuInput.Down);
         Assert.Equal("config-graphics", controller.SelectedEntry!.Id);
         controller.Navigate(MenuInput.Confirm);
         Assert.Equal("config-graphics", controller.ScreenId);
-        Assert.Equal("Anti-aliasing", Assert.Single(controller.Entries).Id);
+        Assert.Equal("Anti-aliasing", controller.Entries[0].Id);
         Assert.Equal("MSAA 8x", controller.Data.Settings["Anti-aliasing"]);
         UiView view = controller.BuildView();
-        UiChoiceRow choice = Assert.Single(Descendants(view.Root).OfType<UiChoiceRow>());
+        UiChoiceRow choice = Assert.Single(Descendants(view.Root).OfType<UiChoiceRow>(), row => row.Id == "Anti-aliasing");
         Assert.Equal(["Off", "MSAA 2x", "MSAA 4x", "MSAA 8x"], choice.Items);
         Assert.Equal(3, choice.SelectedIndex);
         controller.Navigate(MenuInput.Left);
@@ -85,8 +83,8 @@ public sealed class ConfigSettingsTests
         controller.Navigate(MenuInput.Right);
         Assert.Equal("100%", controller.Data.Settings["Music volume"]);
         controller.Navigate(MenuInput.Left);
-        Assert.Equal("75%", controller.Data.Settings["Music volume"]);
-        for (int step = 0; step < 5; step++)
+        Assert.Equal("99%", controller.Data.Settings["Music volume"]);
+        for (int step = 0; step < 100; step++)
         {
             controller.Navigate(MenuInput.Left);
         }
@@ -96,8 +94,9 @@ public sealed class ConfigSettingsTests
         Assert.Equal("0'%'", slider.ValueFormat);
         view.Pointer(slider.ValueBounds.X + 5, slider.Bounds.Y + slider.Bounds.Height / 2, true);
         Assert.Equal(index, controller.SelectedIndex);
+        int afterPointer = int.Parse(controller.Data.Settings["Music volume"].TrimEnd('%'));
         controller.Navigate(MenuInput.Right);
-        Assert.Equal("25%", controller.Data.Settings["Music volume"]);
+        Assert.Equal((afterPointer + 1) + "%", controller.Data.Settings["Music volume"]);
     }
 
     [Theory]
@@ -106,7 +105,7 @@ public sealed class ConfigSettingsTests
     public void Paged_rows_align_columns_and_fit_at_supported_text_scales(string scale, int width, int height)
     {
         MenuController controller = new();
-        controller.Open("config-interface", demo: true);
+        controller.Open("config-text", demo: true);
         controller.Data.Settings["Text scale"] = scale;
         HashSet<string> seen = [];
         for (int index = 0; index < controller.Entries.Count; index++)
@@ -289,7 +288,7 @@ public sealed class ConfigSettingsTests
     }
 
     [Theory]
-    [InlineData("config-gameplay")]
+    [InlineData("config-magic")]
     [InlineData("new-game-options")]
     public void Guardian_forms_option_is_visible_and_unavailable_during_battle(string screen)
     {
@@ -301,7 +300,7 @@ public sealed class ConfigSettingsTests
         controller.Open(screen);
         MenuEntry entry = Assert.Single(controller.Entries, entry => entry.Id == "GF Transformations");
         Assert.False(entry.Enabled);
-        Assert.Contains("until the battle ends", entry.Help);
+        Assert.Contains("battle ends", entry.Help);
         controller.Navigate(MenuInput.Right);
         controller.Navigate(MenuInput.Left);
         controller.Navigate(MenuInput.Confirm);

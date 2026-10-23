@@ -17,6 +17,19 @@ public sealed partial class MenuController
     private ControlsProfile _demoControls = ControlsProfile.CreateDefault();
     private ControlDevice _controlsDevice;
     private ControlAction _controlsAction = ControlAction.Confirm;
+    private bool _developerControls;
+    private int _controlsGroup;
+    private bool _pendingBindingsReset;
+    private static readonly string[] ControlsGroups = ["Navigation", "Interaction", "Camera and battle", "Shortcuts"];
+    private static readonly ControlAction[][] ControlsGroupActions =
+    [
+        [ControlAction.MoveUp, ControlAction.MoveDown, ControlAction.MoveLeft, ControlAction.MoveRight, ControlAction.UiTab, ControlAction.UiPageUp, ControlAction.UiPageDown],
+        [ControlAction.Confirm, ControlAction.Cancel, ControlAction.Menu, ControlAction.Card, ControlAction.Select, ControlAction.Pause],
+        [ControlAction.CameraLeft, ControlAction.CameraRight, ControlAction.RotateLeft, ControlAction.RotateRight, ControlAction.BattleAdvanceTurn],
+        [ControlAction.SpeedToggle, ControlAction.QuickSave, ControlAction.QuickLoad, ControlAction.SaveMenu, ControlAction.LoadMenu]
+    ];
+    private readonly Dictionary<int, string> _controlsGroupSelection = [];
+    private string ControlsOwnerName => _developerControls ? "Debug shortcuts" : "Player bindings";
     private InputChord? _pendingChord;
     private bool _captureControls;
     private bool _returnToControlsList;
@@ -25,8 +38,8 @@ public sealed partial class MenuController
     private InputChord? _capturedChord;
 
     public bool IsCapturingControls => _captureControls;
-    public bool IsControlsScreen => ScreenId.StartsWith("config-controller", StringComparison.Ordinal) || ScreenId.StartsWith("config-keyboard", StringComparison.Ordinal) || ScreenId.StartsWith("config-controls", StringComparison.Ordinal);
-    private bool IsDemoControls => IsDemo && !UseHostControls;
+    public bool IsControlsScreen => ScreenId == "debug-shortcuts" || ScreenId.StartsWith("config-controller", StringComparison.Ordinal) || ScreenId.StartsWith("config-keyboard", StringComparison.Ordinal) || ScreenId.StartsWith("config-controls", StringComparison.Ordinal);
+    private bool IsDemoControls => IsFixtureContext;
     private ControlsProfile CurrentControls => IsDemoControls ? _demoControls : _readControls?.Invoke() ?? _demoControls;
     private bool CanWriteControls => IsDemoControls || _writeControls is not null;
     private string ControlsDeviceName => _controlsDevice == ControlDevice.Keyboard ? "Keyboard" : "Controller";
@@ -34,23 +47,26 @@ public sealed partial class MenuController
     private ControllerPresentation CurrentControllerPresentation => CurrentControls.Controller.Presentation == ControllerPresentation.Automatic ? _readControllerPresentation?.Invoke() ?? ControllerPresentation.Generic : CurrentControls.Controller.Presentation;
     private ControlDevice CurrentControlDevice => _readControlDevice?.Invoke() ?? (ScreenId.StartsWith("config-controller", StringComparison.Ordinal) ? ControlDevice.Controller : ControlDevice.Keyboard);
     private string ControlsMapping => BindingText(_controlsAction, _controlsDevice);
-    private bool IsControlsBindingList => ScreenId is "config-keyboard" or "config-controller";
+    private bool IsControlsBindingList => ScreenId is "config-keyboard" or "config-controller" or "debug-shortcuts";
     private string ControlsChoiceScreen => _controlsDevice == ControlDevice.Keyboard ? "config-keyboard-choice" : "config-controller-choice";
 
     private UiElement BuildControlsPage()
     {
         var page = Grid([1.8f * Math.Max(1, TextScale), 5.8f], [1], 5);
-        ControlDevice device = ScreenId == "config-controller" ? ControlDevice.Controller : ControlDevice.Keyboard;
+        ControlDevice device = _controlsDevice;
         string advancedBinding = ControlsBindingText(ControlAction.Card, device);
         string advancedHelp = advancedBinding == "Unbound" ? "Card / Details is unbound. Assign it to open advanced options." : $"Press {advancedBinding} for advanced options.";
-        string help = IsControlsBindingList ? advancedHelp : ScreenId == "config-controls-conflict" && _pendingChord is not null ? $"{_pendingChord.FormatPrompt(CurrentControllerPresentation)} is assigned to {string.Join(", ", CurrentControls.FindConflicts(_controlsAction, _controlsDevice, _pendingChord).Select(ControlsLabel))}." : SelectedEntry?.Help ?? CurrentScreen.Help;
-        string title = ScreenId.EndsWith("-choice", StringComparison.Ordinal) || ScreenId == "config-controls-conflict" ? $"{ControlsActionName} ({ControlsDeviceName})" : CurrentScreen.Title;
-        Place(page, SecondaryHeader("Config", title, help), 0);
+        advancedHelp = $"{(IsDemoControls ? "Preview / Fixture" : "Global preferences")}. {advancedHelp}";
+        string help = IsControlsBindingList ? advancedHelp : ScreenId == "config-controls-conflict" && _pendingBindingsReset ? $"Default bindings conflict with {string.Join(", ", CurrentControls.FindResetConflicts(_controlsDevice, _developerControls).Select(ControlsConflictLabel))}. Replace only after reviewing this scope." : ScreenId == "config-controls-conflict" && _pendingChord is not null ? $"{_pendingChord.FormatPrompt(CurrentControllerPresentation)} is assigned to {string.Join(", ", CurrentControls.FindConflicts(_controlsAction, _controlsDevice, _pendingChord).Select(ControlsConflictLabel))}." : SelectedEntry?.Help ?? CurrentScreen.Help;
+        string title = ScreenId == "config-controls-conflict" && _pendingBindingsReset ? $"Restore {ControlsOwnerName} ({ControlsDeviceName})" : ScreenId.EndsWith("-choice", StringComparison.Ordinal) || ScreenId == "config-controls-conflict" ? $"{ControlsActionName} ({ControlsDeviceName})" : IsControlsBindingList && !_developerControls ? $"{CurrentScreen.Title} / {ControlsGroups[_controlsGroup]}" : CurrentScreen.Title;
+        Place(page, SecondaryHeader(_developerControls ? "Debug Room" : "Config", title, help), 0);
         UiList commands = SecondaryCommands();
+        commands.TextFlow = UiTextFlow.Wrap;
+        commands.AutoRowHeight = true;
         if (IsControlsBindingList)
         {
             commands.SecondaryItems = Entries.Select(entry => Enum.TryParse(entry.Id, out ControlAction action) ? ControlsBindingText(action, device) : "").ToList();
-            commands.SecondaryWidth *= 2;
+            commands.SecondaryWidth = 0.3f;
             commands.SecondaryAlignment = UiAlignment.End;
         }
         Place(page, Panel(null, commands), 1);
@@ -76,11 +92,67 @@ public sealed partial class MenuController
         _view = null;
     }
 
+    private void PrepareControlsScreen(string screenId)
+    {
+        if (screenId == "config-controller-settings")
+        {
+            _developerControls = false;
+            _controlsDevice = ControlDevice.Controller;
+        }
+        if (screenId is "config-keyboard" or "config-controller" or "debug-shortcuts")
+        {
+            _developerControls = screenId == "debug-shortcuts";
+            if (!_developerControls)
+            {
+                _controlsDevice = screenId == "config-controller" ? ControlDevice.Controller : ControlDevice.Keyboard;
+            }
+        }
+    }
+
+    private void RememberControlsSelection()
+    {
+        if (IsControlsBindingList && !_developerControls && SelectedEntry?.Action is { Kind: "controls-select" } action)
+        {
+            _controlsGroupSelection[_controlsGroup] = action.SubjectId;
+        }
+    }
+
+    private void PrepareControlsSelection(string screenId, string entryId)
+    {
+        if (screenId is "config-keyboard" or "config-controller" && Enum.TryParse(entryId, out ControlAction action) && !ControlsProfile.IsDeveloperAction(action))
+        {
+            int group = Array.FindIndex(ControlsGroupActions, values => values.Contains(action));
+            if (group >= 0)
+            {
+                _controlsGroup = group;
+                _controlsGroupSelection[group] = entryId;
+            }
+        }
+    }
+
+    private static string ControlsConflictLabel(ControlAction action) => $"{ControlsLabel(action)} ({(ControlsProfile.IsDeveloperAction(action) ? "Debug Room" : "Config")})";
+
     internal void RegisterControlsScreens()
     {
         Register(new MenuScreenDefinition
         {
+            Id = "debug-shortcuts",
+            Title = "Debug shortcuts",
+            Help = "Global developer shortcuts. Select a device, then capture an action.",
+            Entries = c => c.ControlsEntries(c._controlsDevice),
+            Details = c => c.ControlsListDetails(c._controlsDevice)
+        });
+        Register(new MenuScreenDefinition
+        {
+            Id = "config-controller-settings-reset",
+            Title = "Restore controller settings",
+            Help = "Restore both deadzones, run threshold, button labels and vibration. Bindings remain unchanged.",
+            Entries = _ => [new("keep", "Keep controller settings", "Return without changes.", Action: new("menu-back")), new("reset", "Restore controller settings", "Restore the five controller preferences only.", Action: new("controls-settings-reset"))]
+        });
+        Register(new MenuScreenDefinition
+        {
             Id = "config-keyboard",
+            GalleryEligible = true,
             Title = "Keyboard",
             Help = "Select an action to change its key or key combination.",
             Entries = c => c.ControlsEntries(ControlDevice.Keyboard),
@@ -89,6 +161,7 @@ public sealed partial class MenuController
         Register(new MenuScreenDefinition
         {
             Id = "config-controller",
+            GalleryEligible = true,
             Title = "Controller",
             Help = "Select an action to change its button or combination.",
             Entries = c => c.ControlsEntries(ControlDevice.Controller),
@@ -125,16 +198,24 @@ public sealed partial class MenuController
         {
             Id = "config-controls-reset",
             Title = "Restore defaults",
-            Help = "Restore every binding and host preference for the selected device.",
-            Entries = _ => [new("keep", "Keep current bindings", "Return without changing bindings.", Action: new("menu-back")), new("reset", "Restore device defaults", "Restore every native and extended action for this device.", Action: new("controls-reset-confirm"))],
-            Details = c => [$"Device: {c.ControlsDeviceName}", "Device bindings and preferences reset.", "The other device keeps its bindings.", c.IsDemoControls ? "Changes stay in this menu demo." : "Changes save automatically."]
+            Help = "Restore only the selected owner's bindings on this device. Conflicts require a separate review.",
+            Entries = c => [new("keep", "Keep current bindings", "Return without changing bindings.", Action: new("menu-back")), new("reset", c._developerControls ? "Restore debug shortcuts" : "Restore player bindings", "Preserve the other owner, the other device and controller settings.", Action: new("controls-reset-confirm"))],
+            Details = c => [$"Device: {c.ControlsDeviceName}", $"Scope: {c.ControlsOwnerName}", "Other bindings and controller settings stay.", c.IsDemoControls ? "Changes stay in this menu demo." : "Global: changes save automatically."]
         });
     }
 
     private IReadOnlyList<MenuEntry> ControlsEntries(ControlDevice device)
     {
         string destination = device == ControlDevice.Keyboard ? "config-keyboard-choice" : "config-controller-choice";
-        return [.. device == ControlDevice.Controller ? new[] { new MenuEntry("settings", "Stick / device settings...", "Set deadzones, run threshold, button labels and vibration.", "config-controller-settings") } : [], .. ControlsProfile.Definitions.Select(definition => new MenuEntry(definition.Action.ToString(), ControlsLabel(definition.Action), $"{definition.Category}: {BindingText(definition.Action, device)}", destination, new("controls-select", definition.Action.ToString(), Value: device.ToString()))), new("reset", "Restore device defaults...", "Reset all native and extended actions for this device.", "config-controls-reset", new("controls-device", device.ToString()))];
+        IReadOnlyList<ControlAction> actions = _developerControls ? ControlsProfile.DeveloperActions : ControlsGroupActions[_controlsGroup];
+        List<MenuEntry> result = [new("device", $"Device: {ControlsDeviceName}", "Switch keyboard/controller while retaining the selected group and action.", Action: new("controls-switch-device"))];
+        if (!_developerControls)
+        {
+            result.Add(new("group", $"Group: {ControlsGroups[_controlsGroup]}", "Choose Navigation, Interaction, Camera and battle, or Shortcuts.", Action: new("controls-group")));
+        }
+        result.AddRange(actions.Select(action => new MenuEntry(action.ToString(), ControlsLabel(action), $"Global {ControlsOwnerName}: {BindingText(action, device)}", destination, new("controls-select", action.ToString(), Value: device.ToString()))));
+        result.Add(new("reset", _developerControls ? "Restore debug shortcuts..." : "Restore player bindings...", "Restore this owner's bindings for the selected device only.", "config-controls-reset", new("controls-device", device.ToString())));
+        return result;
     }
 
     private IReadOnlyList<string> ControlsListDetails(ControlDevice device)
@@ -168,7 +249,11 @@ public sealed partial class MenuController
 
     private IReadOnlyList<string> ControlsConflictDetails()
     {
-        return [ControlsActionName, $"New: {_pendingChord?.FormatPrompt(CurrentControllerPresentation)}", "Already assigned to:", .. _pendingChord is null ? [] : CurrentControls.FindConflicts(_controlsAction, _controlsDevice, _pendingChord).Select(action => ControlsProfile.Definitions.Single(definition => definition.Action == action).Label), "Keep current bindings to cancel."];
+        if (_pendingBindingsReset)
+        {
+            return [$"Restore {ControlsOwnerName} ({ControlsDeviceName})", "Default bindings conflict with:", .. CurrentControls.FindResetConflicts(_controlsDevice, _developerControls).Select(ControlsConflictLabel), "Replace removes only conflicting chords.", "Keep current bindings to cancel."];
+        }
+        return [ControlsActionName, $"New: {_pendingChord?.FormatPrompt(CurrentControllerPresentation)}", "Already assigned to:", .. _pendingChord is null ? [] : CurrentControls.FindConflicts(_controlsAction, _controlsDevice, _pendingChord).Select(action => ControlsConflictLabel(action)), "Keep current bindings to cancel."];
     }
 
     private string BindingText(ControlAction action, ControlDevice device)
@@ -193,6 +278,9 @@ public sealed partial class MenuController
     {
         return action switch
         {
+            ControlAction.DebugRoom => "Open Debug Room",
+            ControlAction.BattleDebug => "Open battle laboratory",
+            ControlAction.BattleInstantVictory => "Win current battle",
             ControlAction.RotateLeft => "Rotate left / Previous character",
             ControlAction.RotateRight => "Rotate right / Gunblade / Next",
             ControlAction.CameraRight => "Camera mode / Escape battle (R)",
@@ -208,11 +296,45 @@ public sealed partial class MenuController
         }
         switch (action.Kind)
         {
+            case "controls-switch-device":
+                string? selectedAction = SelectedEntry?.Id;
+                _controlsDevice = _controlsDevice == ControlDevice.Keyboard ? ControlDevice.Controller : ControlDevice.Keyboard;
+                if (!_developerControls)
+                {
+                    ScreenId = _controlsDevice == ControlDevice.Keyboard ? "config-keyboard" : "config-controller";
+                    string restore = _controlsGroupSelection.GetValueOrDefault(_controlsGroup, selectedAction ?? "device");
+                    int selectedIndex = Entries.ToList().FindIndex(entry => entry.Id == restore);
+                    _selections[ScreenId] = Math.Max(0, selectedIndex);
+                }
+                _view = null;
+                return true;
+            case "controls-group":
+                _controlsGroup = (_controlsGroup + 1) % ControlsGroups.Length;
+                _selections[ScreenId] = 1;
+                _view = null;
+                return true;
+            case "controls-settings-reset":
+                if (WriteControls(() => CurrentControls.ResetControllerSettings()))
+                {
+                    Back();
+                    Message = "Controller settings restored.";
+                }
+                return true;
             case "controls-setting":
                 WriteControls(() => CycleControllerSetting(action.SubjectId));
                 return true;
             case "controls-select":
-                _controlsAction = Enum.Parse<ControlAction>(action.SubjectId);
+                ControlAction selected = Enum.Parse<ControlAction>(action.SubjectId);
+                if (ControlsProfile.IsDeveloperAction(selected) != _developerControls)
+                {
+                    Message = "This binding belongs to the other controls editor.";
+                    return true;
+                }
+                _controlsAction = selected;
+                if (!_developerControls)
+                {
+                    _controlsGroupSelection[_controlsGroup] = selected.ToString();
+                }
                 _controlsDevice = Enum.Parse<ControlDevice>(action.Value);
                 return true;
             case "controls-device":
@@ -239,11 +361,23 @@ public sealed partial class MenuController
                 WriteControls(() => CurrentControls.WithoutBinding(_controlsAction, _controlsDevice));
                 return true;
             case "controls-keep":
+                _pendingBindingsReset = false;
                 _pendingChord = null;
                 Back();
                 ReturnFromControlsCapture();
                 return true;
             case "controls-replace":
+                if (_pendingBindingsReset)
+                {
+                    if (WriteControls(() => CurrentControls.ResetBindings(_controlsDevice, _developerControls, replaceConflicts: true)))
+                    {
+                        _pendingBindingsReset = false;
+                        Back();
+                        Back();
+                        Message = $"{ControlsOwnerName} restored.";
+                    }
+                    return true;
+                }
                 if (_pendingChord is not null && WriteControls(() => CurrentControls.WithBinding(_controlsAction, _controlsDevice, _pendingChord, replaceConflicts: true)))
                 {
                     _pendingChord = null;
@@ -253,7 +387,14 @@ public sealed partial class MenuController
                 }
                 return true;
             case "controls-reset-confirm":
-                if (WriteControls(() => CurrentControls.Reset(_controlsDevice)))
+                if (CurrentControls.FindResetConflicts(_controlsDevice, _developerControls).Count != 0)
+                {
+                    _pendingBindingsReset = true;
+                    _selections["config-controls-conflict"] = 0;
+                    Push("config-controls-conflict");
+                    return true;
+                }
+                if (WriteControls(() => CurrentControls.ResetBindings(_controlsDevice, _developerControls)))
                 {
                     Back();
                     Message = $"{ControlsDeviceName} defaults restored.";
@@ -269,23 +410,46 @@ public sealed partial class MenuController
         ControllerSettings settings = CurrentControls.Controller;
         return
         [
-            new("left-deadzone", $"Left stick deadzone: {settings.LeftStickDeadZone:P0}", "Confirm increases by 5%; after 50% returns to 0%.", Action: new("controls-setting", "left-deadzone"), Enabled: CanWriteControls),
-            new("right-deadzone", $"Right stick deadzone: {settings.RightStickDeadZone:P0}", "Confirm increases by 5%; after 50% returns to 0%.", Action: new("controls-setting", "right-deadzone"), Enabled: CanWriteControls),
-            new("run-threshold", $"Run threshold: {settings.WalkRunThreshold:P0}", "Confirm increases by 5%; after 95% returns to 10%.", Action: new("controls-setting", "run-threshold"), Enabled: CanWriteControls),
+            new("left-deadzone", $"Left stick deadzone: {settings.LeftStickDeadZone:P0}", "Adjust by 5%, from 0% to 50%.", Action: new("controls-setting", "left-deadzone"), Enabled: CanWriteControls),
+            new("right-deadzone", $"Right stick deadzone: {settings.RightStickDeadZone:P0}", "Adjust by 5%, from 0% to 50%.", Action: new("controls-setting", "right-deadzone"), Enabled: CanWriteControls),
+            new("run-threshold", $"Run threshold: {settings.WalkRunThreshold:P0}", "Adjust by 5%, from 10% to 95%.", Action: new("controls-setting", "run-threshold"), Enabled: CanWriteControls),
             new("presentation", $"Button labels: {settings.Presentation}", "Cycle automatic, generic, Xbox, PlayStation and Nintendo labels.", Action: new("controls-setting", "presentation"), Enabled: CanWriteControls),
-            new("vibration", $"Vibration: {(settings.VibrationEnabled ? "On" : "Off")}", "Enable or disable controller vibration.", Action: new("controls-setting", "vibration"), Enabled: CanWriteControls)
+            new("vibration", $"Vibration: {(settings.VibrationEnabled ? "On" : "Off")}", "Enable or disable controller vibration.", Action: new("controls-setting", "vibration"), Enabled: CanWriteControls),
+            new("reset-settings", "Restore controller settings...", "Restore only these five preferences; preserve all bindings.", "config-controller-settings-reset")
         ];
     }
 
-    private ControlsProfile CycleControllerSetting(string setting)
+    private bool ChangeControlsSetting(int direction)
+    {
+        if (SelectedEntry?.Id == "group" && IsControlsBindingList)
+        {
+            _controlsGroup = (_controlsGroup + direction + ControlsGroups.Length) % ControlsGroups.Length;
+            _selections[ScreenId] = 1;
+            _view = null;
+            return true;
+        }
+        if (SelectedEntry?.Id == "device" && IsControlsBindingList)
+        {
+            ExecuteControlsAction(new("controls-switch-device"));
+            return true;
+        }
+        if (ScreenId != "config-controller-settings" || SelectedEntry?.Action is not { Kind: "controls-setting" } action)
+        {
+            return false;
+        }
+        WriteControls(() => CycleControllerSetting(action.SubjectId, direction));
+        return true;
+    }
+
+    private ControlsProfile CycleControllerSetting(string setting, int direction = 1)
     {
         ControllerSettings current = CurrentControls.Controller;
-        float Next(float value, float minimum, float maximum) => value >= maximum - 0.001f ? minimum : MathF.Round(value + 0.05f, 2);
+        float Next(float value, float minimum, float maximum) => Math.Clamp(MathF.Round(value + direction * 0.05f, 2), minimum, maximum);
         return CurrentControls.WithControllerSettings(
             setting == "left-deadzone" ? Next(current.LeftStickDeadZone, 0, 0.5f) : current.LeftStickDeadZone,
             setting == "right-deadzone" ? Next(current.RightStickDeadZone, 0, 0.5f) : current.RightStickDeadZone,
             setting == "run-threshold" ? Next(current.WalkRunThreshold, 0.1f, 0.95f) : current.WalkRunThreshold,
-            setting == "presentation" ? (ControllerPresentation)(((int)current.Presentation + 1) % Enum.GetValues<ControllerPresentation>().Length) : current.Presentation,
+            setting == "presentation" ? (ControllerPresentation)(((int)current.Presentation + direction + Enum.GetValues<ControllerPresentation>().Length) % Enum.GetValues<ControllerPresentation>().Length) : current.Presentation,
             setting == "vibration" ? !current.VibrationEnabled : current.VibrationEnabled);
     }
 
@@ -322,6 +486,7 @@ public sealed partial class MenuController
 
     private void ProposeControlsBinding(InputChord chord)
     {
+        _pendingBindingsReset = false;
         try
         {
             if (CurrentControls.FindConflicts(_controlsAction, _controlsDevice, chord).Count != 0)

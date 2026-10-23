@@ -18,11 +18,13 @@ public sealed class MenuSecondaryLayoutTests
         }
         controller.Navigate(MenuInput.Confirm);
         Assert.Equal("config-interface", controller.ScreenId);
+        controller.SelectEntry("config-interface", "config-text");
+        controller.Navigate(MenuInput.Confirm);
         controller.Data.Settings["Text scale"] = "150%";
         controller.Data.Settings["Dialogue font size"] = "12";
         controller.Navigate(MenuInput.PageDown);
         UiView view = controller.BuildView();
-        UiNumericSlider slider = Assert.Single(Descendants(view.Root).OfType<UiNumericSlider>());
+        UiNumericSlider slider = Assert.Single(Descendants(view.Root).OfType<UiNumericSlider>(), row => row.Id == "Dialogue font size");
         Assert.Equal("Dialogue font size", slider.Id);
         Assert.DoesNotContain(Descendants(view.Root).OfType<UiSettingRow>(), row => row.Id == "Quick saves");
         Assert.True(slider.LabelBounds.Right <= slider.ValueBounds.X);

@@ -30,8 +30,8 @@ public sealed partial class MenuController
     private UiElement SecondaryHeader(string title, string info, string help)
     {
         var header = Grid([1, 1.2f], [3.7f, 1.3f], 5);
-        Place(header, Panel("INFO.", Label(info, 24)), 0);
-        Place(header, Panel(null, Label(title, 27)), 0, 1);
+        Place(header, Panel("INFO.", Label(info, 24, UiTextFlow.Wrap)), 0);
+        Place(header, Panel(null, Label(title, 27, UiTextFlow.Wrap)), 0, 1);
         Place(header, Panel("HELP", Label(Message.Length > 0 ? Message : help, 23, UiTextFlow.Wrap)), 1, 0, 1, 2);
         return header;
     }
@@ -59,11 +59,11 @@ public sealed partial class MenuController
     private UiElement BuildSecondaryConfig()
     {
         bool newGame = ScreenId == "new-game-options";
-        var page = Grid([1.4f * TextScale, newGame ? 3.5f : 6.85f], [1], 8);
+        var page = Grid(ScreenId == "config-text" ? [1.7f * TextScale, 4, 3] : [1.4f * TextScale, newGame ? 3.5f : 6.85f], [1], 8);
         var header = Grid([1], [3.7f, 1.3f], 5);
         string help = Message.Length > 0 ? Message : SelectedEntry?.Help ?? CurrentScreen.Help;
         Place(header, Panel("HELP", new UiLabel { Text = help, FontSize = 18 * TextScale, TextFlow = UiTextFlow.Wrap }), 0);
-        Place(header, Panel(null, Label(ScreenId == "new-game-options" ? "New Game" : "Config", 27)), 0, 1);
+        Place(header, Panel(null, Label(ScreenId == "new-game-options" ? "New Game" : SettingsPlacement.Pages.TryGetValue(ScreenId, out SettingsPage? pageDefinition) ? pageDefinition.Label : "Config", 27, UiTextFlow.Wrap)), 0, 1);
         Place(page, header, 0);
         int count = Math.Min(Math.Max(1, Entries.Count), ConfigRowsPerPage);
         int first = SelectedIndex / count * count;
@@ -81,7 +81,11 @@ public sealed partial class MenuController
         Place(content, rows, 0);
         int pages = Math.Max(1, (Entries.Count + count - 1) / count);
         Place(content, Label($"{(ScreenId == "config" ? "Categories" : CurrentScreen.Title)}     {first / count + 1} / {pages}", 15), 1);
-        Place(page, Panel(null, content), 1);
+        Place(page, Panel(IsFixtureContext && !newGame ? "Preview / Fixture" : null, content), 1);
+        if (ScreenId == "config-text")
+        {
+            Place(page, Panel("Menus / Dialogue preview", BuildFontPreviews()), 2);
+        }
         if (newGame)
         {
             UiAnchorPanel modal = new();

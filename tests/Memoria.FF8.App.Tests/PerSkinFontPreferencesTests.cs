@@ -68,7 +68,11 @@ public sealed class PerSkinFontPreferencesTests
         UiPreferences preferences = new();
         MenuController menu = new();
         menu.ConnectPreferences(() => preferences, action => preferences = preferences.WithSetting(action.SubjectId, action.Value));
-        menu.Open("debug-ui", true);
+        MenuData data = new();
+        data.SupportedActions.Add("config");
+        menu = new(() => data);
+        menu.ConnectPreferences(() => preferences, action => preferences = preferences.WithSetting(action.SubjectId, action.Value));
+        menu.Open("config-text", false);
         AssertDisplayedFont("Georgia");
         menu.Presentation = MenuPresentation.Classic;
         AssertDisplayedFont(SystemFontCatalog.DefaultFamily);
@@ -85,7 +89,7 @@ public sealed class PerSkinFontPreferencesTests
         void AssertDisplayedFont(string expected)
         {
             Assert.Equal(expected, menu.CreateTheme().FontFamily);
-            Assert.Contains(expected, menu.Entries.Single(entry => entry.Id == "UI font").Label);
+            Assert.Contains(expected, Assert.Single(menu.HostSettingsEntries("UI font")).Label);
         }
     }
 
@@ -115,8 +119,7 @@ public sealed class PerSkinFontPreferencesTests
         MenuController menu = new();
         menu.Open("config-interface", true);
         Assert.Equal("UI presentation", menu.Entries[0].Id);
-        string[] remaining = menu.Entries.Skip(1).Select(entry => entry.Id).ToArray();
-        Assert.Equal(MenuSettings.Definitions.Where(setting => remaining.Contains(setting.Id)).Select(setting => setting.Id), remaining);
+        Assert.Equal(["config-text", "Cursor"], menu.Entries.Skip(1).Select(entry => entry.Id));
     }
 
     private static void WithPreferencesFile(string json, Action<string> inspect)

@@ -36,7 +36,7 @@ internal sealed partial class RecreateGame
             }
             else
             {
-                battleDebug = null;
+                CloseBattleDebug();
             }
         }
         if (battleDebug is null)
@@ -328,9 +328,26 @@ internal sealed partial class RecreateGame
         };
     }
 
+    private MenuNavigationState? battleDebugReturnNavigation;
+    private bool battleDebugReturnDemo;
+    private bool battleDebugReturnFixture;
+
+    private void CloseBattleDebug()
+    {
+        battleDebug = null;
+        if (battleDebugReturnNavigation is { } saved && gameMenus is not null)
+        {
+            gameMenus.RestoreNavigation(saved);
+            gameMenus.RestoreEditingContext(battleDebugReturnDemo, battleDebugReturnFixture);
+        }
+        battleDebugReturnNavigation = null;
+    }
+
     private void OpenBattleDebug()
     {
-        gameMenus?.Close();
+        battleDebugReturnNavigation = gameMenus?.IsOpen == true ? gameMenus.CaptureNavigation() : null;
+        battleDebugReturnDemo = gameMenus?.IsDemo == true;
+        battleDebugReturnFixture = gameMenus?.IsFixtureContext == true;
         BattleDebugCatalog catalog = ReadBattleDebugCatalog();
         BattleDefinition? activeEncounter = world?.Battle?.Capture().Definition;
         BattleCombatantDefinition? lastEnemy = activeEncounter?.Combatants.FirstOrDefault(actor => !actor.IsPlayer);
@@ -362,8 +379,9 @@ internal sealed partial class RecreateGame
         BattleStock[] items = currentEconomy.Items.Where(stock => stock.ItemId > 0 && stock.Count > 0).Select(stock => new BattleStock(stock.ItemId, stock.Count)).ToArray();
         BattleDefinition initial = BattleDebugDefaults.Create(currentParty, lastEnemy, stageId, world?.Battle, actions, items);
         battleDebugPresets ??= new BattleDebugPresets(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!, "battle-presets.json"));
-        battleDebug = new BattleDebugController(initial, catalog, ReadCurrentUiPreferences().AtbMode, StartDebugBattle, () => battleDebug = null, battleDebugPresets);
+        battleDebug = new BattleDebugController(initial, catalog, ReadCurrentUiPreferences().AtbMode, StartDebugBattle, CloseBattleDebug, battleDebugPresets);
         battleDebug.SoundRequested += sound => fieldAudio?.PlayUiSound(sound);
+        gameMenus?.Close();
         SynchronizeUiMoviePause();
     }
 
@@ -485,7 +503,7 @@ internal sealed partial class RecreateGame
                 OpenBattleDebug();
                 break;
             case "battle-debug-close":
-                battleDebug = null;
+                CloseBattleDebug();
                 break;
             case "battle-debug-input":
                 (battleDebug ?? throw new InvalidOperationException("Open Battle Debug first.")).Navigate(command.MenuInput ?? throw new ArgumentException("MenuInput is required."));

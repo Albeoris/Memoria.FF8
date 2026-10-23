@@ -59,6 +59,43 @@ public sealed class ControllerPreferencesTests
     }
 
     [Theory]
+    [InlineData(ControlDevice.Keyboard, false)]
+    [InlineData(ControlDevice.Keyboard, true)]
+    [InlineData(ControlDevice.Controller, false)]
+    [InlineData(ControlDevice.Controller, true)]
+    public void Scoped_reset_preserves_other_owner_device_and_controller_preferences(ControlDevice device, bool developer)
+    {
+        ControlsProfile profile = ControlsProfile.CreateDefault().WithControllerSettings(0.35f, 0.1f, 0.65f, ControllerPresentation.PlayStation, false)
+            .WithBinding(ControlAction.QuickSave, ControlDevice.Keyboard, new([Keys.K], []))
+            .WithBinding(ControlAction.DebugRoom, ControlDevice.Keyboard, new([Keys.L], []))
+            .WithBinding(ControlAction.QuickSave, ControlDevice.Controller, new([], [Buttons.LeftStick]))
+            .WithBinding(ControlAction.DebugRoom, ControlDevice.Controller, new([], [Buttons.RightStick]));
+        ControlsProfile reset = profile.ResetBindings(device, developer);
+        ControlsProfile defaults = ControlsProfile.CreateDefault();
+        foreach (ControlDevice inspectedDevice in Enum.GetValues<ControlDevice>())
+        {
+            foreach (ControlActionDefinition definition in ControlsProfile.Definitions)
+            {
+                ControlsProfile expected = inspectedDevice == device && ControlsProfile.IsDeveloperAction(definition.Action) == developer ? defaults : profile;
+                Assert.Equal(expected.GetBindings(definition.Action, inspectedDevice).Select(binding => binding.FormatDisplayName(ControllerPresentation.Generic)), reset.GetBindings(definition.Action, inspectedDevice).Select(binding => binding.FormatDisplayName(ControllerPresentation.Generic)));
+            }
+        }
+        Assert.Equal(profile.Controller, reset.Controller);
+    }
+
+    [Fact]
+    public void Reset_conflicts_require_explicit_review_and_replace_only_matching_chords()
+    {
+        ControlsProfile profile = ControlsProfile.CreateDefault().WithBinding(ControlAction.DebugRoom, ControlDevice.Keyboard, new([Keys.F5], []), replaceConflicts: true);
+        Assert.Equal(new[] { ControlAction.DebugRoom }, profile.FindResetConflicts(ControlDevice.Keyboard, developer: false));
+        Assert.Throws<InvalidOperationException>(() => profile.ResetBindings(ControlDevice.Keyboard, developer: false));
+        ControlsProfile reset = profile.ResetBindings(ControlDevice.Keyboard, developer: false, replaceConflicts: true);
+        Assert.Empty(reset.GetBindings(ControlAction.DebugRoom, ControlDevice.Keyboard));
+        Assert.Equal(Keys.F4, Assert.Single(reset.GetBindings(ControlAction.BattleDebug, ControlDevice.Keyboard)).Keys.Single());
+        Assert.Equal(Keys.F5, Assert.Single(reset.GetBindings(ControlAction.QuickSave, ControlDevice.Keyboard)).Keys.Single());
+    }
+
+    [Theory]
     [InlineData(ControllerPresentation.PlayStation, "\u00D7", "R3")]
     [InlineData(ControllerPresentation.Xbox, "[A]", "RS")]
     [InlineData(ControllerPresentation.Nintendo, "[B]", "R Stick")]
