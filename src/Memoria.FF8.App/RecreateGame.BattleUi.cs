@@ -440,6 +440,7 @@ internal sealed partial class RecreateGame
         definition = definition with
         {
             LimitOncePerTurn = ReadCurrentUiPreferences().LimitOncePerTurn,
+            DrawOncePerSpell = ReadCurrentUiPreferences().DrawOncePerSpell,
             GuardianFormsEnabled = ReadCurrentUiPreferences().GuardianFormsEnabled,
             GuardianFormResources = ReadCurrentUiPreferences().GuardianFormsEnabled ? [PresentationBattleResources.ReadIfritGuardianFormResources()] : []
         };

@@ -44,6 +44,8 @@ Set `MEMORIA_FF8_MEDIA_TOOLS` to select another media directory for both the lau
 
 **Limit once per turn** is Off by default. When enabled, each character gets one Limit availability check per ATB cycle. Switching allies or reopening the command menu keeps the first result, including a failed check. Another check becomes available after the gauge resets and fills again, such as after acting or being defeated and revived. Saving and loading preserves the result. The option belongs to the saved game and can also be changed under Config → Combat between battles; enabled saves use the Memoria format.
 
+**Draw once per spell** is Off by default. When enabled, successful Draw Stock or Draw Cast exhausts that spell on that enemy for the whole party until battle ends; a failed Draw does not. Choose it in New Game or change it outside battles under **Config → Gameplay → Magic and Guardian Forces**. The choice belongs to the saved game, enabled saves use Memoria format, and Title edits set the default for future games. See [Magic rules](magic-system.md) for details.
+
 ## Start from source
 
 Follow [Build and test](../developers/building-and-testing.md) to create the same package locally. For a direct development launch, set `MEMORIA_FF8_GAME_DIR` to your installation and run from the source root:

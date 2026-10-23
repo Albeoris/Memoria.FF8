@@ -8,14 +8,15 @@ namespace Memoria.FF8.App.Tests;
 public sealed class MagicSystemInterfaceTests
 {
     [Fact]
-    public void NewGameExposesThreeIndependentMagicRules()
+    public void NewGameExposesFourIndependentMagicRules()
     {
         MenuController menu = new();
         menu.Open("new-game-options", demo: true);
+        Assert.Contains(menu.Entries, entry => entry.Id == "Draw once per spell");
         Assert.Contains(menu.Entries, entry => entry.Id == "Shared magic stock");
         Assert.Contains(menu.Entries, entry => entry.Id == "Infinite magic");
         Assert.Contains(menu.Entries, entry => entry.Id == "Smart Attack");
-        Assert.All(new[] { "Shared magic stock", "Infinite magic", "Smart Attack" }, key => Assert.Equal("Off", menu.Data.Settings[key]));
+        Assert.All(new[] { "Draw once per spell", "Shared magic stock", "Infinite magic", "Smart Attack" }, key => Assert.Equal("Off", menu.Data.Settings[key]));
     }
 
     [Fact]

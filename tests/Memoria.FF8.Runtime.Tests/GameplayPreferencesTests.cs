@@ -92,7 +92,7 @@ public sealed class GameplayPreferencesTests
         {
             GameSession first = GameSession.CreateColdProcess();
             first.StartNewGame();
-            first.SetGameplayPreferences(new GameplayPreferences { Difficulty = BattleDifficulty.Hard, AtbMode = BattleAtbMode.Normal, GunbladeMode = BattleGunbladeMode.Manual, GuardianFormsEnabled = true });
+            first.SetGameplayPreferences(new GameplayPreferences { Difficulty = BattleDifficulty.Hard, AtbMode = BattleAtbMode.Normal, GunbladeMode = BattleGunbladeMode.Manual, GuardianFormsEnabled = true, DrawOncePerSpell = true });
             first.Save(path);
             GameSession second = GameSession.CreateColdProcess();
             second.StartNewGame();
@@ -143,6 +143,7 @@ public sealed class GameplayPreferencesTests
         GameplayPreferences preferences = System.Text.Json.JsonSerializer.Deserialize<GameplayPreferences>("{\"SmartAttack\":true}")!;
         Assert.True(preferences.SmartAttack);
         Assert.False(preferences.GuardianFormsEnabled);
+        Assert.False(preferences.DrawOncePerSpell);
     }
 
     [Theory]
@@ -213,6 +214,39 @@ public sealed class GameplayPreferencesTests
         string hash = new('0', 64);
         BattleEncounterOccurrence pending = new("feature-boundary", 1, hash, SceneKind.Field, 74, 1, hash, null);
         Assert.Contains("pending GF Transformations", Assert.Throws<InvalidDataException>(() => new GameSession(state with { Battle = null, PendingBattleEncounter = pending })).Message);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Draw_rule_is_save_owned_and_cannot_change_during_battle(bool enabled)
+    {
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
+        Assert.False(session.State.GameplayPreferences.DrawOncePerSpell);
+        GameplayPreferences preferences = new() { DrawOncePerSpell = enabled };
+        session.SetGameplayPreferences(preferences);
+        BattleSession battle = new(new BattleDefinition
+        {
+            DrawOncePerSpell = enabled,
+            Combatants = [new() { Id = "party", Name = "Squall", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
+        }, BattleAtbMode.TurnBased);
+        session.SetBattle(battle.Capture());
+        GameState before = session.State;
+        GameplayPreferences changed = preferences with { DrawOncePerSpell = !enabled };
+        Assert.Throws<InvalidOperationException>(() => session.SetGameplayPreferences(changed));
+        Assert.Throws<InvalidOperationException>(() => session.ApplyGameplayPreferences(new(MagicSystemFixture.Create(), changed, [], [], [], [])));
+        Assert.Same(before, session.State);
+        Assert.Throws<InvalidDataException>(() => new GameSession(before with { GameplayPreferences = changed }));
+        Assert.Throws<InvalidDataException>(() => new GameSession(before with { PendingGameplayPreferences = changed }));
+        string hash = new('0', 64);
+        BattleEncounterOccurrence pending = new("draw-rule-boundary", 1, hash, SceneKind.Field, 74, 1, hash, null);
+        GameSession pendingSession = new(before with { Battle = null, PendingBattleEncounter = pending });
+        Assert.Throws<InvalidOperationException>(() => pendingSession.SetGameplayPreferences(changed));
+        Assert.Throws<InvalidDataException>(() => new GameSession(pendingSession.State with { PendingGameplayPreferences = changed }));
+        session.SetBattle(null);
+        session.SetGameplayPreferences(changed);
+        Assert.Equal(!enabled, session.State.GameplayPreferences.DrawOncePerSpell);
     }
 
     [Fact]

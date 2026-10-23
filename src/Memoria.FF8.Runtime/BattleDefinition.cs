@@ -147,6 +147,7 @@ public sealed record BattleDefinition
 {
     public bool GuardianFormsEnabled { get; init; }
     public bool LimitOncePerTurn { get; init; }
+    public bool DrawOncePerSpell { get; init; }
     public ImmutableArray<BattleGuardianFormResources> GuardianFormResources { get; init; } = [];
     public NativeCharacterVitals? MagicVitals { get; init; }
     public NativeBattleClockRules? NativeClockRules { get; init; }

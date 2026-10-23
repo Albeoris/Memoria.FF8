@@ -7,6 +7,10 @@ internal sealed partial class GameWorld
     public void ConfigureGameplayPreferences(GameplayPreferences preferences)
     {
         ArgumentNullException.ThrowIfNull(preferences);
+        if (battle is not null && preferences.DrawOncePerSpell != session.State.GameplayPreferences.DrawOncePerSpell)
+        {
+            throw new InvalidOperationException("Draw once per spell cannot change until the battle ends.");
+        }
         if (battle is not null && preferences.LimitOncePerTurn != session.State.GameplayPreferences.LimitOncePerTurn)
         {
             throw new InvalidOperationException("Limit once per turn cannot change until the battle ends.");
@@ -28,7 +32,7 @@ internal sealed partial class GameWorld
     internal static BattleSession CreateLiveBattleSession(BattleDefinition definition, GameplayPreferences preferences)
     {
         preferences.Validate();
-        BattleSession active = CreateLiveBattleSession(definition with { LimitOncePerTurn = preferences.LimitOncePerTurn, GuardianFormsEnabled = preferences.GuardianFormsEnabled, GuardianFormResources = preferences.GuardianFormsEnabled ? definition.GuardianFormResources : [] }, preferences.AtbMode);
+        BattleSession active = CreateLiveBattleSession(definition with { LimitOncePerTurn = preferences.LimitOncePerTurn, DrawOncePerSpell = preferences.DrawOncePerSpell, GuardianFormsEnabled = preferences.GuardianFormsEnabled, GuardianFormResources = preferences.GuardianFormsEnabled ? definition.GuardianFormResources : [] }, preferences.AtbMode);
         active.SetDifficulty(preferences.Difficulty);
         active.SetGunbladeMode(preferences.GunbladeMode);
         return active;

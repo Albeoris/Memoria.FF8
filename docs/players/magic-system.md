@@ -1,14 +1,21 @@
 # Magic rules and Smart Attack
 
-Choose these three independent options before **Begin** on the New Game screen, or under **Config → Gameplay → Magic and Guardian Forces** during a game. All three default to **Off**. Each save restores its own choices; loading a save does not replace its rules with installation defaults.
+Choose these four independent options before **Begin** on the New Game screen, or under **Config → Gameplay → Magic and Guardian Forces** during a game. All four default to **Off**. Each save restores its own choices; loading a save does not replace its rules with installation defaults.
 
 | Option | Behavior |
 | --- | --- |
+| Draw once per spell | Successful Draw Stock or Cast exhausts that spell on that enemy for the whole party during the encounter. |
 | Shared magic stock | One accessible party bank, with exclusive Junction ownership for each spell. |
 | Infinite magic | Ordinary casts preserve stock and spend a separate, limited allowance. |
 | Smart Attack | Unlocks a personal choice of physical attacks or automatic magic in Junction Abilities. |
 
 Any combination works. With Shared off, characters retain personal inventories and cannot borrow another character's stock or allowance. With Infinite off, ordinary spells consume stock normally. Smart Attack follows whichever storage and casting rules the save uses.
+
+## Draw once per spell
+
+**Draw once per spell** defaults to Off. When enabled, a successful Draw Stock or Draw Cast exhausts that spell on the source enemy for the whole party until the battle ends. Failed Draw attempts leave the spell available. Other spells and other enemies remain available. Smart Attack respects the same exhausted entries. A new encounter starts with fresh Draw availability; saving and loading during battle preserves exhaustion.
+
+This option belongs to the save. Change it outside battles under **Config → Gameplay → Magic and Guardian Forces**; active and pending battles lock the option. Changing it at Title sets the default for future New Games. Enabled saves require Memoria format. The rule works independently of Shared magic stock and Infinite magic.
 
 ## Shared stock and Junction owners
 

@@ -15,6 +15,7 @@ public sealed class MenuData
     public bool SharedMagicStock { get; set; }
     public bool SmartAttack { get; set; }
     public bool LimitOncePerTurnPreferenceLocked { get; set; }
+    public bool DrawOncePerSpellPreferenceLocked { get; set; }
     public bool GuardianFormsPreferenceLocked { get; set; }
     public string? MagicPreferencesUnavailableReason { get; set; }
     public List<MenuCharacter> Characters { get; } = [];

@@ -12,6 +12,7 @@ public sealed record GameplayPreferences
     public bool InfiniteMagic { get; init; }
     public bool SmartAttack { get; init; }
     public bool LimitOncePerTurn { get; init; }
+    public bool DrawOncePerSpell { get; init; }
 
     public void Validate()
     {

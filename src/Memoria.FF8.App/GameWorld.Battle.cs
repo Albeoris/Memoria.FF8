@@ -117,6 +117,7 @@ internal sealed partial class GameWorld
         definition = definition with
         {
             LimitOncePerTurn = session.State.GameplayPreferences.LimitOncePerTurn,
+            DrawOncePerSpell = session.State.GameplayPreferences.DrawOncePerSpell,
             GuardianFormsEnabled = session.State.GameplayPreferences.GuardianFormsEnabled,
             GuardianFormResources = session.State.GameplayPreferences.GuardianFormsEnabled ? [BattleResources.ReadIfritGuardianFormResources()] : [],
             NativeSavedOptions = (session.State.InputConfiguration ?? assets.ReadNewGameInputConfiguration()).Options,
@@ -209,7 +210,7 @@ internal sealed partial class GameWorld
 
     internal static BattleDefinition BindBattleEntryClock(BattleDefinition current, BattleSnapshot saved, NativeExamTimerState? timer)
     {
-        current = current with { LimitOncePerTurn = saved.Definition.LimitOncePerTurn, GuardianFormsEnabled = saved.Definition.GuardianFormsEnabled, NativeGlobalSoundProcess = saved.Definition.NativeGlobalSoundProcess, NativeMusicProcess = saved.Definition.NativeMusicProcess, NativeRetainedMemory = saved.Definition.NativeRetainedMemory, NativeVibrationProcess = saved.Definition.NativeVibrationProcess, NativeBattleUiRandom = saved.Definition.NativeBattleUiRandom };
+        current = current with { LimitOncePerTurn = saved.Definition.LimitOncePerTurn, DrawOncePerSpell = saved.Definition.DrawOncePerSpell, GuardianFormsEnabled = saved.Definition.GuardianFormsEnabled, NativeGlobalSoundProcess = saved.Definition.NativeGlobalSoundProcess, NativeMusicProcess = saved.Definition.NativeMusicProcess, NativeRetainedMemory = saved.Definition.NativeRetainedMemory, NativeVibrationProcess = saved.Definition.NativeVibrationProcess, NativeBattleUiRandom = saved.Definition.NativeBattleUiRandom };
         if (saved.Definition.NativeExamTimerAtEntry is not { } entry)
         {
             return current with { NativeExamTimerAtEntry = null };

@@ -708,6 +708,14 @@ public sealed partial class GameSession : IEventServices
             throw new InvalidDataException("Saved gameplay preferences cannot be null.");
         }
         state.GameplayPreferences.Validate();
+        if (state.Battle is { Definition: { } drawDefinition } && drawDefinition.DrawOncePerSpell != state.GameplayPreferences.DrawOncePerSpell)
+        {
+            throw new InvalidDataException("Saved battle Draw once per spell option differs from its save preference.");
+        }
+        if ((state.Battle is not null || state.PendingBattleEncounter is not null) && state.PendingGameplayPreferences is { } pendingDrawPreferences && pendingDrawPreferences.DrawOncePerSpell != state.GameplayPreferences.DrawOncePerSpell)
+        {
+            throw new InvalidDataException("Saved pending Draw once per spell preference cannot change during a battle.");
+        }
         state.PendingGameplayPreferences?.Validate();
         if (state.Battle is { Definition: { } limitDefinition } && limitDefinition.LimitOncePerTurn != state.GameplayPreferences.LimitOncePerTurn)
         {

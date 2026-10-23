@@ -323,6 +323,53 @@ public sealed class NativePlayerDrawTests
         Assert.Equal(new byte[] { 1 }, source.DrawnMagicIds);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DefaultRuleAllowsRepeatedDrawByDifferentCastersAfterJsonRestore(bool cast)
+    {
+        BattleDefinition definition = CreateWithSecondCaster().Capture().Definition with { DrawOncePerSpell = false };
+        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        battle.QueueAction("party", "source", BattleAbility.Draw, 2, cast, drawCastTargetId: cast ? "ally" : null);
+        battle.QueueAction("ally", "source", BattleAbility.Draw, 2, cast, drawCastTargetId: cast ? "party" : null);
+        battle.Tick();
+        Assert.False(battle.ActiveAction!.NativeDraw!.Failed);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        Assert.False(restored.Capture().Definition.DrawOncePerSpell);
+        bool secondSucceeded = false;
+        for (int frame = 0; frame < 80; frame++)
+        {
+            restored.Tick();
+            if (restored.ActiveAction is { ActorId: "ally", NativeDraw: { Failed: false } })
+            {
+                secondSucceeded = true;
+                break;
+            }
+        }
+        Assert.True(secondSucceeded);
+        BattleCombatant source = restored.Combatants.Single(actor => actor.Id == "source");
+        Assert.Empty(source.DrawnMagicIds);
+        Assert.Contains(source.NativeDrawSlots, slot => slot.Id == 2);
+    }
+
+    [Fact]
+    public void OlderBattleWithoutDrawRuleDefaultsToOffAndAllowsRepeatedDraw()
+    {
+        Assert.False(new BattleDefinition().DrawOncePerSpell);
+        BattleSession battle = Create();
+        System.Text.Json.Nodes.JsonNode snapshot = JsonSerializer.SerializeToNode(battle.Capture())!;
+        snapshot["Definition"]!.AsObject().Remove("DrawOncePerSpell");
+        BattleSession restored = BattleSession.Restore(snapshot.Deserialize<BattleSnapshot>()!);
+        Assert.False(restored.Capture().Definition.DrawOncePerSpell);
+        restored.QueueAction("party", "source", BattleAbility.Draw, 1);
+        Complete(restored);
+        Assert.Empty(restored.Combatants.Single(actor => actor.Id == "source").DrawnMagicIds);
+        restored.Combatants[0].Atb = BattleSession.AtbMaximum;
+        restored.QueueAction("party", "source", BattleAbility.Draw, 1);
+        restored.Tick();
+        Assert.False(restored.ActiveAction!.NativeDraw!.Failed);
+    }
+
     private static BattleSession CreateWithSecondCaster()
     {
         BattleDefinition definition = Create().Capture().Definition;
@@ -343,6 +390,7 @@ public sealed class NativePlayerDrawTests
         return new(new BattleDefinition
         {
             Name = "Native player Draw",
+            DrawOncePerSpell = true,
             NativeMessageSpeed = localized ? (byte)0 : null,
             NativeGlobalMessages = localized ? messages : [],
             Combatants =

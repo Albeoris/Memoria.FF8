@@ -19,6 +19,7 @@ internal static class MagicUiText
         "PhysicalOnly" => "Physical only",
         "SmartMagic" => "Smart magic",
         "AttackChoiceHelp" => "Choose physical attacks or automatic magic using the normal Magic command and casting rules.",
+        "DrawOnceDescription" => "A successful Draw Stock or Cast exhausts that spell on that enemy for the whole party until battle ends. Failed Draw does not. Saved with this game; change outside battles only. Title sets the new-game default.",
         "SharedDescription" => "Use one party magic bank with exclusive Junction owners. Review quantities, overflow, bindings and HP before changing this save.",
         "InfiniteDescription" => "Preserve casting stock and spend limited battle or field uses. Junction bonuses still use stock; victory restores one field use.",
         "SmartDescription" => "Unlock personal automatic Attack choices. Uses hidden enemy information and favorable spell selection; ordinary costs and command restrictions apply.",

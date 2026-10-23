@@ -60,6 +60,7 @@ internal sealed record UiPreferences
     public int DialogueFontSize { get; init; } = 10;
     public BattleDifficulty Difficulty { get; init; } = BattleDifficulty.Normal;
     public bool LimitOncePerTurn { get; init; }
+    public bool DrawOncePerSpell { get; init; }
     public BattleAtbMode AtbMode { get; init; } = BattleAtbMode.TurnBased;
     public BattleGunbladeMode GunbladeMode { get; init; } = BattleGunbladeMode.Automatic;
     public string BattlePolicy { get; init; } = "ResearchInstantVictory";
@@ -238,6 +239,15 @@ internal sealed record UiPreferences
                 _ => throw new ArgumentException("Limit once per turn requires On or Off.")
             };
         }
+        if (key == "Draw once per spell")
+        {
+            return value switch
+            {
+                "On" => this with { DrawOncePerSpell = true },
+                "Off" => this with { DrawOncePerSpell = false },
+                _ => throw new ArgumentException("Draw once per spell requires On or Off.")
+            };
+        }
         if (key == "Difficulty")
         {
             return value switch
@@ -290,7 +300,7 @@ internal sealed record UiPreferences
 
     public UiPreferences WithInstallationSetting(string key, string value, bool activeGame)
     {
-        if (activeGame && key is "Limit once per turn" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "Battle policy" or "Random encounters" or "GF Transformations")
+        if (activeGame && key is "Draw once per spell" or "Limit once per turn" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "Battle policy" or "Random encounters" or "GF Transformations")
         {
             return this;
         }

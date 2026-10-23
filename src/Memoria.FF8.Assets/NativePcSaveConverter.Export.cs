@@ -38,7 +38,7 @@ public static partial class NativePcSaveConverter
         {
             throw new NotSupportedException("Original PC export requires an active game with initialized characters and inventory.");
         }
-        if (state.CharacterVitals.MagicSystem.RequiresMemoriaFormat || state.GameplayPreferences.SharedMagicStock || state.GameplayPreferences.InfiniteMagic || state.GameplayPreferences.SmartAttack || state.GameplayPreferences.GuardianFormsEnabled || state.GameplayPreferences.LimitOncePerTurn || state.GameplayPreferences.Difficulty != BattleDifficulty.Normal || state.PendingGameplayPreferences is not null)
+        if (state.CharacterVitals.MagicSystem.RequiresMemoriaFormat || state.GameplayPreferences.SharedMagicStock || state.GameplayPreferences.InfiniteMagic || state.GameplayPreferences.SmartAttack || state.GameplayPreferences.GuardianFormsEnabled || state.GameplayPreferences.LimitOncePerTurn || state.GameplayPreferences.DrawOncePerSpell || state.GameplayPreferences.Difficulty != BattleDifficulty.Normal || state.PendingGameplayPreferences is not null)
         {
             throw new NotSupportedException("This game contains gameplay rules or usage history that original FF8 saves cannot preserve. Choose a Memoria save slot.");
         }

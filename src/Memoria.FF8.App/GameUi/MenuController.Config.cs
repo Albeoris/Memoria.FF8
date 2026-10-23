@@ -44,7 +44,7 @@ public sealed partial class MenuController
             return ConfigCategories.Select(category => new MenuEntry("config-" + category.Id, category.Label, category.Help, category.Id == "mods" ? "mods" : "config-" + category.Id, Enabled: category.Id != "mods" || _screens.ContainsKey("mods"))).ToArray();
         }
         bool newGame = ScreenId == "new-game-options";
-        string[] ids = newGame ? ["Difficulty", "Battle ATB mode", "Limit once per turn", "Shared magic stock", "Infinite magic", "Smart Attack", "GF Transformations", "Rare card markers"] : SettingsPlacement.Pages[ScreenId].Items;
+        string[] ids = newGame ? ["Difficulty", "Battle ATB mode", "Limit once per turn", "Draw once per spell", "Shared magic stock", "Infinite magic", "Smart Attack", "GF Transformations", "Rare card markers"] : SettingsPlacement.Pages[ScreenId].Items;
         List<MenuEntry> entries = [];
         foreach (string id in ids)
         {
@@ -70,6 +70,7 @@ public sealed partial class MenuController
             {
                 "GF Transformations" when Data.GuardianFormsPreferenceLocked => newGame ? "GF Transformations is unavailable until the battle ends." : "GF Transformations is unavailable until the active or pending battle ends.",
                 "Limit once per turn" when Data.LimitOncePerTurnPreferenceLocked => "Limit once per turn is unavailable until the active or pending battle ends.",
+                "Draw once per spell" when Data.DrawOncePerSpellPreferenceLocked => "Draw once per spell is unavailable until the active or pending battle ends.",
                 "Shared magic stock" or "Infinite magic" or "Smart Attack" => Data.MagicPreferencesUnavailableReason,
                 _ => null
             };

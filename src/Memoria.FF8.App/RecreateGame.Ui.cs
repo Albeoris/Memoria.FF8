@@ -135,6 +135,8 @@ internal sealed partial class RecreateGame
         data.SupportedActions.UnionWith(["config:Shared magic stock", "config:Infinite magic", "config:Smart Attack", "attack-mode"]);
         data.Settings["Limit once per turn"] = ReadCurrentUiPreferences().LimitOncePerTurn ? "On" : "Off";
         data.SupportedActions.Add("config:Limit once per turn");
+        data.Settings["Draw once per spell"] = ReadCurrentUiPreferences().DrawOncePerSpell ? "On" : "Off";
+        data.SupportedActions.Add("config:Draw once per spell");
         data.Settings["Difficulty"] = ReadCurrentUiPreferences().Difficulty.ToString();
         data.SupportedActions.Add("config:Difficulty");
         data.Settings["Battle ATB mode"] = ReadCurrentUiPreferences().AtbMode == BattleAtbMode.Normal ? "Classic" : "Turn Based";
@@ -142,6 +144,7 @@ internal sealed partial class RecreateGame
         data.Settings["GF Transformations"] = ReadCurrentUiPreferences().GuardianFormsEnabled ? "On" : "Off";
         data.GuardianFormsPreferenceLocked = ActiveBattle is not null || session.State.Battle is not null || session.State.PendingBattleEncounter is not null;
         data.LimitOncePerTurnPreferenceLocked = data.GuardianFormsPreferenceLocked;
+        data.DrawOncePerSpellPreferenceLocked = data.GuardianFormsPreferenceLocked;
         data.SupportedActions.Add("config:GF Transformations");
         data.Settings["Battle policy"] = ReadCurrentUiPreferences().BattlePolicyLabel;
         data.Settings["Rare card markers"] = uiPreferences.RareCardMarkers ? "On" : "Off";
@@ -386,11 +389,15 @@ internal sealed partial class RecreateGame
             RandomEncounters = session.State.RandomEncounters?.Enabled == true
         };
         GameplayPreferences gameplay = session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences;
-        return current with { LimitOncePerTurn = session.State.Scene == SceneKind.Title ? uiPreferences.LimitOncePerTurn : gameplay.LimitOncePerTurn, Difficulty = session.State.Scene == SceneKind.Title ? uiPreferences.Difficulty : gameplay.Difficulty, AtbMode = session.State.Scene == SceneKind.Title ? uiPreferences.AtbMode : gameplay.AtbMode, GunbladeMode = session.State.Scene == SceneKind.Title ? uiPreferences.GunbladeMode : gameplay.GunbladeMode, GuardianFormsEnabled = session.State.Scene == SceneKind.Title ? uiPreferences.GuardianFormsEnabled : gameplay.GuardianFormsEnabled };
+        return current with { LimitOncePerTurn = session.State.Scene == SceneKind.Title ? uiPreferences.LimitOncePerTurn : gameplay.LimitOncePerTurn, DrawOncePerSpell = session.State.Scene == SceneKind.Title ? uiPreferences.DrawOncePerSpell : gameplay.DrawOncePerSpell, Difficulty = session.State.Scene == SceneKind.Title ? uiPreferences.Difficulty : gameplay.Difficulty, AtbMode = session.State.Scene == SceneKind.Title ? uiPreferences.AtbMode : gameplay.AtbMode, GunbladeMode = session.State.Scene == SceneKind.Title ? uiPreferences.GunbladeMode : gameplay.GunbladeMode, GuardianFormsEnabled = session.State.Scene == SceneKind.Title ? uiPreferences.GuardianFormsEnabled : gameplay.GuardianFormsEnabled };
     }
 
     private void ApplyCurrentBattleSettings(UiPreferences preferences, string key)
     {
+        if (key == "Draw once per spell" && (ActiveBattle is not null || session.State.Battle is not null || session.State.PendingBattleEncounter is not null) && preferences.DrawOncePerSpell != session.State.GameplayPreferences.DrawOncePerSpell)
+        {
+            throw new InvalidOperationException("Draw once per spell cannot change until the battle ends.");
+        }
         if (key == "Limit once per turn" && (ActiveBattle is not null || session.State.Battle is not null || session.State.PendingBattleEncounter is not null) && preferences.LimitOncePerTurn != session.State.GameplayPreferences.LimitOncePerTurn)
         {
             throw new InvalidOperationException("Limit once per turn cannot change until the battle ends.");
@@ -411,10 +418,10 @@ internal sealed partial class RecreateGame
                 world.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigureEncounters, RandomEncounters: preferences.RandomEncounters));
             }
         }
-        if (session.State.Scene != SceneKind.Title && key is "Limit once per turn" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "GF Transformations")
+        if (session.State.Scene != SceneKind.Title && key is "Draw once per spell" or "Limit once per turn" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "GF Transformations")
         {
             world ??= CreateWorld();
-            world.ConfigureGameplayPreferences((session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences) with { LimitOncePerTurn = preferences.LimitOncePerTurn, Difficulty = preferences.Difficulty, AtbMode = preferences.AtbMode, GunbladeMode = preferences.GunbladeMode, GuardianFormsEnabled = preferences.GuardianFormsEnabled });
+            world.ConfigureGameplayPreferences((session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences) with { LimitOncePerTurn = preferences.LimitOncePerTurn, DrawOncePerSpell = preferences.DrawOncePerSpell, Difficulty = preferences.Difficulty, AtbMode = preferences.AtbMode, GunbladeMode = preferences.GunbladeMode, GuardianFormsEnabled = preferences.GuardianFormsEnabled });
         }
         if (key == "Difficulty" && debugBattle is not null)
         {

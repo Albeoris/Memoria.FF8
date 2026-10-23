@@ -187,6 +187,7 @@ public static class MenuSettings
         new("Limit once per turn", "Check Limit Break availability once per ATB cycle. Cycling party members keeps the same result until the character takes an action. Saved with this game; Title sets the new-game default.", ["Off", "On"]),
         new("Difficulty", "Normal keeps reduced enemy magic damage and hidden random idle turns. Hard removes both aids; explicit do-not-attack actions remain. Saved with this game; Title sets the new-game default.", ["Normal", "Hard"]),
         new("Battle ATB mode", "Classic uses continuous ATB. Turn Based advances idle gauges when a turn is requested. Saved with the game; Title sets the new-game default.", ["Classic", "Turn Based"]),
+        new("Draw once per spell", MagicUiText.Get("DrawOnceDescription"), ["Off", "On"]),
         new("Shared magic stock", MagicUiText.Get("SharedDescription"), ["Off", "On"]),
         new("Infinite magic", MagicUiText.Get("InfiniteDescription"), ["Off", "On"]),
         new("Smart Attack", MagicUiText.Get("SmartDescription"), ["Off", "On"]),

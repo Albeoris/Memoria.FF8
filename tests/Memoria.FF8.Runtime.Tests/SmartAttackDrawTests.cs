@@ -357,6 +357,7 @@ public sealed class SmartAttackDrawTests
         return new(new BattleDefinition
         {
             MagicVitals = vitals,
+            DrawOncePerSpell = true,
             NativeKnownMagic = knownBank ? bank : null,
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,

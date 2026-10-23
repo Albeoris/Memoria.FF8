@@ -8,6 +8,22 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativePcSaveConverterTests
 {
     [Fact]
+    public void Original_export_rejects_draw_rule_instead_of_losing_it()
+    {
+        GameState source = Defaults() with { GameplayPreferences = new GameplayPreferences { DrawOncePerSpell = true } };
+        Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(source));
+    }
+
+    [Fact]
+    public void Original_import_defaults_draw_rule_to_off_even_with_enabled_defaults()
+    {
+        byte[] original = NativePcSaveConverter.Export(Defaults());
+        GameState enabledDefaults = Defaults() with { GameplayPreferences = new GameplayPreferences { DrawOncePerSpell = true } };
+        GameState imported = NativePcSaveConverter.Import(original, enabledDefaults, _ => "fixture");
+        Assert.False(imported.GameplayPreferences.DrawOncePerSpell);
+    }
+
+    [Fact]
     public void Original_export_rejects_guardian_forms_preference_instead_of_losing_it()
     {
         GameState source = Defaults() with { GameplayPreferences = new GameplayPreferences { GuardianFormsEnabled = true } };

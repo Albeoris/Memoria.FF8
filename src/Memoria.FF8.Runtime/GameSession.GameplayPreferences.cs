@@ -83,6 +83,10 @@ public sealed partial class GameSession
 
     private void RequireBattleGameplayPreferenceBoundary(GameplayPreferences preferences)
     {
+        if (preferences.DrawOncePerSpell != State.GameplayPreferences.DrawOncePerSpell && (State.Battle is not null || State.PendingBattleEncounter is not null))
+        {
+            throw new InvalidOperationException("Draw once per spell cannot change until the battle ends.");
+        }
         if (preferences.LimitOncePerTurn != State.GameplayPreferences.LimitOncePerTurn && (State.Battle is not null || State.PendingBattleEncounter is not null))
         {
             throw new InvalidOperationException("Limit once per turn cannot change until the battle ends.");
