@@ -41,6 +41,7 @@ public sealed class NativeBattleRoughDivide163CastTests
         bool selected = false;
         bool drawn = false;
         bool midpoint = false;
+        HashSet<string> finisherCameraPoses = [];
         try
         {
             for (int callback = 0; callback < 400 && !battle.CanChoosePlayerCommand("party"); callback++)
@@ -75,6 +76,10 @@ public sealed class NativeBattleRoughDivide163CastTests
                 if (active)
                 {
                     selected = true;
+                    Assert.NotNull(battle.NativeEffectMemory!.Textures!.Animation);
+                    Assert.Equal(JsonSerializer.Serialize(battle.NativeEffectMemory.Textures.Animation), JsonSerializer.Serialize(battle.NativeCamera!.ControlResource));
+                    Assert.Null(battle.NativeCamera.ControlStagingSource);
+                    finisherCameraPoses.Add(JsonSerializer.Serialize(battle.NativeCamera.CurrentPose));
                     if (!drawn && graphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
                     {
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
@@ -94,11 +99,12 @@ public sealed class NativeBattleRoughDivide163CastTests
                     Assert.True(initial);
                     Assert.True(drawn);
                     Assert.True(midpoint);
+                    Assert.True(finisherCameraPoses.Count > 1, "The registered finisher camera must advance during the actual action.");
                     Assert.Equal(4 + finisher.HitCount, battle.Events.Count(entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy"));
                     Assert.Null(battle.Capture().NativeTimedAction);
                     Assert.Equal((byte)0, battle.Capture().NativeClock!.ActionPause);
                     CompareNext("completed");
-                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", weapon, finisherIndex, battle.Frame, NativeCallback = battle.NativeGraphics.Callback, initial, selected, drawn, midpoint }));
+                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", weapon, finisherIndex, battle.Frame, NativeCallback = battle.NativeGraphics.Callback, initial, selected, drawn, midpoint, DistinctFinisherCameraPoses = finisherCameraPoses.Count }));
                     return;
                 }
             }

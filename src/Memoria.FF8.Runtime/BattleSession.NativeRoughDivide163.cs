@@ -14,6 +14,7 @@ public sealed partial class BattleSession
         NativeEffectMemory = frame.Memory;
         NativeFileStaging = frame.Staging;
         nativeCrtRandom = frame.Random;
+        NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native5099A0 requires its actual camera owner.")).RegisterControlResource(frame.Memory.Textures!.Animation);
         return graphics with { OriginalEffect = frame.Effect };
     }
 
