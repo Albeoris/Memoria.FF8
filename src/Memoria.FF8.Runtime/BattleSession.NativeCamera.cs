@@ -136,6 +136,10 @@ public sealed partial class BattleSession
                 {
                     graphics = completedWildCannon;
                 }
+                else if (TryWriteNativeResonance49Completion(graphics, address, value, out NativeBattleGraphicsState completedResonance49))
+                {
+                    graphics = completedResonance49;
+                }
                 else if (TryWriteNativeCurse47Completion(graphics, address, value, out NativeBattleGraphicsState completedCurse47))
                 {
                     graphics = completedCurse47;
