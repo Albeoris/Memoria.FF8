@@ -13,6 +13,10 @@ public sealed partial class BattleHudController
 
     internal string ChoiceValue(BattleActionDefinition action)
     {
+        if (SelectedCommand == BattleAbility.GuardianForce)
+        {
+            return session.GuardianForces.FirstOrDefault(gf => gf.Id == action.Id)?.HitPoints.ToString() ?? "";
+        }
         if (SelectedCommand == BattleAbility.Draw && action.Id < 64)
         {
             return DrawStockCount(action.Id).ToString();

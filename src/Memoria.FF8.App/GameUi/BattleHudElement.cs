@@ -79,6 +79,7 @@ internal sealed partial class BattleHudElement : UiElement
         string caption = session.Outcome != BattleOutcome.Active ? "RESULT" : controller.SelectingTarget ? "TARGET" : controller.SelectingGuardianFormAction ? "GF ACTION" : controller.SelectingDrawMode ? "DRAW" : controller.SelectingAction ? controller.SelectedCommand.ToString().ToUpperInvariant() : "COMMAND";
         IReadOnlyList<BattleActionDefinition> actions = controller.SelectingAction && !controller.SelectingDrawMode && !controller.SelectingGuardianFormAction && !controller.HasGuardianFormCommands ? controller.ActionChoices : [];
         string[] values = actions.Select(controller.ChoiceValue).ToArray();
+        bool guardianHpColumn = controller.SelectedCommand == BattleAbility.GuardianForce && values.Any(value => value.Length > 0);
         bool[] rightArrows = Enumerable.Range(0, choices.Count).Select(index => actions.Count > index
             ? controller.CanOpenGuardianFormActions(actions[index])
             : !controller.SelectingAction && !controller.HasGuardianFormCommands && controller.NativeLimitAvailable && controller.Commands.ElementAtOrDefault(index) == BattleAbility.Attack).ToArray();
@@ -90,7 +91,14 @@ internal sealed partial class BattleHudElement : UiElement
         {
             float nameWidth = choices.Select(value => canvas.MeasureText(value, fontSize * Scale, 4096 * Scale).Width / Scale).DefaultIfEmpty(0).Max();
             valueWidth = values.Select(value => canvas.MeasureText(value, fontSize * Scale, 4096 * Scale).Width / Scale).DefaultIfEmpty(0).Max();
-            if (controller.SelectedCommand == BattleAbility.Draw && valueWidth > 0)
+            if (guardianHpColumn)
+            {
+                float fit = Math.Min(1, Math.Min(24 / fontSize, (440 - 38 - arrowWidth) / Math.Max(1, nameWidth)));
+                valueWidth = Math.Max(valueWidth, canvas.MeasureText("9999", fontSize * Scale, 4096 * Scale).Width / Scale) * fit;
+                fontSize *= fit;
+                CommandWidth = Math.Clamp(38 + arrowWidth + nameWidth * fit, 194, 440) + 12 + valueWidth;
+            }
+            else if (controller.SelectedCommand == BattleAbility.Draw && valueWidth > 0)
             {
                 float fit = Math.Min(1, Math.Min(24 / fontSize, (440 - 38) / Math.Max(1, nameWidth)));
                 valueWidth = canvas.MeasureText("100", fontSize * Scale, 4096 * Scale).Width / Scale * fit;
@@ -143,8 +151,8 @@ internal sealed partial class BattleHudElement : UiElement
                 }
                 bool unavailable = actions.Count > start + row && (!actions[start + row].Available || controller.SelectedCommand == BattleAbility.Magic && controller.SelectedActor is { } caster && !session.QuoteMagic(caster.Id, actions[start + row].Id).Allowed);
                 unavailable |= !controller.SelectingAction && !controller.HasGuardianFormCommands && controller.Commands.ElementAtOrDefault(start + row) == BattleAbility.Draw && !controller.DrawAvailable;
-                float valueLeft = 30 + CommandWidth - 8 - valueWidth - arrowWidth;
-                float ownerLeft = valueLeft - (valueWidth > 0 ? 12 : 0) - ownerWidth;
+                float valueLeft = 30 + CommandWidth - 8 - valueWidth - (guardianHpColumn ? 0 : arrowWidth);
+                float ownerLeft = valueLeft - (valueWidth > 0 ? 12 : 0) - ownerWidth - (guardianHpColumn ? arrowWidth : 0);
                 UiImageSource? ownerIcon = ShowingMagicList && actions.Count > start + row ? controller.MagicOwnerIcon(actions[start + row]) : null;
                 if (ownerIcon is { } portrait)
                 {
@@ -156,7 +164,7 @@ internal sealed partial class BattleHudElement : UiElement
                     // Native row flag4 uses icon6 and alternates CLUT offsets0/5 every two UI frames.
                     int phase = (int)(controller.BattlePresentationSeconds * BattleSession.FramesPerSecond);
                     int palette = (phase & 2) != 0 ? 0 : 5;
-                    canvas.Image(new UiImageSource(UiImageKind.Icon, 6, palette), Rect(30 + CommandWidth - 24, y + 1, 12, 24));
+                    canvas.Image(new UiImageSource(UiImageKind.Icon, 6, palette), Rect(30 + CommandWidth - 24 - (guardianHpColumn ? 12 + valueWidth : 0), y + 1, 12, 24));
                 }
                 if (values.Length > start + row)
                 {

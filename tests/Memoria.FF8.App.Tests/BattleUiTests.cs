@@ -8,6 +8,46 @@ namespace Memoria.FF8.App.Tests;
 public sealed class BattleUiTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void GuardianListExtendsNamePanelWithRightAlignedCurrentHp(bool guardianFormsEnabled)
+    {
+        BattleSession battle = new(new BattleDefinition
+        {
+            GuardianFormsEnabled = guardianFormsEnabled,
+            GuardianForces = [new(1, 7, 9999), new(2, 1234, 9999)],
+            Combatants =
+            [
+                new() { Id = "caster", Name = "Caster", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.GuardianForce], EquipmentIds = [1, 2] },
+                new() { Id = "enemy", Name = "Enemy" }
+            ],
+            ActionDefinitions = [new(BattleAbility.GuardianForce, 1, "Shiva", BattleActionEffect.Damage, 10, false), new(BattleAbility.GuardianForce, 2, "Ifrit", BattleActionEffect.Damage, 10, false)]
+        }, BattleAtbMode.TurnBased);
+        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { });
+        hud.Choose(0);
+        TestCanvas canvas = new();
+        UiView view = hud.BuildView();
+        view.Resize(960, 672);
+        view.Draw(canvas, new UiTheme());
+
+        var name = Assert.Single(canvas.TextDraws, draw => draw.Text == "Shiva");
+        UiRect firstHp = Assert.Single(canvas.Clips, clip => clip.Y == name.Bounds.Y && clip.X > 216);
+        UiRect secondHp = Assert.Single(canvas.Clips, clip => clip.Y == name.Bounds.Y + 28 && clip.X > 216);
+        Assert.Contains(canvas.TextDraws, draw => draw.Text == "7" && draw.Bounds.X == firstHp.X);
+        Assert.Contains(canvas.TextDraws, draw => draw.Text == "1234" && draw.Bounds.X == secondHp.X);
+        Assert.Equal(firstHp.Right, secondHp.Right);
+        Assert.Contains(canvas.Clips, clip => clip.X == 60 && clip.Y == name.Bounds.Y && clip.Width == (guardianFormsEnabled ? 134 : 156));
+        float panelRight = canvas.Fills.Where(fill => fill.Bounds.Y == 516).Max(fill => fill.Bounds.Right);
+        Assert.Equal(276, panelRight);
+        Assert.Equal(panelRight - 8, firstHp.Right);
+        if (guardianFormsEnabled)
+        {
+            var arrow = Assert.Single(canvas.Images, image => image.Source == new UiImageSource(UiImageKind.Icon, 6, 5));
+            Assert.True(arrow.Bounds.Right < secondHp.X);
+        }
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(99)]
     [InlineData(100)]

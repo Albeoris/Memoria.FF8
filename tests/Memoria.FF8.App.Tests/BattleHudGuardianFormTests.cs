@@ -115,7 +115,7 @@ public sealed class BattleHudGuardianFormTests
         BattleHudController hud = Hud(battle, inputs);
         hud.Choose(1);
         Assert.Equal("Renamed GF", Assert.Single(hud.ChoiceLabels));
-        Assert.Empty(hud.ChoiceValue(hud.SelectedAction!));
+        Assert.Equal("1000", hud.ChoiceValue(hud.SelectedAction!));
         hud.Navigate(MenuInput.Confirm);
         Assert.True(hud.SelectingTarget);
         hud.Navigate(MenuInput.Confirm);
