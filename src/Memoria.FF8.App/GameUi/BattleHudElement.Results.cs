@@ -75,25 +75,30 @@ internal sealed partial class BattleHudElement
         {
             ResultPopup(canvas, theme, controller.ResultText(109, "Received {Var 32} AP!", controller.ResultAbilityPoints), 99);
         }
-        else if (controller.ResultGuardianForce is { } growth)
+        else if (controller.ResultPage == BattleResultPage.GuardianForce && controller.ResultGuardianForce is { } growth)
         {
             string name = controller.ResultText(121, "G.F. ") + controller.GuardianForceDisplayName(growth.Id);
-            if (growth.FinalLevel > growth.PreviousLevel)
-            {
-                ResultPopup(canvas, theme, name + " " + controller.ResultText(48, "Level Up!"), growth.LearnedAbilityIds.Length > 0 ? 45 : 99);
-            }
-            if (growth.LearnedAbilityIds.Length > 0)
-            {
-                theme.Panel(canvas, ResultRect(40, 88, 304, 56));
-                ResultLabel(canvas, theme, name, 50, 95, 284);
-                ResultLabel(canvas, theme, controller.ResultText(127, "Learned"), 62, 110, 272);
-                int ability = growth.LearnedAbilityIds[0];
-                if (NativeAbilityMenuMetadata.Icon(ability) is { } icon)
-                {
-                    canvas.Image(icon, ResultRect(74, 123, 12, 12));
-                }
-                ResultLabel(canvas, theme, controller.ResultLearnedAbility(ability) + controller.ResultText(126, " learned!"), 88, 125, 246);
-            }
+            ResultPopup(canvas, theme, name + " " + controller.ResultText(48, "Level Up!"), 99);
+        }
+        else if (controller.ResultPage == BattleResultPage.LearnedAbilities)
+        {
+            DrawResultLearnedAbilities(canvas, theme);
+        }
+    }
+
+    private void DrawResultLearnedAbilities(IUiCanvas canvas, UiTheme theme)
+    {
+        theme.Panel(canvas, ResultRect(16, 68, 352, 106));
+        string learned = controller.ResultText(127, "Learned").Trim().TrimEnd(':');
+        ResultLabel(canvas, theme, char.ToUpperInvariant(learned[0]) + learned[1..] + ":", 26, 76, 332);
+        IReadOnlyList<(int GuardianForceId, int AbilityId)> entries = controller.ResultLearnedAbilities;
+        for (int index = 0; index < entries.Count; index++)
+        {
+            (int guardianForce, int ability) = entries[index];
+            float x = 26 + index / 4 * 114;
+            float y = 96 + index % 4 * 18;
+            canvas.Image(new UiImageSource(UiImageKind.GuardianForcePortrait, guardianForce), ResultRect(x, y, 14, 14));
+            ResultLabel(canvas, theme, controller.ResultLearnedAbility(ability), x + 18, y + 1, 88);
         }
     }
 

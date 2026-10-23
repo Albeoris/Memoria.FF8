@@ -23,7 +23,7 @@ public sealed class BattleResultsRenderTests
         BattleRewardSummary rewards = new(new Dictionary<byte, ushort> { [0] = 123 }, new Dictionary<byte, ushort>(), new Dictionary<int, ushort> { [0] = 3 }, [new BattleStock(1, 2)], [0])
         {
             CharacterGrowth = [new(0, 6500, 6623, 7, 7, 500, 377)],
-            GuardianForceGrowth = [new(0, 1, 2, [20])]
+            GuardianForceGrowth = Enumerable.Range(0, 12).Select(id => new BattleGuardianForceRewardPresentation(id, 1, (byte)(id == 0 ? 2 : 1), [20 + id])).ToArray()
         };
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_RESULT_UI_OUTPUT");
         if (output is not null)
@@ -63,6 +63,10 @@ public sealed class BattleResultsRenderTests
             Assert.Equal(BattleResultPage.GuardianForce, controller.ResultPage);
             Draw("guardian");
             Assert.Equal(0, completions);
+            controller.ConfirmResult();
+            Assert.Equal(BattleResultPage.LearnedAbilities, controller.ResultPage);
+            Assert.Equal(12, controller.ResultLearnedAbilities.Count);
+            Draw("learned");
             controller.ConfirmResult();
             Assert.Equal(1, completions);
 

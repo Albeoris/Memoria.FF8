@@ -123,7 +123,11 @@ public sealed class BattleResultsSequenceTests
         Confirm(hud);
         Confirm(hud);
         Confirm(hud);
+        Assert.Equal(BattleResultPage.GuardianForce, hud.ResultPage);
+        Assert.Equal(1, hud.ResultGuardianForce!.Id);
         Confirm(hud);
+        Assert.Equal(BattleResultPage.LearnedAbilities, hud.ResultPage);
+        Assert.Equal(new[] { (0, 11), (7, 71) }, hud.ResultLearnedAbilities);
         Assert.Equal(0, menusOpened);
         Confirm(hud);
         Assert.Equal(1, menusOpened);
@@ -137,6 +141,73 @@ public sealed class BattleResultsSequenceTests
         Assert.Equal(1, completions);
         hud.Navigate(MenuInput.Cancel);
         hud.ConfirmResult();
+        Assert.Equal(1, completions);
+    }
+
+    [Fact]
+    public void TwelveLearnedGuardiansShareThreeColumnsAndFourRowsAndOneConfirmation()
+    {
+        BattleRewardSummary rewards = Summary() with { GuardianForceGrowth = Enumerable.Range(0, 12).Select(id => new BattleGuardianForceRewardPresentation(id, 1, 1, [20 + id])).ToArray() };
+        BattleSession session = Session();
+        int completions = 0;
+        BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, () => completions++, previewRewards: () => rewards, guardianForceName: id => $"Guardian {id}");
+        session.InstantVictory();
+        Confirm(hud);
+        Confirm(hud);
+        Confirm(hud);
+        Assert.Equal(BattleResultPage.LearnedAbilities, hud.ResultPage);
+        Settle(hud);
+        RecordingCanvas canvas = new();
+        UiView view = hud.BuildView();
+        view.Resize(960, 672);
+
+        view.Draw(canvas, new UiTheme());
+
+        var portraits = canvas.Images.Where(image => image.Source.Kind == UiImageKind.GuardianForcePortrait).ToArray();
+        Assert.Equal(Enumerable.Range(0, 12), portraits.Select(image => image.Source.Id));
+        Assert.Equal(3, portraits.Select(image => image.Bounds.X).Distinct().Count());
+        Assert.Equal(4, portraits.Select(image => image.Bounds.Y).Distinct().Count());
+        Assert.All(portraits.GroupBy(image => image.Bounds.X), column => Assert.Equal(4, column.Count()));
+        Assert.All(portraits.GroupBy(image => image.Bounds.Y), row => Assert.Equal(3, row.Count()));
+        Assert.All(portraits, portrait =>
+        {
+            Assert.True(portrait.Bounds.Width > 0);
+            Assert.True(portrait.Bounds.Height > 0);
+            Assert.InRange(portrait.Bounds.X, 0, 960 - portrait.Bounds.Width);
+            Assert.InRange(portrait.Bounds.Y, 0, 672 - portrait.Bounds.Height);
+        });
+        Assert.DoesNotContain(canvas.Texts, text => text.StartsWith("Guardian ", StringComparison.Ordinal));
+        Assert.All(Enumerable.Range(20, 12), ability => Assert.Contains(canvas.Texts, text => text.Contains($"Ability {ability}", StringComparison.Ordinal)));
+        Assert.Equal(0, completions);
+        Confirm(hud);
+        Assert.Equal(1, completions);
+        Confirm(hud);
+        Assert.Equal(1, completions);
+    }
+
+    [Fact]
+    public void LearnedSummaryPreservesEveryAbilityAcrossPages()
+    {
+        int[] abilities = Enumerable.Range(20, 14).ToArray();
+        BattleRewardSummary rewards = Summary() with { GuardianForceGrowth = [new(7, 1, 1, abilities)] };
+        BattleSession session = Session();
+        int completions = 0;
+        BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, () => completions++, previewRewards: () => rewards);
+        session.InstantVictory();
+        Confirm(hud);
+        Confirm(hud);
+        Confirm(hud);
+        Assert.Equal(BattleResultPage.LearnedAbilities, hud.ResultPage);
+        Assert.Equal(abilities.Take(12).Select(ability => (7, ability)), hud.ResultLearnedAbilities);
+
+        Confirm(hud);
+
+        Assert.Equal(BattleResultPage.LearnedAbilities, hud.ResultPage);
+        Assert.Equal(abilities.Skip(12).Select(ability => (7, ability)), hud.ResultLearnedAbilities);
+        Assert.Equal(0f, hud.ResultOpacity);
+        hud.ConfirmResult();
+        Assert.Equal(0, completions);
+        Confirm(hud);
         Assert.Equal(1, completions);
     }
 
@@ -168,6 +239,7 @@ public sealed class BattleResultsSequenceTests
     private sealed class RecordingCanvas : IUiCanvas
     {
         public List<string> Texts { get; } = [];
+        public List<(UiImageSource Source, UiRect Bounds)> Images { get; } = [];
 
         public UiSize MeasureText(string text, float fontSize, float maximumWidth)
         {
@@ -190,6 +262,7 @@ public sealed class BattleResultsSequenceTests
 
         public void Image(UiImageSource source, UiRect bounds)
         {
+            Images.Add((source, bounds));
         }
 
         public void MenuPointer(UiRect bounds)

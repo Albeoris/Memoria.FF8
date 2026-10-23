@@ -9,7 +9,8 @@ public enum BattleResultPage
     Experience,
     Items,
     AbilityPoints,
-    GuardianForce
+    GuardianForce,
+    LearnedAbilities
 }
 
 public sealed partial class BattleHudController
@@ -35,6 +36,9 @@ public sealed partial class BattleHudController
     private long itemTransitionSubticks;
     private int resultItem;
     private int resultGuardianForce;
+    private int resultLearnedAbilityPage;
+    private BattleGuardianForceRewardPresentation[] resultGuardianForceLevels = [];
+    private (int GuardianForceId, int AbilityId)[] resultLearnedAbilities = [];
     private bool itemAcknowledged;
     private IReadOnlyList<string?> resultTexts = [];
     private Func<int, string> resultItemDescription = _ => "";
@@ -54,7 +58,8 @@ public sealed partial class BattleHudController
     internal int ResultItemIndex => resultItem;
     internal IReadOnlyList<BattleRewardOffer> ResultLoot => resultLoot;
     internal bool ItemAcknowledged => itemAcknowledged;
-    internal BattleGuardianForceRewardPresentation? ResultGuardianForce => ResultRewards?.GuardianForceGrowth.ElementAtOrDefault(resultGuardianForce);
+    internal BattleGuardianForceRewardPresentation? ResultGuardianForce => resultGuardianForceLevels.ElementAtOrDefault(resultGuardianForce);
+    internal IReadOnlyList<(int GuardianForceId, int AbilityId)> ResultLearnedAbilities => resultLearnedAbilities.Skip(resultLearnedAbilityPage * 12).Take(12).ToArray();
     internal int ResultAbilityPoints => ResultRewards is { } rewards ? rewards.AbilityPointsNotice ?? rewards.GuardianForceAbilityPoints.Values.Select(value => (int)value).DefaultIfEmpty().Max() : 0;
     internal float ResultOpacity
     {
@@ -79,6 +84,8 @@ public sealed partial class BattleHudController
             return;
         }
         resultRewards = previewRewards?.Invoke();
+        resultGuardianForceLevels = resultRewards?.GuardianForceGrowth.Where(growth => growth.FinalLevel > growth.PreviousLevel).ToArray() ?? [];
+        resultLearnedAbilities = resultRewards?.GuardianForceGrowth.SelectMany(growth => growth.LearnedAbilityIds.Select(ability => (growth.Id, ability))).ToArray() ?? [];
         resultVitals = session.MagicVitals;
         resultLoot = resultRewards is null ? [] : resultRewards.LootOffers.Length > 0 ? resultRewards.LootOffers.ToArray() : [.. resultRewards.Items.Select(item => new BattleRewardOffer(false, item.Id, item.Count, true)), .. resultRewards.Cards.Select(id => new BattleRewardOffer(true, id, 1, true))];
         resultLoot = NativeBattleResultPresentation.GroupLootOffers(resultLoot);
@@ -261,9 +268,20 @@ public sealed partial class BattleHudController
         {
             BeginGuardianForceResults();
         }
-        else if (++resultGuardianForce >= (resultRewards?.GuardianForceGrowth.Length ?? 0))
+        else if (ResultPage == BattleResultPage.LearnedAbilities)
         {
-            BeginGuardianForceLearning();
+            if (++resultLearnedAbilityPage * 12 >= resultLearnedAbilities.Length)
+            {
+                BeginGuardianForceLearning();
+            }
+            else
+            {
+                resultAgeSubticks = 0;
+            }
+        }
+        else if (++resultGuardianForce >= resultGuardianForceLevels.Length)
+        {
+            BeginLearnedAbilityResults();
         }
         else
         {
@@ -294,14 +312,27 @@ public sealed partial class BattleHudController
 
     private void BeginGuardianForceResults()
     {
-        if (resultRewards?.GuardianForceGrowth.Length > 0)
+        if (resultGuardianForceLevels.Length > 0)
         {
             ResultPage = BattleResultPage.GuardianForce;
             resultAgeSubticks = 0;
         }
         else
         {
-            Complete();
+            BeginLearnedAbilityResults();
+        }
+    }
+
+    private void BeginLearnedAbilityResults()
+    {
+        if (resultLearnedAbilities.Length > 0)
+        {
+            ResultPage = BattleResultPage.LearnedAbilities;
+            resultAgeSubticks = 0;
+        }
+        else
+        {
+            BeginGuardianForceLearning();
         }
     }
 
