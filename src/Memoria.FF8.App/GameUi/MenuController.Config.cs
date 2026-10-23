@@ -10,7 +10,7 @@ public sealed partial class MenuController
         ("graphics", "Graphics", "Rendering quality, presentation limits and frame-rate counter."),
         ("audio", "Audio", "Music and sound effects. Shared across saves for this user."),
         ("controls", "Controls", "Player bindings and controller settings."),
-        ("interface", "Interface", "Interface style, text and cursor memory."),
+        ("interface", "Interface", "Interface style, text and battle cursor memory."),
         ("gameplay", "Gameplay", "Combat, magic, exploration and saving."),
         ("mods", "Mods", "Installed packages, requested enable state and resource status.")
     ];
@@ -26,7 +26,7 @@ public sealed partial class MenuController
         "Menu FPS" => "Menus and title",
         "Effect volume" => "Sound effects volume",
         "Quick saves" => "Quick saves to keep",
-        "Cursor" => "Cursor memory",
+        "Cursor" => "Battle cursor memory",
         "UI presentation" => "Interface style",
         "Text scale" => "Menu text scale",
         "UI font" => "Menu font family",

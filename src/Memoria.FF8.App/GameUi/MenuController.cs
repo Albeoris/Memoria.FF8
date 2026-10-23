@@ -144,7 +144,7 @@ public sealed partial class MenuController
         IsOpen = true;
         ScreenId = screenId;
         PrepareControlsScreen(screenId);
-        ApplyCursorPreference(screenId);
+        InitializeScreenCursor(screenId);
         if (screenId.StartsWith("config-controller", StringComparison.Ordinal))
         {
             _controlsDevice = ControlDevice.Controller;
@@ -368,7 +368,7 @@ public sealed partial class MenuController
         _history.Push(ScreenId);
         ScreenId = screenId;
         PrepareControlsScreen(screenId);
-        ApplyCursorPreference(screenId);
+        InitializeScreenCursor(screenId);
         ScreenOpened?.Invoke(ScreenId);
         Message = "";
         _view = null;

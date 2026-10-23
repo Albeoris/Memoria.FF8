@@ -71,36 +71,49 @@ public sealed class GlobalConfigurationTests
         Assert.Throws<ArgumentException>(() => new UiPreferences().WithSetting("Field message", value));
     }
 
-    [Fact]
-    public void Cursor_initial_resets_new_entries_and_memory_preserves_them()
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Battle_cursor_preference_does_not_change_menu_entry_or_parent_selection(bool demo, bool memory)
     {
-        UiPreferences preferences = new();
+        UiPreferences preferences = new() { CursorMemory = memory };
         MenuController menu = new(() => new MenuData());
         menu.ConnectPreferences(() => preferences, _ => { });
-        menu.Open("main");
-        menu.Navigate(MenuInput.Down);
-        Assert.Equal(1, menu.SelectedIndex);
-        menu.Close();
-        menu.Open("main");
-        Assert.Equal(0, menu.SelectedIndex);
-        preferences = preferences.WithSetting("Cursor", "Memory");
-        menu.Navigate(MenuInput.Down);
-        menu.Close();
-        menu.Open("main");
-        Assert.Equal(1, menu.SelectedIndex);
-        menu.Push("config");
+        menu.Open("main", demo);
+        menu.Data.Settings["Cursor"] = memory ? "Memory" : "Initial";
+        menu.SelectEntry("main", "item");
+        menu.Push("item");
         menu.Back();
-        Assert.Equal(1, menu.SelectedIndex);
+        Assert.Equal("item", menu.SelectedEntry?.Id);
+        menu.Close();
+        menu.Open("main", demo);
+        Assert.Equal("junction", menu.SelectedEntry?.Id);
+
+        menu.Open("config", demo);
+        menu.SelectEntry("config", "config-audio");
+        menu.Push("config-audio");
+        menu.Back();
+        Assert.Equal("config-audio", menu.SelectedEntry?.Id);
+        menu.Close();
+        menu.Open("config", demo);
+        Assert.Equal("config-graphics", menu.SelectedEntry?.Id);
     }
 
     [Fact]
-    public void Unconnected_menu_keeps_its_selection_without_an_authoritative_cursor_preference()
+    public void Unconnected_menu_initializes_selection_without_a_battle_cursor_preference()
     {
         MenuController menu = new(() => new MenuData());
         menu.Open("main");
         menu.Navigate(MenuInput.Down);
         menu.Close();
         menu.Open("main");
-        Assert.Equal(1, menu.SelectedIndex);
+        Assert.Equal("junction", menu.SelectedEntry?.Id);
+        menu.Open("config");
+        menu.SelectEntry("config", "config-audio");
+        menu.Close();
+        menu.Open("config");
+        Assert.Equal("config-graphics", menu.SelectedEntry?.Id);
     }
 }

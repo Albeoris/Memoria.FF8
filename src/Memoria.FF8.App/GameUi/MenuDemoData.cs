@@ -182,7 +182,7 @@ public static class MenuSettings
         new("Sound", "Original stereo / mono output setting.", ["Stereo", "Mono"]),
         new("Controller", "Original normal / custom control mapping.", ["Normal", "Customize"]),
         new("Quick saves", "Number of rotating quick saves to retain. Shared by every save on this installation.", Enumerable.Range(1, 999).Select(value => value.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray()),
-        new("Cursor", "Initial resets menu cursors. Memory also remembers each battle character's accepted command, action and Draw Stock/Cast choice.", ["Initial", "Memory"]),
+        new("Cursor", "Battle only: Initial resets battle cursors. Memory remembers each character's accepted command, action, target and Draw Stock/Cast choice during the current battle.", ["Initial", "Memory"]),
         new("ATB", "Original battle timing mode.", ["Active", "Wait"]),
         new("Limit once per turn", "Check Limit Break availability once per ATB cycle. Cycling party members keeps the same result until the character takes an action. Saved with this game; Title sets the new-game default.", ["Off", "On"]),
         new("Difficulty", "Normal keeps reduced enemy magic damage and hidden random idle turns. Hard and Hardcore remove both aids; explicit do-not-attack actions remain. Hardcore permanently enables and locks every optional new-game rule; ATB mode and rare card markers remain editable. Saved with this game; Title sets the new-game default.", ["Normal", "Hard", "Hardcore"]),

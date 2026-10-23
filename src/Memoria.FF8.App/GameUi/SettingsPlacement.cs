@@ -29,7 +29,7 @@ internal static class SettingsPlacement
             ["Music volume", "Effect volume"]),
         ["config-controls"] = new("Controls", "Player bindings and controller preferences.",
             ["config-keyboard", "config-controller", "config-controller-settings"]),
-        ["config-interface"] = new("Interface", "Interface style, fonts and cursor memory.",
+        ["config-interface"] = new("Interface", "Interface style, fonts and battle cursor memory.",
             ["UI presentation", "config-text", "Cursor"]),
         ["config-text"] = new("Text and fonts", "Menus: design pixels multiplied by text scale. Dialogue: field pixels.",
             ["Text scale", "UI font", "UI font size", "Dialogue font", "Dialogue font size", "Field message"]),
