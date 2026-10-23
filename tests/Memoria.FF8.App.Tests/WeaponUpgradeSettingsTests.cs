@@ -46,5 +46,6 @@ public sealed class WeaponUpgradeSettingsTests
         Assert.True(PlayerSaveStore.RequiresMemoriaFormat(new GameState { GameplayPreferences = new() { WeaponMagazineRequired = true } }));
         Assert.True(PlayerSaveStore.RequiresMemoriaFormat(new GameState { GameplayPreferences = new() { WeaponUpgradeOrder = true } }));
         Assert.True(PlayerSaveStore.RequiresMemoriaFormat(new GameState { WeaponRecipes = new(new string('A', 64), 0) { ObtainedWeaponsBits = 1 } }));
+        Assert.True(PlayerSaveStore.RequiresMemoriaFormat(new GameState { WeaponRecipes = new(new string('A', 64), 2) { MagazineRecipeBits = 2 } }));
     }
 }

@@ -9,6 +9,10 @@ public sealed record NativeWeaponRecipes([property: JsonRequired] string InitOut
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public uint ObtainedWeaponsBits { get; init; }
 
+    /// <summary>Recipes explicitly learned by viewing Weapons Monthly pages; native discovery bits do not establish magazine learning.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public uint MagazineRecipeBits { get; init; }
+
     public NativeWeaponRecipes RecordEquippedWeapons(NativeCharacterVitals vitals)
     {
         vitals.Validate();
@@ -29,7 +33,7 @@ public sealed record NativeWeaponRecipes([property: JsonRequired] string InitOut
 
     public void Validate()
     {
-        if ((ObtainedWeaponsBits & 0xF0000000u) != 0 || InitOutSha256 is not { Length: 64 } || InitOutSha256.Any(value => !Uri.IsHexDigit(value)))
+        if ((MagazineRecipeBits & ~Bits) != 0 || (MagazineRecipeBits & 0xF0000000u) != 0 || (ObtainedWeaponsBits & 0xF0000000u) != 0 || InitOutSha256 is not { Length: 64 } || InitOutSha256.Any(value => !Uri.IsHexDigit(value)))
         {
             throw new InvalidDataException("Native weapon recipes lack their original saved initialization identity.");
         }

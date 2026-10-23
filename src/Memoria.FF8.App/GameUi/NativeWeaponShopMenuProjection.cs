@@ -24,7 +24,7 @@ public static class NativeWeaponShopMenuProjection
         {
             int id = offer & 0x3F;
             NativeWeaponRecipe recipe = shop.Definitions.Recipes[id];
-            string availability = vitals is not null && vitals.Records[shop.SelectedCharacter].Weapon == id ? "Currently equipped" : shop.MissingPreviousUpgrade(id) ? "Previous weapon upgrade not obtained" : (offer & 0x80) != 0 ? "Materials and gil available" : "Materials or gil missing";
+            string availability = vitals is not null && vitals.Records[shop.SelectedCharacter].Weapon == id ? "Currently equipped" : shop.MissingMagazine(id) ? "Weapons Monthly recipe not read" : shop.MissingPreviousUpgrade(id) ? "Previous weapon upgrade not obtained" : (offer & 0x80) != 0 ? "Materials and gil available" : "Materials or gil missing";
             string itemId = $"weapon-{id}";
             MenuItem item = new() { Id = itemId, Name = recipe.Name, Price = checked((int)shop.Price(id)), Description = availability + "." };
             foreach (NativeItemStock material in recipe.Materials.Where(material => material.ItemId != 0))
@@ -32,7 +32,7 @@ public static class NativeWeaponShopMenuProjection
                 item.Materials.Add(new MenuMaterial(catalog?.ItemName(material.ItemId) ?? $"Item {material.ItemId}", catalog?.ItemIcon(material.ItemId), shop.Counts[material.ItemId], material.Count));
             }
             data.Items.Add(item);
-            if ((offer & 0x80) != 0 && vitals is not null && vitals.Records[shop.SelectedCharacter].Weapon != id)
+            if ((offer & 0x80) != 0 && !shop.MissingMagazine(id) && !shop.MissingPreviousUpgrade(id) && vitals is not null && vitals.Records[shop.SelectedCharacter].Weapon != id)
             {
                 data.SupportedActions.Add($"weapon-remodel:{itemId}");
             }

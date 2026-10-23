@@ -123,7 +123,7 @@ public static partial class NativePcSaveConverter
             ExamTimer = timer,
             Playtime = new NativePlaytimeState(D(3200), 0, 0),
             ShopHistory = defaults.ShopHistory is { } shops ? shops with { Bytes = block.AsSpan(Main + 2304, 400).ToArray().ToImmutableArray() } : null,
-            WeaponRecipes = defaults.WeaponRecipes is { } recipes ? recipes with { Bits = D(2728), ObtainedWeaponsBits = 0 } : null,
+            WeaponRecipes = defaults.WeaponRecipes is { } recipes ? recipes with { Bits = D(2728), ObtainedWeaponsBits = 0, MagazineRecipeBits = 0 } : null,
             ShotAvailability = defaults.ShotAvailability is { } shot ? shot with { Flags770 = B(2760) } : null,
             LimitProgress = defaults.LimitProgress is { } limits ? limits with { BlueMagicFlags = W(2756), DuelFlags = W(2758), SpecialMagicFlags = B(2761), AngeloFlags = B(2762), PetPalsFlags = B(2763), TrainingSelection = B(2747), TrainingCounters = block.AsSpan(Main + 2764, 8).ToArray().ToImmutableArray(), Options978 = W(3280) } : null,
             PocketStation = defaults.PocketStation is { } pocket ? pocket with { Raw = block.AsSpan(Main + 4880, 64).ToArray().ToImmutableArray(), ChocoboName = block.AsSpan(444, 12).ToArray().ToImmutableArray() } : null,

@@ -191,7 +191,7 @@ public sealed class NativeWeaponShopTests
         using GameAssets assets = new(GameDirectory);
         NativeWeaponShopDefinitions definitions = assets.ReadNativeWeaponShopDefinitions();
         NativeEconomy economy = EconomyWithMaterials(assets, definitions, 2);
-        NativeWeaponRecipes recipes = assets.ReadNewGameWeaponRecipes() with { Bits = known ? 1u << 2 : 0u };
+        NativeWeaponRecipes recipes = assets.ReadNewGameWeaponRecipes() with { Bits = known ? 1u << 2 : 0u, MagazineRecipeBits = known ? 1u << 2 : 0u };
         GameplayPreferences preferences = new() { WeaponMagazineRequired = magazine, WeaponUpgradeOrder = order };
         var prepared = NativeWeaponShopTransaction.Begin(34, definitions, economy, assets.ReadNewGameCharacterVitals(), recipes, preferences);
         Assert.Equal(expected, prepared.Shop.AvailableRecipes.Any(offer => (offer & 0x3F) == 2 && (offer & 0x80) != 0));
@@ -222,7 +222,7 @@ public sealed class NativeWeaponShopTests
         Assert.True(restored.WeaponMagazineRequired);
         Assert.False(restored.MissingPreviousUpgrade(2));
         restored.Remodel(2, strict.Vitals, strict.Recipes, out accepted);
-        Assert.True(accepted);
+        Assert.False(accepted);
     }
 
     [Fact]
@@ -242,7 +242,7 @@ public sealed class NativeWeaponShopTests
     }
 
     [Fact]
-    public void MagazineRuleRetainsExistingAffordabilityDiscoveryAndPreventsNewDiscovery()
+    public void MagazineRuleRejectsPreviouslyDiscoveredRecipeUntilItsMagazinePageIsRead()
     {
         using GameAssets assets = new(GameDirectory);
         NativeWeaponShopDefinitions definitions = assets.ReadNativeWeaponShopDefinitions();
@@ -250,7 +250,34 @@ public sealed class NativeWeaponShopTests
         NativeWeaponRecipes original = assets.ReadNewGameWeaponRecipes();
         var discovered = NativeWeaponShopTransaction.Begin(34, definitions, economy, assets.ReadNewGameCharacterVitals(), original);
         var strict = NativeWeaponShopTransaction.Begin(34, definitions, economy, discovered.Vitals, discovered.Recipes, new GameplayPreferences { WeaponMagazineRequired = true });
-        Assert.Contains((byte)0xC1, strict.Shop.AvailableRecipes);
+        Assert.Contains((byte)0x41, strict.Shop.AvailableRecipes);
+        Assert.True(strict.Shop.MissingMagazine(1));
+        var selected = strict.Shop.SelectCharacter(0, strict.Recipes);
+        Assert.DoesNotContain((byte)0xC1, selected.Shop.AvailableRecipes);
+        NativeWeaponShopTransaction forged = selected.Shop with { AvailableRecipes = [(byte)0xC1] };
+        var rejected = forged.Remodel(1, strict.Vitals, selected.Recipes, out bool accepted);
+        Assert.False(accepted);
+        Assert.Same(strict.Vitals, rejected.Vitals);
+        Assert.Equal(forged.Gil, rejected.Shop.Gil);
+        Assert.Equal(forged.Counts, rejected.Shop.Counts);
+        NativeWeaponRecipes legacy = JsonSerializer.Deserialize<NativeWeaponRecipes>($$"""{"InitOutSha256":"{{original.InitOutSha256}}","Bits":{{discovered.Recipes.Bits}}}""")!;
+        Assert.Equal(0u, legacy.MagazineRecipeBits);
+        var reopened = NativeWeaponShopTransaction.Begin(34, definitions, economy, strict.Vitals, legacy, new() { WeaponMagazineRequired = true });
+        Assert.DoesNotContain((byte)0xC1, reopened.Shop.AvailableRecipes);
+        NativeMagazinePage page = new(178, 4, 1, 255, 255, []);
+        NativeWeaponRecipes learned = page.View(economy.AddItem(178, 1, out _), strict.Recipes, null).Recipes!;
+        learned = JsonSerializer.Deserialize<NativeWeaponRecipes>(JsonSerializer.Serialize(learned))!;
+        Assert.Equal(2u, learned.MagazineRecipeBits);
+        var unlocked = NativeWeaponShopTransaction.Begin(34, definitions, economy, strict.Vitals, learned, new() { WeaponMagazineRequired = true });
+        Assert.Contains((byte)0xC1, unlocked.Shop.AvailableRecipes);
+        Assert.False(unlocked.Shop.MissingMagazine(1));
+        NativeWeaponShopTransaction restored = JsonSerializer.Deserialize<NativeWeaponShopTransaction>(JsonSerializer.Serialize(unlocked.Shop))!;
+        Assert.False(restored.MissingMagazine(1));
+        unlocked.Shop.Remodel(1, unlocked.Vitals, unlocked.Recipes, out accepted);
+        Assert.True(accepted);
+        var disabled = NativeWeaponShopTransaction.Begin(34, definitions, economy, strict.Vitals, strict.Recipes);
+        Assert.Contains((byte)0xC1, disabled.Shop.AvailableRecipes);
+        Assert.Equal(0u, disabled.Recipes.MagazineRecipeBits);
         var unread = NativeWeaponShopTransaction.Begin(34, definitions, economy, discovered.Vitals, original, new GameplayPreferences { WeaponMagazineRequired = true });
         Assert.DoesNotContain(unread.Shop.AvailableRecipes, offer => (offer & 0x3F) == 1);
         Assert.Equal(0u, unread.Recipes.Bits & 2u);

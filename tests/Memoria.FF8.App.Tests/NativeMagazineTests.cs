@@ -36,6 +36,7 @@ public sealed class NativeMagazineTests
         string inventory = JsonSerializer.Serialize(economy);
         var weapon = catalog.MagazinePage(177, 0).View(economy, recipes, limits);
         Assert.Equal(recipes.Bits | 1u << 6, weapon.Recipes!.Bits);
+        Assert.Equal(1u << 6, weapon.Recipes.MagazineRecipeBits);
         Assert.Equal(recipes.Bits | 1u << 6, catalog.MagazinePage(177, 0).View(economy, weapon.Recipes, limits).Recipes!.Bits);
         Assert.Equal(recipes.Bits, assets.ReadNewGameWeaponRecipes().Bits);
         Assert.Same(limits, weapon.Limits);

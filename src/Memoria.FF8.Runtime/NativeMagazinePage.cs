@@ -24,7 +24,7 @@ public sealed record NativeMagazinePage(int ItemId, byte PageId, byte WeaponReci
             {
                 throw new InvalidDataException("Magazine recipe owner changed its saved provenance.");
             }
-            recipes = recipes with { Bits = recipes.Bits | 1u << WeaponRecipe };
+            recipes = recipes with { Bits = recipes.Bits | 1u << WeaponRecipe, MagazineRecipeBits = recipes.MagazineRecipeBits | 1u << WeaponRecipe };
         }
         if (DuelMove != 255 || PetPalsIssue != 255)
         {

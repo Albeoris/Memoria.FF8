@@ -20,6 +20,19 @@ public sealed class NativeWeaponShopUiTests
         Assert.DoesNotContain("weapon-remodel:weapon-2", data.SupportedActions);
     }
 
+    [Fact]
+    public void Material_discovered_recipe_explains_missing_magazine_and_cannot_be_selected()
+    {
+        using GameAssets assets = InstalledAssets();
+        NativeWeaponRecipes recipes = assets.ReadNewGameWeaponRecipes();
+        recipes = recipes with { Bits = recipes.Bits | 1u << 1 };
+        var prepared = NativeWeaponShopTransaction.Begin(34, assets.ReadNativeWeaponShopDefinitions(), assets.ReadNewGameEconomy(), assets.ReadNewGameCharacterVitals(), recipes, new() { WeaponMagazineRequired = true });
+        NativeWeaponShopTransaction restored = JsonSerializer.Deserialize<NativeWeaponShopTransaction>(JsonSerializer.Serialize(prepared.Shop))!;
+        MenuData data = NativeWeaponShopMenuProjection.Build(restored with { AvailableRecipes = [(byte)0xC1] }, prepared.Vitals);
+        Assert.Contains("Weapons Monthly recipe not read", Assert.Single(data.Items, item => item.Id == "weapon-1").Description);
+        Assert.DoesNotContain("weapon-remodel:weapon-1", data.SupportedActions);
+    }
+
     [Theory]
     [InlineData(Memoria.FF8.Events.PlayerActionKind.SelectWeaponShopCharacter, -1)]
     [InlineData(Memoria.FF8.Events.PlayerActionKind.SelectWeaponShopCharacter, 6)]

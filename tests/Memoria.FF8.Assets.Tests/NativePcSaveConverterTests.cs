@@ -23,6 +23,14 @@ public sealed class NativePcSaveConverterTests
     }
 
     [Fact]
+    public void Original_export_rejects_magazine_history_when_rule_is_disabled()
+    {
+        GameState source = Defaults();
+        source = source with { WeaponRecipes = new(source.CharacterVitals!.InitOutSha256, 2) { MagazineRecipeBits = 2 } };
+        Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(source));
+    }
+
+    [Fact]
     public void Original_import_does_not_inherit_hardcore_or_weapon_history_from_defaults()
     {
         GameState source = Defaults();
@@ -30,13 +38,14 @@ public sealed class NativePcSaveConverterTests
         GameState defaults = source with
         {
             GameplayPreferences = new GameplayPreferences { Difficulty = BattleDifficulty.Hardcore }.NormalizeForDifficulty(),
-            WeaponRecipes = new NativeWeaponRecipes(source.CharacterVitals!.InitOutSha256, 0) { ObtainedWeaponsBits = 0xFF }
+            WeaponRecipes = new NativeWeaponRecipes(source.CharacterVitals!.InitOutSha256, 2) { ObtainedWeaponsBits = 0xFF, MagazineRecipeBits = 2 }
         };
         GameState imported = NativePcSaveConverter.Import(original, defaults, _ => "fixture");
         Assert.Equal(BattleDifficulty.Normal, imported.GameplayPreferences.Difficulty);
         Assert.False(imported.GameplayPreferences.WeaponMagazineRequired);
         Assert.False(imported.GameplayPreferences.WeaponUpgradeOrder);
         Assert.Equal(0u, imported.WeaponRecipes!.ObtainedWeaponsBits);
+        Assert.Equal(0u, imported.WeaponRecipes.MagazineRecipeBits);
         imported.GameplayPreferences.Validate();
     }
 
