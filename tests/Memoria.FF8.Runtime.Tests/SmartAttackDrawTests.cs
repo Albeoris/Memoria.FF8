@@ -250,6 +250,55 @@ public sealed class SmartAttackDrawTests
         Assert.Throws<InvalidOperationException>(() => battle.QueueSmartAttack(original));
     }
 
+    [Fact]
+    public void SuccessfulDrawInvalidatesPreviewAndPreventsDepletedSpellFromReturning()
+    {
+        BattleSession battle = Create([Spell(1, 40)], []);
+        BattleSmartAttackPreview original = battle.PreviewSmartAttack("party", "enemy");
+        Assert.Equal(BattleAbility.Draw, original.Ability);
+        battle.QueueAction("party", "source", BattleAbility.Draw, 1);
+        battle.Tick();
+        BattleCombatant source = battle.Combatants.Single(actor => actor.Id == "source");
+        Assert.Equal(new byte[] { 1 }, source.DrawnMagicIds);
+        source.RestoreDrawSlots([new(1, 0), new(0, 0), new(0, 0), new(0, 0)]);
+        Assert.DoesNotContain(source.NativeDrawSlots, slot => slot.Id == 1);
+        for (int frame = 0; frame < 30; frame++)
+        {
+            battle.Tick();
+        }
+        battle.Combatants[0].Atb = BattleSession.AtbMaximum;
+        BattleSmartAttackPreview changed = battle.PreviewSmartAttack("party", "enemy");
+        Assert.NotEqual(original.Revision, changed.Revision);
+        Assert.NotEqual(BattleAbility.Draw, changed.Ability);
+        string before = JsonSerializer.Serialize(battle.Capture());
+        Assert.Throws<InvalidOperationException>(() => battle.QueueSmartAttack(original));
+        Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
+    }
+
+    [Fact]
+    public void QueuedSmartDrawRevalidatesSpellConsumedByEarlierCasterAndFallsBackToPhysical()
+    {
+        BattleDefinition definition = Create([Spell(1, 40)], []).Capture().Definition;
+        BattleCombatantDefinition contender = definition.Combatants[0] with { Id = "contender", Name = "Contender", ModelId = 4, MagicRecordId = 2 };
+        BattleSession battle = new(definition with { Combatants = [.. definition.Combatants, contender] }, BattleAtbMode.TurnBased);
+        battle.QueueAction("contender", "source", BattleAbility.Draw, 1);
+        battle.QueueSmartAttack("party", "enemy");
+        battle.Tick();
+        Assert.Equal("contender", battle.ActiveAction!.ActorId);
+        Assert.False(battle.ActiveAction.NativeDraw!.Failed);
+        for (int frame = 0; frame < 60 && battle.ActiveAction?.ActorId != "party"; frame++)
+        {
+            battle.Tick();
+        }
+        Assert.Equal("party", battle.ActiveAction!.ActorId);
+        Assert.Equal(BattleAbility.Attack, battle.ActiveAction.Ability);
+        Assert.Equal("enemy", battle.ActiveAction.TargetId);
+        Assert.Null(battle.ActiveAction.NativeDraw);
+        Assert.False(battle.ActiveAction.DrawCast);
+        Assert.Empty(battle.MagicVitals!.MagicSystem.Reservations);
+        Assert.Equal(new byte[] { 1 }, battle.Combatants.Single(actor => actor.Id == "source").DrawnMagicIds);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

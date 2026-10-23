@@ -344,7 +344,7 @@ public sealed partial class BattleSession
             NativeExamTimer = NativeExamTimer,
             Outcome = Outcome,
             DebugOutcome = DebugOutcome,
-            Combatants = combatants.Select(actor => new BattleCombatantSnapshot(actor.Id, actor.HumanHitPoints, actor.Atb, actor.StatusEffects.ToArray()) { NativeAtb = actor.NativeAtb, LimitTurnCrisis = actor.LimitTurnCrisis, GuardianForceCompatibility = actor.GuardianForceCompatibility?.ToArray(), NativeMagicInventory = actor.NativeMagicInventory.ToArray(), NativeDrawSlots = actor.NativeDrawSlots.ToArray(), NativeParticipant = CaptureNativeParticipant(actor), NativeStatus = CaptureNativeStatus(actor) }).ToArray(),
+            Combatants = combatants.Select(actor => new BattleCombatantSnapshot(actor.Id, actor.HumanHitPoints, actor.Atb, actor.StatusEffects.ToArray()) { NativeAtb = actor.NativeAtb, LimitTurnCrisis = actor.LimitTurnCrisis, GuardianForceCompatibility = actor.GuardianForceCompatibility?.ToArray(), NativeMagicInventory = actor.NativeMagicInventory.ToArray(), NativeDrawSlots = actor.NativeDrawSlots.ToArray(), DrawnMagicIds = actor.DrawnMagicIds.ToArray(), NativeParticipant = CaptureNativeParticipant(actor), NativeStatus = CaptureNativeStatus(actor) }).ToArray(),
             NativeAllocations = nativeAllocations.ToArray(),
             QueuedActions = actions.ToArray(),
             ActiveAction = ActiveAction,
@@ -1122,6 +1122,7 @@ public sealed partial class BattleSession
             BattleCombatant actor = GetActor(saved.Id);
             RestoreNativeParticipant(actor, saved.NativeParticipant);
             actor.RestoreMagicInventory(saved.NativeMagicInventory ?? throw new InvalidDataException("Battle snapshot lacks its physical magic inventory; migrate it explicitly."));
+            actor.RestoreDrawnMagic(saved.DrawnMagicIds);
             actor.RestoreDrawSlots(saved.NativeDrawSlots ?? throw new InvalidDataException("Battle snapshot lacks its physical Draw bank; migrate it explicitly."));
             actor.ReprojectNativePlayerStatistics();
             bool deferredTimedRecipient = snapshot.NativeTimedAction?.Command.TargetId == saved.Id && nativeActionScratch.DeferredEffectsE00 == true;
@@ -1396,6 +1397,7 @@ public sealed partial class BattleSession
             actor.Effects.Clear();
             actor.Effects.AddRange(replacement.Effects);
             actor.RestoreMagicInventory(replacement.NativeMagicInventory);
+            actor.RestoreDrawnMagic(replacement.DrawnMagicIds.ToArray());
             actor.RestoreDrawSlots(replacement.NativeDrawSlots.ToArray());
             actor.ReprojectNativePlayerStatistics();
         }

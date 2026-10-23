@@ -304,6 +304,7 @@ public sealed record BattleEvent(long Frame, string Kind, string? ActorId, strin
 public sealed record BattleStatusSnapshot(BattleStatusKind Kind, int RemainingFrames, int UntilTickFrames, BattleStatusEffectDefinition? Definition = null);
 public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, BattleStatusSnapshot[] StatusEffects)
 {
+    public byte[] DrawnMagicIds { get; init; } = [];
     public byte? LimitTurnCrisis { get; init; }
     public NativeBattleAtbState? NativeAtb { get; init; }
     public ushort[]? GuardianForceCompatibility { get; init; }

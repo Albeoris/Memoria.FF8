@@ -170,6 +170,7 @@ public sealed partial class BattleHudController
         }
         RefreshNativeLimitSelection();
         RefreshGuardianFormSelection();
+        RefreshDrawSelection();
         PresentNativeShot();
         CollectBattleMessages();
         BattleEvent? notification = session.Events.LastOrDefault(item => item.Kind is "Scan" or "GunbladeTrigger");
@@ -199,6 +200,10 @@ public sealed partial class BattleHudController
         }
         RefreshNativeLimitSelection();
         RefreshGuardianFormSelection();
+        if (RefreshDrawSelection())
+        {
+            return;
+        }
         commandIndex = Math.Clamp(commandIndex, 0, Math.Max(0, Commands.Count - 1));
         actionIndex = Math.Clamp(actionIndex, 0, Math.Max(0, ActionChoices.Count - 1));
         if (input == MenuInput.Cancel && NativeShotActor is { } shotActor)
@@ -330,6 +335,10 @@ public sealed partial class BattleHudController
     {
         RefreshNativeLimitSelection();
         RefreshGuardianFormSelection();
+        if (RefreshDrawSelection())
+        {
+            return;
+        }
         if (NativeTimedLimitActive || CommandMenuHidden)
         {
             return;
@@ -448,6 +457,10 @@ public sealed partial class BattleHudController
     {
         RefreshNativeLimitSelection();
         RefreshGuardianFormSelection();
+        if (RefreshDrawSelection())
+        {
+            return;
+        }
         if (CommandMenuHidden)
         {
             return;
@@ -521,6 +534,10 @@ public sealed partial class BattleHudController
 
     public void SelectTarget(string targetId, bool confirm)
     {
+        if (RefreshDrawSelection())
+        {
+            return;
+        }
         if (CommandMenuHidden)
         {
             return;

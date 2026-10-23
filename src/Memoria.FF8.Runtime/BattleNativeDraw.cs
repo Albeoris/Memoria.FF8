@@ -7,6 +7,24 @@ public sealed partial class BattleCombatant
 {
     private readonly NativeBattleDrawSlot[] nativeDrawSlots = Enumerable.Repeat(new NativeBattleDrawSlot(0, 0), 4).ToArray();
     public IReadOnlyList<NativeBattleDrawSlot> NativeDrawSlots => Array.AsReadOnly(nativeDrawSlots);
+    private readonly HashSet<byte> drawnMagicIds = [];
+    public IReadOnlyCollection<byte> DrawnMagicIds => drawnMagicIds.Order().ToArray();
+
+    internal void RestoreDrawnMagic(byte[] ids)
+    {
+        if (ids is null || ids.Any(id => id is 0 or >= 64) || ids.Distinct().Count() != ids.Length)
+        {
+            throw new InvalidDataException("Consumed Draw magic requires distinct spell IDs.");
+        }
+        drawnMagicIds.Clear();
+        drawnMagicIds.UnionWith(ids);
+    }
+
+    internal void ConsumeDrawMagic(byte id)
+    {
+        drawnMagicIds.Add(id);
+        RestoreDrawSlots(nativeDrawSlots.ToArray());
+    }
 
     internal static NativeBattleDrawSlot[] ExpandDrawSlots(IEnumerable<BattleDrawSpell> spells, IEnumerable<int> guardianForces)
     {
@@ -21,7 +39,11 @@ public sealed partial class BattleCombatant
     internal void RestoreDrawSlots(NativeBattleDrawSlot[] slots)
     {
         ValidateDrawSlots(slots);
-        slots.CopyTo(nativeDrawSlots, 0);
+        for (int index = 0; index < slots.Length; index++)
+        {
+            NativeBattleDrawSlot slot = slots[index];
+            nativeDrawSlots[index] = drawnMagicIds.Contains(slot.Id) ? slot with { Id = 0 } : slot;
+        }
     }
 
     internal static void ValidateDrawSlots(NativeBattleDrawSlot[] slots)

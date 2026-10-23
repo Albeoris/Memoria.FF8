@@ -85,6 +85,10 @@ public sealed class SmartAttackExecutionTests
         Complete(restored);
         Assert.Single(battle.Events, item => item.Kind == "Damage" && item.TargetId == "enemy" && item.Amount > 0);
         Assert.Equal(10_000, battle.Combatants.Single(actor => actor.Id == "source").CurrentHp);
+        BattleCombatant depleted = battle.Combatants.Single(actor => actor.Id == "source");
+        Assert.Contains((byte)1, depleted.DrawnMagicIds);
+        Assert.DoesNotContain(depleted.NativeDrawSlots, slot => slot.Id == 1);
+        Assert.DoesNotContain(restored.Combatants.Single(actor => actor.Id == "source").NativeDrawSlots, slot => slot.Id == 1);
         Assert.Equal(before, JsonSerializer.Serialize(battle.MagicVitals));
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }

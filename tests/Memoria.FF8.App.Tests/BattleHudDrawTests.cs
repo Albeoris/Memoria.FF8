@@ -74,7 +74,7 @@ public sealed class BattleHudDrawTests
         BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: inputs.Add);
         hud.Choose(0);
         Assert.True(hud.SelectingDrawSource);
-        Assert.Equal(new[] { "source", "other" }, hud.Targets.Select(target => target.Id));
+        Assert.Equal("source", Assert.Single(hud.Targets).Id);
         hud.Navigate(MenuInput.Confirm);
         Assert.True(hud.SelectingAction);
         hud.Navigate(MenuInput.Confirm);
@@ -178,6 +178,146 @@ public sealed class BattleHudDrawTests
         hud.Navigate(MenuInput.Confirm);
         Assert.Equal("????", Assert.Single(hud.ChoiceLabels));
         Assert.Equal(2, hud.SelectedAction!.Id);
+    }
+
+    [Fact]
+    public void EmptyEnemiesCannotBeSelectedAsDrawSources()
+    {
+        BattleSession battle = Create(false);
+        List<BattleInput> inputs = [];
+        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: inputs.Add);
+        hud.Choose(0);
+        hud.SelectTarget("other", true);
+
+        Assert.True(hud.SelectingDrawSource);
+        Assert.Equal("source", Assert.Single(hud.Targets).Id);
+        Assert.Empty(inputs);
+    }
+
+    [Fact]
+    public void DrawIsUnavailableWhenNoEnemyHasEntries()
+    {
+        BattleDefinition definition = Create(false).Capture().Definition;
+        definition.Combatants[3] = definition.Combatants[3] with { NativeDrawSlots = [new(0, 0), new(0, 0), new(0, 0), new(0, 0)] };
+        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        List<MenuSound> sounds = [];
+        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { });
+        hud.SoundRequested += sounds.Add;
+
+        Assert.False(hud.DrawAvailable);
+        Assert.Contains(BattleAbility.Draw, hud.Commands);
+        hud.Choose(0);
+
+        Assert.False(hud.SelectingAction);
+        Assert.False(hud.SelectingTarget);
+        Assert.Equal(MenuSound.Error, Assert.Single(sounds));
+    }
+
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(1, false)]
+    [InlineData(2, false)]
+    [InlineData(0, true)]
+    [InlineData(1, true)]
+    [InlineData(2, true)]
+    public void DepletedSourceReturnsStaleMenusToSourceOrCommand(int stage, bool anotherSource)
+    {
+        BattleSession battle = CreateConcurrentDraw(anotherSource, false);
+        List<BattleInput> inputs = [];
+        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: inputs.Add);
+        OpenDrawStage(hud, stage);
+        ConsumeSourceMagic(battle);
+
+        hud.BuildView();
+
+        Assert.False(hud.SelectingAction);
+        Assert.False(hud.SelectingDrawMode);
+        Assert.False(hud.SelectingDrawCastRecipient);
+        Assert.Equal(anotherSource, hud.SelectingDrawSource);
+        Assert.Equal(anotherSource, hud.DrawAvailable);
+        if (anotherSource)
+        {
+            Assert.Equal("other", Assert.Single(hud.Targets).Id);
+        }
+        Assert.Empty(inputs);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DepletedSelectedSpellCannotSubmitAnotherSpellFromStaleMode(bool castRecipient)
+    {
+        BattleSession battle = CreateConcurrentDraw(false, true);
+        List<BattleInput> inputs = [];
+        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: inputs.Add);
+        OpenDrawStage(hud, castRecipient ? 2 : 1);
+        ConsumeSourceMagic(battle);
+
+        hud.Navigate(MenuInput.Confirm);
+
+        Assert.True(hud.SelectingAction);
+        Assert.False(hud.SelectingDrawMode);
+        Assert.False(hud.SelectingTarget);
+        Assert.Equal(3, Assert.Single(hud.ActionChoices).Id);
+        Assert.Equal("Fire", Assert.Single(hud.ChoiceLabels));
+        Assert.Empty(inputs);
+    }
+
+    [Fact]
+    public void ConsumingAnotherSpellPreservesTheSelectedDrawModeSpell()
+    {
+        BattleDefinition definition = CreateConcurrentDraw(false, true).Capture().Definition;
+        definition.Combatants[3] = definition.Combatants[3] with { NativeDrawSlots = [new(2, 0), new(3, 0), new(4, 0), new(0, 0)] };
+        definition = definition with { ActionDefinitions = [.. definition.ActionDefinitions, new(BattleAbility.Magic, 4, "Thunder", BattleActionEffect.Damage, 10, false)] };
+        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        List<BattleInput> inputs = [];
+        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: inputs.Add);
+        OpenDrawStage(hud, 0);
+        hud.Choose(1);
+        Assert.True(hud.SelectingDrawMode);
+        ConsumeSourceMagic(battle);
+
+        hud.Navigate(MenuInput.Confirm);
+
+        Assert.Equal(3, Assert.Single(inputs).ActionId);
+    }
+
+    private static void OpenDrawStage(BattleHudController hud, int stage)
+    {
+        hud.Choose(0);
+        hud.SelectTarget("source", true);
+        if (stage >= 1)
+        {
+            hud.Navigate(MenuInput.Confirm);
+        }
+        if (stage == 2)
+        {
+            hud.Navigate(MenuInput.Down);
+            hud.Navigate(MenuInput.Confirm);
+        }
+    }
+
+    private static void ConsumeSourceMagic(BattleSession battle)
+    {
+        battle.QueueAction("ally", "source", BattleAbility.Draw, 2);
+        battle.Tick();
+        Assert.DoesNotContain(battle.Combatants.Single(actor => actor.Id == "source").NativeDrawSlots, slot => slot.Id == 2);
+    }
+
+    private static BattleSession CreateConcurrentDraw(bool anotherSource, bool anotherSpell)
+    {
+        BattleDefinition definition = Create(false).Capture().Definition;
+        definition.Combatants[1] = definition.Combatants[1] with { InitialAtb = BattleSession.AtbMaximum, Magic = 100, Abilities = [BattleAbility.Draw] };
+        if (anotherSource)
+        {
+            definition.Combatants[4] = definition.Combatants[4] with { NativeDrawSlots = [new(2, 0), new(0, 0), new(0, 0), new(0, 0)] };
+        }
+        if (anotherSpell)
+        {
+            definition.Combatants[3] = definition.Combatants[3] with { NativeDrawSlots = [new(2, 0), new(3, 0), new(0, 0), new(0, 0)] };
+            definition = definition with { ActionDefinitions = [.. definition.ActionDefinitions, new(BattleAbility.Magic, 3, "Fire", BattleActionEffect.Damage, 10, false)] };
+        }
+        return new(definition, BattleAtbMode.TurnBased);
     }
 
     private static BattleSession CreateWithMagicPool(int stock, bool infinite, bool shared)

@@ -6,7 +6,7 @@ public sealed partial class BattleSession
     {
         BattleCombatant actor = GetActor(actorId);
         BattleCombatant source = GetActor(sourceId);
-        if (Outcome != BattleOutcome.Active || !actor.IsReady || !actor.Abilities.Contains(BattleAbility.Draw) || HasStatus(actor, BattleStatusKind.Silence) || !source.IsAlive || source.Untargetable || source.IsPlayer == actor.IsPlayer || selection is < 1 or >= 80 || !source.NativeDrawSlots.Any(slot => slot.Id == selection) || cast && selection >= 64 || !cast && castTargetId is not null)
+        if (Outcome != BattleOutcome.Active || !actor.IsReady || !actor.Abilities.Contains(BattleAbility.Draw) || HasStatus(actor, BattleStatusKind.Silence) || !source.IsActive || !source.IsAlive || source.Untargetable || source.IsPlayer == actor.IsPlayer || selection is < 1 or >= 80 || !source.NativeDrawSlots.Any(slot => slot.Id == selection) || cast && selection >= 64 || !cast && castTargetId is not null)
         {
             throw new InvalidOperationException("Draw requires an available source entry, a ready caster and a valid Stock/Cast selection.");
         }
@@ -53,7 +53,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Queued Draw cannot already own a dispatched result.");
         }
         BattleCombatant source = GetActor(command.TargetId);
-        bool available = source.NativeDrawSlots.Any(slot => slot.Id == command.ActionId) && source.IsAlive && !HasStatus(actor, BattleStatusKind.Silence);
+        bool available = source.NativeDrawSlots.Any(slot => slot.Id == command.ActionId) && source.IsActive && source.IsAlive && !source.Untargetable && source.IsPlayer != actor.IsPlayer && !HasStatus(actor, BattleStatusKind.Silence);
         bool failed = !available;
         int quantity = 0;
         int added = 0;
@@ -80,6 +80,10 @@ public sealed partial class BattleSession
                 if (!command.DrawCast)
                 {
                     added = actor.AddMagic(command.ActionId, quantity);
+                }
+                if (!failed)
+                {
+                    source.ConsumeDrawMagic(checked((byte)command.ActionId));
                 }
             }
             if (command.DrawCast && !failed)

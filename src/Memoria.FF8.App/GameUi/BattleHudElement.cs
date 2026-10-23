@@ -142,6 +142,7 @@ internal sealed partial class BattleHudElement : UiElement
                     theme.Pointer(canvas, Left + 38 * Scale, Top + (y + 5) * Scale, 10 * Scale);
                 }
                 bool unavailable = actions.Count > start + row && (!actions[start + row].Available || controller.SelectedCommand == BattleAbility.Magic && controller.SelectedActor is { } caster && !session.QuoteMagic(caster.Id, actions[start + row].Id).Allowed);
+                unavailable |= !controller.SelectingAction && !controller.HasGuardianFormCommands && controller.Commands.ElementAtOrDefault(start + row) == BattleAbility.Draw && !controller.DrawAvailable;
                 float valueLeft = 30 + CommandWidth - 8 - valueWidth - arrowWidth;
                 float ownerLeft = valueLeft - (valueWidth > 0 ? 12 : 0) - ownerWidth;
                 UiImageSource? ownerIcon = ShowingMagicList && actions.Count > start + row ? controller.MagicOwnerIcon(actions[start + row]) : null;

@@ -121,6 +121,12 @@ public sealed class NativePlayerDrawTests
         BattleCombatantSnapshot[] actors = original.Combatants.ToArray();
         actors[0] = actors[0] with { NativeDrawSlots = null };
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(original with { Combatants = actors }));
+        foreach (byte[]? invalid in new byte[]?[] { [0], [64], [65], [1, 1], null })
+        {
+            actors = original.Combatants.ToArray();
+            actors[3] = actors[3] with { DrawnMagicIds = invalid! };
+            Assert.Throws<InvalidDataException>(() => BattleSession.Restore(original with { Combatants = actors }));
+        }
         battle.QueueAction("party", "source", BattleAbility.Draw, 65);
         battle.Tick();
         BattleSnapshot prepared = battle.Capture();
@@ -147,6 +153,182 @@ public sealed class NativePlayerDrawTests
         Assert.Equal(0u, battle.Capture().NativeAiVariables![2]);
         Assert.Equal(1u, battle.Capture().NativeAiVariables![3]);
         Assert.Empty(battle.Combatants[3].DrawGuardianForces);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SuccessfulStockAndCastConsumeTheSameSpellForEveryCaster(bool castFirst)
+    {
+        BattleSession battle = CreateWithSecondCaster();
+        battle.QueueAction("party", "source", BattleAbility.Draw, 2, castFirst, drawCastTargetId: castFirst ? "ally" : null);
+        battle.Tick();
+        BattleCombatant source = battle.Combatants.Single(actor => actor.Id == "source");
+        Assert.False(battle.ActiveAction!.NativeDraw!.Failed);
+        Assert.Equal(new byte[] { 2 }, source.DrawnMagicIds);
+        Assert.DoesNotContain(source.NativeDrawSlots, slot => slot.Id == 2);
+        Complete(battle);
+
+        string before = JsonSerializer.Serialize(battle.Capture());
+        Assert.Throws<InvalidOperationException>(() => battle.QueueAction("ally", "source", BattleAbility.Draw, 2, !castFirst, drawCastTargetId: castFirst ? null : "party"));
+        Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
+    }
+
+    [Fact]
+    public void ConsumedSpellLeavesOtherSpellsAndOtherMonstersIndependent()
+    {
+        BattleSession original = CreateWithSecondCaster();
+        BattleDefinition definition = original.Capture().Definition;
+        BattleCombatantDefinition[] actors = definition.Combatants.ToArray();
+        actors[4] = actors[4] with { NativeDrawSlots = [new(1, 0), new(2, 0), new(0, 0), new(0, 0)] };
+        BattleSession battle = new(definition with { Combatants = actors }, BattleAtbMode.TurnBased);
+        battle.QueueAction("party", "source", BattleAbility.Draw, 1);
+        battle.Tick();
+        BattleCombatant source = battle.Combatants.Single(actor => actor.Id == "source");
+        BattleCombatant other = battle.Combatants.Single(actor => actor.Id == "source2");
+        Assert.Contains(source.NativeDrawSlots, slot => slot.Id == 2);
+        Assert.Contains(other.NativeDrawSlots, slot => slot.Id == 1);
+        Assert.Empty(other.DrawnMagicIds);
+        Complete(battle);
+        battle.Combatants[0].Atb = BattleSession.AtbMaximum;
+        battle.QueueAction("party", "source", BattleAbility.Draw, 2);
+        battle.Tick();
+        Assert.False(battle.ActiveAction!.NativeDraw!.Failed);
+        Assert.Equal(new byte[] { 1, 2 }, source.DrawnMagicIds);
+        Complete(battle);
+        battle.QueueAction("ally", "source2", BattleAbility.Draw, 1);
+        battle.Tick();
+        Assert.False(battle.ActiveAction!.NativeDraw!.Failed);
+        Assert.Equal(new byte[] { 1 }, other.DrawnMagicIds);
+    }
+
+    [Fact]
+    public void SuccessfulDrawConsumesEveryPhysicalEntryForThatSpell()
+    {
+        BattleSession battle = Create();
+        BattleCombatant source = battle.Combatants.Single(actor => actor.Id == "source");
+        source.RestoreDrawSlots([new(1, 0), new(1, 9), new(2, 3), new(65, 4)]);
+        battle.QueueAction("party", "source", BattleAbility.Draw, 1);
+        battle.Tick();
+        Assert.Equal(new byte[] { 1 }, source.DrawnMagicIds);
+        Assert.Equal(new byte[] { 0, 0, 2, 65 }, source.NativeDrawSlots.Select(slot => slot.Id));
+        Assert.Equal(new byte[] { 0, 9, 3, 4 }, source.NativeDrawSlots.Select(slot => slot.Resistance));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ZeroQuantityLeavesSpellAvailableForAnotherAttempt(bool cast)
+    {
+        BattleSession battle = CreateWithSecondCaster();
+        BattleCombatant source = battle.Combatants.Single(actor => actor.Id == "source");
+        source.RestoreDrawSlots([new(2, 255), new(0, 0), new(0, 0), new(0, 0)]);
+        battle.QueueAction("party", "source", BattleAbility.Draw, 2, cast, drawCastTargetId: cast ? "ally" : null);
+        battle.Tick();
+        Assert.True(battle.ActiveAction!.NativeDraw!.Failed);
+        Assert.Equal(0, battle.ActiveAction.NativeDraw.Quantity);
+        Assert.Empty(source.DrawnMagicIds);
+        Assert.Equal(2, source.NativeDrawSlots[0].Id);
+        Complete(battle);
+        source.RestoreDrawSlots([new(2, 0), new(0, 0), new(0, 0), new(0, 0)]);
+        battle.QueueAction("ally", "source", BattleAbility.Draw, 2, cast, drawCastTargetId: cast ? "party" : null);
+        battle.Tick();
+        Assert.False(battle.ActiveAction!.NativeDraw!.Failed);
+        Assert.Equal(new byte[] { 2 }, source.DrawnMagicIds);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void QueuedContendersCannotStockOrCastTheSameSpellTwice(bool cast)
+    {
+        BattleSession battle = CreateWithSecondCaster();
+        battle.QueueAction("party", "source", BattleAbility.Draw, 2, cast, drawCastTargetId: cast ? "ally" : null);
+        battle.QueueAction("ally", "source", BattleAbility.Draw, 2, cast, drawCastTargetId: cast ? "party" : null);
+        battle.Tick();
+        Assert.False(battle.ActiveAction!.NativeDraw!.Failed);
+        for (int frame = 0; frame < 60 && battle.ActiveAction?.ActorId != "ally"; frame++)
+        {
+            battle.Tick();
+        }
+        Assert.Equal("ally", battle.ActiveAction!.ActorId);
+        Assert.True(battle.ActiveAction.NativeDraw!.Failed);
+        Assert.Equal(0, battle.ActiveAction.NativeDraw.Quantity);
+        Complete(battle);
+        if (cast)
+        {
+            Assert.Equal(100, battle.Combatants[0].CurrentHp);
+        }
+        else
+        {
+            Assert.DoesNotContain(battle.Combatants[1].MagicStocks, stock => stock.Id == 2);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SerializedDepletionSurvivesActiveAndCompletedNativeTableRefresh(bool active)
+    {
+        BattleDefinition definition = CreateWithSecondCaster().Capture().Definition;
+        BattleCombatantDefinition[] actors = definition.Combatants.ToArray();
+        NativeBattleEnemyLevel level = new(500, 10, 10, 10, 10, 1, new int[8], [], [], 0);
+        NativeBattleDrawSlot[] table = [new(1, 0), new(2, 0), new(3, 0), new(65, 0)];
+        actors[3] = actors[3] with
+        {
+            NativeTemplate = new(5, Enumerable.Repeat(level, 101).ToArray()) { NativeDrawTables = [table, table, table] },
+            NativeAi = new([[0], [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, [])
+        };
+        BattleSession battle = new(definition with { Combatants = actors }, BattleAtbMode.TurnBased);
+        battle.QueueAction("party", "source", BattleAbility.Draw, 1);
+        battle.Tick();
+        if (!active)
+        {
+            Complete(battle);
+        }
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        Complete(restored);
+        BattleCombatant source = restored.Combatants.Single(actor => actor.Id == "source");
+        Assert.Equal(new byte[] { 1 }, source.DrawnMagicIds);
+        Assert.DoesNotContain(source.NativeDrawSlots, slot => slot.Id == 1);
+        Assert.Contains(source.NativeDrawSlots, slot => slot.Id == 2);
+        string before = JsonSerializer.Serialize(restored.Capture());
+        Assert.Throws<InvalidOperationException>(() => restored.QueueAction("ally", "source", BattleAbility.Draw, 1));
+        Assert.Equal(before, JsonSerializer.Serialize(restored.Capture()));
+        BattleSession freshBattle = new(definition with { Combatants = actors }, BattleAtbMode.TurnBased);
+        Assert.Empty(freshBattle.Combatants.Single(actor => actor.Id == "source").DrawnMagicIds);
+        freshBattle.QueueAction("party", "source", BattleAbility.Draw, 1);
+    }
+
+    [Fact]
+    public void OlderSnapshotWithoutDepletionTrackingStartsTrackingAtLoadWithoutInferringPriorDraws()
+    {
+        BattleSession battle = Create();
+        battle.QueueAction("party", "source", BattleAbility.Draw, 1);
+        Complete(battle);
+        System.Text.Json.Nodes.JsonNode snapshot = JsonSerializer.SerializeToNode(battle.Capture())!;
+        foreach (System.Text.Json.Nodes.JsonNode? actor in snapshot["Combatants"]!.AsArray())
+        {
+            actor!.AsObject().Remove("DrawnMagicIds");
+        }
+        BattleSession restored = BattleSession.Restore(snapshot.Deserialize<BattleSnapshot>()!);
+        BattleCombatant source = restored.Combatants.Single(actor => actor.Id == "source");
+        Assert.Empty(source.DrawnMagicIds);
+        Assert.DoesNotContain(source.NativeDrawSlots, slot => slot.Id == 1);
+        source.RestoreDrawSlots([new(1, 0), new(2, 0), new(3, 0), new(65, 0)]);
+        restored.Combatants[0].Atb = BattleSession.AtbMaximum;
+        restored.QueueAction("party", "source", BattleAbility.Draw, 1);
+        restored.Tick();
+        Assert.False(restored.ActiveAction!.NativeDraw!.Failed);
+        Assert.Equal(new byte[] { 1 }, source.DrawnMagicIds);
+    }
+
+    private static BattleSession CreateWithSecondCaster()
+    {
+        BattleDefinition definition = Create().Capture().Definition;
+        BattleCombatantDefinition[] actors = definition.Combatants.ToArray();
+        actors[1] = actors[1] with { Magic = 100, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.Draw] };
+        return new(definition with { Combatants = actors }, BattleAtbMode.TurnBased);
     }
 
     private static BattleSession Create(int initialStock = 2, bool localized = false)
