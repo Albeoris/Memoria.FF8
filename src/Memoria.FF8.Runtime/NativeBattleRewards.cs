@@ -64,6 +64,18 @@ public sealed record BattleEnemyRewardDefinition(ushort KillExperience, ushort S
 }
 
 public sealed record BattleExperienceAwards(IReadOnlyDictionary<byte, ushort> Characters, IReadOnlyDictionary<byte, ushort> GuardianForces);
+
+/// <summary>Current enemy operands used to settle shared experience after an escape.</summary>
+public sealed record BattleEnemyRemainingExperience(int Slot, byte Level, int MaximumHp, int CurrentHp, int NativeIndex)
+{
+    public void Validate()
+    {
+        if (NativeIndex is < 3 or > 6 || Slot is < 0 or >= 8 || Level is < 1 or > 100 || MaximumHp < 1 || CurrentHp < 0 || CurrentHp > MaximumHp)
+        {
+            throw new InvalidDataException("Remaining enemy experience requires its current slot, level and HP operands.");
+        }
+    }
+}
 public sealed record BattleRewardOffer(bool IsCard, int Id, int Quantity, bool Accepted);
 public sealed record BattleLootOwners(NativeEconomy Economy, NativeCardInventory? Cards, BattleStock[] ItemsGranted, byte[] CardsGranted)
 {
@@ -146,7 +158,7 @@ public static class NativeBattleRewardDistribution
         return new BattleLootOwners(nextEconomy, nextCards, granted.ToArray(), grantedCards.ToArray()) { Offers = offers.ToArray() };
     }
 
-    public static BattleExperienceAwards Experience(IReadOnlyList<BattleEnemyDefeat> defeats, NativeCharacterVitals vitals, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> definitions, bool noExperience)
+    public static BattleExperienceAwards Experience(IReadOnlyList<BattleEnemyDefeat> defeats, NativeCharacterVitals vitals, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> definitions, bool noExperience, IReadOnlyList<BattleEnemyRemainingExperience>? remainingEnemies = null)
     {
         vitals.Validate();
         byte[] party = vitals.CombatParty.Where(row => row != 255).ToArray();
@@ -189,6 +201,19 @@ public static class NativeBattleRewardDistribution
                 int level = NativeStatDefinitions.Level(vitals.GuardianForces[id].Experience, vitals.Definitions.GuardianForces[id]);
                 guardian[id] = Accumulate(guardian.GetValueOrDefault(id), ScaledExperience(definition.KillExperience, defeat.Level, level));
             }
+        }
+        foreach (BattleEnemyRemainingExperience enemy in remainingEnemies ?? [])
+        {
+            enemy.Validate();
+            ushort basis = definitions[enemy.Slot].SharedExperience;
+            if (basis == 0 || enemy.CurrentHp == enemy.MaximumHp)
+            {
+                continue;
+            }
+            int scaled = 5 * basis * enemy.Level / averageLevel - basis;
+            int partial = unchecked((enemy.MaximumHp - enemy.CurrentHp) * scaled) / enemy.MaximumHp;
+            ushort amount = partial < 1 ? (ushort)1 : Math.Min(unchecked((ushort)partial), (ushort)60000);
+            shared = Accumulate(shared, amount);
         }
         Dictionary<byte, ushort> characters = [];
         foreach (byte row in party)

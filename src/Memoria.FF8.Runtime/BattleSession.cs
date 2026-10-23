@@ -121,8 +121,8 @@ public sealed partial class BattleSession
     public BattleAtbMode Mode { get; private set; }
     public long Frame { get; private set; }
     public BattleOutcome Outcome { get; private set; }
-    public byte? NativeResult => DebugOutcome is null && NativeGraphics?.NativeOutcome?.ResultByte6E7 is 1 or 4 ? NativeGraphics!.NativeOutcome!.ResultByte6E7 : Outcome switch { BattleOutcome.Active => null, BattleOutcome.Victory => 4, BattleOutcome.Defeat or BattleOutcome.ScriptedExit => 1, _ => throw new InvalidOperationException("Unknown native battle outcome.") };
-    public bool CanReturnToField => Outcome == BattleOutcome.Victory || Outcome == BattleOutcome.ScriptedExit && ((definition.NativeFieldBattleMode ?? throw new NotSupportedException("Native scripted exit requires the actual field battle-mode WORD182.")) & 0x200) != 0;
+    public byte? NativeResult => DebugOutcome is null && NativeGraphics?.NativeOutcome?.ResultByte6E7 is 1 or 2 or 4 ? NativeGraphics!.NativeOutcome!.ResultByte6E7 : Outcome switch { BattleOutcome.Active => null, BattleOutcome.Victory => 4, BattleOutcome.Escaped => 2, BattleOutcome.Defeat or BattleOutcome.ScriptedExit => 1, _ => throw new InvalidOperationException("Unknown native battle outcome.") };
+    public bool CanReturnToField => Outcome is BattleOutcome.Victory or BattleOutcome.Escaped || Outcome == BattleOutcome.ScriptedExit && ((definition.NativeFieldBattleMode ?? throw new NotSupportedException("Native scripted exit requires the actual field battle-mode WORD182.")) & 0x200) != 0;
     public IReadOnlyList<BattleCombatant> Combatants { get; }
     public IReadOnlyList<BattleEvent> Events => events.AsReadOnly();
     public IReadOnlyList<BattleAttackCommand> QueuedActions => actions.Concat(nativeCommandBanks.BoundCommands).ToArray();
@@ -189,6 +189,7 @@ public sealed partial class BattleSession
 
     private void DispatchTurnBasedFrame()
     {
+        AdvanceNativeEscapeFrame();
         bool timeAdvanced = ContinueTurnAdvance();
         if (!timeAdvanced && CanAutomaticallyAdvanceTurn)
         {
@@ -308,6 +309,7 @@ public sealed partial class BattleSession
         return new BattleSnapshot
         {
             TurnAdvance = turnAdvance,
+            Escape = nativeEscape,
             Definition = CloneDefinition(definition),
             GuardianForms = CaptureGuardianForms(),
             MagicVitals = magicVitals?.DeepCopy(),
@@ -848,6 +850,10 @@ public sealed partial class BattleSession
 
     private BattleOutcome DetermineOutcome()
     {
+        if (nativeEscape.Completed)
+        {
+            return BattleOutcome.Escaped;
+        }
         if (DebugOutcome is BattleOutcome requested)
         {
             return requested;
@@ -1230,6 +1236,8 @@ public sealed partial class BattleSession
         nativeReactionOrder = snapshot.NativeReactionOrder;
         RestoreNativeTimedAction(snapshot.NativeTimedAction);
         ActiveAction = snapshot.ActiveAction;
+        nativeEscape = snapshot.Escape;
+        nativeEscape.Validate();
         RestoreDebugOutcome(snapshot);
         Outcome = snapshot.Outcome;
         BattleOutcome expectedOutcome = DetermineOutcome();
@@ -1417,6 +1425,7 @@ public sealed partial class BattleSession
         NativeExamTimer = candidate.NativeExamTimer;
         Difficulty = candidate.Difficulty;
         GunbladeMode = candidate.GunbladeMode;
+        nativeEscape = candidate.nativeEscape;
         Outcome = candidate.Outcome;
         DebugOutcome = candidate.DebugOutcome;
         ActiveAction = candidate.ActiveAction;

@@ -94,6 +94,7 @@ internal sealed partial class RecreateGame
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.GuardianFormSkip));
         }
+        active.PublishNativeEscapeButtons(keyboard.HeldControlButtons);
         active.PublishNativeScanMappedButtons(keyboard.HeldFieldButtons);
         active.AdvanceNativeGraphicsPresentation(elapsed);
         if (ReferenceEquals(active, world?.Battle))

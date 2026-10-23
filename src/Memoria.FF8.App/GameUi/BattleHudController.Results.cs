@@ -79,7 +79,7 @@ public sealed partial class BattleHudController
 
     private void InitializeResults()
     {
-        if (resultInitialized || session.Outcome != BattleOutcome.Victory)
+        if (resultInitialized || session.Outcome is not (BattleOutcome.Victory or BattleOutcome.Escaped))
         {
             return;
         }
@@ -95,7 +95,7 @@ public sealed partial class BattleHudController
 
     private void AdvanceResults(TimeSpan elapsed)
     {
-        if (session.Outcome != BattleOutcome.Victory)
+        if (session.Outcome is not (BattleOutcome.Victory or BattleOutcome.Escaped))
         {
             return;
         }
@@ -215,7 +215,7 @@ public sealed partial class BattleHudController
 
     public void ConfirmResult()
     {
-        if (session.Outcome != BattleOutcome.Victory || completionRequested)
+        if (session.Outcome is not (BattleOutcome.Victory or BattleOutcome.Escaped) || completionRequested)
         {
             return;
         }

@@ -24,7 +24,7 @@ public static partial class BattleResultProjection
         {
             throw new InvalidDataException($"Battle result party does not match the current canonical combat party: recorded [{string.Join(",", result.Party.Select(member => $"{member.Row}:{member.CharacterId}"))}], current [{string.Join(",", party.Select(row => $"{row}:{sourceVitals.Records[row].CharacterId}"))}].");
         }
-        if (result.EnemyDefeats.Any(defeat => !currentEnemyRewards.ContainsKey(defeat.Slot) || defeat.KillerRow is byte row && !party.Contains(row)))
+        if (result.EnemyDefeats.Any(defeat => !currentEnemyRewards.ContainsKey(defeat.Slot) || defeat.KillerRow is byte row && !party.Contains(row)) || result.RemainingEnemyExperience.Any(enemy => !currentEnemyRewards.ContainsKey(enemy.Slot)))
         {
             throw new InvalidDataException("Battle defeat reward facts require their current formation and actual party credit owners.");
         }
@@ -141,9 +141,9 @@ public static partial class BattleResultProjection
         NativeCharacterVitals rewardSourceVitals = vitals;
         BattleExperienceAwards experience = new(new Dictionary<byte, ushort>(), new Dictionary<byte, ushort>());
         BattleLootOwners loot = new(economy with { Items = items }, ApplyNativeCardChange(result, sourceCards), [], []);
-        if (result.Outcome == BattleOutcome.Victory && result.RewardPolicy == BattleRewardPolicy.NativeCombat)
+        if (result.Outcome is BattleOutcome.Victory or BattleOutcome.Escaped && result.RewardPolicy == BattleRewardPolicy.NativeCombat)
         {
-            experience = NativeBattleRewardDistribution.Experience(result.EnemyDefeats, vitals, currentEnemyRewards, noExperience);
+            experience = NativeBattleRewardDistribution.Experience(result.EnemyDefeats, vitals, currentEnemyRewards, noExperience, result.RemainingEnemyExperience);
             vitals = vitals.AwardBattleExperience(experience.Characters, experience.GuardianForces, experienceDefinition);
             loot = NativeBattleRewardDistribution.Loot(result.EnemyDefeats, currentEnemyRewards, loot.Economy, loot.Cards, result.NativeRewardItems);
             List<byte> grantedCards = [.. loot.CardsGranted];
@@ -159,7 +159,7 @@ public static partial class BattleResultProjection
             }
             loot = loot with { CardsGranted = grantedCards.ToArray() };
         }
-        int[] eligible = result.Outcome == BattleOutcome.Victory && !result.DebugVictory ? EligibleGuardianForces(vitals) : [];
+        int[] eligible = result.Outcome is BattleOutcome.Victory or BattleOutcome.Escaped && !result.DebugVictory ? EligibleGuardianForces(vitals) : [];
         if (!eligible.Order().SequenceEqual(result.RewardEligibleGuardianForceIds.Order()))
         {
             throw new InvalidDataException("Observed GF reward eligibility disagrees with the current canonical junction/HP owners.");

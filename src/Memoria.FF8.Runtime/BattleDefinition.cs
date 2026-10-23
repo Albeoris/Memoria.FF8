@@ -19,7 +19,8 @@ public enum BattleOutcome
     Active,
     Victory,
     Defeat,
-    ScriptedExit
+    ScriptedExit,
+    Escaped
 }
 
 public enum BattleAbility
@@ -318,6 +319,7 @@ public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, 
 
 public sealed record BattleSnapshot
 {
+    public NativeBattleEscapeState Escape { get; init; } = new();
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public BattleTurnAdvanceRequest? TurnAdvance { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]

@@ -53,7 +53,7 @@ internal sealed partial class BattleHudElement : UiElement
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
     {
         BattleSession session = controller.Session;
-        if (session.Outcome == BattleOutcome.Victory)
+        if (session.Outcome is BattleOutcome.Victory or BattleOutcome.Escaped)
         {
             DrawResults(canvas, theme);
             if (controller.ResultOpacity < 1)
@@ -322,7 +322,7 @@ internal sealed partial class BattleHudElement : UiElement
         {
             return;
         }
-        if (controller.Session.Outcome == BattleOutcome.Victory)
+        if (controller.Session.Outcome is BattleOutcome.Victory or BattleOutcome.Escaped)
         {
             if (ResultRect(16, 184, 352, 26).Contains(x, y))
             {

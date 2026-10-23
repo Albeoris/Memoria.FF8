@@ -36,6 +36,10 @@ internal sealed partial class BattleHudElement
             BattleResultPage.Items => controller.ResultText(21, "Items received"),
             _ => controller.ResultText(111, "G.F.")
         };
+        if (controller.Session.Outcome == BattleOutcome.Escaped)
+        {
+            title = "Escaped - " + title;
+        }
         ResultLabel(canvas, theme, title, 26, 17, 332);
         theme.Panel(canvas, ResultRect(16, 184, 352, 26));
         ResultLabel(canvas, theme, ButtonPromptText.Mark(controller.NativeButtonBindingHint(0x40)) + "  " + controller.ResultText(22, "Confirm"), 26, 192, 332, true);

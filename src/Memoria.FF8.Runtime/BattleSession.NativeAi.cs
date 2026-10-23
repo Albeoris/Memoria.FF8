@@ -188,7 +188,7 @@ public sealed partial class BattleSession
                         break;
                     case 23:
                         bool sceneResultFlag = ReadAiByte(code, ref pc) == 1;
-                        nativeScriptState = nativeScriptState with { ResultFlags = (byte)((nativeScriptState.ResultFlags & ~1) | (sceneResultFlag ? 1 : 0)) };
+                        nativeScriptState = nativeScriptState with { ResultFlags = (byte)((nativeScriptState.ResultFlags & ~1) | (sceneResultFlag ? 1 : 0)), EscapeDisabled = sceneResultFlag };
                         break;
                     case 13:
                     case 25:

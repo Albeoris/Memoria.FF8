@@ -219,7 +219,7 @@ public sealed partial class BattleHudController
         {
             if (input == MenuInput.Confirm)
             {
-                if (session.Outcome == BattleOutcome.Victory)
+                if (session.Outcome is BattleOutcome.Victory or BattleOutcome.Escaped)
                 {
                     ConfirmResult();
                 }

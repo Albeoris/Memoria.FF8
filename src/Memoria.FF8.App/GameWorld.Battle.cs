@@ -35,9 +35,9 @@ internal sealed partial class GameWorld
     internal BattleResultOwners PreviewBattleResultOwners()
     {
         BattleSession active = battle ?? throw new InvalidOperationException("Battle rewards require an active battle owner.");
-        if (active.Outcome != BattleOutcome.Victory)
+        if (active.Outcome is not (BattleOutcome.Victory or BattleOutcome.Escaped))
         {
-            throw new InvalidOperationException("Battle rewards are available after victory.");
+            throw new InvalidOperationException("Battle rewards are available after victory or escape.");
         }
         BattleEncounterOccurrence encounter = session.State.PendingBattleEncounter ?? throw new InvalidDataException("Battle rewards require the observed encounter occurrence.");
         return ProjectBattleResult(CaptureBattleOutcome(active, encounter));
@@ -413,11 +413,18 @@ internal sealed partial class GameWorld
         BattleSnapshot completed = active.Capture();
         bool debugVictory = active.Events.Any(entry => entry.Kind == "debug-victory");
         int[] defeated = debugVictory ? [] : active.EnemyDefeats.Select(defeat => defeat.Slot).Distinct().ToArray();
-        int[] eligible = active.Outcome == BattleOutcome.Victory && !debugVictory ? CaptureRewardEligibleGuardianForces(vitals, party, completed) : [];
+        int[] eligible = active.Outcome is BattleOutcome.Victory or BattleOutcome.Escaped && !debugVictory ? CaptureRewardEligibleGuardianForces(vitals, party, completed) : [];
         BattleResult result = new(encounter, active.Outcome, party.ToArray(), items.ToArray(), defeated, eligible, debugVictory, debugVictory ? BattleRewardPolicy.DebugNoRewards : BattleRewardPolicy.NativeCombat, debugVictory ? [] : active.EnemyDefeats.ToArray()) { NativeKnownMagicBefore = completed.Definition.NativeKnownMagic, NativeKnownMagicAfter = completed.NativeKnownMagic, NativeScannedModelsBefore = completed.Definition.NativeScannedModels, NativeScannedModelsAfter = completed.NativeScannedModels, NativeItemInventoryAfter = completed.NativeItemInventory!.ToArray(), GuardianForceCompatibilityChanges = CaptureGuardianForceCompatibilityChanges(completed, party), GuardianForceCounterChanges = active.GuardianForceCounterChanges, GuardianForceChanges = active.GuardianForces.Where(gf => gf.HitPoints != completed.Definition.GuardianForces.Single(initial => initial.Id == gf.Id).HitPoints).Select(gf => new BattleGuardianForceChange(gf.Id, completed.Definition.GuardianForces.Single(initial => initial.Id == gf.Id).HitPoints, gf.HitPoints)).ToArray(), ScriptedItems = debugVictory ? [] : active.ScriptedRewards.ToArray(), NativeRewardItems = debugVictory ? [] : active.NativeRewardItems.ToArray(), PersistentAiVariablesBefore = debugVictory ? null : completed.Definition.PersistentAiVariables?.ToArray(), PersistentAiVariablesAfter = debugVictory ? null : completed.PersistentAiVariables?.ToArray(), NativeScriptEffects = debugVictory ? new() : active.NativeScriptState, NativeGrowthChanges = CaptureNativeGrowthChanges(active, completed), NativeDeathCountChanges = CaptureNativeDeathCounts(active, completed), NativeCardChange = completed.NativeCards is { } cards && completed.Definition.NativeCards is { } beforeCards ? new(beforeCards.DeepCopy(), cards.DeepCopy()) : null, NativeCrtRandomBefore = completed.Definition.NativeCrtRandom, NativeCrtRandomAfter = completed.NativeCrtRandom, NativeGlobalRandomChange = active.NativeGlobalRandomChange };
         if (magicAfter is not null)
         {
             result = result with { MagicSystemReceipt = new BattleMagicSystemReceipt(vitals.MagicSystem.DeepCopy(), magicAfter.MagicSystem.DeepCopy(), vitals.Records.Select(record => record.MagicInventory.ToArray()).ToArray(), magicAfter.Records.Select(record => record.MagicInventory.ToArray()).ToArray()) };
+        }
+        if (active.Outcome == BattleOutcome.Escaped)
+        {
+            result = result with
+            {
+                RemainingEnemyExperience = active.CaptureEscapeRemainingExperience()
+            };
         }
         result.Validate();
         return result;
@@ -507,11 +514,11 @@ internal sealed partial class GameWorld
     private BattleResultOwners ProjectBattleResult(BattleResult result)
     {
         BattleEncounter formation = BattleResources.LoadEncounter(result.Encounter.Formation);
-        if (result.DefeatedEnemySlots.Any(slot => !formation.Slots.Any(enemy => enemy.Slot == slot && enemy.NativeModelId >= 16 && enemy.NativeModelId != 255)) || result.RewardPolicy == BattleRewardPolicy.ResearchAutomaticApOnly && !formation.Enemies.Select(enemy => enemy.Slot).Order().SequenceEqual(result.DefeatedEnemySlots.Order()))
+        if (result.DefeatedEnemySlots.Concat(result.RemainingEnemyExperience.Select(enemy => enemy.Slot)).Any(slot => !formation.Slots.Any(enemy => enemy.Slot == slot && enemy.NativeModelId >= 16 && enemy.NativeModelId != 255)) || result.RewardPolicy == BattleRewardPolicy.ResearchAutomaticApOnly && !formation.Enemies.Select(enemy => enemy.Slot).Order().SequenceEqual(result.DefeatedEnemySlots.Order()))
         {
             throw new InvalidDataException("Battle result defeated-enemy facts contradict the current original formation.");
         }
-        BattleEnemyPlacement[] rewarded = formation.Slots.Where(enemy => result.DefeatedEnemySlots.Contains(enemy.Slot)).ToArray();
+        BattleEnemyPlacement[] rewarded = formation.Slots.Where(enemy => result.DefeatedEnemySlots.Contains(enemy.Slot) || result.RemainingEnemyExperience.Any(remaining => remaining.Slot == enemy.Slot)).ToArray();
         Dictionary<int, int> currentAp = rewarded.ToDictionary(enemy => enemy.Slot, enemy => BattleResources.ReadEnemyAbilityPoints(enemy.ModelId));
         Dictionary<int, BattleEnemyRewardDefinition> currentRewards = rewarded.ToDictionary(enemy => enemy.Slot, enemy => BattleResources.ReadEnemyRewards(enemy.ModelId));
         bool noExperience = NativeBattleRewardDistribution.NoExperience(checked((ushort)(result.Encounter.ScriptedOwner?.Flags ?? 0)), formation.Flags);

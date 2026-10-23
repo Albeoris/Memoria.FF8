@@ -8,6 +8,7 @@ public sealed record NativeBattleScriptState
     public bool DisableAutomaticTargetReplacement { get; init; }
     public bool ScriptedExitRequested { get; init; }
     public byte ResultFlags { get; init; }
+    public bool? EscapeDisabled { get; init; }
     public byte? SavedBattleFlagsBefore { get; init; }
     public byte? SavedBattleFlagsAfter { get; init; }
     public byte SavedBattleFlagsSetMask { get; init; }
