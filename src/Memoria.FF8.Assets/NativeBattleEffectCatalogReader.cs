@@ -270,6 +270,14 @@ public sealed partial class GameAssets
                 }
                 binding = binding with { OilShot136Resources = ReadNativeOilShot136Resources() };
             }
+            if (binding.Effect == 132)
+            {
+                if (binding.Entry != NativeBattleDisolvingAcid132Profile.Entry || binding.Initializer != NativeBattleDisolvingAcid132Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag131.tim", NativeBattleDisolvingAcid132Profile.InitializerGlobal) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("DisolvingAcid requires its original entry and initializer resource identity.");
+                }
+                binding = binding with { DisolvingAcid132Resources = ReadNativeDisolvingAcid132Resources() };
+            }
             if (binding.Effect == 138)
             {
                 if (binding.Entry != NativeBattleSaliva138Profile.Entry || binding.Initializer != NativeBattleSaliva138Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag137.tim", NativeBattleSaliva138Profile.InitializerGlobal) || binding.InitializerResources is not null)

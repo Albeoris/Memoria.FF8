@@ -274,6 +274,7 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
     public NativeBattleBadBreath131Resources? BadBreath131Resources { get; init; }
     public NativeBattleReflectBeam135Resources? ReflectBeam135Resources { get; init; }
     public NativeBattleSaliva138Resources? Saliva138Resources { get; init; }
+    public NativeBattleDisolvingAcid132Resources? DisolvingAcid132Resources { get; init; }
     public NativeBattleOilShot136Resources? OilShot136Resources { get; init; }
     public NativeBattleElectricDischarge126Resources? ElectricDischarge126Resources { get; init; }
     public NativeBattleElectrocute275Resources? Electrocute275Resources { get; init; }
