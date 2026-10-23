@@ -569,6 +569,14 @@ public sealed partial class GameAssets
             {
                 binding = binding with { FunguarLaser277Resources = ReadNativeFunguarLaser277Resources() };
             }
+            if (binding.Effect == 284)
+            {
+                if (binding.Entry != NativeBattleEnemyMicroMissiles284Profile.Entry || binding.Initializer != NativeBattleEnemyMicroMissiles284Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag283-298.tim", NativeBattleEnemyMicroMissiles284Profile.InitializerGlobal) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Enemy Micro Missiles requires its original entry and texture initializer contract.");
+                }
+                binding = binding with { EnemyMicroMissiles284Resources = ReadNativeEnemyMicroMissiles284Resources() };
+            }
             if (binding.Effect == 286)
             {
                 if (binding.Entry != NativeBattleMiniPulseCannon286Profile.Entry || binding.Initializer != NativeBattleMiniPulseCannon286Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag285.tim", NativeBattleMiniPulseCannon286Profile.InitializerGlobal) || binding.InitializerResources is not null)
