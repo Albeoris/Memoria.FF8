@@ -142,6 +142,7 @@ public sealed class BattleHudGuardianFormTests
         Assert.False(hud.NativeLimitAvailable);
         hud.Choose(choice);
         Assert.True(hud.SelectingTarget);
+        Assert.Equal("enemy", Assert.Single(hud.Targets).Id);
         Assert.Equal(action.ToString().Replace("HellFire", "Hell Fire"), hud.TargetActionCaption);
         Assert.Null(hud.TargetActionPreview);
         hud.Navigate(MenuInput.Confirm);
@@ -205,7 +206,8 @@ public sealed class BattleHudGuardianFormTests
             [
                 new() { Id = "actor", Name = "Actor", IsPlayer = true, MaximumHp = 100, CurrentHp = 100, InitialAtb = BattleSession.AtbMaximum, EquipmentIds = [2], Abilities = [BattleAbility.Attack, BattleAbility.GuardianForce] },
                 new() { Id = "other", Name = "Other", IsPlayer = true, MaximumHp = 100, CurrentHp = 100, InitialAtb = BattleSession.AtbMaximum },
-                new() { Id = "enemy", Name = "Enemy", MaximumHp = 1000, CurrentHp = 1000 }
+                new() { Id = "enemy", Name = "Enemy", MaximumHp = 1000, CurrentHp = 1000 },
+                new() { Id = "reserve", Name = "Reserve", InitialHidden = true, InitialUntargetable = true }
             ]
         }, BattleAtbMode.TurnBased);
     }

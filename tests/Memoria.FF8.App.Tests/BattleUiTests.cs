@@ -177,6 +177,68 @@ public sealed class BattleUiTests
     }
 
     [Fact]
+    public void Restored_target_menu_uses_saved_participant_availability()
+    {
+        GameState state = GameSession.Load(TestResources.FixturePath("battle-reserved-target"));
+        BattleSession session = BattleSession.Restore(state.Battle!);
+        BattleCombatant reserve = Assert.Single(session.Combatants, actor => actor.IsActive && actor.Hidden && actor.Untargetable);
+        BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, execute: _ => { });
+        hud.SelectParty(session.Combatants.First(actor => actor.IsPlayer && actor.IsReady && actor.Abilities.Contains(BattleAbility.Magic)).Id);
+        hud.Choose(hud.Commands.ToList().IndexOf(BattleAbility.Magic));
+        hud.Navigate(MenuInput.Confirm);
+        Assert.True(hud.SelectingTarget);
+        Assert.DoesNotContain(reserve, hud.Targets);
+        Assert.NotEmpty(hud.Targets);
+        Assert.All(hud.Targets, actor => Assert.True(actor.IsActive && !actor.Untargetable));
+        long frame = session.Frame;
+        hud.Navigate(MenuInput.Down);
+        Assert.NotEqual(reserve.Id, hud.SelectedTarget!.Id);
+        Assert.Equal(frame, session.Frame);
+    }
+
+    [Theory]
+    [InlineData(BattleAbility.Attack, false)]
+    [InlineData(BattleAbility.Magic, false)]
+    [InlineData(BattleAbility.Attack, true)]
+    [InlineData(BattleAbility.Magic, true)]
+    public void Target_menu_excludes_reserved_and_untargetable_actors(BattleAbility ability, bool restore)
+    {
+        BattleDefinition definition = new()
+        {
+            Combatants =
+            [
+                new() { Id = "party", Name = "Party", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Abilities = [ability], MagicStocks = [new(1, 10)] },
+                new() { Id = "present", Name = "Present" },
+                new() { Id = "reserve", Name = "Reserve", InitialHidden = true, InitialUntargetable = true },
+                new() { Id = "untargetable", Name = "Untargetable", InitialUntargetable = true },
+                new() { Id = "unallocated", Name = "Unallocated", InitialActive = false, SceneSlot = 3 },
+                new() { Id = "hidden", Name = "Hidden", InitialHidden = true }
+            ],
+            ActionDefinitions = [new(ability, 1, "Action", BattleActionEffect.Damage, 10, false)]
+        };
+        BattleSession session = new(definition, BattleAtbMode.TurnBased);
+        if (restore)
+        {
+            session = BattleSession.Restore(session.Capture());
+        }
+        BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, execute: _ => { });
+        hud.Choose(0);
+        if (ability != BattleAbility.Attack)
+        {
+            hud.Navigate(MenuInput.Confirm);
+        }
+        Assert.True(hud.SelectingTarget);
+        Assert.Equal(new[] { "present", "hidden" }, hud.Targets.Select(actor => actor.Id));
+        hud.SelectTarget("reserve", false);
+        Assert.Equal("present", hud.SelectedTarget!.Id);
+        TestCanvas canvas = new();
+        hud.BuildView().Draw(canvas, new UiTheme());
+        Assert.DoesNotContain("Reserve", canvas.Texts);
+        Assert.DoesNotContain("Untargetable", canvas.Texts);
+        Assert.DoesNotContain("Unallocated", canvas.Texts);
+    }
+
+    [Fact]
     public void Attack_requires_target_confirmation_and_uses_host_command_callback()
     {
         BattleSession session = new(Definition(), BattleAtbMode.TurnBased);

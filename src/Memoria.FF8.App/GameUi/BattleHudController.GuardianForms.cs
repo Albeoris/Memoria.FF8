@@ -141,7 +141,7 @@ public sealed partial class BattleHudController
         BattleCombatant actor = SelectedActor!;
         BattleActionDefinition action = session.GetGuardianFormActionDefinition(actor.Id, SelectedGuardianFormCommand);
         bool fixedSelf = action.NativeAction?.TargetFlags is byte flags && NativeBattleLimitRules.IsFixedAllyTarget(flags);
-        return session.Combatants.Where(target => target.IsPlayer == action.Allies && (!fixedSelf || target.Id == actor.Id) && BattleSession.HasValidTargetLifeState(action, target)).ToArray();
+        return session.Combatants.Where(target => target.IsActive && !target.Untargetable && target.IsPlayer == action.Allies && (!fixedSelf || target.Id == actor.Id) && BattleSession.HasValidTargetLifeState(action, target)).ToArray();
     }
 
     private void RefreshGuardianFormSelection()

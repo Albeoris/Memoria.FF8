@@ -122,7 +122,7 @@ public sealed partial class BattleHudController
             bool allies = action?.Allies == true;
             bool fixedSelf = action?.NativeAction?.TargetFlags is byte flags && NativeBattleLimitRules.IsFixedAllyTarget(flags);
             string? actorId = fixedSelf ? SelectedActor?.Id : null;
-            return session.Combatants.Where(actor => actor.IsPlayer == allies && (!fixedSelf || actor.Id == actorId) && (action is not null ? BattleSession.HasValidTargetLifeState(action, actor) : actor.IsAlive)).ToArray();
+            return session.Combatants.Where(actor => actor.IsActive && !actor.Untargetable && actor.IsPlayer == allies && (!fixedSelf || actor.Id == actorId) && (action is not null ? BattleSession.HasValidTargetLifeState(action, actor) : actor.IsAlive)).ToArray();
         }
     }
     public bool SelectingTargetGroup
