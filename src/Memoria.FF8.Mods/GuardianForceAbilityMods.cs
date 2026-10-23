@@ -140,7 +140,7 @@ public static class GuardianForceAbilityPackageStore
         string primaryPackageRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.Combine(primaryModsDirectory, "Memoria")));
         string packageId = "Memoria/" + Path.GetFileName(destination);
         ModPackage? owner = string.Equals(Path.GetDirectoryName(destination), primaryPackageRoot, StringComparison.OrdinalIgnoreCase)
-            ? installedPackages.FirstOrDefault(package => package.Id.Equals(packageId, StringComparison.OrdinalIgnoreCase))
+            ? installedPackages?.FirstOrDefault(package => package.Id.Equals(packageId, StringComparison.OrdinalIgnoreCase))
             : null;
         if (owner is not null && !Path.GetFullPath(owner.RootDirectory).TrimEnd(Path.DirectorySeparatorChar).Equals(destination, StringComparison.OrdinalIgnoreCase))
         {
