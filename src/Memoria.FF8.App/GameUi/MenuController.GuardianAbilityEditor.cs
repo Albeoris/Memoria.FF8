@@ -196,7 +196,7 @@ public sealed partial class MenuController
         }
         else
         {
-            ModPackage package = modService!.Catalog.Packages.Single(package => package.Id == target);
+            ModPackage package = modService!.InstalledPackages.Single(package => package.Id == target);
             guardianPackage = GuardianForceAbilityPackageStore.Open(package);
             document = guardianPackage.Document;
         }
@@ -208,7 +208,7 @@ public sealed partial class MenuController
         }
         else if (guardianPackage is not null)
         {
-            string selectedPackage = modService!.Catalog.Packages.Single(package => Path.GetFullPath(package.RootDirectory).Equals(guardianPackage.PackageDirectory, StringComparison.OrdinalIgnoreCase)).Id;
+            string selectedPackage = modService!.InstalledPackages.Single(package => Path.GetFullPath(package.RootDirectory).Equals(guardianPackage.PackageDirectory, StringComparison.OrdinalIgnoreCase)).Id;
             preceding.AddRange(context.Layers.TakeWhile(layer => !layer.PackageId.Equals(selectedPackage, StringComparison.OrdinalIgnoreCase)).Where(layer => CompareGuardianPackageOrder(layer.PackageId, selectedPackage) < 0));
         }
         else
@@ -306,11 +306,11 @@ public sealed partial class MenuController
         return GuardianForceAbilityComposer.Compose(source, layers, context.Source.MenuDefinitions.AbilityPoints);
     }
 
-    private ModPackage? GuardianInstalledPackage => guardianPackage is null ? null : modService?.Catalog.Packages.SingleOrDefault(package => Path.GetFullPath(package.RootDirectory).Equals(guardianPackage.PackageDirectory, StringComparison.OrdinalIgnoreCase));
+    private ModPackage? GuardianInstalledPackage => guardianPackage is null ? null : modService?.InstalledPackages.SingleOrDefault(package => Path.GetFullPath(package.RootDirectory).Equals(guardianPackage.PackageDirectory, StringComparison.OrdinalIgnoreCase));
 
     private int CompareGuardianPackageOrder(string left, string right)
     {
-        IReadOnlyList<ModPackage>? packages = modService?.Catalog.Packages;
+        IReadOnlyList<ModPackage>? packages = modService?.InstalledPackages;
         int leftIndex = packages?.ToList().FindIndex(package => package.Id.Equals(left, StringComparison.OrdinalIgnoreCase)) ?? -1;
         int rightIndex = packages?.ToList().FindIndex(package => package.Id.Equals(right, StringComparison.OrdinalIgnoreCase)) ?? -1;
         return leftIndex >= 0 && rightIndex >= 0 ? leftIndex.CompareTo(rightIndex) : StringComparer.OrdinalIgnoreCase.Compare(left, right);
@@ -459,6 +459,10 @@ public sealed partial class MenuController
                     guardianLocal = false;
                     guardianDraft.Accept(saved.Document);
                     Message = "GF document saved. Runtime activation status is shown in Installed Mods.";
+                    if (modService?.Diagnostics.Any(diagnostic => diagnostic.Code == "reload-failed") == true)
+                    {
+                        Message = modService.Diagnostics.Any(diagnostic => diagnostic.Code == "Memoria.GuardianForceReview") ? "GF document saved. Open Installed Mods / GF changes review to activate it." : "GF document saved. Activation failed; see Installed Mods for the reason.";
+                    }
                     ContinueGuardianNavigation();
                 }
                 break;

@@ -133,14 +133,14 @@ public static class GuardianForceAbilityPackageStore
         return destination;
     }
 
-    public static GuardianForceAbilityPackageDocument Save(string primaryModsDirectory, string packageDirectory, GuardianForceAbilityPatchDocument document, string? expectedRevision = null, ModCatalogSnapshot? catalog = null)
+    public static GuardianForceAbilityPackageDocument Save(string primaryModsDirectory, string packageDirectory, GuardianForceAbilityPatchDocument document, string? expectedRevision = null, IReadOnlyList<ModPackage>? installedPackages = null)
     {
         byte[] bytes = GuardianForceAbilityMods.Serialize(document);
         string destination = ValidateDestination(primaryModsDirectory, packageDirectory);
         string primaryPackageRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.Combine(primaryModsDirectory, "Memoria")));
         string packageId = "Memoria/" + Path.GetFileName(destination);
         ModPackage? owner = string.Equals(Path.GetDirectoryName(destination), primaryPackageRoot, StringComparison.OrdinalIgnoreCase)
-            ? catalog?.Packages.FirstOrDefault(package => package.Id.Equals(packageId, StringComparison.OrdinalIgnoreCase))
+            ? installedPackages.FirstOrDefault(package => package.Id.Equals(packageId, StringComparison.OrdinalIgnoreCase))
             : null;
         if (owner is not null && !Path.GetFullPath(owner.RootDirectory).TrimEnd(Path.DirectorySeparatorChar).Equals(destination, StringComparison.OrdinalIgnoreCase))
         {

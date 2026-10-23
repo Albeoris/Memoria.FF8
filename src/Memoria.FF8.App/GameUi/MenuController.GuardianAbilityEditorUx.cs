@@ -63,7 +63,7 @@ public sealed partial class MenuController
             Id = "mods-gf-packages",
             Title = "GF Abilities · Edit existing mod",
             Help = "Compatible GF packages can be edited while disabled.",
-            Entries = _ => modService?.Catalog.Packages.Where(package => package.Format == ModFormat.Memoria && File.Exists(Path.Combine(package.RootDirectory, GuardianForceAbilityMods.PayloadPath))).Select(package => new MenuEntry(package.Id, package.Name + " · " + package.Status, "Edit this package's GF contribution. Save offers a copy when needed.", Action: new("gf-editor-target", package.Id), Enabled: package.Status != ModEffectiveStatus.IncompatibleEdition)).ToArray() ?? []
+            Entries = _ => modService?.InstalledPackages.Where(package => package.Format == ModFormat.Memoria && File.Exists(Path.Combine(package.RootDirectory, GuardianForceAbilityMods.PayloadPath))).Select(package => new MenuEntry(package.Id, package.Name + " · " + package.Status, "Edit this package's GF contribution. Save offers a copy when needed.", Action: new("gf-editor-target", package.Id), Enabled: package.Status != ModEffectiveStatus.IncompatibleEdition)).ToArray() ?? []
         });
         Register(new()
         {

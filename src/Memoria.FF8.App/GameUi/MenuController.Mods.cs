@@ -57,7 +57,7 @@ public sealed partial class MenuController
         [
             new("installed-tab", "Installed Mods", "Installed packages and status.", Action: new MenuAction("mod-installed-tab")),
             new("create-tab", "Create Mods", "Author a gameplay mod inside the game.", Destination: "mods-create"),
-            new("gf-review", "GF changes review", "Review pending gameplay consequences before mod activation.", Destination: "gf-mod-review"),
+            new("gf-review", service.Diagnostics.Any(diagnostic => diagnostic.Code == "Memoria.GuardianForceReview") ? "GF changes review · Pending" : "GF changes review", "Review pending gameplay consequences before mod activation.", Destination: "gf-mod-review"),
             new("mod-search", "Search: " + (modSearch.Length == 0 ? "All names" : modSearch), "Find packages by name or ID. Keyboard and an on-screen character picker are available.", Destination: "mods-search"),
             new("mod-filter", "Filter: " + ModFilters[modFilter], "Cycle requested enable state or packages requiring attention.", Action: new MenuAction("mod-filter")),
             new("mod-auto", $"[{(service.AutoEnableNewMods ? "x" : " ")}] Automatically enable new mods", "Keep explicit disables; preserve existing mods when turning off.", Action: new MenuAction("mod-auto")),
@@ -72,6 +72,7 @@ public sealed partial class MenuController
                 ModEffectiveStatus.Disabled => "Disabled",
                 ModEffectiveStatus.IncompatibleEdition => "Incompatible edition",
                 ModEffectiveStatus.NoUsableEntries => "No usable entries",
+                ModEffectiveStatus.ReloadFailure when service.Diagnostics.Any(diagnostic => diagnostic.Code == "Memoria.GuardianForceReview") => "Awaiting GF review",
                 _ => "Reload failed"
             };
             entries.Add(new MenuEntry(package.Id, $"[{(package.RequestedEnabled ? "x" : " ")}] {package.Name}   ·   {package.Format}   ·   {status}", status, Action: new MenuAction("mod-toggle", package.Id), Enabled: package.Status != ModEffectiveStatus.IncompatibleEdition));
@@ -86,7 +87,7 @@ public sealed partial class MenuController
 
     private IEnumerable<ModPackage> FilteredModPackages()
     {
-        return modService!.Catalog.Packages.Where(package => (package.Name.Contains(modSearch, StringComparison.OrdinalIgnoreCase) || package.Id.Contains(modSearch, StringComparison.OrdinalIgnoreCase)) && (modFilter switch
+        return modService!.InstalledPackages.Where(package => (package.Name.Contains(modSearch, StringComparison.OrdinalIgnoreCase) || package.Id.Contains(modSearch, StringComparison.OrdinalIgnoreCase)) && (modFilter switch
         {
             1 => package.RequestedEnabled,
             2 => !package.RequestedEnabled,
@@ -127,8 +128,8 @@ public sealed partial class MenuController
     private IReadOnlyList<string> ModDetails()
     {
         IModService service = modService!;
-        ModPackage? package = service.Catalog.Packages.FirstOrDefault(package => package.Id == SelectedEntry?.Id);
-        List<string> details = [service.IsReloadPending ? "Reload pending" : $"{FilteredModPackages().Count()} matching / {service.Catalog.Packages.Count} packages"];
+        ModPackage? package = service.InstalledPackages.FirstOrDefault(package => package.Id == SelectedEntry?.Id);
+        List<string> details = [service.IsReloadPending ? "Reload pending" : $"{FilteredModPackages().Count()} matching / {service.InstalledPackages.Count} packages"];
         if (package is not null)
         {
             selectedModId = package.Id;
@@ -137,7 +138,7 @@ public sealed partial class MenuController
             details.Add("Effective: " + EffectiveModStatus(package));
             details.Add("Format: " + package.Format);
         }
-        details.AddRange(service.Diagnostics.Where(diagnostic => package is null || diagnostic.PackageId?.Equals(package.Id, StringComparison.OrdinalIgnoreCase) == true).Take(4).Select(diagnostic => diagnostic.Message));
+        details.AddRange(service.Diagnostics.Where(diagnostic => package is null || diagnostic.PackageId is null || diagnostic.PackageId.Equals(package.Id, StringComparison.OrdinalIgnoreCase)).Take(4).Select(diagnostic => diagnostic.Message));
         return details;
     }
 
@@ -185,7 +186,7 @@ public sealed partial class MenuController
                 break;
             case "mod-toggle":
                 selectedModId = action.SubjectId;
-                ModPackage? package = service.Catalog.Packages.FirstOrDefault(package => package.Id == action.SubjectId);
+                ModPackage? package = service.InstalledPackages.FirstOrDefault(package => package.Id == action.SubjectId);
                 if (package is null || package.Status == ModEffectiveStatus.IncompatibleEdition)
                 {
                     Message = "This package is unavailable or incompatible with the current edition.";

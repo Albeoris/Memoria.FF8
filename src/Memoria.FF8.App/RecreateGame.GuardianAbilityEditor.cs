@@ -127,7 +127,7 @@ internal sealed partial class RecreateGame
     private GuardianForceEditorReview ReviewGuardianPackageOwnership(GuardianForceAbilityPatchDocument document)
     {
         GuardianForceEditorContext context = ReadGuardianEditorContext();
-        GuardianForceAbilityPatchLayer? installed = resourceHost!.GuardianForceMods.Layers.FirstOrDefault(layer => layer.Document.DocumentId == document.DocumentId && resourceHost.Mods.Catalog.Packages.Any(package => package.Id.Equals(layer.PackageId, StringComparison.OrdinalIgnoreCase) && package.RequestedEnabled && package.Status == ModEffectiveStatus.Active));
+        GuardianForceAbilityPatchLayer? installed = resourceHost!.GuardianForceMods.Layers.FirstOrDefault(layer => layer.Document.DocumentId == document.DocumentId && resourceHost.Mods.InstalledPackages.Any(package => package.Id.Equals(layer.PackageId, StringComparison.OrdinalIgnoreCase) && package.RequestedEnabled && package.Status == ModEffectiveStatus.Active));
         if (context.Current is null || installed is null)
         {
             throw new InvalidOperationException("Enable this saved package in Installed Mods before transferring its GF contribution to package ownership.");
@@ -229,7 +229,7 @@ internal sealed partial class RecreateGame
             {
                 return null;
             }
-            bool identityInstalledElsewhere = resourceHost.Mods.Catalog.Packages.Where(package => package.Format == ModFormat.Memoria && File.Exists(Path.Combine(package.RootDirectory, GuardianForceAbilityMods.PayloadPath))).Any(package => GuardianForceAbilityPackageStore.Open(package).Document.DocumentId == document.DocumentId);
+            bool identityInstalledElsewhere = resourceHost.Mods.InstalledPackages.Where(package => package.Format == ModFormat.Memoria && File.Exists(Path.Combine(package.RootDirectory, GuardianForceAbilityMods.PayloadPath))).Any(package => GuardianForceAbilityPackageStore.Open(package).Document.DocumentId == document.DocumentId);
             if (original is not null || identityInstalledElsewhere)
             {
                 document = GuardianForceAbilityPackageStore.IndependentCopy(document);
@@ -238,7 +238,7 @@ internal sealed partial class RecreateGame
             revision = null;
         }
         string packageId = "Memoria/" + Path.GetFileName(destination);
-        bool installedDestination = string.Equals(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(destination))), Path.TrimEndingDirectorySeparator(Path.GetFullPath(root)), StringComparison.OrdinalIgnoreCase) || resourceHost.Mods.Catalog.Packages.Any(package => string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(package.RootDirectory)), Path.TrimEndingDirectorySeparator(Path.GetFullPath(destination)), StringComparison.OrdinalIgnoreCase));
+        bool installedDestination = string.Equals(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(destination))), Path.TrimEndingDirectorySeparator(Path.GetFullPath(root)), StringComparison.OrdinalIgnoreCase) || resourceHost.Mods.InstalledPackages.Any(package => string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(package.RootDirectory)), Path.TrimEndingDirectorySeparator(Path.GetFullPath(destination)), StringComparison.OrdinalIgnoreCase));
         if (installedDestination && gameMenus is not null && !gameMenus.ReviewGuardianPackagePlacement(packageId, document))
         {
             return null;
@@ -248,7 +248,7 @@ internal sealed partial class RecreateGame
             RequireGuardianMutationBoundary();
         }
         GuardianForceAbilityPreparedApply? ownership = exportedIndependent ? GuardianForceAbilityProfileCoordinator.PrepareIndependentLocalExport(session, localOwnerId, document.DocumentId, guardianSourceRevision, resourceHost.Mods.Catalog.Generation) : null;
-        GuardianForceAbilityPackageDocument result = GuardianForceAbilityPackageStore.Save(primary, destination, document, revision, resourceHost.Mods.Catalog);
+        GuardianForceAbilityPackageDocument result = GuardianForceAbilityPackageStore.Save(primary, destination, document, revision, resourceHost.Mods.InstalledPackages);
         if (ownership is not null)
         {
             session.CommitPreparedGuardianForceAbilities(ownership);

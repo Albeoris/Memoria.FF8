@@ -21,6 +21,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
     private readonly List<(string ModsDirectory, FileSystemWatcher Watcher)> watchers = [];
     private readonly Queue<string> watcherErrors = [];
     private ModCatalogSnapshot catalog = new(0, [], []);
+    private IReadOnlyList<ModPackage> installedPackages = Array.Empty<ModPackage>();
     private ModCatalogSnapshot? pending;
     private ModPreparationResult? pendingPreparation;
     private IReadOnlyList<ModDiagnostic> diagnostics = Array.Empty<ModDiagnostic>();
@@ -82,6 +83,17 @@ public sealed partial class ModRuntime : IModService, IDisposable
     public IReadOnlyList<string> ModsDirectories { get; }
     public string PrimaryModsDirectory => modsRoot;
 
+    public IReadOnlyList<ModPackage> InstalledPackages
+    {
+        get
+        {
+            lock (gate)
+            {
+                return installedPackages;
+            }
+        }
+    }
+
     /// <summary>Returns discovered files for inspection, including disabled packages, without activating them.</summary>
     public IReadOnlyList<ModFile> ReadInstalledFiles(ModFormat format)
     {
@@ -141,7 +153,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
         lock (gate)
         {
             ThrowIfDisposed();
-            ModPackage? package = catalog.Packages.FirstOrDefault(item => item.Id.Equals(packageId, StringComparison.OrdinalIgnoreCase));
+            ModPackage? package = installedPackages.FirstOrDefault(item => item.Id.Equals(packageId, StringComparison.OrdinalIgnoreCase));
             if (package is null)
             {
                 return new(false, $"Unknown mod package: {packageId}.");
@@ -174,7 +186,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 bool current = ModConfiguration.ReadBoolean(Path.Combine(modsRoot, "mods.ini"), "auto_enable_new_mods") ?? true;
                 if (current && !enabled)
                 {
-                    foreach (ModPackage package in catalog.Packages)
+                    foreach (ModPackage package in installedPackages)
                     {
                         string path = ConfigurationPath(package.RootDirectory, package.Format);
                         if (ModConfiguration.ReadBoolean(path, "enabled") is null)
@@ -290,9 +302,11 @@ public sealed partial class ModRuntime : IModService, IDisposable
             {
                 ConfigureWatcher();
                 ModCatalogSnapshot candidate = Discover(out bool nextAutoEnable, out string identity);
+                installedPackages = Array.AsReadOnly(candidate.Packages.Select(package => package.Status == ModEffectiveStatus.Active ? package with { Status = ModEffectiveStatus.ReloadFailure } : package).ToArray());
+                autoEnable = nextAutoEnable;
                 if (identity == lastIdentity)
                 {
-                    autoEnable = nextAutoEnable;
+                    installedPackages = catalog.Packages;
                     return false;
                 }
                 ModPreparationResult result = prepare(candidate);
@@ -358,6 +372,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 return false;
             }
             catalog = pending;
+            installedPackages = catalog.Packages;
             committed = catalog;
             afterCommit = pendingPreparation?.AfterCommit;
             pending = null;

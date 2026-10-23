@@ -206,6 +206,79 @@ public sealed class GuardianForceAbilityModsTests
     }
 
     [Fact]
+    public void RejectedPackageInAnotherRootStillOwnsItsAuthoringIdentity()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "gf-owner-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            string game = Path.Combine(root, "game");
+            string primary = Path.Combine(root, "app", "Mods");
+            var document = Layer("authored", Op("add", GuardianForceAbilityOperationKind.EnsureAbility, 4)).Document;
+            GuardianForceAbilityPackageStore.Save(Path.Combine(game, "Mods"), Path.Combine(game, "Mods", "Memoria", "Example"), document);
+            using ModRuntime runtime = new(Path.Combine(root, "app"), watch: false, additionalBaseDirectories: [game], prepare: _ => new(false));
+            Assert.False(runtime.PreparePending(force: true));
+            Assert.Empty(runtime.Catalog.Packages);
+            string destination = Path.Combine(primary, "Memoria", "Example");
+            Assert.Throws<InvalidDataException>(() => GuardianForceAbilityPackageStore.Save(primary, destination, document, installedPackages: runtime.InstalledPackages));
+            Assert.False(Directory.Exists(destination));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SavedPackageIsDiscoverableAndCanBeDisabledWhenActivationIsRejected(bool reject)
+    {
+        string root = Path.Combine(Path.GetTempPath(), "gf-discovery-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            GuardianForceAbilityMods active = GuardianForceAbilityMods.Empty;
+            using ModRuntime runtime = new(root, watch: false, prepare: catalog =>
+            {
+                Assert.True(GuardianForceAbilityMods.TryPrepare(catalog, out var prepared, out var diagnostics));
+                return new(!reject || prepared.Layers.IsEmpty, Diagnostics: diagnostics, Commit: () => active = prepared);
+            });
+            Assert.True(runtime.PreparePending(force: true));
+            Assert.True(runtime.CommitPending());
+            ModCatalogSnapshot original = runtime.Catalog;
+            var document = Layer("authored", Op("add", GuardianForceAbilityOperationKind.EnsureAbility, 4)).Document;
+            var saved = GuardianForceAbilityPackageStore.Save(Path.Combine(root, "Mods"), Path.Combine(root, "Mods", "Memoria", "Example"), document);
+            runtime.Refresh();
+            Assert.Equal(!reject, runtime.PreparePending(force: true));
+            if (reject)
+            {
+                Assert.Same(original, runtime.Catalog);
+                Assert.False(runtime.CommitPending());
+                Assert.Empty(active.Layers);
+            }
+            else
+            {
+                Assert.True(runtime.CommitPending());
+                Assert.Equal(new[] { 1, 2, 3, 4 }, GuardianForceAbilityComposer.Compose(Source(), active.Layers).Templates[0].Select(entry => entry.Ability));
+            }
+            ModPackage installed = Assert.Single(runtime.InstalledPackages);
+            Assert.Equal("Memoria/Example", installed.Id);
+            Assert.Equal(reject ? ModEffectiveStatus.ReloadFailure : ModEffectiveStatus.Active, installed.Status);
+            Assert.Equal(saved.Revision, GuardianForceAbilityPackageStore.Open(installed).Revision);
+            Assert.True(runtime.SetAutoEnableNewMods(false).Success);
+            Assert.Contains("enabled = 1", File.ReadAllText(Path.Combine(installed.RootDirectory, "mod.ini")));
+            Assert.True(runtime.SetEnabled(installed.Id, false).Success);
+            Assert.True(runtime.PreparePending(force: true));
+            Assert.True(runtime.CommitPending());
+            Assert.Equal(ModEffectiveStatus.Disabled, Assert.Single(runtime.InstalledPackages).Status);
+            Assert.Empty(active.Layers);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
     public void DisabledPackageRoundtripPreservesUnknownMetadataAndUnrelatedFilesRejectsStaleWrites()
     {
         string root = Path.Combine(Path.GetTempPath(), "gf-authoring-" + Guid.NewGuid().ToString("N"));
@@ -250,7 +323,7 @@ public sealed class GuardianForceAbilityModsTests
             var document = Layer("test", Op("add", GuardianForceAbilityOperationKind.EnsureAbility, 4)).Document;
             ModPackage owner = new("Memoria/test", "test", ModFormat.Memoria, false, false, ModEffectiveStatus.Disabled, installed);
             ModCatalogSnapshot catalog = new(1, [owner], []);
-            var saved = GuardianForceAbilityPackageStore.Save(primaryMods, destination, document, catalog: catalog);
+            var saved = GuardianForceAbilityPackageStore.Save(primaryMods, destination, document, installedPackages: catalog.Packages);
             Assert.Equal(Path.GetFullPath(destination), saved.PackageDirectory);
             ModPackage exported = owner with { RootDirectory = destination };
             var reopened = GuardianForceAbilityPackageStore.Open(exported);
@@ -261,7 +334,7 @@ public sealed class GuardianForceAbilityModsTests
                 Assert.False(Directory.Exists(primaryMods));
             }
             ModCatalogSnapshot conflictingCatalog = new(1, [owner with { RootDirectory = Path.Combine(temporary, "OtherMods", "Memoria", "test") }], []);
-            Assert.Throws<InvalidDataException>(() => GuardianForceAbilityPackageStore.Save(primaryMods, installed, document, catalog: conflictingCatalog));
+            Assert.Throws<InvalidDataException>(() => GuardianForceAbilityPackageStore.Save(primaryMods, installed, document, installedPackages: conflictingCatalog.Packages));
             Assert.False(Directory.Exists(installed));
             Assert.Throws<InvalidDataException>(() => GuardianForceAbilityPackageStore.Save(primaryMods, destination, document));
             Assert.Empty(Directory.EnumerateFiles(Path.Combine(destination, "gameplay"), ".gf-*.tmp"));

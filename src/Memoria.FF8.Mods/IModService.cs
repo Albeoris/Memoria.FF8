@@ -3,6 +3,8 @@ namespace Memoria.FF8.Mods;
 public interface IModService
 {
     ModCatalogSnapshot Catalog { get; }
+    /// <summary>Installed package preferences and activation status, including packages whose publication failed.</summary>
+    IReadOnlyList<ModPackage> InstalledPackages => Catalog.Packages;
     bool AutoEnableNewMods { get; }
     bool IsReloadPending { get; }
     IReadOnlyList<ModDiagnostic> Diagnostics { get; }

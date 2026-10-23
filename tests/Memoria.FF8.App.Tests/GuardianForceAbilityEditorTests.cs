@@ -602,6 +602,35 @@ public sealed class GuardianForceAbilityEditorTests : IDisposable
         Assert.Empty(draft.ExportDocument.Operations);
     }
 
+    [Fact]
+    public void RejectedNewPackageCanStillBeOpenedForEditing()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "gf-editor-discovery-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using ModRuntime runtime = new(root, watch: false, prepare: _ => new(false));
+            GuardianForceAbilityPatchDocument document = new()
+            {
+                DocumentId = "authored",
+                Operations = [new() { Id = "add", GuardianForce = 0, Ability = 4, Kind = GuardianForceAbilityOperationKind.EnsureAbility }]
+            };
+            GuardianForceAbilityPackageStore.Save(Path.Combine(root, "Mods"), Path.Combine(root, "Mods", "Memoria", "Example"), document);
+            Assert.False(runtime.PreparePending(force: true));
+            Assert.Empty(runtime.Catalog.Packages);
+            Fixture fixture = Create(mods: runtime);
+            fixture.Menu.Open("mods-gf-packages");
+            Assert.Contains(fixture.Menu.Entries, entry => entry.Id == "Memoria/Example" && entry.Enabled);
+            fixture.Menu.Execute(new("gf-editor-target", "Memoria/Example"));
+            Assert.Equal("gf-ability-editor", fixture.Menu.ScreenId);
+            Assert.Equal(document.DocumentId, Draft(fixture.Menu).ExportDocument.DocumentId);
+            Assert.Equal(new[] { 1, 2, 3, 4 }, Draft(fixture.Menu).Preview.Templates[0].Select(entry => entry.Ability));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
     private Fixture Create(IModService? mods = null, NativeCharacterVitals? source = null, ImmutableArray<GuardianForceAbilityPatchLayer> layers = default)
     {
         source ??= Source();

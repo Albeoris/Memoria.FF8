@@ -62,7 +62,7 @@ public sealed class ModMenuTests : IDisposable
     }
 
     [Fact]
-    public void RejectedReloadKeepsPublishedCheckboxAndDisplaysFailure()
+    public void RejectedReloadShowsInstalledPreferenceAndKeepsPublishedCatalog()
     {
         Write("Demaster/example/test.png", "metadata only");
         bool reject = false;
@@ -74,8 +74,30 @@ public sealed class ModMenuTests : IDisposable
         menu.Execute(new("mod-toggle", "Demaster/example"));
         Assert.False(runtime.PreparePending(force: true));
         menu.RefreshModView();
-        Assert.Contains(menu.Entries, entry => entry.Id == "Demaster/example" && entry.Label.StartsWith("[x]", StringComparison.Ordinal));
+        Assert.Contains(menu.Entries, entry => entry.Id == "Demaster/example" && entry.Label.StartsWith("[ ]", StringComparison.Ordinal));
+        Assert.True(Assert.Single(runtime.Catalog.Packages).RequestedEnabled);
         Assert.Contains(menu.CurrentScreen.Details(menu), text => text.Contains("failed", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void NewPackageAwaitingGuardianReviewRemainsVisibleWithItsReasonAndCanBeDisabled()
+    {
+        using ModRuntime runtime = Runtime(prepare: catalog => catalog.Files.Count == 0 ? ModPreparationResult.Accepted : new(false, Diagnostics: [new("Memoria.GuardianForceReview", "GF changes await review.")]));
+        Publish(runtime);
+        MenuController menu = Menu(runtime);
+        menu.Open("mods");
+        Write("Memoria/Example/gameplay/gf-abilities.json", "{}");
+        runtime.Refresh();
+        Assert.False(runtime.PreparePending(force: true));
+        menu.RefreshModView();
+        Assert.Empty(runtime.Catalog.Packages);
+        Assert.Contains(menu.Entries, entry => entry.Id == "Memoria/Example" && entry.Help == "Awaiting GF review");
+        Assert.Contains(menu.Entries, entry => entry.Id == "gf-review" && entry.Label.Contains("Pending", StringComparison.Ordinal));
+        menu.SelectEntry("mods", "Memoria/Example");
+        Assert.Contains("GF changes await review.", menu.CurrentScreen.Details(menu));
+        menu.Execute(new("mod-toggle", "Memoria/Example"));
+        Publish(runtime);
+        Assert.Contains(menu.Entries, entry => entry.Id == "Memoria/Example" && entry.Help == "Disabled");
     }
 
     [Fact]
