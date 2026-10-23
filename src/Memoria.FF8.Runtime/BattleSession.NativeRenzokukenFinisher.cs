@@ -15,6 +15,12 @@ public sealed partial class BattleSession
             BattleAttackCommand packet = new(actor.Id, command.TargetId, command.Ability, command.ActionId) { NativeQueuedCommand = 250, NativeAction = preliminary, NativeTargetMask = targets };
             nativeCommandBanks = nativeCommandBanks.WriteCommand(location, 1, checked((byte)actor.NativeIndex), 250, index, 0, ushort.MaxValue, [targets]).BindCommand(location, 1, packet);
         }
+        uint callback = index == 3 ? 0x48F350u : 0x48F3F0u;
+        if (NativeGraphics is { } graphics)
+        {
+            //485610 queues the formula callback after command5's104 and before command250's104.
+            NativeGraphics = QueueNativeDescriptor(graphics, 10, callback);
+        }
         NativeBattleActionProductionContext? previous = nativeProductionContext;
         nativeProductionContext = new(0, 1, false, 0x47DE70);
         try
@@ -28,12 +34,7 @@ public sealed partial class BattleSession
         {
             nativeProductionContext = previous;
         }
-        uint callback = index == 3 ? 0x48F350u : 0x48F3F0u;
-        if (NativeGraphics is { } graphics)
-        {
-            NativeGraphics = QueueNativeDescriptor(graphics, 10, callback);
-        }
-        else
+        if (NativeGraphics is null)
         {
             //TODO(TD-009): Components without descriptors admit the same scheduled finisher callback before their UI projection starts.
             CompleteNativeRenzokukenFinisherCallback(callback);
