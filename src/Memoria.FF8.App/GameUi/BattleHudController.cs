@@ -102,8 +102,8 @@ public sealed partial class BattleHudController
             return actions.ElementAtOrDefault(Math.Clamp(actionIndex, 0, Math.Max(0, actions.Count - 1)));
         }
     }
-    public IReadOnlyList<string> ChoiceLabels => SelectingGuardianFormAction ? ["Summon"] : HasGuardianFormCommands ? ["Attack", "Fire", "Hell Fire"] : SelectingDrawMode ? SelectedAction?.Id >= 64 ? ["Stock"] : ["Stock", "Cast"] : NativeDuelChoiceLabels ?? (SelectingAction ? ActionChoices.Select(ChoiceLabel).ToArray() : Commands.Select(CommandLabel).ToArray());
-    public int ChoiceIndex => SelectingGuardianFormAction ? 0 : SelectingDrawMode ? DrawCast ? 1 : 0 : SelectingAction ? Math.Clamp(actionIndex, 0, Math.Max(0, ActionChoices.Count - 1)) : Math.Clamp(commandIndex, 0, Math.Max(0, Commands.Count - 1));
+    public IReadOnlyList<string> ChoiceLabels => SelectingNativeSlots ? ["Do over", "Cast"] : SelectingGuardianFormAction ? ["Summon"] : HasGuardianFormCommands ? ["Attack", "Fire", "Hell Fire"] : SelectingDrawMode ? SelectedAction?.Id >= 64 ? ["Stock"] : ["Stock", "Cast"] : NativeDuelChoiceLabels ?? (SelectingAction ? ActionChoices.Select(ChoiceLabel).ToArray() : Commands.Select(CommandLabel).ToArray());
+    public int ChoiceIndex => SelectingNativeSlots ? nativeSlotsChoice : SelectingGuardianFormAction ? 0 : SelectingDrawMode ? DrawCast ? 1 : 0 : SelectingAction ? Math.Clamp(actionIndex, 0, Math.Max(0, ActionChoices.Count - 1)) : Math.Clamp(commandIndex, 0, Math.Max(0, Commands.Count - 1));
     public int ChoiceStart => Math.Clamp(ChoiceIndex - 1, 0, Math.Max(0, ChoiceLabels.Count - 4));
     public IReadOnlyList<BattleCombatant> Targets
     {
@@ -230,6 +230,10 @@ public sealed partial class BattleHudController
             }
             return;
         }
+        if (NavigateNativeSlots(input))
+        {
+            return;
+        }
         if (NavigateGuardianFormActions(input))
         {
             return;
@@ -263,11 +267,6 @@ public sealed partial class BattleHudController
             if (SelectingAction && !SelectingTarget && SelectedCommand == BattleAbility.Magic && input is MenuInput.PageLeft or MenuInput.PageRight)
             {
                 ChangeMagicCastCount(input == MenuInput.PageLeft ? -1 : 1);
-                return;
-            }
-            if (SelectingAction && !SelectingTarget && SelectedCommand == BattleAbility.LimitBreak && SelectedActor?.NativeLimit?.Command == 16 && input is MenuInput.PageLeft or MenuInput.PageRight)
-            {
-                RerollNativeSlots();
                 return;
             }
             int direction = input is MenuInput.Up or MenuInput.Left or MenuInput.PageLeft ? -1 : 1;
@@ -352,6 +351,10 @@ public sealed partial class BattleHudController
         {
             return;
         }
+        if (ConfirmNativeSlots())
+        {
+            return;
+        }
         if (ConfirmDrawSelection())
         {
             return;
@@ -371,7 +374,7 @@ public sealed partial class BattleHudController
             Message = ActionChoices.Count == 0 ? "No available stock or junctioned GF for this command." : SelectedCommand == BattleAbility.Magic ? "Choose magic. Page Left/Right: number of casts." : SelectedCommand == BattleAbility.GuardianForce ? "Choose a Guardian Force." : $"Choose {SelectedCommand}.";
             if (SelectedCommand == BattleAbility.LimitBreak && actor.NativeLimit?.Command == 16)
             {
-                Message = "Choose magic. Page Left/Right: Do over.";
+                Message = "Do over to change magic, or Cast to accept.";
             }
             if (NativeLimitDirectTarget)
             {
@@ -382,7 +385,7 @@ public sealed partial class BattleHudController
             SoundRequested?.Invoke(MenuSound.Confirm);
             return;
         }
-        if (!SelectingTarget)
+        if (!SelectingTarget && !SelectingNativeSlots)
         {
             if (SelectedAction is { Available: false } || SelectedCommand == BattleAbility.Magic && SelectedAction is { } magicAction && !session.QuoteMagic(actor.Id, magicAction.Id).Allowed)
             {
@@ -400,7 +403,7 @@ public sealed partial class BattleHudController
             SoundRequested?.Invoke(MenuSound.Confirm);
             return;
         }
-        if (SelectedTarget is not BattleCombatant target)
+        if ((SelectingNativeSlots ? actor : SelectedTarget) is not BattleCombatant target)
         {
             return;
         }
@@ -473,6 +476,10 @@ public sealed partial class BattleHudController
         if (SelectingDrawMode)
         {
             DrawCast = index == 1 && SelectedAction?.Id < 64;
+        }
+        else if (SelectingNativeSlots)
+        {
+            nativeSlotsChoice = Math.Clamp(index, 0, 1);
         }
         else if (SelectingAction)
         {

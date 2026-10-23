@@ -8,6 +8,40 @@ public sealed partial class BattleHudController
     private string? nativeLimitSelectionActorId;
     private bool nativeLimitCommandSelected;
     private ushort nativeCommandHeldButtons;
+    private int nativeSlotsChoice;
+
+    public bool SelectingNativeSlots => SelectingAction && !SelectingTarget && SelectedCommand == BattleAbility.LimitBreak && SelectedActor?.NativeLimit?.Command == 16;
+    public string? NativeSlotsLabel => SelectingNativeSlots && SelectedAction is { } action ? ChoiceLabel(action) : null;
+
+    private bool NavigateNativeSlots(MenuInput input)
+    {
+        if (!SelectingNativeSlots)
+        {
+            return false;
+        }
+        if (input is MenuInput.Up or MenuInput.Down)
+        {
+            nativeSlotsChoice = 1 - nativeSlotsChoice;
+            SoundRequested?.Invoke(MenuSound.Move);
+            return true;
+        }
+        if (input is MenuInput.PageLeft or MenuInput.PageRight)
+        {
+            RerollNativeSlots();
+            return true;
+        }
+        return false;
+    }
+
+    private bool ConfirmNativeSlots()
+    {
+        if (!SelectingNativeSlots || nativeSlotsChoice != 0)
+        {
+            return false;
+        }
+        RerollNativeSlots();
+        return true;
+    }
 
     public bool CommandMenuHidden => session.Outcome == BattleOutcome.Active && (session.NativeGraphics?.UiServices is { } ui ? (ui.Flags942 & 0x841) != 0x40 : (nativeCommandHeldButtons & 0x100) != 0);
 
@@ -79,6 +113,7 @@ public sealed partial class BattleHudController
         {
             session.RollNativeSlots(actor.Id);
         }
+        nativeSlotsChoice = 0;
     }
 
     public void RerollNativeSlots()
@@ -88,7 +123,7 @@ public sealed partial class BattleHudController
             throw new InvalidOperationException("Do over requires the active Slots choice menu.");
         }
         session.RollNativeSlots(actor.Id);
-        Message = "Choose magic. Page Left/Right: Do over.";
+        Message = "Do over to change magic, or Cast to accept.";
         SoundRequested?.Invoke(MenuSound.Confirm);
     }
 

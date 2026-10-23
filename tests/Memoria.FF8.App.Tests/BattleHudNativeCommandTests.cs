@@ -3,11 +3,75 @@ using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class BattleHudNativeCommandTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Slots_displays_do_over_and_cast_and_submits_the_accepted_roll_without_target_selection(bool pointer)
+    {
+        using BattleAssets assets = new(TestResources.GameDirectory);
+        BattleSession session = new(new BattleDefinition { NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeActions = assets.NativeActions.ToArray(), NativeLimitsDisabled = false, Combatants = [new() { Id = "selphie", Name = "Selphie", IsPlayer = true, ModelId = 5, Level = 20, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(5) }, new() { Id = "enemy", Name = "Enemy", Speed = 1 }] }, BattleAtbMode.TurnBased);
+        session = BattleSession.Restore(session.Capture() with { NativeLimits = [new("selphie", 4)] });
+        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { }, execute: input => session.QueueAction(input.ActorId!, input.TargetId!, input.Ability, input.ActionId));
+        hud.Navigate(MenuInput.Right);
+        hud.Choose(0);
+        Assert.True(hud.SelectingNativeSlots);
+        Assert.Equal(new[] { "Do over", "Cast" }, hud.ChoiceLabels);
+        Assert.Equal(0, hud.ChoiceIndex);
+        string before = JsonSerializer.Serialize(session.Capture());
+        BattleUiTests.TestCanvas canvas = new();
+        UiView view = hud.BuildView();
+        view.Draw(canvas, new UiTheme());
+        Assert.Contains("Do over", canvas.Texts);
+        Assert.Contains("Cast", canvas.Texts);
+        Assert.Contains(hud.NativeSlotsLabel!, canvas.Texts);
+        Assert.Equal(before, JsonSerializer.Serialize(session.Capture()));
+        hud.Navigate(MenuInput.Up);
+        Assert.Equal(1, hud.ChoiceIndex);
+        hud.Navigate(MenuInput.Down);
+        Assert.Equal(0, hud.ChoiceIndex);
+        NativeBattleRandomState expected = session.Capture().Random!;
+        expected = expected.Draw(out _).Draw(out _).Draw(out _).Draw(out _);
+        hud.Navigate(MenuInput.Confirm);
+        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(session.Capture().Random));
+        Assert.True(hud.SelectingNativeSlots);
+        Assert.Empty(session.QueuedActions);
+        expected = expected.Draw(out _).Draw(out _).Draw(out _).Draw(out _);
+        if (pointer)
+        {
+            UiRect row = Assert.Single(canvas.TextDraws, draw => draw.Text == "Do over").Bounds;
+            view.Pointer(row.X + 5, row.Y + 5, false);
+            view.Pointer(row.X + 5, row.Y + 5, true);
+        }
+        else
+        {
+            hud.Choose(0);
+        }
+        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(session.Capture().Random));
+        BattleNativeSlotsRoll accepted = session.GetNativeSlotsRoll("selphie")!;
+        if (pointer)
+        {
+            UiRect row = Assert.Single(canvas.TextDraws, draw => draw.Text == "Cast").Bounds;
+            view.Pointer(row.X + 5, row.Y + 5, false);
+            view.Pointer(row.X + 5, row.Y + 5, true);
+        }
+        else
+        {
+            hud.Navigate(MenuInput.Down);
+            hud.Navigate(MenuInput.Confirm);
+        }
+        Assert.False(hud.SelectingTarget);
+        Assert.False(hud.SelectingAction);
+        Assert.Equal(accepted, Assert.Single(session.QueuedActions).NativeSlots);
+        string queued = JsonSerializer.Serialize(session.Capture());
+        Assert.Equal(queued, JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(queued)!).Capture()));
+    }
+
     [Fact]
     public void Duel_displays_current_native_bindings_and_accepts_raw_edges_without_advancing_gameplay()
     {

@@ -76,8 +76,8 @@ internal sealed partial class BattleHudElement : UiElement
         }
         bool canAttack = !controller.CommandMenuHidden && controller.SelectedActor is not null && session.Outcome == BattleOutcome.Active;
         IReadOnlyList<string> choices = controller.ChoiceLabels;
-        string caption = session.Outcome != BattleOutcome.Active ? "RESULT" : controller.SelectingTarget ? "TARGET" : controller.SelectingGuardianFormAction ? "GF ACTION" : controller.SelectingDrawMode ? "DRAW" : controller.SelectingAction ? controller.SelectedCommand.ToString().ToUpperInvariant() : "COMMAND";
-        IReadOnlyList<BattleActionDefinition> actions = controller.SelectingAction && !controller.SelectingDrawMode && !controller.SelectingGuardianFormAction && !controller.HasGuardianFormCommands ? controller.ActionChoices : [];
+        string caption = session.Outcome != BattleOutcome.Active ? "RESULT" : controller.SelectingTarget ? "TARGET" : controller.SelectingGuardianFormAction ? "GF ACTION" : controller.SelectingDrawMode ? "DRAW" : controller.SelectingNativeSlots ? "SLOTS" : controller.SelectingAction ? controller.SelectedCommand.ToString().ToUpperInvariant() : "COMMAND";
+        IReadOnlyList<BattleActionDefinition> actions = controller.SelectingAction && !controller.SelectingNativeSlots && !controller.SelectingDrawMode && !controller.SelectingGuardianFormAction && !controller.HasGuardianFormCommands ? controller.ActionChoices : [];
         string[] values = actions.Select(controller.ChoiceValue).ToArray();
         bool guardianHpColumn = controller.SelectedCommand == BattleAbility.GuardianForce && values.Any(value => value.Length > 0);
         bool[] rightArrows = Enumerable.Range(0, choices.Count).Select(index => actions.Count > index
@@ -119,13 +119,21 @@ internal sealed partial class BattleHudElement : UiElement
         {
             CommandWidth = 194;
         }
+        if (controller.NativeSlotsLabel is { } slotsLabel)
+        {
+            CommandWidth = Math.Clamp(38 + canvas.MeasureText(slotsLabel, fontSize * Scale, 4096 * Scale).Width / Scale, 194, 440);
+        }
         int rows = controller.SelectingTarget ? controller.VisibleTargets.Count : choices.Count;
         float captionSize = UiTheme.DefaultCaptionFontSize * Scale * controller.TextScale;
         float captionContentHeight = Math.Max(theme.CaptionContentHeight(captionSize), captionSize * 0.75f) / Scale;
         float commandOffset = Math.Max(14, captionContentHeight) - 14;
-        CommandPanelHeight = (session.Outcome != BattleOutcome.Active ? 76 : 20 + Math.Max(1, Math.Min(4, rows)) * 28) + commandOffset;
+        CommandPanelHeight = (session.Outcome != BattleOutcome.Active ? 76 : 20 + Math.Max(1, Math.Min(4, rows)) * 28 + (controller.SelectingNativeSlots ? 28 : 0)) + commandOffset;
         CommandPanelY = Math.Min(516, 660 - CommandPanelHeight);
         CommandContentY = CommandPanelY + 14 + commandOffset;
+        if (controller.SelectingNativeSlots)
+        {
+            CommandContentY += 28;
+        }
         if ((canAttack && !controller.SelectingTarget) || session.Outcome != BattleOutcome.Active)
         {
             theme.Panel(canvas, Rect(30, CommandPanelY, CommandWidth, CommandPanelHeight), caption, captionSize);
@@ -141,6 +149,10 @@ internal sealed partial class BattleHudElement : UiElement
         }
         else if (canAttack)
         {
+            if (controller.NativeSlotsLabel is { } rollLabel)
+            {
+                ChoiceText(canvas, theme, rollLabel, 60, CommandContentY - 28, CommandWidth - 38, 20, false);
+            }
             int start = Math.Clamp(controller.ChoiceIndex - 1, 0, Math.Max(0, choices.Count - 4));
             for (int row = 0; row < 4 && start + row < choices.Count; row++)
             {
