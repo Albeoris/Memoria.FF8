@@ -11,6 +11,29 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class TripleTriadTradePresentationTests
 {
+    [Fact]
+    public void ExchangeDrawsCardModShortagesWithinEachCardCaption()
+    {
+        TripleTriadController controller = Create(collection: new Dictionary<int, int> { [5] = 0, [6] = 2 }, name: id => $"Long card name {id}");
+        controller.ConfigureCardModHints([new(5, 40, 1, 1), new(6, 4, 1, 1)], true, false, []);
+        controller.BeginTradeSettlement(PlayerHand, OpponentHand, OriginalOwners, TripleTriadTradeRule.One, 1, true, [], _ =>
+        {
+        });
+        Advance(controller, TripleTriadController.TradeEntranceDuration);
+
+        RecordingCanvas canvas = Draw(controller.BuildView());
+        foreach (int id in new[] { 5, 6 })
+        {
+            var card = Assert.Single(canvas.Images, image => image.Source.Kind == UiImageKind.CardFace && image.Source.Id == id);
+            var label = Assert.Single(canvas.Texts, line => line.Text == controller.TradeCardName(id));
+            Assert.True(label.Bounds.X >= card.Bounds.X);
+            Assert.True(label.Bounds.Right <= card.Bounds.Right);
+        }
+        Assert.Contains(canvas.Texts, line => line.Text == "Long card name 5 (0/40)");
+        Assert.Contains(canvas.Texts, line => line.Text == "Long card name 6 (2/4)");
+        Assert.Contains(canvas.Texts, line => line.Text == "Long card name 7");
+    }
+
     private static readonly TripleTriadCard[] Cards = Enumerable.Range(0, 110).Select(id => new TripleTriadCard(id, 1, 1, 1, 1, TripleTriadElement.None)).ToArray();
     private static readonly int[] PlayerHand = [0, 1, 2, 3, 4];
     private static readonly int[] OpponentHand = [5, 6, 7, 8, 9];

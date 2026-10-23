@@ -143,9 +143,15 @@ internal sealed class TripleTriadElementView(TripleTriadController controller) :
             if (controller.TradingCardIndex < 0 || index == controller.TradingCardIndex && controller.AwaitingTradeConfirmation)
             {
                 UiColor color = TradeNameColor(id, theme);
-                string name = controller.Name(id);
-                float textWidth = canvas.MeasureText(name, 18, float.PositiveInfinity).Width;
-                canvas.OutlinedText(name, 18, new UiRect(bounds.X + (bounds.Width - textWidth) / 2, bounds.Bottom + 5, textWidth, 28), color, new UiColor(0, 0, 0), 1);
+                string name = controller.TradeCardName(id);
+                float fontSize = 18;
+                float textWidth = canvas.MeasureText(name, fontSize, float.PositiveInfinity).Width;
+                if (textWidth > bounds.Width - 8)
+                {
+                    fontSize *= (bounds.Width - 8) / textWidth;
+                    textWidth = canvas.MeasureText(name, fontSize, float.PositiveInfinity).Width;
+                }
+                canvas.OutlinedText(name, fontSize, new UiRect(bounds.X + (bounds.Width - textWidth) / 2, bounds.Bottom + 5, textWidth, 28), color, new UiColor(0, 0, 0), 1);
             }
         }
     }

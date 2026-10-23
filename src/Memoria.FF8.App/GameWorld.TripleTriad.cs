@@ -83,6 +83,7 @@ internal sealed partial class GameWorld
         ValidateTripleTriadDeal(request, cards, play);
         Dictionary<int, int> collection = Enumerable.Range(0, 110).ToDictionary(id => id, id => cards.AvailableCount(id));
         TripleTriadController controller = new(tripleTriadCatalog.Cards, collection, play.OpponentHand, tripleTriadCatalog.Name, request.Rules);
+        controller.ConfigureCardModHints(tripleTriadCatalog.Refinements, GameSession.CanUseCardMod(session.State.CharacterVitals), session.State.GameplayPreferences.CardModOnce, session.State.RefinedCardIds);
         controller.CreateMatch = selected =>
         {
             NativeTripleTriadPlayState current = session.State.TripleTriadPlay!;

@@ -33,6 +33,19 @@ public sealed partial class TripleTriadController
     private bool manualTrade;
     private double tradeTime;
     private int flippingTradeSlot = -1;
+    private Dictionary<int, int> cardModRequirements = [];
+
+    public void ConfigureCardModHints(IReadOnlyList<TripleTriadRefinement> recipes, bool available, bool once, IReadOnlyCollection<int> refinedCardIds)
+    {
+        cardModRequirements = available ? recipes.Where(recipe => !once || !refinedCardIds.Contains(recipe.CardId)).ToDictionary(recipe => recipe.CardId, recipe => recipe.RequiredCards) : [];
+    }
+
+    public string TradeCardName(int id)
+    {
+        string name = Name(id);
+        int owned = Math.Max(0, CollectionCount(id));
+        return cardModRequirements.TryGetValue(id, out int required) && owned < required ? $"{name} ({owned}/{required})" : name;
+    }
 
     public TripleTriadTradePhase TradePhase { get; private set; }
     public IReadOnlyList<int> TradeCards => tradeCards;
