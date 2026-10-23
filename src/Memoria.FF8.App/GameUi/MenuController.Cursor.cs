@@ -4,6 +4,11 @@ public sealed partial class MenuController
 {
     private void ApplyCursorPreference(string screenId)
     {
+        if (screenId == "main")
+        {
+            _selections[screenId] = 0;
+            return;
+        }
         if (IsNamingScreen || !IsDemo && _readPreferences is null)
         {
             return;
