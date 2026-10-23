@@ -74,6 +74,15 @@ public sealed class NativeBattleActorDirectorPresentationTests
         HashSet<int> salivaPacketBanks = [];
         bool oilOpeningRestored = false;
         HashSet<string> breath157Boundaries = [];
+        HashSet<string> cannon151Boundaries = [];
+        HashSet<int> cannon151PacketBanks = [];
+        HashSet<uint> cannon151Callbacks = [];
+        HashSet<uint> cannon151ParticleBanks = [];
+        HashSet<byte> cannon151Opcodes = [];
+        List<object> cannon151Observations = [];
+        string? cannon151SamplesW = null;
+        byte[]? cannon151MatrixPadding = null;
+        byte? cannon151WaiterHighByte = null;
         HashSet<string> gatling150Boundaries = [];
         HashSet<int> gatling150PacketBanks = [];
         HashSet<uint> gatling150Callbacks = [];
@@ -359,6 +368,21 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.NotNull(original.Sonic139Resources);
                 Assert.True(source.NativeEffectMemory!.Sonic139!.PendingColdSources);
                 Assert.Null(source.NativeEffectMemory.Sonic139.OriginalFrames);
+            }
+            if (effectId == 151)
+            {
+                Assert.Equal((byte)3, caster);
+                Assert.Equal((byte)0, contactActor);
+                Assert.Equal((byte)16, header.ReadByte(2));
+                Assert.Equal((byte)8, action.Command);
+                Assert.Equal((ushort)69, action.ActionId);
+                Assert.NotNull(original.CannonBlow151Resources);
+                NativeBattleCannonBlow151State state = source.NativeEffectMemory!.CannonBlow151!;
+                Assert.NotNull(state.RootBankStorage);
+                Assert.NotNull(state.ChildBankStorage);
+                Assert.Equal(0u, state.ReadDword(NativeBattleCannonBlow151Profile.WorkingGlobal));
+                cannon151SamplesW = Cannon151WordLanes(state);
+                cannon151MatrixPadding = state.Read(NativeBattleCannonBlow151Profile.CurveMatrixAddress + 18, 2);
             }
             if (effectId == 150)
             {
@@ -1005,6 +1029,161 @@ public sealed class NativeBattleActorDirectorPresentationTests
                             sonic139Opcodes.Add(command.Opcode);
                         }
                     }
+                }
+                if (effectId == 151 && after?.ReturnedDescriptor is > 0)
+                {
+                    NativeBattleCannonBlow151State state = current.NativeEffectMemory!.CannonBlow151!;
+                    Assert.Equal(NativeBattleCannonBlow151Profile.ArenaAddress, state.ReadDword(NativeBattleCannonBlow151Profile.WorkingGlobal));
+                    Assert.Equal(new uint[] { NativeBattleCannonBlow151Profile.RootDescriptor, NativeBattleCannonBlow151Profile.ChildDescriptor }, after.Pools.Select(pool => pool.DescriptorAddress).ToArray());
+                    Assert.Equal(new uint[] { NativeBattleCannonBlow151Profile.RootBank, NativeBattleCannonBlow151Profile.ChildBank }, after.Pools.Select(pool => pool.BankAddress).ToArray());
+                    Assert.Equal(new int[] { 2, 100 }, after.Pools.Select(pool => pool.Slots.Length).ToArray());
+                    Assert.Null(state.RootBankStorage);
+                    Assert.Null(state.ChildBankStorage);
+                    Assert.Throws<InvalidDataException>(() => state.ReadWord(NativeBattleCannonBlow151Profile.RootBank));
+                    Assert.Throws<InvalidDataException>(() => state.ReadWord(NativeBattleCannonBlow151Profile.ArenaAddress));
+                    Assert.Equal(cannon151SamplesW, Cannon151WordLanes(state));
+                    NativeBattleEffectTaskPool pool = after.Pools[1];
+                    NativeBattleModulePoolTask? main = pool.Slots.FirstOrDefault(task => (task.Flags & 1) != 0 && task.Callback == NativeBattleCannonBlow151Profile.MainCallback);
+                    if (main is not null)
+                    {
+                        Assert.Equal((ushort)0, main.ReadWord(14));
+                        string? phase = main.ReadWord(12) switch { 1 => "trajectory32-before-main-old1", 14 => "before-main-old14-impact", 30 => "before-main-old30-contact", 40 => "before-main-old40-retire", _ => null };
+                        if (phase is not null && cannon151Boundaries.Add(phase))
+                        {
+                            Assert.Equal(state.Read(NativeBattleCannonBlow151Profile.ControlPointsAddress, 6), state.Read(NativeBattleCannonBlow151Profile.SamplesAddress, 6));
+                            Assert.Equal(state.Read(NativeBattleCannonBlow151Profile.ControlPointsAddress + 24, 6), state.Read(NativeBattleCannonBlow151Profile.SamplesAddress + 31 * 8, 6));
+                            Assert.Equal(cannon151MatrixPadding, state.Read(NativeBattleCannonBlow151Profile.CurveMatrixAddress + 18, 2));
+                            (byte[] data, bool[] known) = state.ReadView(NativeBattleCannonBlow151Profile.SamplesAddress, NativeBattleCannonBlow151Profile.SamplesLength).ReadSnapshot(0, NativeBattleCannonBlow151Profile.SamplesLength);
+                            Assert.All(Enumerable.Range(0, 32), index => Assert.All(known.Skip(index * 8).Take(6), value => Assert.True(value)));
+                            cannon151Observations.Add(new { Boundary = phase, Index = main.ReadWord(14), Samples = data, Known = known, Matrix = state.ReadView(NativeBattleCannonBlow151Profile.CurveMatrixAddress, 32).ReadSnapshot(0, 32) });
+                            ColdNext(phase, current);
+                        }
+                    }
+                    foreach (NativeBattleModulePoolTask task in pool.Slots.Where(task => (task.Flags & 1) != 0 && task.Callback != NativeBattleCannonBlow151Profile.MainCallback))
+                    {
+                        if (task.Callback != NativeBattleCannonBlow151Profile.Callback60E1B0)
+                        {
+                            Assert.Equal((ushort)0, task.ReadWord(14));
+                        }
+                        if (cannon151Callbacks.Add(task.Callback))
+                        {
+                            string name = $"callback-{task.Callback:X}-live";
+                            cannon151Boundaries.Add(name);
+                            ColdNext(name, current);
+                        }
+                    }
+                    foreach (uint bank in new[] { NativeBattleCannonBlow151Profile.ParticleABase, NativeBattleCannonBlow151Profile.ParticleBBase })
+                    {
+                        int record = Enumerable.Range(0, NativeBattleCannonBlow151Profile.ParticleCount).FirstOrDefault(index => state.ReadDword(bank + (uint)(index * NativeBattleCannonBlow151Profile.ParticleStride)) != 0, -1);
+                        if (record >= 0 && cannon151ParticleBanks.Add(bank))
+                        {
+                            (byte[] data, bool[] known) = state.ReadView(bank + (uint)(record * NativeBattleCannonBlow151Profile.ParticleStride), NativeBattleCannonBlow151Profile.ParticleStride).ReadSnapshot(0, NativeBattleCannonBlow151Profile.ParticleStride);
+                            cannon151Observations.Add(new { ParticleBank = bank, Record = record, Data = data, Known = known });
+                            string name = $"particle-bank-{bank:X}-live";
+                            cannon151Boundaries.Add(name);
+                            ColdNext(name, current);
+                        }
+                    }
+                    DirectedNodePacketState packets = Director(current);
+                    if (packets.PrimaryDrawCursor is int end && packets.SecondaryDrawCursor is int limit && end > limit - packets.DrawStep)
+                    {
+                        int start = limit - packets.DrawStep;
+                        if (cannon151PacketBanks.Add(start))
+                        {
+                            ColdNext("COMMON-packet-bank-" + start.ToString("X"), current);
+                        }
+                        NativeBattleLogicalResolvedCommand[] submitted = current.NativeGraphics!.PrimitiveFrame!.LastCommands.Where(item => item.Command.Packet.Bank == "20DFAB8" && item.Command.Packet.Buffer == 0 && item.Command.Packet.ByteOffset >= start && item.Command.Packet.ByteOffset < end).ToArray();
+                        NativeBattleLogicalCommand[] commands = submitted.GroupBy(item => (item.Command.Packet, item.Command.WordOffset)).Select(group =>
+                        {
+                            NativeBattleLogicalCommand physical = group.First().Command;
+                            foreach (NativeBattleLogicalResolvedCommand replay in group)
+                            {
+                                Assert.Equal(physical.Opcode, replay.Command.Opcode);
+                                Assert.Equal(physical.Words.ToArray(), replay.Command.Words.ToArray());
+                                Assert.Equal(physical.VertexPayload4.ToArray(), replay.Command.VertexPayload4.ToArray());
+                            }
+                            return physical;
+                        }).ToArray();
+                        foreach (NativeBattleLogicalCommand command in commands)
+                        {
+                            cannon151Opcodes.Add(command.Opcode);
+                        }
+                        if (pool.Slots.Any(task => (task.Flags & 1) != 0 && task.Callback == NativeBattleCannonBlow151Profile.Callback60DA10) && !cannon151Boundaries.Contains("flags8-native-inset-live"))
+                        {
+                            NativeBattleLogicalCommand? inset = commands.FirstOrDefault(command => Cannon151InsetSprite(original.CannonBlow151Resources!.SpriteC, command));
+                            if (inset is not null)
+                            {
+                                cannon151Boundaries.Add("flags8-native-inset-live");
+                                cannon151Observations.Add(new { Boundary = "flags8-native-inset-live", Sprite = original.CannonBlow151Resources!.SpriteC.Address, Flags = 8, Words = inset.Words.ToArray() });
+                                ColdNext("flags8-native-inset-live", current);
+                            }
+                        }
+                        NativeBattleModulePoolTask? scrolling = pool.Slots.FirstOrDefault(task => (task.Flags & 1) != 0 && task.Callback == NativeBattleCannonBlow151Profile.Callback60DE40 && task.ReadWord(12) > 0);
+                        if (scrolling is not null)
+                        {
+                            int oldAge = scrolling.ReadWord(12) - 1;
+                            NativeBattleLogicalCommand? window = commands.FirstOrDefault(command => command.WordOffset == 1 && command.Opcode == 0xE2 && command.Words[0] == NativeBattleEffectTextureWindows.Encode(new(0, 0, 64, 128)));
+                            if (window is not null)
+                            {
+                                NativeBattleLogicalCommand polygon = Assert.Single(commands, command => command.Packet == window.Packet && command.WordOffset == 2);
+                                NativeBattleLogicalCommand reset = Assert.Single(commands, command => command.Packet == window.Packet && command.Opcode == 0xE2 && command.WordOffset > 2);
+                                Assert.Equal(2 + polygon.Words.Length, reset.WordOffset);
+                                Assert.Equal(0xE2000000u, reset.Words[0]);
+                                Assert.Equal(new[] { 0, 0, 0, 0 }, polygon.VertexPayload4.ToArray());
+                                AssertCannon151ScrollingUv(original.CannonBlow151Resources!.ScrollingMesh, polygon, oldAge * 14);
+                                string? phase = scrolling.ReadWord(12) switch { 1 => "scroll124-first-compound", 8 => "before-scroll-old8-cue", 10 => "scroll124-cue512", _ => null };
+                                if (phase is not null && cannon151Boundaries.Add(phase))
+                                {
+                                    cannon151Observations.Add(new { Boundary = phase, OldAge = oldAge, Flags = oldAge >= 8 ? 0xF3 : 0x33, Cue = oldAge >= 8 ? (int?)((oldAge - 8) << 9) : null, VScroll = oldAge * 14 % 128, Window = window.Words.ToArray(), Polygon = polygon.Words.ToArray(), Reset = reset.Words.ToArray(), Sidecars = polygon.VertexPayload4.ToArray() });
+                                    ColdNext(phase, current);
+                                }
+                            }
+                        }
+                    }
+                    NativeBattleModulePoolTask? waiter = after.Pools[0].Slots.FirstOrDefault(task => (task.Flags & 1) != 0 && task.Callback == NativeBattleCannonBlow151Profile.CompletionCallback);
+                    if (waiter is not null)
+                    {
+                        Assert.DoesNotContain(pool.Slots, task => (task.Flags & 1) != 0);
+                        cannon151WaiterHighByte ??= waiter.ReadByte(15);
+                        Assert.Equal(cannon151WaiterHighByte.Value, waiter.ReadByte(15));
+                        Assert.Equal((byte)0, waiter.ReadByte(14));
+                        string phase = waiter.ReadWord(12) <= 1 ? "children-drained-before-COMMON-old1-request" : "COMMON-request-pending";
+                        if (cannon151Boundaries.Add(phase))
+                        {
+                            if (waiter.ReadWord(12) > 1)
+                            {
+                                Assert.Contains(current.NativeGraphics!.Auxiliary.Slots, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.CommonTextureLoad508660);
+                            }
+                            ColdNext(phase, current);
+                        }
+                    }
+                }
+                if (effectId == 151 && before?.ReturnedDescriptor is > 0 && after?.ReturnedDescriptor == 0 && cannon151Boundaries.Add("COMMON-FF-completed-all-banks-detached"))
+                {
+                    NativeBattleCannonBlow151State state = current.NativeEffectMemory!.CannonBlow151!;
+                    Assert.Empty(after.Pools);
+                    Assert.NotNull(state.RootBankStorage);
+                    Assert.NotNull(state.ChildBankStorage);
+                    for (int slot = 0; slot < NativeBattleCannonBlow151Profile.RootCount; slot++)
+                    {
+                        Assert.Equal(0, BitConverter.ToUInt16(state.RootBankStorage.Read(slot * NativeBattleCannonBlow151Profile.RootStride, 2)) & 1);
+                    }
+                    Assert.Equal((byte)255, state.RootBankStorage.Read(16 + 14, 1)[0]);
+                    Assert.NotNull(cannon151WaiterHighByte);
+                    Assert.Equal(cannon151WaiterHighByte.Value, state.RootBankStorage.Read(16 + 15, 1)[0]);
+                    for (int slot = 0; slot < NativeBattleCannonBlow151Profile.ChildCount; slot++)
+                    {
+                        Assert.Equal(0, BitConverter.ToUInt16(state.ChildBankStorage.Read(slot * NativeBattleCannonBlow151Profile.ChildStride, 2)) & 1);
+                    }
+                    foreach (uint bank in new[] { NativeBattleCannonBlow151Profile.ParticleABase, NativeBattleCannonBlow151Profile.ParticleBBase })
+                    {
+                        for (uint index = 0; index < NativeBattleCannonBlow151Profile.ParticleCount; index++)
+                        {
+                            Assert.Equal(0u, state.ReadDword(bank + index * NativeBattleCannonBlow151Profile.ParticleStride));
+                        }
+                    }
+                    Assert.DoesNotContain(current.NativeGraphics!.Auxiliary.Slots, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.CommonTextureLoad508660);
+                    ColdNext("COMMON-FF-completed-all-banks-detached", current);
                 }
                 if (effectId == 150 && after?.ReturnedDescriptor is > 0)
                 {
@@ -3051,7 +3230,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                     }
                     else if (effectId != 183)
                     {
-                        Assert.Equal(JsonSerializer.Serialize(original.GatlingGun150Resources?.Camera ?? original.Breath129Resources?.Camera ?? original.BadBreath131Resources?.Camera ?? original.Sonic139Resources?.Camera ?? original.ReflectBeam135Resources?.Camera ?? original.Breath157Resources?.Camera ?? original.WildCannonBlow156Resources?.Camera ?? original.SandStorm155Resources?.Camera ?? original.GastricJuice128Resources?.Camera ?? original.DisolvingAcid132Resources?.Camera ?? original.OilShot136Resources?.Camera ?? original.OilBlast137Resources?.Camera ?? original.Saliva138Resources?.Camera ?? original.MeltEye158Resources?.Camera ?? original.EnergyBomber217Resources?.Camera ?? original.Effect101Resources?.Camera ?? original.BeamLaser134Resources?.Camera ?? original.Hypnotize133Resources?.Camera ?? original.NeedlesFamilyResources?.Camera ?? original.LaserEye71Resources?.Camera ?? original.EerieSoundWave130Resources?.Camera ?? original.PetrifyStare127Resources?.Camera ?? original.RayBomb307Resources?.Camera ?? original.UltraWaves184Resources?.Camera ?? original.ElectricDischarge126Resources?.Camera ?? original.Electrocute275Resources?.Camera ?? original.Acid317Resources?.Camera ?? original.GatlingGun305Resources?.Camera ?? original.Degenerator306Resources?.Camera ?? original.BadBreath300Resources?.Camera ?? original.MicroMissiles299Resources?.Camera ?? original.WhiteWind297Resources?.Camera ?? original.DeathResources?.Animation ?? original.Curse47Resources?.Animation ?? original.Doom8Resources?.Camera ?? original.Absorb56Resources?.Animation ?? original.Devour62Resources?.Animation ?? original.MeltingBubble43Resources?.Animation ?? original.WindBlast29Resources?.Animation ?? original.Effect60Resources?.Animation ?? original.PsychoBlast23Resources?.Animation ?? original.Effect20Resources?.Animation ?? original.Raldo19Resources?.Animation ?? original.DrinkMagic37Resources?.Animation ?? original.MightyGuardResources?.Animation ?? original.ActorDirectorResources!.Animation), JsonSerializer.Serialize(current.NativeEffectMemory!.Textures!.Animation!.Source));
+                        Assert.Equal(JsonSerializer.Serialize(original.CannonBlow151Resources?.Camera ?? original.GatlingGun150Resources?.Camera ?? original.Breath129Resources?.Camera ?? original.BadBreath131Resources?.Camera ?? original.Sonic139Resources?.Camera ?? original.ReflectBeam135Resources?.Camera ?? original.Breath157Resources?.Camera ?? original.WildCannonBlow156Resources?.Camera ?? original.SandStorm155Resources?.Camera ?? original.GastricJuice128Resources?.Camera ?? original.DisolvingAcid132Resources?.Camera ?? original.OilShot136Resources?.Camera ?? original.OilBlast137Resources?.Camera ?? original.Saliva138Resources?.Camera ?? original.MeltEye158Resources?.Camera ?? original.EnergyBomber217Resources?.Camera ?? original.Effect101Resources?.Camera ?? original.BeamLaser134Resources?.Camera ?? original.Hypnotize133Resources?.Camera ?? original.NeedlesFamilyResources?.Camera ?? original.LaserEye71Resources?.Camera ?? original.EerieSoundWave130Resources?.Camera ?? original.PetrifyStare127Resources?.Camera ?? original.RayBomb307Resources?.Camera ?? original.UltraWaves184Resources?.Camera ?? original.ElectricDischarge126Resources?.Camera ?? original.Electrocute275Resources?.Camera ?? original.Acid317Resources?.Camera ?? original.GatlingGun305Resources?.Camera ?? original.Degenerator306Resources?.Camera ?? original.BadBreath300Resources?.Camera ?? original.MicroMissiles299Resources?.Camera ?? original.WhiteWind297Resources?.Camera ?? original.DeathResources?.Animation ?? original.Curse47Resources?.Animation ?? original.Doom8Resources?.Camera ?? original.Absorb56Resources?.Animation ?? original.Devour62Resources?.Animation ?? original.MeltingBubble43Resources?.Animation ?? original.WindBlast29Resources?.Animation ?? original.Effect60Resources?.Animation ?? original.PsychoBlast23Resources?.Animation ?? original.Effect20Resources?.Animation ?? original.Raldo19Resources?.Animation ?? original.DrinkMagic37Resources?.Animation ?? original.MightyGuardResources?.Animation ?? original.ActorDirectorResources!.Animation), JsonSerializer.Serialize(current.NativeEffectMemory!.Textures!.Animation!.Source));
                     }
                     if (effectId == 126)
                     {
@@ -3096,7 +3275,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                         ColdNext("secondary-contact", current);
                     }
                 }
-                if ((visibleChangedRgb == 0 || effectId is 8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 71 or 73 or 74 or 78 or 101 or 135 or 131 or 128 or 155 or 156 or 157 or 183 or 150 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 127 or 130 or 133 or 134 or 177 or 178 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 260) && after?.ReturnedDescriptor is > 0 && Director(current).Effect == effectId)
+                if ((visibleChangedRgb == 0 || effectId is 8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 71 or 73 or 74 or 78 or 101 or 135 or 131 or 128 or 155 or 156 or 157 or 183 or 150 or 151 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 127 or 130 or 133 or 134 or 177 or 178 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 260) && after?.ReturnedDescriptor is > 0 && Director(current).Effect == effectId)
                 {
                     ImmutableHashSet<NativeBattlePrimitiveReference> owned = ActorDirectorPacketReferences(prior, current);
                     if (!owned.IsEmpty)
@@ -3118,7 +3297,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                             peakOwnership = effectId is 19 or 184
                                 ? JsonSerializer.Serialize(new { Effect = effectId, current.Frame, NativeCallback = current.NativeGraphics.Callback, Ownership = effectId == 184 ? "Fixed native PRIVATE packets, warp quads and capture plus matched COMMON prefix before ordinary actor submission" : "Matched common packets before the complete first actor allocation", Packets = owned.OrderBy(packet => packet.Bank).ThenBy(packet => packet.Buffer).ThenBy(packet => packet.ByteOffset).ToArray() })
                                 : JsonSerializer.Serialize(new { Effect = effectId, current.Frame, NativeCallback = current.NativeGraphics.Callback, PrivateBank = packetState.PacketBank, PrivateStart = packetState.SecondaryDrawCursor!.Value - packetState.DrawStep, PrivateEnd = packetState.PrimaryDrawCursor!.Value, Packets = owned.OrderBy(packet => packet.Bank).ThenBy(packet => packet.Buffer).ThenBy(packet => packet.ByteOffset).ToArray() });
-                            if (effectId is not (8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 71 or 73 or 74 or 78 or 101 or 135 or 131 or 128 or 155 or 156 or 157 or 183 or 150 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 127 or 130 or 133 or 134 or 177 or 178 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 260))
+                            if (effectId is not (8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 71 or 73 or 74 or 78 or 101 or 135 or 131 or 128 or 155 or 156 or 157 or 183 or 150 or 151 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 127 or 130 or 133 or 134 or 177 or 178 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 260))
                             {
                                 File.WriteAllText(Path.Combine(output!, "visible-packet-ownership.json"), peakOwnership);
                                 NativeBattleRestorationPresentationTests.Publish(output!, "visible", current, pixels);
@@ -3166,15 +3345,34 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.NotNull(completed.NativeEffectMemory!.Effect183!.RootBankStorage);
                 Assert.NotNull(completed.NativeEffectMemory.Effect183.ChildBankStorage);
             }
-            if (effectId is not (19 or 23 or 29 or 37 or 43 or 128 or 155 or 156 or 157 or 183 or 150 or 139 or 131 or 132 or 137 or 138 or 158 or 127 or 130 or 133 or 134 or 177 or 178 or 297 or 299 or 300 or 317 or 184))
+            if (effectId is not (19 or 23 or 29 or 37 or 43 or 128 or 155 or 156 or 157 or 183 or 150 or 151 or 139 or 131 or 132 or 137 or 138 or 158 or 127 or 130 or 133 or 134 or 177 or 178 or 297 or 299 or 300 or 317 or 184))
             {
                 Assert.True(stageChanged, "The original actor-director stage fade never changed the retained four-group color/depth owner.");
             }
-            if (effectId is 19 or 23 or 29 or 43 or 128 or 155 or 156 or 157 or 183 or 150 or 139 or 131 or 132 or 137 or 138 or 158 or 130 or 133 or 134 or 177 or 178 or 297 or 299 or 300 or 317 or 184)
+            if (effectId is 19 or 23 or 29 or 43 or 128 or 155 or 156 or 157 or 183 or 150 or 151 or 139 or 131 or 132 or 137 or 138 or 158 or 130 or 133 or 134 or 177 or 178 or 297 or 299 or 300 or 317 or 184)
             {
                 Assert.False(stageChanged);
             }
             Assert.Equal(1, completions);
+            if (effectId == 151)
+            {
+                foreach (string name in new[] { "trajectory32-before-main-old1", "before-main-old14-impact", "before-main-old30-contact", "before-main-old40-retire", "scroll124-first-compound", "before-scroll-old8-cue", "scroll124-cue512", "flags8-native-inset-live", "children-drained-before-COMMON-old1-request", "COMMON-request-pending", "COMMON-FF-completed-all-banks-detached" })
+                {
+                    Assert.Contains(name, cannon151Boundaries);
+                }
+                foreach (uint callback in new uint[] { 0x60D260, 0x60D3B0, 0x60D670, 0x60D790, 0x60D850, 0x60DA10, 0x60DC20, 0x60DE40, 0x60E060, 0x60E1B0 })
+                {
+                    Assert.Contains(callback, cannon151Callbacks);
+                }
+                Assert.Equal(new[] { 0, NativeBattleCannonBlow151Profile.PacketStep }, cannon151PacketBanks.Order().ToArray());
+                Assert.Equal(new[] { NativeBattleCannonBlow151Profile.ParticleABase, NativeBattleCannonBlow151Profile.ParticleBBase }, cannon151ParticleBanks.Order().ToArray());
+                foreach (byte opcode in new byte[] { 0x26, 0x2E, 0x3A, 0x36, 0x3E, 0xE2 })
+                {
+                    Assert.Contains(opcode, cannon151Opcodes);
+                }
+                Assert.Equal(cannon151SamplesW, Cannon151WordLanes(completed.NativeEffectMemory!.CannonBlow151!));
+                File.WriteAllText(Path.Combine(output!, "cannon-blow151-native-observations.json"), JsonSerializer.Serialize(new { Boundaries = cannon151Boundaries.Order().ToArray(), Callbacks = cannon151Callbacks.Order().ToArray(), CommonPacketBanks = cannon151PacketBanks.Order().ToArray(), ParticleBanks = cannon151ParticleBanks.Order().ToArray(), Opcodes = cannon151Opcodes.Order().ToArray(), SampleW = cannon151SamplesW, WaiterRetainedHighByte = cannon151WaiterHighByte, Observations = cannon151Observations, CompletionScope = "Actual old1 COMMON request, pending auxiliary work, BYTE14=FF with BYTE15 retained, all root/child/particle flags drained and exclusive task banks detached" }));
+            }
             if (effectId == 150)
             {
                 foreach (string name in new[] { "before-old1-delayed-five", "before-old11-delayed-seven", "before-old30-COMMON-contact", "main-drained-children-live", "all-pools-and-particles-drained" })
@@ -3710,7 +3908,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
             }
             Assert.True(completed.Events.Count(item => item.NativeModuleSound is not null) > initialSounds, "The selected component published no original module sound.");
             Assert.True(Released(completed), "The original returned task, active effect and action104 descriptor must release through native execution.");
-            if (effectId is 8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 71 or 73 or 74 or 78 or 101 or 135 or 131 or 128 or 155 or 156 or 157 or 183 or 150 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 127 or 130 or 133 or 134 or 177 or 178 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 184 or 260 && peakSnapshot is not null)
+            if (effectId is 8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 71 or 73 or 74 or 78 or 101 or 135 or 131 or 128 or 155 or 156 or 157 or 183 or 150 or 151 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 127 or 130 or 133 or 134 or 177 or 178 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 184 or 260 && peakSnapshot is not null)
             {
                 File.WriteAllText(Path.Combine(output!, "visible-packet-ownership.json"), peakOwnership ?? throw new InvalidDataException("The peak node packet ownership was not retained."));
                 NativeBattleRestorationPresentationTests.Publish(output!, "visible", peakSnapshot, peakPixels ?? throw new InvalidDataException("The peak node pixels were not retained."));
@@ -3718,7 +3916,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 ColdNext("peak", peakSnapshot);
             }
             ColdNext("completed", completed);
-            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Scenario = effectId == 150 ? "Original Gatling Gun command8/action68/sequence14 and formation125 with declared seven-HP post-formula contact and logical HP/status retained; no formula, accuracy, ordinary command or AI admission" : effectId == 129 ? "Original Breath129 command8/action102/sequence12 and formation338 with declared seven-HP post-formula presentation and logical HP/status retained; no formula, accuracy, ordinary command or AI turn admission" : effectId == 139 ? "Original Sonic Wave command8/action182/sequence11 and formation384 with declared seven-HP post-formula presentation and logical HP/status retained; no formula, accuracy, ordinary command or AI turn admission" : effectId == 183 ? "Original effect183 command23/action11/sequence23 and formation94; declared seven-HP post-formula presentation with logical HP/status retained; no level formula, status result, accuracy or ordinary command admission" : effectId == 157 ? "Original Breath command8/action37/sequence14 and formation413 with declared seven-HP post-formula contact and logical HP/status retained; no formula, accuracy, ordinary command or AI admission" : effectId == 156 ? "Original Wild Cannon Blow command8/action70/sequence17 and formation125 with declared seven-HP post-formula contact and logical HP/status retained; no formula, accuracy, ordinary command or AI admission" : effectId == 155 ? "Original Sand Storm command8/action39/sequence14 and formation452 with declared seven-HP post-formula contact and logical HP/status retained; no formula, accuracy, ordinary command or AI admission" : effectId == 128 ? "Original Gastric Juice command8/action77/sequence14 and formation220 with declared seven-HP post-formula contact and logical HP/status retained; no formula, accuracy, ordinary command or AI admission" : effectId == 132 ? "Original Disolving Acid command8/action183/sequence12 and formation376 with declared seven-HP post-formula contact and logical HP/status retained; no formula, accuracy, ordinary command or AI admission" : effectId == 136 ? "Original Oil Shot command8/action180/sequence13 and formation384 with declared seven-HP post-formula contact and logical HP/status retained; no formula, accuracy, ordinary command or AI admission" : effectId == 138 ? "Original Saliva command8/action175/sequence16 and formation378 with declared seven-HP post-formula contact and logical HP/status retained; no formula, accuracy, ordinary command or AI admission" : effectId == 131 ? "Original Enemy Bad Breath command8/action184/sequence14 and formation376 with declared seven-HP post-formula contact and logical HP/status retained; no status formula, accuracy, ordinary command or AI admission" : effectId == 126 ? "Original Electric Discharge command8/action28/sequence15 and formation666 with declared seven-HP post-formula contact and logical HP/status retained; no ordinary command, AI, accuracy or formula admission" : effectId == 137 ? "Original Oil Blast command8/action181/sequence12 and formation384 with declared seven-HP post-formula contact and logical HP/status retained; no ordinary action, accuracy, AI or formula admission" : effectId == 158 ? "Original Melt-Eye command8/action36/sequence13 with declared seven-HP post-formula contact and logical HP/status retained; no magic damage/status formula, accuracy, ordinary command or AI admission" : effectId == 217 ? "Original Energy Bomber command8/action316/sequence16, both formation796 enemies retained, declared seven-HP post-formula contact with logical HP/status retained; no physical formula, accuracy, ordinary command or AI admission" : effectId == 101 ? "Original unnamed Effect101 command8/action290/sequence13; real recipient sequence14 has no contact event, unused declared seven-HP packet, logical HP/status retained; no formula, accuracy, ordinary command or AI admission" : effectId == 71 ? "Original Laser Eye command15/action0/crisis1/sequence21 with declared seven-HP post-formula contact and retained logical HP/status; no damage formula, accuracy, ordinary command or AI admission" : effectId == 260 ? "Original Shockwave Pulsar command15/action15/crisis1/sequence21 with declared seven-HP post-formula contact and retained logical HP/status; no magic damage or status formula, accuracy, ordinary command, GF or AI admission" : effectId == 307 ? "Original Blue Ray-Bomb command15/action14/crisis1/sequence21 with declared seven-HP post-formula contact and retained logical HP/status; no magic damage or status formula, accuracy, ordinary command or AI admission" : effectId == 184 ? "Original Blue Ultra Waves command15/action1/crisis1/sequence21 with declared seven-HP post-formula contact and retained logical HP/status; no magic damage or status formula, accuracy, ordinary command or AI admission" : effectId == 275 ? "Original Electrocute command15/action2/crisis1/sequence21 with declared seven-HP post-formula contact and retained logical HP/status; no magic damage formula, accuracy, ordinary command or AI admission" : effectId == 317 ? "Original Acid command15/action7/crisis1/sequence21 with declared seven-HP post-formula contact and retained logical HP/status; no magic damage or status formula, accuracy, ordinary command or AI admission" : effectId == 305 ? "Original Gatling Gun command15/action8/crisis1/sequence21 with declared seven-HP damage post-formula input and retained logical HP/status; no physical damage formula, accuracy, ordinary command or AI admission" : effectId == 306 ? "Original Degenerator command15/action4/crisis1/sequence21 with declared Amount0 post-formula contact; native MISS/non-MISS body and visibility branch, actual logical HP/status retained; no removal/status formula, accuracy, ordinary command or AI admission" : effectId == 300 ? "Original Bad Breath command15/action10/crisis1/sequence21 with declared Amount0 MISS post-formula input; current HP/status retained; no status, accuracy, formula, ordinary command or AI admission" : effectId == 299 ? "Original Micro Missiles command15/action6/crisis1/sequence21 with declared seven-HP damage post-formula input; current HP/status retained; no percentage formula, ordinary command or AI admission" : effectId == 297 ? "Original White Wind command15/action11/sequence21 with declared seven-HP healing post-formula input; current HP/status retained; no ordinary command, AI or formula admission" : effectId == 74 ? "Original Level Death command15/action3/sequence21 with explicitly declared selected post-formula contact; no level comparison, KO/status result, ordinary command, AI or formula admission" : request.ControlledDrainContact ? "Controlled original Absorb presentation with paired declared drain halves and original target resistance; no ordinary formula or inventory admission" : effectId == 62 ? "Controlled original Devour action104 with actual target outcome; no ordinary formula or inventory admission" : "Controlled actor-director action104 and seven-HP contact; no ordinary action or formula admission", Effect = effectId, exported.Selection, action.Command, action.ActionId, callbacks, DiagnosticMaximumCallbacks = 4096, contacts, contactGlyphs, secondaryContactGlyphs, completions, visibleChangedRgb, cameraChanged, stageChanged, actor6Activated, effect20VibrationHandle, RestoredBoundaries = restoredBoundaries, completed.Frame, NativeCallback = completed.NativeGraphics!.Callback }));
+            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Scenario = effectId == 151 ? "Original Cannon Blow command8/action69/sequence16 and formation125 with declared seven-HP post-formula contact and logical HP/status retained; no formula, accuracy, ordinary command or AI admission" : effectId == 150 ? "Original Gatling Gun command8/action68/sequence14 and formation125 with declared seven-HP post-formula contact and logical HP/status retained; no formula, accuracy, ordinary command or AI admission" : effectId == 129 ? "Original Breath129 command8/action102/sequence12 and formation338 with declared seven-HP post-formula presentation and logical HP/status retained; no formula, accuracy, ordinary command or AI turn admission" : effectId == 139 ? "Original Sonic Wave command8/action182/sequence11 and formation384 with declared seven-HP post-formula presentation and logical HP/status retained; no formula, accuracy, ordinary command or AI turn admission" : effectId == 183 ? "Original effect183 command23/action11/sequence23 and formation94; declared seven-HP post-formula presentation with logical HP/status retained; no level formula, status result, accuracy or ordinary command admission" : effectId == 157 ? "Original Breath command8/action37/sequence14 and formation413 with declared seven-HP post-formula contact and logical HP/status retained; no formula, accuracy, ordinary command or AI admission" : effectId == 156 ? "Original Wild Cannon Blow command8/action70/sequence17 and formation125 with declared seven-HP post-formula contact and logical HP/status retained; no formula, accuracy, ordinary command or AI admission" : effectId == 155 ? "Original Sand Storm command8/action39/sequence14 and formation452 with declared seven-HP post-formula contact and logical HP/status retained; no formula, accuracy, ordinary command or AI admission" : effectId == 128 ? "Original Gastric Juice command8/action77/sequence14 and formation220 with declared seven-HP post-formula contact and logical HP/status retained; no formula, accuracy, ordinary command or AI admission" : effectId == 132 ? "Original Disolving Acid command8/action183/sequence12 and formation376 with declared seven-HP post-formula contact and logical HP/status retained; no formula, accuracy, ordinary command or AI admission" : effectId == 136 ? "Original Oil Shot command8/action180/sequence13 and formation384 with declared seven-HP post-formula contact and logical HP/status retained; no formula, accuracy, ordinary command or AI admission" : effectId == 138 ? "Original Saliva command8/action175/sequence16 and formation378 with declared seven-HP post-formula contact and logical HP/status retained; no formula, accuracy, ordinary command or AI admission" : effectId == 131 ? "Original Enemy Bad Breath command8/action184/sequence14 and formation376 with declared seven-HP post-formula contact and logical HP/status retained; no status formula, accuracy, ordinary command or AI admission" : effectId == 126 ? "Original Electric Discharge command8/action28/sequence15 and formation666 with declared seven-HP post-formula contact and logical HP/status retained; no ordinary command, AI, accuracy or formula admission" : effectId == 137 ? "Original Oil Blast command8/action181/sequence12 and formation384 with declared seven-HP post-formula contact and logical HP/status retained; no ordinary action, accuracy, AI or formula admission" : effectId == 158 ? "Original Melt-Eye command8/action36/sequence13 with declared seven-HP post-formula contact and logical HP/status retained; no magic damage/status formula, accuracy, ordinary command or AI admission" : effectId == 217 ? "Original Energy Bomber command8/action316/sequence16, both formation796 enemies retained, declared seven-HP post-formula contact with logical HP/status retained; no physical formula, accuracy, ordinary command or AI admission" : effectId == 101 ? "Original unnamed Effect101 command8/action290/sequence13; real recipient sequence14 has no contact event, unused declared seven-HP packet, logical HP/status retained; no formula, accuracy, ordinary command or AI admission" : effectId == 71 ? "Original Laser Eye command15/action0/crisis1/sequence21 with declared seven-HP post-formula contact and retained logical HP/status; no damage formula, accuracy, ordinary command or AI admission" : effectId == 260 ? "Original Shockwave Pulsar command15/action15/crisis1/sequence21 with declared seven-HP post-formula contact and retained logical HP/status; no magic damage or status formula, accuracy, ordinary command, GF or AI admission" : effectId == 307 ? "Original Blue Ray-Bomb command15/action14/crisis1/sequence21 with declared seven-HP post-formula contact and retained logical HP/status; no magic damage or status formula, accuracy, ordinary command or AI admission" : effectId == 184 ? "Original Blue Ultra Waves command15/action1/crisis1/sequence21 with declared seven-HP post-formula contact and retained logical HP/status; no magic damage or status formula, accuracy, ordinary command or AI admission" : effectId == 275 ? "Original Electrocute command15/action2/crisis1/sequence21 with declared seven-HP post-formula contact and retained logical HP/status; no magic damage formula, accuracy, ordinary command or AI admission" : effectId == 317 ? "Original Acid command15/action7/crisis1/sequence21 with declared seven-HP post-formula contact and retained logical HP/status; no magic damage or status formula, accuracy, ordinary command or AI admission" : effectId == 305 ? "Original Gatling Gun command15/action8/crisis1/sequence21 with declared seven-HP damage post-formula input and retained logical HP/status; no physical damage formula, accuracy, ordinary command or AI admission" : effectId == 306 ? "Original Degenerator command15/action4/crisis1/sequence21 with declared Amount0 post-formula contact; native MISS/non-MISS body and visibility branch, actual logical HP/status retained; no removal/status formula, accuracy, ordinary command or AI admission" : effectId == 300 ? "Original Bad Breath command15/action10/crisis1/sequence21 with declared Amount0 MISS post-formula input; current HP/status retained; no status, accuracy, formula, ordinary command or AI admission" : effectId == 299 ? "Original Micro Missiles command15/action6/crisis1/sequence21 with declared seven-HP damage post-formula input; current HP/status retained; no percentage formula, ordinary command or AI admission" : effectId == 297 ? "Original White Wind command15/action11/sequence21 with declared seven-HP healing post-formula input; current HP/status retained; no ordinary command, AI or formula admission" : effectId == 74 ? "Original Level Death command15/action3/sequence21 with explicitly declared selected post-formula contact; no level comparison, KO/status result, ordinary command, AI or formula admission" : request.ControlledDrainContact ? "Controlled original Absorb presentation with paired declared drain halves and original target resistance; no ordinary formula or inventory admission" : effectId == 62 ? "Controlled original Devour action104 with actual target outcome; no ordinary formula or inventory admission" : "Controlled actor-director action104 and seven-HP contact; no ordinary action or formula admission", Effect = effectId, exported.Selection, action.Command, action.ActionId, callbacks, DiagnosticMaximumCallbacks = 4096, contacts, contactGlyphs, secondaryContactGlyphs, completions, visibleChangedRgb, cameraChanged, stageChanged, actor6Activated, effect20VibrationHandle, RestoredBoundaries = restoredBoundaries, completed.Frame, NativeCallback = completed.NativeGraphics!.Callback }));
 
             NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot)
             {
@@ -3870,7 +4068,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
             return wavesCommon.Union(graphics.PrimitiveFrame!.LastCommands.Select(item => item.Command.Packet).Where(packet => packet.Buffer == 0 && packet.Bank is "22DB3C4" or "22BE8E8" or "D34868"));
         }
         DirectedNodePacketState state = Director(current);
-        if (state.Effect is 135 or 131 or 128 or 155 or 156 or 157 or 183 or 150 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 101 or 71 or 130 or 127 or 8 or 20 or 23 or 29 or 43 or 47 or 56 or 60 or 62 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 260 && (state.PrimaryDrawCursor is null || state.SecondaryDrawCursor is null))
+        if (state.Effect is 135 or 131 or 128 or 155 or 156 or 157 or 183 or 150 or 151 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 101 or 71 or 130 or 127 or 8 or 20 or 23 or 29 or 43 or 47 or 56 or 60 or 62 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 260 && (state.PrimaryDrawCursor is null || state.SecondaryDrawCursor is null))
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
@@ -3880,7 +4078,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
         int end = state.PrimaryDrawCursor ?? throw new InvalidDataException("The actor director sprite span requires its actual current primary end.");
         Assert.InRange(start, state.SourceArenaOffset, state.SourceArenaOffset + state.DrawStep);
         Assert.InRange(end, start, secondary);
-        IEnumerable<NativeBattlePrimitiveReference> sprites = graphics.PrimitiveFrame!.LastCommands.Select(resolved => resolved.Command).Where(command => command.Packet.Bank == state.PacketBank && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start && command.Packet.ByteOffset < end && (state.Effect == 139 || command.Opcode is >= 0x20 and < 0x80 || (state.Effect is 136 or 137 or 138 or 183 or 150 or 139 or 129) && command.Opcode == 0xE2 || state.Effect == 136 && command.Opcode == 0xE1 || state.Effect == 131 && command.Opcode is 0xE1 or 0xE2)).Select(command => command.Packet);
+        IEnumerable<NativeBattlePrimitiveReference> sprites = graphics.PrimitiveFrame!.LastCommands.Select(resolved => resolved.Command).Where(command => command.Packet.Bank == state.PacketBank && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start && command.Packet.ByteOffset < end && (state.Effect == 139 || command.Opcode is >= 0x20 and < 0x80 || (state.Effect is 136 or 137 or 138 or 183 or 150 or 151 or 139 or 129) && command.Opcode == 0xE2 || state.Effect == 136 && command.Opcode == 0xE1 || state.Effect == 131 && command.Opcode is 0xE1 or 0xE2)).Select(command => command.Packet);
         return common.Union(sprites);
     }
 
@@ -3916,6 +4114,21 @@ public sealed class NativeBattleActorDirectorPresentationTests
             NativeBattleModulePoolTask root = snapshot.NativeGraphics.OriginalEffect.Pools[0].Slots.Single(task => task.Callback == NativeBattleSonic139Profile.RootCallback);
             int start = source + (root.ReadDword(16) == 0 ? NativeBattleSonic139Profile.FirstPacketOffset : NativeBattleSonic139Profile.SecondPacketOffset);
             return new(effect, source + NativeBattleSonic139Profile.FirstPacketOffset, checked((int)(cursor - 0x20DFAB8u)), start + NativeBattleSonic139Profile.PacketBankBytes, NativeBattleSonic139Profile.PacketBankBytes, false);
+        }
+        if (effect == 151)
+        {
+            NativeBattleCannonBlow151State state = snapshot.NativeEffectMemory!.CannonBlow151 ?? throw new InvalidDataException("Cannon Blow requires its actual scalar owner and COMMON arena.");
+            uint cursor = state.ReadDword(NativeBattleCannonBlow151Profile.CursorGlobal);
+            NativeBattleModulePoolTask? root = snapshot.NativeGraphics.OriginalEffect.Pools.SingleOrDefault(pool => pool.DescriptorAddress == NativeBattleCannonBlow151Profile.RootDescriptor)?.Slots.SingleOrDefault(task => (task.Flags & 1) != 0 && task.Callback == NativeBattleCannonBlow151Profile.RootCallback);
+            if (root is null || cursor == 0)
+            {
+                return new(effect, 0, null, null, NativeBattleCannonBlow151Profile.PacketStep, false);
+            }
+            Assert.Equal(NativeBattleCannonBlow151Profile.ArenaAddress, state.ReadDword(NativeBattleCannonBlow151Profile.WorkingGlobal));
+            int start = (root.ReadWord(12) & 1) == 0 ? NativeBattleCannonBlow151Profile.PacketStep : 0;
+            int current = checked((int)(cursor - NativeBattleCannonBlow151Profile.ArenaAddress));
+            Assert.InRange(current, start, start + NativeBattleCannonBlow151Profile.PacketStep);
+            return new(effect, 0, current, start + NativeBattleCannonBlow151Profile.PacketStep, NativeBattleCannonBlow151Profile.PacketStep, false);
         }
         if (effect == 150)
         {
@@ -4514,6 +4727,79 @@ public sealed class NativeBattleActorDirectorPresentationTests
         return JsonSerializer.Serialize(lanes);
     }
 
+    private static void AssertCannon151ScrollingUv(NativeBattleStaticMeshResource mesh, NativeBattleLogicalCommand command, int vOffset)
+    {
+        int selectedGroup = (command.Opcode & 0xFC) switch { 0x24 => 2, 0x2C => 3, 0x3C => 7, _ => throw new InvalidDataException("Cannon Blow scrolling packet leaves its reached primitive groups.") };
+        int[] wordOffsets = selectedGroup == 2 ? [2, 4, 6] : selectedGroup == 3 ? [2, 4, 6, 8] : [2, 5, 8, 11];
+        int[] strides = [12, 12, 20, 24, 20, 24, 28, 36];
+        int cursor = BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan());
+        bool matched = false;
+        for (int group = 0; group < 8; group++)
+        {
+            int count = BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan().Slice(cursor, 4));
+            cursor += 4;
+            if (group == selectedGroup)
+            {
+                for (int face = 0; face < count; face++)
+                {
+                    ReadOnlySpan<byte> bytes = mesh.Bytes.AsSpan().Slice(cursor + face * strides[group], strides[group]);
+                    uint first = BinaryPrimitives.ReadUInt32LittleEndian(bytes[12..]);
+                    uint second = BinaryPrimitives.ReadUInt32LittleEndian(bytes[16..]);
+                    uint[] uv = group == 2 ? [first, second, BinaryPrimitives.ReadUInt16LittleEndian(bytes[10..])] : [first, second, BinaryPrimitives.ReadUInt16LittleEndian(bytes[20..]), BinaryPrimitives.ReadUInt16LittleEndian(bytes[22..])];
+                    ImmutableArray<byte> v = NativeBattleEffectTextureWindows.OffsetAxisSigned(uv.Select(value => unchecked((byte)(value >> 8))), vOffset % 128, 128);
+                    bool equal = true;
+                    for (int corner = 0; corner < uv.Length; corner++)
+                    {
+                        uint expected = (uv[corner] & 0xFFFF00FFu) | (uint)v[corner] << 8;
+                        uint mask = corner < 2 ? uint.MaxValue : 0xFFFFu;
+                        equal &= (command.Words[wordOffsets[corner]] & mask) == (expected & mask);
+                    }
+                    matched |= equal;
+                }
+            }
+            cursor += count * strides[group];
+        }
+        Assert.True(matched, "The current compound scrolling packet did not retain its original source UVs with the actual native signed V scroll.");
+    }
+
+    private static bool Cannon151InsetSprite(NativeBattleModuleResource source, NativeBattleLogicalCommand command)
+    {
+        if (command.WordOffset != 1 || (command.Opcode & 0xFC) != 0x2C || command.Words.Length != 9)
+        {
+            return false;
+        }
+        int frames = BinaryPrimitives.ReadUInt16LittleEndian(source.Bytes.AsSpan().Slice(8));
+        for (int phase = 0; phase < frames; phase++)
+        {
+            NativeBattleModuleSpriteFrame frame = source.ProjectedFrame571C80(phase);
+            for (int offset = 0; offset < frame.Quads.Length; offset += 20)
+            {
+                ReadOnlySpan<byte> quad = frame.Quads.AsSpan().Slice(offset, 20);
+                ushort flags = BinaryPrimitives.ReadUInt16LittleEndian(quad[14..]);
+                int palette = unchecked((sbyte)source.Bytes[4 + (flags >> 12)]);
+                uint clut = unchecked((ushort)(BinaryPrimitives.ReadUInt16LittleEndian(quad[6..]) + (palette << 6)));
+                byte right = unchecked((byte)Math.Min(quad[0] + quad[4] - 1, 255));
+                byte bottom = unchecked((byte)Math.Min(quad[2] + quad[5] - 1, 255));
+                if (command.Opcode == quad[3] && command.Words[2] == (uint)(quad[4] | quad[5] << 8) + (clut << 16) && command.Words[4] == (uint)(right | quad[5] << 8) + ((uint)(flags & 0x1FF) << 16) && (command.Words[6] & 0xFFFF) == (uint)(quad[4] | bottom << 8) && (command.Words[8] & 0xFFFF) == (uint)(right | bottom << 8))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static string Cannon151WordLanes(NativeBattleCannonBlow151State state)
+    {
+        List<object> lanes = [];
+        for (int index = 0; index < NativeBattleCannonBlow151Profile.SampleCount; index++)
+        {
+            var lane = state.ReadView(NativeBattleCannonBlow151Profile.SamplesAddress + (uint)(index * 8 + 6), 2).ReadSnapshot(0, 2);
+            lanes.Add(new { lane.Data, lane.Known });
+        }
+        return JsonSerializer.Serialize(lanes);
+    }
+
     private static string Cannon156WordLanes(NativeBattleWildCannonBlow156State state, uint address, int count)
     {
         List<object> lanes = [];
@@ -4559,6 +4845,16 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 return false;
             }
             return sonicBefore.Slots.Select((task, slot) => (task, slot)).Any(item => (item.task.Flags & 1) != 0 && item.task.Callback == NativeBattleSonic139Profile.TargetCallback && item.task.ReadWord(12) >= 20 && sonicAfter.Slots[item.slot].Callback == item.task.Callback && (sonicAfter.Slots[item.slot].Flags & 1) == 0);
+        }
+        if (effect == 151)
+        {
+            NativeBattleEffectTaskPool? before151 = prior.NativeGraphics!.OriginalEffect?.Pools.SingleOrDefault(pool => pool.DescriptorAddress == NativeBattleCannonBlow151Profile.ChildDescriptor);
+            NativeBattleEffectTaskPool? after151 = current.NativeGraphics!.OriginalEffect?.Pools.SingleOrDefault(pool => pool.DescriptorAddress == NativeBattleCannonBlow151Profile.ChildDescriptor);
+            if (before151 is null || after151 is null)
+            {
+                return false;
+            }
+            return before151.Slots.Select((task, slot) => (task, slot)).Any(item => (item.task.Flags & 1) != 0 && item.task.Callback == NativeBattleCannonBlow151Profile.MainCallback && item.task.ReadWord(12) == 30 && after151.Slots[item.slot].Callback == item.task.Callback && after151.Slots[item.slot].ReadWord(12) == 31);
         }
         if (effect == 150)
         {
