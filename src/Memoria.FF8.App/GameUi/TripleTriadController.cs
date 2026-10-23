@@ -146,6 +146,7 @@ public sealed partial class TripleTriadController
     public void RestoreMatch(TripleTriadMatch match)
     {
         ArgumentNullException.ThrowIfNull(match);
+        replayResolved = false;
         ClearReplayPrompt();
         ClearPresentation();
         ClearTradePresentation();

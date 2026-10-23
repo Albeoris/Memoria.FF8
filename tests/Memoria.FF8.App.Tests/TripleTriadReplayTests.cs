@@ -146,6 +146,54 @@ public sealed class TripleTriadReplayTests
     }
 
     [Theory]
+    [InlineData(0, false)]
+    [InlineData(1, false)]
+    [InlineData(1, true)]
+    public void ResolvedHostReplayIgnoresInputFromTheRetiredView(int choice, bool cancel)
+    {
+        TripleTriadController controller = Create(CreateCards(9, 1));
+        foreach (int id in PlayerHand)
+        {
+            controller.ChooseCard(id);
+        }
+        controller.ChooseOpponentMove = match => new TripleTriadMove(FirstHandSlot(match), FirstEmptyCell(match));
+        while (controller.Match!.Outcome == TripleTriadOutcome.InProgress)
+        {
+            if (controller.Match.CurrentPlayer == 0)
+            {
+                controller.Play(FirstHandSlot(controller.Match), FirstEmptyCell(controller.Match));
+            }
+            else
+            {
+                controller.AdvanceOpponent();
+            }
+        }
+        Assert.Equal(TripleTriadOutcome.PlayerWin, controller.Match.Outcome);
+        int settlements = 0;
+        int replayChoices = 0;
+        controller.CompletionRequested += () =>
+        {
+            settlements++;
+            Assert.Equal(1, settlements);
+            controller.BeginReplayPrompt(() => replayChoices++, () => replayChoices++);
+        };
+        UiView view = controller.BuildView();
+        view.Resize(960, 672);
+        view.Key(UiKey.Confirm);
+        Assert.True(controller.AwaitingReplay);
+        controller.SelectReplayChoice(choice);
+        view.Key(cancel ? UiKey.Cancel : UiKey.Confirm);
+        Assert.False(controller.AwaitingReplay);
+
+        // The live frame can still dispatch another input through the previous view.
+        view.Key(UiKey.Cancel);
+        view.Pointer(700, 620, true);
+        view.Key(UiKey.Confirm);
+        Assert.Equal(1, settlements);
+        Assert.Equal(1, replayChoices);
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(1)]
     public void MouseCanAcceptOrDeclineReplay(int choice)

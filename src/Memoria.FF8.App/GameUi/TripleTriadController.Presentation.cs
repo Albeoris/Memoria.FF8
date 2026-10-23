@@ -62,7 +62,7 @@ public sealed partial class TripleTriadController
 
     public void Navigate(UiKey key)
     {
-        if (IsAnimating)
+        if (replayResolved || IsAnimating)
         {
             return;
         }

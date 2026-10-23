@@ -6,6 +6,7 @@ public sealed partial class TripleTriadController
 {
     private Action? replayAccepted;
     private Action? replayDeclined;
+    private bool replayResolved;
 
     public event Action? ReplayDeclined;
 
@@ -19,6 +20,7 @@ public sealed partial class TripleTriadController
         ArgumentNullException.ThrowIfNull(declined);
         replayAccepted = accepted;
         replayDeclined = declined;
+        replayResolved = false;
         CanReplay = canReplay;
         ReplaySelection = canReplay ? 0 : 1;
         AwaitingReplay = true;
@@ -47,6 +49,8 @@ public sealed partial class TripleTriadController
             bool accepted = key == UiKey.Confirm && ReplaySelection == 0;
             Action callback = (accepted ? replayAccepted : replayDeclined)!;
             ClearReplayPrompt();
+            // The host may replace this controller while its view still has queued input.
+            replayResolved = true;
             RequestSound(accepted ? TripleTriadSound.Confirm : TripleTriadSound.Cancel);
             callback();
         }
@@ -61,6 +65,7 @@ public sealed partial class TripleTriadController
 
     private void ResetForReplay()
     {
+        replayResolved = false;
         ClearPresentation();
         ClearTradePresentation();
         Match = null;
