@@ -14,11 +14,13 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("Native execution stack observations require one nonnested host frame.");
         }
         nativePreRootStack = NativeBattlePreRootStackObserver.BeginHostFrame(NativeHostCallbacks ?? NativeGraphics!.Callback);
+        BeginNativeMegaSpark279Stack(NativeHostCallbacks ?? NativeGraphics!.Callback);
         nativePreCoreUiStack = true;
     }
 
     private void EndNativeFrameStack()
     {
+        EndNativeMegaSpark279Stack();
         nativePreRootStack = null;
         nativePreCoreUiStack = false;
     }
@@ -45,6 +47,7 @@ public sealed partial class BattleSession
 
     private void ObserveNativeUnknownStackCallback(uint callback, string phase)
     {
+        InvalidateNativeMegaSpark279Stack(callback, phase);
         if (nativePreRootStack is { } stack)
         {
             nativePreRootStack = NativeBattlePreRootStackObserver.ObserveUnknownCall(stack, callback, phase);
@@ -75,6 +78,7 @@ public sealed partial class BattleSession
 
     private void ObserveNativeDescriptorStack(NativeBattleGraphicsState graphics, NativeBattleDescriptorState state, int slot)
     {
+        ObserveNativeMegaSpark279DescriptorStack(graphics, state, slot);
         if (nativePreRootStack is not { } stack)
         {
             return;
@@ -96,6 +100,7 @@ public sealed partial class BattleSession
 
     private void ObserveNativeAuxiliaryStack(NativeBattleGraphicsState graphics, NativeBattleAuxiliaryTask task)
     {
+        ObserveNativeMegaSpark279AuxiliaryStack(graphics, task);
         if (nativePreRootStack is not { } stack)
         {
             return;
@@ -114,6 +119,7 @@ public sealed partial class BattleSession
 
     private void ObserveNativeModuleStack(NativeBattleModuleTask task)
     {
+        ObserveNativeMegaSpark279ModuleStack(task);
         if (nativePreRootStack is not { } stack)
         {
             return;

@@ -1,0 +1,71 @@
+using System.Collections.Immutable;
+
+namespace Memoria.FF8.Runtime;
+
+public static class NativeBattleMegaSpark279Profile
+{
+    public const ushort Effect = 279;
+    public const uint Entry = 0x67EFD0;
+    public const uint Initializer = 0x67EFE0;
+    public const uint RootCallback = 0x67F090;
+    public const uint MainCallback = 0x67F340;
+    public const uint RootDescriptor = 0x25080E0;
+    public const uint RootBank = 0x25080F0;
+    public const int RootBankLength = 20;
+    public const uint BaseAddress = 0x2508070;
+    public const uint InitializerGlobal = 0x2508070;
+    public const uint ParametersGlobal = 0x2508074;
+    public const uint CasterGlobal = 0x2508078;
+    public const uint CursorGlobal = 0x2508104;
+    public const uint SeedGlobal = 0x2508108;
+    public const uint ArenaGlobal = 0x250810C;
+    public const uint ArenaAddress = 0x20DFAB8;
+    public const int RowsOffset = 15976;
+    public const int RowStride = 40;
+    public const int RowCount = 384;
+    public const int RowHintOffset = 31336;
+    public const int LinkedRowsOffset = RowsOffset;
+    public const int LinkedRowStride = RowStride;
+    public const int LinkedRowCapacity = RowCount;
+    public const int LinkedHintOffset = RowHintOffset;
+    public const int ScratchOffset = 31340;
+    public const int ScratchLength = 512;
+    public const int GeneratedSineOffset = 31852;
+    public const int GeneratedSineLength = 16;
+    public const int FirstPacketOffset = 31868;
+    public const int SecondPacketOffset = 97404;
+    public const int PacketBankBytes = 65536;
+    public const uint SpriteAddress = 0x10AB138;
+    public const int SpriteLength = 260;
+    public const uint CameraAddress = 0x10B1A2C;
+    public const int CameraLength = 368;
+    public const uint SoundAddress = 0x10B1B9C;
+    public const uint TextureNameAddress = 0x10B6F88;
+    public const int TextureLength = 167968;
+    public const uint SourcePointsAddress = 0x10B6D28;
+    public const uint ExtraPointAddress = 0x10B6F80;
+    public const uint AttachmentTablesAddress = 0x10B6D40;
+    public const int AttachmentTableLength = 192;
+    public const int AttachmentRowLength = 24;
+    public const uint DistanceAddress = 0x10B1BA0;
+    public const int DistanceLength = 16384;
+    public const uint NormalizationAddress = 0x10B5BA0;
+    public const uint BodyNormalizationAddress = 0x15244D8;
+    public const int NormalizationLength = 384;
+    public const uint SineAddress = 0x10B5D20;
+    public const int SineLength = 4098;
+    public const uint ProgrammeAAddress = 0x10AB23C;
+    public const int ProgrammeALength = 14888;
+    public const int ProgrammeAWorkspaceLength = 1844;
+    public const uint ProgrammeBAddress = 0x10AEC64;
+    public const int ProgrammeBLength = 4732;
+    public const int ProgrammeBWorkspaceLength = 328;
+    public const uint ProgrammeCAddress = 0x10B0C08;
+    public const int ProgrammeCLength = 3620;
+    public const int ProgrammeCWorkspaceLength = 136;
+    public const uint ProgrammeDAddress = 0x10AFEE0;
+    public const int ProgrammeDLength = 3368;
+    public const int ProgrammeDWorkspaceLength = 272;
+
+    public static readonly ImmutableArray<NativeBattleCureFamilyPool> Pools = [new(RootDescriptor, RootBank, 20, 1), new(0x2508080, ArenaAddress, 20, 16), new(0x2508090, ArenaAddress + 0x140, 316, 3), new(0x25080A0, ArenaAddress + 0x4F4, 316, 16), new(0x25080B0, ArenaAddress + 0x18B4, 56, 48), new(0x25080C0, ArenaAddress + 0x2334, 64, 64), new(0x25080D0, ArenaAddress + 0x3334, 2868, 1)];
+}

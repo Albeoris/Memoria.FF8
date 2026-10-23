@@ -139,9 +139,17 @@ public static class NativeBattleGfMatrices
     public static (int X, int Y, int Z) RotateLong56C600(NativeBattleActionMatrix matrix, int x, int y, int z)
     {
         matrix.Validate();
-        int Row(int row) => NativePrecision53.RoundInteger(matrix.Rotation[row * 3 + 2] * (z / 4096d) + matrix.Rotation[row * 3 + 1] * (y / 4096d) + matrix.Rotation[row * 3] * (x / 4096d));
+        int Row(int row) => NativePrecision53.RoundInteger(RotateDot56C600(matrix, x, y, z, row));
         return (Row(0), Row(1), Row(2));
     }
+
+    public static ulong StoredZ56C600(NativeBattleActionMatrix matrix, int x, int y, int z)
+    {
+        matrix.Validate();
+        return NativePrecision53.StoredDoubleBits(RotateDot56C600(matrix, x, y, z, 2));
+    }
+
+    private static double RotateDot56C600(NativeBattleActionMatrix matrix, int x, int y, int z, int row) => matrix.Rotation[row * 3 + 2] * (z / 4096d) + matrix.Rotation[row * 3 + 1] * (y / 4096d) + matrix.Rotation[row * 3] * (x / 4096d);
 
     /// <summary>460840 followed by45E3E0: rounded rotation, DWORD translation and saturated signed IR WORDs.</summary>
     public static NativeBattleVector Transform460840(NativeBattleActionMatrix matrix, NativeBattleVector vector)
