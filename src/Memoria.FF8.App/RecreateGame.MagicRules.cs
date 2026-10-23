@@ -101,9 +101,29 @@ internal sealed partial class RecreateGame
 
     private void EnsureMagicRuleBoundary()
     {
-        if (session.State.Scene == SceneKind.Field && events is not null && (events.Scene.NativeTutorial is not null || events.Scene.NativeMenuTutorial is not null || events.HasPendingBattle || events.PartyMenu is not null && events.PartyMenu is not { Kind: NativeFieldMenuKind.Normal, Phase: NativePartyMenuPhase.Active } || events.PartyMenu is null && (!events.IsUserControlEnabled || events.IsDialogueBlocking || !events.Scene.MenuEnabled || events.PendingTripleTriad is not null)))
+        if (MagicRuleBoundaryUnavailableReason is { } reason)
         {
-            throw new InvalidOperationException("Magic rules can change only while the field or normal Config menu is idle.");
+            throw new InvalidOperationException(reason);
+        }
+    }
+
+    private string? MagicRuleBoundaryUnavailableReason
+    {
+        get
+        {
+            if (session.State.Scene == SceneKind.Title || session.State.Battle is not null)
+            {
+                return null;
+            }
+            if (session.MagicMutationUnavailableReason is { } reason)
+            {
+                return reason;
+            }
+            if (session.State.Scene == SceneKind.Field && events is not null && (events.Scene.NativeTutorial is not null || events.Scene.NativeMenuTutorial is not null || events.HasPendingBattle || events.PartyMenu is not null && events.PartyMenu is not { Kind: NativeFieldMenuKind.Normal, Phase: NativePartyMenuPhase.Active } || events.PartyMenu is null && (!events.IsUserControlEnabled || events.IsDialogueBlocking || !events.Scene.MenuEnabled || events.PendingTripleTriad is not null)))
+            {
+                return "Magic rules can change only while the field or normal Config menu is idle.";
+            }
+            return null;
         }
     }
 
@@ -111,7 +131,7 @@ internal sealed partial class RecreateGame
     {
         if (session.State.PendingMagicModeReview && session.State.PendingGameplayPreferences is { } pending && session.State.Battle is null && session.State.PendingBattleEncounter is null && session.State.Scene is SceneKind.Field or SceneKind.WorldMap && gameMenus is not null && gameMenus.ScreenId != "mode-review")
         {
-            if (session.State.Scene == SceneKind.Field && events is not null && (events.Scene.NativeTutorial is not null || events.Scene.NativeMenuTutorial is not null || events.PartyMenu is null && (!events.IsUserControlEnabled || events.IsDialogueBlocking || !events.Scene.MenuEnabled || events.PendingTripleTriad is not null)))
+            if (MagicRuleBoundaryUnavailableReason is not null)
             {
                 return;
             }

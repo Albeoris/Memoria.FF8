@@ -24,9 +24,9 @@ public sealed partial class GameSession
             State = State with { PendingGameplayPreferences = preferences, PendingMagicModeReview = preferences.SharedMagicStock != State.GameplayPreferences.SharedMagicStock };
             return;
         }
-        if (State.CharacterVitals is null)
+        if (State.CharacterVitals is null || !MagicRulesDiffer(preferences))
         {
-            State = State with { GameplayPreferences = preferences };
+            State = State with { GameplayPreferences = preferences, PendingGameplayPreferences = null, PendingMagicModeReview = false };
             return;
         }
         ApplyGameplayPreferences(PreviewGameplayPreferences(preferences));
@@ -44,6 +44,11 @@ public sealed partial class GameSession
         if (preview.Source is null || State.CharacterVitals is null || !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(preview.Source), JsonSerializer.SerializeToElement(State.CharacterVitals)))
         {
             throw new InvalidOperationException("The magic migration preview is stale; preview the current party again.");
+        }
+        if (!MagicRulesDiffer(preview.Preferences))
+        {
+            State = State with { GameplayPreferences = preview.Preferences, PendingGameplayPreferences = null, PendingMagicModeReview = false };
+            return;
         }
         RequireMagicMutationBoundary();
         MagicModePreview verified = MagicModeCoordinator.Preview(State.CharacterVitals, preview.Preferences);
@@ -88,12 +93,41 @@ public sealed partial class GameSession
         }
     }
 
+    private bool MagicRulesDiffer(GameplayPreferences preferences)
+    {
+        GameplayPreferences current = State.GameplayPreferences;
+        return preferences.SharedMagicStock != current.SharedMagicStock || preferences.InfiniteMagic != current.InfiniteMagic || preferences.SmartAttack != current.SmartAttack;
+    }
+
+    public string? MagicMutationUnavailableReason
+    {
+        get
+        {
+            static bool Present(JsonElement checkpoint, string name) => checkpoint.TryGetProperty(name, out JsonElement value) && value.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined);
+            if (State.Scene == SceneKind.Field && State.EventState is { ValueKind: JsonValueKind.Object } checkpoint)
+            {
+                if (checkpoint.TryGetProperty("TransitionRequested", out JsonElement transition) && transition.ValueKind == JsonValueKind.True)
+                {
+                    return "Magic rules cannot change during a field transition.";
+                }
+                if (Present(checkpoint, "PartyJoin") || Present(checkpoint, "PartySplit"))
+                {
+                    return "Magic rules cannot change during a scripted party transition.";
+                }
+                if (checkpoint.TryGetProperty("Scene", out JsonElement scene) && scene.ValueKind == JsonValueKind.Object && (Present(scene, "NativeTutorial") || Present(scene, "NativeMenuTutorial")))
+                {
+                    return "Magic rules cannot change during a tutorial.";
+                }
+            }
+            return null;
+        }
+    }
+
     private void RequireMagicMutationBoundary()
     {
-        static bool Present(JsonElement checkpoint, string name) => checkpoint.TryGetProperty(name, out JsonElement value) && value.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined);
-        if (State.EventState is { ValueKind: JsonValueKind.Object } checkpoint && (checkpoint.TryGetProperty("TransitionRequested", out JsonElement transition) && transition.ValueKind == JsonValueKind.True || Present(checkpoint, "PartyJoin") || Present(checkpoint, "PartySplit") || checkpoint.TryGetProperty("Scene", out JsonElement scene) && scene.ValueKind == JsonValueKind.Object && (Present(scene, "NativeTutorial") || Present(scene, "NativeMenuTutorial"))))
+        if (MagicMutationUnavailableReason is { } reason)
         {
-            throw new InvalidOperationException("Magic rules cannot change during tutorial or scripted party transitions.");
+            throw new InvalidOperationException(reason);
         }
     }
 

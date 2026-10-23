@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Memoria.FF8.Runtime;
 
@@ -5,6 +6,84 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class GameplayPreferencesTests
 {
+    [Fact]
+    public void World_checkpoint_with_departed_field_transition_allows_preferences_and_round_trips()
+    {
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("gameplay-preferences-world-transition")));
+        GameState before = session.State;
+        Assert.Equal(SceneKind.WorldMap, before.Scene);
+        Assert.True(before.EventState!.Value.GetProperty("TransitionRequested").GetBoolean());
+        Assert.Null(session.MagicMutationUnavailableReason);
+        GameplayPreferences changed = before.GameplayPreferences with { LimitOncePerTurn = !before.GameplayPreferences.LimitOncePerTurn };
+        session.SetGameplayPreferences(changed);
+        Assert.Same(before.CharacterVitals, session.State.CharacterVitals);
+        Assert.Equal(before.EventState, session.State.EventState);
+        Assert.Equal(before.World, session.State.World);
+        string path = TestResources.ArtifactFile("gameplay-preferences-world.json");
+        session.Save(path, compact: true);
+        GameSession restored = new(GameSession.Load(path));
+        Assert.Equal(changed, restored.State.GameplayPreferences);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(before.CharacterVitals), JsonSerializer.SerializeToElement(restored.State.CharacterVitals)));
+        Assert.True(JsonElement.DeepEquals(before.EventState.Value, restored.State.EventState!.Value));
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(before.World), JsonSerializer.SerializeToElement(restored.State.World)));
+        restored.SetGameplayPreferences(changed with { SmartAttack = !changed.SmartAttack });
+        Assert.Equal(!changed.SmartAttack, restored.State.CharacterVitals!.MagicSystem.SmartAttack);
+    }
+
+    [Theory]
+    [InlineData("{\"TransitionRequested\":true}")]
+    [InlineData("{\"TransitionRequested\":true}", true)]
+    [InlineData("{\"PartyJoin\":{}}")]
+    [InlineData("{\"PartySplit\":{}}")]
+    [InlineData("{\"Scene\":{\"NativeTutorial\":{}}}")]
+    [InlineData("{\"Scene\":{\"NativeMenuTutorial\":{}}}")]
+    public void Non_magic_preferences_preserve_party_owners_during_scripted_boundaries(string checkpoint, bool magicEnabled = false)
+    {
+        GameSession initial = GameSession.CreateColdProcess();
+        initial.StartNewGame();
+        GameplayPreferences preferences = new() { SharedMagicStock = magicEnabled, InfiniteMagic = magicEnabled, SmartAttack = magicEnabled };
+        NativeCharacterVitals vitals = MagicModeCoordinator.Preview(MagicSystemFixture.Create(), preferences).Vitals;
+        JsonObject events = JsonNode.Parse(checkpoint)!.AsObject();
+        events["CharacterVitals"] = JsonSerializer.SerializeToNode(vitals);
+        events["EventMemory"] = JsonSerializer.SerializeToNode(initial.State.EventMemory);
+        GameSession session = new(initial.State with { CharacterVitals = vitals, GameplayPreferences = preferences, EventState = JsonSerializer.SerializeToElement(events) });
+        Assert.NotNull(session.MagicMutationUnavailableReason);
+        GameState before = session.State;
+        GameplayPreferences changed = before.GameplayPreferences with
+        {
+            LimitOncePerTurn = true,
+            GuardianFormsEnabled = true,
+            Difficulty = BattleDifficulty.Hard,
+            AtbMode = BattleAtbMode.Normal,
+            GunbladeMode = BattleGunbladeMode.Manual
+        };
+
+        session.SetGameplayPreferences(changed);
+        Assert.Equal(changed, session.State.GameplayPreferences);
+        Assert.Same(before.CharacterVitals, session.State.CharacterVitals);
+        Assert.Equal(before.EventState, session.State.EventState);
+        Assert.Equal(before.DepartingFieldState, session.State.DepartingFieldState);
+        Assert.Equal(before.SavedBattleFlags, session.State.SavedBattleFlags);
+
+        session.ApplyGameplayPreferences(session.PreviewGameplayPreferences(before.GameplayPreferences));
+        Assert.Equal(before.GameplayPreferences, session.State.GameplayPreferences);
+        Assert.Same(before.CharacterVitals, session.State.CharacterVitals);
+        Assert.Equal(before.EventState, session.State.EventState);
+
+        foreach (GameplayPreferences magicChange in new[]
+        {
+            before.GameplayPreferences with { SharedMagicStock = !magicEnabled },
+            before.GameplayPreferences with { InfiniteMagic = !magicEnabled },
+            before.GameplayPreferences with { SmartAttack = !magicEnabled }
+        })
+        {
+            GameState unchanged = session.State;
+            Assert.Throws<InvalidOperationException>(() => session.SetGameplayPreferences(magicChange));
+            Assert.Throws<InvalidOperationException>(() => session.ApplyGameplayPreferences(session.PreviewGameplayPreferences(magicChange)));
+            Assert.Same(unchanged, session.State);
+        }
+    }
+
     [Fact]
     public void Saved_choices_round_trip_without_crossing_save_owners_and_new_game_resets_them()
     {

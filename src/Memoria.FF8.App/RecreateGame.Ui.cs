@@ -129,6 +129,7 @@ internal sealed partial class RecreateGame
         data.Settings["Shared magic stock"] = magicPreferences.SharedMagicStock ? "On" : "Off";
         data.Settings["Infinite magic"] = magicPreferences.InfiniteMagic ? "On" : "Off";
         data.Settings["Smart Attack"] = magicPreferences.SmartAttack ? "On" : "Off";
+        data.MagicPreferencesUnavailableReason = MagicRuleBoundaryUnavailableReason;
         data.SupportedActions.UnionWith(["config:Shared magic stock", "config:Infinite magic", "config:Smart Attack", "attack-mode"]);
         data.Settings["Limit once per turn"] = ReadCurrentUiPreferences().LimitOncePerTurn ? "On" : "Off";
         data.SupportedActions.Add("config:Limit once per turn");

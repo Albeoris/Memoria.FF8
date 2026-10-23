@@ -16,6 +16,7 @@ public sealed class MenuData
     public bool SmartAttack { get; set; }
     public bool LimitOncePerTurnPreferenceLocked { get; set; }
     public bool GuardianFormsPreferenceLocked { get; set; }
+    public string? MagicPreferencesUnavailableReason { get; set; }
     public List<MenuCharacter> Characters { get; } = [];
     public List<MenuGuardianForce> GuardianForces { get; } = [];
     public List<MenuItem> Items { get; } = [];

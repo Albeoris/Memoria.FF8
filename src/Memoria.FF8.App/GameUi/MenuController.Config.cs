@@ -66,13 +66,15 @@ public sealed partial class MenuController
             }
             string value = ConfigValue(setting.Id);
             int next = (Array.IndexOf(setting.Values, value) + 1) % setting.Values.Length;
-            bool enabled = setting.Id switch
+            string? unavailableReason = setting.Id switch
             {
-                "GF Transformations" => !Data.GuardianFormsPreferenceLocked,
-                "Limit once per turn" => !Data.LimitOncePerTurnPreferenceLocked,
-                _ => true
+                "GF Transformations" when Data.GuardianFormsPreferenceLocked => newGame ? "GF Transformations is unavailable until the battle ends." : "GF Transformations is unavailable until the active or pending battle ends.",
+                "Limit once per turn" when Data.LimitOncePerTurnPreferenceLocked => "Limit once per turn is unavailable until the active or pending battle ends.",
+                "Shared magic stock" or "Infinite magic" or "Smart Attack" => Data.MagicPreferencesUnavailableReason,
+                _ => null
             };
-            string help = !enabled && setting.Id == "Limit once per turn" ? "Limit once per turn is unavailable until the active or pending battle ends." : enabled ? setting.Id is "UI font" or "Dialogue font" ? FontDisplayValue(setting.Id) + ". " + setting.Description : setting.Description : newGame ? "GF Transformations is unavailable until the battle ends." : "GF Transformations is unavailable until the active or pending battle ends.";
+            bool enabled = unavailableReason is null;
+            string help = unavailableReason ?? (setting.Id is "UI font" or "Dialogue font" ? FontDisplayValue(setting.Id) + ". " + setting.Description : setting.Description);
             MenuAction action = setting.Id == "Quick saves" && !newGame ? new("quick-save-open") : setting.Id is "UI font" or "Dialogue font" ? new("font-picker-open", setting.Id) : new("config", setting.Id, Value: setting.Values[next]);
             entries.Add(new MenuEntry(setting.Id, newGame ? MagicUiText.SettingLabel(setting.Id) : ConfigLabel(setting.Id), help, Action: action, Enabled: enabled));
         }
