@@ -18,7 +18,7 @@ public sealed class BattleRewardLearningCommitTests
         BattleGuardianForceRewardPresentation growth = Assert.Single(preview.Rewards.GuardianForceGrowth, growth => growth.Id == 0);
         Assert.Contains(fixture.CompletedAbility.Ability, growth.LearnedAbilityIds);
         Assert.True(preview.CharacterVitals.GuardianForces[0].LearnedBank.Has(fixture.CompletedAbility.Ability));
-        Assert.Equal(fixture.CompletedAbility.RequiredPoints - 1 + preview.Rewards.GuardianForceAbilityPoints[0], preview.CharacterVitals.GuardianForces[0].AbilityProgress[fixture.CompletedAbility.LearningIndex]);
+        Assert.Equal(fixture.CompletedAbility.RequiredPoints - 1 + preview.Rewards.GuardianForceAbilityPoints[0], preview.CharacterVitals.GuardianForces[0].Progression!.Abilities.Single(entry => entry.Ability == fixture.CompletedAbility.Ability).EarnedPoints);
         int selected = NextChoice(preview);
         NativeCharacterVitals expected = preview.CharacterVitals.SelectGuardianForceLearning(0, selected);
 
@@ -85,9 +85,7 @@ public sealed class BattleRewardLearningCommitTests
         NativeGuardianForceAbility completing = vitals.GuardianForceAbilities(0).First(entry => !entry.Learned && entry.Ability != 0 && entry.RequiredPoints >= 20);
         NativeGuardianForceAbility incomplete = vitals.GuardianForceAbilities(1).First(entry => !entry.Learned && entry.Ability != 0 && entry.RequiredPoints >= 20);
         vitals = vitals.SelectGuardianForceLearning(0, completing.Ability).SelectGuardianForceLearning(1, incomplete.Ability);
-        NativeGuardianForceVital[] guardianForces = vitals.GuardianForces.ToArray();
-        guardianForces[0] = guardianForces[0] with { AbilityProgress = guardianForces[0].AbilityProgress.SetItem(completing.LearningIndex, checked((byte)(completing.RequiredPoints - 1))) };
-        vitals = vitals with { GuardianForces = guardianForces };
+        vitals = vitals.AwardGuardianForceAbilityPoints(0, checked((ushort)(completing.RequiredPoints - 1 - completing.Progress)));
         GameSession session = new(new GameState { InputConfiguration = assets.ReadNewGameInputConfiguration(), NativeBattleMemory = assets.ReadColdProcessNativeBattleMemory(), Scene = SceneKind.Field, FieldId = 999, CharacterVitals = vitals, CharacterAppearance = assets.ReadNewGameCharacterAppearance(), Economy = assets.ReadNewGameEconomy(), BattleVariables = NativeBattleVariableState.CreateNewGame(), LimitProgress = assets.ReadNewGameLimitProgress(), SavedBattleFlags = assets.ReadNewGameSavedBattleFlags(), PocketStation = assets.ReadNewGamePocketStation(), ScannedModels = assets.ReadNewGameScannedModels(), ShotAvailability = assets.ReadNewGameShotAvailability(), GlobalRandom = assets.ReadNewGameGlobalRandom(), KnownMagic = assets.ReadNewGameKnownMagic() });
         BattleResult result;
         using (GameWorld setup = new(session, assets.GameDirectory))

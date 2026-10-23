@@ -45,17 +45,21 @@ public sealed class NativeGuardianForceLearningReviewTests
                 Assert.Same(current, current.AwardGuardianForceAbilityPoints(id, 0));
                 int remaining = target.RequiredPoints - target.Progress;
                 Assert.True(remaining > 0);
+                int nativeIndex = Array.FindIndex(current.MenuDefinitions.Learning[id].ToArray(), rule => rule.Ability == target.Ability);
+                Assert.True(nativeIndex >= 0);
                 NativeCharacterVitals partial = current.AwardGuardianForceAbilityPoints(id, checked((ushort)(remaining - 1)));
                 Assert.False(partial.GuardianForces[id].LearnedBank.Has(target.Ability));
-                Assert.Equal(target.RequiredPoints - 1, partial.GuardianForces[id].AbilityProgress[target.LearningIndex]);
+                Assert.Equal(target.RequiredPoints - 1, partial.GuardianForceAbilities(id).Single(entry => entry.Ability == target.Ability).Progress);
+                Assert.Equal(target.RequiredPoints - 1, partial.GuardianForces[id].AbilityProgress[nativeIndex]);
                 string preserved = JsonSerializer.Serialize(partial);
                 NativeCharacterVitals learned = partial.AwardGuardianForceAbilityPoints(id, ushort.MaxValue);
                 Assert.Equal(preserved, JsonSerializer.Serialize(partial));
                 Assert.True(learned.GuardianForces[id].LearnedBank.Has(target.Ability));
-                Assert.Equal(255, learned.GuardianForces[id].AbilityProgress[target.LearningIndex]);
+                Assert.Equal(255, learned.GuardianForces[id].Progression!.Abilities.Single(entry => entry.Ability == target.Ability).EarnedPoints);
+                Assert.Equal(255, learned.GuardianForces[id].AbilityProgress[nativeIndex]);
                 for (int index = 0; index < 21; index++)
                 {
-                    if (index != target.LearningIndex)
+                    if (index != nativeIndex)
                     {
                         Assert.Equal(partial.GuardianForces[id].AbilityProgress[index], learned.GuardianForces[id].AbilityProgress[index]);
                     }

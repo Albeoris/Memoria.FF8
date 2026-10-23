@@ -169,11 +169,13 @@ public sealed class BattleResultFactTests
     [Fact]
     public void FactualEffectsUseCurrentRewardRulesAndConsumeTheirOccurrenceExactlyOnce()
     {
-        (NativeCharacterVitals vitals, NativeEconomy economy, BattleResult fact, int learningIndex) = Fixture();
+        (NativeCharacterVitals vitals, NativeEconomy economy, BattleResult fact, int learningAbility) = Fixture();
+        AssertLearningProgress(vitals, learningAbility, 0);
         BattleResultOwners firstRules = Project(fact, vitals, economy, fact.DefeatedEnemySlots.ToDictionary(slot => slot, _ => 1));
         BattleResultOwners changedRules = Project(fact, vitals, economy, fact.DefeatedEnemySlots.Select((slot, index) => (slot, points: index + 3)).ToDictionary(entry => entry.slot, entry => entry.points));
-        Assert.Equal(2, firstRules.CharacterVitals.GuardianForces[0].AbilityProgress[learningIndex]);
-        Assert.Equal(7, changedRules.CharacterVitals.GuardianForces[0].AbilityProgress[learningIndex]);
+        AssertLearningProgress(firstRules.CharacterVitals, learningAbility, 2);
+        AssertLearningProgress(changedRules.CharacterVitals, learningAbility, 7);
+        AssertLearningProgress(vitals, learningAbility, 0);
         Assert.Equal(fact.Party[0].HitPointsAfter, firstRules.CharacterVitals.Records[0].HitPoints.Minimum);
         Assert.Equal(5, firstRules.CharacterVitals.Records[0].MagicInventory.Single(stock => stock.SpellId == 1).Count);
         Assert.Equal(fact.ItemConsumptions[0].CountBefore - 1, firstRules.Economy.Items.Single(stock => stock.ItemId == 1).Count);
@@ -181,7 +183,7 @@ public sealed class BattleResultFactTests
         session.SetPendingBattleEncounter(fact.Encounter);
         using GameWorld world = new(session, TestResources.GameDirectory);
         world.ApplyBattleResult(fact.Encounter, fact);
-        Assert.Equal(2, session.State.CharacterVitals!.GuardianForces[0].AbilityProgress[learningIndex]);
+        AssertLearningProgress(session.State.CharacterVitals!, learningAbility, 2);
         Assert.Null(session.State.PendingBattleEncounter);
         Assert.Equal(fact.Encounter.OccurrenceId, Assert.Single(session.State.AppliedBattleResultIds));
         string committed = JsonSerializer.Serialize(session.State);
@@ -350,6 +352,15 @@ public sealed class BattleResultFactTests
         Assert.Throws<NotSupportedException>(() => session.InitializeNewGameKnownMagic(clear));
     }
 
+    private static void AssertLearningProgress(NativeCharacterVitals vitals, int ability, int expected)
+    {
+        Assert.Equal(expected, vitals.GuardianForceAbilities(0).Single(entry => entry.Ability == ability).Progress);
+        Assert.Equal(expected, vitals.GuardianForces[0].Progression!.Abilities.Single(entry => entry.Ability == ability).EarnedPoints);
+        int nativeIndex = Array.FindIndex(vitals.MenuDefinitions.Learning[0].ToArray(), rule => rule.Ability == ability);
+        Assert.True(nativeIndex >= 0);
+        Assert.Equal(expected, vitals.GuardianForces[0].AbilityProgress[nativeIndex]);
+    }
+
     private static BattleResultOwners Project(BattleResult fact, NativeCharacterVitals vitals, NativeEconomy economy, IReadOnlyDictionary<int, int> points)
     {
         using GameAssets assets = new(TestResources.GameDirectory);
@@ -374,6 +385,6 @@ public sealed class BattleResultFactTests
         NativeItemStock potion = economy.Items.Single(stock => stock.ItemId == 1);
         BattleEncounterOccurrence occurrence = new("component-encounter-0", 512, battles.FormationSourceHash(512), SceneKind.Field, 74, 0, new string('A', 64), null);
         BattleResult outcome = new(occurrence, BattleOutcome.Victory, [new(0, records[0].CharacterId, records[0].HitPoints.Minimum, (ushort)(records[0].HitPoints.Minimum - 10), records[0].Status, records[0].Status, [new(1, 2, 3)])], [new(1, potion.Count, 1)], battles.LoadEncounter(512).Enemies.Select(enemy => enemy.Slot).ToArray(), [0], false, BattleRewardPolicy.NativeCombat, battles.LoadEncounter(512).Enemies.Select(enemy => new BattleEnemyDefeat(enemy.Slot, 8, BattleDefeatCredit.Character, 0, null, false, -1)).ToArray());
-        return (vitals, economy, outcome, learning.LearningIndex);
+        return (vitals, economy, outcome, learning.Ability);
     }
 }

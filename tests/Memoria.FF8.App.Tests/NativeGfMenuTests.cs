@@ -28,7 +28,7 @@ public sealed class NativeGfMenuTests
         Assert.Equal(1, selected.GuardianForceAbilities(0).Single(ability => ability.Ability == first.Ability).Progress);
         NativeCharacterVitals learned = selected.AwardGuardianForceAbilityPoints(0, ushort.MaxValue);
         Assert.True(learned.GuardianForces[0].LearnedBank.Has(first.Ability));
-        Assert.Equal(255, learned.GuardianForces[0].AbilityProgress[first.LearningIndex]);
+        Assert.Equal(255, learned.GuardianForces[0].Progression!.Abilities.Single(entry => entry.Ability == first.Ability).EarnedPoints);
         Assert.NotEqual(first.Ability, learned.GuardianForces[0].Learning);
         Assert.Throws<InvalidOperationException>(() => learned.SelectGuardianForceLearning(0, first.Ability));
         Assert.Equal(preserved, JsonSerializer.Serialize(original));

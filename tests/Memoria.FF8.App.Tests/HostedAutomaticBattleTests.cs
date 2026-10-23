@@ -81,7 +81,7 @@ public sealed class HostedAutomaticBattleTests
     [Fact]
     public void ResearchHostPublishesCurrentInstalledApWithoutSimulatedCombat()
     {
-        (GameSession session, int learningIndex) = Fixture();
+        (GameSession session, int learningAbility) = Fixture();
         using BattleAssets assets = new(TestResources.GameDirectory);
         int expectedAp = assets.LoadEncounter(512).Enemies.Sum(enemy => assets.ReadEnemyAbilityPoints(enemy.ModelId));
         NativeCharacterVitals before = session.State.CharacterVitals!.DeepCopy();
@@ -95,7 +95,7 @@ public sealed class HostedAutomaticBattleTests
         Assert.Null(session.State.Battle);
         Assert.Null(session.State.PendingBattleEncounter);
         Assert.Single(session.State.AppliedBattleResultIds);
-        Assert.Equal(expectedAp, session.State.CharacterVitals!.GuardianForces[0].AbilityProgress[learningIndex]);
+        Assert.Equal(expectedAp, session.State.CharacterVitals!.GuardianForceAbilities(0).Single(entry => entry.Ability == learningAbility).Progress);
         Assert.Equal(before.Records[0].HitPoints, session.State.CharacterVitals.Records[0].HitPoints);
         Assert.Equal(before.Records[0].Status, session.State.CharacterVitals.Records[0].Status);
         Assert.Equal(before.Records[0].MagicInventory, session.State.CharacterVitals.Records[0].MagicInventory);
@@ -104,7 +104,7 @@ public sealed class HostedAutomaticBattleTests
         Assert.Equal(0, Assert.Single(world.Events.Scene.NativeBattleCompletions!).EmulatedCombatCallbacks);
         world.Events.Step();
         Assert.Single(session.State.AppliedBattleResultIds);
-        Assert.Equal(expectedAp, session.State.CharacterVitals.GuardianForces[0].AbilityProgress[learningIndex]);
+        Assert.Equal(expectedAp, session.State.CharacterVitals.GuardianForceAbilities(0).Single(entry => entry.Ability == learningAbility).Progress);
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public sealed class HostedAutomaticBattleTests
         Assert.Empty(session.State.AppliedBattleResultIds);
     }
 
-    private static (GameSession Session, int LearningIndex) Fixture()
+    private static (GameSession Session, int LearningAbility) Fixture()
     {
         using GameAssets assets = new(TestResources.GameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).ToggleGuardianForceJunction(0, 0).RebuildParty().Rest();
@@ -146,7 +146,7 @@ public sealed class HostedAutomaticBattleTests
         session.InitializeNewGameGlobalRandom(assets.ReadNewGameGlobalRandom());
         session.InitializeNewGameKnownMagic(assets.ReadNewGameKnownMagic());
         session.Restore(session.State with { Scene = SceneKind.Field, FieldId = 999, FieldLoadContext = null, FieldRequestPacket = null, FieldName = "synthetic-automatic-battle-component" });
-        return (session, learning.LearningIndex);
+        return (session, learning.Ability);
     }
 
     private static byte[] Program(int encounter = 512)
