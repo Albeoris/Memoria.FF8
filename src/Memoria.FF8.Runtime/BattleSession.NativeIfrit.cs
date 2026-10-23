@@ -164,7 +164,8 @@ public sealed partial class BattleSession
                     return new(ArenaOffset(start, length), length, start);
                 }
             }
-            throw new NotSupportedException("Native cinematic instruction leaves its current resource owners.");
+            string owners = string.Join(", ", Enumerable.Range(0, assets.Length).Select(index => $"resource {index} at {CoreDword(current, 0x2798A68 + (uint)(index * 4)):X8} length {assets[index].Data.Length:X}"));
+            throw new NotSupportedException($"Native cinematic effect {profile.Effect} instruction at PC {address:X8} leaves its current resource owners ({owners}); slot {current.ReadTemporaryByte(0x142)}, stream {current.ReadTemporaryByte(0x143)}.");
         }
 
         ushort ReadInstruction(NativeBattleWaterExecutionFrame current, uint address)

@@ -8,6 +8,7 @@ public sealed record NativeBattleGuardianFormPresentation(string ActorId, long I
     public bool SkipRequested { get; init; }
     public ImmutableArray<ushort?> ModelVisibilityFlags2 { get; init; } = [];
     public short HumanFocalLength { get; init; }
+    public bool IdleCameraRestorePending { get; init; }
 
     public void Validate()
     {

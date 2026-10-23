@@ -24,7 +24,13 @@ public sealed class NativeBattleIfritFormPresentationTests
         RunFinisher(false, false, state.NativeBattleMemory);
     }
 
-    private static void RunFinisher(bool skip, bool skipAfterContact, NativeBattleRetainedMemory? retainedMemory = null)
+    [Fact]
+    public void Installed_Ifrit_form_Fire_completes_with_a_status_specific_human_standing_sequence()
+    {
+        RunFinisher(false, false, statusStanding: true);
+    }
+
+    private static void RunFinisher(bool skip, bool skipAfterContact, NativeBattleRetainedMemory? retainedMemory = null, bool statusStanding = false)
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(directory is not null, "Select installed original resources with MEMORIA_FF8_GAME_DIR.");
@@ -46,7 +52,7 @@ public sealed class NativeBattleIfritFormPresentationTests
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         BattleScenePresentation scene = new(assets, definition, true);
         string? root = Environment.GetEnvironmentVariable("MEMORIA_FF8_IFRIT_FORM_EVIDENCE");
-        string? output = root is null ? null : Path.Combine(root, skip ? skipAfterContact ? "skip-after-contact" : "skip" : "finisher");
+        string? output = root is null ? null : Path.Combine(root, statusStanding ? "status-standing" : retainedMemory is not null ? "loaded-finisher" : skip ? skipAfterContact ? "skip-after-contact" : "skip" : "finisher");
         if (output is not null)
         {
             Directory.CreateDirectory(output);
@@ -58,6 +64,14 @@ public sealed class NativeBattleIfritFormPresentationTests
             ushort[] visibility = battle.NativeGraphics!.Models.Select(model => (ushort)(model.Flags0 & 0xC)).ToArray();
             battle.RequestGuardianForm("party", 2);
             WaitFor(() => battle.GetGuardianForm("party")?.Phase == BattleGuardianFormPhase.Active);
+            if (statusStanding)
+            {
+                BattleSnapshot active = battle.Capture();
+                NativeBattleGraphicsState graphics = active.NativeGraphics!;
+                NativeBattleGraphicsModel model = graphics.Models[0];
+                Assert.Equal((byte)1, model.SequenceState!.Default2);
+                battle = BattleSession.Restore(active with { NativeGraphics = graphics with { Models = graphics.Models.SetItem(0, model with { Flags8 = model.Flags8!.Value | 0x1000000 }) } });
+            }
             AssertVisibility();
             AssertCommonTexture();
             BattlePresentedVital activeVital = skip ? new(1000, 1000) : new(600, 1200);
@@ -409,5 +423,3 @@ public sealed class NativeBattleIfritFormPresentationTests
         Assert.Single(battle.Events, item => item.Kind == "Damage" && item.ActorId == "party");
     }
 }
-
-

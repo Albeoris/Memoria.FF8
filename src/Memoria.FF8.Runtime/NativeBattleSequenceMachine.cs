@@ -141,7 +141,7 @@ public static class NativeBattleSequenceMachine
 
         byte DefaultSequence()
         {
-            if (model.Index >= 3)
+            if ((model.ModelId4 ?? throw new InvalidDataException("Native standing sequence requires its loaded model identity.")) >= 16)
             {
                 return state.Default2;
             }

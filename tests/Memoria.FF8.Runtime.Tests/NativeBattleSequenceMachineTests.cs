@@ -441,7 +441,7 @@ public sealed class NativeBattleSequenceMachineTests
         Assert.Equal((short)4, NativeBattleSequenceMachine.Advance(Model(1), resource, new(4, null)).Model.SequenceState!.Locals[0]);
     }
 
-    private static NativeBattleGraphicsModel Model(byte sequence) => new(3, 3) { Flags2 = 4, Flags8 = 0, Kind5 = 0, Sequence = sequence, ResourceFlags44 = 1, SequenceState = new() { Pose = 0, PoseFrame114 = 0, PoseLimit115 = 1 } };
+    private static NativeBattleGraphicsModel Model(byte sequence) => new(3, 3) { ModelId4 = 16, Flags2 = 4, Flags8 = 0, Kind5 = 0, Sequence = sequence, ResourceFlags44 = 1, SequenceState = new() { Pose = 0, PoseFrame114 = 0, PoseLimit115 = 1 } };
 
     private static NativeBattleGraphicsResource Resource(params (int Id, string Hex)[] programs)
     {

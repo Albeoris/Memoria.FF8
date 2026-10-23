@@ -18,10 +18,28 @@ public sealed partial class BattleSession
             NativeCamera = humanCamera.WriteEffectGlobals(humanPose with { FocalLength = humanFocal }).PublishProjection(graphics.Flags);
             graphics = graphics with { GuardianFormHumanFocalToRestore = null };
         }
-        if (!GuardianFormsEnabled || graphics.GuardianFormPresentation is not { Phase: 3, Mode: GuardianFormInvocationMode.EntryOnly } presentation || GetGuardianForm(presentation.ActorId) is not { Phase: BattleGuardianFormPhase.Active } form || ActiveAction is not null || NativeCamera is not { CurrentPose: { FocalLength: > 0 } pose, Projection: { } projection } camera || camera.Tasks.Any(task => task is not null) || NativeOriginalEffectBusy(graphics))
+        if (graphics.GuardianFormPresentation is not { Phase: 3, Mode: GuardianFormInvocationMode.EntryOnly } presentation || GetGuardianForm(presentation.ActorId) is not { Phase: BattleGuardianFormPhase.Active })
         {
             return graphics;
         }
+        if (ActiveAction is not null)
+        {
+            return graphics with { GuardianFormPresentation = presentation with { IdleCameraRestorePending = true } };
+        }
+        if (NativeCamera is not { CurrentPose: { FocalLength: > 0 }, Projection: { } } camera || camera.Tasks.Any(task => task is not null) || NativeOriginalEffectBusy(graphics))
+        {
+            return graphics;
+        }
+        if (presentation.IdleCameraRestorePending)
+        {
+            NativeBattleCameraPose idle = presentation.Camera.CurrentPose ?? throw new InvalidDataException("GF idle camera restoration requires its saved entry pose.");
+            camera = camera.WriteEffectGlobals(idle with { FocalLength = presentation.HumanFocalLength }).PublishProjection(graphics.Flags);
+            NativeCamera = camera;
+            presentation = presentation with { IdleCameraRestorePending = false };
+            graphics = graphics with { GuardianFormPresentation = presentation };
+        }
+        NativeBattleCameraPose pose = camera.CurrentPose!;
+        NativeBattleCameraProjection projection = camera.Projection!;
         NativeBattleGraphicsModel model = graphics.Models[presentation.ActorIndex];
         if ((model.Flags0 & 6) != 2 || (model.Flags2!.Value & 0x84) != 0)
         {
@@ -58,7 +76,7 @@ public sealed partial class BattleSession
             }
             guardianFormCameraEnvelope = (key, envelope);
         }
-        ushort focal = Math.Min(checked((ushort)pose.FocalLength!.Value), guardianFormCameraEnvelope.Value.Focal);
+        ushort focal = guardianFormCameraEnvelope.Value.Focal;
         if (focal != pose.FocalLength)
         {
             NativeCamera = camera.WriteEffectGlobals(pose with { FocalLength = checked((short)focal) }).PublishProjection(graphics.Flags);
