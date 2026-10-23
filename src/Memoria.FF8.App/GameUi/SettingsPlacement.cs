@@ -36,7 +36,7 @@ internal static class SettingsPlacement
         ["config-gameplay"] = new("Gameplay", "Game rules apply to the current game; save normally to retain them. Title edits new-game defaults or session choices.",
             ["config-combat", "config-magic", "config-exploration"]),
         ["config-combat"] = new("Combat", "Rules for this game; Title sets new-game defaults.",
-            ["Difficulty", "Battle ATB mode", "Limit once per turn", "Gunblade trigger"]),
+            ["Difficulty", "Battle ATB mode", "Limit once per turn", "Selphie card Slots", "Gunblade trigger"]),
         ["config-magic"] = new("Magic and Guardian Forces", "Changes can require review or remain pending until a safe boundary. Save the game to retain game rules.",
             ["Draw once per spell", "Shared magic stock", "Infinite magic", "Smart Attack", "GF Transformations"]),
         ["config-exploration"] = new("Exploration and saving", "Exploration: encounter rules and rare-card markers. Saving: rotating quick-save retention.",
@@ -62,6 +62,7 @@ internal static class SettingsPlacement
             ["Cursor"] = "cursor-memory",
             ["ATB"] = "native-atb",
             ["Limit once per turn"] = "limit-once-per-turn",
+            ["Selphie card Slots"] = "selphie-card-slots",
             ["Card Mod once"] = "card-mod-once",
             ["Weapon magazine required"] = "weapon-magazine-required",
             ["Weapon upgrade order"] = "weapon-upgrade-order",
@@ -115,7 +116,7 @@ internal static class SettingsPlacement
             string scope = setting.Id switch
             {
                 "Shared magic stock" or "Infinite magic" or "Smart Attack" => "Game / Title session",
-                "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Difficulty" or "Battle ATB mode" or "GF Transformations" or "Gunblade trigger" or "Battle policy" or "Random encounters" => "Game / Title default",
+                "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Selphie card Slots" or "Difficulty" or "Battle ATB mode" or "GF Transformations" or "Gunblade trigger" or "Battle policy" or "Random encounters" => "Game / Title default",
                 _ => audience is SettingsAudience.Excluded or SettingsAudience.Fixture ? "Fixture" : "Global"
             };
             string target = setting.Id switch
@@ -130,6 +131,7 @@ internal static class SettingsPlacement
                 "Quick saves" => "UiPreferences.QuickSaveCount",
                 "Cursor" => "UiPreferences.CursorMemory",
                 "Limit once per turn" => "GameplayPreferences.LimitOncePerTurn",
+                "Selphie card Slots" => "GameplayPreferences.SelphieCardSlots",
                 "Card Mod once" => "GameplayPreferences.CardModOnce",
                 "Weapon magazine required" => "GameplayPreferences.WeaponMagazineRequired",
                 "Weapon upgrade order" => "GameplayPreferences.WeaponUpgradeOrder",

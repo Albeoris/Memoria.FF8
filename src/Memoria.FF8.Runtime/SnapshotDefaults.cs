@@ -13,6 +13,7 @@ internal static class SnapshotDefaults
         {
             throw new InvalidDataException("Enabled magic rules require their saved magic-system owner.");
         }
+        CompleteSelphieCardSlots(saved);
         // Execution snapshots require their saved counters and matching retained-memory copies verbatim.
         if (saved["Battle"] is JsonObject existingBattle && !IsIdleBattle(existingBattle))
         {
@@ -34,6 +35,23 @@ internal static class SnapshotDefaults
         }
 
         return saved.Deserialize<GameState>(options) ?? throw new JsonException("Empty checkpoint.");
+    }
+
+    private static void CompleteSelphieCardSlots(JsonObject saved)
+    {
+        foreach (string owner in new[] { "GameplayPreferences", "PendingGameplayPreferences" })
+        {
+            if (saved[owner] is JsonObject preferences && !preferences.ContainsKey("SelphieCardSlots"))
+            {
+                JsonNode? difficulty = preferences["Difficulty"];
+                bool hardcore = difficulty is JsonValue value && (value.TryGetValue(out int number) && number == (int)BattleDifficulty.Hardcore || value.TryGetValue(out string? name) && name == nameof(BattleDifficulty.Hardcore));
+                preferences["SelphieCardSlots"] = hardcore;
+            }
+        }
+        if (saved["Battle"] is JsonObject battle && battle["Definition"] is JsonObject definition && !definition.ContainsKey("SelphieCardSlots"))
+        {
+            definition["SelphieCardSlots"] = saved["GameplayPreferences"]?["SelphieCardSlots"]?.DeepClone() ?? JsonValue.Create(false);
+        }
     }
 
     private static bool IsIdleBattle(JsonObject battle)

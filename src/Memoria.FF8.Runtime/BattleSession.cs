@@ -157,6 +157,18 @@ public sealed partial class BattleSession
 
     public void Tick()
     {
+        try
+        {
+            TickCore();
+        }
+        finally
+        {
+            RefreshNativeSlotsDeal();
+        }
+    }
+
+    private void TickCore()
+    {
         if (NativeGraphics is not null)
         {
             if (!nativeGraphicsPresentationDriven)
@@ -223,6 +235,7 @@ public sealed partial class BattleSession
 
     public int AdvanceTurn(int maxFrames = MaximumAdvanceFrames)
     {
+        RequireNoPendingSlotsDeal();
         if (Mode != BattleAtbMode.TurnBased)
         {
             throw new InvalidOperationException("Advance Turn requires Turn-Based mode.");
@@ -254,6 +267,7 @@ public sealed partial class BattleSession
 
     public void QueueAttack(string actorId, string targetId)
     {
+        RequireNoPendingSlotsDeal();
         RequireNativeEntryReady();
         RequireNormalGuardianFormCommands(actorId);
         BattleCombatant actor = GetActor(actorId);
@@ -272,6 +286,7 @@ public sealed partial class BattleSession
 
     public void InstantVictory()
     {
+        RequireNoPendingSlotsDeal();
         if (Outcome != BattleOutcome.Active)
         {
             throw new InvalidOperationException("Debug victory requires an active battle.");
@@ -289,6 +304,7 @@ public sealed partial class BattleSession
 
     public void InstantDefeat()
     {
+        RequireNoPendingSlotsDeal();
         if (Outcome != BattleOutcome.Active)
         {
             throw new InvalidOperationException("Debug defeat requires an active battle.");
@@ -367,6 +383,7 @@ public sealed partial class BattleSession
             ScriptedRewards = scriptedRewards.ToArray(),
             NativeRewardItems = nativeRewardItems.ToArray(),
             NativeLimits = CaptureNativeLimits(),
+            PendingSlotsDeal = PendingSlotsDeal,
             GuardianForces = GuardianForces.ToArray(),
             GuardianForceCasts = GuardianForceCasts.ToArray(),
             NativeLastAllocatedIndex = nativeLastAllocatedIndex,
@@ -400,6 +417,18 @@ public sealed partial class BattleSession
     }
 
     private HashSet<string> DispatchFrame(bool advanceGraphics = true, bool advanceFrame = true)
+    {
+        try
+        {
+            return DispatchFrameCore(advanceGraphics, advanceFrame);
+        }
+        finally
+        {
+            RefreshNativeSlotsDeal();
+        }
+    }
+
+    private HashSet<string> DispatchFrameCore(bool advanceGraphics, bool advanceFrame)
     {
         HashSet<string> becameReady = [];
         if (advanceGraphics)
@@ -1332,6 +1361,7 @@ public sealed partial class BattleSession
         RestoreNativeKnownMagic(snapshot.NativeKnownMagic);
         RestoreNativeSpecialOwners(snapshot);
         RestoreNativeGlobalRandom(snapshot);
+        RestoreNativeSlotsDeal(snapshot.PendingSlotsDeal);
         RestoreTurnAdvance(snapshot.TurnAdvance);
     }
 
@@ -1468,6 +1498,7 @@ public sealed partial class BattleSession
         nativeBattleUiRandom = candidate.nativeBattleUiRandom;
         nativeGlobalRandom = candidate.nativeGlobalRandom;
         nativeGlobalRandomCalls = candidate.nativeGlobalRandomCalls;
+        pendingSlotsDeal = candidate.pendingSlotsDeal;
         NativeCamera = candidate.NativeCamera;
         NativeGraphics = candidate.NativeGraphics;
         RestoreNativeGuardianBoost(candidate.nativeGuardianBoost);

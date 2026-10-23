@@ -94,6 +94,7 @@ public sealed partial class BattleSession
 
     public byte RefreshNativeLimit(string actorId)
     {
+        RequireNoPendingSlotsDeal();
         BattleCombatant actor = GetActor(actorId);
         if (Outcome != BattleOutcome.Active || !CanChoosePlayerCommand(actorId) || actor.NativeLimit is not { } limit)
         {
@@ -121,6 +122,7 @@ public sealed partial class BattleSession
 
     public void QueueNativePlayerCommand(string actorId, string targetId, byte command, ushort actionId, byte sequence = 0, byte? crisis = null)
     {
+        RequireNoPendingSlotsDeal();
         RequireNativeEntryReady();
         RequireNormalGuardianFormCommands(actorId);
         BattleCombatant actor = GetActor(actorId);

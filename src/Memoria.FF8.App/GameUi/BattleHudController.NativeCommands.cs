@@ -50,6 +50,10 @@ public sealed partial class BattleHudController
 
     public void SetNativeCommandButtons(ushort buttons)
     {
+        if (CardSlotsOwnsInput)
+        {
+            return;
+        }
         nativeCommandHeldButtons = buttons;
         RefreshNativeLimitSelection();
         if (!CommandMenuHidden && !SelectingAction && !SelectingTarget)
@@ -118,6 +122,10 @@ public sealed partial class BattleHudController
 
     public void RerollNativeSlots()
     {
+        if (CardSlotsOwnsInput)
+        {
+            return;
+        }
         if (!SelectingAction || SelectingTarget || SelectedCommand != BattleAbility.LimitBreak || SelectedActor is not { NativeLimit.Command: 16 } actor)
         {
             throw new InvalidOperationException("Do over requires the active Slots choice menu.");
@@ -152,6 +160,10 @@ public sealed partial class BattleHudController
 
     private void RefreshNativeLimitSelection()
     {
+        if (CardSlotsOwnsInput)
+        {
+            return;
+        }
         if (session.Outcome != BattleOutcome.Active || NativeTimedLimitActive || CommandMenuHidden)
         {
             return;

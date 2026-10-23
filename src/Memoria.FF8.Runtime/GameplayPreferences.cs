@@ -33,6 +33,8 @@ public sealed record GameplayPreferences
 
     [NewGameOption("Limit once per turn")]
     public bool LimitOncePerTurn { get; init; }
+    [NewGameOption("Selphie card Slots")]
+    public bool SelphieCardSlots { get; init; }
     [NewGameOption("Draw once per spell")]
     public bool DrawOncePerSpell { get; init; }
     [NewGameOption("Shared magic stock")]

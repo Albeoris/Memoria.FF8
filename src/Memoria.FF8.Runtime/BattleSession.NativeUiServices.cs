@@ -99,12 +99,7 @@ public sealed partial class BattleSession
             return;
         }
         (NativeBattleUiCommands commands, uint readyMask, bool selectMenu) = services.Commands.Dispatch(services.ReadyMask, mask => services = services.SetFlags(0, mask), command => services = services.ApplyWindowCommand4AD400(command));
-        if (selectMenu)
-        {
-            //4BB840 resets the command widget;4ADDB0's mismatched-owner path calls4A7160(0).
-            services = services.SetFlags(0, 0x10);
-        }
-        services = services with { Commands = commands, ReadyMask = readyMask, Menu957 = selectMenu ? (sbyte)4 : services.Menu957 };
+        services = ApplyNativeReadyMenuSelection(services, selectMenu, pendingSlotsDeal is not null) with { Commands = commands, ReadyMask = readyMask };
         NativeGraphics = NativeGraphics with { UiServices = services };
         if (selectMenu && SelectedPlayerCommandActorId is { } selectedActor)
         {
@@ -135,6 +130,16 @@ public sealed partial class BattleSession
         }
     }
 
+    internal static NativeBattleUiServices ApplyNativeReadyMenuSelection(NativeBattleUiServices services, bool selectMenu, bool slotsPending)
+    {
+        if (selectMenu && !slotsPending)
+        {
+            //4BB840 resets the command widget;4ADDB0's mismatched-owner path calls4A7160(0).
+            return services.SetFlags(0, 0x10) with { Menu957 = 4 };
+        }
+        return services;
+    }
+
     private void RemoveNativeUiReady(BattleCombatant actor)
     {
         if (NativeGraphics?.UiServices is { } ui && actor.NativeIndex is >= 0 and < 3)
@@ -156,6 +161,7 @@ public sealed partial class BattleSession
 
     public void CloseNativeActionMenu()
     {
+        RequireNoPendingSlotsDeal();
         if (NativeGraphics?.UiServices is { } ui && NativeGraphics.TriggerWidget is null)
         {
             //4BB710/4BB7A0 restore command menu4 and call4A7160(0).

@@ -40,16 +40,21 @@ public sealed class GunbladeInputTests
     }
 
     [Fact]
-    public void HostGunbladeModeIsExplicitAndReachableFromBattleSettings()
+    public void HostGunbladeModeIsExplicitAndReachableFromCombatSettings()
     {
         UiPreferences preferences = new();
         Assert.Equal(BattleGunbladeMode.Automatic, preferences.GunbladeMode);
         preferences = preferences.WithSetting("Gunblade trigger", "Manual");
         Assert.Equal(BattleGunbladeMode.Manual, preferences.GunbladeMode);
         Assert.Throws<ArgumentException>(() => preferences.WithSetting("Gunblade trigger", "Legacy"));
-        MenuController menu = new();
+        MenuData data = new();
+        data.SupportedActions.Add("config");
+        data.Settings["Gunblade trigger"] = "Manual";
+        MenuController menu = new(() => data, _ => { });
         menu.ConnectPreferences(() => preferences, _ => { });
-        menu.Open("debug-battle");
-        Assert.Contains(menu.Entries, entry => entry.Label == "Gunblade trigger   Manual");
+        menu.Open("config-combat");
+        MenuEntry entry = Assert.Single(menu.Entries, entry => entry.Id == "Gunblade trigger");
+        Assert.True(entry.Enabled);
+        Assert.Equal("Automatic", entry.Action!.Value);
     }
 }

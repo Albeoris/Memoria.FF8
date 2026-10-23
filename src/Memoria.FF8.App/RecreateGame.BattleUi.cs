@@ -22,6 +22,8 @@ internal sealed partial class RecreateGame
     private Texture2D? battleTexture;
     private double battleSeconds;
     private bool previousBattleMouse;
+    private bool slotsInputReleasePending;
+    private bool SlotsModalBlocksGameplay => ActiveBattle is { } active && (active.PendingSlotsDeal is not null || ReferenceEquals(active, presentedBattle) && (battleHud?.CardSlotsOwnsInput == true || slotsInputReleasePending));
     private BattleSession? presentedBattle;
     private BattleDebugPresets? battleDebugPresets;
     private BattleSession? ActiveBattle => debugBattle ?? world?.Battle;
@@ -52,11 +54,11 @@ internal sealed partial class RecreateGame
         return true;
     }
 
-    private bool UpdateBattle(TimeSpan elapsed, InputFrame input)
+    private bool UpdateBattle(TimeSpan elapsed, InputFrame input, TimeSpan presentationElapsed)
     {
         try
         {
-            return UpdateBattleCore(elapsed, input);
+            return UpdateBattleCore(elapsed, input, presentationElapsed);
         }
         catch (Exception exception) when (exception is Memoria.FF8.Events.EventScriptException or NotSupportedException or IOException or InvalidDataException or InvalidOperationException or ArgumentException)
         {
@@ -67,7 +69,7 @@ internal sealed partial class RecreateGame
         }
     }
 
-    private bool UpdateBattleCore(TimeSpan elapsed, InputFrame input)
+    private bool UpdateBattleCore(TimeSpan elapsed, InputFrame input, TimeSpan presentationElapsed)
     {
         if (fieldFaulted && debugBattle is null)
         {
@@ -84,8 +86,21 @@ internal sealed partial class RecreateGame
             return false;
         }
         EnsureBattleHud(active);
-        bool skipInput = keyboard.GuardianFormSkipRequested && active.CanSkipGuardianFormFinisher;
-        bool boostInput = keyboard.GuardianBoostRequested && active.NativeGuardianBoost is not null && (active.NativeGraphics?.UiServices is { } boostUi ? (boostUi.Flags942 & 1) != 0 : (keyboard.HeldFieldButtons & 0x100) != 0);
+        bool slotsOwned = SlotsModalBlocksGameplay;
+        bool confirmHeld = (keyboard.HeldFieldButtons & 0x40) != 0;
+        bool mouseHeld = Mouse.GetState().LeftButton == ButtonState.Pressed;
+        battleHud!.AdvanceSlotsPresentation(presentationElapsed, confirmHeld, mouseHeld);
+        if (slotsOwned && !battleHud.CardSlotsOwnsInput)
+        {
+            slotsInputReleasePending = confirmHeld || mouseHeld;
+        }
+        else if (!confirmHeld && !mouseHeld)
+        {
+            slotsInputReleasePending = false;
+        }
+        slotsOwned |= SlotsModalBlocksGameplay;
+        bool skipInput = !slotsOwned && keyboard.GuardianFormSkipRequested && active.CanSkipGuardianFormFinisher;
+        bool boostInput = !slotsOwned && keyboard.GuardianBoostRequested && active.NativeGuardianBoost is not null && (active.NativeGraphics?.UiServices is { } boostUi ? (boostUi.Flags942 & 1) != 0 : (keyboard.HeldFieldButtons & 0x100) != 0);
         if (boostInput)
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.GuardianBoost));
@@ -94,8 +109,8 @@ internal sealed partial class RecreateGame
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.GuardianFormSkip));
         }
-        active.PublishNativeEscapeButtons(keyboard.HeldControlButtons);
-        active.PublishNativeScanMappedButtons(keyboard.HeldFieldButtons);
+        active.PublishNativeEscapeButtons(slotsOwned ? (ushort)0 : keyboard.HeldControlButtons);
+        active.PublishNativeScanMappedButtons(slotsOwned ? (ushort)0 : keyboard.HeldFieldButtons);
         active.AdvanceNativeGraphicsPresentation(elapsed);
         if (ReferenceEquals(active, world?.Battle))
         {
@@ -105,7 +120,7 @@ internal sealed partial class RecreateGame
                 return true;
             }
         }
-        active.AdvanceComponentGuardianBoostPresentation(elapsed, keyboard.HeldFieldButtons);
+        active.AdvanceComponentGuardianBoostPresentation(elapsed, slotsOwned ? (ushort)0 : keyboard.HeldFieldButtons);
         battleScene!.AdvancePresentation(elapsed);
         battleHud!.AdvancePresentation(elapsed);
         if (ActiveBattle is null || battleHud is null)
@@ -114,44 +129,55 @@ internal sealed partial class RecreateGame
         }
         battleHud.SetNativeCommandButtons(keyboard.HeldFieldButtons);
         active.AdvanceNativeShotPresentation(elapsed);
-        active.AdvanceNativeDuelPresentation(elapsed, keyboard.HeldFieldButtons);
+        active.AdvanceNativeDuelPresentation(elapsed, slotsOwned ? (ushort)0 : keyboard.HeldFieldButtons);
         active.AdvanceNativeRenzokukenPresentation(elapsed);
         SynchronizeBattleAudio();
         BattleCombatant? shotActor = active.Combatants.FirstOrDefault(actor => active.GetNativeShot(actor.Id) is not null);
-        bool shotInput = keyboard.GunbladeTriggerRequested && shotActor is not null;
+        bool shotInput = !slotsOwned && keyboard.GunbladeTriggerRequested && shotActor is not null;
         if (shotInput)
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.ShotTrigger, ActorId: shotActor!.Id));
         }
-        bool gunbladeInput = !shotInput && keyboard.GunbladeTriggerRequested && active.CanTriggerGunblade;
+        bool gunbladeInput = !slotsOwned && !shotInput && keyboard.GunbladeTriggerRequested && active.CanTriggerGunblade;
         if (gunbladeInput)
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.GunbladeTrigger));
         }
-        if (keyboard.BattleInstantVictoryRequested && active.Outcome == BattleOutcome.Active)
+        if (!slotsOwned && keyboard.BattleInstantVictoryRequested && active.Outcome == BattleOutcome.Active)
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.InstantVictory));
         }
-        else if (keyboard.BattleAdvanceTurnRequested && active.Mode == BattleAtbMode.TurnBased && active.Outcome == BattleOutcome.Active)
+        else if (!slotsOwned && keyboard.BattleAdvanceTurnRequested && active.Mode == BattleAtbMode.TurnBased && active.Outcome == BattleOutcome.Active)
         {
             battleHud!.AdvanceTurn();
         }
         else
         {
-            if (keyboard.GameMenuRequested)
+            if (!slotsOwned && keyboard.GameMenuRequested)
             {
                 battleHud!.CycleCommandActor();
             }
-            NavigateBattleView(battleHud!.Navigate, input, gunbladeInput || shotInput || boostInput || skipInput);
+            if (!slotsInputReleasePending && (!slotsOwned || battleHud!.CardSlotsOwnsInput))
+            {
+                NavigateBattleView(battleHud!.Navigate, input, slotsOwned || gunbladeInput || shotInput || boostInput || skipInput);
+            }
             if (ActiveBattle is null || battleHud is null)
             {
                 return true;
             }
         }
-        PointerBattleView(battleHud!.BuildView());
+        if (!slotsInputReleasePending && (!slotsOwned || battleHud!.CardSlotsOwnsInput))
+        {
+            PointerBattleView(battleHud!.BuildView());
+        }
         if (ActiveBattle is null)
         {
             return true;
+        }
+        if (battleHud!.CardSlotsOwnsInput)
+        {
+            active.PublishNativeEscapeButtons(0);
+            active.PublishNativeScanMappedButtons(0);
         }
         if (!options.ControlStep && active.Outcome == BattleOutcome.Active)
         {
@@ -216,11 +242,15 @@ internal sealed partial class RecreateGame
             battleHud.ConfigureResults(PresentationBattleResources.ReadNativeGlobalBattleMessages(), id => liveMenuCatalog?.ItemDescription(id) ?? "", id => liveMenuCatalog?.AbilityName(id) ?? $"Ability {id}");
             battleHud.ConfigureGuardianForceLearning(CreateBattleGuardianForceLearningMenu);
             battleHud.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
+            battleHud.SlotsSoundRequested += cue => fieldAudio?.PlayTripleTriadSound(cue);
             battleHud.NativeButtonBindingHint = keyboard.NativeButtonBindingHint;
             battleSeconds = 0;
+            slotsInputReleasePending = false;
         }
         battleHud!.TextScale = uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f;
         battleHud.CursorMemory = uiPreferences.CursorMemory;
+        battleHud.SlotsNavigationHint = string.Join(" / ", new[] { ControlAction.MoveUp, ControlAction.MoveDown, ControlAction.MoveLeft, ControlAction.MoveRight }.Select(keyboard.BindingPrompt));
+        battleHud.SlotsConfirmHint = keyboard.BindingPrompt(ControlAction.Confirm);
         battleHud.GunbladeBindingHint = keyboard.BindingPrompt(ControlAction.RotateRight);
         battleHud.PhysicalOverrideBindingHint = keyboard.BindingPrompt(ControlAction.CameraLeft);
     }
@@ -274,6 +304,10 @@ internal sealed partial class RecreateGame
 
     private int ApplyBattleCommand(BattleInput input)
     {
+        if (SlotsModalBlocksGameplay && input.Kind != BattleInputKind.Tick)
+        {
+            throw new InvalidOperationException("The pending Slots card choice owns battle input.");
+        }
         if (debugBattle is null)
         {
             int dispatched = world!.ApplyBattleInput(input);
@@ -441,6 +475,7 @@ internal sealed partial class RecreateGame
         definition = definition with
         {
             LimitOncePerTurn = ReadCurrentUiPreferences().LimitOncePerTurn,
+            SelphieCardSlots = ReadCurrentUiPreferences().SelphieCardSlots,
             DrawOncePerSpell = ReadCurrentUiPreferences().DrawOncePerSpell,
             GuardianFormsEnabled = ReadCurrentUiPreferences().GuardianFormsEnabled,
             GuardianFormResources = ReadCurrentUiPreferences().GuardianFormsEnabled ? [PresentationBattleResources.ReadIfritGuardianFormResources()] : []
@@ -496,12 +531,12 @@ internal sealed partial class RecreateGame
         UiView view = battleHud!.BuildView();
         view.Resize(bounds.Width, bounds.Height);
         view.Draw(uiCanvas!, uiTheme);
-        if (active.NativeEffectMemory?.Scan is { Text.Initialized: true } scan && active.NativeGraphics?.UiServices is { } services)
+        if (!SlotsModalBlocksGameplay && active.NativeEffectMemory?.Scan is { Text.Initialized: true } scan && active.NativeGraphics?.UiServices is { } services)
         {
             NativeBattleScanTextFrame text = scan.Text.ReadFrame(services.Flags942);
             NativeScanWindowDrawing.Draw(uiCanvas!, uiTheme, NativeScanWindowTextProjection.ProjectForViewport(text, active.CreateNativeScanTextExpansionServices(), new(0, 0, 320, 224)), new UiRect(viewport.X, viewport.Y, viewport.Width, viewport.Height), active.Frame / 15.0, uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f);
         }
-        if (active.NativeExamTimer is { DisplayEnabled: true } timer)
+        if (!SlotsModalBlocksGameplay && active.NativeExamTimer is { DisplayEnabled: true } timer)
         {
             DrawTimerUi(bounds, timer);
         }
@@ -526,6 +561,10 @@ internal sealed partial class RecreateGame
 
     private object DispatchBattleControl(ControlRequest request)
     {
+        if (SlotsModalBlocksGameplay && request.Command.ToLowerInvariant() is not ("battle-status" or "battle-input"))
+        {
+            throw new InvalidOperationException("The pending Slots card choice owns battle input.");
+        }
         BattleControlCommand command = request.Battle ?? new();
         UiPreferences currentPreferences = ReadCurrentUiPreferences();
         switch (request.Command.ToLowerInvariant())
@@ -580,6 +619,7 @@ internal sealed partial class RecreateGame
         battleDebug = null;
         battleHud = null;
         presentedBattle = null;
+        slotsInputReleasePending = false;
         battleSeconds = 0;
         DisposeBattleTextures();
     }

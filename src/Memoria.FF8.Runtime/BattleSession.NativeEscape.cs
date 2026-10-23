@@ -45,7 +45,7 @@ public sealed partial class BattleSession
 
     public void PublishNativeEscapeButtons(ushort buttons)
     {
-        bool held = (buttons & 3) == 3;
+        bool held = PendingSlotsDeal is null && (buttons & 3) == 3;
         nativeEscape = held ? nativeEscape with { Held = true } : nativeEscape with { Held = false, HeldFrames = 0, Requested = false };
     }
 
@@ -53,7 +53,7 @@ public sealed partial class BattleSession
 
     private void AdvanceNativeEscapeFrame()
     {
-        if (Outcome != BattleOutcome.Active || HasPendingNativeOutcome || !NativeEntryReady || NativeGraphics?.UiServices?.PauseDE9 == true || !nativeEscape.Held)
+        if (PendingSlotsDeal is not null || Outcome != BattleOutcome.Active || HasPendingNativeOutcome || !NativeEntryReady || NativeGraphics?.UiServices?.PauseDE9 == true || !nativeEscape.Held)
         {
             return;
         }

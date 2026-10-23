@@ -44,6 +44,8 @@ Set `MEMORIA_FF8_MEDIA_TOOLS` to select another media directory for both the lau
 
 **Limit once per turn** is Off by default. When enabled, each character gets one Limit availability check per ATB cycle. Switching allies or reopening the command menu keeps the first result, including a failed check. Another check becomes available after the gauge resets and fills again, such as after acting or being defeated and revived. Saving and loading preserves the result. The option belongs to the saved game and can also be changed under Config → Combat between battles; enabled saves use the Memoria format.
 
+**Selphie card Slots** replaces Selphie’s ordinary Slot rerolls with one choice from 3, 5, 7 or 9 cards, according to her current Crisis Level. Each card independently starts revealed with a 50% chance; hidden cards can also be chosen. Confirm one card to cast its stored spell and count. You cannot cancel or reroll the deal. Enable it before **Begin** in New Game or under **Config → Gameplay → Combat** between battles. It defaults to **Off** on Normal and Hard; Hardcore always enables and locks it. The choice belongs to the save, requires Memoria format when enabled, and applies to subsequent battles.
+
 **Draw once per spell** is Off by default. When enabled, successful Draw Stock or Draw Cast exhausts that spell on that enemy for the whole party until battle ends; a failed Draw does not. Choose it in New Game or change it outside battles under **Config → Gameplay → Magic and Guardian Forces**. The choice belongs to the saved game, enabled saves use Memoria format, and Title edits set the default for future games. See [Magic rules](magic-system.md) for details.
 
 ## Start from source

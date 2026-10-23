@@ -70,6 +70,7 @@ public sealed partial class MenuController
             "Field message" => preferences.FieldMessageSpeed.ToString(),
             "Vibration" => CurrentControls.VibrationEnabled ? "On" : "Off",
             "Limit once per turn" => preferences.LimitOncePerTurn ? "On" : "Off",
+            "Selphie card Slots" => preferences.SelphieCardSlots ? "On" : "Off",
             "Card Mod once" => preferences.CardModOnce ? "On" : "Off",
             "Weapon magazine required" => preferences.WeaponMagazineRequired ? "On" : "Off",
             "Weapon upgrade order" => preferences.WeaponUpgradeOrder ? "On" : "Off",

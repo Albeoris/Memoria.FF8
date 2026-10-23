@@ -725,6 +725,14 @@ public sealed partial class GameSession : IEventServices
         {
             throw new InvalidDataException("Pending Limit policy cannot change during battle.");
         }
+        if (state.Battle is { Definition: { } slotsDefinition } && slotsDefinition.SelphieCardSlots != state.GameplayPreferences.SelphieCardSlots)
+        {
+            throw new InvalidDataException("Battle Selphie card Slots policy differs from the saved gameplay preference.");
+        }
+        if ((state.Battle is not null || state.PendingBattleEncounter is not null) && state.PendingGameplayPreferences is { } pendingSlotsPreferences && pendingSlotsPreferences.SelphieCardSlots != state.GameplayPreferences.SelphieCardSlots)
+        {
+            throw new InvalidDataException("Pending Selphie card Slots policy cannot change during battle.");
+        }
         if (state.Battle is { Definition: { } battleDefinition } && battleDefinition.GuardianFormsEnabled != state.GameplayPreferences.GuardianFormsEnabled)
         {
             throw new InvalidDataException("Saved battle GF Transformations option differs from its save preference.");

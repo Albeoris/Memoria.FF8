@@ -60,6 +60,10 @@ public sealed partial class BattleSession
 
     public void SelectPlayerCommandActor(string actorId)
     {
+        if (PendingSlotsDeal is not null)
+        {
+            return;
+        }
         if (!CanChoosePlayerCommand(actorId))
         {
             throw new InvalidOperationException("Player command selection requires an actually registered ready actor.");

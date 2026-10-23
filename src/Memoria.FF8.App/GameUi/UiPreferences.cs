@@ -60,6 +60,7 @@ internal sealed record UiPreferences
     public int DialogueFontSize { get; init; } = 10;
     public BattleDifficulty Difficulty { get; init; } = BattleDifficulty.Normal;
     public bool LimitOncePerTurn { get; init; }
+    public bool SelphieCardSlots { get; init; }
     public bool DrawOncePerSpell { get; init; }
     public bool CardModOnce { get; init; }
     public bool WeaponMagazineRequired { get; init; }
@@ -247,6 +248,15 @@ internal sealed record UiPreferences
                 _ => throw new ArgumentException("Limit once per turn requires On or Off.")
             };
         }
+        if (key == "Selphie card Slots")
+        {
+            return value switch
+            {
+                "On" => this with { SelphieCardSlots = true },
+                "Off" => this with { SelphieCardSlots = false },
+                _ => throw new ArgumentException("Selphie card Slots requires On or Off.")
+            };
+        }
         if (key == "Weapon magazine required")
         {
             return value switch
@@ -336,7 +346,7 @@ internal sealed record UiPreferences
 
     public UiPreferences WithInstallationSetting(string key, string value, bool activeGame)
     {
-        if (activeGame && key is "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "Battle policy" or "Random encounters" or "GF Transformations")
+        if (activeGame && key is "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Selphie card Slots" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "Battle policy" or "Random encounters" or "GF Transformations")
         {
             return this;
         }

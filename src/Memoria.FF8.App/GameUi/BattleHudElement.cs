@@ -52,6 +52,14 @@ internal sealed partial class BattleHudElement : UiElement
 
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
     {
+        if (controller.CardSlotsOwnsInput)
+        {
+            if (controller.SlotsCards is { } cards && controller.Session.PendingSlotsDeal is { } deal)
+            {
+                SlotsCardView.Draw(canvas, theme, Bounds, cards, index => controller.Session.GetNativeSlotsCardName(deal.Candidates[index].MagicId), index => deal.Candidates[index].Repetitions, controller.TextScale, controller.SlotsNavigationHint, controller.SlotsConfirmHint);
+            }
+            return;
+        }
         BattleSession session = controller.Session;
         if (session.Outcome is BattleOutcome.Victory or BattleOutcome.Escaped)
         {
@@ -317,6 +325,11 @@ internal sealed partial class BattleHudElement : UiElement
 
     public override void PointerHover(float x, float y)
     {
+        if (controller.CardSlotsOwnsInput)
+        {
+            controller.SlotsPointer(x, y, Bounds, false);
+            return;
+        }
         if (controller.CommandMenuHidden || !controller.SelectingTarget || !Rect(TargetPanel.X, TargetPanel.Y + TargetContentOffset, TargetPanel.Width, TargetPanel.Height - TargetContentOffset).Contains(x, y))
         {
             return;
@@ -330,6 +343,11 @@ internal sealed partial class BattleHudElement : UiElement
 
     public override void Pointer(float x, float y)
     {
+        if (controller.CardSlotsOwnsInput)
+        {
+            controller.SlotsPointer(x, y, Bounds, true);
+            return;
+        }
         if (controller.CommandMenuHidden)
         {
             return;

@@ -246,7 +246,7 @@ internal sealed partial class RecreateGame : Game
             metrics.Update(updateStarted);
             return;
         }
-        if (keyboard.SpeedToggleRequested && gameMenus?.IsNamePrompt != true)
+        if (!SlotsModalBlocksGameplay && keyboard.SpeedToggleRequested && gameMenus?.IsNamePrompt != true)
         {
             gameplayClock.ToggleSpeed();
         }
@@ -281,7 +281,7 @@ internal sealed partial class RecreateGame : Game
         {
             fieldAudio?.PlayTitleMusic();
         }
-        if (gameMenus?.IsNamePrompt != true && (UpdateModelBrowserUi(input, gameTime.ElapsedGameTime) || UpdateSceneInspectorUi(input) || UpdateBattleDebugUi(input)))
+        if (!SlotsModalBlocksGameplay && gameMenus?.IsNamePrompt != true && (UpdateModelBrowserUi(input, gameTime.ElapsedGameTime) || UpdateSceneInspectorUi(input) || UpdateBattleDebugUi(input)))
         {
             movieSkipGesture.Reset();
             fieldAudio?.Update();
@@ -289,7 +289,7 @@ internal sealed partial class RecreateGame : Game
             metrics.Update(updateStarted);
             return;
         }
-        if (UpdateTripleTriadUi(gameTime.ElapsedGameTime, input) || UpdateGameUi(gameTime.ElapsedGameTime, input))
+        if (!SlotsModalBlocksGameplay && (UpdateTripleTriadUi(gameTime.ElapsedGameTime, input) || UpdateGameUi(gameTime.ElapsedGameTime, input)))
         {
             movieSkipGesture.Reset();
             fieldAudio?.Update();
@@ -297,7 +297,7 @@ internal sealed partial class RecreateGame : Game
             metrics.Update(updateStarted);
             return;
         }
-        if (UpdatePlayerSaves(input))
+        if (!SlotsModalBlocksGameplay && UpdatePlayerSaves(input))
         {
             movieSkipGesture.Reset();
             fieldAudio?.Update();
@@ -307,7 +307,7 @@ internal sealed partial class RecreateGame : Game
         }
         TimeSpan gameplayElapsed = gameplayClock.Advance(gameTime.ElapsedGameTime, session.State.Scene, events?.IsScriptedInterface == true);
         world?.AdvanceDebug(gameplayElapsed);
-        if (UpdateBattle(gameplayElapsed, input))
+        if (UpdateBattle(gameplayElapsed, input, gameTime.ElapsedGameTime))
         {
             if (battleEntryTransition is null)
             {
@@ -850,7 +850,7 @@ internal sealed partial class RecreateGame : Game
         world?.Dispose();
         world = null;
         session.StartNewGame();
-        session.SetGameplayPreferences(newGameMagicPreferences with { WeaponMagazineRequired = uiPreferences.WeaponMagazineRequired, WeaponUpgradeOrder = uiPreferences.WeaponUpgradeOrder, CardModOnce = uiPreferences.CardModOnce, LimitOncePerTurn = uiPreferences.LimitOncePerTurn, DrawOncePerSpell = uiPreferences.DrawOncePerSpell, Difficulty = uiPreferences.Difficulty, AtbMode = uiPreferences.AtbMode, GunbladeMode = uiPreferences.GunbladeMode, GuardianFormsEnabled = uiPreferences.GuardianFormsEnabled });
+        session.SetGameplayPreferences(newGameMagicPreferences with { WeaponMagazineRequired = uiPreferences.WeaponMagazineRequired, WeaponUpgradeOrder = uiPreferences.WeaponUpgradeOrder, CardModOnce = uiPreferences.CardModOnce, LimitOncePerTurn = uiPreferences.LimitOncePerTurn, SelphieCardSlots = uiPreferences.SelphieCardSlots, DrawOncePerSpell = uiPreferences.DrawOncePerSpell, Difficulty = uiPreferences.Difficulty, AtbMode = uiPreferences.AtbMode, GunbladeMode = uiPreferences.GunbladeMode, GuardianFormsEnabled = uiPreferences.GuardianFormsEnabled });
         BattleInput[] battleSettingsInputs = uiPreferences.CreateBattleSettingsInputs();
         if (battleSettingsInputs.Length > 0)
         {
@@ -890,6 +890,10 @@ internal sealed partial class RecreateGame : Game
             UpdateSaveResult saved = updateSave.Save(request.Path, request.ExpiresAt);
             SynchronizeUiMoviePause();
             return saved;
+        }
+        if (SlotsModalBlocksGameplay && request.Command.ToLowerInvariant() is not ("status" or "capture" or "save" or "battle-status" or "battle-input"))
+        {
+            throw new InvalidOperationException("The pending Slots card choice owns gameplay input.");
         }
         if (request.Command.StartsWith("battle-", StringComparison.OrdinalIgnoreCase))
         {
@@ -1252,7 +1256,7 @@ internal sealed partial class RecreateGame : Game
         {
             DrawSalaryUi(bounds, salary);
         }
-        if (sceneInspector is null && events?.PartyMenu is not null)
+        if (!SlotsModalBlocksGameplay && sceneInspector is null && events?.PartyMenu is not null)
         {
             DrawPartyMenu(bounds);
         }

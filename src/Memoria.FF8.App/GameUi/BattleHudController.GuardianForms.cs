@@ -21,6 +21,10 @@ public sealed partial class BattleHudController
 
     public void OpenGuardianFormActions(int index)
     {
+        if (CardSlotsOwnsInput)
+        {
+            return;
+        }
         if (!SelectingAction || SelectingTarget || SelectingGuardianFormAction || SelectedCommand != BattleAbility.GuardianForce || ActionChoices.ElementAtOrDefault(index) is not { } action || !CanOpenGuardianFormActions(action))
         {
             return;

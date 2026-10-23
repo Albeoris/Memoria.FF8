@@ -85,7 +85,7 @@ public sealed class HardcoreSettingsTests
         List<MenuAction> applied = [];
         MenuController menus = new(() => data, applied.Add);
         menus.Open("config-combat");
-        foreach (string id in new[] { "Difficulty", "Battle ATB mode", "Limit once per turn", "Gunblade trigger" })
+        foreach (string id in new[] { "Difficulty", "Battle ATB mode", "Limit once per turn", "Selphie card Slots", "Gunblade trigger" })
         {
             Assert.Equal(id, menus.SelectedEntry!.Id);
             UiView view = menus.BuildView();

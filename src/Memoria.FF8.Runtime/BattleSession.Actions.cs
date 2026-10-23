@@ -9,6 +9,7 @@ public sealed partial class BattleSession
 
     public void QueueAction(string actorId, string targetId, BattleAbility ability, int actionId, bool drawCast = false, IReadOnlyList<string>? magicTargets = null, string? drawCastTargetId = null)
     {
+        RequireNoPendingSlotsDeal();
         RequireNativeEntryReady();
         RequireNormalGuardianFormCommands(actorId);
         if (magicTargets is not null && ability != BattleAbility.Magic)

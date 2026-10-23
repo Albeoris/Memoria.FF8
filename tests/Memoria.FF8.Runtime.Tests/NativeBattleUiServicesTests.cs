@@ -79,4 +79,19 @@ public sealed class NativeBattleUiServicesTests
         Assert.True((state with { ReadyMask = 0 }).AllowsAtb(null));
         Assert.True((state with { Flags942 = 0x40 }).AllowsAtb(null));
     }
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(1, false)]
+    public void Card_choice_retains_native_action_menu_time_policy_across_ready_actor_selection(ushort options, bool active)
+    {
+        NativeBattleUiServices submenu = NativeBattleUiServices.Initialize() with { Menu957 = 2, ReadyMask = 1, Flags942 = 0x50 };
+        NativeBattleUiServices retained = BattleSession.ApplyNativeReadyMenuSelection(submenu, selectMenu: true, slotsPending: true);
+        Assert.Equal((sbyte)2, retained.Menu957);
+        Assert.Equal((ushort)0x50, retained.Flags942);
+        Assert.Equal(active, retained.AllowsAtb(options));
+        NativeBattleUiServices released = BattleSession.ApplyNativeReadyMenuSelection(submenu, selectMenu: true, slotsPending: false);
+        Assert.Equal((sbyte)4, released.Menu957);
+        Assert.True(released.AllowsAtb(options));
+    }
+
 }

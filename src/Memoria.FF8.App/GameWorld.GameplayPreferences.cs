@@ -19,6 +19,10 @@ internal sealed partial class GameWorld
         {
             throw new InvalidOperationException("Limit once per turn cannot change until the battle ends.");
         }
+        if (battle is not null && preferences.SelphieCardSlots != session.State.GameplayPreferences.SelphieCardSlots)
+        {
+            throw new InvalidOperationException("Selphie card Slots cannot change until the battle ends.");
+        }
         if (battle is not null && preferences.GuardianFormsEnabled != session.State.GameplayPreferences.GuardianFormsEnabled)
         {
             throw new InvalidOperationException("GF Transformations cannot change until the battle ends.");
@@ -36,7 +40,7 @@ internal sealed partial class GameWorld
     internal static BattleSession CreateLiveBattleSession(BattleDefinition definition, GameplayPreferences preferences)
     {
         preferences.Validate();
-        BattleSession active = CreateLiveBattleSession(definition with { LimitOncePerTurn = preferences.LimitOncePerTurn, DrawOncePerSpell = preferences.DrawOncePerSpell, GuardianFormsEnabled = preferences.GuardianFormsEnabled, GuardianFormResources = preferences.GuardianFormsEnabled ? definition.GuardianFormResources : [] }, preferences.AtbMode);
+        BattleSession active = CreateLiveBattleSession(definition with { LimitOncePerTurn = preferences.LimitOncePerTurn, SelphieCardSlots = preferences.SelphieCardSlots, DrawOncePerSpell = preferences.DrawOncePerSpell, GuardianFormsEnabled = preferences.GuardianFormsEnabled, GuardianFormResources = preferences.GuardianFormsEnabled ? definition.GuardianFormResources : [] }, preferences.AtbMode);
         active.SetDifficulty(preferences.Difficulty);
         active.SetGunbladeMode(preferences.GunbladeMode);
         return active;

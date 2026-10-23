@@ -109,6 +109,10 @@ public sealed partial class GameSession
         {
             throw new InvalidOperationException("Limit once per turn cannot change until the battle ends.");
         }
+        if (preferences.SelphieCardSlots != State.GameplayPreferences.SelphieCardSlots && (State.Battle is not null || State.PendingBattleEncounter is not null))
+        {
+            throw new InvalidOperationException("Selphie card Slots cannot change until the battle ends.");
+        }
         if (preferences.GuardianFormsEnabled != State.GameplayPreferences.GuardianFormsEnabled && (State.Battle is not null || State.PendingBattleEncounter is not null))
         {
             throw new InvalidOperationException("GF Transformations cannot change until the battle ends.");

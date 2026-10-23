@@ -42,6 +42,7 @@ public sealed partial class BattleSession
 
     public void RequestGuardianForm(string actorId, int guardianForceId)
     {
+        RequireNoPendingSlotsDeal();
         RequireNativeEntryReady();
         if (!CanRequestGuardianForm(actorId, guardianForceId))
         {
@@ -96,6 +97,7 @@ public sealed partial class BattleSession
 
     public void QueueGuardianFormAction(string actorId, string targetId, BattleGuardianFormAction action)
     {
+        RequireNoPendingSlotsDeal();
         RequireNativeEntryReady();
         BattleGuardianFormState form = GetGuardianForm(actorId) ?? throw new InvalidOperationException("The actor has no GF form.");
         BattleCombatant actor = GetActor(actorId);

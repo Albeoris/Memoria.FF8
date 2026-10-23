@@ -12,6 +12,7 @@ public sealed partial class BattleSession
 
     public BattleNativeSlotsRoll RollNativeSlots(string actorId)
     {
+        RequireNoPendingSlotsDeal();
         BattleCombatant actor = GetActor(actorId);
         byte crisis = GetNativeLimitLevel(actorId);
         if (Outcome != BattleOutcome.Active || !actor.IsPlayer || !actor.IsReady || actor.NativeLimit is not { Command: 16 } rules || crisis == 0)
@@ -22,9 +23,15 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException("Native Slots roll requires its actual contiguous kernel26/27 tables.");
         }
-        BattleNativeSlotsRoll roll = NativeBattleSlotsRules.Roll(rules, actor.Level, crisis, (byte)NextRandomByte(), (byte)NextRandomByte(), (byte)NextRandomByte(), (byte)NextRandomByte());
-        _ = FindInstalledNativeAction(16, roll.MagicId);
+        BattleNativeSlotsRoll roll = GenerateNativeSlotsRoll(rules, actor.Level, crisis);
         nativeSlotsRolls[actorId] = roll;
+        return roll;
+    }
+
+    private BattleNativeSlotsRoll GenerateNativeSlotsRoll(BattleNativeLimitDefinition rules, int level, byte crisis)
+    {
+        BattleNativeSlotsRoll roll = NativeBattleSlotsRules.Roll(rules, level, crisis, (byte)NextRandomByte(), (byte)NextRandomByte(), (byte)NextRandomByte(), (byte)NextRandomByte());
+        _ = FindInstalledNativeAction(16, roll.MagicId);
         return roll;
     }
 

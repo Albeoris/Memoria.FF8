@@ -164,6 +164,11 @@ public sealed partial class BattleHudController
 
     public UiView BuildView()
     {
+        AttachSlotsPresentation(true);
+        if (CardSlotsOwnsInput)
+        {
+            return view;
+        }
         if (guardianForceLearningMenu is { IsOpen: true })
         {
             return guardianForceLearningMenu.BuildView();
@@ -193,6 +198,11 @@ public sealed partial class BattleHudController
 
     public void Navigate(MenuInput input)
     {
+        if (CardSlotsOwnsInput)
+        {
+            NavigateCardSlots(input);
+            return;
+        }
         if (guardianForceLearningMenu is not null)
         {
             NavigateGuardianForceLearning(input);
@@ -332,6 +342,11 @@ public sealed partial class BattleHudController
 
     public void Attack()
     {
+        if (CardSlotsOwnsInput)
+        {
+            NavigateCardSlots(MenuInput.Confirm);
+            return;
+        }
         RefreshNativeLimitSelection();
         RefreshGuardianFormSelection();
         if (RefreshDrawSelection())
@@ -361,6 +376,18 @@ public sealed partial class BattleHudController
         }
         if (SelectedCommand != BattleAbility.Attack && !SelectingAction && !SelectingTarget)
         {
+            try
+            {
+                if (TryBeginCardSlots(actor))
+                {
+                    return;
+                }
+            }
+            catch (Exception error) when (error is InvalidOperationException or NotSupportedException or InvalidDataException)
+            {
+                ShowCommandError(error.Message);
+                return;
+            }
             selectedMagicTargets.Clear();
             magicCastCount = 1;
             selectedDrawSourceId = null;
@@ -458,6 +485,10 @@ public sealed partial class BattleHudController
 
     public void Choose(int index)
     {
+        if (CardSlotsOwnsInput)
+        {
+            return;
+        }
         RefreshNativeLimitSelection();
         RefreshGuardianFormSelection();
         if (RefreshDrawSelection())
@@ -500,6 +531,10 @@ public sealed partial class BattleHudController
 
     public void SelectParty(string actorId)
     {
+        if (CardSlotsOwnsInput)
+        {
+            return;
+        }
         if (!NativeTimedLimitActive && !CommandMenuHidden && Party.Any(actor => actor.Id == actorId && CanChooseCommand(actor)))
         {
             SelectingGuardianFormAction = false;
@@ -526,6 +561,10 @@ public sealed partial class BattleHudController
 
     public void CycleCommandActor()
     {
+        if (CardSlotsOwnsInput)
+        {
+            return;
+        }
         RefreshNativeLimitSelection();
         if (SelectingGuardianFormAction || NativeTimedLimitActive || CommandMenuHidden || session.Outcome != BattleOutcome.Active)
         {
@@ -541,6 +580,10 @@ public sealed partial class BattleHudController
 
     public void SelectTarget(string targetId, bool confirm)
     {
+        if (CardSlotsOwnsInput)
+        {
+            return;
+        }
         if (RefreshDrawSelection())
         {
             return;
@@ -573,6 +616,10 @@ public sealed partial class BattleHudController
 
     public void AdvanceTurn()
     {
+        if (CardSlotsOwnsInput)
+        {
+            return;
+        }
         if (session.Mode == BattleAtbMode.TurnBased && session.Outcome == BattleOutcome.Active)
         {
             advanceTurn();
@@ -582,6 +629,10 @@ public sealed partial class BattleHudController
 
     public void OpenDebug()
     {
+        if (CardSlotsOwnsInput)
+        {
+            return;
+        }
         SoundRequested?.Invoke(MenuSound.Confirm);
         openDebug();
     }
@@ -606,6 +657,10 @@ public sealed partial class BattleHudController
 
     private void CancelTarget()
     {
+        if (CardSlotsOwnsInput)
+        {
+            return;
+        }
         if (CommandMenuHidden)
         {
             return;

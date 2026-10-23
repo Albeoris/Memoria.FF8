@@ -70,6 +70,7 @@ public sealed partial class MenuController
             {
                 "GF Transformations" when Data.GuardianFormsPreferenceLocked => newGame ? "GF Transformations is unavailable until the battle ends." : "GF Transformations is unavailable until the active or pending battle ends.",
                 "Limit once per turn" when Data.LimitOncePerTurnPreferenceLocked => "Limit once per turn is unavailable until the active or pending battle ends.",
+                "Selphie card Slots" when Data.SelphieCardSlotsPreferenceLocked => "Selphie card Slots is unavailable until the active or pending battle ends.",
                 "Draw once per spell" when Data.DrawOncePerSpellPreferenceLocked => "Draw once per spell is unavailable until the active or pending battle ends.",
                 "Shared magic stock" or "Infinite magic" or "Smart Attack" => Data.MagicPreferencesUnavailableReason,
                 _ => null

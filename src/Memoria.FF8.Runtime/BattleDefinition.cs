@@ -148,6 +148,7 @@ public sealed record BattleDefinition
 {
     public bool GuardianFormsEnabled { get; init; }
     public bool LimitOncePerTurn { get; init; }
+    public bool SelphieCardSlots { get; init; }
     public bool DrawOncePerSpell { get; init; }
     public ImmutableArray<BattleGuardianFormResources> GuardianFormResources { get; init; } = [];
     public NativeCharacterVitals? MagicVitals { get; init; }
@@ -400,6 +401,7 @@ public sealed record BattleSnapshot
     public int NativeLastAllocatedIndex { get; init; } = -1;
     public NativeBattleScriptState NativeScriptState { get; init; } = new();
     public BattleNativeLimitState[] NativeLimits { get; init; } = [];
+    public BattleNativeSlotsDeal? PendingSlotsDeal { get; init; }
     public BattleGuardianForceVital[] GuardianForces { get; init; } = [];
     public BattleGuardianForceCast[] GuardianForceCasts { get; init; } = [];
     public BattleStatusKind[] CustomHandlers { get; init; } = [];
